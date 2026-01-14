@@ -112,3 +112,16 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+# ... (tu código anterior) ...
+
+# CONFIGURACIÓN DE CORREO (MODO CONSOLA / PRUEBA)
+# settings.py (al final)
+
+# CONFIGURACIÓN DE CORREO REAL (GMAIL)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'quintakooxtanil@gmail.com'   # Tu correo real
+EMAIL_HOST_PASSWORD = 'dvdkbizbtrvndxka'# <--- PEGA AQUÍ LAS 16 LETRAS QUE TE DIO GOOGLE
+DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
