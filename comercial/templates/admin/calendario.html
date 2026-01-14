@@ -1,0 +1,102 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+
+<style>
+    /* 1. Hacemos que el contenedor principal ocupe casi toda la pantalla */
+    #content-main {
+        width: 98% !important;
+        max-width: 98% !important;
+        margin: auto;
+    }
+    
+    /* 2. Estilo de la tarjeta para que se vea limpia */
+    .card {
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    /* 3. Estilo de los eventos dentro del calendario */
+    .fc-event { 
+        cursor: pointer; 
+        font-size: 0.9em; /* Letra un poco más grande */
+        padding: 2px 4px;
+    }
+    
+    /* Título del mes más grande y centrado */
+    .fc-toolbar-title { 
+        font-size: 1.8em !important; 
+        text-transform: capitalize; 
+        color: #2c3e50;
+    }
+    
+    /* Encabezados de los días (Lun, Mar...) */
+    .fc-col-header-cell-cushion {
+        font-size: 1.1em;
+        padding: 10px 0 !important;
+        color: #447e9b; /* Tu azul corporativo */
+    }
+    
+    /* Días del mes */
+    .fc-daygrid-day-number {
+        font-size: 1.1em;
+        margin: 5px;
+        color: #555;
+    }
+</style>
+
+<div class="card">
+    <div class="card-header bg-primary text-white" style="padding: 15px;">
+        <h3 class="card-title" style="margin:0; font-size: 1.5rem;">
+            📅 Calendario de Eventos - Quinta Ko'ox Tanil
+        </h3>
+    </div>
+    
+    <div class="card-body" style="padding: 20px;">
+        <div style="margin-bottom: 20px; text-align: right;">
+            <span class="badge badge-success" style="font-size: 14px; padding: 10px 15px;">● Confirmados</span>
+            <span class="badge badge-secondary" style="font-size: 14px; padding: 10px 15px;">● Borradores</span>
+        </div>
+        
+        <div id='calendar'></div>
+    </div>
+</div>
+
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    
+    // Obtenemos los datos que mandó Django
+    var eventos = {{ eventos_json|safe }};
+
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      locale: 'es', // Español
+      
+      // --- AQUÍ EL TRUCO DE LA ALTURA ---
+      height: '80vh', // Ocupa el 80% de la altura de la ventana (Vertical Height)
+      expandRows: true, // Estira las filas para llenar el espacio
+      
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,listMonth'
+      },
+      buttonText: {
+        today: 'Hoy',
+        month: 'Mes',
+        list: 'Lista'
+      },
+      events: eventos, 
+      
+      // Opciones visuales extra
+      dayMaxEvents: true, // Si hay muchos eventos, pone "+2 more"
+      firstDay: 1, // Empezar semana en Lunes (0 es Domingo)
+    });
+
+    calendar.render();
+  });
+</script>
+{% endblock %}

@@ -1,21 +1,21 @@
+import json
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from weasyprint import HTML
 from django.contrib import messages
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.db.models import Sum
+from django.contrib import admin
+from django.core.serializers.json import DjangoJSONEncoder
+from weasyprint import HTML
 from .models import Cotizacion
 
-# --- VISTA PARA VER/IMPRIMIR PDF ---
+# --- 1. VISTA PARA VER/IMPRIMIR PDF ---
 def generar_pdf_cotizacion(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     
-    # CORRECCIÓN AQUÍ: Usamos 'pagos' en lugar de 'pago_set'
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-    
-    # Calculamos el saldo
     saldo_pendiente = cotizacion.precio_final - total_pagado
 
     context = {
@@ -31,7 +31,7 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(response)
     return response
 
-# --- VISTA PARA ENVIAR CORREO ---
+# --- 2. VISTA PARA ENVIAR CORREO ---
 def enviar_cotizacion_email(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     cliente = cotizacion.cliente
@@ -40,7 +40,6 @@ def enviar_cotizacion_email(request, cotizacion_id):
         messages.error(request, f"El cliente {cliente.nombre} no tiene email registrado.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
-    # CORRECCIÓN AQUÍ TAMBIÉN: Usamos 'pagos'
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     saldo_pendiente = cotizacion.precio_final - total_pagado
 
@@ -54,7 +53,6 @@ def enviar_cotizacion_email(request, cotizacion_id):
     html = HTML(string=html_string, base_url=request.build_absolute_uri())
     pdf_file = html.write_pdf()
 
-    # Mensaje del correo más detallado
     asunto = f"Recibo de pago - Evento {cotizacion.fecha_evento}"
     mensaje = f"""
     Hola {cliente.nombre},
@@ -80,3 +78,31 @@ def enviar_cotizacion_email(request, cotizacion_id):
 
     messages.success(request, f"✅ Correo enviado a {cliente.email}")
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
+# --- 3. VISTA DEL CALENDARIO ---
+def ver_calendario(request):
+    cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA')
+    
+    eventos_lista = []
+    for c in cotizaciones:
+        color = '#28a745' if c.estado == 'CONFIRMADA' else '#6c757d'
+        eventos_lista.append({
+            'title': f"{c.cliente.nombre} - {c.producto.nombre}",
+            'start': c.fecha_evento.strftime("%Y-%m-%d"),
+            'color': color,
+            'url': f'/admin/comercial/cotizacion/{c.id}/change/'
+        })
+
+    eventos_json = json.dumps(eventos_lista, cls=DjangoJSONEncoder)
+    return render(request, 'admin/calendario.html', {'eventos_json': eventos_json})
+
+# --- 4. VISTA DEL DASHBOARD (CORREGIDA) ---
+def ver_dashboard_kpis(request):
+    # 1. Obtenemos la información base del admin (títulos, usuario, etc.)
+    context = admin.site.each_context(request)
+    
+    # 2. Le agregamos la lista de Apps (para que sigan saliendo los iconos de abajo)
+    context['app_list'] = admin.site.get_app_list(request)
+    
+    # 3. Renderizamos NUESTRA plantilla directamente
+    return render(request, 'admin/dashboard_kpi.html', context)

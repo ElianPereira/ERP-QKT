@@ -1,0 +1,50 @@
+{% extends "admin/index.html" %}
+{% load static %}
+{% load mis_kpis %} {% block content %}
+    {% calcular_metricas as stats %}
+
+    <h3 style="margin-bottom: 20px; color: #447e9b;">
+        🚀 Resumen Financiero (Mes Actual)
+    </h3>
+
+    <div class="row" style="margin-bottom: 30px;">
+        
+        <div class="col-lg-4 col-md-6 col-sm-12">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h5>💰 Vendido este Mes</h5>
+                    <h2 style="font-weight: bold;">
+                        ${{ stats.total_vendido|floatformat:2 }}
+                    </h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6 col-sm-12">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h5>📅 Eventos Confirmados</h5>
+                    <h2 style="font-weight: bold;">
+                        {{ stats.cantidad_eventos }}
+                    </h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6 col-sm-12">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h5>📈 Ganancia Estimada (30%)</h5>
+                    <h2 style="font-weight: bold;">
+                        ${{ stats.ganancia_estimada|floatformat:2 }}
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    {{ block.super }}
+
+{% endblock %}

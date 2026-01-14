@@ -1,16 +1,16 @@
 from django.db import models
 from django.db.models import Sum
 
-# 1. INSUMOS (Ahora con Personal)
+# 1. INSUMOS (Materiales y Personal)
 class Insumo(models.Model):
     TIPOS = [
-        ('CONSUMIBLE', 'Consumible (Se gasta: Hielo, Comida)'),
-        ('MOBILIARIO', 'Mobiliario (Se renta: Sillas, Mesas)'),
-        ('SERVICIO', 'Personal (RH: Meseros, Seguridad, Staff)') # <--- NUEVO
+        ('CONSUMIBLE', 'Consumible (Se gasta: Hielo, Comida, Desechables)'),
+        ('MOBILIARIO', 'Mobiliario (Se renta: Sillas, Mesas, Manteles)'),
+        ('SERVICIO', 'Personal (RH: Meseros, Seguridad, Staff)')
     ]
 
     nombre = models.CharField(max_length=200)
-    unidad_medida = models.CharField(max_length=50) # Ej: pza, turno, hora
+    unidad_medida = models.CharField(max_length=50) # Ej: pza, turno, hora, bolsa
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2) 
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
@@ -22,7 +22,7 @@ class Insumo(models.Model):
 class Producto(models.Model):
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
-    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
+    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30, help_text="Ej: 0.30 para 30%")
     
     def calcular_costo(self):
         return sum(c.subtotal_costo() for c in self.componentes.all())
@@ -52,7 +52,7 @@ class Cliente(models.Model):
     def __str__(self):
         return self.nombre
 
-# 4. COTIZACIONES
+# 4. COTIZACIONES (Ventas)
 class Cotizacion(models.Model):
     ESTADOS = [
         ('BORRADOR', 'Borrador'),
@@ -77,6 +77,11 @@ class Cotizacion(models.Model):
     def __str__(self):
         return f"Evento {self.cliente} - {self.fecha_evento}"
 
+    # --- CLASE META PARA CORREGIR NOMBRES EN EL ADMIN ---
+    class Meta:
+        verbose_name = "Cotización"
+        verbose_name_plural = "Cotizaciones"
+
 # 5. PAGOS
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia')]
@@ -89,3 +94,5 @@ class Pago(models.Model):
     
     def __str__(self):
         return f"${self.monto} - {self.cotizacion}"
+    
+    
