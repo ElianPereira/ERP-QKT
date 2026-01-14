@@ -1,97 +1,193 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Recibo #{{ cotizacion.id }}</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f5f5f7; padding: 40px; color: #1d1d1f; }
-        .page { max-width: 700px; margin: 0 auto; background: white; padding: 50px; border-radius: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-        .header { display: flex; justify-content: space-between; border-bottom: 1px solid #d2d2d7; padding-bottom: 20px; margin-bottom: 30px; }
-        h1 { font-size: 24px; margin: 0; }
-        .label { font-size: 11px; text-transform: uppercase; color: #86868b; letter-spacing: 1px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th { text-align: left; font-size: 11px; color: #86868b; text-transform: uppercase; border-bottom: 1px solid #d2d2d7; padding: 10px 0; }
-        td { padding: 15px 0; border-bottom: 1px solid #f0f0f0; }
-        .total-row { font-size: 18px; font-weight: bold; border-top: 1px solid #d2d2d7; }
-        .status { padding: 5px 10px; border-radius: 15px; background: #e3f9e5; color: #007d15; font-size: 12px; font-weight: bold; }
-        .payment-row { color: #86868b; font-size: 14px; }
+        @page {
+            size: letter;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        /* --- ESTILOS DEL ENCABEZADO --- */
+        .header {
+            width: 100%;
+            margin-bottom: 40px;
+            border-bottom: 2px solid #447e9b; /* Azul corporativo */
+            padding-bottom: 20px;
+        }
+        .header table {
+            width: 100%;
+        }
+        .logo-img {
+            max-height: 80px; 
+            max-width: 200px;
+        }
+        .company-info {
+            text-align: right;
+            font-size: 12px;
+            color: #666;
+        }
+        .company-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #447e9b;
+        }
+        
+        /* --- TÍTULO --- */
+        .receipt-title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* --- TABLA DE DETALLES DEL CLIENTE --- */
+        .details-box {
+            width: 100%;
+            margin-bottom: 30px;
+            border-collapse: collapse;
+        }
+        .details-box th {
+            text-align: left;
+            padding: 8px;
+            background-color: #f4f4f4;
+            width: 180px;
+            border-bottom: 1px solid #ddd;
+        }
+        .details-box td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        /* --- TABLA DE TOTALES Y PAGOS --- */
+        .total-box {
+            width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-collapse: collapse;
+        }
+        /* Fila del Total General */
+        .total-box th {
+            background-color: #447e9b;
+            color: white;
+            padding: 10px;
+            text-align: right;
+            width: 70%;
+        }
+        .total-box td {
+            padding: 10px;
+            text-align: right;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* Fila de Abonos (Pagado) */
+        .total-box th.subtotal {
+            background-color: #e9ecef; /* Gris clarito */
+            color: #555;
+            font-weight: normal;
+        }
+        .total-box td.abono {
+            color: #28a745; /* Verde para indicar que ya se pagó */
+        }
+
+        /* Fila de Saldo Pendiente (Deuda) */
+        .total-box th.grand-total {
+            background-color: #ffffff;
+            color: #447e9b;
+            font-size: 16px;
+            border-top: 3px solid #447e9b;
+            font-weight: bold;
+        }
+        .total-box td.balance {
+            color: #d9534f; /* Rojo para resaltar la deuda */
+            font-size: 22px;
+            border-top: 3px solid #447e9b;
+        }
+
+        /* --- PIE DE PÁGINA --- */
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <div class="page">
-        <div class="header">
-            <div>
-                <p class="label">RECIBO DE CAJA</p>
-                <h1>#{{ cotizacion.id }}</h1>
-            </div>
-            <div style="text-align: right;">
-                {% if cotizacion.saldo_pendiente <= 0 %}
-                    <span class="status" style="background:#0071e3; color:white;">PAGADO</span>
-                {% else %}
-                    <span class="status">{{ cotizacion.get_estado_display }}</span>
-                {% endif %}
-            </div>
-        </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div>
-                <p class="label">CLIENTE</p>
-                <strong>{{ cotizacion.cliente.nombre }}</strong><br>
-                {{ cotizacion.fecha_evento|date:"d M Y" }}
-            </div>
-            <div style="text-align: right;">
-                <p class="label">PAQUETE</p>
-                <strong>{{ cotizacion.producto.nombre }}</strong>
-            </div>
-        </div>
-
+    <div class="header">
         <table>
-            <thead>
-                <tr>
-                    <th width="70%">Concepto</th>
-                    <th style="text-align: right;">Importe</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>
-                        <strong>{{ cotizacion.producto.nombre }}</strong><br>
-                        <span style="color: #86868b; font-size: 13px;">
-                            {{ cotizacion.producto.descripcion }}
-                        </span>
-                    </td>
-                    <td style="text-align: right;">${{ cotizacion.precio_final }}</td>
-                </tr>
-
-                {% for pago in cotizacion.pagos.all %}
-                <tr class="payment-row">
-                    <td>
-                        <em>Abono: {{ pago.get_metodo_display }} ({{ pago.fecha_pago|date:"d/m/Y" }})</em>
-                    </td>
-                    <td style="text-align: right; color: #d9534f;">- ${{ pago.monto }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
+            <tr>
+                <td>
+                    <img src="{% static 'img/logo.png' %}" class="logo-img">
+                </td>
+                <td class="company-info">
+                    <div class="company-name">Quinta Ko'ox Tanil</div>
+                    Domicilio: Ctra Tanil - Ticimul KM 1.920 Umán, Yuacatán C.P 97390<br>
+		    RFC: PECE010202IA0
+                    Cel: (999) 4457178<br>
+                    Email:quintakooxtanil@gmail.com
+                </td>
+            </tr>
         </table>
-
-        <div style="margin-top: 30px; text-align: right;">
-            <div style="margin-bottom: 10px; color: #86868b;">
-                <span>Importe Total: ${{ cotizacion.precio_final }}</span>
-            </div>
-            
-            <div class="total-row" style="padding-top: 15px;">
-                {% if cotizacion.saldo_pendiente > 0 %}
-                    <span>Saldo Pendiente: </span>
-                    <span style="color: #d9534f;">${{ cotizacion.saldo_pendiente }}</span>
-                {% else %}
-                    <span style="color: #007d15;">¡Cuenta Pagada!</span>
-                {% endif %}
-            </div>
-
-            <p style="color: #86868b; font-size: 12px; margin-top: 50px;">
-                Gracias por su preferencia.
-            </p>
-        </div>
     </div>
+
+    <div class="receipt-title">Recibo de Evento #{{ cotizacion.id }}</div>
+
+    <table class="details-box">
+        <tr>
+            <th>Cliente:</th>
+            <td>{{ cotizacion.cliente.nombre }}</td>
+        </tr>
+        <tr>
+            <th>Paquete Contratado:</th>
+            <td>{{ cotizacion.producto.nombre }}</td>
+        </tr>
+        <tr>
+            <th>Fecha del Evento:</th>
+            <td>{{ cotizacion.fecha_evento|date:"d \d\e F \d\e Y" }}</td>
+        </tr>
+        <tr>
+            <th>Email:</th>
+            <td>{{ cotizacion.cliente.email }}</td>
+        </tr>
+    </table>
+
+    <table class="total-box">
+        <tr>
+            <th>Precio Total del Evento:</th>
+            <td>${{ cotizacion.precio_final }}</td>
+        </tr>
+        
+        <tr>
+            <th class="subtotal">Abonado (Pagos Recibidos):</th>
+            <td class="abono">- ${{ total_pagado }}</td>
+        </tr>
+
+        <tr>
+            <th class="grand-total">SALDO PENDIENTE:</th>
+            <td class="balance">${{ saldo_pendiente }}</td>
+        </tr>
+    </table>
+
+    <div class="footer">
+        Gracias por confiar en Quinta Kooxtanil.<br>
+        Este documento sirve como comprobante de los pagos realizados.
+    </div>
+
 </body>
 </html>

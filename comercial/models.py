@@ -1,20 +1,28 @@
 from django.db import models
 from django.db.models import Sum
 
-# 1. INSUMOS (Hielo, DJ, Mobiliario)
+# 1. INSUMOS (Ahora con Personal)
 class Insumo(models.Model):
+    TIPOS = [
+        ('CONSUMIBLE', 'Consumible (Se gasta: Hielo, Comida)'),
+        ('MOBILIARIO', 'Mobiliario (Se renta: Sillas, Mesas)'),
+        ('SERVICIO', 'Personal (RH: Meseros, Seguridad, Staff)') # <--- NUEVO
+    ]
+
     nombre = models.CharField(max_length=200)
-    unidad_medida = models.CharField(max_length=50) # Ej: kg, horas, pza
+    unidad_medida = models.CharField(max_length=50) # Ej: pza, turno, hora
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2) 
+    cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
 
     def __str__(self):
-        return f"{self.nombre} (${self.costo_unitario})"
+        return f"{self.nombre} ({self.categoria} - Disp: {self.cantidad_stock})"
 
 # 2. PRODUCTOS (Paquetes)
 class Producto(models.Model):
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
-    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30, help_text="Ej: 0.30 para 30%")
+    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
     
     def calcular_costo(self):
         return sum(c.subtotal_costo() for c in self.componentes.all())
@@ -26,7 +34,7 @@ class Producto(models.Model):
     def __str__(self):
         return self.nombre
 
-# Receta del Producto (Qué insumos lleva)
+# Receta del Producto
 class ComponenteProducto(models.Model):
     producto = models.ForeignKey(Producto, related_name='componentes', on_delete=models.CASCADE)
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT)
@@ -44,7 +52,7 @@ class Cliente(models.Model):
     def __str__(self):
         return self.nombre
 
-# 4. COTIZACIONES (Ventas)
+# 4. COTIZACIONES
 class Cotizacion(models.Model):
     ESTADOS = [
         ('BORRADOR', 'Borrador'),

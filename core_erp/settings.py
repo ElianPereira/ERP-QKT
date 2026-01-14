@@ -114,6 +114,13 @@ USE_TZ = True
 STATIC_URL = 'static/'
 # ... (tu código anterior) ...
 
+STATIC_URL = 'static/'
+
+# AGREGA ESTO:
+import os
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
 # CONFIGURACIÓN DE CORREO (MODO CONSOLA / PRUEBA)
 # settings.py (al final)
 
