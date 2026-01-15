@@ -10,7 +10,7 @@ SECRET_KEY = 'django-insecure-cambiar-esto-por-algo-seguro'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 # --- APLICACIONES INSTALADAS ---
 INSTALLED_APPS = [
@@ -104,7 +104,7 @@ DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 JAZZMIN_SETTINGS = {
     "site_title": "ERP Quinta Ko'ox Tanil",
     "site_header": "Sistema de Eventos",
-    "site_brand": "Ko'ox Tanil ERP",
+    "site_brand": "QKT ERP",
     "welcome_sign": "Bienvenido al Panel de Control",
     "copyright": "Quinta Ko'ox Tanil",
     
@@ -134,7 +134,7 @@ JAZZMIN_SETTINGS = {
     ],
     
     "show_sidebar": True,
-    "navigation_expanded": True,
+    "navigation_expanded": False,
     "order_with_respect_to": ["comercial", "auth"], 
 }
 

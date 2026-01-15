@@ -7,6 +7,8 @@ from django.core.mail import EmailMessage
 from django.conf import settings
 from django.db.models import Sum
 from django.contrib import admin
+# --- IMPORTANTE: ESTA ES LA LLAVE DEL CANDADO ---
+from django.contrib.admin.views.decorators import staff_member_required
 from django.core.serializers.json import DjangoJSONEncoder
 from weasyprint import HTML
 from .models import Cotizacion
@@ -96,7 +98,8 @@ def ver_calendario(request):
     eventos_json = json.dumps(eventos_lista, cls=DjangoJSONEncoder)
     return render(request, 'admin/calendario.html', {'eventos_json': eventos_json})
 
-# --- 4. VISTA DEL DASHBOARD (CORREGIDA) ---
+# --- 4. VISTA DEL DASHBOARD (CON CANDADO 🔒) ---
+@staff_member_required # <--- ESTO OBLIGA A INICIAR SESIÓN
 def ver_dashboard_kpis(request):
     # 1. Obtenemos la información base del admin (títulos, usuario, etc.)
     context = admin.site.each_context(request)
