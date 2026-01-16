@@ -8,7 +8,7 @@ from comercial.views import (
     ver_calendario, 
     ver_dashboard_kpis,
     calculadora_insumos,
-    exportar_cierre_excel  # <--- IMPORTANTE: Agregamos esta vista que faltaba
+    exportar_cierre_excel  # <--- 1. AGREGADO: Importamos la vista del Excel
 )
 
 urlpatterns = [
@@ -20,12 +20,12 @@ urlpatterns = [
     path('admin/calendario/', ver_calendario, name='admin_calendario'),
     path('admin/calculadora/', calculadora_insumos, name='admin_calculadora'),
     
-    # ESTA ES LA LÍNEA QUE ARREGLA EL ERROR (NoReverseMatch):
+    # 3. Ruta para Exportar Excel (Esta es la que necesita el botón verde)
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
 
-    # 3. Ruta del Dashboard (El Puente) - ¡ESTA VA ANTES DEL ADMIN!
+    # 4. Ruta del Dashboard (El Puente) - ¡ESTA VA ANTES DEL ADMIN!
     path('admin/', ver_dashboard_kpis, name='admin_dashboard_custom'),
 
-    # 4. Admin normal de Django
+    # 5. Admin normal de Django
     path('admin/', admin.site.urls),
 ]
