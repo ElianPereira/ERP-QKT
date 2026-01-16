@@ -2,13 +2,14 @@
 nixPkgs = [
     "python3",
     "gcc",
-    "zlib",
-    "libjpeg",
-    "openjpeg",
+    "glib",
     "gdk-pixbuf",
+    "cairo",
     "pango",
     "harfbuzz",
-    "cairo",
-    "gobject-introspection",
-    "ghostscript"
+    "fontconfig",
+    "libffi",
+    "zlib",
+    "libjpeg",
+    "openjpeg"
 ]
