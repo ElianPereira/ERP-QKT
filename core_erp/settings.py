@@ -1,20 +1,23 @@
+from decouple import config
 from pathlib import Path
 import os
+import dj_database_url # <--- Agregado para el futuro deploy
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-cambiar-esto-por-algo-seguro'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ['*']
+# CSRF_TRUSTED_ORIGINS = ['http://192.168.83.133:8000'] # Puedes descomentar esto si lo necesitas local
 
 # --- APLICACIONES INSTALADAS ---
 INSTALLED_APPS = [
-    'jazzmin',              # <--- 1. JAZZMIN SIEMPRE VA PRIMERO
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -22,6 +25,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
+    # --- NUEVA APP PARA FORMATO DE NÚMEROS (COMAS Y PUNTOS) ---
+    'django.contrib.humanize', 
+
     # Mis Apps
     'comercial',
     
@@ -31,6 +37,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # <--- RECOMENDADO: Agregado para ver estilos en deploy
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -60,12 +67,16 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core_erp.wsgi.application'
 
 # Database
+# Configuración híbrida: Si hay URL (nube) usa esa, si no, usa SQLite local
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+# Esto ayuda al deploy futuro sin romper lo local
+db_from_env = dj_database_url.config(conn_max_age=500)
+DATABASES['default'].update(db_from_env)
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -81,11 +92,20 @@ TIME_ZONE = 'America/Merida'
 USE_I18N = True
 USE_TZ = True
 
+# --- FORMATO DE NÚMEROS (IMPORTANTE: ESTO PONE LAS COMAS) ---
+USE_L10N = False 
+USE_THOUSAND_SEPARATOR = True
+DECIMAL_SEPARATOR = '.'
+THOUSAND_SEPARATOR = ','
+NUMBER_GROUPING = 3
+
 # --- ARCHIVOS ESTÁTICOS (CSS, JS, IMÁGENES) ---
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Necesario para deploy
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage' # Necesario para deploy
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -95,9 +115,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-# Asegúrate de poner aquí tus datos reales si los cambiaste
-EMAIL_HOST_USER = 'quintakooxtanil@gmail.com' 
-EMAIL_HOST_PASSWORD = 'dvdkbizbtrvndxka' # <--- OJO: Revisa que esta sea tu clave de aplicación
+EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 
 # --- CONFIGURACIÓN DE JAZZMIN (DISEÑO DEL PANEL) ---
@@ -107,11 +126,8 @@ JAZZMIN_SETTINGS = {
     "site_brand": "QKT ERP",
     "welcome_sign": "Bienvenido al Panel de Control",
     "copyright": "Quinta Ko'ox Tanil",
-    
     "site_logo": "img/logo.png",
     "login_logo": "img/logo.png",
-    
-    # Iconos del menú lateral
     "icons": {
         "auth": "fas fa-users-cog",
         "auth.user": "fas fa-user",
@@ -122,23 +138,17 @@ JAZZMIN_SETTINGS = {
         "comercial.Pago": "fas fa-hand-holding-usd",
         "comercial.Producto": "fas fa-box-open",
     },
-    
-    # Menú superior (Top Menu)
     "topmenu_links": [
         {"name": "Inicio",  "url": "admin:index", "permissions": ["auth.view_user"]},
-        
-        # --- AQUÍ ESTÁ EL BOTÓN DEL CALENDARIO ---
-        {"name": "📅 Ver Calendario", "url": "admin_calendario"},
-        
+        {"name": "📅 Ver Calendario", "url": "ver_calendario"}, # Corregí la URL name a 'ver_calendario'
         {"name": "Ver Sitio", "url": "/"},
     ],
-    
     "show_sidebar": True,
     "navigation_expanded": False,
     "order_with_respect_to": ["comercial", "auth"], 
 }
 
 JAZZMIN_UI_TWEAKS = {
-    "theme": "flatly", # Tema limpio y moderno
+    "theme": "flatly",
     "dark_mode_theme": None,
 }

@@ -1,5 +1,5 @@
 {% load static %}
-<!DOCTYPE html>
+{% load humanize %} <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -74,42 +74,56 @@
             border: 1px solid #ddd;
             border-collapse: collapse;
         }
-        /* Fila del Total General */
+        
         .total-box th {
-            background-color: #447e9b;
-            color: white;
-            padding: 10px;
+            padding: 8px;
             text-align: right;
             width: 70%;
-        }
-        .total-box td {
-            padding: 10px;
-            text-align: right;
-            font-size: 18px;
-            font-weight: bold;
-            color: #333;
-        }
-        
-        /* Fila de Abonos (Pagado) */
-        .total-box th.subtotal {
-            background-color: #e9ecef; /* Gris clarito */
             color: #555;
             font-weight: normal;
         }
-        .total-box td.abono {
-            color: #28a745; /* Verde para indicar que ya se pagó */
+        .total-box td {
+            padding: 8px;
+            text-align: right;
+            font-weight: bold;
+            color: #333;
         }
 
-        /* Fila de Saldo Pendiente (Deuda) */
-        .total-box th.grand-total {
-            background-color: #ffffff;
-            color: #447e9b;
+        /* Estilos específicos para filas clave */
+        .row-total-final th {
+            background-color: #447e9b;
+            color: white;
+            font-weight: bold;
+            padding: 10px;
+        }
+        .row-total-final td {
+            font-size: 18px;
+            padding: 10px;
+        }
+
+        .row-impuesto {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .row-retencion {
+            font-size: 0.9em;
+            color: #dc3545; /* Rojo para retenciones */
+        }
+
+        .abono {
+            color: #28a745;
+        }
+        
+        .balance-th {
+            background-color: #ffffff !important;
+            color: #447e9b !important;
             font-size: 16px;
             border-top: 3px solid #447e9b;
-            font-weight: bold;
+            font-weight: bold !important;
         }
-        .total-box td.balance {
-            color: #d9534f; /* Rojo para resaltar la deuda */
+        .balance-td {
+            color: #d9534f;
             font-size: 22px;
             border-top: 3px solid #447e9b;
         }
@@ -137,10 +151,10 @@
                 </td>
                 <td class="company-info">
                     <div class="company-name">Quinta Ko'ox Tanil</div>
-                    Domicilio: Ctra Tanil - Ticimul KM 1.920 Umán, Yuacatán C.P 97390<br>
-		    RFC: PECE010202IA0
+                    Domicilio: Ctra Tanil - Ticimul KM 1.920 Umán, Yucatán C.P 97390<br>
+                    RFC: PECE010202IA0<br>
                     Cel: (999) 4457178<br>
-                    Email:quintakooxtanil@gmail.com
+                    Email: quintakooxtanil@gmail.com
                 </td>
             </tr>
         </table>
@@ -152,6 +166,16 @@
         <tr>
             <th>Cliente:</th>
             <td>{{ cotizacion.cliente.nombre }}</td>
+        </tr>
+        <tr>
+            <th>Régimen Fiscal:</th>
+            <td>
+                {% if cotizacion.cliente.tipo_persona == 'FISICA' %}
+                    Persona Física
+                {% else %}
+                    Persona Moral
+                {% endif %}
+            </td>
         </tr>
         <tr>
             <th>Paquete Contratado:</th>
@@ -168,19 +192,39 @@
     </table>
 
     <table class="total-box">
+        
         <tr>
-            <th>Precio Total del Evento:</th>
-            <td>${{ cotizacion.precio_final }}</td>
+            <th>Subtotal:</th>
+            <td>${{ cotizacion.subtotal|floatformat:2|intcomma }}</td>
+        </tr>
+
+        {% if cotizacion.iva > 0 %}
+        <tr class="row-impuesto">
+            <th>(+) IVA (16%):</th>
+            <td>${{ cotizacion.iva|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endif %}
+
+        {% if cotizacion.retencion_isr > 0 %}
+        <tr class="row-retencion">
+            <th>(-) Retención ISR (1.25%):</th>
+            <td>- ${{ cotizacion.retencion_isr|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endif %}
+
+        <tr class="row-total-final">
+            <th>PRECIO TOTAL NETO:</th>
+            <td>${{ cotizacion.precio_final|floatformat:2|intcomma }}</td>
         </tr>
         
         <tr>
-            <th class="subtotal">Abonado (Pagos Recibidos):</th>
-            <td class="abono">- ${{ total_pagado }}</td>
+            <th style="background-color: #e9ecef;">Abonado (Pagos Recibidos):</th>
+            <td class="abono">- ${{ total_pagado|floatformat:2|intcomma }}</td>
         </tr>
 
         <tr>
-            <th class="grand-total">SALDO PENDIENTE:</th>
-            <td class="balance">${{ saldo_pendiente }}</td>
+            <th class="balance-th">SALDO PENDIENTE:</th>
+            <td class="balance-td">${{ saldo_pendiente|floatformat:2|intcomma }}</td>
         </tr>
     </table>
 

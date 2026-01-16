@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.contrib import messages
 from django.db.models import Sum
-from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, Pago
+from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, Pago, Gasto
 
 # --- 1. INSUMOS ---
 @admin.register(Insumo)
@@ -23,32 +23,80 @@ class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline]
     list_display = ('nombre', 'calcular_costo', 'sugerencia_precio')
 
-# --- 3. COTIZACIONES (Cerebro del ERP) ---
+# --- 3. CLIENTES (¡AQUÍ ESTÁ EL QUE FALTABA!) ---
+@admin.register(Cliente)
+class ClienteAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'tipo_persona', 'rfc', 'email', 'telefono')
+    list_filter = ('tipo_persona',)
+    search_fields = ('nombre', 'rfc')
+    fieldsets = (
+        ('Datos Generales', {
+            'fields': ('nombre', 'email', 'telefono')
+        }),
+        ('Datos Fiscales', {
+            'fields': ('tipo_persona', 'rfc'),
+            'description': 'Selecciona "Moral" para activar retenciones de ISR en las cotizaciones.'
+        }),
+    )
+
+# --- 4. COTIZACIONES (CON IMPUESTOS) ---
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
-    list_display = ('cliente', 'producto', 'fecha_evento', 'estado', 'precio_final', 'acciones')
-    list_filter = ('estado', 'fecha_evento')
+    list_display = ('cliente', 'producto', 'fecha_evento', 'estado', 'subtotal', 'precio_final', 'acciones')
+    list_filter = ('estado', 'requiere_factura', 'fecha_evento')
     search_fields = ('cliente__nombre',)
     
-    def save_model(self, request, obj, form, change):
-        estado_anterior = None
-        if obj.pk:
-            estado_anterior = Cotizacion.objects.get(pk=obj.pk).estado
+    # Formulario organizado
+    fieldsets = (
+        ('Datos del Evento', {
+            'fields': ('cliente', 'producto', 'fecha_evento', 'estado')
+        }),
+        ('Finanzas', {
+            'fields': ('subtotal', 'requiere_factura') 
+        }),
+        ('Cálculo Fiscal (Automático)', {
+            'fields': ('iva', 'retencion_isr', 'retencion_iva', 'precio_final') 
+        }),
+    )
+    
+    readonly_fields = ('iva', 'retencion_isr', 'retencion_iva', 'precio_final')
 
-        # === CASO A: CONFIRMANDO VENTA ===
-        if obj.estado == 'CONFIRMADA' and estado_anterior != 'CONFIRMADA':
+    def save_model(self, request, obj, form, change):
+        # 1. Recuperar versión anterior
+        cotizacion_anterior = None
+        if change:
+            try:
+                cotizacion_anterior = Cotizacion.objects.get(pk=obj.pk)
+            except Cotizacion.DoesNotExist:
+                pass
+
+        # === LÓGICA DE INVENTARIO ===
+        recalcular_stock = False
+        devolver_stock_anterior = False
+
+        if obj.estado == 'CONFIRMADA':
+            if not cotizacion_anterior or cotizacion_anterior.estado != 'CONFIRMADA':
+                recalcular_stock = True
+            elif cotizacion_anterior and cotizacion_anterior.producto != obj.producto:
+                devolver_stock_anterior = True
+                recalcular_stock = True
+
+        if devolver_stock_anterior:
+            for componente in cotizacion_anterior.producto.componentes.all():
+                if componente.insumo.categoria == 'CONSUMIBLE':
+                    componente.insumo.cantidad_stock += componente.cantidad
+                    componente.insumo.save()
+            messages.info(request, f"🔄 Stock devuelto del paquete anterior: {cotizacion_anterior.producto.nombre}")
+
+        if recalcular_stock:
+            errores_logistica = []
             producto = obj.producto
-            errores_logistica = [] # Lista de problemas (falta silla o falta mesero)
             
             for componente in producto.componentes.all():
                 insumo = componente.insumo
                 cantidad_necesaria = componente.cantidad
 
-                # LÓGICA 1: RECURSOS REUTILIZABLES (Mobiliario Y Personal)
-                # Ambos dependen de la FECHA. No se gastan, se "ocupan".
                 if insumo.categoria in ['MOBILIARIO', 'SERVICIO']:
-                    
-                    # Buscamos eventos CONFIRMADOS en la MISMA FECHA
                     otros_eventos = Cotizacion.objects.filter(
                         fecha_evento=obj.fecha_evento,
                         estado='CONFIRMADA'
@@ -63,32 +111,27 @@ class CotizacionAdmin(admin.ModelAdmin):
                     disponible_real = insumo.cantidad_stock - usado_ese_dia
                     
                     if disponible_real < cantidad_necesaria:
-                        errores_logistica.append(f"{insumo.nombre} (Tienes: {insumo.cantidad_stock}, Ocupados hoy: {usado_ese_dia}, Faltan: {cantidad_necesaria - disponible_real})")
+                        errores_logistica.append(f"{insumo.nombre} (Stock: {insumo.cantidad_stock}, Usado hoy: {usado_ese_dia}, Faltan: {cantidad_necesaria - disponible_real})")
 
-                # LÓGICA 2: CONSUMIBLES (Se restan para siempre)
                 elif insumo.categoria == 'CONSUMIBLE':
                     if insumo.cantidad_stock < cantidad_necesaria:
-                        messages.warning(request, f"⚠️ OJO: {insumo.nombre} quedó en negativo en el almacén.")
+                        messages.warning(request, f"⚠️ OJO: {insumo.nombre} quedó en negativo.")
                     
                     insumo.cantidad_stock -= cantidad_necesaria
                     insumo.save()
 
-            # Si hubo errores de logística (Personal o Muebles), DETENEMOS TODO
             if errores_logistica:
                 messages.error(request, f"⛔ NO SE PUEDE CONFIRMAR: Falta logística para el {obj.fecha_evento}: {', '.join(errores_logistica)}")
                 obj.estado = 'BORRADOR' 
             else:
-                messages.success(request, "✅ Evento Confirmado. Recursos asignados y stock actualizado.")
+                messages.success(request, f"✅ Evento Confirmado: {producto.nombre}. Recursos asignados.")
 
-        # === CASO B: CANCELANDO VENTA ===
-        elif obj.estado == 'CANCELADA' and estado_anterior == 'CONFIRMADA':
-            # Solo devolvemos los consumibles. 
-            # El personal y muebles se liberan solos al cambiar el estado (ya no salen en la búsqueda de 'CONFIRMADA').
-            for componente in obj.producto.componentes.all():
+        elif cotizacion_anterior and cotizacion_anterior.estado == 'CONFIRMADA' and obj.estado != 'CONFIRMADA':
+            for componente in cotizacion_anterior.producto.componentes.all():
                 if componente.insumo.categoria == 'CONSUMIBLE':
                     componente.insumo.cantidad_stock += componente.cantidad
                     componente.insumo.save()
-            messages.info(request, "ℹ️ Evento cancelado. Consumibles devueltos. Personal y Mobiliario liberados.")
+            messages.info(request, "ℹ️ Evento cancelado. Consumibles devueltos.")
 
         super().save_model(request, obj, form, change)
 
@@ -103,3 +146,28 @@ class CotizacionAdmin(admin.ModelAdmin):
             )
         return "Guarda primero"
     acciones.allow_tags = True
+
+# --- 5. PAGOS ---
+@admin.register(Pago)
+class PagoAdmin(admin.ModelAdmin):
+    list_display = ('cotizacion', 'monto', 'metodo', 'fecha_pago')
+    list_filter = ('fecha_pago', 'metodo')
+
+# --- 6. GASTOS ---
+@admin.register(Gasto)
+class GastoAdmin(admin.ModelAdmin):
+    list_display = ('fecha_gasto', 'proveedor', 'descripcion', 'monto', 'categoria', 'tiene_xml')
+    list_filter = ('fecha_gasto', 'categoria')
+    search_fields = ('descripcion', 'proveedor', 'uuid')
+    date_hierarchy = 'fecha_gasto'
+    
+    readonly_fields = ('uuid', 'proveedor', 'monto', 'fecha_gasto', 'descripcion')
+
+    def tiene_xml(self, obj):
+        return "✅ Sí" if obj.archivo_xml else "📝 Manual"
+    tiene_xml.short_description = "Tipo Registro"
+    
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.archivo_xml:
+            return self.readonly_fields
+        return ('uuid', 'proveedor', 'fecha_gasto', 'descripcion', 'monto') if obj and obj.archivo_xml else ('uuid',)

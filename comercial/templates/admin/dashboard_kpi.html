@@ -1,49 +1,96 @@
 {% extends "admin/index.html" %}
 {% load static %}
-{% load mis_kpis %} {% block content %}
-    {% calcular_metricas as stats %}
+{% load humanize %} {% load mis_kpis %} 
 
-    <h3 style="margin-bottom: 20px; color: #447e9b;">
-        🚀 Resumen Financiero (Mes Actual)
-    </h3>
+{% block content %}
+    
+    {% if es_jefe %}
+        <h3 style="margin-bottom: 20px; color: #447e9b;">
+            🚀 Finanzas de {% now "F Y" %}
+        </h3>
+    {% else %}
+        <h3 style="margin-bottom: 20px; color: #6c757d;">
+            👋 Bienvenido al Panel Operativo
+        </h3>
+    {% endif %}
 
-    <div class="row" style="margin-bottom: 30px;">
-        
-        <div class="col-lg-4 col-md-6 col-sm-12">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <h5>💰 Vendido este Mes</h5>
-                    <h2 style="font-weight: bold;">
-                        ${{ stats.total_vendido|floatformat:2 }}
-                    </h2>
+    {% if es_jefe %}
+        {% calcular_metricas as stats %}
+        <div class="row" style="margin-bottom: 30px;">
+            
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card bg-info text-white">
+                    <div class="card-body text-center">
+                        <h5>💰 Ingresos (Ventas)</h5>
+                        <h2 style="font-weight: bold;">
+                            ${{ stats.total_vendido|floatformat:2|intcomma }}
+                        </h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card text-white" style="background-color: #dc3545;"> 
+                    <div class="card-body text-center">
+                        <h5>💸 Gastos Reales</h5>
+                        <h2 style="font-weight: bold;">
+                            - ${{ stats.total_gastado|floatformat:2|intcomma }}
+                        </h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h5>📈 Utilidad Neta</h5>
+                        <h2 style="font-weight: bold;">
+                            ${{ stats.utilidad_real|floatformat:2|intcomma }}
+                        </h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card bg-secondary text-white">
+                    <div class="card-body text-center">
+                        <h5>📅 Eventos Confirmados</h5>
+                        <h2 style="font-weight: bold;">
+                            {{ stats.cantidad_eventos }}
+                        </h2>
+                    </div>
                 </div>
             </div>
         </div>
+    {% endif %}
 
-        <div class="col-lg-4 col-md-6 col-sm-12">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h5>📅 Eventos Confirmados</h5>
-                    <h2 style="font-weight: bold;">
-                        {{ stats.cantidad_eventos }}
-                    </h2>
+    <hr>
+
+    <div class="row">
+        <div class="col-md-12"> <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title">⚡ Acciones Rápidas</h3>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4 col-md-6 col-sm-12">
-            <div class="card bg-warning text-dark">
-                <div class="card-body text-center">
-                    <h5>📈 Ganancia Estimada (30%)</h5>
-                    <h2 style="font-weight: bold;">
-                        ${{ stats.ganancia_estimada|floatformat:2 }}
-                    </h2>
+                <div class="card-body">
+                    <a href="{% url 'admin:comercial_cotizacion_add' %}" class="btn btn-app">
+                        <i class="fas fa-file-invoice-dollar"></i> Nueva Cotización
+                    </a>
+                    <a href="{% url 'admin_calculadora' %}" class="btn btn-app">
+                        <i class="fas fa-calculator"></i> Calculadora
+                    </a>
+                    
+                    {% if es_jefe %}
+                        <a href="{% url 'admin:comercial_gasto_add' %}" class="btn btn-app">
+                            <i class="fas fa-file-invoice"></i> Registrar Gasto
+                        </a>
+                        <a href="{% url 'exportar_cierre_excel' %}" class="btn btn-app" style="background-color: #28a745; color: white;">
+                            <i class="fas fa-file-excel"></i> Descargar Cierre
+                        </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
-
-    <hr>
 
     {{ block.super }}
 

@@ -1,0 +1,77 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<div class="col-12">
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card card-primary">
+                <div class="card-header" style="background-color: #447e9b; color: white;">
+                    <h3 class="card-title">🧮 Parámetros del Evento</h3>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="card-body">
+                        {% for field in form %}
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="font-weight: bold;">{{ field.label }}</label>
+                            {{ field }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-success btn-block" style="width: 100%; font-size: 1.1em; padding: 10px;">
+                            🚀 Calcular Insumos
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            {% if resultado %}
+            <div class="card card-outline card-success" style="border-top: 3px solid #28a745;">
+                <div class="card-header">
+                    <h3 class="card-title" style="font-weight: bold;">📦 Lista de Compras Sugerida</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-glass-cheers"></i> Estimación de Consumo</h5>
+                        Se estiman <strong>{{ resultado.total_tragos_estimados }}</strong> tragos totales para este evento.
+                    </div>
+
+                    <table class="table table-bordered table-striped" style="width: 100%; margin-top: 15px;">
+                        <thead style="background-color: #f4f6f9;">
+                            <tr>
+                                <th>Insumo</th>
+                                <th style="width: 20%; text-align: center;">Cantidad</th>
+                                <th>Notas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in resultado.insumos %}
+                            <tr>
+                                <td style="font-weight: bold;">{{ item.nombre }}</td>
+                                <td style="text-align: center; color: #28a745; font-weight: bold; font-size: 1.2em;">
+                                    {{ item.cantidad }}
+                                </td>
+                                <td style="color: #666; font-size: 0.9em;">{{ item.nota }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    <br>
+                    <small class="text-muted">* Estos cálculos son aproximados basados en promedios de consumo.</small>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <h5>👈 Ingresa los datos</h5>
+                Configura los parámetros a la izquierda y presiona "Calcular" para ver la lista de compras.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

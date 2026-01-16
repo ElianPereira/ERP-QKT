@@ -1,28 +1,34 @@
+import xml.etree.ElementTree as ET
+from decimal import Decimal
 from django.db import models
 from django.db.models import Sum
+from django.core.exceptions import ValidationError
 
-# 1. INSUMOS (Materiales y Personal)
+# ==========================================
+# 1. INSUMOS
+# ==========================================
 class Insumo(models.Model):
     TIPOS = [
         ('CONSUMIBLE', 'Consumible (Se gasta: Hielo, Comida, Desechables)'),
         ('MOBILIARIO', 'Mobiliario (Se renta: Sillas, Mesas, Manteles)'),
         ('SERVICIO', 'Personal (RH: Meseros, Seguridad, Staff)')
     ]
-
     nombre = models.CharField(max_length=200)
-    unidad_medida = models.CharField(max_length=50) # Ej: pza, turno, hora, bolsa
+    unidad_medida = models.CharField(max_length=50) 
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2) 
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
 
     def __str__(self):
-        return f"{self.nombre} ({self.categoria} - Disp: {self.cantidad_stock})"
+        return f"{self.nombre} ({self.categoria})"
 
-# 2. PRODUCTOS (Paquetes)
+# ==========================================
+# 2. PRODUCTOS
+# ==========================================
 class Producto(models.Model):
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
-    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30, help_text="Ej: 0.30 para 30%")
+    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
     
     def calcular_costo(self):
         return sum(c.subtotal_costo() for c in self.componentes.all())
@@ -34,7 +40,6 @@ class Producto(models.Model):
     def __str__(self):
         return self.nombre
 
-# Receta del Producto
 class ComponenteProducto(models.Model):
     producto = models.ForeignKey(Producto, related_name='componentes', on_delete=models.CASCADE)
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT)
@@ -43,16 +48,28 @@ class ComponenteProducto(models.Model):
     def subtotal_costo(self):
         return self.insumo.costo_unitario * self.cantidad
 
+# ==========================================
 # 3. CLIENTES
+# ==========================================
 class Cliente(models.Model):
+    TIPOS_FISCALES = [
+        ('FISICA', 'Persona Física (Juan Pérez)'),
+        ('MORAL', 'Persona Moral (Empresa S.A. de C.V.)'),
+    ]
+    
     nombre = models.CharField(max_length=200)
+    tipo_persona = models.CharField(max_length=10, choices=TIPOS_FISCALES, default='FISICA', help_text="Define si lleva Retenciones")
     email = models.EmailField(blank=True)
     telefono = models.CharField(max_length=20, blank=True)
+    rfc = models.CharField(max_length=13, blank=True, help_text="Opcional para facturar")
     
     def __str__(self):
-        return self.nombre
+        tipo = "(Física)" if self.tipo_persona == 'FISICA' else "(Moral)"
+        return f"{self.nombre} {tipo}"
 
-# 4. COTIZACIONES (Ventas)
+# ==========================================
+# 4. COTIZACIONES (CORREGIDO: SOLO RETENCIÓN ISR)
+# ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [
         ('BORRADOR', 'Borrador'),
@@ -63,9 +80,50 @@ class Cotizacion(models.Model):
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
     fecha_evento = models.DateField()
-    precio_final = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    # --- CAMPOS FISCALES ---
+    requiere_factura = models.BooleanField(default=False, help_text="Si se marca, calcula IVA y Retenciones")
+    
+    # IMPORTANTE: default=0 para que no te vuelva a pedir migración complicada
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Precio del servicio ANTES de impuestos")
+    
+    # Desglose 
+    iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
+    retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
+    retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
+    
+    precio_final = models.DecimalField(max_digits=10, decimal_places=2, editable=False, help_text="Total a Pagar (Neto)")
+    
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        # 1. Obtenemos el subtotal como base decimal
+        # (Si es nuevo y viene en 0, usamos el precio sugerido del producto si quisieras, pero mejor respetamos lo que escribas)
+        base = Decimal(self.subtotal)
+        
+        if self.requiere_factura:
+            # A. IVA General (16%)
+            self.iva = base * Decimal('0.16')
+            
+            # B. Retenciones (Solo ISR)
+            if self.cliente.tipo_persona == 'MORAL':
+                self.retencion_isr = base * Decimal('0.0125') # 1.25% ISR (RESICO)
+                self.retencion_iva = Decimal('0.00')          # SIN Retención de IVA (Corrección solicitada)
+            else:
+                self.retencion_isr = Decimal('0.00')
+                self.retencion_iva = Decimal('0.00')
+        else:
+            # Si no quiere factura, impuestos en cero
+            self.iva = Decimal('0.00')
+            self.retencion_isr = Decimal('0.00')
+            self.retencion_iva = Decimal('0.00')
+            
+        # 2. Cálculo Final
+        # Total = Subtotal + IVA - Retenciones
+        self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
+        
+        super().save(*args, **kwargs)
 
     def total_pagado(self):
         resultado = self.pagos.aggregate(Sum('monto'))['monto__sum']
@@ -75,17 +133,18 @@ class Cotizacion(models.Model):
         return self.precio_final - self.total_pagado()
 
     def __str__(self):
-        return f"Evento {self.cliente} - {self.fecha_evento}"
+        factura = " (Factura)" if self.requiere_factura else ""
+        return f"{self.cliente} - ${self.precio_final}{factura}"
 
-    # --- CLASE META PARA CORREGIR NOMBRES EN EL ADMIN ---
     class Meta:
         verbose_name = "Cotización"
         verbose_name_plural = "Cotizaciones"
 
+# ==========================================
 # 5. PAGOS
+# ==========================================
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia')]
-    
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     fecha_pago = models.DateField(auto_now_add=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2)
@@ -93,6 +152,70 @@ class Pago(models.Model):
     referencia = models.CharField(max_length=100, blank=True)
     
     def __str__(self):
-        return f"${self.monto} - {self.cotizacion}"
-    
-    
+        return f"${self.monto}"
+
+# ==========================================
+# 6. GASTOS (CON LECTOR XML)
+# ==========================================
+class Gasto(models.Model):
+    CATEGORIAS = [
+        ('PROVEEDOR', 'Pago a Proveedor (Hielo, Comida)'),
+        ('NOMINA', 'Pago de Nómina (Meseros, Staff)'),
+        ('SERVICIOS', 'Servicios (Luz, Agua, Gas)'),
+        ('MANTENIMIENTO', 'Mantenimiento Quinta'),
+        ('IMPUESTOS', 'Pago de Impuestos'),
+        ('OTRO', 'Otros Gastos'),
+    ]
+
+    fecha_gasto = models.DateField(blank=True, null=True, help_text="Si subes XML, se llena sola")
+    descripcion = models.CharField(max_length=255, blank=True, null=True, help_text="Se llena sola con el XML")
+    monto = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Se llena sola con el XML")
+    categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='PROVEEDOR')
+    proveedor = models.CharField(max_length=200, blank=True, help_text="Nombre del Emisor (del XML)")
+    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True)
+    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True)
+    uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
+    evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
+
+    def clean(self):
+        if self.archivo_xml:
+            try:
+                if self.archivo_xml.closed:
+                    self.archivo_xml.open() 
+                self.archivo_xml.seek(0)
+                tree = ET.parse(self.archivo_xml)
+                root = tree.getroot()
+                ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
+                if 'http://www.sat.gob.mx/cfd/3' in root.tag: ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+
+                self.monto = root.attrib.get('Total', 0)
+                fecha_str = root.attrib.get('Fecha', '')
+                if fecha_str: self.fecha_gasto = fecha_str.split('T')[0] 
+                
+                emisor = root.find('cfdi:Emisor', ns)
+                if emisor is not None: self.proveedor = emisor.attrib.get('Nombre', '')
+
+                conceptos = root.find('cfdi:Conceptos', ns)
+                if conceptos is not None:
+                    primer_concepto = conceptos.find('cfdi:Concepto', ns)
+                    if primer_concepto is not None:
+                        desc = primer_concepto.attrib.get('Descripcion', '')
+                        self.descripcion = (desc[:250] + '...') if len(desc) > 250 else desc
+
+                complemento = root.find('cfdi:Complemento', ns)
+                if complemento is not None:
+                    ns_tfd = {'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'}
+                    timbre = complemento.find('tfd:TimbreFiscalDigital', ns_tfd)
+                    if timbre is not None: self.uuid = timbre.attrib.get('UUID', '').upper()
+            except Exception as e:
+                raise ValidationError(f"Error XML: {e}")
+        else:
+            if not self.fecha_gasto or not self.monto:
+                raise ValidationError("Llena los campos manuales.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean() 
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"${self.monto} - {self.proveedor}"

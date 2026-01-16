@@ -1,12 +1,13 @@
 from django.contrib import admin
 from django.urls import path
 
-# IMPORTAMOS LAS 4 FUNCIONES QUE DEFINISTE EN VIEWS.PY
+# IMPORTAMOS TODAS LAS VISTAS (Incluida la nueva calculadora)
 from comercial.views import (
     generar_pdf_cotizacion, 
     enviar_cotizacion_email, 
     ver_calendario, 
-    ver_dashboard_kpis
+    ver_dashboard_kpis,
+    calculadora_insumos # <--- Agregada
 )
 
 urlpatterns = [
@@ -14,11 +15,11 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/pdf/', generar_pdf_cotizacion, name='cotizacion_pdf'),
     path('cotizacion/<int:cotizacion_id>/email/', enviar_cotizacion_email, name='cotizacion_email'),
 
-    # 2. Ruta del Calendario
+    # 2. Rutas de Herramientas Admin
     path('admin/calendario/', ver_calendario, name='admin_calendario'),
+    path('admin/calculadora/', calculadora_insumos, name='admin_calculadora'), # <--- NUEVA RUTA
 
-    # 3. Ruta del Dashboard (El Puente) - ¡ESTA ES CLAVE!
-    # Al poner esto ANTES de admin.site.urls, forzamos a usar tu dashboard nuevo
+    # 3. Ruta del Dashboard (El Puente) - ¡ESTA VA ANTES DEL ADMIN!
     path('admin/', ver_dashboard_kpis, name='admin_dashboard_custom'),
 
     # 4. Admin normal de Django
