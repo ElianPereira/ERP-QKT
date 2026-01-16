@@ -152,3 +152,6 @@ JAZZMIN_UI_TWEAKS = {
     "theme": "flatly",
     "dark_mode_theme": None,
 }
+CSRF_TRUSTED_ORIGINS = [
+    'https://erp-qkt-production.up.railway.app',
+]
