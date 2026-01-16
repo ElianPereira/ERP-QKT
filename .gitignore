@@ -1,0 +1,14 @@
+# Archivos de sistema y entorno virtual
+venv/
+__pycache__/
+*.pyc
+
+# Base de datos local (¡No subir!)
+db.sqlite3
+
+# Archivos de entorno (Claves secretas)
+.env
+
+# Archivos estáticos y media generados localmente
+staticfiles/
+media/

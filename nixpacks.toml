@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = [
+    "python3",
+    "gcc",
+    "zlib",
+    "libjpeg",
+    "openjpeg",
+    "gdk-pixbuf",
+    "pango",
+    "harfbuzz",
+    "cairo",
+    "gobject-introspection",
+    "ghostscript"
+]
