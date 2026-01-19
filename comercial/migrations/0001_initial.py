@@ -20,7 +20,6 @@ class Migration(migrations.Migration):
                 ('nombre', models.CharField(max_length=200)),
                 ('email', models.EmailField(blank=True, max_length=254)),
                 ('telefono', models.CharField(blank=True, max_length=20)),
-                ('fecha_registro', models.DateTimeField(default=django.utils.timezone.now)),
                 ('origen', models.CharField(choices=[('Instagram', 'Instagram'), ('Facebook', 'Facebook'), ('Google', 'Google'), ('Recomendacion', 'Recomendación'), ('Otro', 'Otro')], default='Otro', max_length=50)),
                 ('es_cliente_fiscal', models.BooleanField(default=False, verbose_name='¿Datos Fiscales Completos?')),
                 ('tipo_persona', models.CharField(choices=[('FISICA', 'Persona Física (Juan Pérez)'), ('MORAL', 'Persona Moral (Empresa S.A. de C.V.)')], default='FISICA', help_text='Define si lleva Retenciones', max_length=10)),
