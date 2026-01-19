@@ -21,13 +21,6 @@ class Migration(migrations.Migration):
                 ('email', models.EmailField(blank=True, max_length=254)),
                 ('telefono', models.CharField(blank=True, max_length=20)),
                 ('origen', models.CharField(choices=[('Instagram', 'Instagram'), ('Facebook', 'Facebook'), ('Google', 'Google'), ('Recomendacion', 'Recomendación'), ('Otro', 'Otro')], default='Otro', max_length=50)),
-                ('es_cliente_fiscal', models.BooleanField(default=False, verbose_name='¿Datos Fiscales Completos?')),
-                ('tipo_persona', models.CharField(choices=[('FISICA', 'Persona Física (Juan Pérez)'), ('MORAL', 'Persona Moral (Empresa S.A. de C.V.)')], default='FISICA', help_text='Define si lleva Retenciones', max_length=10)),
-                ('rfc', models.CharField(blank=True, max_length=13, null=True, verbose_name='RFC')),
-                ('razon_social', models.CharField(blank=True, max_length=200, null=True, verbose_name='Razón Social')),
-                ('codigo_postal_fiscal', models.CharField(blank=True, max_length=5, null=True, verbose_name='C.P. Fiscal')),
-                ('regimen_fiscal', models.CharField(blank=True, choices=[('601', '601 - General de Ley Personas Morales'), ('612', '612 - Personas Físicas con Actividades Empresariales'), ('626', '626 - Régimen Simplificado de Confianza (RESICO)'), ('605', '605 - Sueldos y Salarios'), ('603', '603 - Personas Morales con Fines no Lucrativos')], max_length=100, null=True)),
-                ('uso_cfdi', models.CharField(blank=True, choices=[('G03', 'G03 - Gastos en general'), ('P01', 'P01 - Por definir'), ('G01', 'G01 - Adquisición de mercancías'), ('D04', 'D04 - Donativos')], max_length=100, null=True)),
             ],
         ),
         migrations.CreateModel(
