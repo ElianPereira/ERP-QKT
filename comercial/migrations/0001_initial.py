@@ -64,7 +64,6 @@ class Migration(migrations.Migration):
                 ('precio_final', models.DecimalField(decimal_places=2, editable=False, help_text='Total a Pagar (Neto)', max_digits=10)),
                 ('estado', models.CharField(choices=[('BORRADOR', 'Borrador'), ('CONFIRMADA', 'Venta Confirmada'), ('CANCELADA', 'Cancelada')], default='BORRADOR', max_length=20)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('archivo_pdf', models.FileField(blank=True, null=True, upload_to='cotizaciones_pdf/')),
                 ('cliente', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='comercial.cliente')),
                 ('producto', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='comercial.producto')),
             ],
