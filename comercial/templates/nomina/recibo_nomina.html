@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Recibo de Nómina</title>
+    <style>
+        /* CONFIGURACIÓN DE PÁGINA */
+        @page {
+            size: letter;
+            margin: 1.5cm;
+        }
+        body { 
+            font-family: 'Helvetica', sans-serif; 
+            color: #333; 
+            margin: 0; 
+            padding: 0;
+            font-size: 12px;
+        }
+
+        /* UTILIDADES */
+        .clearfix { clear: both; }
+
+        /* ENCABEZADO (LOGO Y DATOS) */
+        .header-container {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        .header-table {
+            width: 100%;
+            border: none;
+        }
+        .header-table td {
+            vertical-align: top;
+        }
+        .company-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #356685;
+            margin-bottom: 5px;
+        }
+        .company-details {
+            font-size: 11px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        /* TÍTULO DEL DOCUMENTO */
+        .doc-title {
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .doc-title h1 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 22px;
+        }
+        .doc-title p {
+            margin: 5px 0 0 0;
+            color: #7f8c8d;
+        }
+
+        /* TARJETA DE EMPLEADO (ESTILO QUE TE GUSTABA) */
+        .employee-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            background-color: #fcfcfc;
+            margin-bottom: 30px;
+            position: relative; 
+            display: block; 
+        }
+        .card-table { width: 100%; }
+        .card-label {
+            color: #356685;
+            font-weight: bold;
+            width: 100px;
+        }
+        .card-value { color: #333; }
+
+        /* TABLA DE ASISTENCIA */
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 10px;
+            border-bottom: 2px solid #356685;
+        }
+        .data-table th {
+            background-color: #4a86a6;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: normal;
+            font-size: 12px;
+            border: none;
+        }
+        .data-table th:first-child { border-top-left-radius: 5px; }
+        .data-table th:last-child { border-top-right-radius: 5px; }
+
+        .data-table td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        
+        .col-horas {
+            font-weight: bold;
+            color: #000;
+        }
+
+        /* TOTALES */
+        .totals-section {
+            margin-top: 20px;
+            width: 100%;
+        }
+        .totals-table {
+            float: right;
+            width: 250px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .total-row {
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        .grand-total {
+            background-color: #356685;
+            color: white;
+            padding: 8px;
+            text-align: center;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <table class="header-table">
+            <tr>
+                <td style="width: 50%;">
+                    <img src="file:///C:/Users/perei/mi_erp_eventos/static/img/logo.png" 
+                         alt="LOGO" 
+                         style="height: 70px; display: block;">
+                </td>
+                
+                <td style="width: 50%; text-align: right;">
+                    <div class="company-name">Quinta Ko'ox Tanil</div>
+                    <div class="company-details">
+                        Ctra Tanil - Ticimul KM 1.920<br>
+                        Umán, Yucatán<br>
+                        quintakooxtanil@gmail.com
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="doc-title">
+        <h1>Recibo de Nómina</h1>
+        <p>Periodo: {{ periodo }}</p>
+    </div>
+
+    <div class="employee-card">
+        <table class="card-table">
+            <tr>
+                <td style="width: 60%;">
+                    <table style="width: 100%;">
+                        <tr>
+                            <td class="card-label">Empleado:</td>
+                            <td class="card-value" style="text-transform: uppercase;">{{ empleado.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <td class="card-label">Fecha Emisión:</td>
+                            <td class="card-value">{% now "d/m/Y H:i" %}</td>
+                        </tr>
+                    </table>
+                </td>
+                <td style="width: 40%;">
+                    <table style="width: 100%;">
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Tarifa Hora:</td>
+                            <td class="card-value" style="text-align: right;">${{ empleado.tarifa_base }}</td>
+                        </tr>
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Folio:</td>
+                            <td class="card-value" style="text-align: right;">{{ folio }}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="clearfix" style="height: 10px;"></div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Día</th>
+                <th>Entrada</th>
+                <th>Salida</th>
+                <th>Horas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fila in lista_asistencia %}
+            <tr>
+                <td>{{ fila.fecha }}</td>
+                <td>{{ fila.dia }}</td>
+                <td>{{ fila.entrada }}</td>
+                <td>{{ fila.salida }}</td>
+                <td class="col-horas">{{ fila.horas_fmt }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totals-section">
+        <div class="totals-table">
+            <div class="total-row">
+                <span style="float:left;">Horas Totales Trabajadas:</span>
+                <span style="float:right; font-weight:bold;">{{ total_horas }} hrs</span>
+                <div class="clearfix"></div>
+            </div>
+            <div class="total-row">
+                <span style="float:left;">Tarifa por Hora:</span>
+                <span style="float:right; font-weight:bold;">${{ empleado.tarifa_base }}</span>
+                <div class="clearfix"></div>
+            </div>
+            
+            <div class="grand-total">
+                <span style="float:left;">NETO A PAGAR:</span>
+                <span style="float:right;">${{ total_pagado }}</span>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+    </div>
+
+</body>
+</html>

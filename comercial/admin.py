@@ -5,7 +5,6 @@ from django.contrib import messages
 from django.db.models import Sum
 from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, Pago, Gasto
 
-# --- 1. INSUMOS ---
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'categoria', 'cantidad_stock', 'unidad_medida')
@@ -13,7 +12,6 @@ class InsumoAdmin(admin.ModelAdmin):
     list_filter = ('categoria',)
     search_fields = ('nombre',)
 
-# --- 2. PRODUCTOS ---
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto
     extra = 1
@@ -23,30 +21,37 @@ class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline]
     list_display = ('nombre', 'calcular_costo', 'sugerencia_precio')
 
-# --- 3. CLIENTES (¡AQUÍ ESTÁ EL QUE FALTABA!) ---
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'tipo_persona', 'rfc', 'email', 'telefono')
-    list_filter = ('tipo_persona',)
-    search_fields = ('nombre', 'rfc')
+    list_display = ('nombre', 'tipo_persona', 'es_cliente_fiscal', 'rfc', 'email', 'telefono')
+    list_filter = ('tipo_persona', 'es_cliente_fiscal', 'origen')
+    search_fields = ('nombre', 'rfc', 'razon_social')
+    
     fieldsets = (
         ('Datos Generales', {
-            'fields': ('nombre', 'email', 'telefono')
+            'fields': ('nombre', 'email', 'telefono', 'origen', 'fecha_registro')
         }),
-        ('Datos Fiscales', {
-            'fields': ('tipo_persona', 'rfc'),
-            'description': 'Selecciona "Moral" para activar retenciones de ISR en las cotizaciones.'
+        ('Datos Fiscales (Facturación)', {
+            'fields': ('es_cliente_fiscal', 'tipo_persona', 'rfc', 'razon_social', 'codigo_postal_fiscal', 'regimen_fiscal', 'uso_cfdi'),
+            'description': 'Estos datos se usarán automáticamente al crear solicitudes de factura.'
         }),
     )
+    readonly_fields = ('fecha_registro',)
 
-# --- 4. COTIZACIONES (CON IMPUESTOS) ---
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
-    list_display = ('cliente', 'producto', 'fecha_evento', 'estado', 'subtotal', 'precio_final', 'acciones')
+    change_list_template = 'admin/comercial/cotizacion/change_list.html'
+
+    def folio_cotizacion(self, obj):
+        return f"COT-{int(obj.id):03d}"
+    folio_cotizacion.short_description = "Folio"
+    folio_cotizacion.admin_order_field = 'id'
+
+    # --- AGREGAMOS EL BOTÓN DE EMAIL A LA LISTA ---
+    list_display = ('folio_cotizacion', 'cliente', 'producto', 'fecha_evento', 'estado', 'subtotal', 'precio_final', 'ver_pdf', 'enviar_email_btn')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento')
-    search_fields = ('cliente__nombre',)
+    search_fields = ('id', 'cliente__nombre',)
     
-    # Formulario organizado
     fieldsets = (
         ('Datos del Evento', {
             'fields': ('cliente', 'producto', 'fecha_evento', 'estado')
@@ -57,12 +62,15 @@ class CotizacionAdmin(admin.ModelAdmin):
         ('Cálculo Fiscal (Automático)', {
             'fields': ('iva', 'retencion_isr', 'retencion_iva', 'precio_final') 
         }),
+        ('Acciones y Archivos', { # Renombrado para incluir el botón
+            'fields': ('archivo_pdf', 'enviar_email_btn') 
+        }),
     )
     
-    readonly_fields = ('iva', 'retencion_isr', 'retencion_iva', 'precio_final')
+    # --- AGREGAMOS EL BOTÓN A READONLY FIELDS ---
+    readonly_fields = ('iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn')
 
     def save_model(self, request, obj, form, change):
-        # 1. Recuperar versión anterior
         cotizacion_anterior = None
         if change:
             try:
@@ -70,7 +78,6 @@ class CotizacionAdmin(admin.ModelAdmin):
             except Cotizacion.DoesNotExist:
                 pass
 
-        # === LÓGICA DE INVENTARIO ===
         recalcular_stock = False
         devolver_stock_anterior = False
 
@@ -111,7 +118,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     disponible_real = insumo.cantidad_stock - usado_ese_dia
                     
                     if disponible_real < cantidad_necesaria:
-                        errores_logistica.append(f"{insumo.nombre} (Stock: {insumo.cantidad_stock}, Usado hoy: {usado_ese_dia}, Faltan: {cantidad_necesaria - disponible_real})")
+                        errores_logistica.append(f"{insumo.nombre} (Stock Total: {insumo.cantidad_stock}, Usado hoy: {usado_ese_dia}, Faltan: {cantidad_necesaria - disponible_real})")
 
                 elif insumo.categoria == 'CONSUMIBLE':
                     if insumo.cantidad_stock < cantidad_necesaria:
@@ -131,32 +138,50 @@ class CotizacionAdmin(admin.ModelAdmin):
                 if componente.insumo.categoria == 'CONSUMIBLE':
                     componente.insumo.cantidad_stock += componente.cantidad
                     componente.insumo.save()
-            messages.info(request, "ℹ️ Evento cancelado. Consumibles devueltos.")
+            messages.info(request, "ℹ️ Evento cancelado. Consumibles devueltos al stock.")
 
         super().save_model(request, obj, form, change)
 
-    def acciones(self, obj):
+    def ver_pdf(self, obj):
         if obj.id:
-            url_pdf = reverse('cotizacion_pdf', args=[obj.id])
-            url_email = reverse('cotizacion_email', args=[obj.id])
-            return format_html(
-                '<a class="button" href="{}" target="_blank" style="background:#447e9b; color:white; padding:4px 8px; border-radius:4px; margin-right:5px; text-decoration:none;">🖨️ PDF</a>'
-                '<a class="button" href="{}" style="background:#28a745; color:white; padding:4px 8px; border-radius:4px; text-decoration:none;">📧 Enviar</a>',
-                url_pdf, url_email
-            )
-        return "Guarda primero"
-    acciones.allow_tags = True
+            try:
+                url_pdf = reverse('cotizacion_pdf', args=[obj.id])
+                return format_html(
+                    '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
+                    '<i class="fas fa-file-pdf"></i> Ver PDF</a>',
+                    url_pdf
+                )
+            except:
+                return "-"
+        return "-"
+    ver_pdf.short_description = "Cotización"
+    ver_pdf.allow_tags = True
 
-# --- 5. PAGOS ---
+    # --- NUEVA FUNCIÓN: BOTÓN DE ENVIAR EMAIL ---
+    def enviar_email_btn(self, obj):
+        if obj.id:
+            try:
+                # Usamos el nombre 'cotizacion_email' que está definido en urls.py
+                url_email = reverse('cotizacion_email', args=[obj.id])
+                return format_html(
+                    '<a href="{}" style="background-color:#28a745; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
+                    '<i class="fas fa-envelope"></i> Enviar Correo</a>',
+                    url_email
+                )
+            except:
+                return "-"
+        return "-"
+    enviar_email_btn.short_description = "Enviar al Cliente"
+    enviar_email_btn.allow_tags = True
+
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
     list_display = ('cotizacion', 'monto', 'metodo', 'fecha_pago')
     list_filter = ('fecha_pago', 'metodo')
 
-# --- 6. GASTOS ---
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
-    list_display = ('fecha_gasto', 'proveedor', 'descripcion', 'monto', 'categoria', 'tiene_xml')
+    list_display = ('fecha_gasto', 'proveedor', 'descripcion', 'monto', 'categoria', 'tiene_xml', 'ver_pdf')
     list_filter = ('fecha_gasto', 'categoria')
     search_fields = ('descripcion', 'proveedor', 'uuid')
     date_hierarchy = 'fecha_gasto'
@@ -167,7 +192,17 @@ class GastoAdmin(admin.ModelAdmin):
         return "✅ Sí" if obj.archivo_xml else "📝 Manual"
     tiene_xml.short_description = "Tipo Registro"
     
+    def ver_pdf(self, obj):
+        if obj.archivo_pdf:
+            return format_html(
+                '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
+                '<i class="fas fa-file-pdf"></i> Ver PDF</a>',
+                obj.archivo_pdf.url
+            )
+        return "-"
+    ver_pdf.short_description = "Comprobante"
+    
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.archivo_xml:
             return self.readonly_fields
-        return ('uuid', 'proveedor', 'fecha_gasto', 'descripcion', 'monto') if obj and obj.archivo_xml else ('uuid',)
+        return ('uuid',)

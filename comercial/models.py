@@ -3,9 +3,10 @@ from decimal import Decimal
 from django.db import models
 from django.db.models import Sum
 from django.core.exceptions import ValidationError
+from django.utils.timezone import now
 
 # ==========================================
-# 1. INSUMOS
+# 1. INSUMOS (TU CÓDIGO INTACTO)
 # ==========================================
 class Insumo(models.Model):
     TIPOS = [
@@ -23,7 +24,7 @@ class Insumo(models.Model):
         return f"{self.nombre} ({self.categoria})"
 
 # ==========================================
-# 2. PRODUCTOS
+# 2. PRODUCTOS (TU CÓDIGO INTACTO)
 # ==========================================
 class Producto(models.Model):
     nombre = models.CharField(max_length=200)
@@ -49,26 +50,55 @@ class ComponenteProducto(models.Model):
         return self.insumo.costo_unitario * self.cantidad
 
 # ==========================================
-# 3. CLIENTES
+# 3. CLIENTES (AQUÍ AGREGAMOS LOS CAMPOS DE FACTURACIÓN)
 # ==========================================
 class Cliente(models.Model):
+    # --- Datos de Contacto ---
+    nombre = models.CharField(max_length=200)
+    email = models.EmailField(blank=True)
+    telefono = models.CharField(max_length=20, blank=True)
+    fecha_registro = models.DateTimeField(default=now)
+    origen = models.CharField(max_length=50, choices=[
+        ('Instagram', 'Instagram'), ('Facebook', 'Facebook'), ('Google', 'Google'), ('Recomendacion', 'Recomendación'), ('Otro', 'Otro')
+    ], default='Otro')
+
+    # --- Datos Fiscales (MEJORADOS) ---
+    es_cliente_fiscal = models.BooleanField(default=False, verbose_name="¿Datos Fiscales Completos?")
+    
     TIPOS_FISCALES = [
         ('FISICA', 'Persona Física (Juan Pérez)'),
         ('MORAL', 'Persona Moral (Empresa S.A. de C.V.)'),
     ]
-    
-    nombre = models.CharField(max_length=200)
     tipo_persona = models.CharField(max_length=10, choices=TIPOS_FISCALES, default='FISICA', help_text="Define si lleva Retenciones")
-    email = models.EmailField(blank=True)
-    telefono = models.CharField(max_length=20, blank=True)
-    rfc = models.CharField(max_length=13, blank=True, help_text="Opcional para facturar")
+    
+    rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
+    razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social")
+    codigo_postal_fiscal = models.CharField(max_length=5, blank=True, null=True, verbose_name="C.P. Fiscal")
+    
+    REGIMEN_CHOICES = [
+        ('601', '601 - General de Ley Personas Morales'),
+        ('612', '612 - Personas Físicas con Actividades Empresariales'),
+        ('626', '626 - Régimen Simplificado de Confianza (RESICO)'),
+        ('605', '605 - Sueldos y Salarios'),
+        ('603', '603 - Personas Morales con Fines no Lucrativos'),
+    ]
+    regimen_fiscal = models.CharField(max_length=100, choices=REGIMEN_CHOICES, blank=True, null=True)
+
+    USO_CFDI_CHOICES = [
+        ('G03', 'G03 - Gastos en general'),
+        ('P01', 'P01 - Por definir'),
+        ('G01', 'G01 - Adquisición de mercancías'),
+        ('D04', 'D04 - Donativos'),
+    ]
+    uso_cfdi = models.CharField(max_length=100, choices=USO_CFDI_CHOICES, blank=True, null=True)
     
     def __str__(self):
         tipo = "(Física)" if self.tipo_persona == 'FISICA' else "(Moral)"
-        return f"{self.nombre} {tipo}"
+        nombre_mostrar = self.razon_social if self.razon_social else self.nombre
+        return f"{nombre_mostrar} {tipo}"
 
 # ==========================================
-# 4. COTIZACIONES (CORREGIDO: SOLO RETENCIÓN ISR)
+# 4. COTIZACIONES (TU LÓGICA DE IMPUESTOS INTACTA)
 # ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [
@@ -84,7 +114,6 @@ class Cotizacion(models.Model):
     # --- CAMPOS FISCALES ---
     requiere_factura = models.BooleanField(default=False, help_text="Si se marca, calcula IVA y Retenciones")
     
-    # IMPORTANTE: default=0 para que no te vuelva a pedir migración complicada
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Precio del servicio ANTES de impuestos")
     
     # Desglose 
@@ -96,10 +125,12 @@ class Cotizacion(models.Model):
     
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Agregamos campo para PDF de Cotización (Útil para el botón de imprimir)
+    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        # 1. Obtenemos el subtotal como base decimal
-        # (Si es nuevo y viene en 0, usamos el precio sugerido del producto si quisieras, pero mejor respetamos lo que escribas)
+        # TU LÓGICA ORIGINAL DE CÁLCULO
         base = Decimal(self.subtotal)
         
         if self.requiere_factura:
@@ -109,7 +140,7 @@ class Cotizacion(models.Model):
             # B. Retenciones (Solo ISR)
             if self.cliente.tipo_persona == 'MORAL':
                 self.retencion_isr = base * Decimal('0.0125') # 1.25% ISR (RESICO)
-                self.retencion_iva = Decimal('0.00')          # SIN Retención de IVA (Corrección solicitada)
+                self.retencion_iva = Decimal('0.00')          # SIN Retención de IVA
             else:
                 self.retencion_isr = Decimal('0.00')
                 self.retencion_iva = Decimal('0.00')
@@ -120,7 +151,6 @@ class Cotizacion(models.Model):
             self.retencion_iva = Decimal('0.00')
             
         # 2. Cálculo Final
-        # Total = Subtotal + IVA - Retenciones
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
         
         super().save(*args, **kwargs)
@@ -141,7 +171,7 @@ class Cotizacion(models.Model):
         verbose_name_plural = "Cotizaciones"
 
 # ==========================================
-# 5. PAGOS
+# 5. PAGOS (INTACTO)
 # ==========================================
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia')]
@@ -155,7 +185,7 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 6. GASTOS (CON LECTOR XML)
+# 6. GASTOS (TU CÓDIGO XML INTACTO)
 # ==========================================
 class Gasto(models.Model):
     CATEGORIAS = [

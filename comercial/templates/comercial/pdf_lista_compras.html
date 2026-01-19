@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; }
+        .header { border-bottom: 2px solid #e67e22; padding-bottom: 10px; margin-bottom: 20px; }
+        .logo { float: left; height: 50px; margin-right: 15px; }
+        h1 { color: #e67e22; margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { background: #e67e22; color: white; padding: 8px; text-align: left; }
+        td { border-bottom: 1px solid #ddd; padding: 8px; }
+        .comprar { color: red; font-weight: bold; }
+        .ok { color: green; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="{{ logo_url }}" class="logo">
+        <h1>Lista de Compras Consolidada</h1>
+        <p>Para eventos del: <strong>{{ fecha_inicio }}</strong> al <strong>{{ fecha_fin }}</strong></p>
+    </div>
+
+    <h3>📦 Insumos Requeridos</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Insumo</th>
+                <th>Total Necesario</th>
+                <th>En Stock</th>
+                <th>A COMPRAR</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in lista %}
+            <tr>
+                <td>{{ item.nombre }}</td>
+                <td>{{ item.requerido|floatformat:1 }} {{ item.unidad }}</td>
+                <td>{{ item.stock|floatformat:1 }}</td>
+                <td>
+                    {% if item.comprar > 0 %}
+                        <span class="comprar">🛒 {{ item.comprar|floatformat:1 }} {{ item.unidad }}</span>
+                    {% else %}
+                        <span class="ok">✅ Cubierto</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top: 30px;">
+        <h3>📅 Eventos Considerados:</h3>
+        <ul>
+        {% for evento in eventos %}
+            <li>{{ evento.fecha_evento|date:"d/m" }} - {{ evento.cliente.nombre }} ({{ evento.producto.nombre }})</li>
+        {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>

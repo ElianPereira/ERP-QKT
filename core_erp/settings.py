@@ -1,19 +1,19 @@
 from decouple import config
 from pathlib import Path
 import os
-import dj_database_url # <--- Agregado para el futuro deploy
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-key-dev')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = ['*']
-# CSRF_TRUSTED_ORIGINS = ['http://192.168.83.133:8000'] # Puedes descomentar esto si lo necesitas local
+CSRF_TRUSTED_ORIGINS = ['https://erp-qkt-production.up.railway.app']
 
 # --- APLICACIONES INSTALADAS ---
 INSTALLED_APPS = [
@@ -24,12 +24,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
-    # --- NUEVA APP PARA FORMATO DE NÚMEROS (COMAS Y PUNTOS) ---
     'django.contrib.humanize', 
 
-    # Mis Apps
+    # Mis Apps Existentes
     'comercial',
+
+    # Mis Apps Nuevas
+    'nomina',
+    'facturacion',
     
     # Librerías extra
     'weasyprint',
@@ -37,7 +39,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # <--- RECOMENDADO: Agregado para ver estilos en deploy
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -51,7 +53,7 @@ ROOT_URLCONF = 'core_erp.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -67,14 +69,12 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core_erp.wsgi.application'
 
 # Database
-# Configuración híbrida: Si hay URL (nube) usa esa, si no, usa SQLite local
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-# Esto ayuda al deploy futuro sin romper lo local
 db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
 
@@ -92,34 +92,36 @@ TIME_ZONE = 'America/Merida'
 USE_I18N = True
 USE_TZ = True
 
-# --- FORMATO DE NÚMEROS (IMPORTANTE: ESTO PONE LAS COMAS) ---
+# --- FORMATO DE NÚMEROS ---
 USE_L10N = False 
 USE_THOUSAND_SEPARATOR = True
 DECIMAL_SEPARATOR = '.'
 THOUSAND_SEPARATOR = ','
 NUMBER_GROUPING = 3
 
-# --- ARCHIVOS ESTÁTICOS (CSS, JS, IMÁGENES) ---
+# --- ARCHIVOS ESTÁTICOS ---
 STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Necesario para deploy
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage' # Necesario para deploy
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Default primary key field type
+# --- ARCHIVOS MEDIA (PDFs, Excel, XML) ---
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE CORREO (GMAIL) ---
+# --- CONFIGURACIÓN DE CORREO ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = config('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+# Recuerda configurar estas variables en tu archivo .env o poner la contraseña aquí temporalmente
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='') 
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 
-# --- CONFIGURACIÓN DE JAZZMIN (DISEÑO DEL PANEL) ---
+# --- CONFIGURACIÓN DE JAZZMIN ---
 JAZZMIN_SETTINGS = {
     "site_title": "ERP Quinta Ko'ox Tanil",
     "site_header": "Sistema de Eventos",
@@ -132,26 +134,33 @@ JAZZMIN_SETTINGS = {
         "auth": "fas fa-users-cog",
         "auth.user": "fas fa-user",
         "auth.Group": "fas fa-users",
+        
+        # Comercial
         "comercial.Cliente": "fas fa-address-book",
         "comercial.Cotizacion": "fas fa-file-invoice-dollar",
         "comercial.Insumo": "fas fa-cubes",
         "comercial.Pago": "fas fa-hand-holding-usd",
         "comercial.Producto": "fas fa-box-open",
+        
+        # Nómina
+        "nomina.Empleado": "fas fa-user-tie",
+        "nomina.ReciboNomina": "fas fa-file-contract",
+
+        # Facturación
+        "facturacion.ClienteFiscal": "fas fa-building",
+        "facturacion.SolicitudFactura": "fas fa-file-signature",
     },
     "topmenu_links": [
         {"name": "Inicio",  "url": "admin:index", "permissions": ["auth.view_user"]},
-        {"name": "📅 Ver Calendario", "url": "ver_calendario"}, # Corregí la URL name a 'ver_calendario'
+        {"name": "📅 Ver Calendario", "url": "ver_calendario"}, 
         {"name": "Ver Sitio", "url": "/"},
     ],
     "show_sidebar": True,
     "navigation_expanded": False,
-    "order_with_respect_to": ["comercial", "auth"], 
+    "order_with_respect_to": ["comercial", "nomina", "facturacion", "auth"], 
 }
 
 JAZZMIN_UI_TWEAKS = {
     "theme": "flatly",
     "dark_mode_theme": None,
 }
-CSRF_TRUSTED_ORIGINS = [
-    'https://erp-qkt-production.up.railway.app',
-]

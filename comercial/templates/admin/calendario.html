@@ -2,64 +2,35 @@
 {% load static %}
 
 {% block content %}
-
 <style>
-    /* 1. Hacemos que el contenedor principal ocupe casi toda la pantalla */
-    #content-main {
-        width: 98% !important;
-        max-width: 98% !important;
-        margin: auto;
-    }
-    
-    /* 2. Estilo de la tarjeta para que se vea limpia */
-    .card {
-        border: none;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
+    /* Forzar pantalla completa */
+    .content-wrapper > .content { padding: 0 !important; }
+    .container-fluid, .row, .col-12 { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
+    #content-main { width: 100% !important; max-width: 100% !important; }
 
-    /* 3. Estilo de los eventos dentro del calendario */
-    .fc-event { 
-        cursor: pointer; 
-        font-size: 0.9em; /* Letra un poco más grande */
-        padding: 2px 4px;
-    }
-    
-    /* Título del mes más grande y centrado */
-    .fc-toolbar-title { 
-        font-size: 1.8em !important; 
-        text-transform: capitalize; 
-        color: #2c3e50;
-    }
-    
-    /* Encabezados de los días (Lun, Mar...) */
-    .fc-col-header-cell-cushion {
-        font-size: 1.1em;
-        padding: 10px 0 !important;
-        color: #447e9b; /* Tu azul corporativo */
-    }
-    
-    /* Días del mes */
-    .fc-daygrid-day-number {
-        font-size: 1.1em;
-        margin: 5px;
-        color: #555;
-    }
+    /* Tarjeta Full Screen */
+    .card { border: none; border-radius: 0; margin: -15px -10px 0 -10px; width: calc(100% + 20px); box-shadow: none; }
+    .card-header { background-color: #356685; color: white; padding: 15px 20px; border-radius: 0 !important; }
+
+    /* Estilos FullCalendar */
+    .fc { font-family: -apple-system, sans-serif; }
+    .fc-toolbar-title { font-size: 1.5rem !important; font-weight: 600; color: #333; }
+    .fc-col-header-cell { background-color: #f4f6f9; padding: 10px 0 !important; }
+    .fc-event { border: none; padding: 3px 5px; font-size: 0.85rem; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; }
 </style>
 
 <div class="card">
-    <div class="card-header bg-primary text-white" style="padding: 15px;">
-        <h3 class="card-title" style="margin:0; font-size: 1.5rem;">
-            📅 Calendario de Eventos - Quinta Ko'ox Tanil
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title" style="margin:0; font-size: 1.3rem;">
+            <i class="fas fa-calendar-alt"></i> Calendario de Eventos
         </h3>
-    </div>
-    
-    <div class="card-body" style="padding: 20px;">
-        <div style="margin-bottom: 20px; text-align: right;">
-            <span class="badge badge-success" style="font-size: 14px; padding: 10px 15px;">● Confirmados</span>
-            <span class="badge badge-secondary" style="font-size: 14px; padding: 10px 15px;">● Borradores</span>
+        <div>
+            <span class="badge badge-light mr-2" style="color:#333;"><i class="fas fa-circle text-success"></i> Confirmados</span>
+            <span class="badge badge-light" style="color:#333;"><i class="fas fa-circle text-secondary"></i> Borradores</span>
         </div>
-        
-        <div id='calendar'></div>
+    </div>
+    <div class="card-body p-0">
+        <div id='calendar' style="padding: 20px;"></div>
     </div>
 </div>
 
@@ -67,35 +38,26 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
-    
-    // Obtenemos los datos que mandó Django
-    var eventos = {{ eventos_json|safe }};
+    var eventos = JSON.parse("{{ eventos_json|escapejs }}");
 
     var calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: 'dayGridMonth',
-      locale: 'es', // Español
-      
-      // --- AQUÍ EL TRUCO DE LA ALTURA ---
-      height: '80vh', // Ocupa el 80% de la altura de la ventana (Vertical Height)
-      expandRows: true, // Estira las filas para llenar el espacio
-      
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,listMonth'
-      },
-      buttonText: {
-        today: 'Hoy',
-        month: 'Mes',
-        list: 'Lista'
-      },
+      locale: 'es', 
+      height: '85vh', 
+      expandRows: true, 
+      headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+      buttonText: { today: 'Hoy', month: 'Mes', list: 'Lista' },
       events: eventos, 
-      
-      // Opciones visuales extra
-      dayMaxEvents: true, // Si hay muchos eventos, pone "+2 more"
-      firstDay: 1, // Empezar semana en Lunes (0 es Domingo)
+      dayMaxEvents: true, 
+      firstDay: 1, 
+      eventDidMount: function(info) { info.el.title = info.event.title; },
+      eventClick: function(info) {
+          if (info.event.url) {
+              window.open(info.event.url, "_self");
+              info.jsEvent.preventDefault();
+          }
+      }
     });
-
     calendar.render();
   });
 </script>

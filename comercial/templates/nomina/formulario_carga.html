@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div class="col-md-8 offset-md-2">
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">📂 Cargar Excel de Asistencia (ZKTeco)</h3>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label>Selecciona el archivo Excel (.xlsx):</label>
+                    <input type="file" name="excel_file" class="form-control" required accept=".xlsx, .xls">
+                </div>
+                <br>
+                <button type="submit" class="btn btn-success btn-lg btn-block">
+                    ⚙️ Procesar y Generar Recibos
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

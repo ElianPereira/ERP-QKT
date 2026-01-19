@@ -3,9 +3,8 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Cotización #{{ cotizacion.id }}</title>
+    <title>Solicitud Factura #{{ solicitud.id }}</title>
     <style>
-        /* --- ESTILOS UNIFICADOS (BRANDING QKT) --- */
         @page { size: letter; margin: 1.5cm; }
         body { 
             font-family: 'Helvetica', sans-serif; 
@@ -15,19 +14,16 @@
         }
         .clearfix { clear: both; }
 
-        /* HEADER */
         .header-container { width: 100%; margin-bottom: 30px; }
         .header-table { width: 100%; border: none; }
         .header-table td { vertical-align: top; }
         .company-name { font-size: 18px; font-weight: bold; color: #356685; margin-bottom: 5px; }
         .company-details { font-size: 11px; color: #666; line-height: 1.4; }
 
-        /* TÍTULO */
         .doc-title { text-align: center; margin-top: 10px; margin-bottom: 20px; }
         .doc-title h1 { margin: 0; color: #2c3e50; font-size: 22px; }
         .doc-title p { margin: 5px 0 0 0; color: #7f8c8d; }
 
-        /* TARJETA DE DATOS */
         .info-card {
             border: 1px solid #e0e0e0; border-radius: 10px; padding: 15px;
             background-color: #fcfcfc; margin-bottom: 30px; position: relative; display: block;
@@ -36,7 +32,6 @@
         .card-label { color: #356685; font-weight: bold; width: 110px; }
         .card-value { color: #333; }
 
-        /* TABLA DE DETALLE */
         .data-table {
             width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px;
             border-bottom: 2px solid #356685;
@@ -53,18 +48,12 @@
         .data-table td:last-child { text-align: right; padding-right: 20px; }
         .data-table tr:last-child td { border-bottom: none; }
 
-        /* TOTALES */
         .totals-section { margin-top: 20px; width: 100%; }
         .totals-table { float: right; width: 280px; border: 1px solid #eee; border-radius: 5px; padding: 10px; }
-        .total-row { margin-bottom: 5px; font-size: 12px; }
-        
         .grand-total {
             background-color: #356685; color: white; padding: 8px; text-align: center;
-            border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 10px;
+            border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 0px;
         }
-        
-        .balance-row { color: #d9534f; font-weight: bold; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px;}
-        .abono-text { color: #28a745; }
     </style>
 </head>
 <body>
@@ -86,8 +75,8 @@
     </div>
 
     <div class="doc-title">
-        <h1>Cotización de Evento</h1>
-        <p>Folio: COT-{{ cotizacion.id|stringformat:"03d" }}</p>
+        <h1>Ficha Técnica de Facturación</h1>
+        <p>Folio Solicitud: SOL-{{ solicitud.id|stringformat:"03d" }}</p>
     </div>
 
     <div class="info-card">
@@ -96,30 +85,52 @@
                 <td style="width: 60%;">
                     <table style="width: 100%;">
                         <tr>
-                            <td class="card-label">Cliente:</td>
-                            <td class="card-value" style="text-transform: uppercase;">{{ cotizacion.cliente.nombre }}</td>
+                            <td class="card-label">Razón Social:</td>
+                            <td class="card-value" style="font-weight: bold;">{{ solicitud.cliente.razon_social }}</td>
                         </tr>
                         <tr>
-                            <td class="card-label">Tipo:</td>
-                            <td class="card-value">
-                                {% if cotizacion.cliente.tipo_persona == 'FISICA' %}Persona Física{% else %}Persona Moral{% endif %}
-                            </td>
+                            <td class="card-label">RFC:</td>
+                            <td class="card-value">{{ solicitud.cliente.rfc }}</td>
                         </tr>
                         <tr>
-                            <td class="card-label">Email:</td>
-                            <td class="card-value">{{ cotizacion.cliente.email|default:"-" }}</td>
+                            <td class="card-label">Régimen:</td>
+                            <td class="card-value">{{ solicitud.cliente.get_regimen_fiscal_display }}</td>
+                        </tr>
+                        <tr>
+                            <td class="card-label">CP Fiscal:</td>
+                            <td class="card-value">{{ solicitud.cliente.codigo_postal_fiscal }}</td>
                         </tr>
                     </table>
                 </td>
                 <td style="width: 40%;">
                     <table style="width: 100%;">
                         <tr>
-                            <td class="card-label" style="text-align: right;">Fecha Evento:</td>
-                            <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</td>
+                            <td class="card-label" style="text-align: right;">Fecha Solicitud:</td>
+                            <td class="card-value" style="text-align: right;">{{ solicitud.fecha_solicitud|date:"d/m/Y" }}</td>
+                        </tr>
+                        
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Origen:</td>
+                            <td class="card-value" style="text-align: right; font-weight: bold; color: #356685;">
+                                {% if solicitud.cotizacion %}
+                                    COT-{{ solicitud.cotizacion.id|stringformat:"03d" }}
+                                {% else %}
+                                    Venta Directa
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Uso CFDI:</td>
+                            <td class="card-value" style="text-align: right;">{{ solicitud.cliente.get_uso_cfdi_display }}</td>
                         </tr>
                         <tr>
-                            <td class="card-label" style="text-align: right;">Emisión:</td>
-                            <td class="card-value" style="text-align: right;">{% now "d/m/Y" %}</td>
+                            <td class="card-label" style="text-align: right;">Método Pago:</td>
+                            <td class="card-value" style="text-align: right;">{{ solicitud.metodo_pago }}</td>
+                        </tr>
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Forma Pago:</td>
+                            <td class="card-value" style="text-align: right;">{{ solicitud.forma_pago }}</td>
                         </tr>
                     </table>
                 </td>
@@ -132,73 +143,31 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th>Concepto / Paquete</th>
-                <th>Precio Base</th>
-                <th>Importe</th>
+                <th>Concepto a Facturar</th>
+                <th>Monto</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>
-                    <strong>{{ cotizacion.producto.nombre }}</strong><br>
-                    <span style="font-size: 10px; color: #999;">Servicio de evento contratado</span>
-                </td>
-                <td>${{ cotizacion.producto.sugerencia_precio|floatformat:2|intcomma }}</td>
-                <td><strong>${{ cotizacion.subtotal|floatformat:2|intcomma }}</strong></td>
+                <td>{{ solicitud.concepto }}</td>
+                <td><strong>${{ solicitud.monto|floatformat:2|intcomma }}</strong></td>
             </tr>
         </tbody>
     </table>
 
     <div class="totals-section">
         <div class="totals-table">
-            <div class="total-row">
-                <span style="float:left;">Subtotal:</span>
-                <span style="float:right;">${{ cotizacion.subtotal|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
-
-            {% if cotizacion.iva > 0 %}
-            <div class="total-row">
-                <span style="float:left;">(+) IVA (16%):</span>
-                <span style="float:right;">${{ cotizacion.iva|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
-            {% endif %}
-
-            {% if cotizacion.retencion_isr > 0 %}
-            <div class="total-row">
-                <span style="float:left; color:#900;">(-) Retención ISR:</span>
-                <span style="float:right; color:#900;">- ${{ cotizacion.retencion_isr|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
-            {% endif %}
-            
             <div class="grand-total">
-                <span style="float:left;">PRECIO TOTAL:</span>
-                <span style="float:right;">${{ cotizacion.precio_final|floatformat:2|intcomma }}</span>
+                <span style="float:left;">TOTAL FACTURA:</span>
+                <span style="float:right;">${{ solicitud.monto|floatformat:2|intcomma }}</span>
                 <div class="clearfix"></div>
             </div>
-
-            <div style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
-                 <div class="total-row abono-text">
-                    <span style="float:left;">Abonado:</span>
-                    <span style="float:right;">- ${{ total_pagado|floatformat:2|intcomma }}</span>
-                    <div class="clearfix"></div>
-                </div>
-                
-                <div class="total-row balance-row">
-                    <span style="float:left;">PENDIENTE:</span>
-                    <span style="float:right;">${{ saldo_pendiente|floatformat:2|intcomma }}</span>
-                    <div class="clearfix"></div>
-                </div>
-            </div>
-
         </div>
         <div class="clearfix"></div>
     </div>
 
     <div style="position: absolute; bottom: 0; width: 100%; text-align: center; color: #ccc; font-size: 9px; border-top: 1px solid #eee; padding-top: 10px;">
-        Gracias por confiar en Quinta Ko'ox Tanil.
+        Este documento es una solicitud interna para el área contable.
     </div>
 
 </body>
