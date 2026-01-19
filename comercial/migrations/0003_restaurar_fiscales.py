@@ -4,8 +4,8 @@ import django.utils.timezone
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('comercial', '0001_initial'),
-    ]
+        ('comercial', '0002_cotizacion_archivo_pdf'),
+    ]   
 
     operations = [
         migrations.AddField(
