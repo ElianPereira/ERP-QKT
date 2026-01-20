@@ -1,5 +1,7 @@
 import pandas as pd
 import io
+import os
+from django.conf import settings
 from datetime import datetime, time
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -100,8 +102,10 @@ def cargar_nomina(request):
             # 4. GENERAR RECIBOS
             count = 0
             
-            # --- CORRECCIÓN RAILWAY: Base URL ---
-            base_url = request.build_absolute_uri('/')[:-1]
+            # --- FIX IMAGEN (Ruta Local) ---
+            ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+            logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+            # -------------------------------
 
             for nombre, registros in datos_empleados.items():
                 if not registros: continue
@@ -120,11 +124,11 @@ def cargar_nomina(request):
                     'total_horas': f"{total_horas:.2f}",
                     'total_pagado': total_pagado,
                     'folio': f"NOM-{ReciboNomina.objects.count()+1:03d}",
-                    'base_url': base_url  # <--- Pasamos URL al template
+                    'logo_url': logo_url  # <--- Pasamos URL al template
                 }
                 
                 html = render_to_string('nomina/recibo_nomina.html', context)
-                pdf = HTML(string=html, base_url=request.build_absolute_uri()).write_pdf()
+                pdf = HTML(string=html).write_pdf()
                 
                 recibo = ReciboNomina.objects.create(
                     empleado=empleado_obj, periodo=periodo,

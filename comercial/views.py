@@ -154,16 +154,17 @@ def generar_lista_compras(request):
                 'unidad': datos['unidad']
             })
 
-        # Logo Fix
+        # --- FIX IMAGEN (Ruta Local) ---
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+        # -------------------------------
 
         context = {
             'fecha_inicio': fecha_inicio,
             'fecha_fin': fecha_fin,
             'lista': lista_final,
             'eventos': eventos,
-            'logo_url': logo_url
+            'logo_url': logo_url # <--- Usamos ruta local
         }
         
         # Usamos un template específico para esto (necesitarás crearlo, te daré el código)
@@ -185,15 +186,16 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     saldo_pendiente = cotizacion.precio_final - total_pagado
     
-    # --- CORRECCIÓN RAILWAY: Obtener URL base completa (https://...) ---
-    base_url = request.build_absolute_uri('/')[:-1]
-    # ------------------------------------------------------------------
+    # --- FIX IMAGEN (Ruta Local) ---
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+    # -------------------------------
 
     context = {
         'cotizacion': cotizacion, 
         'total_pagado': total_pagado, 
         'saldo_pendiente': saldo_pendiente,
-        'base_url': base_url  # Pasamos la URL al template
+        'logo_url': logo_url  # Pasamos la URL al template
     }
     
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
@@ -213,15 +215,16 @@ def enviar_cotizacion_email(request, cotizacion_id):
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     saldo_pendiente = cotizacion.precio_final - total_pagado
     
-    # --- CORRECCIÓN RAILWAY TAMBIÉN AQUÍ ---
-    base_url = request.build_absolute_uri('/')[:-1]
-    # ---------------------------------------
+    # --- FIX IMAGEN (Ruta Local) ---
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+    # -------------------------------
 
     context = {
         'cotizacion': cotizacion, 
         'total_pagado': total_pagado, 
         'saldo_pendiente': saldo_pendiente,
-        'base_url': base_url
+        'logo_url': logo_url # Pasamos la URL al template
     }
     
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
@@ -357,15 +360,17 @@ def exportar_reporte_cotizaciones(request):
         total_transferencia = pagos_del_periodo.filter(metodo='TRANSFERENCIA').aggregate(total=Sum('monto'))['total'] or 0
         total_ingresado = total_efectivo + total_transferencia
 
+        # --- FIX IMAGEN (Ruta Local) ---
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+        # -------------------------------
 
         context = {
             'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
             'total_ventas': total_ventas, 'total_pagado': total_pagado, 'total_pendiente': total_pendiente,
             'total_gastos': total_gastos, 'total_ganancia': total_ganancia,
             'total_efectivo': total_efectivo, 'total_transferencia': total_transferencia, 'total_ingresado': total_ingresado,
-            'logo_url': logo_url
+            'logo_url': logo_url # <--- Usamos ruta local
         }
 
         html_string = render_to_string('cotizaciones/pdf_reporte_ventas.html', context)

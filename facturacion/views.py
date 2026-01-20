@@ -1,3 +1,5 @@
+import os
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.files.base import ContentFile
@@ -39,21 +41,21 @@ def crear_solicitud(request):
                 metodo_pago=request.POST.get('metodo_pago')
             )
             
-            # --- CORRECCIÓN RAILWAY: Base URL ---
-            base_url = request.build_absolute_uri('/')[:-1]
+            # --- FIX IMAGEN (Ruta Local) ---
+            ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+            logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+            # -------------------------------
             
             context = {
                 'solicitud': solicitud,
                 'cliente': cliente,
                 'folio': f"SOL-{int(solicitud.id):03d}",
-                'base_url': base_url  # <--- Pasamos URL al template
+                'logo_url': logo_url  # <--- Pasamos URL al template
             }
             
             html_string = render_to_string('facturacion/solicitud_pdf.html', context)
             
-            # Nota: base_url en HTML() ayuda a resolver rutas relativas de CSS/Fonts, 
-            # pero para <img> usamos la variable base_url en el template.
-            pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+            pdf_file = HTML(string=html_string).write_pdf()
 
             filename = f"Solicitud_{cliente.rfc}_SOL-{solicitud.id}.pdf"
             solicitud.archivo_pdf.save(filename, ContentFile(pdf_file))
