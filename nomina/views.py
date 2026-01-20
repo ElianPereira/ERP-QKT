@@ -99,6 +99,10 @@ def cargar_nomina(request):
 
             # 4. GENERAR RECIBOS
             count = 0
+            
+            # --- CORRECCIÓN RAILWAY: Base URL ---
+            base_url = request.build_absolute_uri('/')[:-1]
+
             for nombre, registros in datos_empleados.items():
                 if not registros: continue
 
@@ -115,7 +119,8 @@ def cargar_nomina(request):
                     'lista_asistencia': registros,
                     'total_horas': f"{total_horas:.2f}",
                     'total_pagado': total_pagado,
-                    'folio': f"NOM-{ReciboNomina.objects.count()+1:03d}"
+                    'folio': f"NOM-{ReciboNomina.objects.count()+1:03d}",
+                    'base_url': base_url  # <--- Pasamos URL al template
                 }
                 
                 html = render_to_string('nomina/recibo_nomina.html', context)

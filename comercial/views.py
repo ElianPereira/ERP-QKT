@@ -184,7 +184,18 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     saldo_pendiente = cotizacion.precio_final - total_pagado
-    context = {'cotizacion': cotizacion, 'total_pagado': total_pagado, 'saldo_pendiente': saldo_pendiente}
+    
+    # --- CORRECCIÓN RAILWAY: Obtener URL base completa (https://...) ---
+    base_url = request.build_absolute_uri('/')[:-1]
+    # ------------------------------------------------------------------
+
+    context = {
+        'cotizacion': cotizacion, 
+        'total_pagado': total_pagado, 
+        'saldo_pendiente': saldo_pendiente,
+        'base_url': base_url  # Pasamos la URL al template
+    }
+    
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
     response = HttpResponse(content_type='application/pdf')
     filename = f"Recibo_{cotizacion.id}_{cotizacion.cliente.nombre}.pdf"
@@ -198,9 +209,21 @@ def enviar_cotizacion_email(request, cotizacion_id):
     if not cliente.email:
         messages.error(request, f"El cliente {cliente.nombre} no tiene email registrado.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+    
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     saldo_pendiente = cotizacion.precio_final - total_pagado
-    context = {'cotizacion': cotizacion, 'total_pagado': total_pagado, 'saldo_pendiente': saldo_pendiente}
+    
+    # --- CORRECCIÓN RAILWAY TAMBIÉN AQUÍ ---
+    base_url = request.build_absolute_uri('/')[:-1]
+    # ---------------------------------------
+
+    context = {
+        'cotizacion': cotizacion, 
+        'total_pagado': total_pagado, 
+        'saldo_pendiente': saldo_pendiente,
+        'base_url': base_url
+    }
+    
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
     html = HTML(string=html_string)
     pdf_file = html.write_pdf()
