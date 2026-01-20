@@ -1,1 +1,1 @@
-web: gunicorn core_erp.wsgi
+web: python manage.py migrate && gunicorn core_erp.wsgi --log-file -
