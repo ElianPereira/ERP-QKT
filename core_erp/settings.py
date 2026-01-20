@@ -68,13 +68,41 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core_erp.wsgi.application'
 
-# Database
+# --- CONFIGURACIÓN DE LOGS (NUEVO: Para evitar lentitud en Railway) ---
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'weasyprint': {
+            'handlers': ['console'],
+            'level': 'WARNING',  # Solo errores graves, silencia el debug
+        },
+        'fontTools': {
+            'handlers': ['console'],
+            'level': 'WARNING',  # Silencia el ruido de carga de fuentes
+        },
+    },
+}
+
+# --- BASE DE DATOS (Configurada para SQLite local y PostgreSQL en Railway) ---
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Esto busca la variable DATABASE_URL que Railway inyecta automáticamente
+# Si existe, reemplaza la SQLite por PostgreSQL
 db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
 
