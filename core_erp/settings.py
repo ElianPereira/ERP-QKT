@@ -148,20 +148,21 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE CORREO (BREVO / SENDINBLUE - MODO SSL SEGURO) ---
+# --- CONFIGURACIÓN DE CORREO (BREVO / SENDINBLUE) ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp-relay.brevo.com'
-# CAMBIO CRÍTICO: Usar puerto 465 con SSL evita el timeout del "handshake"
-EMAIL_PORT = 465
-EMAIL_USE_TLS = False  # Apagado para usar SSL puro
-EMAIL_USE_SSL = True   # Encendido para conexión segura inmediata
-EMAIL_TIMEOUT = 15     # IMPORTANTE: Si falla, libera el proceso en 15s (evita Worker Timeout)
 
-# Las credenciales se leen desde las variables de entorno (.env o Railway)
+# CAMBIO CLAVE: Usamos el puerto 2525 que suele estar desbloqueado en Railway
+EMAIL_PORT = 2525
+
+# Para el puerto 2525, la seguridad funciona al revés que en el 465:
+EMAIL_USE_TLS = True   # ACTIVADO (STARTTLS)
+EMAIL_USE_SSL = False  # DESACTIVADO
+EMAIL_TIMEOUT = 20     # Mantenemos el timeout por seguridad
+
+# Credenciales
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='') 
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-
-# Asegúrate de que este correo esté verificado como remitente en Brevo
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 
 # --- CONFIGURACIÓN DE JAZZMIN ---
@@ -207,3 +208,5 @@ JAZZMIN_UI_TWEAKS = {
     "theme": "flatly",
     "dark_mode_theme": None,
 }
+
+# PRUEBA DE CAMBIO 123
