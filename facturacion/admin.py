@@ -7,25 +7,27 @@ from .models import SolicitudFactura
 class SolicitudFacturaAdmin(admin.ModelAdmin):
     # 1. Folio Solicitud
     def folio_solicitud(self, obj):
-        # Calculamos el string directo, sin format_html complicado
         return f"SOL-{int(obj.id):03d}"
     folio_solicitud.short_description = "Folio"
     folio_solicitud.admin_order_field = 'id'
 
-    # 2. Link a la Cotización (AQUÍ ESTABA EL ERROR)
+    # 2. Link a la Cotización
     def link_cotizacion(self, obj):
         if obj.cotizacion:
             url = reverse('admin:comercial_cotizacion_change', args=[obj.cotizacion.id])
-            # PASO CLAVE: Formateamos el texto "COT-005" AQUÍ, afuera del format_html
             texto_boton = f"COT-{int(obj.cotizacion.id):03d}"
             
-            # Ahora format_html solo recibe el texto listo, sin {:03d}
             return format_html(
                 '<a href="{}" style="color: #2c3e50; font-weight: bold;">'
                 '<i class="fas fa-file-contract"></i> {}</a>',
                 url, texto_boton
             )
-        return format_html('<span style="color: #999;">Directa</span>')
+        
+        # --- CORRECCIÓN AQUÍ ---
+        # Antes fallaba porque no tenía argumentos ({}). 
+        # Ahora inyectamos el texto "Directa" de forma segura.
+        return format_html('<span style="color: #999;">{}</span>', "Directa")
+        
     link_cotizacion.short_description = "Origen"
     link_cotizacion.admin_order_field = 'cotizacion'
 
