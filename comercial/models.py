@@ -57,7 +57,7 @@ class Cliente(models.Model):
     nombre = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
     telefono = models.CharField(max_length=20, blank=True)
-    fecha_registro = models.DateTimeField(default=now)
+    fecha_registro = models.DateTimeField(auto_now_add=True, help_text="Fecha de creación")
     origen = models.CharField(max_length=50, choices=[
         ('Instagram', 'Instagram'), ('Facebook', 'Facebook'), ('Google', 'Google'), ('Recomendacion', 'Recomendación'), ('Otro', 'Otro')
     ], default='Otro')
