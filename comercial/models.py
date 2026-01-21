@@ -5,8 +5,11 @@ from django.db.models import Sum
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
 
+# --- IMPORTACIÓN DE CATÁLOGOS SAT (NUEVO) ---
+from facturacion.choices import RegimenFiscal, UsoCFDI
+
 # ==========================================
-# 1. INSUMOS (TU CÓDIGO INTACTO)
+# 1. INSUMOS (INTACTO)
 # ==========================================
 class Insumo(models.Model):
     TIPOS = [
@@ -24,7 +27,7 @@ class Insumo(models.Model):
         return f"{self.nombre} ({self.categoria})"
 
 # ==========================================
-# 2. PRODUCTOS (TU CÓDIGO INTACTO)
+# 2. PRODUCTOS (INTACTO)
 # ==========================================
 class Producto(models.Model):
     nombre = models.CharField(max_length=200)
@@ -50,7 +53,7 @@ class ComponenteProducto(models.Model):
         return self.insumo.costo_unitario * self.cantidad
 
 # ==========================================
-# 3. CLIENTES (AQUÍ AGREGAMOS LOS CAMPOS DE FACTURACIÓN)
+# 3. CLIENTES (MODIFICADO CON CATÁLOGOS)
 # ==========================================
 class Cliente(models.Model):
     # --- Datos de Contacto ---
@@ -72,25 +75,28 @@ class Cliente(models.Model):
     tipo_persona = models.CharField(max_length=10, choices=TIPOS_FISCALES, default='FISICA', help_text="Define si lleva Retenciones")
     
     rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
-    razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social")
+    razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social (Sin Régimen Societario)")
     codigo_postal_fiscal = models.CharField(max_length=5, blank=True, null=True, verbose_name="C.P. Fiscal")
     
-    REGIMEN_CHOICES = [
-        ('601', '601 - General de Ley Personas Morales'),
-        ('612', '612 - Personas Físicas con Actividades Empresariales'),
-        ('626', '626 - Régimen Simplificado de Confianza (RESICO)'),
-        ('605', '605 - Sueldos y Salarios'),
-        ('603', '603 - Personas Morales con Fines no Lucrativos'),
-    ]
-    regimen_fiscal = models.CharField(max_length=100, choices=REGIMEN_CHOICES, blank=True, null=True)
+    # CAMBIO: Usamos RegimenFiscal del archivo choices.py
+    regimen_fiscal = models.CharField(
+        max_length=3, 
+        choices=RegimenFiscal.choices, 
+        blank=True, 
+        null=True,
+        default=RegimenFiscal.SIN_OBLIGACIONES_FISCALES,
+        verbose_name="Régimen Fiscal"
+    )
 
-    USO_CFDI_CHOICES = [
-        ('G03', 'G03 - Gastos en general'),
-        ('P01', 'P01 - Por definir'),
-        ('G01', 'G01 - Adquisición de mercancías'),
-        ('D04', 'D04 - Donativos'),
-    ]
-    uso_cfdi = models.CharField(max_length=100, choices=USO_CFDI_CHOICES, blank=True, null=True)
+    # CAMBIO: Usamos UsoCFDI del archivo choices.py
+    uso_cfdi = models.CharField(
+        max_length=4, 
+        choices=UsoCFDI.choices, 
+        blank=True, 
+        null=True,
+        default=UsoCFDI.GASTOS_EN_GENERAL,
+        verbose_name="Uso de CFDI Habitual"
+    )
     
     def __str__(self):
         tipo = "(Física)" if self.tipo_persona == 'FISICA' else "(Moral)"
@@ -98,7 +104,7 @@ class Cliente(models.Model):
         return f"{nombre_mostrar} {tipo}"
 
 # ==========================================
-# 4. COTIZACIONES (TU LÓGICA DE IMPUESTOS INTACTA)
+# 4. COTIZACIONES (INTACTO)
 # ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [
@@ -138,6 +144,8 @@ class Cotizacion(models.Model):
             self.iva = base * Decimal('0.16')
             
             # B. Retenciones (Solo ISR)
+            # Nota: Aquí usamos la lógica simple que tenías. 
+            # Si el cliente es Moral, aplicas retención.
             if self.cliente.tipo_persona == 'MORAL':
                 self.retencion_isr = base * Decimal('0.0125') # 1.25% ISR (RESICO)
                 self.retencion_iva = Decimal('0.00')          # SIN Retención de IVA
@@ -185,7 +193,7 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 6. GASTOS (TU CÓDIGO XML INTACTO)
+# 6. GASTOS (INTACTO)
 # ==========================================
 class Gasto(models.Model):
     CATEGORIAS = [
@@ -248,6 +256,4 @@ class Gasto(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"${self.monto} - {self.proveedor}" 
-    
-    # Forzando migracion de clientes
+        return f"${self.monto} - {self.proveedor}"

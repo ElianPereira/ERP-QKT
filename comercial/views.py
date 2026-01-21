@@ -7,7 +7,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.contrib import messages
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives  # <--- CAMBIO IMPORTANTE
+from django.utils.html import strip_tags             # <--- CAMBIO IMPORTANTE
 from django.conf import settings
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
@@ -100,21 +101,21 @@ def ver_dashboard_kpis(request):
 
     context.update({
         'ventas_mes': ventas_mes,
-        'gastos_mes': gastos_mes, # Nuevo KPI
-        'utilidad_mes': utilidad_mes, # Nuevo KPI
+        'gastos_mes': gastos_mes,
+        'utilidad_mes': utilidad_mes,
         'solicitudes_count': solicitudes_count,
         'proximo_evento': proximo_evento,
         'ultimos_eventos': ultimos_eventos,
         'chart_labels': json.dumps(labels),
-        'chart_ventas': json.dumps(data_ventas), # Renombrado para claridad
-        'chart_gastos': json.dumps(data_gastos), # Nuevo dataset
+        'chart_ventas': json.dumps(data_ventas),
+        'chart_gastos': json.dumps(data_gastos),
         'es_jefe': request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()
     })
     
     return render(request, 'admin/dashboard.html', context)
 
 
-# --- 2. GENERAR LISTA DE COMPRAS (NUEVO) ---
+# --- 2. GENERAR LISTA DE COMPRAS ---
 @staff_member_required
 def generar_lista_compras(request):
     if request.method == 'POST':
@@ -164,18 +165,15 @@ def generar_lista_compras(request):
             'fecha_fin': fecha_fin,
             'lista': lista_final,
             'eventos': eventos,
-            'logo_url': logo_url # <--- Usamos ruta local
+            'logo_url': logo_url
         }
         
-        # Usamos un template específico para esto (necesitarás crearlo, te daré el código)
-        # O reusamos uno simple si prefieres
         html_string = render_to_string('comercial/pdf_lista_compras.html', context)
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="Lista_Compras_{fecha_inicio}.pdf"'
         HTML(string=html_string).write_pdf(response)
         return response
 
-    # Si es GET, mostramos el formulario de fechas (reusamos el mismo de reportes)
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
 
 
@@ -195,7 +193,7 @@ def generar_pdf_cotizacion(request, cotizacion_id):
         'cotizacion': cotizacion, 
         'total_pagado': total_pagado, 
         'saldo_pendiente': saldo_pendiente,
-        'logo_url': logo_url  # Pasamos la URL al template
+        'logo_url': logo_url
     }
     
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
@@ -205,45 +203,62 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     HTML(string=html_string).write_pdf(response)
     return response
 
+# --- MODIFICADO PARA USAR PLANTILLA HTML ---
 def enviar_cotizacion_email(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     cliente = cotizacion.cliente
+    
     if not cliente.email:
         messages.error(request, f"El cliente {cliente.nombre} no tiene email registrado.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
     
-    total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-    saldo_pendiente = cotizacion.precio_final - total_pagado
-    
-    # --- FIX IMAGEN (Ruta Local) ---
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    # -------------------------------
+    try:
+        total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
+        saldo_pendiente = cotizacion.precio_final - total_pagado
+        
+        # 1. Configurar contexto para el PDF y el HTML
+        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
 
-    context = {
-        'cotizacion': cotizacion, 
-        'total_pagado': total_pagado, 
-        'saldo_pendiente': saldo_pendiente,
-        'logo_url': logo_url # Pasamos la URL al template
-    }
-    
-    html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
-    html = HTML(string=html_string)
-    pdf_file = html.write_pdf()
-    
-    asunto = f"Recibo de pago - Evento {cotizacion.fecha_evento}"
-    mensaje = f"""
-    Hola {cliente.nombre},
-    Adjunto encontrarás el recibo actualizado de tu evento.
-    Total: ${cotizacion.precio_final} | Pendiente: ${saldo_pendiente}
-    Saludos, Quinta Kooxtanil
-    """
-    
-    email = EmailMessage(asunto, mensaje, settings.DEFAULT_FROM_EMAIL, [cliente.email])
-    email.attach(f"Recibo_{cotizacion.id}.pdf", pdf_file, 'application/pdf')
-    email.send()
-    messages.success(request, f"✅ Correo enviado a {cliente.email}")
+        context = {
+            'cotizacion': cotizacion, 
+            'cliente': cliente,
+            'total_pagado': total_pagado, 
+            'saldo_pendiente': saldo_pendiente,
+            'logo_url': logo_url
+        }
+
+        # 2. Generar el PDF (Adjunto)
+        html_pdf_string = render_to_string('cotizaciones/pdf_recibo.html', context)
+        pdf_file = HTML(string=html_pdf_string).write_pdf()
+
+        # 3. Generar el Cuerpo del Correo (HTML bonito)
+        # Asegúrate de haber creado templates/emails/cotizacion.html
+        html_email_content = render_to_string('emails/cotizacion.html', context)
+        text_content = strip_tags(html_email_content) # Versión texto plano por si acaso
+
+        # 4. Configurar el Email
+        asunto = f"Cotización {cotizacion.folio} - Quinta Ko'ox Tanil"
+        from_email = settings.DEFAULT_FROM_EMAIL
+        to = [cliente.email]
+
+        # Usamos EmailMultiAlternatives para enviar HTML + Texto + Adjunto
+        msg = EmailMultiAlternatives(asunto, text_content, from_email, to)
+        msg.attach_alternative(html_email_content, "text/html")
+        
+        # Adjuntar PDF
+        msg.attach(f"Cotizacion_{cotizacion.folio}.pdf", pdf_file, 'application/pdf')
+        
+        # 5. Enviar
+        msg.send()
+        
+        messages.success(request, f"✅ Correo enviado correctamente a {cliente.email}")
+
+    except Exception as e:
+        messages.error(request, f"❌ Error al enviar correo: {e}")
+
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
 
 def ver_calendario(request):
     cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA')
@@ -370,7 +385,7 @@ def exportar_reporte_cotizaciones(request):
             'total_ventas': total_ventas, 'total_pagado': total_pagado, 'total_pendiente': total_pendiente,
             'total_gastos': total_gastos, 'total_ganancia': total_ganancia,
             'total_efectivo': total_efectivo, 'total_transferencia': total_transferencia, 'total_ingresado': total_ingresado,
-            'logo_url': logo_url # <--- Usamos ruta local
+            'logo_url': logo_url
         }
 
         html_string = render_to_string('cotizaciones/pdf_reporte_ventas.html', context)
