@@ -148,17 +148,18 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE CORREO (MODO CARRIL RÁPIDO SSL) ---
+# --- CONFIGURACIÓN DE CORREO (BREVO / SENDINBLUE) ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-# CAMBIO: Puerto 465 es más rápido y seguro (SSL implícito)
-EMAIL_PORT = 465
-# CAMBIO: SSL activado, TLS desactivado
-EMAIL_USE_TLS = False
-EMAIL_USE_SSL = True
+EMAIL_HOST = 'smtp-relay.brevo.com'  # Host correcto para Brevo
+EMAIL_PORT = 587  # Puerto estándar para TLS en Brevo
+EMAIL_USE_TLS = True  # Activamos TLS
+EMAIL_USE_SSL = False # Desactivamos SSL puro (usamos TLS)
 
+# Las credenciales se leen desde las variables de entorno (.env o Railway)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='') 
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+# Asegúrate de que este correo esté verificado como remitente en Brevo
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 
 # --- CONFIGURACIÓN DE JAZZMIN ---
