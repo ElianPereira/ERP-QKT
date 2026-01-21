@@ -148,12 +148,14 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE CORREO (BREVO / SENDINBLUE) ---
+# --- CONFIGURACIÓN DE CORREO (BREVO / SENDINBLUE - MODO SSL SEGURO) ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp-relay.brevo.com'  # Host correcto para Brevo
-EMAIL_PORT = 587  # Puerto estándar para TLS en Brevo
-EMAIL_USE_TLS = True  # Activamos TLS
-EMAIL_USE_SSL = False # Desactivamos SSL puro (usamos TLS)
+EMAIL_HOST = 'smtp-relay.brevo.com'
+# CAMBIO CRÍTICO: Usar puerto 465 con SSL evita el timeout del "handshake"
+EMAIL_PORT = 465
+EMAIL_USE_TLS = False  # Apagado para usar SSL puro
+EMAIL_USE_SSL = True   # Encendido para conexión segura inmediata
+EMAIL_TIMEOUT = 15     # IMPORTANTE: Si falla, libera el proceso en 15s (evita Worker Timeout)
 
 # Las credenciales se leen desde las variables de entorno (.env o Railway)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='') 
