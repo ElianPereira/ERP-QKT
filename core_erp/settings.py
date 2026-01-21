@@ -12,8 +12,15 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-key-dev')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
+# Permitir cualquier host para evitar errores de conexión en Railway
 ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = ['https://erp-qkt-production.up.railway.app']
+
+# --- SEGURIDAD CSRF (CRITICO PARA EL LOGIN) ---
+# Esto permite que Django confíe en los formularios enviados desde Railway
+CSRF_TRUSTED_ORIGINS = [
+    'https://erp-qkt.up.railway.app',
+    'https://*.railway.app',
+]
 
 # --- APLICACIONES INSTALADAS ---
 INSTALLED_APPS = [
@@ -68,7 +75,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core_erp.wsgi.application'
 
-# --- CONFIGURACIÓN DE LOGS (NUEVO: Para evitar lentitud en Railway) ---
+# --- CONFIGURACIÓN DE LOGS ---
+# Optimizado para que Railway no se sature escribiendo texto
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -84,16 +92,16 @@ LOGGING = {
         },
         'weasyprint': {
             'handlers': ['console'],
-            'level': 'WARNING',  # Solo errores graves, silencia el debug
+            'level': 'WARNING',  # Solo errores graves
         },
         'fontTools': {
             'handlers': ['console'],
-            'level': 'WARNING',  # Silencia el ruido de carga de fuentes
+            'level': 'WARNING', 
         },
     },
 }
 
-# --- BASE DE DATOS (Configurada para SQLite local y PostgreSQL en Railway) ---
+# --- BASE DE DATOS ---
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -101,8 +109,7 @@ DATABASES = {
     }
 }
 
-# Esto busca la variable DATABASE_URL que Railway inyecta automáticamente
-# Si existe, reemplaza la SQLite por PostgreSQL
+# Configuración automática para PostgreSQL en Railway
 db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
 
@@ -131,7 +138,9 @@ NUMBER_GROUPING = 3
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Usamos CompressedStaticFilesStorage (sin Manifest) para evitar errores si falta algún archivo
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # --- ARCHIVOS MEDIA (PDFs, Excel, XML) ---
 MEDIA_URL = '/media/'
@@ -144,7 +153,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-# Recuerda configurar estas variables en tu archivo .env o poner la contraseña aquí temporalmente
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='') 
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
