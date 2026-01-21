@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     
     # Librerías extra
     'weasyprint',
+    'anymail',  # <--- CRÍTICO: Necesario para enviar correos por API
 ]
 
 MIDDLEWARE = [
@@ -148,22 +149,17 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE CORREO (BREVO / SENDINBLUE) ---
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp-relay.brevo.com'
+# --- CONFIGURACIÓN DE CORREO (ANYMAIL - API WEB) ---
+# Usamos la API Web (HTTPS) para evitar los bloqueos de puertos SMTP (587/465) en Railway.
+EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
 
-# CAMBIO CLAVE: Usamos el puerto 2525 que suele estar desbloqueado en Railway
-EMAIL_PORT = 2525
+ANYMAIL = {
+    # Esta clave se lee desde las variables de entorno de Railway (debe ser la que empieza por xkeysib-)
+    "BREVO_API_KEY": config('BREVO_API_KEY', default=''),
+}
 
-# Para el puerto 2525, la seguridad funciona al revés que en el 465:
-EMAIL_USE_TLS = True   # ACTIVADO (STARTTLS)
-EMAIL_USE_SSL = False  # DESACTIVADO
-EMAIL_TIMEOUT = 20     # Mantenemos el timeout por seguridad
-
-# Credenciales
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='') 
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
+SERVER_EMAIL = 'quintakooxtanil@gmail.com'
 
 # --- CONFIGURACIÓN DE JAZZMIN ---
 JAZZMIN_SETTINGS = {
@@ -208,5 +204,3 @@ JAZZMIN_UI_TWEAKS = {
     "theme": "flatly",
     "dark_mode_theme": None,
 }
-
-# PRUEBA DE CAMBIO 123
