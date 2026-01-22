@@ -16,7 +16,6 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = ['*']
 
 # --- SEGURIDAD CSRF (CRITICO PARA EL LOGIN) ---
-# Esto permite que Django confíe en los formularios enviados desde Railway
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
     'https://*.railway.app',
@@ -33,6 +32,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.humanize', 
 
+    # --- LIBRERÍAS DE ALMACENAMIENTO (NUEVO) ---
+    'cloudinary_storage',
+    'cloudinary',
+    # -------------------------------------------
+
     # Mis Apps Existentes
     'comercial',
 
@@ -42,7 +46,7 @@ INSTALLED_APPS = [
     
     # Librerías extra
     'weasyprint',
-    'anymail',  # <--- CRÍTICO: Necesario para enviar correos por API
+    'anymail',
 ]
 
 MIDDLEWARE = [
@@ -77,7 +81,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core_erp.wsgi.application'
 
 # --- CONFIGURACIÓN DE LOGS ---
-# Optimizado para que Railway no se sature escribiendo texto
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -93,7 +96,7 @@ LOGGING = {
         },
         'weasyprint': {
             'handlers': ['console'],
-            'level': 'WARNING',  # Solo errores graves
+            'level': 'WARNING',
         },
         'fontTools': {
             'handlers': ['console'],
@@ -135,29 +138,31 @@ DECIMAL_SEPARATOR = '.'
 THOUSAND_SEPARATOR = ','
 NUMBER_GROUPING = 3
 
-# --- ARCHIVOS ESTÁTICOS ---
+# --- ARCHIVOS ESTÁTICOS (CSS/JS - Usamos WhiteNoise) ---
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-
-# Usamos CompressedStaticFilesStorage (sin Manifest) para evitar errores si falta algún archivo
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
-# --- ARCHIVOS MEDIA (PDFs, Excel, XML) ---
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# --- ARCHIVOS MEDIA (PDFs, Excel - Usamos Cloudinary) ---
+# Esto permite que los archivos NO se borren al reiniciar Railway
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
+    'API_KEY': config('CLOUDINARY_API_KEY', default=''),
+    'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+MEDIA_URL = '/media/'  
+# --------------------------------------------------------
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE CORREO (ANYMAIL - API WEB) ---
-# Usamos la API Web (HTTPS) para evitar los bloqueos de puertos SMTP (587/465) en Railway.
+# --- CONFIGURACIÓN DE CORREO ---
 EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
-
 ANYMAIL = {
-    # Esta clave se lee desde las variables de entorno de Railway (debe ser la que empieza por xkeysib-)
     "BREVO_API_KEY": config('BREVO_API_KEY', default=''),
 }
-
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 SERVER_EMAIL = 'quintakooxtanil@gmail.com'
 
