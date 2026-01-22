@@ -21,7 +21,7 @@ from comercial.views import (
     generar_lista_compras
 )
 
-# Importamos vistas de otros módulos
+# Importamos vistas de otros módulos (Nómina y Facturación)
 from nomina.views import cargar_nomina
 from facturacion.views import crear_solicitud
 
@@ -57,7 +57,8 @@ urlpatterns = [
     # --- RUTA SECRETA DE EMERGENCIA ---
     path('crear-admin-secreto/', crear_superusuario_view),
 
-    # 1. EL DASHBOARD (Ojo: esto intercepta la raíz de admin)
+    # 1. EL DASHBOARD
+    # Intercepta la raíz del admin para mostrar tus KPIs
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),
 
     # 2. Rutas del Sistema Comercial
@@ -75,15 +76,16 @@ urlpatterns = [
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
     
     # 3. Rutas de Nómina y Facturación
+    # --- ESTA ES LA LÍNEA CRÍTICA PARA TU BOTÓN ---
     path('admin/nomina/cargar/', cargar_nomina, name='cargar_nomina'),
+    # ----------------------------------------------
     path('admin/facturacion/nueva/', crear_solicitud, name='crear_solicitud'),
 
     # 4. ADMIN DE DJANGO (Standard)
-    # Nota: Como pusiste 'admin/' arriba para el dashboard, asegúrate de que no choquen.
-    # Django revisa en orden. Si 'ver_dashboard_kpis' no maneja sub-rutas, las dejará pasar.
+    # Las rutas estándar del admin (login, logout, cambios de contraseña, etc.)
     path('admin/', admin.site.urls),
 
-    # 5. RUTA RAÍZ
+    # 5. RUTA RAÍZ (Redirige al admin)
     path('', RedirectView.as_view(url='/admin/', permanent=False)), 
 ]
 

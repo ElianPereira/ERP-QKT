@@ -8,7 +8,8 @@
     {# Agrega tu botón de Carga Masiva #}
     {% if boton_carga %}
     <li>
-        <form action="{% url 'admin:cargar_nomina' %}" method="post" enctype="multipart/form-data" style="display: flex; align-items: center; gap: 10px;">
+        {# CORRECCIÓN: Usamos 'cargar_nomina' sin 'admin:' para coincidir con tu urls.py #}
+        <form action="{% url 'cargar_nomina' %}" method="post" enctype="multipart/form-data" style="display: flex; align-items: center; gap: 10px;">
             {% csrf_token %}
             <input type="file" name="archivo_excel" required accept=".xlsx" style="font-size: 12px;">
             <button type="submit" class="button" style="background: #28a745; color: white; border: none;">
