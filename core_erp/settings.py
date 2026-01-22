@@ -3,25 +3,16 @@ from pathlib import Path
 import os
 import dj_database_url
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-key-dev')
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
-
-# Permitir cualquier host para evitar errores de conexión en Railway
 ALLOWED_HOSTS = ['*']
 
-# --- SEGURIDAD CSRF (CRITICO PARA EL LOGIN) ---
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
     'https://*.railway.app',
 ]
 
-# --- APLICACIONES INSTALADAS ---
 INSTALLED_APPS = [
     'jazzmin',
     'django.contrib.admin',
@@ -31,20 +22,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize', 
-
-    # --- LIBRERÍAS DE ALMACENAMIENTO (NUEVO) ---
-    'cloudinary_storage',
-    'cloudinary',
-    # -------------------------------------------
-
-    # Mis Apps Existentes
+    'cloudinary_storage', # Cloudinary App
+    'cloudinary',         # Cloudinary App
     'comercial',
-
-    # Mis Apps Nuevas
     'nomina',
     'facturacion',
-    
-    # Librerías extra
     'weasyprint',
     'anymail',
 ]
@@ -80,44 +62,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core_erp.wsgi.application'
 
-# --- CONFIGURACIÓN DE LOGS ---
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
     'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
-        },
-        'weasyprint': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-        },
-        'fontTools': {
-            'handlers': ['console'],
-            'level': 'WARNING', 
-        },
+        'django': {'handlers': ['console'], 'level': 'INFO'},
+        'weasyprint': {'handlers': ['console'], 'level': 'WARNING'},
     },
 }
 
-# --- BASE DE DATOS ---
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
-# Configuración automática para PostgreSQL en Railway
 db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
 
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     { 'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator', },
     { 'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', },
@@ -125,48 +88,47 @@ AUTH_PASSWORD_VALIDATORS = [
     { 'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator', },
 ]
 
-# --- IDIOMA Y ZONA HORARIA ---
 LANGUAGE_CODE = 'es-mx'
 TIME_ZONE = 'America/Merida'
 USE_I18N = True
 USE_TZ = True
-
-# --- FORMATO DE NÚMEROS ---
 USE_L10N = False 
 USE_THOUSAND_SEPARATOR = True
 DECIMAL_SEPARATOR = '.'
 THOUSAND_SEPARATOR = ','
-NUMBER_GROUPING = 3
 
-# --- ARCHIVOS ESTÁTICOS (CSS/JS - Usamos WhiteNoise) ---
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
-# --- ARCHIVOS MEDIA (PDFs, Excel - Usamos Cloudinary) ---
-# Esto permite que los archivos NO se borren al reiniciar Railway
+# --- CONFIGURACIÓN DE CORREO ---
+EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
+ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
+DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
+SERVER_EMAIL = 'quintakooxtanil@gmail.com'
+
+# --- CONFIGURACIÓN NUEVA PARA DJANGO 5+ (STORAGES) ---
+# Aquí definimos Cloudinary para archivos (Media) y WhiteNoise para estilos (Static)
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
     'API_KEY': config('CLOUDINARY_API_KEY', default=''),
     'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
 }
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 MEDIA_URL = '/media/'  
-# --------------------------------------------------------
+# -----------------------------------------------------
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE CORREO ---
-EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
-ANYMAIL = {
-    "BREVO_API_KEY": config('BREVO_API_KEY', default=''),
-}
-DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
-SERVER_EMAIL = 'quintakooxtanil@gmail.com'
-
-# --- CONFIGURACIÓN DE JAZZMIN ---
 JAZZMIN_SETTINGS = {
     "site_title": "ERP Quinta Ko'ox Tanil",
     "site_header": "Sistema de Eventos",
@@ -175,23 +137,18 @@ JAZZMIN_SETTINGS = {
     "copyright": "Quinta Ko'ox Tanil",
     "site_logo": "img/logo.png",
     "login_logo": "img/logo.png",
+    "show_sidebar": True,
+    "navigation_expanded": False,
     "icons": {
         "auth": "fas fa-users-cog",
         "auth.user": "fas fa-user",
-        "auth.Group": "fas fa-users",
-        
-        # Comercial
         "comercial.Cliente": "fas fa-address-book",
         "comercial.Cotizacion": "fas fa-file-invoice-dollar",
         "comercial.Insumo": "fas fa-cubes",
         "comercial.Pago": "fas fa-hand-holding-usd",
         "comercial.Producto": "fas fa-box-open",
-        
-        # Nómina
         "nomina.Empleado": "fas fa-user-tie",
         "nomina.ReciboNomina": "fas fa-file-contract",
-
-        # Facturación
         "facturacion.ClienteFiscal": "fas fa-building",
         "facturacion.SolicitudFactura": "fas fa-file-signature",
     },
@@ -200,12 +157,6 @@ JAZZMIN_SETTINGS = {
         {"name": "📅 Ver Calendario", "url": "ver_calendario"}, 
         {"name": "Ver Sitio", "url": "/"},
     ],
-    "show_sidebar": True,
-    "navigation_expanded": False,
     "order_with_respect_to": ["comercial", "nomina", "facturacion", "auth"], 
 }
-
-JAZZMIN_UI_TWEAKS = {
-    "theme": "flatly",
-    "dark_mode_theme": None,
-}
+JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
