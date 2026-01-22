@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from django.urls import reverse
+from django.urls import reverse, NoReverseMatch
 from django.contrib import messages
 from django.db.models import Sum
 from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, Pago, Gasto
@@ -8,18 +8,21 @@ from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, P
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'categoria', 'cantidad_stock', 'unidad_medida')
-    list_editable = ('cantidad_stock', 'categoria') 
+    list_editable = ('cantidad_stock', 'categoria')
     list_filter = ('categoria',)
     search_fields = ('nombre',)
+    list_per_page = 20
 
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto
     extra = 1
+    autocomplete_fields = ['insumo'] # Recomendado si tienes muchos insumos
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline]
     list_display = ('nombre', 'calcular_costo', 'sugerencia_precio')
+    search_fields = ('nombre',)
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
@@ -40,18 +43,14 @@ class ClienteAdmin(admin.ModelAdmin):
 
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
-    change_list_template = 'admin/comercial/cotizacion/change_list.html'
+    # Asegúrate de tener este template o borra esta línea si usas el default
+    # change_list_template = 'admin/comercial/cotizacion/change_list.html' 
 
-    def folio_cotizacion(self, obj):
-        return f"COT-{int(obj.id):03d}"
-    folio_cotizacion.short_description = "Folio"
-    folio_cotizacion.admin_order_field = 'id'
-
-    # --- AGREGAMOS EL BOTÓN DE EMAIL A LA LISTA ---
     list_display = ('folio_cotizacion', 'cliente', 'producto', 'fecha_evento', 'estado', 'subtotal', 'precio_final', 'ver_pdf', 'enviar_email_btn')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento')
-    search_fields = ('id', 'cliente__nombre',)
-    
+    search_fields = ('id', 'cliente__nombre', 'cliente__rfc')
+    autocomplete_fields = ['cliente', 'producto'] # Útil si tienes muchos clientes/productos
+
     fieldsets = (
         ('Datos del Evento', {
             'fields': ('cliente', 'producto', 'fecha_evento', 'estado')
@@ -62,15 +61,24 @@ class CotizacionAdmin(admin.ModelAdmin):
         ('Cálculo Fiscal (Automático)', {
             'fields': ('iva', 'retencion_isr', 'retencion_iva', 'precio_final') 
         }),
-        ('Acciones y Archivos', { # Renombrado para incluir el botón
+        ('Acciones y Archivos', { 
             'fields': ('archivo_pdf', 'enviar_email_btn') 
         }),
     )
     
-    # --- AGREGAMOS EL BOTÓN A READONLY FIELDS ---
     readonly_fields = ('iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn')
 
+    def folio_cotizacion(self, obj):
+        return f"COT-{obj.id:03d}"
+    folio_cotizacion.short_description = "Folio"
+    folio_cotizacion.admin_order_field = 'id'
+
     def save_model(self, request, obj, form, change):
+        """
+        Lógica central de inventario:
+        - Si es 'MOBILIARIO/SERVICIO': Verifica disponibilidad por fecha.
+        - Si es 'CONSUMIBLE': Descuenta del stock físico.
+        """
         cotizacion_anterior = None
         if change:
             try:
@@ -81,13 +89,17 @@ class CotizacionAdmin(admin.ModelAdmin):
         recalcular_stock = False
         devolver_stock_anterior = False
 
+        # Detectar cambios de estado para mover stock
         if obj.estado == 'CONFIRMADA':
             if not cotizacion_anterior or cotizacion_anterior.estado != 'CONFIRMADA':
+                # Caso: Nueva confirmación (de Borrador a Confirmada)
                 recalcular_stock = True
             elif cotizacion_anterior and cotizacion_anterior.producto != obj.producto:
+                # Caso: Ya estaba confirmada, pero cambiaron el producto (paquete)
                 devolver_stock_anterior = True
                 recalcular_stock = True
 
+        # 1. Devolución de stock si cambiaron el producto
         if devolver_stock_anterior:
             for componente in cotizacion_anterior.producto.componentes.all():
                 if componente.insumo.categoria == 'CONSUMIBLE':
@@ -95,6 +107,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     componente.insumo.save()
             messages.info(request, f"🔄 Stock devuelto del paquete anterior: {cotizacion_anterior.producto.nombre}")
 
+        # 2. Validación y descuento de stock
         if recalcular_stock:
             errores_logistica = []
             producto = obj.producto
@@ -104,80 +117,85 @@ class CotizacionAdmin(admin.ModelAdmin):
                 cantidad_necesaria = componente.cantidad
 
                 if insumo.categoria in ['MOBILIARIO', 'SERVICIO']:
-                    otros_eventos = Cotizacion.objects.filter(
-                        fecha_evento=obj.fecha_evento,
-                        estado='CONFIRMADA'
-                    ).exclude(id=obj.id)
-                    
-                    usado_ese_dia = 0
-                    for evento in otros_eventos:
-                        uso = evento.producto.componentes.filter(insumo=insumo).aggregate(Sum('cantidad'))['cantidad__sum']
-                        if uso:
-                            usado_ese_dia += uso
+                    # OPTIMIZACIÓN: Sumar directamente desde la base de datos
+                    # Buscamos cuánto de este insumo ya está ocupado en OTRAS cotizaciones de HOY
+                    usado_ese_dia = ComponenteProducto.objects.filter(
+                        cotizacion__fecha_evento=obj.fecha_evento,
+                        cotizacion__estado='CONFIRMADA',
+                        insumo=insumo
+                    ).exclude(
+                        cotizacion__id=obj.id # Excluimos la actual para no duplicar si solo estamos editando
+                    ).aggregate(Sum('cantidad'))['cantidad__sum'] or 0
                     
                     disponible_real = insumo.cantidad_stock - usado_ese_dia
                     
                     if disponible_real < cantidad_necesaria:
-                        errores_logistica.append(f"{insumo.nombre} (Stock Total: {insumo.cantidad_stock}, Usado hoy: {usado_ese_dia}, Faltan: {cantidad_necesaria - disponible_real})")
+                        errores_logistica.append(
+                            f"{insumo.nombre} (Stock Total: {insumo.cantidad_stock}, Ocupado hoy: {usado_ese_dia}, Faltan: {cantidad_necesaria - disponible_real})"
+                        )
 
                 elif insumo.categoria == 'CONSUMIBLE':
                     if insumo.cantidad_stock < cantidad_necesaria:
-                        messages.warning(request, f"⚠️ OJO: {insumo.nombre} quedó en negativo.")
+                        messages.warning(request, f"⚠️ OJO: {insumo.nombre} quedó en negativo (Stock actual: {insumo.cantidad_stock}).")
                     
+                    # Descontamos stock permanentemente
                     insumo.cantidad_stock -= cantidad_necesaria
                     insumo.save()
 
             if errores_logistica:
                 messages.error(request, f"⛔ NO SE PUEDE CONFIRMAR: Falta logística para el {obj.fecha_evento}: {', '.join(errores_logistica)}")
-                obj.estado = 'BORRADOR' 
+                obj.estado = 'BORRADOR' # Regresamos a borrador para evitar sobreventa
             else:
-                messages.success(request, f"✅ Evento Confirmado: {producto.nombre}. Recursos asignados.")
+                messages.success(request, f"✅ Evento Confirmado: {producto.nombre}. Recursos asignados correctamente.")
 
+        # 3. Caso de Cancelación: Si estaba confirmada y pasa a otro estado (cancelada/borrador)
         elif cotizacion_anterior and cotizacion_anterior.estado == 'CONFIRMADA' and obj.estado != 'CONFIRMADA':
             for componente in cotizacion_anterior.producto.componentes.all():
                 if componente.insumo.categoria == 'CONSUMIBLE':
                     componente.insumo.cantidad_stock += componente.cantidad
                     componente.insumo.save()
-            messages.info(request, "ℹ️ Evento cancelado. Consumibles devueltos al stock.")
+            messages.info(request, "ℹ️ Evento cancelado/pospuesto. Consumibles devueltos al stock.")
 
         super().save_model(request, obj, form, change)
 
+    # --- BOTONES DE ACCIÓN ---
     def ver_pdf(self, obj):
         if obj.id:
             try:
+                # Asegúrate que en urls.py tengas name='cotizacion_pdf'
                 url_pdf = reverse('cotizacion_pdf', args=[obj.id])
                 return format_html(
                     '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
                     '<i class="fas fa-file-pdf"></i> Ver PDF</a>',
                     url_pdf
                 )
-            except:
-                return "-"
+            except NoReverseMatch:
+                return "Falta URL"
         return "-"
     ver_pdf.short_description = "Cotización"
     ver_pdf.allow_tags = True
 
-    # --- NUEVA FUNCIÓN: BOTÓN DE ENVIAR EMAIL ---
     def enviar_email_btn(self, obj):
         if obj.id:
             try:
-                # Usamos el nombre 'cotizacion_email' que está definido en urls.py
+                # Asegúrate que en urls.py tengas name='cotizacion_email'
                 url_email = reverse('cotizacion_email', args=[obj.id])
                 return format_html(
                     '<a href="{}" style="background-color:#28a745; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
-                    '<i class="fas fa-envelope"></i> Enviar Correo</a>',
+                    '<i class="fas fa-envelope"></i> Enviar</a>',
                     url_email
                 )
-            except:
-                return "-"
+            except NoReverseMatch:
+                return "Falta URL"
         return "-"
-    enviar_email_btn.short_description = "Enviar al Cliente"
+    enviar_email_btn.short_description = "Email"
     enviar_email_btn.allow_tags = True
 
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
     list_display = ('cotizacion', 'monto', 'metodo', 'fecha_pago')
     list_filter = ('fecha_pago', 'metodo')
+    autocomplete_fields = ['cotizacion']
 
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
@@ -190,19 +208,20 @@ class GastoAdmin(admin.ModelAdmin):
 
     def tiene_xml(self, obj):
         return "✅ Sí" if obj.archivo_xml else "📝 Manual"
-    tiene_xml.short_description = "Tipo Registro"
+    tiene_xml.short_description = "Registro"
     
     def ver_pdf(self, obj):
         if obj.archivo_pdf:
             return format_html(
                 '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
-                '<i class="fas fa-file-pdf"></i> Ver PDF</a>',
+                '<i class="fas fa-file-pdf"></i> PDF</a>',
                 obj.archivo_pdf.url
             )
         return "-"
     ver_pdf.short_description = "Comprobante"
     
     def get_readonly_fields(self, request, obj=None):
+        # Si ya se cargó un XML, protegemos los campos para que no se alteren manualmente
         if obj and obj.archivo_xml:
             return self.readonly_fields
         return ('uuid',)
