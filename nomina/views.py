@@ -28,8 +28,10 @@ def parsear_horas_complejas(valor):
 
 @staff_member_required
 def cargar_nomina(request):
-    if request.method == 'POST' and request.FILES.get('excel_file'):
-        archivo = request.FILES['excel_file']
+    # --- CORRECCIÓN CLAVE ---
+    # Cambiamos 'excel_file' por 'archivo_excel' para que coincida con tu HTML
+    if request.method == 'POST' and request.FILES.get('archivo_excel'):
+        archivo = request.FILES['archivo_excel']
         
         try:
             # 1. Leer archivo
@@ -62,7 +64,8 @@ def cargar_nomina(request):
             
             if not mapa_columnas_fechas:
                 messages.error(request, "❌ No encontré la fila de fechas en el archivo.")
-                return redirect('/admin/nomina/recibonomina/')
+                # Redirige de vuelta a la lista del admin
+                return redirect('admin:nomina_recibonomina_changelist')
 
             # 3. ESCÁNER DE EMPLEADOS
             datos_empleados = {} 
@@ -124,7 +127,7 @@ def cargar_nomina(request):
                     'total_horas': f"{total_horas:.2f}",
                     'total_pagado': total_pagado,
                     'folio': f"NOM-{ReciboNomina.objects.count()+1:03d}",
-                    'logo_url': logo_url  # <--- Pasamos URL al template
+                    'logo_url': logo_url 
                 }
                 
                 html = render_to_string('nomina/recibo_nomina.html', context)
@@ -140,10 +143,15 @@ def cargar_nomina(request):
                 count += 1
 
             if count > 0: messages.success(request, f"✅ Éxito: {count} recibos generados.")
-            else: messages.warning(request, "⚠️ No se encontraron datos.")
-            return redirect('/admin/nomina/recibonomina/')
+            else: messages.warning(request, "⚠️ No se encontraron datos procesables.")
+            
+            # --- CORRECCIÓN FINAL ---
+            # Redirigir siempre a la LISTA del admin, nunca al formulario vacío
+            return redirect('admin:nomina_recibonomina_changelist')
 
         except Exception as e:
-            messages.error(request, f"Error: {e}")
+            messages.error(request, f"Error crítico al procesar: {e}")
+            return redirect('admin:nomina_recibonomina_changelist')
 
+    # Si entran por GET (URL directa), mostramos el formulario aparte
     return render(request, 'nomina/formulario_carga.html')
