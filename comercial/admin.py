@@ -56,7 +56,6 @@ class PagoInline(admin.TabularInline):
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline]
 
-    # --- AQUÍ ESTÁ EL CAMBIO: AGREGAMOS ver_pdf Y enviar_email_btn AL FINAL ---
     list_display = ('folio_cotizacion', 'cliente', 'fecha_evento', 'hora_inicio', 'estado', 'precio_final', 'usuario', 'ver_pdf', 'enviar_email_btn')
     
     list_filter = ('estado', 'requiere_factura', 'fecha_evento')
@@ -161,6 +160,12 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
+        
+        # --- ESTO ES LO QUE FALTABA PARA QUE FUNCIONE EL BORRAR ---
+        for obj in formset.deleted_objects:
+            obj.delete()
+        # ---------------------------------------------------------
+
         for instance in instances:
             if isinstance(instance, Pago):
                 if not instance.pk:
