@@ -4,12 +4,13 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 
-# --- IMPORTS PARA EL TRUCO DE CREAR ADMIN (NUEVO) ---
+# --- IMPORTS PARA EL TRUCO DE CREAR ADMIN ---
 from django.contrib.auth.models import User
 from django.http import HttpResponse
 # ----------------------------------------------------
 
 # Importamos las vistas de Comercial
+# SE AGREGA: forzar_migracion
 from comercial.views import (
     generar_pdf_cotizacion, 
     enviar_cotizacion_email, 
@@ -18,7 +19,8 @@ from comercial.views import (
     calculadora_insumos,
     exportar_cierre_excel,
     exportar_reporte_cotizaciones,
-    generar_lista_compras
+    generar_lista_compras,
+    forzar_migracion 
 )
 
 # Importamos vistas de otros módulos (Nómina y Facturación)
@@ -57,6 +59,9 @@ urlpatterns = [
     # --- RUTA SECRETA DE EMERGENCIA ---
     path('crear-admin-secreto/', crear_superusuario_view),
 
+    # --- RUTA DE EMERGENCIA PARA MIGRAR DB ---
+    path('admin/ajustes/migrar-ahora/', forzar_migracion),
+
     # 1. EL DASHBOARD
     # Intercepta la raíz del admin para mostrar tus KPIs
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),
@@ -76,9 +81,7 @@ urlpatterns = [
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
     
     # 3. Rutas de Nómina y Facturación
-    # --- ESTA ES LA LÍNEA CRÍTICA PARA TU BOTÓN ---
     path('admin/nomina/cargar/', cargar_nomina, name='cargar_nomina'),
-    # ----------------------------------------------
     path('admin/facturacion/nueva/', crear_solicitud, name='crear_solicitud'),
 
     # 4. ADMIN DE DJANGO (Standard)
@@ -91,5 +94,3 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-#CAMBIO VACIO

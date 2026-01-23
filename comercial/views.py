@@ -416,3 +416,18 @@ def exportar_reporte_cotizaciones(request):
         return response
 
     return render(request, 'comercial/reporte_form.html')
+
+# --- AGREGAR AL FINAL DE comercial/views.py ---
+from django.core.management import call_command
+
+@staff_member_required
+def forzar_migracion(request):
+    if not request.user.is_superuser:
+        return HttpResponse("⛔ Acceso denegado. Solo superusuarios.")
+    
+    try:
+        # Esto es lo mismo que escribir "python manage.py migrate" en la terminal
+        call_command('migrate', interactive=False)
+        return HttpResponse("✅ ¡MIGRACIÓN EXITOSA! La base de datos ya tiene los nuevos campos (hora_inicio, usuario, etc). Ya puedes volver al Admin.")
+    except Exception as e:
+        return HttpResponse(f"❌ Error al migrar: {str(e)}")
