@@ -16,11 +16,12 @@ from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
-from decimal import Decimal # <--- Importante para sumas de dinero
+from decimal import Decimal
 from weasyprint import HTML
+from django.core.management import call_command
 
 # IMPORTAMOS MODELOS
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion # <--- Agregamos ItemCotizacion
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion
 from .forms import CalculadoraForm
 
 try:
@@ -28,7 +29,7 @@ try:
 except ImportError:
     SolicitudFactura = None 
 
-# --- 1. DASHBOARD PRINCIPAL (INTACTO) ---
+# --- 1. DASHBOARD PRINCIPAL ---
 @staff_member_required 
 def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
@@ -115,7 +116,7 @@ def ver_dashboard_kpis(request):
     return render(request, 'admin/dashboard.html', context)
 
 
-# --- 2. GENERAR LISTA DE COMPRAS (INTACTO) ---
+# --- 2. GENERAR LISTA DE COMPRAS ---
 @staff_member_required
 def generar_lista_compras(request):
     if request.method == 'POST':
@@ -144,7 +145,7 @@ def generar_lista_compras(request):
                         }
                     compras[insumo.nombre]['cantidad'] += float(componente.cantidad)
             
-            # 2. Ítems Extra agregados a la cotización (NUEVO)
+            # 2. Ítems Extra agregados a la cotización
             for item in evento.items.all():
                 if item.insumo and item.insumo.categoria == 'CONSUMIBLE':
                     if item.insumo.nombre not in compras:
@@ -187,7 +188,7 @@ def generar_lista_compras(request):
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
 
 
-# --- 3. VISTAS PDF Y EMAIL (MODIFICADO PARA ÍTEMS EXTRA) ---
+# --- 3. VISTAS PDF Y EMAIL (CON NOMBRE DE ARCHIVO PERSONALIZADO) ---
 
 def obtener_contexto_cotizacion(cotizacion):
     """ Función auxiliar para calcular totales reales incluyendo extras """
@@ -221,9 +222,9 @@ def obtener_contexto_cotizacion(cotizacion):
 
     return {
         'cotizacion': cotizacion,
-        'items_extra': items_extra,       # <--- PASAMOS LA LISTA DE ÍTEMS
-        'precio_paquete': precio_paquete, # <--- PRECIO BASE
-        'subtotal_real': subtotal_real,   # <--- SUBTOTAL CALCULADO
+        'items_extra': items_extra,
+        'precio_paquete': precio_paquete,
+        'subtotal_real': subtotal_real,
         'iva_real': iva,
         'ret_isr_real': ret_isr,
         'precio_final_real': precio_final_real,
@@ -234,13 +235,18 @@ def obtener_contexto_cotizacion(cotizacion):
 
 def generar_pdf_cotizacion(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    
-    # Usamos la función auxiliar para obtener todos los datos calculados
     context = obtener_contexto_cotizacion(cotizacion)
     
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
     response = HttpResponse(content_type='application/pdf')
-    filename = f"Recibo_{cotizacion.id}_{cotizacion.cliente.nombre}.pdf"
+    
+    # --- CAMBIO DE NOMBRE DE ARCHIVO ---
+    # Formato: COT-004_23-01-2026.pdf
+    folio = f"COT-{cotizacion.id:03d}"
+    fecha_actual = timezone.now().strftime("%d-%m-%Y")
+    filename = f"{folio}_{fecha_actual}.pdf"
+    # -----------------------------------
+
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     HTML(string=html_string).write_pdf(response)
     return response
@@ -254,7 +260,6 @@ def enviar_cotizacion_email(request, cotizacion_id):
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
     
     try:
-        # Usamos la misma función auxiliar
         context = obtener_contexto_cotizacion(cotizacion)
         context['cliente'] = cliente
 
@@ -262,17 +267,26 @@ def enviar_cotizacion_email(request, cotizacion_id):
         html_pdf_string = render_to_string('cotizaciones/pdf_recibo.html', context)
         pdf_file = HTML(string=html_pdf_string).write_pdf()
 
+        # --- NOMBRE DEL ARCHIVO ADJUNTO ---
+        folio = f"COT-{cotizacion.id:03d}"
+        fecha_actual = timezone.now().strftime("%d-%m-%Y")
+        filename = f"{folio}_{fecha_actual}.pdf"
+        # ----------------------------------
+
         # Generar Email HTML
         html_email_content = render_to_string('emails/cotizacion.html', context)
         text_content = strip_tags(html_email_content)
 
-        asunto = f"Cotización {cotizacion.folio_cotizacion()} - Quinta Ko'ox Tanil"
+        asunto = f"Cotización {folio} - Quinta Ko'ox Tanil"
         from_email = settings.DEFAULT_FROM_EMAIL
         to = [cliente.email]
 
         msg = EmailMultiAlternatives(asunto, text_content, from_email, to)
         msg.attach_alternative(html_email_content, "text/html")
-        msg.attach(f"Cotizacion_{cotizacion.id}.pdf", pdf_file, 'application/pdf')
+        
+        # Adjuntar con el nombre nuevo
+        msg.attach(filename, pdf_file, 'application/pdf')
+        
         msg.send()
         
         messages.success(request, f"✅ Correo enviado correctamente a {cliente.email}")
@@ -417,16 +431,12 @@ def exportar_reporte_cotizaciones(request):
 
     return render(request, 'comercial/reporte_form.html')
 
-# --- AGREGAR AL FINAL DE comercial/views.py ---
-from django.core.management import call_command
-
 @staff_member_required
 def forzar_migracion(request):
     if not request.user.is_superuser:
         return HttpResponse("⛔ Acceso denegado. Solo superusuarios.")
     
     try:
-        # Esto es lo mismo que escribir "python manage.py migrate" en la terminal
         call_command('migrate', interactive=False)
         return HttpResponse("✅ ¡MIGRACIÓN EXITOSA! La base de datos ya tiene los nuevos campos (hora_inicio, usuario, etc). Ya puedes volver al Admin.")
     except Exception as e:
