@@ -152,33 +152,51 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 85%">Concepto / Servicios Incluidos</th>
-                <th style="width: 15%">Cantidad</th>
+                <th style="width: 70%">Concepto / Servicios Incluidos</th>
+                <th style="width: 15%; text-align: center;">Cantidad</th>
+                <th style="width: 15%; text-align: right;">Importe</th>
             </tr>
         </thead>
         <tbody>
-            <tr style="background-color: #f9f9f9;">
+            <tr style="background-color: #e9ecef; font-weight: bold;">
                 <td>
-                    <strong>{{ cotizacion.producto.nombre }}</strong><br>
-                    <span style="font-size: 10px; color: #999;">Paquete Base Contratado</span>
+                    {{ cotizacion.producto.nombre }}
+                    <br><span style="font-size: 9px; font-weight: normal; color: #666;">Paquete Base Contratado</span>
                 </td>
                 <td style="text-align: center;">1.00</td>
+                <td style="text-align: right;">${{ precio_paquete|floatformat:2|intcomma }}</td>
             </tr>
 
-            {% for item in items_extra %}
+            {% for comp in componentes_paquete %}
             <tr>
-                <td>
-                    {% if item.insumo %}
-                        {{ item.insumo.nombre }}
-                    {% elif item.producto %}
-                        {{ item.producto.nombre }} (Extra)
-                    {% else %}
-                        Ítem Adicional
-                    {% endif %}
+                <td style="padding-left: 30px; color: #555;">
+                    • {{ comp.insumo.nombre }}
                 </td>
-                <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
+                <td style="text-align: center; color: #555;">{{ comp.cantidad|floatformat:2 }}</td>
+                <td style="text-align: right; font-size: 10px; color: #28a745;"><i>Incluido</i></td>
             </tr>
             {% endfor %}
+
+            {% if items_extra %}
+                <tr style="background-color: #f0f0f0;">
+                    <td colspan="3" style="font-weight: bold; font-size: 10px; color: #356685; padding-top: 10px;">ADICIONALES / EXTRAS:</td>
+                </tr>
+                {% for item in items_extra %}
+                <tr>
+                    <td>
+                        {% if item.insumo %}
+                            {{ item.insumo.nombre }}
+                        {% elif item.producto %}
+                            {{ item.producto.nombre }} (Extra)
+                        {% else %}
+                            Ítem Adicional
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
+                    <td style="text-align: right;">${{ item.subtotal|floatformat:2|intcomma }}</td>
+                </tr>
+                {% endfor %}
+            {% endif %}
 
         </tbody>
     </table>
@@ -243,46 +261,4 @@
                 <div class="clearfix"></div>
             </div>
 
-            <div style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
-                 <div class="total-row abono-text">
-                    <span style="float:left;">Abonado:</span>
-                    <span style="float:right;">- ${{ total_pagado|floatformat:2|intcomma }}</span>
-                    <div class="clearfix"></div>
-                </div>
-                
-                <div class="total-row balance-row">
-                    <span style="float:left;">PENDIENTE:</span>
-                    <span style="float:right;">${{ saldo_pendiente|floatformat:2|intcomma }}</span>
-                    <div class="clearfix"></div>
-                </div>
-            </div>
-
-        </div>
-        <div class="clearfix"></div>
-    </div>
-
-    <div class="signature-section">
-        <div class="signature-box">
-            <div class="signature-line"></div>
-            <strong>{{ cotizacion.cliente.nombre }}</strong><br>
-            <span style="font-size: 10px; color: #666;">Acepto Cotización</span>
-        </div>
-        
-        <div class="signature-box" style="float: right;">
-            <div class="signature-line"></div>
-            <strong>Elaborado por: {{ cotizacion.usuario.first_name|default:"Administración" }} {{ cotizacion.usuario.last_name }}</strong><br>
-            <span style="font-size: 10px; color: #666;">Quinta Ko'ox Tanil</span>
-            
-            <div class="digital-seal">
-                Sello Digital: {{ cotizacion.id }}|{{ cotizacion.fecha_evento|date:"Ymd" }}|{{ cotizacion.created_at|date:"His" }}|{{ cotizacion.usuario.username|default:"SYS" }}|QKT-SECURE
-            </div>
-        </div>
-        <div class="clearfix"></div>
-    </div>
-
-    <div style="position: absolute; bottom: 0; width: 100%; text-align: center; color: #ccc; font-size: 9px; border-top: 1px solid #eee; padding-top: 10px;">
-        Gracias por confiar en Quinta Ko'ox Tanil.
-    </div>
-
-</body>
-</html>
+            <div

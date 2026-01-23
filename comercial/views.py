@@ -193,15 +193,19 @@ def generar_lista_compras(request):
 def obtener_contexto_cotizacion(cotizacion):
     """ Función auxiliar para calcular totales reales incluyendo extras """
     
-    # 1. Recuperar ítems extra
+    # 1. Recuperar ítems extra (Lo que agregaste manualmente en el admin)
     items_extra = cotizacion.items.all()
     
-    # 2. Calcular Subtotal Real (Paquete + Suma de Extras)
+    # 2. Recuperar componentes del paquete (Lo que ya trae el producto)
+    componentes_paquete = cotizacion.producto.componentes.all()
+    
+    # 3. Calcular Subtotal Real 
+    # Precio Base del Paquete + Suma de los Extras manuales
     precio_paquete = cotizacion.producto.sugerencia_precio()
     suma_extras = sum(item.subtotal() for item in items_extra)
     subtotal_real = precio_paquete + suma_extras
     
-    # 3. Recalcular Impuestos sobre el Subtotal Real
+    # 4. Recalcular Impuestos sobre el Subtotal Real
     iva = Decimal('0.00')
     ret_isr = Decimal('0.00')
     
@@ -212,17 +216,18 @@ def obtener_contexto_cotizacion(cotizacion):
             
     precio_final_real = subtotal_real + iva - ret_isr
 
-    # 4. Pagos
+    # 5. Pagos
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     saldo_pendiente = precio_final_real - total_pagado
     
-    # 5. Logo
+    # 6. Logo
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
 
     return {
         'cotizacion': cotizacion,
-        'items_extra': items_extra,
+        'items_extra': items_extra,           # Los extras (se cobran aparte)
+        'componentes_paquete': componentes_paquete, # Lo incluido (no se cobra doble)
         'precio_paquete': precio_paquete,
         'subtotal_real': subtotal_real,
         'iva_real': iva,
