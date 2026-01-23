@@ -242,6 +242,14 @@
                 <div class="clearfix"></div>
             </div>
 
+            {% if descuento > 0 %}
+            <div class="total-row" style="color: #d9534f;">
+                <span style="float:left;">(-) Descuento:</span>
+                <span style="float:right;">- ${{ descuento|floatformat:2|intcomma }}</span>
+                <div class="clearfix"></div>
+            </div>
+            {% endif %}
+
             {% if iva_real > 0 %}
             <div class="total-row">
                 <span style="float:left;">(+) IVA (16%):</span>

@@ -188,33 +188,35 @@ def generar_lista_compras(request):
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
 
 
-# --- 3. VISTAS PDF Y EMAIL (CON NOMBRE DE ARCHIVO PERSONALIZADO) ---
+# --- 3. VISTAS PDF Y EMAIL (CON NOMBRE DE ARCHIVO PERSONALIZADO Y DESCUENTO) ---
 
 def obtener_contexto_cotizacion(cotizacion):
-    """ Función auxiliar para calcular totales reales incluyendo extras """
+    """ Función auxiliar para calcular totales reales incluyendo extras y DESCUENTOS """
     
-    # 1. Recuperar ítems extra (Lo que agregaste manualmente en el admin)
+    # 1. Recuperar ítems
     items_extra = cotizacion.items.all()
-    
-    # 2. Recuperar componentes del paquete (Lo que ya trae el producto)
     componentes_paquete = cotizacion.producto.componentes.all()
     
-    # 3. Calcular Subtotal Real 
-    # Precio Base del Paquete + Suma de los Extras manuales
+    # 2. Calcular Subtotal Bruto (Paquete + Extras)
     precio_paquete = cotizacion.producto.sugerencia_precio()
     suma_extras = sum(item.subtotal() for item in items_extra)
-    subtotal_real = precio_paquete + suma_extras
+    subtotal_bruto = precio_paquete + suma_extras
     
-    # 4. Recalcular Impuestos sobre el Subtotal Real
+    # 3. Aplicar Descuento
+    descuento = cotizacion.descuento
+    base_gravable = subtotal_bruto - descuento
+    if base_gravable < 0: base_gravable = Decimal('0.00')
+    
+    # 4. Calcular Impuestos sobre la Base con Descuento
     iva = Decimal('0.00')
     ret_isr = Decimal('0.00')
     
     if cotizacion.requiere_factura:
-        iva = subtotal_real * Decimal('0.16')
+        iva = base_gravable * Decimal('0.16')
         if cotizacion.cliente.tipo_persona == 'MORAL':
-            ret_isr = subtotal_real * Decimal('0.0125')
+            ret_isr = base_gravable * Decimal('0.0125')
             
-    precio_final_real = subtotal_real + iva - ret_isr
+    precio_final_real = base_gravable + iva - ret_isr
 
     # 5. Pagos
     total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
@@ -226,10 +228,11 @@ def obtener_contexto_cotizacion(cotizacion):
 
     return {
         'cotizacion': cotizacion,
-        'items_extra': items_extra,           # Los extras (se cobran aparte)
-        'componentes_paquete': componentes_paquete, # Lo incluido (no se cobra doble)
+        'items_extra': items_extra,
+        'componentes_paquete': componentes_paquete,
         'precio_paquete': precio_paquete,
-        'subtotal_real': subtotal_real,
+        'subtotal_real': subtotal_bruto, # Enviamos el bruto
+        'descuento': descuento,          # Enviamos el descuento
         'iva_real': iva,
         'ret_isr_real': ret_isr,
         'precio_final_real': precio_final_real,
@@ -246,7 +249,6 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     response = HttpResponse(content_type='application/pdf')
     
     # --- CAMBIO DE NOMBRE DE ARCHIVO ---
-    # Formato: COT-004_23-01-2026.pdf
     folio = f"COT-{cotizacion.id:03d}"
     fecha_actual = timezone.now().strftime("%d-%m-%Y")
     filename = f"{folio}_{fecha_actual}.pdf"

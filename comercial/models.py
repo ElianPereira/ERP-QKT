@@ -124,6 +124,7 @@ class Cotizacion(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Elaborado por")
 
     # --- CAMPOS FISCALES ---
+    descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Descuento ($)") # <--- NUEVO CAMPO
     requiere_factura = models.BooleanField(default=False, help_text="Si se marca, calcula IVA y Retenciones")
     
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Precio del servicio ANTES de impuestos")
@@ -141,10 +142,12 @@ class Cotizacion(models.Model):
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        base = Decimal(self.subtotal)
+        # 1. Calcular Base (Subtotal - Descuento)
+        base = Decimal(self.subtotal) - Decimal(self.descuento)
+        if base < 0: base = Decimal('0.00') # Evitar negativos
         
         if self.requiere_factura:
-            # A. IVA General (16%)
+            # A. IVA General (16%) sobre la base ya descontada
             self.iva = base * Decimal('0.16')
             
             # B. Retenciones (Solo ISR)
@@ -205,7 +208,7 @@ class ItemCotizacion(models.Model):
         return f"{self.cantidad} x {nombre}"
 
 # ==========================================
-# 5. PAGOS (MODIFICADO)
+# 5. PAGOS
 # ==========================================
 class Pago(models.Model):
     METODOS = [

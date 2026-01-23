@@ -67,7 +67,7 @@ class CotizacionAdmin(admin.ModelAdmin):
             'fields': ('cliente', 'producto', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'estado')
         }),
         ('Finanzas', {
-            'fields': ('subtotal', 'requiere_factura') 
+            'fields': ('subtotal', 'descuento', 'requiere_factura') 
         }),
         ('Cálculo Fiscal (Automático)', {
             'fields': ('iva', 'retencion_isr', 'retencion_iva', 'precio_final') 
@@ -161,10 +161,10 @@ class CotizacionAdmin(admin.ModelAdmin):
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         
-        # --- ESTO ES LO QUE FALTABA PARA QUE FUNCIONE EL BORRAR ---
+        # --- BORRADO INLINES ---
         for obj in formset.deleted_objects:
             obj.delete()
-        # ---------------------------------------------------------
+        # -----------------------
 
         for instance in instances:
             if isinstance(instance, Pago):
