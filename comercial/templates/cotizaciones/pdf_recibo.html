@@ -53,6 +53,16 @@
         .data-table td:last-child { text-align: center; padding-right: 20px; }
         .data-table tr:last-child td { border-bottom: none; }
 
+        /* ESTILOS NUEVOS PARA ABONOS Y FIRMA */
+        .payments-table { width: 100%; margin-top: 30px; border-collapse: collapse; font-size: 10px; }
+        .payments-table th { border-bottom: 1px solid #999; text-align: left; padding: 5px; color: #666; }
+        .payments-table td { border-bottom: 1px solid #eee; padding: 5px; color: #333; }
+        
+        .signature-section { margin-top: 50px; width: 100%; page-break-inside: avoid; }
+        .signature-box { width: 45%; float: left; text-align: center; }
+        .signature-line { border-top: 1px solid #333; width: 80%; margin: 0 auto 5px auto; }
+        .digital-seal { font-size: 8px; color: #999; margin-top: 5px; font-family: 'Courier New', monospace; word-break: break-all; }
+
         /* TOTALES */
         .totals-section { margin-top: 20px; width: 100%; }
         .totals-table { float: right; width: 280px; border: 1px solid #eee; border-radius: 5px; padding: 10px; }
@@ -118,8 +128,18 @@
                             <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</td>
                         </tr>
                         <tr>
+                            <td class="card-label" style="text-align: right;">Horario:</td>
+                            <td class="card-value" style="text-align: right;">
+                                {% if cotizacion.hora_inicio %}
+                                    {{ cotizacion.hora_inicio|date:"H:i" }} - {{ cotizacion.hora_fin|date:"H:i" }}
+                                {% else %}
+                                    Por definir
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
                             <td class="card-label" style="text-align: right;">Emisión:</td>
-                            <td class="card-value" style="text-align: right;">{% now "d/m/Y" %}</td>
+                            <td class="card-value" style="text-align: right;">{% now "d/m/Y H:i" %}</td>
                         </tr>
                     </table>
                 </td>
@@ -194,12 +214,6 @@
             </div>
 
             <div style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
-                 <div class="total-row abono-text">
-                    <span style="float:left;">Abonado:</span>
-                    <span style="float:right;">- ${{ total_pagado|floatformat:2|intcomma }}</span>
-                    <div class="clearfix"></div>
-                </div>
-                
                 <div class="total-row balance-row">
                     <span style="float:left;">PENDIENTE:</span>
                     <span style="float:right;">${{ saldo_pendiente|floatformat:2|intcomma }}</span>
@@ -207,6 +221,59 @@
                 </div>
             </div>
 
+        </div>
+        <div class="clearfix"></div>
+    </div>
+
+    {% if cotizacion.pagos.exists %}
+    <div style="margin-top: 30px;">
+        <h4 style="color: #356685; margin-bottom: 5px; border-bottom: 1px solid #ccc;">Historial de Abonos</h4>
+        <table class="payments-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Método</th>
+                    <th>Referencia</th>
+                    <th>Recibido Por</th>
+                    <th style="text-align: right;">Monto</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pago in cotizacion.pagos.all %}
+                <tr>
+                    <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+                    <td>{{ pago.metodo }}</td>
+                    <td>{{ pago.referencia|default:"-" }}</td>
+                    <td>{{ pago.usuario.first_name|default:"Sistema" }}</td>
+                    <td style="text-align: right; color: #28a745; font-weight: bold;">
+                        ${{ pago.monto|floatformat:2|intcomma }}
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td colspan="4" style="text-align: right; font-weight: bold; padding-top: 10px;">TOTAL ABONADO:</td>
+                    <td style="text-align: right; font-weight: bold; padding-top: 10px; color: #28a745;">${{ total_pagado|floatformat:2|intcomma }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="signature-section">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <strong>{{ cotizacion.cliente.nombre }}</strong><br>
+            <span style="font-size: 10px; color: #666;">Acepto Cotización</span>
+        </div>
+        
+        <div class="signature-box" style="float: right;">
+            <div class="signature-line"></div>
+            <strong>Elaborado por: {{ cotizacion.usuario.first_name|default:"Administración" }} {{ cotizacion.usuario.last_name }}</strong><br>
+            <span style="font-size: 10px; color: #666;">Quinta Ko'ox Tanil</span>
+            
+            <div class="digital-seal">
+                Sello Digital: {{ cotizacion.id }}|{{ cotizacion.fecha_evento|date:"Ymd" }}|{{ cotizacion.created_at|date:"His" }}|{{ cotizacion.usuario.username|default:"SYS" }}|QKT-SECURE
+            </div>
         </div>
         <div class="clearfix"></div>
     </div>

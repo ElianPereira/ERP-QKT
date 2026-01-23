@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Sum
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
+from django.contrib.auth.models import User  # <--- NUEVO IMPORT
 
 # --- IMPORTACIÓN DE CATÁLOGOS SAT ---
 from facturacion.choices import RegimenFiscal, UsoCFDI
@@ -113,8 +114,15 @@ class Cotizacion(models.Model):
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT) # Paquete base
-    fecha_evento = models.DateField()
     
+    # --- FECHAS Y HORARIOS ---
+    fecha_evento = models.DateField()
+    hora_inicio = models.TimeField(null=True, blank=True, verbose_name="Hora Inicio") # <--- NUEVO
+    hora_fin = models.TimeField(null=True, blank=True, verbose_name="Hora Fin")       # <--- NUEVO
+
+    # --- DATOS ADMINISTRATIVOS ---
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Elaborado por") # <--- NUEVO
+
     # --- CAMPOS FISCALES ---
     requiere_factura = models.BooleanField(default=False, help_text="Si se marca, calcula IVA y Retenciones")
     
@@ -172,7 +180,7 @@ class Cotizacion(models.Model):
         verbose_name_plural = "Cotizaciones"
 
 # ==========================================
-# 4.1 ÍTEMS DE LA COTIZACIÓN (NUEVO)
+# 4.1 ÍTEMS DE LA COTIZACIÓN
 # ==========================================
 class ItemCotizacion(models.Model):
     cotizacion = models.ForeignKey(Cotizacion, related_name='items', on_delete=models.CASCADE)
@@ -202,6 +210,10 @@ class ItemCotizacion(models.Model):
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia')]
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
+    
+    # --- USUARIO QUE RECIBE EL COBRO ---
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Recibido por") # <--- NUEVO
+    
     fecha_pago = models.DateField(auto_now_add=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo = models.CharField(max_length=20, choices=METODOS)

@@ -13,7 +13,6 @@ class InsumoAdmin(admin.ModelAdmin):
     search_fields = ('nombre',)
     list_per_page = 20
 
-# Este inline es para la pantalla de PRODUCTOS (para armar paquetes)
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto
     extra = 1
@@ -42,25 +41,30 @@ class ClienteAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_registro',)
 
-# --- NUEVO INLINE PARA COTIZACIONES ---
-# Permite agregar productos o insumos extra a una cotización específica
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
     autocomplete_fields = ['producto', 'insumo']
 
+# --- NUEVO INLINE DE PAGOS ---
+class PagoInline(admin.TabularInline):
+    model = Pago
+    extra = 0
+    fields = ('monto', 'metodo', 'referencia', 'fecha_pago', 'usuario')
+    readonly_fields = ('fecha_pago', 'usuario') # Para que no se modifique el cobrador
+
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
-    inlines = [ItemCotizacionInline]
+    inlines = [ItemCotizacionInline, PagoInline] # Agregamos los pagos aquí
 
-    list_display = ('folio_cotizacion', 'cliente', 'producto', 'fecha_evento', 'estado', 'subtotal', 'precio_final', 'ver_pdf', 'enviar_email_btn')
+    list_display = ('folio_cotizacion', 'cliente', 'fecha_evento', 'hora_inicio', 'estado', 'precio_final', 'usuario')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc')
     autocomplete_fields = ['cliente', 'producto'] 
 
     fieldsets = (
         ('Datos del Evento', {
-            'fields': ('cliente', 'producto', 'fecha_evento', 'estado')
+            'fields': ('cliente', 'producto', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'estado')
         }),
         ('Finanzas', {
             'fields': ('subtotal', 'requiere_factura') 
@@ -80,7 +84,12 @@ class CotizacionAdmin(admin.ModelAdmin):
     folio_cotizacion.short_description = "Folio"
     folio_cotizacion.admin_order_field = 'id'
 
+    # --- GUARDADO AUTOMÁTICO DE USUARIO ---
     def save_model(self, request, obj, form, change):
+        # Si es una cotización nueva, asignamos el usuario actual
+        if not obj.pk:
+            obj.usuario = request.user
+            
         """
         Lógica central de inventario:
         - Si es 'MOBILIARIO/SERVICIO': Verifica disponibilidad por fecha.
@@ -96,17 +105,13 @@ class CotizacionAdmin(admin.ModelAdmin):
         recalcular_stock = False
         devolver_stock_anterior = False
 
-        # Detectar cambios de estado para mover stock
         if obj.estado == 'CONFIRMADA':
             if not cotizacion_anterior or cotizacion_anterior.estado != 'CONFIRMADA':
-                # Caso: Nueva confirmación (de Borrador a Confirmada)
                 recalcular_stock = True
             elif cotizacion_anterior and cotizacion_anterior.producto != obj.producto:
-                # Caso: Ya estaba confirmada, pero cambiaron el producto (paquete)
                 devolver_stock_anterior = True
                 recalcular_stock = True
 
-        # 1. Devolución de stock si cambiaron el producto
         if devolver_stock_anterior:
             for componente in cotizacion_anterior.producto.componentes.all():
                 if componente.insumo.categoria == 'CONSUMIBLE':
@@ -114,7 +119,6 @@ class CotizacionAdmin(admin.ModelAdmin):
                     componente.insumo.save()
             messages.info(request, f"🔄 Stock devuelto del paquete anterior: {cotizacion_anterior.producto.nombre}")
 
-        # 2. Validación y descuento de stock
         if recalcular_stock:
             errores_logistica = []
             producto = obj.producto
@@ -124,9 +128,6 @@ class CotizacionAdmin(admin.ModelAdmin):
                 cantidad_necesaria = componente.cantidad
 
                 if insumo.categoria in ['MOBILIARIO', 'SERVICIO']:
-                    # --- CORRECCIÓN AQUÍ ---
-                    # Antes fallaba porque buscábamos 'cotizacion' directo en el componente.
-                    # Ahora buscamos a través del producto: producto__cotizacion__...
                     usado_ese_dia = ComponenteProducto.objects.filter(
                         producto__cotizacion__fecha_evento=obj.fecha_evento,
                         producto__cotizacion__estado='CONFIRMADA',
@@ -146,17 +147,15 @@ class CotizacionAdmin(admin.ModelAdmin):
                     if insumo.cantidad_stock < cantidad_necesaria:
                         messages.warning(request, f"⚠️ OJO: {insumo.nombre} quedó en negativo (Stock actual: {insumo.cantidad_stock}).")
                     
-                    # Descontamos stock permanentemente
                     insumo.cantidad_stock -= cantidad_necesaria
                     insumo.save()
 
             if errores_logistica:
                 messages.error(request, f"⛔ NO SE PUEDE CONFIRMAR: Falta logística para el {obj.fecha_evento}: {', '.join(errores_logistica)}")
-                obj.estado = 'BORRADOR' # Regresamos a borrador para evitar sobreventa
+                obj.estado = 'BORRADOR'
             else:
                 messages.success(request, f"✅ Evento Confirmado: {producto.nombre}. Recursos asignados correctamente.")
 
-        # 3. Caso de Cancelación: Si estaba confirmada y pasa a otro estado (cancelada/borrador)
         elif cotizacion_anterior and cotizacion_anterior.estado == 'CONFIRMADA' and obj.estado != 'CONFIRMADA':
             for componente in cotizacion_anterior.producto.componentes.all():
                 if componente.insumo.categoria == 'CONSUMIBLE':
@@ -166,11 +165,21 @@ class CotizacionAdmin(admin.ModelAdmin):
 
         super().save_model(request, obj, form, change)
 
+    # --- GUARDADO AUTOMÁTICO DE COBRADOR (EN PAGOS) ---
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for instance in instances:
+            # Si es un Pago y es nuevo, asignamos el usuario actual
+            if isinstance(instance, Pago):
+                if not instance.pk:
+                    instance.usuario = request.user
+            instance.save()
+        formset.save_m2m()
+
     # --- BOTONES DE ACCIÓN ---
     def ver_pdf(self, obj):
         if obj.id:
             try:
-                # Asegúrate que en urls.py tengas name='cotizacion_pdf'
                 url_pdf = reverse('cotizacion_pdf', args=[obj.id])
                 return format_html(
                     '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
@@ -186,7 +195,6 @@ class CotizacionAdmin(admin.ModelAdmin):
     def enviar_email_btn(self, obj):
         if obj.id:
             try:
-                # Asegúrate que en urls.py tengas name='cotizacion_email'
                 url_email = reverse('cotizacion_email', args=[obj.id])
                 return format_html(
                     '<a href="{}" style="background-color:#28a745; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
@@ -201,9 +209,15 @@ class CotizacionAdmin(admin.ModelAdmin):
 
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    list_display = ('cotizacion', 'monto', 'metodo', 'fecha_pago')
-    list_filter = ('fecha_pago', 'metodo')
+    list_display = ('cotizacion', 'monto', 'metodo', 'usuario', 'fecha_pago')
+    list_filter = ('fecha_pago', 'metodo', 'usuario')
     autocomplete_fields = ['cotizacion']
+    
+    # Para que al crear un pago suelto también se guarde el usuario
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.usuario = request.user
+        super().save_model(request, obj, form, change)
 
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
