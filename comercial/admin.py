@@ -3,7 +3,8 @@ from django.utils.html import format_html
 from django.urls import reverse, NoReverseMatch
 from django.contrib import messages
 from django.db.models import Sum
-from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, Pago, Gasto
+# Se agrega ItemCotizacion a los imports
+from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, ItemCotizacion, Pago, Gasto
 
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
@@ -13,10 +14,11 @@ class InsumoAdmin(admin.ModelAdmin):
     search_fields = ('nombre',)
     list_per_page = 20
 
+# Este inline es para la pantalla de PRODUCTOS (para armar paquetes)
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto
     extra = 1
-    autocomplete_fields = ['insumo'] # Recomendado si tienes muchos insumos
+    autocomplete_fields = ['insumo'] 
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
@@ -41,15 +43,22 @@ class ClienteAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_registro',)
 
+# --- NUEVO INLINE PARA COTIZACIONES ---
+# Permite agregar productos o insumos extra a una cotización específica
+class ItemCotizacionInline(admin.TabularInline):
+    model = ItemCotizacion
+    extra = 1
+    autocomplete_fields = ['producto', 'insumo'] # Asegúrate de que Producto e Insumo tengan search_fields
+
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
-    # Asegúrate de tener este template o borra esta línea si usas el default
-    # change_list_template = 'admin/comercial/cotizacion/change_list.html' 
+    # inlines = [ItemCotizacionInline]  <-- HABILITADO
+    inlines = [ItemCotizacionInline]
 
     list_display = ('folio_cotizacion', 'cliente', 'producto', 'fecha_evento', 'estado', 'subtotal', 'precio_final', 'ver_pdf', 'enviar_email_btn')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc')
-    autocomplete_fields = ['cliente', 'producto'] # Útil si tienes muchos clientes/productos
+    autocomplete_fields = ['cliente', 'producto'] 
 
     fieldsets = (
         ('Datos del Evento', {

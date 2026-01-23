@@ -7,8 +7,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.contrib import messages
-from django.core.mail import EmailMultiAlternatives  # <--- CAMBIO IMPORTANTE
-from django.utils.html import strip_tags             # <--- CAMBIO IMPORTANTE
+from django.core.mail import EmailMultiAlternatives
+from django.utils.html import strip_tags
 from django.conf import settings
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
@@ -16,10 +16,11 @@ from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
+from decimal import Decimal # <--- Importante para sumas de dinero
 from weasyprint import HTML
 
 # IMPORTAMOS MODELOS
-from .models import Cotizacion, Gasto, Pago
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion # <--- Agregamos ItemCotizacion
 from .forms import CalculadoraForm
 
 try:
@@ -27,7 +28,7 @@ try:
 except ImportError:
     SolicitudFactura = None 
 
-# --- 1. DASHBOARD PRINCIPAL (MEJORADO) ---
+# --- 1. DASHBOARD PRINCIPAL (INTACTO) ---
 @staff_member_required 
 def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
@@ -67,7 +68,7 @@ def ver_dashboard_kpis(request):
         estado='CONFIRMADA'
     ).order_by('fecha_evento')[:5]
 
-    # 3. DATOS PARA LA GRÁFICA (Comparativa Ventas vs Gastos)
+    # 3. DATOS PARA LA GRÁFICA
     ventas_data = Cotizacion.objects.filter(estado='CONFIRMADA')\
         .annotate(mes=TruncMonth('fecha_evento'))\
         .values('mes')\
@@ -86,7 +87,7 @@ def ver_dashboard_kpis(request):
         mes_str = v['mes'].strftime('%B %Y')
         grafica_final[mes_str] = {'ventas': float(v['total']), 'gastos': 0}
         
-    # Procesar Gastos (unir con meses existentes o crear nuevos)
+    # Procesar Gastos
     for g in gastos_data:
         if g['mes']:
             mes_str = g['mes'].strftime('%B %Y')
@@ -94,7 +95,6 @@ def ver_dashboard_kpis(request):
                 grafica_final[mes_str] = {'ventas': 0, 'gastos': 0}
             grafica_final[mes_str]['gastos'] = float(g['total'])
 
-    # Ordenar cronológicamente (opcional, básico por strings aquí)
     labels = list(grafica_final.keys())
     data_ventas = [v['ventas'] for v in grafica_final.values()]
     data_gastos = [v['gastos'] for v in grafica_final.values()]
@@ -115,7 +115,7 @@ def ver_dashboard_kpis(request):
     return render(request, 'admin/dashboard.html', context)
 
 
-# --- 2. GENERAR LISTA DE COMPRAS ---
+# --- 2. GENERAR LISTA DE COMPRAS (INTACTO) ---
 @staff_member_required
 def generar_lista_compras(request):
     if request.method == 'POST':
@@ -132,9 +132,9 @@ def generar_lista_compras(request):
         compras = {}
 
         for evento in eventos:
+            # 1. Componentes del Paquete Base
             for componente in evento.producto.componentes.all():
                 insumo = componente.insumo
-                # Solo sumamos consumibles
                 if insumo.categoria == 'CONSUMIBLE':
                     if insumo.nombre not in compras:
                         compras[insumo.nombre] = {
@@ -143,6 +143,17 @@ def generar_lista_compras(request):
                             'stock': insumo.cantidad_stock
                         }
                     compras[insumo.nombre]['cantidad'] += float(componente.cantidad)
+            
+            # 2. Ítems Extra agregados a la cotización (NUEVO)
+            for item in evento.items.all():
+                if item.insumo and item.insumo.categoria == 'CONSUMIBLE':
+                    if item.insumo.nombre not in compras:
+                        compras[item.insumo.nombre] = {
+                            'cantidad': 0, 
+                            'unidad': item.insumo.unidad_medida,
+                            'stock': item.insumo.cantidad_stock
+                        }
+                    compras[item.insumo.nombre]['cantidad'] += float(item.cantidad)
 
         lista_final = []
         for nombre, datos in compras.items():
@@ -155,11 +166,10 @@ def generar_lista_compras(request):
                 'unidad': datos['unidad']
             })
 
-        # --- FIX IMAGEN (Ruta Local) ---
+        # --- FIX IMAGEN ---
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-        # -------------------------------
-
+        
         context = {
             'fecha_inicio': fecha_inicio,
             'fecha_fin': fecha_fin,
@@ -177,24 +187,56 @@ def generar_lista_compras(request):
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
 
 
-# --- 3. VISTAS EXISTENTES (PDF, EMAIL, CALENDARIO, ETC) ---
+# --- 3. VISTAS PDF Y EMAIL (MODIFICADO PARA ÍTEMS EXTRA) ---
 
-def generar_pdf_cotizacion(request, cotizacion_id):
-    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-    saldo_pendiente = cotizacion.precio_final - total_pagado
+def obtener_contexto_cotizacion(cotizacion):
+    """ Función auxiliar para calcular totales reales incluyendo extras """
     
-    # --- FIX IMAGEN (Ruta Local) ---
+    # 1. Recuperar ítems extra
+    items_extra = cotizacion.items.all()
+    
+    # 2. Calcular Subtotal Real (Paquete + Suma de Extras)
+    precio_paquete = cotizacion.producto.sugerencia_precio()
+    suma_extras = sum(item.subtotal() for item in items_extra)
+    subtotal_real = precio_paquete + suma_extras
+    
+    # 3. Recalcular Impuestos sobre el Subtotal Real
+    iva = Decimal('0.00')
+    ret_isr = Decimal('0.00')
+    
+    if cotizacion.requiere_factura:
+        iva = subtotal_real * Decimal('0.16')
+        if cotizacion.cliente.tipo_persona == 'MORAL':
+            ret_isr = subtotal_real * Decimal('0.0125')
+            
+    precio_final_real = subtotal_real + iva - ret_isr
+
+    # 4. Pagos
+    total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
+    saldo_pendiente = precio_final_real - total_pagado
+    
+    # 5. Logo
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    # -------------------------------
 
-    context = {
-        'cotizacion': cotizacion, 
-        'total_pagado': total_pagado, 
+    return {
+        'cotizacion': cotizacion,
+        'items_extra': items_extra,       # <--- PASAMOS LA LISTA DE ÍTEMS
+        'precio_paquete': precio_paquete, # <--- PRECIO BASE
+        'subtotal_real': subtotal_real,   # <--- SUBTOTAL CALCULADO
+        'iva_real': iva,
+        'ret_isr_real': ret_isr,
+        'precio_final_real': precio_final_real,
+        'total_pagado': total_pagado,
         'saldo_pendiente': saldo_pendiente,
         'logo_url': logo_url
     }
+
+def generar_pdf_cotizacion(request, cotizacion_id):
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+    
+    # Usamos la función auxiliar para obtener todos los datos calculados
+    context = obtener_contexto_cotizacion(cotizacion)
     
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
     response = HttpResponse(content_type='application/pdf')
@@ -203,7 +245,6 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     HTML(string=html_string).write_pdf(response)
     return response
 
-# --- MODIFICADO PARA USAR PLANTILLA HTML ---
 def enviar_cotizacion_email(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     cliente = cotizacion.cliente
@@ -213,43 +254,25 @@ def enviar_cotizacion_email(request, cotizacion_id):
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
     
     try:
-        total_pagado = cotizacion.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-        saldo_pendiente = cotizacion.precio_final - total_pagado
-        
-        # 1. Configurar contexto para el PDF y el HTML
-        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+        # Usamos la misma función auxiliar
+        context = obtener_contexto_cotizacion(cotizacion)
+        context['cliente'] = cliente
 
-        context = {
-            'cotizacion': cotizacion, 
-            'cliente': cliente,
-            'total_pagado': total_pagado, 
-            'saldo_pendiente': saldo_pendiente,
-            'logo_url': logo_url
-        }
-
-        # 2. Generar el PDF (Adjunto)
+        # Generar PDF
         html_pdf_string = render_to_string('cotizaciones/pdf_recibo.html', context)
         pdf_file = HTML(string=html_pdf_string).write_pdf()
 
-        # 3. Generar el Cuerpo del Correo (HTML bonito)
-        # Asegúrate de haber creado templates/emails/cotizacion.html
+        # Generar Email HTML
         html_email_content = render_to_string('emails/cotizacion.html', context)
-        text_content = strip_tags(html_email_content) # Versión texto plano por si acaso
+        text_content = strip_tags(html_email_content)
 
-        # 4. Configurar el Email
-        asunto = f"Cotización {cotizacion.folio} - Quinta Ko'ox Tanil"
+        asunto = f"Cotización {cotizacion.folio_cotizacion()} - Quinta Ko'ox Tanil"
         from_email = settings.DEFAULT_FROM_EMAIL
         to = [cliente.email]
 
-        # Usamos EmailMultiAlternatives para enviar HTML + Texto + Adjunto
         msg = EmailMultiAlternatives(asunto, text_content, from_email, to)
         msg.attach_alternative(html_email_content, "text/html")
-        
-        # Adjuntar PDF
-        msg.attach(f"Cotizacion_{cotizacion.folio}.pdf", pdf_file, 'application/pdf')
-        
-        # 5. Enviar
+        msg.attach(f"Cotizacion_{cotizacion.id}.pdf", pdf_file, 'application/pdf')
         msg.send()
         
         messages.success(request, f"✅ Correo enviado correctamente a {cliente.email}")
@@ -375,10 +398,8 @@ def exportar_reporte_cotizaciones(request):
         total_transferencia = pagos_del_periodo.filter(metodo='TRANSFERENCIA').aggregate(total=Sum('monto'))['total'] or 0
         total_ingresado = total_efectivo + total_transferencia
 
-        # --- FIX IMAGEN (Ruta Local) ---
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-        # -------------------------------
 
         context = {
             'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,

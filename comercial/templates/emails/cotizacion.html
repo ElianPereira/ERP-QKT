@@ -3,16 +3,15 @@
 <head>
     <meta charset="utf-8">
     <style>
-        /* Estilos generales para asegurar que se vea bien en todos los correos */
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333333; margin: 0; padding: 0; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; background-color: #ffffff; }
-        .header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #4CAF50; } /* Cambia #4CAF50 por tu color principal */
+        .header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #4CAF50; }
         .logo { max-height: 80px; }
         .content { padding: 20px 0; }
         .button {
             display: inline-block;
             padding: 12px 24px;
-            background-color: #4CAF50; /* Cambia este color por el de tu marca */
+            background-color: #4CAF50;
             color: #ffffff !important;
             text-decoration: none;
             border-radius: 5px;
@@ -20,7 +19,6 @@
             margin-top: 20px;
         }
         .footer { text-align: center; font-size: 12px; color: #777777; margin-top: 30px; border-top: 1px solid #eeeeee; padding-top: 10px; }
-        .highlight { font-weight: bold; color: #4CAF50; }
     </style>
 </head>
 <body>
@@ -32,13 +30,14 @@
         <div class="content">
             <h2>Hola, {{ cliente.nombre }}</h2>
             
-            <p>Gracias por tu interés en realizar tu evento con nosotros. Adjunto encontrarás la cotización solicitada.</p>
+            <p>Gracias por tu interés en realizar tu evento con nosotros. Adjunto encontrarás la cotización detallada.</p>
             
-            <p><strong>Detalles del Evento:</strong></p>
+            <p><strong>Resumen del Evento:</strong></p>
             <ul>
                 <li>📅 <strong>Fecha:</strong> {{ cotizacion.fecha_evento }}</li>
-                <li>🔢 <strong>Folio:</strong> {{ cotizacion.folio }}</li>
-                <li>💰 <strong>Total:</strong> ${{ cotizacion.total }} MXN</li>
+                <li>🔢 <strong>Folio:</strong> COT-{{ cotizacion.id }}</li>
+                <li>📦 <strong>Paquete:</strong> {{ cotizacion.producto.nombre }}</li>
+                <li>💰 <strong>Total a Pagar:</strong> ${{ precio_final_real|floatformat:2 }} MXN</li>
             </ul>
 
             <p>Si tienes alguna duda o deseas confirmar la fecha, simplemente responde a este correo o haz clic en el botón de abajo.</p>
@@ -51,7 +50,7 @@
         <div class="footer">
             <p><strong>Quinta Ko'ox Tanil</strong><br>
             Haciendo tus eventos inolvidables en Mérida, Yucatán.</p>
-            <p>Este es un correo automático, por favor no respondas si no es necesario.</p>
+            <p>Este es un correo automático.</p>
         </div>
     </div>
 </body>

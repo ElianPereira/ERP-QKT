@@ -5,11 +5,11 @@ from django.db.models import Sum
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
 
-# --- IMPORTACIÓN DE CATÁLOGOS SAT (NUEVO) ---
+# --- IMPORTACIÓN DE CATÁLOGOS SAT ---
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 # ==========================================
-# 1. INSUMOS (INTACTO)
+# 1. INSUMOS
 # ==========================================
 class Insumo(models.Model):
     TIPOS = [
@@ -27,7 +27,7 @@ class Insumo(models.Model):
         return f"{self.nombre} ({self.categoria})"
 
 # ==========================================
-# 2. PRODUCTOS (INTACTO)
+# 2. PRODUCTOS
 # ==========================================
 class Producto(models.Model):
     nombre = models.CharField(max_length=200)
@@ -53,7 +53,7 @@ class ComponenteProducto(models.Model):
         return self.insumo.costo_unitario * self.cantidad
 
 # ==========================================
-# 3. CLIENTES (MODIFICADO CON CATÁLOGOS)
+# 3. CLIENTES
 # ==========================================
 class Cliente(models.Model):
     # --- Datos de Contacto ---
@@ -65,7 +65,7 @@ class Cliente(models.Model):
         ('Instagram', 'Instagram'), ('Facebook', 'Facebook'), ('Google', 'Google'), ('Recomendacion', 'Recomendación'), ('Otro', 'Otro')
     ], default='Otro')
 
-    # --- Datos Fiscales (MEJORADOS) ---
+    # --- Datos Fiscales ---
     es_cliente_fiscal = models.BooleanField(default=False, verbose_name="¿Datos Fiscales Completos?")
     
     TIPOS_FISCALES = [
@@ -78,7 +78,6 @@ class Cliente(models.Model):
     razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social (Sin Régimen Societario)")
     codigo_postal_fiscal = models.CharField(max_length=5, blank=True, null=True, verbose_name="C.P. Fiscal")
     
-    # CAMBIO: Usamos RegimenFiscal del archivo choices.py
     regimen_fiscal = models.CharField(
         max_length=3, 
         choices=RegimenFiscal.choices, 
@@ -88,7 +87,6 @@ class Cliente(models.Model):
         verbose_name="Régimen Fiscal"
     )
 
-    # CAMBIO: Usamos UsoCFDI del archivo choices.py
     uso_cfdi = models.CharField(
         max_length=4, 
         choices=UsoCFDI.choices, 
@@ -104,7 +102,7 @@ class Cliente(models.Model):
         return f"{nombre_mostrar} {tipo}"
 
 # ==========================================
-# 4. COTIZACIONES (INTACTO)
+# 4. COTIZACIONES
 # ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [
@@ -114,7 +112,7 @@ class Cotizacion(models.Model):
     ]
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
-    producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT) # Paquete base
     fecha_evento = models.DateField()
     
     # --- CAMPOS FISCALES ---
@@ -132,11 +130,9 @@ class Cotizacion(models.Model):
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Agregamos campo para PDF de Cotización (Útil para el botón de imprimir)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        # TU LÓGICA ORIGINAL DE CÁLCULO
         base = Decimal(self.subtotal)
         
         if self.requiere_factura:
@@ -144,8 +140,6 @@ class Cotizacion(models.Model):
             self.iva = base * Decimal('0.16')
             
             # B. Retenciones (Solo ISR)
-            # Nota: Aquí usamos la lógica simple que tenías. 
-            # Si el cliente es Moral, aplicas retención.
             if self.cliente.tipo_persona == 'MORAL':
                 self.retencion_isr = base * Decimal('0.0125') # 1.25% ISR (RESICO)
                 self.retencion_iva = Decimal('0.00')          # SIN Retención de IVA
@@ -153,7 +147,6 @@ class Cotizacion(models.Model):
                 self.retencion_isr = Decimal('0.00')
                 self.retencion_iva = Decimal('0.00')
         else:
-            # Si no quiere factura, impuestos en cero
             self.iva = Decimal('0.00')
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
@@ -179,7 +172,32 @@ class Cotizacion(models.Model):
         verbose_name_plural = "Cotizaciones"
 
 # ==========================================
-# 5. PAGOS (INTACTO)
+# 4.1 ÍTEMS DE LA COTIZACIÓN (NUEVO)
+# ==========================================
+class ItemCotizacion(models.Model):
+    cotizacion = models.ForeignKey(Cotizacion, related_name='items', on_delete=models.CASCADE)
+    producto = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True)
+    insumo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    def save(self, *args, **kwargs):
+        if self.precio_unitario == 0:
+            if self.producto:
+                self.precio_unitario = self.producto.sugerencia_precio()
+            elif self.insumo:
+                self.precio_unitario = self.insumo.costo_unitario
+        super().save(*args, **kwargs)
+
+    def subtotal(self):
+        return self.cantidad * self.precio_unitario
+
+    def __str__(self):
+        nombre = self.producto.nombre if self.producto else (self.insumo.nombre if self.insumo else "Ítem")
+        return f"{self.cantidad} x {nombre}"
+
+# ==========================================
+# 5. PAGOS
 # ==========================================
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia')]
@@ -193,7 +211,7 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 6. GASTOS (INTACTO)
+# 6. GASTOS
 # ==========================================
 class Gasto(models.Model):
     CATEGORIAS = [
