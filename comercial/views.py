@@ -395,38 +395,87 @@ def exportar_reporte_cotizaciones(request):
         if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
         if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
 
-        total_ventas = 0; total_pagado = 0; total_pendiente = 0; total_gastos = 0; total_ganancia = 0
+        # --- ACUMULADORES GLOBALES PARA EL REPORTE ---
+        t_subtotal = 0
+        t_descuento = 0
+        t_iva = 0
+        t_ret_isr = 0
+        t_total_ventas = 0
+        
+        t_pagado = 0
+        t_pendiente = 0
+        t_gastos = 0
+        t_ganancia = 0
+
         datos_tabla = []
         for c in cotizaciones:
+            # Cálculos por fila
             pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
             pendiente = c.precio_final - pagado
             gastos_reales = c.gasto_set.aggregate(total=Sum('monto'))['total'] or 0
             ganancia_real = c.precio_final - gastos_reales
             margen = (ganancia_real / c.precio_final * 100) if c.precio_final > 0 else 0
 
-            total_ventas += c.precio_final; total_pagado += pagado; total_pendiente += pendiente
-            total_gastos += gastos_reales; total_ganancia += ganancia_real
+            # Acumular Totales
+            t_subtotal += c.subtotal
+            t_descuento += c.descuento
+            t_iva += c.iva
+            t_ret_isr += c.retencion_isr
+            t_total_ventas += c.precio_final
+            
+            t_pagado += pagado
+            t_pendiente += pendiente
+            t_gastos += gastos_reales
+            t_ganancia += ganancia_real
 
             datos_tabla.append({
-                'folio': c.id, 'fecha': c.fecha_evento, 'cliente': c.cliente.nombre,
-                'producto': c.producto.nombre, 'estado': c.get_estado_display(),
-                'total': c.precio_final, 'pagado': pagado, 'pendiente': pendiente,
-                'gastos': gastos_reales, 'ganancia': ganancia_real, 'margen': margen
+                'folio': c.id, 
+                'fecha': c.fecha_evento, 
+                'cliente': c.cliente.nombre,
+                'producto': c.producto.nombre, 
+                'estado': c.get_estado_display(),
+                # Fiscales
+                'subtotal': c.subtotal,
+                'descuento': c.descuento,
+                'iva': c.iva,
+                'isr': c.retencion_isr,
+                'total': c.precio_final,
+                # Financieros
+                'pagado': pagado, 
+                'pendiente': pendiente,
+                'gastos': gastos_reales, 
+                'ganancia': ganancia_real, 
+                'margen': margen
             })
 
         pagos_del_periodo = Pago.objects.filter(cotizacion__in=cotizaciones)
         total_efectivo = pagos_del_periodo.filter(metodo='EFECTIVO').aggregate(total=Sum('monto'))['total'] or 0
         total_transferencia = pagos_del_periodo.filter(metodo='TRANSFERENCIA').aggregate(total=Sum('monto'))['total'] or 0
-        total_ingresado = total_efectivo + total_transferencia
+        # Otros metodos si existieran
+        total_otros = pagos_del_periodo.exclude(metodo__in=['EFECTIVO', 'TRANSFERENCIA']).aggregate(total=Sum('monto'))['total'] or 0
+        total_ingresado = total_efectivo + total_transferencia + total_otros
 
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
 
         context = {
             'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
-            'total_ventas': total_ventas, 'total_pagado': total_pagado, 'total_pendiente': total_pendiente,
-            'total_gastos': total_gastos, 'total_ganancia': total_ganancia,
-            'total_efectivo': total_efectivo, 'total_transferencia': total_transferencia, 'total_ingresado': total_ingresado,
+            # Totales Fiscales
+            't_subtotal': t_subtotal,
+            't_descuento': t_descuento,
+            't_iva': t_iva,
+            't_ret_isr': t_ret_isr,
+            't_total_ventas': t_total_ventas,
+            # Totales Financieros
+            't_pagado': t_pagado, 
+            't_pendiente': t_pendiente,
+            't_gastos': t_gastos, 
+            't_ganancia': t_ganancia,
+            # Flujo
+            'total_efectivo': total_efectivo, 
+            'total_transferencia': total_transferencia, 
+            'total_otros': total_otros,
+            'total_ingresado': total_ingresado,
             'logo_url': logo_url
         }
 

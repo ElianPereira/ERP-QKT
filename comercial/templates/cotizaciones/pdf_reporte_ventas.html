@@ -1,213 +1,196 @@
+{% load humanize %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <title>Reporte Rentabilidad</title>
     <style>
-        @page {
-            size: letter landscape;
-            margin: 1cm;
-        }
-        body {
-            font-family: 'Helvetica', 'Arial', sans-serif;
-            color: #333;
-            font-size: 10px;
-        }
+        /* HOJA EN HORIZONTAL (LANDSCAPE) */
+        @page { size: letter landscape; margin: 1cm; }
         
-        /* HEADER CON LOGO */
-        .header { 
-            margin-bottom: 20px; 
-            border-bottom: 2px solid #356685; 
-            padding-bottom: 10px; 
-        }
-        .logo {
-            float: left;
-            height: 55px; /* Ajusta el tamaño de tu logo aquí */
-            margin-right: 15px;
-        }
-        .header h1 { 
-            color: #356685; 
-            margin: 0; 
-            font-size: 20px; 
-            text-transform: uppercase; 
-            padding-top: 5px; /* Para alinear con el logo */
-        }
-        .header p { margin: 2px 0; color: #666; font-size: 10px; }
-        .dates { float: right; text-align: right; }
-
+        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 10px; }
+        
+        /* ENCABEZADO */
+        .header { width: 100%; border-bottom: 2px solid #356685; margin-bottom: 10px; padding-bottom: 10px; }
+        .header td { vertical-align: middle; }
+        .title { font-size: 18px; font-weight: bold; color: #356685; text-transform: uppercase; }
+        .subtitle { font-size: 10px; color: #666; }
+        
         /* TABLA PRINCIPAL */
-        table.main-table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
-        table.main-table th { 
-            background-color: #356685; 
-            color: white; 
-            padding: 5px; 
-            text-align: left; 
-            font-weight: bold; 
-            text-transform: uppercase;
-            font-size: 9px;
-            white-space: nowrap; 
-        }
-        table.main-table td { 
-            padding: 5px; 
-            border-bottom: 1px solid #eee; 
-            font-size: 9px;
-            vertical-align: top;
-            word-wrap: break-word;
-        }
-        table.main-table tr:nth-child(even) { background-color: #f9f9f9; }
+        .main-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         
-        /* ESTILOS DE DINERO Y ESTADO */
-        .money { text-align: right; font-family: 'Courier New', monospace; font-size: 9px; }
-        .negrita { font-weight: bold; }
-        
-        .status-pill {
-            display: inline-block;
-            padding: 2px 5px;
-            border-radius: 4px;
-            font-size: 8px;
-            font-weight: bold;
-            text-transform: uppercase;
+        .main-table th {
+            background-color: #356685; color: white; padding: 6px 4px;
+            text-align: right; font-size: 9px; font-weight: bold;
         }
-        
-        /* TOTALES */
-        .totals-row td { 
-            border-top: 2px solid #333; 
-            font-weight: bold; 
-            background-color: #e3f2fd; 
-            padding-top: 8px;
-            padding-bottom: 8px;
-            font-size: 10px;
+        /* Alinear textos a la izquierda */
+        .main-table th.text-left { text-align: left; }
+        .main-table th.text-center { text-align: center; }
+
+        .main-table td {
+            border-bottom: 1px solid #eee; padding: 5px 4px;
+            text-align: right; font-size: 9px;
+        }
+        .main-table td.text-left { text-align: left; }
+        .main-table td.text-center { text-align: center; }
+
+        /* COLORES Y ESTILOS ESPECÍFICOS */
+        .col-fiscal { background-color: #f9fbfd; color: #555; } /* Fondo azul muy clarito para lo fiscal */
+        .col-total { font-weight: bold; color: #000; background-color: #eef; }
+        .col-ganancia { color: #28a745; font-weight: bold; }
+        .col-gasto { color: #dc3545; }
+        .negative { color: #dc3545; }
+
+        /* FILA DE TOTALES GENERALES */
+        .totals-row td {
+            border-top: 2px solid #333; border-bottom: 2px solid #333;
+            font-weight: bold; background-color: #f0f0f0; font-size: 10px;
         }
 
-        /* CAJA FLUJO DE EFECTIVO */
-        .resumen-container {
-            width: 30%;
-            float: right;
-            margin-top: 20px;
-            border: 1px solid #ccc;
-            background-color: #fdfdfd;
-            padding: 10px;
+        /* CUADRO DE FLUJO DE EFECTIVO */
+        .cash-flow-box {
+            float: right; width: 300px;
+            border: 1px solid #ccc; padding: 10px;
+            background-color: #fcfcfc; border-radius: 5px;
             page-break-inside: avoid;
         }
-        .resumen-container h3 {
-            margin: 0 0 10px 0;
-            color: #356685;
-            font-size: 12px;
-            border-bottom: 1px solid #ccc;
+        .cf-row { margin-bottom: 5px; font-size: 11px; }
+        .cf-total { 
+            margin-top: 5px; border-top: 1px solid #999; padding-top: 5px; 
+            font-weight: bold; font-size: 12px;
         }
-        .clear { clear: both; }
-
+        .clearfix { clear: both; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <img src="{{ logo_url }}" class="logo" alt="Logo">
-        
-        <div class="dates">
-            <p><strong>Periodo:</strong> {{ fecha_inicio }} al {{ fecha_fin }}</p>
-            <p>Filtro: {{ estado_filtro }}</p>
-        </div>
-
-        <h1>Reporte de Rentabilidad</h1>
-        <p>Quinta Ko'ox Tanil | Análisis Financiero</p>
-        <p>Generado: {% now "d/m/Y H:i" %}</p>
-        
-        <div class="clear"></div>
-    </div>
+    <table class="header">
+        <tr>
+            <td style="width: 10%;">
+                <img src="{{ logo_url }}" style="height: 50px;">
+            </td>
+            <td style="width: 60%;">
+                <div class="title">Reporte Detallado de Rentabilidad</div>
+                <div class="subtitle">Quinta Ko'ox Tanil | Análisis Fiscal y Financiero</div>
+                <div class="subtitle">Generado: {% now "d/m/Y H:i" %}</div>
+            </td>
+            <td style="width: 30%; text-align: right;">
+                <strong>Periodo:</strong> {{ fecha_inicio }} al {{ fecha_fin }}<br>
+                <strong>Filtro:</strong> {{ estado_filtro }}
+            </td>
+        </tr>
+    </table>
 
     <table class="main-table">
         <thead>
             <tr>
-                <th style="width: 4%;">ID</th>
-                <th style="width: 7%;">Fecha</th>
-                <th style="width: 16%;">Cliente</th>
-                <th style="width: 10%;">Evento</th>
-                <th style="width: 8%;">Estado</th>
+                <th class="text-left" style="width: 3%;">ID</th>
+                <th class="text-left" style="width: 7%;">Fecha</th>
+                <th class="text-left" style="width: 15%;">Cliente</th>
+                <th class="text-center" style="width: 8%;">Estado</th>
                 
-                <th class="money" style="width: 9%;">Venta</th>
-                <th class="money" style="width: 9%;">Pagado</th>
-                <th class="money" style="width: 9%;">Pendiente</th>
+                <th class="col-fiscal" style="width: 8%;">Subtotal</th>
+                <th class="col-fiscal" style="width: 7%;">(-) Desc.</th>
+                <th class="col-fiscal" style="width: 7%;">(+) IVA</th>
+                <th class="col-fiscal" style="width: 7%;">(-) ISR</th>
+                <th class="col-total" style="width: 9%;">= VENTA TOTAL</th>
                 
-                <th class="money" style="width: 9%; background-color: #fcece0; color: #d35400;">Gastos</th>
-                <th class="money" style="width: 9%; background-color: #e8f8f5; color: #27ae60;">Ganancia</th>
-                <th class="money" style="width: 6%; background-color: #e8f8f5; color: #27ae60;">%</th>
+                <th style="width: 8%;">Pagado</th>
+                <th style="width: 8%; color: #d9534f;">Pendiente</th>
+                <th style="width: 8%; color: #d9534f;">Gastos</th>
+                <th style="width: 8%; background-color: #e6fffa;">GANANCIA</th>
             </tr>
         </thead>
         <tbody>
-            {% for fila in datos %}
+            {% for item in datos %}
             <tr>
-                <td>{{ fila.folio }}</td>
-                <td>{{ fila.fecha|date:"d/m/y" }}</td>
-                <td>{{ fila.cliente }}</td>
-                <td>{{ fila.producto }}</td>
-                
-                <td>
-                    <span class="status-pill" 
-                          style="background-color: {% if 'CONFIRMADA' in fila.estado %}#d4edda; color: #155724;{% else %}#f8d7da; color: #721c24;{% endif %}">
-                        {{ fila.estado }}
-                    </span>
-                </td>
-                
-                <td class="money">${{ fila.total|floatformat:0 }}</td>
-                <td class="money" style="color: #555;">${{ fila.pagado|floatformat:0 }}</td>
-                <td class="money" style="color: {% if fila.pendiente > 0 %}red{% else %}#aaa{% endif %};">
-                    ${{ fila.pendiente|floatformat:0 }}
+                <td class="text-left">{{ item.folio }}</td>
+                <td class="text-left">{{ item.fecha|date:"d/m/y" }}</td>
+                <td class="text-left" style="text-transform: uppercase;">{{ item.cliente|truncatechars:20 }}</td>
+                <td class="text-center">
+                    {% if item.estado == 'Venta Confirmada' %}
+                        <span style="color: green;">Confirmada</span>
+                    {% else %}
+                        {{ item.estado }}
+                    {% endif %}
                 </td>
 
-                <td class="money" style="color: #d35400;">
-                    ${{ fila.gastos|floatformat:0 }}
+                <td class="col-fiscal">${{ item.subtotal|floatformat:0|intcomma }}</td>
+                <td class="col-fiscal negative">
+                    {% if item.descuento > 0 %}-{{ item.descuento|floatformat:0|intcomma }}{% else %}-{% endif %}
                 </td>
-                
-                <td class="money negrita" style="color: {% if fila.ganancia > 0 %}#27ae60{% else %}red{% endif %};">
-                    ${{ fila.ganancia|floatformat:0 }}
+                <td class="col-fiscal">${{ item.iva|floatformat:0|intcomma }}</td>
+                <td class="col-fiscal negative">
+                    {% if item.isr > 0 %}-{{ item.isr|floatformat:0|intcomma }}{% else %}-{% endif %}
                 </td>
-                
-                <td class="money negrita" style="color: {% if fila.margen >= 30 %}#27ae60{% elif fila.margen > 0 %}orange{% else %}red{% endif %};">
-                    {{ fila.margen|floatformat:0 }}%
-                </td>
+                <td class="col-total">${{ item.total|floatformat:0|intcomma }}</td>
+
+                <td>${{ item.pagado|floatformat:0|intcomma }}</td>
+                <td style="color: #d9534f;">${{ item.pendiente|floatformat:0|intcomma }}</td>
+                <td class="col-gasto">${{ item.gastos|floatformat:0|intcomma }}</td>
+                <td class="col-ganancia">${{ item.ganancia|floatformat:0|intcomma }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="11" style="text-align: center; padding: 20px; color: #999;">
-                    No hay datos en este periodo.
-                </td>
+                <td colspan="13" class="text-center" style="padding: 20px;">No hay registros en este periodo.</td>
             </tr>
             {% endfor %}
         </tbody>
         
         <tfoot>
             <tr class="totals-row">
-                <td colspan="5" style="text-align: right; padding-right: 10px;">TOTALES:</td>
-                <td class="money">${{ total_ventas|floatformat:0 }}</td>
-                <td class="money">${{ total_pagado|floatformat:0 }}</td>
-                <td class="money" style="color: red;">${{ total_pendiente|floatformat:0 }}</td>
+                <td colspan="4" class="text-center">TOTALES DEL PERIODO</td>
                 
-                <td class="money" style="color: #d35400;">${{ total_gastos|floatformat:0 }}</td>
-                <td class="money" style="color: #27ae60;">${{ total_ganancia|floatformat:0 }}</td>
-                <td class="money"></td>
+                <td>${{ t_subtotal|floatformat:0|intcomma }}</td>
+                <td class="negative">-${{ t_descuento|floatformat:0|intcomma }}</td>
+                <td>${{ t_iva|floatformat:0|intcomma }}</td>
+                <td class="negative">-${{ t_ret_isr|floatformat:0|intcomma }}</td>
+                <td>${{ t_total_ventas|floatformat:0|intcomma }}</td>
+                
+                <td>${{ t_pagado|floatformat:0|intcomma }}</td>
+                <td style="color: #d9534f;">${{ t_pendiente|floatformat:0|intcomma }}</td>
+                <td style="color: #d9534f;">${{ t_gastos|floatformat:0|intcomma }}</td>
+                <td style="color: #28a745;">${{ t_ganancia|floatformat:0|intcomma }}</td>
             </tr>
         </tfoot>
     </table>
 
-    <div class="resumen-container">
-        <h3>Flujo de Efectivo</h3>
-        <table style="width: 100%; margin: 0;">
-            <tr>
-                <td style="border: none;">Efectivo:</td>
-                <td style="border: none; text-align: right;">${{ total_efectivo|floatformat:2 }}</td>
-            </tr>
-            <tr>
-                <td style="border: none;">Transferencia:</td>
-                <td style="border: none; text-align: right;">${{ total_transferencia|floatformat:2 }}</td>
-            </tr>
-            <tr>
-                <td style="border: none; border-top: 1px solid #333; font-weight: bold;">TOTAL INGRESADO:</td>
-                <td style="border: none; border-top: 1px solid #333; font-weight: bold; text-align: right;">${{ total_ingresado|floatformat:2 }}</td>
-            </tr>
-        </table>
-    </div>
+    <br>
 
-    <div class="clear"></div>
+    <div class="cash-flow-box">
+        <h4 style="margin: 0 0 10px 0; color: #356685; border-bottom: 1px solid #eee;">
+            Resumen de Flujo de Efectivo (Ingresos Reales)
+        </h4>
+        
+        <div class="cf-row">
+            <span style="float:left;">Efectivo Recibido:</span>
+            <span style="float:right;">${{ total_efectivo|floatformat:2|intcomma }}</span>
+            <div class="clearfix"></div>
+        </div>
+        
+        <div class="cf-row">
+            <span style="float:left;">Transferencias / Bancos:</span>
+            <span style="float:right;">${{ total_transferencia|floatformat:2|intcomma }}</span>
+            <div class="clearfix"></div>
+        </div>
+
+        {% if total_otros > 0 %}
+        <div class="cf-row">
+            <span style="float:left;">Otros Métodos:</span>
+            <span style="float:right;">${{ total_otros|floatformat:2|intcomma }}</span>
+            <div class="clearfix"></div>
+        </div>
+        {% endif %}
+
+        <div class="cf-total">
+            <span style="float:left;">TOTAL INGRESADO:</span>
+            <span style="float:right;">${{ total_ingresado|floatformat:2|intcomma }}</span>
+            <div class="clearfix"></div>
+        </div>
+        <div style="font-size: 8px; color: #999; margin-top: 5px; text-align: center;">
+            * Suma de pagos con fecha dentro del filtro seleccionado.
+        </div>
+    </div>
 
 </body>
 </html>
