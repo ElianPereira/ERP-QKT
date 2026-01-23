@@ -16,24 +16,24 @@
         .clearfix { clear: both; }
 
         /* HEADER */
-        .header-container { width: 100%; margin-bottom: 30px; }
+        .header-container { width: 100%; margin-bottom: 20px; }
         .header-table { width: 100%; border: none; }
         .header-table td { vertical-align: top; }
         .company-name { font-size: 18px; font-weight: bold; color: #356685; margin-bottom: 5px; }
         .company-details { font-size: 11px; color: #666; line-height: 1.4; }
 
         /* TÍTULO */
-        .doc-title { text-align: center; margin-top: 10px; margin-bottom: 20px; }
-        .doc-title h1 { margin: 0; color: #2c3e50; font-size: 22px; }
-        .doc-title p { margin: 5px 0 0 0; color: #7f8c8d; }
+        .doc-title { text-align: center; margin-top: 5px; margin-bottom: 15px; }
+        .doc-title h1 { margin: 0; color: #2c3e50; font-size: 20px; }
+        .doc-title p { margin: 2px 0 0 0; color: #7f8c8d; font-size: 10px; }
 
         /* TARJETA DE DATOS */
         .info-card {
-            border: 1px solid #e0e0e0; border-radius: 10px; padding: 15px;
-            background-color: #fcfcfc; margin-bottom: 30px; position: relative; display: block;
+            border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px;
+            background-color: #fcfcfc; margin-bottom: 20px; position: relative; display: block;
         }
         .card-table { width: 100%; }
-        .card-label { color: #356685; font-weight: bold; width: 110px; }
+        .card-label { color: #356685; font-weight: bold; width: 100px; }
         .card-value { color: #333; }
 
         /* TABLA DE DETALLE */
@@ -42,39 +42,45 @@
             border-bottom: 2px solid #356685;
         }
         .data-table th {
-            background-color: #4a86a6; color: white; padding: 10px; text-align: left;
-            font-weight: normal; font-size: 12px; border: none;
+            background-color: #4a86a6; color: white; padding: 8px; text-align: left;
+            font-weight: normal; font-size: 11px; border: none;
         }
-        .data-table th:first-child { border-top-left-radius: 5px; padding-left: 20px; }
-        .data-table th:last-child { border-top-right-radius: 5px; padding-right: 20px; text-align: center;} 
+        .data-table th:first-child { border-top-left-radius: 5px; padding-left: 15px; }
+        .data-table th:last-child { border-top-right-radius: 5px; padding-right: 15px; text-align: right;} 
         
-        .data-table td { padding: 10px; border-bottom: 1px solid #f0f0f0; color: #555; }
-        .data-table td:first-child { text-align: left; padding-left: 20px; }
-        .data-table td:last-child { text-align: center; padding-right: 20px; }
+        .data-table td { padding: 8px; border-bottom: 1px solid #f0f0f0; color: #555; font-size: 11px; }
+        .data-table td:first-child { text-align: left; padding-left: 15px; }
+        .data-table td:last-child { text-align: right; padding-right: 15px; }
         .data-table tr:last-child td { border-bottom: none; }
 
-        /* ESTILOS NUEVOS PARA ABONOS Y FIRMA */
-        .payments-table { width: 100%; margin-top: 30px; border-collapse: collapse; font-size: 10px; }
-        .payments-table th { border-bottom: 1px solid #999; text-align: left; padding: 5px; color: #666; }
-        .payments-table td { border-bottom: 1px solid #eee; padding: 5px; color: #333; }
-        
-        .signature-section { margin-top: 50px; width: 100%; page-break-inside: avoid; }
-        .signature-box { width: 45%; float: left; text-align: center; }
-        .signature-line { border-top: 1px solid #333; width: 80%; margin: 0 auto 5px auto; }
-        .digital-seal { font-size: 8px; color: #999; margin-top: 5px; font-family: 'Courier New', monospace; word-break: break-all; }
+        /* ABONOS */
+        .payments-table { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 10px; }
+        .payments-table th { border-bottom: 1px solid #999; text-align: left; padding: 4px; color: #666; }
+        .payments-table td { border-bottom: 1px solid #eee; padding: 4px; color: #333; }
 
         /* TOTALES */
         .totals-section { margin-top: 20px; width: 100%; page-break-inside: avoid; }
-        .totals-table { float: right; width: 280px; border: 1px solid #eee; border-radius: 5px; padding: 10px; background-color: #fcfcfc;}
-        .total-row { margin-bottom: 5px; font-size: 12px; }
+        .totals-table { float: right; width: 260px; border: 1px solid #eee; border-radius: 5px; padding: 10px; background-color: #fcfcfc;}
+        .total-row { margin-bottom: 4px; font-size: 11px; }
         
         .grand-total {
-            background-color: #356685; color: white; padding: 8px; text-align: center;
-            border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 10px;
+            background-color: #356685; color: white; padding: 6px; text-align: center;
+            border-radius: 4px; font-weight: bold; font-size: 13px; margin-top: 8px;
         }
         
         .balance-row { color: #d9534f; font-weight: bold; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px;}
         .abono-text { color: #28a745; }
+
+        /* FIRMAS Y PIE */
+        .signature-section { margin-top: 40px; width: 100%; page-break-inside: avoid; }
+        .signature-box { width: 45%; float: left; text-align: center; }
+        .signature-line { border-top: 1px solid #333; width: 80%; margin: 0 auto 5px auto; }
+        .digital-seal { font-size: 7px; color: #999; margin-top: 5px; font-family: 'Courier New', monospace; word-break: break-all; }
+        
+        .footer-msg {
+            position: absolute; bottom: 0; width: 100%; text-align: center; 
+            color: #ccc; font-size: 8px; border-top: 1px solid #eee; padding-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -83,7 +89,7 @@
         <table class="header-table">
             <tr>
                 <td style="width: 50%;">
-                    <img src="{{ logo_url }}" style="height: 70px; display: block;">
+                    <img src="{{ logo_url }}" style="height: 60px; display: block;">
                 </td>
                 <td style="width: 50%; text-align: right;">
                     <div class="company-name">Quinta Ko'ox Tanil</div>
@@ -147,8 +153,6 @@
         </table>
     </div>
 
-    <div class="clearfix" style="height: 10px;"></div>
-
     <table class="data-table">
         <thead>
             <tr>
@@ -173,13 +177,13 @@
                     • {{ comp.insumo.nombre }}
                 </td>
                 <td style="text-align: center; color: #555;">{{ comp.cantidad|floatformat:2 }}</td>
-                <td style="text-align: right; font-size: 10px; color: #28a745;"><i>Incluido</i></td>
+                <td style="text-align: right; font-size: 9px; color: #28a745;"><i>Incluido</i></td>
             </tr>
             {% endfor %}
 
             {% if items_extra %}
                 <tr style="background-color: #f0f0f0;">
-                    <td colspan="3" style="font-weight: bold; font-size: 10px; color: #356685; padding-top: 10px;">ADICIONALES / EXTRAS:</td>
+                    <td colspan="3" style="font-weight: bold; font-size: 10px; color: #356685; padding-top: 5px; padding-bottom: 5px;">ADICIONALES / EXTRAS:</td>
                 </tr>
                 {% for item in items_extra %}
                 <tr>
@@ -197,14 +201,13 @@
                 </tr>
                 {% endfor %}
             {% endif %}
-
         </tbody>
     </table>
 
     {% if cotizacion.pagos.exists %}
-    <div style="margin-top: 30px; margin-bottom: 20px;">
-        <h4 style="color: #356685; margin-bottom: 5px; border-bottom: 1px solid #ccc;">Historial de Abonos</h4>
-        <table class="payments-table" style="margin-top: 5px;">
+    <div style="margin-top: 20px; margin-bottom: 15px;">
+        <h4 style="color: #356685; margin-bottom: 5px; border-bottom: 1px solid #ccc; font-size: 11px;">Historial de Abonos</h4>
+        <table class="payments-table" style="margin-top: 0;">
             <thead>
                 <tr>
                     <th>Fecha</th>
@@ -261,4 +264,46 @@
                 <div class="clearfix"></div>
             </div>
 
-            <div
+            <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 8px;">
+                 <div class="total-row abono-text">
+                    <span style="float:left;">Abonado:</span>
+                    <span style="float:right;">- ${{ total_pagado|floatformat:2|intcomma }}</span>
+                    <div class="clearfix"></div>
+                </div>
+                
+                <div class="total-row balance-row">
+                    <span style="float:left;">PENDIENTE:</span>
+                    <span style="float:right;">${{ saldo_pendiente|floatformat:2|intcomma }}</span>
+                    <div class="clearfix"></div>
+                </div>
+            </div>
+
+        </div>
+        <div class="clearfix"></div>
+    </div>
+
+    <div class="signature-section">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <strong>{{ cotizacion.cliente.nombre }}</strong><br>
+            <span style="font-size: 10px; color: #666;">Acepto Cotización</span>
+        </div>
+        
+        <div class="signature-box" style="float: right;">
+            <div class="signature-line"></div>
+            <strong>Elaborado por: {{ cotizacion.usuario.first_name|default:"Administración" }} {{ cotizacion.usuario.last_name }}</strong><br>
+            <span style="font-size: 10px; color: #666;">Quinta Ko'ox Tanil</span>
+            
+            <div class="digital-seal">
+                Sello Digital: {{ cotizacion.id }}|{{ cotizacion.fecha_evento|date:"Ymd" }}|{{ cotizacion.created_at|date:"His" }}|{{ cotizacion.usuario.username|default:"SYS" }}|QKT-SECURE
+            </div>
+        </div>
+        <div class="clearfix"></div>
+    </div>
+
+    <div class="footer-msg">
+        Gracias por confiar en Quinta Ko'ox Tanil.
+    </div>
+
+</body>
+</html>
