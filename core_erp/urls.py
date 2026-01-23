@@ -10,7 +10,7 @@ from django.http import HttpResponse
 # ----------------------------------------------------
 
 # Importamos las vistas de Comercial
-# SE AGREGA: forzar_migracion
+# AGREGA AQUÍ: forzar_migracion
 from comercial.views import (
     generar_pdf_cotizacion, 
     enviar_cotizacion_email, 
@@ -20,7 +20,7 @@ from comercial.views import (
     exportar_cierre_excel,
     exportar_reporte_cotizaciones,
     generar_lista_compras,
-    forzar_migracion 
+    forzar_migracion
 )
 
 # Importamos vistas de otros módulos (Nómina y Facturación)
@@ -56,10 +56,11 @@ def crear_superusuario_view(request):
 # ----------------------------------------------------
 
 urlpatterns = [
-    # --- RUTA SECRETA DE EMERGENCIA ---
+    # --- RUTA SECRETA DE EMERGENCIA PARA ADMIN ---
     path('crear-admin-secreto/', crear_superusuario_view),
 
     # --- RUTA DE EMERGENCIA PARA MIGRAR DB ---
+    # Al entrar aquí, se actualizará la base de datos
     path('admin/ajustes/migrar-ahora/', forzar_migracion),
 
     # 1. EL DASHBOARD
