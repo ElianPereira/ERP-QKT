@@ -42,15 +42,15 @@
             border-bottom: 2px solid #356685;
         }
         .data-table th {
-            background-color: #4a86a6; color: white; padding: 10px; text-align: center;
+            background-color: #4a86a6; color: white; padding: 10px; text-align: left; /* Alineado a la izquierda */
             font-weight: normal; font-size: 12px; border: none;
         }
-        .data-table th:first-child { border-top-left-radius: 5px; text-align: left; padding-left: 20px; }
-        .data-table th:last-child { border-top-right-radius: 5px; text-align: right; padding-right: 20px; }
+        .data-table th:first-child { border-top-left-radius: 5px; padding-left: 20px; }
+        .data-table th:last-child { border-top-right-radius: 5px; padding-right: 20px; text-align: center;} /* Cantidad centrada */
         
-        .data-table td { padding: 10px; text-align: center; border-bottom: 1px solid #f0f0f0; color: #555; }
+        .data-table td { padding: 10px; border-bottom: 1px solid #f0f0f0; color: #555; }
         .data-table td:first-child { text-align: left; padding-left: 20px; }
-        .data-table td:last-child { text-align: right; padding-right: 20px; }
+        .data-table td:last-child { text-align: center; padding-right: 20px; } /* Cantidad centrada */
         .data-table tr:last-child td { border-bottom: none; }
 
         /* TOTALES */
@@ -132,10 +132,8 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 50%">Concepto / Producto</th>
+                <th style="width: 85%">Concepto / Servicios Incluidos</th>
                 <th style="width: 15%">Cantidad</th>
-                <th style="width: 15%">P. Unitario</th>
-                <th style="width: 20%">Importe</th>
             </tr>
         </thead>
         <tbody>
@@ -145,8 +143,6 @@
                     <span style="font-size: 10px; color: #999;">Paquete Base Contratado</span>
                 </td>
                 <td>1.00</td>
-                <td>${{ precio_paquete|floatformat:2|intcomma }}</td>
-                <td><strong>${{ precio_paquete|floatformat:2|intcomma }}</strong></td>
             </tr>
 
             {% for item in items_extra %}
@@ -155,14 +151,12 @@
                     {% if item.producto %}
                         {{ item.producto.nombre }} (Extra)
                     {% elif item.insumo %}
-                        {{ item.insumo.nombre }} (Adicional)
+                        {{ item.insumo.nombre }}
                     {% else %}
-                        Ítem Extra
+                        Ítem Adicional
                     {% endif %}
                 </td>
                 <td>{{ item.cantidad|floatformat:2 }}</td>
-                <td>${{ item.precio_unitario|floatformat:2|intcomma }}</td>
-                <td>${{ item.subtotal|floatformat:2|intcomma }}</td>
             </tr>
             {% endfor %}
 
@@ -172,7 +166,7 @@
     <div class="totals-section">
         <div class="totals-table">
             <div class="total-row">
-                <span style="float:left;">Subtotal:</span>
+                <span style="float:left;">Subtotal Global:</span>
                 <span style="float:right;">${{ subtotal_real|floatformat:2|intcomma }}</span>
                 <div class="clearfix"></div>
             </div>
