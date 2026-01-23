@@ -3,7 +3,6 @@ from django.utils.html import format_html
 from django.urls import reverse, NoReverseMatch
 from django.contrib import messages
 from django.db.models import Sum
-# Se agrega ItemCotizacion a los imports
 from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, ItemCotizacion, Pago, Gasto
 
 @admin.register(Insumo)
@@ -48,11 +47,10 @@ class ClienteAdmin(admin.ModelAdmin):
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
-    autocomplete_fields = ['producto', 'insumo'] # Asegúrate de que Producto e Insumo tengan search_fields
+    autocomplete_fields = ['producto', 'insumo']
 
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
-    # inlines = [ItemCotizacionInline]  <-- HABILITADO
     inlines = [ItemCotizacionInline]
 
     list_display = ('folio_cotizacion', 'cliente', 'producto', 'fecha_evento', 'estado', 'subtotal', 'precio_final', 'ver_pdf', 'enviar_email_btn')
@@ -126,14 +124,15 @@ class CotizacionAdmin(admin.ModelAdmin):
                 cantidad_necesaria = componente.cantidad
 
                 if insumo.categoria in ['MOBILIARIO', 'SERVICIO']:
-                    # OPTIMIZACIÓN: Sumar directamente desde la base de datos
-                    # Buscamos cuánto de este insumo ya está ocupado en OTRAS cotizaciones de HOY
+                    # --- CORRECCIÓN AQUÍ ---
+                    # Antes fallaba porque buscábamos 'cotizacion' directo en el componente.
+                    # Ahora buscamos a través del producto: producto__cotizacion__...
                     usado_ese_dia = ComponenteProducto.objects.filter(
-                        cotizacion__fecha_evento=obj.fecha_evento,
-                        cotizacion__estado='CONFIRMADA',
+                        producto__cotizacion__fecha_evento=obj.fecha_evento,
+                        producto__cotizacion__estado='CONFIRMADA',
                         insumo=insumo
                     ).exclude(
-                        cotizacion__id=obj.id # Excluimos la actual para no duplicar si solo estamos editando
+                        producto__cotizacion__id=obj.id 
                     ).aggregate(Sum('cantidad'))['cantidad__sum'] or 0
                     
                     disponible_real = insumo.cantidad_stock - usado_ese_dia
@@ -230,7 +229,6 @@ class GastoAdmin(admin.ModelAdmin):
     ver_pdf.short_description = "Comprobante"
     
     def get_readonly_fields(self, request, obj=None):
-        # Si ya se cargó un XML, protegemos los campos para que no se alteren manualmente
         if obj and obj.archivo_xml:
             return self.readonly_fields
         return ('uuid',)
