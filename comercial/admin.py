@@ -46,18 +46,19 @@ class ItemCotizacionInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ['producto', 'insumo']
 
-# --- NUEVO INLINE DE PAGOS ---
 class PagoInline(admin.TabularInline):
     model = Pago
     extra = 0
     fields = ('monto', 'metodo', 'referencia', 'fecha_pago', 'usuario')
-    readonly_fields = ('fecha_pago', 'usuario') # Para que no se modifique el cobrador
+    readonly_fields = ('fecha_pago', 'usuario')
 
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
-    inlines = [ItemCotizacionInline, PagoInline] # Agregamos los pagos aquí
+    inlines = [ItemCotizacionInline, PagoInline]
 
-    list_display = ('folio_cotizacion', 'cliente', 'fecha_evento', 'hora_inicio', 'estado', 'precio_final', 'usuario')
+    # --- AQUÍ ESTÁ EL CAMBIO: AGREGAMOS ver_pdf Y enviar_email_btn AL FINAL ---
+    list_display = ('folio_cotizacion', 'cliente', 'fecha_evento', 'hora_inicio', 'estado', 'precio_final', 'usuario', 'ver_pdf', 'enviar_email_btn')
+    
     list_filter = ('estado', 'requiere_factura', 'fecha_evento')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc')
     autocomplete_fields = ['cliente', 'producto'] 
@@ -84,17 +85,10 @@ class CotizacionAdmin(admin.ModelAdmin):
     folio_cotizacion.short_description = "Folio"
     folio_cotizacion.admin_order_field = 'id'
 
-    # --- GUARDADO AUTOMÁTICO DE USUARIO ---
     def save_model(self, request, obj, form, change):
-        # Si es una cotización nueva, asignamos el usuario actual
         if not obj.pk:
             obj.usuario = request.user
             
-        """
-        Lógica central de inventario:
-        - Si es 'MOBILIARIO/SERVICIO': Verifica disponibilidad por fecha.
-        - Si es 'CONSUMIBLE': Descuenta del stock físico.
-        """
         cotizacion_anterior = None
         if change:
             try:
@@ -165,11 +159,9 @@ class CotizacionAdmin(admin.ModelAdmin):
 
         super().save_model(request, obj, form, change)
 
-    # --- GUARDADO AUTOMÁTICO DE COBRADOR (EN PAGOS) ---
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for instance in instances:
-            # Si es un Pago y es nuevo, asignamos el usuario actual
             if isinstance(instance, Pago):
                 if not instance.pk:
                     instance.usuario = request.user
@@ -213,7 +205,6 @@ class PagoAdmin(admin.ModelAdmin):
     list_filter = ('fecha_pago', 'metodo', 'usuario')
     autocomplete_fields = ['cotizacion']
     
-    # Para que al crear un pago suelto también se guarde el usuario
     def save_model(self, request, obj, form, change):
         if not obj.pk:
             obj.usuario = request.user
