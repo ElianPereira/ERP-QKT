@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models import Sum
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
-from django.contrib.auth.models import User  # <--- NUEVO IMPORT
+from django.contrib.auth.models import User
 
 # --- IMPORTACIÓN DE CATÁLOGOS SAT ---
 from facturacion.choices import RegimenFiscal, UsoCFDI
@@ -117,11 +117,11 @@ class Cotizacion(models.Model):
     
     # --- FECHAS Y HORARIOS ---
     fecha_evento = models.DateField()
-    hora_inicio = models.TimeField(null=True, blank=True, verbose_name="Hora Inicio") # <--- NUEVO
-    hora_fin = models.TimeField(null=True, blank=True, verbose_name="Hora Fin")       # <--- NUEVO
+    hora_inicio = models.TimeField(null=True, blank=True, verbose_name="Hora Inicio")
+    hora_fin = models.TimeField(null=True, blank=True, verbose_name="Hora Fin")
 
     # --- DATOS ADMINISTRATIVOS ---
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Elaborado por") # <--- NUEVO
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Elaborado por")
 
     # --- CAMPOS FISCALES ---
     requiere_factura = models.BooleanField(default=False, help_text="Si se marca, calcula IVA y Retenciones")
@@ -205,14 +205,24 @@ class ItemCotizacion(models.Model):
         return f"{self.cantidad} x {nombre}"
 
 # ==========================================
-# 5. PAGOS
+# 5. PAGOS (MODIFICADO)
 # ==========================================
 class Pago(models.Model):
-    METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia')]
+    METODOS = [
+        ('EFECTIVO', 'Efectivo'), 
+        ('TRANSFERENCIA', 'Transferencia Electrónica'),
+        ('TARJETA_CREDITO', 'Tarjeta de Crédito'),
+        ('TARJETA_DEBITO', 'Tarjeta de Débito'),
+        ('CHEQUE', 'Cheque Nominativo'),
+        ('DEPOSITO', 'Depósito Bancario'),
+        ('PLATAFORMA', 'Plataforma (PayPal/Stripe)'),
+        ('CONDONACION', 'Condonación / Cortesía'),
+        ('OTRO', 'Otro Método'),
+    ]
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     
     # --- USUARIO QUE RECIBE EL COBRO ---
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Recibido por") # <--- NUEVO
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Recibido por")
     
     fecha_pago = models.DateField(auto_now_add=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2)
