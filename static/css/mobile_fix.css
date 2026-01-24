@@ -1,99 +1,241 @@
 /* static/css/mobile_fix.css */
 
-/* --- SOLO APLICA EN CELULARES (Pantallas menores a 768px) --- */
-@media screen and (max-width: 768px) {
+/* --- VERSIÓN APP MÓVIL (Pantallas menores a 992px) --- */
+@media screen and (max-width: 992px) {
 
-    /* 1. ARREGLO DE TABLAS (Imágenes Insumos y Clientes) 
-       Hacemos que la tabla tenga scroll horizontal suave en lugar de romperse */
-    .card-body.table-responsive {
-        display: block;
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch; /* Scroll suave en iPhone */
+    /* =========================================
+       1. ESTILO GENERAL "APP FEEL"
+       ========================================= */
+    body {
+        font-size: 15px !important;
+        background-color: #f4f6f9 !important; /* Fondo gris suave moderno */
     }
-    
+
+    /* Quitar márgenes innecesarios */
+    .content {
+        padding: 10px !important;
+    }
+
+    /* Títulos más limpios */
+    h1 {
+        font-size: 20px !important;
+        font-weight: 700 !important;
+        color: #2c3e50;
+        margin-bottom: 15px !important;
+    }
+
+    /* =========================================
+       2. TABLAS (LISTADOS) - EL CAMBIO CRÍTICO
+       ========================================= */
+    /* Convertimos la tabla en un contenedor con scroll suave */
+    .card-body.table-responsive, .results {
+        display: block !important;
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch; /* Scroll nativo en iOS */
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        padding: 0 !important;
+        margin-bottom: 20px;
+    }
+
     table.table {
-        white-space: nowrap; /* Evita que el texto se rompa en varias líneas feas */
+        margin-bottom: 0 !important;
+        width: 100%;
+        border-collapse: separate; /* Necesario para sticky header */
+        border-spacing: 0;
     }
 
-    /* 2. BOTONES MÁS GRANDES Y CÓMODOS (Táctil) */
-    .btn {
-        padding: 10px 15px; /* Más área para tocar con el dedo */
-        font-size: 14px;
-        display: inline-block;
-        margin-bottom: 5px;
+    /* Celdas con aire */
+    table.table th, table.table td {
+        white-space: nowrap !important; /* Evita que el texto se rompa feo */
+        padding: 15px 12px !important;
+        vertical-align: middle !important;
+        border-bottom: 1px solid #f0f0f0;
     }
-    
-    /* Botones de acción principales al 100% de ancho para fácil acceso */
-    .object-tools .btn, 
-    .submit-row .btn {
-        width: 100%; 
+
+    /* Encabezado oscuro y fijo */
+    table.table thead th {
+        background-color: #343a40 !important;
+        color: white !important;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border: none !important;
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 1px;
+    }
+
+    /* PRIMERA COLUMNA FIJA (Efecto Excel) 
+       Esto ayuda a saber de quién es el dato mientras deslizas a la derecha */
+    table.table tbody td:first-child, 
+    table.table thead th:first-child {
+        position: sticky !important;
+        left: 0;
+        z-index: 5;
+        background-color: #fff !important; /* Fondo blanco para tapar lo que pasa por debajo */
+        border-right: 2px solid #e9ecef;
+        font-weight: bold;
+        color: #356685;
+    }
+    /* El header de la 1ra columna debe ser oscuro */
+    table.table thead th:first-child {
+        background-color: #343a40 !important;
+        color: white !important;
+    }
+
+    /* =========================================
+       3. FORMULARIOS (AGREGAR/EDITAR)
+       ========================================= */
+    /* Contenedores tipo tarjeta */
+    .card {
+        border-radius: 12px !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
+        border: none !important;
+        margin-bottom: 15px;
+    }
+
+    /* Forzar que todo sea una sola columna */
+    .form-row {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 10px 0;
+    }
+
+    .form-row .fieldBox {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-right: 0 !important;
+        padding: 0 10px;
         margin-bottom: 10px;
+    }
+
+    /* Etiquetas legibles */
+    label {
+        font-weight: 600 !important;
+        color: #555;
+        margin-bottom: 5px !important;
         display: block;
     }
 
-    /* 3. ARREGLO DEL DASHBOARD (Gráfica aplastada) */
-    canvas {
-        min-height: 300px !important; /* Fuerza altura mínima a la gráfica */
-    }
-
-    /* 4. FORMULARIOS (Inputs más legibles) */
+    /* INPUTS GIGANTES (Finger Friendly) */
     input[type="text"], 
     input[type="number"], 
     input[type="email"], 
+    input[type="password"], 
     input[type="date"], 
-    input[type="time"], 
-    select, 
-    textarea {
-        font-size: 16px !important; /* 16px evita que el iPhone haga zoom automático al escribir */
-        height: 45px !important; /* Inputs más altos para dedos */
-        margin-bottom: 10px;
-    }
-
-    /* Select2 (Los buscadores desplegables) */
-    .select2-container .select2-selection--single {
-        height: 45px !important;
-        padding-top: 8px;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__arrow {
-        top: 8px;
-    }
-
-    /* 5. ARREGLO DE BARRA DE NAVEGACIÓN (Breadcrumbs encimados) */
-    .breadcrumb {
-        font-size: 12px;
-        padding: 8px;
-        background-color: #f8f9fa;
-        border-radius: 5px;
-        margin-bottom: 15px;
-        display: flex;
-        flex-wrap: wrap; /* Permite que bajen de línea si no caben */
-    }
-
-    /* 6. BARRA DE GUARDADO FLOTANTE (Opcional pero muy útil)
-       Hace que el botón de Guardar siempre esté visible abajo */
-    .submit-row {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        z-index: 1000;
-        background: white;
-        padding: 10px;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        display: flex;
-        flex-direction: column-reverse; /* Pone el guardar primero */
-    }
-    /* Espacio extra abajo para que el contenido no quede tapado por la barra flotante */
-    #content-main {
-        padding-bottom: 80px; 
-    }
-
-    /* 7. REDUCIR TAMAÑOS DE TÍTULOS GIGANTES */
-    h1 {
-        font-size: 22px !important;
+    input[type="time"],
+    textarea, 
+    select,
+    .select2-container--default .select2-selection--single {
+        height: 50px !important; /* Altura cómoda para el dedo */
+        border-radius: 8px !important;
+        border: 1px solid #ced4da !important;
+        font-size: 16px !important; /* Evita zoom en iPhone */
+        width: 100% !important;
+        padding-left: 10px;
+        background-color: #fff;
     }
     
-    /* Ocultar columnas menos importantes en listados si quisieras (opcional) */
-    /* .field-folio_custom { display: none; } */
+    /* Ajuste específico para Select2 */
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 50px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 48px !important;
+    }
+
+    /* =========================================
+       4. BOTONES Y ACCIONES
+       ========================================= */
+    /* Botones principales al 100% de ancho */
+    .object-tools li {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .object-tools a.btn {
+        display: block;
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+        font-weight: bold;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    /* =========================================
+       5. BARRA DE GUARDADO FLOTANTE (ESTILO APP)
+       ========================================= */
+    .submit-row {
+        position: fixed !important;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        background: white !important;
+        padding: 12px 15px !important;
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.15) !important;
+        z-index: 9999;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    
+    /* Ocultar botones secundarios si estorban, dejar solo Guardar */
+    .submit-row input[name="_continue"], 
+    .submit-row input[name="_addanother"] {
+        display: none; /* Opcional: Ocultamos "Guardar y añadir otro" para limpiar */
+    }
+    
+    .submit-row input[type="submit"] {
+        flex: 1; /* Ocupa todo el espacio */
+        height: 50px !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        margin: 0 !important;
+        background-color: #28a745 !important; /* Verde éxito */
+        color: white !important;
+        border: none;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    /* Espacio extra abajo para que el contenido no quede tapado por la barra flotante */
+    #content {
+        padding-bottom: 80px !important;
+    }
+
+    /* =========================================
+       6. FILTROS (SIDEBAR)
+       ========================================= */
+    /* Mover filtros al final y estilizarlos */
+    #changelist-filter {
+        position: static !important;
+        width: 100% !important;
+        background: #fff !important;
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #eee;
+    }
+    #changelist-filter h2 {
+        font-size: 16px !important;
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        text-align: center;
+    }
+    
+    /* =========================================
+       7. FIX DASHBOARD GRID
+       ========================================= */
+    /* Asegurar que las tarjetas del dashboard sean de 1 columna */
+    .col-lg-3, .col-lg-4, .col-md-6 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
 }
