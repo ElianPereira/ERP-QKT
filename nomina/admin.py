@@ -16,8 +16,7 @@ class EmpleadoAdmin(admin.ModelAdmin):
 
 @admin.register(ReciboNomina)
 class ReciboNominaAdmin(admin.ModelAdmin):
-    # --- ESTA ES LA LÍNEA QUE TE FALTABA ---
-    # Sin esto, Django usa la tabla default y no muestra tu barra de carga
+    # Ruta al template que acabamos de modificar
     change_list_template = 'admin/nomina/recibonomina/change_list.html'
 
     list_display = ('folio_custom', 'empleado', 'periodo', 'total_pagado', 'ver_pdf')

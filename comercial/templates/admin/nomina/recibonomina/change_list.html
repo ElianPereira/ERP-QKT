@@ -2,20 +2,97 @@
 {% load i18n admin_urls %}
 
 {% block object-tools-items %}
-    {# Mantiene el botón de "Agregar Recibo" original #}
+    {# Mantiene los botones originales de Django #}
     {{ block.super }}
 
-    {# Agrega tu botón de Carga Masiva #}
+    {# Botón de Carga Masiva Optimizado para Móvil #}
     {% if boton_carga %}
     <li>
-        {# CORRECCIÓN: Usamos 'cargar_nomina' sin 'admin:' para coincidir con tu urls.py #}
-        <form action="{% url 'cargar_nomina' %}" method="post" enctype="multipart/form-data" style="display: flex; align-items: center; gap: 10px;">
+        <style>
+            /* Estilos para ocultar el input real y estilizar el label */
+            .inputfile {
+                width: 0.1px;
+                height: 0.1px;
+                opacity: 0;
+                overflow: hidden;
+                position: absolute;
+                z-index: -1;
+            }
+            
+            /* Botón "Elegir Archivo" (Azul) */
+            .btn-upload-label {
+                font-size: 14px;
+                font-weight: 600;
+                color: white !important;
+                background-color: #17a2b8;
+                display: inline-block;
+                padding: 8px 15px;
+                cursor: pointer;
+                border-radius: 4px;
+                transition: background-color 0.3s;
+                margin-right: 5px;
+            }
+            .btn-upload-label:hover {
+                background-color: #138496;
+            }
+            .btn-upload-label i {
+                margin-right: 5px;
+            }
+
+            /* Botón "Subir/Procesar" (Verde) */
+            .btn-submit-excel {
+                font-size: 14px; 
+                padding: 8px 15px; 
+                background: #28a745; 
+                color: white; 
+                border: none; 
+                border-radius: 4px; 
+                cursor: pointer;
+            }
+            .btn-submit-excel:hover {
+                background: #218838;
+            }
+
+            /* Contenedor del formulario */
+            .upload-form-container {
+                display: flex; 
+                align-items: center; 
+                gap: 5px;
+            }
+        </style>
+
+        <form action="{% url 'cargar_nomina' %}" method="post" enctype="multipart/form-data" class="upload-form-container">
             {% csrf_token %}
-            <input type="file" name="archivo_excel" required accept=".xlsx" style="font-size: 12px;">
-            <button type="submit" class="button" style="background: #28a745; color: white; border: none;">
-                <i class="fas fa-file-excel"></i> Cargar Excel
+            
+            <input type="file" name="archivo_excel" id="file-input" class="inputfile" required accept=".xlsx" onchange="actualizarNombre()">
+            
+            <label for="file-input" class="btn-upload-label" id="label-file">
+                <i class="fas fa-folder-open"></i> Elegir Excel
+            </label>
+
+            <button type="submit" class="btn-submit-excel">
+                <i class="fas fa-cloud-upload-alt"></i> Cargar
             </button>
         </form>
+
+        <script>
+            function actualizarNombre() {
+                var input = document.getElementById('file-input');
+                var label = document.getElementById('label-file');
+                var fileName = '';
+                
+                if (input.files && input.files.length > 0) {
+                    fileName = input.files[0].name;
+                    // Cortar nombre si es muy largo para móvil
+                    if(fileName.length > 15) fileName = fileName.substring(0, 12) + '...';
+                    label.innerHTML = '<i class="fas fa-check"></i> ' + fileName;
+                    label.style.backgroundColor = "#ffc107"; // Cambia a amarillo/naranja
+                    label.style.color = "#000";
+                } else {
+                    label.innerHTML = '<i class="fas fa-folder-open"></i> Elegir Excel';
+                }
+            }
+        </script>
     </li>
     {% endif %}
 {% endblock %}

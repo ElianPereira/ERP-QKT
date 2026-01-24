@@ -12,8 +12,8 @@ class Empleado(models.Model):
     ]
 
     nombre = models.CharField(max_length=200, help_text="Debe coincidir con el nombre en el Excel si usas carga masiva")
-    puesto = models.CharField(max_length=20, choices=PUESTOS, default='MESERO') # NUEVO
-    telefono = models.CharField(max_length=20, blank=True) # NUEVO
+    puesto = models.CharField(max_length=20, choices=PUESTOS, default='MESERO') 
+    telefono = models.CharField(max_length=20, blank=True) 
     tarifa_base = models.DecimalField(max_digits=10, decimal_places=2, default=50.00)
     activo = models.BooleanField(default=True)
 
