@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <title>Reporte Rentabilidad</title>
     <style>
-        @page { size: letter landscape; margin: 1cm; }
+        @page { size: letter landscape; margin: 0.5cm; } /* Reduje márgenes para acomodar la nueva columna */
         
-        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 9px; } /* Letra un poco más chica para que quepan los decimales */
+        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 8.5px; } 
         
         /* ENCABEZADO */
         .header { width: 100%; border-bottom: 2px solid #356685; margin-bottom: 10px; padding-bottom: 10px; }
@@ -19,14 +19,14 @@
         .main-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         
         .main-table th {
-            background-color: #356685; color: white; padding: 5px 3px;
+            background-color: #356685; color: white; padding: 5px 2px;
             text-align: right; font-size: 8px; font-weight: bold;
         }
         .main-table th.text-left { text-align: left; }
         .main-table th.text-center { text-align: center; }
 
         .main-table td {
-            border-bottom: 1px solid #eee; padding: 4px 3px;
+            border-bottom: 1px solid #eee; padding: 4px 2px;
             text-align: right; font-size: 8.5px;
         }
         .main-table td.text-left { text-align: left; }
@@ -34,8 +34,17 @@
 
         /* COLORES Y ESTILOS */
         .col-fiscal { background-color: #f9fbfd; color: #555; }
+        .col-neto { background-color: #e3f2fd; color: #000; font-weight: bold; } /* Estilo para la nueva columna */
         .col-total { font-weight: bold; color: #000; background-color: #eef; }
-        .col-ganancia { color: #28a745; font-weight: bold; }
+        
+        /* UTILIDAD VISIBLE */
+        .col-ganancia { 
+            background-color: #28a745; 
+            color: #ffffff; 
+            font-weight: bold; 
+            border-bottom: 1px solid #ffffff; 
+        }
+        
         .col-gasto { color: #dc3545; }
         .negative { color: #dc3545; }
 
@@ -43,6 +52,11 @@
         .totals-row td {
             border-top: 2px solid #333; border-bottom: 2px solid #333;
             font-weight: bold; background-color: #f0f0f0; font-size: 9px;
+        }
+        /* El total de la ganancia también en verde fuerte */
+        .totals-row td.col-ganancia {
+            background-color: #218838; 
+            color: white;
         }
 
         /* CUADRO FLUJO */
@@ -83,20 +97,20 @@
         <thead>
             <tr>
                 <th class="text-left" style="width: 3%;">ID</th>
-                <th class="text-left" style="width: 7%;">Fecha</th>
-                <th class="text-left" style="width: 15%;">Cliente</th>
-                <th class="text-center" style="width: 8%;">Estado</th>
+                <th class="text-left" style="width: 6%;">Fecha</th>
+                <th class="text-left" style="width: 14%;">Cliente</th>
+                <th class="text-center" style="width: 6%;">Estado</th>
                 
-                <th class="col-fiscal" style="width: 8%;">Subtotal</th>
-                <th class="col-fiscal" style="width: 7%;">(-) Desc.</th>
-                <th class="col-fiscal" style="width: 7%;">(+) IVA</th>
-                <th class="col-fiscal" style="width: 7%;">(-) ISR</th>
-                <th class="col-total" style="width: 9%;">= VENTA TOTAL</th>
+                <th class="col-fiscal" style="width: 7%;">Subtotal</th>
+                <th class="col-fiscal" style="width: 6%;">(-) Desc.</th>
+                <th class="col-neto" style="width: 7%;">(=) Sub. Neto</th> <th class="col-fiscal" style="width: 6%;">(+) IVA</th>
+                <th class="col-fiscal" style="width: 6%;">(-) ISR</th>
+                <th class="col-total" style="width: 8%;">= TOTAL</th>
                 
                 <th style="width: 8%;">Pagado</th>
                 <th style="width: 8%; color: #d9534f;">Pendiente</th>
-                <th style="width: 8%; color: #d9534f;">Gastos</th>
-                <th style="width: 8%; background-color: #e6fffa;">GANANCIA</th>
+                <th style="width: 7%; color: #d9534f;">Gastos</th>
+                <th class="col-ganancia" style="width: 8%;">UTILIDAD</th>
             </tr>
         </thead>
         <tbody>
@@ -104,23 +118,27 @@
             <tr>
                 <td class="text-left">{{ item.folio }}</td>
                 <td class="text-left">{{ item.fecha|date:"d/m/y" }}</td>
-                <td class="text-left" style="text-transform: uppercase;">{{ item.cliente|truncatechars:20 }}</td>
+                <td class="text-left" style="text-transform: uppercase;">{{ item.cliente|truncatechars:18 }}</td>
                 <td class="text-center">
                     {% if item.estado == 'Venta Confirmada' %}
-                        <span style="color: green;">Confirmada</span>
+                        <span style="color: green;">Conf.</span>
                     {% else %}
                         {{ item.estado }}
                     {% endif %}
                 </td>
 
                 <td class="col-fiscal">${{ item.subtotal|floatformat:2|intcomma }}</td>
+                
                 <td class="col-fiscal negative">
                     {% if item.descuento > 0 %}-{{ item.descuento|floatformat:2|intcomma }}{% else %}-{% endif %}
                 </td>
-                <td class="col-fiscal">${{ item.iva|floatformat:2|intcomma }}</td>
+
+                <td class="col-neto">${{ item.base_real|floatformat:2|intcomma }}</td> <td class="col-fiscal">${{ item.iva|floatformat:2|intcomma }}</td>
+                
                 <td class="col-fiscal negative">
                     {% if item.isr > 0 %}-{{ item.isr|floatformat:2|intcomma }}{% else %}-{% endif %}
                 </td>
+                
                 <td class="col-total">${{ item.total|floatformat:2|intcomma }}</td>
 
                 <td>${{ item.pagado|floatformat:2|intcomma }}</td>
@@ -130,7 +148,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="13" class="text-center" style="padding: 20px;">No hay registros en este periodo.</td>
+                <td colspan="14" class="text-center" style="padding: 20px;">No hay registros en este periodo.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -141,14 +159,14 @@
                 
                 <td>${{ t_subtotal|floatformat:2|intcomma }}</td>
                 <td class="negative">-${{ t_descuento|floatformat:2|intcomma }}</td>
-                <td>${{ t_iva|floatformat:2|intcomma }}</td>
+                <td style="background-color: #dbeeff;">${{ t_base_real|floatformat:2|intcomma }}</td> <td>${{ t_iva|floatformat:2|intcomma }}</td>
                 <td class="negative">-${{ t_ret_isr|floatformat:2|intcomma }}</td>
                 <td>${{ t_total_ventas|floatformat:2|intcomma }}</td>
                 
                 <td>${{ t_pagado|floatformat:2|intcomma }}</td>
                 <td style="color: #d9534f;">${{ t_pendiente|floatformat:2|intcomma }}</td>
                 <td style="color: #d9534f;">${{ t_gastos|floatformat:2|intcomma }}</td>
-                <td style="color: #28a745;">${{ t_ganancia|floatformat:2|intcomma }}</td>
+                <td class="col-ganancia">${{ t_ganancia|floatformat:2|intcomma }}</td>
             </tr>
         </tfoot>
     </table>

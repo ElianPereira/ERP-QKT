@@ -415,6 +415,9 @@ def exportar_reporte_cotizaciones(request):
             gastos_reales = c.gasto_set.aggregate(total=Sum('monto'))['total'] or 0
             ganancia_real = c.precio_final - gastos_reales
             margen = (ganancia_real / c.precio_final * 100) if c.precio_final > 0 else 0
+            
+            # --- NUEVO CÁLCULO: BASE REAL (Subtotal - Descuento) ---
+            base_real = c.subtotal - c.descuento
 
             # Acumular Totales
             t_subtotal += c.subtotal
@@ -437,6 +440,7 @@ def exportar_reporte_cotizaciones(request):
                 # Fiscales
                 'subtotal': c.subtotal,
                 'descuento': c.descuento,
+                'base_real': base_real, # Enviamos el subtotal neto
                 'iva': c.iva,
                 'isr': c.retencion_isr,
                 'total': c.precio_final,
@@ -455,6 +459,9 @@ def exportar_reporte_cotizaciones(request):
         total_otros = pagos_del_periodo.exclude(metodo__in=['EFECTIVO', 'TRANSFERENCIA']).aggregate(total=Sum('monto'))['total'] or 0
         total_ingresado = total_efectivo + total_transferencia + total_otros
 
+        # Calculamos el total de la base real para el footer
+        t_base_real = t_subtotal - t_descuento
+
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
 
@@ -463,6 +470,7 @@ def exportar_reporte_cotizaciones(request):
             # Totales Fiscales
             't_subtotal': t_subtotal,
             't_descuento': t_descuento,
+            't_base_real': t_base_real, # Enviamos el total del subtotal neto
             't_iva': t_iva,
             't_ret_isr': t_ret_isr,
             't_total_ventas': t_total_ventas,
