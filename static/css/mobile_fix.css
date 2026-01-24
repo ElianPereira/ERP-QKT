@@ -1,241 +1,293 @@
 /* static/css/mobile_fix.css */
+/* VERSIÓN ULTRA-APP RADICAL */
 
-/* --- VERSIÓN APP MÓVIL (Pantallas menores a 992px) --- */
 @media screen and (max-width: 992px) {
 
     /* =========================================
-       1. ESTILO GENERAL "APP FEEL"
+       1. LIMPIEZA GENERAL (QUITA RUIDO)
        ========================================= */
     body {
-        font-size: 15px !important;
-        background-color: #f4f6f9 !important; /* Fondo gris suave moderno */
+        background-color: #f0f2f5 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased;
     }
 
-    /* Quitar márgenes innecesarios */
-    .content {
-        padding: 10px !important;
+    /* Ocultar Migas de Pan (Inicio > Comercial > ...) - Ocupan mucho espacio */
+    .breadcrumb {
+        display: none !important;
     }
 
-    /* Títulos más limpios */
+    /* Ocultar barra lateral de "Acciones Recientes" en el Dashboard (Estorba) */
+    #content-related {
+        display: none !important;
+    }
+    
+    /* Márgenes laterales mínimos para aprovechar la pantalla */
+    .container-fluid, .content {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    /* Títulos estilo App */
     h1 {
-        font-size: 20px !important;
-        font-weight: 700 !important;
-        color: #2c3e50;
-        margin-bottom: 15px !important;
+        font-size: 24px !important;
+        font-weight: 800 !important;
+        color: #1a1a1a;
+        margin: 15px 0 20px 0 !important;
+        text-align: center;
+        letter-spacing: -0.5px;
     }
 
     /* =========================================
-       2. TABLAS (LISTADOS) - EL CAMBIO CRÍTICO
+       2. DASHBOARD (TABLERO) - ESTILO CARDS
        ========================================= */
-    /* Convertimos la tabla en un contenedor con scroll suave */
-    .card-body.table-responsive, .results {
-        display: block !important;
-        width: 100% !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch; /* Scroll nativo en iOS */
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        padding: 0 !important;
-        margin-bottom: 20px;
-    }
-
-    table.table {
-        margin-bottom: 0 !important;
-        width: 100%;
-        border-collapse: separate; /* Necesario para sticky header */
-        border-spacing: 0;
-    }
-
-    /* Celdas con aire */
-    table.table th, table.table td {
-        white-space: nowrap !important; /* Evita que el texto se rompa feo */
-        padding: 15px 12px !important;
-        vertical-align: middle !important;
-        border-bottom: 1px solid #f0f0f0;
-    }
-
-    /* Encabezado oscuro y fijo */
-    table.table thead th {
-        background-color: #343a40 !important;
-        color: white !important;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        border: none !important;
-        text-transform: uppercase;
-        font-size: 11px;
-        letter-spacing: 1px;
-    }
-
-    /* PRIMERA COLUMNA FIJA (Efecto Excel) 
-       Esto ayuda a saber de quién es el dato mientras deslizas a la derecha */
-    table.table tbody td:first-child, 
-    table.table thead th:first-child {
-        position: sticky !important;
-        left: 0;
-        z-index: 5;
-        background-color: #fff !important; /* Fondo blanco para tapar lo que pasa por debajo */
-        border-right: 2px solid #e9ecef;
-        font-weight: bold;
-        color: #356685;
-    }
-    /* El header de la 1ra columna debe ser oscuro */
-    table.table thead th:first-child {
-        background-color: #343a40 !important;
-        color: white !important;
-    }
-
-    /* =========================================
-       3. FORMULARIOS (AGREGAR/EDITAR)
-       ========================================= */
-    /* Contenedores tipo tarjeta */
-    .card {
-        border-radius: 12px !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
-        border: none !important;
+    /* Forzar widgets a columna única */
+    .col-lg-3, .col-lg-4, .col-md-6, .col-sm-12 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
         margin-bottom: 15px;
     }
 
-    /* Forzar que todo sea una sola columna */
-    .form-row {
-        display: block !important;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 10px 0;
+    /* Tarjetas del Dashboard más bonitas */
+    .small-box {
+        border-radius: 16px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+        border: none !important;
+        overflow: hidden;
+        margin-bottom: 15px !important;
+    }
+    .small-box .inner {
+        padding: 20px !important;
+    }
+    .small-box h3 {
+        font-size: 32px !important;
+        font-weight: 700;
+    }
+    .small-box p {
+        font-size: 16px !important;
+        opacity: 0.9;
+    }
+    .small-box .icon {
+        display: none !important; /* El icono gigante a veces rompe el diseño, mejor limpio */
+    }
+    .small-box-footer {
+        padding: 10px !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
     }
 
-    .form-row .fieldBox {
+    /* Gráficas con fondo blanco y bordes redondeados */
+    canvas {
+        background: white;
+        border-radius: 12px;
+        padding: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+    }
+
+    /* =========================================
+       3. LISTADOS (TABLAS) - DATA GRID
+       ========================================= */
+    /* Contenedor de la tabla */
+    .card-body.table-responsive {
+        border-radius: 16px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important;
+        border: none !important;
+        background: white;
+        margin-bottom: 80px; /* Espacio para no chocar con el botón flotante */
+        padding: 0 !important;
+    }
+
+    table.table {
+        margin: 0 !important;
+    }
+
+    /* Filas altas y cómodas */
+    table.table td, table.table th {
+        padding: 18px 15px !important;
+        vertical-align: middle !important;
+        font-size: 15px !important;
+        border-bottom: 1px solid #f1f1f1 !important;
+    }
+
+    /* Encabezado Sticky (Se queda fijo al bajar) */
+    table.table thead th {
+        background-color: #2c3e50 !important; /* Azul oscuro corporativo */
+        color: white !important;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        text-transform: uppercase;
+        font-size: 12px !important;
+        letter-spacing: 1px;
+        border: none !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    /* PRIMERA COLUMNA FIJA (NOMBRE) */
+    table.table tbody td:first-child {
+        position: sticky !important;
+        left: 0;
+        z-index: 10;
+        background-color: #fff !important;
+        font-weight: 700 !important;
+        color: #2980b9 !important; /* Azul enlace */
+        border-right: 2px solid #f0f0f0;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+    }
+    /* Encabezado de la 1ra columna también fijo */
+    table.table thead th:first-child {
+        position: sticky !important;
+        left: 0;
+        z-index: 101;
+        background-color: #2c3e50 !important;
+    }
+
+    /* Checkboxes gigantes para poder seleccionarlos */
+    .action-checkbox input {
+        transform: scale(1.5);
+        margin: 5px;
+    }
+
+    /* =========================================
+       4. FORMULARIOS - EXPERIENCIA TIPO APP
+       ========================================= */
+    /* Tarjetas de formulario limpias */
+    .card {
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+    .card-body {
+        background: white;
+        border-radius: 16px;
+        padding: 20px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        margin-bottom: 20px;
+    }
+
+    /* Labels grandes arriba del input */
+    .form-group label {
+        font-size: 14px !important;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px !important;
+    }
+
+    /* INPUTS ESTILO NATIVO */
+    .form-control, 
+    input[type="text"], input[type="number"], input[type="email"], 
+    input[type="date"], select, textarea {
+        height: 55px !important; /* Muy altos */
+        border-radius: 12px !important;
+        border: 1px solid #e2e6ea !important;
+        background-color: #f8f9fa !important;
+        font-size: 17px !important; /* Letra grande */
+        padding: 0 15px !important;
+        box-shadow: none !important;
+        transition: border-color 0.3s;
         width: 100% !important;
         max-width: 100% !important;
-        margin-right: 0 !important;
-        padding: 0 10px;
-        margin-bottom: 10px;
-    }
-
-    /* Etiquetas legibles */
-    label {
-        font-weight: 600 !important;
-        color: #555;
-        margin-bottom: 5px !important;
-        display: block;
-    }
-
-    /* INPUTS GIGANTES (Finger Friendly) */
-    input[type="text"], 
-    input[type="number"], 
-    input[type="email"], 
-    input[type="password"], 
-    input[type="date"], 
-    input[type="time"],
-    textarea, 
-    select,
-    .select2-container--default .select2-selection--single {
-        height: 50px !important; /* Altura cómoda para el dedo */
-        border-radius: 8px !important;
-        border: 1px solid #ced4da !important;
-        font-size: 16px !important; /* Evita zoom en iPhone */
-        width: 100% !important;
-        padding-left: 10px;
-        background-color: #fff;
     }
     
-    /* Ajuste específico para Select2 */
+    .form-control:focus, input:focus, select:focus {
+        background-color: #fff !important;
+        border-color: #3498db !important;
+        outline: none;
+    }
+
+    /* Arreglo específico para Select2 (Los buscadores) */
+    .select2-container .select2-selection--single {
+        height: 55px !important;
+        border-radius: 12px !important;
+        border: 1px solid #e2e6ea !important;
+        background-color: #f8f9fa !important;
+    }
     .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 50px !important;
+        line-height: 55px !important;
+        font-size: 17px !important;
+        padding-left: 15px !important;
     }
     .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 48px !important;
+        height: 53px !important;
+        right: 10px !important;
+    }
+
+    /* Iconos de ayuda y calendarios */
+    .help-block {
+        font-size: 13px;
+        color: #999;
+        margin-top: 5px;
     }
 
     /* =========================================
-       4. BOTONES Y ACCIONES
-       ========================================= */
-    /* Botones principales al 100% de ancho */
-    .object-tools li {
-        display: block;
-        width: 100%;
-        margin-bottom: 10px;
-    }
-    .object-tools a.btn {
-        display: block;
-        width: 100%;
-        padding: 12px;
-        font-size: 16px;
-        font-weight: bold;
-        border-radius: 8px;
-        text-align: center;
-    }
-
-    /* =========================================
-       5. BARRA DE GUARDADO FLOTANTE (ESTILO APP)
+       5. BOTONERA DE ACCIÓN FLOTANTE (STICKY FOOTER)
        ========================================= */
     .submit-row {
         position: fixed !important;
         bottom: 0;
         left: 0;
-        right: 0;
         width: 100%;
         background: white !important;
-        padding: 12px 15px !important;
-        box-shadow: 0 -4px 15px rgba(0,0,0,0.15) !important;
+        padding: 15px !important;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.1) !important;
         z-index: 9999;
         display: flex;
-        justify-content: space-between;
         gap: 10px;
-    }
-    
-    /* Ocultar botones secundarios si estorban, dejar solo Guardar */
-    .submit-row input[name="_continue"], 
-    .submit-row input[name="_addanother"] {
-        display: none; /* Opcional: Ocultamos "Guardar y añadir otro" para limpiar */
-    }
-    
-    .submit-row input[type="submit"] {
-        flex: 1; /* Ocupa todo el espacio */
-        height: 50px !important;
-        border-radius: 8px !important;
-        font-size: 16px !important;
-        margin: 0 !important;
-        background-color: #28a745 !important; /* Verde éxito */
-        color: white !important;
-        border: none;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
-    /* Espacio extra abajo para que el contenido no quede tapado por la barra flotante */
-    #content {
-        padding-bottom: 80px !important;
+        border-top: 1px solid #eee;
     }
 
-    /* =========================================
-       6. FILTROS (SIDEBAR)
-       ========================================= */
-    /* Mover filtros al final y estilizarlos */
-    #changelist-filter {
-        position: static !important;
-        width: 100% !important;
-        background: #fff !important;
-        margin-top: 20px;
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid #eee;
+    /* Esconder botones secundarios para limpiar */
+    .submit-row input[name="_addanother"],
+    .submit-row input[name="_continue"],
+    .deletelink-box { 
+        display: none !important; /* Radical: Solo dejamos Guardar */
     }
-    #changelist-filter h2 {
+
+    /* Botón GUARDAR gigante */
+    .submit-row input[type="submit"] {
+        width: 100% !important;
+        background-color: #27ae60 !important; /* Verde vibrante */
+        color: white !important;
+        border: none;
+        height: 55px !important;
+        border-radius: 12px !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        margin: 0 !important;
+        display: block !important;
+    }
+
+    /* Botón AGREGAR (en los listados) */
+    .object-tools {
+        margin-top: 0 !important;
+        margin-bottom: 15px !important;
+        float: none !important;
+    }
+    .object-tools li {
+        display: block;
+        width: 100%;
+    }
+    .object-tools a.btn {
+        display: block;
+        width: 100%;
+        background-color: #2980b9 !important;
+        color: white !important;
+        padding: 15px !important;
+        border-radius: 12px !important;
         font-size: 16px !important;
-        background: #f8f9fa;
-        padding: 10px;
-        border-radius: 5px;
+        font-weight: 600;
         text-align: center;
+        box-shadow: 0 4px 6px rgba(41, 128, 185, 0.2);
     }
     
-    /* =========================================
-       7. FIX DASHBOARD GRID
-       ========================================= */
-    /* Asegurar que las tarjetas del dashboard sean de 1 columna */
-    .col-lg-3, .col-lg-4, .col-md-6 {
-        flex: 0 0 100% !important;
-        max-width: 100% !important;
+    /* Filtros (ChangeList) */
+    #changelist-filter {
+        position: static !important;
+        background: white;
+        margin: 20px 0;
+        border-radius: 12px;
+        border: 1px solid #eee;
     }
 }
