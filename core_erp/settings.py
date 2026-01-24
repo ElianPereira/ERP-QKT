@@ -157,6 +157,10 @@ JAZZMIN_SETTINGS = {
         {"name": "📅 Ver Calendario", "url": "ver_calendario"}, 
         {"name": "Ver Sitio", "url": "/"},
     ],
-    "order_with_respect_to": ["comercial", "nomina", "facturacion", "auth"], 
+    "order_with_respect_to": ["comercial", "nomina", "facturacion", "auth"],
+    
+    # --- CSS PERSONALIZADO PARA ARREGLAR MÓVILES ---
+    "custom_css": "css/mobile_fix.css",
 }
+
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}

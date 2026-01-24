@@ -1,0 +1,99 @@
+/* static/css/mobile_fix.css */
+
+/* --- SOLO APLICA EN CELULARES (Pantallas menores a 768px) --- */
+@media screen and (max-width: 768px) {
+
+    /* 1. ARREGLO DE TABLAS (Imágenes Insumos y Clientes) 
+       Hacemos que la tabla tenga scroll horizontal suave en lugar de romperse */
+    .card-body.table-responsive {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* Scroll suave en iPhone */
+    }
+    
+    table.table {
+        white-space: nowrap; /* Evita que el texto se rompa en varias líneas feas */
+    }
+
+    /* 2. BOTONES MÁS GRANDES Y CÓMODOS (Táctil) */
+    .btn {
+        padding: 10px 15px; /* Más área para tocar con el dedo */
+        font-size: 14px;
+        display: inline-block;
+        margin-bottom: 5px;
+    }
+    
+    /* Botones de acción principales al 100% de ancho para fácil acceso */
+    .object-tools .btn, 
+    .submit-row .btn {
+        width: 100%; 
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    /* 3. ARREGLO DEL DASHBOARD (Gráfica aplastada) */
+    canvas {
+        min-height: 300px !important; /* Fuerza altura mínima a la gráfica */
+    }
+
+    /* 4. FORMULARIOS (Inputs más legibles) */
+    input[type="text"], 
+    input[type="number"], 
+    input[type="email"], 
+    input[type="date"], 
+    input[type="time"], 
+    select, 
+    textarea {
+        font-size: 16px !important; /* 16px evita que el iPhone haga zoom automático al escribir */
+        height: 45px !important; /* Inputs más altos para dedos */
+        margin-bottom: 10px;
+    }
+
+    /* Select2 (Los buscadores desplegables) */
+    .select2-container .select2-selection--single {
+        height: 45px !important;
+        padding-top: 8px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        top: 8px;
+    }
+
+    /* 5. ARREGLO DE BARRA DE NAVEGACIÓN (Breadcrumbs encimados) */
+    .breadcrumb {
+        font-size: 12px;
+        padding: 8px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        display: flex;
+        flex-wrap: wrap; /* Permite que bajen de línea si no caben */
+    }
+
+    /* 6. BARRA DE GUARDADO FLOTANTE (Opcional pero muy útil)
+       Hace que el botón de Guardar siempre esté visible abajo */
+    .submit-row {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        z-index: 1000;
+        background: white;
+        padding: 10px;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column-reverse; /* Pone el guardar primero */
+    }
+    /* Espacio extra abajo para que el contenido no quede tapado por la barra flotante */
+    #content-main {
+        padding-bottom: 80px; 
+    }
+
+    /* 7. REDUCIR TAMAÑOS DE TÍTULOS GIGANTES */
+    h1 {
+        font-size: 22px !important;
+    }
+    
+    /* Ocultar columnas menos importantes en listados si quisieras (opcional) */
+    /* .field-folio_custom { display: none; } */
+}
