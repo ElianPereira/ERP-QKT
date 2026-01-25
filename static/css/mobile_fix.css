@@ -1,25 +1,24 @@
 /* static/css/mobile_fix.css */
-/* VERSIÓN V9 MASTER - COMBINACIÓN: SCROLL FIX + TABLAS ESTÉTICAS + BOTONES APILADOS */
+/* VERSIÓN V10 - FIX DEFINITIVO BOTONES NÓMINA Y DASHBOARD */
 
 @media screen and (max-width: 992px) {
 
     /* =========================================================
-       1. CORE LAYOUT & SCROLL FIX (DEL V8)
+       1. FIX GLOBAL Y SCROLL (DASHBOARD)
        ========================================================= */
     html, body {
-        overflow-x: auto !important; /* Permite scroll si es necesario */
+        overflow-x: auto !important; /* Permite scroll horizontal si es necesario */
         width: 100% !important;
         background-color: #f4f6f9 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
         position: relative !important;
     }
 
-    /* Quitamos el margen izquierdo fantasma que rompe el diseño en Jazzmin */
+    /* Eliminamos márgenes que empujan el contenido fuera de la pantalla */
     .content-wrapper, .main-panel, #content {
         margin-left: 0 !important;
+        padding: 8px !important;
         width: 100vw !important;
         max-width: 100vw !important;
-        padding: 8px !important;
         box-sizing: border-box !important;
     }
 
@@ -27,72 +26,66 @@
     .breadcrumb, .main-footer, #content-related { display: none !important; }
     .container-fluid { padding: 0 !important; }
 
-    /* Títulos */
-    h1 {
-        font-size: 22px !important;
-        text-align: center;
-        color: #2c3e50;
-        margin: 15px 0 20px 0 !important;
-        font-weight: 800;
-    }
-
     /* =========================================================
-       2. BOTONES DE ACCIÓN Y BARRA SUPERIOR (DEL V8 - VERTICAL)
+       2. REPARACIÓN AGRESIVA DE BOTONES DE NÓMINA (CRÍTICO)
        ========================================================= */
-    /* Forzamos a que los botones (Agregar, Cargar, etc) se apilen verticalmente */
+    
+    /* 1. El contenedor principal de botones (ul) */
     .object-tools {
-        display: flex !important;
-        flex-direction: column !important; /* UNO DEBAJO DE OTRO */
+        display: block !important; /* Bloque vertical */
         width: 100% !important;
         padding: 0 !important;
         margin: 10px 0 20px 0 !important;
         float: none !important;
     }
 
+    /* 2. Los elementos de la lista (li) */
     .object-tools li {
+        display: block !important;
         width: 100% !important;
         margin-bottom: 10px !important;
-        display: block !important;
+        float: none !important;
         height: auto !important;
     }
 
-    /* Estilo Bloque para Botones */
-    .object-tools a, 
-    .object-tools button,
-    .btn-upload-label, 
-    .btn-submit-excel {
+    /* 3. AQUÍ ESTÁ EL FIX: Forzamos al formulario "inline" a ser VERTICAL
+       Esto rompe el style="display:flex" que pusimos en el HTML */
+    .object-tools form {
+        display: flex !important;
+        flex-direction: column !important; /* UNO ARRIBA DEL OTRO */
+        gap: 10px !important;
+        width: 100% !important;
+        align-items: stretch !important; /* Estirar al ancho completo */
+    }
+
+    /* 4. Estilo de bloque para TODOS los botones (Links, Labels, Buttons) */
+    .object-tools a,           /* Botón Agregar (Standard) */
+    .object-tools form label,  /* Botón Elegir Excel */
+    .object-tools form button  /* Botón Cargar */
+    {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        width: 100% !important;
-        height: 50px !important; /* Altura uniforme */
-        margin: 0 !important;
+        width: 100% !important;     /* Ancho total */
+        height: 50px !important;    /* Altura idéntica */
+        margin: 0 !important;       /* Sin márgenes laterales */
         border-radius: 8px !important;
         font-size: 16px !important;
         font-weight: 600 !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
         text-transform: none !important;
         border: none !important;
+        cursor: pointer !important;
     }
 
     /* Colores Específicos */
     .object-tools a.addlink { background-color: #2980b9 !important; color: white !important; } /* Azul Agregar */
-    .object-tools a.historylink { background-color: #95a5a6 !important; color: white !important; } /* Gris Historia */
-    .btn-upload-label { background-color: #17a2b8 !important; color: white !important; } /* Cyan Elegir */
-    .btn-submit-excel { background-color: #27ae60 !important; color: white !important; } /* Verde Cargar */
-
-    /* Corrección Formulario Carga Nómina */
-    .upload-form-container {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 10px !important;
-        width: 100% !important;
-    }
+    .object-tools form label { background-color: #17a2b8 !important; color: white !important; } /* Cyan Elegir */
+    .object-tools form button { background-color: #27ae60 !important; color: white !important; } /* Verde Cargar */
 
     /* =========================================================
-       3. FILTROS Y BUSCADORES (DEL V7 - UNIFORMES)
+       3. FILTROS Y BUSCADORES (MANTENIENDO LO QUE TE GUSTÓ)
        ========================================================= */
-    /* Contenedor gris */
     #changelist-search, #toolbar, #changelist-filter {
         width: 100% !important;
         background: white !important;
@@ -104,10 +97,12 @@
         border-top: none !important;
     }
 
-    /* Inputs de Texto */
+    /* Inputs Uniformes */
     #changelist-search input[type="text"], 
     #toolbar input[type="text"],
-    #changelist-filter input[type="text"] {
+    #changelist-filter input[type="text"],
+    .changelist-filter select, 
+    #changelist-filter select {
         width: 100% !important;
         height: 50px !important;
         margin-bottom: 10px !important;
@@ -115,11 +110,14 @@
         border: 1px solid #ced4da !important;
         font-size: 16px !important;
         padding: 0 10px !important;
+        background-color: #fff !important;
+        box-sizing: border-box !important;
     }
 
-    /* Botón BUSCAR */
+    /* Botones de acción dentro de filtros */
     #changelist-search input[type="submit"], 
-    #toolbar input[type="submit"] {
+    #toolbar input[type="submit"],
+    .actions button {
         width: 100% !important;
         height: 50px !important;
         background-color: #34495e !important;
@@ -132,27 +130,8 @@
         display: block !important;
     }
 
-    /* Selectores (Dropdowns) */
-    .changelist-filter select, #changelist-filter select {
-        width: 100% !important;
-        height: 50px !important;
-        margin-bottom: 10px !important;
-        border-radius: 8px !important;
-        background-color: #fff !important;
-        border: 1px solid #ced4da !important;
-        font-size: 16px !important;
-        display: block !important;
-    }
-    
-    /* Botón Ejecutar Acciones (Eliminar seleccionados) */
-    .actions button {
-        width: 100% !important;
-        height: 50px !important;
-        margin-top: 10px !important;
-    }
-
     /* =========================================================
-       4. DASHBOARD GRID (DEL V8 - 2 COLUMNAS)
+       4. DASHBOARD GRID (SOLUCIÓN CORTE DERECHO)
        ========================================================= */
     .row {
         margin: 0 !important;
@@ -161,46 +140,43 @@
         flex-wrap: wrap !important;
     }
 
-    /* Botones Dashboard (50% ancho cada uno) */
-    .col-lg-3, .col-md-3, .col-sm-6, .col-6 {
-        flex: 0 0 50% !important;
-        max-width: 50% !important;
-        padding: 4px !important;
-    }
-
-    /* Tarjetas Anchas (100% ancho) */
+    /* Tarjetas de Dinero y Gráficas (KPIs) */
+    /* Las forzamos a ancho completo para que no se corten */
     .col-lg-4, .col-md-6, .col-12 {
         flex: 0 0 100% !important;
         max-width: 100% !important;
-        padding: 4px !important;
+        padding: 5px 0 !important;
+    }
+
+    /* Botones de Menú (Iconos Superiores) */
+    /* Mantienen 2 columnas porque son pequeños */
+    .col-lg-3, .col-md-3, .col-sm-6, .col-6 {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+        padding: 5px !important;
     }
 
     .small-box {
         border-radius: 12px !important;
         background: #fff !important;
         box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
-        margin-bottom: 0 !important;
         min-height: 110px !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         text-align: center !important;
+        margin: 0 !important;
     }
-    .small-box h3 { font-size: 26px !important; margin-bottom: 5px !important; color: #2c3e50; }
-    .small-box p { font-size: 13px !important; font-weight: 700; color: #555; margin: 0; white-space: normal !important; line-height: 1.2 !important; }
+    .small-box h3 { font-size: 24px !important; margin-bottom: 5px !important; color: #2c3e50; }
+    .small-box p { font-size: 13px !important; margin: 0; white-space: normal !important; line-height: 1.2 !important; color: #555; font-weight: 700;}
     .small-box .icon, .small-box-footer { display: none !important; }
     
-    /* Gráficas y Tarjetas de Dinero */
-    canvas, .card {
-        background: white !important;
-        border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
-    }
+    /* Ajuste de Gráficas */
+    canvas { width: 100% !important; max-width: 100% !important; }
 
     /* =========================================================
-       5. TABLAS ESTÉTICAS (DEL V7 - DATA GRID & STICKY)
+       5. TABLAS (DATA GRID)
        ========================================================= */
-    /* Recuperamos el estilo bonito de las tablas */
     .card-body.table-responsive {
         width: 100% !important;
         background: white;
@@ -208,14 +184,13 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         border: 1px solid #eee;
         padding: 0 !important;
-        margin-bottom: 80px; /* Espacio para botón flotante */
+        margin-bottom: 80px; 
         display: block !important;
         overflow-x: auto !important;
     }
     
     table.table { margin: 0 !important; width: 100% !important; border-collapse: separate !important; }
 
-    /* Encabezados Oscuros y Pegajosos */
     table.table thead th {
         background-color: #2c3e50 !important;
         color: white !important;
@@ -229,7 +204,6 @@
         z-index: 100;
     }
 
-    /* Celdas del Cuerpo */
     table.table tbody td {
         padding: 12px 10px !important;
         font-size: 13px !important;
@@ -239,28 +213,24 @@
         vertical-align: middle !important;
     }
 
-    /* --- MAGIA: PRIMERA COLUMNA FIJA --- */
+    /* Columna Fija */
     table.table tbody td:first-child {
         position: sticky !important;
         left: 0;
         z-index: 10;
         background-color: #fff !important;
-        border-right: 2px solid #e1e1e1; /* Borde separador */
+        border-right: 2px solid #e1e1e1;
         font-weight: 700 !important;
-        color: #2980b9 !important; /* Azul enlace */
+        color: #2980b9 !important;
     }
     table.table thead th:first-child {
         position: sticky !important;
         left: 0;
         z-index: 101;
-        background-color: #2c3e50 !important; /* Mismo fondo oscuro */
+        background-color: #2c3e50 !important;
     }
 
-    /* Links numéricos en negro (para que no parezcan error) */
-    table.table tbody td a { color: #333 !important; text-decoration: none !important; }
-    table.table tbody td:first-child a { color: #2980b9 !important; }
-
-    /* Botones pequeños DENTRO de la tabla */
+    /* Botones pequeños en tabla */
     table.table .btn {
         padding: 5px 8px !important;
         font-size: 10px !important;
@@ -273,7 +243,7 @@
     }
 
     /* =========================================================
-       6. BOTÓN FLOTANTE DE GUARDAR (STICKY FOOTER)
+       6. BOTÓN FLOTANTE (GUARDAR)
        ========================================================= */
     .submit-row {
         position: fixed !important;
@@ -302,7 +272,7 @@
     }
 
     /* =========================================================
-       7. FORMULARIOS (INPUTS GRANDES)
+       7. FORMULARIOS (INPUTS)
        ========================================================= */
     .form-row { display: block !important; padding: 10px !important; }
     .fieldBox { margin-bottom: 15px !important; width: 100% !important; }
@@ -326,8 +296,6 @@
         border: 1px solid #ced4da !important;
         box-shadow: none !important;
     }
-    
-    /* Select2 Fix */
     .select2-container .select2-selection--single {
         height: 50px !important;
         border-radius: 8px !important;
