@@ -1,151 +1,194 @@
 /* static/css/mobile_fix.css */
-/* VERSIÓN ULTRA-APP V4 - DASHBOARD "ENCAJADO" Y TABLAS LIMPIAS */
+/* VERSIÓN ULTRA-APP V5 - GRID CORREGIDO (2 COLUMNAS) */
 
 @media screen and (max-width: 992px) {
 
     /* =========================================
-       1. LIMPIEZA Y EFECTO "MARCO" (FRAME)
+       1. CONTENEDOR PRINCIPAL (EVITAR DESBORDE)
        ========================================= */
-    body {
-        background-color: #f4f6f9 !important; /* Gris suave de fondo */
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-        font-size: 14px !important;
-        overflow-x: hidden !important; /* Evita scroll horizontal fantasma */
+    html, body {
+        overflow-x: hidden !important; /* Prohíbe scroll horizontal fantasma */
+        width: 100% !important;
+        background-color: #f4f6f9 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
     }
 
-    /* Ocultar elementos que estorban */
+    /* Ocultar elementos innecesarios */
     .breadcrumb, #content-related, .main-footer {
         display: none !important;
     }
 
-    /* --- EL FIX DEL MARCO --- */
-    /* Esto crea el espacio alrededor de todo el contenido para que no toque los bordes */
+    /* Ajuste del área de contenido para que respete los bordes del celular */
     .content-wrapper, #content, .container-fluid {
-        padding: 10px !important; /* Espacio para que se vea el fondo gris */
+        padding: 10px !important;
         margin: 0 !important;
         width: 100% !important;
-        max-width: 100vw !important;
         box-sizing: border-box !important;
     }
 
-    /* Títulos centrados y limpios */
+    /* Títulos centrados */
     h1 {
-        font-size: 20px !important;
+        font-size: 22px !important;
         font-weight: 800 !important;
         color: #2c3e50;
         text-align: center;
-        margin: 10px 0 20px 0 !important;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        margin: 15px 0 20px 0 !important;
     }
 
     /* =========================================
-       2. DASHBOARD (TABLERO) - REORGANIZACIÓN
+       2. EL GRID SYSTEM (LA SOLUCIÓN A TUS CAJAS DESALINEADAS)
        ========================================= */
     
-    /* Corregir las filas de bootstrap para que no se salgan de la pantalla */
+    /* Forzamos a que las filas PERMITAN bajar de renglón (Wrap) */
     .row {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
         display: flex !important;
         flex-wrap: wrap !important;
-        justify-content: space-between !important;
-        gap: 10px !important; /* Espacio entre tarjetas */
+        margin-right: -5px !important;
+        margin-left: -5px !important;
+        justify-content: flex-start !important; /* Alinear a la izquierda */
     }
 
-    /* Todas las columnas del dashboard al 100% por defecto (KPIs, Gráficas) */
-    .col-lg-3, .col-lg-4, .col-md-6, .col-sm-12, .col-12 {
-        padding: 0 !important;
+    /* --- REGLA DE ORO: 2 COLUMNAS PARA BOTONES --- */
+    /* Apuntamos a las columnas que suelen tener los botones (col-lg-3, col-6, etc) */
+    .col-lg-3, .col-md-3, .col-sm-6, .col-6, .col-xs-6 {
+        position: relative !important;
+        width: 100% !important;
+        padding-right: 5px !important;
+        padding-left: 5px !important;
+        margin-bottom: 10px !important;
+        
+        /* AQUÍ ESTÁ EL TRUCO: 50% de ancho exacto */
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+    }
+
+    /* Excepción: Si es una columna muy ancha (como gráficas), ocupa el 100% */
+    .col-lg-12, .col-md-12, .col-12 {
         flex: 0 0 100% !important;
         max-width: 100% !important;
-        margin-bottom: 5px !important;
     }
 
-    /* --- BOTONES DE ACCIÓN SUPERIOR (Facturar, Gastos, etc) --- */
-    /* Hacemos que los primeros botones sean una cuadrícula de 2x2 */
-    /* NOTA: Asumimos que están en divs col-lg-3 o similar al inicio */
-    
-    /* Truco: Si son botones pequeños, permíteles ser del 48% (2 por fila) */
-    /* Esto hace que se vea como un menú de Apps */
+    /* =========================================
+       3. BOTONES DE ACCIÓN (SMALL BOXES)
+       ========================================= */
     .small-box {
-        margin-bottom: 0 !important; /* El gap del row maneja el espacio */
-    }
-    
-    /* Tarjetas Generales (Blanco, Sombra y Bordes Redondos) */
-    .small-box, .card, canvas {
-        background: #ffffff !important;
-        border-radius: 16px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        border-radius: 15px !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
+        background: #fff !important;
         border: none !important;
-        overflow: hidden !important; /* Para que nada se salga de la tarjeta */
-        position: relative !important;
+        margin-bottom: 0 !important; /* El margen lo da la columna */
+        text-align: center !important;
+        height: 100% !important; /* Para que todos tengan la misma altura */
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        padding: 15px 5px !important;
     }
 
-    /* Ajuste interno de las tarjetas */
     .small-box .inner {
-        padding: 20px !important;
+        padding: 0 !important;
     }
+
+    /* Iconos dentro de las cajas (Más, Carrito, etc) */
     .small-box h3 {
-        font-size: 26px !important;
-        margin-bottom: 5px !important;
+        font-size: 24px !important; /* Icono/Texto grande */
+        margin: 0 0 5px 0 !important;
+        color: #2c3e50 !important;
     }
+    
+    /* Texto de la etiqueta (Ej: Nueva Cotización) */
     .small-box p {
-        font-size: 14px !important;
-        color: #666;
-    }
-    .small-box .icon {
-        display: none !important; /* Quitamos iconos gigantes de fondo que rompen diseño */
-    }
-    .small-box-footer {
-        background: rgba(0,0,0,0.03) !important;
-        padding: 10px !important;
+        font-size: 13px !important;
+        color: #555;
+        margin: 0 !important;
+        line-height: 1.2 !important;
+        white-space: normal !important; /* PERMITE QUE EL TEXTO BAJE DE LÍNEA */
         font-weight: 600 !important;
     }
 
+    /* Ocultar iconos de fondo gigantes y footer */
+    .small-box .icon { display: none !important; }
+    .small-box-footer { display: none !important; }
+
     /* =========================================
-       3. LISTADOS (TABLAS) - SE MANTIENE EL DISEÑO QUE TE GUSTÓ
+       4. TARJETAS DE DINERO (KPIs) - ESTILO CARDS
        ========================================= */
-    .card-body.table-responsive {
-        border-radius: 16px !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05) !important;
-        background: white;
-        margin-bottom: 80px;
-        border: none !important;
-        padding: 0 !important;
+    /* A estas las queremos diferenciar visualmente */
+    /* Normalmente son divs que siguen a los botones. */
+    /* Si queremos que ocupen 100% para leer bien los números: */
+    
+    /* OPCIONAL: Descomenta esto si prefieres las tarjetas de dinero a ANCHO COMPLETO */
+    /* .col-lg-4 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    } 
+    */
+
+    /* Ajuste de contenido dentro de las tarjetas de dinero */
+    .callout, .card {
+        border-radius: 15px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+        background: white !important;
+        margin-bottom: 0 !important;
+        border-left-width: 5px !important; /* Borde de color grueso a la izquierda */
     }
 
-    table.table { margin: 0 !important; }
+    /* =========================================
+       5. GRÁFICAS Y TABLAS
+       ========================================= */
+    canvas {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        background: white;
+        border-radius: 15px;
+        padding: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
 
-    /* Encabezados */
+    /* Tablas estilo Data Grid (Limpias) */
+    .card-body.table-responsive {
+        display: block !important;
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        background: white;
+        border-radius: 15px;
+        border: 1px solid #eee;
+        padding: 0 !important;
+    }
+    
+    table.table { margin: 0 !important; }
+    
+    /* Headers */
     table.table thead th {
         background-color: #2c3e50 !important;
         color: white !important;
-        padding: 12px 10px !important;
+        padding: 10px !important;
         font-size: 11px !important;
         text-transform: uppercase;
         white-space: nowrap;
-        vertical-align: middle !important;
         border: none !important;
     }
-
+    
     /* Celdas */
     table.table tbody td {
-        padding: 14px 10px !important;
+        padding: 12px 10px !important;
         font-size: 13px !important;
         border-bottom: 1px solid #f0f0f0 !important;
         white-space: nowrap;
-        color: #444 !important; /* Texto gris oscuro uniforme */
+        color: #333 !important;
     }
-
-    /* Primera columna fija (Sticky) */
+    
+    /* 1ra Columna Sticky */
     table.table tbody td:first-child {
         position: sticky;
         left: 0;
         z-index: 10;
-        background-color: #fff !important;
+        background: #fff !important;
         border-right: 2px solid #f4f4f4;
         font-weight: 700 !important;
-        color: #2980b9 !important; /* Solo este azul */
+        color: #2980b9 !important;
     }
     table.table thead th:first-child {
         position: sticky;
@@ -153,69 +196,19 @@
         z-index: 11;
     }
     
-    /* Corrección de enlaces numéricos (Evitar azul en precios) */
-    table.table tbody td a {
-        color: #444 !important;
-        text-decoration: none !important;
-    }
-    table.table tbody td:first-child a {
-        color: #2980b9 !important; /* Restaurar azul solo en 1ra columna */
-    }
+    /* Links numéricos en negro */
+    table.table tbody td a { color: #333 !important; text-decoration: none !important; }
+    table.table tbody td:first-child a { color: #2980b9 !important; }
 
-    /* Botones compactos dentro de tablas */
+    /* Botones en tabla */
     table.table .btn {
-        padding: 6px 10px !important;
+        padding: 5px 10px !important;
         font-size: 11px !important;
-        border-radius: 6px !important;
-        margin: 2px !important;
-        display: inline-flex !important;
-        align-items: center;
-        justify-content: center;
+        border-radius: 5px !important;
     }
 
     /* =========================================
-       4. FORMULARIOS - LIMPIOS
-       ========================================= */
-    .card-body {
-        padding: 15px !important;
-    }
-    .form-row { display: block !important; }
-    .fieldBox { margin-bottom: 15px !important; }
-
-    .form-group label {
-        font-size: 13px !important;
-        color: #7f8c8d;
-        font-weight: 700 !important;
-        margin-bottom: 8px !important;
-        display: block;
-    }
-
-    input[type="text"], input[type="number"], input[type="date"], select, textarea {
-        height: 50px !important;
-        border-radius: 10px !important;
-        border: 1px solid #dfe6e9 !important;
-        background-color: #ffffff !important;
-        font-size: 16px !important;
-        padding: 0 15px !important;
-        box-shadow: none !important;
-        width: 100% !important;
-    }
-    
-    /* Select2 Fix */
-    .select2-container .select2-selection--single {
-        height: 50px !important;
-        border-radius: 10px !important;
-        border: 1px solid #dfe6e9 !important;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 50px !important;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 48px !important;
-    }
-
-    /* =========================================
-       5. FOOTER FIJO (GUARDAR)
+       6. BOTONES FLOTANTES (GUARDAR)
        ========================================= */
     .submit-row {
         position: fixed !important;
@@ -223,14 +216,13 @@
         left: 0;
         width: 100%;
         background: white !important;
-        padding: 12px 15px !important;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.1) !important;
+        padding: 10px 15px !important;
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.1) !important;
         z-index: 9999;
-        border-top: 1px solid #f1f1f1;
+        display: flex;
+        gap: 10px;
     }
-    
-    .submit-row input { display: none !important; } /* Ocultar secundarios */
-    
+    .submit-row input { display: none !important; }
     .submit-row input[type="submit"] {
         display: block !important;
         width: 100% !important;
@@ -239,23 +231,21 @@
         height: 50px !important;
         border-radius: 12px !important;
         font-size: 16px !important;
-        font-weight: 700 !important;
+        font-weight: bold;
         text-transform: uppercase;
         border: none;
     }
-
+    
     /* Botón Agregar Principal */
     .object-tools a.btn {
         display: block;
         width: 100%;
-        padding: 14px !important;
+        padding: 12px !important;
         background-color: #2980b9 !important;
         color: white !important;
         border-radius: 12px !important;
         font-size: 15px !important;
-        font-weight: 600;
         text-align: center;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 10px rgba(41, 128, 185, 0.3);
+        margin-bottom: 15px;
     }
 }
