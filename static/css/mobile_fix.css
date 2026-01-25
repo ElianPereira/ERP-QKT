@@ -1,35 +1,38 @@
 /* static/css/mobile_fix.css */
-/* V18: GRID INTELLIGENT SYSTEM - FIX DEFINITIVO */
+/* V19: SCROLL LIBRE (BACK TO BASICS) + GRID FIX BOTONES */
 
 /* =========================================
-   1. ESTRUCTURA BASE (CERO SCROLL LATERAL GLOBAL)
+   1. HABILITAR SCROLL (LO QUE PEDISTE)
    ========================================= */
 * {
     box-sizing: border-box !important;
 }
 
 html, body {
-    width: 100vw !important; /* Ancho del dispositivo exacto */
-    overflow-x: hidden !important; /* PROHIBIDO scroll lateral en la página */
     margin: 0 !important;
     padding: 0 !important;
     background-color: #f4f6f9 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    position: relative !important;
+    
+    /* AQUÍ ESTÁ EL CAMBIO: */
+    /* Permitimos que la página sea más ancha que el celular */
+    /* Podrás hacer scroll horizontal si algo no cabe */
+    overflow-x: auto !important; 
+    width: auto !important; 
+    min-width: 100vw !important;
+    position: static !important;
 }
 
-/* FIX DEL MARGEN IZQUIERDO (El culpable de que no veas el inicio) */
+/* Arreglo del margen izquierdo (Para que no empiece cortado) */
 .content-wrapper, .main-panel, #content, .container-fluid {
     margin-left: 0 !important;
     margin-right: 0 !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    padding: 10px !important;
     width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important; /* Permite encoger elementos flexibles */
+    max-width: none !important; /* Permitir que crezca si es necesario */
 }
 
-/* Header Fijo y Visible */
+/* Header Fijo para navegar */
 .main-header {
     margin-left: 0 !important;
     width: 100% !important;
@@ -43,62 +46,43 @@ html, body {
 
 
 /* =========================================
-   2. DASHBOARD (MODO VERTICAL ESTRICTO)
+   2. DASHBOARD (COMPORTAMIENTO NATURAL)
    ========================================= */
-/* Rompemos las filas para que no se salgan de la pantalla */
+/* Quitamos todas las reglas que forzaban columnas verticales */
+/* Si el dashboard quiere ser ancho, será ancho y tú harás scroll */
+
 .row {
-    display: flex !important;
-    flex-wrap: wrap !important;
     margin: 0 !important;
-    width: 100% !important;
+    /* Dejamos que Bootstrap decida si es flex o block */
 }
 
-/* REGLA MAESTRA PARA DASHBOARD: Todo al 100% de ancho */
-/* Esto pone las tarjetas UNA DEBAJO DE OTRA en fila india. Imposible que se corten. */
-[class*="col-"] {
-    flex: 0 0 100% !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    padding: 0 0 15px 0 !important;
-    margin: 0 !important;
-}
-
-/* Diseño de Widgets (Botones Dashboard) */
+/* Solo aseguramos que las tarjetas se vean bien */
 .small-box {
     border-radius: 12px !important;
     background: #fff !important;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
-    margin: 0 !important;
+    margin-bottom: 15px !important;
     min-height: 80px !important;
     display: flex !important;
     align-items: center !important;
     padding: 15px !important;
     border: 1px solid #e1e1e1;
-    width: 100% !important;
 }
 .small-box .inner { width: 100% !important; padding: 0 !important; }
 .small-box h3 { font-size: 20px !important; margin: 0 0 5px 0 !important; color: #2c3e50; }
 .small-box p { font-size: 14px !important; margin: 0 !important; color: #666; font-weight: 600; }
 .small-box .icon, .small-box-footer { display: none !important; }
 
-/* Gráficas */
-.card, canvas {
-    width: 100% !important;
-    max-width: 100% !important;
-    border-radius: 12px !important;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
-    margin: 0 !important;
-}
-
 
 /* =========================================
-   3. BOTONES DE MÓDULOS (EL ARREGLO DEL "GRID")
+   3. BOTONES DE MÓDULOS (PREVENIR SUPERPOSICIÓN)
    ========================================= */
-/* Aquí usamos CSS Grid. Esto detecta el espacio automáticamente */
+/* Mantenemos el GRID SYSTEM aquí porque es lo único que arregla
+   que los botones de "Agregar" y "Reporte" se encimen */
+
 .object-tools {
     display: grid !important;
-    /* TRUCO: Columnas automáticas de mínimo 140px. 
-       Si caben 2, pone 2. Si no, pone 1. CERO SUPERPOSICIÓN. */
+    /* Columnas automáticas de mínimo 140px */
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
     gap: 10px !important;
     width: 100% !important;
@@ -113,15 +97,15 @@ html, body {
     list-style: none !important;
 }
 
-/* El contenedor de carga de excel también usa Grid */
+/* Contenedor de carga de Excel */
 .upload-form-container {
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important; /* Forzar 2 columnas */
+    grid-template-columns: 1fr 1fr !important; /* Dos columnas fijas si caben */
     gap: 10px !important;
     width: 100% !important;
 }
 
-/* ESTILO DE BOTONES */
+/* Estilo de botones */
 .object-tools a, 
 .object-tools button,
 .btn-upload-label,
@@ -129,16 +113,15 @@ html, body {
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
-    width: 100% !important; /* Llena su celda del grid */
-    min-height: 50px !important; /* Altura mínima cómoda */
-    height: auto !important; /* Permite crecer si el texto es largo */
+    width: 100% !important;
+    min-height: 48px !important;
+    height: auto !important; /* Crece si el texto es largo */
     border-radius: 8px !important;
-    font-size: 14px !important; /* Letra un poco más chica para que quepa */
+    font-size: 14px !important;
     font-weight: 700 !important;
     text-align: center !important;
-    white-space: normal !important; /* PERMITE 2 LÍNEAS DE TEXTO */
-    line-height: 1.2 !important;
-    padding: 5px 10px !important;
+    white-space: normal !important;
+    padding: 5px !important;
     border: none !important;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     text-transform: none !important;
@@ -164,17 +147,14 @@ html, body {
     border: 1px solid #eee;
     margin-bottom: 15px !important;
 }
-
 input[type="text"], select {
     width: 100% !important;
     height: 48px !important;
     border-radius: 8px !important;
     margin-bottom: 10px !important;
-    font-size: 16px !important;
-    border: 1px solid #ccc !important;
     display: block !important;
+    border: 1px solid #ccc !important;
 }
-
 input[type="submit"] {
     width: 100% !important;
     height: 48px !important;
@@ -188,12 +168,12 @@ input[type="submit"] {
 
 
 /* =========================================
-   5. TABLAS (EL ÚNICO LUGAR CON SCROLL LATERAL)
+   5. TABLAS (SCROLL INTERNO)
    ========================================= */
 .card-body.table-responsive {
     display: block !important;
     width: 100% !important;
-    overflow-x: auto !important; /* Scroll activado SOLO AQUÍ */
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     background: white;
     border-radius: 12px;
@@ -208,7 +188,6 @@ table.table {
     border-collapse: separate;
 }
 
-/* Celdas */
 table.table th, table.table td {
     white-space: nowrap !important;
     padding: 15px 10px !important;
@@ -245,13 +224,11 @@ table.table thead th:first-child {
     background: #f8f9fa;
     border-right: 2px solid #f4f4f4;
 }
-
 table.table td a { color: #333; text-decoration: none; }
 table.table td:first-child a { color: #007bff; }
 
-
 /* =========================================
-   6. BOTÓN FLOTANTE (GUARDAR)
+   6. BOTÓN FLOTANTE
    ========================================= */
 .submit-row {
     position: fixed !important;
