@@ -1,97 +1,60 @@
 /* static/css/mobile_fix.css */
-/* V13: NAVEGACIÓN RESTAURADA & SCROLL FLUIDO */
+/* V14: THE "BLOCK STACK" FIX - CERO MÁRGENES NEGATIVOS */
 
 /* =========================================
-   1. RESETEO DE ESTRUCTURA (SCROLL FLUIDO)
+   1. RESETEO DE MÁRGENES (CRÍTICO PARA VER LA IZQUIERDA)
    ========================================= */
 * {
     box-sizing: border-box !important;
-    -webkit-tap-highlight-color: transparent; /* Quita el flash azul al tocar */
 }
 
 html, body {
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 100% !important;
-    height: auto !important; /* IMPORTANTE: Permitir altura automática */
     background-color: #f4f6f9 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    overflow-x: hidden !important; /* Solo prohibimos el desborde lateral global */
-    overflow-y: auto !important;   /* Scroll vertical nativo */
-    -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
+    overflow-x: hidden !important; /* Bloqueo lateral global */
 }
 
-/* Ajuste del contenedor principal de Jazzmin */
-.content-wrapper, .main-panel, #content {
-    margin-left: 0 !important; /* Quitamos espacio del menú escritorio */
+/* AQUÍ ESTÁ EL ARREGLO: Jazzmin tiene márgenes negativos que cortan la izquierda.
+   Los forzamos a 0 y añadimos padding seguro. */
+.content-wrapper, .main-panel, #content, .container-fluid {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 10px !important; /* Espacio seguro interno */
     width: 100% !important;
     max-width: 100% !important;
-    padding: 10px !important;
-    padding-top: 20px !important; /* Espacio para que no se pegue al header */
 }
 
-.container-fluid { padding: 0 !important; }
-
-/* Ocultar SOLO lo innecesario, pero DEJAR la barra de navegación */
+/* Ocultar elementos innecesarios */
 .breadcrumb, .main-footer, #content-related {
     display: none !important;
 }
 
 /* =========================================
-   2. RESTAURAR NAVEGACIÓN (HEADER FIJO)
+   2. DASHBOARD: "BLOCK DISPLAY" (LADRILLO SOBRE LADRILLO)
    ========================================= */
-/* Hacemos visible la barra superior para que puedas abrir el menú */
-.main-header {
-    display: flex !important;
-    position: sticky !important; /* Se queda pegada arriba */
-    top: 0;
-    z-index: 1000;
-    width: 100% !important;
-    margin-left: 0 !important;
-    border-bottom: 1px solid #dee2e6;
-    background: #fff !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-    height: 60px !important; /* Altura fija cómoda */
-    align-items: center;
-    padding: 0 15px !important;
-}
-
-.main-header .navbar-nav {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center;
-}
-
-/* Botón de Hamburguesa (Menu) más grande */
-.main-header .nav-link {
-    padding: 10px 15px !important;
-    font-size: 20px !important;
-    color: #333 !important;
-}
-
-/* =========================================
-   3. DASHBOARD (APILADO VERTICAL ESTRICTO)
-   ========================================= */
-/* Rompemos el sistema de filas de Bootstrap para evitar cortes */
+/* Desactivamos el sistema Flex de filas */
 .row {
-    display: flex !important;
-    flex-direction: column !important; /* TODO VERTICAL */
-    margin: 0 !important;
+    display: block !important; /* Ya no es flex, es bloque */
+    margin: 0 !important;      /* CERO margen negativo */
     width: 100% !important;
 }
 
-/* Forzamos a TODAS las columnas a ocupar el 100% del ancho */
-/* Esto garantiza que nada se salga de la pantalla */
-.col-lg-3, .col-md-3, .col-sm-6, .col-6,
-.col-lg-4, .col-md-6, .col-12 {
-    flex: 0 0 100% !important;
+/* Seleccionamos CUALQUIER columna (col-lg, col-md, col-6, etc) */
+/* Y la obligamos a ser un bloque del 100% */
+[class*="col-"] {
+    display: block !important;
+    width: 100% !important;
     max-width: 100% !important;
+    flex: none !important;
     padding: 0 !important;
-    margin-bottom: 15px !important; /* Espacio entre tarjetas */
-    width: 100% !important;
+    margin-bottom: 15px !important; /* Espacio vertical entre elementos */
+    float: none !important;
 }
 
-/* WIDGETS (Botones del Dashboard) */
+/* Estilo de los Widgets (Botones Dashboard) */
 .small-box {
     border-radius: 12px !important;
     background: #fff !important;
@@ -99,11 +62,13 @@ html, body {
     margin: 0 !important;
     min-height: 80px !important;
     display: flex !important;
-    flex-direction: row !important; /* Icono izq, texto der */
-    align-items: center !important;
+    flex-direction: row !important;
+    align-items: center !important; /* Centrado vertical */
     padding: 15px !important;
     text-align: left !important;
-    border: 1px solid #f0f0f0;
+    border: 1px solid #e1e1e1;
+    position: relative;
+    width: 100% !important; /* Asegura ancho total */
 }
 
 .small-box .inner { 
@@ -112,50 +77,76 @@ html, body {
 }
 
 .small-box h3 { 
-    font-size: 18px !important; 
+    font-size: 20px !important; 
     margin: 0 0 5px 0 !important; 
     color: #2c3e50;
-    font-weight: 700;
+    font-weight: 800;
 }
 
 .small-box p { 
-    font-size: 13px !important; 
+    font-size: 14px !important; 
     color: #666; 
     margin: 0 !important; 
-    font-weight: 500;
+    font-weight: 600;
+    white-space: normal !important; 
 }
 
+/* Iconos y footer ocultos para limpieza */
 .small-box .icon, .small-box-footer { display: none !important; }
 
-/* GRÁFICAS */
+/* Gráficas y Tarjetas */
 canvas, .card {
-    width: 100% !important;
-    max-width: 100% !important; /* Nunca exceder ancho de pantalla */
     background: #fff !important;
     border-radius: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
-    box-sizing: border-box !important;
+    margin: 0 !important;
 }
 
 /* =========================================
-   4. MODULOS (BOTONES Y FILTROS VERTICALES)
+   3. NAVEGACIÓN SUPERIOR (VISIBILIDAD MENÚ)
+   ========================================= */
+.main-header {
+    display: flex !important;
+    position: sticky !important;
+    top: 0;
+    z-index: 1001; /* Encima de todo */
+    width: 100% !important;
+    background: #fff !important;
+    border-bottom: 1px solid #ddd;
+    height: 60px !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+}
+
+.navbar-nav {
+    flex-direction: row !important;
+}
+.nav-item { list-style: none; }
+.nav-link { 
+    padding: 10px 15px !important; 
+    font-size: 22px !important;
+    color: #444 !important;
+}
+
+/* =========================================
+   4. MODULOS (BOTONES VERTICALES)
    ========================================= */
 .object-tools {
-    display: flex !important;
-    flex-direction: column !important;
+    display: block !important;
     width: 100% !important;
-    padding: 0 !important;
     margin: 10px 0 20px 0 !important;
-    gap: 10px !important;
+    padding: 0 !important;
 }
 
 .object-tools li, .object-tools form {
-    width: 100% !important;
-    margin: 0 !important;
     display: block !important;
+    width: 100% !important;
+    margin-bottom: 10px !important;
 }
 
-/* Estilo Botón App */
+/* Botones Grandes y Apilados */
 .object-tools a, 
 .object-tools button,
 .btn-upload-label,
@@ -165,15 +156,14 @@ canvas, .card {
     align-items: center !important;
     width: 100% !important;
     height: 50px !important;
-    margin: 0 !important;
     border-radius: 8px !important;
     font-size: 16px !important;
     font-weight: 600 !important;
     border: none !important;
+    margin: 0 !important;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     text-transform: none !important;
     text-decoration: none !important;
-    cursor: pointer;
 }
 
 /* Colores */
@@ -181,47 +171,27 @@ canvas, .card {
 .btn-upload-label { background: #17a2b8 !important; color: white !important; }
 .btn-submit-excel { background: #28a745 !important; color: white !important; }
 
-/* Filtros y Buscadores */
-#changelist-search, #toolbar, #changelist-filter {
+/* Corrección Form Carga */
+.upload-form-container {
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
-    background: #fff !important;
-    padding: 15px !important;
-    border-radius: 12px;
-    border: 1px solid #eee;
-    margin-bottom: 15px !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-input[type="text"], input[type="submit"], select {
-    width: 100% !important;
-    height: 48px !important;
-    border-radius: 8px !important;
-    margin-bottom: 10px !important;
-    font-size: 16px !important;
-    display: block !important;
-    box-sizing: border-box !important;
-}
-input[type="submit"] {
-    background: #343a40 !important;
-    color: white !important;
-    text-transform: uppercase;
-    font-weight: bold;
-    border: none !important;
+    gap: 10px !important;
 }
 
 /* =========================================
-   5. TABLAS (SCROLL INTERNO SEGURO)
+   5. TABLAS (SCROLL INTERNO)
    ========================================= */
-/* Esta caja permite deslizar la tabla sin afectar la pagina */
+/* La tabla vive dentro de esta caja que SÍ permite scroll */
 .card-body.table-responsive {
     display: block !important;
     width: 100% !important;
-    overflow-x: auto !important;
+    overflow-x: auto !important; /* Deslizar tabla */
     -webkit-overflow-scrolling: touch;
     background: white;
     border-radius: 12px;
     padding: 0 !important;
-    margin-bottom: 80px; /* Espacio para botón flotante */
+    margin-bottom: 80px;
     border: 1px solid #eee;
 }
 
@@ -239,7 +209,7 @@ table.table th, table.table td {
     border-bottom: 1px solid #f0f0f0 !important;
 }
 
-/* Sticky Headers */
+/* Header Sticky */
 table.table thead th {
     background: #f8f9fa !important;
     color: #333;
@@ -250,13 +220,13 @@ table.table thead th {
     z-index: 20;
 }
 
-/* Primera columna fija */
+/* Columna Fija Izquierda */
 table.table tbody td:first-child {
     position: sticky;
     left: 0;
     background: #fff;
     z-index: 10;
-    border-right: 2px solid #f0f0f0;
+    border-right: 2px solid #eee;
     color: #007bff;
     font-weight: 600;
 }
@@ -265,9 +235,10 @@ table.table thead th:first-child {
     left: 0;
     z-index: 21;
     background: #f8f9fa;
-    border-right: 2px solid #f0f0f0;
+    border-right: 2px solid #eee;
 }
 
+/* Link fix */
 table.table td a { color: #333; text-decoration: none; }
 table.table td:first-child a { color: #007bff; }
 
@@ -297,4 +268,21 @@ table.table td:first-child a { color: #007bff; }
     font-weight: bold;
     text-transform: uppercase;
     border: none !important;
+}
+
+/* Filtros */
+#changelist-search, #toolbar, #changelist-filter {
+    width: 100% !important;
+    background: #fff !important;
+    padding: 15px !important;
+    border-radius: 12px;
+    border: 1px solid #eee;
+    margin-bottom: 15px !important;
+}
+input[type="text"], input[type="submit"], select {
+    width: 100% !important;
+    height: 48px !important;
+    border-radius: 8px !important;
+    margin-bottom: 10px !important;
+    display: block !important;
 }
