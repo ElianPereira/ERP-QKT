@@ -1,343 +1,300 @@
 /* static/css/mobile_fix.css */
-/* V12: VERTICAL STACK & FIT - CERO DESBORDE */
+/* V13: NAVEGACIÓN RESTAURADA & SCROLL FLUIDO */
 
 /* =========================================
-   1. RESETEO TOTAL (EVITAR DESBORDE)
+   1. RESETEO DE ESTRUCTURA (SCROLL FLUIDO)
    ========================================= */
 * {
-    box-sizing: border-box !important; /* CRÍTICO: El padding no suma al ancho total */
+    box-sizing: border-box !important;
+    -webkit-tap-highlight-color: transparent; /* Quita el flash azul al tocar */
 }
 
-@media screen and (max-width: 992px) {
+html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important; /* IMPORTANTE: Permitir altura automática */
+    background-color: #f4f6f9 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    overflow-x: hidden !important; /* Solo prohibimos el desborde lateral global */
+    overflow-y: auto !important;   /* Scroll vertical nativo */
+    -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
+}
 
-    html, body {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background-color: #f4f6f9 !important;
-        overflow-x: hidden !important; /* Bloquea el scroll lateral de la PÁGINA entera */
-        position: relative !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    }
+/* Ajuste del contenedor principal de Jazzmin */
+.content-wrapper, .main-panel, #content {
+    margin-left: 0 !important; /* Quitamos espacio del menú escritorio */
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 10px !important;
+    padding-top: 20px !important; /* Espacio para que no se pegue al header */
+}
 
-    /* FORZAR CONTENEDOR PRINCIPAL A ENTRAR EN PANTALLA */
-    /* Jazzmin suele empujar esto 230px a la derecha. Aquí lo regresamos a 0 */
-    .content-wrapper, .main-panel, #content, .container-fluid {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        padding-left: 10px !important;
-        padding-right: 10px !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 0 !important; /* Permite a los flex items encogerse */
-    }
+.container-fluid { padding: 0 !important; }
 
-    /* Ocultar elementos de escritorio que rompen el diseño */
-    .breadcrumb, .main-footer, #content-related, .main-header .navbar-nav {
-        display: none !important;
-    }
+/* Ocultar SOLO lo innecesario, pero DEJAR la barra de navegación */
+.breadcrumb, .main-footer, #content-related {
+    display: none !important;
+}
 
-    h1 {
-        font-size: 20px !important;
-        text-align: center;
-        margin: 15px 0 20px 0 !important;
-        color: #2c3e50;
-        font-weight: 800;
-        word-wrap: break-word; /* Evita que títulos largos rompan el ancho */
-    }
+/* =========================================
+   2. RESTAURAR NAVEGACIÓN (HEADER FIJO)
+   ========================================= */
+/* Hacemos visible la barra superior para que puedas abrir el menú */
+.main-header {
+    display: flex !important;
+    position: sticky !important; /* Se queda pegada arriba */
+    top: 0;
+    z-index: 1000;
+    width: 100% !important;
+    margin-left: 0 !important;
+    border-bottom: 1px solid #dee2e6;
+    background: #fff !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    height: 60px !important; /* Altura fija cómoda */
+    align-items: center;
+    padding: 0 15px !important;
+}
 
-    /* =========================================
-       2. ESTRATEGIA "TODO VERTICAL" (DASHBOARD)
-       ========================================= */
-    /* Rompemos la fila horizontal de Bootstrap */
-    .row {
-        display: flex !important;
-        flex-direction: column !important; /* APILAR VERTICALMENTE */
-        margin: 0 !important;
-        width: 100% !important;
-    }
+.main-header .navbar-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+}
 
-    /* TODAS LAS COLUMNAS AL 100% */
-    /* Esto asegura que NADA quede lado a lado cortándose */
-    .col-lg-3, .col-md-3, .col-sm-6, .col-6,
-    .col-lg-4, .col-md-6, .col-12 {
-        flex: 0 0 100% !important;
-        max-width: 100% !important;
-        padding: 0 0 10px 0 !important; /* Espacio vertical entre tarjetas */
-        margin: 0 !important;
-        width: 100% !important;
-    }
+/* Botón de Hamburguesa (Menu) más grande */
+.main-header .nav-link {
+    padding: 10px 15px !important;
+    font-size: 20px !important;
+    color: #333 !important;
+}
 
-    /* WIDGETS (Botones del Dashboard) */
-    .small-box {
-        border-radius: 12px !important;
-        background: #fff !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
-        margin-bottom: 0 !important;
-        min-height: 90px !important;
-        display: flex !important;
-        flex-direction: row !important; /* Icono a la izquierda, texto derecha */
-        align-items: center !important;
-        padding: 15px !important;
-        text-align: left !important;
-        border: 1px solid #eee;
-    }
+/* =========================================
+   3. DASHBOARD (APILADO VERTICAL ESTRICTO)
+   ========================================= */
+/* Rompemos el sistema de filas de Bootstrap para evitar cortes */
+.row {
+    display: flex !important;
+    flex-direction: column !important; /* TODO VERTICAL */
+    margin: 0 !important;
+    width: 100% !important;
+}
 
-    /* Ajuste interno del widget */
-    .small-box .inner { 
-        padding: 0 !important; 
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    
-    .small-box h3 { 
-        font-size: 20px !important; 
-        margin: 0 0 5px 0 !important; 
-        color: #333;
-    }
-    
-    .small-box p { 
-        font-size: 14px !important; 
-        color: #666; 
-        margin: 0 !important; 
-        font-weight: 600;
-        white-space: normal !important; 
-    }
-    
-    .small-box .icon, .small-box-footer { display: none !important; }
+/* Forzamos a TODAS las columnas a ocupar el 100% del ancho */
+/* Esto garantiza que nada se salga de la pantalla */
+.col-lg-3, .col-md-3, .col-sm-6, .col-6,
+.col-lg-4, .col-md-6, .col-12 {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin-bottom: 15px !important; /* Espacio entre tarjetas */
+    width: 100% !important;
+}
 
-    /* GRÁFICAS Y TARJETAS */
-    canvas, .card {
-        width: 100% !important;
-        max-width: 100% !important;
-        background: #fff !important;
-        border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
-        box-sizing: border-box !important;
-    }
+/* WIDGETS (Botones del Dashboard) */
+.small-box {
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+    margin: 0 !important;
+    min-height: 80px !important;
+    display: flex !important;
+    flex-direction: row !important; /* Icono izq, texto der */
+    align-items: center !important;
+    padding: 15px !important;
+    text-align: left !important;
+    border: 1px solid #f0f0f0;
+}
 
-    /* =========================================
-       3. BOTONERAS APILADAS (NÓMINA/COTIZACIONES)
-       ========================================= */
-    /* Contenedor principal */
-    .object-tools {
-        display: flex !important;
-        flex-direction: column !important; /* VERTICAL */
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 0 0 20px 0 !important;
-        gap: 10px !important;
-    }
+.small-box .inner { 
+    padding: 0 !important; 
+    width: 100%;
+}
 
-    .object-tools li, .object-tools form {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: block !important;
-        list-style: none !important;
-    }
+.small-box h3 { 
+    font-size: 18px !important; 
+    margin: 0 0 5px 0 !important; 
+    color: #2c3e50;
+    font-weight: 700;
+}
 
-    /* ESTILO UNIFICADO DE BOTÓN */
-    .object-tools a, 
-    .object-tools button,
-    .btn-upload-label,
-    .btn-submit-excel {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        width: 100% !important; /* Ocupa todo el ancho disponible */
-        height: 50px !important;
-        margin: 0 !important;
-        border-radius: 8px !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        border: none !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-        text-transform: none !important;
-        text-decoration: none !important;
-        cursor: pointer;
-    }
+.small-box p { 
+    font-size: 13px !important; 
+    color: #666; 
+    margin: 0 !important; 
+    font-weight: 500;
+}
 
-    /* Colores */
-    .object-tools a.addlink { background: #007bff !important; color: white !important; }
-    .btn-upload-label { background: #17a2b8 !important; color: white !important; }
-    .btn-submit-excel { background: #28a745 !important; color: white !important; }
+.small-box .icon, .small-box-footer { display: none !important; }
 
-    /* Corrección específica para tu formulario de carga de Excel */
-    .upload-form-container {
-        display: flex !important;
-        flex-direction: column !important;
-        width: 100% !important;
-        gap: 10px !important;
-    }
+/* GRÁFICAS */
+canvas, .card {
+    width: 100% !important;
+    max-width: 100% !important; /* Nunca exceder ancho de pantalla */
+    background: #fff !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+    box-sizing: border-box !important;
+}
 
-    /* =========================================
-       4. FILTROS Y BÚSQUEDA (BLOQUES)
-       ========================================= */
-    #changelist-search, #toolbar, #changelist-filter {
-        width: 100% !important;
-        background: #fff !important;
-        padding: 15px !important;
-        border-radius: 12px;
-        border: 1px solid #eee;
-        margin-bottom: 15px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
+/* =========================================
+   4. MODULOS (BOTONES Y FILTROS VERTICALES)
+   ========================================= */
+.object-tools {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 10px 0 20px 0 !important;
+    gap: 10px !important;
+}
 
-    /* Inputs y Selects */
-    #changelist-search input[type="text"], 
-    .changelist-filter select,
-    #changelist-filter select {
-        width: 100% !important;
-        height: 48px !important;
-        border: 1px solid #ccc !important;
-        border-radius: 8px !important;
-        margin-bottom: 10px !important;
-        font-size: 16px !important;
-        background-color: #fff !important;
-        display: block !important;
-    }
+.object-tools li, .object-tools form {
+    width: 100% !important;
+    margin: 0 !important;
+    display: block !important;
+}
 
-    /* Botón Buscar */
-    input[type="submit"] {
-        width: 100% !important;
-        height: 48px !important;
-        background: #343a40 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        border: none !important;
-        font-size: 16px !important;
-        text-transform: uppercase;
-        font-weight: bold;
-    }
+/* Estilo Botón App */
+.object-tools a, 
+.object-tools button,
+.btn-upload-label,
+.btn-submit-excel {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    height: 50px !important;
+    margin: 0 !important;
+    border-radius: 8px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    border: none !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    cursor: pointer;
+}
 
-    /* =========================================
-       5. TABLAS (ENCAPSULADAS CON SCROLL INTERNO)
-       ========================================= */
-    /* Este es el único lugar donde permitimos scroll horizontal */
-    .card-body.table-responsive {
-        display: block !important;
-        width: 100% !important;
-        overflow-x: auto !important; /* Scroll interno activado */
-        -webkit-overflow-scrolling: touch;
-        background: white;
-        border-radius: 12px;
-        padding: 0 !important;
-        margin-bottom: 80px;
-        border: 1px solid #eee;
-    }
+/* Colores */
+.object-tools a.addlink { background: #007bff !important; color: white !important; }
+.btn-upload-label { background: #17a2b8 !important; color: white !important; }
+.btn-submit-excel { background: #28a745 !important; color: white !important; }
 
-    table.table {
-        width: 100% !important;
-        margin: 0 !important;
-        border-collapse: separate;
-    }
+/* Filtros y Buscadores */
+#changelist-search, #toolbar, #changelist-filter {
+    width: 100% !important;
+    background: #fff !important;
+    padding: 15px !important;
+    border-radius: 12px;
+    border: 1px solid #eee;
+    margin-bottom: 15px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
 
-    /* Celdas */
-    table.table th, table.table td {
-        white-space: nowrap !important; /* Mantiene datos en una linea */
-        padding: 12px 10px !important;
-        vertical-align: middle !important;
-        font-size: 14px !important;
-        border-bottom: 1px solid #f0f0f0 !important;
-    }
+input[type="text"], input[type="submit"], select {
+    width: 100% !important;
+    height: 48px !important;
+    border-radius: 8px !important;
+    margin-bottom: 10px !important;
+    font-size: 16px !important;
+    display: block !important;
+    box-sizing: border-box !important;
+}
+input[type="submit"] {
+    background: #343a40 !important;
+    color: white !important;
+    text-transform: uppercase;
+    font-weight: bold;
+    border: none !important;
+}
 
-    /* Encabezado Fijo */
-    table.table thead th {
-        background: #f8f9fa !important;
-        color: #333;
-        font-weight: bold;
-        text-transform: uppercase;
-        position: sticky;
-        top: 0;
-        z-index: 20;
-    }
+/* =========================================
+   5. TABLAS (SCROLL INTERNO SEGURO)
+   ========================================= */
+/* Esta caja permite deslizar la tabla sin afectar la pagina */
+.card-body.table-responsive {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    background: white;
+    border-radius: 12px;
+    padding: 0 !important;
+    margin-bottom: 80px; /* Espacio para botón flotante */
+    border: 1px solid #eee;
+}
 
-    /* Primera Columna Fija (Nombre) */
-    table.table tbody td:first-child {
-        position: sticky;
-        left: 0;
-        background: #fff;
-        z-index: 10;
-        border-right: 2px solid #f0f0f0;
-        color: #007bff;
-        font-weight: 600;
-    }
-    table.table thead th:first-child {
-        position: sticky;
-        left: 0;
-        z-index: 21;
-        background: #f8f9fa;
-        border-right: 2px solid #f0f0f0;
-    }
+table.table {
+    width: 100% !important;
+    margin: 0 !important;
+    border-collapse: separate;
+}
 
-    /* Links normales */
-    table.table td a { color: #333; text-decoration: none; }
-    table.table td:first-child a { color: #007bff; }
+table.table th, table.table td {
+    white-space: nowrap !important;
+    padding: 15px 10px !important;
+    vertical-align: middle !important;
+    font-size: 14px !important;
+    border-bottom: 1px solid #f0f0f0 !important;
+}
 
-    /* =========================================
-       6. FORMULARIOS (STACK VERTICAL)
-       ========================================= */
-    .form-row {
-        display: block !important;
-        width: 100% !important;
-        padding: 10px 0 !important;
-    }
-    .fieldBox { 
-        width: 100% !important; 
-        margin: 0 0 15px 0 !important; 
-    }
+/* Sticky Headers */
+table.table thead th {
+    background: #f8f9fa !important;
+    color: #333;
+    font-weight: bold;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
 
-    .form-group label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
-        color: #555;
-    }
+/* Primera columna fija */
+table.table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 10;
+    border-right: 2px solid #f0f0f0;
+    color: #007bff;
+    font-weight: 600;
+}
+table.table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 21;
+    background: #f8f9fa;
+    border-right: 2px solid #f0f0f0;
+}
 
-    input[type="text"], input[type="number"], input[type="date"], select, textarea {
-        width: 100% !important;
-        height: 48px !important;
-        border-radius: 8px !important;
-        border: 1px solid #ccc !important;
-        padding: 0 10px !important;
-        font-size: 16px !important;
-        background: #fff !important;
-    }
-    
-    /* Select2 fix */
-    .select2-container { width: 100% !important; }
-    .select2-container .select2-selection--single { height: 48px !important; border-radius: 8px !important; }
-    .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 48px !important; }
-    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 46px !important; }
+table.table td a { color: #333; text-decoration: none; }
+table.table td:first-child a { color: #007bff; }
 
-    /* =========================================
-       7. BARRA FLOTANTE DE GUARDADO
-       ========================================= */
-    .submit-row {
-        position: fixed !important;
-        bottom: 0;
-        left: 0;
-        width: 100% !important;
-        background: white !important;
-        padding: 10px !important;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        z-index: 9999;
-        display: flex;
-    }
-    .submit-row input { display: none !important; }
-    .submit-row input[type="submit"] {
-        display: block !important;
-        width: 100% !important;
-        background: #28a745 !important;
-        color: white !important;
-        height: 50px !important;
-        border-radius: 8px !important;
-        font-size: 16px !important;
-        font-weight: bold;
-        text-transform: uppercase;
-        border: none !important;
-    }
+/* =========================================
+   6. BOTÓN FLOTANTE
+   ========================================= */
+.submit-row {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    width: 100% !important;
+    background: white !important;
+    padding: 10px !important;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    z-index: 9999;
+    display: flex;
+}
+.submit-row input { display: none !important; }
+.submit-row input[type="submit"] {
+    display: block !important;
+    width: 100% !important;
+    background: #28a745 !important;
+    color: white !important;
+    height: 50px !important;
+    border-radius: 8px !important;
+    font-size: 16px !important;
+    font-weight: bold;
+    text-transform: uppercase;
+    border: none !important;
 }
