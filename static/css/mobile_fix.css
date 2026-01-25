@@ -1,12 +1,13 @@
 /* static/css/mobile_fix.css */
-/* V23: FIX RADICAL + BOTONES BONITOS (PDF/EMAIL) */
+/* V24: RETORNO AL DISEÑO ORIGINAL EN LAPTOP + FIX BOTONES */
 
 /* ============================================================
-   BLOQUE 1: REGLAS PARA MÓVILES (Solo pantallas < 900px)
+   BLOQUE 1: MÓVIL Y TABLET (Solo afecta si la pantalla es menor a 1024px)
+   Aquí mantenemos el scroll y los arreglos que SÍ funcionaron en el celular.
    ============================================================ */
-@media only screen and (max-width: 900px) {
+@media screen and (max-width: 1024px) {
 
-    /* --- 1. Scroll y Layout Móvil --- */
+    /* 1. Scroll y Contenedor */
     html, body {
         overflow-x: auto !important;
         width: 100% !important;
@@ -14,6 +15,7 @@
         position: relative !important;
     }
 
+    /* Márgenes a 0 para aprovechar pantalla en móvil */
     .content-wrapper, .main-panel, #content, .container-fluid {
         margin-left: 0 !important;
         margin-right: 0 !important;
@@ -22,9 +24,10 @@
         max-width: none !important;
     }
 
+    /* Ocultar elementos innecesarios */
     .breadcrumb, .main-footer { display: none !important; }
 
-    /* --- 2. Grid de Botonera Superior --- */
+    /* 2. Botonera Superior (Grid System para que no se encimen) */
     .object-tools {
         display: grid !important;
         grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
@@ -38,17 +41,17 @@
         margin: 0 !important;
     }
 
+    /* Botones de la barra superior */
     .object-tools a, .object-tools button, .btn-submit-excel {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         width: 100% !important;
         min-height: 45px !important;
-        border-radius: 6px !important;
         margin-bottom: 5px !important;
     }
 
-    /* --- 3. Tablas --- */
+    /* 3. Tablas con Scroll */
     .card-body.table-responsive {
         display: block !important;
         overflow-x: auto !important;
@@ -56,7 +59,7 @@
         margin-bottom: 80px !important;
     }
 
-    /* --- 4. Botón Guardar Flotante --- */
+    /* 4. Pie de página flotante (Guardar) */
     .submit-row {
         position: fixed !important;
         bottom: 0;
@@ -71,67 +74,42 @@
     .submit-row p.deletelink-box { display: none !important; }
 }
 
-
 /* ============================================================
-   BLOQUE 2: PROTECCIÓN PARA LAPTOP (Pantallas > 901px)
-   ============================================================ */
-@media only screen and (min-width: 901px) {
-    .content-wrapper, .main-panel, #content {
-        margin-left: 270px !important;
-        width: auto !important;
-        padding: 20px !important;
-    }
-    html, body {
-        overflow-x: hidden !important;
-        position: static !important;
-    }
-    .object-tools {
-        display: block !important;
-        float: right !important;
-    }
-    .object-tools li {
-        display: inline-block !important;
-        float: left !important;
-        margin-left: 10px !important;
-    }
-}
-
-
-/* ============================================================
-   BLOQUE 3: ESTÉTICA GLOBAL DE BOTONES EN TABLA
-   (Aplica tanto a celular como a laptop para arreglar "Ver PDF")
+   BLOQUE 2: ARREGLO VISUAL DE BOTONES (GLOBAL)
+   Esto aplica a Laptop Y Celular. Arregla los botones "feos".
    ============================================================ */
 
-/* Apuntamos a los enlaces que tienen clase de botón (.btn) dentro de la tabla */
-table.table td .btn,
-table.table td a[class*="btn"] {
-    /* 1. Forzar horizontalidad (Icono al lado del texto) */
-    display: inline-flex !important;
-    flex-direction: row !important; 
-    align-items: center !important;
-    justify-content: center !important;
-
-    /* 2. Evitar que se rompa el texto */
+/* Seleccionamos cualquier enlace con clase .btn dentro de las tablas */
+table.table td a.btn,
+table.table td button.btn,
+.results .btn {
+    /* PROHIBIDO ROMPER LINEA */
     white-space: nowrap !important;
     
-    /* 3. Dimensiones fijas y limpias */
-    height: 34px !important;       /* Altura estándar */
-    padding: 0 12px !important;    /* Espacio a los lados */
-    min-width: 95px !important;    /* Ancho mínimo para que no se aplasten */
-    border-radius: 4px !important;
-    margin: 2px !important;        /* Separación entre botones */
+    /* Alineación horizontal estricta */
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     
-    /* 4. Tipografía */
-    font-size: 13px !important;
-    line-height: 1 !important;
+    /* Dimensiones */
+    width: auto !important;      /* Que se adapte al texto */
+    height: auto !important;
+    min-width: 80px !important;  /* Ancho mínimo decente */
+    padding: 6px 12px !important;
+    
+    /* Resetear márgenes raros */
+    margin: 2px !important;
+    float: none !important;
 }
 
 /* Arreglar el icono dentro del botón */
-table.table td .btn i,
-table.table td a[class*="btn"] i {
-    margin-right: 6px !important; /* Espacio entre icono y texto */
-    margin-bottom: 0 !important;  /* Quitar margen inferior si tiene */
-    font-size: 14px !important;
+table.table td a.btn i,
+table.table td button.btn i {
     display: inline-block !important;
-    width: auto !important;
+    margin-right: 6px !important; /* Separar icono del texto */
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    top: 0 !important;
+    position: static !important;
 }
