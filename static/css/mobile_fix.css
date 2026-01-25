@@ -1,214 +1,219 @@
 /* static/css/mobile_fix.css */
-/* VERSIÓN ULTRA-APP V5 - GRID CORREGIDO (2 COLUMNAS) */
+/* VERSIÓN V6 - FULL SCREEN FIX & MAX SPACE */
 
 @media screen and (max-width: 992px) {
 
     /* =========================================
-       1. CONTENEDOR PRINCIPAL (EVITAR DESBORDE)
+       1. CORRECCIÓN DEL "NO PUEDO MOVERME A LA IZQUIERDA"
        ========================================= */
     html, body {
-        overflow-x: hidden !important; /* Prohíbe scroll horizontal fantasma */
-        width: 100% !important;
+        overflow-x: hidden !important; /* Evita el scroll horizontal general */
         background-color: #f4f6f9 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+        width: 100vw !important; /* Forzar al ancho del dispositivo */
+        position: relative;
     }
 
-    /* Ocultar elementos innecesarios */
+    /* AQUÍ ESTÁ LA SOLUCIÓN AL CORTE DE PANTALLA:
+       Forzamos a que el contenedor principal NO tenga margen izquierdo 
+       (Jazzmin suele dejar 230px aquí pensando que está el menú) */
+    .content-wrapper, .main-panel, #content {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding: 5px !important; /* Padding mínimo para aprovechar pantalla */
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Ocultar elementos que roban espacio */
     .breadcrumb, #content-related, .main-footer {
         display: none !important;
     }
 
-    /* Ajuste del área de contenido para que respete los bordes del celular */
-    .content-wrapper, #content, .container-fluid {
-        padding: 10px !important;
-        margin: 0 !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
+    /* Contenedor fluido sin rellenos extra */
+    .container-fluid {
+        padding: 0 !important;
     }
 
-    /* Títulos centrados */
+    /* Títulos compactos */
     h1 {
-        font-size: 22px !important;
-        font-weight: 800 !important;
-        color: #2c3e50;
+        font-size: 20px !important;
+        margin: 10px 0 15px 0 !important;
         text-align: center;
-        margin: 15px 0 20px 0 !important;
+        color: #2c3e50;
+        font-weight: 800;
     }
 
     /* =========================================
-       2. EL GRID SYSTEM (LA SOLUCIÓN A TUS CAJAS DESALINEADAS)
+       2. DASHBOARD (TABLERO) - GRID ESTRICTA 2 COL
        ========================================= */
-    
-    /* Forzamos a que las filas PERMITAN bajar de renglón (Wrap) */
+    /* Reseteo de filas para que no se salgan */
     .row {
+        margin-left: -2px !important;
+        margin-right: -2px !important;
         display: flex !important;
         flex-wrap: wrap !important;
-        margin-right: -5px !important;
-        margin-left: -5px !important;
-        justify-content: flex-start !important; /* Alinear a la izquierda */
+        width: calc(100% + 4px) !important;
     }
 
-    /* --- REGLA DE ORO: 2 COLUMNAS PARA BOTONES --- */
-    /* Apuntamos a las columnas que suelen tener los botones (col-lg-3, col-6, etc) */
+    /* CADA BOTÓN OCUPA EXACTAMENTE EL 50% */
     .col-lg-3, .col-md-3, .col-sm-6, .col-6, .col-xs-6 {
-        position: relative !important;
-        width: 100% !important;
-        padding-right: 5px !important;
-        padding-left: 5px !important;
-        margin-bottom: 10px !important;
-        
-        /* AQUÍ ESTÁ EL TRUCO: 50% de ancho exacto */
         flex: 0 0 50% !important;
         max-width: 50% !important;
+        padding: 3px !important; /* Espacio muy pequeño entre botones */
+        margin: 0 !important;
     }
-
-    /* Excepción: Si es una columna muy ancha (como gráficas), ocupa el 100% */
+    
+    /* Excepción: Filas completas (Gráficas o Tarjetas de Dinero si quieres) */
     .col-lg-12, .col-md-12, .col-12 {
         flex: 0 0 100% !important;
         max-width: 100% !important;
+        padding: 3px !important;
     }
 
-    /* =========================================
-       3. BOTONES DE ACCIÓN (SMALL BOXES)
-       ========================================= */
+    /* ESTILO DE LOS BOTONES (SMALL BOX) */
     .small-box {
-        border-radius: 15px !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
+        border-radius: 12px !important;
         background: #fff !important;
-        border: none !important;
-        margin-bottom: 0 !important; /* El margen lo da la columna */
-        text-align: center !important;
-        height: 100% !important; /* Para que todos tengan la misma altura */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.08) !important;
+        margin-bottom: 0 !important;
+        height: 110px !important; /* Altura fija para uniformidad */
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
-        padding: 15px 5px !important;
+        align-items: center !important;
+        padding: 10px 5px !important;
+        text-align: center !important;
     }
-
-    .small-box .inner {
-        padding: 0 !important;
-    }
-
-    /* Iconos dentro de las cajas (Más, Carrito, etc) */
+    
+    .small-box .inner { padding: 0 !important; width: 100%; }
+    
     .small-box h3 {
-        font-size: 24px !important; /* Icono/Texto grande */
-        margin: 0 0 5px 0 !important;
-        color: #2c3e50 !important;
+        font-size: 26px !important; 
+        color: #2c3e50;
+        margin-bottom: 5px !important;
     }
     
-    /* Texto de la etiqueta (Ej: Nueva Cotización) */
     .small-box p {
-        font-size: 13px !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
         color: #555;
+        line-height: 1.1 !important;
+        white-space: normal !important; /* Permite 2 lineas de texto */
         margin: 0 !important;
-        line-height: 1.2 !important;
-        white-space: normal !important; /* PERMITE QUE EL TEXTO BAJE DE LÍNEA */
-        font-weight: 600 !important;
     }
-
-    /* Ocultar iconos de fondo gigantes y footer */
-    .small-box .icon { display: none !important; }
-    .small-box-footer { display: none !important; }
-
-    /* =========================================
-       4. TARJETAS DE DINERO (KPIs) - ESTILO CARDS
-       ========================================= */
-    /* A estas las queremos diferenciar visualmente */
-    /* Normalmente son divs que siguen a los botones. */
-    /* Si queremos que ocupen 100% para leer bien los números: */
     
-    /* OPCIONAL: Descomenta esto si prefieres las tarjetas de dinero a ANCHO COMPLETO */
-    /* .col-lg-4 {
-        flex: 0 0 100% !important;
-        max-width: 100% !important;
-    } 
-    */
+    .small-box .icon, .small-box-footer { display: none !important; }
 
-    /* Ajuste de contenido dentro de las tarjetas de dinero */
-    .callout, .card {
-        border-radius: 15px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
-        background: white !important;
-        margin-bottom: 0 !important;
-        border-left-width: 5px !important; /* Borde de color grueso a la izquierda */
-    }
+    /* ESTILO DE TARJETAS DE DINERO (KPIs) */
+    /* Diferenciamos las tarjetas que muestran $ para que se vean mejor */
+    /* Si el div tiene clase .bg-success, .bg-danger, etc, lo hacemos ancho completo */
+    /* (Nota: Depende de cómo jazzmin renderice clases, pero forzaremos estilo limpio) */
 
     /* =========================================
-       5. GRÁFICAS Y TABLAS
+       3. TABLAS (LISTADOS) - AHORA MÁS GRANDES
        ========================================= */
-    canvas {
-        width: 100% !important;
-        max-width: 100% !important;
-        height: auto !important;
-        background: white;
-        border-radius: 15px;
-        padding: 10px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-
-    /* Tablas estilo Data Grid (Limpias) */
+    /* Quitamos márgenes y rellenos del contenedor de la tabla */
     .card-body.table-responsive {
-        display: block !important;
         width: 100% !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch;
         background: white;
-        border-radius: 15px;
-        border: 1px solid #eee;
+        border-radius: 8px; /* Bordes menos redondeados para ganar espacio */
+        margin-bottom: 80px; /* Espacio para el botón flotante */
         padding: 0 !important;
+        border: 1px solid #e1e1e1;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-    
-    table.table { margin: 0 !important; }
-    
-    /* Headers */
+
+    table.table { margin: 0 !important; width: 100% !important; }
+
+    /* Encabezados Compactos */
     table.table thead th {
         background-color: #2c3e50 !important;
         color: white !important;
-        padding: 10px !important;
+        padding: 10px 5px !important; /* Menos padding lateral = más datos visibles */
         font-size: 11px !important;
         text-transform: uppercase;
-        white-space: nowrap;
         border: none !important;
-    }
-    
-    /* Celdas */
-    table.table tbody td {
-        padding: 12px 10px !important;
-        font-size: 13px !important;
-        border-bottom: 1px solid #f0f0f0 !important;
         white-space: nowrap;
-        color: #333 !important;
     }
-    
-    /* 1ra Columna Sticky */
+
+    /* Celdas Compactas */
+    table.table tbody td {
+        padding: 12px 6px !important; /* Maximizamos espacio reduciendo padding */
+        font-size: 13px !important; /* Letra legible */
+        border-bottom: 1px solid #eee !important;
+        white-space: nowrap;
+        color: #333;
+    }
+
+    /* PRIMERA COLUMNA FIJA (STICKY) */
     table.table tbody td:first-child {
         position: sticky;
         left: 0;
         z-index: 10;
-        background: #fff !important;
-        border-right: 2px solid #f4f4f4;
+        background-color: #fff !important;
+        border-right: 2px solid #ddd; /* Borde más visible para separar */
         font-weight: 700 !important;
         color: #2980b9 !important;
+        width: auto !important;
+        min-width: 100px; /* Asegura que el nombre se lea */
     }
     table.table thead th:first-child {
         position: sticky;
         left: 0;
         z-index: 11;
+        min-width: 100px;
+    }
+
+    /* Botones pequeños en tabla */
+    table.table .btn {
+        padding: 4px 8px !important;
+        font-size: 10px !important;
+        margin: 1px !important;
     }
     
-    /* Links numéricos en negro */
+    /* Arreglo enlaces numéricos */
     table.table tbody td a { color: #333 !important; text-decoration: none !important; }
     table.table tbody td:first-child a { color: #2980b9 !important; }
 
-    /* Botones en tabla */
-    table.table .btn {
-        padding: 5px 10px !important;
-        font-size: 11px !important;
-        border-radius: 5px !important;
+    /* =========================================
+       4. FORMULARIOS - ESPACIO MÁXIMO
+       ========================================= */
+    .card-body {
+        padding: 10px !important; /* Menos relleno interno */
+    }
+    
+    .form-group label {
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        color: #666;
+        margin-bottom: 5px !important;
+    }
+    
+    input[type="text"], input[type="number"], select, textarea {
+        height: 48px !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        padding: 0 10px !important;
+        width: 100% !important;
+        background: #fff !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    /* Select2 */
+    .select2-container .select2-selection--single {
+        height: 48px !important;
+        border-radius: 8px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 48px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 46px !important;
     }
 
     /* =========================================
-       6. BOTONES FLOTANTES (GUARDAR)
+       5. BOTÓN FLOTANTE (SIN CAMBIOS, FUNCIONA BIEN)
        ========================================= */
     .submit-row {
         position: fixed !important;
@@ -216,20 +221,18 @@
         left: 0;
         width: 100%;
         background: white !important;
-        padding: 10px 15px !important;
-        box-shadow: 0 -4px 15px rgba(0,0,0,0.1) !important;
-        z-index: 9999;
-        display: flex;
-        gap: 10px;
+        padding: 10px !important;
+        border-top: 1px solid #ccc;
+        z-index: 99999;
     }
     .submit-row input { display: none !important; }
     .submit-row input[type="submit"] {
         display: block !important;
         width: 100% !important;
         background-color: #27ae60 !important;
+        height: 45px !important;
+        border-radius: 8px !important;
         color: white !important;
-        height: 50px !important;
-        border-radius: 12px !important;
         font-size: 16px !important;
         font-weight: bold;
         text-transform: uppercase;
@@ -237,15 +240,15 @@
     }
     
     /* Botón Agregar Principal */
+    .object-tools { margin: 0 0 10px 0 !important; }
     .object-tools a.btn {
         display: block;
         width: 100%;
         padding: 12px !important;
         background-color: #2980b9 !important;
         color: white !important;
-        border-radius: 12px !important;
+        border-radius: 8px !important;
         font-size: 15px !important;
         text-align: center;
-        margin-bottom: 15px;
     }
 }
