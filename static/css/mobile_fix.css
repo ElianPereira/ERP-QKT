@@ -1,420 +1,343 @@
 /* static/css/mobile_fix.css */
-/* V11: ULTRA-PREMIUM MOBILE APP SHELL */
+/* V12: VERTICAL STACK & FIT - CERO DESBORDE */
 
 /* =========================================
-   0. SISTEMA DE DISEÑO (VARIABLES)
+   1. RESETEO TOTAL (EVITAR DESBORDE)
    ========================================= */
-:root {
-    --primary-color: #007aff;       /* Azul iOS System */
-    --success-color: #34c759;       /* Verde Éxito */
-    --danger-color: #ff3b30;        /* Rojo Alerta */
-    --info-color: #5856d6;          /* Morado/Azul Info */
-    --bg-app: #f2f2f7;              /* Gris fondo App */
-    --bg-card: #ffffff;             /* Blanco puro */
-    --text-main: #1c1c1e;           /* Negro suave */
-    --text-secondary: #8e8e93;      /* Gris texto secundario */
-    --border-color: #d1d1d6;        /* Bordes sutiles */
-    --input-bg: #eef1f5;            /* Fondo de inputs moderno */
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --shadow-soft: 0 4px 12px rgba(0,0,0,0.06);
-    --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+* {
+    box-sizing: border-box !important; /* CRÍTICO: El padding no suma al ancho total */
 }
 
 @media screen and (max-width: 992px) {
 
-    /* =========================================
-       1. BASE Y RESETEO GLOBAL
-       ========================================= */
     html, body {
         width: 100% !important;
-        overflow-x: hidden !important; /* Previene scroll horizontal indeseado */
-        background-color: var(--bg-app) !important;
-        font-family: var(--font-stack) !important;
-        color: var(--text-main);
-        -webkit-tap-highlight-color: transparent;
-    }
-
-    /* Limpieza del Layout de Django/Jazzmin */
-    .content-wrapper, .main-panel, #content {
         margin: 0 !important;
-        padding: 12px !important;
-        width: 100vw !important;
-        max-width: 100vw !important;
-        box-sizing: border-box !important;
+        padding: 0 !important;
+        background-color: #f4f6f9 !important;
+        overflow-x: hidden !important; /* Bloquea el scroll lateral de la PÁGINA entera */
+        position: relative !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
 
-    .container-fluid { padding: 0 !important; }
-    .breadcrumb, .main-footer, #content-related { display: none !important; }
+    /* FORZAR CONTENEDOR PRINCIPAL A ENTRAR EN PANTALLA */
+    /* Jazzmin suele empujar esto 230px a la derecha. Aquí lo regresamos a 0 */
+    .content-wrapper, .main-panel, #content, .container-fluid {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important; /* Permite a los flex items encogerse */
+    }
 
-    /* Títulos de sección */
+    /* Ocultar elementos de escritorio que rompen el diseño */
+    .breadcrumb, .main-footer, #content-related, .main-header .navbar-nav {
+        display: none !important;
+    }
+
     h1 {
-        font-size: 22px !important;
-        font-weight: 800 !important;
-        color: var(--text-main);
-        margin: 10px 0 20px 0 !important;
+        font-size: 20px !important;
         text-align: center;
-        letter-spacing: -0.5px;
+        margin: 15px 0 20px 0 !important;
+        color: #2c3e50;
+        font-weight: 800;
+        word-wrap: break-word; /* Evita que títulos largos rompan el ancho */
     }
 
     /* =========================================
-       2. DASHBOARD Y GRID SYSTEM
+       2. ESTRATEGIA "TODO VERTICAL" (DASHBOARD)
        ========================================= */
+    /* Rompemos la fila horizontal de Bootstrap */
     .row {
         display: flex !important;
-        flex-wrap: wrap !important;
-        margin: 0 -6px !important; /* Compensar padding de columnas */
+        flex-direction: column !important; /* APILAR VERTICALMENTE */
+        margin: 0 !important;
+        width: 100% !important;
     }
 
-    /* BOTONES DE MENÚ (Iconos Superiores) - GRID 2x2 */
-    .col-lg-3, .col-md-3, .col-sm-6, .col-6 {
-        flex: 0 0 50% !important;
-        max-width: 50% !important;
-        padding: 6px !important;
-    }
-
-    /* TARJETAS DE DATOS (Agenda, Gráficas, Dinero) - 100% ANCHO */
+    /* TODAS LAS COLUMNAS AL 100% */
+    /* Esto asegura que NADA quede lado a lado cortándose */
+    .col-lg-3, .col-md-3, .col-sm-6, .col-6,
     .col-lg-4, .col-md-6, .col-12 {
         flex: 0 0 100% !important;
         max-width: 100% !important;
-        padding: 6px !important;
+        padding: 0 0 10px 0 !important; /* Espacio vertical entre tarjetas */
+        margin: 0 !important;
+        width: 100% !important;
     }
 
-    /* Widget Estilo "App" */
+    /* WIDGETS (Botones del Dashboard) */
     .small-box {
-        background: var(--bg-card) !important;
-        border-radius: var(--radius-lg) !important;
-        box-shadow: var(--shadow-soft) !important;
-        border: none !important;
+        border-radius: 12px !important;
+        background: #fff !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
         margin-bottom: 0 !important;
-        min-height: 110px !important;
+        min-height: 90px !important;
         display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
+        flex-direction: row !important; /* Icono a la izquierda, texto derecha */
         align-items: center !important;
-        text-align: center !important;
-        position: relative;
-        overflow: hidden;
+        padding: 15px !important;
+        text-align: left !important;
+        border: 1px solid #eee;
     }
 
-    .small-box .inner { padding: 0 !important; width: 100%; z-index: 2; }
+    /* Ajuste interno del widget */
+    .small-box .inner { 
+        padding: 0 !important; 
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
     
     .small-box h3 { 
-        font-size: 26px !important; 
-        font-weight: 700 !important;
-        margin-bottom: 4px !important; 
-        color: var(--text-main) !important;
+        font-size: 20px !important; 
+        margin: 0 0 5px 0 !important; 
+        color: #333;
     }
     
     .small-box p { 
-        font-size: 13px !important; 
-        font-weight: 600 !important;
-        color: var(--text-secondary) !important;
+        font-size: 14px !important; 
+        color: #666; 
         margin: 0 !important; 
-        line-height: 1.2 !important; 
+        font-weight: 600;
         white-space: normal !important; 
     }
     
     .small-box .icon, .small-box-footer { display: none !important; }
 
-    /* Gráficas */
-    canvas {
-        background: var(--bg-card) !important;
-        border-radius: var(--radius-lg) !important;
-        padding: 15px !important;
-        box-shadow: var(--shadow-soft) !important;
+    /* GRÁFICAS Y TARJETAS */
+    canvas, .card {
+        width: 100% !important;
+        max-width: 100% !important;
+        background: #fff !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+        box-sizing: border-box !important;
     }
 
     /* =========================================
-       3. BOTONES DE ACCIÓN (STACK VERTICAL)
+       3. BOTONERAS APILADAS (NÓMINA/COTIZACIONES)
        ========================================= */
-    /* Este bloque arregla tus botones de Nómina y Cotizaciones */
-    
+    /* Contenedor principal */
     .object-tools {
         display: flex !important;
-        flex-direction: column !important;
+        flex-direction: column !important; /* VERTICAL */
         width: 100% !important;
-        margin: 10px 0 20px 0 !important;
         padding: 0 !important;
-        gap: 12px !important; /* Espacio entre botones */
+        margin: 0 0 20px 0 !important;
+        gap: 10px !important;
     }
 
     .object-tools li, .object-tools form {
         width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
+        display: block !important;
         list-style: none !important;
     }
 
-    /* Fix específico para el form de carga de Excel */
-    .upload-form-container, .object-tools form {
-        display: flex !important;
-        flex-direction: column !important;
-        width: 100% !important;
-        gap: 12px !important;
-    }
-
-    /* ESTILO MAESTRO DE BOTONES SUPERIORES */
+    /* ESTILO UNIFICADO DE BOTÓN */
     .object-tools a, 
     .object-tools button,
-    .btn-upload-label, 
+    .btn-upload-label,
     .btn-submit-excel {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        width: 100% !important;
-        height: 52px !important; /* Altura generosa */
-        border-radius: var(--radius-md) !important;
+        width: 100% !important; /* Ocupa todo el ancho disponible */
+        height: 50px !important;
+        margin: 0 !important;
+        border-radius: 8px !important;
         font-size: 16px !important;
         font-weight: 600 !important;
-        text-transform: none !important; /* Texto normal, no mayúsculas forzadas */
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
         border: none !important;
-        margin: 0 !important;
-        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        text-transform: none !important;
         text-decoration: none !important;
+        cursor: pointer;
     }
 
-    /* Variantes de Color */
-    .object-tools a.addlink { background: var(--primary-color) !important; color: white !important; }
-    .btn-upload-label { background: var(--info-color) !important; color: white !important; }
-    .btn-submit-excel { background: var(--success-color) !important; color: white !important; }
-    .object-tools a.historylink { background: var(--text-secondary) !important; color: white !important; }
+    /* Colores */
+    .object-tools a.addlink { background: #007bff !important; color: white !important; }
+    .btn-upload-label { background: #17a2b8 !important; color: white !important; }
+    .btn-submit-excel { background: #28a745 !important; color: white !important; }
 
-    /* Iconos dentro de botones */
-    .object-tools i, .btn i { margin-right: 8px !important; }
+    /* Corrección específica para tu formulario de carga de Excel */
+    .upload-form-container {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 10px !important;
+    }
 
     /* =========================================
-       4. FORMULARIOS E INPUTS (MODERNOS)
+       4. FILTROS Y BÚSQUEDA (BLOQUES)
        ========================================= */
-    .card-body {
-        background: transparent !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-    }
-
-    /* Los grupos de inputs */
-    .form-row {
-        background: var(--bg-card);
+    #changelist-search, #toolbar, #changelist-filter {
+        width: 100% !important;
+        background: #fff !important;
         padding: 15px !important;
-        border-radius: var(--radius-md);
+        border-radius: 12px;
+        border: 1px solid #eee;
         margin-bottom: 15px !important;
-        box-shadow: var(--shadow-soft);
-        display: block !important; /* Columna única */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    .fieldBox { margin-bottom: 15px !important; width: 100% !important; }
-
-    /* Labels */
-    .form-group label {
+    /* Inputs y Selects */
+    #changelist-search input[type="text"], 
+    .changelist-filter select,
+    #changelist-filter select {
+        width: 100% !important;
+        height: 48px !important;
+        border: 1px solid #ccc !important;
+        border-radius: 8px !important;
+        margin-bottom: 10px !important;
+        font-size: 16px !important;
+        background-color: #fff !important;
         display: block !important;
-        font-size: 13px !important;
-        font-weight: 700 !important;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px !important;
     }
 
-    /* Inputs estilo iOS/Material */
-    input[type="text"], input[type="number"], input[type="email"], 
-    input[type="date"], input[type="time"], select, textarea {
+    /* Botón Buscar */
+    input[type="submit"] {
+        width: 100% !important;
+        height: 48px !important;
+        background: #343a40 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+        font-size: 16px !important;
+        text-transform: uppercase;
+        font-weight: bold;
+    }
+
+    /* =========================================
+       5. TABLAS (ENCAPSULADAS CON SCROLL INTERNO)
+       ========================================= */
+    /* Este es el único lugar donde permitimos scroll horizontal */
+    .card-body.table-responsive {
         display: block !important;
         width: 100% !important;
-        height: 50px !important;
-        padding: 0 15px !important;
-        font-size: 17px !important; /* Tamaño legible */
-        color: var(--text-main) !important;
-        background-color: var(--input-bg) !important; /* Gris claro */
-        border: 1px solid transparent !important;
-        border-radius: var(--radius-md) !important;
-        box-shadow: none !important;
-        transition: all 0.2s ease;
-        box-sizing: border-box !important;
-    }
-
-    /* Focus state */
-    input:focus, select:focus, textarea:focus {
-        background-color: #fff !important;
-        border-color: var(--primary-color) !important;
-        outline: none !important;
-    }
-
-    /* Select2 (El buscador desplegable) - Ajuste quirúrgico */
-    .select2-container { width: 100% !important; }
-    .select2-container .select2-selection--single {
-        height: 50px !important;
-        background-color: var(--input-bg) !important;
-        border: 1px solid transparent !important;
-        border-radius: var(--radius-md) !important;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 50px !important;
-        font-size: 17px !important;
-        color: var(--text-main) !important;
-        padding-left: 15px !important;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 48px !important;
-        right: 10px !important;
-    }
-
-    /* =========================================
-       5. TABLAS DE DATOS (DATA GRID LIMPIO)
-       ========================================= */
-    .card-body.table-responsive {
-        background: var(--bg-card);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-soft);
-        border: none !important;
-        margin-bottom: 100px; /* Espacio extra para no chocar con footer */
+        overflow-x: auto !important; /* Scroll interno activado */
+        -webkit-overflow-scrolling: touch;
+        background: white;
+        border-radius: 12px;
         padding: 0 !important;
-        display: block !important;
-        overflow-x: auto !important; /* Scroll horizontal vital */
+        margin-bottom: 80px;
+        border: 1px solid #eee;
     }
 
     table.table {
-        margin: 0 !important;
         width: 100% !important;
-        border-collapse: separate !important;
-        border-spacing: 0 !important;
+        margin: 0 !important;
+        border-collapse: separate;
     }
 
-    /* Encabezados */
-    table.table thead th {
-        background-color: #f8f9fa !important; /* Gris muy claro */
-        color: var(--text-secondary) !important;
-        font-size: 11px !important;
-        font-weight: 700 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+    /* Celdas */
+    table.table th, table.table td {
+        white-space: nowrap !important; /* Mantiene datos en una linea */
         padding: 12px 10px !important;
-        border-bottom: 1px solid var(--border-color) !important;
-        border-top: none !important;
-        white-space: nowrap;
+        vertical-align: middle !important;
+        font-size: 14px !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+    }
+
+    /* Encabezado Fijo */
+    table.table thead th {
+        background: #f8f9fa !important;
+        color: #333;
+        font-weight: bold;
+        text-transform: uppercase;
         position: sticky;
         top: 0;
         z-index: 20;
     }
 
-    /* Celdas */
-    table.table tbody td {
-        padding: 14px 10px !important;
-        font-size: 14px !important;
-        color: var(--text-main) !important;
-        border-bottom: 1px solid #f0f0f0 !important;
-        vertical-align: middle !important;
-        white-space: nowrap;
-        height: 50px;
-    }
-
-    /* PRIMERA COLUMNA FIJA (NOMBRE) - ESTILO PREMIUM */
+    /* Primera Columna Fija (Nombre) */
     table.table tbody td:first-child {
-        position: sticky !important;
+        position: sticky;
         left: 0;
+        background: #fff;
         z-index: 10;
-        background-color: var(--bg-card) !important;
-        border-right: 1px solid rgba(0,0,0,0.05); /* Sombra sutil vertical */
-        font-weight: 600 !important;
-        color: var(--primary-color) !important;
+        border-right: 2px solid #f0f0f0;
+        color: #007bff;
+        font-weight: 600;
     }
     table.table thead th:first-child {
-        position: sticky !important;
+        position: sticky;
         left: 0;
         z-index: 21;
-        background-color: #f8f9fa !important;
-        border-right: 1px solid rgba(0,0,0,0.05);
+        background: #f8f9fa;
+        border-right: 2px solid #f0f0f0;
     }
 
-    /* Corrección de enlaces (Links negros excepto el primero) */
-    table.table tbody td a { color: var(--text-main) !important; text-decoration: none; }
-    table.table tbody td:first-child a { color: var(--primary-color) !important; }
-
-    /* BOTONES DENTRO DE TABLA (Compactos) */
-    table.table .btn {
-        padding: 6px 12px !important;
-        font-size: 11px !important;
-        font-weight: 600 !important;
-        border-radius: 6px !important;
-        box-shadow: none !important;
-        height: auto !important;
-        width: auto !important;
-        display: inline-flex !important;
-        margin: 2px !important;
-        white-space: nowrap;
-    }
+    /* Links normales */
+    table.table td a { color: #333; text-decoration: none; }
+    table.table td:first-child a { color: #007bff; }
 
     /* =========================================
-       6. FILTROS "PRO"
+       6. FORMULARIOS (STACK VERTICAL)
        ========================================= */
-    #changelist-filter {
-        background: var(--bg-card) !important;
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-soft);
-        margin: 15px 0 !important;
-        padding: 15px !important;
+    .form-row {
+        display: block !important;
+        width: 100% !important;
+        padding: 10px 0 !important;
+    }
+    .fieldBox { 
+        width: 100% !important; 
+        margin: 0 0 15px 0 !important; 
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #555;
+    }
+
+    input[type="text"], input[type="number"], input[type="date"], select, textarea {
+        width: 100% !important;
+        height: 48px !important;
+        border-radius: 8px !important;
+        border: 1px solid #ccc !important;
+        padding: 0 10px !important;
+        font-size: 16px !important;
+        background: #fff !important;
     }
     
-    /* Contenedor Toolbar (El buscador) */
-    #changelist-search, #toolbar {
-        background: var(--bg-card) !important;
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-soft);
-        margin-bottom: 15px !important;
-        padding: 15px !important;
-        border: none !important;
-    }
-
-    /* Botón Buscar Filtros */
-    #changelist-search input[type="submit"], 
-    #toolbar input[type="submit"],
-    .actions button {
-        background-color: var(--text-main) !important; /* Negro elegante */
-        color: white !important;
-        width: 100% !important;
-        height: 50px !important;
-        border-radius: var(--radius-md) !important;
-        font-weight: 700 !important;
-        text-transform: uppercase;
-        font-size: 14px !important;
-        margin-top: 10px !important;
-        border: none !important;
-    }
+    /* Select2 fix */
+    .select2-container { width: 100% !important; }
+    .select2-container .select2-selection--single { height: 48px !important; border-radius: 8px !important; }
+    .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 48px !important; }
+    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 46px !important; }
 
     /* =========================================
-       7. BARRA DE ACCIÓN FLOTANTE (STICKY FOOTER)
+       7. BARRA FLOTANTE DE GUARDADO
        ========================================= */
     .submit-row {
         position: fixed !important;
         bottom: 0;
         left: 0;
         width: 100% !important;
-        background: rgba(255,255,255,0.95) !important; /* Semi transparente */
-        backdrop-filter: blur(10px); /* Efecto vidrio esmerilado iOS */
-        padding: 12px 16px !important;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.08) !important;
-        z-index: 99999;
+        background: white !important;
+        padding: 10px !important;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        z-index: 9999;
         display: flex;
-        border-top: 1px solid rgba(0,0,0,0.05);
     }
-
-    /* Ocultar secundarios */
-    .submit-row input { display: none !important; } 
-
-    /* Botón GUARDAR Gigante */
+    .submit-row input { display: none !important; }
     .submit-row input[type="submit"] {
         display: block !important;
         width: 100% !important;
-        background-color: var(--success-color) !important;
+        background: #28a745 !important;
         color: white !important;
-        height: 52px !important;
-        border-radius: var(--radius-md) !important;
-        font-size: 17px !important;
-        font-weight: 700 !important;
-        letter-spacing: 0.5px;
+        height: 50px !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        font-weight: bold;
         text-transform: uppercase;
         border: none !important;
-        box-shadow: 0 4px 10px rgba(52, 199, 89, 0.3);
     }
 }
