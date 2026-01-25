@@ -1,111 +1,111 @@
 /* static/css/mobile_fix.css */
-/* V19: SCROLL LIBRE (BACK TO BASICS) + GRID FIX BOTONES */
+/* V20: SCROLL LIBRE + GRID FIX + TOUCH POLISH */
 
 /* =========================================
-   1. HABILITAR SCROLL (LO QUE PEDISTE)
+   1. RESET GLOBAL Y SCROLL (LÓGICA TUYA)
    ========================================= */
 * {
     box-sizing: border-box !important;
+    -webkit-tap-highlight-color: transparent; /* Elimina flash azul al tocar en Android */
 }
 
 html, body {
     margin: 0 !important;
     padding: 0 !important;
     background-color: #f4f6f9 !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     
-    /* AQUÍ ESTÁ EL CAMBIO: */
-    /* Permitimos que la página sea más ancha que el celular */
-    /* Podrás hacer scroll horizontal si algo no cabe */
-    overflow-x: auto !important; 
-    width: auto !important; 
+    /* LÓGICA CORE: Permitir desborde horizontal natural */
+    overflow-x: auto !important;
+    width: auto !important;
     min-width: 100vw !important;
     position: static !important;
+    -webkit-overflow-scrolling: touch; /* Scroll suave en iOS */
 }
 
-/* Arreglo del margen izquierdo (Para que no empiece cortado) */
+/* Contenedores principales ajustables */
 .content-wrapper, .main-panel, #content, .container-fluid {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
+    margin: 0 !important;
     padding: 10px !important;
     width: 100% !important;
-    max-width: none !important; /* Permitir que crezca si es necesario */
+    max-width: none !important;
 }
 
-/* Header Fijo para navegar */
+/* Header Sticky */
 .main-header {
-    margin-left: 0 !important;
+    margin: 0 !important;
     width: 100% !important;
     position: sticky !important;
     top: 0;
     z-index: 1001;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-/* Ocultar elementos innecesarios */
+/* Ocultar elementos que estorban en móvil */
 .breadcrumb, .main-footer, #content-related { display: none !important; }
 
 
 /* =========================================
-   2. DASHBOARD (COMPORTAMIENTO NATURAL)
+   2. DASHBOARD (TARJETAS)
    ========================================= */
-/* Quitamos todas las reglas que forzaban columnas verticales */
-/* Si el dashboard quiere ser ancho, será ancho y tú harás scroll */
-
 .row {
     margin: 0 !important;
-    /* Dejamos que Bootstrap decida si es flex o block */
+    display: flex !important;
+    flex-wrap: wrap !important;
 }
 
-/* Solo aseguramos que las tarjetas se vean bien */
 .small-box {
     border-radius: 12px !important;
     background: #fff !important;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
     margin-bottom: 15px !important;
     min-height: 80px !important;
     display: flex !important;
     align-items: center !important;
     padding: 15px !important;
     border: 1px solid #e1e1e1;
+    position: relative;
+    overflow: hidden;
 }
-.small-box .inner { width: 100% !important; padding: 0 !important; }
-.small-box h3 { font-size: 20px !important; margin: 0 0 5px 0 !important; color: #2c3e50; }
-.small-box p { font-size: 14px !important; margin: 0 !important; color: #666; font-weight: 600; }
+
+.small-box .inner { width: 100% !important; padding: 0 !important; z-index: 2; }
+.small-box h3 { font-size: 22px !important; margin: 0 0 5px 0 !important; color: #2c3e50; font-weight: 700; }
+.small-box p { font-size: 13px !important; margin: 0 !important; color: #7f8c8d; font-weight: 600; text-transform: uppercase; }
 .small-box .icon, .small-box-footer { display: none !important; }
 
 
 /* =========================================
-   3. BOTONES DE MÓDULOS (PREVENIR SUPERPOSICIÓN)
+   3. BOTONERA SUPERIOR (GRID SYSTEM FIX)
    ========================================= */
-/* Mantenemos el GRID SYSTEM aquí porque es lo único que arregla
-   que los botones de "Agregar" y "Reporte" se encimen */
+/* Usamos CSS Grid para evitar superposiciones */
 
 .object-tools {
     display: grid !important;
-    /* Columnas automáticas de mínimo 140px */
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    /* Ajustado a 130px para asegurar 2 columnas en pantallas de 320px */
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)) !important;
     gap: 10px !important;
     width: 100% !important;
     margin: 15px 0 !important;
     padding: 0 !important;
+    float: none !important;
 }
 
 .object-tools li, .object-tools form {
+    display: block !important;
     width: auto !important;
     margin: 0 !important;
-    display: block !important;
     list-style: none !important;
 }
 
-/* Contenedor de carga de Excel */
+/* Formularios de carga (Excel) */
 .upload-form-container {
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important; /* Dos columnas fijas si caben */
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)) !important; 
     gap: 10px !important;
     width: 100% !important;
 }
 
-/* Estilo de botones */
+/* Estilos unificados de botones */
 .object-tools a, 
 .object-tools button,
 .btn-upload-label,
@@ -114,24 +114,32 @@ html, body {
     justify-content: center !important;
     align-items: center !important;
     width: 100% !important;
-    min-height: 48px !important;
-    height: auto !important; /* Crece si el texto es largo */
+    min-height: 44px !important; /* Altura touch-friendly */
+    height: auto !important;
+    padding: 8px 12px !important;
     border-radius: 8px !important;
-    font-size: 14px !important;
+    font-size: 13px !important;
     font-weight: 700 !important;
     text-align: center !important;
     white-space: normal !important;
-    padding: 5px !important;
+    line-height: 1.2 !important;
     border: none !important;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    text-transform: none !important;
+    text-transform: uppercase !important;
     text-decoration: none !important;
     cursor: pointer;
-    margin: 0 !important;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
-/* Colores */
+/* Efecto al presionar (Feedback Táctil) */
+.object-tools a:active, .object-tools button:active, .btn-submit-excel:active {
+    transform: scale(0.97) !important;
+    box-shadow: none !important;
+}
+
+/* Colores Específicos */
 .object-tools a.addlink { background: #007bff !important; color: white !important; }
+.object-tools a.historylink { background: #6c757d !important; color: white !important; }
 .btn-upload-label { background: #17a2b8 !important; color: white !important; }
 .btn-submit-excel { background: #28a745 !important; color: white !important; }
 
@@ -146,29 +154,35 @@ html, body {
     border-radius: 12px;
     border: 1px solid #eee;
     margin-bottom: 15px !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
+
 input[type="text"], select {
     width: 100% !important;
-    height: 48px !important;
+    height: 45px !important;
     border-radius: 8px !important;
     margin-bottom: 10px !important;
     display: block !important;
-    border: 1px solid #ccc !important;
+    border: 1px solid #ced4da !important;
+    padding: 0 10px !important;
+    font-size: 16px !important; /* Evita zoom automático en iOS */
 }
+
 input[type="submit"] {
     width: 100% !important;
-    height: 48px !important;
+    height: 45px !important;
     background: #343a40 !important;
     color: white !important;
     font-weight: bold;
     text-transform: uppercase;
     border: none !important;
     border-radius: 8px !important;
+    cursor: pointer;
 }
 
 
 /* =========================================
-   5. TABLAS (SCROLL INTERNO)
+   5. TABLA DE DATOS (SCROLL INTERNO)
    ========================================= */
 .card-body.table-responsive {
     display: block !important;
@@ -178,57 +192,64 @@ input[type="submit"] {
     background: white;
     border-radius: 12px;
     padding: 0 !important;
-    margin-bottom: 80px;
+    margin-bottom: 90px; /* Espacio extra para el botón flotante */
     border: 1px solid #eee;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 table.table {
     width: 100% !important;
     margin: 0 !important;
     border-collapse: separate;
+    border-spacing: 0;
 }
 
 table.table th, table.table td {
     white-space: nowrap !important;
-    padding: 15px 10px !important;
+    padding: 14px 12px !important;
     vertical-align: middle !important;
     font-size: 14px !important;
     border-bottom: 1px solid #f0f0f0 !important;
+    border-top: none !important;
 }
 
-/* Header Sticky */
+/* Header Sticky - Congela los títulos arriba */
 table.table thead th {
     background: #f8f9fa !important;
-    color: #333;
-    font-weight: bold;
+    color: #495057;
+    font-weight: 800;
     text-transform: uppercase;
+    font-size: 12px !important;
+    letter-spacing: 0.5px;
     position: sticky;
     top: 0;
     z-index: 20;
+    box-shadow: 0 1px 0 #dee2e6; /* Borde inferior falso para sticky */
 }
 
-/* 1ra Columna Fija */
+/* 1ra Columna Sticky - Congela la izquierda */
 table.table tbody td:first-child {
     position: sticky;
     left: 0;
     background: #fff;
     z-index: 10;
-    border-right: 2px solid #f4f4f4;
-    color: #007bff;
-    font-weight: 700;
+    border-right: 1px solid #dee2e6;
 }
 table.table thead th:first-child {
     position: sticky;
     left: 0;
-    z-index: 21;
+    z-index: 25; /* Mayor que el resto para la esquina */
     background: #f8f9fa;
-    border-right: 2px solid #f4f4f4;
+    border-right: 1px solid #dee2e6;
 }
-table.table td a { color: #333; text-decoration: none; }
-table.table td:first-child a { color: #007bff; }
+
+/* Estilos de enlaces en tabla */
+table.table td a { color: #212529; text-decoration: none; }
+table.table td:first-child a { color: #007bff; font-weight: 700; }
+
 
 /* =========================================
-   6. BOTÓN FLOTANTE
+   6. BOTÓN FLOTANTE "GUARDAR" (FIXED FOOTER)
    ========================================= */
 .submit-row {
     position: fixed !important;
@@ -236,16 +257,25 @@ table.table td:first-child a { color: #007bff; }
     left: 0;
     width: 100% !important;
     background: white !important;
-    padding: 10px !important;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    padding: 12px 15px !important;
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
     z-index: 9999;
     display: flex;
+    justify-content: space-between;
+    
+    /* Soporte para iPhone X/11/12/13/14 (Safe Area Bottom) */
+    padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
 }
+
+.submit-row p.deletelink-box {
+    display: none !important; /* Ocultar botón borrar para evitar accidentes en móvil */
+}
+
 .submit-row input { display: none !important; }
 .submit-row input[type="submit"] {
     display: block !important;
     width: 100% !important;
-    background: #28a745 !important;
+    background: linear-gradient(180deg, #2ecc71 0%, #27ae60 100%) !important;
     color: white !important;
     height: 50px !important;
     border-radius: 8px !important;
@@ -253,4 +283,9 @@ table.table td:first-child a { color: #007bff; }
     font-weight: bold;
     text-transform: uppercase;
     border: none !important;
+    box-shadow: 0 4px 6px rgba(46, 204, 113, 0.3);
+}
+
+.submit-row input[type="submit"]:active {
+    transform: scale(0.98);
 }
