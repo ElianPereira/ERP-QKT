@@ -1,219 +1,269 @@
 /* static/css/mobile_fix.css */
-/* VERSIÓN V6 - FULL SCREEN FIX & MAX SPACE */
+/* VERSIÓN V7 - UNIFORMIDAD TOTAL Y FIX DE SCROLL */
 
 @media screen and (max-width: 992px) {
 
     /* =========================================
-       1. CORRECCIÓN DEL "NO PUEDO MOVERME A LA IZQUIERDA"
+       1. FIX DE SCROLL DEL DASHBOARD (CRÍTICO)
        ========================================= */
     html, body {
-        overflow-x: hidden !important; /* Evita el scroll horizontal general */
+        /* Permitimos scroll si algo se sale, pero intentamos contenerlo */
+        overflow-x: auto !important; 
         background-color: #f4f6f9 !important;
-        width: 100vw !important; /* Forzar al ancho del dispositivo */
-        position: relative;
+        width: 100% !important;
+        min-height: 100vh;
     }
 
-    /* AQUÍ ESTÁ LA SOLUCIÓN AL CORTE DE PANTALLA:
-       Forzamos a que el contenedor principal NO tenga margen izquierdo 
-       (Jazzmin suele dejar 230px aquí pensando que está el menú) */
+    /* Forzamos a que el contenido principal no tenga margen izquierdo */
     .content-wrapper, .main-panel, #content {
         margin-left: 0 !important;
-        margin-right: 0 !important;
-        padding: 5px !important; /* Padding mínimo para aprovechar pantalla */
-        width: 100% !important;
-        max-width: 100% !important;
+        padding: 10px !important;
+        width: 100vw !important; /* Usar Viewport Width */
+        max-width: 100vw !important;
         box-sizing: border-box !important;
     }
 
-    /* Ocultar elementos que roban espacio */
-    .breadcrumb, #content-related, .main-footer {
+    /* Ocultamos elementos que suelen romper el ancho */
+    .breadcrumb, .main-footer, #content-related {
         display: none !important;
     }
 
-    /* Contenedor fluido sin rellenos extra */
     .container-fluid {
         padding: 0 !important;
+        overflow: hidden !important; /* Contiene hijos rebeldes */
     }
 
-    /* Títulos compactos */
     h1 {
-        font-size: 20px !important;
-        margin: 10px 0 15px 0 !important;
+        font-size: 22px !important;
         text-align: center;
         color: #2c3e50;
+        margin: 15px 0 20px 0 !important;
         font-weight: 800;
     }
 
     /* =========================================
-       2. DASHBOARD (TABLERO) - GRID ESTRICTA 2 COL
+       2. DASHBOARD - TARJETAS ORDENADAS
        ========================================= */
-    /* Reseteo de filas para que no se salgan */
+    /* Forzamos una columna vertical para que nada se corte a la derecha */
     .row {
-        margin-left: -2px !important;
-        margin-right: -2px !important;
+        margin: 0 !important;
+        width: 100% !important;
         display: flex !important;
         flex-wrap: wrap !important;
-        width: calc(100% + 4px) !important;
     }
 
-    /* CADA BOTÓN OCUPA EXACTAMENTE EL 50% */
-    .col-lg-3, .col-md-3, .col-sm-6, .col-6, .col-xs-6 {
+    /* Botones de Arriba (2 por fila) */
+    .col-lg-3, .col-6 {
         flex: 0 0 50% !important;
         max-width: 50% !important;
-        padding: 3px !important; /* Espacio muy pequeño entre botones */
-        margin: 0 !important;
-    }
-    
-    /* Excepción: Filas completas (Gráficas o Tarjetas de Dinero si quieres) */
-    .col-lg-12, .col-md-12, .col-12 {
-        flex: 0 0 100% !important;
-        max-width: 100% !important;
-        padding: 3px !important;
+        padding: 5px !important;
     }
 
-    /* ESTILO DE LOS BOTONES (SMALL BOX) */
+    /* Tarjetas de Agenda, Gráficas y Dinero (1 por fila para que se vean bien) */
+    /* Esto soluciona que la Agenda Rápida salga cortada */
+    .col-lg-4, .col-md-6, .col-sm-12, .col-12 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+        padding: 5px !important;
+    }
+
     .small-box {
         border-radius: 12px !important;
         background: #fff !important;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.08) !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
         margin-bottom: 0 !important;
-        height: 110px !important; /* Altura fija para uniformidad */
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        padding: 10px 5px !important;
-        text-align: center !important;
+        min-height: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
     }
-    
-    .small-box .inner { padding: 0 !important; width: 100%; }
-    
-    .small-box h3 {
-        font-size: 26px !important; 
-        color: #2c3e50;
-        margin-bottom: 5px !important;
-    }
-    
-    .small-box p {
-        font-size: 12px !important;
-        font-weight: 700 !important;
-        color: #555;
-        line-height: 1.1 !important;
-        white-space: normal !important; /* Permite 2 lineas de texto */
-        margin: 0 !important;
-    }
-    
+    .small-box .inner { padding: 10px !important; }
+    .small-box h3 { font-size: 24px !important; margin-bottom: 5px !important; }
+    .small-box p { font-size: 13px !important; white-space: normal !important; line-height: 1.2 !important; margin: 0 !important;}
     .small-box .icon, .small-box-footer { display: none !important; }
 
-    /* ESTILO DE TARJETAS DE DINERO (KPIs) */
-    /* Diferenciamos las tarjetas que muestran $ para que se vean mejor */
-    /* Si el div tiene clase .bg-success, .bg-danger, etc, lo hacemos ancho completo */
-    /* (Nota: Depende de cómo jazzmin renderice clases, pero forzaremos estilo limpio) */
 
     /* =========================================
-       3. TABLAS (LISTADOS) - AHORA MÁS GRANDES
+       3. FILTROS Y BUSCADORES (UNIFORMIDAD)
        ========================================= */
-    /* Quitamos márgenes y rellenos del contenedor de la tabla */
-    .card-body.table-responsive {
+    /* Contenedor de filtros */
+    #changelist-filter {
+        position: static !important;
         width: 100% !important;
-        background: white;
-        border-radius: 8px; /* Bordes menos redondeados para ganar espacio */
-        margin-bottom: 80px; /* Espacio para el botón flotante */
-        padding: 0 !important;
-        border: 1px solid #e1e1e1;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        background: #fff !important;
+        margin: 15px 0 !important;
+        padding: 15px !important;
+        border-radius: 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border: 1px solid #eee;
     }
 
+    #changelist-filter h2 {
+        font-size: 16px !important;
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 15px !important;
+    }
+
+    /* REGLA DE ORO: Todo al 100% de ancho y misma altura */
+    #changelist-filter select, 
+    #changelist-search input[type="text"],
+    #changelist-filter input[type="text"] {
+        width: 100% !important;
+        height: 50px !important; /* Altura uniforme */
+        margin-bottom: 10px !important;
+        border-radius: 8px !important;
+        border: 1px solid #ced4da !important;
+        font-size: 16px !important;
+        padding: 0 10px;
+        box-sizing: border-box !important;
+    }
+
+    /* Botón BUSCAR (dentro de filtros) */
+    #changelist-search input[type="submit"],
+    #changelist-filter input[type="submit"] {
+        width: 100% !important; /* Botón ancho completo */
+        height: 50px !important;
+        background-color: #34495e !important; /* Gris oscuro elegante */
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-top: 5px !important;
+    }
+
+    /* Ocultar etiquetas pequeñas de "By periodo" para limpiar */
+    #changelist-filter h3 {
+        font-size: 14px !important;
+        color: #666;
+        margin-bottom: 5px !important;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    /* =========================================
+       4. BOTONES DE ACCIÓN SUPERIORES (Agregar, Cargar, etc)
+       ========================================= */
+    /* Contenedor de botones (Object Tools) */
+    .object-tools {
+        margin: 0 0 20px 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important; /* Uno debajo del otro (Pila) */
+        gap: 10px !important; /* Espacio uniforme entre botones */
+    }
+
+    .object-tools li {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        height: auto !important;
+    }
+
+    /* ESTILO UNIFICADO PARA TODOS LOS BOTONES SUPERIORES */
+    .object-tools a, 
+    .object-tools button,
+    .btn-submit-excel,
+    .btn-upload-label {
+        display: flex !important;
+        justify-content: center;
+        align-items: center;
+        width: 100% !important; /* Ancho completo */
+        height: 50px !important; /* Altura idéntica a los inputs */
+        padding: 0 !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        text-transform: none !important; /* Texto normal, no todo mayúsculas */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        border: none !important;
+        background-image: none !important;
+    }
+
+    /* Colores específicos pero misma forma */
+    .object-tools a.addlink { background-color: #2980b9 !important; color: white !important; } /* Azul Agregar */
+    .btn-upload-label { background-color: #17a2b8 !important; color: white !important; margin:0 !important;} /* Azulito Elegir */
+    .btn-submit-excel { background-color: #27ae60 !important; color: white !important; margin:0 !important;} /* Verde Cargar */
+
+    /* Iconos dentro de botones */
+    .object-tools a i, .btn i { margin-right: 8px !important; }
+
+
+    /* =========================================
+       5. TABLAS (LISTADOS)
+       ========================================= */
+    .card-body.table-responsive {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border: 1px solid #eee;
+        padding: 0 !important;
+        margin-bottom: 80px;
+    }
+    
     table.table { margin: 0 !important; width: 100% !important; }
 
-    /* Encabezados Compactos */
+    /* Encabezados */
     table.table thead th {
         background-color: #2c3e50 !important;
         color: white !important;
-        padding: 10px 5px !important; /* Menos padding lateral = más datos visibles */
-        font-size: 11px !important;
+        padding: 12px 8px !important;
+        font-size: 12px !important;
         text-transform: uppercase;
         border: none !important;
         white-space: nowrap;
     }
 
-    /* Celdas Compactas */
+    /* Celdas */
     table.table tbody td {
-        padding: 12px 6px !important; /* Maximizamos espacio reduciendo padding */
-        font-size: 13px !important; /* Letra legible */
-        border-bottom: 1px solid #eee !important;
+        padding: 12px 8px !important;
+        font-size: 14px !important;
+        border-bottom: 1px solid #f0f0f0 !important;
         white-space: nowrap;
         color: #333;
+        vertical-align: middle !important;
     }
 
-    /* PRIMERA COLUMNA FIJA (STICKY) */
+    /* Primera Columna Sticky */
     table.table tbody td:first-child {
         position: sticky;
         left: 0;
         z-index: 10;
         background-color: #fff !important;
-        border-right: 2px solid #ddd; /* Borde más visible para separar */
+        border-right: 2px solid #e1e1e1;
         font-weight: 700 !important;
         color: #2980b9 !important;
-        width: auto !important;
-        min-width: 100px; /* Asegura que el nombre se lea */
     }
     table.table thead th:first-child {
         position: sticky;
         left: 0;
         z-index: 11;
-        min-width: 100px;
-    }
-
-    /* Botones pequeños en tabla */
-    table.table .btn {
-        padding: 4px 8px !important;
-        font-size: 10px !important;
-        margin: 1px !important;
     }
     
-    /* Arreglo enlaces numéricos */
+    /* Links numéricos */
     table.table tbody td a { color: #333 !important; text-decoration: none !important; }
     table.table tbody td:first-child a { color: #2980b9 !important; }
 
-    /* =========================================
-       4. FORMULARIOS - ESPACIO MÁXIMO
-       ========================================= */
-    .card-body {
-        padding: 10px !important; /* Menos relleno interno */
-    }
-    
-    .form-group label {
-        font-size: 13px !important;
-        font-weight: 700 !important;
-        color: #666;
-        margin-bottom: 5px !important;
-    }
-    
-    input[type="text"], input[type="number"], select, textarea {
-        height: 48px !important;
-        border-radius: 8px !important;
-        font-size: 16px !important;
-        padding: 0 10px !important;
-        width: 100% !important;
-        background: #fff !important;
-        border: 1px solid #ccc !important;
-    }
-    
-    /* Select2 */
-    .select2-container .select2-selection--single {
-        height: 48px !important;
-        border-radius: 8px !important;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 48px !important;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 46px !important;
+    /* Botones pequeños en tabla */
+    table.table .btn {
+        padding: 5px 10px !important;
+        font-size: 11px !important;
+        border-radius: 4px !important;
+        height: auto !important;
+        width: auto !important;
+        display: inline-flex !important;
+        margin: 2px !important;
     }
 
     /* =========================================
-       5. BOTÓN FLOTANTE (SIN CAMBIOS, FUNCIONA BIEN)
+       6. BOTON FLOTANTE DE GUARDAR
        ========================================= */
     .submit-row {
         position: fixed !important;
@@ -221,34 +271,22 @@
         left: 0;
         width: 100%;
         background: white !important;
-        padding: 10px !important;
-        border-top: 1px solid #ccc;
+        padding: 10px 15px !important;
+        border-top: 1px solid #ddd;
         z-index: 99999;
+        display: flex;
     }
     .submit-row input { display: none !important; }
     .submit-row input[type="submit"] {
         display: block !important;
         width: 100% !important;
         background-color: #27ae60 !important;
-        height: 45px !important;
-        border-radius: 8px !important;
         color: white !important;
+        height: 50px !important; /* Altura consistente con todo lo demás */
+        border-radius: 8px !important;
         font-size: 16px !important;
         font-weight: bold;
         text-transform: uppercase;
         border: none;
-    }
-    
-    /* Botón Agregar Principal */
-    .object-tools { margin: 0 0 10px 0 !important; }
-    .object-tools a.btn {
-        display: block;
-        width: 100%;
-        padding: 12px !important;
-        background-color: #2980b9 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        font-size: 15px !important;
-        text-align: center;
     }
 }
