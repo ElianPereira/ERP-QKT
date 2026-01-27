@@ -108,7 +108,6 @@ DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 SERVER_EMAIL = 'quintakooxtanil@gmail.com'
 
 # --- CONFIGURACIÓN NUEVA PARA DJANGO 5+ (STORAGES) ---
-# Aquí definimos Cloudinary para archivos (Media) y WhiteNoise para estilos (Static)
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
@@ -129,6 +128,7 @@ MEDIA_URL = '/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# --- CONFIGURACIÓN DE JAZZMIN (INTERFAZ ADMIN) ---
 JAZZMIN_SETTINGS = {
     "site_title": "ERP Quinta Ko'ox Tanil",
     "site_header": "Sistema de Eventos",
@@ -137,37 +137,57 @@ JAZZMIN_SETTINGS = {
     "copyright": "Quinta Ko'ox Tanil",
     "site_logo": "img/logo.png",
     "login_logo": "img/logo.png",
+    
+    # Menú lateral
     "show_sidebar": True,
-    "navigation_expanded": False,
+    "navigation_expanded": True, # Cambiado a True para ver submenús abiertos
+
+    # Iconos para el menú (FontAwesome)
     "icons": {
         "auth": "fas fa-users-cog",
         "auth.user": "fas fa-user",
+        
+        # Módulo Comercial
+        "comercial.Insumo": "fas fa-cubes",            # Materia Prima
+        "comercial.SubProducto": "fas fa-blender",     # Recetas (Nuevo)
+        "comercial.Producto": "fas fa-box-open",       # Paquetes
         "comercial.Cliente": "fas fa-address-book",
         "comercial.Cotizacion": "fas fa-file-invoice-dollar",
-        "comercial.Insumo": "fas fa-cubes",
         "comercial.Pago": "fas fa-hand-holding-usd",
-        "comercial.Producto": "fas fa-box-open",
+        "comercial.Gasto": "fas fa-money-bill-wave",
+        
+        # Otros Módulos
         "nomina.Empleado": "fas fa-user-tie",
         "nomina.ReciboNomina": "fas fa-file-contract",
         "facturacion.ClienteFiscal": "fas fa-building",
         "facturacion.SolicitudFactura": "fas fa-file-signature",
     },
+
     "topmenu_links": [
         {"name": "Inicio",  "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "📅 Ver Calendario", "url": "ver_calendario"}, 
         {"name": "Ver Sitio", "url": "/"},
     ],
-    "order_with_respect_to": ["comercial", "nomina", "facturacion", "auth"],
+
+    # --- ORDEN LÓGICO DE TRABAJO ---
+    "order_with_respect_to": [
+        # 1. Comercial (El corazón del negocio)
+        "comercial",                    
+        "comercial.Insumo",             # Primero compras
+        "comercial.SubProducto",        # Luego cocinas/preparas
+        "comercial.Producto",           # Luego armas paquetes
+        "comercial.Cliente",            # Llega el cliente
+        "comercial.Cotizacion",         # Le vendes
+        "comercial.Pago",               # Cobras
+        "comercial.Gasto",              # Registras gastos
+        
+        # 2. Otros departamentos
+        "nomina", 
+        "facturacion",
+        "auth",
+    ],
     
-    # --- CSS PERSONALIZADO PARA ARREGLAR MÓVILES ---
     "custom_css": "css/mobile_fix.css",
 }
 
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
-
-# --- DEBUG TEMPLATES ---
-print("--- DEBUG: RUTAS DE TEMPLATES ---")
-print(f"BASE_DIR es: {BASE_DIR}")
-print(f"Buscando templates en: {os.path.join(BASE_DIR, 'templates')}")
-print(f"¿Existe la carpeta?: {os.path.exists(os.path.join(BASE_DIR, 'templates'))}")
-print("---------------------------------")
