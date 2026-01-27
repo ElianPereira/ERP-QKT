@@ -10,7 +10,7 @@ from django.contrib.auth.models import User
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 # ==========================================
-# 1. INSUMOS
+# 1. INSUMOS (NIVEL 1: Materia Prima)
 # ==========================================
 class Insumo(models.Model):
     TIPOS = [
@@ -28,14 +28,44 @@ class Insumo(models.Model):
         return f"{self.nombre} ({self.categoria})"
 
 # ==========================================
-# 2. PRODUCTOS
+# 2. SUBPRODUCTOS (NIVEL 2: Recetas/Platillos)
+# ==========================================
+class SubProducto(models.Model):
+    """ Ej: Una Margarita, Un Platillo de Pollo, Un Centro de Mesa """
+    nombre = models.CharField(max_length=200)
+    descripcion = models.TextField(blank=True)
+    
+    def costo_insumos(self):
+        # Calcula el costo sumando sus insumos
+        total = sum(r.subtotal_costo() for r in self.receta.all())
+        return total
+
+    def __str__(self):
+        return self.nombre
+
+class RecetaSubProducto(models.Model):
+    """ Qué insumos lleva este SubProducto """
+    subproducto = models.ForeignKey(SubProducto, related_name='receta', on_delete=models.CASCADE)
+    insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=4, help_text="Cantidad de insumo por unidad de SubProducto")
+
+    def subtotal_costo(self):
+        return self.insumo.costo_unitario * self.cantidad
+    
+    def __str__(self):
+        return f"{self.subproducto.nombre} <- {self.insumo.nombre}"
+
+# ==========================================
+# 3. PRODUCTOS (NIVEL 3: Paquetes de Venta)
 # ==========================================
 class Producto(models.Model):
+    """ Ej: Barra Libre Premium, Banquete de Bodas (Contiene SubProductos) """
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
     margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
     
     def calcular_costo(self):
+        # Suma el costo de los SubProductos que lo componen
         return sum(c.subtotal_costo() for c in self.componentes.all())
 
     def sugerencia_precio(self):
@@ -46,22 +76,23 @@ class Producto(models.Model):
         return self.nombre
 
 class ComponenteProducto(models.Model):
+    """ Qué SubProductos lleva este Producto Final """
     producto = models.ForeignKey(Producto, related_name='componentes', on_delete=models.CASCADE)
-    insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT)
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
+    subproducto = models.ForeignKey(SubProducto, on_delete=models.PROTECT)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2, help_text="Ej: 50 Margaritas en este paquete")
 
     def subtotal_costo(self):
-        return self.insumo.costo_unitario * self.cantidad
+        return self.subproducto.costo_insumos() * self.cantidad
 
 # ==========================================
-# 3. CLIENTES
+# 4. CLIENTES
 # ==========================================
 class Cliente(models.Model):
     # --- Datos de Contacto ---
     nombre = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
     telefono = models.CharField(max_length=20, blank=True)
-    fecha_registro = models.DateTimeField(auto_now_add=True, help_text="Fecha de creación")
+    fecha_registro = models.DateTimeField(auto_now_add=True)
     origen = models.CharField(max_length=50, choices=[
         ('Instagram', 'Instagram'), ('Facebook', 'Facebook'), ('Google', 'Google'), ('Recomendacion', 'Recomendación'), ('Otro', 'Otro')
     ], default='Otro')
@@ -73,28 +104,24 @@ class Cliente(models.Model):
         ('FISICA', 'Persona Física (Juan Pérez)'),
         ('MORAL', 'Persona Moral (Empresa S.A. de C.V.)'),
     ]
-    tipo_persona = models.CharField(max_length=10, choices=TIPOS_FISCALES, default='FISICA', help_text="Define si lleva Retenciones")
+    tipo_persona = models.CharField(max_length=10, choices=TIPOS_FISCALES, default='FISICA')
     
     rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
-    razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social (Sin Régimen Societario)")
+    razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social")
     codigo_postal_fiscal = models.CharField(max_length=5, blank=True, null=True, verbose_name="C.P. Fiscal")
     
     regimen_fiscal = models.CharField(
         max_length=3, 
         choices=RegimenFiscal.choices, 
-        blank=True, 
-        null=True,
-        default=RegimenFiscal.SIN_OBLIGACIONES_FISCALES,
-        verbose_name="Régimen Fiscal"
+        blank=True, null=True,
+        default=RegimenFiscal.SIN_OBLIGACIONES_FISCALES
     )
 
     uso_cfdi = models.CharField(
         max_length=4, 
         choices=UsoCFDI.choices, 
-        blank=True, 
-        null=True,
-        default=UsoCFDI.GASTOS_EN_GENERAL,
-        verbose_name="Uso de CFDI Habitual"
+        blank=True, null=True,
+        default=UsoCFDI.GASTOS_EN_GENERAL
     )
     
     def __str__(self):
@@ -103,7 +130,7 @@ class Cliente(models.Model):
         return f"{nombre_mostrar} {tipo}"
 
 # ==========================================
-# 4. COTIZACIONES
+# 5. COTIZACIONES
 # ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [
@@ -113,7 +140,9 @@ class Cotizacion(models.Model):
     ]
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
-    producto = models.ForeignKey(Producto, on_delete=models.PROTECT) # Paquete base
+    nombre_evento = models.CharField(max_length=200, help_text="Ej: Boda de Laura y Luis", default="Evento General")
+    
+    # YA NO HAY UN SOLO PRODUCTO BASE. Ahora todo son Ítems.
     
     # --- FECHAS Y HORARIOS ---
     fecha_evento = models.DateField()
@@ -124,10 +153,10 @@ class Cotizacion(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Elaborado por")
 
     # --- CAMPOS FISCALES ---
-    descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Descuento ($)") # <--- NUEVO CAMPO
+    descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Descuento ($)")
     requiere_factura = models.BooleanField(default=False, help_text="Si se marca, calcula IVA y Retenciones")
     
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Precio del servicio ANTES de impuestos")
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Suma de todos los ítems")
     
     # Desglose 
     iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
@@ -141,19 +170,19 @@ class Cotizacion(models.Model):
     
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
 
-    def save(self, *args, **kwargs):
-        # 1. Calcular Base (Subtotal - Descuento)
+    def calcular_totales(self):
+        """ Método auxiliar para recalcular todo desde los items """
+        suma_items = sum(item.subtotal() for item in self.items.all())
+        self.subtotal = suma_items
+        
         base = Decimal(self.subtotal) - Decimal(self.descuento)
-        if base < 0: base = Decimal('0.00') # Evitar negativos
+        if base < 0: base = Decimal('0.00')
         
         if self.requiere_factura:
-            # A. IVA General (16%) sobre la base ya descontada
             self.iva = base * Decimal('0.16')
-            
-            # B. Retenciones (Solo ISR)
             if self.cliente.tipo_persona == 'MORAL':
-                self.retencion_isr = base * Decimal('0.0125') # 1.25% ISR (RESICO)
-                self.retencion_iva = Decimal('0.00')          # SIN Retención de IVA
+                self.retencion_isr = base * Decimal('0.0125')
+                self.retencion_iva = Decimal('0.00')
             else:
                 self.retencion_isr = Decimal('0.00')
                 self.retencion_iva = Decimal('0.00')
@@ -162,10 +191,20 @@ class Cotizacion(models.Model):
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
             
-        # 2. Cálculo Final
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
-        
+
+    def save(self, *args, **kwargs):
+        # Primero guardamos para tener ID (si es nueva)
+        es_nueva = self.pk is None
         super().save(*args, **kwargs)
+        
+        # Si no es nueva, recalculamos totales (por si cambiaron flags de factura)
+        # Nota: El cálculo fuerte ocurre al guardar los Items o al dar "Guardar" en el admin
+        if not es_nueva:
+             # Este save interno es peligroso si se llama recursivamente, 
+             # por eso calculamos pero usamos update() o controlamos la recursión.
+             # Para simplificar en Django Admin, el cálculo lo haremos en el AdminView o Item.save
+             pass
 
     def total_pagado(self):
         resultado = self.pagos.aggregate(Sum('monto'))['monto__sum']
@@ -175,30 +214,43 @@ class Cotizacion(models.Model):
         return self.precio_final - self.total_pagado()
 
     def __str__(self):
-        factura = " (Factura)" if self.requiere_factura else ""
-        return f"{self.cliente} - ${self.precio_final}{factura}"
+        return f"{self.cliente} - {self.nombre_evento}"
 
     class Meta:
         verbose_name = "Cotización"
         verbose_name_plural = "Cotizaciones"
 
 # ==========================================
-# 4.1 ÍTEMS DE LA COTIZACIÓN
+# 5.1 ÍTEMS DE LA COTIZACIÓN (Múltiples Productos)
 # ==========================================
 class ItemCotizacion(models.Model):
     cotizacion = models.ForeignKey(Cotizacion, related_name='items', on_delete=models.CASCADE)
-    producto = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True)
-    insumo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True)
+    producto = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Producto (Paquete)")
+    insumo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Insumo Individual (Extra)")
+    
+    descripcion = models.CharField(max_length=255, blank=True, help_text="Opcional: Detalle específico")
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
+        # Auto-asignar precio si viene en 0
         if self.precio_unitario == 0:
             if self.producto:
                 self.precio_unitario = self.producto.sugerencia_precio()
             elif self.insumo:
                 self.precio_unitario = self.insumo.costo_unitario
+        
         super().save(*args, **kwargs)
+        
+        # Disparar actualización de totales en la cotización padre
+        self.cotizacion.calcular_totales()
+        # Usamos update_fields para evitar recursión infinita de signals
+        Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
+            subtotal=self.cotizacion.subtotal,
+            iva=self.cotizacion.iva,
+            retencion_isr=self.cotizacion.retencion_isr,
+            precio_final=self.cotizacion.precio_final
+        )
 
     def subtotal(self):
         return self.cantidad * self.precio_unitario
@@ -208,7 +260,7 @@ class ItemCotizacion(models.Model):
         return f"{self.cantidad} x {nombre}"
 
 # ==========================================
-# 5. PAGOS
+# 6. PAGOS
 # ==========================================
 class Pago(models.Model):
     METODOS = [
@@ -223,10 +275,7 @@ class Pago(models.Model):
         ('OTRO', 'Otro Método'),
     ]
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
-    
-    # --- USUARIO QUE RECIBE EL COBRO ---
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Recibido por")
-    
     fecha_pago = models.DateField(auto_now_add=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo = models.CharField(max_length=20, choices=METODOS)
@@ -236,7 +285,7 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 6. GASTOS
+# 7. GASTOS
 # ==========================================
 class Gasto(models.Model):
     CATEGORIAS = [
@@ -248,11 +297,11 @@ class Gasto(models.Model):
         ('OTRO', 'Otros Gastos'),
     ]
 
-    fecha_gasto = models.DateField(blank=True, null=True, help_text="Si subes XML, se llena sola")
-    descripcion = models.CharField(max_length=255, blank=True, null=True, help_text="Se llena sola con el XML")
-    monto = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Se llena sola con el XML")
+    fecha_gasto = models.DateField(blank=True, null=True)
+    descripcion = models.CharField(max_length=255, blank=True, null=True)
+    monto = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='PROVEEDOR')
-    proveedor = models.CharField(max_length=200, blank=True, help_text="Nombre del Emisor (del XML)")
+    proveedor = models.CharField(max_length=200, blank=True)
     archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True)
     archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True)
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)

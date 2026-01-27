@@ -164,3 +164,10 @@ JAZZMIN_SETTINGS = {
 }
 
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
+
+# --- DEBUG TEMPLATES ---
+print("--- DEBUG: RUTAS DE TEMPLATES ---")
+print(f"BASE_DIR es: {BASE_DIR}")
+print(f"Buscando templates en: {os.path.join(BASE_DIR, 'templates')}")
+print(f"¿Existe la carpeta?: {os.path.exists(os.path.join(BASE_DIR, 'templates'))}")
+print("---------------------------------")

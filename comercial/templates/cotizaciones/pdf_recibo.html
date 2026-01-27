@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <title>Cotización #{{ cotizacion.id }}</title>
     <style>
-        /* --- ESTILOS UNIFICADOS (BRANDING QKT) --- */
         @page { size: letter; margin: 1.5cm; }
         body { 
             font-family: 'Helvetica', sans-serif; 
@@ -52,6 +51,16 @@
         .data-table td:first-child { text-align: left; padding-left: 15px; }
         .data-table td:last-child { text-align: right; padding-right: 15px; }
         .data-table tr:last-child td { border-bottom: none; }
+
+        /* Sub-items (los subproductos dentro del paquete) */
+        .sub-item-row td { 
+            background-color: #fdfdfd; 
+            color: #777; 
+            font-size: 10px; 
+            padding-top: 2px; 
+            padding-bottom: 2px;
+            border-bottom: none;
+        }
 
         /* ABONOS */
         .payments-table { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 10px; }
@@ -116,10 +125,8 @@
                             <td class="card-value" style="text-transform: uppercase;">{{ cotizacion.cliente.nombre }}</td>
                         </tr>
                         <tr>
-                            <td class="card-label">Tipo:</td>
-                            <td class="card-value">
-                                {% if cotizacion.cliente.tipo_persona == 'FISICA' %}Persona Física{% else %}Persona Moral{% endif %}
-                            </td>
+                            <td class="card-label">Evento:</td>
+                            <td class="card-value">{{ cotizacion.nombre_evento }}</td>
                         </tr>
                         <tr>
                             <td class="card-label">Email:</td>
@@ -156,51 +163,40 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 70%">Concepto / Servicios Incluidos</th>
+                <th style="width: 70%">Concepto</th>
                 <th style="width: 15%; text-align: center;">Cantidad</th>
                 <th style="width: 15%; text-align: right;">Importe</th>
             </tr>
         </thead>
         <tbody>
-            <tr style="background-color: #e9ecef; font-weight: bold;">
-                <td>
-                    {{ cotizacion.producto.nombre }}
-                    <br><span style="font-size: 9px; font-weight: normal; color: #666;">Paquete Base Contratado</span>
-                </td>
-                <td style="text-align: center;">1.00</td>
-                <td style="text-align: right;">${{ precio_paquete|floatformat:2|intcomma }}</td>
-            </tr>
-
-            {% for comp in componentes_paquete %}
-            <tr>
-                <td style="padding-left: 30px; color: #555;">
-                    • {{ comp.insumo.nombre }}
-                </td>
-                <td style="text-align: center; color: #555;">{{ comp.cantidad|floatformat:2 }}</td>
-                <td style="text-align: right; font-size: 9px; color: #28a745;"><i>Incluido</i></td>
-            </tr>
-            {% endfor %}
-
-            {% if items_extra %}
-                <tr style="background-color: #f0f0f0;">
-                    <td colspan="3" style="font-weight: bold; font-size: 10px; color: #356685; padding-top: 5px; padding-bottom: 5px;">ADICIONALES / EXTRAS:</td>
-                </tr>
-                {% for item in items_extra %}
-                <tr>
+            {% for item in items %}
+                <tr style="font-weight: bold;">
                     <td>
-                        {% if item.insumo %}
-                            {{ item.insumo.nombre }}
-                        {% elif item.producto %}
-                            {{ item.producto.nombre }} (Extra)
+                        {% if item.producto %}
+                            {{ item.producto.nombre }}
+                            <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Paquete contratado" }}</span>
                         {% else %}
-                            Ítem Adicional
+                            {{ item.insumo.nombre }}
+                            <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Insumo Adicional" }}</span>
                         {% endif %}
                     </td>
                     <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
                     <td style="text-align: right;">${{ item.subtotal|floatformat:2|intcomma }}</td>
                 </tr>
-                {% endfor %}
-            {% endif %}
+
+                {% if item.producto %}
+                    {% for componente in item.producto.componentes.all %}
+                    <tr class="sub-item-row">
+                        <td style="padding-left: 25px;">
+                             • {{ componente.subproducto.nombre }} 
+                             <span style="color: #aaa; font-size: 9px;">(Incluye: {{ componente.cantidad }} pzas/u)</span>
+                        </td>
+                        <td style="text-align: center;">-</td>
+                        <td style="text-align: right; font-size: 9px; color: #28a745;"><i>Incluido</i></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
         </tbody>
     </table>
 
@@ -238,37 +234,37 @@
         <div class="totals-table">
             <div class="total-row">
                 <span style="float:left;">Subtotal Global:</span>
-                <span style="float:right;">${{ subtotal_real|floatformat:2|intcomma }}</span>
+                <span style="float:right;">${{ cotizacion.subtotal|floatformat:2|intcomma }}</span>
                 <div class="clearfix"></div>
             </div>
 
-            {% if descuento > 0 %}
+            {% if cotizacion.descuento > 0 %}
             <div class="total-row" style="color: #d9534f;">
                 <span style="float:left;">(-) Descuento:</span>
-                <span style="float:right;">- ${{ descuento|floatformat:2|intcomma }}</span>
+                <span style="float:right;">- ${{ cotizacion.descuento|floatformat:2|intcomma }}</span>
                 <div class="clearfix"></div>
             </div>
             {% endif %}
 
-            {% if iva_real > 0 %}
+            {% if cotizacion.iva > 0 %}
             <div class="total-row">
                 <span style="float:left;">(+) IVA (16%):</span>
-                <span style="float:right;">${{ iva_real|floatformat:2|intcomma }}</span>
+                <span style="float:right;">${{ cotizacion.iva|floatformat:2|intcomma }}</span>
                 <div class="clearfix"></div>
             </div>
             {% endif %}
 
-            {% if ret_isr_real > 0 %}
+            {% if cotizacion.retencion_isr > 0 %}
             <div class="total-row">
                 <span style="float:left; color:#900;">(-) Retención ISR:</span>
-                <span style="float:right; color:#900;">- ${{ ret_isr_real|floatformat:2|intcomma }}</span>
+                <span style="float:right; color:#900;">- ${{ cotizacion.retencion_isr|floatformat:2|intcomma }}</span>
                 <div class="clearfix"></div>
             </div>
             {% endif %}
             
             <div class="grand-total">
                 <span style="float:left;">PRECIO TOTAL:</span>
-                <span style="float:right;">${{ precio_final_real|floatformat:2|intcomma }}</span>
+                <span style="float:right;">${{ cotizacion.precio_final|floatformat:2|intcomma }}</span>
                 <div class="clearfix"></div>
             </div>
 

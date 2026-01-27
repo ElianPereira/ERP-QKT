@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from django.urls import reverse, NoReverseMatch
 from django.contrib import messages
 from django.db.models import Sum
-from .models import Insumo, Producto, ComponenteProducto, Cliente, Cotizacion, ItemCotizacion, Pago, Gasto
+from .models import Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, Cliente, Cotizacion, ItemCotizacion, Pago, Gasto
 
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
@@ -13,10 +13,27 @@ class InsumoAdmin(admin.ModelAdmin):
     search_fields = ('nombre',)
     list_per_page = 20
 
+# --- NUEVO: ADMIN PARA SUBPRODUCTOS (NIVEL 2) ---
+class RecetaInline(admin.TabularInline):
+    model = RecetaSubProducto
+    extra = 1
+    autocomplete_fields = ['insumo']
+    verbose_name = "Ingrediente / Insumo"
+    verbose_name_plural = "Receta (Insumos necesarios)"
+
+@admin.register(SubProducto)
+class SubProductoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'costo_insumos')
+    inlines = [RecetaInline]
+    search_fields = ('nombre',)
+
+# --- ADMIN PARA PRODUCTOS (NIVEL 3) ---
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto
     extra = 1
-    autocomplete_fields = ['insumo'] 
+    autocomplete_fields = ['subproducto']
+    verbose_name = "SubProducto incluido"
+    verbose_name_plural = "Contenido del Paquete"
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
@@ -45,6 +62,8 @@ class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
     autocomplete_fields = ['producto', 'insumo']
+    fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
+    readonly_fields = ('subtotal',)
 
 class PagoInline(admin.TabularInline):
     model = Pago
@@ -56,15 +75,15 @@ class PagoInline(admin.TabularInline):
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline]
 
-    list_display = ('folio_cotizacion', 'cliente', 'fecha_evento', 'hora_inicio', 'estado', 'precio_final', 'usuario', 'ver_pdf', 'enviar_email_btn')
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'estado', 'precio_final', 'ver_pdf', 'enviar_email_btn')
     
     list_filter = ('estado', 'requiere_factura', 'fecha_evento')
-    search_fields = ('id', 'cliente__nombre', 'cliente__rfc')
-    autocomplete_fields = ['cliente', 'producto'] 
+    search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
+    autocomplete_fields = ['cliente'] 
 
     fieldsets = (
         ('Datos del Evento', {
-            'fields': ('cliente', 'producto', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'estado')
+            'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'estado')
         }),
         ('Finanzas', {
             'fields': ('subtotal', 'descuento', 'requiere_factura') 
@@ -77,17 +96,22 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
     )
     
-    readonly_fields = ('iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn')
 
     def folio_cotizacion(self, obj):
         return f"COT-{obj.id:03d}"
     folio_cotizacion.short_description = "Folio"
-    folio_cotizacion.admin_order_field = 'id'
 
     def save_model(self, request, obj, form, change):
         if not obj.pk:
             obj.usuario = request.user
             
+        # Forzamos el cálculo antes de guardar el modelo padre
+        # (Nota: los inlines se guardan DESPUÉS de save_model, así que el cálculo real 
+        # a veces requiere guardar dos veces o usar signals, pero para simplificar:)
+        obj.calcular_totales()
+        
+        # --- LÓGICA DE STOCK (NUEVA JERARQUÍA) ---
         cotizacion_anterior = None
         if change:
             try:
@@ -100,78 +124,91 @@ class CotizacionAdmin(admin.ModelAdmin):
 
         if obj.estado == 'CONFIRMADA':
             if not cotizacion_anterior or cotizacion_anterior.estado != 'CONFIRMADA':
-                recalcular_stock = True
-            elif cotizacion_anterior and cotizacion_anterior.producto != obj.producto:
-                devolver_stock_anterior = True
-                recalcular_stock = True
+                recalcular_stock = True # Confirmación nueva
 
+        if cotizacion_anterior and cotizacion_anterior.estado == 'CONFIRMADA' and obj.estado != 'CONFIRMADA':
+            devolver_stock_anterior = True # Cancelación
+
+        # 1. DEVOLUCIÓN DE STOCK (Si se cancela)
         if devolver_stock_anterior:
-            for componente in cotizacion_anterior.producto.componentes.all():
-                if componente.insumo.categoria == 'CONSUMIBLE':
-                    componente.insumo.cantidad_stock += componente.cantidad
-                    componente.insumo.save()
-            messages.info(request, f"🔄 Stock devuelto del paquete anterior: {cotizacion_anterior.producto.nombre}")
+            self._ajustar_stock(cotizacion_anterior, operacion='sumar')
+            messages.info(request, f"🔄 Stock devuelto por cancelación de: {cotizacion_anterior.nombre_evento}")
 
+        # 2. DESCUENTO DE STOCK (Si se confirma)
         if recalcular_stock:
-            errores_logistica = []
-            producto = obj.producto
-            
-            for componente in producto.componentes.all():
-                insumo = componente.insumo
-                cantidad_necesaria = componente.cantidad
-
-                if insumo.categoria in ['MOBILIARIO', 'SERVICIO']:
-                    usado_ese_dia = ComponenteProducto.objects.filter(
-                        producto__cotizacion__fecha_evento=obj.fecha_evento,
-                        producto__cotizacion__estado='CONFIRMADA',
-                        insumo=insumo
-                    ).exclude(
-                        producto__cotizacion__id=obj.id 
-                    ).aggregate(Sum('cantidad'))['cantidad__sum'] or 0
-                    
-                    disponible_real = insumo.cantidad_stock - usado_ese_dia
-                    
-                    if disponible_real < cantidad_necesaria:
-                        errores_logistica.append(
-                            f"{insumo.nombre} (Stock Total: {insumo.cantidad_stock}, Ocupado hoy: {usado_ese_dia}, Faltan: {cantidad_necesaria - disponible_real})"
-                        )
-
-                elif insumo.categoria == 'CONSUMIBLE':
-                    if insumo.cantidad_stock < cantidad_necesaria:
-                        messages.warning(request, f"⚠️ OJO: {insumo.nombre} quedó en negativo (Stock actual: {insumo.cantidad_stock}).")
-                    
-                    insumo.cantidad_stock -= cantidad_necesaria
-                    insumo.save()
-
-            if errores_logistica:
-                messages.error(request, f"⛔ NO SE PUEDE CONFIRMAR: Falta logística para el {obj.fecha_evento}: {', '.join(errores_logistica)}")
+            errores = self._validar_stock(obj)
+            if errores:
+                messages.error(request, f"⛔ NO SE PUEDE CONFIRMAR: {', '.join(errores)}")
                 obj.estado = 'BORRADOR'
             else:
-                messages.success(request, f"✅ Evento Confirmado: {producto.nombre}. Recursos asignados correctamente.")
-
-        elif cotizacion_anterior and cotizacion_anterior.estado == 'CONFIRMADA' and obj.estado != 'CONFIRMADA':
-            for componente in cotizacion_anterior.producto.componentes.all():
-                if componente.insumo.categoria == 'CONSUMIBLE':
-                    componente.insumo.cantidad_stock += componente.cantidad
-                    componente.insumo.save()
-            messages.info(request, "ℹ️ Evento cancelado/pospuesto. Consumibles devueltos al stock.")
+                self._ajustar_stock(obj, operacion='restar')
+                messages.success(request, f"✅ Evento Confirmado. Stock descontado correctamente.")
 
         super().save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
-        
-        # --- BORRADO INLINES ---
         for obj in formset.deleted_objects:
             obj.delete()
-        # -----------------------
-
         for instance in instances:
-            if isinstance(instance, Pago):
-                if not instance.pk:
-                    instance.usuario = request.user
+            if isinstance(instance, Pago) and not instance.pk:
+                instance.usuario = request.user
             instance.save()
         formset.save_m2m()
+        
+        # Recalcular totales después de guardar los items
+        if isinstance(formset.instance, Cotizacion):
+            formset.instance.calcular_totales()
+            formset.instance.save()
+
+    # --- HELPERS PARA GESTIÓN DE STOCK RECURSIVO ---
+    
+    def _desglosar_insumos(self, cotizacion):
+        """ Retorna un diccionario {insumo_id: cantidad_total_necesaria} recorriendo todo el árbol """
+        necesidades = {}
+        
+        for item in cotizacion.items.all():
+            cantidad_item = item.cantidad
+            
+            # CASO A: Ítem es un Producto (Paquete)
+            if item.producto:
+                for comp in item.producto.componentes.all(): # Nivel 2: SubProductos
+                    subproducto = comp.subproducto
+                    cantidad_sub = comp.cantidad * cantidad_item
+                    
+                    for receta in subproducto.receta.all(): # Nivel 1: Insumos
+                        insumo = receta.insumo
+                        total_insumo = receta.cantidad * cantidad_sub
+                        
+                        if insumo.categoria == 'CONSUMIBLE':
+                            necesidades[insumo.id] = necesidades.get(insumo.id, 0) + total_insumo
+
+            # CASO B: Ítem es un Insumo directo (Extra)
+            elif item.insumo:
+                if item.insumo.categoria == 'CONSUMIBLE':
+                     necesidades[item.insumo.id] = necesidades.get(item.insumo.id, 0) + item.cantidad
+
+        return necesidades
+
+    def _validar_stock(self, cotizacion):
+        errores = []
+        necesidades = self._desglosar_insumos(cotizacion)
+        
+        for insumo_id, cantidad in necesidades.items():
+            insumo = Insumo.objects.get(id=insumo_id)
+            if insumo.cantidad_stock < cantidad:
+                errores.append(f"{insumo.nombre} (Stock: {insumo.cantidad_stock}, Requiere: {cantidad})")
+        return errores
+
+    def _ajustar_stock(self, cotizacion, operacion):
+        necesidades = self._desglosar_insumos(cotizacion)
+        for insumo_id, cantidad in necesidades.items():
+            insumo = Insumo.objects.get(id=insumo_id)
+            if operacion == 'sumar':
+                insumo.cantidad_stock += cantidad
+            else:
+                insumo.cantidad_stock -= cantidad
+            insumo.save()
 
     # --- BOTONES DE ACCIÓN ---
     def ver_pdf(self, obj):
@@ -180,11 +217,9 @@ class CotizacionAdmin(admin.ModelAdmin):
                 url_pdf = reverse('cotizacion_pdf', args=[obj.id])
                 return format_html(
                     '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
-                    '<i class="fas fa-file-pdf"></i> Ver PDF</a>',
-                    url_pdf
+                    '<i class="fas fa-file-pdf"></i> PDF</a>', url_pdf
                 )
-            except NoReverseMatch:
-                return "Falta URL"
+            except NoReverseMatch: return "-"
         return "-"
     ver_pdf.short_description = "Cotización"
     ver_pdf.allow_tags = True
@@ -195,11 +230,9 @@ class CotizacionAdmin(admin.ModelAdmin):
                 url_email = reverse('cotizacion_email', args=[obj.id])
                 return format_html(
                     '<a href="{}" style="background-color:#28a745; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
-                    '<i class="fas fa-envelope"></i> Enviar</a>',
-                    url_email
+                    '<i class="fas fa-envelope"></i> Enviar</a>', url_email
                 )
-            except NoReverseMatch:
-                return "Falta URL"
+            except NoReverseMatch: return "-"
         return "-"
     enviar_email_btn.short_description = "Email"
     enviar_email_btn.allow_tags = True
@@ -221,7 +254,6 @@ class GastoAdmin(admin.ModelAdmin):
     list_filter = ('fecha_gasto', 'categoria')
     search_fields = ('descripcion', 'proveedor', 'uuid')
     date_hierarchy = 'fecha_gasto'
-    
     readonly_fields = ('uuid', 'proveedor', 'monto', 'fecha_gasto', 'descripcion')
 
     def tiene_xml(self, obj):
@@ -232,8 +264,7 @@ class GastoAdmin(admin.ModelAdmin):
         if obj.archivo_pdf:
             return format_html(
                 '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
-                '<i class="fas fa-file-pdf"></i> PDF</a>',
-                obj.archivo_pdf.url
+                '<i class="fas fa-file-pdf"></i> PDF</a>', obj.archivo_pdf.url
             )
         return "-"
     ver_pdf.short_description = "Comprobante"
