@@ -7,6 +7,7 @@ from django.utils.timezone import now
 from django.contrib.auth.models import User
 
 # --- IMPORTACIÓN DE CATÁLOGOS SAT ---
+# Asegúrate de que esta importación exista en tu proyecto o coméntala si no la usas aún
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 # ==========================================
@@ -142,8 +143,6 @@ class Cotizacion(models.Model):
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
     nombre_evento = models.CharField(max_length=200, help_text="Ej: Boda de Laura y Luis", default="Evento General")
     
-    # YA NO HAY UN SOLO PRODUCTO BASE. Ahora todo son Ítems.
-    
     # --- FECHAS Y HORARIOS ---
     fecha_evento = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True, verbose_name="Hora Inicio")
@@ -172,6 +171,10 @@ class Cotizacion(models.Model):
 
     def calcular_totales(self):
         """ Método auxiliar para recalcular todo desde los items """
+        # --- FIX CRÍTICO: Si no tiene ID (es nueva), no puede tener items aún ---
+        if not self.pk:
+            return 
+            
         suma_items = sum(item.subtotal() for item in self.items.all())
         self.subtotal = suma_items
         
@@ -182,7 +185,7 @@ class Cotizacion(models.Model):
             self.iva = base * Decimal('0.16')
             if self.cliente.tipo_persona == 'MORAL':
                 self.retencion_isr = base * Decimal('0.0125')
-                self.retencion_iva = Decimal('0.00')
+                self.retencion_iva = Decimal('0.00') # Usualmente es 0 o 10.6667% dependiendo el servicio, ajustado a 0 por defecto
             else:
                 self.retencion_isr = Decimal('0.00')
                 self.retencion_iva = Decimal('0.00')
@@ -194,17 +197,8 @@ class Cotizacion(models.Model):
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
 
     def save(self, *args, **kwargs):
-        # Primero guardamos para tener ID (si es nueva)
-        es_nueva = self.pk is None
+        # Guardamos normal. La lógica pesada la maneja el Admin o las Signals
         super().save(*args, **kwargs)
-        
-        # Si no es nueva, recalculamos totales (por si cambiaron flags de factura)
-        # Nota: El cálculo fuerte ocurre al guardar los Items o al dar "Guardar" en el admin
-        if not es_nueva:
-             # Este save interno es peligroso si se llama recursivamente, 
-             # por eso calculamos pero usamos update() o controlamos la recursión.
-             # Para simplificar en Django Admin, el cálculo lo haremos en el AdminView o Item.save
-             pass
 
     def total_pagado(self):
         resultado = self.pagos.aggregate(Sum('monto'))['monto__sum']
@@ -242,15 +236,16 @@ class ItemCotizacion(models.Model):
         
         super().save(*args, **kwargs)
         
-        # Disparar actualización de totales en la cotización padre
-        self.cotizacion.calcular_totales()
-        # Usamos update_fields para evitar recursión infinita de signals
-        Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
-            subtotal=self.cotizacion.subtotal,
-            iva=self.cotizacion.iva,
-            retencion_isr=self.cotizacion.retencion_isr,
-            precio_final=self.cotizacion.precio_final
-        )
+        # Intentamos recalcular el padre, pero protegemos contra recursión infinita
+        if self.cotizacion.pk:
+            self.cotizacion.calcular_totales()
+            Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
+                subtotal=self.cotizacion.subtotal,
+                iva=self.cotizacion.iva,
+                retencion_isr=self.cotizacion.retencion_isr,
+                retencion_iva=self.cotizacion.retencion_iva,
+                precio_final=self.cotizacion.precio_final
+            )
 
     def subtotal(self):
         return self.cantidad * self.precio_unitario

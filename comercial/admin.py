@@ -105,48 +105,23 @@ class CotizacionAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         if not obj.pk:
             obj.usuario = request.user
+            # GUARDAR PRIMERO: Para asegurar que tenga ID
+            super().save_model(request, obj, form, change)
+            # Como es nueva, aún no tiene items guardados (se guardan en save_formset).
+            # Por tanto, no podemos calcular totales ni stock todavía. Salimos.
+            return
+
+        # Si ya existe (EDICIÓN), capturamos el estado anterior para comparar stock
+        try:
+            old_obj = Cotizacion.objects.get(pk=obj.pk)
+            obj._estado_anterior = old_obj.estado
+        except Cotizacion.DoesNotExist:
+            obj._estado_anterior = None
             
-        # Forzamos el cálculo antes de guardar el modelo padre
-        # (Nota: los inlines se guardan DESPUÉS de save_model, así que el cálculo real 
-        # a veces requiere guardar dos veces o usar signals, pero para simplificar:)
-        obj.calcular_totales()
-        
-        # --- LÓGICA DE STOCK (NUEVA JERARQUÍA) ---
-        cotizacion_anterior = None
-        if change:
-            try:
-                cotizacion_anterior = Cotizacion.objects.get(pk=obj.pk)
-            except Cotizacion.DoesNotExist:
-                pass
-
-        recalcular_stock = False
-        devolver_stock_anterior = False
-
-        if obj.estado == 'CONFIRMADA':
-            if not cotizacion_anterior or cotizacion_anterior.estado != 'CONFIRMADA':
-                recalcular_stock = True # Confirmación nueva
-
-        if cotizacion_anterior and cotizacion_anterior.estado == 'CONFIRMADA' and obj.estado != 'CONFIRMADA':
-            devolver_stock_anterior = True # Cancelación
-
-        # 1. DEVOLUCIÓN DE STOCK (Si se cancela)
-        if devolver_stock_anterior:
-            self._ajustar_stock(cotizacion_anterior, operacion='sumar')
-            messages.info(request, f"🔄 Stock devuelto por cancelación de: {cotizacion_anterior.nombre_evento}")
-
-        # 2. DESCUENTO DE STOCK (Si se confirma)
-        if recalcular_stock:
-            errores = self._validar_stock(obj)
-            if errores:
-                messages.error(request, f"⛔ NO SE PUEDE CONFIRMAR: {', '.join(errores)}")
-                obj.estado = 'BORRADOR'
-            else:
-                self._ajustar_stock(obj, operacion='restar')
-                messages.success(request, f"✅ Evento Confirmado. Stock descontado correctamente.")
-
         super().save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
+        # 1. Guardar los items (y pagos) en la base de datos
         instances = formset.save(commit=False)
         for obj in formset.deleted_objects:
             obj.delete()
@@ -156,10 +131,36 @@ class CotizacionAdmin(admin.ModelAdmin):
             instance.save()
         formset.save_m2m()
         
-        # Recalcular totales después de guardar los items
-        if isinstance(formset.instance, Cotizacion):
-            formset.instance.calcular_totales()
-            formset.instance.save()
+        # 2. Ahora que los ítems están guardados, manejamos la lógica del PADRE (Cotización)
+        cotizacion = formset.instance
+        if isinstance(cotizacion, Cotizacion):
+            
+            # A) Calcular totales financieros (ahora sí, con items guardados)
+            cotizacion.calcular_totales()
+            cotizacion.save() # Guardamos los totales actualizados
+            
+            # B) LÓGICA DE STOCK (Controlada aquí para asegurar que los items existen)
+            
+            # Determinar si debemos mover stock
+            estado_nuevo = cotizacion.estado
+            # Recuperamos estado anterior si lo guardamos en save_model, si no asumimos BORRADOR (seguridad)
+            estado_anterior = getattr(cotizacion, '_estado_anterior', 'BORRADOR')
+            
+            # CASO 1: Confirmación de evento (Resta stock)
+            if estado_nuevo == 'CONFIRMADA' and estado_anterior != 'CONFIRMADA':
+                errores = self._validar_stock(cotizacion)
+                if errores:
+                    messages.error(request, f"⛔ NO SE PUEDE CONFIRMAR (Falta Stock): {', '.join(errores)}")
+                    # Revertimos a Borrador para no confirmar algo sin stock
+                    Cotizacion.objects.filter(pk=cotizacion.pk).update(estado='BORRADOR')
+                else:
+                    self._ajustar_stock(cotizacion, operacion='restar')
+                    messages.success(request, f"✅ Evento Confirmado. Stock descontado correctamente.")
+
+            # CASO 2: Cancelación o regreso a Borrador (Devuelve stock)
+            elif estado_anterior == 'CONFIRMADA' and estado_nuevo != 'CONFIRMADA':
+                self._ajustar_stock(cotizacion, operacion='sumar')
+                messages.info(request, f"🔄 Stock devuelto al inventario.")
 
     # --- HELPERS PARA GESTIÓN DE STOCK RECURSIVO ---
     
@@ -186,7 +187,7 @@ class CotizacionAdmin(admin.ModelAdmin):
             # CASO B: Ítem es un Insumo directo (Extra)
             elif item.insumo:
                 if item.insumo.categoria == 'CONSUMIBLE':
-                     necesidades[item.insumo.id] = necesidades.get(item.insumo.id, 0) + item.cantidad
+                      necesidades[item.insumo.id] = necesidades.get(item.insumo.id, 0) + item.cantidad
 
         return necesidades
 
@@ -197,7 +198,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         for insumo_id, cantidad in necesidades.items():
             insumo = Insumo.objects.get(id=insumo_id)
             if insumo.cantidad_stock < cantidad:
-                errores.append(f"{insumo.nombre} (Stock: {insumo.cantidad_stock}, Requiere: {cantidad})")
+                errores.append(f"{insumo.nombre} (Tiene: {insumo.cantidad_stock}, Requiere: {cantidad})")
         return errores
 
     def _ajustar_stock(self, cotizacion, operacion):
