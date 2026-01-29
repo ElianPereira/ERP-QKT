@@ -7,11 +7,10 @@ from django.utils.timezone import now
 from django.contrib.auth.models import User
 
 # --- IMPORTACIÓN DE CATÁLOGOS SAT ---
-# (Asegúrate de tener este archivo o comenta la línea si no usas facturación electrónica aún)
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 # ==========================================
-# 1. INSUMOS (NIVEL 1: Materia Prima)
+# 1. INSUMOS
 # ==========================================
 class Insumo(models.Model):
     TIPOS = [
@@ -29,26 +28,22 @@ class Insumo(models.Model):
         return f"{self.nombre} ({self.categoria})"
 
 # ==========================================
-# 2. SUBPRODUCTOS (NIVEL 2: Recetas/Platillos)
+# 2. SUBPRODUCTOS
 # ==========================================
 class SubProducto(models.Model):
-    """ Ej: Una Margarita, Un Platillo de Pollo, Un Centro de Mesa """
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
     
     def costo_insumos(self):
-        # Calcula el costo sumando sus insumos
-        total = sum(r.subtotal_costo() for r in self.receta.all())
-        return total
+        return sum(r.subtotal_costo() for r in self.receta.all())
 
     def __str__(self):
         return self.nombre
 
 class RecetaSubProducto(models.Model):
-    """ Qué insumos lleva este SubProducto """
     subproducto = models.ForeignKey(SubProducto, related_name='receta', on_delete=models.CASCADE)
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT)
-    cantidad = models.DecimalField(max_digits=10, decimal_places=4, help_text="Cantidad de insumo por unidad de SubProducto")
+    cantidad = models.DecimalField(max_digits=10, decimal_places=4)
 
     def subtotal_costo(self):
         return self.insumo.costo_unitario * self.cantidad
@@ -57,16 +52,14 @@ class RecetaSubProducto(models.Model):
         return f"{self.subproducto.nombre} <- {self.insumo.nombre}"
 
 # ==========================================
-# 3. PRODUCTOS (NIVEL 3: Paquetes de Venta)
+# 3. PRODUCTOS
 # ==========================================
 class Producto(models.Model):
-    """ Ej: Barra Libre Premium, Banquete de Bodas (Contiene SubProductos) """
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
     margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
     
     def calcular_costo(self):
-        # Suma el costo de los SubProductos que lo componen
         return sum(c.subtotal_costo() for c in self.componentes.all())
 
     def sugerencia_precio(self):
@@ -77,10 +70,9 @@ class Producto(models.Model):
         return self.nombre
 
 class ComponenteProducto(models.Model):
-    """ Qué SubProductos lleva este Producto Final """
     producto = models.ForeignKey(Producto, related_name='componentes', on_delete=models.CASCADE)
     subproducto = models.ForeignKey(SubProducto, on_delete=models.PROTECT)
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2, help_text="Ej: 50 Margaritas en este paquete")
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
 
     def subtotal_costo(self):
         return self.subproducto.costo_insumos() * self.cantidad
@@ -89,7 +81,6 @@ class ComponenteProducto(models.Model):
 # 4. CLIENTES
 # ==========================================
 class Cliente(models.Model):
-    # --- Datos de Contacto ---
     nombre = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
     telefono = models.CharField(max_length=20, blank=True)
@@ -98,37 +89,20 @@ class Cliente(models.Model):
         ('Instagram', 'Instagram'), ('Facebook', 'Facebook'), ('Google', 'Google'), ('Recomendacion', 'Recomendación'), ('Otro', 'Otro')
     ], default='Otro')
 
-    # --- Datos Fiscales ---
     es_cliente_fiscal = models.BooleanField(default=False, verbose_name="¿Datos Fiscales Completos?")
-    
     TIPOS_FISCALES = [
-        ('FISICA', 'Persona Física (Juan Pérez)'),
-        ('MORAL', 'Persona Moral (Empresa S.A. de C.V.)'),
+        ('FISICA', 'Persona Física'),
+        ('MORAL', 'Persona Moral'),
     ]
     tipo_persona = models.CharField(max_length=10, choices=TIPOS_FISCALES, default='FISICA')
-    
     rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
     razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social")
     codigo_postal_fiscal = models.CharField(max_length=5, blank=True, null=True, verbose_name="C.P. Fiscal")
-    
-    regimen_fiscal = models.CharField(
-        max_length=3, 
-        choices=RegimenFiscal.choices, 
-        blank=True, null=True,
-        default=RegimenFiscal.SIN_OBLIGACIONES_FISCALES
-    )
-
-    uso_cfdi = models.CharField(
-        max_length=4, 
-        choices=UsoCFDI.choices, 
-        blank=True, null=True,
-        default=UsoCFDI.GASTOS_EN_GENERAL
-    )
+    regimen_fiscal = models.CharField(max_length=3, choices=RegimenFiscal.choices, blank=True, null=True, default=RegimenFiscal.SIN_OBLIGACIONES_FISCALES)
+    uso_cfdi = models.CharField(max_length=4, choices=UsoCFDI.choices, blank=True, null=True, default=UsoCFDI.GASTOS_EN_GENERAL)
     
     def __str__(self):
-        tipo = "(Física)" if self.tipo_persona == 'FISICA' else "(Moral)"
-        nombre_mostrar = self.razon_social if self.razon_social else self.nombre
-        return f"{nombre_mostrar} {tipo}"
+        return self.razon_social if self.razon_social else self.nombre
 
 # ==========================================
 # 5. COTIZACIONES
@@ -141,40 +115,26 @@ class Cotizacion(models.Model):
     ]
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
-    nombre_evento = models.CharField(max_length=200, help_text="Ej: Boda de Laura y Luis", default="Evento General")
-    
-    # --- FECHAS Y HORARIOS ---
+    nombre_evento = models.CharField(max_length=200, default="Evento General")
     fecha_evento = models.DateField()
-    hora_inicio = models.TimeField(null=True, blank=True, verbose_name="Hora Inicio")
-    hora_fin = models.TimeField(null=True, blank=True, verbose_name="Hora Fin")
-
-    # --- DATOS ADMINISTRATIVOS ---
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Elaborado por")
-
-    # --- CAMPOS FISCALES ---
-    descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Descuento ($)")
-    requiere_factura = models.BooleanField(default=False, help_text="Si se marca, calcula IVA y Retenciones")
+    hora_inicio = models.TimeField(null=True, blank=True)
+    hora_fin = models.TimeField(null=True, blank=True)
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    requiere_factura = models.BooleanField(default=False)
     
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Suma de todos los ítems")
-    
-    # Desglose 
-    iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
-    retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
-    retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
-    
-    precio_final = models.DecimalField(max_digits=10, decimal_places=2, editable=False, help_text="Total a Pagar (Neto)")
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    precio_final = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
     created_at = models.DateTimeField(auto_now_add=True)
-    
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
 
     def calcular_totales(self):
-        """ Método auxiliar para recalcular todo desde los items """
-        # Si no tiene ID (es nueva), no puede tener items aún
-        if not self.pk:
-            return 
-            
+        if not self.pk: return 
         suma_items = sum(item.subtotal() for item in self.items.all())
         self.subtotal = suma_items
         
@@ -185,7 +145,7 @@ class Cotizacion(models.Model):
             self.iva = base * Decimal('0.16')
             if self.cliente.tipo_persona == 'MORAL':
                 self.retencion_isr = base * Decimal('0.0125')
-                self.retencion_iva = Decimal('0.00') 
+                self.retencion_iva = Decimal('0.00')
             else:
                 self.retencion_isr = Decimal('0.00')
                 self.retencion_iva = Decimal('0.00')
@@ -197,22 +157,11 @@ class Cotizacion(models.Model):
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
 
     def save(self, *args, **kwargs):
-        # ==============================================================================
-        # FIX CRÍTICO: Prevenir IntegrityError por valores nulos en BD
-        # ==============================================================================
-        if self.subtotal is None:
-            self.subtotal = Decimal('0.00')
-        if self.iva is None:
-            self.iva = Decimal('0.00')
-        if self.retencion_isr is None:
-            self.retencion_isr = Decimal('0.00')
-        if self.retencion_iva is None:
-            self.retencion_iva = Decimal('0.00')
-        if self.precio_final is None:
-            self.precio_final = Decimal('0.00')
-        # ==============================================================================
-
-        # Guardamos normal.
+        if self.subtotal is None: self.subtotal = Decimal('0.00')
+        if self.iva is None: self.iva = Decimal('0.00')
+        if self.retencion_isr is None: self.retencion_isr = Decimal('0.00')
+        if self.retencion_iva is None: self.retencion_iva = Decimal('0.00')
+        if self.precio_final is None: self.precio_final = Decimal('0.00')
         super().save(*args, **kwargs)
 
     def total_pagado(self):
@@ -229,29 +178,19 @@ class Cotizacion(models.Model):
         verbose_name = "Cotización"
         verbose_name_plural = "Cotizaciones"
 
-# ==========================================
-# 5.1 ÍTEMS DE LA COTIZACIÓN (Múltiples Productos)
-# ==========================================
 class ItemCotizacion(models.Model):
     cotizacion = models.ForeignKey(Cotizacion, related_name='items', on_delete=models.CASCADE)
-    producto = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Producto (Paquete)")
-    insumo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Insumo Individual (Extra)")
-    
-    descripcion = models.CharField(max_length=255, blank=True, help_text="Opcional: Detalle específico")
+    producto = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True)
+    insumo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True)
+    descripcion = models.CharField(max_length=255, blank=True)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
-        # Auto-asignar precio si viene en 0
         if self.precio_unitario == 0:
-            if self.producto:
-                self.precio_unitario = self.producto.sugerencia_precio()
-            elif self.insumo:
-                self.precio_unitario = self.insumo.costo_unitario
-        
+            if self.producto: self.precio_unitario = self.producto.sugerencia_precio()
+            elif self.insumo: self.precio_unitario = self.insumo.costo_unitario
         super().save(*args, **kwargs)
-        
-        # Intentamos recalcular el padre, pero protegemos contra recursión infinita
         if self.cotizacion.pk:
             self.cotizacion.calcular_totales()
             Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
@@ -265,13 +204,6 @@ class ItemCotizacion(models.Model):
     def subtotal(self):
         return self.cantidad * self.precio_unitario
 
-    def __str__(self):
-        nombre = self.producto.nombre if self.producto else (self.insumo.nombre if self.insumo else "Ítem")
-        return f"{self.cantidad} x {nombre}"
-
-# ==========================================
-# 6. PAGOS
-# ==========================================
 class Pago(models.Model):
     METODOS = [
         ('EFECTIVO', 'Efectivo'), 
@@ -280,12 +212,12 @@ class Pago(models.Model):
         ('TARJETA_DEBITO', 'Tarjeta de Débito'),
         ('CHEQUE', 'Cheque Nominativo'),
         ('DEPOSITO', 'Depósito Bancario'),
-        ('PLATAFORMA', 'Plataforma (PayPal/Stripe)'),
+        ('PLATAFORMA', 'Plataforma'),
         ('CONDONACION', 'Condonación / Cortesía'),
         ('OTRO', 'Otro Método'),
     ]
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Recibido por")
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     fecha_pago = models.DateField(auto_now_add=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo = models.CharField(max_length=20, choices=METODOS)
@@ -295,67 +227,175 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 7. GASTOS
+# 7. COMPRAS Y GASTOS (MODELO ACTUALIZADO)
 # ==========================================
-class Gasto(models.Model):
-    CATEGORIAS = [
-        ('PROVEEDOR', 'Pago a Proveedor (Hielo, Comida)'),
-        ('NOMINA', 'Pago de Nómina (Meseros, Staff)'),
-        ('SERVICIOS', 'Servicios (Luz, Agua, Gas)'),
-        ('MANTENIMIENTO', 'Mantenimiento Quinta'),
-        ('IMPUESTOS', 'Pago de Impuestos'),
-        ('OTRO', 'Otros Gastos'),
-    ]
 
-    fecha_gasto = models.DateField(blank=True, null=True)
-    descripcion = models.CharField(max_length=255, blank=True, null=True)
-    monto = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='PROVEEDOR')
+class Compra(models.Model):
+    """ Representa la Factura General (El contenedor XML/PDF) """
     proveedor = models.CharField(max_length=200, blank=True)
-    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True)
-    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True)
+    rfc_emisor = models.CharField(max_length=13, blank=True)
+    fecha_emision = models.DateField(blank=True, null=True)
+    
+    # Totales Globales
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    descuento = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    
+    # Archivos
+    archivo_xml = models.FileField(upload_to='xml_compras/')
+    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True)
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
-    evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
-    def clean(self):
-        if self.archivo_xml:
+    def save(self, *args, **kwargs):
+        # 1. Leer cabecera del XML
+        if self.archivo_xml and not self.pk: # Solo al crear
             try:
                 if self.archivo_xml.closed:
-                    self.archivo_xml.open() 
+                    self.archivo_xml.open()
                 self.archivo_xml.seek(0)
                 tree = ET.parse(self.archivo_xml)
                 root = tree.getroot()
+                
                 ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
-                if 'http://www.sat.gob.mx/cfd/3' in root.tag: ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+                if 'http://www.sat.gob.mx/cfd/3' in root.tag: 
+                    ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
 
-                self.monto = root.attrib.get('Total', 0)
+                self.total = Decimal(root.attrib.get('Total', 0))
+                self.subtotal = Decimal(root.attrib.get('SubTotal', 0))
+                self.descuento = Decimal(root.attrib.get('Descuento', 0))
+                
                 fecha_str = root.attrib.get('Fecha', '')
-                if fecha_str: self.fecha_gasto = fecha_str.split('T')[0] 
+                if fecha_str: self.fecha_emision = fecha_str.split('T')[0] 
                 
                 emisor = root.find('cfdi:Emisor', ns)
-                if emisor is not None: self.proveedor = emisor.attrib.get('Nombre', '')
+                if emisor is not None: 
+                    self.proveedor = emisor.attrib.get('Nombre', '')
+                    self.rfc_emisor = emisor.attrib.get('Rfc', '')
 
-                conceptos = root.find('cfdi:Conceptos', ns)
-                if conceptos is not None:
-                    primer_concepto = conceptos.find('cfdi:Concepto', ns)
-                    if primer_concepto is not None:
-                        desc = primer_concepto.attrib.get('Descripcion', '')
-                        self.descripcion = (desc[:250] + '...') if len(desc) > 250 else desc
-
+                # UUID
                 complemento = root.find('cfdi:Complemento', ns)
                 if complemento is not None:
                     ns_tfd = {'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'}
                     timbre = complemento.find('tfd:TimbreFiscalDigital', ns_tfd)
                     if timbre is not None: self.uuid = timbre.attrib.get('UUID', '').upper()
-            except Exception as e:
-                raise ValidationError(f"Error XML: {e}")
-        else:
-            if not self.fecha_gasto or not self.monto:
-                raise ValidationError("Llena los campos manuales.")
+                
+                # Impuestos Globales (Resumen)
+                self.iva = Decimal('0.00')
+                impuestos = root.find('cfdi:Impuestos', ns)
+                if impuestos is not None:
+                    traslados = impuestos.find('cfdi:Traslados', ns)
+                    if traslados is not None:
+                        for t in traslados.findall('cfdi:Traslado', ns):
+                            if t.attrib.get('Impuesto') == '002':
+                                self.iva += Decimal(t.attrib.get('Importe', 0))
+                    
+                    retenciones = impuestos.find('cfdi:Retenciones', ns)
+                    if retenciones is not None:
+                        for r in retenciones.findall('cfdi:Retencion', ns):
+                            imp = r.attrib.get('Impuesto')
+                            val = Decimal(r.attrib.get('Importe', 0))
+                            if imp == '001': self.ret_isr += val
+                            elif imp == '002': self.ret_iva += val
 
-    def save(self, *args, **kwargs):
-        self.full_clean() 
+            except Exception as e:
+                print(f"Error parseando cabecera: {e}")
+
         super().save(*args, **kwargs)
+        
+        # 2. Leer Conceptos y crear Gastos (Hijos)
+        if self.archivo_xml:
+            self._procesar_conceptos_xml()
+
+    def _procesar_conceptos_xml(self):
+        if self.gastos.exists(): return 
+
+        try:
+            if self.archivo_xml.closed:
+                self.archivo_xml.open()
+            self.archivo_xml.seek(0)
+            tree = ET.parse(self.archivo_xml)
+            root = tree.getroot()
+            
+            ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
+            if 'http://www.sat.gob.mx/cfd/3' in root.tag: 
+                ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+            
+            conceptos = root.find('cfdi:Conceptos', ns)
+            if conceptos is not None:
+                for c in conceptos.findall('cfdi:Concepto', ns):
+                    descripcion = c.attrib.get('Descripcion', '')[:250]
+                    cantidad = Decimal(c.attrib.get('Cantidad', 1))
+                    valor_unitario = Decimal(c.attrib.get('ValorUnitario', 0))
+                    importe = Decimal(c.attrib.get('Importe', 0))
+                    clave_sat = c.attrib.get('ClaveProdServ', '')
+                    unidad = c.attrib.get('ClaveUnidad', '')
+                    
+                    # Intentar leer IVA por línea
+                    iva_linea = Decimal('0.00')
+                    impuestos_c = c.find('cfdi:Impuestos', ns)
+                    if impuestos_c:
+                        traslados_c = impuestos_c.find('cfdi:Traslados', ns)
+                        if traslados_c:
+                            for t in traslados_c.findall('cfdi:Traslado', ns):
+                                if t.attrib.get('Impuesto') == '002':
+                                    try: iva_linea += Decimal(t.attrib.get('Importe', 0))
+                                    except: iva_linea = importe * Decimal('0.16')
+
+                    Gasto.objects.create(
+                        compra=self,
+                        descripcion=descripcion,
+                        cantidad=cantidad,
+                        precio_unitario=valor_unitario,
+                        total_linea=importe + iva_linea,
+                        clave_sat=clave_sat,
+                        unidad_medida=unidad,
+                        fecha_gasto=self.fecha_emision,
+                        proveedor=self.proveedor,
+                        categoria='SIN_CLASIFICAR'
+                    )
+        except Exception as e:
+            print(f"Error procesando conceptos: {e}")
 
     def __str__(self):
-        return f"${self.monto} - {self.proveedor}"
+        return f"{self.proveedor} - ${self.total}"
+
+class Gasto(models.Model):
+    CATEGORIAS = [
+        ('SIN_CLASIFICAR', '⚠️ Sin Clasificar'),
+        ('INSUMO_COCINA', 'Insumos Cocina (Carne, Verdura)'),
+        ('BEBIDAS', 'Bebidas y Alcohol'),
+        ('DESECHABLES', 'Desechables y Limpieza'),
+        ('MOBILIARIO_EQ', 'Mobiliario y Equipo'),
+        ('MANTENIMIENTO', 'Mantenimiento y Reparaciones'),
+        ('NOMINA_EXT', 'Servicios Staff Externo'),
+        ('IMPUESTOS', 'Pago de Impuestos'),
+        ('PUBLICIDAD', 'Publicidad y Marketing'),
+        ('COMBUSTIBLE', 'Combustible y Viáticos'),
+        ('OFICINA', 'Papelería y Oficina'),
+        ('OTRO', 'Otros Gastos'),
+    ]
+
+    compra = models.ForeignKey(Compra, related_name='gastos', on_delete=models.CASCADE)
+    
+    descripcion = models.CharField(max_length=255)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_linea = models.DecimalField(max_digits=10, decimal_places=2, default=0) 
+    
+    categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='SIN_CLASIFICAR')
+    evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    clave_sat = models.CharField(max_length=20, blank=True)
+    unidad_medida = models.CharField(max_length=20, blank=True)
+    
+    # Redundancia útil para reportes
+    fecha_gasto = models.DateField(blank=True, null=True)
+    proveedor = models.CharField(max_length=200, blank=True)
+
+    def __str__(self):
+        return f"{self.descripcion} (${self.total_linea})"
