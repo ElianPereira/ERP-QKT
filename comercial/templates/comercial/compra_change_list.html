@@ -5,8 +5,20 @@
     {{ block.super }}
     
     <li>
-        <a href="carga-masiva/" class="addlink" style="background-color: #28a745 !important;">
-            Subir XMLs Masivos
+        <a href="carga-masiva/" style="
+            background-color: #fd7e14; /* Color Naranja */
+            color: white;              /* Texto blanco */
+            padding: 8px 15px;         /* Relleno para darle forma */
+            border-radius: 4px;        /* Bordes redondeados */
+            text-decoration: none;     /* Quitar subrayado de enlace */
+            font-weight: bold;         /* Texto en negrita */
+            display: inline-block;     /* Para que respete el relleno */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Sombra ligera */
+            transition: background-color 0.3s; /* Efecto al pasar el mouse */
+        "
+        onmouseover="this.style.backgroundColor='#e36c0a'" 
+        onmouseout="this.style.backgroundColor='#fd7e14'">
+            <i class="fas fa-file-upload" style="margin-right: 5px;"></i> Subir XMLs Masivos
         </a>
     </li>
 {% endblock %}
