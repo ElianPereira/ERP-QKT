@@ -48,11 +48,18 @@
         .data-table td:last-child { text-align: right; padding-right: 20px; }
         .data-table tr:last-child td { border-bottom: none; }
 
+        /* NUEVA SECCIÓN DE TOTALES CON DESGLOSE */
         .totals-section { margin-top: 20px; width: 100%; }
-        .totals-table { float: right; width: 280px; border: 1px solid #eee; border-radius: 5px; padding: 10px; }
+        .totals-table { float: right; width: 300px; border: 1px solid #eee; border-radius: 5px; padding: 10px; }
+        
+        .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; }
+        .total-row span:first-child { color: #666; font-weight: bold; }
+        .total-row span:last-child { color: #333; }
+        
         .grand-total {
-            background-color: #356685; color: white; padding: 8px; text-align: center;
-            border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 0px;
+            background-color: #356685; color: white; padding: 10px; 
+            border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 8px;
+            display: flex; justify-content: space-between;
         }
     </style>
 </head>
@@ -126,11 +133,11 @@
                         </tr>
                         <tr>
                             <td class="card-label" style="text-align: right;">Método Pago:</td>
-                            <td class="card-value" style="text-align: right;">{{ solicitud.metodo_pago }}</td>
+                            <td class="card-value" style="text-align: right;">{{ solicitud.get_metodo_pago_display }}</td>
                         </tr>
                         <tr>
                             <td class="card-label" style="text-align: right;">Forma Pago:</td>
-                            <td class="card-value" style="text-align: right;">{{ solicitud.forma_pago }}</td>
+                            <td class="card-value" style="text-align: right;">{{ solicitud.get_forma_pago_display }}</td>
                         </tr>
                     </table>
                 </td>
@@ -144,23 +151,44 @@
         <thead>
             <tr>
                 <th>Concepto a Facturar</th>
-                <th>Monto</th>
+                <th>Monto Base (Subtotal)</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>{{ solicitud.concepto }}</td>
-                <td><strong>${{ solicitud.monto|floatformat:2|intcomma }}</strong></td>
+                <td style="text-align: left;">{{ solicitud.concepto }}</td>
+                <td>${{ calc_subtotal|floatformat:2|intcomma }}</td>
             </tr>
         </tbody>
     </table>
 
     <div class="totals-section">
         <div class="totals-table">
+            
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span>${{ calc_subtotal|floatformat:2|intcomma }}</span>
+            </div>
+
+            {% if calc_iva > 0 %}
+            <div class="total-row" style="color: #666;">
+                <span>(+) IVA 16%:</span>
+                <span>${{ calc_iva|floatformat:2|intcomma }}</span>
+            </div>
+            {% endif %}
+
+            {% if calc_ret_isr > 0 %}
+            <div class="total-row" style="color: #c0392b;">
+                <span>(-) Ret. ISR:</span>
+                <span>- ${{ calc_ret_isr|floatformat:2|intcomma }}</span>
+            </div>
+            {% endif %}
+
+            <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
+
             <div class="grand-total">
-                <span style="float:left;">TOTAL FACTURA:</span>
-                <span style="float:right;">${{ solicitud.monto|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
+                <span>TOTAL FACTURA:</span>
+                <span>${{ calc_total|floatformat:2|intcomma }}</span>
             </div>
         </div>
         <div class="clearfix"></div>
