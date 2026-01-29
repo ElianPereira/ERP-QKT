@@ -20,7 +20,8 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion
+# Importamos Compra también
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra
 from .forms import CalculadoraForm
 
 try:
@@ -34,16 +35,18 @@ def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
     hoy = timezone.now()
     
+    # 1. Ventas del Mes (Cotizaciones Confirmadas)
     ventas_mes = Cotizacion.objects.filter(
         estado__in=['CONFIRMADA', 'ACEPTADA'],
         fecha_evento__year=hoy.year,
         fecha_evento__month=hoy.month
     ).aggregate(total=Sum('precio_final'))['total'] or 0
 
-    gastos_mes = Gasto.objects.filter(
-        fecha_gasto__year=hoy.year,
-        fecha_gasto__month=hoy.month
-    ).aggregate(total=Sum('monto'))['total'] or 0
+    # 2. Gastos del Mes (Usamos COMPRA ahora, que tiene el total de la factura)
+    gastos_mes = Compra.objects.filter(
+        fecha_emision__year=hoy.year,
+        fecha_emision__month=hoy.month
+    ).aggregate(total=Sum('total'))['total'] or 0
 
     utilidad_mes = ventas_mes - gastos_mes
 
@@ -54,8 +57,11 @@ def ver_dashboard_kpis(request):
     proximo_evento = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento').first()
     ultimos_eventos = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento')[:5]
 
+    # Gráficas
     ventas_data = Cotizacion.objects.filter(estado='CONFIRMADA').annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
-    gastos_data = Gasto.objects.annotate(mes=TruncMonth('fecha_gasto')).values('mes').annotate(total=Sum('monto')).order_by('mes')
+    
+    # Actualizado: Agrupamos COMPRAS por mes
+    gastos_data = Compra.objects.annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
 
     grafica_final = {}
     for v in ventas_data:
@@ -146,7 +152,7 @@ def obtener_contexto_cotizacion(cotizacion):
 
     return {
         'cotizacion': cotizacion,
-        'items': cotizacion.items.all(), # AHORA MANDAMOS TODOS LOS ITEMS
+        'items': cotizacion.items.all(), 
         'logo_url': logo_url,
         'total_pagado': cotizacion.total_pagado(),
         'saldo_pendiente': cotizacion.saldo_pendiente()
@@ -193,7 +199,7 @@ def enviar_cotizacion_email(request, cotizacion_id):
 
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
-# --- CALENDARIO (Visualiza Nombre Evento en vez de Producto) ---
+# --- CALENDARIO ---
 def ver_calendario(request):
     cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA')
     eventos_lista = []
@@ -207,37 +213,40 @@ def ver_calendario(request):
         })
     return render(request, 'admin/calendario.html', {'eventos_json': json.dumps(eventos_lista, cls=DjangoJSONEncoder)})
 
-# --- RESTO DE VISTAS IGUALES (Calculadora, Excel, Reporte Ventas) ---
-# (Se mantienen igual, solo recuerda que Reporte Ventas ya usaba precio_final que sigue existiendo)
+# --- EXPORTAR EXCEL (Actualizado para Compra) ---
 @staff_member_required
 def exportar_cierre_excel(request):
-    # (Código igual al anterior, solo cambia Cotizacion imports si fuera necesario)
     if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()):
         return redirect('/admin/')
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     hoy = timezone.now()
     response['Content-Disposition'] = f'attachment; filename="Contabilidad_{hoy.strftime("%B_%Y")}.xlsx"'
     wb = openpyxl.Workbook()
+    
+    # 1. Ingresos (Pagos de Clientes)
     ws_ingresos = wb.active
     ws_ingresos.title = "Ingresos"
     ws_ingresos.append(['Fecha', 'Cliente', 'Monto', 'Metodo'])
     for p in Pago.objects.filter(fecha_pago__month=hoy.month):
         ws_ingresos.append([p.fecha_pago, p.cotizacion.cliente.nombre, p.monto, p.metodo])
+    
+    # 2. Gastos (Usamos Compras ahora)
     ws_gastos = wb.create_sheet(title="Gastos")
-    ws_gastos.append(['Fecha', 'Proveedor', 'Monto'])
-    for g in Gasto.objects.filter(fecha_gasto__month=hoy.month):
-        ws_gastos.append([g.fecha_gasto, g.proveedor, g.monto])
+    ws_gastos.append(['Fecha', 'Proveedor', 'Total Factura', 'RFC Emisor'])
+    for c in Compra.objects.filter(fecha_emision__month=hoy.month):
+        ws_gastos.append([c.fecha_emision, c.proveedor, c.total, c.rfc_emisor])
+        
     wb.save(response)
     return response
 
+# --- REPORTE COTIZACIONES (Actualizado Gasto Set) ---
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
-    # (Código igual al anterior, ya actualizado con base_real)
     if request.method == 'POST':
         fecha_inicio = request.POST.get('fecha_inicio')
         fecha_fin = request.POST.get('fecha_fin')
         estado = request.POST.get('estado')
-        cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento') # Removed .select_related('producto')
+        cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento')
         if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
         if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
         if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
@@ -248,7 +257,10 @@ def exportar_reporte_cotizaciones(request):
         
         for c in cotizaciones:
             pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-            gastos = c.gasto_set.aggregate(total=Sum('monto'))['total'] or 0
+            
+            # Actualizado: Sumamos 'total_linea' de los gastos asociados a este evento
+            gastos = c.gasto_set.aggregate(total=Sum('total_linea'))['total'] or 0
+            
             base_real = c.subtotal - c.descuento
             
             t_subtotal += c.subtotal
@@ -262,7 +274,7 @@ def exportar_reporte_cotizaciones(request):
 
             datos_tabla.append({
                 'folio': c.id, 'fecha': c.fecha_evento, 'cliente': c.cliente.nombre,
-                'producto': c.nombre_evento, # Usamos nombre evento
+                'producto': c.nombre_evento, 
                 'estado': c.get_estado_display(),
                 'subtotal': c.subtotal, 'descuento': c.descuento, 'base_real': base_real,
                 'iva': c.iva, 'isr': c.retencion_isr, 'total': c.precio_final,
@@ -296,7 +308,6 @@ def exportar_reporte_cotizaciones(request):
 
 @staff_member_required
 def calculadora_insumos(request):
-    # (Sin cambios a la lógica básica, aunque podría mejorarse con los subproductos después)
     resultado = None
     if request.method == 'POST':
         form = CalculadoraForm(request.POST)
@@ -332,9 +343,6 @@ def calculadora_insumos(request):
     else:
         form = CalculadoraForm()
     return render(request, 'admin/calculadora.html', {'form': form, 'resultado': resultado})
-
-
-# ... (todo lo anterior)
 
 @staff_member_required
 def forzar_migracion(request):
