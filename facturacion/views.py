@@ -1,13 +1,15 @@
 import os
+from decimal import Decimal
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
 from django.contrib.admin.views.decorators import staff_member_required
+from weasyprint import HTML
+
 from .models import SolicitudFactura
 from comercial.models import Cliente, Cotizacion
-from weasyprint import HTML
 
 @staff_member_required
 def crear_solicitud(request):
@@ -24,6 +26,7 @@ def crear_solicitud(request):
             if cotizacion_id:
                 cotizacion_obj = get_object_or_404(Cotizacion, id=cotizacion_id)
             
+            # 1. Actualizamos datos fiscales del cliente
             cliente.rfc = request.POST.get('rfc').upper().strip()
             cliente.razon_social = request.POST.get('razon_social')
             cliente.codigo_postal_fiscal = request.POST.get('cp')
@@ -32,6 +35,7 @@ def crear_solicitud(request):
             cliente.es_cliente_fiscal = True 
             cliente.save()
             
+            # 2. Creamos la solicitud en BD
             solicitud = SolicitudFactura.objects.create(
                 cliente=cliente,
                 cotizacion=cotizacion_obj, 
@@ -41,20 +45,45 @@ def crear_solicitud(request):
                 metodo_pago=request.POST.get('metodo_pago')
             )
             
-            # --- FIX IMAGEN (Ruta Local) ---
+            # --- PREPARACIÓN DEL PDF ---
             ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-            logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-            # -------------------------------
+            if os.name == 'nt':
+                logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
+            else:
+                logo_url = f"file://{ruta_logo}"
+
+            # --- CÁLCULO INVERSO DE IMPUESTOS (AQUÍ ESTABA FALTANDO) ---
+            total = Decimal(solicitud.monto)
+            subtotal = total
+            iva = Decimal('0.00')
+            ret_isr = Decimal('0.00')
             
+            if cliente.es_cliente_fiscal:
+                factor_divisor = Decimal('1.16')
+                if cliente.tipo_persona == 'MORAL':
+                    # Si es Moral: Total = Subtotal * (1 + 0.16 - 0.0125) = 1.1475
+                    factor_divisor = Decimal('1.1475') 
+                    subtotal = total / factor_divisor
+                    iva = subtotal * Decimal('0.16')
+                    ret_isr = subtotal * Decimal('0.0125')
+                else:
+                    # Si es Física: Total = Subtotal * 1.16
+                    subtotal = total / factor_divisor
+                    iva = subtotal * Decimal('0.16')
+
             context = {
                 'solicitud': solicitud,
                 'cliente': cliente,
                 'folio': f"SOL-{int(solicitud.id):03d}",
-                'logo_url': logo_url  # <--- Pasamos URL al template
+                'logo_url': logo_url,
+                # Variables matemáticas para el template
+                'calc_subtotal': subtotal,
+                'calc_iva': iva,
+                'calc_ret_isr': ret_isr,
+                'calc_total': total
             }
             
             html_string = render_to_string('facturacion/solicitud_pdf.html', context)
-            
             pdf_file = HTML(string=html_string).write_pdf()
 
             filename = f"Solicitud_{cliente.rfc}_SOL-{solicitud.id}.pdf"
