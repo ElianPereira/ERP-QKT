@@ -227,13 +227,13 @@ class ItemCotizacion(models.Model):
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
-        # Auto-asignar precio si viene en 0
-        if self.precio_unitario == 0:
-            if self.producto:
-                self.precio_unitario = self.producto.sugerencia_precio()
-            elif self.insumo:
-                self.precio_unitario = self.insumo.costo_unitario
-        
+        # --- FIX URGENTE PARA ERROR DE INTEGRIDAD ---
+        # Si el precio_final está vacío (None), le asignamos 0.00 por defecto
+        # para que la base de datos permita guardarlo.
+        if self.precio_final is None:
+            self.precio_final = Decimal('0.00')
+
+        # Guardamos normal
         super().save(*args, **kwargs)
         
         # Intentamos recalcular el padre, pero protegemos contra recursión infinita
