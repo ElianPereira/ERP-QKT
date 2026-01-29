@@ -97,6 +97,15 @@ class CotizacionAdmin(admin.ModelAdmin):
     )
     
     readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn')
+    
+    # ==========================================================
+    # FIX VISUAL: Carga el CSS para arreglar colores oscuros
+    # ==========================================================
+    class Media:
+        css = {
+            'all': ('css/admin_fix.css',)
+        }
+    # ==========================================================
 
     def folio_cotizacion(self, obj):
         return f"COT-{obj.id:03d}"

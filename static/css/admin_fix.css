@@ -1,0 +1,41 @@
+/* static/css/admin_fix.css */
+
+/* 1. CORRECCIÓN PARA SELECTS NORMALES */
+select {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border: 1px solid #cccccc !important;
+}
+option {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+/* 2. CORRECCIÓN PARA EL BUSCADOR (Select2 - autocomplete_fields) */
+.select2-container--admin-autocomplete .select2-selection--single {
+    background-color: #ffffff !important; /* Fondo blanco */
+    color: #333333 !important;            /* Texto oscuro */
+    border: 1px solid #cccccc !important;
+}
+
+.select2-container--admin-autocomplete .select2-selection--single .select2-selection__rendered {
+    color: #333333 !important;
+}
+
+/* El menú desplegable de resultados */
+.select2-dropdown {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border: 1px solid #aaa !important;
+}
+
+.select2-results__option {
+    color: #333333 !important;
+    background-color: #ffffff !important;
+}
+
+/* La opción seleccionada al pasar el mouse (Azul y texto blanco) */
+.select2-container--admin-autocomplete .select2-results__option--highlighted[aria-selected] {
+    background-color: #5897fb !important; 
+    color: #ffffff !important;
+}
