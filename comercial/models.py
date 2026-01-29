@@ -9,6 +9,9 @@ from django.contrib.auth.models import User
 # --- IMPORTACIÓN DE CATÁLOGOS SAT ---
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
+# --- IMPORTACIÓN CLOUDINARY PARA ARCHIVOS RAW (XML/PDF) ---
+from cloudinary_storage.storage import RawMediaCloudinaryStorage
+
 # ==========================================
 # 1. INSUMOS
 # ==========================================
@@ -131,7 +134,7 @@ class Cotizacion(models.Model):
     
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
     created_at = models.DateTimeField(auto_now_add=True)
-    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
+    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
     def calcular_totales(self):
         if not self.pk: return 
@@ -227,7 +230,7 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 7. COMPRAS Y GASTOS (MODELO ACTUALIZADO CON FIX CLOUDINARY)
+# 7. COMPRAS Y GASTOS (MODELO ACTUALIZADO)
 # ==========================================
 
 class Compra(models.Model):
@@ -244,11 +247,11 @@ class Compra(models.Model):
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     
-    # Archivos
-    archivo_xml = models.FileField(upload_to='xml_compras/')
-    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True)
-    uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
+    # Archivos: USAMOS STORAGE RAW PARA QUE CLOUDINARY ACEPTE XML
+    archivo_xml = models.FileField(upload_to='xml_compras/', storage=RawMediaCloudinaryStorage())
+    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
     
+    uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
@@ -305,13 +308,8 @@ class Compra(models.Model):
             except Exception as e:
                 print(f"Error parseando cabecera: {e}")
             
-            # =========================================================
-            # FIX CRÍTICO: REBOBINAR EL ARCHIVO AL INICIO
-            # =========================================================
-            # Si no hacemos esto, Cloudinary recibe el archivo con el cursor 
-            # al final, piensa que está vacío y da error "Empty file".
+            # --- FIX: REBOBINAR EL ARCHIVO ANTES DE SUBIR A CLOUDINARY ---
             self.archivo_xml.seek(0)
-            # =========================================================
 
         super().save(*args, **kwargs)
         
@@ -401,9 +399,12 @@ class Gasto(models.Model):
     clave_sat = models.CharField(max_length=20, blank=True)
     unidad_medida = models.CharField(max_length=20, blank=True)
     
-    # Redundancia útil para reportes
     fecha_gasto = models.DateField(blank=True, null=True)
     proveedor = models.CharField(max_length=200, blank=True)
+    
+    # También actualizamos estos campos en Gasto por seguridad
+    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
+    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
     def __str__(self):
         return f"{self.descripcion} (${self.total_linea})"
