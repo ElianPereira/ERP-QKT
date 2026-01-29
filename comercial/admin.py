@@ -1,12 +1,13 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from django.urls import reverse, NoReverseMatch
+from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
+from django.shortcuts import render, redirect
 from django.db.models import Sum
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
     Cliente, Cotizacion, ItemCotizacion, Pago, 
-    Compra, Gasto  # Nuevos modelos
+    Compra, Gasto
 )
 
 @admin.register(Insumo)
@@ -170,7 +171,7 @@ class PagoAdmin(admin.ModelAdmin):
     list_display = ('cotizacion', 'monto', 'metodo')
 
 # ==========================================
-# GESTIÓN DE COMPRAS Y GASTOS
+# GESTIÓN DE COMPRAS Y GASTOS (CON CARGA MASIVA)
 # ==========================================
 
 class GastoInline(admin.TabularInline):
@@ -185,6 +186,9 @@ class GastoInline(admin.TabularInline):
 
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
+    # Template personalizado para agregar el botón de Carga Masiva
+    change_list_template = "comercial/compra_change_list.html" 
+    
     list_display = ('fecha_emision', 'proveedor', 'total_format', 'uuid', 'ver_pdf')
     list_filter = ('fecha_emision',)
     search_fields = ('proveedor', 'uuid')
@@ -197,6 +201,47 @@ class CompraAdmin(admin.ModelAdmin):
         ('Totales Globales', {'fields': ('subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')})
     )
     readonly_fields = ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid', 'subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')
+
+    # --- LÓGICA PARA CARGA MASIVA ---
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('carga-masiva/', self.admin_site.admin_view(self.carga_masiva_view), name='compra_carga_masiva'),
+        ]
+        return my_urls + urls
+
+    def carga_masiva_view(self, request):
+        if request.method == "POST":
+            files = request.FILES.getlist('xml_files')
+            if not files:
+                messages.error(request, "No seleccionaste ningún archivo.")
+                return redirect('.')
+            
+            exitos = 0
+            errores = 0
+            
+            for f in files:
+                try:
+                    # Al crear el objeto Compra, se dispara el método .save() 
+                    # que contiene toda tu lógica de lectura XML y creación de Gastos.
+                    Compra.objects.create(archivo_xml=f)
+                    exitos += 1
+                except Exception as e:
+                    errores += 1
+                    print(f"Error subiendo {f.name}: {e}")
+
+            if exitos > 0:
+                messages.success(request, f"✅ Se procesaron {exitos} facturas correctamente.")
+            if errores > 0:
+                messages.warning(request, f"⚠️ Hubo problemas con {errores} archivos (quizás no eran XML válidos o ya existían).")
+            
+            return redirect('..') # Regresar a la lista
+
+        context = dict(
+           self.admin_site.each_context(request),
+        )
+        return render(request, "comercial/carga_masiva.html", context)
+    # --------------------------------
 
     def total_format(self, obj): return f"${obj.total:,.2f}"
     

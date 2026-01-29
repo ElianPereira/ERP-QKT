@@ -1,0 +1,49 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-file-upload"></i> Carga Masiva de XML (SAT)</h3>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            Selecciona todos los archivos XML de tu carpeta de descargas del SAT. 
+            El sistema procesará cada uno, creará la Compra y desglosará los Gastos automáticamente.
+        </p>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="form-group" style="padding: 20px; border: 2px dashed #ccc; text-align: center; background: #f9f9f9; border-radius: 10px;">
+                <label for="id_xmls" style="cursor: pointer; font-size: 1.2rem; color: #356685;">
+                    <i class="fas fa-cloud-upload-alt fa-3x"></i><br><br>
+                    <strong>Haz clic aquí para seleccionar tus archivos XML</strong>
+                    <br><span style="font-size: 0.9rem; color: #777;">(Puedes seleccionar múltiples archivos a la vez)</span>
+                </label>
+                <input type="file" name="xml_files" id="id_xmls" multiple accept=".xml" style="display: none;" onchange="mostrarConteo()">
+                <div id="file-count" style="margin-top: 15px; font-weight: bold; color: #28a745;"></div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-info btn-lg btn-block" style="background-color: #17a2b8; border-color: #17a2b8;">
+                    <i class="fas fa-play"></i> Procesar Archivos
+                </button>
+                <a href="../" class="btn btn-secondary btn-block">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function mostrarConteo() {
+        var input = document.getElementById('id_xmls');
+        var output = document.getElementById('file-count');
+        if (input.files.length > 0) {
+            output.innerHTML = "✅ " + input.files.length + " archivos seleccionados listos para subir.";
+        } else {
+            output.innerHTML = "";
+        }
+    }
+</script>
+{% endblock %}
