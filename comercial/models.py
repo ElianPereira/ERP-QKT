@@ -7,7 +7,7 @@ from django.utils.timezone import now
 from django.contrib.auth.models import User
 
 # --- IMPORTACIÓN DE CATÁLOGOS SAT ---
-# Asegúrate de que esta importación exista en tu proyecto o coméntala si no la usas aún
+# (Asegúrate de tener este archivo o comenta la línea si no usas facturación electrónica aún)
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 # ==========================================
@@ -171,7 +171,7 @@ class Cotizacion(models.Model):
 
     def calcular_totales(self):
         """ Método auxiliar para recalcular todo desde los items """
-        # --- FIX CRÍTICO: Si no tiene ID (es nueva), no puede tener items aún ---
+        # Si no tiene ID (es nueva), no puede tener items aún
         if not self.pk:
             return 
             
@@ -185,7 +185,7 @@ class Cotizacion(models.Model):
             self.iva = base * Decimal('0.16')
             if self.cliente.tipo_persona == 'MORAL':
                 self.retencion_isr = base * Decimal('0.0125')
-                self.retencion_iva = Decimal('0.00') # Usualmente es 0 o 10.6667% dependiendo el servicio, ajustado a 0 por defecto
+                self.retencion_iva = Decimal('0.00') 
             else:
                 self.retencion_isr = Decimal('0.00')
                 self.retencion_iva = Decimal('0.00')
@@ -197,7 +197,22 @@ class Cotizacion(models.Model):
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
 
     def save(self, *args, **kwargs):
-        # Guardamos normal. La lógica pesada la maneja el Admin o las Signals
+        # ==============================================================================
+        # FIX CRÍTICO: Prevenir IntegrityError por valores nulos en BD
+        # ==============================================================================
+        if self.subtotal is None:
+            self.subtotal = Decimal('0.00')
+        if self.iva is None:
+            self.iva = Decimal('0.00')
+        if self.retencion_isr is None:
+            self.retencion_isr = Decimal('0.00')
+        if self.retencion_iva is None:
+            self.retencion_iva = Decimal('0.00')
+        if self.precio_final is None:
+            self.precio_final = Decimal('0.00')
+        # ==============================================================================
+
+        # Guardamos normal.
         super().save(*args, **kwargs)
 
     def total_pagado(self):
@@ -227,13 +242,13 @@ class ItemCotizacion(models.Model):
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
-        # --- FIX URGENTE PARA ERROR DE INTEGRIDAD ---
-        # Si el precio_final está vacío (None), le asignamos 0.00 por defecto
-        # para que la base de datos permita guardarlo.
-        if self.precio_final is None:
-            self.precio_final = Decimal('0.00')
-
-        # Guardamos normal
+        # Auto-asignar precio si viene en 0
+        if self.precio_unitario == 0:
+            if self.producto:
+                self.precio_unitario = self.producto.sugerencia_precio()
+            elif self.insumo:
+                self.precio_unitario = self.insumo.costo_unitario
+        
         super().save(*args, **kwargs)
         
         # Intentamos recalcular el padre, pero protegemos contra recursión infinita
