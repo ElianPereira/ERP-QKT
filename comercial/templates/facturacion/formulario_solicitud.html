@@ -12,6 +12,29 @@
     .section-divider i { margin-right: 8px; }
     label { font-weight: 600 !important; color: #333; margin-bottom: 5px; }
     .form-control { height: auto !important; padding: 10px 12px !important; }
+
+    /* --- FIX PARA MODO OSCURO (VISIBILIDAD DE SELECTS) --- */
+    select, .form-control select {
+        background-color: #ffffff !important;
+        color: #333333 !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    /* Asegura que las opciones al desplegarse sean legibles */
+    select option {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Si el admin usa Select2 (Buscador avanzado), forzamos colores también */
+    .select2-container--default .select2-selection--single {
+        background-color: #fff !important;
+        color: #333 !important;
+    }
+    .select2-results__option {
+        background-color: #fff !important;
+        color: #333 !important;
+    }
 </style>
 
 <div class="form-wrapper">
