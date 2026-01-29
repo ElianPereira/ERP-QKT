@@ -44,8 +44,8 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
                 logo_url = f"file://{ruta_logo}"
 
             # --- CÁLCULO INVERSO DE IMPUESTOS (Del Total hacia atrás) ---
-            # Asumimos que solicitud.monto es el TOTAL FINAL A PAGAR
-            total = Decimal(solicitud.monto)
+            # Si el campo monto es nulo, usamos 0.00 para evitar error
+            total = Decimal(solicitud.monto) if solicitud.monto else Decimal('0.00')
             
             # Valores por defecto (sin desglose)
             subtotal = total
@@ -68,13 +68,15 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
                     # Persona Física solo lleva IVA
                     subtotal = total / factor_divisor
                     iva = subtotal * Decimal('0.16')
-
+                    ret_isr = Decimal('0.00')
+            
+            # Contexto con las variables "calc_..." que espera el HTML
             context = {
                 'solicitud': solicitud,
                 'cliente': solicitud.cliente,
                 'folio': f"SOL-{int(solicitud.id):03d}",
                 'logo_url': logo_url,
-                # Pasamos los cálculos matemáticos al template
+                # AQUÍ ESTÁN LAS VARIABLES QUE TE FALTABAN:
                 'calc_subtotal': subtotal,
                 'calc_iva': iva,
                 'calc_ret_isr': ret_isr,
@@ -86,7 +88,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
             filename = f"Solicitud_{solicitud.cliente.rfc or 'XAXX010101000'}_SOL-{solicitud.id}.pdf"
             
-            # Guardamos el archivo (overwrite=True implícito al guardar nuevo nombre)
+            # Guardamos el archivo
             solicitud.archivo_pdf.save(filename, ContentFile(pdf_file), save=True)
             
             self.message_user(request, f"✅ PDF con desglose generado para SOL-{object_id}", level=messages.SUCCESS)
