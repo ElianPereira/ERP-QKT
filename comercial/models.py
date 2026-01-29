@@ -227,7 +227,7 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 7. COMPRAS Y GASTOS (MODELO ACTUALIZADO)
+# 7. COMPRAS Y GASTOS (MODELO ACTUALIZADO CON FIX CLOUDINARY)
 # ==========================================
 
 class Compra(models.Model):
@@ -304,6 +304,14 @@ class Compra(models.Model):
 
             except Exception as e:
                 print(f"Error parseando cabecera: {e}")
+            
+            # =========================================================
+            # FIX CRÍTICO: REBOBINAR EL ARCHIVO AL INICIO
+            # =========================================================
+            # Si no hacemos esto, Cloudinary recibe el archivo con el cursor 
+            # al final, piensa que está vacío y da error "Empty file".
+            self.archivo_xml.seek(0)
+            # =========================================================
 
         super().save(*args, **kwargs)
         
