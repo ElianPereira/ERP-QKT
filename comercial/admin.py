@@ -79,7 +79,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     autocomplete_fields = ['cliente'] 
     
     class Media:
-        css = {'all': ('css/admin_fix.css',)}
+        css = {'all': ('css/admin_v2.css',)}
 
     fieldsets = (
         ('Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'estado')}),
@@ -261,5 +261,5 @@ class GastoAdmin(admin.ModelAdmin):
     # === ¡ESTO CONECTA EL CSS PARA QUE VEAS EL BOTÓN FLOTANTE! ===
     class Media:
         css = {
-            'all': ('css/admin_fix.css',)
-        }
+            'all': ('css/admin_v2.css',)
+        }   

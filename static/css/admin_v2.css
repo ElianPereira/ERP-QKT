@@ -1,0 +1,61 @@
+/* static/css/admin_v2.css */
+
+/* --- 1. ARREGLOS VISUALES (Selects y Buscador) --- */
+select, option {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border: 1px solid #cccccc !important;
+}
+
+.select2-container--admin-autocomplete .select2-selection--single,
+.select2-dropdown,
+.select2-results__option {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+.select2-container--admin-autocomplete .select2-results__option--highlighted[aria-selected] {
+    background-color: #5897fb !important; 
+    color: #ffffff !important;
+}
+
+/* --- 2. BOTÓN FLOTANTE "GUARDAR" (SUPER VISIBLE) --- */
+/* Apuntamos a inputs Y botones para asegurar compatibilidad con Jazzmin */
+#changelist-form input[name="_save"],
+#changelist-form button[name="_save"],
+input[type="submit"][name="_save"] {
+    display: block !important;  /* Forzar que aparezca si está oculto */
+    position: fixed !important; /* Flotar sobre todo */
+    bottom: 25px !important;    /* Margen abajo */
+    right: 25px !important;     /* Margen derecha */
+    z-index: 99999 !important;  /* Encima de cualquier menú o footer */
+    
+    /* Estilo visual llamativo */
+    background-color: #28a745 !important;
+    color: white !important;
+    font-size: 16px !important;
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+    
+    padding: 15px 30px !important;
+    border-radius: 50px !important;
+    border: 2px solid white !important;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.4) !important;
+    
+    cursor: pointer !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+#changelist-form input[name="_save"]:hover,
+#changelist-form button[name="_save"]:hover {
+    background-color: #218838 !important;
+    transform: scale(1.05);
+}
+
+/* Espacio extra abajo para que el último registro no quede tapado por el footer */
+#changelist-form {
+    padding-bottom: 100px !important;
+}
