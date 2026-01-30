@@ -20,7 +20,7 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 
-# Importamos Compra también
+# IMPORTANTE: Aseguramos importar Compra y Gasto
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra
 from .forms import CalculadoraForm
 
@@ -42,7 +42,7 @@ def ver_dashboard_kpis(request):
         fecha_evento__month=hoy.month
     ).aggregate(total=Sum('precio_final'))['total'] or 0
 
-    # 2. Gastos del Mes (Usamos COMPRA ahora, que tiene el total de la factura)
+    # 2. Gastos del Mes (Usamos COMPRA ahora, que tiene el total de la factura XML)
     gastos_mes = Compra.objects.filter(
         fecha_emision__year=hoy.year,
         fecha_emision__month=hoy.month
@@ -60,7 +60,7 @@ def ver_dashboard_kpis(request):
     # Gráficas
     ventas_data = Cotizacion.objects.filter(estado='CONFIRMADA').annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
     
-    # Actualizado: Agrupamos COMPRAS por mes
+    # Actualizado: Agrupamos COMPRAS por mes para la gráfica de gastos
     gastos_data = Compra.objects.annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
 
     grafica_final = {}
@@ -83,7 +83,7 @@ def ver_dashboard_kpis(request):
     })
     return render(request, 'admin/dashboard.html', context)
 
-# --- 2. GENERAR LISTA DE COMPRAS (ACTUALIZADA A 3 NIVELES) ---
+# --- 2. GENERAR LISTA DE COMPRAS ---
 @staff_member_required
 def generar_lista_compras(request):
     if request.method == 'POST':
@@ -213,7 +213,7 @@ def ver_calendario(request):
         })
     return render(request, 'admin/calendario.html', {'eventos_json': json.dumps(eventos_lista, cls=DjangoJSONEncoder)})
 
-# --- EXPORTAR EXCEL (Actualizado para Compra) ---
+# --- EXPORTAR EXCEL (CONTABILIDAD GENERAL) ---
 @staff_member_required
 def exportar_cierre_excel(request):
     if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()):
@@ -223,14 +223,14 @@ def exportar_cierre_excel(request):
     response['Content-Disposition'] = f'attachment; filename="Contabilidad_{hoy.strftime("%B_%Y")}.xlsx"'
     wb = openpyxl.Workbook()
     
-    # 1. Ingresos (Pagos de Clientes)
+    # 1. Ingresos
     ws_ingresos = wb.active
     ws_ingresos.title = "Ingresos"
     ws_ingresos.append(['Fecha', 'Cliente', 'Monto', 'Metodo'])
     for p in Pago.objects.filter(fecha_pago__month=hoy.month):
         ws_ingresos.append([p.fecha_pago, p.cotizacion.cliente.nombre, p.monto, p.metodo])
     
-    # 2. Gastos (Usamos Compras ahora)
+    # 2. Gastos (Usamos Compras/Facturas completas)
     ws_gastos = wb.create_sheet(title="Gastos")
     ws_gastos.append(['Fecha', 'Proveedor', 'Total Factura', 'RFC Emisor'])
     for c in Compra.objects.filter(fecha_emision__month=hoy.month):
@@ -239,13 +239,14 @@ def exportar_cierre_excel(request):
     wb.save(response)
     return response
 
-# --- REPORTE COTIZACIONES (Actualizado Gasto Set) ---
+# --- REPORTE DE UTILIDADES POR EVENTO (CORREGIDO PARA GASTOS XML) ---
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
     if request.method == 'POST':
         fecha_inicio = request.POST.get('fecha_inicio')
         fecha_fin = request.POST.get('fecha_fin')
         estado = request.POST.get('estado')
+        
         cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento')
         if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
         if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
@@ -258,8 +259,9 @@ def exportar_reporte_cotizaciones(request):
         for c in cotizaciones:
             pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
             
-            # Actualizado: Sumamos 'total_linea' de los gastos asociados a este evento
+            # === CORRECCIÓN AQUÍ: Usamos 'total_linea' para sumar los gastos vinculados del XML ===
             gastos = c.gasto_set.aggregate(total=Sum('total_linea'))['total'] or 0
+            # ======================================================================================
             
             base_real = c.subtotal - c.descuento
             
@@ -282,7 +284,7 @@ def exportar_reporte_cotizaciones(request):
                 'gastos': gastos, 'ganancia': c.precio_final - gastos
             })
 
-        # Totales flujo
+        # Totales flujo de caja
         pagos = Pago.objects.filter(cotizacion__in=cotizaciones)
         total_efectivo = pagos.filter(metodo='EFECTIVO').aggregate(t=Sum('monto'))['t'] or 0
         total_transf = pagos.filter(metodo='TRANSFERENCIA').aggregate(t=Sum('monto'))['t'] or 0
