@@ -1,0 +1,14 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+    <li>
+        <button onclick="document.getElementById('changelist-form').submit();" 
+                class="btn btn-success" 
+                style="margin-right: 10px; font-weight: bold;">
+            <i class="fas fa-save"></i> GUARDAR CAMBIOS
+        </button>
+    </li>
+
+    {{ block.super }}
+{% endblock %}

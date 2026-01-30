@@ -155,14 +155,14 @@ class CotizacionAdmin(admin.ModelAdmin):
                 nec[it.insumo.id] = nec.get(it.insumo.id, 0) + q
         return nec
 
-    # --- BOTONES RESTAURADOS (Diseño Bootstrap Nativo) ---
+    # --- BOTONES UNIFICADOS Y VISIBLES (Sin cortarse) ---
     def ver_pdf(self, obj):
         if obj.id:
             try:
                 url_pdf = reverse('cotizacion_pdf', args=[obj.id])
-                # Usamos clases nativas de bootstrap (btn-info) y estilo inline para asegurar que no se corte
+                # Usamos btn-info (azul) con ancho fijo para que se vean iguales
                 return format_html(
-                    '<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space:nowrap;">'
+                    '<a href="{}" target="_blank" class="btn btn-info btn-sm" style="width: 80px; text-align:center;">'
                     '<i class="fas fa-file-pdf"></i> PDF</a>', url_pdf
                 )
             except NoReverseMatch: return "-"
@@ -173,9 +173,9 @@ class CotizacionAdmin(admin.ModelAdmin):
         if obj.id:
             try:
                 url_email = reverse('cotizacion_email', args=[obj.id])
-                # Usamos clases nativas de bootstrap (btn-success)
+                # Usamos btn-success (verde) con el mismo ancho
                 return format_html(
-                    '<a href="{}" class="btn btn-success btn-sm" style="white-space:nowrap;">'
+                    '<a href="{}" class="btn btn-success btn-sm" style="width: 80px; text-align:center;">'
                     '<i class="fas fa-envelope"></i> Enviar</a>', url_email
                 )
             except NoReverseMatch: return "-"
@@ -265,18 +265,20 @@ class CompraAdmin(admin.ModelAdmin):
     
     def ver_pdf(self, obj):
         if obj.archivo_pdf:
-            return format_html('<a href="{}" target="_blank" style="background-color:#dc3545; color:white; padding:2px 5px; border-radius:3px;">PDF</a>', obj.archivo_pdf.url)
+            return format_html('<a href="{}" target="_blank" class="btn btn-danger btn-sm" style="width: 50px; text-align: center;">PDF</a>', obj.archivo_pdf.url)
         return "-"
 
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
+    # USAMOS EL NUEVO TEMPLATE QUE PONE EL BOTÓN ARRIBA
+    change_list_template = "comercial/gasto_change_list.html"
+    
     list_display = ('descripcion', 'categoria', 'total_linea', 'proveedor', 'fecha_gasto', 'evento_relacionado')
     list_filter = ('categoria', 'fecha_gasto', 'proveedor')
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
     
-    # Cargamos el nuevo CSS que incluye la barra fija
     class Media:
         css = {
             'all': ('css/admin_fix.css',)

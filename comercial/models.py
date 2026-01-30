@@ -222,7 +222,7 @@ class Pago(models.Model):
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     
-    # --- FECHA EDITABLE POR DEFECTO HOY ---
+    # --- FECHA EDITABLE (Default = Hoy) ---
     fecha_pago = models.DateField(default=now, verbose_name="Fecha de Pago")
     
     monto = models.DecimalField(max_digits=10, decimal_places=2)
