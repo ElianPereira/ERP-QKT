@@ -67,7 +67,7 @@ class ItemCotizacionInline(admin.TabularInline):
 class PagoInline(admin.TabularInline):
     model = Pago
     extra = 0
-    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'usuario') # Agregada fecha_pago editable
+    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'usuario')
     readonly_fields = ('usuario',)
 
 @admin.register(Cotizacion)
@@ -115,7 +115,6 @@ class CotizacionAdmin(admin.ModelAdmin):
             cot.calcular_totales()
             cot.save()
             
-            # Stock Logic
             prev = getattr(cot, '_estado_previo', 'BORRADOR')
             if cot.estado == 'CONFIRMADA' and prev != 'CONFIRMADA':
                 errores = self._validar_stock(cot)
@@ -156,35 +155,35 @@ class CotizacionAdmin(admin.ModelAdmin):
                 nec[it.insumo.id] = nec.get(it.insumo.id, 0) + q
         return nec
 
+    # --- BOTONES RESTAURADOS (Diseño Bootstrap Nativo) ---
     def ver_pdf(self, obj):
         if obj.id:
             try:
                 url_pdf = reverse('cotizacion_pdf', args=[obj.id])
+                # Usamos clases nativas de bootstrap (btn-info) y estilo inline para asegurar que no se corte
                 return format_html(
-                    '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
+                    '<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space:nowrap;">'
                     '<i class="fas fa-file-pdf"></i> PDF</a>', url_pdf
                 )
             except NoReverseMatch: return "-"
         return "-"
-    ver_pdf.short_description = "Cotización"
-    ver_pdf.allow_tags = True
+    ver_pdf.short_description = "PDF"
 
     def enviar_email_btn(self, obj):
         if obj.id:
             try:
                 url_email = reverse('cotizacion_email', args=[obj.id])
+                # Usamos clases nativas de bootstrap (btn-success)
                 return format_html(
-                    '<a href="{}" style="background-color:#28a745; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
+                    '<a href="{}" class="btn btn-success btn-sm" style="white-space:nowrap;">'
                     '<i class="fas fa-envelope"></i> Enviar</a>', url_email
                 )
             except NoReverseMatch: return "-"
         return "-"
     enviar_email_btn.short_description = "Email"
-    enviar_email_btn.allow_tags = True
 
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    # --- MOSTRAR LA FECHA Y HACERLA FILTRABLE ---
     list_display = ('fecha_pago', 'cotizacion', 'monto', 'metodo', 'usuario')
     list_filter = ('fecha_pago', 'metodo', 'usuario')
     search_fields = ('cotizacion__cliente__nombre', 'referencia')
@@ -271,13 +270,13 @@ class CompraAdmin(admin.ModelAdmin):
 
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
-    # --- SIN BOTONES EXTRAÑOS NI TEMPLATES MODIFICADOS ---
     list_display = ('descripcion', 'categoria', 'total_linea', 'proveedor', 'fecha_gasto', 'evento_relacionado')
     list_filter = ('categoria', 'fecha_gasto', 'proveedor')
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
     
+    # Cargamos el nuevo CSS que incluye la barra fija
     class Media:
         css = {
             'all': ('css/admin_fix.css',)

@@ -1,0 +1,62 @@
+/* static/css/admin_fix.css */
+
+/* --- 1. ARREGLO VISUAL (Selects y Buscador oscuros) --- */
+select, option {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border: 1px solid #cccccc !important;
+}
+
+.select2-container--admin-autocomplete .select2-selection--single,
+.select2-dropdown,
+.select2-results__option {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+.select2-container--admin-autocomplete .select2-results__option--highlighted[aria-selected] {
+    background-color: #5897fb !important; 
+    color: #ffffff !important;
+}
+
+/* --- 2. BARRA DE GUARDADO "STICKY" (Estilo Nativo Profesional) --- */
+/* En lugar de un botón flotante, fijamos toda la fila de botones al fondo */
+.submit-row {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    
+    background-color: #f8f9fa !important; /* Fondo gris claro profesional */
+    border-top: 1px solid #dee2e6 !important; /* Borde sutil arriba */
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important; /* Sombra suave */
+    
+    padding: 15px 40px !important; /* Espaciado cómodo */
+    z-index: 9999 !important;
+    text-align: right !important; /* Botón alineado a la derecha */
+    
+    /* Asegurar que ocupe el ancho correcto en Jazzmin (descontando sidebar si es necesario) */
+    width: 100%;
+}
+
+/* Ajuste para que el botón nativo se vea bien en la barra */
+.submit-row input[type="submit"] {
+    background-color: #28a745 !important;
+    color: white !important;
+    text-transform: uppercase;
+    font-weight: bold;
+    padding: 10px 30px;
+    border-radius: 5px;
+    border: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    cursor: pointer;
+}
+
+.submit-row input[type="submit"]:hover {
+    background-color: #218838 !important;
+}
+
+/* Espacio al final de la tabla para que el último registro no quede tapado por la barra */
+#changelist-form {
+    padding-bottom: 80px !important;
+}
