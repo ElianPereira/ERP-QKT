@@ -257,3 +257,9 @@ class GastoAdmin(admin.ModelAdmin):
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
+    
+    # === ¡ESTO CONECTA EL CSS PARA QUE VEAS EL BOTÓN FLOTANTE! ===
+    class Media:
+        css = {
+            'all': ('css/admin_fix.css',)
+        }
