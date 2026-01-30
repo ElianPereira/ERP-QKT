@@ -372,17 +372,17 @@ class Compra(models.Model):
 
 class Gasto(models.Model):
     CATEGORIAS = [
-        ('SIN_CLASIFICAR', '⚠️ Sin Clasificar'),
-        ('INSUMO_COCINA', 'Insumos Cocina (Carne, Verdura)'),
-        ('BEBIDAS', 'Bebidas y Alcohol'),
-        ('DESECHABLES', 'Desechables y Limpieza'),
-        ('MOBILIARIO_EQ', 'Mobiliario y Equipo'),
-        ('MANTENIMIENTO', 'Mantenimiento y Reparaciones'),
+        ('SIN_CLASIFICAR', 'Sin Clasificar'),
+        ('SERVICIO_EXTERNO', 'Servicio Externo'),
+        ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'),
+        ('LIMPIEZA', 'Limpieza Y Desechables'),
+        ('MOBILIARIO_EQ', 'Moobiliario Y Equipo'),
+        ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'),
         ('NOMINA_EXT', 'Servicios Staff Externo'),
-        ('IMPUESTOS', 'Pago de Impuestos'),
-        ('PUBLICIDAD', 'Publicidad y Marketing'),
-        ('COMBUSTIBLE', 'Combustible y Viáticos'),
-        ('OFICINA', 'Papelería y Oficina'),
+        ('IMPUESTOS', 'Pago De Impuestos'),
+        ('PUBLICIDAD', 'Publicidad Y Marketing'),
+        ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'),
+        ('OFICINA', 'Oficina Y Papelería'),
         ('OTRO', 'Otros Gastos'),
     ]
 
