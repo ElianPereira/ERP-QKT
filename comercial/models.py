@@ -375,14 +375,14 @@ class Gasto(models.Model):
         ('SIN_CLASIFICAR', 'Sin Clasificar'),
         ('SERVICIO_EXTERNO', 'Servicio Externo'),
         ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'),
+        ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'),
         ('LIMPIEZA', 'Limpieza Y Desechables'),
-        ('MOBILIARIO_EQ', 'Moobiliario Y Equipo'),
+        ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'),
         ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'),
         ('NOMINA_EXT', 'Servicios Staff Externo'),
         ('IMPUESTOS', 'Pago De Impuestos'),
         ('PUBLICIDAD', 'Publicidad Y Marketing'),
         ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'),
-        ('OFICINA', 'Oficina Y Papelería'),
         ('OTRO', 'Otros Gastos'),
     ]
 

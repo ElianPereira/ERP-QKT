@@ -252,12 +252,13 @@ class CompraAdmin(admin.ModelAdmin):
 
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
+    change_list_template = "comercial/gasto_list.html"
+
     list_display = ('descripcion', 'categoria', 'total_linea', 'proveedor', 'fecha_gasto', 'evento_relacionado')
     list_filter = ('categoria', 'fecha_gasto', 'proveedor')
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
-    
     # === ¡ESTO CONECTA EL CSS PARA QUE VEAS EL BOTÓN FLOTANTE! ===
     class Media:
         css = {
