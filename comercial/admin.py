@@ -67,8 +67,8 @@ class ItemCotizacionInline(admin.TabularInline):
 class PagoInline(admin.TabularInline):
     model = Pago
     extra = 0
-    fields = ('monto', 'metodo', 'referencia', 'fecha_pago', 'usuario')
-    readonly_fields = ('fecha_pago', 'usuario')
+    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'usuario') # Agregada fecha_pago editable
+    readonly_fields = ('usuario',)
 
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
@@ -79,7 +79,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     autocomplete_fields = ['cliente'] 
     
     class Media:
-        css = {'all': ('css/admin_v2.css',)}
+        css = {'all': ('css/admin_fix.css',)}
 
     fieldsets = (
         ('Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'estado')}),
@@ -158,20 +158,46 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def ver_pdf(self, obj):
         if obj.id:
-            return format_html('<a href="{}" target="_blank" class="button">PDF</a>', reverse('cotizacion_pdf', args=[obj.id]))
+            try:
+                url_pdf = reverse('cotizacion_pdf', args=[obj.id])
+                return format_html(
+                    '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
+                    '<i class="fas fa-file-pdf"></i> PDF</a>', url_pdf
+                )
+            except NoReverseMatch: return "-"
         return "-"
-    
+    ver_pdf.short_description = "Cotización"
+    ver_pdf.allow_tags = True
+
     def enviar_email_btn(self, obj):
         if obj.id:
-            return format_html('<a href="{}" class="button">Enviar</a>', reverse('cotizacion_email', args=[obj.id]))
+            try:
+                url_email = reverse('cotizacion_email', args=[obj.id])
+                return format_html(
+                    '<a href="{}" style="background-color:#28a745; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
+                    '<i class="fas fa-envelope"></i> Enviar</a>', url_email
+                )
+            except NoReverseMatch: return "-"
         return "-"
+    enviar_email_btn.short_description = "Email"
+    enviar_email_btn.allow_tags = True
 
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    list_display = ('cotizacion', 'monto', 'metodo')
+    # --- MOSTRAR LA FECHA Y HACERLA FILTRABLE ---
+    list_display = ('fecha_pago', 'cotizacion', 'monto', 'metodo', 'usuario')
+    list_filter = ('fecha_pago', 'metodo', 'usuario')
+    search_fields = ('cotizacion__cliente__nombre', 'referencia')
+    date_hierarchy = 'fecha_pago'
+    autocomplete_fields = ['cotizacion']
+    
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.usuario = request.user
+        super().save_model(request, obj, form, change)
 
 # ==========================================
-# GESTIÓN DE COMPRAS Y GASTOS (CON CARGA MASIVA)
+# GESTIÓN DE COMPRAS Y GASTOS
 # ==========================================
 
 class GastoInline(admin.TabularInline):
@@ -186,7 +212,6 @@ class GastoInline(admin.TabularInline):
 
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
-    # Template personalizado para agregar el botón de Carga Masiva
     change_list_template = "comercial/compra_change_list.html" 
     
     list_display = ('fecha_emision', 'proveedor', 'total_format', 'uuid', 'ver_pdf')
@@ -202,7 +227,6 @@ class CompraAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid', 'subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')
 
-    # --- LÓGICA PARA CARGA MASIVA ---
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
@@ -222,8 +246,6 @@ class CompraAdmin(admin.ModelAdmin):
             
             for f in files:
                 try:
-                    # Al crear el objeto Compra, se dispara el método .save() 
-                    # que contiene toda tu lógica de lectura XML y creación de Gastos.
                     Compra.objects.create(archivo_xml=f)
                     exitos += 1
                 except Exception as e:
@@ -235,13 +257,10 @@ class CompraAdmin(admin.ModelAdmin):
             if errores > 0:
                 messages.warning(request, f"⚠️ Hubo problemas con {errores} archivos (quizás no eran XML válidos o ya existían).")
             
-            return redirect('..') # Regresar a la lista
+            return redirect('..')
 
-        context = dict(
-           self.admin_site.each_context(request),
-        )
+        context = dict(self.admin_site.each_context(request))
         return render(request, "comercial/carga_masiva.html", context)
-    # --------------------------------
 
     def total_format(self, obj): return f"${obj.total:,.2f}"
     
@@ -252,15 +271,14 @@ class CompraAdmin(admin.ModelAdmin):
 
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
-    change_list_template = "comercial/gasto_list.html"
-
+    # --- SIN BOTONES EXTRAÑOS NI TEMPLATES MODIFICADOS ---
     list_display = ('descripcion', 'categoria', 'total_linea', 'proveedor', 'fecha_gasto', 'evento_relacionado')
     list_filter = ('categoria', 'fecha_gasto', 'proveedor')
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
-    # === ¡ESTO CONECTA EL CSS PARA QUE VEAS EL BOTÓN FLOTANTE! ===
+    
     class Media:
         css = {
-            'all': ('css/admin_v2.css',)
-        }   
+            'all': ('css/admin_fix.css',)
+        }

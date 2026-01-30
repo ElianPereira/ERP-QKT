@@ -221,7 +221,10 @@ class Pago(models.Model):
     ]
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    fecha_pago = models.DateField(auto_now_add=True)
+    
+    # --- FECHA EDITABLE POR DEFECTO HOY ---
+    fecha_pago = models.DateField(default=now, verbose_name="Fecha de Pago")
+    
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo = models.CharField(max_length=20, choices=METODOS)
     referencia = models.CharField(max_length=100, blank=True)
@@ -371,6 +374,7 @@ class Compra(models.Model):
         return f"{self.proveedor} - ${self.total}"
 
 class Gasto(models.Model):
+    # --- CATEGORÍAS ACTUALIZADAS ---
     CATEGORIAS = [
         ('SIN_CLASIFICAR', 'Sin Clasificar'),
         ('SERVICIO_EXTERNO', 'Servicio Externo'),
