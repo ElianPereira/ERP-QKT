@@ -1,6 +1,6 @@
 /* static/css/admin_fix.css */
 
-/* Corrección visual para selects y buscadores en temas oscuros */
+/* Correcciones de color para inputs y selects en temas oscuros/claros */
 select, option {
     background-color: #ffffff !important;
     color: #333333 !important;
