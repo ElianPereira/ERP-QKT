@@ -3,12 +3,31 @@
 
 {% block object-tools-items %}
     <li>
-        <button onclick="document.getElementById('changelist-form').submit();" 
+        <button type="button" 
                 class="btn btn-success" 
-                style="margin-right: 10px; font-weight: bold;">
+                style="margin-right: 10px; font-weight: bold;"
+                onclick="submitFormWithSave()">
             <i class="fas fa-save"></i> GUARDAR CAMBIOS
         </button>
     </li>
 
     {{ block.super }}
+
+    <script>
+        function submitFormWithSave() {
+            var form = document.getElementById('changelist-form');
+            
+            // 1. Crear un input oculto que le diga a Django: "Oye, quiero GUARDAR"
+            var hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = '_save';
+            hiddenInput.value = 'Guardar';
+            
+            // 2. Agregarlo al formulario
+            form.appendChild(hiddenInput);
+            
+            // 3. Enviar el formulario
+            form.submit();
+        }
+    </script>
 {% endblock %}
