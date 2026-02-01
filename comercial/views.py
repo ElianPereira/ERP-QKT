@@ -239,74 +239,111 @@ def exportar_cierre_excel(request):
     wb.save(response)
     return response
 
-# --- REPORTE DE UTILIDADES POR EVENTO (CORREGIDO PARA GASTOS XML) ---
+# --- REPORTE DE UTILIDADES (MODIFICADO PARA GASTOS OPERATIVOS) ---
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
-    if request.method == 'POST':
-        fecha_inicio = request.POST.get('fecha_inicio')
-        fecha_fin = request.POST.get('fecha_fin')
-        estado = request.POST.get('estado')
+    # Si es GET, mostramos el formulario
+    if request.method != 'POST':
+        return render(request, 'comercial/reporte_form.html')
+
+    # --- PROCESAMIENTO DEL REPORTE (POST) ---
+    fecha_inicio = request.POST.get('fecha_inicio')
+    fecha_fin = request.POST.get('fecha_fin')
+    estado = request.POST.get('estado')
+    
+    # ==========================================
+    # 1. LÓGICA DE EVENTOS (Utilidad Bruta)
+    # ==========================================
+    cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento')
+    
+    if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
+    if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
+    if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
+
+    t_subtotal, t_descuento, t_total_ventas, t_pagado, t_gastos_eventos = 0,0,0,0,0
+    t_iva, t_ret_isr, t_ganancia_eventos = 0,0,0
+    datos_tabla = []
+    
+    for c in cotizaciones:
+        pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
         
-        cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento')
-        if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
-        if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
-        if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
-
-        t_subtotal, t_descuento, t_total_ventas, t_pagado, t_gastos = 0,0,0,0,0
-        t_iva, t_ret_isr, t_ganancia = 0,0,0
-        datos_tabla = []
+        # Gastos vinculados específicamente a este evento
+        gastos = c.gasto_set.aggregate(total=Sum('total_linea'))['total'] or 0
         
-        for c in cotizaciones:
-            pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-            
-            # === CORRECCIÓN AQUÍ: Usamos 'total_linea' para sumar los gastos vinculados del XML ===
-            gastos = c.gasto_set.aggregate(total=Sum('total_linea'))['total'] or 0
-            # ======================================================================================
-            
-            base_real = c.subtotal - c.descuento
-            
-            t_subtotal += c.subtotal
-            t_descuento += c.descuento
-            t_iva += c.iva
-            t_ret_isr += c.retencion_isr
-            t_total_ventas += c.precio_final
-            t_pagado += pagado
-            t_gastos += gastos
-            t_ganancia += (c.precio_final - gastos)
-
-            datos_tabla.append({
-                'folio': c.id, 'fecha': c.fecha_evento, 'cliente': c.cliente.nombre,
-                'producto': c.nombre_evento, 
-                'estado': c.get_estado_display(),
-                'subtotal': c.subtotal, 'descuento': c.descuento, 'base_real': base_real,
-                'iva': c.iva, 'isr': c.retencion_isr, 'total': c.precio_final,
-                'pagado': pagado, 'pendiente': c.precio_final - pagado,
-                'gastos': gastos, 'ganancia': c.precio_final - gastos
-            })
-
-        # Totales flujo de caja
-        pagos = Pago.objects.filter(cotizacion__in=cotizaciones)
-        total_efectivo = pagos.filter(metodo='EFECTIVO').aggregate(t=Sum('monto'))['t'] or 0
-        total_transf = pagos.filter(metodo='TRANSFERENCIA').aggregate(t=Sum('monto'))['t'] or 0
-        total_otros = pagos.exclude(metodo__in=['EFECTIVO','TRANSFERENCIA']).aggregate(t=Sum('monto'))['t'] or 0
-
-        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+        base_real = c.subtotal - c.descuento
         
-        html = render_to_string('cotizaciones/pdf_reporte_ventas.html', {
-            'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
-            't_subtotal': t_subtotal, 't_descuento': t_descuento, 't_base_real': t_subtotal - t_descuento,
-            't_iva': t_iva, 't_ret_isr': t_ret_isr, 't_total_ventas': t_total_ventas,
-            't_pagado': t_pagado, 't_pendiente': t_total_ventas - t_pagado, 't_gastos': t_gastos, 't_ganancia': t_ganancia,
-            'total_efectivo': total_efectivo, 'total_transferencia': total_transf, 'total_otros': total_otros, 'total_ingresado': total_efectivo+total_transf+total_otros,
-            'logo_url': logo_url
+        t_subtotal += c.subtotal
+        t_descuento += c.descuento
+        t_iva += c.iva
+        t_ret_isr += c.retencion_isr
+        t_total_ventas += c.precio_final
+        t_pagado += pagado
+        t_gastos_eventos += gastos
+        t_ganancia_eventos += (c.precio_final - gastos)
+
+        datos_tabla.append({
+            'folio': c.id, 'fecha': c.fecha_evento, 'cliente': c.cliente.nombre,
+            'producto': c.nombre_evento, 
+            'estado': c.get_estado_display(),
+            'subtotal': c.subtotal, 'descuento': c.descuento, 'base_real': base_real,
+            'iva': c.iva, 'isr': c.retencion_isr, 'total': c.precio_final,
+            'pagado': pagado, 'pendiente': c.precio_final - pagado,
+            'gastos': gastos, 'ganancia': c.precio_final - gastos
         })
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="Reporte_{fecha_inicio}.pdf"'
-        HTML(string=html).write_pdf(response)
-        return response
 
-    return render(request, 'comercial/reporte_form.html')
+    # ==========================================
+    # 2. LÓGICA DE GASTOS OPERATIVOS (Sin evento)
+    # ==========================================
+    # Filtramos gastos que NO tienen evento relacionado (isnull=True)
+    gastos_operativos_qs = Gasto.objects.filter(
+        evento_relacionado__isnull=True
+    ).order_by('fecha_gasto')
+    
+    # Aplicamos el mismo filtro de fechas que al reporte
+    if fecha_inicio: gastos_operativos_qs = gastos_operativos_qs.filter(fecha_gasto__gte=fecha_inicio)
+    if fecha_fin: gastos_operativos_qs = gastos_operativos_qs.filter(fecha_gasto__lte=fecha_fin)
+
+    total_gastos_operativos = gastos_operativos_qs.aggregate(Sum('total_linea'))['total_linea__sum'] or 0
+    
+    # ==========================================
+    # 3. CÁLCULO DE UTILIDAD NETA REAL
+    # ==========================================
+    utilidad_neta_real = t_ganancia_eventos - total_gastos_operativos
+
+    # Totales flujo de caja (Solo dinero que entró realmente)
+    pagos = Pago.objects.filter(cotizacion__in=cotizaciones)
+    total_efectivo = pagos.filter(metodo='EFECTIVO').aggregate(t=Sum('monto'))['t'] or 0
+    total_transf = pagos.filter(metodo='TRANSFERENCIA').aggregate(t=Sum('monto'))['t'] or 0
+    total_otros = pagos.exclude(metodo__in=['EFECTIVO','TRANSFERENCIA']).aggregate(t=Sum('monto'))['t'] or 0
+
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+    
+    html = render_to_string('cotizaciones/pdf_reporte_ventas.html', {
+        'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
+        
+        # Totales Eventos
+        't_subtotal': t_subtotal, 't_descuento': t_descuento, 't_base_real': t_subtotal - t_descuento,
+        't_iva': t_iva, 't_ret_isr': t_ret_isr, 't_total_ventas': t_total_ventas,
+        't_pagado': t_pagado, 't_pendiente': t_total_ventas - t_pagado, 
+        't_gastos_eventos': t_gastos_eventos, 't_ganancia_eventos': t_ganancia_eventos,
+        
+        # Totales Operativos y Finales
+        'gastos_operativos_list': gastos_operativos_qs,
+        'total_gastos_operativos': total_gastos_operativos,
+        'utilidad_neta_real': utilidad_neta_real,
+        
+        # Flujo
+        'total_efectivo': total_efectivo, 'total_transferencia': total_transf, 'total_otros': total_otros, 
+        'total_ingresado': total_efectivo+total_transf+total_otros,
+        'logo_url': logo_url
+    })
+    
+    response = HttpResponse(content_type='application/pdf')
+    filename = f"Reporte_Financiero_{fecha_inicio if fecha_inicio else 'General'}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    HTML(string=html).write_pdf(response)
+    return response
 
 @staff_member_required
 def calculadora_insumos(request):
