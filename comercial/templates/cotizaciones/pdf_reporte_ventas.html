@@ -128,34 +128,27 @@
         </tfoot>
     </table>
 
-    <div class="section-title">2. GASTOS OPERATIVOS / ADMINISTRATIVOS (No asignados a eventos)</div>
-    <table class="table-common" style="width: 80%;">
+    <div class="section-title">2. RESUMEN GASTOS ADMINISTRATIVOS (Por Categoría)</div>
+    <table class="table-common" style="width: 50%;">
         <thead>
             <tr>
-                <th class="text-left" style="width: 15%;">Fecha</th>
-                <th class="text-left" style="width: 20%;">Categoría</th>
-                <th class="text-left" style="width: 40%;">Descripción / Proveedor</th>
-                <th style="width: 25%;">Monto</th>
+                <th class="text-left" style="width: 60%;">Categoría del Gasto</th>
+                <th style="width: 40%;">Monto Total</th>
             </tr>
         </thead>
         <tbody>
             {% for gasto in gastos_operativos_list %}
             <tr>
-                <td class="text-left">{{ gasto.fecha_gasto|date:"d/m/Y" }}</td>
-                <td class="text-left">{{ gasto.get_categoria_display }}</td>
-                <td class="text-left">
-                    {{ gasto.descripcion|truncatechars:45 }}
-                    {% if gasto.proveedor %}<br><i style="color:#888;">{{ gasto.proveedor|truncatechars:35 }}</i>{% endif %}
-                </td>
-                <td class="col-gasto">${{ gasto.total_linea|floatformat:2|intcomma }}</td>
+                <td class="text-left">{{ gasto.nombre }}</td>
+                <td class="col-gasto">${{ gasto.total|floatformat:2|intcomma }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="4" class="text-center">No hay gastos administrativos en este periodo.</td></tr>
+            <tr><td colspan="2" class="text-center">No hay gastos administrativos en este periodo.</td></tr>
             {% endfor %}
         </tbody>
         <tfoot>
             <tr class="totals-row">
-                <td colspan="3" class="text-center">TOTAL GASTOS OPERATIVOS</td>
+                <td class="text-center">TOTAL GASTOS OPERATIVOS</td>
                 <td class="col-gasto">-${{ total_gastos_operativos|floatformat:2|intcomma }}</td>
             </tr>
         </tfoot>

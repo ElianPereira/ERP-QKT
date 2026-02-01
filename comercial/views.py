@@ -239,20 +239,19 @@ def exportar_cierre_excel(request):
     wb.save(response)
     return response
 
-# --- REPORTE DE UTILIDADES (MODIFICADO PARA GASTOS OPERATIVOS) ---
+# --- REPORTE DE UTILIDADES (AGRUPADO POR CATEGORÍA) ---
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
-    # Si es GET, mostramos el formulario
     if request.method != 'POST':
         return render(request, 'comercial/reporte_form.html')
 
-    # --- PROCESAMIENTO DEL REPORTE (POST) ---
+    # --- INPUTS ---
     fecha_inicio = request.POST.get('fecha_inicio')
     fecha_fin = request.POST.get('fecha_fin')
     estado = request.POST.get('estado')
     
     # ==========================================
-    # 1. LÓGICA DE EVENTOS (Utilidad Bruta)
+    # 1. EVENTOS (UTILIDAD BRUTA)
     # ==========================================
     cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento')
     
@@ -266,8 +265,6 @@ def exportar_reporte_cotizaciones(request):
     
     for c in cotizaciones:
         pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-        
-        # Gastos vinculados específicamente a este evento
         gastos = c.gasto_set.aggregate(total=Sum('total_linea'))['total'] or 0
         
         base_real = c.subtotal - c.descuento
@@ -292,25 +289,35 @@ def exportar_reporte_cotizaciones(request):
         })
 
     # ==========================================
-    # 2. LÓGICA DE GASTOS OPERATIVOS (Sin evento)
+    # 2. GASTOS OPERATIVOS (AGRUPADOS POR CATEGORIA)
     # ==========================================
-    # Filtramos gastos que NO tienen evento relacionado (isnull=True)
-    gastos_operativos_qs = Gasto.objects.filter(
-        evento_relacionado__isnull=True
-    ).order_by('fecha_gasto')
-    
-    # Aplicamos el mismo filtro de fechas que al reporte
-    if fecha_inicio: gastos_operativos_qs = gastos_operativos_qs.filter(fecha_gasto__gte=fecha_inicio)
-    if fecha_fin: gastos_operativos_qs = gastos_operativos_qs.filter(fecha_gasto__lte=fecha_fin)
+    gastos_qs = Gasto.objects.filter(evento_relacionado__isnull=True)
+    if fecha_inicio: gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
+    if fecha_fin: gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
 
-    total_gastos_operativos = gastos_operativos_qs.aggregate(Sum('total_linea'))['total_linea__sum'] or 0
+    # Cálculo Total General
+    total_gastos_operativos = gastos_qs.aggregate(Sum('total_linea'))['total_linea__sum'] or 0
+
+    # Agrupación por Categoría
+    gastos_agrupados_data = gastos_qs.values('categoria').annotate(total=Sum('total_linea')).order_by('-total')
+    
+    # Mapeo para mostrar el nombre legible (ej. "Mantenimiento" en vez de "MANTENIMIENTO")
+    gastos_operativos_display = []
+    cat_labels = dict(Gasto.CATEGORIAS) # Diccionario {CLAVE: 'Nombre Legible'}
+    
+    for item in gastos_agrupados_data:
+        key = item['categoria']
+        gastos_operativos_display.append({
+            'nombre': cat_labels.get(key, key), # Si no encuentra, usa la clave
+            'total': item['total']
+        })
     
     # ==========================================
-    # 3. CÁLCULO DE UTILIDAD NETA REAL
+    # 3. RESULTADO FINAL
     # ==========================================
     utilidad_neta_real = t_ganancia_eventos - total_gastos_operativos
 
-    # Totales flujo de caja (Solo dinero que entró realmente)
+    # Flujo de Efectivo
     pagos = Pago.objects.filter(cotizacion__in=cotizaciones)
     total_efectivo = pagos.filter(metodo='EFECTIVO').aggregate(t=Sum('monto'))['t'] or 0
     total_transf = pagos.filter(metodo='TRANSFERENCIA').aggregate(t=Sum('monto'))['t'] or 0
@@ -328,8 +335,8 @@ def exportar_reporte_cotizaciones(request):
         't_pagado': t_pagado, 't_pendiente': t_total_ventas - t_pagado, 
         't_gastos_eventos': t_gastos_eventos, 't_ganancia_eventos': t_ganancia_eventos,
         
-        # Totales Operativos y Finales
-        'gastos_operativos_list': gastos_operativos_qs,
+        # Totales Operativos (Ahora lista agrupada)
+        'gastos_operativos_list': gastos_operativos_display, 
         'total_gastos_operativos': total_gastos_operativos,
         'utilidad_neta_real': utilidad_neta_real,
         
