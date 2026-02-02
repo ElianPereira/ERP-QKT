@@ -3,130 +3,117 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte Financiero Completo</title>
+    <title>Reporte Financiero Detallado</title>
     <style>
         @page { size: letter landscape; margin: 0.5cm; }
 
-        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 9px; }
+        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 8.5px; }
 
         /* ENCABEZADO */
-        .header { width: 100%; border-bottom: 3px solid #356685; margin-bottom: 20px; padding-bottom: 10px; }
+        .header { width: 100%; border-bottom: 3px solid #356685; margin-bottom: 15px; padding-bottom: 5px; }
         .header td { vertical-align: middle; }
-        .title { font-size: 20px; font-weight: 900; color: #356685; text-transform: uppercase; }
-        .subtitle { font-size: 10px; color: #666; margin-top: 3px; }
+        .title { font-size: 18px; font-weight: 900; color: #356685; text-transform: uppercase; }
+        .subtitle { font-size: 10px; color: #666; margin-top: 2px; }
 
         /* TABLAS COMUNES */
-        .table-common { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .table-common { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
 
         .table-common th {
-            background-color: #356685; color: white; padding: 6px 4px;
-            text-align: right; font-size: 9px; font-weight: bold;
+            background-color: #356685; color: white; padding: 5px 3px;
+            text-align: right; font-size: 8px; font-weight: bold; text-transform: uppercase;
         }
         .table-common th.text-left { text-align: left; }
         .table-common th.text-center { text-align: center; }
 
         .table-common td {
-            border-bottom: 1px solid #eee; padding: 6px 4px;
-            text-align: right; font-size: 9.5px;
+            border-bottom: 1px solid #eee; padding: 5px 3px;
+            text-align: right; font-size: 8.5px;
         }
         .table-common td.text-left { text-align: left; }
         .table-common td.text-center { text-align: center; }
 
-        /* ESTILOS ESPECÍFICOS */
-        .col-ganancia { background-color: #28a745; color: white; font-weight: bold; }
+        /* COLUMNAS ESPECÍFICAS */
+        .col-subt { background-color: #f9f9f9; }
+        .col-desc { color: #d63384; } /* Rosa oscuro para descuentos */
+        .col-iva  { color: #6610f2; } /* Morado para IVA */
+        .col-total { font-weight: bold; border-left: 1px solid #ccc; background-color: #f1f1f1; }
+        
         .col-gasto { color: #dc3545; }
+        .col-ganancia { background-color: #28a745; color: white; font-weight: bold; }
 
         /* TOTALES DE TABLA */
         .totals-row td {
             border-top: 2px solid #333; border-bottom: 2px solid #333;
-            font-weight: bold; background-color: #f0f0f0; font-size: 11px;
+            font-weight: bold; background-color: #e9ecef; font-size: 9px;
         }
 
         /* SECCIONES */
         .section-title {
-            font-size: 13px; font-weight: bold; color: #356685;
-            margin-top: 30px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 3px;
+            font-size: 12px; font-weight: bold; color: #356685;
+            margin-top: 20px; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 2px;
         }
 
-        /* CAJAS INFERIORES GENERALES */
+        /* CAJAS INFERIORES */
         .box {
-            border: 1px solid #ddd; padding: 20px; background-color: #fcfcfc; border-radius: 8px;
-            page-break-inside: avoid; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #ddd; padding: 15px; background-color: #fcfcfc; border-radius: 6px;
+            page-break-inside: avoid;
         }
-        .row-item { margin-bottom: 8px; font-size: 11px; clear: both; }
+        .row-item { margin-bottom: 6px; font-size: 10px; clear: both; }
         .row-total {
-            margin-top: 12px; border-top: 1px solid #999; padding-top: 12px;
-            font-weight: bold; font-size: 13px; clear: both;
+            margin-top: 10px; border-top: 1px solid #999; padding-top: 8px;
+            font-weight: bold; font-size: 12px; clear: both;
         }
         .label { float: left; }
         .value { float: right; }
 
-        /* --- NUEVOS ESTILOS PARA EL RESULTADO FINAL --- */
+        /* RESULTADO FINAL GRANDE */
         .final-result-container {
-            margin-top: 25px;
-            padding: 25px; /* Mucho más espacio interno */
-            border-radius: 10px;
-            text-align: center;
-            color: white; /* Texto blanco para máximo contraste */
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15); /* Sombra más pronunciada */
+            margin-top: 15px; padding: 15px; border-radius: 8px;
+            text-align: center; color: white;
         }
-
-        .final-result-profit {
-            background-color: #28a745; /* Verde sólido intenso */
-            border: 2px solid #218838;
-        }
-
-        .final-result-loss {
-            background-color: #dc3545; /* Rojo sólido intenso */
-            border: 2px solid #c82333;
-        }
-
-        .final-label-big {
-            font-size: 16px;
-            font-weight: bold;
-            text-transform: uppercase;
-            display: block;
-            margin-bottom: 10px;
-            opacity: 0.9;
-        }
-
-        .final-value-big {
-            font-size: 32px; /* Fuente GIGANTE para el número */
-            font-weight: 900;
-            display: block;
-        }
+        .final-result-profit { background-color: #28a745; border: 2px solid #218838; }
+        .final-result-loss { background-color: #dc3545; border: 2px solid #c82333; }
+        
+        .final-label-big { font-size: 14px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px; opacity: 0.9; }
+        .final-value-big { font-size: 24px; font-weight: 900; display: block; }
     </style>
 </head>
 <body>
 
     <table class="header">
         <tr>
-            <td style="width: 12%;">
-                <img src="{{ logo_url }}" style="height: 60px;">
+            <td style="width: 15%;">
+                <img src="{{ logo_url }}" style="height: 50px;">
             </td>
-            <td style="width: 58%;">
-                <div class="title">Reporte de Rentabilidad Real</div>
-                <div class="subtitle">Quinta Ko'ox Tanil | Análisis de Eventos vs. Gastos Operativos</div>
+            <td style="width: 55%;">
+                <div class="title">Reporte Financiero Detallado</div>
+                <div class="subtitle">Quinta Ko'ox Tanil | Desglose Fiscal y Rentabilidad</div>
             </td>
-            <td style="width: 30%; text-align: right; font-size: 10px;">
-                <strong>Generado:</strong> {% now "d/m/Y H:i" %}<br>
-                <strong>Periodo:</strong> {{ fecha_inicio|default:"Inicio" }} al {{ fecha_fin|default:"Hoy" }}<br>
-                <strong>Filtro Estado:</strong> {{ estado_filtro }}
+            <td style="width: 30%; text-align: right; font-size: 9px;">
+                <strong>Emisión:</strong> {% now "d/m/Y H:i" %}<br>
+                <strong>Rango:</strong> {{ fecha_inicio|default:"Inicio" }} al {{ fecha_fin|default:"Hoy" }}<br>
+                <strong>Estado:</strong> {{ estado_filtro }}
             </td>
         </tr>
     </table>
 
-    <div class="section-title">1. UTILIDAD BRUTA POR EVENTOS (Ventas Directas)</div>
+    <div class="section-title">1. DESGLOSE DE INGRESOS Y RENTABILIDAD POR EVENTO</div>
     <table class="table-common">
         <thead>
             <tr>
-                <th class="text-left" style="width: 5%;">ID</th>
-                <th class="text-left" style="width: 8%;">Fecha</th>
-                <th class="text-left" style="width: 25%;">Cliente / Evento</th>
-                <th class="text-center" style="width: 10%;">Estado</th>
-                <th style="width: 13%;">Precio Final</th>
-                <th class="col-gasto" style="width: 13%;">(-) Gasto Directo</th>
-                <th class="col-ganancia" style="width: 13%;">(=) Utilidad Bruta</th>
+                <th class="text-left" style="width: 4%;">ID</th>
+                <th class="text-left" style="width: 6%;">Fecha</th>
+                <th class="text-left" style="width: 18%;">Cliente</th>
+                
+                <th style="width: 8%;">Subtotal</th>
+                <th style="width: 7%;">(-) Desc.</th>
+                <th style="width: 7%;">Base Real</th>
+                <th style="width: 7%;">Total IVA<br><span style="font-size:6px">(Trasladado)</span></th>
+                <th style="width: 7%;">(-) ISR<br><span style="font-size:6px">(Retención)</span></th>
+                
+                <th class="col-total" style="width: 9%;">(=) Venta<br>Total</th>
+                <th class="col-gasto" style="width: 9%;">(-) Gastos<br><span style="font-size:6px">(Inc. IVA Acred.)</span></th>
+                <th class="col-ganancia" style="width: 9%;">(=) Utilidad<br>Bruta</th>
             </tr>
         </thead>
         <tbody>
@@ -135,103 +122,113 @@
                 <td class="text-left">{{ item.folio }}</td>
                 <td class="text-left">{{ item.fecha|date:"d/m/y" }}</td>
                 <td class="text-left">
-                    <strong>{{ item.cliente|truncatechars:25 }}</strong><br>
-                    <span style="color:#666; font-size:8.5px;">{{ item.producto|truncatechars:30 }}</span>
-                </td>
-                <td class="text-center">
-                    {% if item.estado == 'CONFIRMADA' %}
-                        <span style="color:green; font-weight:bold;">Confirmada</span>
-                    {% else %}
-                        {{ item.estado }}
-                    {% endif %}
+                    <div style="font-weight:bold; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; max-width: 130px;">
+                        {{ item.cliente }}
+                    </div>
+                    <div style="color:#666; font-size:7px;">{{ item.producto|truncatechars:25 }}</div>
                 </td>
 
-                <td>${{ item.total|floatformat:2|intcomma }}</td>
-                <td class="col-gasto">-${{ item.gastos|floatformat:2|intcomma }}</td>
+                <td class="col-subt">${{ item.subtotal|floatformat:2|intcomma }}</td>
+                <td class="col-desc">
+                    {% if item.descuento > 0 %}- ${{ item.descuento|floatformat:2|intcomma }}{% else %}-{% endif %}
+                </td>
+                <td style="font-style: italic;">${{ item.base_real|floatformat:2|intcomma }}</td>
+                
+                <td class="col-iva">${{ item.iva|floatformat:2|intcomma }}</td>
+                
+                <td style="color: #666;">
+                    {% if item.isr > 0 %}- ${{ item.isr|floatformat:2|intcomma }}{% else %}-{% endif %}
+                </td>
+
+                <td class="col-total">${{ item.total|floatformat:2|intcomma }}</td>
+                <td class="col-gasto">- ${{ item.gastos|floatformat:2|intcomma }}</td>
                 <td class="col-ganancia" style="color:white;">${{ item.ganancia|floatformat:2|intcomma }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="7" class="text-center" style="padding: 15px;">No se encontraron eventos para los filtros seleccionados.</td></tr>
+            <tr><td colspan="11" class="text-center" style="padding: 15px;">No hay datos para mostrar.</td></tr>
             {% endfor %}
         </tbody>
         <tfoot>
             <tr class="totals-row">
-                <td colspan="4" class="text-center">SUBTOTAL UTILIDAD EVENTOS</td>
-                <td>${{ t_total_ventas|floatformat:2|intcomma }}</td>
+                <td colspan="3" class="text-center">TOTALES GLOBALES</td>
+                <td>${{ t_subtotal|floatformat:2|intcomma }}</td>
+                <td class="col-desc">-${{ t_descuento|floatformat:2|intcomma }}</td>
+                <td>${{ t_base_real|floatformat:2|intcomma }}</td>
+                <td class="col-iva">${{ t_iva|floatformat:2|intcomma }}</td>
+                <td>-${{ t_ret_isr|floatformat:2|intcomma }}</td>
+                <td class="col-total">${{ t_total_ventas|floatformat:2|intcomma }}</td>
                 <td class="col-gasto">-${{ t_gastos_eventos|floatformat:2|intcomma }}</td>
                 <td class="col-ganancia" style="color:white; background-color:#218838;">${{ t_ganancia_eventos|floatformat:2|intcomma }}</td>
             </tr>
         </tfoot>
     </table>
 
-    <div class="section-title">2. RESUMEN GASTOS OPERATIVOS (No asignados a eventos)</div>
-    <table class="table-common" style="width: 60%;">
+    <div class="section-title">2. GASTOS OPERATIVOS (Estructurales / No asignados a Eventos)</div>
+    <table class="table-common" style="width: 50%;">
         <thead>
             <tr>
-                <th class="text-left" style="width: 65%;">Categoría del Gasto</th>
-                <th style="width: 35%;">Monto Total</th>
+                <th class="text-left">Categoría</th>
+                <th style="width: 30%;">Total</th>
             </tr>
         </thead>
         <tbody>
             {% for gasto in gastos_operativos_list %}
             <tr>
-                <td class="text-left" style="font-size: 11px;">{{ gasto.nombre }}</td>
-                <td class="col-gasto" style="font-size: 11px;">${{ gasto.total|floatformat:2|intcomma }}</td>
+                <td class="text-left">{{ gasto.nombre }}</td>
+                <td class="col-gasto">${{ gasto.total|floatformat:2|intcomma }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="2" class="text-center" style="padding: 15px;">No hay gastos operativos registrados en este periodo.</td></tr>
+            <tr><td colspan="2" class="text-center">Sin gastos operativos en el periodo.</td></tr>
             {% endfor %}
         </tbody>
         <tfoot>
             <tr class="totals-row">
-                <td class="text-center">TOTAL GASTOS OPERATIVOS</td>
+                <td class="text-left">TOTAL GASTOS OPERATIVOS</td>
                 <td class="col-gasto" style="color:#dc3545; background-color:#f8d7da;">-${{ total_gastos_operativos|floatformat:2|intcomma }}</td>
             </tr>
         </tfoot>
     </table>
 
-    <table style="width: 100%; margin-top: 40px;">
+    <table style="width: 100%; margin-top: 20px;">
         <tr>
-            <td style="width: 45%; vertical-align: top;">
+            <td style="width: 48%; vertical-align: top;">
                 <div class="box">
-                    <div style="font-weight:900; color:#356685; margin-bottom:15px; text-transform:uppercase; font-size: 14px; border-bottom: 2px solid #356685; padding-bottom: 5px;">
-                        Flujo de Efectivo (Dinero Cobrado)
+                    <div style="font-weight:900; color:#356685; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #356685;">
+                        Flujo de Efectivo (Cobrado)
                     </div>
-                    <div class="row-item" style="font-size: 12px;"><span class="label">Efectivo:</span><span class="value">${{ total_efectivo|floatformat:2|intcomma }}</span></div>
-                    <div class="row-item" style="font-size: 12px;"><span class="label">Transferencias:</span><span class="value">${{ total_transferencia|floatformat:2|intcomma }}</span></div>
+                    <div class="row-item"><span class="label">Efectivo:</span><span class="value">${{ total_efectivo|floatformat:2|intcomma }}</span></div>
+                    <div class="row-item"><span class="label">Transferencias:</span><span class="value">${{ total_transferencia|floatformat:2|intcomma }}</span></div>
                     {% if total_otros > 0 %}
-                    <div class="row-item" style="font-size: 12px;"><span class="label">Otros Métodos:</span><span class="value">${{ total_otros|floatformat:2|intcomma }}</span></div>
+                    <div class="row-item"><span class="label">Otros:</span><span class="value">${{ total_otros|floatformat:2|intcomma }}</span></div>
                     {% endif %}
-                    <div class="row-total" style="font-size: 15px;"><span class="label">TOTAL INGRESADO:</span><span class="value">${{ total_ingresado|floatformat:2|intcomma }}</span></div>
-                    <div style="font-size: 9px; color: #777; margin-top: 8px; font-style: italic;">* Suma de pagos realmente recibidos dentro de las fechas seleccionadas.</div>
+                    <div class="row-total">
+                        <span class="label">TOTAL INGRESOS REALES:</span>
+                        <span class="value">${{ total_ingresado|floatformat:2|intcomma }}</span>
+                    </div>
                 </div>
             </td>
 
-            <td style="width: 5%;"></td>
+            <td style="width: 4%;"></td>
 
-            <td style="width: 50%; vertical-align: top;">
-                <div class="box" style="border: none; background: none; padding: 0; box-shadow: none;">
-                    <div style="font-weight:900; color:#218838; margin-bottom:15px; text-transform:uppercase; font-size: 16px; border-bottom: 2px solid #218838; padding-bottom: 5px;">
-                        Estado de Resultados
+            <td style="width: 48%; vertical-align: top;">
+                <div class="box" style="border:none; padding:0; background:transparent;">
+                    <div style="font-weight:900; color:#218838; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #218838;">
+                        Estado de Resultados Neto
                     </div>
-
-                    <div class="row-item" style="font-size: 13px; margin-bottom: 10px;">
+                    
+                    <div class="row-item">
                         <span class="label">Utilidad Bruta (Eventos):</span>
                         <span class="value" style="color: #28a745; font-weight: bold;">${{ t_ganancia_eventos|floatformat:2|intcomma }}</span>
                     </div>
-
-                    <div class="row-item" style="font-size: 13px; margin-bottom: 10px;">
+                    <div class="row-item">
                         <span class="label">(-) Gastos Operativos:</span>
                         <span class="value" style="color: #dc3545; font-weight: bold;">- ${{ total_gastos_operativos|floatformat:2|intcomma }}</span>
                     </div>
 
                     <div class="final-result-container {% if utilidad_neta_real >= 0 %}final-result-profit{% else %}final-result-loss{% endif %}">
-                        <span class="final-label-big">UTILIDAD NETA REAL</span>
-                        <span class="final-value-big">
-                            ${{ utilidad_neta_real|floatformat:2|intcomma }}
-                        </span>
+                        <span class="final-label-big">Utilidad Neta Real</span>
+                        <span class="final-value-big">${{ utilidad_neta_real|floatformat:2|intcomma }}</span>
                     </div>
-
                 </div>
             </td>
         </tr>
