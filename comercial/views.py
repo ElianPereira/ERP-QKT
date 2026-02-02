@@ -399,4 +399,4 @@ def forzar_migracion(request):
         call_command('migrate', interactive=False)
         return HttpResponse("✅ ¡MIGRACIÓN EXITOSA! La base de datos ya tiene la estructura de 3 niveles.")
     except Exception as e:
-        return HttpResponse(f"❌ Error al migrar: {str(e)}")
+        return HttpResponse(f"❌ Error al migrar: {str(e)}")    
