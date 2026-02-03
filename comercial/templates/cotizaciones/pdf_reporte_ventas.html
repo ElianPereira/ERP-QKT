@@ -7,7 +7,7 @@
     <style>
         @page { size: letter landscape; margin: 0.5cm; }
 
-        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 8px; } /* Reduje un poco la fuente general */
+        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 8px; }
 
         /* ENCABEZADO */
         .header { width: 100%; border-bottom: 3px solid #356685; margin-bottom: 10px; padding-bottom: 5px; }
@@ -211,23 +211,6 @@
     <table style="width: 100%; margin-top: 15px;">
         <tr>
             <td style="width: 48%; vertical-align: top;">
-                <div class="box">
-                    <div style="font-weight:900; color:#356685; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #356685;">
-                        Desgloce De IVA                    </div>
-                    <div class="row-item"><span class="label">IVA Trasladado (Cobrado):</span><span class="value">${{ t_iva|floatformat:2|intcomma }}</span></div>
-                    <div class="row-item"><span class="label">(-) IVA Acreditable (Eventos):</span><span class="value" style="color:#6610f2;">-${{ t_gastos_iva|floatformat:2|intcomma }}</span></div>
-                    <div class="row-item"><span class="label">(-) IVA Acreditable (Operativo):</span><span class="value" style="color:#6610f2;">-${{ total_gastos_op_iva|floatformat:2|intcomma }}</span></div>
-                    
-                    <div class="row-total">
-                        <span class="label">IVA POR PAGAR:</span>
-                        <span class="value">${{ iva_por_pagar|floatformat:2|intcomma }}</span>
-                    </div>
-                </div>
-            </td>
-
-            <td style="width: 4%;"></td>
-
-            <td style="width: 48%; vertical-align: top;">
                 <div class="box" style="border:none; padding:0; background:transparent;">
                     <div style="font-weight:900; color:#218838; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #218838;">
                         Desglose De Rentabilidad
@@ -245,6 +228,24 @@
                     <div class="final-result-container {% if utilidad_neta_real >= 0 %}final-result-profit{% else %}final-result-loss{% endif %}">
                         <span class="final-label-big">Utilidad Neta</span>
                         <span class="final-value-big">${{ utilidad_neta_real|floatformat:2|intcomma }}</span>
+                    </div>
+                </div>
+            </td>
+
+            <td style="width: 4%;"></td>
+
+            <td style="width: 48%; vertical-align: top;">
+                <div class="box">
+                    <div style="font-weight:900; color:#356685; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #356685;">
+                        Desgloce De IVA
+                    </div>
+                    <div class="row-item"><span class="label">IVA Trasladado (Cobrado):</span><span class="value">${{ t_iva|floatformat:2|intcomma }}</span></div>
+                    <div class="row-item"><span class="label">(-) IVA Acreditable (Eventos):</span><span class="value" style="color:#6610f2;">-${{ t_gastos_iva|floatformat:2|intcomma }}</span></div>
+                    <div class="row-item"><span class="label">(-) IVA Acreditable (Operativo):</span><span class="value" style="color:#6610f2;">-${{ total_gastos_op_iva|floatformat:2|intcomma }}</span></div>
+                    
+                    <div class="row-total">
+                        <span class="label">IVA POR PAGAR:</span>
+                        <span class="value">${{ iva_por_pagar|floatformat:2|intcomma }}</span>
                     </div>
                 </div>
             </td>
