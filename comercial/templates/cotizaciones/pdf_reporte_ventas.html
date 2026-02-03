@@ -86,8 +86,8 @@
                 <img src="{{ logo_url }}" style="height: 45px;">
             </td>
             <td style="width: 55%;">
-                <div class="title">Reporte Financiero Detallado</div>
-                <div class="subtitle">Quinta Ko'ox Tanil | Desglose Fiscal y Rentabilidad</div>
+                <div class="title">Reporte Financiero</div>
+                <div class="subtitle">Quinta Ko'ox Tanil | Desgloce Fiscal Y Rentabilidad</div>
             </td>
             <td style="width: 30%; text-align: right; font-size: 8px;">
                 <strong>Emisión:</strong> {% now "d/m/Y H:i" %}<br>
@@ -97,7 +97,7 @@
         </tr>
     </table>
 
-    <div class="section-title">1. DESGLOSE DE INGRESOS Y RENTABILIDAD POR EVENTO</div>
+    <div class="section-title">DESGLOSE DE INGRESOS Y RENTABILIDAD POR EVENTO</div>
     <table class="table-common">
         <thead>
             <tr>
@@ -176,7 +176,7 @@
         </tfoot>
     </table>
 
-    <div class="section-title">2. GASTOS OPERATIVOS (Estructurales / No asignados a Eventos)</div>
+    <div class="section-title">GASTOS OPERATIVOS</div>
     <table class="table-common" style="width: 60%;">
         <thead>
             <tr>
@@ -213,14 +213,13 @@
             <td style="width: 48%; vertical-align: top;">
                 <div class="box">
                     <div style="font-weight:900; color:#356685; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #356685;">
-                        Resumen Fiscal (IVA)
-                    </div>
+                        Desgloce De IVA                    </div>
                     <div class="row-item"><span class="label">IVA Trasladado (Cobrado):</span><span class="value">${{ t_iva|floatformat:2|intcomma }}</span></div>
                     <div class="row-item"><span class="label">(-) IVA Acreditable (Eventos):</span><span class="value" style="color:#6610f2;">-${{ t_gastos_iva|floatformat:2|intcomma }}</span></div>
                     <div class="row-item"><span class="label">(-) IVA Acreditable (Operativo):</span><span class="value" style="color:#6610f2;">-${{ total_gastos_op_iva|floatformat:2|intcomma }}</span></div>
                     
                     <div class="row-total">
-                        <span class="label">IVA POR PAGAR (APROX):</span>
+                        <span class="label">IVA POR PAGAR:</span>
                         <span class="value">${{ iva_por_pagar|floatformat:2|intcomma }}</span>
                     </div>
                 </div>
@@ -231,7 +230,7 @@
             <td style="width: 48%; vertical-align: top;">
                 <div class="box" style="border:none; padding:0; background:transparent;">
                     <div style="font-weight:900; color:#218838; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #218838;">
-                        Rentabilidad Real del Negocio
+                        Rentabilidad Real
                     </div>
                     
                     <div class="row-item">
@@ -244,7 +243,7 @@
                     </div>
 
                     <div class="final-result-container {% if utilidad_neta_real >= 0 %}final-result-profit{% else %}final-result-loss{% endif %}">
-                        <span class="final-label-big">Utilidad Neta Real</span>
+                        <span class="final-label-big">Utilidad Neta</span>
                         <span class="final-value-big">${{ utilidad_neta_real|floatformat:2|intcomma }}</span>
                     </div>
                 </div>
