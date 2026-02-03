@@ -55,27 +55,20 @@
 
         /* CAJAS INFERIORES */
         .box {
-            border: 1px solid #ddd; padding: 10px; background-color: #fcfcfc; border-radius: 6px;
+            border: 1px solid #ddd; 
+            padding: 15px; /* Aumentado de 10px a 15px para dar aire al borde inferior */
+            background-color: #fcfcfc; 
+            border-radius: 6px;
             page-break-inside: avoid;
         }
         .row-item { margin-bottom: 5px; font-size: 9px; clear: both; }
         .row-total {
-            margin-top: 8px; border-top: 1px solid #999; padding-top: 6px;
+            margin-top: 12px; border-top: 1px solid #999; padding-top: 8px;
             font-weight: bold; font-size: 11px; clear: both;
         }
         .label { float: left; }
         .value { float: right; }
 
-        /* RESULTADO FINAL GRANDE */
-        .final-result-container {
-            margin-top: 10px; padding: 10px; border-radius: 8px;
-            text-align: center; color: white;
-        }
-        .final-result-profit { background-color: #28a745; border: 2px solid #218838; }
-        .final-result-loss { background-color: #dc3545; border: 2px solid #c82333; }
-        
-        .final-label-big { font-size: 12px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px; opacity: 0.9; }
-        .final-value-big { font-size: 20px; font-weight: 900; display: block; }
     </style>
 </head>
 <body>
@@ -211,7 +204,7 @@
     <table style="width: 100%; margin-top: 15px;">
         <tr>
             <td style="width: 48%; vertical-align: top;">
-                <div class="box" style="border:none; padding:0; background:transparent;">
+                <div class="box">
                     <div style="font-weight:900; color:#218838; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #218838;">
                         Desglose De Rentabilidad
                     </div>
@@ -225,9 +218,9 @@
                         <span class="value" style="color: #dc3545; font-weight: bold;">- ${{ total_gastos_op_base|floatformat:2|intcomma }}</span>
                     </div>
 
-                    <div class="final-result-container {% if utilidad_neta_real >= 0 %}final-result-profit{% else %}final-result-loss{% endif %}">
-                        <span class="final-label-big">Utilidad Neta</span>
-                        <span class="final-value-big">${{ utilidad_neta_real|floatformat:2|intcomma }}</span>
+                    <div class="row-total">
+                        <span class="label">UTILIDAD NETA REAL:</span>
+                        <span class="value" style="color: #28a745; font-size: 14px;">${{ utilidad_neta_real|floatformat:2|intcomma }}</span>
                     </div>
                 </div>
             </td>
