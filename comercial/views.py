@@ -239,7 +239,7 @@ def exportar_cierre_excel(request):
     wb.save(response)
     return response
 
-# --- REPORTE DE UTILIDADES (AGRUPADO POR CATEGORÍA) ---
+# --- REPORTE DE UTILIDADES (MODIFICADO: DESGLOSE DE IVA) ---
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
     if request.method != 'POST':
@@ -259,33 +259,67 @@ def exportar_reporte_cotizaciones(request):
     if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
     if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
 
-    t_subtotal, t_descuento, t_total_ventas, t_pagado, t_gastos_eventos = 0,0,0,0,0
-    t_iva, t_ret_isr, t_ganancia_eventos = 0,0,0
+    # Inicializamos acumuladores
+    t_subtotal, t_descuento, t_base_real, t_total_ventas = 0,0,0,0
+    t_iva, t_ret_isr = 0,0
+    t_pagado = 0
+    
+    # Acumuladores de Gastos
+    t_gastos_total_con_iva = 0
+    t_gastos_base = 0
+    t_gastos_iva = 0
+    
+    t_ganancia_eventos = 0
+    
     datos_tabla = []
     
     for c in cotizaciones:
-        pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
-        gastos = c.gasto_set.aggregate(total=Sum('total_linea'))['total'] or 0
+        pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or Decimal(0)
         
-        base_real = c.subtotal - c.descuento
+        # 1. Calcular Gasto Total con IVA (Como viene de la BD)
+        gasto_total_con_iva = c.gasto_set.aggregate(total=Sum('total_linea'))['total'] or Decimal(0)
         
+        # 2. Desglosar IVA del Gasto (Asumiendo 16% estándar para separar)
+        # Base = Total / 1.16
+        gasto_base = gasto_total_con_iva / Decimal('1.16')
+        gasto_iva_acreditable = gasto_total_con_iva - gasto_base
+        
+        # 3. Datos Venta
+        base_real_venta = c.subtotal - c.descuento
+        
+        # 4. Calcular UTILIDAD REAL (Base Venta - Base Gasto)
+        # El IVA no juega aquí porque es flujo de impuestos, no ganancia
+        ganancia_real = base_real_venta - gasto_base
+        
+        # Sumar a Globales
         t_subtotal += c.subtotal
         t_descuento += c.descuento
+        t_base_real += base_real_venta
         t_iva += c.iva
         t_ret_isr += c.retencion_isr
         t_total_ventas += c.precio_final
         t_pagado += pagado
-        t_gastos_eventos += gastos
-        t_ganancia_eventos += (c.precio_final - gastos)
+        
+        t_gastos_total_con_iva += gasto_total_con_iva
+        t_gastos_base += gasto_base
+        t_gastos_iva += gasto_iva_acreditable
+        
+        t_ganancia_eventos += ganancia_real
 
         datos_tabla.append({
             'folio': c.id, 'fecha': c.fecha_evento, 'cliente': c.cliente.nombre,
             'producto': c.nombre_evento, 
             'estado': c.get_estado_display(),
-            'subtotal': c.subtotal, 'descuento': c.descuento, 'base_real': base_real,
+            'subtotal': c.subtotal, 'descuento': c.descuento, 
+            'base_real': base_real_venta,
             'iva': c.iva, 'isr': c.retencion_isr, 'total': c.precio_final,
-            'pagado': pagado, 'pendiente': c.precio_final - pagado,
-            'gastos': gastos, 'ganancia': c.precio_final - gastos
+            
+            # Nuevos valores desglosados
+            'gastos_total': gasto_total_con_iva,
+            'gastos_base': gasto_base,
+            'gastos_iva': gasto_iva_acreditable,
+            
+            'ganancia': ganancia_real
         })
 
     # ==========================================
@@ -295,29 +329,45 @@ def exportar_reporte_cotizaciones(request):
     if fecha_inicio: gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
     if fecha_fin: gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
 
-    # Cálculo Total General
-    total_gastos_operativos = gastos_qs.aggregate(Sum('total_linea'))['total_linea__sum'] or 0
-
     # Agrupación por Categoría
     gastos_agrupados_data = gastos_qs.values('categoria').annotate(total=Sum('total_linea')).order_by('-total')
     
-    # Mapeo para mostrar el nombre legible (ej. "Mantenimiento" en vez de "MANTENIMIENTO")
     gastos_operativos_display = []
-    cat_labels = dict(Gasto.CATEGORIAS) # Diccionario {CLAVE: 'Nombre Legible'}
+    cat_labels = dict(Gasto.CATEGORIAS)
     
+    total_gastos_op_total = 0
+    total_gastos_op_base = 0
+    total_gastos_op_iva = 0
+
     for item in gastos_agrupados_data:
         key = item['categoria']
+        monto_total = item['total'] or Decimal(0)
+        
+        # Desglose matemático también para operativos
+        monto_base = monto_total / Decimal('1.16')
+        monto_iva = monto_total - monto_base
+        
+        total_gastos_op_total += monto_total
+        total_gastos_op_base += monto_base
+        total_gastos_op_iva += monto_iva
+
         gastos_operativos_display.append({
-            'nombre': cat_labels.get(key, key), # Si no encuentra, usa la clave
-            'total': item['total']
+            'nombre': cat_labels.get(key, key),
+            'total': monto_total,
+            'base': monto_base,
+            'iva': monto_iva
         })
     
     # ==========================================
     # 3. RESULTADO FINAL
     # ==========================================
-    utilidad_neta_real = t_ganancia_eventos - total_gastos_operativos
+    # Utilidad Neta Real = Utilidad Bruta Eventos - Gastos Operativos BASE (sin IVA)
+    utilidad_neta_real = t_ganancia_eventos - total_gastos_op_base
 
-    # Flujo de Efectivo
+    # Calculo informativo de impuestos
+    iva_por_pagar = t_iva - t_gastos_iva - total_gastos_op_iva
+
+    # Flujo de Efectivo (Solo informativo)
     pagos = Pago.objects.filter(cotizacion__in=cotizaciones)
     total_efectivo = pagos.filter(metodo='EFECTIVO').aggregate(t=Sum('monto'))['t'] or 0
     total_transf = pagos.filter(metodo='TRANSFERENCIA').aggregate(t=Sum('monto'))['t'] or 0
@@ -330,15 +380,23 @@ def exportar_reporte_cotizaciones(request):
         'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
         
         # Totales Eventos
-        't_subtotal': t_subtotal, 't_descuento': t_descuento, 't_base_real': t_subtotal - t_descuento,
+        't_subtotal': t_subtotal, 't_descuento': t_descuento, 't_base_real': t_base_real,
         't_iva': t_iva, 't_ret_isr': t_ret_isr, 't_total_ventas': t_total_ventas,
-        't_pagado': t_pagado, 't_pendiente': t_total_ventas - t_pagado, 
-        't_gastos_eventos': t_gastos_eventos, 't_ganancia_eventos': t_ganancia_eventos,
         
-        # Totales Operativos (Ahora lista agrupada)
+        # Nuevos Totales Gastos Eventos
+        't_gastos_base': t_gastos_base, 
+        't_gastos_iva': t_gastos_iva,
+        't_ganancia_eventos': t_ganancia_eventos,
+        
+        # Totales Operativos
         'gastos_operativos_list': gastos_operativos_display, 
-        'total_gastos_operativos': total_gastos_operativos,
+        'total_gastos_op_total': total_gastos_op_total,
+        'total_gastos_op_base': total_gastos_op_base,
+        'total_gastos_op_iva': total_gastos_op_iva,
+        
+        # Resultados Finales
         'utilidad_neta_real': utilidad_neta_real,
+        'iva_por_pagar': iva_por_pagar,
         
         # Flujo
         'total_efectivo': total_efectivo, 'total_transferencia': total_transf, 'total_otros': total_otros, 
@@ -399,4 +457,4 @@ def forzar_migracion(request):
         call_command('migrate', interactive=False)
         return HttpResponse("✅ ¡MIGRACIÓN EXITOSA! La base de datos ya tiene la estructura de 3 niveles.")
     except Exception as e:
-        return HttpResponse(f"❌ Error al migrar: {str(e)}")    
+        return HttpResponse(f"❌ Error al migrar: {str(e)}")
