@@ -456,6 +456,62 @@ def exportar_reporte_cotizaciones(request):
     HTML(string=html).write_pdf(response)
     return response
 
+# --- REPORTE DE PAGOS (NUEVO) ---
+@staff_member_required
+def exportar_reporte_pagos(request):
+    if request.method != 'POST':
+        # Renderiza el formulario si no es POST
+        return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Reporte de Pagos'})
+
+    # --- INPUTS ---
+    fecha_inicio = request.POST.get('fecha_inicio')
+    fecha_fin = request.POST.get('fecha_fin')
+    
+    # 1. CONSULTA DE PAGOS
+    # Usamos select_related para optimizar la consulta a la cotización y al cliente
+    pagos = Pago.objects.all().select_related('cotizacion', 'cotizacion__cliente').order_by('fecha_pago')
+    
+    if fecha_inicio: pagos = pagos.filter(fecha_pago__gte=fecha_inicio)
+    if fecha_fin: pagos = pagos.filter(fecha_pago__lte=fecha_fin)
+
+    # 2. TOTALES GENERALES
+    total_ingresos = pagos.aggregate(Sum('monto'))['monto__sum'] or Decimal(0)
+    
+    # 3. RESUMEN POR MÉTODO DE PAGO
+    # Agrupamos para saber cuánto entró por efectivo, transferencia, etc.
+    metodos_data = pagos.values('metodo').annotate(total=Sum('monto')).order_by('-total')
+    
+    # Mapeamos las claves (ej. 'TARJETA_CREDITO') a nombres legibles usando las choices del modelo
+    resumen_metodos = []
+    dict_metodos = dict(Pago.METODOS) # Diccionario {CLAVE: Nombre Legible}
+    
+    for item in metodos_data:
+        clave = item['metodo']
+        nombre = dict_metodos.get(clave, clave) # Si no encuentra, usa la clave
+        resumen_metodos.append({
+            'nombre': nombre,
+            'total': item['total']
+        })
+
+    # 4. RENDERIZAR PDF
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+    
+    html = render_to_string('comercial/pdf_reporte_pagos.html', {
+        'pagos': pagos,
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': fecha_fin,
+        'total_ingresos': total_ingresos,
+        'resumen_metodos': resumen_metodos,
+        'logo_url': logo_url
+    })
+    
+    response = HttpResponse(content_type='application/pdf')
+    filename = f"Reporte_Pagos_{fecha_inicio if fecha_inicio else 'General'}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    HTML(string=html).write_pdf(response)
+    return response
+
 @staff_member_required
 def calculadora_insumos(request):
     resultado = None

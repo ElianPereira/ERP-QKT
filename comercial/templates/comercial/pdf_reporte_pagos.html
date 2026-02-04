@@ -1,0 +1,143 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Pagos e Ingresos</title>
+    <style>
+        @page { size: letter; margin: 0.5cm; } /* Usamos carta vertical para listas largas */
+
+        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 9px; }
+
+        /* ENCABEZADO */
+        .header { width: 100%; border-bottom: 3px solid #356685; margin-bottom: 15px; padding-bottom: 5px; }
+        .header td { vertical-align: middle; }
+        .title { font-size: 18px; font-weight: 900; color: #356685; text-transform: uppercase; }
+        .subtitle { font-size: 10px; color: #666; margin-top: 2px; }
+
+        /* TABLA PRINCIPAL */
+        .table-common { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+
+        .table-common th {
+            background-color: #356685; color: white; padding: 5px 4px;
+            text-align: left; font-size: 8px; font-weight: bold; text-transform: uppercase;
+        }
+        .table-common th.text-right { text-align: right; }
+        .table-common th.text-center { text-align: center; }
+
+        .table-common td {
+            border-bottom: 1px solid #eee; padding: 5px 4px;
+            text-align: left; font-size: 9px;
+        }
+        .table-common td.text-right { text-align: right; }
+        .table-common td.text-center { text-align: center; }
+
+        /* ESTILOS DE COLUMNA */
+        .col-monto { font-weight: bold; color: #28a745; text-align: right; }
+        .col-metodo { font-size: 8px; color: #555; text-transform: uppercase; }
+        
+        /* TOTALES */
+        .totals-row td {
+            border-top: 2px solid #333; border-bottom: 2px solid #333;
+            font-weight: bold; background-color: #e9ecef; font-size: 10px;
+        }
+
+        /* CAJAS DE RESUMEN (Estilo idéntico al reporte de utilidades) */
+        .box {
+            border: 1px solid #ddd; padding: 15px; background-color: #fcfcfc; border-radius: 6px;
+            page-break-inside: avoid;
+        }
+        .row-item { margin-bottom: 5px; font-size: 10px; clear: both; border-bottom: 1px dashed #eee; padding-bottom: 2px; }
+        .row-total {
+            margin-top: 10px; border-top: 2px solid #28a745; padding-top: 8px;
+            font-weight: 900; font-size: 14px; clear: both; color: #28a745;
+        }
+        .label { float: left; text-transform: uppercase; color: #555; font-size: 9px; }
+        .value { float: right; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <table class="header">
+        <tr>
+            <td style="width: 15%;">
+                <img src="{{ logo_url }}" style="height: 45px;">
+            </td>
+            <td style="width: 55%;">
+                <div class="title">Reporte de Pagos</div>
+                <div class="subtitle">Quinta Ko'ox Tanil | Historial de Flujo de Efectivo</div>
+            </td>
+            <td style="width: 30%; text-align: right; font-size: 8px;">
+                <strong>Emisión:</strong> {% now "d/m/Y H:i" %}<br>
+                <strong>Rango:</strong> {{ fecha_inicio|default:"Inicio" }} al {{ fecha_fin|default:"Hoy" }}
+            </td>
+        </tr>
+    </table>
+
+    <table class="table-common">
+        <thead>
+            <tr>
+                <th style="width: 8%;">Fecha</th>
+                <th style="width: 8%;">Recibo ID</th>
+                <th style="width: 25%;">Cliente / Evento</th>
+                <th style="width: 15%;">Método</th>
+                <th style="width: 15%;">Referencia</th>
+                <th style="width: 15%;">Registrado Por</th>
+                <th class="text-right" style="width: 14%;">Monto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pago in pagos %}
+            <tr>
+                <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+                <td class="text-center" style="color:#666;">#{{ pago.id }}</td>
+                <td>
+                    <div style="font-weight:bold;">{{ pago.cotizacion.cliente.nombre }}</div>
+                    <div style="font-size:8px; color:#888;">{{ pago.cotizacion.nombre_evento }}</div>
+                </td>
+                <td class="col-metodo">{{ pago.get_metodo_display }}</td>
+                <td style="font-size:8px;">{{ pago.referencia|default:"-" }}</td>
+                <td style="font-size:8px; color:#666;">{{ pago.usuario.username|default:"Sistema" }}</td>
+                <td class="col-monto">${{ pago.monto|floatformat:2|intcomma }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center" style="padding: 20px;">No se encontraron pagos en este periodo.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="totals-row">
+                <td colspan="6" class="text-right">TOTAL INGRESOS DEL PERIODO:</td>
+                <td class="col-monto" style="font-size: 11px;">${{ total_ingresos|floatformat:2|intcomma }}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <table style="width: 100%; margin-top: 20px;">
+        <tr>
+            <td style="width: 50%;"></td>
+
+            <td style="width: 50%; vertical-align: top;">
+                <div class="box">
+                    <div style="font-weight:900; color:#356685; margin-bottom:10px; text-transform:uppercase; font-size: 11px; border-bottom: 2px solid #356685;">
+                        Resumen por Método de Pago
+                    </div>
+                    
+                    {% for metodo in resumen_metodos %}
+                    <div class="row-item">
+                        <span class="label">{{ metodo.nombre }}</span>
+                        <span class="value">${{ metodo.total|floatformat:2|intcomma }}</span>
+                    </div>
+                    {% endfor %}
+
+                    <div class="row-total">
+                        <span class="label" style="margin-top:4px;">TOTAL COBRADO:</span>
+                        <span class="value">${{ total_ingresos|floatformat:2|intcomma }}</span>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
