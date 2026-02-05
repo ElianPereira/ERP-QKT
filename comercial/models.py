@@ -27,6 +27,36 @@ class Insumo(models.Model):
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
 
+    # --- NUEVO CAMPO: INTERRUPTOR PARA CREAR SUBPRODUCTO ---
+    crear_como_subproducto = models.BooleanField(
+        default=False,
+        verbose_name="¿Crear también como Subproducto?",
+        help_text="Si marcas esto, se creará un Subproducto automático y su receta (1 a 1) al guardar."
+    )
+
+    def save(self, *args, **kwargs):
+        # 1. Guardar el Insumo primero para tener un ID
+        super().save(*args, **kwargs)
+
+        # 2. Lógica para crear Subproducto automático
+        if self.crear_como_subproducto:
+            # Buscamos o creamos el SubProducto
+            sub_prod, created = SubProducto.objects.get_or_create(
+                nombre=self.nombre,
+                defaults={
+                    'descripcion': f"Generado autom. desde insumo: {self.nombre}"
+                }
+            )
+            
+            # 3. CRUCIAL: Crear la Receta (RecetaSubProducto)
+            # Sin esto, el SubProducto tendría costo $0.
+            # Asumimos una relación 1 a 1 (ej. 1 Coca Cola Insumo = 1 Coca Cola Subproducto)
+            RecetaSubProducto.objects.get_or_create(
+                subproducto=sub_prod,
+                insumo=self,
+                defaults={'cantidad': 1}
+            )
+
     def __str__(self):
         return f"{self.nombre} ({self.categoria})"
 
@@ -81,7 +111,7 @@ class ComponenteProducto(models.Model):
         return self.subproducto.costo_insumos() * self.cantidad
 
 # ==========================================
-# 4. CLIENTES
+# 4. CLIENTES (MODIFICADO PARA LISTAS DESPLEGABLES)
 # ==========================================
 class Cliente(models.Model):
     nombre = models.CharField(max_length=200)
@@ -105,7 +135,10 @@ class Cliente(models.Model):
     uso_cfdi = models.CharField(max_length=4, choices=UsoCFDI.choices, blank=True, null=True, default=UsoCFDI.GASTOS_EN_GENERAL)
     
     def __str__(self):
-        return self.razon_social if self.razon_social else self.nombre
+        # Muestra "Nombre (Razón Social)" si existe razón social, sino solo "Nombre"
+        if self.razon_social:
+            return f"{self.nombre} ({self.razon_social})"
+        return self.nombre
 
 # ==========================================
 # 5. COTIZACIONES
@@ -233,7 +266,7 @@ class Pago(models.Model):
         return f"${self.monto}"
 
 # ==========================================
-# 7. COMPRAS Y GASTOS (MODELO ACTUALIZADO)
+# 7. COMPRAS Y GASTOS
 # ==========================================
 
 class Compra(models.Model):
