@@ -16,7 +16,7 @@ from cloudinary_storage.storage import RawMediaCloudinaryStorage
 class Insumo(models.Model):
     TIPOS = [
         ('CONSUMIBLE', 'Consumible (Hielo, Comida, Desechables)'),
-        ('MOBILIARIO', 'Mobiliario (Sillas, Mesas)'),
+        ('MOBILIARIO', 'Mobiliario (Se renta: Sillas, Mesas)'),
         ('SERVICIO', 'Personal (Bartender, Staff, Seguridad)')
     ]
     nombre = models.CharField(max_length=200)
@@ -124,7 +124,7 @@ class Cotizacion(models.Model):
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
     factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=2.20, verbose_name="Factor Utilidad")
 
-    # Selección Manual de Insumos (Esto causó el error anterior porque faltaba migrar)
+    # Selección Manual de Insumos
     insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo (20kg)", help_text="Selecciona la bolsa de hielo")
     insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco", help_text="Selecciona el refresco base")
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua", help_text="Selecciona el garrafón")
@@ -151,13 +151,8 @@ class Cotizacion(models.Model):
 
     # --- MÉTODO PARA CALCULAR PRECIO REAL UNITARIO ---
     def _get_costo_real(self, insumo, precio_default):
-        """
-        Calcula el costo por unidad base (Litro/Pieza) usando el Factor de Rendimiento.
-        """
         if not insumo:
             return Decimal(precio_default)
-        
-        # Evitar división por cero
         factor = insumo.factor_rendimiento if insumo.factor_rendimiento > 0 else Decimal(1)
         return insumo.costo_unitario / factor
 
@@ -165,26 +160,12 @@ class Cotizacion(models.Model):
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # 1. OBTENER COSTOS REALES (Normalizados)
-        
-        # Hielo: Unidad base = Bolsa de 20kg.
-        # Si configuras "Pack 10 Bolsas", Factor=10.
+        # 1. OBTENER COSTOS REALES
         costo_hielo_20kg = self._get_costo_real(self.insumo_hielo, '88.00')
-
-        # Refrescos: Unidad base = LITRO.
-        # Si configuras "Caja 6x3L", Factor=18.
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
-
-        # Agua: Unidad base = LITRO.
-        # Si configuras "Garrafón 20L", Factor=20.
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
-
-        # Staff: Unidad base = TURNO/SERVICIO.
         costo_barman = self._get_costo_real(self.insumo_barman, '1200.00')
         costo_auxiliar = self._get_costo_real(self.insumo_auxiliar, '800.00')
-
-        # Alcohol: Unidad base = BOTELLA.
-        # Si configuras "Caja 12 botellas", Factor=12.
         costo_base = self._get_costo_real(self.insumo_alcohol_basico, '250.00')
         costo_premium = self._get_costo_real(self.insumo_alcohol_premium, '550.00')
 
@@ -199,7 +180,6 @@ class Cotizacion(models.Model):
             costo_alcohol_total = botellas * precio_botella
             litros_mezcladores = math.ceil(botellas * 4.5)
         else:
-            # Solo refrescos (1.5L por persona)
             litros_mezcladores = math.ceil(self.num_personas * 1.5)
 
         kilos_hielo = self.num_personas * 2.0
@@ -211,7 +191,7 @@ class Cotizacion(models.Model):
         litros_agua = math.ceil(self.num_personas * 0.5)
         costo_agua_total = litros_agua * costo_agua_lt
 
-        # Staff: 1 cada 50 pax
+        # Staff
         num_staff = math.ceil(self.num_personas / 50) 
         costo_staff_total = (num_staff * costo_barman) + (num_staff * costo_auxiliar)
 
@@ -229,6 +209,7 @@ class Cotizacion(models.Model):
             'num_barmans': num_staff,
             'num_auxiliares': num_staff,
             'costo_total_estimado': round(costo_total, 2),
+            'costo_pax': round(costo_total / self.num_personas, 2), # <--- AQUÍ ESTABA EL ERROR, YA LO AGREGUÉ
             'precio_venta_sugerido_total': round(precio_venta, 2),
             'precio_venta_sugerido_pax': round(precio_venta / self.num_personas, 2),
             'margen_aplicado': self.factor_utilidad_barra
