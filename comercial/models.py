@@ -36,20 +36,12 @@ class Insumo(models.Model):
     )
 
     def save(self, *args, **kwargs):
-        # 1. Guardar el Insumo primero para tener un ID
         super().save(*args, **kwargs)
-
-        # 2. Lógica para crear Subproducto automático
         if self.crear_como_subproducto:
-            # Buscamos o creamos el SubProducto
             sub_prod, created = SubProducto.objects.get_or_create(
                 nombre=self.nombre,
-                defaults={
-                    'descripcion': f"Generado autom. desde insumo: {self.nombre}"
-                }
+                defaults={'descripcion': f"Generado autom. desde insumo: {self.nombre}"}
             )
-            
-            # 3. CRUCIAL: Crear la Receta (RecetaSubProducto)
             RecetaSubProducto.objects.get_or_create(
                 subproducto=sub_prod,
                 insumo=self,
@@ -122,10 +114,7 @@ class Cliente(models.Model):
     ], default='Otro')
 
     es_cliente_fiscal = models.BooleanField(default=False, verbose_name="¿Datos Fiscales Completos?")
-    TIPOS_FISCALES = [
-        ('FISICA', 'Persona Física'),
-        ('MORAL', 'Persona Moral'),
-    ]
+    TIPOS_FISCALES = [('FISICA', 'Persona Física'), ('MORAL', 'Persona Moral')]
     tipo_persona = models.CharField(max_length=10, choices=TIPOS_FISCALES, default='FISICA')
     rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
     razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name="Razón Social")
@@ -150,6 +139,7 @@ class Cotizacion(models.Model):
 
     BARRA_CHOICES = [
         ('ninguna', 'Sin Servicio de Alcohol'),
+        ('sin_alcohol', 'Barra Refrescos (Solo Mezcladores)'), 
         ('basico', 'Paquete Básico (Botellas 1L - Nacional)'),
         ('premium', 'Paquete Premium (Botellas 1L - Importado)'),
     ]
@@ -164,7 +154,6 @@ class Cotizacion(models.Model):
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     tipo_barra = models.CharField(max_length=20, choices=BARRA_CHOICES, default='ninguna', verbose_name="Tipo de Barra Libre")
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas de Servicio Barra")
-    # -----------------------------------
 
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -180,77 +169,74 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
-    # --- MÉTODO PRINCIPAL: CALCULADORA DE BARRA (LÓGICA ECONÓMICA / MAYORISTA / 20KG HIELO) ---
+    # --- CALCULADORA INTELIGENTE CON STAFF ---
     def calcular_barra_insumos(self):
-        """ 
-        Calcula insumos basado en BOTELLAS DE 1 LITRO, precios MAYORISTAS
-        y Bolsas de Hielo Gourmet de 20kg.
-        """
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # 1. PRECIOS BASE (Estrategia Mayorista/Costco + Hielo Gourmet)
+        # Precios Base
         PRECIOS = {
-            'basico': 250.00,   # Promedio botella 1L nacional
-            'premium': 550.00,  # Promedio botella 1L importada
-            'hielo_20kg': 88.00, # PRECIO ACTUALIZADO: Bolsa Gourmet 20kg
-            'mezclador_lt': 20.00, 
-            'agua_lt': 8.00 
+            'basico': 250.00, 'premium': 550.00, 
+            'hielo_20kg': 88.00, 'mezclador_lt': 20.00, 'agua_lt': 8.00,
+            'barman': 1200.00, 'auxiliar': 800.00 # COSTOS STAFF
         }
 
-        # 2. FACTORES DE CONSUMO (Botella de 1 LITRO)
-        # 1 Litro = 1000ml = ~22 tragos. Rendimiento ~4.5 personas.
-        factor_consumo = 4.5 if self.horas_servicio >= 5 else 5.5
+        botellas = 0
+        costo_alcohol = Decimal(0)
         
-        # 3. CÁLCULOS
-        precio_botella = PRECIOS['premium'] if self.tipo_barra == 'premium' else PRECIOS['basico']
-        
-        # Alcohol (Botellas de 1L)
-        botellas = math.ceil(self.num_personas / factor_consumo)
-        costo_alcohol = botellas * precio_botella
+        # 1. ALCOHOL
+        if self.tipo_barra in ['basico', 'premium']:
+            factor_consumo = 4.5 if self.horas_servicio >= 5 else 5.5
+            precio_botella = PRECIOS['premium'] if self.tipo_barra == 'premium' else PRECIOS['basico']
+            botellas = math.ceil(self.num_personas / factor_consumo)
+            costo_alcohol = botellas * precio_botella
+            litros_mezcladores = math.ceil(botellas * 4.5)
+        else:
+            litros_mezcladores = math.ceil(self.num_personas * 1.5)
 
-        # Hielo (2kg por persona => 100 pax = 200kg)
-        # Bolsa de 20kg: 200kg / 20 = 10 bolsas.
+        # 2. HIELO Y AGUA
         kilos_hielo = self.num_personas * 2.0
         bolsas_hielo_20kg = math.ceil(kilos_hielo / 20.0)
         costo_hielo = bolsas_hielo_20kg * PRECIOS['hielo_20kg']
-
-        # Mezcladores (4.5 Litros por botella de alcohol de 1L)
-        litros_mezcladores = math.ceil(botellas * 4.5)
+        
         costo_mezcladores = litros_mezcladores * PRECIOS['mezclador_lt']
-
-        # Agua Natural (Hidratación: 0.5L por persona)
         litros_agua = math.ceil(self.num_personas * 0.5)
         costo_agua = litros_agua * PRECIOS['agua_lt']
 
-        # Totales
-        costo_total_insumos = costo_alcohol + costo_hielo + costo_mezcladores + costo_agua
-        costo_por_pax = costo_total_insumos / self.num_personas
+        # 3. PERSONAL (STAFF)
+        # Regla: 1 Barman cada 50 pax. 1 Auxiliar cada 50 pax.
+        num_barmans = math.ceil(self.num_personas / 50)
+        num_auxiliares = math.ceil(self.num_personas / 50)
         
-        # Precio de Venta (Margen sugerido ~55%)
-        precio_venta_sugerido = costo_total_insumos * 2.2 
-        precio_venta_pax = precio_venta_sugerido / self.num_personas
+        costo_staff = (num_barmans * PRECIOS['barman']) + (num_auxiliares * PRECIOS['auxiliar'])
+
+        # TOTAL COSTO (Materiales + Staff)
+        costo_total = costo_alcohol + costo_hielo + costo_mezcladores + costo_agua + costo_staff
+        
+        # Margen Ganancia (Sobre el costo total incluido staff)
+        factor_margen = 3.0 if self.tipo_barra == 'sin_alcohol' else 2.2
+        precio_venta = costo_total * Decimal(factor_margen)
 
         return {
             'botellas': botellas,
             'bolsas_hielo_20kg': bolsas_hielo_20kg,
             'litros_mezcladores': litros_mezcladores,
             'litros_agua': litros_agua,
-            'costo_total_estimado': round(costo_total_insumos, 2),
-            'costo_pax': round(costo_por_pax, 2),
-            'precio_venta_sugerido_total': round(precio_venta_sugerido, 2),
-            'precio_venta_sugerido_pax': round(precio_venta_pax, 2)
+            # Info Staff para referencia interna (aunque no se muestre desglosado al cliente)
+            'num_barmans': num_barmans,
+            'num_auxiliares': num_auxiliares,
+            'costo_total_estimado': round(costo_total, 2),
+            'costo_pax': round(costo_total / self.num_personas, 2),
+            'precio_venta_sugerido_total': round(precio_venta, 2),
+            'precio_venta_sugerido_pax': round(precio_venta / self.num_personas, 2)
         }
-    # -----------------------------------------------------------
 
     def calcular_totales(self):
         if not self.pk: return 
         suma_items = sum(item.subtotal() for item in self.items.all())
         self.subtotal = suma_items
-        
         base = Decimal(self.subtotal) - Decimal(self.descuento)
         if base < 0: base = Decimal('0.00')
-        
         if self.requiere_factura:
             self.iva = base * Decimal('0.16')
             if self.cliente.tipo_persona == 'MORAL':
@@ -263,57 +249,43 @@ class Cotizacion(models.Model):
             self.iva = Decimal('0.00')
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
-            
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
 
     def save(self, *args, **kwargs):
-        # 1. Guardado base
         super().save(*args, **kwargs)
 
-        # 2. LÓGICA AUTOMÁTICA DE BARRA (EL "ITEM MÁGICO")
+        # LÓGICA AUTOMÁTICA DE ITEM
         datos_barra = self.calcular_barra_insumos()
-        
-        # Identificador clave
-        desc_clave = "Servicio de Barra Libre"
-        
-        # Buscamos si ya existe el item
+        desc_clave = "Servicio de Barra"
         item_barra = self.items.filter(descripcion__startswith=desc_clave).first()
 
         if datos_barra:
-            # SI HAY BARRA: Crear o Actualizar
             precio_sugerido = Decimal(datos_barra['precio_venta_sugerido_total'])
-            tipo_txt = "Premium (Importado)" if self.tipo_barra == 'premium' else "Básico (Nacional)"
-            nueva_descripcion = f"{desc_clave} {tipo_txt} | {self.num_personas} Pax - {self.horas_servicio} Horas"
+            nombres = {
+                'basico': 'Libre Nacional',
+                'premium': 'Libre Premium',
+                'sin_alcohol': 'Refrescos Ilimitados'
+            }
+            nombre_tipo = nombres.get(self.tipo_barra, 'General')
+            nueva_descripcion = f"{desc_clave} {nombre_tipo} | {self.num_personas} Pax - {self.horas_servicio} Hrs"
             
             if item_barra:
-                # Solo actualizar si cambiaron valores (Evita loops)
                 if abs(item_barra.precio_unitario - precio_sugerido) > Decimal('0.01') or item_barra.descripcion != nueva_descripcion:
                     item_barra.precio_unitario = precio_sugerido
                     item_barra.descripcion = nueva_descripcion
                     item_barra.cantidad = 1
                     item_barra.save()
             else:
-                # Crear nuevo
                 ItemCotizacion.objects.create(
-                    cotizacion=self,
-                    descripcion=nueva_descripcion,
-                    cantidad=1,
-                    precio_unitario=precio_sugerido
+                    cotizacion=self, descripcion=nueva_descripcion, cantidad=1, precio_unitario=precio_sugerido
                 )
         else:
-            # SI SE QUITÓ LA BARRA: Borrar el item
-            if item_barra:
-                item_barra.delete()
+            if item_barra: item_barra.delete()
 
-        # 3. Recalcular y actualizar totales en la cotización (Sin llamar save() de nuevo)
         self.calcular_totales()
-        
         Cotizacion.objects.filter(pk=self.pk).update(
-            subtotal=self.subtotal,
-            iva=self.iva,
-            retencion_isr=self.retencion_isr,
-            retencion_iva=self.retencion_iva,
-            precio_final=self.precio_final
+            subtotal=self.subtotal, iva=self.iva, retencion_isr=self.retencion_isr,
+            retencion_iva=self.retencion_iva, precio_final=self.precio_final
         )
 
     def total_pagado(self):
@@ -344,7 +316,6 @@ class ItemCotizacion(models.Model):
             elif self.insumo: self.precio_unitario = self.insumo.costo_unitario
         super().save(*args, **kwargs)
         if self.cotizacion.pk:
-            # Recalcular totales pero usando UPDATE, NO save() para evitar recursión
             self.cotizacion.calcular_totales()
             Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
                 subtotal=self.cotizacion.subtotal,
@@ -372,9 +343,7 @@ class Pago(models.Model):
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     
-    # --- FECHA EDITABLE (Default = Hoy) ---
     fecha_pago = models.DateField(default=now, verbose_name="Fecha de Pago")
-    
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo = models.CharField(max_length=20, choices=METODOS)
     referencia = models.CharField(max_length=100, blank=True)
@@ -382,17 +351,11 @@ class Pago(models.Model):
     def __str__(self):
         return f"${self.monto}"
 
-# ==========================================
-# 7. COMPRAS Y GASTOS
-# ==========================================
-
 class Compra(models.Model):
-    """ Representa la Factura General (El contenedor XML/PDF) """
     proveedor = models.CharField(max_length=200, blank=True)
     rfc_emisor = models.CharField(max_length=13, blank=True)
     fecha_emision = models.DateField(blank=True, null=True)
     
-    # Totales Globales
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     descuento = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -400,7 +363,6 @@ class Compra(models.Model):
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     
-    # Archivos: USAMOS STORAGE RAW PARA QUE CLOUDINARY ACEPTE XML
     archivo_xml = models.FileField(upload_to='xml_compras/', storage=RawMediaCloudinaryStorage())
     archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
     
@@ -408,23 +370,18 @@ class Compra(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # 1. Leer cabecera del XML
-        if self.archivo_xml and not self.pk: # Solo al crear
+        if self.archivo_xml and not self.pk:
             try:
-                if self.archivo_xml.closed:
-                    self.archivo_xml.open()
+                if self.archivo_xml.closed: self.archivo_xml.open()
                 self.archivo_xml.seek(0)
                 tree = ET.parse(self.archivo_xml)
                 root = tree.getroot()
-                
                 ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
-                if 'http://www.sat.gob.mx/cfd/3' in root.tag: 
-                    ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+                if 'http://www.sat.gob.mx/cfd/3' in root.tag: ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
 
                 self.total = Decimal(root.attrib.get('Total', 0))
                 self.subtotal = Decimal(root.attrib.get('SubTotal', 0))
                 self.descuento = Decimal(root.attrib.get('Descuento', 0))
-                
                 fecha_str = root.attrib.get('Fecha', '')
                 if fecha_str: self.fecha_emision = fecha_str.split('T')[0] 
                 
@@ -433,14 +390,12 @@ class Compra(models.Model):
                     self.proveedor = emisor.attrib.get('Nombre', '')
                     self.rfc_emisor = emisor.attrib.get('Rfc', '')
 
-                # UUID
                 complemento = root.find('cfdi:Complemento', ns)
                 if complemento is not None:
                     ns_tfd = {'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'}
                     timbre = complemento.find('tfd:TimbreFiscalDigital', ns_tfd)
                     if timbre is not None: self.uuid = timbre.attrib.get('UUID', '').upper()
                 
-                # Impuestos Globales (Resumen)
                 self.iva = Decimal('0.00')
                 impuestos = root.find('cfdi:Impuestos', ns)
                 if impuestos is not None:
@@ -457,33 +412,21 @@ class Compra(models.Model):
                             val = Decimal(r.attrib.get('Importe', 0))
                             if imp == '001': self.ret_isr += val
                             elif imp == '002': self.ret_iva += val
-
             except Exception as e:
                 print(f"Error parseando cabecera: {e}")
-            
-            # --- FIX: REBOBINAR EL ARCHIVO ANTES DE SUBIR A CLOUDINARY ---
             self.archivo_xml.seek(0)
-
         super().save(*args, **kwargs)
-        
-        # 2. Leer Conceptos y crear Gastos (Hijos)
-        if self.archivo_xml:
-            self._procesar_conceptos_xml()
+        if self.archivo_xml: self._procesar_conceptos_xml()
 
     def _procesar_conceptos_xml(self):
         if self.gastos.exists(): return 
-
         try:
-            if self.archivo_xml.closed:
-                self.archivo_xml.open()
+            if self.archivo_xml.closed: self.archivo_xml.open()
             self.archivo_xml.seek(0)
             tree = ET.parse(self.archivo_xml)
             root = tree.getroot()
-            
             ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
-            if 'http://www.sat.gob.mx/cfd/3' in root.tag: 
-                ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
-            
+            if 'http://www.sat.gob.mx/cfd/3' in root.tag: ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
             conceptos = root.find('cfdi:Conceptos', ns)
             if conceptos is not None:
                 for c in conceptos.findall('cfdi:Concepto', ns):
@@ -493,8 +436,6 @@ class Compra(models.Model):
                     importe = Decimal(c.attrib.get('Importe', 0))
                     clave_sat = c.attrib.get('ClaveProdServ', '')
                     unidad = c.attrib.get('ClaveUnidad', '')
-                    
-                    # Intentar leer IVA por línea
                     iva_linea = Decimal('0.00')
                     impuestos_c = c.find('cfdi:Impuestos', ns)
                     if impuestos_c:
@@ -504,18 +445,10 @@ class Compra(models.Model):
                                 if t.attrib.get('Impuesto') == '002':
                                     try: iva_linea += Decimal(t.attrib.get('Importe', 0))
                                     except: iva_linea = importe * Decimal('0.16')
-
                     Gasto.objects.create(
-                        compra=self,
-                        descripcion=descripcion,
-                        cantidad=cantidad,
-                        precio_unitario=valor_unitario,
-                        total_linea=importe + iva_linea,
-                        clave_sat=clave_sat,
-                        unidad_medida=unidad,
-                        fecha_gasto=self.fecha_emision,
-                        proveedor=self.proveedor,
-                        categoria='SIN_CLASIFICAR'
+                        compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario,
+                        total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad,
+                        fecha_gasto=self.fecha_emision, proveedor=self.proveedor, categoria='SIN_CLASIFICAR'
                     )
         except Exception as e:
             print(f"Error procesando conceptos: {e}")
@@ -524,39 +457,25 @@ class Compra(models.Model):
         return f"{self.proveedor} - ${self.total}"
 
 class Gasto(models.Model):
-    # --- CATEGORÍAS ACTUALIZADAS ---
     CATEGORIAS = [
-        ('SIN_CLASIFICAR', 'Sin Clasificar'),
-        ('SERVICIO_EXTERNO', 'Servicio Externo'),
-        ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'),
-        ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'),
-        ('LIMPIEZA', 'Limpieza Y Desechables'),
-        ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'),
-        ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'),
-        ('NOMINA_EXT', 'Servicios Staff Externo'),
-        ('IMPUESTOS', 'Pago De Impuestos'),
-        ('PUBLICIDAD', 'Publicidad Y Marketing'),
-        ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'),
-        ('OTRO', 'Otros Gastos'),
+        ('SIN_CLASIFICAR', 'Sin Clasificar'), ('SERVICIO_EXTERNO', 'Servicio Externo'),
+        ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'), ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'),
+        ('LIMPIEZA', 'Limpieza Y Desechables'), ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'),
+        ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'), ('NOMINA_EXT', 'Servicios Staff Externo'),
+        ('IMPUESTOS', 'Pago De Impuestos'), ('PUBLICIDAD', 'Publicidad Y Marketing'),
+        ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'), ('OTRO', 'Otros Gastos'),
     ]
-
     compra = models.ForeignKey(Compra, related_name='gastos', on_delete=models.CASCADE)
-    
     descripcion = models.CharField(max_length=255)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_linea = models.DecimalField(max_digits=10, decimal_places=2, default=0) 
-    
     categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='SIN_CLASIFICAR')
     evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
-    
     clave_sat = models.CharField(max_length=20, blank=True)
     unidad_medida = models.CharField(max_length=20, blank=True)
-    
     fecha_gasto = models.DateField(blank=True, null=True)
     proveedor = models.CharField(max_length=200, blank=True)
-    
-    # También actualizamos estos campos en Gasto por seguridad
     archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
     archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
