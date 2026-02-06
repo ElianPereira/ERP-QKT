@@ -28,7 +28,7 @@ class Insumo(models.Model):
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
 
-    # --- NUEVO CAMPO: INTERRUPTOR PARA CREAR SUBPRODUCTO ---
+    # --- INTERRUPTOR PARA CREAR SUBPRODUCTO ---
     crear_como_subproducto = models.BooleanField(
         default=False,
         verbose_name="¿Crear también como Subproducto?",
@@ -150,8 +150,8 @@ class Cotizacion(models.Model):
 
     BARRA_CHOICES = [
         ('ninguna', 'Sin Servicio de Alcohol'),
-        ('basico', 'Paquete Básico (Nacional/Batalla)'),
-        ('premium', 'Paquete Premium (Importado/Lujo)'),
+        ('basico', 'Paquete Básico (Botellas 1L - Nacional)'),
+        ('premium', 'Paquete Premium (Botellas 1L - Importado)'),
     ]
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
@@ -160,11 +160,11 @@ class Cotizacion(models.Model):
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
     
-    # --- NUEVOS CAMPOS PARA CÁLCULO AUTOMÁTICO DE BARRA ---
+    # --- DATOS PARA CÁLCULO DE BARRA ---
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     tipo_barra = models.CharField(max_length=20, choices=BARRA_CHOICES, default='ninguna', verbose_name="Tipo de Barra Libre")
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas de Servicio Barra")
-    # -----------------------------------------------------
+    # -----------------------------------
 
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -180,43 +180,52 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
-    # --- MÉTODO PRINCIPAL: CALCULADORA DE BARRA (Lógica Mérida) ---
+    # --- MÉTODO PRINCIPAL: CALCULADORA DE BARRA (LÓGICA ECONÓMICA / MAYORISTA) ---
     def calcular_barra_insumos(self):
-        """ Retorna un diccionario con la lista de compras y costos estimados para la barra """
+        """ 
+        Calcula insumos basado en BOTELLAS DE 1 LITRO y precios MAYORISTAS.
+        Optimizando para mayor rendimiento y menor costo.
+        """
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # 1. PRECIOS BASE (Estimados Feb 2026 - Se pueden mover a BD después)
+        # 1. PRECIOS BASE (Estrategia Mayorista/Costco)
+        # Básico: Promedio $250 (Bacardí 1L, Smirnoff 1L, Red Label 1L comprando por caja)
+        # Premium: Promedio $550 (Etiqueta Negra 1L, Tradicional Cristalino, Absolut)
         PRECIOS = {
-            'basico': 330.00,  # Promedio (Bacardi, Tradicional, Roja)
-            'premium': 600.00, # Promedio (Havana, Dobel, Negra)
+            'basico': 250.00,  
+            'premium': 550.00, 
             'hielo_5kg': 35.00,
-            'mezclador_lt': 25.00, # Promedio Coca/Sprite/Mineral
-            'agua_lt': 10.00
+            'mezclador_lt': 20.00, # Bajamos precio considerando Refrescos "Big" (3L)
+            'agua_lt': 8.00 # Garrafón o Galón
         }
 
-        # 2. FACTORES DE CONSUMO (Mérida)
-        # Factor botella: 1 botella cada 3.5 personas para 6 horas (Margen seguro por calor)
-        factor_consumo = 3.5 if self.horas_servicio >= 5 else 4.5
+        # 2. FACTORES DE CONSUMO (Botella de 1 LITRO)
+        # 1 Litro = 1000ml = ~22 tragos de 45ml.
+        # En 6 horas, consumo promedio = 5 tragos/pax.
+        # Rendimiento: 22 tragos / 5 = 4.4 personas por botella.
+        # Usamos factor 4.5 para ser eficientes pero seguros.
+        
+        factor_consumo = 4.5 if self.horas_servicio >= 5 else 5.5
         
         # 3. CÁLCULOS
         precio_botella = PRECIOS['premium'] if self.tipo_barra == 'premium' else PRECIOS['basico']
         
-        # Alcohol
+        # Alcohol (Botellas de 1L)
         botellas = math.ceil(self.num_personas / factor_consumo)
         costo_alcohol = botellas * precio_botella
 
-        # Hielo (El "oro blanco" en Mérida): 2kg por persona para evento largo
+        # Hielo (2kg por persona sigue siendo regla de oro en Mérida)
         kilos_hielo = self.num_personas * 2.0
         bolsas_hielo = math.ceil(kilos_hielo / 5)
         costo_hielo = bolsas_hielo * PRECIOS['hielo_5kg']
 
-        # Mezcladores (Kit: ~5 Litros de varios líquidos por cada botella de alcohol)
-        # Desglose aprox: 2L Coca, 1L Sprite, 2L Mineral por botella
-        litros_mezcladores = botellas * 5
+        # Mezcladores (Kit más ajustado: 4.5 Litros por botella de alcohol)
+        # Al usar botellas de 1L, se requiere más mezclador proporcionalmente.
+        litros_mezcladores = math.ceil(botellas * 4.5)
         costo_mezcladores = litros_mezcladores * PRECIOS['mezclador_lt']
 
-        # Agua Natural (Hidratación aparte del alcohol) -> 0.5L por persona
+        # Agua Natural (Hidratación)
         litros_agua = math.ceil(self.num_personas * 0.5)
         costo_agua = litros_agua * PRECIOS['agua_lt']
 
@@ -224,8 +233,8 @@ class Cotizacion(models.Model):
         costo_total_insumos = costo_alcohol + costo_hielo + costo_mezcladores + costo_agua
         costo_por_pax = costo_total_insumos / self.num_personas
         
-        # Precio de Venta Sugerido (Margen 50% + Buffer Operativo)
-        precio_venta_sugerido = costo_total_insumos * 2.1 
+        # Precio de Venta (Margen agresivo del 55-60% ya que bajamos costos)
+        precio_venta_sugerido = costo_total_insumos * 2.2 
         precio_venta_pax = precio_venta_sugerido / self.num_personas
 
         return {
