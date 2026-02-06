@@ -180,32 +180,26 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
-    # --- MÉTODO PRINCIPAL: CALCULADORA DE BARRA (LÓGICA ECONÓMICA / MAYORISTA) ---
+    # --- MÉTODO PRINCIPAL: CALCULADORA DE BARRA (LÓGICA ECONÓMICA / MAYORISTA / 20KG HIELO) ---
     def calcular_barra_insumos(self):
         """ 
-        Calcula insumos basado en BOTELLAS DE 1 LITRO y precios MAYORISTAS.
-        Optimizando para mayor rendimiento y menor costo.
+        Calcula insumos basado en BOTELLAS DE 1 LITRO, precios MAYORISTAS
+        y Bolsas de Hielo Gourmet de 20kg.
         """
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # 1. PRECIOS BASE (Estrategia Mayorista/Costco)
-        # Básico: Promedio $250 (Bacardí 1L, Smirnoff 1L, Red Label 1L comprando por caja)
-        # Premium: Promedio $550 (Etiqueta Negra 1L, Tradicional Cristalino, Absolut)
+        # 1. PRECIOS BASE (Estrategia Mayorista/Costco + Hielo Gourmet)
         PRECIOS = {
-            'basico': 250.00,  
-            'premium': 550.00, 
-            'hielo_5kg': 35.00,
-            'mezclador_lt': 20.00, # Bajamos precio considerando Refrescos "Big" (3L)
-            'agua_lt': 8.00 # Garrafón o Galón
+            'basico': 250.00,   # Promedio botella 1L nacional
+            'premium': 550.00,  # Promedio botella 1L importada
+            'hielo_20kg': 88.00, # PRECIO ACTUALIZADO: Bolsa Gourmet 20kg
+            'mezclador_lt': 20.00, 
+            'agua_lt': 8.00 
         }
 
         # 2. FACTORES DE CONSUMO (Botella de 1 LITRO)
-        # 1 Litro = 1000ml = ~22 tragos de 45ml.
-        # En 6 horas, consumo promedio = 5 tragos/pax.
-        # Rendimiento: 22 tragos / 5 = 4.4 personas por botella.
-        # Usamos factor 4.5 para ser eficientes pero seguros.
-        
+        # 1 Litro = 1000ml = ~22 tragos. Rendimiento ~4.5 personas.
         factor_consumo = 4.5 if self.horas_servicio >= 5 else 5.5
         
         # 3. CÁLCULOS
@@ -215,17 +209,17 @@ class Cotizacion(models.Model):
         botellas = math.ceil(self.num_personas / factor_consumo)
         costo_alcohol = botellas * precio_botella
 
-        # Hielo (2kg por persona sigue siendo regla de oro en Mérida)
+        # Hielo (2kg por persona => 100 pax = 200kg)
+        # Bolsa de 20kg: 200kg / 20 = 10 bolsas.
         kilos_hielo = self.num_personas * 2.0
-        bolsas_hielo = math.ceil(kilos_hielo / 5)
-        costo_hielo = bolsas_hielo * PRECIOS['hielo_5kg']
+        bolsas_hielo_20kg = math.ceil(kilos_hielo / 20.0)
+        costo_hielo = bolsas_hielo_20kg * PRECIOS['hielo_20kg']
 
-        # Mezcladores (Kit más ajustado: 4.5 Litros por botella de alcohol)
-        # Al usar botellas de 1L, se requiere más mezclador proporcionalmente.
+        # Mezcladores (4.5 Litros por botella de alcohol de 1L)
         litros_mezcladores = math.ceil(botellas * 4.5)
         costo_mezcladores = litros_mezcladores * PRECIOS['mezclador_lt']
 
-        # Agua Natural (Hidratación)
+        # Agua Natural (Hidratación: 0.5L por persona)
         litros_agua = math.ceil(self.num_personas * 0.5)
         costo_agua = litros_agua * PRECIOS['agua_lt']
 
@@ -233,13 +227,13 @@ class Cotizacion(models.Model):
         costo_total_insumos = costo_alcohol + costo_hielo + costo_mezcladores + costo_agua
         costo_por_pax = costo_total_insumos / self.num_personas
         
-        # Precio de Venta (Margen agresivo del 55-60% ya que bajamos costos)
+        # Precio de Venta (Margen sugerido ~55%)
         precio_venta_sugerido = costo_total_insumos * 2.2 
         precio_venta_pax = precio_venta_sugerido / self.num_personas
 
         return {
             'botellas': botellas,
-            'bolsas_hielo_5kg': bolsas_hielo,
+            'bolsas_hielo_20kg': bolsas_hielo_20kg,
             'litros_mezcladores': litros_mezcladores,
             'litros_agua': litros_agua,
             'costo_total_estimado': round(costo_total_insumos, 2),
