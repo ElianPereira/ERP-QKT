@@ -12,8 +12,8 @@ from .models import (
 
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'categoria', 'cantidad_stock', 'unidad_medida')
-    list_editable = ('cantidad_stock', 'categoria')
+    list_display = ('nombre', 'categoria', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
+    list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
     list_filter = ('categoria',)
     search_fields = ('nombre',)
     list_per_page = 20
@@ -73,14 +73,20 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     autocomplete_fields = ['cliente'] 
-    
-    class Media:
-        css = {'all': ('css/admin_fix.css',)}
+    class Media: css = {'all': ('css/admin_fix.css',)}
 
     fieldsets = (
         ('Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'num_personas', 'estado')}),
-        # AQUI AGREGUÉ EL NUEVO CAMPO EDITABLE
-        ('Servicio de Barra (Alcohol)', {'fields': ('tipo_barra', 'horas_servicio', 'factor_utilidad_barra', 'resumen_barra_html')}),
+        ('Configuración Barra', {
+            'fields': (
+                ('tipo_barra', 'horas_servicio', 'factor_utilidad_barra'),
+                ('insumo_hielo', 'insumo_refresco', 'insumo_agua'),
+                ('insumo_alcohol_basico', 'insumo_alcohol_premium'),
+                ('insumo_barman', 'insumo_auxiliar'),
+                'resumen_barra_html'
+            ),
+            'classes': ('collapse', 'open'), 
+        }),
         ('Finanzas', {'fields': ('subtotal', 'descuento', 'requiere_factura')}),
         ('Fiscal', {'fields': ('iva', 'retencion_isr', 'retencion_iva', 'precio_final')}),
         ('Archivos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
@@ -101,29 +107,29 @@ class CotizacionAdmin(admin.ModelAdmin):
 
         seccion_botellas = ""
         if obj.tipo_barra != 'sin_alcohol':
-            seccion_botellas = f"<tr><td style='{style_td}'>Botellas (1L):</td><td style='{style_td} {style_val}'>{datos['botellas']} u.</td></tr>"
+            seccion_botellas = f"<tr><td style='{style_td}'>Botellas:</td><td style='{style_td} {style_val}'>{datos['botellas']} u.</td></tr>"
 
         html = f"""
         <div style="background-color: white; border: 1px solid #dcdcdc; border-radius: 4px; padding: 0; max-width: 800px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="background-color: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #dcdcdc;">
-                <h3 style="margin: 0; color: #333; font-size: 14px; text-transform: uppercase; font-weight: 700;">Análisis de Stock y Costos</h3>
+                <h3 style="margin: 0; color: #333; font-size: 14px; text-transform: uppercase; font-weight: 700;">Resultados Calculadora</h3>
             </div>
             <div style="display: flex; flex-wrap: wrap;">
                 <div style="flex: 1; min-width: 300px; padding: 0;">
                     <table style="{style_table} border-right: 1px solid #eee;">
-                        <tr><th colspan="2" style="{style_th}">REQUERIMIENTOS OPERATIVOS</th></tr>
+                        <tr><th colspan="2" style="{style_th}">REQUERIMIENTOS</th></tr>
                         {seccion_botellas}
-                        <tr><td style="{style_td}">Hielo Gourmet (20kg):</td><td style="{style_td} {style_val}">{datos['bolsas_hielo_20kg']} bolsas</td></tr>
+                        <tr><td style="{style_td}">Hielo (Bolsas):</td><td style="{style_td} {style_val}">{datos['bolsas_hielo_20kg']} bolsas</td></tr>
                         <tr><td style="{style_td}">Mezcladores:</td><td style="{style_td} {style_val}">{datos['litros_mezcladores']} L</td></tr>
-                        <tr><td style="{style_td}">Agua Natural:</td><td style="{style_td} {style_val}">{datos['litros_agua']} L</td></tr>
-                        <tr><td style="{style_td}">Personal Sugerido:</td><td style="{style_td} {style_val}">{datos['num_barmans']} Barman / {datos['num_auxiliares']} Aux</td></tr>
+                        <tr><td style="{style_td}">Agua:</td><td style="{style_td} {style_val}">{datos['litros_agua']} L</td></tr>
+                        <tr><td style="{style_td}">Staff:</td><td style="{style_td} {style_val}">{datos['num_barmans']} B / {datos['num_auxiliares']} A</td></tr>
                     </table>
                 </div>
                 <div style="flex: 1; min-width: 300px; padding: 0; background-color: #fffbf2;">
                     <table style="{style_table}">
-                        <tr><th colspan="2" style="{style_th} background-color: #fffbf2; color: #856404;">PROYECCIÓN FINANCIERA</th></tr>
-                        <tr><td style="{style_td}">Costo Insumos + Staff:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
-                        <tr><td style="{style_td}">Factor Utilidad Aplicado:</td><td style="{style_td} {style_val} text-align: right;">x {datos['margen_aplicado']}</td></tr>
+                        <tr><th colspan="2" style="{style_th} background-color: #fffbf2; color: #856404;">FINANZAS</th></tr>
+                        <tr><td style="{style_td}">Costo Total:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
+                        <tr><td style="{style_td}">Costo Unitario:</td><td style="{style_td} {style_val} text-align: right;">${datos['costo_pax']:,.2f}</td></tr>
                         <tr><td style="{style_td} border-top: 2px solid #e0c482;"><strong>PRECIO SUGERIDO:</strong></td><td style="{style_td} {style_val} color: #28a745; font-size: 15px; border-top: 2px solid #e0c482;">${datos['precio_venta_sugerido_total']:,.2f}</td></tr>
                     </table>
                 </div>
@@ -134,14 +140,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     resumen_barra_html.short_description = "Resumen Ejecutivo"
 
     def save_model(self, request, obj, form, change):
-        if not obj.pk:
-            obj.usuario = request.user
-            super().save_model(request, obj, form, change)
-            return
-        try:
-            old = Cotizacion.objects.get(pk=obj.pk)
-            obj._estado_previo = old.estado
-        except: pass
+        if not obj.pk: obj.usuario = request.user
         super().save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
@@ -151,61 +150,18 @@ class CotizacionAdmin(admin.ModelAdmin):
             if isinstance(instance, Pago) and not instance.pk: instance.usuario = request.user
             instance.save()
         formset.save_m2m()
-        
         cot = formset.instance
         if isinstance(cot, Cotizacion):
             cot.calcular_totales()
             cot.save()
-            
-            prev = getattr(cot, '_estado_previo', 'BORRADOR')
-            if cot.estado == 'CONFIRMADA' and prev != 'CONFIRMADA':
-                self._ajustar_stock(cot, 'restar')
-                messages.success(request, "✅ Stock descontado.")
-            elif prev == 'CONFIRMADA' and cot.estado != 'CONFIRMADA':
-                self._ajustar_stock(cot, 'sumar')
-                messages.info(request, "🔄 Stock devuelto.")
-
-    def _ajustar_stock(self, cot, op):
-        for i_id, cant in self._desglosar(cot).items():
-            ins = Insumo.objects.get(id=i_id)
-            ins.cantidad_stock += cant if op == 'sumar' else -cant
-            ins.save()
-
-    def _desglosar(self, cot):
-        nec = {}
-        for it in cot.items.all():
-            q = it.cantidad
-            if it.producto:
-                for c in it.producto.componentes.all():
-                    q_sub = c.cantidad * q
-                    for r in c.subproducto.receta.all():
-                        if r.insumo.categoria == 'CONSUMIBLE':
-                            nec[r.insumo.id] = nec.get(r.insumo.id, 0) + (r.cantidad * q_sub)
-            elif it.insumo and it.insumo.categoria == 'CONSUMIBLE':
-                nec[it.insumo.id] = nec.get(it.insumo.id, 0) + q
-        return nec
 
     def ver_pdf(self, obj):
-        if obj.id:
-            try:
-                url_pdf = reverse('cotizacion_pdf', args=[obj.id])
-                return format_html(
-                    '<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space: nowrap;">'
-                    '<i class="fas fa-file-pdf"></i> Ver PDF</a>', url_pdf
-                )
-            except NoReverseMatch: return "-"
+        if obj.id: return format_html('<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space: nowrap;">PDF</a>', reverse('cotizacion_pdf', args=[obj.id]))
         return "-"
     ver_pdf.short_description = "PDF"
 
     def enviar_email_btn(self, obj):
-        if obj.id:
-            try:
-                url_email = reverse('cotizacion_email', args=[obj.id])
-                return format_html(
-                    '<a href="{}" class="btn btn-success btn-sm" style="white-space: nowrap;">'
-                    '<i class="fas fa-envelope"></i> Enviar</a>', url_email
-                )
-            except NoReverseMatch: return "-"
+        if obj.id: return format_html('<a href="{}" class="btn btn-success btn-sm" style="white-space: nowrap;">Enviar</a>', reverse('cotizacion_email', args=[obj.id]))
         return "-"
     enviar_email_btn.short_description = "Email"
 
