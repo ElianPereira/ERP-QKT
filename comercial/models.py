@@ -267,12 +267,54 @@ class Cotizacion(models.Model):
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
 
     def save(self, *args, **kwargs):
-        if self.subtotal is None: self.subtotal = Decimal('0.00')
-        if self.iva is None: self.iva = Decimal('0.00')
-        if self.retencion_isr is None: self.retencion_isr = Decimal('0.00')
-        if self.retencion_iva is None: self.retencion_iva = Decimal('0.00')
-        if self.precio_final is None: self.precio_final = Decimal('0.00')
+        # 1. Guardado base
         super().save(*args, **kwargs)
+
+        # 2. LÓGICA AUTOMÁTICA DE BARRA (EL "ITEM MÁGICO")
+        datos_barra = self.calcular_barra_insumos()
+        
+        # Identificador clave
+        desc_clave = "Servicio de Barra Libre"
+        
+        # Buscamos si ya existe el item
+        item_barra = self.items.filter(descripcion__startswith=desc_clave).first()
+
+        if datos_barra:
+            # SI HAY BARRA: Crear o Actualizar
+            precio_sugerido = Decimal(datos_barra['precio_venta_sugerido_total'])
+            tipo_txt = "Premium (Importado)" if self.tipo_barra == 'premium' else "Básico (Nacional)"
+            nueva_descripcion = f"{desc_clave} {tipo_txt} | {self.num_personas} Pax - {self.horas_servicio} Horas"
+            
+            if item_barra:
+                # Solo actualizar si cambiaron valores (Evita loops)
+                if abs(item_barra.precio_unitario - precio_sugerido) > Decimal('0.01') or item_barra.descripcion != nueva_descripcion:
+                    item_barra.precio_unitario = precio_sugerido
+                    item_barra.descripcion = nueva_descripcion
+                    item_barra.cantidad = 1
+                    item_barra.save()
+            else:
+                # Crear nuevo
+                ItemCotizacion.objects.create(
+                    cotizacion=self,
+                    descripcion=nueva_descripcion,
+                    cantidad=1,
+                    precio_unitario=precio_sugerido
+                )
+        else:
+            # SI SE QUITÓ LA BARRA: Borrar el item
+            if item_barra:
+                item_barra.delete()
+
+        # 3. Recalcular y actualizar totales en la cotización (Sin llamar save() de nuevo)
+        self.calcular_totales()
+        
+        Cotizacion.objects.filter(pk=self.pk).update(
+            subtotal=self.subtotal,
+            iva=self.iva,
+            retencion_isr=self.retencion_isr,
+            retencion_iva=self.retencion_iva,
+            precio_final=self.precio_final
+        )
 
     def total_pagado(self):
         resultado = self.pagos.aggregate(Sum('monto'))['monto__sum']
@@ -302,6 +344,7 @@ class ItemCotizacion(models.Model):
             elif self.insumo: self.precio_unitario = self.insumo.costo_unitario
         super().save(*args, **kwargs)
         if self.cotizacion.pk:
+            # Recalcular totales pero usando UPDATE, NO save() para evitar recursión
             self.cotizacion.calcular_totales()
             Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
                 subtotal=self.cotizacion.subtotal,
