@@ -15,7 +15,7 @@ class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'categoria', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
     list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
     list_filter = ('categoria',)
-    search_fields = ('nombre',)
+    search_fields = ('nombre',) # REQUISITO para que funcione el autocomplete
     list_per_page = 20
 
 class RecetaInline(admin.TabularInline):
@@ -56,7 +56,8 @@ class ClienteAdmin(admin.ModelAdmin):
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
-    autocomplete_fields = ['producto', 'insumo']
+    # Esto hace que buscar productos en la lista sea rápido y limpio
+    autocomplete_fields = ['producto', 'insumo'] 
     fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
     readonly_fields = ('subtotal',)
 
@@ -72,7 +73,15 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'tipo_barra', 'precio_final', 'ver_pdf', 'enviar_email_btn')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
-    autocomplete_fields = ['cliente'] 
+    
+    # --- AQUÍ ESTÁ LA SOLUCIÓN AL DESORDEN ---
+    # Esto convierte los dropdowns gigantes en barras de búsqueda minimalistas
+    autocomplete_fields = [
+        'cliente', 
+        'insumo_hielo', 'insumo_refresco', 'insumo_agua',
+        'insumo_alcohol_basico', 'insumo_alcohol_premium',
+        'insumo_barman', 'insumo_auxiliar'
+    ]
     
     class Media:
         css = {'all': ('css/admin_fix.css',)}
@@ -87,23 +96,25 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'estado'
             )
         }),
-        ('Calculadora de Barra (Principal)', {
+        ('Calculadora de Barra', {
             'fields': (
                 ('tipo_barra', 'horas_servicio', 'factor_utilidad_barra'),
                 'resumen_barra_html'
             ),
-            'description': 'Configura aquí los parámetros generales del servicio de bebidas.'
+            'description': 'Parámetros generales para el cálculo automático.'
         }),
-        ('Configuración Avanzada de Insumos (Opcional)', {
+        ('Selección de Insumos (Configuración Fina)', {
             'fields': (
-                ('insumo_hielo', 'insumo_refresco', 'insumo_agua'),
+                # Agrupados de 2 en 2 para que se vean ordenados y no amontonados
+                ('insumo_hielo', 'insumo_refresco'), 
+                ('insumo_agua', 'insumo_barman'),
                 ('insumo_alcohol_basico', 'insumo_alcohol_premium'),
-                ('insumo_barman', 'insumo_auxiliar'),
+                'insumo_auxiliar',
             ),
-            'classes': ('collapse',), # Esto hace que la sección esté cerrada por defecto
-            'description': 'Selecciona insumos específicos si quieres cambiar los costos base.'
+            'classes': ('collapse',), # Colapsado por defecto para limpieza visual
+            'description': 'Define qué productos específicos del inventario usar para el cálculo de costos.'
         }),
-        ('Finanzas y Facturación', {
+        ('Finanzas', {
             'fields': (
                 ('subtotal', 'descuento'), 
                 'requiere_factura',
@@ -130,31 +141,30 @@ class CotizacionAdmin(admin.ModelAdmin):
 
         seccion_botellas = ""
         if obj.tipo_barra != 'sin_alcohol':
-            seccion_botellas = f"<tr><td style='{style_td}'>Botellas (1L aprox):</td><td style='{style_td} {style_val}'>{datos['botellas']} u.</td></tr>"
+            seccion_botellas = f"<tr><td style='{style_td}'>Botellas:</td><td style='{style_td} {style_val}'>{datos['botellas']} u.</td></tr>"
 
         html = f"""
         <div style="background-color: white; border: 1px solid #dcdcdc; border-radius: 6px; overflow: hidden; margin-top: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
             <div style="background-color: #343a40; color: white; padding: 10px 15px;">
-                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">📊 Análisis de Rentabilidad</h3>
+                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">📊 Resultados de Costeo</h3>
             </div>
             <div style="display: flex; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 320px; padding: 0;">
+                <div style="flex: 1; min-width: 300px; padding: 0;">
                     <table style="{style_table} border-right: 1px solid #eee;">
-                        <tr><th colspan="2" style="{style_th}">REQUERIMIENTOS OPERATIVOS</th></tr>
+                        <tr><th colspan="2" style="{style_th}">REQUERIMIENTOS</th></tr>
                         {seccion_botellas}
-                        <tr><td style="{style_td}">Hielo (Bolsas 20kg):</td><td style="{style_td} {style_val}">{datos['bolsas_hielo_20kg']}</td></tr>
-                        <tr><td style="{style_td}">Mezcladores (Refresco):</td><td style="{style_td} {style_val}">{datos['litros_mezcladores']} Litros</td></tr>
-                        <tr><td style="{style_td}">Agua Natural:</td><td style="{style_td} {style_val}">{datos['litros_agua']} Litros</td></tr>
-                        <tr><td style="{style_td}">Staff Sugerido:</td><td style="{style_td} {style_val}">{datos['num_barmans']} Barman / {datos['num_auxiliares']} Aux</td></tr>
+                        <tr><td style="{style_td}">Hielo (Bolsas 20kg):</td><td style="{style_td} {style_val}">{datos['bolsas_hielo_20kg']} bolsas</td></tr>
+                        <tr><td style="{style_td}">Mezcladores:</td><td style="{style_td} {style_val}">{datos['litros_mezcladores']} Litros</td></tr>
+                        <tr><td style="{style_td}">Agua:</td><td style="{style_td} {style_val}">{datos['litros_agua']} Litros</td></tr>
+                        <tr><td style="{style_td}">Staff:</td><td style="{style_td} {style_val}">{datos['num_barmans']} B / {datos['num_auxiliares']} A</td></tr>
                     </table>
                 </div>
-                <div style="flex: 1; min-width: 320px; padding: 0; background-color: #fdfdfe;">
+                <div style="flex: 1; min-width: 300px; padding: 0; background-color: #fffbf2;">
                     <table style="{style_table}">
-                        <tr><th colspan="2" style="{style_th} color: #155724; background-color: #d4edda;">PROYECCIÓN FINANCIERA</th></tr>
-                        <tr><td style="{style_td}">Costo Total (Insumos+Staff):</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
-                        <tr><td style="{style_td}">Costo Unitario (Pax):</td><td style="{style_td} {style_val} text-align: right;">${datos['costo_pax']:,.2f}</td></tr>
-                        <tr><td style="{style_td}">Factor Utilidad Aplicado:</td><td style="{style_td} {style_val}">x{datos['margen_aplicado']}</td></tr>
-                        <tr style="background-color: #e8f5e9;"><td style="{style_td} border-top: 2px solid #28a745; font-size:14px;"><strong>PRECIO SUGERIDO VENTA:</strong></td><td style="{style_td} {style_val} color: #28a745; font-size: 16px; border-top: 2px solid #28a745;">${datos['precio_venta_sugerido_total']:,.2f}</td></tr>
+                        <tr><th colspan="2" style="{style_th} background-color: #fffbf2; color: #856404;">FINANZAS</th></tr>
+                        <tr><td style="{style_td}">Costo Total:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
+                        <tr><td style="{style_td}">Costo Unitario:</td><td style="{style_td} {style_val} text-align: right;">${datos['costo_pax']:,.2f}</td></tr>
+                        <tr><td style="{style_td} border-top: 2px solid #e0c482;"><strong>PRECIO VENTA:</strong></td><td style="{style_td} {style_val} color: #28a745; font-size: 15px; border-top: 2px solid #e0c482;">${datos['precio_venta_sugerido_total']:,.2f}</td></tr>
                     </table>
                 </div>
             </div>
@@ -180,20 +190,12 @@ class CotizacionAdmin(admin.ModelAdmin):
             cot.save()
 
     def ver_pdf(self, obj):
-        if obj.id:
-            try:
-                url = reverse('cotizacion_pdf', args=[obj.id])
-                return format_html('<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space: nowrap;"><i class="fas fa-file-pdf"></i> PDF</a>', url)
-            except NoReverseMatch: return "-"
+        if obj.id: return format_html('<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space: nowrap;">PDF</a>', reverse('cotizacion_pdf', args=[obj.id]))
         return "-"
     ver_pdf.short_description = "PDF"
 
     def enviar_email_btn(self, obj):
-        if obj.id:
-            try:
-                url = reverse('cotizacion_email', args=[obj.id])
-                return format_html('<a href="{}" class="btn btn-success btn-sm" style="white-space: nowrap;"><i class="fas fa-envelope"></i> Enviar</a>', url)
-            except NoReverseMatch: return "-"
+        if obj.id: return format_html('<a href="{}" class="btn btn-success btn-sm" style="white-space: nowrap;">Enviar</a>', reverse('cotizacion_email', args=[obj.id]))
         return "-"
     enviar_email_btn.short_description = "Email"
 
