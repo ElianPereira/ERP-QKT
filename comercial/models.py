@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 from decimal import Decimal
+import math
 from django.db import models
 from django.db.models import Sum
 from django.core.exceptions import ValidationError
@@ -49,8 +50,6 @@ class Insumo(models.Model):
             )
             
             # 3. CRUCIAL: Crear la Receta (RecetaSubProducto)
-            # Sin esto, el SubProducto tendría costo $0.
-            # Asumimos una relación 1 a 1 (ej. 1 Coca Cola Insumo = 1 Coca Cola Subproducto)
             RecetaSubProducto.objects.get_or_create(
                 subproducto=sub_prod,
                 insumo=self,
@@ -111,7 +110,7 @@ class ComponenteProducto(models.Model):
         return self.subproducto.costo_insumos() * self.cantidad
 
 # ==========================================
-# 4. CLIENTES (MODIFICADO PARA LISTAS DESPLEGABLES)
+# 4. CLIENTES
 # ==========================================
 class Cliente(models.Model):
     nombre = models.CharField(max_length=200)
@@ -135,7 +134,6 @@ class Cliente(models.Model):
     uso_cfdi = models.CharField(max_length=4, choices=UsoCFDI.choices, blank=True, null=True, default=UsoCFDI.GASTOS_EN_GENERAL)
     
     def __str__(self):
-        # Muestra "Nombre (Razón Social)" si existe razón social, sino solo "Nombre"
         if self.razon_social:
             return f"{self.nombre} ({self.razon_social})"
         return self.nombre
@@ -149,12 +147,25 @@ class Cotizacion(models.Model):
         ('CONFIRMADA', 'Venta Confirmada'),
         ('CANCELADA', 'Cancelada'),
     ]
+
+    BARRA_CHOICES = [
+        ('ninguna', 'Sin Servicio de Alcohol'),
+        ('basico', 'Paquete Básico (Nacional/Batalla)'),
+        ('premium', 'Paquete Premium (Importado/Lujo)'),
+    ]
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
     nombre_evento = models.CharField(max_length=200, default="Evento General")
     fecha_evento = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
+    
+    # --- NUEVOS CAMPOS PARA CÁLCULO AUTOMÁTICO DE BARRA ---
+    num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
+    tipo_barra = models.CharField(max_length=20, choices=BARRA_CHOICES, default='ninguna', verbose_name="Tipo de Barra Libre")
+    horas_servicio = models.IntegerField(default=5, verbose_name="Horas de Servicio Barra")
+    # -----------------------------------------------------
+
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     requiere_factura = models.BooleanField(default=False)
@@ -168,6 +179,66 @@ class Cotizacion(models.Model):
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
     created_at = models.DateTimeField(auto_now_add=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
+
+    # --- MÉTODO PRINCIPAL: CALCULADORA DE BARRA (Lógica Mérida) ---
+    def calcular_barra_insumos(self):
+        """ Retorna un diccionario con la lista de compras y costos estimados para la barra """
+        if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
+            return None
+
+        # 1. PRECIOS BASE (Estimados Feb 2026 - Se pueden mover a BD después)
+        PRECIOS = {
+            'basico': 330.00,  # Promedio (Bacardi, Tradicional, Roja)
+            'premium': 600.00, # Promedio (Havana, Dobel, Negra)
+            'hielo_5kg': 35.00,
+            'mezclador_lt': 25.00, # Promedio Coca/Sprite/Mineral
+            'agua_lt': 10.00
+        }
+
+        # 2. FACTORES DE CONSUMO (Mérida)
+        # Factor botella: 1 botella cada 3.5 personas para 6 horas (Margen seguro por calor)
+        factor_consumo = 3.5 if self.horas_servicio >= 5 else 4.5
+        
+        # 3. CÁLCULOS
+        precio_botella = PRECIOS['premium'] if self.tipo_barra == 'premium' else PRECIOS['basico']
+        
+        # Alcohol
+        botellas = math.ceil(self.num_personas / factor_consumo)
+        costo_alcohol = botellas * precio_botella
+
+        # Hielo (El "oro blanco" en Mérida): 2kg por persona para evento largo
+        kilos_hielo = self.num_personas * 2.0
+        bolsas_hielo = math.ceil(kilos_hielo / 5)
+        costo_hielo = bolsas_hielo * PRECIOS['hielo_5kg']
+
+        # Mezcladores (Kit: ~5 Litros de varios líquidos por cada botella de alcohol)
+        # Desglose aprox: 2L Coca, 1L Sprite, 2L Mineral por botella
+        litros_mezcladores = botellas * 5
+        costo_mezcladores = litros_mezcladores * PRECIOS['mezclador_lt']
+
+        # Agua Natural (Hidratación aparte del alcohol) -> 0.5L por persona
+        litros_agua = math.ceil(self.num_personas * 0.5)
+        costo_agua = litros_agua * PRECIOS['agua_lt']
+
+        # Totales
+        costo_total_insumos = costo_alcohol + costo_hielo + costo_mezcladores + costo_agua
+        costo_por_pax = costo_total_insumos / self.num_personas
+        
+        # Precio de Venta Sugerido (Margen 50% + Buffer Operativo)
+        precio_venta_sugerido = costo_total_insumos * 2.1 
+        precio_venta_pax = precio_venta_sugerido / self.num_personas
+
+        return {
+            'botellas': botellas,
+            'bolsas_hielo_5kg': bolsas_hielo,
+            'litros_mezcladores': litros_mezcladores,
+            'litros_agua': litros_agua,
+            'costo_total_estimado': round(costo_total_insumos, 2),
+            'costo_pax': round(costo_por_pax, 2),
+            'precio_venta_sugerido_total': round(precio_venta_sugerido, 2),
+            'precio_venta_sugerido_pax': round(precio_venta_pax, 2)
+        }
+    # -----------------------------------------------------------
 
     def calcular_totales(self):
         if not self.pk: return 

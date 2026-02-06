@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
 from django.shortcuts import render, redirect
@@ -73,24 +73,58 @@ class PagoInline(admin.TabularInline):
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'estado', 'precio_final', 'ver_pdf', 'enviar_email_btn')
-    list_filter = ('estado', 'requiere_factura', 'fecha_evento')
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'tipo_barra', 'precio_final', 'ver_pdf', 'enviar_email_btn')
+    list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     autocomplete_fields = ['cliente'] 
     
     class Media:
         css = {'all': ('css/admin_fix.css',)}
 
+    # MODIFICADO: Agregamos num_personas, tipo_barra y el resumen calculado
     fieldsets = (
-        ('Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'estado')}),
+        ('Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'num_personas', 'estado')}),
+        ('Servicio de Barra (Alcohol)', {'fields': ('tipo_barra', 'horas_servicio', 'resumen_barra_html')}),
         ('Finanzas', {'fields': ('subtotal', 'descuento', 'requiere_factura')}),
         ('Fiscal', {'fields': ('iva', 'retencion_isr', 'retencion_iva', 'precio_final')}),
         ('Archivos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html')
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
     
+    # --- CAMPO CALCULADO PARA EL ADMIN (Dashboard visual) ---
+    def resumen_barra_html(self, obj):
+        datos = obj.calcular_barra_insumos()
+        if not datos:
+            return "Selecciona un tipo de barra y guarda para ver el cálculo."
+        
+        # Estilo visual para que se vea claro en el admin
+        html = f"""
+        <div style="background:#f8f9fa; padding:15px; border-left: 5px solid #28a745; border-radius:4px;">
+            <h4 style="margin-top:0; color:#28a745;">🍹 Cálculo de Barra (Mérida)</h4>
+            <div style="display:flex; gap:20px;">
+                <div style="flex:1;">
+                    <strong>📦 REQUERIMIENTOS:</strong><br>
+                    <ul>
+                        <li>🍾 Botellas: <strong>{datos['botellas']}</strong></li>
+                        <li>🧊 Hielo (5kg): <strong>{datos['bolsas_hielo_5kg']} bolsas</strong> ({obj.num_personas*2}kg total)</li>
+                        <li>🥤 Mezcladores: <strong>{datos['litros_mezcladores']} Litros</strong> (Coca/Sprite/Min)</li>
+                        <li>💧 Agua Natural: <strong>{datos['litros_agua']} Litros</strong></li>
+                    </ul>
+                </div>
+                <div style="flex:1;">
+                    <strong>💰 FINANZAS:</strong><br>
+                    Costo Insumos Estimado: <code>${datos['costo_total_estimado']}</code><br>
+                    Precio Venta Sugerido: <strong style="color:#007bff; font-size:1.1em;">${datos['precio_venta_sugerido_total']}</strong><br>
+                    <small>(${datos['precio_venta_sugerido_pax']} por persona)</small>
+                </div>
+            </div>
+        </div>
+        """
+        return mark_safe(html)
+    resumen_barra_html.short_description = "Resumen de Barra"
+
     def save_model(self, request, obj, form, change):
         if not obj.pk:
             obj.usuario = request.user
@@ -155,12 +189,10 @@ class CotizacionAdmin(admin.ModelAdmin):
                 nec[it.insumo.id] = nec.get(it.insumo.id, 0) + q
         return nec
 
-    # --- BOTONES CORREGIDOS: Sin ancho fijo, texto exacto 'Ver PDF' ---
     def ver_pdf(self, obj):
         if obj.id:
             try:
                 url_pdf = reverse('cotizacion_pdf', args=[obj.id])
-                # Usamos btn-info para el color TEAL (igual que nómina) y quitamos width fijo
                 return format_html(
                     '<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space: nowrap;">'
                     '<i class="fas fa-file-pdf"></i> Ver PDF</a>', url_pdf
@@ -173,7 +205,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         if obj.id:
             try:
                 url_email = reverse('cotizacion_email', args=[obj.id])
-                # Usamos btn-success para VERDE
                 return format_html(
                     '<a href="{}" class="btn btn-success btn-sm" style="white-space: nowrap;">'
                     '<i class="fas fa-envelope"></i> Enviar</a>', url_email
@@ -198,7 +229,6 @@ class PagoAdmin(admin.ModelAdmin):
 # ==========================================
 # GESTIÓN DE COMPRAS Y GASTOS
 # ==========================================
-
 class GastoInline(admin.TabularInline):
     model = Gasto
     extra = 0
@@ -212,7 +242,6 @@ class GastoInline(admin.TabularInline):
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
     change_list_template = "comercial/compra_change_list.html" 
-    
     list_display = ('fecha_emision', 'proveedor', 'total_format', 'uuid', 'ver_pdf')
     list_filter = ('fecha_emision',)
     search_fields = ('proveedor', 'uuid')
@@ -270,9 +299,7 @@ class CompraAdmin(admin.ModelAdmin):
 
 @admin.register(Gasto)
 class GastoAdmin(admin.ModelAdmin):
-    # Enlazamos el template que tiene el botón arriba
     change_list_template = "comercial/gasto_change_list.html"
-    
     list_display = ('descripcion', 'categoria', 'total_linea', 'proveedor', 'fecha_gasto', 'evento_relacionado')
     list_filter = ('categoria', 'fecha_gasto', 'proveedor')
     search_fields = ('descripcion', 'proveedor')

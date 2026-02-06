@@ -150,12 +150,16 @@ def obtener_contexto_cotizacion(cotizacion):
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
 
+    # --- NUEVO: OBTENEMOS DATOS DE LA BARRA PARA EL PDF ---
+    datos_barra = cotizacion.calcular_barra_insumos()
+
     return {
         'cotizacion': cotizacion,
         'items': cotizacion.items.all(), 
         'logo_url': logo_url,
         'total_pagado': cotizacion.total_pagado(),
-        'saldo_pendiente': cotizacion.saldo_pendiente()
+        'saldo_pendiente': cotizacion.saldo_pendiente(),
+        'barra': datos_barra  # <-- Esto permite usar {{ barra }} en el HTML
     }
 
 def generar_pdf_cotizacion(request, cotizacion_id):
