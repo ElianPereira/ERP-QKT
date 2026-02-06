@@ -15,7 +15,7 @@ class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'categoria', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
     list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
     list_filter = ('categoria',)
-    search_fields = ('nombre',) # Esto activa el buscador rápido
+    search_fields = ('nombre',) 
     list_per_page = 20
 
 class RecetaInline(admin.TabularInline):
@@ -73,8 +73,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
-    # Esto convierte los menús desplegables en BUSCADORES (Lupas)
-    # Es vital para que no se trabe si tienes 5000 insumos
+    # Buscadores inteligentes (Lupas)
     autocomplete_fields = [
         'cliente', 
         'insumo_hielo', 'insumo_refresco', 'insumo_agua',
@@ -90,21 +89,26 @@ class CotizacionAdmin(admin.ModelAdmin):
             'fields': (
                 'cliente', 
                 'nombre_evento', 
-                ('fecha_evento', 'hora_inicio', 'hora_fin'), 
+                # AQUÍ ESTABA AGRUPADO, AHORA ESTÁ VERTICAL
+                'fecha_evento', 
+                'hora_inicio', 
+                'hora_fin', 
                 'num_personas', 
                 'estado'
             )
         }),
         ('Calculadora de Barra', {
             'fields': (
-                ('tipo_barra', 'horas_servicio', 'factor_utilidad_barra'),
+                # AQUÍ TAMBIÉN: TODO VERTICAL PARA QUE NO SE VEA ACHOCADO
+                'tipo_barra', 
+                'horas_servicio', 
+                'factor_utilidad_barra',
                 'resumen_barra_html'
             ),
             'description': 'Parámetros generales.'
         }),
         ('Selección de Insumos (Opcional)', {
             'fields': (
-                # AQUI ESTA EL CAMBIO: Ya no están agrupados en (), ahora es una lista vertical
                 'insumo_hielo', 
                 'insumo_refresco', 
                 'insumo_agua',
@@ -118,9 +122,12 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
         ('Finanzas', {
             'fields': (
-                ('subtotal', 'descuento'), 
+                'subtotal', 
+                'descuento', 
                 'requiere_factura',
-                ('iva', 'retencion_isr', 'retencion_iva'),
+                'iva', 
+                'retencion_isr', 
+                'retencion_iva',
                 'precio_final'
             )
         }),
