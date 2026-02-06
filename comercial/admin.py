@@ -18,7 +18,6 @@ class InsumoAdmin(admin.ModelAdmin):
     search_fields = ('nombre',)
     list_per_page = 20
 
-# --- SUBPRODUCTOS ---
 class RecetaInline(admin.TabularInline):
     model = RecetaSubProducto
     extra = 1
@@ -31,7 +30,6 @@ class SubProductoAdmin(admin.ModelAdmin):
     inlines = [RecetaInline]
     search_fields = ('nombre',)
 
-# --- PRODUCTOS ---
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto
     extra = 1
@@ -44,7 +42,6 @@ class ProductoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'calcular_costo', 'sugerencia_precio')
     search_fields = ('nombre',)
 
-# --- CLIENTES ---
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'tipo_persona', 'es_cliente_fiscal', 'rfc', 'email', 'telefono')
@@ -56,7 +53,6 @@ class ClienteAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_registro',)
 
-# --- COTIZACIONES ---
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
@@ -92,17 +88,20 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
     
-    # --- CAMPO CALCULADO PARA EL ADMIN (DISEÑO FORMAL CORREGIDO) ---
     def resumen_barra_html(self, obj):
         datos = obj.calcular_barra_insumos()
         if not datos:
             return mark_safe('<span style="color:#6c757d; font-style:italic;">Guarde una selección de barra válida para ver el cálculo.</span>')
         
-        # Estilos CSS
         style_table = "width:100%; border-collapse: collapse; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 13px;"
         style_th = "text-align: left; padding: 8px; border-bottom: 2px solid #dee2e6; color: #495057;"
         style_td = "padding: 8px; border-bottom: 1px solid #e9ecef;"
         style_val = "font-weight: 600; text-align: right;"
+
+        # DETECCIÓN DE TIPO DE BARRA PARA MOSTRAR ALCOHOL O NO
+        seccion_botellas = ""
+        if obj.tipo_barra != 'sin_alcohol':
+            seccion_botellas = f"<tr><td style='{style_td}'>Botellas (1L):</td><td style='{style_td} {style_val}'>{datos['botellas']} u.</td></tr>"
 
         html = f"""
         <div style="background-color: white; border: 1px solid #dcdcdc; border-radius: 4px; padding: 0; max-width: 800px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -113,16 +112,17 @@ class CotizacionAdmin(admin.ModelAdmin):
                 <div style="flex: 1; min-width: 300px; padding: 0;">
                     <table style="{style_table} border-right: 1px solid #eee;">
                         <tr><th colspan="2" style="{style_th}">REQUERIMIENTOS OPERATIVOS</th></tr>
-                        <tr><td style="{style_td}">Botellas (1L):</td><td style="{style_td} {style_val}">{datos['botellas']} u.</td></tr>
+                        {seccion_botellas}
                         <tr><td style="{style_td}">Hielo Gourmet (20kg):</td><td style="{style_td} {style_val}">{datos['bolsas_hielo_20kg']} bolsas</td></tr>
                         <tr><td style="{style_td}">Mezcladores:</td><td style="{style_td} {style_val}">{datos['litros_mezcladores']} L</td></tr>
                         <tr><td style="{style_td}">Agua Natural:</td><td style="{style_td} {style_val}">{datos['litros_agua']} L</td></tr>
+                        <tr><td style="{style_td}">Personal Sugerido:</td><td style="{style_td} {style_val}">{datos['num_barmans']} Barman / {datos['num_auxiliares']} Aux</td></tr>
                     </table>
                 </div>
                 <div style="flex: 1; min-width: 300px; padding: 0; background-color: #fffbf2;">
                     <table style="{style_table}">
                         <tr><th colspan="2" style="{style_th} background-color: #fffbf2; color: #856404;">PROYECCIÓN FINANCIERA</th></tr>
-                        <tr><td style="{style_td}">Costo Insumos:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
+                        <tr><td style="{style_td}">Costo Insumos + Staff:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
                         <tr><td style="{style_td}">Costo Unitario:</td><td style="{style_td} {style_val} text-align: right;">${datos['costo_pax']:,.2f}</td></tr>
                         <tr><td style="{style_td} border-top: 2px solid #e0c482;"><strong>PRECIO SUGERIDO:</strong></td><td style="{style_td} {style_val} color: #28a745; font-size: 15px; border-top: 2px solid #e0c482;">${datos['precio_venta_sugerido_total']:,.2f}</td></tr>
                     </table>
@@ -159,23 +159,11 @@ class CotizacionAdmin(admin.ModelAdmin):
             
             prev = getattr(cot, '_estado_previo', 'BORRADOR')
             if cot.estado == 'CONFIRMADA' and prev != 'CONFIRMADA':
-                errores = self._validar_stock(cot)
-                if errores:
-                    messages.error(request, f"⛔ Stock insuficiente: {', '.join(errores)}")
-                    Cotizacion.objects.filter(pk=cot.pk).update(estado='BORRADOR')
-                else:
-                    self._ajustar_stock(cot, 'restar')
-                    messages.success(request, "✅ Stock descontado.")
+                self._ajustar_stock(cot, 'restar')
+                messages.success(request, "✅ Stock descontado.")
             elif prev == 'CONFIRMADA' and cot.estado != 'CONFIRMADA':
                 self._ajustar_stock(cot, 'sumar')
                 messages.info(request, "🔄 Stock devuelto.")
-
-    def _validar_stock(self, cot):
-        err = []
-        for i_id, cant in self._desglosar(cot).items():
-            ins = Insumo.objects.get(id=i_id)
-            if ins.cantidad_stock < cant: err.append(f"{ins.nombre} (Req: {cant})")
-        return err
 
     def _ajustar_stock(self, cot, op):
         for i_id, cant in self._desglosar(cot).items():
@@ -228,24 +216,17 @@ class PagoAdmin(admin.ModelAdmin):
     search_fields = ('cotizacion__cliente__nombre', 'referencia')
     date_hierarchy = 'fecha_pago'
     autocomplete_fields = ['cotizacion']
-    
     def save_model(self, request, obj, form, change):
-        if not obj.pk:
-            obj.usuario = request.user
+        if not obj.pk: obj.usuario = request.user
         super().save_model(request, obj, form, change)
 
-# ==========================================
-# GESTIÓN DE COMPRAS Y GASTOS
-# ==========================================
 class GastoInline(admin.TabularInline):
     model = Gasto
     extra = 0
     can_delete = True
     fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea', 'categoria', 'evento_relacionado')
     readonly_fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea') 
-    
-    def get_readonly_fields(self, request, obj=None):
-        return [f for f in self.readonly_fields]
+    def get_readonly_fields(self, request, obj=None): return [f for f in self.readonly_fields]
 
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
@@ -255,31 +236,24 @@ class CompraAdmin(admin.ModelAdmin):
     search_fields = ('proveedor', 'uuid')
     date_hierarchy = 'fecha_emision'
     inlines = [GastoInline] 
-
     fieldsets = (
         ('Archivo Fuente', {'fields': ('archivo_xml', 'archivo_pdf')}),
         ('Datos Generales', {'fields': ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid')}),
         ('Totales Globales', {'fields': ('subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')})
     )
     readonly_fields = ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid', 'subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')
-
     def get_urls(self):
         urls = super().get_urls()
-        my_urls = [
-            path('carga-masiva/', self.admin_site.admin_view(self.carga_masiva_view), name='compra_carga_masiva'),
-        ]
+        my_urls = [path('carga-masiva/', self.admin_site.admin_view(self.carga_masiva_view), name='compra_carga_masiva'),]
         return my_urls + urls
-
     def carga_masiva_view(self, request):
         if request.method == "POST":
             files = request.FILES.getlist('xml_files')
             if not files:
                 messages.error(request, "No seleccionaste ningún archivo.")
                 return redirect('.')
-            
             exitos = 0
             errores = 0
-            
             for f in files:
                 try:
                     Compra.objects.create(archivo_xml=f)
@@ -287,22 +261,14 @@ class CompraAdmin(admin.ModelAdmin):
                 except Exception as e:
                     errores += 1
                     print(f"Error subiendo {f.name}: {e}")
-
-            if exitos > 0:
-                messages.success(request, f"✅ Se procesaron {exitos} facturas correctamente.")
-            if errores > 0:
-                messages.warning(request, f"⚠️ Hubo problemas con {errores} archivos (quizás no eran XML válidos o ya existían).")
-            
+            if exitos > 0: messages.success(request, f"✅ Se procesaron {exitos} facturas correctamente.")
+            if errores > 0: messages.warning(request, f"⚠️ Hubo problemas con {errores} archivos.")
             return redirect('..')
-
         context = dict(self.admin_site.each_context(request))
         return render(request, "comercial/carga_masiva.html", context)
-
     def total_format(self, obj): return f"${obj.total:,.2f}"
-    
     def ver_pdf(self, obj):
-        if obj.archivo_pdf:
-            return format_html('<a href="{}" target="_blank" style="background-color:#dc3545; color:white; padding:2px 5px; border-radius:3px;">PDF</a>', obj.archivo_pdf.url)
+        if obj.archivo_pdf: return format_html('<a href="{}" target="_blank" style="background-color:#dc3545; color:white; padding:2px 5px; border-radius:3px;">PDF</a>', obj.archivo_pdf.url)
         return "-"
 
 @admin.register(Gasto)
@@ -313,8 +279,4 @@ class GastoAdmin(admin.ModelAdmin):
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
-    
-    class Media:
-        css = {
-            'all': ('css/admin_fix.css',)
-        }
+    class Media: css = {'all': ('css/admin_fix.css',)}
