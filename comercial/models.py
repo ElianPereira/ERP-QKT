@@ -16,7 +16,7 @@ from cloudinary_storage.storage import RawMediaCloudinaryStorage
 class Insumo(models.Model):
     TIPOS = [
         ('CONSUMIBLE', 'Consumible (Hielo, Comida, Desechables)'),
-        ('MOBILIARIO', 'Mobiliario (Se renta: Sillas, Mesas)'),
+        ('MOBILIARIO', 'Mobiliario (Sillas, Mesas)'),
         ('SERVICIO', 'Personal (Bartender, Staff, Seguridad)')
     ]
     nombre = models.CharField(max_length=200)
@@ -27,7 +27,7 @@ class Insumo(models.Model):
     factor_rendimiento = models.DecimalField(
         max_digits=10, decimal_places=2, default=1.00,
         verbose_name="Rendimiento (Divisor)",
-        help_text="Si compras por caja, ¿cuántas unidades/litros trae? Ej: Caja 6x3L refresco = 18. Caja 12 botellas = 12."
+        help_text="Ej: Caja de 6 refrescos de 3L = 18 (Litros). Caja de 12 botellas = 12 (Piezas). Si es unitario, deja 1."
     )
     
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -101,7 +101,7 @@ class Cliente(models.Model):
     def __str__(self): return f"{self.nombre} ({self.razon_social})" if self.razon_social else self.nombre
 
 # ==========================================
-# 5. COTIZACIONES (Lógica Avanzada)
+# 5. COTIZACIONES
 # ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [('BORRADOR', 'Borrador'), ('CONFIRMADA', 'Venta Confirmada'), ('CANCELADA', 'Cancelada')]
@@ -124,7 +124,7 @@ class Cotizacion(models.Model):
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
     factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=2.20, verbose_name="Factor Utilidad")
 
-    # Selección Manual de Insumos
+    # Selección Manual de Insumos (Esto causó el error anterior porque faltaba migrar)
     insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo (20kg)", help_text="Selecciona la bolsa de hielo")
     insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco", help_text="Selecciona el refresco base")
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua", help_text="Selecciona el garrafón")
@@ -152,8 +152,7 @@ class Cotizacion(models.Model):
     # --- MÉTODO PARA CALCULAR PRECIO REAL UNITARIO ---
     def _get_costo_real(self, insumo, precio_default):
         """
-        Si hay insumo, divide el costo entre su factor de rendimiento.
-        Ej: Caja 6x3L ($250) / Factor 18 = $13.88 por Litro.
+        Calcula el costo por unidad base (Litro/Pieza) usando el Factor de Rendimiento.
         """
         if not insumo:
             return Decimal(precio_default)
@@ -166,26 +165,26 @@ class Cotizacion(models.Model):
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # 1. OBTENER COSTOS REALES (Normalizados a la unidad de consumo)
+        # 1. OBTENER COSTOS REALES (Normalizados)
         
-        # Hielo: Unidad consumo = Bolsa 20kg.
-        # Si compras Pack 10 bolsas ($800), Factor=10 -> Costo $80.
+        # Hielo: Unidad base = Bolsa de 20kg.
+        # Si configuras "Pack 10 Bolsas", Factor=10.
         costo_hielo_20kg = self._get_costo_real(self.insumo_hielo, '88.00')
 
-        # Refrescos: Unidad consumo = LITRO.
-        # Si compras Caja 6x3L ($250), Factor=18 -> Costo $13.88/L.
+        # Refrescos: Unidad base = LITRO.
+        # Si configuras "Caja 6x3L", Factor=18.
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
 
-        # Agua: Unidad consumo = LITRO.
-        # Si compras Garrafón 20L ($40), Factor=20 -> Costo $2/L.
+        # Agua: Unidad base = LITRO.
+        # Si configuras "Garrafón 20L", Factor=20.
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
 
-        # Staff: Unidad consumo = TURNO.
+        # Staff: Unidad base = TURNO/SERVICIO.
         costo_barman = self._get_costo_real(self.insumo_barman, '1200.00')
         costo_auxiliar = self._get_costo_real(self.insumo_auxiliar, '800.00')
 
-        # Alcohol: Unidad consumo = BOTELLA.
-        # Si compras Caja 12 ($3000), Factor=12 -> Costo $250.
+        # Alcohol: Unidad base = BOTELLA.
+        # Si configuras "Caja 12 botellas", Factor=12.
         costo_base = self._get_costo_real(self.insumo_alcohol_basico, '250.00')
         costo_premium = self._get_costo_real(self.insumo_alcohol_premium, '550.00')
 
@@ -212,7 +211,7 @@ class Cotizacion(models.Model):
         litros_agua = math.ceil(self.num_personas * 0.5)
         costo_agua_total = litros_agua * costo_agua_lt
 
-        # Staff
+        # Staff: 1 cada 50 pax
         num_staff = math.ceil(self.num_personas / 50) 
         costo_staff_total = (num_staff * costo_barman) + (num_staff * costo_auxiliar)
 
