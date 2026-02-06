@@ -28,6 +28,7 @@ class Insumo(models.Model):
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
 
+    # --- INTERRUPTOR PARA CREAR SUBPRODUCTO ---
     crear_como_subproducto = models.BooleanField(
         default=False,
         verbose_name="¿Crear también como Subproducto?",
@@ -153,6 +154,15 @@ class Cotizacion(models.Model):
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     tipo_barra = models.CharField(max_length=20, choices=BARRA_CHOICES, default='ninguna', verbose_name="Tipo de Barra Libre")
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas de Servicio Barra")
+    
+    # --- NUEVO: MARGEN EDITABLE ---
+    factor_utilidad_barra = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=2.20, 
+        verbose_name="Factor Utilidad Barra",
+        help_text="Ej: 2.2 = 220%. Sugerido: 2.2 para Alcohol, 3.0 para Refrescos."
+    )
 
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -168,12 +178,12 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
-    # --- CALCULADORA INTELIGENTE CON STAFF (SOLUCIÓN TYPE ERROR) ---
+    # --- CALCULADORA INTELIGENTE CON STAFF ---
     def calcular_barra_insumos(self):
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # Precios Base (TODOS EN DECIMAL PARA EVITAR ERRORES)
+        # Precios Base (TODOS EN DECIMAL)
         PRECIOS = {
             'basico': Decimal('250.00'), 
             'premium': Decimal('550.00'), 
@@ -195,6 +205,7 @@ class Cotizacion(models.Model):
             costo_alcohol = botellas * precio_botella
             litros_mezcladores = math.ceil(botellas * 4.5)
         else:
+            # Solo refrescos
             litros_mezcladores = math.ceil(self.num_personas * 1.5)
 
         # 2. HIELO Y AGUA
@@ -209,14 +220,14 @@ class Cotizacion(models.Model):
         # 3. PERSONAL (STAFF)
         num_barmans = math.ceil(self.num_personas / 50)
         num_auxiliares = math.ceil(self.num_personas / 50)
-        
         costo_staff = (num_barmans * PRECIOS['barman']) + (num_auxiliares * PRECIOS['auxiliar'])
 
         # TOTAL COSTO
         costo_total = costo_alcohol + costo_hielo + costo_mezcladores + costo_agua + costo_staff
         
-        # Margen Ganancia
-        factor_margen = Decimal('3.0') if self.tipo_barra == 'sin_alcohol' else Decimal('2.2')
+        # PRECIO DE VENTA (USANDO EL CAMPO EDITABLE DEL USUARIO)
+        # Convertimos el factor de la base de datos a Decimal para multiplicar seguro
+        factor_margen = Decimal(str(self.factor_utilidad_barra)) 
         precio_venta = costo_total * factor_margen
 
         return {
@@ -229,7 +240,8 @@ class Cotizacion(models.Model):
             'costo_total_estimado': round(costo_total, 2),
             'costo_pax': round(costo_total / self.num_personas, 2),
             'precio_venta_sugerido_total': round(precio_venta, 2),
-            'precio_venta_sugerido_pax': round(precio_venta / self.num_personas, 2)
+            'precio_venta_sugerido_pax': round(precio_venta / self.num_personas, 2),
+            'margen_aplicado': factor_margen
         }
 
     def calcular_totales(self):

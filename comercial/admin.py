@@ -79,7 +79,8 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'num_personas', 'estado')}),
-        ('Servicio de Barra (Alcohol)', {'fields': ('tipo_barra', 'horas_servicio', 'resumen_barra_html')}),
+        # AQUI AGREGUÉ EL NUEVO CAMPO EDITABLE
+        ('Servicio de Barra (Alcohol)', {'fields': ('tipo_barra', 'horas_servicio', 'factor_utilidad_barra', 'resumen_barra_html')}),
         ('Finanzas', {'fields': ('subtotal', 'descuento', 'requiere_factura')}),
         ('Fiscal', {'fields': ('iva', 'retencion_isr', 'retencion_iva', 'precio_final')}),
         ('Archivos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
@@ -98,7 +99,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         style_td = "padding: 8px; border-bottom: 1px solid #e9ecef;"
         style_val = "font-weight: 600; text-align: right;"
 
-        # DETECCIÓN DE TIPO DE BARRA PARA MOSTRAR ALCOHOL O NO
         seccion_botellas = ""
         if obj.tipo_barra != 'sin_alcohol':
             seccion_botellas = f"<tr><td style='{style_td}'>Botellas (1L):</td><td style='{style_td} {style_val}'>{datos['botellas']} u.</td></tr>"
@@ -123,7 +123,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     <table style="{style_table}">
                         <tr><th colspan="2" style="{style_th} background-color: #fffbf2; color: #856404;">PROYECCIÓN FINANCIERA</th></tr>
                         <tr><td style="{style_td}">Costo Insumos + Staff:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
-                        <tr><td style="{style_td}">Costo Unitario:</td><td style="{style_td} {style_val} text-align: right;">${datos['costo_pax']:,.2f}</td></tr>
+                        <tr><td style="{style_td}">Factor Utilidad Aplicado:</td><td style="{style_td} {style_val} text-align: right;">x {datos['margen_aplicado']}</td></tr>
                         <tr><td style="{style_td} border-top: 2px solid #e0c482;"><strong>PRECIO SUGERIDO:</strong></td><td style="{style_td} {style_val} color: #28a745; font-size: 15px; border-top: 2px solid #e0c482;">${datos['precio_venta_sugerido_total']:,.2f}</td></tr>
                     </table>
                 </div>
