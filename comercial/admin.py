@@ -81,7 +81,6 @@ class CotizacionAdmin(admin.ModelAdmin):
     class Media:
         css = {'all': ('css/admin_fix.css',)}
 
-    # MODIFICADO: Agregamos num_personas, tipo_barra y el resumen calculado
     fieldsets = (
         ('Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', ('hora_inicio', 'hora_fin'), 'num_personas', 'estado')}),
         ('Servicio de Barra (Alcohol)', {'fields': ('tipo_barra', 'horas_servicio', 'resumen_barra_html')}),
@@ -93,37 +92,46 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
     
-    # --- CAMPO CALCULADO PARA EL ADMIN (Dashboard visual) ---
+    # --- CAMPO CALCULADO PARA EL ADMIN (DISEÑO FORMAL CORREGIDO) ---
     def resumen_barra_html(self, obj):
         datos = obj.calcular_barra_insumos()
         if not datos:
-            return "Selecciona un tipo de barra y guarda para ver el cálculo."
+            return mark_safe('<span style="color:#6c757d; font-style:italic;">Guarde una selección de barra válida para ver el cálculo.</span>')
         
-        # Estilo visual para que se vea claro en el admin
+        # Estilos CSS
+        style_table = "width:100%; border-collapse: collapse; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 13px;"
+        style_th = "text-align: left; padding: 8px; border-bottom: 2px solid #dee2e6; color: #495057;"
+        style_td = "padding: 8px; border-bottom: 1px solid #e9ecef;"
+        style_val = "font-weight: 600; text-align: right;"
+
         html = f"""
-        <div style="background:#f8f9fa; padding:15px; border-left: 5px solid #28a745; border-radius:4px;">
-            <h4 style="margin-top:0; color:#28a745;">🍹 Cálculo de Barra (Mérida)</h4>
-            <div style="display:flex; gap:20px;">
-                <div style="flex:1;">
-                    <strong>📦 REQUERIMIENTOS:</strong><br>
-                    <ul>
-                        <li>🍾 Botellas: <strong>{datos['botellas']}</strong></li>
-                        <li>🧊 Hielo (5kg): <strong>{datos['bolsas_hielo_5kg']} bolsas</strong> ({obj.num_personas*2}kg total)</li>
-                        <li>🥤 Mezcladores: <strong>{datos['litros_mezcladores']} Litros</strong> (Coca/Sprite/Min)</li>
-                        <li>💧 Agua Natural: <strong>{datos['litros_agua']} Litros</strong></li>
-                    </ul>
+        <div style="background-color: white; border: 1px solid #dcdcdc; border-radius: 4px; padding: 0; max-width: 800px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="background-color: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #dcdcdc;">
+                <h3 style="margin: 0; color: #333; font-size: 14px; text-transform: uppercase; font-weight: 700;">Análisis de Stock y Costos</h3>
+            </div>
+            <div style="display: flex; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 300px; padding: 0;">
+                    <table style="{style_table} border-right: 1px solid #eee;">
+                        <tr><th colspan="2" style="{style_th}">REQUERIMIENTOS OPERATIVOS</th></tr>
+                        <tr><td style="{style_td}">Botellas (1L):</td><td style="{style_td} {style_val}">{datos['botellas']} u.</td></tr>
+                        <tr><td style="{style_td}">Hielo Gourmet (20kg):</td><td style="{style_td} {style_val}">{datos['bolsas_hielo_20kg']} bolsas</td></tr>
+                        <tr><td style="{style_td}">Mezcladores:</td><td style="{style_td} {style_val}">{datos['litros_mezcladores']} L</td></tr>
+                        <tr><td style="{style_td}">Agua Natural:</td><td style="{style_td} {style_val}">{datos['litros_agua']} L</td></tr>
+                    </table>
                 </div>
-                <div style="flex:1;">
-                    <strong>💰 FINANZAS:</strong><br>
-                    Costo Insumos Estimado: <code>${datos['costo_total_estimado']}</code><br>
-                    Precio Venta Sugerido: <strong style="color:#007bff; font-size:1.1em;">${datos['precio_venta_sugerido_total']}</strong><br>
-                    <small>(${datos['precio_venta_sugerido_pax']} por persona)</small>
+                <div style="flex: 1; min-width: 300px; padding: 0; background-color: #fffbf2;">
+                    <table style="{style_table}">
+                        <tr><th colspan="2" style="{style_th} background-color: #fffbf2; color: #856404;">PROYECCIÓN FINANCIERA</th></tr>
+                        <tr><td style="{style_td}">Costo Insumos:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
+                        <tr><td style="{style_td}">Costo Unitario:</td><td style="{style_td} {style_val} text-align: right;">${datos['costo_pax']:,.2f}</td></tr>
+                        <tr><td style="{style_td} border-top: 2px solid #e0c482;"><strong>PRECIO SUGERIDO:</strong></td><td style="{style_td} {style_val} color: #28a745; font-size: 15px; border-top: 2px solid #e0c482;">${datos['precio_venta_sugerido_total']:,.2f}</td></tr>
+                    </table>
                 </div>
             </div>
         </div>
         """
         return mark_safe(html)
-    resumen_barra_html.short_description = "Resumen de Barra"
+    resumen_barra_html.short_description = "Resumen Ejecutivo"
 
     def save_model(self, request, obj, form, change):
         if not obj.pk:
