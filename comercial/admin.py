@@ -15,7 +15,7 @@ class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'categoria', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
     list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
     list_filter = ('categoria',)
-    search_fields = ('nombre',) # REQUISITO para que funcione el autocomplete
+    search_fields = ('nombre',) # Esto activa el buscador rápido
     list_per_page = 20
 
 class RecetaInline(admin.TabularInline):
@@ -56,8 +56,7 @@ class ClienteAdmin(admin.ModelAdmin):
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
-    # Esto hace que buscar productos en la lista sea rápido y limpio
-    autocomplete_fields = ['producto', 'insumo'] 
+    autocomplete_fields = ['producto', 'insumo']
     fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
     readonly_fields = ('subtotal',)
 
@@ -74,8 +73,8 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
-    # --- AQUÍ ESTÁ LA SOLUCIÓN AL DESORDEN ---
-    # Esto convierte los dropdowns gigantes en barras de búsqueda minimalistas
+    # Esto convierte los menús desplegables en BUSCADORES (Lupas)
+    # Es vital para que no se trabe si tienes 5000 insumos
     autocomplete_fields = [
         'cliente', 
         'insumo_hielo', 'insumo_refresco', 'insumo_agua',
@@ -101,18 +100,21 @@ class CotizacionAdmin(admin.ModelAdmin):
                 ('tipo_barra', 'horas_servicio', 'factor_utilidad_barra'),
                 'resumen_barra_html'
             ),
-            'description': 'Parámetros generales para el cálculo automático.'
+            'description': 'Parámetros generales.'
         }),
-        ('Selección de Insumos (Configuración Fina)', {
+        ('Selección de Insumos (Opcional)', {
             'fields': (
-                # Agrupados de 2 en 2 para que se vean ordenados y no amontonados
-                ('insumo_hielo', 'insumo_refresco'), 
-                ('insumo_agua', 'insumo_barman'),
-                ('insumo_alcohol_basico', 'insumo_alcohol_premium'),
+                # AQUI ESTA EL CAMBIO: Ya no están agrupados en (), ahora es una lista vertical
+                'insumo_hielo', 
+                'insumo_refresco', 
+                'insumo_agua',
+                'insumo_barman',
                 'insumo_auxiliar',
+                'insumo_alcohol_basico', 
+                'insumo_alcohol_premium',
             ),
-            'classes': ('collapse',), # Colapsado por defecto para limpieza visual
-            'description': 'Define qué productos específicos del inventario usar para el cálculo de costos.'
+            'classes': ('collapse',), 
+            'description': 'Define insumos específicos del inventario.'
         }),
         ('Finanzas', {
             'fields': (
@@ -190,12 +192,20 @@ class CotizacionAdmin(admin.ModelAdmin):
             cot.save()
 
     def ver_pdf(self, obj):
-        if obj.id: return format_html('<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space: nowrap;">PDF</a>', reverse('cotizacion_pdf', args=[obj.id]))
+        if obj.id:
+            try:
+                url = reverse('cotizacion_pdf', args=[obj.id])
+                return format_html('<a href="{}" target="_blank" class="btn btn-info btn-sm" style="white-space: nowrap;"><i class="fas fa-file-pdf"></i> PDF</a>', url)
+            except NoReverseMatch: return "-"
         return "-"
     ver_pdf.short_description = "PDF"
 
     def enviar_email_btn(self, obj):
-        if obj.id: return format_html('<a href="{}" class="btn btn-success btn-sm" style="white-space: nowrap;">Enviar</a>', reverse('cotizacion_email', args=[obj.id]))
+        if obj.id:
+            try:
+                url = reverse('cotizacion_email', args=[obj.id])
+                return format_html('<a href="{}" class="btn btn-success btn-sm" style="white-space: nowrap;"><i class="fas fa-envelope"></i> Enviar</a>', url)
+            except NoReverseMatch: return "-"
         return "-"
     enviar_email_btn.short_description = "Email"
 
