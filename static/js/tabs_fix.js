@@ -1,49 +1,62 @@
+/* Archivo: static/js/tabs_fix.js */
+
 document.addEventListener("DOMContentLoaded", function() {
-    // Detectar clics en las pestañas del admin (Jazzmin / Bootstrap)
-    const tabs = document.querySelectorAll('.change-form .nav-tabs a');
     
+    // 1. CLAVE ÚNICA DINÁMICA
+    // Esto asegura que la pestaña de 'Cotización 1' no se mezcle con 'Producto 1'
+    const storageKey = 'tab_state_' + window.location.pathname;
+
+    // Selector amplio para agarrar pestañas de Jazzmin (Fieldsets) y Bootstrap normales
+    const tabs = document.querySelectorAll('.change-form .nav-tabs a, .nav-tabs-custom .nav-tabs a');
+    
+    // A. Lógica al hacer Clic (Guardar)
     tabs.forEach(tab => {
         tab.addEventListener('click', function(e) {
-            // Obtener el ID del objetivo (ej: #informacion-del-evento)
             const targetId = this.getAttribute('href');
             
-            // Si es un enlace real a otra página, no hacer nada
+            // Validamos que sea un ID interno
             if (!targetId || !targetId.startsWith('#')) return;
 
-            // Prevenir el comportamiento por defecto si es necesario, 
-            // pero dejar que el hash cambie.
-            // e.preventDefault(); 
-            
-            // Forzar la visualización del contenido
+            // Guardamos en LocalStorage
+            localStorage.setItem(storageKey, targetId);
+
+            // --- FORZADO VISUAL (Para corregir fallos de Jazzmin/Bootstrap) ---
             const targetContent = document.querySelector(targetId);
+            
+            // Buscamos contenedores tanto de fieldsets como de pestañas normales
             const allContents = document.querySelectorAll('.tab-pane, .tab-content > div');
             const allTabs = document.querySelectorAll('.nav-tabs li a');
 
             if (targetContent) {
-                // 1. Ocultar todos los contenidos
+                // 1. Ocultar todo
                 allContents.forEach(content => {
                     content.classList.remove('active', 'show');
-                    content.style.display = 'none'; // Forzar ocultado CSS
+                    content.style.display = 'none'; 
                 });
-
-                // 2. Desactivar todas las pestañas visualmente
                 allTabs.forEach(t => t.classList.remove('active'));
 
-                // 3. Activar el contenido seleccionado
+                // 2. Mostrar el seleccionado
                 targetContent.classList.add('active', 'show');
-                targetContent.style.display = 'block'; // Forzar mostrado CSS
-                
-                // 4. Activar la pestaña clicada
+                targetContent.style.display = 'block'; 
                 this.classList.add('active');
             }
         });
     });
     
-    // Ejecutar al cargar por si hay un hash en la URL (ej: /change/#finanzas)
-    if(window.location.hash) {
-        const activeTab = document.querySelector(`.nav-tabs a[href="${window.location.hash}"]`);
-        if(activeTab) {
+    // B. Lógica al Cargar la página (Recuperar)
+    const savedTab = localStorage.getItem(storageKey);
+    
+    if (savedTab) {
+        // Buscamos la pestaña guardada
+        const activeTab = document.querySelector(`.nav-tabs a[href="${savedTab}"]`);
+        if (activeTab) {
+            // Simulamos clic para activar toda la lógica visual
             activeTab.click();
+        }
+    } else {
+        // Si no hay nada guardado, activar la primera por defecto
+        if(tabs.length > 0) {
+            tabs[0].click();
         }
     }
 });
