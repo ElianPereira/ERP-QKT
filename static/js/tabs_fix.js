@@ -1,54 +1,57 @@
-/* Archivo: static/js/tabs_fix.js */
+/* Ubicación: static/js/tabs_fix.js */
 
 (function($) {
     'use strict';
-    
+
     $(document).ready(function() {
-        console.log("🚀 Tabs Fix: Iniciado globalmente.");
+        // Validación de seguridad por si jQuery no cargó
+        if (typeof $ === 'undefined') {
+            console.error("TabsFix: jQuery no está cargado.");
+            return;
+        }
 
-        // 1. Definir clave única basada en la URL (para que Usuario no choque con Cotización)
-        var storageKey = 'tab_preference_' + window.location.pathname;
+        console.log("🚀 Tabs Fix: Iniciado correctamente en Jazzmin.");
 
-        // 2. RECUPERAR: Al cargar la página, ver si hay memoria
-        var activeTab = localStorage.getItem(storageKey);
-        
-        if (activeTab) {
-            // Buscamos el enlace que tenga ese href
-            var $tabLink = $('.nav-tabs a[href="' + activeTab + '"]');
-            
+        // 1. Crear una clave única para esta URL específica
+        // Esto evita que la pestaña de 'Usuario Juan' afecte a 'Cotización #5'
+        var storageKey = 'jazzmin_tab_pref_' + window.location.pathname;
+
+        // 2. RECUPERAR: Restaurar pestaña al cargar la página
+        var savedTab = localStorage.getItem(storageKey);
+
+        if (savedTab) {
+            // Buscamos el enlace de la pestaña (el <a> dentro de .nav-tabs)
+            // Jazzmin a veces usa ID="#tab" y otras HREF="#tab"
+            var $tabLink = $('.nav-tabs a[href="' + savedTab + '"]');
+
+            // Si no lo encuentra por href, busca por ID (algunas versiones de Jazzmin hacen esto)
+            if ($tabLink.length === 0 && savedTab.startsWith('#')) {
+                var idSinHash = savedTab.substring(1); // quitar el #
+                $tabLink = $('.nav-tabs a[id="' + idSinHash + '"]');
+            }
+
+            // Si encontramos la pestaña, la activamos
             if ($tabLink.length > 0) {
-                console.log("Restaurando pestaña:", activeTab);
-                
-                // Opción A: Trigger nativo de Bootstrap (La forma elegante)
-                $tabLink.tab('show'); 
-                
-                // Opción B: Forzado bruto (si Jazzmin se pone rebelde)
-                // Esto quita la clase active de todos y se la pone al correcto
-                $('.nav-tabs a').removeClass('active');
-                $('.tab-pane').removeClass('active show');
-                
-                $tabLink.addClass('active');
-                $(activeTab).addClass('active show');
+                console.log("Restaurando pestaña:", savedTab);
+                $tabLink.tab('show'); // Función nativa de Bootstrap
             }
         }
 
-        // 3. GUARDAR: Escuchar el evento oficial de cambio de pestaña de Bootstrap
-        // Jazzmin usa Bootstrap 4, así que el evento es 'shown.bs.tab'
-        $('a[data-toggle="tab"], a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
-            var target = $(e.target).attr("href"); // La pestaña que se acaba de activar (ej: #general)
-            if(target && target.startsWith('#')) {
-                console.log("Guardando preferencia:", target);
-                localStorage.setItem(storageKey, target);
-            }
-        });
-        
-        // Soporte extra para clicks directos si el evento de BS falla
-        $('.nav-tabs a').on('click', function() {
-            var href = $(this).attr('href');
-            if(href && href.startsWith('#')) {
-                 localStorage.setItem(storageKey, href);
+        // 3. GUARDAR: Escuchar el evento de cambio de pestaña
+        // 'shown.bs.tab' es el evento estándar de Bootstrap 4
+        $(document).on('shown.bs.tab', 'a[data-toggle="tab"]', function (e) {
+            var $target = $(e.target); // La pestaña que se acaba de activar
+            var href = $target.attr('href');
+            var id = $target.attr('id');
+
+            // Preferimos guardar el HREF (ej: #general), si no hay, el ID
+            var valToSave = href && href.startsWith('#') ? href : ('#' + id);
+
+            if (valToSave) {
+                console.log("Guardando pestaña:", valToSave);
+                localStorage.setItem(storageKey, valToSave);
             }
         });
     });
 
-})(django.jQuery || jQuery); // Usamos el jQuery de Django o el global
+})(window.jQuery || django.jQuery); // Usar jQuery global o el de Django

@@ -140,23 +140,19 @@ JAZZMIN_SETTINGS = {
     
     # Menú lateral
     "show_sidebar": True,
-    "navigation_expanded": True, # Cambiado a True para ver submenús abiertos
+    "navigation_expanded": True,
 
-    # Iconos para el menú (FontAwesome)
+    # Iconos
     "icons": {
         "auth": "fas fa-users-cog",
         "auth.user": "fas fa-user",
-        
-        # Módulo Comercial
-        "comercial.Insumo": "fas fa-cubes",            # Materia Prima
-        "comercial.SubProducto": "fas fa-blender",     # Recetas (Nuevo)
-        "comercial.Producto": "fas fa-box-open",       # Paquetes
+        "comercial.Insumo": "fas fa-cubes",
+        "comercial.SubProducto": "fas fa-blender",
+        "comercial.Producto": "fas fa-box-open",
         "comercial.Cliente": "fas fa-address-book",
         "comercial.Cotizacion": "fas fa-file-invoice-dollar",
         "comercial.Pago": "fas fa-hand-holding-usd",
         "comercial.Gasto": "fas fa-money-bill-wave",
-        
-        # Otros Módulos
         "nomina.Empleado": "fas fa-user-tie",
         "nomina.ReciboNomina": "fas fa-file-contract",
         "facturacion.ClienteFiscal": "fas fa-building",
@@ -169,25 +165,22 @@ JAZZMIN_SETTINGS = {
         {"name": "Ver Sitio", "url": "/"},
     ],
 
-    # --- ORDEN LÓGICO DE TRABAJO ---
     "order_with_respect_to": [
-        # 1. Comercial (El corazón del negocio)
         "comercial",                    
-        "comercial.Insumo",             # Primero compras
-        "comercial.SubProducto",        # Luego cocinas/preparas
-        "comercial.Producto",           # Luego armas paquetes
-        "comercial.Cliente",            # Llega el cliente
-        "comercial.Cotizacion",         # Le vendes
-        "comercial.Pago",               # Cobras
-        "comercial.Gasto",              # Registras gastos
-        
-        # 2. Otros departamentos
+        "comercial.Insumo",             
+        "comercial.SubProducto",        
+        "comercial.Producto",           
+        "comercial.Cliente",            
+        "comercial.Cotizacion",         
+        "comercial.Pago",               
+        "comercial.Gasto",              
         "nomina", 
         "facturacion",
         "auth",
     ],
     
+    # --- AQUÍ ESTABA EL ERROR ---
     "custom_css": "css/mobile_fix.css",
+    "custom_js": "js/tabs_fix.js",  # <--- ESTA LÍNEA ES LA QUE FALTABA
 }
-
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
