@@ -14,7 +14,8 @@ from comercial.views import (
     exportar_cierre_excel,
     exportar_reporte_cotizaciones,
     generar_lista_compras,
-    forzar_migracion
+    forzar_migracion,
+    exportar_reporte_pagos  # <--- AGREGADO AQUÍ
 )
 
 # Importamos vistas de otros módulos (Nómina y Facturación)
@@ -34,7 +35,12 @@ urlpatterns = [
     
     # --- Calendario, Reportes y Compras ---
     path('admin/calendario/', ver_calendario, name='ver_calendario'),
+    
+    # Reportes Financieros
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
+    path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),  # <--- NUEVA RUTA AGREGADA
+    
+    # Herramientas
     path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),
     path('admin/calculadora/', calculadora_insumos, name='admin_calculadora'),
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),

@@ -8,10 +8,10 @@
 <style>
     .dashboard-container { max-width: 1200px; margin: 20px auto; font-family: -apple-system, sans-serif; }
     
-    /* ACTIONS GRID */
+    /* ACTIONS GRID: Modificado a auto-fit para que quepan los nuevos botones */
     .actions-grid { 
         display: grid; 
-        grid-template-columns: repeat(5, 1fr); 
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); 
         gap: 15px; 
         margin-bottom: 30px; 
     }
@@ -24,7 +24,7 @@
     }
     .action-btn:hover { transform: translateY(-3px); border-color: #356685; }
     .action-icon { font-size: 28px; margin-bottom: 10px; }
-    .action-label { font-size: 13px; font-weight: 700; color: #444; }
+    .action-label { font-size: 12px; font-weight: 700; color: #444; line-height: 1.2; }
 
     /* ICON COLORS */
     .icon-cotizacion { color: #356685; } 
@@ -32,6 +32,8 @@
     .icon-factura { color: #17a2b8; } 
     .icon-nomina { color: #28a745; }
     .icon-compras { color: #e67e22; }
+    .icon-pagos { color: #8e44ad; } /* Nuevo color morado */
+    .icon-finanzas { color: #34495e; } /* Nuevo color oscuro */
 
     /* KPI CARDS */
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
@@ -42,7 +44,11 @@
     /* GRÁFICAS */
     .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 40px; }
     .content-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f0f0f0; }
-
+    
+    @media (max-width: 900px) { 
+        .kpi-grid { grid-template-columns: 1fr 1fr; }
+        .main-grid { grid-template-columns: 1fr; }
+    }
 </style>
 
 <div class="dashboard-container">
@@ -54,11 +60,21 @@
             <div class="action-label">Nueva Cotización</div>
         </a>
         
+        <a href="{% url 'reporte_pagos' %}" class="action-btn">
+            <div class="action-icon icon-pagos"><i class="fas fa-cash-register"></i></div>
+            <div class="action-label">Reporte Pagos</div>
+        </a>
+
         <a href="{% url 'generar_lista_compras' %}" class="action-btn"> 
             <div class="action-icon icon-compras"><i class="fas fa-shopping-cart"></i></div>
             <div class="action-label">Lista de Compras</div>
         </a>
         
+        <a href="{% url 'exportar_reporte_cotizaciones' %}" class="action-btn">
+            <div class="action-icon icon-finanzas"><i class="fas fa-chart-line"></i></div>
+            <div class="action-label">Rep. Financiero</div>
+        </a>
+
         <a href="{% url 'crear_solicitud' %}" class="action-btn">
             <div class="action-icon icon-factura"><i class="fas fa-file-invoice-dollar"></i></div>
             <div class="action-label">Facturar</div>
@@ -115,7 +131,10 @@
                     </div>
                     <div>
                         <div style="font-size: 13px; font-weight: 600;">{{ evento.cliente.nombre }}</div>
-                        <div style="font-size: 11px; color: #999;">{{ evento.producto.nombre }}</div>
+                        <div style="font-size: 11px; color: #999;">{{ evento.nombre_evento|truncatechars:20 }}</div>
+                    </div>
+                    <div style="margin-left: auto;">
+                        <a href="/admin/comercial/cotizacion/{{ evento.id }}/change/" style="color:#aaa;"><i class="fas fa-chevron-right"></i></a>
                     </div>
                 </div>
                 {% endfor %}
