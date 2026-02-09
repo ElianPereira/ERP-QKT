@@ -93,9 +93,12 @@ class CotizacionAdmin(admin.ModelAdmin):
         'insumo_barman', 'insumo_auxiliar'
     ]
     
-    # --- IMPORTANTE: ELIMINÉ LA CARGA DE CSS AQUÍ PARA DESBLOQUEAR TU PANTALLA ---
-    # Una vez que confirmes que las pestañas funcionan, podremos volver a ponerlo.
+    # --- IMPORTANTE: COMENTADO PARA QUE NO CARGUE ESTILOS ---
+    # Esto asegura que vuelva a funcionar como antes.
+    # class Media:
+    #    css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
 
+    # --- REGRESAMOS A FIELDSETS (PESTAÑAS) ---
     fieldsets = (
         ('Información del Evento', {
             'fields': (
@@ -127,7 +130,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'insumo_alcohol_basico', 
                 'insumo_alcohol_premium',
             ),
-            # SIN 'classes': ('collapse') NI NADA MÁS
+            # SIN 'classes': ('collapse',) PARA EVITAR ERRORES
             'description': 'Define insumos específicos del inventario.'
         }),
         ('Finanzas', {
@@ -162,7 +165,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
-        # ESTILOS INLINE SIMPLES (Funcionan sin CSS externo)
+        # ESTILOS INLINE (Simples y Seguros)
         st_wrapper = "width:100%; overflow-x:auto; margin-bottom:15px; padding-bottom:5px;"
         st_container = "font-family:'Segoe UI',sans-serif; font-size:13px; color:#333; min-width:340px; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
         st_header = "background:#2c3e50; color:#fff; padding:10px 15px; font-weight:600; font-size:14px; border-bottom:3px solid #1a252f;"
