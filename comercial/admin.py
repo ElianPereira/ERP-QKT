@@ -11,6 +11,19 @@ from .models import (
 )
 
 # ==========================================
+# CONFIGURACIÓN COMPARTIDA (MEDIA)
+# ==========================================
+# Definimos esto aquí para no repetir código, pero lo inyectamos en cada clase
+MEDIA_CONFIG = {
+    'css': {
+        'all': ('css/admin_fix.css', 'css/mobile_fix.css')
+    },
+    'js': (
+        'js/tabs_fix.js',  # El script que arregla los clics
+    )
+}
+
+# ==========================================
 # 1. INSUMOS Y PRODUCTOS
 # ==========================================
 
@@ -21,11 +34,15 @@ class InsumoAdmin(admin.ModelAdmin):
     list_filter = ('categoria',)
     search_fields = ('nombre',) 
     list_per_page = 20
+    
+    # AGREGADO: Carga el fix también aquí
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 class RecetaInline(admin.TabularInline):
     model = RecetaSubProducto
     extra = 1
-    # Optimización: raw_id_fields evita la carga pesada de JS en inlines
     raw_id_fields = ['insumo'] 
     verbose_name = "Ingrediente"
 
@@ -34,6 +51,11 @@ class SubProductoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'costo_insumos')
     inlines = [RecetaInline]
     search_fields = ('nombre',)
+
+    # AGREGADO: Carga el fix para las pestañas de ingredientes
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto
@@ -46,6 +68,11 @@ class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline]
     list_display = ('nombre', 'calcular_costo', 'sugerencia_precio')
     search_fields = ('nombre',)
+
+    # AGREGADO: Carga el fix para las pestañas de componentes
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 # ==========================================
 # 2. CLIENTES
@@ -62,6 +89,11 @@ class ClienteAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_registro',)
 
+    # AGREGADO: Por si Jazzmin tabula los fieldsets
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
+
 # ==========================================
 # 3. COTIZACIONES (EL MÓDULO PRINCIPAL)
 # ==========================================
@@ -69,7 +101,6 @@ class ClienteAdmin(admin.ModelAdmin):
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
-    # CRÍTICO: raw_id_fields previene conflictos de Select2 dentro de las pestañas
     raw_id_fields = ['producto', 'insumo']
     fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
     readonly_fields = ('subtotal',)
@@ -87,7 +118,6 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
-    # CRÍTICO: Mantenemos raw_id_fields para aligerar la carga de JS
     raw_id_fields = [
        'cliente', 
        'insumo_hielo', 'insumo_refresco', 'insumo_agua',
@@ -95,16 +125,10 @@ class CotizacionAdmin(admin.ModelAdmin):
        'insumo_barman', 'insumo_auxiliar'
     ]
     
-    # SOLUCIÓN INTEGRADA:
-    # 1. Reactivamos CSS para estilos correctos.
-    # 2. Agregamos 'js/tabs_fix.js' para forzar el funcionamiento de las pestañas.
+    # MANTENIDO: Aquí ya funcionaba
     class Media:
-        css = {
-            'all': ('css/admin_fix.css', 'css/mobile_fix.css')
-        }
-        js = (
-            'js/tabs_fix.js',  # <--- ESTE ARCHIVO ES LA CLAVE (Debes crearlo)
-        )
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
     fieldsets = (
         ('Información del Evento', {
@@ -162,7 +186,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666;">Guarde para calcular.</div>')
         
-        # Cálculos de desglose
         costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
         costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
         costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
@@ -171,7 +194,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
-        # Estilos HTML puros
         html = f"""
         <div style="border:1px solid #ccc; border-radius:5px; overflow:hidden;">
             <div style="background:#333; color:white; padding:10px; font-weight:bold;">
@@ -262,6 +284,12 @@ class PagoAdmin(admin.ModelAdmin):
     search_fields = ('cotizacion__cliente__nombre', 'referencia')
     date_hierarchy = 'fecha_pago'
     raw_id_fields = ['cotizacion'] # Lupa en lugar de autocomplete
+    
+    # AGREGADO: También aquí
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
+
     def save_model(self, request, obj, form, change):
         if not obj.pk: obj.usuario = request.user
         super().save_model(request, obj, form, change)
@@ -292,6 +320,12 @@ class CompraAdmin(admin.ModelAdmin):
         ('Totales Globales', {'fields': ('subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')})
     )
     readonly_fields = ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid', 'subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')
+    
+    # AGREGADO: Carga el fix para pestañas de Compras/Gastos
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
+
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [path('carga-masiva/', self.admin_site.admin_view(self.carga_masiva_view), name='compra_carga_masiva'),]
@@ -329,3 +363,8 @@ class GastoAdmin(admin.ModelAdmin):
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
+    
+    # AGREGADO: También aquí por consistencia
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
