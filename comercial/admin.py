@@ -85,8 +85,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
-    # Autocomplete: Si esto falla en JS, las pestañas mueren.
-    # Si sigue fallando después de este fix, prueba comentar esta línea temporalmente.
+    # Buscadores inteligentes
     autocomplete_fields = [
         'cliente', 
         'insumo_hielo', 'insumo_refresco', 'insumo_agua',
@@ -94,9 +93,11 @@ class CotizacionAdmin(admin.ModelAdmin):
         'insumo_barman', 'insumo_auxiliar'
     ]
     
-    # Usamos la v4 para limpiar caché obligatoriamente
-    class Media:
-        css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')}
+    # --- ¡ATENCIÓN! HE DESACTIVADO EL CSS AQUÍ ---
+    # Al comentar esto, el sistema usará los estilos originales de Django/Jazzmin.
+    # Esto debe hacer que las pestañas vuelvan a funcionar inmediatamente.
+    # class Media:
+    #    css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v3.css')}
 
     fieldsets = (
         ('Información del Evento', {
@@ -129,7 +130,6 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'insumo_alcohol_basico', 
                 'insumo_alcohol_premium',
             ),
-            # Sin clases extrañas
             'description': 'Define insumos específicos del inventario.'
         }),
         ('Finanzas', {
@@ -153,9 +153,9 @@ class CotizacionAdmin(admin.ModelAdmin):
     def resumen_barra_html(self, obj):
         datos = obj.calcular_barra_insumos()
         if not datos:
-            return mark_safe('<div style="padding:15px; color:#666;">Guarde para calcular.</div>')
+            return mark_safe('<div style="padding:15px; color:#666; background:#f8f9fa; border:1px dashed #ccc; border-radius:4px; text-align:center;">Selecciona un tipo de barra y número de personas para calcular.</div>')
         
-        # Cálculos Visuales
+        # Cálculos de desglose
         costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
         costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
         costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
@@ -164,60 +164,68 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
-        # Filas condicionales
+        # Usamos estilos inline básicos que funcionan en cualquier lado
+        st_wrapper = "width:100%; overflow-x:auto; margin-bottom:15px; padding-bottom:5px;"
+        st_container = "font-family:sans-serif; font-size:13px; color:#333; min-width:300px; border:1px solid #ccc; border-radius:4px;"
+        st_header = "background:#333; color:#fff; padding:8px 10px; font-weight:bold;"
+        st_table = "width:100%; border-collapse:collapse;"
+        
         rows_alcohol = ""
         if obj.tipo_barra != 'sin_alcohol':
             rows_alcohol = f"""
             <tr style="border-bottom:1px solid #eee;">
                 <td style="padding:8px;">Botellas:</td>
-                <td style="padding:8px; text-align:right; font-weight:bold;">{datos['botellas']} u.</td>
-                <td style="padding:8px; text-align:right; color:#dc3545;">${datos['costo_alcohol']:,.2f}</td>
+                <td style="padding:8px; text-align:right;"><strong>{datos['botellas']} u.</strong></td>
+                <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_alcohol']:,.2f}</td>
             </tr>
             """
 
-        # HTML SIMPLIFICADO: Sin estilos inline complejos que rompan el parser
         html = f"""
-        <div class="resumen-barra-container" style="border:1px solid #ddd; border-radius:5px; overflow:hidden;">
-            <div style="background:#343a40; color:white; padding:8px; font-weight:bold;">
-                Resumen Costos (x{datos['margen_aplicado']})
-            </div>
-            <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                {rows_alcohol}
-                <tr style="background:#f8f9fa;"><td colspan="3" style="padding:5px; font-size:11px; font-weight:bold;">INSUMOS</td></tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Hielo (20kg):</td>
-                    <td style="padding:8px; text-align:right;">{datos['bolsas_hielo_20kg']}</td>
-                    <td style="padding:8px; text-align:right; color:#dc3545;">${total_hielo:,.2f}</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Mixers:</td>
-                    <td style="padding:8px; text-align:right;">{datos['litros_mezcladores']} L</td>
-                    <td style="padding:8px; text-align:right; color:#dc3545;">${total_mix:,.2f}</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Agua:</td>
-                    <td style="padding:8px; text-align:right;">{datos['litros_agua']} L</td>
-                    <td style="padding:8px; text-align:right; color:#dc3545;">${total_agua:,.2f}</td>
-                </tr>
+        <div style="{st_wrapper}">
+            <div style="{st_container}">
+                <div style="{st_header}">
+                    BARRA (x{datos['margen_aplicado']})
+                </div>
                 
-                <tr style="background:#f8f9fa;"><td colspan="3" style="padding:5px; font-size:11px; font-weight:bold;">STAFF</td></tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Personal:</td>
-                    <td style="padding:8px; text-align:right;">{datos['num_barmans']}B / {datos['num_auxiliares']}A</td>
-                    <td style="padding:8px; text-align:right; color:#dc3545;">${datos['costo_staff']:,.2f}</td>
-                </tr>
+                <table style="{st_table}">
+                    {rows_alcohol}
+                    
+                    <tr style="background:#f9f9f9;"><td colspan="3" style="padding:5px; font-size:11px; font-weight:bold;">INSUMOS</td></tr>
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">Hielo (20kg):</td>
+                        <td style="padding:8px; text-align:right;">{datos['bolsas_hielo_20kg']} bolsas</td>
+                        <td style="padding:8px; text-align:right; color:#d9534f;">${total_hielo:,.2f}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">Mixers:</td>
+                        <td style="padding:8px; text-align:right;">{datos['litros_mezcladores']} Lt</td>
+                        <td style="padding:8px; text-align:right; color:#d9534f;">${total_mix:,.2f}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">Agua:</td>
+                        <td style="padding:8px; text-align:right;">{datos['litros_agua']} Lt</td>
+                        <td style="padding:8px; text-align:right; color:#d9534f;">${total_agua:,.2f}</td>
+                    </tr>
 
-                <tr style="background:#fff3cd; font-weight:bold; border-top:2px solid #ffeeba;">
-                    <td style="padding:8px;">TOTAL COSTO:</td>
-                    <td></td>
-                    <td style="padding:8px; text-align:right; color:#dc3545;">${datos['costo_total_estimado']:,.2f}</td>
-                </tr>
-                <tr style="background:#d4edda; font-weight:bold; border-top:2px solid #c3e6cb;">
-                    <td style="padding:8px; color:#155724;">PRECIO VENTA:</td>
-                    <td></td>
-                    <td style="padding:8px; text-align:right; color:#155724;">${datos['precio_venta_sugerido_total']:,.2f}</td>
-                </tr>
-            </table>
+                    <tr style="background:#f9f9f9;"><td colspan="3" style="padding:5px; font-size:11px; font-weight:bold;">STAFF</td></tr>
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">Brigada:</td>
+                        <td style="padding:8px; text-align:right;">{datos['num_barmans']}B / {datos['num_auxiliares']}A</td>
+                        <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_staff']:,.2f}</td>
+                    </tr>
+
+                    <tr style="background:#fff3cd; font-weight:bold; border-top:2px solid #ffeeba;">
+                        <td style="padding:8px;">COSTO TOTAL:</td>
+                        <td></td>
+                        <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_total_estimado']:,.2f}</td>
+                    </tr>
+                    <tr style="background:#d4edda; font-weight:bold; border-top:2px solid #c3e6cb;">
+                        <td style="padding:8px; color:#155724;">VENTA:</td>
+                        <td></td>
+                        <td style="padding:8px; text-align:right; color:#155724;">${datos['precio_venta_sugerido_total']:,.2f}</td>
+                    </tr>
+                </table>
+            </div>
         </div>
         """
         return mark_safe(html)
@@ -267,6 +275,10 @@ class PagoAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         if not obj.pk: obj.usuario = request.user
         super().save_model(request, obj, form, change)
+
+# ==========================================
+# 4. COMPRAS Y GASTOS (CONTABILIDAD)
+# ==========================================
 
 class GastoInline(admin.TabularInline):
     model = Gasto
@@ -327,4 +339,4 @@ class GastoAdmin(admin.ModelAdmin):
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
-    class Media: css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')}
+    # class Media: css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
