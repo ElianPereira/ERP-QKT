@@ -89,7 +89,6 @@ class CotizacionAdmin(admin.ModelAdmin):
             'fields': (
                 'cliente', 
                 'nombre_evento', 
-                # AQUÍ ESTABA AGRUPADO, AHORA ESTÁ VERTICAL
                 'fecha_evento', 
                 'hora_inicio', 
                 'hora_fin', 
@@ -99,7 +98,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
         ('Calculadora de Barra', {
             'fields': (
-                # AQUÍ TAMBIÉN: TODO VERTICAL PARA QUE NO SE VEA ACHOCADO
                 'tipo_barra', 
                 'horas_servicio', 
                 'factor_utilidad_barra',
@@ -141,46 +139,79 @@ class CotizacionAdmin(admin.ModelAdmin):
     def resumen_barra_html(self, obj):
         datos = obj.calcular_barra_insumos()
         if not datos:
-            return mark_safe('<span style="color:#6c757d; font-style:italic; padding:10px; display:block;">Guarde una selección de barra válida para ver el cálculo.</span>')
+            return mark_safe('<div style="padding:15px; color:#666; background:#f8f9fa; border:1px dashed #ccc; border-radius:4px; text-align:center;">Selecciona un tipo de barra y número de personas para calcular.</div>')
         
-        style_table = "width:100%; border-collapse: collapse; font-family: 'Segoe UI', sans-serif; font-size: 13px;"
-        style_th = "text-align: left; padding: 8px; border-bottom: 2px solid #dee2e6; color: #495057; background-color: #f8f9fa;"
-        style_td = "padding: 8px; border-bottom: 1px solid #e9ecef;"
-        style_val = "font-weight: 600; text-align: right;"
-
-        seccion_botellas = ""
+        # Estilos Inline (Limpio y Profesional)
+        st_container = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; color:#333; max-width:100%; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
+        st_header = "background:#2c3e50; color:#fff; padding:10px 15px; font-weight:600; font-size:14px; letter-spacing:0.5px; border-bottom:3px solid #1a252f;"
+        st_table = "width:100%; border-collapse:collapse;"
+        st_td_lbl = "padding:8px 12px; border-bottom:1px solid #eee; color:#555;"
+        st_td_val = "padding:8px 12px; border-bottom:1px solid #eee; text-align:right; font-weight:600; color:#2c3e50;"
+        st_subhead = "background:#f4f6f7; color:#7f8c8d; font-size:11px; text-transform:uppercase; font-weight:700; padding:6px 12px; border-bottom:1px solid #ddd;"
+        
+        # Filas condicionales
+        rows_alcohol = ""
         if obj.tipo_barra != 'sin_alcohol':
-            seccion_botellas = f"<tr><td style='{style_td}'>Botellas:</td><td style='{style_td} {style_val}'>{datos['botellas']} u.</td></tr>"
+            rows_alcohol = f"""
+            <tr><td colspan="3" style="{st_subhead}">Alcohol & Destilados</td></tr>
+            <tr>
+                <td style="{st_td_lbl}">Botellas (Aprox):</td>
+                <td style="{st_td_val}">{datos['botellas']} u.</td>
+                <td style="{st_td_val} color:#e74c3c;">${datos['costo_alcohol']:,.2f}</td>
+            </tr>
+            """
 
         html = f"""
-        <div style="background-color: white; border: 1px solid #dcdcdc; border-radius: 6px; overflow: hidden; margin-top: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <div style="background-color: #343a40; color: white; padding: 10px 15px;">
-                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">📊 Resultados de Costeo</h3>
-            </div>
-            <div style="display: flex; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 300px; padding: 0;">
-                    <table style="{style_table} border-right: 1px solid #eee;">
-                        <tr><th colspan="2" style="{style_th}">REQUERIMIENTOS</th></tr>
-                        {seccion_botellas}
-                        <tr><td style="{style_td}">Hielo (Bolsas 20kg):</td><td style="{style_td} {style_val}">{datos['bolsas_hielo_20kg']} bolsas</td></tr>
-                        <tr><td style="{style_td}">Mezcladores:</td><td style="{style_td} {style_val}">{datos['litros_mezcladores']} Litros</td></tr>
-                        <tr><td style="{style_td}">Agua:</td><td style="{style_td} {style_val}">{datos['litros_agua']} Litros</td></tr>
-                        <tr><td style="{style_td}">Staff:</td><td style="{style_td} {style_val}">{datos['num_barmans']} B / {datos['num_auxiliares']} A</td></tr>
-                    </table>
-                </div>
-                <div style="flex: 1; min-width: 300px; padding: 0; background-color: #fffbf2;">
-                    <table style="{style_table}">
-                        <tr><th colspan="2" style="{style_th} background-color: #fffbf2; color: #856404;">FINANZAS</th></tr>
-                        <tr><td style="{style_td}">Costo Total:</td><td style="{style_td} {style_val} color: #dc3545;">${datos['costo_total_estimado']:,.2f}</td></tr>
-                        <tr><td style="{style_td}">Costo Unitario:</td><td style="{style_td} {style_val} text-align: right;">${datos['costo_pax']:,.2f}</td></tr>
-                        <tr><td style="{style_td} border-top: 2px solid #e0c482;"><strong>PRECIO VENTA:</strong></td><td style="{style_td} {style_val} color: #28a745; font-size: 15px; border-top: 2px solid #e0c482;">${datos['precio_venta_sugerido_total']:,.2f}</td></tr>
-                    </table>
+        <div style="{st_container}">
+            <div style="{st_header}">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>📊 ANÁLISIS DE COSTOS - BARRA</span>
+                    <span style="background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:4px; font-size:11px;">Margen: {datos['margen_aplicado']}x</span>
                 </div>
             </div>
+            
+            <table style="{st_table}">
+                {rows_alcohol}
+                
+                <tr><td colspan="3" style="{st_subhead}">Insumos Operativos</td></tr>
+                <tr>
+                    <td style="{st_td_lbl}">Hielo (20kg) + Mixers + Agua:</td>
+                    <td style="{st_td_val}">
+                        <span style="font-size:11px; color:#999;">
+                        ({datos['bolsas_hielo_20kg']} Bolsas / {datos['litros_mezcladores']}L Mix / {datos['litros_agua']}L Agua)
+                        </span>
+                    </td>
+                    <td style="{st_td_val} color:#e74c3c;">${datos['costo_insumos_varios']:,.2f}</td>
+                </tr>
+
+                <tr><td colspan="3" style="{st_subhead}">Recurso Humano</td></tr>
+                <tr>
+                    <td style="{st_td_lbl}">Brigada de Servicio:</td>
+                    <td style="{st_td_val}">{datos['num_barmans']} Barmans / {datos['num_auxiliares']} Aux.</td>
+                    <td style="{st_td_val} color:#e74c3c;">${datos['costo_staff']:,.2f}</td>
+                </tr>
+
+                <tr style="background-color:#fffbf2; border-top:2px solid #e0c482;">
+                    <td style="{st_td_lbl} font-weight:bold; color:#856404;">COSTO TOTAL OPERATIVO</td>
+                    <td style="{st_td_val}"></td>
+                    <td style="{st_td_val} font-size:14px; color:#c0392b;">${datos['costo_total_estimado']:,.2f}</td>
+                </tr>
+                 <tr>
+                    <td style="{st_td_lbl}">Costo Unitario (por pax):</td>
+                    <td style="{st_td_val}"></td>
+                    <td style="{st_td_val} color:#7f8c8d;">${datos['costo_pax']:,.2f}</td>
+                </tr>
+                
+                <tr style="background-color:#e8f5e9; border-top:2px solid #a5d6a7;">
+                    <td style="{st_td_lbl} font-weight:bold; color:#1b5e20;">PRECIO VENTA SUGERIDO</td>
+                    <td style="{st_td_val}"></td>
+                    <td style="{st_td_val} font-size:15px; color:#2e7d32;">${datos['precio_venta_sugerido_total']:,.2f}</td>
+                </tr>
+            </table>
         </div>
         """
         return mark_safe(html)
-    resumen_barra_html.short_description = "Resumen Ejecutivo"
+    resumen_barra_html.short_description = "Reporte Ejecutivo"
 
     def save_model(self, request, obj, form, change):
         if not obj.pk: obj.usuario = request.user

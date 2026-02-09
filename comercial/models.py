@@ -157,10 +157,14 @@ class Cotizacion(models.Model):
         return insumo.costo_unitario / factor
 
     def calcular_barra_insumos(self):
+        """
+        Calcula los costos desglosados para el reporte financiero.
+        Retorna un diccionario estructurado por categorías.
+        """
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # 1. OBTENER COSTOS REALES
+        # 1. OBTENER COSTOS REALES (Unitarios)
         costo_hielo_20kg = self._get_costo_real(self.insumo_hielo, '88.00')
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
@@ -169,19 +173,21 @@ class Cotizacion(models.Model):
         costo_base = self._get_costo_real(self.insumo_alcohol_basico, '250.00')
         costo_premium = self._get_costo_real(self.insumo_alcohol_premium, '550.00')
 
-        # 2. CÁLCULOS FÍSICOS
+        # 2. CÁLCULOS FÍSICOS & COSTOS
+        # A) Alcohol
         botellas = 0
         costo_alcohol_total = Decimal('0.00')
         
         if self.tipo_barra in ['basico', 'premium']:
-            factor = 4.5 if self.horas_servicio >= 5 else 5.5
+            factor_consumo = 4.5 if self.horas_servicio >= 5 else 5.5
             precio_botella = costo_premium if self.tipo_barra == 'premium' else costo_base
-            botellas = math.ceil(self.num_personas / factor)
+            botellas = math.ceil(self.num_personas / factor_consumo)
             costo_alcohol_total = botellas * precio_botella
             litros_mezcladores = math.ceil(botellas * 4.5)
         else:
             litros_mezcladores = math.ceil(self.num_personas * 1.5)
 
+        # B) Insumos Operativos (Mezcladores, Hielo, Agua)
         kilos_hielo = self.num_personas * 2.0
         bolsas_hielo_20kg = math.ceil(kilos_hielo / 20.0)
         costo_hielo_total = bolsas_hielo_20kg * costo_hielo_20kg
@@ -190,28 +196,40 @@ class Cotizacion(models.Model):
         
         litros_agua = math.ceil(self.num_personas * 0.5)
         costo_agua_total = litros_agua * costo_agua_lt
+        
+        subtotal_insumos_varios = costo_hielo_total + costo_mezcladores_total + costo_agua_total
 
-        # Staff
+        # C) Staff
         num_staff = math.ceil(self.num_personas / 50) 
         costo_staff_total = (num_staff * costo_barman) + (num_staff * costo_auxiliar)
 
-        # 3. TOTALES
-        costo_total = costo_alcohol_total + costo_hielo_total + costo_mezcladores_total + costo_agua_total + costo_staff_total
+        # 3. TOTALES FINALES
+        costo_total_operativo = costo_alcohol_total + subtotal_insumos_varios + costo_staff_total
         
         factor_margen = Decimal(str(self.factor_utilidad_barra))
-        precio_venta = costo_total * factor_margen
+        precio_venta_total = costo_total_operativo * factor_margen
 
         return {
+            # Datos Físicos
             'botellas': botellas,
             'bolsas_hielo_20kg': bolsas_hielo_20kg,
             'litros_mezcladores': litros_mezcladores,
             'litros_agua': litros_agua,
             'num_barmans': num_staff,
             'num_auxiliares': num_staff,
-            'costo_total_estimado': round(costo_total, 2),
-            'costo_pax': round(costo_total / self.num_personas, 2), # <--- AQUÍ ESTABA EL ERROR, YA LO AGREGUÉ
-            'precio_venta_sugerido_total': round(precio_venta, 2),
-            'precio_venta_sugerido_pax': round(precio_venta / self.num_personas, 2),
+            
+            # Desglose Financiero (Costos)
+            'costo_alcohol': round(costo_alcohol_total, 2),
+            'costo_insumos_varios': round(subtotal_insumos_varios, 2), # Hielo + Refresco + Agua
+            'costo_staff': round(costo_staff_total, 2),
+            
+            # Totales
+            'costo_total_estimado': round(costo_total_operativo, 2),
+            'costo_pax': round(costo_total_operativo / self.num_personas, 2),
+            
+            # Precios Venta Sugeridos
+            'precio_venta_sugerido_total': round(precio_venta_total, 2),
+            'precio_venta_sugerido_pax': round(precio_venta_total / self.num_personas, 2),
             'margen_aplicado': self.factor_utilidad_barra
         }
 
