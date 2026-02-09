@@ -25,7 +25,7 @@ class InsumoAdmin(admin.ModelAdmin):
 class RecetaInline(admin.TabularInline):
     model = RecetaSubProducto
     extra = 1
-    # CAMBIO: Usamos raw_id_fields (Lupa) para evitar errores de JS en pestañas
+    # Optimización: raw_id_fields evita la carga pesada de JS en inlines
     raw_id_fields = ['insumo'] 
     verbose_name = "Ingrediente"
 
@@ -69,7 +69,7 @@ class ClienteAdmin(admin.ModelAdmin):
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
-    # CAMBIO CRITICO: raw_id_fields evita que Select2 rompa las pestañas ocultas
+    # CRÍTICO: raw_id_fields previene conflictos de Select2 dentro de las pestañas
     raw_id_fields = ['producto', 'insumo']
     fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
     readonly_fields = ('subtotal',)
@@ -87,8 +87,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
-    # CAMBIO CRITICO: Desactivamos el autocomplete en el padre también para probar
-    # Esto asegura que NADA de Javascript externo se cargue
+    # CRÍTICO: Mantenemos raw_id_fields para aligerar la carga de JS
     raw_id_fields = [
        'cliente', 
        'insumo_hielo', 'insumo_refresco', 'insumo_agua',
@@ -96,9 +95,16 @@ class CotizacionAdmin(admin.ModelAdmin):
        'insumo_barman', 'insumo_auxiliar'
     ]
     
-    # SIN CSS EXTERNO (Asegura que no haya estilos caché molestando)
-    # class Media:
-    #    css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
+    # SOLUCIÓN INTEGRADA:
+    # 1. Reactivamos CSS para estilos correctos.
+    # 2. Agregamos 'js/tabs_fix.js' para forzar el funcionamiento de las pestañas.
+    class Media:
+        css = {
+            'all': ('css/admin_fix.css', 'css/mobile_fix.css')
+        }
+        js = (
+            'js/tabs_fix.js',  # <--- ESTE ARCHIVO ES LA CLAVE (Debes crearlo)
+        )
 
     fieldsets = (
         ('Información del Evento', {
@@ -165,7 +171,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
-        # Estilos HTML puros (sin clases externas)
+        # Estilos HTML puros
         html = f"""
         <div style="border:1px solid #ccc; border-radius:5px; overflow:hidden;">
             <div style="background:#333; color:white; padding:10px; font-weight:bold;">
