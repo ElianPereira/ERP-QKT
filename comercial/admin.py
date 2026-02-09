@@ -128,8 +128,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'insumo_alcohol_basico', 
                 'insumo_alcohol_premium',
             ),
-            # ¡AQUÍ ESTABA EL ERROR! 
-            # Eliminé la línea 'classes': ('collapse',) para que las pestañas funcionen.
+            # SE ELIMINÓ 'classes': ('collapse',) PARA EVITAR CONFLICTO DE PESTAÑAS
             'description': 'Define insumos específicos del inventario.'
         }),
         ('Finanzas', {
