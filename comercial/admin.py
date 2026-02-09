@@ -82,7 +82,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     ]
     
     class Media:
-        css = {'all': ('css/admin_fix.css',)}
+        css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')} # AÑADIDO MOBILE FIX AQUÍ EXPLÍCITAMENTE
 
     fieldsets = (
         ('Información del Evento', {
@@ -141,8 +141,11 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666; background:#f8f9fa; border:1px dashed #ccc; border-radius:4px; text-align:center;">Selecciona un tipo de barra y número de personas para calcular.</div>')
         
-        # Estilos Inline (Limpio y Profesional)
-        st_container = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; color:#333; max-width:100%; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
+        # --- AQUÍ ESTÁ EL FIX DEL SCROLL PARA LA TARJETA ---
+        # El contenedor principal tiene overflow-x: auto
+        
+        st_wrapper = "width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:15px;"
+        st_container = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; color:#333; min-width:320px; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
         st_header = "background:#2c3e50; color:#fff; padding:10px 15px; font-weight:600; font-size:14px; letter-spacing:0.5px; border-bottom:3px solid #1a252f;"
         st_table = "width:100%; border-collapse:collapse;"
         st_td_lbl = "padding:8px 12px; border-bottom:1px solid #eee; color:#555;"
@@ -162,52 +165,54 @@ class CotizacionAdmin(admin.ModelAdmin):
             """
 
         html = f"""
-        <div style="{st_container}">
-            <div style="{st_header}">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span>📊 ANÁLISIS DE COSTOS - BARRA</span>
-                    <span style="background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:4px; font-size:11px;">Margen: {datos['margen_aplicado']}x</span>
+        <div style="{st_wrapper}">
+            <div style="{st_container}">
+                <div style="{st_header}">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>📊 ANÁLISIS BARRA</span>
+                        <span style="background:rgba(255,255,255,0.2); padding:2px 6px; border-radius:4px; font-size:10px;">x{datos['margen_aplicado']}</span>
+                    </div>
                 </div>
+                
+                <table style="{st_table}">
+                    {rows_alcohol}
+                    
+                    <tr><td colspan="3" style="{st_subhead}">Insumos Operativos</td></tr>
+                    <tr>
+                        <td style="{st_td_lbl}">Mixers + Hielo:</td>
+                        <td style="{st_td_val}">
+                            <span style="font-size:10px; color:#999; display:block;">
+                            {datos['bolsas_hielo_20kg']} Bolsas / {datos['litros_mezcladores']}L Mix
+                            </span>
+                        </td>
+                        <td style="{st_td_val} color:#e74c3c;">${datos['costo_insumos_varios']:,.2f}</td>
+                    </tr>
+
+                    <tr><td colspan="3" style="{st_subhead}">Recurso Humano</td></tr>
+                    <tr>
+                        <td style="{st_td_lbl}">Brigada:</td>
+                        <td style="{st_td_val}">{datos['num_barmans']} Bar. / {datos['num_auxiliares']} Aux.</td>
+                        <td style="{st_td_val} color:#e74c3c;">${datos['costo_staff']:,.2f}</td>
+                    </tr>
+
+                    <tr style="background-color:#fffbf2; border-top:2px solid #e0c482;">
+                        <td style="{st_td_lbl} font-weight:bold; color:#856404;">COSTO TOTAL</td>
+                        <td style="{st_td_val}"></td>
+                        <td style="{st_td_val} font-size:14px; color:#c0392b;">${datos['costo_total_estimado']:,.2f}</td>
+                    </tr>
+                     <tr>
+                        <td style="{st_td_lbl}">Costo Unitario:</td>
+                        <td style="{st_td_val}"></td>
+                        <td style="{st_td_val} color:#7f8c8d;">${datos['costo_pax']:,.2f}</td>
+                    </tr>
+                    
+                    <tr style="background-color:#e8f5e9; border-top:2px solid #a5d6a7;">
+                        <td style="{st_td_lbl} font-weight:bold; color:#1b5e20;">PRECIO VENTA</td>
+                        <td style="{st_td_val}"></td>
+                        <td style="{st_td_val} font-size:15px; color:#2e7d32;">${datos['precio_venta_sugerido_total']:,.2f}</td>
+                    </tr>
+                </table>
             </div>
-            
-            <table style="{st_table}">
-                {rows_alcohol}
-                
-                <tr><td colspan="3" style="{st_subhead}">Insumos Operativos</td></tr>
-                <tr>
-                    <td style="{st_td_lbl}">Hielo (20kg) + Mixers + Agua:</td>
-                    <td style="{st_td_val}">
-                        <span style="font-size:11px; color:#999;">
-                        ({datos['bolsas_hielo_20kg']} Bolsas / {datos['litros_mezcladores']}L Mix / {datos['litros_agua']}L Agua)
-                        </span>
-                    </td>
-                    <td style="{st_td_val} color:#e74c3c;">${datos['costo_insumos_varios']:,.2f}</td>
-                </tr>
-
-                <tr><td colspan="3" style="{st_subhead}">Recurso Humano</td></tr>
-                <tr>
-                    <td style="{st_td_lbl}">Brigada de Servicio:</td>
-                    <td style="{st_td_val}">{datos['num_barmans']} Barmans / {datos['num_auxiliares']} Aux.</td>
-                    <td style="{st_td_val} color:#e74c3c;">${datos['costo_staff']:,.2f}</td>
-                </tr>
-
-                <tr style="background-color:#fffbf2; border-top:2px solid #e0c482;">
-                    <td style="{st_td_lbl} font-weight:bold; color:#856404;">COSTO TOTAL OPERATIVO</td>
-                    <td style="{st_td_val}"></td>
-                    <td style="{st_td_val} font-size:14px; color:#c0392b;">${datos['costo_total_estimado']:,.2f}</td>
-                </tr>
-                 <tr>
-                    <td style="{st_td_lbl}">Costo Unitario (por pax):</td>
-                    <td style="{st_td_val}"></td>
-                    <td style="{st_td_val} color:#7f8c8d;">${datos['costo_pax']:,.2f}</td>
-                </tr>
-                
-                <tr style="background-color:#e8f5e9; border-top:2px solid #a5d6a7;">
-                    <td style="{st_td_lbl} font-weight:bold; color:#1b5e20;">PRECIO VENTA SUGERIDO</td>
-                    <td style="{st_td_val}"></td>
-                    <td style="{st_td_val} font-size:15px; color:#2e7d32;">${datos['precio_venta_sugerido_total']:,.2f}</td>
-                </tr>
-            </table>
         </div>
         """
         return mark_safe(html)
@@ -317,4 +322,4 @@ class GastoAdmin(admin.ModelAdmin):
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
-    class Media: css = {'all': ('css/admin_fix.css',)}
+    class Media: css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
