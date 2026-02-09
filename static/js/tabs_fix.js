@@ -1,62 +1,48 @@
 /* Archivo: static/js/tabs_fix.js */
 
 document.addEventListener("DOMContentLoaded", function() {
-    
-    // 1. CLAVE ÚNICA DINÁMICA
-    // Esto asegura que la pestaña de 'Cotización 1' no se mezcle con 'Producto 1'
-    const storageKey = 'tab_state_' + window.location.pathname;
+    console.log("🔧 JS de Pestañas cargado correctamente."); // Verifica si ves esto en la consola (F12)
 
-    // Selector amplio para agarrar pestañas de Jazzmin (Fieldsets) y Bootstrap normales
-    const tabs = document.querySelectorAll('.change-form .nav-tabs a, .nav-tabs-custom .nav-tabs a');
+    // Clave única por URL (para diferenciar Usuario de Cotización)
+    const storageKey = 'tab_state_' + window.location.pathname;
     
-    // A. Lógica al hacer Clic (Guardar)
+    // Jazzmin a veces usa .nav-tabs dentro de .card-header
+    // Buscamos cualquier enlace dentro de una lista de pestañas
+    const tabs = document.querySelectorAll('.nav-tabs .nav-link, .nav-tabs a');
+
+    // 1. RECUPERAR (Al cargar la página)
+    const savedTabHref = localStorage.getItem(storageKey);
+    
+    if (savedTabHref) {
+        // Buscamos la pestaña específica por su href (ej: #general)
+        // Nota: Jazzmin suele usar IDs como #general, #permisos, o #fieldset-0
+        const tabToActivate = document.querySelector(`.nav-tabs a[href="${savedTabHref}"]`) || 
+                              document.querySelector(`.nav-tabs .nav-link[href="${savedTabHref}"]`);
+
+        if (tabToActivate) {
+            console.log("Restaurando pestaña:", savedTabHref);
+            // Jazzmin/Bootstrap 4 requiere activar el Tab (link) y el Pane (contenido)
+            
+            // A. Simular click (método más seguro para activar eventos de Jazzmin)
+            tabToActivate.click(); 
+
+            // B. Refuerzo manual por si el click falla en cargar estilos
+            setTimeout(() => {
+               if(!tabToActivate.classList.contains('active')) {
+                   tabToActivate.classList.add('active');
+               }
+            }, 50);
+        }
+    }
+
+    // 2. GUARDAR (Al hacer click)
     tabs.forEach(tab => {
         tab.addEventListener('click', function(e) {
-            const targetId = this.getAttribute('href');
-            
-            // Validamos que sea un ID interno
-            if (!targetId || !targetId.startsWith('#')) return;
-
-            // Guardamos en LocalStorage
-            localStorage.setItem(storageKey, targetId);
-
-            // --- FORZADO VISUAL (Para corregir fallos de Jazzmin/Bootstrap) ---
-            const targetContent = document.querySelector(targetId);
-            
-            // Buscamos contenedores tanto de fieldsets como de pestañas normales
-            const allContents = document.querySelectorAll('.tab-pane, .tab-content > div');
-            const allTabs = document.querySelectorAll('.nav-tabs li a');
-
-            if (targetContent) {
-                // 1. Ocultar todo
-                allContents.forEach(content => {
-                    content.classList.remove('active', 'show');
-                    content.style.display = 'none'; 
-                });
-                allTabs.forEach(t => t.classList.remove('active'));
-
-                // 2. Mostrar el seleccionado
-                targetContent.classList.add('active', 'show');
-                targetContent.style.display = 'block'; 
-                this.classList.add('active');
+            const href = this.getAttribute('href');
+            if (href && href.startsWith('#')) {
+                console.log("Guardando pestaña:", href);
+                localStorage.setItem(storageKey, href);
             }
         });
     });
-    
-    // B. Lógica al Cargar la página (Recuperar)
-    const savedTab = localStorage.getItem(storageKey);
-    
-    if (savedTab) {
-        // Buscamos la pestaña guardada
-        const activeTab = document.querySelector(`.nav-tabs a[href="${savedTab}"]`);
-        if (activeTab) {
-            // Simulamos clic para activar toda la lógica visual
-            activeTab.click();
-        }
-    } else {
-        // Si no hay nada guardado, activar la primera por defecto
-        if(tabs.length > 0) {
-            tabs[0].click();
-        }
-    }
 });
