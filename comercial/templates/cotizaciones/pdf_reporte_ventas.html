@@ -3,7 +3,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte Financiero Fiscal</title>
+    <title>Estado De Resultados</title>
     <style>
         @page { size: legal landscape; margin: 1cm; }
         body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10px; color: #333; line-height: 1.2; }
@@ -74,8 +74,8 @@
                 {% endif %}
             </td>
             <td width="80%" style="text-align: right;">
-                <div class="title">Reporte Financiero Fiscal</div>
-                <div class="subtitle">Desglose de Rentabilidad y Estimación de Impuestos</div>
+                <div class="title">Estado De Resultados</div>
+                <div class="subtitle">Desgloce De Ingresos, Gastos, Costos y Utilidad.</div>
                 <div style="font-size: 9px; margin-top: 5px;">
                     <strong>Periodo:</strong> {{ fecha_inicio|default:"Inicio" }} al {{ fecha_fin|default:"Hoy" }}
                 </div>
@@ -90,14 +90,14 @@
                 <th class="left" width="4%">ID</th>
                 <th class="left" width="16%">Cliente / Evento</th>
                 
-                <th width="8%" style="background:#27ae60;">Venta Total</th>
-                <th width="7%" style="background:#2ecc71;">(-) IVA Tras.</th>
+                <th width="8%" style="background:#27ae60;">Ingreso Total</th>
+                <th width="7%" style="background:#2ecc71;">(-) IVA Trasladado</th>
                 <th width="8%" style="background:#2ecc71;">(=) Base Real</th>
                 
-                <th width="8%" style="background:#2980b9;">(-) Gto Fiscal<br>(Base)</th>
-                <th width="7%" style="background:#3498db;">(+) IVA Acred.</th>
+                <th width="8%" style="background:#2980b9;">(-) Gto Facturado<br>(Base)</th>
+                <th width="7%" style="background:#3498db;">(+) IVA Acreditable</th>
                 
-                <th width="8%" style="background:#c0392b;">(-) Gto No Fiscal<br>(Nota)</th>
+                <th width="8%" style="background:#c0392b;">(-) Gto No Facturado<br>(Nota)</th>
                 
                 <th width="9%" style="background:#2c3e50;">(=) Utilidad<br>Bruta</th>
             </tr>
@@ -127,7 +127,7 @@
             {% endfor %}
             
             <tr class="total-row">
-                <td colspan="2" class="left">TOTALES EVENTOS</td>
+                <td colspan="2" class="left">TOTALES</td>
                 <td>${{ t_venta_total|floatformat:2|intcomma }}</td>
                 <td class="text-red">-${{ t_iva_trasladado|floatformat:2|intcomma }}</td>
                 <td>${{ t_base_real|floatformat:2|intcomma }}</td>
@@ -141,14 +141,14 @@
         </tbody>
     </table>
 
-    <h4 style="margin: 15px 0 5px 0; color: #356685; border-bottom: 1px solid #ccc;">2. GASTOS OPERATIVOS (FIJOS)</h4>
+    <h4 style="margin: 15px 0 5px 0; color: #356685; border-bottom: 1px solid #ccc;">2. GASTOS OPERATIVOS</h4>
     <table style="width: 100%; border-collapse: collapse;">
         <tr>
             <td width="49%" style="vertical-align: top; padding-right: 5px;">
                 <table class="main-table">
                     <thead>
                         <tr>
-                            <th class="left" style="background:#555;">Gasto Fiscal (Deducible)</th>
+                            <th class="left" style="background:#555;">Gasto Facturado (Deducible)</th>
                             <th width="20%" style="background:#555;">Base</th>
                             <th width="20%" style="background:#555;">IVA</th>
                         </tr>
@@ -174,7 +174,7 @@
                 <table class="main-table">
                     <thead>
                         <tr>
-                            <th class="left" style="background:#777;">Gasto No Fiscal (Nota)</th>
+                            <th class="left" style="background:#777;">Gasto No Facturado (No Deducible)</th>
                             <th width="30%" style="background:#777;">Total Pagado</th>
                         </tr>
                     </thead>
@@ -208,11 +208,11 @@
                             <td class="value-col">${{ t_base_real|floatformat:2|intcomma }}</td>
                         </tr>
                         <tr>
-                            <td class="label-col">(-) Costos Fiscales (Base):</td>
+                            <td class="label-col">(-) Costos Facturados (Deducible):</td>
                             <td class="value-col text-red">-${{ total_costos_base|floatformat:2|intcomma }}</td>
                         </tr>
                         <tr>
-                            <td class="label-col">(-) Costos No Fiscales (Notas):</td>
+                            <td class="label-col">(-) Costos No Facturados (No Deducible):</td>
                             <td class="value-col text-red">-${{ total_costos_nofiscal|floatformat:2|intcomma }}</td>
                         </tr>
                         <tr class="final-total-row">
