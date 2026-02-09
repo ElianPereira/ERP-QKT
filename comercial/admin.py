@@ -13,7 +13,6 @@ from .models import (
 # ==========================================
 # CONFIGURACIÓN COMPARTIDA (MEDIA)
 # ==========================================
-# Definimos esto aquí para no repetir código, pero lo inyectamos en cada clase
 MEDIA_CONFIG = {
     'css': {
         'all': ('css/admin_fix.css', 'css/mobile_fix.css')
@@ -35,7 +34,6 @@ class InsumoAdmin(admin.ModelAdmin):
     search_fields = ('nombre',) 
     list_per_page = 20
     
-    # AGREGADO: Carga el fix también aquí
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -52,7 +50,6 @@ class SubProductoAdmin(admin.ModelAdmin):
     inlines = [RecetaInline]
     search_fields = ('nombre',)
 
-    # AGREGADO: Carga el fix para las pestañas de ingredientes
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -69,7 +66,6 @@ class ProductoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'calcular_costo', 'sugerencia_precio')
     search_fields = ('nombre',)
 
-    # AGREGADO: Carga el fix para las pestañas de componentes
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -89,7 +85,6 @@ class ClienteAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_registro',)
 
-    # AGREGADO: Por si Jazzmin tabula los fieldsets
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -125,7 +120,6 @@ class CotizacionAdmin(admin.ModelAdmin):
        'insumo_barman', 'insumo_auxiliar'
     ]
     
-    # MANTENIDO: Aquí ya funcionaba
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -263,7 +257,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         if obj.id:
             try:
                 url = reverse('cotizacion_pdf', args=[obj.id])
-                return format_html('<a href="{}" target="_blank">PDF</a>', url)
+                return format_html('<a href="{}" target="_blank" class="btn btn-primary">PDF</a>', url)
             except NoReverseMatch: return "-"
         return "-"
     ver_pdf.short_description = "PDF"
@@ -285,7 +279,6 @@ class PagoAdmin(admin.ModelAdmin):
     date_hierarchy = 'fecha_pago'
     raw_id_fields = ['cotizacion'] # Lupa en lugar de autocomplete
     
-    # AGREGADO: También aquí
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -321,7 +314,6 @@ class CompraAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid', 'subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')
     
-    # AGREGADO: Carga el fix para pestañas de Compras/Gastos
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -364,7 +356,9 @@ class GastoAdmin(admin.ModelAdmin):
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
     
-    # AGREGADO: También aquí por consistencia
+    # CORRECCIÓN: Usamos autocompletar para evitar listas gigantes que desbordan la pantalla
+    autocomplete_fields = ['compra', 'evento_relacionado']
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']

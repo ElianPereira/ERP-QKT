@@ -1,26 +1,62 @@
 /* static/css/admin_fix.css */
 
-/* Correcciones de Inputs */
-select, option {
+/* ============================================================
+   CORRECCIONES DE INPUTS Y SELECTS (Evitar Desbordamientos)
+   ============================================================ */
+select, option, input[type="text"], input[type="number"], input[type="email"], input[type="url"] {
     background-color: #ffffff !important;
     color: #333333 !important;
     border: 1px solid #cccccc !important;
+    max-width: 100%; /* REGLA CLAVE: Nunca exceder el contenedor */
+    box-sizing: border-box; /* Incluir padding en el ancho */
 }
 
-.select2-container--admin-autocomplete .select2-selection--single,
-.select2-dropdown,
-.select2-results__option {
+/* Fix específico para los contenedores de Jazzmin/Django Admin */
+.related-widget-wrapper {
+    display: flex !important;
+    flex-wrap: nowrap; /* No romper línea si es posible */
+    align-items: center;
+    max-width: 100%; /* El contenedor padre manda */
+}
+
+/* Forzar al select nativo a encogerse si falta espacio */
+.related-widget-wrapper > select {
+    flex: 1 1 auto; /* Crecer y encogerse */
+    width: 1%; /* Truco CSS: forzar a que el flex dicte el ancho real */
+    min-width: 150px; /* Pero no menos de esto */
+}
+
+/* Estilos para Select2 (Autocompletar) */
+.select2-container--admin-autocomplete .select2-selection--single {
     background-color: #ffffff !important;
     color: #333333 !important;
+    border: 1px solid #cccccc !important;
+    height: 35px !important;
+    display: flex;
+    align-items: center;
 }
 
-.select2-container--admin-autocomplete .select2-results__option--highlighted[aria-selected] {
-    background-color: #5897fb !important; 
+.select2-container {
+    max-width: 100% !important; /* Asegurar que Select2 tampoco se desborde */
+    flex: 1 1 auto;
+}
+
+.select2-results__option--highlighted[aria-selected] {
+    background-color: #356685 !important; 
     color: #ffffff !important;
 }
 
+/* Iconos de añadir/editar al lado del select */
+.related-widget-wrapper-link {
+    margin-left: 8px;
+    opacity: 0.7;
+}
+.related-widget-wrapper-link:hover {
+    opacity: 1;
+}
+
 /* ============================================================
-   PAGINACIÓN MODERNA (Estilo Botones)
+   PAGINACIÓN MODERNA
    ============================================================ */
 .paginator {
     display: flex !important;
@@ -34,7 +70,6 @@ select, option {
     font-size: 13px !important;
 }
 
-/* Estilo Base de Botón */
 .paginator a:not(.showall), 
 .paginator span.this-page {
     display: inline-flex !important;
@@ -49,17 +84,14 @@ select, option {
     text-decoration: none !important;
     border-radius: 4px !important;
     font-weight: 600 !important;
-    transition: all 0.2s !important;
 }
 
-/* Botón Hover */
 .paginator a:not(.showall):hover {
     background-color: #f1f3f5 !important;
     border-color: #ced4da !important;
     color: #000 !important;
 }
 
-/* Página Actual (Azul) */
 .paginator span.this-page {
     background-color: #007bff !important;
     color: #fff !important;
