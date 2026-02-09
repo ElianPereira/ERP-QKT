@@ -1,0 +1,70 @@
+/* static/css/mobile_fix_v2.css */
+/* VERSIÓN SEGURA: Solo afecta celulares y no rompe pestañas Jazzmin */
+
+@media screen and (max-width: 900px) {
+
+    /* 1. CONTENEDOR GENERAL */
+    html, body {
+        overflow-x: hidden;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #content {
+        padding-bottom: 80px !important; /* Espacio para botón flotante */
+    }
+
+    /* 2. ARREGLO DE TABLAS (Item Cotizacion) */
+    /* Usamos selectores específicos para no afectar las pestañas principales */
+    .inline-group .tabular {
+        display: block !important;
+        overflow-x: auto !important;
+        width: 100% !important;
+    }
+    
+    .inline-group .tabular table {
+        width: 100% !important;
+        min-width: 800px !important; /* Forza scroll horizontal */
+    }
+
+    /* 3. BOTONES Y INPUTS GRANDES */
+    .add-row a {
+        padding: 15px !important;
+        background-color: #28a745 !important;
+        color: white !important;
+        text-align: center !important;
+        display: block !important;
+    }
+    
+    input[type="text"], input[type="number"], select {
+        height: 40px !important;
+        font-size: 16px !important;
+    }
+
+    /* 4. BOTONERA FLOTANTE (Guardar) */
+    .submit-row {
+        position: fixed !important;
+        bottom: 0;
+        left: 0;
+        width: 100% !important;
+        background: #fff !important;
+        padding: 12px !important;
+        box-shadow: 0 -4px 10px rgba(0,0,0,0.1) !important;
+        z-index: 9999 !important;
+        display: flex !important;
+        gap: 10px !important;
+    }
+    
+    .submit-row input {
+        flex: 1 !important;
+        height: 45px !important;
+        margin: 0 !important;
+    }
+    .submit-row .deletelink-box { display: none !important; }
+
+    /* 5. ARREGLO REPORTE BARRA */
+    .field-resumen_barra_html {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+}
