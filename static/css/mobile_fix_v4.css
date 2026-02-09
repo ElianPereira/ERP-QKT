@@ -1,0 +1,17 @@
+/* static/css/mobile_fix_v4.css */
+/* VERSIÓN MINIMALISTA: Solo Scroll de Tablas */
+
+@media screen and (max-width: 900px) {
+    /* Solo aplicamos scroll al contenedor de la tabla inline */
+    .inline-group .tabular {
+        display: block;
+        overflow-x: auto;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Forzamos ancho mínimo para que no se apriete */
+    .inline-group .tabular table {
+        min-width: 800px; 
+    }
+}
