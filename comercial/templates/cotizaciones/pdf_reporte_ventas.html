@@ -10,7 +10,7 @@
         
         /* HEADER */
         .header-tbl { width: 100%; border-bottom: 2px solid #356685; margin-bottom: 15px; padding-bottom: 5px; }
-        .logo-img { height: 60px; width: auto; object-fit: contain; display: block; } /* CORRECCIÓN LOGO */
+        .logo-img { height: 60px; width: auto; object-fit: contain; display: block; }
         .title { font-size: 18px; font-weight: 900; color: #356685; text-transform: uppercase; }
         .subtitle { font-size: 10px; color: #666; }
 
@@ -66,16 +66,23 @@
 
     <table class="header-tbl">
         <tr>
-            <td width="20%">
-                {% if logo_url %}
-                    <img src="{{ logo_url }}" class="logo-img">
-                {% else %}
-                    <h3>QUINTA KO'OX TANIL</h3>
-                {% endif %}
+            <td width="40%">
+                <table style="width: 100%;">
+                    <tr>
+                        {% if logo_url %}
+                        <td style="width: 70px; border: none; padding: 0;">
+                            <img src="{{ logo_url }}" class="logo-img">
+                        </td>
+                        {% endif %}
+                        <td style="border: none; padding-left: 10px; vertical-align: middle;">
+                            <h3 style="margin: 0; color: #333; font-size: 16px;">QUINTA KO'OX TANIL</h3>
+                        </td>
+                    </tr>
+                </table>
             </td>
-            <td width="80%" style="text-align: right;">
+            <td width="60%" style="text-align: right;">
                 <div class="title">Estado De Resultados</div>
-                <div class="subtitle">Desgloce De Ingresos, Gastos, Costos y Utilidad.</div>
+                <div class="subtitle">Desglose De Ingresos, Gastos, Costos y Utilidad.</div>
                 <div style="font-size: 9px; margin-top: 5px;">
                     <strong>Periodo:</strong> {{ fecha_inicio|default:"Inicio" }} al {{ fecha_fin|default:"Hoy" }}
                 </div>
@@ -83,7 +90,7 @@
         </tr>
     </table>
 
-    <h4 style="margin: 0 0 5px 0; color: #356685; border-bottom: 1px solid #ccc;">1. DESGLOSE POR EVENTO</h4>
+    <h4 style="margin: 0 0 5px 0; color: #356685; border-bottom: 1px solid #ccc;">1. INGRESOS POR EVENTO</h4>
     <table class="main-table">
         <thead>
             <tr>
@@ -223,7 +230,8 @@
                 </div>
             </td>
             
-            <td width="4%"></td> <td width="48%" style="vertical-align: top;">
+            <td width="4%"></td> 
+            <td width="48%" style="vertical-align: top;">
                 <div class="box-container" style="border-color: #3498db;">
                     <div class="box-header" style="background-color: #ebf5fb; color: #0c5460;">
                         CÁLCULO DE IVA (ESTIMADO)

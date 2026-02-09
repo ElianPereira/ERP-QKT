@@ -37,12 +37,14 @@ def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
     hoy = timezone.now()
     
+    # 1. Ventas del Mes
     ventas_mes = Cotizacion.objects.filter(
         estado__in=['CONFIRMADA', 'ACEPTADA'],
         fecha_evento__year=hoy.year,
         fecha_evento__month=hoy.month
     ).aggregate(total=Sum('precio_final'))['total'] or 0
 
+    # 2. Gastos del Mes
     gastos_mes = Compra.objects.filter(
         fecha_emision__year=hoy.year,
         fecha_emision__month=hoy.month
@@ -228,7 +230,7 @@ def exportar_cierre_excel(request):
     return response
 
 # ==========================================
-# 6. REPORTE FINANCIERO CORREGIDO (FISCAL VS NO FISCAL)
+# 6. REPORTE FINANCIERO (ESTADO DE RESULTADOS)
 # ==========================================
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
@@ -245,7 +247,7 @@ def exportar_reporte_cotizaciones(request):
     if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
     if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
 
-    # Inicializamos acumuladores como Decimal para evitar floats infinitos
+    # --- INICIALIZACIÓN CON DECIMAL PARA EVITAR ERRORES DE PUNTO FLOTANTE ---
     t_subtotal = Decimal(0)
     t_descuento = Decimal(0)
     t_base_real = Decimal(0)
@@ -253,10 +255,12 @@ def exportar_reporte_cotizaciones(request):
     t_iva_trasladado = Decimal(0)
     t_ret_isr = Decimal(0)
     
+    # Gastos Eventos
     t_gastos_ev_fiscal_base = Decimal(0)
     t_gastos_ev_fiscal_iva = Decimal(0)
     t_gastos_ev_nofiscal = Decimal(0)
 
+    # Gastos Operativos
     t_gastos_op_fiscal_base = Decimal(0)
     t_gastos_op_fiscal_iva = Decimal(0)
     t_gastos_op_nofiscal = Decimal(0)
@@ -267,7 +271,7 @@ def exportar_reporte_cotizaciones(request):
     for c in cotizaciones:
         base_real_venta = c.subtotal - c.descuento
         
-        # Acumulamos globales
+        # Sumas globales
         t_subtotal += c.subtotal
         t_descuento += c.descuento
         t_base_real += base_real_venta
@@ -275,7 +279,7 @@ def exportar_reporte_cotizaciones(request):
         t_ret_isr += c.retencion_isr
         t_total_ventas += c.precio_final
         
-        # Gastos Evento
+        # Gastos del evento (UUID vs Notas)
         ev_fiscal_base = Decimal(0)
         ev_fiscal_iva = Decimal(0)
         ev_nofiscal = Decimal(0)
@@ -286,7 +290,8 @@ def exportar_reporte_cotizaciones(request):
             total_linea = g.total_linea or Decimal(0)
             compra = g.compra
             
-            if compra.uuid: # FISCAL
+            # Lógica: Si tiene UUID es Fiscal, si no, es Nota (Manual)
+            if compra.uuid: 
                 if compra.total > 0 and compra.iva > 0:
                     factor = total_linea / compra.total
                     iva_prop = factor * compra.iva
@@ -297,7 +302,7 @@ def exportar_reporte_cotizaciones(request):
                 
                 ev_fiscal_base += base_prop
                 ev_fiscal_iva += iva_prop
-            else: # NO FISCAL
+            else: 
                 ev_nofiscal += total_linea
 
         t_gastos_ev_fiscal_base += ev_fiscal_base
@@ -332,7 +337,7 @@ def exportar_reporte_cotizaciones(request):
         total_linea = g.total_linea or Decimal(0)
         compra = g.compra
         
-        if compra.uuid:
+        if compra.uuid: # FISCAL
             if compra.total > 0 and compra.iva > 0:
                 factor = total_linea / compra.total
                 iva_prop = factor * compra.iva
@@ -344,7 +349,7 @@ def exportar_reporte_cotizaciones(request):
             t_gastos_op_fiscal_base += base_prop
             t_gastos_op_fiscal_iva += iva_prop
             
-            # Agrupar visualmente
+            # Agrupar
             found = False
             for item in ops_fiscales:
                 if item['cat'] == g.categoria:
@@ -355,8 +360,10 @@ def exportar_reporte_cotizaciones(request):
                     break
             if not found:
                 ops_fiscales.append({'cat': g.categoria, 'base': base_prop, 'iva': iva_prop, 'total': total_linea})
-        else:
+                
+        else: # NO FISCAL (Manual)
             t_gastos_op_nofiscal += total_linea
+            
             found = False
             for item in ops_nofiscales:
                 if item['cat'] == g.categoria:
@@ -366,10 +373,21 @@ def exportar_reporte_cotizaciones(request):
             if not found:
                 ops_nofiscales.append({'cat': g.categoria, 'total': total_linea})
 
-    # Preparar listas
     cat_labels = dict(Gasto.CATEGORIAS)
-    gastos_operativos_fiscales_list = [{'nombre': cat_labels.get(i['cat'], i['cat']), 'base': i['base'], 'iva': i['iva'], 'total': i['total']} for i in ops_fiscales]
-    gastos_operativos_nofiscales_list = [{'nombre': cat_labels.get(i['cat'], i['cat']), 'total': i['total']} for i in ops_nofiscales]
+    
+    gastos_operativos_fiscales_list = []
+    for item in ops_fiscales:
+        gastos_operativos_fiscales_list.append({
+            'nombre': cat_labels.get(item['cat'], item['cat']),
+            'base': item['base'], 'iva': item['iva'], 'total': item['total']
+        })
+        
+    gastos_operativos_nofiscales_list = []
+    for item in ops_nofiscales:
+        gastos_operativos_nofiscales_list.append({
+            'nombre': cat_labels.get(item['cat'], item['cat']),
+            'total': item['total']
+        })
 
     # 3. RESULTADOS FINALES
     total_costos_deducibles = t_gastos_ev_fiscal_base + t_gastos_op_fiscal_base
@@ -386,7 +404,7 @@ def exportar_reporte_cotizaciones(request):
         'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
         'logo_url': logo_url,
         
-        # Enviamos todo limpio
+        # Totales
         't_base_real': t_base_real,
         't_iva_trasladado': t_iva_trasladado,
         't_venta_total': t_total_ventas,
@@ -412,7 +430,7 @@ def exportar_reporte_cotizaciones(request):
     
     html = render_to_string('cotizaciones/pdf_reporte_ventas.html', context)
     response = HttpResponse(content_type='application/pdf')
-    filename = f"Reporte_Fiscal_{fecha_inicio if fecha_inicio else 'General'}.pdf"
+    filename = f"Estado_Resultados_{fecha_inicio if fecha_inicio else 'General'}.pdf"
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     HTML(string=html).write_pdf(response)
     return response
