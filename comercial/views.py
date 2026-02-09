@@ -37,14 +37,12 @@ def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
     hoy = timezone.now()
     
-    # 1. Ventas del Mes
     ventas_mes = Cotizacion.objects.filter(
         estado__in=['CONFIRMADA', 'ACEPTADA'],
         fecha_evento__year=hoy.year,
         fecha_evento__month=hoy.month
     ).aggregate(total=Sum('precio_final'))['total'] or 0
 
-    # 2. Gastos del Mes
     gastos_mes = Compra.objects.filter(
         fecha_emision__year=hoy.year,
         fecha_emision__month=hoy.month
@@ -230,7 +228,7 @@ def exportar_cierre_excel(request):
     return response
 
 # ==========================================
-# 6. REPORTE FINANCIERO (FISCAL VS NO FISCAL)
+# 6. REPORTE FINANCIERO CORREGIDO (FISCAL VS NO FISCAL)
 # ==========================================
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
@@ -247,27 +245,29 @@ def exportar_reporte_cotizaciones(request):
     if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
     if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
 
-    # --- ACUMULADORES GLOBALES ---
-    # Ventas
-    t_subtotal, t_descuento, t_base_real, t_total_ventas = 0,0,0,0
-    t_iva_trasladado, t_ret_isr = 0,0
+    # Inicializamos acumuladores como Decimal para evitar floats infinitos
+    t_subtotal = Decimal(0)
+    t_descuento = Decimal(0)
+    t_base_real = Decimal(0)
+    t_total_ventas = Decimal(0)
+    t_iva_trasladado = Decimal(0)
+    t_ret_isr = Decimal(0)
     
-    # Gastos Eventos
-    t_gastos_ev_fiscal_base = 0 # Base de lo facturado
-    t_gastos_ev_fiscal_iva = 0  # IVA Acreditable de lo facturado
-    t_gastos_ev_nofiscal = 0    # Total de notas (No genera IVA, reduce utilidad directa)
+    t_gastos_ev_fiscal_base = Decimal(0)
+    t_gastos_ev_fiscal_iva = Decimal(0)
+    t_gastos_ev_nofiscal = Decimal(0)
 
-    # Gastos Operativos
-    t_gastos_op_fiscal_base = 0
-    t_gastos_op_fiscal_iva = 0
-    t_gastos_op_nofiscal = 0
+    t_gastos_op_fiscal_base = Decimal(0)
+    t_gastos_op_fiscal_iva = Decimal(0)
+    t_gastos_op_nofiscal = Decimal(0)
     
     datos_tabla = []
     
     # 1. PROCESAR EVENTOS
     for c in cotizaciones:
-        # VENTAS
         base_real_venta = c.subtotal - c.descuento
+        
+        # Acumulamos globales
         t_subtotal += c.subtotal
         t_descuento += c.descuento
         t_base_real += base_real_venta
@@ -275,7 +275,7 @@ def exportar_reporte_cotizaciones(request):
         t_ret_isr += c.retencion_isr
         t_total_ventas += c.precio_final
         
-        # GASTOS DEL EVENTO
+        # Gastos Evento
         ev_fiscal_base = Decimal(0)
         ev_fiscal_iva = Decimal(0)
         ev_nofiscal = Decimal(0)
@@ -286,31 +286,24 @@ def exportar_reporte_cotizaciones(request):
             total_linea = g.total_linea or Decimal(0)
             compra = g.compra
             
-            # LÓGICA DE SEPARACIÓN FISCAL
-            if compra.uuid: # ES FISCAL (FACTURA)
-                # Calculamos la parte proporcional del IVA y Base
+            if compra.uuid: # FISCAL
                 if compra.total > 0 and compra.iva > 0:
                     factor = total_linea / compra.total
                     iva_prop = factor * compra.iva
                     base_prop = total_linea - iva_prop
                 else:
-                    # Factura tasa 0%
                     iva_prop = Decimal(0)
                     base_prop = total_linea
                 
                 ev_fiscal_base += base_prop
                 ev_fiscal_iva += iva_prop
-            else: # NO FISCAL (NOTA)
-                # Todo el monto es costo, nada es IVA
+            else: # NO FISCAL
                 ev_nofiscal += total_linea
 
-        # Acumulamos globales eventos
         t_gastos_ev_fiscal_base += ev_fiscal_base
         t_gastos_ev_fiscal_iva += ev_fiscal_iva
         t_gastos_ev_nofiscal += ev_nofiscal
         
-        # Utilidad del Evento
-        # Venta Base - (Costo Fiscal Base + Costo No Fiscal Total)
         utilidad_bruta = base_real_venta - (ev_fiscal_base + ev_nofiscal)
 
         datos_tabla.append({
@@ -321,16 +314,13 @@ def exportar_reporte_cotizaciones(request):
             'base_real_venta': base_real_venta,
             'iva_trasladado': c.iva,
             'venta_total': c.precio_final,
-            
-            # Desglose Gastos Fila
             'gasto_fiscal_base': ev_fiscal_base,
             'gasto_nofiscal': ev_nofiscal,
             'iva_acreditable': ev_fiscal_iva,
-            
             'utilidad': utilidad_bruta
         })
 
-    # 2. PROCESAR GASTOS OPERATIVOS (Separados)
+    # 2. PROCESAR GASTOS OPERATIVOS
     gastos_qs = Gasto.objects.filter(evento_relacionado__isnull=True).select_related('compra')
     if fecha_inicio: gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
     if fecha_fin: gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
@@ -342,7 +332,7 @@ def exportar_reporte_cotizaciones(request):
         total_linea = g.total_linea or Decimal(0)
         compra = g.compra
         
-        if compra.uuid: # FISCAL
+        if compra.uuid:
             if compra.total > 0 and compra.iva > 0:
                 factor = total_linea / compra.total
                 iva_prop = factor * compra.iva
@@ -354,7 +344,7 @@ def exportar_reporte_cotizaciones(request):
             t_gastos_op_fiscal_base += base_prop
             t_gastos_op_fiscal_iva += iva_prop
             
-            # Agrupar por categoría
+            # Agrupar visualmente
             found = False
             for item in ops_fiscales:
                 if item['cat'] == g.categoria:
@@ -365,10 +355,8 @@ def exportar_reporte_cotizaciones(request):
                     break
             if not found:
                 ops_fiscales.append({'cat': g.categoria, 'base': base_prop, 'iva': iva_prop, 'total': total_linea})
-                
-        else: # NO FISCAL
+        else:
             t_gastos_op_nofiscal += total_linea
-            
             found = False
             for item in ops_nofiscales:
                 if item['cat'] == g.categoria:
@@ -378,33 +366,16 @@ def exportar_reporte_cotizaciones(request):
             if not found:
                 ops_nofiscales.append({'cat': g.categoria, 'total': total_linea})
 
-    # Preparar listas para display con nombres legibles
+    # Preparar listas
     cat_labels = dict(Gasto.CATEGORIAS)
-    
-    gastos_operativos_fiscales_list = []
-    for item in ops_fiscales:
-        key = item['cat']
-        gastos_operativos_fiscales_list.append({
-            'nombre': cat_labels.get(key, key),
-            'base': item['base'], 'iva': item['iva'], 'total': item['total']
-        })
-        
-    gastos_operativos_nofiscales_list = []
-    for item in ops_nofiscales:
-        key = item['cat']
-        gastos_operativos_nofiscales_list.append({
-            'nombre': cat_labels.get(key, key),
-            'total': item['total']
-        })
+    gastos_operativos_fiscales_list = [{'nombre': cat_labels.get(i['cat'], i['cat']), 'base': i['base'], 'iva': i['iva'], 'total': i['total']} for i in ops_fiscales]
+    gastos_operativos_nofiscales_list = [{'nombre': cat_labels.get(i['cat'], i['cat']), 'total': i['total']} for i in ops_nofiscales]
 
     # 3. RESULTADOS FINALES
-    # Utilidad = Ventas(Base) - [ (GastosEventosBase + GastosOpBase) + (GastosEventosNoFiscal + GastosOpNoFiscal) ]
     total_costos_deducibles = t_gastos_ev_fiscal_base + t_gastos_op_fiscal_base
     total_costos_no_deducibles = t_gastos_ev_nofiscal + t_gastos_op_nofiscal
-    
     utilidad_neta_real = t_base_real - total_costos_deducibles - total_costos_no_deducibles
     
-    # Impuestos
     total_iva_acreditable = t_gastos_ev_fiscal_iva + t_gastos_op_fiscal_iva
     iva_por_pagar = t_iva_trasladado - total_iva_acreditable
 
@@ -415,26 +386,22 @@ def exportar_reporte_cotizaciones(request):
         'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
         'logo_url': logo_url,
         
-        # Totales Ventas
+        # Enviamos todo limpio
         't_base_real': t_base_real,
         't_iva_trasladado': t_iva_trasladado,
         't_venta_total': t_total_ventas,
         
-        # Totales Gastos Eventos
         't_ev_fiscal_base': t_gastos_ev_fiscal_base,
         't_ev_nofiscal': t_gastos_ev_nofiscal,
         't_ev_iva': t_gastos_ev_fiscal_iva,
         
-        # Totales Operativos
         't_op_fiscal_base': t_gastos_op_fiscal_base,
         't_op_nofiscal': t_gastos_op_nofiscal,
         't_op_iva': t_gastos_op_fiscal_iva,
         
-        # Listas detalladas
         'gastos_operativos_fiscales_list': gastos_operativos_fiscales_list,
         'gastos_operativos_nofiscales_list': gastos_operativos_nofiscales_list,
         
-        # Resumen Final
         'total_costos_base': total_costos_deducibles,
         'total_costos_nofiscal': total_costos_no_deducibles,
         'utilidad_neta_real': utilidad_neta_real,
