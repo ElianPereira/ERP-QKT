@@ -4,54 +4,96 @@
     'use strict';
 
     $(document).ready(function() {
-        // Validación de seguridad por si jQuery no cargó
+        // Validación de seguridad
         if (typeof $ === 'undefined') {
             console.error("TabsFix: jQuery no está cargado.");
             return;
         }
 
-        console.log("🚀 Tabs Fix: Iniciado correctamente en Jazzmin.");
+        console.log("🚀 Tabs Fix: Modo ACTIVO iniciado.");
 
-        // 1. Crear una clave única para esta URL específica
-        // Esto evita que la pestaña de 'Usuario Juan' afecte a 'Cotización #5'
+        // Clave única basada en la URL
         var storageKey = 'jazzmin_tab_pref_' + window.location.pathname;
 
-        // 2. RECUPERAR: Restaurar pestaña al cargar la página
-        var savedTab = localStorage.getItem(storageKey);
+        // ===============================================
+        // A. FUNCIÓN PARA CAMBIAR PESTAÑA MANUALMENTE
+        // ===============================================
+        function activarPestana(linkElement) {
+            var $link = $(linkElement);
+            var targetSelector = $link.attr('href'); // Ej: #general
+            
+            // Si no es un selector válido, ignorar
+            if (!targetSelector || !targetSelector.startsWith('#')) return;
 
-        if (savedTab) {
-            // Buscamos el enlace de la pestaña (el <a> dentro de .nav-tabs)
-            // Jazzmin a veces usa ID="#tab" y otras HREF="#tab"
-            var $tabLink = $('.nav-tabs a[href="' + savedTab + '"]');
+            console.log("⚡ Forzando cambio a:", targetSelector);
 
-            // Si no lo encuentra por href, busca por ID (algunas versiones de Jazzmin hacen esto)
-            if ($tabLink.length === 0 && savedTab.startsWith('#')) {
-                var idSinHash = savedTab.substring(1); // quitar el #
-                $tabLink = $('.nav-tabs a[id="' + idSinHash + '"]');
+            // 1. VISUAL: Pestañas (Nav)
+            // Quitar 'active' de todas las pestañas hermanas
+            $link.closest('ul').find('a').removeClass('active');
+            // Poner 'active' a la actual
+            $link.addClass('active');
+
+            // 2. VISUAL: Contenido (Panes)
+            // Jazzmin/Bootstrap usan .tab-pane. Ocultamos todos.
+            $('.tab-pane').removeClass('active').removeClass('show');
+            
+            // Buscamos el contenido objetivo.
+            // Jazzmin a veces usa ID="general" para el contenido
+            var $targetContent = $(targetSelector);
+            
+            if ($targetContent.length > 0) {
+                $targetContent.addClass('active').addClass('show');
+            } else {
+                // Intento alternativo por si el ID tiene sufijos raros
+                console.warn("No se encontró el ID exacto, buscando aproximación...");
+                // A veces href="#general" apunta a un div con id="general-tab" o viceversa
             }
 
-            // Si encontramos la pestaña, la activamos
-            if ($tabLink.length > 0) {
-                console.log("Restaurando pestaña:", savedTab);
-                $tabLink.tab('show'); // Función nativa de Bootstrap
+            // 3. MEMORIA: Guardar en LocalStorage
+            localStorage.setItem(storageKey, targetSelector);
+        }
+
+        // ===============================================
+        // B. RESTAURAR AL CARGAR (F5)
+        // ===============================================
+        var savedTab = localStorage.getItem(storageKey);
+        if (savedTab) {
+            var $savedLink = $('.nav-tabs a[href="' + savedTab + '"]');
+            
+            // Si no encuentra por href, busca por ID (fix para Jazzmin raros)
+            if ($savedLink.length === 0 && savedTab.startsWith('#')) {
+                var idSinHash = savedTab.substring(1);
+                $savedLink = $('.nav-tabs a[id="' + idSinHash + '"]');
+            }
+
+            if ($savedLink.length > 0) {
+                console.log("Restaurando historial:", savedTab);
+                // Usamos click() para disparar nuestra propia lógica de abajo
+                // Pero usamos un timeout pequeño para asegurar que el DOM esté listo
+                setTimeout(function(){ 
+                    activarPestana($savedLink); 
+                }, 100); 
             }
         }
 
-        // 3. GUARDAR: Escuchar el evento de cambio de pestaña
-        // 'shown.bs.tab' es el evento estándar de Bootstrap 4
-        $(document).on('shown.bs.tab', 'a[data-toggle="tab"]', function (e) {
-            var $target = $(e.target); // La pestaña que se acaba de activar
-            var href = $target.attr('href');
-            var id = $target.attr('id');
-
-            // Preferimos guardar el HREF (ej: #general), si no hay, el ID
-            var valToSave = href && href.startsWith('#') ? href : ('#' + id);
-
-            if (valToSave) {
-                console.log("Guardando pestaña:", valToSave);
-                localStorage.setItem(storageKey, valToSave);
+        // ===============================================
+        // C. INTERCEPTAR CLICS (La solución al problema)
+        // ===============================================
+        // Usamos 'document' con delegación para asegurar que funcione 
+        // incluso si Jazzmin renderiza cosas tarde.
+        $(document).on('click', '.nav-tabs a', function(e) {
+            var href = $(this).attr('href');
+            
+            // Solo intervenimos si es un enlace interno (#algo)
+            if (href && href.startsWith('#')) {
+                // IMPORTANTE: Prevenir que Jazzmin o Bootstrap bloqueen el evento
+                e.preventDefault(); 
+                
+                // Ejecutar nuestra función de cambio manual
+                activarPestana(this);
             }
         });
+
     });
 
-})(window.jQuery || django.jQuery); // Usar jQuery global o el de Django
+})(window.jQuery || django.jQuery);

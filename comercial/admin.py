@@ -308,7 +308,6 @@ class CompraAdmin(admin.ModelAdmin):
     date_hierarchy = 'fecha_emision'
     inlines = [GastoInline] 
     
-    # MODIFICACIÓN CRÍTICA: Eliminamos readonly_fields para permitir edición manual
     fieldsets = (
         ('Archivo Fuente (Opcional)', {'fields': ('archivo_xml', 'archivo_pdf')}),
         ('Datos Generales', {'fields': ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid')}),
@@ -362,34 +361,3 @@ class GastoAdmin(admin.ModelAdmin):
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
-
-# --- AL FINAL DE TU ADMIN.PY ---
-
-from django.contrib.auth.admin import UserAdmin, GroupAdmin
-from django.contrib.auth.models import User, Group
-
-# 1. Desregistramos los originales para poder modificarlos
-try:
-    admin.site.unregister(User)
-except admin.sites.NotRegistered:
-    pass
-
-try:
-    admin.site.unregister(Group)
-except admin.sites.NotRegistered:
-    pass
-
-# 2. Creamos versiones personalizadas que hereden de los originales
-#    pero que incluyan tu JS
-@admin.register(User)
-class CustomUserAdmin(UserAdmin):
-    class Media:
-        # Usamos la misma config que tus otros modelos
-        js = MEDIA_CONFIG['js']
-        css = MEDIA_CONFIG['css']
-
-@admin.register(Group)
-class CustomGroupAdmin(GroupAdmin):
-    class Media:
-        js = MEDIA_CONFIG['js']
-        css = MEDIA_CONFIG['css']
