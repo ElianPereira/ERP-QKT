@@ -92,10 +92,9 @@ class CotizacionAdmin(admin.ModelAdmin):
         'insumo_barman', 'insumo_auxiliar'
     ]
     
-    # --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
-    # Cambiamos el nombre del archivo para romper la caché del navegador
+    # CAMBIO CRÍTICO: Usamos v3 para romper la caché y cargar el CSS corregido
     class Media:
-        css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v2.css')}
+        css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v3.css')}
 
     fieldsets = (
         ('Información del Evento', {
@@ -128,7 +127,6 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'insumo_alcohol_basico', 
                 'insumo_alcohol_premium',
             ),
-            # SIN 'classes': ('collapse',) -> Esto arregla las pestañas
             'description': 'Define insumos específicos del inventario.'
         }),
         ('Finanzas', {
@@ -154,7 +152,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666; background:#f8f9fa; border:1px dashed #ccc; border-radius:4px; text-align:center;">Selecciona un tipo de barra y número de personas para calcular.</div>')
         
-        # Cálculos de desglose
+        # Cálculos de costos unitarios
         costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
         costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
         costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
@@ -163,7 +161,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
-        # Estilos Inline (Sin depender de CSS externo)
+        # Estilos Inline
         st_wrapper = "width:100%; overflow-x:auto; margin-bottom:15px; padding-bottom:5px;"
         st_container = "font-family:'Segoe UI',sans-serif; font-size:13px; color:#333; min-width:340px; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
         st_header = "background:#2c3e50; color:#fff; padding:10px 15px; font-weight:600; font-size:14px; border-bottom:3px solid #1a252f;"
@@ -351,4 +349,4 @@ class GastoAdmin(admin.ModelAdmin):
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
-    class Media: css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v2.css')}
+    class Media: css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v3.css')}
