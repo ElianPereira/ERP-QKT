@@ -1,58 +1,82 @@
 /* static/css/mobile_fix.css */
-/* V3.0: OPTIMIZACIÓN TOTAL PARA MÓVIL (COTIZACIONES Y TABLAS) */
+/* V6.0: MASTER FIX - COMBINA TODO (Tablas, Botones, Paginación y Reportes) */
 
 /* ============================================================
-   BLOQUE 1: AJUSTES GLOBALES PARA MÓVIL (< 1024px)
+   BLOQUE 1: MÓVIL Y TABLET (Solo afecta si la pantalla es menor a 1024px)
    ============================================================ */
 @media screen and (max-width: 1024px) {
 
-    /* 1. LAYOUT PRINCIPAL */
+    /* 1. RESET BÁSICO Y ESPACIADO */
     html, body {
-        width: 100%;
-        overflow-x: hidden; /* Evita scroll lateral de toda la pagina, solo de tablas */
-        -webkit-overflow-scrolling: touch; /* Suavidad en iPhone */
+        overflow-x: hidden !important; /* Evita scroll lateral de toda la página */
+        width: 100% !important;
+        -webkit-overflow-scrolling: touch;
     }
 
     #content {
         margin: 0 !important;
         padding: 5px !important;
         width: 100% !important;
-        padding-bottom: 80px !important; /* Espacio para el botón flotante */
+        padding-bottom: 80px !important; /* Espacio para el botón flotante de guardar */
     }
 
-    /* Ocultar elementos innecesarios en móvil */
-    .breadcrumb, .main-footer, .object-tools li:not(:first-child) { 
-        /* Ocultamos breadcrumbs pero dejamos botones principales si es necesario */
-    }
+    /* Ocultar elementos que roban espacio vertical */
+    .breadcrumb, .main-footer { display: none !important; }
 
-    /* 2. FORMULARIOS E INPUTS */
-    /* Hacemos que los inputs no sean microscópicos */
-    input[type="text"], input[type="number"], select, .vTextField {
-        font-size: 16px !important; /* Evita zoom automático en iPhone */
-        height: 40px !important;
-        padding: 5px !important;
+    /* 2. BOTONERA SUPERIOR (Hacerla Grid para dedos gordos) */
+    .object-tools {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+        gap: 8px !important;
         width: 100% !important;
-        box-sizing: border-box !important;
-        max-width: 100% !important;
+        margin: 10px 0 !important;
+        float: none !important; /* Quitar flotado original de Django */
     }
-
-    /* Etiquetas más legibles */
-    label {
-        font-size: 14px !important;
-        font-weight: bold !important;
-        color: #333 !important;
-        margin-top: 10px !important;
+    
+    .object-tools li {
+        width: auto !important;
+        margin: 0 !important;
+        float: none !important;
         display: block !important;
     }
 
-    /* 3. SOLUCIÓN AL "ITEM COTIZACION" INMOVILIZADO (TABULAR INLINES) */
-    /* Esto es lo que permite mover la tabla de productos a la derecha/izquierda */
+    .object-tools a {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+        min-height: 45px !important; /* Botón alto */
+        background-color: #356685 !important;
+        color: white !important;
+        border-radius: 4px !important;
+        text-transform: uppercase !important;
+        font-weight: bold !important;
+        font-size: 12px !important;
+    }
+
+    /* 3. ARREGLO DE INPUTS (Tamaño legible) */
+    input[type="text"], input[type="number"], select, .vTextField {
+        font-size: 16px !important; /* Evita zoom en iPhone */
+        height: 40px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    label {
+        margin-top: 10px !important;
+        display: block !important;
+        font-weight: bold !important;
+        color: #444 !important;
+    }
+
+    /* 4. SOLUCIÓN AL "ITEM COTIZACION" (Scroll Horizontal) */
     .inline-group {
-        overflow: hidden !important; /* Contenedor padre */
+        overflow: hidden !important;
         border: 1px solid #ddd !important;
         border-radius: 8px !important;
         margin-bottom: 20px !important;
-        background: #fff;
+        background: #fff !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
     }
 
     .inline-group .tabular {
@@ -64,22 +88,18 @@
 
     .inline-group .tabular table {
         width: 100% !important;
-        min-width: 800px !important; /* Fuerza que la tabla sea ancha para poder scrollear */
+        min-width: 900px !important; /* FUERZA ANCHO PARA PODER SCROLLEAR */
     }
 
+    /* Encabezados de tabla más grandes */
     .inline-group .tabular thead th {
         background-color: #f8f9fa !important;
-        color: #333 !important;
-        padding: 10px !important;
+        padding: 12px !important;
         font-size: 13px !important;
+        color: #333 !important;
     }
 
-    .inline-group .tabular td {
-        padding: 8px !important;
-        border-bottom: 1px solid #eee !important;
-    }
-
-    /* 4. BOTÓN "AGREGAR OTRO" (Hacerlo gigante para el dedo) */
+    /* 5. BOTÓN "AGREGAR OTRO" (Hacerlo gigante para el dedo) */
     .add-row a {
         display: block !important;
         width: 100% !important;
@@ -90,27 +110,40 @@
         font-weight: bold !important;
         font-size: 16px !important;
         text-transform: uppercase !important;
-        border-radius: 0 0 8px 8px !important;
-        text-decoration: none !important;
     }
-    .add-row a:before {
-        content: "+ ";
-        font-size: 20px;
-        font-weight: bold;
+    .add-row a:before { content: "+ "; font-size: 18px; }
+
+    /* 6. PAGINACIÓN TÁCTIL (Botones grandes separados) */
+    .paginator {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        padding: 20px 0 80px 0 !important; /* Padding abajo para que no lo tape el botón guardar */
+        line-height: 1.5 !important;
     }
 
-    /* 5. ARREGLO DEL RESUMEN EJECUTIVO (COSTEO) */
-    /* Asegura que la tarjeta de costos no se corte */
-    .field-resumen_barra_html {
-        padding: 0 !important;
+    .paginator a:not(.showall), 
+    .paginator span.this-page {
+        display: inline-flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        min-width: 44px !important; /* Tamaño Touch Standard */
+        height: 44px !important;
+        border: 1px solid #ccc !important;
+        background: #fff !important;
+        border-radius: 4px !important;
+        font-size: 16px !important;
         margin: 0 !important;
     }
-    .field-resumen_barra_html .readonly {
-        padding: 0 !important;
-        margin: 0 !important;
+    
+    .paginator span.this-page {
+        background: #007bff !important;
+        color: white !important;
+        border-color: #007bff !important;
     }
 
-    /* 6. BOTONERA FLOTANTE (GUARDAR) */
+    /* 7. BOTONERA FLOTANTE (GUARDAR) */
     .submit-row {
         position: fixed !important;
         bottom: 0;
@@ -121,35 +154,36 @@
         padding: 10px 5px !important;
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
         display: flex !important;
-        justify-content: space-between !important;
-        gap: 5px;
+        justify-content: space-around !important;
+        border-top: 1px solid #eee !important;
     }
 
     .submit-row input {
         height: 50px !important;
-        border-radius: 5px !important;
+        border-radius: 4px !important;
         margin: 0 !important;
         font-size: 14px !important;
-        text-transform: uppercase;
-        width: 48% !important; /* Dividir espacio entre Guardar y Guardar y continuar */
+        text-transform: uppercase !important;
+        width: 45% !important; /* Botones anchos */
     }
     
-    /* Ocultar botones secundarios confusos en movil */
-    .submit-row .deletelink-box { display: none !important; }
-    
-    /* Estilo botón primario */
-    .submit-row input.default {
-        background-color: #007bff !important;
-        color: white !important;
-        border: none !important;
-    }
+    .submit-row .deletelink-box { display: none !important; } /* Ocultar "Borrar" aquí para evitar accidentes */
 
-    /* 7. AJUSTE DE SELECT2 (BUSCADORES) EN MÓVIL */
+    /* 8. ARREGLO VISUAL DEL REPORTE DE COSTOS */
+    /* Asegura que el HTML inyectado tenga espacio */
+    .field-resumen_barra_html {
+        width: 100% !important;
+        padding: 0 !important;
+    }
+    
+    /* 9. SELECT2 (BUSCADORES) */
     .select2-container {
         width: 100% !important;
+        max-width: 100% !important;
     }
     .select2-selection {
         height: 40px !important;
-        padding-top: 5px !important;
+        display: flex !important;
+        align-items: center !important;
     }
 }

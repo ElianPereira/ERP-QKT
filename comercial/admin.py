@@ -10,6 +10,10 @@ from .models import (
     Compra, Gasto
 )
 
+# ==========================================
+# 1. INSUMOS Y PRODUCTOS
+# ==========================================
+
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'categoria', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
@@ -42,6 +46,10 @@ class ProductoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'calcular_costo', 'sugerencia_precio')
     search_fields = ('nombre',)
 
+# ==========================================
+# 2. CLIENTES
+# ==========================================
+
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'tipo_persona', 'es_cliente_fiscal', 'rfc', 'email', 'telefono')
@@ -52,6 +60,10 @@ class ClienteAdmin(admin.ModelAdmin):
         ('Datos Fiscales', {'fields': ('es_cliente_fiscal', 'tipo_persona', 'rfc', 'razon_social', 'codigo_postal_fiscal', 'regimen_fiscal', 'uso_cfdi')}),
     )
     readonly_fields = ('fecha_registro',)
+
+# ==========================================
+# 3. COTIZACIONES (EL MÓDULO PRINCIPAL)
+# ==========================================
 
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
@@ -73,7 +85,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
-    # Buscadores inteligentes (Lupas)
+    # Buscadores inteligentes
     autocomplete_fields = [
         'cliente', 
         'insumo_hielo', 'insumo_refresco', 'insumo_agua',
@@ -81,8 +93,9 @@ class CotizacionAdmin(admin.ModelAdmin):
         'insumo_barman', 'insumo_auxiliar'
     ]
     
+    # CSS Específico para corregir móvil
     class Media:
-        css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')} # AÑADIDO MOBILE FIX AQUÍ EXPLÍCITAMENTE
+        css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
 
     fieldsets = (
         ('Información del Evento', {
@@ -115,7 +128,8 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'insumo_alcohol_basico', 
                 'insumo_alcohol_premium',
             ),
-            'classes': ('collapse',), 
+            # ¡AQUÍ ESTABA EL ERROR! 
+            # Eliminé la línea 'classes': ('collapse',) para que las pestañas funcionen.
             'description': 'Define insumos específicos del inventario.'
         }),
         ('Finanzas', {
@@ -141,18 +155,26 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666; background:#f8f9fa; border:1px dashed #ccc; border-radius:4px; text-align:center;">Selecciona un tipo de barra y número de personas para calcular.</div>')
         
-        # --- AQUÍ ESTÁ EL FIX DEL SCROLL PARA LA TARJETA ---
-        # El contenedor principal tiene overflow-x: auto
-        
-        st_wrapper = "width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:15px;"
-        st_container = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; color:#333; min-width:320px; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
+        # --- CÁLCULO VISUAL DESGLOSADO ---
+        # Recalculamos totales individuales para mostrarlos separados en la tabla
+        costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
+        costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
+        costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
+
+        total_hielo = datos['bolsas_hielo_20kg'] * costo_hielo_u
+        total_mix = datos['litros_mezcladores'] * costo_mix_u
+        total_agua = datos['litros_agua'] * costo_agua_u
+
+        # ESTILOS CSS INLINE (Optimizados para Scroll Móvil)
+        st_wrapper = "width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:15px; padding-bottom:5px;"
+        st_container = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; color:#333; min-width:340px; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
         st_header = "background:#2c3e50; color:#fff; padding:10px 15px; font-weight:600; font-size:14px; letter-spacing:0.5px; border-bottom:3px solid #1a252f;"
         st_table = "width:100%; border-collapse:collapse;"
         st_td_lbl = "padding:8px 12px; border-bottom:1px solid #eee; color:#555;"
         st_td_val = "padding:8px 12px; border-bottom:1px solid #eee; text-align:right; font-weight:600; color:#2c3e50;"
         st_subhead = "background:#f4f6f7; color:#7f8c8d; font-size:11px; text-transform:uppercase; font-weight:700; padding:6px 12px; border-bottom:1px solid #ddd;"
         
-        # Filas condicionales
+        # FILAS ALCOHOL
         rows_alcohol = ""
         if obj.tipo_barra != 'sin_alcohol':
             rows_alcohol = f"""
@@ -179,13 +201,19 @@ class CotizacionAdmin(admin.ModelAdmin):
                     
                     <tr><td colspan="3" style="{st_subhead}">Insumos Operativos</td></tr>
                     <tr>
-                        <td style="{st_td_lbl}">Mixers + Hielo:</td>
-                        <td style="{st_td_val}">
-                            <span style="font-size:10px; color:#999; display:block;">
-                            {datos['bolsas_hielo_20kg']} Bolsas / {datos['litros_mezcladores']}L Mix
-                            </span>
-                        </td>
-                        <td style="{st_td_val} color:#e74c3c;">${datos['costo_insumos_varios']:,.2f}</td>
+                        <td style="{st_td_lbl}">Hielo (20kg):</td>
+                        <td style="{st_td_val}">{datos['bolsas_hielo_20kg']} bolsas</td>
+                        <td style="{st_td_val} color:#e74c3c;">${total_hielo:,.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="{st_td_lbl}">Mixers / Refrescos:</td>
+                        <td style="{st_td_val}">{datos['litros_mezcladores']} Lt</td>
+                        <td style="{st_td_val} color:#e74c3c;">${total_mix:,.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="{st_td_lbl}">Agua Purificada:</td>
+                        <td style="{st_td_val}">{datos['litros_agua']} Lt</td>
+                        <td style="{st_td_val} color:#e74c3c;">${total_agua:,.2f}</td>
                     </tr>
 
                     <tr><td colspan="3" style="{st_subhead}">Recurso Humano</td></tr>
@@ -213,6 +241,9 @@ class CotizacionAdmin(admin.ModelAdmin):
                     </tr>
                 </table>
             </div>
+        </div>
+        <div style="font-size:11px; color:#666; margin-top:5px; font-style:italic; text-align:center;">
+            Desliza la tabla ↔️ para ver más
         </div>
         """
         return mark_safe(html)
@@ -262,6 +293,10 @@ class PagoAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         if not obj.pk: obj.usuario = request.user
         super().save_model(request, obj, form, change)
+
+# ==========================================
+# 4. COMPRAS Y GASTOS (CONTABILIDAD)
+# ==========================================
 
 class GastoInline(admin.TabularInline):
     model = Gasto

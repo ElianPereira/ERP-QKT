@@ -18,3 +18,64 @@ select, option {
     background-color: #5897fb !important; 
     color: #ffffff !important;
 }
+
+/* ============================================================
+   V3: PAGINACIÓN MODERNA Y AMIGABLE
+   Transforma la lista "1 2 3..." en botones táctiles
+   ============================================================ */
+
+/* 1. Contenedor de la paginación */
+.paginator {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: center !important; /* Centrado para mejor estética */
+    gap: 5px !important; /* Espacio entre botones */
+    padding: 15px 0 !important;
+    margin-top: 10px !important;
+    border-top: 1px solid #eee !important;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+/* 2. Los números (Enlaces) convertidos a Botones */
+.paginator a:not(.showall), 
+.paginator span.this-page {
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-width: 35px !important; /* Ancho mínimo para que sea cuadrado */
+    height: 35px !important;
+    padding: 0 10px !important;
+    border: 1px solid #dcdcdc !important;
+    background-color: #ffffff !important;
+    color: #333 !important;
+    text-decoration: none !important;
+    border-radius: 4px !important; /* Bordes redondeados */
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+
+/* 3. Hover (Al pasar el mouse) */
+.paginator a:not(.showall):hover {
+    background-color: #f8f9fa !important;
+    border-color: #bbb !important;
+    transform: translateY(-1px) !important;
+}
+
+/* 4. Página Actual (Activa) */
+.paginator span.this-page {
+    background-color: #007bff !important; /* Azul Profesional */
+    color: #ffffff !important;
+    border-color: #007bff !important;
+    cursor: default !important;
+    box-shadow: 0 2px 4px rgba(0,123,255,0.3) !important;
+}
+
+/* 5. Texto de conteo "67 entries" (Separarlo visualmente) */
+.paginator {
+    font-size: 13px !important;
+    color: #666 !important;
+}
+/* A veces el texto está suelto, tratamos de alinearlo */
+.paginator img { vertical-align: middle; }
