@@ -1,6 +1,6 @@
 /* static/css/admin_fix.css */
 
-/* Correcciones de color para inputs y selects en temas oscuros/claros */
+/* Correcciones de Inputs */
 select, option {
     background-color: #ffffff !important;
     color: #333333 !important;
@@ -20,62 +20,49 @@ select, option {
 }
 
 /* ============================================================
-   V3: PAGINACIÓN MODERNA Y AMIGABLE
-   Transforma la lista "1 2 3..." en botones táctiles
+   PAGINACIÓN MODERNA (Estilo Botones)
    ============================================================ */
-
-/* 1. Contenedor de la paginación */
 .paginator {
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: center !important;
-    justify-content: center !important; /* Centrado para mejor estética */
-    gap: 5px !important; /* Espacio entre botones */
-    padding: 15px 0 !important;
-    margin-top: 10px !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    padding: 20px 0 !important;
     border-top: 1px solid #eee !important;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+    font-family: 'Segoe UI', sans-serif !important;
+    font-size: 13px !important;
 }
 
-/* 2. Los números (Enlaces) convertidos a Botones */
+/* Estilo Base de Botón */
 .paginator a:not(.showall), 
 .paginator span.this-page {
     display: inline-flex !important;
     justify-content: center !important;
     align-items: center !important;
-    min-width: 35px !important; /* Ancho mínimo para que sea cuadrado */
-    height: 35px !important;
-    padding: 0 10px !important;
-    border: 1px solid #dcdcdc !important;
-    background-color: #ffffff !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    padding: 0 8px !important;
+    border: 1px solid #e0e0e0 !important;
+    background-color: #fff !important;
     color: #333 !important;
     text-decoration: none !important;
-    border-radius: 4px !important; /* Bordes redondeados */
+    border-radius: 4px !important;
     font-weight: 600 !important;
-    transition: all 0.2s ease !important;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    transition: all 0.2s !important;
 }
 
-/* 3. Hover (Al pasar el mouse) */
+/* Botón Hover */
 .paginator a:not(.showall):hover {
-    background-color: #f8f9fa !important;
-    border-color: #bbb !important;
-    transform: translateY(-1px) !important;
+    background-color: #f1f3f5 !important;
+    border-color: #ced4da !important;
+    color: #000 !important;
 }
 
-/* 4. Página Actual (Activa) */
+/* Página Actual (Azul) */
 .paginator span.this-page {
-    background-color: #007bff !important; /* Azul Profesional */
-    color: #ffffff !important;
+    background-color: #007bff !important;
+    color: #fff !important;
     border-color: #007bff !important;
     cursor: default !important;
-    box-shadow: 0 2px 4px rgba(0,123,255,0.3) !important;
 }
-
-/* 5. Texto de conteo "67 entries" (Separarlo visualmente) */
-.paginator {
-    font-size: 13px !important;
-    color: #666 !important;
-}
-/* A veces el texto está suelto, tratamos de alinearlo */
-.paginator img { vertical-align: middle; }
