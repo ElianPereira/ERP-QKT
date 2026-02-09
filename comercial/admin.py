@@ -93,9 +93,11 @@ class CotizacionAdmin(admin.ModelAdmin):
         'insumo_barman', 'insumo_auxiliar'
     ]
     
-    # CSS Específico para corregir móvil
-    class Media:
-        css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
+    # --- MODIFICACIÓN DE EMERGENCIA ---
+    # He comentado la carga de CSS externo para desbloquear tu pantalla.
+    # Una vez que confirmes que funciona, podremos reactivarlo limpiando la caché.
+    # class Media:
+    #    css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
 
     fieldsets = (
         ('Información del Evento', {
@@ -128,7 +130,6 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'insumo_alcohol_basico', 
                 'insumo_alcohol_premium',
             ),
-            # SE ELIMINÓ 'classes': ('collapse',) PARA EVITAR CONFLICTO DE PESTAÑAS
             'description': 'Define insumos específicos del inventario.'
         }),
         ('Finanzas', {
@@ -154,8 +155,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666; background:#f8f9fa; border:1px dashed #ccc; border-radius:4px; text-align:center;">Selecciona un tipo de barra y número de personas para calcular.</div>')
         
-        # --- CÁLCULO VISUAL DESGLOSADO ---
-        # Recalculamos totales individuales para mostrarlos separados en la tabla
+        # CÁLCULOS VISUALES
         costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
         costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
         costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
@@ -164,16 +164,15 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
-        # ESTILOS CSS INLINE (Optimizados para Scroll Móvil)
-        st_wrapper = "width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:15px; padding-bottom:5px;"
-        st_container = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; color:#333; min-width:340px; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
-        st_header = "background:#2c3e50; color:#fff; padding:10px 15px; font-weight:600; font-size:14px; letter-spacing:0.5px; border-bottom:3px solid #1a252f;"
+        # ESTILOS INLINE (Estos funcionarán SIEMPRE, incluso sin CSS externo)
+        st_wrapper = "width:100%; overflow-x:auto; margin-bottom:15px; padding-bottom:5px;"
+        st_container = "font-family:'Segoe UI',sans-serif; font-size:13px; color:#333; min-width:340px; border:1px solid #e0e0e0; border-radius:6px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05);"
+        st_header = "background:#2c3e50; color:#fff; padding:10px 15px; font-weight:600; font-size:14px; border-bottom:3px solid #1a252f;"
         st_table = "width:100%; border-collapse:collapse;"
         st_td_lbl = "padding:8px 12px; border-bottom:1px solid #eee; color:#555;"
         st_td_val = "padding:8px 12px; border-bottom:1px solid #eee; text-align:right; font-weight:600; color:#2c3e50;"
         st_subhead = "background:#f4f6f7; color:#7f8c8d; font-size:11px; text-transform:uppercase; font-weight:700; padding:6px 12px; border-bottom:1px solid #ddd;"
         
-        # FILAS ALCOHOL
         rows_alcohol = ""
         if obj.tipo_barra != 'sin_alcohol':
             rows_alcohol = f"""
@@ -240,9 +239,6 @@ class CotizacionAdmin(admin.ModelAdmin):
                     </tr>
                 </table>
             </div>
-        </div>
-        <div style="font-size:11px; color:#666; margin-top:5px; font-style:italic; text-align:center;">
-            Desliza la tabla ↔️ para ver más
         </div>
         """
         return mark_safe(html)
@@ -356,4 +352,4 @@ class GastoAdmin(admin.ModelAdmin):
     search_fields = ('descripcion', 'proveedor')
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
-    class Media: css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
+    # class Media: css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
