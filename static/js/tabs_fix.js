@@ -1,48 +1,54 @@
 /* Archivo: static/js/tabs_fix.js */
 
-document.addEventListener("DOMContentLoaded", function() {
-    console.log("🔧 JS de Pestañas cargado correctamente."); // Verifica si ves esto en la consola (F12)
-
-    // Clave única por URL (para diferenciar Usuario de Cotización)
-    const storageKey = 'tab_state_' + window.location.pathname;
+(function($) {
+    'use strict';
     
-    // Jazzmin a veces usa .nav-tabs dentro de .card-header
-    // Buscamos cualquier enlace dentro de una lista de pestañas
-    const tabs = document.querySelectorAll('.nav-tabs .nav-link, .nav-tabs a');
+    $(document).ready(function() {
+        console.log("🚀 Tabs Fix: Iniciado globalmente.");
 
-    // 1. RECUPERAR (Al cargar la página)
-    const savedTabHref = localStorage.getItem(storageKey);
-    
-    if (savedTabHref) {
-        // Buscamos la pestaña específica por su href (ej: #general)
-        // Nota: Jazzmin suele usar IDs como #general, #permisos, o #fieldset-0
-        const tabToActivate = document.querySelector(`.nav-tabs a[href="${savedTabHref}"]`) || 
-                              document.querySelector(`.nav-tabs .nav-link[href="${savedTabHref}"]`);
+        // 1. Definir clave única basada en la URL (para que Usuario no choque con Cotización)
+        var storageKey = 'tab_preference_' + window.location.pathname;
 
-        if (tabToActivate) {
-            console.log("Restaurando pestaña:", savedTabHref);
-            // Jazzmin/Bootstrap 4 requiere activar el Tab (link) y el Pane (contenido)
+        // 2. RECUPERAR: Al cargar la página, ver si hay memoria
+        var activeTab = localStorage.getItem(storageKey);
+        
+        if (activeTab) {
+            // Buscamos el enlace que tenga ese href
+            var $tabLink = $('.nav-tabs a[href="' + activeTab + '"]');
             
-            // A. Simular click (método más seguro para activar eventos de Jazzmin)
-            tabToActivate.click(); 
-
-            // B. Refuerzo manual por si el click falla en cargar estilos
-            setTimeout(() => {
-               if(!tabToActivate.classList.contains('active')) {
-                   tabToActivate.classList.add('active');
-               }
-            }, 50);
+            if ($tabLink.length > 0) {
+                console.log("Restaurando pestaña:", activeTab);
+                
+                // Opción A: Trigger nativo de Bootstrap (La forma elegante)
+                $tabLink.tab('show'); 
+                
+                // Opción B: Forzado bruto (si Jazzmin se pone rebelde)
+                // Esto quita la clase active de todos y se la pone al correcto
+                $('.nav-tabs a').removeClass('active');
+                $('.tab-pane').removeClass('active show');
+                
+                $tabLink.addClass('active');
+                $(activeTab).addClass('active show');
+            }
         }
-    }
 
-    // 2. GUARDAR (Al hacer click)
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function(e) {
-            const href = this.getAttribute('href');
-            if (href && href.startsWith('#')) {
-                console.log("Guardando pestaña:", href);
-                localStorage.setItem(storageKey, href);
+        // 3. GUARDAR: Escuchar el evento oficial de cambio de pestaña de Bootstrap
+        // Jazzmin usa Bootstrap 4, así que el evento es 'shown.bs.tab'
+        $('a[data-toggle="tab"], a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
+            var target = $(e.target).attr("href"); // La pestaña que se acaba de activar (ej: #general)
+            if(target && target.startsWith('#')) {
+                console.log("Guardando preferencia:", target);
+                localStorage.setItem(storageKey, target);
+            }
+        });
+        
+        // Soporte extra para clicks directos si el evento de BS falla
+        $('.nav-tabs a').on('click', function() {
+            var href = $(this).attr('href');
+            if(href && href.startsWith('#')) {
+                 localStorage.setItem(storageKey, href);
             }
         });
     });
-});
+
+})(django.jQuery || jQuery); // Usamos el jQuery de Django o el global
