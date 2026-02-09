@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncMonth
 from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
@@ -20,7 +20,7 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 
-# IMPORTANTE: Aseguramos importar Compra y Gasto
+# IMPORTANTE: Aseguramos importar los modelos necesarios
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra
 from .forms import CalculadoraForm
 
@@ -29,7 +29,9 @@ try:
 except ImportError:
     SolicitudFactura = None 
 
-# --- 1. DASHBOARD PRINCIPAL ---
+# ==========================================
+# 1. DASHBOARD PRINCIPAL
+# ==========================================
 @staff_member_required 
 def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
@@ -42,7 +44,7 @@ def ver_dashboard_kpis(request):
         fecha_evento__month=hoy.month
     ).aggregate(total=Sum('precio_final'))['total'] or 0
 
-    # 2. Gastos del Mes (Usamos COMPRA ahora, que tiene el total de la factura XML)
+    # 2. Gastos del Mes (Usamos COMPRA ahora)
     gastos_mes = Compra.objects.filter(
         fecha_emision__year=hoy.year,
         fecha_emision__month=hoy.month
@@ -60,7 +62,6 @@ def ver_dashboard_kpis(request):
     # Gráficas
     ventas_data = Cotizacion.objects.filter(estado='CONFIRMADA').annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
     
-    # Actualizado: Agrupamos COMPRAS por mes para la gráfica de gastos
     gastos_data = Compra.objects.annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
 
     grafica_final = {}
@@ -83,7 +84,9 @@ def ver_dashboard_kpis(request):
     })
     return render(request, 'admin/dashboard.html', context)
 
-# --- 2. GENERAR LISTA DE COMPRAS ---
+# ==========================================
+# 2. GENERAR LISTA DE COMPRAS
+# ==========================================
 @staff_member_required
 def generar_lista_compras(request):
     if request.method == 'POST':
@@ -145,12 +148,14 @@ def generar_lista_compras(request):
 
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
 
-# --- 3. CONTEXTO DE COTIZACIÓN (PDF) ---
+# ==========================================
+# 3. COTIZACIONES (PDF Y EMAIL)
+# ==========================================
 def obtener_contexto_cotizacion(cotizacion):
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
 
-    # --- NUEVO: OBTENEMOS DATOS DE LA BARRA PARA EL PDF ---
+    # Datos de barra para el reporte
     datos_barra = cotizacion.calcular_barra_insumos()
 
     return {
@@ -159,7 +164,7 @@ def obtener_contexto_cotizacion(cotizacion):
         'logo_url': logo_url,
         'total_pagado': cotizacion.total_pagado(),
         'saldo_pendiente': cotizacion.saldo_pendiente(),
-        'barra': datos_barra  # <-- Esto permite usar {{ barra }} en el HTML
+        'barra': datos_barra
     }
 
 def generar_pdf_cotizacion(request, cotizacion_id):
@@ -203,7 +208,9 @@ def enviar_cotizacion_email(request, cotizacion_id):
 
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
-# --- CALENDARIO ---
+# ==========================================
+# 4. CALENDARIO
+# ==========================================
 def ver_calendario(request):
     cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA')
     eventos_lista = []
@@ -217,7 +224,9 @@ def ver_calendario(request):
         })
     return render(request, 'admin/calendario.html', {'eventos_json': json.dumps(eventos_lista, cls=DjangoJSONEncoder)})
 
-# --- EXPORTAR EXCEL (CONTABILIDAD GENERAL) ---
+# ==========================================
+# 5. EXPORTAR EXCEL (CONTABILIDAD)
+# ==========================================
 @staff_member_required
 def exportar_cierre_excel(request):
     if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()):
@@ -234,7 +243,7 @@ def exportar_cierre_excel(request):
     for p in Pago.objects.filter(fecha_pago__month=hoy.month):
         ws_ingresos.append([p.fecha_pago, p.cotizacion.cliente.nombre, p.monto, p.metodo])
     
-    # 2. Gastos (Usamos Compras/Facturas completas)
+    # 2. Gastos
     ws_gastos = wb.create_sheet(title="Gastos")
     ws_gastos.append(['Fecha', 'Proveedor', 'Total Factura', 'RFC Emisor'])
     for c in Compra.objects.filter(fecha_emision__month=hoy.month):
@@ -243,78 +252,56 @@ def exportar_cierre_excel(request):
     wb.save(response)
     return response
 
-# --- REPORTE DE UTILIDADES (CORREGIDO: DISTINCIÓN FACTURAS VS NOTAS) ---
+# ==========================================
+# 6. REPORTE DE UTILIDADES (COTIZACIONES)
+# ==========================================
 @staff_member_required
 def exportar_reporte_cotizaciones(request):
     if request.method != 'POST':
         return render(request, 'comercial/reporte_form.html')
 
-    # --- INPUTS ---
     fecha_inicio = request.POST.get('fecha_inicio')
     fecha_fin = request.POST.get('fecha_fin')
     estado = request.POST.get('estado')
     
-    # ==========================================
-    # 1. EVENTOS (UTILIDAD BRUTA)
-    # ==========================================
     cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento')
     
     if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
     if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
     if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
 
-    # Inicializamos acumuladores globales
+    # Acumuladores
     t_subtotal, t_descuento, t_base_real, t_total_ventas = 0,0,0,0
-    t_iva, t_ret_isr = 0,0
-    t_pagado = 0
+    t_iva, t_ret_isr, t_pagado = 0,0,0
     
-    # Acumuladores de Gastos
-    t_gastos_total_con_iva = 0
-    t_gastos_base = 0
-    t_gastos_iva = 0
-    
-    t_ganancia_eventos = 0
+    # Gastos Eventos
+    t_gastos_base, t_gastos_iva, t_ganancia_eventos = 0,0,0
     
     datos_tabla = []
     
     for c in cotizaciones:
         pagado = c.pagos.aggregate(Sum('monto'))['monto__sum'] or Decimal(0)
         
-        # --- NUEVA LÓGICA DE GASTOS: Iterar para verificar si es Factura (UUID) o Nota ---
+        # Gastos del evento (UUID vs Notas)
         gastos_del_evento = c.gasto_set.all().select_related('compra')
-        
-        evento_gasto_total = Decimal(0) # Lo que salió del banco (Total con IVA o Nota)
-        evento_gasto_iva_acreditable = Decimal(0) # Solo lo que es fiscal
+        evento_gasto_total = Decimal(0)
+        evento_gasto_iva_acreditable = Decimal(0)
         
         for g in gastos_del_evento:
             total_linea = g.total_linea or Decimal(0)
             evento_gasto_total += total_linea
             
-            # Verificación Fiscal Inteligente:
-            # Si la compra tiene UUID (Timbre) Y tiene IVA > 0, calculamos la parte proporcional.
             compra_padre = g.compra
             if compra_padre.uuid and compra_padre.iva > 0 and compra_padre.total > 0:
-                # Prorrateo: (TotalLinea / TotalFactura) * IvaFactura
                 factor = total_linea / compra_padre.total
-                iva_proporcional = factor * compra_padre.iva
-                evento_gasto_iva_acreditable += iva_proporcional
-            else:
-                # Es una Nota, Remisión o Factura tasa 0%: NO hay crédito de IVA.
-                # El IVA acreditable es 0.
-                pass 
+                evento_gasto_iva_acreditable += (factor * compra_padre.iva)
         
-        # El Gasto Base (Costo Real) es: Lo que pagué menos lo que recupero de impuestos
         evento_gasto_base = evento_gasto_total - evento_gasto_iva_acreditable
         
-        # --- Datos Venta ---
         base_real_venta = c.subtotal - c.descuento
-        
-        # --- Calcular UTILIDAD REAL ---
-        # (Venta sin IVA) - (Gasto sin IVA Recuperable)
-        # Nota: Si el gasto fue "Nota", el gasto base es el 100% del pago, lo cual reduce correctamente la utilidad.
         ganancia_real = base_real_venta - evento_gasto_base
         
-        # Sumar a Globales
+        # Sumas
         t_subtotal += c.subtotal
         t_descuento += c.descuento
         t_base_real += base_real_venta
@@ -323,43 +310,27 @@ def exportar_reporte_cotizaciones(request):
         t_total_ventas += c.precio_final
         t_pagado += pagado
         
-        t_gastos_total_con_iva += evento_gasto_total
         t_gastos_base += evento_gasto_base
         t_gastos_iva += evento_gasto_iva_acreditable
-        
         t_ganancia_eventos += ganancia_real
 
         datos_tabla.append({
             'folio': c.id, 'fecha': c.fecha_evento, 'cliente': c.cliente.nombre,
-            'producto': c.nombre_evento, 
-            'estado': c.get_estado_display(),
-            'subtotal': c.subtotal, 'descuento': c.descuento, 
-            'base_real': base_real_venta,
+            'producto': c.nombre_evento, 'estado': c.get_estado_display(),
+            'subtotal': c.subtotal, 'descuento': c.descuento, 'base_real': base_real_venta,
             'iva': c.iva, 'isr': c.retencion_isr, 'total': c.precio_final,
-            
-            # Nuevos valores desglosados
-            'gastos_total': evento_gasto_total,
-            'gastos_base': evento_gasto_base,
-            'gastos_iva': evento_gasto_iva_acreditable,
-            
-            'ganancia': ganancia_real
+            'gastos_total': evento_gasto_total, 'gastos_base': evento_gasto_base,
+            'gastos_iva': evento_gasto_iva_acreditable, 'ganancia': ganancia_real
         })
 
-    # ==========================================
-    # 2. GASTOS OPERATIVOS (AGRUPADOS POR CATEGORIA)
-    # ==========================================
-    # También aplicamos la lógica de UUID aquí
+    # Gastos Operativos
     gastos_qs = Gasto.objects.filter(evento_relacionado__isnull=True).select_related('compra')
     if fecha_inicio: gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
     if fecha_fin: gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
 
-    gastos_procesados = [] # Lista temporal para agrupar manual
-    
-    total_gastos_op_total = 0
-    total_gastos_op_base = 0
-    total_gastos_op_iva = 0
+    gastos_procesados = [] 
+    total_gastos_op_total, total_gastos_op_base, total_gastos_op_iva = 0,0,0
 
-    # Iteramos manual para verificar UUID
     for g in gastos_qs:
         total_linea = g.total_linea or Decimal(0)
         compra_padre = g.compra
@@ -371,12 +342,10 @@ def exportar_reporte_cotizaciones(request):
         
         base_linea = total_linea - iva_linea
         
-        # Acumulamos globales
         total_gastos_op_total += total_linea
         total_gastos_op_base += base_linea
         total_gastos_op_iva += iva_linea
         
-        # Agrupamos en diccionario para la tabla
         found = False
         for item in gastos_procesados:
             if item['categoria'] == g.categoria:
@@ -387,37 +356,23 @@ def exportar_reporte_cotizaciones(request):
                 break
         if not found:
             gastos_procesados.append({
-                'categoria': g.categoria,
-                'total': total_linea,
-                'base': base_linea,
-                'iva': iva_linea
+                'categoria': g.categoria, 'total': total_linea, 'base': base_linea, 'iva': iva_linea
             })
 
-    # Ordenar y formatear nombres
     gastos_procesados.sort(key=lambda x: x['total'], reverse=True)
     
     gastos_operativos_display = []
     cat_labels = dict(Gasto.CATEGORIAS)
-    
     for item in gastos_procesados:
         key = item['categoria']
         gastos_operativos_display.append({
             'nombre': cat_labels.get(key, key),
-            'total': item['total'],
-            'base': item['base'],
-            'iva': item['iva']
+            'total': item['total'], 'base': item['base'], 'iva': item['iva']
         })
     
-    # ==========================================
-    # 3. RESULTADO FINAL
-    # ==========================================
-    # Utilidad Neta Real = Utilidad Bruta Eventos - Gastos Operativos BASE (sin IVA)
     utilidad_neta_real = t_ganancia_eventos - total_gastos_op_base
-
-    # Calculo informativo de impuestos
     iva_por_pagar = t_iva - t_gastos_iva - total_gastos_op_iva
 
-    # Flujo de Efectivo (Solo informativo)
     pagos = Pago.objects.filter(cotizacion__in=cotizaciones)
     total_efectivo = pagos.filter(metodo='EFECTIVO').aggregate(t=Sum('monto'))['t'] or 0
     total_transf = pagos.filter(metodo='TRANSFERENCIA').aggregate(t=Sum('monto'))['t'] or 0
@@ -428,27 +383,12 @@ def exportar_reporte_cotizaciones(request):
     
     html = render_to_string('cotizaciones/pdf_reporte_ventas.html', {
         'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
-        
-        # Totales Eventos
         't_subtotal': t_subtotal, 't_descuento': t_descuento, 't_base_real': t_base_real,
         't_iva': t_iva, 't_ret_isr': t_ret_isr, 't_total_ventas': t_total_ventas,
-        
-        # Nuevos Totales Gastos Eventos
-        't_gastos_base': t_gastos_base, 
-        't_gastos_iva': t_gastos_iva,
-        't_ganancia_eventos': t_ganancia_eventos,
-        
-        # Totales Operativos
+        't_gastos_base': t_gastos_base, 't_gastos_iva': t_gastos_iva, 't_ganancia_eventos': t_ganancia_eventos,
         'gastos_operativos_list': gastos_operativos_display, 
-        'total_gastos_op_total': total_gastos_op_total,
-        'total_gastos_op_base': total_gastos_op_base,
-        'total_gastos_op_iva': total_gastos_op_iva,
-        
-        # Resultados Finales
-        'utilidad_neta_real': utilidad_neta_real,
-        'iva_por_pagar': iva_por_pagar,
-        
-        # Flujo
+        'total_gastos_op_total': total_gastos_op_total, 'total_gastos_op_base': total_gastos_op_base, 'total_gastos_op_iva': total_gastos_op_iva,
+        'utilidad_neta_real': utilidad_neta_real, 'iva_por_pagar': iva_por_pagar,
         'total_efectivo': total_efectivo, 'total_transferencia': total_transf, 'total_otros': total_otros, 
         'total_ingresado': total_efectivo+total_transf+total_otros,
         'logo_url': logo_url
@@ -460,62 +400,71 @@ def exportar_reporte_cotizaciones(request):
     HTML(string=html).write_pdf(response)
     return response
 
-# --- REPORTE DE PAGOS (NUEVO) ---
+# ==========================================
+# 7. REPORTE DE PAGOS DETALLADO (NUEVO)
+# ==========================================
 @staff_member_required
 def exportar_reporte_pagos(request):
+    # Si entran directo sin POST, mostramos el formulario
     if request.method != 'POST':
-        # Renderiza el formulario si no es POST
-        return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Reporte de Pagos'})
+        return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Reporte Detallado de Pagos'})
 
-    # --- INPUTS ---
+    # --- 1. FILTROS ---
     fecha_inicio = request.POST.get('fecha_inicio')
     fecha_fin = request.POST.get('fecha_fin')
     
-    # 1. CONSULTA DE PAGOS
-    # Usamos select_related para optimizar la consulta a la cotización y al cliente
-    pagos = Pago.objects.all().select_related('cotizacion', 'cotizacion__cliente').order_by('fecha_pago')
+    # Obtenemos TODOS los pagos optimizados
+    pagos = Pago.objects.select_related('cotizacion', 'cotizacion__cliente', 'usuario').order_by('fecha_pago')
     
-    if fecha_inicio: pagos = pagos.filter(fecha_pago__gte=fecha_inicio)
-    if fecha_fin: pagos = pagos.filter(fecha_pago__lte=fecha_fin)
+    if fecha_inicio:
+        pagos = pagos.filter(fecha_pago__gte=fecha_inicio)
+    if fecha_fin:
+        pagos = pagos.filter(fecha_pago__lte=fecha_fin)
 
-    # 2. TOTALES GENERALES
+    # --- 2. TOTALES GENERALES ---
     total_ingresos = pagos.aggregate(Sum('monto'))['monto__sum'] or Decimal(0)
     
-    # 3. RESUMEN POR MÉTODO DE PAGO
-    # Agrupamos para saber cuánto entró por efectivo, transferencia, etc.
+    # --- 3. DESGLOSE POR MÉTODO ---
     metodos_data = pagos.values('metodo').annotate(total=Sum('monto')).order_by('-total')
     
-    # Mapeamos las claves (ej. 'TARJETA_CREDITO') a nombres legibles usando las choices del modelo
     resumen_metodos = []
-    dict_metodos = dict(Pago.METODOS) # Diccionario {CLAVE: Nombre Legible}
+    dict_metodos = dict(Pago.METODOS) # {CLAVE: Nombre Legible}
     
     for item in metodos_data:
         clave = item['metodo']
-        nombre = dict_metodos.get(clave, clave) # Si no encuentra, usa la clave
+        nombre = dict_metodos.get(clave, clave)
         resumen_metodos.append({
             'nombre': nombre,
-            'total': item['total']
+            'total': item['total'],
+            'porcentaje': (item['total'] / total_ingresos * 100) if total_ingresos > 0 else 0
         })
 
-    # 4. RENDERIZAR PDF
+    # --- 4. RENDERIZADO PDF ---
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
     
-    html = render_to_string('comercial/pdf_reporte_pagos.html', {
+    context = {
         'pagos': pagos,
         'fecha_inicio': fecha_inicio,
         'fecha_fin': fecha_fin,
         'total_ingresos': total_ingresos,
         'resumen_metodos': resumen_metodos,
-        'logo_url': logo_url
-    })
+        'logo_url': logo_url,
+        'generado_el': timezone.now()
+    }
+
+    html = render_to_string('comercial/pdf_reporte_pagos.html', context)
     
     response = HttpResponse(content_type='application/pdf')
-    filename = f"Reporte_Pagos_{fecha_inicio if fecha_inicio else 'General'}.pdf"
+    filename = f"Reporte_Pagos_{fecha_inicio if fecha_inicio else 'Historico'}.pdf"
     response['Content-Disposition'] = f'inline; filename="{filename}"'
+    
     HTML(string=html).write_pdf(response)
     return response
 
+# ==========================================
+# 8. EXTRAS
+# ==========================================
 @staff_member_required
 def calculadora_insumos(request):
     resultado = None
