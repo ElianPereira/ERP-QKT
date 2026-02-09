@@ -328,10 +328,14 @@ class Compra(models.Model):
     ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    archivo_xml = models.FileField(upload_to='xml_compras/', storage=RawMediaCloudinaryStorage())
+    
+    # MODIFICADO: blank=True, null=True para permitir compras manuales
+    archivo_xml = models.FileField(upload_to='xml_compras/', storage=RawMediaCloudinaryStorage(), blank=True, null=True)
     archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
+    
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    
     def save(self, *args, **kwargs):
         if self.archivo_xml and not self.pk:
             try:

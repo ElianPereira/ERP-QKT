@@ -18,7 +18,7 @@ MEDIA_CONFIG = {
         'all': ('css/admin_fix.css', 'css/mobile_fix.css')
     },
     'js': (
-        'js/tabs_fix.js',  # El script que arregla los clics
+        'js/tabs_fix.js',
     )
 }
 
@@ -277,7 +277,7 @@ class PagoAdmin(admin.ModelAdmin):
     list_filter = ('fecha_pago', 'metodo', 'usuario')
     search_fields = ('cotizacion__cliente__nombre', 'referencia')
     date_hierarchy = 'fecha_pago'
-    raw_id_fields = ['cotizacion'] # Lupa en lugar de autocomplete
+    raw_id_fields = ['cotizacion'] 
     
     class Media:
         css = MEDIA_CONFIG['css']
@@ -307,12 +307,13 @@ class CompraAdmin(admin.ModelAdmin):
     search_fields = ('proveedor', 'uuid')
     date_hierarchy = 'fecha_emision'
     inlines = [GastoInline] 
+    
+    # MODIFICACIÓN CRÍTICA: Eliminamos readonly_fields para permitir edición manual
     fieldsets = (
-        ('Archivo Fuente', {'fields': ('archivo_xml', 'archivo_pdf')}),
+        ('Archivo Fuente (Opcional)', {'fields': ('archivo_xml', 'archivo_pdf')}),
         ('Datos Generales', {'fields': ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid')}),
         ('Totales Globales', {'fields': ('subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')})
     )
-    readonly_fields = ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid', 'subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')
     
     class Media:
         css = MEDIA_CONFIG['css']
@@ -356,7 +357,6 @@ class GastoAdmin(admin.ModelAdmin):
     list_editable = ('categoria', 'evento_relacionado') 
     list_per_page = 50
     
-    # CORRECCIÓN: Usamos autocompletar para evitar listas gigantes que desbordan la pantalla
     autocomplete_fields = ['compra', 'evento_relacionado']
 
     class Media:
