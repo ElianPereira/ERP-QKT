@@ -188,21 +188,21 @@
                         {% endif %}
 
                         {# --- NUEVO BLOQUE: DESGLOSE DE BARRA --- #}
-                        {# Si la descripción contiene 'Servicio de Barra', mostramos el detalle según el tipo elegido #}
+                        {# Detectamos si el item es el servicio de barra por su descripción #}
                         {% if "Servicio de Barra" in item.descripcion %}
-                            <div style="margin-top: 4px; font-size: 9px; color: #666; font-weight: normal; font-style: italic; line-height: 1.3; padding-left: 2px;">
+                            <div style="margin-top: 4px; font-size: 9px; color: #555; font-weight: normal; font-style: italic; line-height: 1.3; padding-left: 2px;">
                                 {% if cotizacion.tipo_barra == 'basico' %}
-                                    <strong style="color: #356685;">Incluye Licores (Nacional):</strong> Tequila, Ron, Vodka y Whisky.
+                                    <strong style="color: #356685;">Licores Nacionales:</strong> Tequila (José Cuervo/Tradicional), Ron (Bacardí), Vodka (Smirnoff/Absolut) y Whisky (Red Label).
                                 {% elif cotizacion.tipo_barra == 'premium' %}
-                                    <strong style="color: #356685;">Incluye Licores (Premium):</strong> Tequila, Ron, Vodka, Whisky y Ginebra.
-                                {% elif cotizacion.tipo_barra == 'cocteleria_insumos' %}
-                                    <strong style="color: #356685;">Estación de Coctelería:</strong> Insumos y Garnish para Mojitos, Margaritas, Palomas y Gin Tonics. (No incluye alcohol).
-                                {% elif cotizacion.tipo_barra == 'cerveza_refrescos' %}
-                                    <strong style="color: #356685;">Incluye:</strong> Cerveza Nacional (Media) y Refrescos Ilimitados.
+                                    <strong style="color: #356685;">Licores Premium:</strong> Tequila (Don Julio 70/Herradura), Ron (Matusalem), Vodka (Grey Goose), Whisky (Black Label) y Ginebra.
                                 {% elif cotizacion.tipo_barra == 'premium_cocteleria' %}
-                                    <strong style="color: #356685;">Todo Incluido:</strong> Barra Libre Premium + Estación de Mixología (Mojitos, Margaritas, Gin Tonics).
+                                    <strong style="color: #356685;">Todo Incluido (Premium + Mixología):</strong> Barra Libre Premium + Estación de Cocteles (Mojitos, Margaritas, Gin Tonics, Palomas).
+                                {% elif cotizacion.tipo_barra == 'cocteleria_insumos' %}
+                                    <strong style="color: #356685;">Estación de Mixología (Solo Insumos):</strong> Fruta fresca, jarabes artesanales, hierbas y garnishes para Mojitos, Margaritas y Palomas. (No incluye alcohol).
+                                {% elif cotizacion.tipo_barra == 'cerveza_refrescos' %}
+                                    <strong style="color: #356685;">Cerveza y Refrescos:</strong> Cerveza Nacional (Media botella) y variedad de refrescos ilimitados.
                                 {% elif cotizacion.tipo_barra == 'sin_alcohol' %}
-                                    <strong style="color: #356685;">Incluye:</strong> Coca-Cola, Squirt, Agua Mineral y Agua Natural Ilimitados.
+                                    <strong style="color: #356685;">Barra Libre Sin Alcohol:</strong> Coca-Cola, Squirt, Agua Mineral, Agua Natural y jugos básicos.
                                 {% endif %}
                             </div>
                         {% endif %}
