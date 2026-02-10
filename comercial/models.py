@@ -120,15 +120,13 @@ class Cotizacion(models.Model):
     # --- CONFIGURACIÓN DE BARRA MODULAR (CHECKBOXES) ---
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     
-    # NUEVOS CAMPOS (SEPARADOS)
+    # NUEVOS CAMPOS (SEPARADOS Y SIN EMOJIS)
     incluye_refrescos = models.BooleanField(default=True, verbose_name="Refrescos y Mezcladores")
     incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza")
     
-    # ALCOHOL SEPARADO
     incluye_licor_nacional = models.BooleanField(default=False, verbose_name="Licores Nacionales (Básico)")
     incluye_licor_premium = models.BooleanField(default=False, verbose_name="Licores Premium (Importado)")
     
-    # COCTELERÍA SEPARADA
     incluye_cocteleria_basica = models.BooleanField(default=False, verbose_name="Coctelería Básica (Mojitos, Margaritas)")
     incluye_cocteleria_premium = models.BooleanField(default=False, verbose_name="Coctelería Premium (Carajillos, Autor)")
     
@@ -142,7 +140,7 @@ class Cotizacion(models.Model):
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua")
     
     insumo_alcohol_basico = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Básico")
-    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Premium")
+    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol (Base Costo)")
     
     insumo_barman = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Bartender")
     insumo_auxiliar = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Auxiliar")
@@ -168,7 +166,8 @@ class Cotizacion(models.Model):
 
     def calcular_barra_insumos(self):
         """
-        Calcula costos de forma MODULAR.
+        Calcula costos de forma MODULAR (Sumando componentes).
+        Retorna diccionario COMPLETO para uso en Admin.
         """
         checks = [
             self.incluye_refrescos, self.incluye_cerveza, 
@@ -185,9 +184,12 @@ class Cotizacion(models.Model):
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
         
-        # COSTOS DIFERENCIADOS PARA ALCOHOL
-        costo_alcohol_nacional = self._get_costo_real(self.insumo_alcohol_basico, '250.00') 
-        costo_alcohol_premium = self._get_costo_real(self.insumo_alcohol_premium, '550.00') 
+        # --- COSTOS DIFERENCIADOS PARA ALCOHOL (ACTUALIZADOS A MERCADO) ---
+        # Costo base para Nacionales (Tequila Tradicional, Red Label): Ajustado a $350
+        costo_alcohol_nacional = self._get_costo_real(self.insumo_alcohol_basico, '350.00') 
+        
+        # Costo base para Premium (Don Julio 70, Black Label): Ajustado a $1,100
+        costo_alcohol_premium = self._get_costo_real(self.insumo_alcohol_premium, '1100.00') 
         
         costo_barman = self._get_costo_real(self.insumo_barman, '1200.00')
         costo_auxiliar = self._get_costo_real(self.insumo_auxiliar, '800.00')
