@@ -110,7 +110,7 @@ class PagoInline(admin.TabularInline):
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline]
     list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'precio_final', 'ver_pdf', 'enviar_email_btn')
-    list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor', 'incluye_cerveza')
+    list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
     raw_id_fields = [
@@ -138,11 +138,13 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
         ('Configuración de Barra (Modular)', {
             'fields': (
-                # MODIFICADO: Cada uno en su línea para que salgan verticales
+                # MODIFICADO: Lista vertical para que no se amontonen
                 'incluye_refrescos',
                 'incluye_cerveza',
-                'incluye_licor', 
-                'incluye_cocteleria',
+                'incluye_licor_nacional',
+                'incluye_licor_premium',
+                'incluye_cocteleria_basica', # NUEVO
+                'incluye_cocteleria_premium', # NUEVO
                 'clima', 
                 'horas_servicio',
                 'factor_utilidad_barra',
@@ -182,12 +184,15 @@ class CotizacionAdmin(admin.ModelAdmin):
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
 
     def get_nivel_paquete(self, obj):
-        checks = sum([obj.incluye_refrescos, obj.incluye_cerveza, obj.incluye_licor, obj.incluye_cocteleria])
+        checks = sum([
+            obj.incluye_refrescos, obj.incluye_cerveza, 
+            obj.incluye_licor_nacional, obj.incluye_licor_premium, 
+            obj.incluye_cocteleria_basica, obj.incluye_cocteleria_premium
+        ])
         if checks == 0: return "⛔ Sin Servicio"
         if checks == 1: return "⭐ Básico"
         if checks == 2: return "⭐⭐ Plus"
-        if checks == 3: return "⭐⭐⭐ Premium"
-        if checks == 4: return "💎 Todo Incluido"
+        if checks >= 3: return "💎 Premium"
         return "Personalizado"
     get_nivel_paquete.short_description = "Paquete"
     
@@ -211,8 +216,11 @@ class CotizacionAdmin(admin.ModelAdmin):
             </div>
             <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:sans-serif;">
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Botellas Licores:</td>
-                    <td style="padding:8px; text-align:right;"><strong>{datos['botellas']} u.</strong></td>
+                    <td style="padding:8px;">Botellas:</td>
+                    <td style="padding:8px; text-align:right;">
+                        <strong>{datos['botellas']} u.</strong><br>
+                        <span style="font-size:10px; color:#666;">(Nac: {datos['botellas_nacional']} / Prem: {datos['botellas_premium']})</span>
+                    </td>
                     <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_alcohol']:,.2f}</td>
                 </tr>
                 <tr style="border-bottom:1px solid #eee;">

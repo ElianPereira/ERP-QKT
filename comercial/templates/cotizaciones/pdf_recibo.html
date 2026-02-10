@@ -182,23 +182,35 @@
                             {{ item.descripcion }}
                         {% endif %}
 
-                        {# --- DETALLE DINÁMICO DE BARRA --- #}
+                        {# --- DESGLOSE DETALLADO DE BARRA --- #}
                         {% if "Servicio de Barra" in item.descripcion %}
-                            <div style="margin-top: 4px; font-size: 9px; color: #555; font-weight: normal; font-style: italic; line-height: 1.3; padding-left: 2px;">
-                                <strong style="color: #356685;">Incluye:</strong>
+                            <div style="margin-top: 5px; font-size: 9px; color: #555; font-weight: normal; line-height: 1.4; padding-left: 2px;">
+                                
                                 {% if cotizacion.incluye_refrescos %}
-                                    Refrescos, Mezcladores y Agua |
+                                    <div><strong style="color: #356685;">• Refrescos y Mezcladores:</strong> Coca-Cola, Squirt, Agua Mineral, Agua Natural y Hielo Ilimitado.</div>
                                 {% endif %}
+                                
                                 {% if cotizacion.incluye_cerveza %}
-                                    Cerveza Nacional |
+                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Cerveza Nacional:</strong> Servicio ilimitado (Presentación media botella).</div>
                                 {% endif %}
-                                {% if cotizacion.incluye_licor %}
-                                    Licores Premium (Tequila, Ron, Vodka, Whisky) |
+                                
+                                {% if cotizacion.incluye_licor_nacional %}
+                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Licores Nacionales:</strong> Tequila (José Cuervo Especial/Tradicional), Ron (Bacardí Blanco/Añejo), Vodka (Smirnoff/Absolut), Whisky (Red Label/William Lawson's).</div>
                                 {% endif %}
-                                {% if cotizacion.incluye_cocteleria %}
-                                    Estación de Mixología (Mojitos, Margaritas, Gin Tonics) |
+                                
+                                {% if cotizacion.incluye_licor_premium %}
+                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Licores Premium:</strong> Tequila (Don Julio 70/Herradura Ultra), Ron (Matusalem Gran Reserva/Zacapa), Vodka (Grey Goose/Belvedere), Whisky (Black Label/Chivas Regal 12), Ginebra (Tanqueray/Bombay Sapphire).</div>
                                 {% endif %}
-                                <strong style="color: #356685;">Staff de Barra.</strong>
+                                
+                                {% if cotizacion.incluye_cocteleria_basica %}
+                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Coctelería Clásica:</strong> Mojitos (Clásicos y Frutos Rojos), Margaritas (Limón, Tamarindo, Jamaica), Palomas Escarchadas, Gin Tonics Clásicos, Tequila Sunrise, Daiquiris.</div>
+                                {% endif %}
+                                
+                                {% if cotizacion.incluye_cocteleria_premium %}
+                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Mixología Premium:</strong> Carajillos 43 Shakeados, Aperol Spritz, Mezcalitas de Autor (Jamaica/Maracuyá/Pepino), Gin Tonics Botánicos, Martinis (Dry/Cosmo), Piñas Coladas, Clericot.</div>
+                                {% endif %}
+                                
+                                <div style="margin-top:3px; font-style:italic; color:#777;">* Incluye servicio de Staff de Barra profesional, cristalería y herramientas.</div>
                             </div>
                         {% endif %}
                     </td>

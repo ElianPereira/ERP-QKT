@@ -120,11 +120,17 @@ class Cotizacion(models.Model):
     # --- CONFIGURACIÓN DE BARRA MODULAR (CHECKBOXES) ---
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     
-    # MODIFICADO: Se quitaron los emojis de los nombres
+    # NUEVOS CAMPOS (SEPARADOS)
     incluye_refrescos = models.BooleanField(default=True, verbose_name="Refrescos y Mezcladores")
     incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza")
-    incluye_licor = models.BooleanField(default=False, verbose_name="Licores (Alcohol)")
-    incluye_cocteleria = models.BooleanField(default=False, verbose_name="Coctelería (Mixología)")
+    
+    # ALCOHOL SEPARADO
+    incluye_licor_nacional = models.BooleanField(default=False, verbose_name="Licores Nacionales (Básico)")
+    incluye_licor_premium = models.BooleanField(default=False, verbose_name="Licores Premium (Importado)")
+    
+    # COCTELERÍA SEPARADA
+    incluye_cocteleria_basica = models.BooleanField(default=False, verbose_name="Coctelería Básica (Mojitos, Margaritas)")
+    incluye_cocteleria_premium = models.BooleanField(default=False, verbose_name="Coctelería Premium (Carajillos, Autor)")
     
     clima = models.CharField(max_length=20, choices=CLIMA_CHOICES, default='calor', verbose_name="Clima / Entorno")
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
@@ -136,7 +142,7 @@ class Cotizacion(models.Model):
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua")
     
     insumo_alcohol_basico = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Básico")
-    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol (Base Costo)")
+    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Premium")
     
     insumo_barman = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Bartender")
     insumo_auxiliar = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Auxiliar")
@@ -162,23 +168,36 @@ class Cotizacion(models.Model):
 
     def calcular_barra_insumos(self):
         """
-        Calcula costos de forma MODULAR (Sumando componentes).
-        Retorna diccionario COMPLETO para uso en Admin.
+        Calcula costos de forma MODULAR.
         """
-        if not any([self.incluye_refrescos, self.incluye_cerveza, self.incluye_licor, self.incluye_cocteleria]) or self.num_personas <= 0:
+        checks = [
+            self.incluye_refrescos, self.incluye_cerveza, 
+            self.incluye_licor_nacional, self.incluye_licor_premium, 
+            self.incluye_cocteleria_basica, self.incluye_cocteleria_premium
+        ]
+        
+        # Si no hay nada seleccionado, retornamos None
+        if not any(checks) or self.num_personas <= 0:
             return None
 
         # 1. CONSTANTES & COSTOS UNITARIOS
         costo_hielo_20kg = self._get_costo_real(self.insumo_hielo, '88.00')
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
-        costo_alcohol = self._get_costo_real(self.insumo_alcohol_premium, '550.00') 
+        
+        # COSTOS DIFERENCIADOS PARA ALCOHOL
+        costo_alcohol_nacional = self._get_costo_real(self.insumo_alcohol_basico, '250.00') 
+        costo_alcohol_premium = self._get_costo_real(self.insumo_alcohol_premium, '550.00') 
+        
         costo_barman = self._get_costo_real(self.insumo_barman, '1200.00')
         costo_auxiliar = self._get_costo_real(self.insumo_auxiliar, '800.00')
 
         COSTO_CERVEZA_UNITARIO = Decimal('16.00')
         COSTO_FRUTA_PP = Decimal('8.00') 
-        COSTO_COCTELERIA_PP = Decimal('25.00')
+        
+        # --- COSTOS DE COCTELERÍA ---
+        COSTO_COCTELERIA_BASICA_PP = Decimal('25.00') # Mojitos (Hierbabuena, Limón, Jarabe)
+        COSTO_COCTELERIA_PREMIUM_PP = Decimal('65.00') # Carajillos (Licor 43), Aperol, Gins
 
         # 2. FACTOR CLIMA
         mult_liquido = Decimal('1.0')
@@ -190,7 +209,7 @@ class Cotizacion(models.Model):
             mult_liquido = Decimal('1.5')
             mult_hielo = Decimal('1.6')
 
-        # 3. ACUMULADORES
+        # 3. ACUMULADORES (INICIALIZAR EN CERO)
         total_alcohol = Decimal('0.00')
         total_insumos_varios = Decimal('0.00')
         
@@ -198,7 +217,8 @@ class Cotizacion(models.Model):
         kilos_hielo_base = 0.0
         
         # Variables de Conteo Físico
-        num_botellas = 0
+        num_botellas_nac = 0
+        num_botellas_prem = 0
         qty_cervezas = 0
         bolsas_hielo = 0
         litros_mezcladores_total = 0
@@ -220,22 +240,39 @@ class Cotizacion(models.Model):
             total_alcohol += (qty_cervezas * COSTO_CERVEZA_UNITARIO)
             kilos_hielo_base += (self.num_personas * 0.5)
 
-        # C) Licores
-        if self.incluye_licor:
+        # C) Licores Nacionales
+        if self.incluye_licor_nacional:
             factor_botella = 5.0
             if self.clima != 'normal': factor_botella = 4.5
-            num_botellas = math.ceil(self.num_personas / factor_botella)
-            total_alcohol += (num_botellas * costo_alcohol)
+            num_botellas_nac = math.ceil(self.num_personas / factor_botella)
+            total_alcohol += (num_botellas_nac * costo_alcohol_nacional)
             
             if not self.incluye_refrescos:
                 litros_mezcladores_base += (self.num_personas * 1.0)
                 kilos_hielo_base += (self.num_personas * 1.0)
 
-        # D) Coctelería
-        if self.incluye_cocteleria:
-            total_insumos_varios += (self.num_personas * COSTO_COCTELERIA_PP)
-            kilos_hielo_base += (self.num_personas * 0.8)
-            litros_mezcladores_base += (self.num_personas * 0.4)
+        # D) Licores Premium
+        if self.incluye_licor_premium:
+            factor_botella = 5.0
+            if self.clima != 'normal': factor_botella = 4.5
+            num_botellas_prem = math.ceil(self.num_personas / factor_botella)
+            total_alcohol += (num_botellas_prem * costo_alcohol_premium)
+            
+            if not self.incluye_refrescos and not self.incluye_licor_nacional:
+                litros_mezcladores_base += (self.num_personas * 1.0)
+                kilos_hielo_base += (self.num_personas * 1.0)
+
+        # E) Coctelería BÁSICA
+        if self.incluye_cocteleria_basica:
+            total_insumos_varios += (self.num_personas * COSTO_COCTELERIA_BASICA_PP)
+            kilos_hielo_base += (self.num_personas * 0.8) # Shakers
+            litros_mezcladores_base += (self.num_personas * 0.3)
+
+        # F) Coctelería PREMIUM
+        if self.incluye_cocteleria_premium:
+            total_insumos_varios += (self.num_personas * COSTO_COCTELERIA_PREMIUM_PP)
+            kilos_hielo_base += (self.num_personas * 1.0) 
+            litros_mezcladores_base += (self.num_personas * 0.2) 
 
         # 4. OPERATIVOS FINALES
         litros_agua = math.ceil((self.num_personas * 0.5) * float(mult_liquido))
@@ -251,7 +288,8 @@ class Cotizacion(models.Model):
         total_insumos_varios += (costo_agua + costo_hielo + costo_mezcladores)
 
         # 5. STAFF
-        ratio = 40 if self.incluye_cocteleria else 50
+        # Si hay coctelería (cualquiera), ratio 1:40
+        ratio = 40 if (self.incluye_cocteleria_basica or self.incluye_cocteleria_premium) else 50
         num_staff = math.ceil(self.num_personas / ratio)
         costo_staff = (num_staff * costo_barman) + (num_staff * costo_auxiliar)
 
@@ -262,7 +300,9 @@ class Cotizacion(models.Model):
         return {
             'costo_total_estimado': costo_total_operativo,
             'precio_venta_sugerido_total': precio_venta_total,
-            'botellas': num_botellas,
+            'botellas': num_botellas_nac + num_botellas_prem,
+            'botellas_nacional': num_botellas_nac,
+            'botellas_premium': num_botellas_prem,
             'cervezas_unidades': qty_cervezas,
             'bolsas_hielo_20kg': bolsas_hielo,
             'litros_mezcladores': litros_mezcladores_total,
@@ -304,13 +344,17 @@ class Cotizacion(models.Model):
         if datos_barra:
             precio_sugerido = Decimal(datos_barra['precio_venta_sugerido_total'])
             
-            checks = sum([self.incluye_refrescos, self.incluye_cerveza, self.incluye_licor, self.incluye_cocteleria])
+            checks = sum([
+                self.incluye_refrescos, self.incluye_cerveza, 
+                self.incluye_licor_nacional, self.incluye_licor_premium,
+                self.incluye_cocteleria_basica, self.incluye_cocteleria_premium
+            ])
             
-            nombre_paquete = "Sin Servicio"
-            if checks == 1: nombre_paquete = "Paquete Básico"
-            elif checks == 2: nombre_paquete = "Paquete Plus"
-            elif checks == 3: nombre_paquete = "Paquete Premium"
-            elif checks == 4: nombre_paquete = "Todo Incluido"
+            nombre_paquete = "Personalizado"
+            if checks == 0: nombre_paquete = "Sin Servicio"
+            elif checks == 1: nombre_paquete = "Básico"
+            elif checks == 2: nombre_paquete = "Plus"
+            elif checks >= 3: nombre_paquete = "Premium / Todo Incluido"
 
             tag_clima = "🔥" if self.clima in ['calor', 'extremo'] else ""
             nueva_descripcion = f"{desc_clave} {nombre_paquete} {tag_clima} | {self.num_personas} Pax - {self.horas_servicio} Hrs"
