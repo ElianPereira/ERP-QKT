@@ -120,11 +120,11 @@ class Cotizacion(models.Model):
     # --- CONFIGURACIÓN DE BARRA MODULAR (CHECKBOXES) ---
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     
-    # NUEVOS CAMPOS BOOLEANOS (LAS "PALOMITAS")
-    incluye_refrescos = models.BooleanField(default=True, verbose_name="✅ Refrescos y Mezcladores")
-    incluye_cerveza = models.BooleanField(default=False, verbose_name="✅ Cerveza")
-    incluye_licor = models.BooleanField(default=False, verbose_name="✅ Licores (Alcohol)")
-    incluye_cocteleria = models.BooleanField(default=False, verbose_name="✅ Coctelería (Mixología)")
+    # MODIFICADO: Se quitaron los emojis de los nombres
+    incluye_refrescos = models.BooleanField(default=True, verbose_name="Refrescos y Mezcladores")
+    incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza")
+    incluye_licor = models.BooleanField(default=False, verbose_name="Licores (Alcohol)")
+    incluye_cocteleria = models.BooleanField(default=False, verbose_name="Coctelería (Mixología)")
     
     clima = models.CharField(max_length=20, choices=CLIMA_CHOICES, default='calor', verbose_name="Clima / Entorno")
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
@@ -165,7 +165,6 @@ class Cotizacion(models.Model):
         Calcula costos de forma MODULAR (Sumando componentes).
         Retorna diccionario COMPLETO para uso en Admin.
         """
-        # Si no hay nada seleccionado, retornamos None
         if not any([self.incluye_refrescos, self.incluye_cerveza, self.incluye_licor, self.incluye_cocteleria]) or self.num_personas <= 0:
             return None
 
@@ -173,16 +172,15 @@ class Cotizacion(models.Model):
         costo_hielo_20kg = self._get_costo_real(self.insumo_hielo, '88.00')
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
-        costo_alcohol = self._get_costo_real(self.insumo_alcohol_premium, '550.00') # Usamos Premium como base
+        costo_alcohol = self._get_costo_real(self.insumo_alcohol_premium, '550.00') 
         costo_barman = self._get_costo_real(self.insumo_barman, '1200.00')
         costo_auxiliar = self._get_costo_real(self.insumo_auxiliar, '800.00')
 
-        # Costos Extra Fijos
         COSTO_CERVEZA_UNITARIO = Decimal('16.00')
-        COSTO_FRUTA_PP = Decimal('8.00') # Limón y Sal base
-        COSTO_COCTELERIA_PP = Decimal('25.00') # Jarabes y garnish
+        COSTO_FRUTA_PP = Decimal('8.00') 
+        COSTO_COCTELERIA_PP = Decimal('25.00')
 
-        # 2. FACTOR CLIMA (Multiplicadores)
+        # 2. FACTOR CLIMA
         mult_liquido = Decimal('1.0')
         mult_hielo = Decimal('1.0')
         if self.clima == 'calor':
@@ -192,14 +190,14 @@ class Cotizacion(models.Model):
             mult_liquido = Decimal('1.5')
             mult_hielo = Decimal('1.6')
 
-        # 3. ACUMULADORES (INICIALIZAR EN CERO PARA EVITAR KEYERROR)
+        # 3. ACUMULADORES
         total_alcohol = Decimal('0.00')
         total_insumos_varios = Decimal('0.00')
         
         litros_mezcladores_base = 0.0
         kilos_hielo_base = 0.0
         
-        # Variables de Conteo Físico (Para reporte admin)
+        # Variables de Conteo Físico
         num_botellas = 0
         qty_cervezas = 0
         bolsas_hielo = 0
@@ -207,63 +205,52 @@ class Cotizacion(models.Model):
         litros_agua = 0
         num_staff = 0
         
-        # --- LÓGICA MODULAR (SUMA DE PARTES) ---
+        # --- LÓGICA MODULAR ---
 
-        # A) Refrescos y Mezcladores
+        # A) Refrescos
         if self.incluye_refrescos:
-            # Base: 1.5L pax (Si hay cerveza baja a 0.6L)
             consumo_base = 0.6 if self.incluye_cerveza else 1.5
             litros_mezcladores_base += (self.num_personas * consumo_base)
-            kilos_hielo_base += (self.num_personas * 1.5) # Hielo base vasos
+            kilos_hielo_base += (self.num_personas * 1.5)
             total_insumos_varios += (self.num_personas * COSTO_FRUTA_PP)
 
         # B) Cerveza
         if self.incluye_cerveza:
-            # 1.2 cheves/hr/pax
             qty_cervezas = math.ceil(self.num_personas * 1.2 * self.horas_servicio * float(mult_liquido))
             total_alcohol += (qty_cervezas * COSTO_CERVEZA_UNITARIO)
-            kilos_hielo_base += (self.num_personas * 0.5) # Extra hielo para enfriar botellas
+            kilos_hielo_base += (self.num_personas * 0.5)
 
-        # C) Licores (Alcohol Fuerte)
+        # C) Licores
         if self.incluye_licor:
-            # 1 botella cada 5 personas (aprox)
             factor_botella = 5.0
-            if self.clima != 'normal': factor_botella = 4.5 # Beben mas rápido
+            if self.clima != 'normal': factor_botella = 4.5
             num_botellas = math.ceil(self.num_personas / factor_botella)
             total_alcohol += (num_botellas * costo_alcohol)
             
-            # Si no marco refrescos pero marcó alcohol, necesitamos mixers forzosos
             if not self.incluye_refrescos:
                 litros_mezcladores_base += (self.num_personas * 1.0)
                 kilos_hielo_base += (self.num_personas * 1.0)
 
         # D) Coctelería
         if self.incluye_cocteleria:
-            # Costo de insumos caros (jarabes, frutas, especias)
             total_insumos_varios += (self.num_personas * COSTO_COCTELERIA_PP)
-            
-            # Aumenta drásticamente hielo y mixers
-            kilos_hielo_base += (self.num_personas * 0.8) # Shakers y frappé
-            litros_mezcladores_base += (self.num_personas * 0.4) # Jugos extra
+            kilos_hielo_base += (self.num_personas * 0.8)
+            litros_mezcladores_base += (self.num_personas * 0.4)
 
-        # 4. CALCULAR OPERATIVOS FINALES (Con Clima)
-        # Agua Natural (Siempre incluida 0.5L)
+        # 4. OPERATIVOS FINALES
         litros_agua = math.ceil((self.num_personas * 0.5) * float(mult_liquido))
         costo_agua = litros_agua * costo_agua_lt
 
-        # Hielo Final
         kilos_hielo_total = kilos_hielo_base * float(mult_hielo)
         bolsas_hielo = math.ceil(kilos_hielo_total / 20.0)
         costo_hielo = bolsas_hielo * costo_hielo_20kg
 
-        # Mezcladores Finales
         litros_mezcladores_total = math.ceil(litros_mezcladores_base * float(mult_liquido))
         costo_mezcladores = litros_mezcladores_total * costo_mezclador_lt
 
         total_insumos_varios += (costo_agua + costo_hielo + costo_mezcladores)
 
         # 5. STAFF
-        # Si coctelería está activa, ratio 1:40, sino 1:50
         ratio = 40 if self.incluye_cocteleria else 50
         num_staff = math.ceil(self.num_personas / ratio)
         costo_staff = (num_staff * costo_barman) + (num_staff * costo_auxiliar)
@@ -275,7 +262,6 @@ class Cotizacion(models.Model):
         return {
             'costo_total_estimado': costo_total_operativo,
             'precio_venta_sugerido_total': precio_venta_total,
-            # DETALLES PARA EL ADMIN (Aquí estaba el error)
             'botellas': num_botellas,
             'cervezas_unidades': qty_cervezas,
             'bolsas_hielo_20kg': bolsas_hielo,
@@ -318,8 +304,6 @@ class Cotizacion(models.Model):
         if datos_barra:
             precio_sugerido = Decimal(datos_barra['precio_venta_sugerido_total'])
             
-            # --- LÓGICA DE NOMBRADO SEGÚN "PALOMITAS" ---
-            # Contamos cuántos True hay
             checks = sum([self.incluye_refrescos, self.incluye_cerveza, self.incluye_licor, self.incluye_cocteleria])
             
             nombre_paquete = "Sin Servicio"

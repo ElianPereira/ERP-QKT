@@ -109,9 +109,7 @@ class PagoInline(admin.TabularInline):
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline]
-    # Se reemplazó 'tipo_barra' por 'get_nivel_paquete' para evitar errores
     list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'precio_final', 'ver_pdf', 'enviar_email_btn')
-    # Se agregaron los filtros nuevos y se quitó tipo_barra
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor', 'incluye_cerveza')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
@@ -140,13 +138,17 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
         ('Configuración de Barra (Modular)', {
             'fields': (
-                ('incluye_refrescos', 'incluye_cerveza'), # Fila 1
-                ('incluye_licor', 'incluye_cocteleria'),  # Fila 2
-                ('clima', 'horas_servicio'),
+                # MODIFICADO: Cada uno en su línea para que salgan verticales
+                'incluye_refrescos',
+                'incluye_cerveza',
+                'incluye_licor', 
+                'incluye_cocteleria',
+                'clima', 
+                'horas_servicio',
                 'factor_utilidad_barra',
                 'resumen_barra_html'
             ),
-            'description': 'Selecciona los componentes (Checkboxes) para armar el paquete.'
+            'description': 'Selecciona los componentes para armar el paquete.'
         }),
         ('Selección de Insumos Base (Costos)', {
             'fields': (
@@ -179,7 +181,6 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
 
-    # Función para mostrar el nombre del paquete en la lista
     def get_nivel_paquete(self, obj):
         checks = sum([obj.incluye_refrescos, obj.incluye_cerveza, obj.incluye_licor, obj.incluye_cocteleria])
         if checks == 0: return "⛔ Sin Servicio"
@@ -195,7 +196,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666;">Seleccione servicios y guarde para calcular.</div>')
         
-        # Obtener costos unitarios para desglose visual
         costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
         costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
         costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
@@ -204,7 +204,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
-        # Construcción de tabla HTML informativa
         html = f"""
         <div style="border:1px solid #ccc; border-radius:5px; overflow:hidden;">
             <div style="background:#333; color:white; padding:10px; font-weight:bold;">
