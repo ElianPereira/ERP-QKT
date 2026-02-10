@@ -30,6 +30,117 @@ except ImportError:
     SolicitudFactura = None 
 
 # ==========================================
+# 0. FUNCIONES AUXILIARES (NUEVO)
+# ==========================================
+def generar_lista_compras_barra(tipo_barra, personas, horas, clima='normal'):
+    """
+    Genera una lista detallada de compras (Explosión de insumos).
+    MODIFICADO: Recibe 'clima' para ajustar cantidades de Hielo y Líquidos.
+    """
+    if tipo_barra == 'ninguna':
+        return {}
+
+    lista_compras = {
+        'Bebidas y Mezcladores': [],
+        'Frutas y Verduras': [],
+        'Abarrotes y Consumibles': [],
+        'Alcohol': []
+    }
+
+    # FACTORES CLIMA
+    mult_liquido = 1.0
+    mult_hielo = 1.0
+    
+    if clima == 'calor':
+        mult_liquido = 1.3 # 30% mas
+        mult_hielo = 1.4 # 40% mas
+    elif clima == 'extremo':
+        mult_liquido = 1.5
+        mult_hielo = 1.6
+
+    # 1. CÁLCULO DE LÍQUIDOS Y HIELO BASE
+    litros_totales = personas * 1.5
+    factor_hielo_base = 1.8 
+    
+    if horas > 5:
+        litros_totales += (personas * 0.3 * (horas - 5))
+        factor_hielo_base += 0.4
+    
+    if 'cocteleria' in tipo_barra:
+        factor_hielo_base *= 1.3 
+        litros_totales *= 1.2
+    
+    # APLICAR CLIMA
+    litros_totales = litros_totales * mult_liquido
+    kilos_hielo = (personas * factor_hielo_base) * mult_hielo
+    
+    bolsas_hielo = math.ceil(kilos_hielo / 20) 
+
+    # 2. DEFINIR CANTIDADES POR TIPO
+    factor_refresco = 0.4 if 'cerveza' in tipo_barra else 1.0
+
+    # Generación de Items
+    if tipo_barra != 'sin_alcohol':
+        # Mezcladores
+        coca_cola_litros = (litros_totales * 0.60) * factor_refresco
+        squirt_litros = (litros_totales * 0.20) * factor_refresco
+        mineral_litros = (litros_totales * 0.20) * factor_refresco
+        
+        lista_compras['Bebidas y Mezcladores'].append({
+            'item': 'Refresco de Cola (2.5L o 3L)',
+            'cantidad': math.ceil(coca_cola_litros / 2.5), 'unidad': 'Botellas'
+        })
+        lista_compras['Bebidas y Mezcladores'].append({
+            'item': 'Refresco Toronja/Lima (2.5L)',
+            'cantidad': math.ceil(squirt_litros / 2.5), 'unidad': 'Botellas'
+        })
+        lista_compras['Bebidas y Mezcladores'].append({
+            'item': 'Agua Mineral (Peñafiel 2L)',
+            'cantidad': math.ceil(mineral_litros / 2), 'unidad': 'Botellas'
+        })
+        # Agua Natural tambien sube con el clima
+        cant_agua = (personas * 0.5) * mult_liquido
+        lista_compras['Bebidas y Mezcladores'].append({
+            'item': 'Agua Natural (Garrafón 20L)',
+            'cantidad': math.ceil(cant_agua / 20), 'unidad': 'Garrafones'
+        })
+
+    # Cerveza
+    if 'cerveza' in tipo_barra:
+        consumo_cheve = (personas * 1.2 * horas) * mult_liquido # Con calor toman mas cheve
+        cartones = math.ceil(consumo_cheve / 24)
+        lista_compras['Alcohol'].append({
+            'item': 'Cerveza (Cartón 24u - Media)',
+            'cantidad': cartones, 'unidad': 'Cartones'
+        })
+
+    # Frutas y Perecederos
+    kilos_limon = math.ceil(personas / 20)
+    lista_compras['Frutas y Verduras'].append({
+        'item': 'Limón (Verde/Persa)',
+        'cantidad': kilos_limon, 'unidad': 'kg'
+    })
+
+    if 'cocteleria' in tipo_barra:
+        lista_compras['Frutas y Verduras'].append({'item': 'Naranjas (Garnish/Jugo)', 'cantidad': math.ceil(personas / 25), 'unidad': 'kg'})
+        lista_compras['Frutas y Verduras'].append({'item': 'Hierbabuena / Menta', 'cantidad': math.ceil(personas / 30), 'unidad': 'Manojos grandes'})
+        lista_compras['Frutas y Verduras'].append({'item': 'Frutos Rojos (Congelados)', 'cantidad': math.ceil(personas / 40), 'unidad': 'kg'})
+        lista_compras['Abarrotes y Consumibles'].append({'item': 'Jarabe Natural / Granadina', 'cantidad': math.ceil(personas / 50), 'unidad': 'Litros'})
+        lista_compras['Bebidas y Mezcladores'].append({'item': 'Jugos Tetrapack (Arándano/Piña)', 'cantidad': math.ceil(personas / 15), 'unidad': 'Litros'})
+
+    # Consumibles Generales
+    lista_compras['Abarrotes y Consumibles'].append({
+        'item': 'Hielo (Bolsa Grande 20kg)',
+        'cantidad': bolsas_hielo, 'unidad': 'Bolsas'
+    })
+    lista_compras['Abarrotes y Consumibles'].append({
+        'item': 'Servilletas Cocktail',
+        'cantidad': 1 if personas < 100 else 2, 'unidad': 'Paquetes'
+    })
+    
+    return lista_compras
+
+# ==========================================
 # 1. DASHBOARD PRINCIPAL
 # ==========================================
 @staff_member_required 
@@ -83,7 +194,7 @@ def ver_dashboard_kpis(request):
     return render(request, 'admin/dashboard.html', context)
 
 # ==========================================
-# 2. GENERAR LISTA DE COMPRAS
+# 2. GENERAR LISTA DE COMPRAS (GLOBAL Y POR EVENTO)
 # ==========================================
 @staff_member_required
 def generar_lista_compras(request):
@@ -130,6 +241,7 @@ def generar_lista_compras(request):
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
         
+        # Ojo: Este usa el template 'comercial/pdf_lista_compras.html' (Formato reporte global)
         html_string = render_to_string('comercial/pdf_lista_compras.html', {
             'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'lista': lista_final,
             'eventos': eventos, 'logo_url': logo_url
@@ -140,6 +252,38 @@ def generar_lista_compras(request):
         return response
 
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
+
+# --- NUEVO: LISTA DE COMPRAS ESPECÍFICA POR COTIZACIÓN (CHECKLIST) ---
+@staff_member_required
+def descargar_lista_compras_pdf(request, cotizacion_id):
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+    
+    # Generamos la lista basada en la lógica de barra Y EL CLIMA
+    lista_insumos = generar_lista_compras_barra(
+        cotizacion.tipo_barra, 
+        cotizacion.num_personas, 
+        cotizacion.horas_servicio,
+        cotizacion.clima # <--- Pasamos el clima
+    )
+    
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+
+    html_string = render_to_string('pdf_lista_compras.html', {
+        'cotizacion': cotizacion,
+        'lista': lista_insumos,
+        'logo_url': logo_url,
+        'fecha_impresion': timezone.now()
+    })
+    
+    html = HTML(string=html_string, base_url=request.build_absolute_uri())
+    result = html.write_pdf()
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename=Checklist_Barra_{cotizacion.id}.pdf'
+    response.write(result)
+    return response
+
 
 # ==========================================
 # 3. COTIZACIONES (PDF Y EMAIL)

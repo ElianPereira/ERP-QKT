@@ -15,7 +15,8 @@ from comercial.views import (
     exportar_reporte_cotizaciones,
     generar_lista_compras,
     forzar_migracion,
-    exportar_reporte_pagos  # <--- AGREGADO AQUÍ
+    exportar_reporte_pagos,
+    descargar_lista_compras_pdf # <--- NUEVA IMPORTACIÓN
 )
 
 # Importamos vistas de otros módulos (Nómina y Facturación)
@@ -33,12 +34,15 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/pdf/', generar_pdf_cotizacion, name='cotizacion_pdf'),
     path('cotizacion/<int:cotizacion_id>/email/', enviar_cotizacion_email, name='cotizacion_email'),
     
+    # --- NUEVA RUTA PARA LISTA DE COMPRAS POR EVENTO ---
+    path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
+    
     # --- Calendario, Reportes y Compras ---
     path('admin/calendario/', ver_calendario, name='ver_calendario'),
     
     # Reportes Financieros
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
-    path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),  # <--- NUEVA RUTA AGREGADA
+    path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
     
     # Herramientas
     path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),

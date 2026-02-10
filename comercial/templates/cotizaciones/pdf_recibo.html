@@ -184,8 +184,27 @@
                         
                         {% else %}
                             {# CASO 3: Es un Item libre (Barra, extras manuales) #}
-                            {# Se muestra la descripción como Título Principal en negrita #}
                             {{ item.descripcion }}
+                        {% endif %}
+
+                        {# --- NUEVO BLOQUE: DESGLOSE DE BARRA --- #}
+                        {# Si la descripción contiene 'Servicio de Barra', mostramos el detalle según el tipo elegido #}
+                        {% if "Servicio de Barra" in item.descripcion %}
+                            <div style="margin-top: 4px; font-size: 9px; color: #666; font-weight: normal; font-style: italic; line-height: 1.3; padding-left: 2px;">
+                                {% if cotizacion.tipo_barra == 'basico' %}
+                                    <strong style="color: #356685;">Incluye Licores (Nacional):</strong> Tequila, Ron, Vodka y Whisky.
+                                {% elif cotizacion.tipo_barra == 'premium' %}
+                                    <strong style="color: #356685;">Incluye Licores (Premium):</strong> Tequila, Ron, Vodka, Whisky y Ginebra.
+                                {% elif cotizacion.tipo_barra == 'cocteleria_insumos' %}
+                                    <strong style="color: #356685;">Estación de Coctelería:</strong> Insumos y Garnish para Mojitos, Margaritas, Palomas y Gin Tonics. (No incluye alcohol).
+                                {% elif cotizacion.tipo_barra == 'cerveza_refrescos' %}
+                                    <strong style="color: #356685;">Incluye:</strong> Cerveza Nacional (Media) y Refrescos Ilimitados.
+                                {% elif cotizacion.tipo_barra == 'premium_cocteleria' %}
+                                    <strong style="color: #356685;">Todo Incluido:</strong> Barra Libre Premium + Estación de Mixología (Mojitos, Margaritas, Gin Tonics).
+                                {% elif cotizacion.tipo_barra == 'sin_alcohol' %}
+                                    <strong style="color: #356685;">Incluye:</strong> Coca-Cola, Squirt, Agua Mineral y Agua Natural Ilimitados.
+                                {% endif %}
+                            </div>
                         {% endif %}
                     </td>
                     <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>

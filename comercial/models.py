@@ -23,7 +23,6 @@ class Insumo(models.Model):
     unidad_medida = models.CharField(max_length=50) 
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo de Compra") 
     
-    # --- NUEVO: SOPORTE PARA CAJAS/BULK ---
     factor_rendimiento = models.DecimalField(
         max_digits=10, decimal_places=2, default=1.00,
         verbose_name="Rendimiento (Divisor)",
@@ -105,11 +104,23 @@ class Cliente(models.Model):
 # ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [('BORRADOR', 'Borrador'), ('CONFIRMADA', 'Venta Confirmada'), ('CANCELADA', 'Cancelada')]
+    
     BARRA_CHOICES = [
         ('ninguna', 'Sin Servicio de Alcohol'),
         ('sin_alcohol', 'Barra Refrescos (Solo Mezcladores)'), 
+        ('cocteleria_insumos', 'Barra Coctelería (Solo Insumos, Fruta y Jarabes)'),
+        ('cerveza_refrescos', 'Barra Cerveza y Refrescos'),
         ('basico', 'Paquete Básico (Botellas 1L - Nacional)'),
         ('premium', 'Paquete Premium (Botellas 1L - Importado)'),
+        # NUEVA OPCIÓN B:
+        ('premium_cocteleria', '💎 Todo Incluido (Premium + Coctelería + Staff)'),
+    ]
+
+    # --- NUEVO: FACTOR CLIMA MÉRIDA ---
+    CLIMA_CHOICES = [
+        ('normal', 'Interior / Aire Acondicionado (Consumo Normal)'),
+        ('calor', 'Exterior / Calor Mérida (Consumo Alto +30%)'),
+        ('extremo', 'Ola de Calor / Mayo (Consumo Extremo +50%)'),
     ]
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
@@ -121,16 +132,18 @@ class Cotizacion(models.Model):
     # --- CONFIGURACIÓN DE BARRA ---
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     tipo_barra = models.CharField(max_length=20, choices=BARRA_CHOICES, default='ninguna', verbose_name="Tipo Barra")
+    clima = models.CharField(max_length=20, choices=CLIMA_CHOICES, default='calor', verbose_name="Clima / Entorno")
+    
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
     factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=2.20, verbose_name="Factor Utilidad")
 
     # Selección Manual de Insumos
-    insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo (20kg)", help_text="Selecciona la bolsa de hielo")
-    insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco", help_text="Selecciona el refresco base")
-    insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua", help_text="Selecciona el garrafón")
+    insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo (20kg)")
+    insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco")
+    insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua")
     
-    insumo_alcohol_basico = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Básico", help_text="Ej: Bacardí o Etiqueta Roja")
-    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Premium", help_text="Ej: Etiqueta Negra o Dobel")
+    insumo_alcohol_basico = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Básico")
+    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Premium")
     
     insumo_barman = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Bartender")
     insumo_auxiliar = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Auxiliar")
@@ -149,22 +162,19 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
-    # --- MÉTODO PARA CALCULAR PRECIO REAL UNITARIO ---
     def _get_costo_real(self, insumo, precio_default):
-        if not insumo:
-            return Decimal(precio_default)
+        if not insumo: return Decimal(precio_default)
         factor = insumo.factor_rendimiento if insumo.factor_rendimiento > 0 else Decimal(1)
         return insumo.costo_unitario / factor
 
     def calcular_barra_insumos(self):
         """
-        Calcula los costos desglosados para el reporte financiero.
-        Retorna un diccionario estructurado por categorías.
+        Calcula costos considerando Tipo de Barra y FACTOR CLIMA MÉRIDA.
         """
         if self.tipo_barra == 'ninguna' or self.num_personas <= 0:
             return None
 
-        # 1. OBTENER COSTOS REALES (Unitarios)
+        # 1. CONSTANTES BASE
         costo_hielo_20kg = self._get_costo_real(self.insumo_hielo, '88.00')
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
@@ -173,61 +183,126 @@ class Cotizacion(models.Model):
         costo_base = self._get_costo_real(self.insumo_alcohol_basico, '250.00')
         costo_premium = self._get_costo_real(self.insumo_alcohol_premium, '550.00')
 
-        # 2. CÁLCULOS FÍSICOS & COSTOS
-        # A) Alcohol
+        # Costos Extras
+        COSTO_CERVEZA_UNITARIO = Decimal('16.00')
+        COSTO_FRUTA_PP = Decimal('8.00')
+        COSTO_COCTELERIA_PP = Decimal('25.00')
+
+        # --- APLICAR FACTOR CLIMA (MÉRIDA) ---
+        # Factor Líquido: Cuánto más beben.
+        # Factor Hielo: Cuánto más se usa y se derrite.
+        factor_clima_liquido = Decimal('1.0')
+        factor_clima_hielo = Decimal('1.0')
+
+        if self.clima == 'calor':
+            factor_clima_liquido = Decimal('1.3') # +30% Bebida
+            factor_clima_hielo = Decimal('1.4')   # +40% Hielo
+        elif self.clima == 'extremo':
+            factor_clima_liquido = Decimal('1.5') # +50% Bebida
+            factor_clima_hielo = Decimal('1.6')   # +60% Hielo
+
+        # Inicialización
         botellas = 0
+        cervezas_totales = 0
         costo_alcohol_total = Decimal('0.00')
+        costo_fruta_jarabes = Decimal('0.00')
+        factor_hielo_base = 2.0 
+        litros_mezcladores_base = 0
+
+        # 2. LÓGICA SEGÚN TIPO DE BARRA
         
+        # A) Paquetes Tradicionales (Básico / Premium)
         if self.tipo_barra in ['basico', 'premium']:
             factor_consumo = 4.5 if self.horas_servicio >= 5 else 5.5
             precio_botella = costo_premium if self.tipo_barra == 'premium' else costo_base
+            
+            # Con calor, la gente "fondoa" más rápido el trago
+            if self.clima in ['calor', 'extremo']: factor_consumo -= 0.5 
+            
             botellas = math.ceil(self.num_personas / factor_consumo)
             costo_alcohol_total = botellas * precio_botella
-            litros_mezcladores = math.ceil(botellas * 4.5)
-        else:
-            litros_mezcladores = math.ceil(self.num_personas * 1.5)
+            litros_mezcladores_base = math.ceil(botellas * 4.5)
+            costo_fruta_jarabes = self.num_personas * COSTO_FRUTA_PP
 
-        # B) Insumos Operativos (Mezcladores, Hielo, Agua)
-        kilos_hielo = self.num_personas * 2.0
+        # B) Coctelería Solo Insumos
+        elif self.tipo_barra == 'cocteleria_insumos':
+            litros_mezcladores_base = math.ceil(self.num_personas * 1.8)
+            factor_hielo_base = 2.6
+            costo_fruta_jarabes = self.num_personas * (COSTO_FRUTA_PP + COSTO_COCTELERIA_PP)
+        
+        # C) Cerveza y Refrescos
+        elif self.tipo_barra == 'cerveza_refrescos':
+            # Calor = Más Cerveza
+            factor_cheve = Decimal(1.2) * factor_clima_liquido 
+            consumo_cerveza = factor_cheve * self.horas_servicio * self.num_personas
+            cervezas_totales = math.ceil(consumo_cerveza)
+            costo_alcohol_total = cervezas_totales * COSTO_CERVEZA_UNITARIO
+            
+            litros_mezcladores_base = math.ceil(self.num_personas * 0.6) 
+            costo_fruta_jarabes = self.num_personas * (COSTO_FRUTA_PP * Decimal(0.5))
+
+        # D) NUEVO: TODO INCLUIDO (PREMIUM + COCTELERÍA)
+        elif self.tipo_barra == 'premium_cocteleria':
+            # 1. Alcohol: Cálculo de botellas Premium
+            factor_consumo = 4.0 # Beben más porque está rico el coctel
+            botellas = math.ceil(self.num_personas / factor_consumo)
+            costo_alcohol_total = botellas * costo_premium
+
+            # 2. Insumos Coctelería: Se cobra el full de fruta y jarabes
+            costo_fruta_jarabes = self.num_personas * (COSTO_FRUTA_PP + COSTO_COCTELERIA_PP)
+
+            # 3. Líquidos: Mucho jugo y agua mineral
+            litros_mezcladores_base = math.ceil(self.num_personas * 2.2)
+            
+            # 4. Hielo: Máximo consumo
+            factor_hielo_base = 2.8
+
+        # E) Solo Refrescos
+        else:
+            litros_mezcladores_base = math.ceil(self.num_personas * 1.5)
+            costo_fruta_jarabes = self.num_personas * COSTO_FRUTA_PP
+
+        # 3. APLICAR FACTOR CLIMA A OPERATIVOS
+        
+        # Hielo Final (Base * Clima)
+        kilos_hielo = (self.num_personas * factor_hielo_base) * float(factor_clima_hielo)
         bolsas_hielo_20kg = math.ceil(kilos_hielo / 20.0)
         costo_hielo_total = bolsas_hielo_20kg * costo_hielo_20kg
         
+        # Mezcladores Finales (Base * Clima)
+        litros_mezcladores = math.ceil(litros_mezcladores_base * float(factor_clima_liquido))
         costo_mezcladores_total = litros_mezcladores * costo_mezclador_lt
         
-        litros_agua = math.ceil(self.num_personas * 0.5)
+        # Agua (Base * Clima)
+        litros_agua = math.ceil((self.num_personas * 0.5) * float(factor_clima_liquido))
         costo_agua_total = litros_agua * costo_agua_lt
         
-        subtotal_insumos_varios = costo_hielo_total + costo_mezcladores_total + costo_agua_total
+        subtotal_insumos_varios = costo_hielo_total + costo_mezcladores_total + costo_agua_total + costo_fruta_jarabes
 
-        # C) Staff
-        num_staff = math.ceil(self.num_personas / 50) 
+        # Staff
+        # Si es Coctelería o Todo Incluido, se necesita más staff (1 cada 40 pax)
+        ratio_staff = 40 if 'cocteleria' in self.tipo_barra else 50
+        num_staff = math.ceil(self.num_personas / ratio_staff) 
         costo_staff_total = (num_staff * costo_barman) + (num_staff * costo_auxiliar)
 
-        # 3. TOTALES FINALES
+        # 4. RESULTADOS
         costo_total_operativo = costo_alcohol_total + subtotal_insumos_varios + costo_staff_total
-        
         factor_margen = Decimal(str(self.factor_utilidad_barra))
         precio_venta_total = costo_total_operativo * factor_margen
 
         return {
-            # Datos Físicos
             'botellas': botellas,
+            'cervezas_unidades': cervezas_totales,
             'bolsas_hielo_20kg': bolsas_hielo_20kg,
             'litros_mezcladores': litros_mezcladores,
             'litros_agua': litros_agua,
             'num_barmans': num_staff,
             'num_auxiliares': num_staff,
-            
-            # Desglose Financiero (Costos)
             'costo_alcohol': round(costo_alcohol_total, 2),
-            'costo_insumos_varios': round(subtotal_insumos_varios, 2), # Hielo + Refresco + Agua
+            'costo_insumos_varios': round(subtotal_insumos_varios, 2),
             'costo_staff': round(costo_staff_total, 2),
-            
-            # Totales
             'costo_total_estimado': round(costo_total_operativo, 2),
             'costo_pax': round(costo_total_operativo / self.num_personas, 2),
-            
-            # Precios Venta Sugeridos
             'precio_venta_sugerido_total': round(precio_venta_total, 2),
             'precio_venta_sugerido_pax': round(precio_venta_total / self.num_personas, 2),
             'margen_aplicado': self.factor_utilidad_barra
@@ -261,9 +336,18 @@ class Cotizacion(models.Model):
 
         if datos_barra:
             precio_sugerido = Decimal(datos_barra['precio_venta_sugerido_total'])
-            nombres = {'basico': 'Libre Nacional', 'premium': 'Libre Premium', 'sin_alcohol': 'Refrescos Ilimitados'}
+            nombres = {
+                'basico': 'Libre Nacional', 
+                'premium': 'Libre Premium', 
+                'sin_alcohol': 'Refrescos Ilimitados',
+                'cocteleria_insumos': 'Coctelería (Solo Insumos)',
+                'cerveza_refrescos': 'Cerveza y Refrescos',
+                'premium_cocteleria': 'Todo Incluido (Premium + Mixología)' # Nombre comercial
+            }
             nombre_tipo = nombres.get(self.tipo_barra, 'General')
-            nueva_descripcion = f"{desc_clave} {nombre_tipo} | {self.num_personas} Pax - {self.horas_servicio} Hrs"
+            # Agregamos indicador de Clima en la descripción si es relevante
+            tag_clima = "🔥" if self.clima in ['calor', 'extremo'] else ""
+            nueva_descripcion = f"{desc_clave} {nombre_tipo} {tag_clima} | {self.num_personas} Pax - {self.horas_servicio} Hrs"
             
             if item_barra:
                 if abs(item_barra.precio_unitario - precio_sugerido) > Decimal('0.01') or item_barra.descripcion != nueva_descripcion:
@@ -329,7 +413,6 @@ class Compra(models.Model):
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     
-    # MODIFICADO: blank=True, null=True para permitir compras manuales
     archivo_xml = models.FileField(upload_to='xml_compras/', storage=RawMediaCloudinaryStorage(), blank=True, null=True)
     archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
     
