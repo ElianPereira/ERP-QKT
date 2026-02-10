@@ -173,12 +173,19 @@
                 <tr style="font-weight: bold; color: #333;">
                     <td>
                         {% if item.producto %}
+                            {# CASO 1: Es un Producto empaquetado #}
                             {{ item.producto.nombre }}
                             <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Paquete contratado" }}</span>
-                        {% else %}
-                            {# MODIFICADO: Ahora el insumo tiene el mismo tratamiento visual que el producto #}
+                        
+                        {% elif item.insumo %}
+                            {# CASO 2: Es un Insumo (Mobiliario, etc) #}
                             {{ item.insumo.nombre }}
                             <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Servicio Contratado" }}</span>
+                        
+                        {% else %}
+                            {# CASO 3: Es un Item libre (Barra, extras manuales) #}
+                            {# Se muestra la descripción como Título Principal en negrita #}
+                            {{ item.descripcion }}
                         {% endif %}
                     </td>
                     <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
