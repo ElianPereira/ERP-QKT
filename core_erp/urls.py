@@ -16,12 +16,20 @@ from comercial.views import (
     generar_lista_compras,
     forzar_migracion,
     exportar_reporte_pagos,
-    descargar_lista_compras_pdf # <--- NUEVA IMPORTACIÓN
+    descargar_lista_compras_pdf # <--- ESTA IMPORTACIÓN ES CRUCIAL
 )
 
 # Importamos vistas de otros módulos (Nómina y Facturación)
-from nomina.views import cargar_nomina
-from facturacion.views import crear_solicitud
+# Usamos try/except por si el módulo aún no está listo, evitar error 500
+try:
+    from nomina.views import cargar_nomina
+except ImportError:
+    cargar_nomina = None
+
+try:
+    from facturacion.views import crear_solicitud
+except ImportError:
+    crear_solicitud = None
 
 urlpatterns = [
     # --- RUTA DE UTILIDAD PARA MIGRAR DB DESDE LA WEB ---
@@ -34,7 +42,7 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/pdf/', generar_pdf_cotizacion, name='cotizacion_pdf'),
     path('cotizacion/<int:cotizacion_id>/email/', enviar_cotizacion_email, name='cotizacion_email'),
     
-    # --- NUEVA RUTA PARA LISTA DE COMPRAS POR EVENTO ---
+    # --- RUTA PARA LISTA DE COMPRAS (CHECKLIST) ---
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
     
     # --- Calendario, Reportes y Compras ---
@@ -49,9 +57,9 @@ urlpatterns = [
     path('admin/calculadora/', calculadora_insumos, name='admin_calculadora'),
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
     
-    # 3. Rutas de Nómina y Facturación
-    path('admin/nomina/cargar/', cargar_nomina, name='cargar_nomina'),
-    path('admin/facturacion/nueva/', crear_solicitud, name='crear_solicitud'),
+    # 3. Rutas de Nómina y Facturación (Si existen)
+    path('admin/nomina/cargar/', cargar_nomina if cargar_nomina else admin.site.urls, name='cargar_nomina'),
+    path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
 
     # 4. ADMIN DE DJANGO (Resto de funcionalidades)
     path('admin/', admin.site.urls),

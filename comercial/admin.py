@@ -109,8 +109,22 @@ class PagoInline(admin.TabularInline):
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'precio_final', 'ver_pdf', 'enviar_email_btn')
-    list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
+    
+    # Muestra el botón de PDF, Lista de Compras y Email en la lista principal
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'precio_final', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn')
+    
+    # Filtros actualizados con las nuevas opciones
+    list_filter = (
+        'estado', 
+        'requiere_factura', 
+        'fecha_evento', 
+        'clima', 
+        'incluye_licor_nacional', 
+        'incluye_licor_premium',
+        'incluye_cocteleria_basica',
+        'incluye_cocteleria_premium'
+    )
+    
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
     raw_id_fields = [
@@ -138,19 +152,19 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
         ('Configuración de Barra (Modular)', {
             'fields': (
-                # MODIFICADO: Lista vertical para que no se amontonen
+                # CONFIGURACIÓN VERTICAL (Uno por línea para evitar amontonamiento)
                 'incluye_refrescos',
                 'incluye_cerveza',
                 'incluye_licor_nacional',
                 'incluye_licor_premium',
-                'incluye_cocteleria_basica', # NUEVO
-                'incluye_cocteleria_premium', # NUEVO
+                'incluye_cocteleria_basica',
+                'incluye_cocteleria_premium',
                 'clima', 
                 'horas_servicio',
                 'factor_utilidad_barra',
                 'resumen_barra_html'
             ),
-            'description': 'Selecciona los componentes para armar el paquete.'
+            'description': 'Selecciona los componentes (Checkboxes) para armar el paquete.'
         }),
         ('Selección de Insumos Base (Costos)', {
             'fields': (
@@ -207,8 +221,8 @@ class CotizacionAdmin(admin.ModelAdmin):
 
         total_hielo = datos['bolsas_hielo_20kg'] * costo_hielo_u
         total_mix = datos['litros_mezcladores'] * costo_mix_u
-        total_agua = datos['litros_agua'] * costo_agua_u
-
+        
+        # HTML del reporte en el admin
         html = f"""
         <div style="border:1px solid #ccc; border-radius:5px; overflow:hidden;">
             <div style="background:#333; color:white; padding:10px; font-weight:bold;">
@@ -290,6 +304,22 @@ class CotizacionAdmin(admin.ModelAdmin):
             except NoReverseMatch: return "-"
         return "-"
     ver_pdf.short_description = "PDF"
+
+    # --- NUEVO BOTÓN PARA VER LISTA DE COMPRAS ---
+    def ver_lista_compras(self, obj):
+        if obj.id:
+            try:
+                checks = [
+                    obj.incluye_refrescos, obj.incluye_cerveza, 
+                    obj.incluye_licor_nacional, obj.incluye_licor_premium,
+                    obj.incluye_cocteleria_basica, obj.incluye_cocteleria_premium
+                ]
+                if any(checks):
+                    url = reverse('cotizacion_lista_compras', args=[obj.id])
+                    return format_html('<a href="{}" target="_blank" class="btn btn-warning" style="background-color:#ffc107; color:#212529; border:none;">📋 Lista</a>', url)
+            except NoReverseMatch: return "-"
+        return "-"
+    ver_lista_compras.short_description = "Insumos"
 
     def enviar_email_btn(self, obj):
         if obj.id:
