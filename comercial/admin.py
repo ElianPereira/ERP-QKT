@@ -109,8 +109,10 @@ class PagoInline(admin.TabularInline):
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'tipo_barra', 'precio_final', 'ver_pdf', 'enviar_email_btn')
-    list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'tipo_barra')
+    # Se reemplazó 'tipo_barra' por 'get_nivel_paquete' para evitar errores
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'precio_final', 'ver_pdf', 'enviar_email_btn')
+    # Se agregaron los filtros nuevos y se quitó tipo_barra
+    list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor', 'incluye_cerveza')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     
     raw_id_fields = [
@@ -136,16 +138,17 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'estado'
             )
         }),
-        ('Calculadora de Barra', {
+        ('Configuración de Barra (Modular)', {
             'fields': (
-                'tipo_barra', 
-                'horas_servicio', 
+                ('incluye_refrescos', 'incluye_cerveza'), # Fila 1
+                ('incluye_licor', 'incluye_cocteleria'),  # Fila 2
+                ('clima', 'horas_servicio'),
                 'factor_utilidad_barra',
                 'resumen_barra_html'
             ),
-            'description': 'Parámetros generales.'
+            'description': 'Selecciona los componentes (Checkboxes) para armar el paquete.'
         }),
-        ('Selección de Insumos (Opcional)', {
+        ('Selección de Insumos Base (Costos)', {
             'fields': (
                 'insumo_hielo', 
                 'insumo_refresco', 
@@ -155,7 +158,8 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'insumo_alcohol_basico', 
                 'insumo_alcohol_premium',
             ),
-            'description': 'Define insumos específicos del inventario.'
+            'classes': ('collapse',),
+            'description': 'Define qué insumos reales del inventario se usarán para calcular el costo.'
         }),
         ('Finanzas', {
             'fields': (
@@ -174,12 +178,24 @@ class CotizacionAdmin(admin.ModelAdmin):
     readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html')
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
+
+    # Función para mostrar el nombre del paquete en la lista
+    def get_nivel_paquete(self, obj):
+        checks = sum([obj.incluye_refrescos, obj.incluye_cerveza, obj.incluye_licor, obj.incluye_cocteleria])
+        if checks == 0: return "⛔ Sin Servicio"
+        if checks == 1: return "⭐ Básico"
+        if checks == 2: return "⭐⭐ Plus"
+        if checks == 3: return "⭐⭐⭐ Premium"
+        if checks == 4: return "💎 Todo Incluido"
+        return "Personalizado"
+    get_nivel_paquete.short_description = "Paquete"
     
     def resumen_barra_html(self, obj):
         datos = obj.calcular_barra_insumos()
         if not datos:
-            return mark_safe('<div style="padding:15px; color:#666;">Guarde para calcular.</div>')
+            return mark_safe('<div style="padding:15px; color:#666;">Seleccione servicios y guarde para calcular.</div>')
         
+        # Obtener costos unitarios para desglose visual
         costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
         costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
         costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
@@ -188,32 +204,38 @@ class CotizacionAdmin(admin.ModelAdmin):
         total_mix = datos['litros_mezcladores'] * costo_mix_u
         total_agua = datos['litros_agua'] * costo_agua_u
 
+        # Construcción de tabla HTML informativa
         html = f"""
         <div style="border:1px solid #ccc; border-radius:5px; overflow:hidden;">
             <div style="background:#333; color:white; padding:10px; font-weight:bold;">
-                BARRA (Margen: x{datos['margen_aplicado']})
+                CÁLCULO MODULAR (Margen: x{datos['margen_aplicado']})
             </div>
             <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:sans-serif;">
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Botellas:</td>
+                    <td style="padding:8px;">Botellas Licores:</td>
                     <td style="padding:8px; text-align:right;"><strong>{datos['botellas']} u.</strong></td>
                     <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_alcohol']:,.2f}</td>
                 </tr>
-                <tr style="background:#f9f9f9;"><td colspan="3" style="padding:5px; font-weight:bold; font-size:11px;">INSUMOS</td></tr>
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Hielo:</td>
-                    <td style="padding:8px; text-align:right;">{datos['bolsas_hielo_20kg']}</td>
+                    <td style="padding:8px;">Cervezas (Medias):</td>
+                    <td style="padding:8px; text-align:right;"><strong>{datos['cervezas_unidades']} u.</strong></td>
+                    <td style="padding:8px; text-align:right; color:#d9534f;">Incluido en Alcohol</td>
+                </tr>
+                <tr style="background:#f9f9f9;"><td colspan="3" style="padding:5px; font-weight:bold; font-size:11px;">INSUMOS OPERATIVOS</td></tr>
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px;">Hielo (20kg):</td>
+                    <td style="padding:8px; text-align:right;">{datos['bolsas_hielo_20kg']} bolsas</td>
                     <td style="padding:8px; text-align:right; color:#d9534f;">${total_hielo:,.2f}</td>
                 </tr>
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Mixers:</td>
+                    <td style="padding:8px;">Mixers/Refresco:</td>
                     <td style="padding:8px; text-align:right;">{datos['litros_mezcladores']} L</td>
                     <td style="padding:8px; text-align:right; color:#d9534f;">${total_mix:,.2f}</td>
                 </tr>
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Agua:</td>
-                    <td style="padding:8px; text-align:right;">{datos['litros_agua']} L</td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">${total_agua:,.2f}</td>
+                    <td style="padding:8px;">Insumos Varios (Agua+Fruta):</td>
+                    <td style="padding:8px; text-align:right;">-</td>
+                    <td style="padding:8px; text-align:right; color:#d9534f;">${(datos['costo_insumos_varios'] - total_hielo - total_mix):,.2f}</td>
                 </tr>
                 <tr style="background:#f9f9f9;"><td colspan="3" style="padding:5px; font-weight:bold; font-size:11px;">STAFF</td></tr>
                 <tr style="border-bottom:1px solid #eee;">
