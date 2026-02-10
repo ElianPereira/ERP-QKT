@@ -170,14 +170,15 @@
         </thead>
         <tbody>
             {% for item in items %}
-                <tr style="font-weight: bold;">
+                <tr style="font-weight: bold; color: #333;">
                     <td>
                         {% if item.producto %}
                             {{ item.producto.nombre }}
                             <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Paquete contratado" }}</span>
                         {% else %}
+                            {# MODIFICADO: Ahora el insumo tiene el mismo tratamiento visual que el producto #}
                             {{ item.insumo.nombre }}
-                            <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Insumo Adicional" }}</span>
+                            <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Servicio Contratado" }}</span>
                         {% endif %}
                     </td>
                     <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
