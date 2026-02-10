@@ -136,7 +136,6 @@ class Cotizacion(models.Model):
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua")
     
     insumo_alcohol_basico = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Básico")
-    # Nota: Si activan Licor, usaremos el Premium por defecto o el Básico según lógica interna, aquí simplificamos a Premium como estándar de venta
     insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol (Base Costo)")
     
     insumo_barman = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Bartender")
@@ -164,8 +163,9 @@ class Cotizacion(models.Model):
     def calcular_barra_insumos(self):
         """
         Calcula costos de forma MODULAR (Sumando componentes).
+        Retorna diccionario COMPLETO para uso en Admin.
         """
-        # Si no hay nada seleccionado, retornamos costo 0
+        # Si no hay nada seleccionado, retornamos None
         if not any([self.incluye_refrescos, self.incluye_cerveza, self.incluye_licor, self.incluye_cocteleria]) or self.num_personas <= 0:
             return None
 
@@ -192,12 +192,20 @@ class Cotizacion(models.Model):
             mult_liquido = Decimal('1.5')
             mult_hielo = Decimal('1.6')
 
-        # 3. ACUMULADORES (INICIALIZAR EN CERO)
+        # 3. ACUMULADORES (INICIALIZAR EN CERO PARA EVITAR KEYERROR)
         total_alcohol = Decimal('0.00')
         total_insumos_varios = Decimal('0.00')
         
         litros_mezcladores_base = 0.0
         kilos_hielo_base = 0.0
+        
+        # Variables de Conteo Físico (Para reporte admin)
+        num_botellas = 0
+        qty_cervezas = 0
+        bolsas_hielo = 0
+        litros_mezcladores_total = 0
+        litros_agua = 0
+        num_staff = 0
         
         # --- LÓGICA MODULAR (SUMA DE PARTES) ---
 
@@ -266,7 +274,19 @@ class Cotizacion(models.Model):
 
         return {
             'costo_total_estimado': costo_total_operativo,
-            'precio_venta_sugerido_total': precio_venta_total
+            'precio_venta_sugerido_total': precio_venta_total,
+            # DETALLES PARA EL ADMIN (Aquí estaba el error)
+            'botellas': num_botellas,
+            'cervezas_unidades': qty_cervezas,
+            'bolsas_hielo_20kg': bolsas_hielo,
+            'litros_mezcladores': litros_mezcladores_total,
+            'litros_agua': litros_agua,
+            'num_barmans': num_staff,
+            'num_auxiliares': num_staff,
+            'costo_alcohol': round(total_alcohol, 2),
+            'costo_insumos_varios': round(total_insumos_varios, 2),
+            'costo_staff': round(costo_staff, 2),
+            'margen_aplicado': self.factor_utilidad_barra
         }
 
     def calcular_totales(self):
