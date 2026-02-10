@@ -117,12 +117,11 @@ class Cotizacion(models.Model):
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
     
-    # --- CONFIGURACIÓN DE BARRA MODULAR (CHECKBOXES) ---
+    # --- CONFIGURACIÓN DE BARRA MODULAR ---
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     
-    # NUEVOS CAMPOS (SEPARADOS Y SIN EMOJIS)
     incluye_refrescos = models.BooleanField(default=True, verbose_name="Refrescos y Mezcladores")
-    incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza")
+    incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza (Caguama)")
     
     incluye_licor_nacional = models.BooleanField(default=False, verbose_name="Licores Nacionales (Básico)")
     incluye_licor_premium = models.BooleanField(default=False, verbose_name="Licores Premium (Importado)")
@@ -134,13 +133,13 @@ class Cotizacion(models.Model):
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
     factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=2.20, verbose_name="Factor Utilidad")
 
-    # Selección Manual de Insumos (Precios base)
+    # Selección Manual de Insumos
     insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo (20kg)")
     insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco")
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua")
     
     insumo_alcohol_basico = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Básico")
-    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol (Base Costo)")
+    insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Premium")
     
     insumo_barman = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Bartender")
     insumo_auxiliar = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Auxiliar")
@@ -167,7 +166,6 @@ class Cotizacion(models.Model):
     def calcular_barra_insumos(self):
         """
         Calcula costos de forma MODULAR (Sumando componentes).
-        Retorna diccionario COMPLETO para uso en Admin.
         """
         checks = [
             self.incluye_refrescos, self.incluye_cerveza, 
@@ -184,22 +182,19 @@ class Cotizacion(models.Model):
         costo_mezclador_lt = self._get_costo_real(self.insumo_refresco, '18.00')
         costo_agua_lt = self._get_costo_real(self.insumo_agua, '8.00')
         
-        # --- COSTOS DIFERENCIADOS PARA ALCOHOL (ACTUALIZADOS A MERCADO) ---
-        # Costo base para Nacionales (Tequila Tradicional, Red Label): Ajustado a $350
+        # Costos Alcohol (Botellas 750ml/1L)
         costo_alcohol_nacional = self._get_costo_real(self.insumo_alcohol_basico, '350.00') 
-        
-        # Costo base para Premium (Don Julio 70, Black Label): Ajustado a $1,100
         costo_alcohol_premium = self._get_costo_real(self.insumo_alcohol_premium, '1100.00') 
         
         costo_barman = self._get_costo_real(self.insumo_barman, '1200.00')
         costo_auxiliar = self._get_costo_real(self.insumo_auxiliar, '800.00')
 
-        COSTO_CERVEZA_UNITARIO = Decimal('16.00')
-        COSTO_FRUTA_PP = Decimal('8.00') 
+        # --- CAMBIO: COSTO CERVEZA CAGUAMA ($504 caja / 12 = $42) ---
+        COSTO_CERVEZA_UNITARIO = Decimal('42.00') 
         
-        # --- COSTOS DE COCTELERÍA ---
-        COSTO_COCTELERIA_BASICA_PP = Decimal('25.00') # Mojitos (Hierbabuena, Limón, Jarabe)
-        COSTO_COCTELERIA_PREMIUM_PP = Decimal('65.00') # Carajillos (Licor 43), Aperol, Gins
+        COSTO_FRUTA_PP = Decimal('8.00') 
+        COSTO_COCTELERIA_BASICA_PP = Decimal('25.00') 
+        COSTO_COCTELERIA_PREMIUM_PP = Decimal('65.00') 
 
         # 2. FACTOR CLIMA
         mult_liquido = Decimal('1.0')
@@ -236,11 +231,15 @@ class Cotizacion(models.Model):
             kilos_hielo_base += (self.num_personas * 1.5)
             total_insumos_varios += (self.num_personas * COSTO_FRUTA_PP)
 
-        # B) Cerveza
+        # B) Cerveza (CAGUAMAS)
         if self.incluye_cerveza:
-            qty_cervezas = math.ceil(self.num_personas * 1.2 * self.horas_servicio * float(mult_liquido))
+            # 1.2 medias (355ml) son aprox 0.45 caguamas (940ml)
+            # Factor de consumo: 0.45 botellas de 940ml por hora por persona
+            qty_cervezas = math.ceil(self.num_personas * 0.45 * self.horas_servicio * float(mult_liquido))
             total_alcohol += (qty_cervezas * COSTO_CERVEZA_UNITARIO)
-            kilos_hielo_base += (self.num_personas * 0.5)
+            
+            # Hielo para enfriar caguamas (necesitan más espacio que medias)
+            kilos_hielo_base += (self.num_personas * 0.6)
 
         # C) Licores Nacionales
         if self.incluye_licor_nacional:
@@ -305,7 +304,7 @@ class Cotizacion(models.Model):
             'botellas': num_botellas_nac + num_botellas_prem,
             'botellas_nacional': num_botellas_nac,
             'botellas_premium': num_botellas_prem,
-            'cervezas_unidades': qty_cervezas,
+            'cervezas_unidades': qty_cervezas, # AHORA SON CAGUAMAS
             'bolsas_hielo_20kg': bolsas_hielo,
             'litros_mezcladores': litros_mezcladores_total,
             'litros_agua': litros_agua,

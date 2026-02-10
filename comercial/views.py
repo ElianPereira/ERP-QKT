@@ -124,13 +124,14 @@ def generar_lista_compras_barra(cotizacion):
             'cantidad': math.ceil(cant_agua / 20), 'unidad': 'Garrafones'
         })
 
-    # --- B) CERVEZA ---
+    # --- B) CERVEZA (PRESENTACIÓN 940 ML) ---
     if cotizacion.incluye_cerveza:
-        consumo_cheve = (personas * 1.2 * horas) * mult_liquido
-        cartones = math.ceil(consumo_cheve / 24)
+        # Consumo: 0.45 botellas de 940ml por hora por persona
+        consumo_cheve = (personas * 0.45 * horas) * mult_liquido
+        cajas = math.ceil(consumo_cheve / 12) # Caja de 12 unidades
         lista_compras['Licores y Alcohol'].append({
-            'item': 'Cerveza Nacional (Cartón 24u - Media)',
-            'cantidad': cartones, 'unidad': 'Cartones'
+            'item': 'Cerveza Nacional (Presentación de 940 ML)',
+            'cantidad': cajas, 'unidad': 'Cajas (12u)'
         })
 
     # --- C) LICORES NACIONALES ---
@@ -262,8 +263,6 @@ def ver_dashboard_kpis(request):
 @staff_member_required
 def generar_lista_compras(request):
     # Nota: Esta función es para el reporte global por fechas
-    # La hemos simplificado para mantener compatibilidad, pero lo ideal es usar la lógica nueva
-    # si quisieras reporte masivo. Por ahora lo dejamos funcional con la lógica básica.
     if request.method == 'POST':
         fecha_inicio = request.POST.get('fecha_inicio')
         fecha_fin = request.POST.get('fecha_fin')
@@ -273,13 +272,6 @@ def generar_lista_compras(request):
             fecha_evento__gte=fecha_inicio,
             fecha_evento__lte=fecha_fin
         )
-
-        # Aquí podríamos implementar una lógica agregada compleja, 
-        # pero por simplicidad dejaremos la versión básica que suma items guardados.
-        compras = {}
-        # ... (Lógica de suma de items guardados si existen) ...
-        # Para la versión "Checklist" usamos la función nueva abajo.
-        
         return render(request, 'comercial/reporte_form.html', {'titulo': 'Reporte Masivo en Construcción'})
 
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})

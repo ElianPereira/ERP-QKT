@@ -238,7 +238,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_alcohol']:,.2f}</td>
                 </tr>
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Cervezas (Medias):</td>
+                    <td style="padding:8px;">Cervezas (940 ML):</td>
                     <td style="padding:8px; text-align:right;"><strong>{datos['cervezas_unidades']} u.</strong></td>
                     <td style="padding:8px; text-align:right; color:#d9534f;">Incluido en Alcohol</td>
                 </tr>
