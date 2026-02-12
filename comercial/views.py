@@ -108,23 +108,44 @@ def generar_lista_compras_barra(cotizacion):
         lista_compras['Licores y Alcohol'].append({'item': 'Whisky Premium (Black Label)', 'cantidad': math.ceil(botellas_totales * 0.3), 'unidad': 'Botellas'})
         lista_compras['Licores y Alcohol'].append({'item': 'Ginebra / Ron Premium', 'cantidad': math.ceil(botellas_totales * 0.3), 'unidad': 'Botellas'})
 
-    # --- D) COCTELERÍA ---
+    # --- D) COCTELERÍA BÁSICA (CORREGIDO: Incluye Alcohol) ---
     if 'coctel_base' in pesos:
+        share = pesos['coctel_base'] / total_peso
+        tragos_coctel = TOTAL_TRAGOS * share
+        
+        # Insumos
         lista_compras['Frutas y Verduras'].append({'item': 'Hierbabuena Fresca', 'cantidad': math.ceil(cotizacion.num_personas / 15), 'unidad': 'Manojos'})
         lista_compras['Frutas y Verduras'].append({'item': 'Limón Persa (Extra Coctel)', 'cantidad': math.ceil(cotizacion.num_personas / 10), 'unidad': 'Kg'})
         lista_compras['Abarrotes y Consumibles'].append({'item': 'Jarabe Natural', 'cantidad': math.ceil(cotizacion.num_personas / 30), 'unidad': 'Litros'})
         
+        # ALCOHOL PARA COCTELES (Si no se seleccionó barra nacional, hay que comprarlo)
+        # Incluso si se seleccionó, es bueno desglosarlo para asegurar abasto.
+        # En la lista de compras combinamos.
+        
+        # Calculamos botellas específicas para mojitos/margaritas
+        botellas_ron = math.ceil((tragos_coctel * 0.5) / 16)
+        botellas_teq = math.ceil((tragos_coctel * 0.5) / 16)
+        
+        lista_compras['Licores y Alcohol'].append({'item': 'Ron Blanco (Mojitos)', 'cantidad': botellas_ron, 'unidad': 'Botellas'})
+        lista_compras['Licores y Alcohol'].append({'item': 'Tequila Blanco (Margaritas)', 'cantidad': botellas_teq, 'unidad': 'Botellas'})
+
+    # --- E) COCTELERÍA PREMIUM (CORREGIDO: Incluye Gin) ---
     if 'coctel_prem' in pesos:
         share = pesos['coctel_prem'] / total_peso
         tragos_mix = TOTAL_TRAGOS * share
-        botellas_43 = math.ceil((tragos_mix * 0.6) / 14)
-        botellas_aperol = math.ceil((tragos_mix * 0.4) / 12)
+        
+        botellas_43 = math.ceil((tragos_mix * 0.4) / 14)
+        botellas_aperol = math.ceil((tragos_mix * 0.3) / 12)
+        botellas_gin = math.ceil((tragos_mix * 0.3) / 16) # GIN
+        
         lista_compras['Licores y Alcohol'].append({'item': 'Licor 43', 'cantidad': botellas_43, 'unidad': 'Botellas'})
         lista_compras['Licores y Alcohol'].append({'item': 'Aperol', 'cantidad': botellas_aperol, 'unidad': 'Botellas'})
         lista_compras['Licores y Alcohol'].append({'item': 'Prosecco', 'cantidad': math.ceil(botellas_aperol / 2), 'unidad': 'Botellas'})
+        lista_compras['Licores y Alcohol'].append({'item': 'Ginebra (Mixología)', 'cantidad': botellas_gin, 'unidad': 'Botellas'})
+        
         lista_compras['Abarrotes y Consumibles'].append({'item': 'Café Espresso', 'cantidad': botellas_43 * 15, 'unidad': 'Cargas'})
 
-    # --- E) INSUMOS GENERALES ---
+    # --- F) INSUMOS GENERALES ---
     litros_mixers = (TOTAL_TRAGOS * 0.25) if ('nacional' in pesos or 'premium' in pesos) else 0
     if checks['refrescos'] and litros_mixers == 0:
          litros_mixers = cotizacion.num_personas * cotizacion.horas_servicio * 0.6
