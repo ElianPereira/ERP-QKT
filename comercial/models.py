@@ -165,9 +165,8 @@ class Cotizacion(models.Model):
 
     def calcular_barra_insumos(self):
         """
-        ALGORITMO DE DISTRIBUCIÓN PONDERADA (MARKET SHARE)
+        ALGORITMO DE DISTRIBUCIÓN PONDERADA CON STAFF OPTIMIZADO
         """
-        # 1. VALIDACIÓN
         checks = {
             'refrescos': self.incluye_refrescos,
             'cerveza': self.incluye_cerveza,
@@ -179,127 +178,163 @@ class Cotizacion(models.Model):
         
         if not any(checks.values()) or self.num_personas <= 0: return None
 
-        # 2. CONSTANTES
+        # --- CONSTANTES ---
         C_HIELO = self._get_costo_real(self.insumo_hielo, '88.00')
         C_MIXER = self._get_costo_real(self.insumo_refresco, '18.00')
         C_AGUA = self._get_costo_real(self.insumo_agua, '8.00')
         C_ALC_NAC = self._get_costo_real(self.insumo_alcohol_basico, '380.00')
         C_ALC_PREM = self._get_costo_real(self.insumo_alcohol_premium, '1150.00')
-        C_CERVEZA = Decimal('42.00') # Caguama 940ml (Costeada a precio caja)
-        
-        # Costos Unitarios de Insumos para Cocteles (Por Trago)
-        C_INSUMO_COCTEL_BASE = Decimal('12.00') # Limon, jarabe, hierba
-        C_INSUMO_COCTEL_PREM = Decimal('25.00') # Cafe, toppings, garnish
-        
+        C_CERVEZA = Decimal('42.00')
+        C_INSUMO_COCTEL_BASE = Decimal('12.00')
+        C_INSUMO_COCTEL_PREM = Decimal('25.00')
         R_BOTELLA = 16.0
         R_CAGUAMA = 3.0
 
-        # 3. DEMANDA TOTAL (Bolsa de Tragos)
-        tragos_por_hora = 1.3
-        mult_hielo = Decimal('1.0')
-        
-        if self.clima == 'calor':
-            tragos_por_hora = 1.6
-            mult_hielo = Decimal('1.4')
-        elif self.clima == 'extremo':
-            tragos_por_hora = 1.8
-            mult_hielo = Decimal('1.6')
-
+        # --- DEMANDA Y PESOS ---
+        tragos_por_hora = 1.6 if self.clima == 'calor' else (1.8 if self.clima == 'extremo' else 1.3)
+        mult_hielo = Decimal('1.4') if self.clima == 'calor' else (Decimal('1.6') if self.clima == 'extremo' else Decimal('1.0'))
         TOTAL_TRAGOS = self.num_personas * self.horas_servicio * tragos_por_hora
 
-        # 4. PESOS (WEIGHTS) - Distribución de Preferencia
         pesos = {}
         if checks['cerveza']: pesos['cerveza'] = 55
         if checks['nacional']: pesos['nacional'] = 35
         if checks['premium']: pesos['premium'] = 25
         if checks['coctel_base']: pesos['coctel_base'] = 20
         if checks['coctel_prem']: pesos['coctel_prem'] = 15
+        if checks['refrescos'] and not pesos: pesos['refrescos'] = 100
+        total_peso = sum(pesos.values()) or 1
+
+        costo_puro = {
+            'cerveza': Decimal(0),
+            'nacional': Decimal(0),
+            'premium': Decimal(0),
+            'coctel': Decimal(0),
+            'refrescos': Decimal(0)
+        }
         
-        # Si solo hay refresco
-        if checks['refrescos'] and not any([checks['cerveza'], checks['nacional'], checks['premium'], checks['coctel_base'], checks['coctel_prem']]):
-            pesos['refrescos'] = 100
-
-        peso_total = sum(pesos.values())
-        if peso_total == 0: peso_total = 1
-
-        # 5. CÁLCULO DE CANTIDADES
         res = {
-            'botellas_nacional': 0, 'botellas_premium': 0,
-            'cervezas_unidades': 0,
+            'botellas_nacional': 0, 'botellas_premium': 0, 'cervezas_unidades': 0,
             'litros_mezcladores': 0, 'bolsas_hielo_20kg': 0,
             'costo_alcohol': Decimal(0), 'costo_insumos_varios': Decimal(0)
         }
 
-        # --- A) Cerveza ---
+        # --- CÁLCULOS DE INSUMOS ---
         if 'cerveza' in pesos:
-            share = pesos['cerveza'] / peso_total
+            share = pesos['cerveza'] / total_peso
             tragos = TOTAL_TRAGOS * share
             res['cervezas_unidades'] = math.ceil(tragos / R_CAGUAMA)
-            res['costo_alcohol'] += (res['cervezas_unidades'] * C_CERVEZA)
+            c_tmp = res['cervezas_unidades'] * C_CERVEZA
+            res['costo_alcohol'] += c_tmp
+            costo_puro['cerveza'] += c_tmp
 
-        # --- B) Nacional ---
         if 'nacional' in pesos:
-            share = pesos['nacional'] / peso_total
+            share = pesos['nacional'] / total_peso
             tragos = TOTAL_TRAGOS * share
             res['botellas_nacional'] = math.ceil(tragos / R_BOTELLA)
-            res['costo_alcohol'] += (res['botellas_nacional'] * C_ALC_NAC)
-            res['litros_mezcladores'] += (tragos * 0.3)
+            c_tmp = res['botellas_nacional'] * C_ALC_NAC
+            res['costo_alcohol'] += c_tmp
+            costo_puro['nacional'] += c_tmp
+            mix_l = tragos * 0.3
+            res['litros_mezcladores'] += mix_l
+            costo_puro['nacional'] += (Decimal(mix_l) * C_MIXER)
 
-        # --- C) Premium ---
         if 'premium' in pesos:
-            share = pesos['premium'] / peso_total
+            share = pesos['premium'] / total_peso
             tragos = TOTAL_TRAGOS * share
             res['botellas_premium'] = math.ceil(tragos / R_BOTELLA)
-            res['costo_alcohol'] += (res['botellas_premium'] * C_ALC_PREM)
-            res['litros_mezcladores'] += (tragos * 0.25)
+            c_tmp = res['botellas_premium'] * C_ALC_PREM
+            res['costo_alcohol'] += c_tmp
+            costo_puro['premium'] += c_tmp
+            mix_l = tragos * 0.25
+            res['litros_mezcladores'] += mix_l
+            costo_puro['premium'] += (Decimal(mix_l) * C_MIXER)
 
-        # --- D) Coctelería Base ---
         if 'coctel_base' in pesos:
-            share = pesos['coctel_base'] / peso_total
+            share = pesos['coctel_base'] / total_peso
             tragos = TOTAL_TRAGOS * share
-            # Costo de los insumos (SIN ALCOHOL, el alcohol sale del stock nacional/prem)
-            res['costo_insumos_varios'] += (Decimal(tragos) * C_INSUMO_COCTEL_BASE)
+            c_tmp = Decimal(tragos) * C_INSUMO_COCTEL_BASE
+            res['costo_insumos_varios'] += c_tmp
+            costo_puro['coctel'] += c_tmp
             res['litros_mezcladores'] += (tragos * 0.1)
 
-        # --- E) Coctelería Premium ---
         if 'coctel_prem' in pesos:
-            share = pesos['coctel_prem'] / peso_total
+            share = pesos['coctel_prem'] / total_peso
             tragos = TOTAL_TRAGOS * share
-            res['costo_insumos_varios'] += (Decimal(tragos) * C_INSUMO_COCTEL_PREM)
+            c_tmp = Decimal(tragos) * C_INSUMO_COCTEL_PREM
+            res['costo_insumos_varios'] += c_tmp
+            costo_puro['coctel'] += c_tmp
 
-        # --- F) Refrescos Solos ---
         if 'refrescos' in pesos:
             res['litros_mezcladores'] = self.num_personas * self.horas_servicio * 0.6
+            costo_puro['refrescos'] += (Decimal(res['litros_mezcladores']) * C_MIXER)
 
-        # 6. OPERATIVOS GENERALES
+        # Operativos Comunes
         litros_agua = math.ceil(self.num_personas * 0.6)
-        res['costo_insumos_varios'] += (litros_agua * C_AGUA)
-
-        factor_hielo = 1.5
-        if checks['coctel_base'] or checks['coctel_prem']: factor_hielo = 2.0
+        costo_agua = litros_agua * C_AGUA
+        
+        factor_hielo = 2.0 if (checks['coctel_base'] or checks['coctel_prem']) else 1.5
         kilos_hielo = (self.num_personas * factor_hielo) * float(mult_hielo)
         if checks['cerveza']: kilos_hielo += (self.num_personas * 0.5)
-
         res['bolsas_hielo_20kg'] = math.ceil(kilos_hielo / 20.0)
-        res['costo_insumos_varios'] += (res['bolsas_hielo_20kg'] * C_HIELO)
+        costo_hielo = res['bolsas_hielo_20kg'] * C_HIELO
         
         res['litros_mezcladores'] = math.ceil(res['litros_mezcladores'])
-        res['costo_insumos_varios'] += (res['litros_mezcladores'] * C_MIXER)
-
-        # 7. STAFF
-        ratio = 40 if (checks['coctel_base'] or checks['coctel_prem']) else 50
-        num_staff = math.ceil(self.num_personas / ratio)
+        costo_mixers_total = res['litros_mezcladores'] * C_MIXER
+        
+        res['costo_insumos_varios'] += (costo_agua + costo_hielo + costo_mixers_total)
+        
+        # --- STAFF OPTIMIZADO ---
+        # 1. Barmans: 1 por cada 40 (si hay cocteles) o 50 pax.
+        ratio_barman = 40 if (checks['coctel_base'] or checks['coctel_prem']) else 50
+        num_barmans = math.ceil(self.num_personas / ratio_barman)
+        
+        # 2. Auxiliares: 1 por cada 2 Barmans (aprox).
+        num_auxiliares = math.ceil(num_barmans / 2)
+        if num_barmans > 1 and num_auxiliares == 0: num_auxiliares = 1 # Seguridad
+        
         C_BARMAN = self._get_costo_real(self.insumo_barman, '1200.00')
         C_AUX = self._get_costo_real(self.insumo_auxiliar, '800.00')
-        costo_staff = (num_staff * C_BARMAN) + (num_staff * C_AUX)
+        
+        costo_staff = (num_barmans * C_BARMAN) + (num_auxiliares * C_AUX)
 
-        # 8. TOTALES
-        costo_total = res['costo_alcohol'] + res['costo_insumos_varios'] + costo_staff
-        precio_venta = costo_total * Decimal(str(self.factor_utilidad_barra))
+        # --- TOTALES Y PRORRATEO ---
+        costo_total_operativo = res['costo_alcohol'] + res['costo_insumos_varios'] + costo_staff
+        precio_venta_total = costo_total_operativo * Decimal(str(self.factor_utilidad_barra))
+
+        # Prorrateo financiero para desglose en PDF
+        costo_comun_operativo = costo_staff + costo_hielo + costo_agua
+        if checks['refrescos'] and not any([checks['cerveza'], checks['nacional'], checks['premium']]):
+             costo_puro['refrescos'] += costo_comun_operativo
+             costo_comun_operativo = 0
+
+        total_costo_asignable = sum(costo_puro.values())
+        if total_costo_asignable == 0: total_costo_asignable = 1
+        
+        desglose = {}
+        margen = Decimal(str(self.factor_utilidad_barra))
+
+        def calcular_precio_linea(key_puro):
+            if costo_puro[key_puro] > 0:
+                participacion = costo_puro[key_puro] / total_costo_asignable
+                costo_full = costo_puro[key_puro] + (costo_comun_operativo * participacion)
+                return costo_full * margen
+            return Decimal(0)
+
+        desglose['refrescos'] = calcular_precio_linea('refrescos')
+        desglose['cerveza'] = calcular_precio_linea('cerveza')
+        desglose['nacional'] = calcular_precio_linea('nacional')
+        desglose['premium'] = calcular_precio_linea('premium')
+        desglose['coctel'] = calcular_precio_linea('coctel')
+
+        suma_desglose = sum(desglose.values())
+        diferencia = precio_venta_total - suma_desglose
+        if abs(diferencia) > 0.01:
+            cat_max = max(desglose, key=desglose.get)
+            desglose[cat_max] += diferencia
 
         return {
-            'costo_total_estimado': costo_total,
-            'precio_venta_sugerido_total': precio_venta,
+            'costo_total_estimado': costo_total_operativo,
+            'precio_venta_sugerido_total': precio_venta_total,
             'botellas': res['botellas_nacional'] + res['botellas_premium'],
             'botellas_nacional': res['botellas_nacional'],
             'botellas_premium': res['botellas_premium'],
@@ -307,12 +342,13 @@ class Cotizacion(models.Model):
             'bolsas_hielo_20kg': res['bolsas_hielo_20kg'],
             'litros_mezcladores': res['litros_mezcladores'],
             'litros_agua': litros_agua,
-            'num_barmans': num_staff,
-            'num_auxiliares': num_staff,
+            'num_barmans': num_barmans,     # <--- ACTUALIZADO
+            'num_auxiliares': num_auxiliares, # <--- ACTUALIZADO
             'costo_alcohol': round(res['costo_alcohol'], 2),
             'costo_insumos_varios': round(res['costo_insumos_varios'], 2),
             'costo_staff': round(costo_staff, 2),
-            'margen_aplicado': self.factor_utilidad_barra
+            'margen_aplicado': self.factor_utilidad_barra,
+            'desglose_venta': desglose
         }
 
     def calcular_totales(self):

@@ -52,6 +52,15 @@
         .data-table td:last-child { text-align: right; padding-right: 15px; }
         .data-table tr:last-child td { border-bottom: none; }
 
+        /* Estilos para el desglose de Barra */
+        .barra-breakdown-row td {
+            background-color: #fcfcfc;
+            border-bottom: 1px dashed #ddd;
+            font-size: 10px;
+            color: #666;
+            padding-top: 4px; padding-bottom: 4px;
+        }
+
         /* Sub-items (los subproductos dentro del paquete) */
         .sub-item-row td { 
             background-color: #fdfdfd; 
@@ -163,13 +172,14 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 70%">Concepto</th>
+                <th style="width: 65%">Concepto</th>
                 <th style="width: 15%; text-align: center;">Cantidad</th>
-                <th style="width: 15%; text-align: right;">Importe</th>
+                <th style="width: 20%; text-align: right;">Importe</th>
             </tr>
         </thead>
         <tbody>
             {% for item in items %}
+                
                 <tr style="font-weight: bold; color: #333;">
                     <td>
                         {% if item.producto %}
@@ -181,55 +191,98 @@
                         {% else %}
                             {{ item.descripcion }}
                         {% endif %}
-
-                        {# --- DESGLOSE DETALLADO DE BARRA --- #}
-                        {% if "Servicio de Barra" in item.descripcion %}
-                            <div style="margin-top: 5px; font-size: 9px; color: #555; font-weight: normal; line-height: 1.4; padding-left: 2px;">
-                                
-                                {% if cotizacion.incluye_refrescos %}
-                                    <div><strong style="color: #356685;">• Refrescos y Mezcladores:</strong> Coca-Cola, Squirt, Agua Mineral, Agua Natural y Hielo Ilimitado.</div>
-                                {% endif %}
-                                
-                                {% if cotizacion.incluye_cerveza %}
-                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Cerveza Nacional:</strong> Servicio ilimitado (Presentación de 940 ML).</div>
-                                {% endif %}
-                                
-                                {% if cotizacion.incluye_licor_nacional %}
-                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Licores Nacionales:</strong> Tequila (José Cuervo Especial/Tradicional), Ron (Bacardí Blanco/Añejo), Vodka (Smirnoff/Absolut), Whisky (Red Label/William Lawson's).</div>
-                                {% endif %}
-                                
-                                {% if cotizacion.incluye_licor_premium %}
-                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Licores Premium:</strong> Tequila (Don Julio 70/Herradura Ultra), Ron (Matusalem Gran Reserva/Zacapa), Vodka (Grey Goose/Belvedere), Whisky (Black Label/Chivas Regal 12), Ginebra (Tanqueray/Bombay Sapphire).</div>
-                                {% endif %}
-                                
-                                {% if cotizacion.incluye_cocteleria_basica %}
-                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Coctelería Clásica:</strong> Mojitos (Clásicos y Frutos Rojos), Margaritas (Limón, Tamarindo, Jamaica), Palomas Escarchadas, Gin Tonics Clásicos, Tequila Sunrise, Daiquiris.</div>
-                                {% endif %}
-                                
-                                {% if cotizacion.incluye_cocteleria_premium %}
-                                    <div style="margin-top:2px;"><strong style="color: #356685;">• Mixología Premium:</strong> Carajillos 43 Shakeados, Aperol Spritz, Mezcalitas de Autor (Jamaica/Maracuyá/Pepino), Gin Tonics Botánicos, Martinis (Dry/Cosmo), Piñas Coladas, Clericot.</div>
-                                {% endif %}
-                                
-                                <div style="margin-top:3px; font-style:italic; color:#777;">* Incluye servicio de Staff de Barra profesional, cristalería y herramientas.</div>
-                            </div>
-                        {% endif %}
                     </td>
                     <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
-                    <td style="text-align: right;">${{ item.subtotal|floatformat:2|intcomma }}</td>
+                    <td style="text-align: right;">
+                        {% if "Servicio de Barra" in item.descripcion and barra.desglose_venta %}
+                             ${{ item.subtotal|floatformat:2|intcomma }}
+                        {% else %}
+                             ${{ item.subtotal|floatformat:2|intcomma }}
+                        {% endif %}
+                    </td>
                 </tr>
 
-                {% if item.producto %}
+                {% if "Servicio de Barra" in item.descripcion and barra.desglose_venta %}
+                    
+                    {% if barra.desglose_venta.refrescos > 0 %}
+                    <tr class="barra-breakdown-row">
+                        <td style="padding-left: 25px;">
+                            • Refrescos y Mezcladores
+                            <span style="display:block; font-size:8px; color:#888;">Coca-Cola, Squirt, Agua, Hielo Ilimitado</span>
+                        </td>
+                        <td style="text-align: center;">-</td>
+                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.refrescos|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+
+                    {% if barra.desglose_venta.cerveza > 0 %}
+                    <tr class="barra-breakdown-row">
+                        <td style="padding-left: 25px;">
+                            • Cerveza Nacional (Caguama)
+                            <span style="display:block; font-size:8px; color:#888;">Servicio Ilimitado por Hora</span>
+                        </td>
+                        <td style="text-align: center;">-</td>
+                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.cerveza|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+
+                    {% if barra.desglose_venta.nacional > 0 %}
+                    <tr class="barra-breakdown-row">
+                        <td style="padding-left: 25px;">
+                            • Licores Nacionales
+                            <span style="display:block; font-size:8px; color:#888;">Tequila Tradicional, Ron Bacardí, Vodka Smirnoff, Whisky Red Label</span>
+                        </td>
+                        <td style="text-align: center;">-</td>
+                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.nacional|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+
+                    {% if barra.desglose_venta.premium > 0 %}
+                    <tr class="barra-breakdown-row">
+                        <td style="padding-left: 25px;">
+                            • Licores Premium
+                            <span style="display:block; font-size:8px; color:#888;">Don Julio 70, Black Label, Matusalem, Grey Goose</span>
+                        </td>
+                        <td style="text-align: center;">-</td>
+                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.premium|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+
+                    {% if barra.desglose_venta.coctel > 0 %}
+                    <tr class="barra-breakdown-row">
+                        <td style="padding-left: 25px;">
+                            • Coctelería y Mixología
+                            <span style="display:block; font-size:8px; color:#888;">Insumos y preparación artesanal</span>
+                        </td>
+                        <td style="text-align: center;">-</td>
+                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.coctel|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endif %}
+                    
+                    <tr class="barra-breakdown-row">
+                        <td style="padding-left: 25px; border-bottom: 2px solid #eee;">
+                            <i>• Staff de Barra y Cristalería</i>
+                        </td>
+                        <td style="text-align: center; border-bottom: 2px solid #eee;">-</td>
+                        <td style="text-align: right; font-size: 9px; color: #28a745; border-bottom: 2px solid #eee;"><i>Incluido en costos anteriores</i></td>
+                    </tr>
+
+                {% endif %}
+
+
+                {% if item.producto and "Servicio de Barra" not in item.descripcion %}
                     {% for componente in item.producto.componentes.all %}
                     <tr class="sub-item-row">
                         <td style="padding-left: 25px;">
                              • {{ componente.subproducto.nombre }} 
-                             <span style="color: #aaa; font-size: 9px;">(Incluye: {{ componente.cantidad }} pzas/u)</span>
+                             <span style="color: #aaa; font-size: 9px;">({{ componente.cantidad }} pzas)</span>
                         </td>
                         <td style="text-align: center;">-</td>
                         <td style="text-align: right; font-size: 9px; color: #28a745;"><i>Incluido</i></td>
                     </tr>
                     {% endfor %}
                 {% endif %}
+
             {% endfor %}
         </tbody>
     </table>
