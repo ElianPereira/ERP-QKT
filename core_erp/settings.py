@@ -180,7 +180,7 @@ JAZZMIN_SETTINGS = {
     ],
     
     # --- AQUÍ ESTABA EL ERROR ---
-    "custom_css": "css/mobile_fix.css",
+    "custom_css": "css/mobile_fix_v4.css",
     "custom_js": "js/tabs_fix.js",  # <--- ESTA LÍNEA ES LA QUE FALTABA
 }
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}

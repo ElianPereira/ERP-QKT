@@ -96,4 +96,5 @@
 
     });
 
-})(window.jQuery || django.jQuery);
+// Si jQuery no está listo, usa un objeto vacío para que no explote el script
+})(window.jQuery || django.jQuery || window.$ || {});

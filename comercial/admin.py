@@ -152,7 +152,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
         ('Configuración de Barra (Modular)', {
             'fields': (
-                # CONFIGURACIÓN VERTICAL (Uno por línea para evitar amontonamiento)
+                # CONFIGURACIÓN VERTICAL
                 'incluye_refrescos',
                 'incluye_cerveza',
                 'incluye_licor_nacional',
@@ -215,62 +215,62 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666;">Seleccione servicios y guarde para calcular.</div>')
         
-        costo_hielo_u = obj._get_costo_real(obj.insumo_hielo, '88.00')
-        costo_mix_u = obj._get_costo_real(obj.insumo_refresco, '18.00')
-        costo_agua_u = obj._get_costo_real(obj.insumo_agua, '8.00')
-
-        total_hielo = datos['bolsas_hielo_20kg'] * costo_hielo_u
-        total_mix = datos['litros_mezcladores'] * costo_mix_u
-        
-        # HTML del reporte en el admin
+        # HTML del reporte en el admin (MARKET SHARE)
         html = f"""
         <div style="border:1px solid #ccc; border-radius:5px; overflow:hidden;">
-            <div style="background:#333; color:white; padding:10px; font-weight:bold;">
-                CÁLCULO MODULAR (Margen: x{datos['margen_aplicado']})
+            <div style="background:#2c3e50; color:white; padding:10px; font-weight:bold;">
+                Resumen de Consumo Ponderado (Utilidad: x{datos['margen_aplicado']})
             </div>
             <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:sans-serif;">
+                
+                <tr style="background:#ecf0f1; font-weight:bold;"><td colspan="3" style="padding:5px;">📦 ALCOHOL Y CERVEZA</td></tr>
+                
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Botellas:</td>
+                    <td style="padding:8px;">Cerveza (Caguamas):</td>
+                    <td style="padding:8px; text-align:right;"><strong>{datos['cervezas_unidades']} u.</strong></td>
+                    <td style="padding:8px; text-align:right; color:#7f8c8d;">(Incluido)</td>
+                </tr>
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px;">Licores (Botellas):</td>
                     <td style="padding:8px; text-align:right;">
                         <strong>{datos['botellas']} u.</strong><br>
                         <span style="font-size:10px; color:#666;">(Nac: {datos['botellas_nacional']} / Prem: {datos['botellas_premium']})</span>
                     </td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_alcohol']:,.2f}</td>
+                    <td style="padding:8px; text-align:right; color:#c0392b;">${datos['costo_alcohol']:,.2f}</td>
                 </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Cervezas (940 ML):</td>
-                    <td style="padding:8px; text-align:right;"><strong>{datos['cervezas_unidades']} u.</strong></td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">Incluido en Alcohol</td>
-                </tr>
-                <tr style="background:#f9f9f9;"><td colspan="3" style="padding:5px; font-weight:bold; font-size:11px;">INSUMOS OPERATIVOS</td></tr>
+
+                <tr style="background:#ecf0f1; font-weight:bold;"><td colspan="3" style="padding:5px;">🧊 INSUMOS OPERATIVOS</td></tr>
+                
                 <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:8px;">Hielo (20kg):</td>
                     <td style="padding:8px; text-align:right;">{datos['bolsas_hielo_20kg']} bolsas</td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">${total_hielo:,.2f}</td>
+                    <td style="padding:8px; text-align:right; color:#7f8c8d;">--</td>
                 </tr>
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Mixers/Refresco:</td>
-                    <td style="padding:8px; text-align:right;">{datos['litros_mezcladores']} L</td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">${total_mix:,.2f}</td>
+                    <td style="padding:8px;">Mixers y Agua:</td>
+                    <td style="padding:8px; text-align:right;">{datos['litros_mezcladores']}L Mix / {datos['litros_agua']}L Agua</td>
+                    <td style="padding:8px; text-align:right; color:#7f8c8d;">--</td>
                 </tr>
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:8px;">Insumos Varios (Agua+Fruta):</td>
+                    <td style="padding:8px;"><strong>Total Insumos Varios:</strong><br><span style="font-size:10px;">(Hielo, Mixers, Fruta, Coctelería)</span></td>
                     <td style="padding:8px; text-align:right;">-</td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">${(datos['costo_insumos_varios'] - total_hielo - total_mix):,.2f}</td>
+                    <td style="padding:8px; text-align:right; color:#c0392b;">${datos['costo_insumos_varios']:,.2f}</td>
                 </tr>
-                <tr style="background:#f9f9f9;"><td colspan="3" style="padding:5px; font-weight:bold; font-size:11px;">STAFF</td></tr>
+
+                <tr style="background:#ecf0f1; font-weight:bold;"><td colspan="3" style="padding:5px;">🤵 STAFF</td></tr>
                 <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:8px;">Brigada:</td>
-                    <td style="padding:8px; text-align:right;">{datos['num_barmans']}B / {datos['num_auxiliares']}A</td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_staff']:,.2f}</td>
+                    <td style="padding:8px; text-align:right;">{datos['num_barmans']} Barman / {datos['num_auxiliares']} Aux</td>
+                    <td style="padding:8px; text-align:right; color:#c0392b;">${datos['costo_staff']:,.2f}</td>
                 </tr>
+
                 <tr style="background:#fff3cd; border-top:2px solid #ffeeba; font-weight:bold;">
-                    <td style="padding:8px;">COSTO TOTAL:</td>
+                    <td style="padding:8px;">COSTO TOTAL (Puro):</td>
                     <td></td>
-                    <td style="padding:8px; text-align:right; color:#d9534f;">${datos['costo_total_estimado']:,.2f}</td>
+                    <td style="padding:8px; text-align:right; color:#d35400;">${datos['costo_total_estimado']:,.2f}</td>
                 </tr>
-                <tr style="background:#d4edda; border-top:2px solid #c3e6cb; font-weight:bold;">
-                    <td style="padding:8px; color:#155724;">PRECIO VENTA:</td>
+                <tr style="background:#d4edda; border-top:2px solid #c3e6cb; font-weight:bold; font-size:14px;">
+                    <td style="padding:8px; color:#155724;">PRECIO SUGERIDO:</td>
                     <td></td>
                     <td style="padding:8px; text-align:right; color:#155724;">${datos['precio_venta_sugerido_total']:,.2f}</td>
                 </tr>
