@@ -165,7 +165,7 @@ class Cotizacion(models.Model):
 
     def calcular_barra_insumos(self):
         """
-        ALGORITMO DE DISTRIBUCIÓN PONDERADA CON STAFF OPTIMIZADO
+        ALGORITMO DE DISTRIBUCIÓN PONDERADA CON DESGLOSE DE PRECIOS
         """
         checks = {
             'refrescos': self.incluye_refrescos,
@@ -201,7 +201,14 @@ class Cotizacion(models.Model):
         if checks['premium']: pesos['premium'] = 25
         if checks['coctel_base']: pesos['coctel_base'] = 20
         if checks['coctel_prem']: pesos['coctel_prem'] = 15
-        if checks['refrescos'] and not pesos: pesos['refrescos'] = 100
+        
+        # LÓGICA CORREGIDA: Siempre asignar peso a refrescos si está checkeado
+        if checks['refrescos']:
+            if not any([checks['cerveza'], checks['nacional'], checks['premium'], checks['coctel_base'], checks['coctel_prem']]):
+                pesos['refrescos'] = 100 # Solo refrescos
+            else:
+                pesos['refrescos'] = 15 # Consumo de refresco "solo" (sin alcohol)
+
         total_peso = sum(pesos.values()) or 1
 
         costo_puro = {
@@ -218,7 +225,7 @@ class Cotizacion(models.Model):
             'costo_alcohol': Decimal(0), 'costo_insumos_varios': Decimal(0)
         }
 
-        # --- CÁLCULOS DE INSUMOS ---
+        # --- CÁLCULOS ---
         if 'cerveza' in pesos:
             share = pesos['cerveza'] / total_peso
             tragos = TOTAL_TRAGOS * share
@@ -265,8 +272,18 @@ class Cotizacion(models.Model):
             costo_puro['coctel'] += c_tmp
 
         if 'refrescos' in pesos:
-            res['litros_mezcladores'] = self.num_personas * self.horas_servicio * 0.6
-            costo_puro['refrescos'] += (Decimal(res['litros_mezcladores']) * C_MIXER)
+            # Cálculo de volumen para refrescos
+            if pesos['refrescos'] == 100:
+                litros_soda = self.num_personas * self.horas_servicio * 0.6
+                res['litros_mezcladores'] = litros_soda 
+            else:
+                share = pesos['refrescos'] / total_peso
+                tragos_soda = TOTAL_TRAGOS * share
+                litros_soda = tragos_soda * 0.355 # Vaso estándar
+                res['litros_mezcladores'] += litros_soda
+            
+            # Asignamos valor a costo_puro para que aparezca en el PDF
+            costo_puro['refrescos'] += (Decimal(litros_soda) * C_MIXER)
 
         # Operativos Comunes
         litros_agua = math.ceil(self.num_personas * 0.6)
@@ -283,30 +300,29 @@ class Cotizacion(models.Model):
         
         res['costo_insumos_varios'] += (costo_agua + costo_hielo + costo_mixers_total)
         
-        # --- STAFF OPTIMIZADO ---
-        # 1. Barmans: 1 por cada 40 (si hay cocteles) o 50 pax.
+        # Staff Optimizado
         ratio_barman = 40 if (checks['coctel_base'] or checks['coctel_prem']) else 50
         num_barmans = math.ceil(self.num_personas / ratio_barman)
-        
-        # 2. Auxiliares: 1 por cada 2 Barmans (aprox).
         num_auxiliares = math.ceil(num_barmans / 2)
-        if num_barmans > 1 and num_auxiliares == 0: num_auxiliares = 1 # Seguridad
+        if num_barmans > 1 and num_auxiliares == 0: num_auxiliares = 1
         
         C_BARMAN = self._get_costo_real(self.insumo_barman, '1200.00')
         C_AUX = self._get_costo_real(self.insumo_auxiliar, '800.00')
         
         costo_staff = (num_barmans * C_BARMAN) + (num_auxiliares * C_AUX)
 
-        # --- TOTALES Y PRORRATEO ---
+        # --- TOTALES ---
         costo_total_operativo = res['costo_alcohol'] + res['costo_insumos_varios'] + costo_staff
         precio_venta_total = costo_total_operativo * Decimal(str(self.factor_utilidad_barra))
 
-        # Prorrateo financiero para desglose en PDF
+        # --- PRORRATEO FINANCIERO (FIX: Refrescos siempre recibe su parte) ---
         costo_comun_operativo = costo_staff + costo_hielo + costo_agua
+        
+        # Si SOLO hay refrescos, ellos pagan todo el staff.
+        # Si hay alcohol, ya tienen su "peso" asignado arriba, así que entran al reparto normal.
         if checks['refrescos'] and not any([checks['cerveza'], checks['nacional'], checks['premium']]):
-             costo_puro['refrescos'] += costo_comun_operativo
-             costo_comun_operativo = 0
-
+             pass # Ya tiene peso 100
+        
         total_costo_asignable = sum(costo_puro.values())
         if total_costo_asignable == 0: total_costo_asignable = 1
         
@@ -342,8 +358,8 @@ class Cotizacion(models.Model):
             'bolsas_hielo_20kg': res['bolsas_hielo_20kg'],
             'litros_mezcladores': res['litros_mezcladores'],
             'litros_agua': litros_agua,
-            'num_barmans': num_barmans,     # <--- ACTUALIZADO
-            'num_auxiliares': num_auxiliares, # <--- ACTUALIZADO
+            'num_barmans': num_barmans,
+            'num_auxiliares': num_auxiliares,
             'costo_alcohol': round(res['costo_alcohol'], 2),
             'costo_insumos_varios': round(res['costo_insumos_varios'], 2),
             'costo_staff': round(costo_staff, 2),

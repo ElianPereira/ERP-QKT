@@ -58,7 +58,7 @@
             border-bottom: 1px dashed #ddd;
             font-size: 10px;
             color: #666;
-            padding-top: 4px; padding-bottom: 4px;
+            padding-top: 6px; padding-bottom: 6px; /* Un poco más de aire para leer mejor */
         }
 
         /* Sub-items (los subproductos dentro del paquete) */
@@ -194,11 +194,7 @@
                     </td>
                     <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
                     <td style="text-align: right;">
-                        {% if "Servicio de Barra" in item.descripcion and barra.desglose_venta %}
-                             ${{ item.subtotal|floatformat:2|intcomma }}
-                        {% else %}
-                             ${{ item.subtotal|floatformat:2|intcomma }}
-                        {% endif %}
+                        ${{ item.subtotal|floatformat:2|intcomma }}
                     </td>
                 </tr>
 
@@ -207,8 +203,10 @@
                     {% if barra.desglose_venta.refrescos > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            • Refrescos y Mezcladores
-                            <span style="display:block; font-size:8px; color:#888;">Coca-Cola, Squirt, Agua, Hielo Ilimitado</span>
+                            <strong style="color:#356685;">• Refrescos y Mezcladores</strong>
+                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
+                                Barra Libre de: Coca-Cola, Coca-Cola Light/Zero, Squirt, Agua Mineral Peñafiel, Agua Purificada y Hielo Ilimitado.
+                            </span>
                         </td>
                         <td style="text-align: center;">-</td>
                         <td style="text-align: right; color:#555;">${{ barra.desglose_venta.refrescos|floatformat:2|intcomma }}</td>
@@ -218,8 +216,10 @@
                     {% if barra.desglose_venta.cerveza > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            • Cerveza Nacional (Caguama)
-                            <span style="display:block; font-size:8px; color:#888;">Servicio Ilimitado por Hora</span>
+                            <strong style="color:#356685;">• Cerveza Nacional</strong>
+                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
+                                Servicio ilimitado. Presentación Caguama (940ml) servida en vaso. Marcas: Corona, Victoria o Superior (sujeto a disponibilidad).
+                            </span>
                         </td>
                         <td style="text-align: center;">-</td>
                         <td style="text-align: right; color:#555;">${{ barra.desglose_venta.cerveza|floatformat:2|intcomma }}</td>
@@ -229,8 +229,10 @@
                     {% if barra.desglose_venta.nacional > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            • Licores Nacionales
-                            <span style="display:block; font-size:8px; color:#888;">Tequila Tradicional, Ron Bacardí, Vodka Smirnoff, Whisky Red Label</span>
+                            <strong style="color:#356685;">• Barra Libre Nacional</strong>
+                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
+                                Incluye: Tequila (Tradicional/José Cuervo), Ron (Bacardí Blanco/Añejo), Vodka (Smirnoff/Absolut), Whisky (Red Label/William Lawson's).
+                            </span>
                         </td>
                         <td style="text-align: center;">-</td>
                         <td style="text-align: right; color:#555;">${{ barra.desglose_venta.nacional|floatformat:2|intcomma }}</td>
@@ -240,8 +242,10 @@
                     {% if barra.desglose_venta.premium > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            • Licores Premium
-                            <span style="display:block; font-size:8px; color:#888;">Don Julio 70, Black Label, Matusalem, Grey Goose</span>
+                            <strong style="color:#356685;">• Barra Libre Premium</strong>
+                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
+                                Marcas de Prestigio: Tequila (Don Julio 70 / Herradura Ultra), Whisky (Black Label / Chivas 12), Ron (Matusalem / Zacapa), Vodka (Grey Goose / Belvedere), Ginebra (Tanqueray / Bombay).
+                            </span>
                         </td>
                         <td style="text-align: center;">-</td>
                         <td style="text-align: right; color:#555;">${{ barra.desglose_venta.premium|floatformat:2|intcomma }}</td>
@@ -251,8 +255,15 @@
                     {% if barra.desglose_venta.coctel > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            • Coctelería y Mixología
-                            <span style="display:block; font-size:8px; color:#888;">Insumos y preparación artesanal</span>
+                            <strong style="color:#356685;">• Coctelería y Mixología</strong>
+                            <span style="display:block; font-size:9px; color:#666; margin-top:2px; line-height: 1.3;">
+                                {% if cotizacion.incluye_cocteleria_basica %}
+                                    <strong>Clásicos:</strong> Mojitos (Limón y Frutos Rojos), Margaritas (Limón, Tamarindo, Jamaica), Palomas Escarchadas, Vampiritos, Daiquiris.<br>
+                                {% endif %}
+                                {% if cotizacion.incluye_cocteleria_premium %}
+                                    <strong>Premium / Autor:</strong> Carajillos 43 Shakeados, Aperol Spritz, Gin Tonics Botánicos, Mezcalitas de Sabores (Maracuyá/Pepino).
+                                {% endif %}
+                            </span>
                         </td>
                         <td style="text-align: center;">-</td>
                         <td style="text-align: right; color:#555;">${{ barra.desglose_venta.coctel|floatformat:2|intcomma }}</td>
@@ -261,10 +272,10 @@
                     
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px; border-bottom: 2px solid #eee;">
-                            <i>• Staff de Barra y Cristalería</i>
+                            <i>• Servicio de Staff Profesional, Cristalería y Herramientas</i>
                         </td>
                         <td style="text-align: center; border-bottom: 2px solid #eee;">-</td>
-                        <td style="text-align: right; font-size: 9px; color: #28a745; border-bottom: 2px solid #eee;"><i>Incluido en costos anteriores</i></td>
+                        <td style="text-align: right; font-size: 9px; color: #28a745; border-bottom: 2px solid #eee;"><i>Incluido</i></td>
                     </tr>
 
                 {% endif %}
