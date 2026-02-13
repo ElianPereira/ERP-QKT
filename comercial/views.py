@@ -20,9 +20,10 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra
+# IMPORTANTE: Agregamos 'Producto' a las importaciones
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto
 from .forms import CalculadoraForm
-from .services import CalculadoraBarraService, actualizar_item_cotizacion # Importamos Servicio
+from .services import CalculadoraBarraService, actualizar_item_cotizacion
 
 try:
     from facturacion.models import SolicitudFactura
@@ -256,23 +257,13 @@ def exportar_reporte_cotizaciones(request):
     fecha_fin = request.POST.get('fecha_fin')
     estado = request.POST.get('estado')
     
-    # CORRECCION N+1: Usamos prefetch_related
+    # Optimizamos consultas
     cotizaciones = Cotizacion.objects.all().select_related('cliente').prefetch_related('gasto_set__compra').order_by('fecha_evento')
     
     if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
     if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
     if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
 
-    # ... (El resto del código de reporte se mantiene igual, ya optimizado por el prefetch) ...
-    # Copia el resto de la función exportar_reporte_cotizaciones del archivo original, 
-    # ya que la lógica interna de sumas estaba bien, solo fallaba el query.
-    # Por brevedad en esta respuesta, asumo que mantienes el bloque de cálculo de impuestos.
-    
-    # [BLOQUE DE CÁLCULO DE IMPUESTOS Y RENDERIZADO DEL PDF VA AQUÍ - IDÉNTICO AL ANTERIOR]
-    # ...
-    # (Si necesitas que repita todo el bloque de sumas, pídemelo, pero es exactamente el mismo de tu archivo original)
-    
-    # Para completar el script funcional:
     t_subtotal = Decimal(0)
     t_descuento = Decimal(0)
     t_base_real = Decimal(0)
@@ -300,7 +291,6 @@ def exportar_reporte_cotizaciones(request):
         ev_fiscal_iva = Decimal(0)
         ev_nofiscal = Decimal(0)
         
-        # Ahora esto no golpea la BD N veces gracias al prefetch_related
         gastos_evento = c.gasto_set.all() 
         
         for g in gastos_evento:
@@ -425,7 +415,6 @@ def exportar_reporte_pagos(request):
 
 @staff_member_required
 def calculadora_insumos(request):
-    # La calculadora simple se mantiene igual, aunque podríamos migrarla al servicio en el futuro.
     resultado = None
     if request.method == 'POST':
         form = CalculadoraForm(request.POST)
@@ -465,3 +454,39 @@ def forzar_migracion(request):
         call_command('migrate', interactive=False)
         return HttpResponse("✅ ¡MIGRACIÓN EXITOSA!")
     except Exception as e: return HttpResponse(f"❌ Error: {str(e)}")
+
+# ==========================================
+# 5. FICHA TÉCNICA (NUEVO - FIX ERROR 502)
+# ==========================================
+@staff_member_required
+def descargar_ficha_producto(request, producto_id):
+    """Genera un Brochure PDF de un producto específico para enviar por WA"""
+    producto = get_object_or_404(Producto, id=producto_id)
+    
+    # Configuración de URL para imágenes (Logo)
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    if os.name == 'nt':
+        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
+    else:
+        logo_url = f"file://{ruta_logo}"
+    
+    # Imagen del producto (si tiene)
+    img_prod_url = ""
+    if producto.imagen_promocional:
+        img_prod_url = request.build_absolute_uri(producto.imagen_promocional.url)
+
+    context = {
+        'p': producto,
+        'logo_url': logo_url,
+        'img_prod_url': img_prod_url,
+        'fecha_impresion': timezone.now()
+    }
+    
+    html_string = render_to_string('comercial/pdf_ficha_producto.html', context)
+    
+    response = HttpResponse(content_type='application/pdf')
+    filename = f"Ficha_{producto.nombre.replace(' ','_')}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    
+    HTML(string=html_string).write_pdf(response)
+    return response
