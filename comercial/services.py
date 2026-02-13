@@ -13,16 +13,10 @@ class CalculadoraBarraService:
         self.cot = cotizacion
 
     def _get_costo(self, insumo, clave_constante, default_val):
-        """
-        Intenta obtener precio del Insumo vinculado. 
-        Si no existe, busca en ConstantesSistema.
-        Si no, usa el default.
-        """
         if insumo:
             factor = insumo.factor_rendimiento if insumo.factor_rendimiento > 0 else 1
             return insumo.costo_unitario / Decimal(factor)
         
-        # Buscar en Constantes del Sistema (Para evitar Hardcoding)
         try:
             const = ConstanteSistema.objects.get(clave=clave_constante)
             return const.valor
@@ -46,26 +40,23 @@ class CalculadoraBarraService:
         if not any(checks.values()) or c.num_personas <= 0:
             return None
 
-        # --- OBTENCIÓN DE COSTOS (SIN HARDCODING PURO) ---
+        # --- COSTOS ---
         C_HIELO = self._get_costo(c.insumo_hielo, 'PRECIO_HIELO_20KG', '90.00')
         C_MIXER = self._get_costo(c.insumo_refresco, 'PRECIO_REFRESCO_2L', '22.00')
         C_AGUA = self._get_costo(c.insumo_agua, 'PRECIO_AGUA_GAL', '10.00')
-        
         C_ALC_NAC = self._get_costo(c.insumo_alcohol_basico, 'PRECIO_ALC_NAC', '380.00')
         C_ALC_PREM = self._get_costo(c.insumo_alcohol_premium, 'PRECIO_ALC_PREM', '1150.00')
-        C_CERVEZA = Decimal('42.00') # Se puede parametrizar también
+        C_CERVEZA = Decimal('42.00')
         C_GIN = Decimal('550.00')
-        
         C_INSUMO_COCTEL_BASE = Decimal('15.00')
         C_INSUMO_COCTEL_PREM = Decimal('28.00')
 
         R_BOTELLA = 16.0
         R_CAGUAMA = 3.0
 
-        # --- LÓGICA DE CLIMA Y DEMANDA ---
+        # --- FACTORES ---
         factor_termico = 1.0
         tragos_ph = 1.3
-
         if c.clima == 'calor':
             factor_termico = 1.3
             tragos_ph = 1.5
@@ -75,14 +66,13 @@ class CalculadoraBarraService:
 
         TOTAL_TRAGOS = c.num_personas * c.horas_servicio * tragos_ph
 
-        # --- PESOS / MARKET SHARE ---
+        # --- PESOS ---
         pesos = {}
         if checks['cerveza']: pesos['cerveza'] = 55
         if checks['nacional']: pesos['nacional'] = 35
         if checks['premium']: pesos['premium'] = 25
         if checks['coctel_base']: pesos['coctel_base'] = 20
         if checks['coctel_prem']: pesos['coctel_prem'] = 15
-        
         if checks['refrescos']:
             if not pesos: pesos['refrescos'] = 100
             else: pesos['refrescos'] = 15
@@ -97,10 +87,9 @@ class CalculadoraBarraService:
         
         costo_puro = {k: Decimal(0) for k in ['cerveza','nacional','premium','coctel','refrescos']}
         litros_mixer_calc = 0.0
+        costo_fruta = Decimal(0) # ACUMULADOR DE FRUTA/GARNITURA
 
-        # --- CÁLCULOS POR LÍNEA ---
-        
-        # 1. Cerveza
+        # --- CÁLCULOS ---
         if 'cerveza' in pesos:
             share = pesos['cerveza'] / total_peso
             tragos = TOTAL_TRAGOS * share
@@ -109,7 +98,6 @@ class CalculadoraBarraService:
             res['costo_alcohol'] += costo
             costo_puro['cerveza'] += costo
 
-        # 2. Nacional
         if 'nacional' in pesos:
             share = pesos['nacional'] / total_peso
             tragos = TOTAL_TRAGOS * share
@@ -118,10 +106,9 @@ class CalculadoraBarraService:
             costo = botellas * C_ALC_NAC
             res['costo_alcohol'] += costo
             costo_puro['nacional'] += costo
-            litros_mixer_calc += (tragos * 0.200) # 200ml mixer/trago
+            litros_mixer_calc += (tragos * 0.200)
             costo_puro['nacional'] += (Decimal(tragos * 0.200) * C_MIXER)
 
-        # 3. Premium
         if 'premium' in pesos:
             share = pesos['premium'] / total_peso
             tragos = TOTAL_TRAGOS * share
@@ -133,13 +120,12 @@ class CalculadoraBarraService:
             litros_mixer_calc += (tragos * 0.180)
             costo_puro['premium'] += (Decimal(tragos * 0.180) * C_MIXER)
 
-        # 4. Coctelería Base
         if 'coctel_base' in pesos:
             share = pesos['coctel_base'] / total_peso
             tragos = TOTAL_TRAGOS * share
-            # Insumo fruta
+            # Insumo fruta (Se separa en variable temporal)
             c_ins = Decimal(tragos) * C_INSUMO_COCTEL_BASE
-            res['costo_insumos_varios'] += c_ins
+            costo_fruta += c_ins
             costo_puro['coctel'] += c_ins
             # Alcohol
             b_ron_teq = math.ceil(tragos / R_BOTELLA)
@@ -149,12 +135,12 @@ class CalculadoraBarraService:
             costo_puro['coctel'] += c_alc
             litros_mixer_calc += (tragos * 0.100)
 
-        # 5. Coctelería Premium
         if 'coctel_prem' in pesos:
             share = pesos['coctel_prem'] / total_peso
             tragos = TOTAL_TRAGOS * share
+            # Insumo fruta/cafe
             c_ins = Decimal(tragos) * C_INSUMO_COCTEL_PREM
-            res['costo_insumos_varios'] += c_ins
+            costo_fruta += c_ins
             costo_puro['coctel'] += c_ins
             # Gin
             b_gin = math.ceil((tragos * 0.3) / R_BOTELLA)
@@ -163,7 +149,6 @@ class CalculadoraBarraService:
             res['costo_alcohol'] += c_alc
             costo_puro['coctel'] += c_alc
 
-        # 6. Refrescos (Solo)
         if 'refrescos' in pesos:
             share = pesos['refrescos'] / total_peso
             tragos = TOTAL_TRAGOS * share
@@ -172,21 +157,15 @@ class CalculadoraBarraService:
         res['litros_mezcladores'] = math.ceil(litros_mixer_calc)
         c_mixers_total = res['litros_mezcladores'] * C_MIXER
         
-        # --- CÁLCULO CIENTÍFICO DE HIELO ---
-        # A) Hielo Consumo (En vaso): 250g prom
+        # --- HIELO ---
         hielo_consumo = TOTAL_TRAGOS * 0.25 
-        
-        # B) Hielo Enfriamiento (Tinas):
-        # - 1 bolsa (20kg) enfría 30 caguamas
-        # - 1 bolsa (20kg) enfría 60L de mixers/agua
         hielo_enfriamiento = 0.0
         if res['cervezas_unidades'] > 0:
             hielo_enfriamiento += (res['cervezas_unidades'] / 30.0) * 20.0
         
-        volumen_a_enfriar = res['litros_mezcladores'] + (c.num_personas * 0.6) # Agua
+        volumen_a_enfriar = res['litros_mezcladores'] + (c.num_personas * 0.6)
         hielo_enfriamiento += (volumen_a_enfriar / 60.0) * 20.0
 
-        # C) Aplicar Factor Térmico Global
         res['hielo_consumo_kg'] = hielo_consumo * factor_termico
         res['hielo_enfriamiento_kg'] = hielo_enfriamiento * factor_termico
         
@@ -200,7 +179,8 @@ class CalculadoraBarraService:
         res['litros_agua'] = litros_agua
         costo_agua = litros_agua * C_AGUA
 
-        res['costo_insumos_varios'] += (costo_agua + costo_hielo + c_mixers_total)
+        # TOTALIZAR COSTOS OPERATIVOS
+        res['costo_insumos_varios'] = costo_agua + costo_hielo + c_mixers_total + costo_fruta
 
         # Staff
         ratio_barman = 40 if (checks['coctel_base'] or checks['coctel_prem']) else 50
@@ -218,7 +198,7 @@ class CalculadoraBarraService:
 
         # --- DESGLOSE FINAL ---
         costo_comun = costo_staff + costo_hielo + costo_agua
-        costo_puro['refrescos'] += c_mixers_total # Atribuir todo mixer aqui para simplificar prorrateo visual
+        costo_puro['refrescos'] += c_mixers_total
         
         total_asignable = sum(costo_puro.values()) or 1
         desglose = {}
@@ -237,7 +217,6 @@ class CalculadoraBarraService:
         desglose['premium'] = get_linea('premium')
         desglose['coctel'] = get_linea('coctel')
 
-        # Ajuste de centavos
         diff = precio_sugerido - sum(desglose.values())
         if abs(diff) > 0.1:
             k = max(desglose, key=desglose.get)
@@ -258,26 +237,24 @@ class CalculadoraBarraService:
             'num_auxiliares': num_auxiliares,
             'costo_alcohol': res['costo_alcohol'],
             'costo_insumos_varios': res['costo_insumos_varios'],
+            # VARIABLES NUEVAS PARA EL DESGLOSE:
+            'costo_hielo': costo_hielo,
+            'costo_mixers_agua': c_mixers_total + costo_agua,
+            'costo_fruta': costo_fruta,
+            # ----------------------------------
             'costo_staff': costo_staff,
             'margen_aplicado': c.factor_utilidad_barra,
             'desglose_venta': desglose
         }
 
 def actualizar_item_cotizacion(cotizacion):
-    """
-    Función que actualiza o crea el ItemCotizacion en base a los cálculos.
-    Se llama desde Cotizacion.save()
-    """
     calc = CalculadoraBarraService(cotizacion)
     datos = calc.calcular()
-    
     desc_clave = "Servicio de Barra"
-    # Usamos filter().first() para evitar crashes si hay duplicados
     item_barra = cotizacion.items.filter(descripcion__startswith=desc_clave).first()
 
     if datos:
         precio = datos['precio_venta_sugerido_total']
-        
         partes = []
         if cotizacion.incluye_cerveza: partes.append("Cerveza")
         if cotizacion.incluye_licor_nacional: partes.append("Nacional")
@@ -287,16 +264,14 @@ def actualizar_item_cotizacion(cotizacion):
         
         info = "/".join(partes) if partes else "Básico"
         clima_tag = "🔥" if cotizacion.clima in ['calor', 'extremo'] else ""
-        
         nueva_desc = f"{desc_clave} [{info}] {clima_tag} | {cotizacion.num_personas} Pax - {cotizacion.horas_servicio} Hrs"
 
         if item_barra:
-            # Solo guardar si hubo cambios reales para evitar loops de guardado
             if abs(item_barra.precio_unitario - precio) > Decimal('0.50') or item_barra.descripcion != nueva_desc:
                 item_barra.precio_unitario = precio
                 item_barra.descripcion = nueva_desc
                 item_barra.cantidad = 1
-                item_barra.save() # Esto dispara signals de Item, pero no de Cotizacion recursivamente si se cuida
+                item_barra.save()
         else:
             ItemCotizacion.objects.create(
                 cotizacion=cotizacion, 
