@@ -3,7 +3,7 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
-from django.contrib.auth import views as auth_views # <--- Importación necesaria para el Logout
+from django.contrib.auth import views as auth_views  # <--- IMPORTANTE: Necesario para el fix del Logout
 
 # Importamos las vistas de Comercial
 from comercial.views import (
@@ -18,11 +18,11 @@ from comercial.views import (
     forzar_migracion,
     exportar_reporte_pagos,
     descargar_lista_compras_pdf,
-    descargar_ficha_producto # <--- Vista para el PDF de venta rápida
+    descargar_ficha_producto  # <--- Vista para el PDF de venta rápida (Brochure)
 )
 
 # Importamos vistas de otros módulos (Nómina y Facturación)
-# Usamos try/except por si el módulo aún no está listo, evitar error 500
+# Usamos try/except por si el módulo aún no está listo, para evitar errores 500
 try:
     from nomina.views import cargar_nomina
 except ImportError:
@@ -40,14 +40,12 @@ urlpatterns = [
     # 1. EL DASHBOARD (Sobrescribe la vista principal del admin)
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),
 
-    # 2. Rutas del Sistema Comercial
+    # 2. Rutas del Sistema Comercial (Cotizaciones y Productos)
     path('cotizacion/<int:cotizacion_id>/pdf/', generar_pdf_cotizacion, name='cotizacion_pdf'),
     path('cotizacion/<int:cotizacion_id>/email/', enviar_cotizacion_email, name='cotizacion_email'),
-    
-    # --- RUTA PARA LISTA DE COMPRAS (CHECKLIST) ---
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
     
-    # --- NUEVO: RUTA PARA FICHA DE PRODUCTO (Brochure de Ventas) ---
+    # --- RUTA PARA FICHA DE PRODUCTO (Brochure de Ventas) ---
     path('producto/<int:producto_id>/ficha/', descargar_ficha_producto, name='producto_ficha_pdf'),
 
     # --- Calendario, Reportes y Compras ---
@@ -68,6 +66,7 @@ urlpatterns = [
 
     # --- FIX PARA EL BOTÓN DE CERRAR SESIÓN ---
     # Esto permite que el logout funcione con un clic simple (GET) y redirija al login
+    # Es vital colocarlo ANTES de admin.site.urls
     path('admin/logout/', auth_views.LogoutView.as_view(http_method_names=['get', 'post'], next_page='/admin/'), name='logout'),
 
     # 4. ADMIN DE DJANGO (Resto de funcionalidades)
@@ -77,5 +76,6 @@ urlpatterns = [
     path('', RedirectView.as_view(url='/admin/', permanent=False)), 
 ]
 
+# Configuración para servir archivos media (imágenes) en modo DEBUG
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
