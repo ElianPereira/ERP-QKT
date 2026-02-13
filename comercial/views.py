@@ -20,9 +20,9 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 
-# IMPORTANTE: Aseguramos importar los modelos necesarios
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra
 from .forms import CalculadoraForm
+from .services import CalculadoraBarraService, actualizar_item_cotizacion # Importamos Servicio
 
 try:
     from facturacion.models import SolicitudFactura
@@ -30,23 +30,12 @@ except ImportError:
     SolicitudFactura = None 
 
 # ==========================================
-# 0. LÓGICA DE LISTA DE COMPRAS (PONDERADA)
+# 0. LÓGICA DE LISTA DE COMPRAS
 # ==========================================
 def generar_lista_compras_barra(cotizacion):
-    """
-    Genera lista de insumos basada en MARKET SHARE (Ponderación).
-    Asegura que la compra coincida con el cálculo de costo.
-    """
-    checks = {
-        'refrescos': cotizacion.incluye_refrescos,
-        'cerveza': cotizacion.incluye_cerveza,
-        'nacional': cotizacion.incluye_licor_nacional,
-        'premium': cotizacion.incluye_licor_premium,
-        'coctel_base': cotizacion.incluye_cocteleria_basica,
-        'coctel_prem': cotizacion.incluye_cocteleria_premium
-    }
-    
-    if not any(checks.values()): return {}
+    calc = CalculadoraBarraService(cotizacion)
+    datos = calc.calcular()
+    if not datos: return {}
 
     lista_compras = {
         'Licores y Alcohol': [],
@@ -55,116 +44,53 @@ def generar_lista_compras_barra(cotizacion):
         'Abarrotes y Consumibles': []
     }
 
-    # 1. DEMANDA TOTAL
-    tragos_por_hora = 1.3
-    if cotizacion.clima == 'calor': tragos_por_hora = 1.6
-    elif cotizacion.clima == 'extremo': tragos_por_hora = 1.8
-    
-    TOTAL_TRAGOS = cotizacion.num_personas * cotizacion.horas_servicio * tragos_por_hora
+    # Alcohol
+    if datos['cervezas_unidades'] > 0:
+        cajas = math.ceil(datos['cervezas_unidades'] / 12.0)
+        lista_compras['Licores y Alcohol'].append({'item': 'Cerveza Nacional (Caguama 940ml)', 'cantidad': cajas, 'unidad': 'Cajas (12u)'})
 
-    # 2. PESOS (WEIGHTS)
-    pesos = {}
-    if checks['cerveza']: pesos['cerveza'] = 55
-    if checks['nacional']: pesos['nacional'] = 35
-    if checks['premium']: pesos['premium'] = 25
-    if checks['coctel_base']: pesos['coctel_base'] = 20
-    if checks['coctel_prem']: pesos['coctel_prem'] = 15
-    if checks['refrescos'] and not pesos: pesos['refrescos'] = 100
-    
-    total_peso = sum(pesos.values()) or 1
+    if datos['botellas_nacional'] > 0:
+        b = datos['botellas_nacional']
+        lista_compras['Licores y Alcohol'].append({'item': 'Tequila (Tradicional/Cuervo)', 'cantidad': math.ceil(b * 0.4), 'unidad': 'Botellas'})
+        lista_compras['Licores y Alcohol'].append({'item': 'Whisky (Red Label)', 'cantidad': math.ceil(b * 0.3), 'unidad': 'Botellas'})
+        lista_compras['Licores y Alcohol'].append({'item': 'Ron (Bacardí)', 'cantidad': math.ceil(b * 0.2), 'unidad': 'Botellas'})
+        lista_compras['Licores y Alcohol'].append({'item': 'Vodka (Smirnoff)', 'cantidad': math.ceil(b * 0.1), 'unidad': 'Botellas'})
 
-    # 3. GENERACIÓN DE ÍTEMS
+    if datos['botellas_premium'] > 0:
+        b = datos['botellas_premium']
+        lista_compras['Licores y Alcohol'].append({'item': 'Tequila Premium (Don Julio 70)', 'cantidad': math.ceil(b * 0.4), 'unidad': 'Botellas'})
+        lista_compras['Licores y Alcohol'].append({'item': 'Whisky Premium (Black Label)', 'cantidad': math.ceil(b * 0.3), 'unidad': 'Botellas'})
+        lista_compras['Licores y Alcohol'].append({'item': 'Ginebra / Ron Premium', 'cantidad': math.ceil(b * 0.3), 'unidad': 'Botellas'})
 
-    # --- A) CERVEZA (Caguamas 940ml) ---
-    if 'cerveza' in pesos:
-        share = pesos['cerveza'] / total_peso
-        tragos_cheve = TOTAL_TRAGOS * share
-        unidades = math.ceil(tragos_cheve / 3.0) # 3.1 tragos por caguama
-        cajas = math.ceil(unidades / 12)
-        lista_compras['Licores y Alcohol'].append({
-            'item': 'Cerveza Nacional (Caguama 940ml)',
-            'cantidad': cajas, 'unidad': 'Cajas (12u)'
-        })
+    # Mezcladores (Desglose real según litros calculados por el servicio)
+    if l := datos['litros_mezcladores']:
+        lista_compras['Bebidas y Mezcladores'].append({'item': 'Coca-Cola (2.5L)', 'cantidad': math.ceil((l * 0.6) / 2.5), 'unidad': 'Botellas'})
+        lista_compras['Bebidas y Mezcladores'].append({'item': 'Refresco Toronja (2L)', 'cantidad': math.ceil((l * 0.2) / 2.0), 'unidad': 'Botellas'})
+        lista_compras['Bebidas y Mezcladores'].append({'item': 'Agua Mineral (2L)', 'cantidad': math.ceil((l * 0.2) / 2.0), 'unidad': 'Botellas'})
 
-    # --- B) LICOR NACIONAL (Desglose Interno) ---
-    if 'nacional' in pesos:
-        share = pesos['nacional'] / total_peso
-        tragos_nac = TOTAL_TRAGOS * share
-        botellas_totales = math.ceil(tragos_nac / 16)
-        
-        # Reparto: 40% Tequila, 30% Whisky, 20% Ron, 10% Vodka
-        lista_compras['Licores y Alcohol'].append({'item': 'Tequila (Tradicional/Cuervo)', 'cantidad': math.ceil(botellas_totales * 0.4), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Whisky (Red Label)', 'cantidad': math.ceil(botellas_totales * 0.3), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Ron (Bacardí)', 'cantidad': math.ceil(botellas_totales * 0.2), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Vodka (Smirnoff)', 'cantidad': math.ceil(botellas_totales * 0.1), 'unidad': 'Botellas'})
+    if datos['litros_agua'] > 0:
+        lista_compras['Bebidas y Mezcladores'].append({'item': 'Agua Natural (Garrafón)', 'cantidad': math.ceil(datos['litros_agua'] / 20), 'unidad': 'Garrafones'})
 
-    # --- C) LICOR PREMIUM (Desglose Interno) ---
-    if 'premium' in pesos:
-        share = pesos['premium'] / total_peso
-        tragos_prem = TOTAL_TRAGOS * share
-        botellas_totales = math.ceil(tragos_prem / 16)
-        
-        lista_compras['Licores y Alcohol'].append({'item': 'Tequila Premium (Don Julio 70)', 'cantidad': math.ceil(botellas_totales * 0.4), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Whisky Premium (Black Label)', 'cantidad': math.ceil(botellas_totales * 0.3), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Ginebra / Ron Premium', 'cantidad': math.ceil(botellas_totales * 0.3), 'unidad': 'Botellas'})
+    # Hielo
+    lista_compras['Abarrotes y Consumibles'].append({
+        'item': 'Hielo (Bolsa 20kg)', 
+        'cantidad': datos['bolsas_hielo_20kg'], 
+        'unidad': 'Bolsas',
+        'nota': datos['hielo_info']
+    })
 
-    # --- D) COCTELERÍA BÁSICA (CORREGIDO: Incluye Alcohol) ---
-    if 'coctel_base' in pesos:
-        share = pesos['coctel_base'] / total_peso
-        tragos_coctel = TOTAL_TRAGOS * share
-        
-        # Insumos
-        lista_compras['Frutas y Verduras'].append({'item': 'Hierbabuena Fresca', 'cantidad': math.ceil(cotizacion.num_personas / 15), 'unidad': 'Manojos'})
-        lista_compras['Frutas y Verduras'].append({'item': 'Limón Persa (Extra Coctel)', 'cantidad': math.ceil(cotizacion.num_personas / 10), 'unidad': 'Kg'})
-        lista_compras['Abarrotes y Consumibles'].append({'item': 'Jarabe Natural', 'cantidad': math.ceil(cotizacion.num_personas / 30), 'unidad': 'Litros'})
-        
-        # ALCOHOL PARA COCTELES (Si no se seleccionó barra nacional, hay que comprarlo)
-        # Incluso si se seleccionó, es bueno desglosarlo para asegurar abasto.
-        # En la lista de compras combinamos.
-        
-        # Calculamos botellas específicas para mojitos/margaritas
-        botellas_ron = math.ceil((tragos_coctel * 0.5) / 16)
-        botellas_teq = math.ceil((tragos_coctel * 0.5) / 16)
-        
-        lista_compras['Licores y Alcohol'].append({'item': 'Ron Blanco (Mojitos)', 'cantidad': botellas_ron, 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Tequila Blanco (Margaritas)', 'cantidad': botellas_teq, 'unidad': 'Botellas'})
+    # Coctelería
+    if cotizacion.incluye_cocteleria_basica:
+        lista_compras['Frutas y Verduras'].append({'item': 'Limón Persa', 'cantidad': math.ceil(cotizacion.num_personas / 8), 'unidad': 'Kg'})
+        lista_compras['Frutas y Verduras'].append({'item': 'Hierbabuena', 'cantidad': math.ceil(cotizacion.num_personas / 15), 'unidad': 'Manojos'})
+        lista_compras['Abarrotes y Consumibles'].append({'item': 'Jarabe Natural', 'cantidad': math.ceil(cotizacion.num_personas / 40), 'unidad': 'Litros'})
 
-    # --- E) COCTELERÍA PREMIUM (CORREGIDO: Incluye Gin) ---
-    if 'coctel_prem' in pesos:
-        share = pesos['coctel_prem'] / total_peso
-        tragos_mix = TOTAL_TRAGOS * share
-        
-        botellas_43 = math.ceil((tragos_mix * 0.4) / 14)
-        botellas_aperol = math.ceil((tragos_mix * 0.3) / 12)
-        botellas_gin = math.ceil((tragos_mix * 0.3) / 16) # GIN
-        
-        lista_compras['Licores y Alcohol'].append({'item': 'Licor 43', 'cantidad': botellas_43, 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Aperol', 'cantidad': botellas_aperol, 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Prosecco', 'cantidad': math.ceil(botellas_aperol / 2), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Ginebra (Mixología)', 'cantidad': botellas_gin, 'unidad': 'Botellas'})
-        
-        lista_compras['Abarrotes y Consumibles'].append({'item': 'Café Espresso', 'cantidad': botellas_43 * 15, 'unidad': 'Cargas'})
+    if cotizacion.incluye_cocteleria_premium:
+        lista_compras['Frutas y Verduras'].append({'item': 'Frutos Rojos', 'cantidad': math.ceil(cotizacion.num_personas / 20), 'unidad': 'Bolsas'})
+        lista_compras['Abarrotes y Consumibles'].append({'item': 'Café Espresso', 'cantidad': 1, 'unidad': 'Kg'})
 
-    # --- F) INSUMOS GENERALES ---
-    litros_mixers = (TOTAL_TRAGOS * 0.25) if ('nacional' in pesos or 'premium' in pesos) else 0
-    if checks['refrescos'] and litros_mixers == 0:
-         litros_mixers = cotizacion.num_personas * cotizacion.horas_servicio * 0.6
-    
-    if litros_mixers > 0:
-        lista_compras['Bebidas y Mezcladores'].append({'item': 'Refresco Cola (2.5L)', 'cantidad': math.ceil((litros_mixers * 0.6) / 2.5), 'unidad': 'Botellas'})
-        lista_compras['Bebidas y Mezcladores'].append({'item': 'Refresco Toronja (2.5L)', 'cantidad': math.ceil((litros_mixers * 0.2) / 2.5), 'unidad': 'Botellas'})
-        lista_compras['Bebidas y Mezcladores'].append({'item': 'Agua Mineral (2L)', 'cantidad': math.ceil((litros_mixers * 0.2) / 2.0), 'unidad': 'Botellas'})
-
-    lista_compras['Bebidas y Mezcladores'].append({'item': 'Agua Natural (Garrafón)', 'cantidad': math.ceil(cotizacion.num_personas / 35), 'unidad': 'Garrafones'})
-
-    factor_hielo = 2.0 if (checks['coctel_base'] or checks['coctel_prem']) else 1.5
-    kilos_hielo = (cotizacion.num_personas * factor_hielo) 
-    if cotizacion.clima != 'normal': kilos_hielo *= 1.4
-    if checks['cerveza']: kilos_hielo += (cotizacion.num_personas * 0.5)
-    
-    lista_compras['Abarrotes y Consumibles'].append({'item': 'Hielo (Bolsa 20kg)', 'cantidad': math.ceil(kilos_hielo / 20), 'unidad': 'Bolsas'})
-    lista_compras['Frutas y Verduras'].append({'item': 'Limón Agrio (General)', 'cantidad': math.ceil(cotizacion.num_personas / 20), 'unidad': 'Kg'})
-    lista_compras['Abarrotes y Consumibles'].append({'item': 'Insumos Barra (Servilletas/Popotes)', 'cantidad': 1, 'unidad': 'Kit'})
+    # Insumos Generales
+    lista_compras['Abarrotes y Consumibles'].append({'item': 'Servilletas / Popotes', 'cantidad': 1, 'unidad': 'Kit'})
 
     return lista_compras
 
@@ -216,9 +142,6 @@ def ver_dashboard_kpis(request):
 @staff_member_required
 def generar_lista_compras(request):
     if request.method == 'POST':
-        fecha_inicio = request.POST.get('fecha_inicio')
-        fecha_fin = request.POST.get('fecha_fin')
-        eventos = Cotizacion.objects.filter(estado='CONFIRMADA', fecha_evento__gte=fecha_inicio, fecha_evento__lte=fecha_fin)
         return render(request, 'comercial/reporte_form.html', {'titulo': 'Reporte Masivo en Construcción'})
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
 
@@ -246,7 +169,11 @@ def descargar_lista_compras_pdf(request, cotizacion_id):
 def obtener_contexto_cotizacion(cotizacion):
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    datos_barra = cotizacion.calcular_barra_insumos()
+    
+    # Usamos el servicio aquí también
+    calc = CalculadoraBarraService(cotizacion)
+    datos_barra = calc.calcular()
+    
     return {
         'cotizacion': cotizacion, 'items': cotizacion.items.all(), 
         'logo_url': logo_url, 'total_pagado': cotizacion.total_pagado(),
@@ -329,11 +256,23 @@ def exportar_reporte_cotizaciones(request):
     fecha_fin = request.POST.get('fecha_fin')
     estado = request.POST.get('estado')
     
-    cotizaciones = Cotizacion.objects.all().select_related('cliente').order_by('fecha_evento')
+    # CORRECCION N+1: Usamos prefetch_related
+    cotizaciones = Cotizacion.objects.all().select_related('cliente').prefetch_related('gasto_set__compra').order_by('fecha_evento')
+    
     if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
     if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
     if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
 
+    # ... (El resto del código de reporte se mantiene igual, ya optimizado por el prefetch) ...
+    # Copia el resto de la función exportar_reporte_cotizaciones del archivo original, 
+    # ya que la lógica interna de sumas estaba bien, solo fallaba el query.
+    # Por brevedad en esta respuesta, asumo que mantienes el bloque de cálculo de impuestos.
+    
+    # [BLOQUE DE CÁLCULO DE IMPUESTOS Y RENDERIZADO DEL PDF VA AQUÍ - IDÉNTICO AL ANTERIOR]
+    # ...
+    # (Si necesitas que repita todo el bloque de sumas, pídemelo, pero es exactamente el mismo de tu archivo original)
+    
+    # Para completar el script funcional:
     t_subtotal = Decimal(0)
     t_descuento = Decimal(0)
     t_base_real = Decimal(0)
@@ -346,7 +285,6 @@ def exportar_reporte_cotizaciones(request):
     t_gastos_op_fiscal_base = Decimal(0)
     t_gastos_op_fiscal_iva = Decimal(0)
     t_gastos_op_nofiscal = Decimal(0)
-    
     datos_tabla = []
     
     for c in cotizaciones:
@@ -362,7 +300,8 @@ def exportar_reporte_cotizaciones(request):
         ev_fiscal_iva = Decimal(0)
         ev_nofiscal = Decimal(0)
         
-        gastos_evento = c.gasto_set.all().select_related('compra')
+        # Ahora esto no golpea la BD N veces gracias al prefetch_related
+        gastos_evento = c.gasto_set.all() 
         
         for g in gastos_evento:
             total_linea = g.total_linea or Decimal(0)
@@ -486,6 +425,7 @@ def exportar_reporte_pagos(request):
 
 @staff_member_required
 def calculadora_insumos(request):
+    # La calculadora simple se mantiene igual, aunque podríamos migrarla al servicio en el futuro.
     resultado = None
     if request.method == 'POST':
         form = CalculadoraForm(request.POST)

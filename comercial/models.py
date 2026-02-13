@@ -1,14 +1,22 @@
 import xml.etree.ElementTree as ET
 from decimal import Decimal
-import math
 from django.db import models
-from django.db.models import Sum, Q
-from django.core.exceptions import ValidationError
+from django.db.models import Sum
 from django.utils.timezone import now
 from django.contrib.auth.models import User
-
 from facturacion.choices import RegimenFiscal, UsoCFDI
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
+
+# ==========================================
+# 0. CONFIGURACIÓN DEL SISTEMA (NUEVO)
+# ==========================================
+class ConstanteSistema(models.Model):
+    clave = models.CharField(max_length=50, unique=True, help_text="Ej: PRECIO_HIELO_20KG")
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    descripcion = models.CharField(max_length=200, blank=True)
+
+    def __str__(self): return f"{self.clave}: ${self.valor}"
+    class Meta: verbose_name = "Constante del Sistema"
 
 # ==========================================
 # 1. INSUMOS
@@ -22,34 +30,18 @@ class Insumo(models.Model):
     nombre = models.CharField(max_length=200)
     unidad_medida = models.CharField(max_length=50) 
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo de Compra") 
-    
-    factor_rendimiento = models.DecimalField(
-        max_digits=10, decimal_places=2, default=1.00,
-        verbose_name="Rendimiento (Divisor)",
-        help_text="Ej: Caja de 6 refrescos de 3L = 18 (Litros). Caja de 12 botellas = 12 (Piezas). Si es unitario, deja 1."
-    )
-    
+    factor_rendimiento = models.DecimalField(max_digits=10, decimal_places=2, default=1.00, verbose_name="Rendimiento (Divisor)")
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
-
-    crear_como_subproducto = models.BooleanField(
-        default=False, verbose_name="¿Crear también como Subproducto?",
-        help_text="Si marcas esto, se creará un Subproducto automático."
-    )
+    crear_como_subproducto = models.BooleanField(default=False, verbose_name="¿Crear también como Subproducto?")
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         if self.crear_como_subproducto:
-            sub_prod, _ = SubProducto.objects.get_or_create(
-                nombre=self.nombre,
-                defaults={'descripcion': f"Generado autom. desde insumo: {self.nombre}"}
-            )
-            RecetaSubProducto.objects.get_or_create(
-                subproducto=sub_prod, insumo=self, defaults={'cantidad': 1}
-            )
+            sub_prod, _ = SubProducto.objects.get_or_create(nombre=self.nombre)
+            RecetaSubProducto.objects.get_or_create(subproducto=sub_prod, insumo=self, defaults={'cantidad': 1})
 
-    def __str__(self):
-        return f"{self.nombre} (${self.costo_unitario})"
+    def __str__(self): return f"{self.nombre} (${self.costo_unitario})"
 
 # ==========================================
 # 2. SUBPRODUCTOS & PRODUCTOS
@@ -104,11 +96,10 @@ class Cliente(models.Model):
 # ==========================================
 class Cotizacion(models.Model):
     ESTADOS = [('BORRADOR', 'Borrador'), ('CONFIRMADA', 'Venta Confirmada'), ('CANCELADA', 'Cancelada')]
-    
     CLIMA_CHOICES = [
         ('normal', 'Interior / Aire Acondicionado'),
-        ('calor', 'Exterior / Calor Mérida (+20% Liq)'),
-        ('extremo', 'Ola de Calor / Mayo (+40% Liq)'),
+        ('calor', 'Exterior / Calor Mérida (+30% Hielo)'),
+        ('extremo', 'Ola de Calor / Mayo (+60% Hielo)'),
     ]
     
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
@@ -117,30 +108,24 @@ class Cotizacion(models.Model):
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
     
-    # --- CONFIGURACIÓN DE BARRA MODULAR ---
+    # Configuración de Barra
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
-    
     incluye_refrescos = models.BooleanField(default=True, verbose_name="Refrescos y Mezcladores")
     incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza (Caguama)")
-    
     incluye_licor_nacional = models.BooleanField(default=False, verbose_name="Licores Nacionales")
     incluye_licor_premium = models.BooleanField(default=False, verbose_name="Licores Premium")
-    
-    incluye_cocteleria_basica = models.BooleanField(default=False, verbose_name="Coctelería Básica (Mojitos/Marg)")
-    incluye_cocteleria_premium = models.BooleanField(default=False, verbose_name="Mixología / Carajillos")
-    
-    clima = models.CharField(max_length=20, choices=CLIMA_CHOICES, default='calor', verbose_name="Clima / Entorno")
+    incluye_cocteleria_basica = models.BooleanField(default=False, verbose_name="Coctelería Básica")
+    incluye_cocteleria_premium = models.BooleanField(default=False, verbose_name="Mixología")
+    clima = models.CharField(max_length=20, choices=CLIMA_CHOICES, default='calor', verbose_name="Clima")
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
     factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=2.20, verbose_name="Factor Utilidad")
 
-    # Selección Manual de Insumos (Precios Base)
-    insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo (20kg)")
+    # Insumos Vinculados (Opcional, si null usa Constantes)
+    insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo")
     insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco")
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua")
-    
     insumo_alcohol_basico = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Básico")
     insumo_alcohol_premium = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Alcohol Premium")
-    
     insumo_barman = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Bartender")
     insumo_auxiliar = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Auxiliar")
 
@@ -158,247 +143,8 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
-    def _get_costo_real(self, insumo, precio_default):
-        if not insumo: return Decimal(precio_default)
-        factor = insumo.factor_rendimiento if insumo.factor_rendimiento > 0 else Decimal(1)
-        return insumo.costo_unitario / factor
-
-    def calcular_barra_insumos(self):
-        """
-        ALGORITMO DE DISTRIBUCIÓN PONDERADA (MARKET SHARE)
-        CORREGIDO: Incluye costos de alcohol base en cocteles.
-        """
-        checks = {
-            'refrescos': self.incluye_refrescos,
-            'cerveza': self.incluye_cerveza,
-            'nacional': self.incluye_licor_nacional,
-            'premium': self.incluye_licor_premium,
-            'coctel_base': self.incluye_cocteleria_basica,
-            'coctel_prem': self.incluye_cocteleria_premium
-        }
-        
-        if not any(checks.values()) or self.num_personas <= 0: return None
-
-        # --- CONSTANTES ---
-        C_HIELO = self._get_costo_real(self.insumo_hielo, '88.00')
-        C_MIXER = self._get_costo_real(self.insumo_refresco, '18.00')
-        C_AGUA = self._get_costo_real(self.insumo_agua, '8.00')
-        
-        # Alcohol
-        C_ALC_NAC = self._get_costo_real(self.insumo_alcohol_basico, '380.00')
-        C_ALC_PREM = self._get_costo_real(self.insumo_alcohol_premium, '1150.00')
-        C_CERVEZA = Decimal('42.00')
-        C_GIN_STD = Decimal('550.00') 
-        
-        # Insumos fruta/jarabes
-        C_INSUMO_COCTEL_BASE = Decimal('12.00')
-        C_INSUMO_COCTEL_PREM = Decimal('25.00')
-        
-        R_BOTELLA = 16.0
-        R_CAGUAMA = 3.0
-
-        # --- DEMANDA Y PESOS ---
-        tragos_por_hora = 1.6 if self.clima == 'calor' else (1.8 if self.clima == 'extremo' else 1.3)
-        mult_hielo = Decimal('1.4') if self.clima == 'calor' else (Decimal('1.6') if self.clima == 'extremo' else Decimal('1.0'))
-        TOTAL_TRAGOS = self.num_personas * self.horas_servicio * tragos_por_hora
-
-        pesos = {}
-        if checks['cerveza']: pesos['cerveza'] = 55
-        if checks['nacional']: pesos['nacional'] = 35
-        if checks['premium']: pesos['premium'] = 25
-        if checks['coctel_base']: pesos['coctel_base'] = 20
-        if checks['coctel_prem']: pesos['coctel_prem'] = 15
-        
-        if checks['refrescos']:
-            if not any([checks['cerveza'], checks['nacional'], checks['premium'], checks['coctel_base'], checks['coctel_prem']]):
-                pesos['refrescos'] = 100 
-            else:
-                pesos['refrescos'] = 15 
-
-        total_peso = sum(pesos.values()) or 1
-
-        costo_puro = {
-            'cerveza': Decimal(0),
-            'nacional': Decimal(0),
-            'premium': Decimal(0),
-            'coctel': Decimal(0),
-            'refrescos': Decimal(0)
-        }
-        
-        res = {
-            'botellas_nacional': 0, 'botellas_premium': 0, 'cervezas_unidades': 0,
-            'litros_mezcladores': 0, 'bolsas_hielo_20kg': 0,
-            'costo_alcohol': Decimal(0), 'costo_insumos_varios': Decimal(0)
-        }
-
-        # --- CÁLCULOS ---
-        if 'cerveza' in pesos:
-            share = pesos['cerveza'] / total_peso
-            tragos = TOTAL_TRAGOS * share
-            res['cervezas_unidades'] = math.ceil(tragos / R_CAGUAMA)
-            c_tmp = res['cervezas_unidades'] * C_CERVEZA
-            res['costo_alcohol'] += c_tmp
-            costo_puro['cerveza'] += c_tmp
-
-        if 'nacional' in pesos:
-            share = pesos['nacional'] / total_peso
-            tragos = TOTAL_TRAGOS * share
-            res['botellas_nacional'] = math.ceil(tragos / R_BOTELLA)
-            c_tmp = res['botellas_nacional'] * C_ALC_NAC
-            res['costo_alcohol'] += c_tmp
-            costo_puro['nacional'] += c_tmp
-            mix_l = tragos * 0.3
-            res['litros_mezcladores'] += mix_l
-            costo_puro['nacional'] += (Decimal(mix_l) * C_MIXER)
-
-        if 'premium' in pesos:
-            share = pesos['premium'] / total_peso
-            tragos = TOTAL_TRAGOS * share
-            res['botellas_premium'] = math.ceil(tragos / R_BOTELLA)
-            c_tmp = res['botellas_premium'] * C_ALC_PREM
-            res['costo_alcohol'] += c_tmp
-            costo_puro['premium'] += c_tmp
-            mix_l = tragos * 0.25
-            res['litros_mezcladores'] += mix_l
-            costo_puro['premium'] += (Decimal(mix_l) * C_MIXER)
-
-        # --- D) Coctelería Base (CORREGIDO) ---
-        if 'coctel_base' in pesos:
-            share = pesos['coctel_base'] / total_peso
-            tragos = TOTAL_TRAGOS * share
-            
-            # 1. Insumos Fruta/Jarabe
-            c_tmp = Decimal(tragos) * C_INSUMO_COCTEL_BASE
-            res['costo_insumos_varios'] += c_tmp
-            costo_puro['coctel'] += c_tmp
-            res['litros_mezcladores'] += (tragos * 0.1)
-            
-            # 2. Alcohol Base (Ron y Tequila para Mojitos y Margaritas)
-            # Asumimos que son el alcohol del cocktail. Si NO hay barra nacional, debemos cobrarlo.
-            # E incluso si la hay, la distribución por pesos asigna estos tragos a esta categoría,
-            # así que debemos cobrar el alcohol aquí para que la matemática cuadre.
-            
-            # 50% Mojitos (Ron), 50% Margaritas (Tequila)
-            botellas_ron = math.ceil((tragos * 0.5) / R_BOTELLA)
-            botellas_teq = math.ceil((tragos * 0.5) / R_BOTELLA)
-            
-            costo_bases = (botellas_ron + botellas_teq) * C_ALC_NAC
-            res['costo_alcohol'] += costo_bases
-            costo_puro['coctel'] += costo_bases
-            res['botellas_nacional'] += (botellas_ron + botellas_teq)
-
-        # --- E) Coctelería Premium (CORREGIDO GIN) ---
-        if 'coctel_prem' in pesos:
-            share = pesos['coctel_prem'] / total_peso
-            tragos = TOTAL_TRAGOS * share
-            
-            # 1. Insumos
-            c_tmp = Decimal(tragos) * C_INSUMO_COCTEL_PREM
-            res['costo_insumos_varios'] += c_tmp
-            costo_puro['coctel'] += c_tmp
-            
-            # 2. Ginebra para Mixología
-            tragos_gin = tragos * 0.30 
-            botellas_gin = math.ceil(tragos_gin / R_BOTELLA)
-            costo_gin = botellas_gin * C_GIN_STD
-            
-            res['costo_alcohol'] += costo_gin
-            costo_puro['coctel'] += costo_gin
-            res['botellas_premium'] += botellas_gin 
-
-        if 'refrescos' in pesos:
-            if pesos['refrescos'] == 100:
-                litros_soda = self.num_personas * self.horas_servicio * 0.6
-                res['litros_mezcladores'] = litros_soda 
-            else:
-                share = pesos['refrescos'] / total_peso
-                tragos_soda = TOTAL_TRAGOS * share
-                litros_soda = tragos_soda * 0.355 
-                res['litros_mezcladores'] += litros_soda
-            
-            costo_puro['refrescos'] += (Decimal(litros_soda) * C_MIXER)
-
-        # Operativos Comunes
-        litros_agua = math.ceil(self.num_personas * 0.6)
-        costo_agua = litros_agua * C_AGUA
-        
-        factor_hielo = 2.0 if (checks['coctel_base'] or checks['coctel_prem']) else 1.5
-        kilos_hielo = (self.num_personas * factor_hielo) * float(mult_hielo)
-        if checks['cerveza']: kilos_hielo += (self.num_personas * 0.5)
-        res['bolsas_hielo_20kg'] = math.ceil(kilos_hielo / 20.0)
-        costo_hielo = res['bolsas_hielo_20kg'] * C_HIELO
-        
-        res['litros_mezcladores'] = math.ceil(res['litros_mezcladores'])
-        costo_mixers_total = res['litros_mezcladores'] * C_MIXER
-        
-        res['costo_insumos_varios'] += (costo_agua + costo_hielo + costo_mixers_total)
-        
-        # Staff Optimizado
-        ratio_barman = 40 if (checks['coctel_base'] or checks['coctel_prem']) else 50
-        num_barmans = math.ceil(self.num_personas / ratio_barman)
-        num_auxiliares = math.ceil(num_barmans / 2)
-        if num_barmans > 1 and num_auxiliares == 0: num_auxiliares = 1
-        
-        C_BARMAN = self._get_costo_real(self.insumo_barman, '1200.00')
-        C_AUX = self._get_costo_real(self.insumo_auxiliar, '800.00')
-        
-        costo_staff = (num_barmans * C_BARMAN) + (num_auxiliares * C_AUX)
-
-        # --- TOTALES Y PRORRATEO ---
-        costo_total_operativo = res['costo_alcohol'] + res['costo_insumos_varios'] + costo_staff
-        precio_venta_total = costo_total_operativo * Decimal(str(self.factor_utilidad_barra))
-
-        costo_comun_operativo = costo_staff + costo_hielo + costo_agua
-        
-        if checks['refrescos'] and not any([checks['cerveza'], checks['nacional'], checks['premium']]):
-             costo_puro['refrescos'] += costo_comun_operativo
-             costo_comun_operativo = 0
-
-        total_costo_asignable = sum(costo_puro.values())
-        if total_costo_asignable == 0: total_costo_asignable = 1
-        
-        desglose = {}
-        margen = Decimal(str(self.factor_utilidad_barra))
-
-        def calcular_precio_linea(key_puro):
-            if costo_puro[key_puro] > 0:
-                participacion = costo_puro[key_puro] / total_costo_asignable
-                costo_full = costo_puro[key_puro] + (costo_comun_operativo * participacion)
-                return costo_full * margen
-            return Decimal(0)
-
-        desglose['refrescos'] = calcular_precio_linea('refrescos')
-        desglose['cerveza'] = calcular_precio_linea('cerveza')
-        desglose['nacional'] = calcular_precio_linea('nacional')
-        desglose['premium'] = calcular_precio_linea('premium')
-        desglose['coctel'] = calcular_precio_linea('coctel')
-
-        suma_desglose = sum(desglose.values())
-        diferencia = precio_venta_total - suma_desglose
-        if abs(diferencia) > 0.01:
-            cat_max = max(desglose, key=desglose.get)
-            desglose[cat_max] += diferencia
-
-        return {
-            'costo_total_estimado': costo_total_operativo,
-            'precio_venta_sugerido_total': precio_venta_total,
-            'botellas': res['botellas_nacional'] + res['botellas_premium'],
-            'botellas_nacional': res['botellas_nacional'],
-            'botellas_premium': res['botellas_premium'],
-            'cervezas_unidades': res['cervezas_unidades'],
-            'bolsas_hielo_20kg': res['bolsas_hielo_20kg'],
-            'litros_mezcladores': res['litros_mezcladores'],
-            'litros_agua': litros_agua,
-            'num_barmans': num_barmans,
-            'num_auxiliares': num_auxiliares,
-            'costo_alcohol': round(res['costo_alcohol'], 2),
-            'costo_insumos_varios': round(res['costo_insumos_varios'], 2),
-            'costo_staff': round(costo_staff, 2),
-            'margen_aplicado': self.factor_utilidad_barra,
-            'desglose_venta': desglose
-        }
-
     def calcular_totales(self):
+        # Lógica ligera financiera
         if not self.pk: return 
         suma_items = sum(item.subtotal() for item in self.items.all())
         self.subtotal = suma_items
@@ -419,41 +165,21 @@ class Cotizacion(models.Model):
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
 
     def save(self, *args, **kwargs):
+        # 1. Guardamos primero para tener ID
         super().save(*args, **kwargs)
-        datos_barra = self.calcular_barra_insumos()
-        desc_clave = "Servicio de Barra"
-        item_barra = self.items.filter(descripcion__startswith=desc_clave).first()
+        
+        # 2. Delegamos la lógica pesada al Servicio
+        from .services import actualizar_item_cotizacion
+        actualizar_item_cotizacion(self)
 
-        if datos_barra:
-            precio_sugerido = Decimal(datos_barra['precio_venta_sugerido_total'])
-            
-            partes = []
-            if self.incluye_cerveza: partes.append("Cerveza")
-            if self.incluye_licor_nacional: partes.append("Nacional")
-            if self.incluye_licor_premium: partes.append("Premium")
-            if self.incluye_cocteleria_basica: partes.append("Cocteles")
-            if self.incluye_cocteleria_premium: partes.append("Mixología")
-            
-            info_paquete = "/".join(partes) if partes else "Básico"
-            tag_clima = "🔥" if self.clima in ['calor', 'extremo'] else ""
-            
-            nueva_descripcion = f"{desc_clave} [{info_paquete}] {tag_clima} | {self.num_personas} Pax - {self.horas_servicio} Hrs"
-            
-            if item_barra:
-                if abs(item_barra.precio_unitario - precio_sugerido) > Decimal('1.00') or item_barra.descripcion != nueva_descripcion:
-                    item_barra.precio_unitario = precio_sugerido
-                    item_barra.descripcion = nueva_descripcion
-                    item_barra.cantidad = 1
-                    item_barra.save()
-            else:
-                ItemCotizacion.objects.create(cotizacion=self, descripcion=nueva_descripcion, cantidad=1, precio_unitario=precio_sugerido)
-        else:
-            if item_barra: item_barra.delete()
-
+        # 3. Recalculamos totales financieros
         self.calcular_totales()
+        
+        # 4. Actualizamos solo columnas financieras para evitar recursividad infinita
         Cotizacion.objects.filter(pk=self.pk).update(
-            subtotal=self.subtotal, iva=self.iva, retencion_isr=self.retencion_isr,
-            retencion_iva=self.retencion_iva, precio_final=self.precio_final
+            subtotal=self.subtotal, iva=self.iva, 
+            retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva, 
+            precio_final=self.precio_final
         )
 
     def total_pagado(self): return self.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
@@ -468,14 +194,20 @@ class ItemCotizacion(models.Model):
     descripcion = models.CharField(max_length=255, blank=True)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    
     def save(self, *args, **kwargs):
         if self.precio_unitario == 0:
             if self.producto: self.precio_unitario = self.producto.sugerencia_precio()
             elif self.insumo: self.precio_unitario = self.insumo.costo_unitario
         super().save(*args, **kwargs)
+        # Importante: No llamamos a cotizacion.save() aquí para evitar recursividad con el servicio
         if self.cotizacion.pk:
             self.cotizacion.calcular_totales()
-            self.cotizacion.save()
+            Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
+                subtotal=self.cotizacion.subtotal, 
+                precio_final=self.cotizacion.precio_final
+            )
+
     def subtotal(self): return self.cantidad * self.precio_unitario
 
 class Pago(models.Model):
@@ -488,6 +220,7 @@ class Pago(models.Model):
     referencia = models.CharField(max_length=100, blank=True)
     def __str__(self): return f"${self.monto}"
 
+# --- MANTENEMOS COMPRA Y GASTO IGUAL, YA QUE ESOS ESTABAN BIEN ---
 class Compra(models.Model):
     proveedor = models.CharField(max_length=200, blank=True)
     rfc_emisor = models.CharField(max_length=13, blank=True)
@@ -498,13 +231,10 @@ class Compra(models.Model):
     ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    
     archivo_xml = models.FileField(upload_to='xml_compras/', storage=RawMediaCloudinaryStorage(), blank=True, null=True)
     archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
-    
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    
     def save(self, *args, **kwargs):
         if self.archivo_xml and not self.pk:
             try:
