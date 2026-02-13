@@ -45,6 +45,14 @@
         </tr>
         {% endif %}
 
+        {% if datos.costo_extra > 0 %}
+        <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:8px;">Desgaste Mobiliario/Extra:</td>
+            <td style="padding:8px; text-align:right;">Tarifa Fija</td>
+            <td style="padding:8px; text-align:right; color:#c0392b;">${{ datos.costo_extra|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endif %}
+
         <tr style="border-bottom:1px solid #eee;">
             <td style="padding:8px;"><strong>Total Insumos Varios:</strong><br><span style="font-size:10px;">(Suma de lo anterior)</span></td>
             <td style="padding:8px; text-align:right;">-</td>

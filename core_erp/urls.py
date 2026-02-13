@@ -3,6 +3,7 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
+from django.contrib.auth import views as auth_views # <--- Importación necesaria para el Logout
 
 # Importamos las vistas de Comercial
 from comercial.views import (
@@ -16,7 +17,8 @@ from comercial.views import (
     generar_lista_compras,
     forzar_migracion,
     exportar_reporte_pagos,
-    descargar_lista_compras_pdf # <--- ESTA IMPORTACIÓN ES CRUCIAL
+    descargar_lista_compras_pdf,
+    descargar_ficha_producto # <--- Vista para el PDF de venta rápida
 )
 
 # Importamos vistas de otros módulos (Nómina y Facturación)
@@ -45,6 +47,9 @@ urlpatterns = [
     # --- RUTA PARA LISTA DE COMPRAS (CHECKLIST) ---
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
     
+    # --- NUEVO: RUTA PARA FICHA DE PRODUCTO (Brochure de Ventas) ---
+    path('producto/<int:producto_id>/ficha/', descargar_ficha_producto, name='producto_ficha_pdf'),
+
     # --- Calendario, Reportes y Compras ---
     path('admin/calendario/', ver_calendario, name='ver_calendario'),
     
@@ -60,6 +65,10 @@ urlpatterns = [
     # 3. Rutas de Nómina y Facturación (Si existen)
     path('admin/nomina/cargar/', cargar_nomina if cargar_nomina else admin.site.urls, name='cargar_nomina'),
     path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
+
+    # --- FIX PARA EL BOTÓN DE CERRAR SESIÓN ---
+    # Esto permite que el logout funcione con un clic simple (GET) y redirija al login
+    path('admin/logout/', auth_views.LogoutView.as_view(http_method_names=['get', 'post'], next_page='/admin/'), name='logout'),
 
     # 4. ADMIN DE DJANGO (Resto de funcionalidades)
     path('admin/', admin.site.urls),
