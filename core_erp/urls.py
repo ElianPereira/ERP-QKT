@@ -66,7 +66,7 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
     path('producto/<int:producto_id>/ficha/', descargar_ficha_producto, name='producto_ficha_pdf'),
 
-    # Reportes y Herramientas
+# Reportes y Herramientas                                   
     path('admin/calendario/', ver_calendario, name='ver_calendario'),
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
