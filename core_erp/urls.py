@@ -3,7 +3,14 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
-from django.contrib.auth import views as auth_views  # <--- IMPORTANTE: Necesario para el fix del Logout
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+
+# --- FUNCIÓN DE LOGOUT MANUAL (Infalible) ---
+def custom_logout(request):
+    """Fuerza el cierre de sesión y redirige al login"""
+    logout(request)
+    return redirect('/admin/login/')
 
 # Importamos las vistas de Comercial
 from comercial.views import (
@@ -18,11 +25,10 @@ from comercial.views import (
     forzar_migracion,
     exportar_reporte_pagos,
     descargar_lista_compras_pdf,
-    descargar_ficha_producto  # <--- Vista para el PDF de venta rápida (Brochure)
+    descargar_ficha_producto
 )
 
-# Importamos vistas de otros módulos (Nómina y Facturación)
-# Usamos try/except por si el módulo aún no está listo, para evitar errores 500
+# Importamos vistas de otros módulos (con manejo de errores)
 try:
     from nomina.views import cargar_nomina
 except ImportError:
@@ -34,48 +40,39 @@ except ImportError:
     crear_solicitud = None
 
 urlpatterns = [
-    # --- RUTA DE UTILIDAD PARA MIGRAR DB DESDE LA WEB ---
+    # --- RUTA DE UTILIDAD PARA MIGRAR DB ---
     path('admin/ajustes/migrar-ahora/', forzar_migracion),
 
-    # 1. EL DASHBOARD (Sobrescribe la vista principal del admin)
+    # 1. EL DASHBOARD
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),
 
-    # 2. Rutas del Sistema Comercial (Cotizaciones y Productos)
+    # 2. Rutas del Sistema Comercial
     path('cotizacion/<int:cotizacion_id>/pdf/', generar_pdf_cotizacion, name='cotizacion_pdf'),
     path('cotizacion/<int:cotizacion_id>/email/', enviar_cotizacion_email, name='cotizacion_email'),
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
-    
-    # --- RUTA PARA FICHA DE PRODUCTO (Brochure de Ventas) ---
     path('producto/<int:producto_id>/ficha/', descargar_ficha_producto, name='producto_ficha_pdf'),
 
-    # --- Calendario, Reportes y Compras ---
+    # --- Calendario y Reportes ---
     path('admin/calendario/', ver_calendario, name='ver_calendario'),
-    
-    # Reportes Financieros
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
-    
-    # Herramientas
     path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),
     path('admin/calculadora/', calculadora_insumos, name='admin_calculadora'),
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
     
-    # 3. Rutas de Nómina y Facturación (Si existen)
+    # 3. Módulos Extra
     path('admin/nomina/cargar/', cargar_nomina if cargar_nomina else admin.site.urls, name='cargar_nomina'),
     path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
 
-    # --- FIX PARA EL BOTÓN DE CERRAR SESIÓN ---
-    # Esto permite que el logout funcione con un clic simple (GET) y redirija al login
-    # Es vital colocarlo ANTES de admin.site.urls
-    path('admin/logout/', auth_views.LogoutView.as_view(http_method_names=['get', 'post'], next_page='/admin/'), name='logout'),
+    # --- FIX DEFINITIVO LOGOUT (Se coloca ANTES de admin.site.urls) ---
+    path('admin/logout/', custom_logout, name='logout'),
 
-    # 4. ADMIN DE DJANGO (Resto de funcionalidades)
+    # 4. ADMIN DE DJANGO
     path('admin/', admin.site.urls),
 
-    # 5. RUTA RAÍZ (Redirección automática al Login/Admin)
+    # 5. RUTA RAÍZ
     path('', RedirectView.as_view(url='/admin/', permanent=False)), 
 ]
 
-# Configuración para servir archivos media (imágenes) en modo DEBUG
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
