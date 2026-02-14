@@ -184,3 +184,5 @@ JAZZMIN_SETTINGS = {
     "custom_js": "js/tabs_fix.js",  # <--- ESTA LÍNEA ES LA QUE FALTABA
 }
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
+
+# Forzando actualizacion
