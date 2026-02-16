@@ -22,8 +22,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize', 
-    'cloudinary_storage', # Cloudinary App
-    'cloudinary',         # Cloudinary App
+    'cloudinary_storage',
+    'cloudinary',
     'comercial',
     'nomina',
     'facturacion',
@@ -97,17 +97,18 @@ USE_THOUSAND_SEPARATOR = True
 DECIMAL_SEPARATOR = '.'
 THOUSAND_SEPARATOR = ','
 
-STATIC_URL = '/static/'
+# --- IMPORTANTE: RUTA ESTÁTICA CORRECTA ---
+STATIC_URL = '/static/'  
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
-# --- CONFIGURACIÓN DE CORREO ---
+# --- CORREO ---
 EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
 ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
 DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
 SERVER_EMAIL = 'quintakooxtanil@gmail.com'
 
-# --- CONFIGURACIÓN NUEVA PARA DJANGO 5+ (STORAGES) ---
+# --- STORAGES ---
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
@@ -123,12 +124,11 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
 }
 
-MEDIA_URL = '/media/'  
-# -----------------------------------------------------
+MEDIA_URL = '/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN DE JAZZMIN (INTERFAZ ADMIN) ---
+# --- CONFIGURACIÓN JAZZMIN ---
 JAZZMIN_SETTINGS = {
     "site_title": "ERP Quinta Ko'ox Tanil",
     "site_header": "Sistema de Eventos",
@@ -138,11 +138,9 @@ JAZZMIN_SETTINGS = {
     "site_logo": "img/logo.png",
     "login_logo": "img/logo.png",
     
-    # Menú lateral
     "show_sidebar": True,
     "navigation_expanded": True,
 
-    # Iconos
     "icons": {
         "auth": "fas fa-users-cog",
         "auth.user": "fas fa-user",
@@ -159,30 +157,24 @@ JAZZMIN_SETTINGS = {
         "facturacion.SolicitudFactura": "fas fa-file-signature",
     },
 
+    # --- AQUÍ AGREGAMOS EL BOTÓN DE SALIR ---
     "topmenu_links": [
         {"name": "Inicio",  "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "📅 Ver Calendario", "url": "ver_calendario"}, 
         {"name": "Ver Sitio", "url": "/"},
+        
+        # BOTÓN NUEVO: Apunta directo a la ruta que definimos en urls.py
+        {"name": "Cerrar Sesión", "url": "/admin/logout/", "new_window": False, "icon": "fas fa-sign-out-alt"},
     ],
 
     "order_with_respect_to": [
-        "comercial",                    
-        "comercial.Insumo",             
-        "comercial.SubProducto",        
-        "comercial.Producto",           
-        "comercial.Cliente",            
-        "comercial.Cotizacion",         
-        "comercial.Pago",               
-        "comercial.Gasto",              
-        "nomina", 
-        "facturacion",
-        "auth",
+        "comercial", "comercial.Insumo", "comercial.SubProducto",        
+        "comercial.Producto", "comercial.Cliente", "comercial.Cotizacion",         
+        "comercial.Pago", "comercial.Gasto", "nomina", "facturacion", "auth",
     ],
     
-    # --- AQUÍ ESTABA EL ERROR ---
+    # MANTENEMOS EL SCRIPT PARA QUE FUNCIONEN LAS PESTAÑAS
     "custom_css": "css/mobile_fix_v4.css",
-    "custom_js": "js/tabs_fix.js",  # <--- ESTA LÍNEA ES LA QUE FALTABA
+    "custom_js": "js/tabs_fix.js",
 }
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
-
-# Forzando actualizacion
