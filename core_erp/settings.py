@@ -178,3 +178,8 @@ JAZZMIN_SETTINGS = {
     "custom_js": "js/tabs_fix.js",
 }
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
+
+# --- REDIRECCIONES DE LOGIN/LOGOUT ---
+# Esto arregla el error de "Page not found /accounts/profile/"
+LOGIN_REDIRECT_URL = '/admin/'  
+LOGOUT_REDIRECT_URL = '/admin/login/'
