@@ -4,7 +4,7 @@ import os
 import openpyxl 
 from openpyxl.styles import Font, PatternFill
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.contrib import messages
 from django.core.mail import EmailMultiAlternatives
@@ -19,6 +19,7 @@ from django.utils import timezone
 from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
+from django.views.decorators.csrf import csrf_exempt
 
 # IMPORTANTE: Agregamos 'Producto' a las importaciones
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto
@@ -490,3 +491,40 @@ def descargar_ficha_producto(request, producto_id):
     
     HTML(string=html_string).write_pdf(response)
     return response
+
+# ==========================================
+# 6. INTEGRACIÓN MANYCHAT (WEBHOOK)
+# ==========================================
+@csrf_exempt
+def webhook_manychat(request):
+    """
+    Recibe las variables que ManyChat capturó del cliente en WhatsApp 
+    y comienza el proceso de registro/cotización.
+    """
+    if request.method == 'POST':
+        try:
+            # 1. Leer el JSON que manda ManyChat
+            data = json.loads(request.body)
+            
+            # 2. Extraer las variables (los nombres deben coincidir con ManyChat)
+            telefono = data.get('telefono_cliente')
+            tipo_renta = data.get('tipo_renta')
+            tipo_evento = data.get('tipo_evento')
+            fecha_tentativa = data.get('fecha_tentativa')
+            num_invitados = data.get('num_invitados')
+            
+            # --- AQUÍ SUCEDE LA MAGIA DE TU ERP ---
+            print(f"Nuevo prospecto recibido de WhatsApp: {telefono}")
+            print(f"Busca: {tipo_renta} | Evento: {tipo_evento} | Fecha: {fecha_tentativa} | Invitados: {num_invitados}")
+            
+            # TODO: Aquí programaremos después la creación de la cotización
+            # y la llamada a la API Pura para regresar el PDF.
+            
+            # 3. Respuesta exitosa obligatoria para que ManyChat no marque error
+            return JsonResponse({'status': 'success', 'message': 'Datos procesados en el ERP'}, status=200)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'error', 'message': 'Formato JSON inválido'}, status=400)
+            
+    # Bloqueamos cualquier intento de entrar a esta URL desde el navegador
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)

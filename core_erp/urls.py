@@ -30,7 +30,8 @@ try:
         forzar_migracion,
         exportar_reporte_pagos,
         descargar_lista_compras_pdf,
-        descargar_ficha_producto
+        descargar_ficha_producto,
+        webhook_manychat  # <--- IMPORTACIÓN NUEVA PARA MANYCHAT
     )
 except ImportError as e:
     print(f"Advertencia de importación en Comercial: {e}")
@@ -66,7 +67,10 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
     path('producto/<int:producto_id>/ficha/', descargar_ficha_producto, name='producto_ficha_pdf'),
 
-# Reportes y Herramientas                                   
+    # INTEGRACIÓN MANYCHAT (NUEVO)
+    path('api/webhook-manychat/', webhook_manychat, name='webhook_manychat'),
+
+    # Reportes y Herramientas                                  
     path('admin/calendario/', ver_calendario, name='ver_calendario'),
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
