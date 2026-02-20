@@ -1,7 +1,9 @@
 import json
 import math
 import os
+import re
 import openpyxl 
+from datetime import datetime, timedelta
 from openpyxl.styles import Font, PatternFill
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, JsonResponse
@@ -22,7 +24,7 @@ from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
 
 # IMPORTANTE: Agregamos 'Producto' a las importaciones
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente
 from .forms import CalculadoraForm
 from .services import CalculadoraBarraService, actualizar_item_cotizacion
 
@@ -499,32 +501,83 @@ def descargar_ficha_producto(request, producto_id):
 def webhook_manychat(request):
     """
     Recibe las variables que ManyChat capturó del cliente en WhatsApp 
-    y comienza el proceso de registro/cotización.
+    y comienza el proceso de registro/cotización en el ERP.
     """
     if request.method == 'POST':
         try:
             # 1. Leer el JSON que manda ManyChat
             data = json.loads(request.body)
             
-            # 2. Extraer las variables (los nombres deben coincidir con ManyChat)
-            telefono = data.get('telefono_cliente')
-            tipo_renta = data.get('tipo_renta')
-            tipo_evento = data.get('tipo_evento')
-            fecha_tentativa = data.get('fecha_tentativa')
-            num_invitados = data.get('num_invitados')
+            # 2. Extraer las variables (los nombres coinciden con ManyChat)
+            telefono = data.get('telefono_cliente', '')
+            tipo_renta = data.get('tipo_renta', 'No especificado')
+            tipo_evento = data.get('tipo_evento', 'Evento General')
+            fecha_tentativa_str = data.get('fecha_tentativa', '')
+            num_invitados_str = data.get('num_invitados', '')
+
+            # --- MAGIA 1: Traducir el texto de invitados a un número entero ---
+            invitados_int = 50 # Valor por defecto si algo falla
+            num_str_lower = str(num_invitados_str).lower()
             
-            # --- AQUÍ SUCEDE LA MAGIA DE TU ERP ---
-            print(f"Nuevo prospecto recibido de WhatsApp: {telefono}")
-            print(f"Busca: {tipo_renta} | Evento: {tipo_evento} | Fecha: {fecha_tentativa} | Invitados: {num_invitados}")
-            
-            # TODO: Aquí programaremos después la creación de la cotización
-            # y la llamada a la API Pura para regresar el PDF.
-            
-            # 3. Respuesta exitosa obligatoria para que ManyChat no marque error
-            return JsonResponse({'status': 'success', 'message': 'Datos procesados en el ERP'}, status=200)
+            if 'hasta 50' in num_str_lower:
+                invitados_int = 50
+            elif '51 a 100' in num_str_lower:
+                invitados_int = 100
+            elif 'más de 100' in num_str_lower or 'mas de 100' in num_str_lower:
+                invitados_int = 150
+            elif '1 a 10' in num_str_lower:
+                invitados_int = 10
+            elif '11 a 20' in num_str_lower:
+                invitados_int = 20
+            else:
+                # Si el usuario escribió a mano, buscamos el número con RegEx
+                numeros = re.findall(r'\d+', num_str_lower)
+                if numeros:
+                    invitados_int = int(max(numeros, key=int))
+
+            # --- MAGIA 2: Traducir el texto de la fecha a un formato de base de datos ---
+            try:
+                # Intentamos parsear DD/MM/AAAA
+                fecha_evento = datetime.strptime(fecha_tentativa_str.strip(), "%d/%m/%Y").date()
+            except ValueError:
+                # Si escribieron la fecha súper raro, le ponemos 30 días en el futuro por defecto
+                fecha_evento = timezone.now().date() + timedelta(days=30)
+
+            # --- MAGIA 3: Buscar o crear al cliente y su cotización ---
+            if telefono:
+                # Limpiamos el teléfono (quitamos signos de + o espacios)
+                telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
+                
+                # Buscamos si el cliente ya existe, si no, lo creamos
+                cliente, created = Cliente.objects.get_or_create(
+                    telefono=telefono_limpio,
+                    defaults={
+                        'nombre': f'Prospecto WA ({telefono_limpio[-4:]})',
+                        'origen': 'Otro'
+                    }
+                )
+
+                # Creamos la Cotización asignada a este cliente
+                nombre_ev = f"{tipo_renta} - {tipo_evento}"
+                
+                cotizacion = Cotizacion.objects.create(
+                    cliente=cliente,
+                    nombre_evento=nombre_ev[:200], # Aseguramos que no pase del límite
+                    fecha_evento=fecha_evento,
+                    num_personas=invitados_int,
+                    estado='BORRADOR'
+                )
+                
+                print(f"✅ ¡Éxito! Cotización {cotizacion.id} creada automáticamente para {cliente.nombre}")
+
+            # 3. Respuesta exitosa para ManyChat
+            return JsonResponse({'status': 'success', 'message': 'Datos procesados y guardados en el ERP'}, status=200)
             
         except json.JSONDecodeError:
             return JsonResponse({'status': 'error', 'message': 'Formato JSON inválido'}, status=400)
+        except Exception as e:
+            print(f"❌ Error interno en webhook: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
             
     # Bloqueamos cualquier intento de entrar a esta URL desde el navegador
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
