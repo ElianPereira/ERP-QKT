@@ -23,7 +23,7 @@ from weasyprint import HTML
 from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
 
-# IMPORTANTE: Agregamos 'Producto' a las importaciones
+# IMPORTANTE: Agregamos 'Producto' y 'Cliente' a las importaciones
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente
 from .forms import CalculadoraForm
 from .services import CalculadoraBarraService, actualizar_item_cotizacion
@@ -548,14 +548,16 @@ def webhook_manychat(request):
                 # Limpiamos el teléfono (quitamos signos de + o espacios)
                 telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
                 
-                # Buscamos si el cliente ya existe, si no, lo creamos
-                cliente, created = Cliente.objects.get_or_create(
-                    telefono=telefono_limpio,
-                    defaults={
-                        'nombre': f'Prospecto WA ({telefono_limpio[-4:]})',
-                        'origen': 'Otro'
-                    }
-                )
+                # Buscamos si el cliente ya existe (tomamos el primero si hay duplicados)
+                cliente = Cliente.objects.filter(telefono=telefono_limpio).first()
+                
+                # Si no existe, lo creamos
+                if not cliente:
+                    cliente = Cliente.objects.create(
+                        telefono=telefono_limpio,
+                        nombre=f'Prospecto WA ({telefono_limpio[-4:]})',
+                        origen='Otro'
+                    )
 
                 # Creamos la Cotización asignada a este cliente
                 nombre_ev = f"{tipo_renta} - {tipo_evento}"
