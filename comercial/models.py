@@ -8,7 +8,7 @@ from facturacion.choices import RegimenFiscal, UsoCFDI
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
 
 # ==========================================
-# 0. CONFIGURACIÓN DEL SISTEMA (NUEVO)
+# 0. CONFIGURACIÓN DEL SISTEMA
 # ==========================================
 class ConstanteSistema(models.Model):
     clave = models.CharField(max_length=50, unique=True, help_text="Ej: PRECIO_HIELO_20KG")
@@ -34,6 +34,13 @@ class Insumo(models.Model):
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
     crear_como_subproducto = models.BooleanField(default=False, verbose_name="¿Crear también como Subproducto?")
+    
+    # ===== NUEVOS CAMPOS =====
+    proveedor = models.CharField(max_length=200, blank=True, verbose_name="Proveedor", 
+                                  help_text="Ej: Costco, Sam's Club, Distribuidora X")
+    presentacion = models.CharField(max_length=100, blank=True, verbose_name="Presentación",
+                                     help_text="Ej: 940ml, Botella 750ml, Bolsa 20kg, Garrafón 20L")
+    # ==========================
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -41,7 +48,89 @@ class Insumo(models.Model):
             sub_prod, _ = SubProducto.objects.get_or_create(nombre=self.nombre)
             RecetaSubProducto.objects.get_or_create(subproducto=sub_prod, insumo=self, defaults={'cantidad': 1})
 
-    def __str__(self): return f"{self.nombre} (${self.costo_unitario})"
+    def __str__(self): 
+        partes = [self.nombre]
+        if self.presentacion:
+            partes.append(f"({self.presentacion})")
+        partes.append(f"- ${self.costo_unitario}")
+        if self.proveedor:
+            partes.append(f"[{self.proveedor}]")
+        return " ".join(partes)
+
+
+# ==========================================
+# 1.5 PLANTILLA DE BARRA (NUEVO)
+# ==========================================
+class PlantillaBarra(models.Model):
+    """
+    Mapea cada concepto de la lista de compras de barra
+    a un Insumo real del catálogo con su proporción.
+    
+    Ejemplo:
+        TEQUILA_NAC -> Insumo "Tequila Tradicional 750ml" -> proporción 0.40 (40% del nacional)
+        WHISKY_NAC  -> Insumo "Whisky Red Label 750ml"    -> proporción 0.30
+        RON_NAC     -> Insumo "Ron Bacardí Carta Blanca 940ml" -> proporción 0.20
+        VODKA_NAC   -> Insumo "Vodka Smirnoff 750ml"      -> proporción 0.10
+    """
+    CATEGORIAS_BARRA = [
+        # Cervezas
+        ('CERVEZA', 'Cerveza'),
+        # Licores Nacionales
+        ('TEQUILA_NAC', 'Tequila Nacional'),
+        ('WHISKY_NAC', 'Whisky Nacional'),
+        ('RON_NAC', 'Ron Nacional'),
+        ('VODKA_NAC', 'Vodka Nacional'),
+        # Licores Premium
+        ('TEQUILA_PREM', 'Tequila Premium'),
+        ('WHISKY_PREM', 'Whisky Premium'),
+        ('GIN_PREM', 'Ginebra / Ron Premium'),
+        # Mezcladores
+        ('REFRESCO_COLA', 'Refresco de Cola'),
+        ('REFRESCO_TORONJA', 'Refresco de Toronja'),
+        ('AGUA_MINERAL', 'Agua Mineral'),
+        ('AGUA_NATURAL', 'Agua Natural'),
+        # Hielo
+        ('HIELO', 'Hielo'),
+        # Coctelería
+        ('LIMON', 'Limón'),
+        ('HIERBABUENA', 'Hierbabuena'),
+        ('JARABE', 'Jarabe Natural'),
+        ('FRUTOS_ROJOS', 'Frutos Rojos'),
+        ('CAFE', 'Café Espresso'),
+        # Consumibles
+        ('SERVILLETAS', 'Servilletas / Popotes'),
+    ]
+    
+    GRUPOS = [
+        ('ALCOHOL_NACIONAL', 'Licores Nacionales'),
+        ('ALCOHOL_PREMIUM', 'Licores Premium'),
+        ('CERVEZA', 'Cerveza'),
+        ('MEZCLADOR', 'Bebidas y Mezcladores'),
+        ('HIELO', 'Hielo'),
+        ('COCTELERIA', 'Frutas y Verduras'),
+        ('CONSUMIBLE', 'Abarrotes y Consumibles'),
+    ]
+    
+    categoria = models.CharField(max_length=30, choices=CATEGORIAS_BARRA, verbose_name="Concepto de Barra")
+    grupo = models.CharField(max_length=30, choices=GRUPOS, verbose_name="Grupo en Lista de Compras",
+                             help_text="Sección donde aparece en la lista de compras")
+    insumo = models.ForeignKey(Insumo, on_delete=models.CASCADE, verbose_name="Insumo del Catálogo",
+                               help_text="Selecciona el insumo real del catálogo")
+    proporcion = models.DecimalField(max_digits=4, decimal_places=2, default=1.00, 
+                                      verbose_name="Proporción", 
+                                      help_text="Ej: 0.40 = 40% del total de su grupo de alcohol")
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0, help_text="Orden de aparición en la lista")
+    
+    class Meta:
+        verbose_name = "Plantilla de Barra"
+        verbose_name_plural = "Plantilla de Barra"
+        ordering = ['grupo', 'orden', 'categoria']
+        unique_together = ['categoria', 'insumo']  # Evitar duplicados
+    
+    def __str__(self):
+        return f"{self.get_categoria_display()} → {self.insumo.nombre} ({self.proporcion*100:.0f}%)"
+
 
 # ==========================================
 # 2. SUBPRODUCTOS & PRODUCTOS
@@ -144,7 +233,6 @@ class Cotizacion(models.Model):
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
 
     def calcular_totales(self):
-        # Lógica ligera financiera
         if not self.pk: return 
         suma_items = sum(item.subtotal() for item in self.items.all())
         self.subtotal = suma_items
@@ -165,17 +253,10 @@ class Cotizacion(models.Model):
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
 
     def save(self, *args, **kwargs):
-        # 1. Guardamos primero para tener ID
         super().save(*args, **kwargs)
-        
-        # 2. Delegamos la lógica pesada al Servicio
         from .services import actualizar_item_cotizacion
         actualizar_item_cotizacion(self)
-
-        # 3. Recalculamos totales financieros
         self.calcular_totales()
-        
-        # 4. Actualizamos solo columnas financieras para evitar recursividad infinita
         Cotizacion.objects.filter(pk=self.pk).update(
             subtotal=self.subtotal, iva=self.iva, 
             retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva, 
@@ -200,7 +281,6 @@ class ItemCotizacion(models.Model):
             if self.producto: self.precio_unitario = self.producto.sugerencia_precio()
             elif self.insumo: self.precio_unitario = self.insumo.costo_unitario
         super().save(*args, **kwargs)
-        # Importante: No llamamos a cotizacion.save() aquí para evitar recursividad con el servicio
         if self.cotizacion.pk:
             self.cotizacion.calcular_totales()
             Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
@@ -220,7 +300,7 @@ class Pago(models.Model):
     referencia = models.CharField(max_length=100, blank=True)
     def __str__(self): return f"${self.monto}"
 
-# --- MANTENEMOS COMPRA Y GASTO IGUAL, YA QUE ESOS ESTABAN BIEN ---
+# --- COMPRA Y GASTO ---
 class Compra(models.Model):
     proveedor = models.CharField(max_length=200, blank=True)
     rfc_emisor = models.CharField(max_length=13, blank=True)

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html, mark_safe
-from django.template.loader import render_to_string # Importante
+from django.template.loader import render_to_string
 from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
 from django.shortcuts import render, redirect
@@ -8,7 +8,7 @@ from django.db.models import Sum
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
     Cliente, Cotizacion, ItemCotizacion, Pago, 
-    Compra, Gasto, ConstanteSistema
+    Compra, Gasto, ConstanteSistema, PlantillaBarra
 )
 from .services import CalculadoraBarraService
 
@@ -24,14 +24,90 @@ class ConstanteSistemaAdmin(admin.ModelAdmin):
 
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'categoria', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
-    list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
-    list_filter = ('categoria',)
-    search_fields = ('nombre',) 
+    list_display = ('nombre', 'presentacion', 'categoria', 'proveedor', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
+    list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria', 'proveedor')
+    list_filter = ('categoria', 'proveedor')
+    search_fields = ('nombre', 'proveedor', 'presentacion') 
     list_per_page = 20
+    fieldsets = (
+        (None, {'fields': ('nombre', 'presentacion', 'categoria', 'unidad_medida')}),
+        ('Costos y Stock', {'fields': ('costo_unitario', 'factor_rendimiento', 'cantidad_stock')}),
+        ('Proveedor', {'fields': ('proveedor',)}),
+        ('Opciones', {'fields': ('crear_como_subproducto',), 'classes': ('collapse',)}),
+    )
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
+
+
+# ==========================================
+# PLANTILLA DE BARRA (NUEVO)
+# ==========================================
+@admin.register(PlantillaBarra)
+class PlantillaBarraAdmin(admin.ModelAdmin):
+    list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion_pct', 'activo')
+    list_editable = ('proporcion_pct', 'activo')
+    list_filter = ('grupo', 'activo')
+    search_fields = ('insumo__nombre', 'insumo__proveedor')
+    raw_id_fields = ['insumo']
+    list_per_page = 30
+    ordering = ['grupo', 'orden', 'categoria']
+    
+    fieldsets = (
+        ('Configuración', {'fields': ('categoria', 'grupo', 'insumo', 'proporcion', 'orden', 'activo')}),
+    )
+    
+    def categoria_display(self, obj):
+        return obj.get_categoria_display()
+    categoria_display.short_description = "Concepto"
+    categoria_display.admin_order_field = 'categoria'
+    
+    def grupo_display(self, obj):
+        colores = {
+            'ALCOHOL_NACIONAL': '#e67e22',
+            'ALCOHOL_PREMIUM': '#9b59b6',
+            'CERVEZA': '#f1c40f',
+            'MEZCLADOR': '#3498db',
+            'HIELO': '#ecf0f1',
+            'COCTELERIA': '#2ecc71',
+            'CONSUMIBLE': '#95a5a6',
+        }
+        color = colores.get(obj.grupo, '#666')
+        return format_html('<span style="background:{}; padding:2px 8px; border-radius:4px; color:#fff; font-size:11px;">{}</span>', color, obj.get_grupo_display())
+    grupo_display.short_description = "Grupo"
+    grupo_display.admin_order_field = 'grupo'
+    
+    def insumo_nombre(self, obj):
+        return obj.insumo.nombre
+    insumo_nombre.short_description = "Insumo"
+    insumo_nombre.admin_order_field = 'insumo__nombre'
+    
+    def insumo_presentacion(self, obj):
+        return obj.insumo.presentacion or "-"
+    insumo_presentacion.short_description = "Presentación"
+    
+    def proveedor_insumo(self, obj):
+        return obj.insumo.proveedor or "⚠️ Sin proveedor"
+    proveedor_insumo.short_description = "Proveedor"
+    
+    def costo_insumo(self, obj):
+        return f"${obj.insumo.costo_unitario:,.2f}"
+    costo_insumo.short_description = "Costo"
+    
+    def proporcion_pct(self, obj):
+        return f"{obj.proporcion * 100:.0f}%"
+    proporcion_pct.short_description = "% del Grupo"
+    # Hacemos editable el campo real, no el display
+    proporcion_pct = 'proporcion'  # Esto permite list_editable sobre el campo real
+    
+    # Sobreescribimos para que list_editable funcione con 'proporcion' directamente
+    list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'activo')
+    list_editable = ('proporcion', 'activo')
+    
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
+
 
 class RecetaInline(admin.TabularInline):
     model = RecetaSubProducto
@@ -129,12 +205,10 @@ class CotizacionAdmin(admin.ModelAdmin):
     get_nivel_paquete.short_description = "Paquete"
     
     def resumen_barra_html(self, obj):
-        # Ahora usamos el servicio y un template real
         calc = CalculadoraBarraService(obj)
         datos = calc.calcular()
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666;">Seleccione servicios y guarde para calcular.</div>')
-        
         return mark_safe(render_to_string('admin/comercial/resumen_barra_partial.html', {'datos': datos}))
     resumen_barra_html.short_description = "Reporte Ejecutivo"
 

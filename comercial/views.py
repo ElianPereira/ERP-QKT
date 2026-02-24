@@ -23,8 +23,7 @@ from weasyprint import HTML
 from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
 
-# IMPORTANTE: Agregamos 'Producto' y 'Cliente' a las importaciones
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra
 from .forms import CalculadoraForm
 from .services import CalculadoraBarraService, actualizar_item_cotizacion
 
@@ -34,69 +33,265 @@ except ImportError:
     SolicitudFactura = None 
 
 # ==========================================
-# 0. LÓGICA DE LISTA DE COMPRAS
+# 0. LÓGICA DE LISTA DE COMPRAS (REFACTORIZADO)
 # ==========================================
-def generar_lista_compras_barra(cotizacion):
-    calc = CalculadoraBarraService(cotizacion)
-    datos = calc.calcular()
-    if not datos: return {}
 
-    lista_compras = {
-        'Licores y Alcohol': [],
-        'Bebidas y Mezcladores': [],
-        'Frutas y Verduras': [],
-        'Abarrotes y Consumibles': []
+def _obtener_item_plantilla(categoria):
+    """
+    Busca en PlantillaBarra el insumo activo para una categoría.
+    Retorna dict con nombre completo, proveedor, costo, presentación.
+    Si no hay plantilla configurada, retorna un fallback con nombre genérico.
+    """
+    plantilla = PlantillaBarra.objects.filter(
+        categoria=categoria, activo=True
+    ).select_related('insumo').first()
+    
+    if plantilla and plantilla.insumo:
+        insumo = plantilla.insumo
+        nombre = insumo.nombre
+        if insumo.presentacion:
+            nombre = f"{insumo.nombre} ({insumo.presentacion})"
+        return {
+            'nombre': nombre,
+            'proveedor': insumo.proveedor or '',
+            'costo_unitario': float(insumo.costo_unitario),
+            'proporcion': float(plantilla.proporcion),
+            'insumo_id': insumo.id,
+        }
+    return None
+
+
+def _fallback_item(nombre_generico):
+    """Devuelve un item con datos genéricos cuando no hay plantilla configurada."""
+    return {
+        'nombre': nombre_generico,
+        'proveedor': '⚠️ Sin asignar',
+        'costo_unitario': 0,
+        'proporcion': 1.0,
+        'insumo_id': None,
     }
 
-    # Alcohol
-    if datos['cervezas_unidades'] > 0:
-        cajas = math.ceil(datos['cervezas_unidades'] / 12.0)
-        lista_compras['Licores y Alcohol'].append({'item': 'Cerveza Nacional (Caguama 940ml)', 'cantidad': cajas, 'unidad': 'Cajas (12u)'})
 
+def _agregar_a_lista(lista, seccion, item_nombre, cantidad, unidad, nota='', proveedor='', costo_unitario=0):
+    """Helper para agregar un ítem a la lista de compras con formato consistente."""
+    if seccion not in lista:
+        lista[seccion] = []
+    
+    entry = {
+        'item': item_nombre,
+        'cantidad': cantidad,
+        'unidad': unidad,
+    }
+    if nota:
+        entry['nota'] = nota
+    if proveedor:
+        entry['proveedor'] = proveedor
+    if costo_unitario > 0:
+        entry['costo_unitario'] = costo_unitario
+        entry['costo_total'] = round(costo_unitario * cantidad, 2)
+    
+    lista[seccion].append(entry)
+
+
+def generar_lista_compras_barra(cotizacion):
+    """
+    Genera la lista de compras usando PlantillaBarra para obtener
+    los datos reales de cada insumo (nombre, presentación, proveedor, costo).
+    
+    Si no hay plantilla configurada para algún concepto, usa un fallback genérico
+    para no romper la funcionalidad.
+    """
+    calc = CalculadoraBarraService(cotizacion)
+    datos = calc.calcular()
+    if not datos: 
+        return {}
+
+    lista_compras = {}
+    costo_total_lista = Decimal('0.00')
+
+    # ==========================================
+    # ALCOHOL
+    # ==========================================
+    
+    # --- Cerveza ---
+    if datos['cervezas_unidades'] > 0:
+        p = _obtener_item_plantilla('CERVEZA') or _fallback_item('Cerveza Nacional (Caguama)')
+        cajas = math.ceil(datos['cervezas_unidades'] / 12.0)
+        _agregar_a_lista(
+            lista_compras, 'Licores y Alcohol',
+            p['nombre'], cajas, 'Cajas (12u)',
+            proveedor=p['proveedor'],
+            costo_unitario=p['costo_unitario']
+        )
+
+    # --- Licores Nacionales ---
     if datos['botellas_nacional'] > 0:
         b = datos['botellas_nacional']
-        lista_compras['Licores y Alcohol'].append({'item': 'Tequila (Tradicional/Cuervo)', 'cantidad': math.ceil(b * 0.4), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Whisky (Red Label)', 'cantidad': math.ceil(b * 0.3), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Ron (Bacardí)', 'cantidad': math.ceil(b * 0.2), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Vodka (Smirnoff)', 'cantidad': math.ceil(b * 0.1), 'unidad': 'Botellas'})
+        
+        # Buscamos cada tipo de licor nacional en la plantilla
+        mapeo_nacional = [
+            ('TEQUILA_NAC', 'Tequila Nacional', 0.40),
+            ('WHISKY_NAC', 'Whisky Nacional', 0.30),
+            ('RON_NAC', 'Ron Nacional', 0.20),
+            ('VODKA_NAC', 'Vodka Nacional', 0.10),
+        ]
+        
+        for cat, fallback_nombre, default_prop in mapeo_nacional:
+            p = _obtener_item_plantilla(cat)
+            if p:
+                prop = p['proporcion']
+                cant = math.ceil(b * prop)
+                if cant > 0:
+                    _agregar_a_lista(
+                        lista_compras, 'Licores y Alcohol',
+                        p['nombre'], cant, 'Botellas',
+                        proveedor=p['proveedor'],
+                        costo_unitario=p['costo_unitario']
+                    )
+            else:
+                # Fallback: usa proporción por defecto
+                cant = math.ceil(b * default_prop)
+                if cant > 0:
+                    _agregar_a_lista(
+                        lista_compras, 'Licores y Alcohol',
+                        fallback_nombre, cant, 'Botellas',
+                        proveedor='⚠️ Configurar en Plantilla de Barra'
+                    )
 
+    # --- Licores Premium ---
     if datos['botellas_premium'] > 0:
         b = datos['botellas_premium']
-        lista_compras['Licores y Alcohol'].append({'item': 'Tequila Premium (Don Julio 70)', 'cantidad': math.ceil(b * 0.4), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Whisky Premium (Black Label)', 'cantidad': math.ceil(b * 0.3), 'unidad': 'Botellas'})
-        lista_compras['Licores y Alcohol'].append({'item': 'Ginebra / Ron Premium', 'cantidad': math.ceil(b * 0.3), 'unidad': 'Botellas'})
+        
+        mapeo_premium = [
+            ('TEQUILA_PREM', 'Tequila Premium', 0.40),
+            ('WHISKY_PREM', 'Whisky Premium', 0.30),
+            ('GIN_PREM', 'Ginebra / Ron Premium', 0.30),
+        ]
+        
+        for cat, fallback_nombre, default_prop in mapeo_premium:
+            p = _obtener_item_plantilla(cat)
+            if p:
+                prop = p['proporcion']
+                cant = math.ceil(b * prop)
+                if cant > 0:
+                    _agregar_a_lista(
+                        lista_compras, 'Licores y Alcohol',
+                        p['nombre'], cant, 'Botellas',
+                        proveedor=p['proveedor'],
+                        costo_unitario=p['costo_unitario']
+                    )
+            else:
+                cant = math.ceil(b * default_prop)
+                if cant > 0:
+                    _agregar_a_lista(
+                        lista_compras, 'Licores y Alcohol',
+                        fallback_nombre, cant, 'Botellas',
+                        proveedor='⚠️ Configurar en Plantilla de Barra'
+                    )
 
-    # Mezcladores (Desglose real según litros calculados por el servicio)
+    # ==========================================
+    # MEZCLADORES
+    # ==========================================
     if l := datos['litros_mezcladores']:
-        lista_compras['Bebidas y Mezcladores'].append({'item': 'Coca-Cola (2.5L)', 'cantidad': math.ceil((l * 0.6) / 2.5), 'unidad': 'Botellas'})
-        lista_compras['Bebidas y Mezcladores'].append({'item': 'Refresco Toronja (2L)', 'cantidad': math.ceil((l * 0.2) / 2.0), 'unidad': 'Botellas'})
-        lista_compras['Bebidas y Mezcladores'].append({'item': 'Agua Mineral (2L)', 'cantidad': math.ceil((l * 0.2) / 2.0), 'unidad': 'Botellas'})
+        mapeo_mezcladores = [
+            ('REFRESCO_COLA', 'Coca-Cola (2.5L)', 0.60, 2.5),
+            ('REFRESCO_TORONJA', 'Refresco Toronja (2L)', 0.20, 2.0),
+            ('AGUA_MINERAL', 'Agua Mineral (2L)', 0.20, 2.0),
+        ]
+        
+        for cat, fallback_nombre, share, litros_envase in mapeo_mezcladores:
+            p = _obtener_item_plantilla(cat)
+            litros_necesarios = l * share
+            cant = math.ceil(litros_necesarios / litros_envase)
+            if cant > 0:
+                if p:
+                    _agregar_a_lista(
+                        lista_compras, 'Bebidas y Mezcladores',
+                        p['nombre'], cant, 'Botellas',
+                        proveedor=p['proveedor'],
+                        costo_unitario=p['costo_unitario']
+                    )
+                else:
+                    _agregar_a_lista(
+                        lista_compras, 'Bebidas y Mezcladores',
+                        fallback_nombre, cant, 'Botellas',
+                        proveedor='⚠️ Configurar en Plantilla de Barra'
+                    )
 
+    # --- Agua Natural ---
     if datos['litros_agua'] > 0:
-        lista_compras['Bebidas y Mezcladores'].append({'item': 'Agua Natural (Garrafón)', 'cantidad': math.ceil(datos['litros_agua'] / 20), 'unidad': 'Garrafones'})
+        p = _obtener_item_plantilla('AGUA_NATURAL') or _fallback_item('Agua Natural (Garrafón 20L)')
+        cant = math.ceil(datos['litros_agua'] / 20)
+        _agregar_a_lista(
+            lista_compras, 'Bebidas y Mezcladores',
+            p['nombre'], cant, 'Garrafones',
+            proveedor=p['proveedor'],
+            costo_unitario=p['costo_unitario']
+        )
 
-    # Hielo
-    lista_compras['Abarrotes y Consumibles'].append({
-        'item': 'Hielo (Bolsa 20kg)', 
-        'cantidad': datos['bolsas_hielo_20kg'], 
-        'unidad': 'Bolsas',
-        'nota': datos['hielo_info']
-    })
+    # ==========================================
+    # HIELO
+    # ==========================================
+    p = _obtener_item_plantilla('HIELO') or _fallback_item('Hielo (Bolsa 20kg)')
+    _agregar_a_lista(
+        lista_compras, 'Abarrotes y Consumibles',
+        p['nombre'], datos['bolsas_hielo_20kg'], 'Bolsas',
+        nota=datos['hielo_info'],
+        proveedor=p['proveedor'],
+        costo_unitario=p['costo_unitario']
+    )
 
-    # Coctelería
+    # ==========================================
+    # COCTELERÍA
+    # ==========================================
     if cotizacion.incluye_cocteleria_basica:
-        lista_compras['Frutas y Verduras'].append({'item': 'Limón Persa', 'cantidad': math.ceil(cotizacion.num_personas / 8), 'unidad': 'Kg'})
-        lista_compras['Frutas y Verduras'].append({'item': 'Hierbabuena', 'cantidad': math.ceil(cotizacion.num_personas / 15), 'unidad': 'Manojos'})
-        lista_compras['Abarrotes y Consumibles'].append({'item': 'Jarabe Natural', 'cantidad': math.ceil(cotizacion.num_personas / 40), 'unidad': 'Litros'})
+        for cat, fallback, cant_calc, unidad in [
+            ('LIMON', 'Limón Persa', math.ceil(cotizacion.num_personas / 8), 'Kg'),
+            ('HIERBABUENA', 'Hierbabuena', math.ceil(cotizacion.num_personas / 15), 'Manojos'),
+            ('JARABE', 'Jarabe Natural', math.ceil(cotizacion.num_personas / 40), 'Litros'),
+        ]:
+            p = _obtener_item_plantilla(cat) or _fallback_item(fallback)
+            seccion = 'Frutas y Verduras' if cat in ('LIMON', 'HIERBABUENA') else 'Abarrotes y Consumibles'
+            _agregar_a_lista(
+                lista_compras, seccion,
+                p['nombre'], cant_calc, unidad,
+                proveedor=p['proveedor'],
+                costo_unitario=p['costo_unitario']
+            )
 
     if cotizacion.incluye_cocteleria_premium:
-        lista_compras['Frutas y Verduras'].append({'item': 'Frutos Rojos', 'cantidad': math.ceil(cotizacion.num_personas / 20), 'unidad': 'Bolsas'})
-        lista_compras['Abarrotes y Consumibles'].append({'item': 'Café Espresso', 'cantidad': 1, 'unidad': 'Kg'})
+        for cat, fallback, cant_calc, unidad in [
+            ('FRUTOS_ROJOS', 'Frutos Rojos', math.ceil(cotizacion.num_personas / 20), 'Bolsas'),
+            ('CAFE', 'Café Espresso', 1, 'Kg'),
+        ]:
+            p = _obtener_item_plantilla(cat) or _fallback_item(fallback)
+            seccion = 'Frutas y Verduras' if cat == 'FRUTOS_ROJOS' else 'Abarrotes y Consumibles'
+            _agregar_a_lista(
+                lista_compras, seccion,
+                p['nombre'], cant_calc, unidad,
+                proveedor=p['proveedor'],
+                costo_unitario=p['costo_unitario']
+            )
 
-    # Insumos Generales
-    lista_compras['Abarrotes y Consumibles'].append({'item': 'Servilletas / Popotes', 'cantidad': 1, 'unidad': 'Kit'})
+    # --- Consumibles Generales ---
+    p = _obtener_item_plantilla('SERVILLETAS') or _fallback_item('Servilletas / Popotes')
+    _agregar_a_lista(
+        lista_compras, 'Abarrotes y Consumibles',
+        p['nombre'], 1, 'Kit',
+        proveedor=p['proveedor'],
+        costo_unitario=p['costo_unitario']
+    )
+
+    # ==========================================
+    # CALCULAR COSTO TOTAL DE LA LISTA
+    # ==========================================
+    for seccion, items in lista_compras.items():
+        for item in items:
+            if 'costo_total' not in item and item.get('costo_unitario', 0) > 0:
+                item['costo_total'] = round(item['costo_unitario'] * item['cantidad'], 2)
 
     return lista_compras
+
 
 # ==========================================
 # 1. DASHBOARD
@@ -174,7 +369,6 @@ def obtener_contexto_cotizacion(cotizacion):
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
     
-    # Usamos el servicio aquí también
     calc = CalculadoraBarraService(cotizacion)
     datos_barra = calc.calcular()
     
@@ -260,7 +454,6 @@ def exportar_reporte_cotizaciones(request):
     fecha_fin = request.POST.get('fecha_fin')
     estado = request.POST.get('estado')
     
-    # Optimizamos consultas
     cotizaciones = Cotizacion.objects.all().select_related('cliente').prefetch_related('gasto_set__compra').order_by('fecha_evento')
     
     if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
@@ -459,38 +652,27 @@ def forzar_migracion(request):
     except Exception as e: return HttpResponse(f"❌ Error: {str(e)}")
 
 # ==========================================
-# 5. FICHA TÉCNICA (NUEVO - FIX ERROR 502)
+# 5. FICHA TÉCNICA
 # ==========================================
 @staff_member_required
 def descargar_ficha_producto(request, producto_id):
-    """Genera un Brochure PDF de un producto específico para enviar por WA"""
     producto = get_object_or_404(Producto, id=producto_id)
-    
-    # Configuración de URL para imágenes (Logo)
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     if os.name == 'nt':
         logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
     else:
         logo_url = f"file://{ruta_logo}"
-    
-    # Imagen del producto (si tiene)
     img_prod_url = ""
     if producto.imagen_promocional:
         img_prod_url = request.build_absolute_uri(producto.imagen_promocional.url)
-
     context = {
-        'p': producto,
-        'logo_url': logo_url,
-        'img_prod_url': img_prod_url,
-        'fecha_impresion': timezone.now()
+        'p': producto, 'logo_url': logo_url,
+        'img_prod_url': img_prod_url, 'fecha_impresion': timezone.now()
     }
-    
     html_string = render_to_string('comercial/pdf_ficha_producto.html', context)
-    
     response = HttpResponse(content_type='application/pdf')
     filename = f"Ficha_{producto.nombre.replace(' ','_')}.pdf"
     response['Content-Disposition'] = f'inline; filename="{filename}"'
-    
     HTML(string=html_string).write_pdf(response)
     return response
 
@@ -499,87 +681,40 @@ def descargar_ficha_producto(request, producto_id):
 # ==========================================
 @csrf_exempt
 def webhook_manychat(request):
-    """
-    Recibe las variables que ManyChat capturó del cliente en WhatsApp 
-    y comienza el proceso de registro/cotización en el ERP.
-    """
     if request.method == 'POST':
         try:
-            # 1. Leer el JSON que manda ManyChat
             data = json.loads(request.body)
-            
-            # 2. Extraer las variables (los nombres coinciden con ManyChat)
             telefono = data.get('telefono_cliente', '')
             tipo_renta = data.get('tipo_renta', 'No especificado')
             tipo_evento = data.get('tipo_evento', 'Evento General')
             fecha_tentativa_str = data.get('fecha_tentativa', '')
             num_invitados_str = data.get('num_invitados', '')
-
-            # --- MAGIA 1: Traducir el texto de invitados a un número entero ---
-            invitados_int = 50 # Valor por defecto si algo falla
+            invitados_int = 50
             num_str_lower = str(num_invitados_str).lower()
-            
-            if 'hasta 50' in num_str_lower:
-                invitados_int = 50
-            elif '51 a 100' in num_str_lower:
-                invitados_int = 100
-            elif 'más de 100' in num_str_lower or 'mas de 100' in num_str_lower:
-                invitados_int = 150
-            elif '1 a 10' in num_str_lower:
-                invitados_int = 10
-            elif '11 a 20' in num_str_lower:
-                invitados_int = 20
+            if 'hasta 50' in num_str_lower: invitados_int = 50
+            elif '51 a 100' in num_str_lower: invitados_int = 100
+            elif 'más de 100' in num_str_lower or 'mas de 100' in num_str_lower: invitados_int = 150
+            elif '1 a 10' in num_str_lower: invitados_int = 10
+            elif '11 a 20' in num_str_lower: invitados_int = 20
             else:
-                # Si el usuario escribió a mano, buscamos el número con RegEx
                 numeros = re.findall(r'\d+', num_str_lower)
-                if numeros:
-                    invitados_int = int(max(numeros, key=int))
-
-            # --- MAGIA 2: Traducir el texto de la fecha a un formato de base de datos ---
+                if numeros: invitados_int = int(max(numeros, key=int))
             try:
-                # Intentamos parsear DD/MM/AAAA
                 fecha_evento = datetime.strptime(fecha_tentativa_str.strip(), "%d/%m/%Y").date()
             except ValueError:
-                # Si escribieron la fecha súper raro, le ponemos 30 días en el futuro por defecto
                 fecha_evento = timezone.now().date() + timedelta(days=30)
-
-            # --- MAGIA 3: Buscar o crear al cliente y su cotización ---
             if telefono:
-                # Limpiamos el teléfono (quitamos signos de + o espacios)
                 telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
-                
-                # Buscamos si el cliente ya existe (tomamos el primero si hay duplicados)
                 cliente = Cliente.objects.filter(telefono=telefono_limpio).first()
-                
-                # Si no existe, lo creamos
                 if not cliente:
-                    cliente = Cliente.objects.create(
-                        telefono=telefono_limpio,
-                        nombre=f'Prospecto WA ({telefono_limpio[-4:]})',
-                        origen='Otro'
-                    )
-
-                # Creamos la Cotización asignada a este cliente
+                    cliente = Cliente.objects.create(telefono=telefono_limpio, nombre=f'Prospecto WA ({telefono_limpio[-4:]})', origen='Otro')
                 nombre_ev = f"{tipo_renta} - {tipo_evento}"
-                
-                cotizacion = Cotizacion.objects.create(
-                    cliente=cliente,
-                    nombre_evento=nombre_ev[:200], # Aseguramos que no pase del límite
-                    fecha_evento=fecha_evento,
-                    num_personas=invitados_int,
-                    estado='BORRADOR'
-                )
-                
+                cotizacion = Cotizacion.objects.create(cliente=cliente, nombre_evento=nombre_ev[:200], fecha_evento=fecha_evento, num_personas=invitados_int, estado='BORRADOR')
                 print(f"✅ ¡Éxito! Cotización {cotizacion.id} creada automáticamente para {cliente.nombre}")
-
-            # 3. Respuesta exitosa para ManyChat
             return JsonResponse({'status': 'success', 'message': 'Datos procesados y guardados en el ERP'}, status=200)
-            
         except json.JSONDecodeError:
             return JsonResponse({'status': 'error', 'message': 'Formato JSON inválido'}, status=400)
         except Exception as e:
             print(f"❌ Error interno en webhook: {str(e)}")
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-            
-    # Bloqueamos cualquier intento de entrar a esta URL desde el navegador
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)

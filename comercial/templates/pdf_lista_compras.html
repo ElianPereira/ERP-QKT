@@ -5,25 +5,47 @@
     <meta charset="UTF-8">
     <title>Lista de Compras #{{ cotizacion.id }}</title>
     <style>
-        @page { size: letter; margin: 1.5cm; }
-        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 12px; }
+        @page { size: letter landscape; margin: 1.5cm; }
+        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 11px; }
         
         .header { width: 100%; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
         .title { font-size: 18px; font-weight: bold; color: #333; }
         .subtitle { font-size: 12px; color: #666; margin-top: 5px; }
         
         .section-title { 
-            background-color: #eee; padding: 5px 10px; 
-            font-weight: bold; margin-top: 15px; margin-bottom: 5px; 
-            border-left: 4px solid #356685; 
+            background-color: #2c3e50; color: white; padding: 6px 12px; 
+            font-weight: bold; margin-top: 18px; margin-bottom: 0; 
+            border-radius: 4px 4px 0 0; font-size: 12px;
         }
         
-        .item-row { padding: 4px 0; border-bottom: 1px dotted #ccc; }
-        .checkbox { 
-            display: inline-block; width: 12px; height: 12px; 
-            border: 1px solid #333; margin-right: 10px; 
+        table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+        th { 
+            background-color: #ecf0f1; padding: 5px 8px; 
+            text-align: left; border: 1px solid #bdc3c7; 
+            font-size: 10px; color: #555;
         }
-        .qty { font-weight: bold; color: #356685; margin-right: 5px; }
+        td { padding: 5px 8px; border: 1px solid #ddd; }
+        
+        .check-col { width: 4%; text-align: center; }
+        .item-col { width: 30%; }
+        .qty-col { width: 8%; text-align: center; font-weight: bold; color: #356685; }
+        .unit-col { width: 8%; text-align: center; }
+        .prov-col { width: 22%; }
+        .cu-col { width: 10%; text-align: right; }
+        .total-col { width: 10%; text-align: right; font-weight: bold; }
+        
+        .nota { font-size: 9px; color: #888; }
+        .sin-asignar { color: #e74c3c; font-size: 10px; }
+        .muted { color: #aaa; }
+        
+        .resumen-box { 
+            margin-top: 25px; padding: 10px 15px; 
+            background: #f8f9fa; border-radius: 4px; 
+            text-align: right; border: 1px solid #ddd;
+        }
+        .resumen-total { font-size: 15px; color: #e74c3c; font-weight: bold; }
+        
+        .footer { margin-top: 30px; font-size: 9px; color: #777; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
     </style>
 </head>
 <body>
@@ -32,26 +54,70 @@
         <div style="float:right; text-align:right;">
             <div style="font-size:10px;">Fecha Evento:</div>
             <div style="font-weight:bold;">{{ cotizacion.fecha_evento|date:"d/M/Y" }}</div>
+            <div style="font-size:10px; margin-top:4px;">{{ cotizacion.num_personas }} Personas · {{ cotizacion.horas_servicio }} Hrs</div>
         </div>
-        <div class="title">Lista de Compras / Barra</div>
-        <div class="subtitle">{{ cotizacion.cliente.nombre }} - {{ cotizacion.nombre_evento }} ({{ cotizacion.num_personas }} Pax)</div>
+        <div class="title">📋 Lista de Compras / Barra</div>
+        <div class="subtitle">{{ cotizacion.cliente.nombre }} — {{ cotizacion.nombre_evento }}</div>
     </div>
 
     {% for categoria, items in lista.items %}
         {% if items %}
             <div class="section-title">{{ categoria }}</div>
-            
-            {% for producto in items %}
-            <div class="item-row">
-                <span class="checkbox"></span>
-                <span class="qty">{{ producto.cantidad }} {{ producto.unidad }}</span> 
-                {{ producto.item }}
-            </div>
-            {% endfor %}
+            <table>
+                <thead>
+                    <tr>
+                        <th class="check-col">✓</th>
+                        <th class="item-col">Artículo</th>
+                        <th class="qty-col">Cant.</th>
+                        <th class="unit-col">Unidad</th>
+                        <th class="prov-col">Proveedor</th>
+                        <th class="cu-col">C/U</th>
+                        <th class="total-col">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in items %}
+                    <tr>
+                        <td class="check-col">☐</td>
+                        <td class="item-col">
+                            {{ producto.item }}
+                            {% if producto.nota %}<br><span class="nota">{{ producto.nota }}</span>{% endif %}
+                        </td>
+                        <td class="qty-col">{{ producto.cantidad }}</td>
+                        <td class="unit-col">{{ producto.unidad }}</td>
+                        <td class="prov-col">
+                            {% if producto.proveedor %}
+                                {% if '⚠️' in producto.proveedor %}
+                                    <span class="sin-asignar">{{ producto.proveedor }}</span>
+                                {% else %}
+                                    {{ producto.proveedor }}
+                                {% endif %}
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="cu-col">
+                            {% if producto.costo_unitario %}
+                                ${{ producto.costo_unitario|floatformat:2 }}
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="total-col">
+                            {% if producto.costo_total %}
+                                ${{ producto.costo_total|floatformat:2 }}
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         {% endif %}
     {% endfor %}
 
-    <div style="margin-top: 30px; font-size: 10px; color: #777; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
+    <div class="footer">
         Generado automáticamente por ERP Quinta Ko'ox Tanil el {% now "d/m/Y H:i" %}
     </div>
 
