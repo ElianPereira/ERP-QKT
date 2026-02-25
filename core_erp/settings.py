@@ -1,17 +1,31 @@
-from decouple import config
+from decouple import config, Csv
 from pathlib import Path
 import os
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-key-dev')
+
+# --- SEGURIDAD ---
+SECRET_KEY = config('SECRET_KEY')  # SIN default — fuerza a que exista en .env
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
     'https://*.railway.app',
 ]
+
+# --- Seguridad en producción (se activan cuando DEBUG=False) ---
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
 INSTALLED_APPS = [
     'jazzmin',
@@ -97,7 +111,7 @@ USE_THOUSAND_SEPARATOR = True
 DECIMAL_SEPARATOR = '.'
 THOUSAND_SEPARATOR = ','
 
-# --- IMPORTANTE: RUTA ESTÁTICA CORRECTA ---
+# --- RUTA ESTÁTICA ---
 STATIC_URL = '/static/'  
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
@@ -105,8 +119,8 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 # --- CORREO ---
 EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
 ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
-DEFAULT_FROM_EMAIL = 'quintakooxtanil@gmail.com'
-SERVER_EMAIL = 'quintakooxtanil@gmail.com'
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
+SERVER_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 
 # --- STORAGES ---
 STORAGES = {
@@ -157,13 +171,10 @@ JAZZMIN_SETTINGS = {
         "facturacion.SolicitudFactura": "fas fa-file-signature",
     },
 
-    # --- AQUÍ AGREGAMOS EL BOTÓN DE SALIR ---
     "topmenu_links": [
         {"name": "Inicio",  "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "📅 Ver Calendario", "url": "ver_calendario"}, 
         {"name": "Ver Sitio", "url": "/"},
-        
-        # BOTÓN NUEVO: Apunta directo a la ruta que definimos en urls.py
         {"name": "Cerrar Sesión", "url": "/admin/logout/", "new_window": False, "icon": "fas fa-sign-out-alt"},
     ],
 
@@ -173,13 +184,11 @@ JAZZMIN_SETTINGS = {
         "comercial.Pago", "comercial.Gasto", "nomina", "facturacion", "auth",
     ],
     
-    # MANTENEMOS EL SCRIPT PARA QUE FUNCIONEN LAS PESTAÑAS
     "custom_css": "css/mobile_fix_v4.css",
     "custom_js": "js/tabs_fix.js",
 }
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
 
 # --- REDIRECCIONES DE LOGIN/LOGOUT ---
-# Esto arregla el error de "Page not found /accounts/profile/"
 LOGIN_REDIRECT_URL = '/admin/'  
 LOGOUT_REDIRECT_URL = '/admin/login/'
