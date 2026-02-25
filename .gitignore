@@ -2,6 +2,7 @@
 venv/
 __pycache__/
 *.pyc
+*.pyo
 
 # Base de datos local (¡No subir!)
 db.sqlite3
@@ -12,3 +13,6 @@ db.sqlite3
 # Archivos estáticos y media generados localmente
 staticfiles/
 media/
+
+# Respaldos
+cementerio/

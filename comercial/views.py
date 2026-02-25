@@ -22,6 +22,9 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
+from decouple import config
+import hmac
+import hashlib
 
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra, Insumo
 from .forms import CalculadoraForm
@@ -615,6 +618,7 @@ def obtener_contexto_cotizacion(cotizacion):
         'saldo_pendiente': cotizacion.saldo_pendiente(), 'barra': datos_barra
     }
 
+@staff_member_required
 def generar_pdf_cotizacion(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     context = obtener_contexto_cotizacion(cotizacion)
@@ -626,6 +630,7 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     HTML(string=html_string).write_pdf(response)
     return response
 
+@staff_member_required
 def enviar_cotizacion_email(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     cliente = cotizacion.cliente
@@ -652,6 +657,7 @@ def enviar_cotizacion_email(request, cotizacion_id):
 # ==========================================
 # 4. CALENDARIO Y EXPORTS
 # ==========================================
+@staff_member_required
 def ver_calendario(request):
     cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA')
     eventos_lista = []
@@ -916,9 +922,23 @@ def descargar_ficha_producto(request, producto_id):
 # ==========================================
 # 6. INTEGRACIÓN MANYCHAT (WEBHOOK)
 # ==========================================
+
+def _verificar_token_webhook(request):
+    """Valida el token secreto del webhook. Retorna True si es válido."""
+    token_esperado = config('MANYCHAT_WEBHOOK_TOKEN', default='')
+    if not token_esperado:
+        return True  # Si no hay token configurado, acepta todo (desarrollo)
+    token_recibido = request.headers.get('X-Webhook-Token', '')
+    return hmac.compare_digest(token_recibido, token_esperado)
+
+
 @csrf_exempt
 def webhook_manychat(request):
     if request.method == 'POST':
+        # Validar token de autenticación
+        if not _verificar_token_webhook(request):
+            return JsonResponse({'status': 'error', 'message': 'Token inválido'}, status=403)
+        
         try:
             data = json.loads(request.body)
             telefono = data.get('telefono_cliente', '')
@@ -947,11 +967,9 @@ def webhook_manychat(request):
                     cliente = Cliente.objects.create(telefono=telefono_limpio, nombre=f'Prospecto WA ({telefono_limpio[-4:]})', origen='Otro')
                 nombre_ev = f"{tipo_renta} - {tipo_evento}"
                 cotizacion = Cotizacion.objects.create(cliente=cliente, nombre_evento=nombre_ev[:200], fecha_evento=fecha_evento, num_personas=invitados_int, estado='BORRADOR')
-                print(f"✅ ¡Éxito! Cotización {cotizacion.id} creada automáticamente para {cliente.nombre}")
             return JsonResponse({'status': 'success', 'message': 'Datos procesados y guardados en el ERP'}, status=200)
         except json.JSONDecodeError:
             return JsonResponse({'status': 'error', 'message': 'Formato JSON inválido'}, status=400)
         except Exception as e:
-            print(f"❌ Error interno en webhook: {str(e)}")
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            return JsonResponse({'status': 'error', 'message': 'Error interno del servidor'}, status=500)
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)

@@ -12,7 +12,6 @@ def custom_logout(request):
     Fuerza el cierre de sesión aceptando GET o POST.
     Redirige explícitamente al login del admin.
     """
-    print("--- INTENTO DE LOGOUT DETECTADO ---")
     logout(request)
     return redirect('/admin/login/')
 
@@ -53,9 +52,6 @@ urlpatterns = [
     
     # FIX LOGOUT: Esta línea intercepta CUALQUIER intento de ir a /admin/logout/
     path('admin/logout/', custom_logout, name='logout'),
-    
-    # Utilidad de migración
-    path('admin/ajustes/migrar-ahora/', forzar_migracion),
 
     # --- 2. EL DASHBOARD (Tu página principal del admin) ---
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),

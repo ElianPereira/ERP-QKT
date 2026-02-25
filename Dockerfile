@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED 1
 
 WORKDIR /app
 
-# Instalamos las librerías gráficas (CORREGIDO EL GUION QUE FALTABA)
+# Instalamos las librerías gráficas
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libpango-1.0-0 \
@@ -21,4 +21,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["sh", "-c", "python manage.py migrate && python manage.py shell -c \"from django.contrib.auth import get_user_model; User = get_user_model(); not User.objects.filter(username='admin').exists() and User.objects.create_superuser('admin', 'admin@example.com', 'admin123')\" && gunicorn core_erp.wsgi:application --bind 0.0.0.0:8080"]
+CMD ["sh", "-c", "python manage.py migrate && python manage.py shell -c \"import os; from django.contrib.auth import get_user_model; User = get_user_model(); not User.objects.filter(username=os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')).exists() and User.objects.create_superuser(os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin'), os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com'), os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'CAMBIAME-AHORA'))\" && gunicorn core_erp.wsgi:application --bind 0.0.0.0:8080"]
