@@ -37,12 +37,39 @@ except ImportError:
 # 0. LÓGICA DE LISTA DE COMPRAS (REFACTORIZADO)
 # ==========================================
 
+def _buscar_insumo_palabra_completa(keyword):
+    """
+    Busca un insumo donde el keyword sea una PALABRA COMPLETA,
+    no parte de otra palabra.
+    Evita que 'ron' matchee 'Toronja' o 'gin' matchee 'Original'.
+    """
+    # 1. El nombre EMPIEZA con el keyword (ej: "Ron Bacardí")
+    insumo = Insumo.objects.filter(
+        nombre__istartswith=keyword,
+        categoria='CONSUMIBLE'
+    ).first()
+    if insumo:
+        return insumo
+    
+    # 2. El keyword aparece después de un espacio (ej: "Botella Ron Bacardí")
+    insumo = Insumo.objects.filter(
+        nombre__icontains=f' {keyword}',
+        categoria='CONSUMIBLE'
+    ).first()
+    if insumo:
+        return insumo
+    
+    return None
+
+
 def _obtener_item_plantilla(categoria):
     """
     Busca en PlantillaBarra el insumo activo para una categoría.
     
     MEJORA: Si no hay plantilla configurada, busca en Insumos 
     por nombre similar para evitar mostrar nombres genéricos.
+    Usa búsqueda por palabra completa para evitar falsos positivos
+    (ej: 'ron' no matchea 'Toronja', 'gin' no matchea 'Original').
     """
     # 1. Buscar en PlantillaBarra (fuente principal)
     plantilla = PlantillaBarra.objects.filter(
@@ -63,42 +90,56 @@ def _obtener_item_plantilla(categoria):
         }
     
     # 2. FALLBACK INTELIGENTE: Buscar insumo por nombre similar
+    # Keywords ordenados del más específico al más genérico
     BUSQUEDA_KEYWORDS = {
         # Cervezas
-        'CERVEZA': ['cerveza', 'caguama'],
-        # Nacionales
-        'TEQUILA_NAC': ['tequila'],
+        'CERVEZA': ['cerveza', 'caguama', 'tecate', 'corona'],
+        # Nacionales (keywords específicos para evitar falsos positivos)
+        'TEQUILA_NAC': ['tequila cuervo', 'tequila tradicional', 'tequila'],
         'WHISKY_NAC': ['whisky', 'whiskey'],
-        'RON_NAC': ['ron'],
+        'RON_NAC': ['ron bacardi', 'ron castillo', 'ron havana', 'ron '],
         'VODKA_NAC': ['vodka'],
-        # Premium
-        'TEQUILA_PREM': ['tequila', 'don julio', 'herradura'],
-        'WHISKY_PREM': ['whisky', 'whiskey', 'jack', 'buchanan'],
-        'GIN_PREM': ['gin', 'ginebra', 'hendrick'],
+        # Premium (más específicos primero)
+        'TEQUILA_PREM': ['don julio', 'herradura', 'tequila 1800'],
+        'WHISKY_PREM': ['buchanan', 'jack daniel', 'johnnie walker black', 'etiqueta negra'],
+        'GIN_PREM': ['ginebra', 'hendrick', 'tanqueray', 'bombay'],
         # Mezcladores
-        'REFRESCO_COLA': ['coca', 'cola', 'refresco'],
+        'REFRESCO_COLA': ['coca cola', 'coca-cola'],
         'REFRESCO_TORONJA': ['toronja', 'squirt', 'fresca'],
-        'AGUA_MINERAL': ['mineral', 'topochico', 'topo chico'],
-        'AGUA_NATURAL': ['agua', 'garrafon', 'garrafón'],
+        'AGUA_MINERAL': ['agua mineral', 'topochico', 'topo chico', 'peñafiel mineral'],
+        'AGUA_NATURAL': ['garrafon', 'garrafón', 'agua natural', 'agua purificada'],
         # Hielo
         'HIELO': ['hielo'],
         # Coctelería
         'LIMON': ['limon', 'limón'],
-        'HIERBABUENA': ['hierbabuena', 'menta', 'yerba'],
+        'HIERBABUENA': ['hierbabuena', 'menta'],
         'JARABE': ['jarabe'],
-        'FRUTOS_ROJOS': ['frutos', 'berries', 'zarzamora', 'frambuesa'],
+        'FRUTOS_ROJOS': ['frutos rojos', 'berries', 'zarzamora', 'frambuesa'],
         'CAFE': ['café', 'cafe', 'espresso'],
         # Consumibles
-        'SERVILLETAS': ['servilleta', 'popote', 'desechable'],
+        'SERVILLETAS': ['servilleta', 'popote'],
     }
     
     keywords = BUSQUEDA_KEYWORDS.get(categoria, [])
     
     for keyword in keywords:
-        insumo = Insumo.objects.filter(
-            nombre__icontains=keyword,
-            categoria='CONSUMIBLE'
-        ).first()
+        # Para keywords de 4+ letras: búsqueda por palabra completa (evita falsos positivos)
+        # Para keywords largos (2+ palabras): búsqueda normal icontains (ya son específicos)
+        if ' ' in keyword:
+            # Keyword compuesto ("coca cola", "agua mineral") → búsqueda normal
+            insumo = Insumo.objects.filter(
+                nombre__icontains=keyword,
+                categoria='CONSUMIBLE'
+            ).first()
+        elif len(keyword) <= 4:
+            # Keywords cortos ("ron", "gin", "café") → búsqueda por palabra completa
+            insumo = _buscar_insumo_palabra_completa(keyword)
+        else:
+            # Keywords medianos ("vodka", "hielo") → búsqueda normal (bajo riesgo)
+            insumo = Insumo.objects.filter(
+                nombre__icontains=keyword,
+                categoria='CONSUMIBLE'
+            ).first()
         
         if insumo:
             nombre = insumo.nombre
