@@ -41,12 +41,14 @@ class InsumoAdmin(admin.ModelAdmin):
 
 
 # ==========================================
-# PLANTILLA DE BARRA (NUEVO)
+# PLANTILLA DE BARRA
 # ==========================================
 @admin.register(PlantillaBarra)
 class PlantillaBarraAdmin(admin.ModelAdmin):
-    list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion_pct', 'activo')
-    list_editable = ('proporcion_pct', 'activo')
+    change_list_template = "admin/comercial/plantillabarra_change_list.html"
+    
+    list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'activo')
+    list_editable = ('proporcion', 'activo')
     list_filter = ('grupo', 'activo')
     search_fields = ('insumo__nombre', 'insumo__proveedor')
     raw_id_fields = ['insumo']
@@ -73,7 +75,10 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
             'CONSUMIBLE': '#95a5a6',
         }
         color = colores.get(obj.grupo, '#666')
-        return format_html('<span style="background:{}; padding:2px 8px; border-radius:4px; color:#fff; font-size:11px;">{}</span>', color, obj.get_grupo_display())
+        return format_html(
+            '<span style="background:{}; padding:2px 8px; border-radius:4px; color:#fff; font-size:11px;">{}</span>',
+            color, obj.get_grupo_display()
+        )
     grupo_display.short_description = "Grupo"
     grupo_display.admin_order_field = 'grupo'
     
@@ -93,16 +98,6 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     def costo_insumo(self, obj):
         return f"${obj.insumo.costo_unitario:,.2f}"
     costo_insumo.short_description = "Costo"
-    
-    def proporcion_pct(self, obj):
-        return f"{obj.proporcion * 100:.0f}%"
-    proporcion_pct.short_description = "% del Grupo"
-    # Hacemos editable el campo real, no el display
-    proporcion_pct = 'proporcion'  # Esto permite list_editable sobre el campo real
-    
-    # Sobreescribimos para que list_editable funcione con 'proporcion' directamente
-    list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'activo')
-    list_editable = ('proporcion', 'activo')
     
     class Media:
         css = MEDIA_CONFIG['css']

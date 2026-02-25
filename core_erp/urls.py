@@ -12,7 +12,7 @@ def custom_logout(request):
     Fuerza el cierre de sesión aceptando GET o POST.
     Redirige explícitamente al login del admin.
     """
-    print("--- INTENTO DE LOGOUT DETECTADO ---") # Esto saldrá en tu consola
+    print("--- INTENTO DE LOGOUT DETECTADO ---")
     logout(request)
     return redirect('/admin/login/')
 
@@ -31,7 +31,8 @@ try:
         exportar_reporte_pagos,
         descargar_lista_compras_pdf,
         descargar_ficha_producto,
-        webhook_manychat  # <--- IMPORTACIÓN NUEVA PARA MANYCHAT
+        webhook_manychat,
+        configurar_plantilla_barra,
     )
 except ImportError as e:
     print(f"Advertencia de importación en Comercial: {e}")
@@ -51,14 +52,12 @@ urlpatterns = [
     # --- 1. REGLAS DE ORO (Van primero para interceptar acciones) ---
     
     # FIX LOGOUT: Esta línea intercepta CUALQUIER intento de ir a /admin/logout/
-    # y lo manda a nuestra función personalizada, ignorando el admin por defecto.
     path('admin/logout/', custom_logout, name='logout'),
     
     # Utilidad de migración
     path('admin/ajustes/migrar-ahora/', forzar_migracion),
 
     # --- 2. EL DASHBOARD (Tu página principal del admin) ---
-    # Nota: Esto reemplaza la página de inicio default de Django Admin
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),
 
     # --- 3. RUTAS DEL SISTEMA COMERCIAL ---
@@ -67,7 +66,10 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
     path('producto/<int:producto_id>/ficha/', descargar_ficha_producto, name='producto_ficha_pdf'),
 
-    # INTEGRACIÓN MANYCHAT (NUEVO)
+    # ASISTENTE DE CONFIGURACIÓN DE PLANTILLA DE BARRA
+    path('admin/comercial/configurar-plantilla-barra/', configurar_plantilla_barra, name='configurar_plantilla_barra'),
+
+    # INTEGRACIÓN MANYCHAT
     path('api/webhook-manychat/', webhook_manychat, name='webhook_manychat'),
 
     # Reportes y Herramientas                                  
@@ -83,7 +85,6 @@ urlpatterns = [
     path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
 
     # --- 5. ADMIN DE DJANGO (El resto de las URLs del admin) ---
-    # Es importante que esto vaya AL FINAL de las rutas que empiezan con 'admin/'
     path('admin/', admin.site.urls),
 
     # --- 6. RUTA RAÍZ ---

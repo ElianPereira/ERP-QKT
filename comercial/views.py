@@ -23,7 +23,7 @@ from weasyprint import HTML
 from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra, Insumo
 from .forms import CalculadoraForm
 from .services import CalculadoraBarraService, actualizar_item_cotizacion
 
@@ -32,6 +32,7 @@ try:
 except ImportError:
     SolicitudFactura = None 
 
+
 # ==========================================
 # 0. LÓGICA DE LISTA DE COMPRAS (REFACTORIZADO)
 # ==========================================
@@ -39,9 +40,11 @@ except ImportError:
 def _obtener_item_plantilla(categoria):
     """
     Busca en PlantillaBarra el insumo activo para una categoría.
-    Retorna dict con nombre completo, proveedor, costo, presentación.
-    Si no hay plantilla configurada, retorna un fallback con nombre genérico.
+    
+    MEJORA: Si no hay plantilla configurada, busca en Insumos 
+    por nombre similar para evitar mostrar nombres genéricos.
     """
+    # 1. Buscar en PlantillaBarra (fuente principal)
     plantilla = PlantillaBarra.objects.filter(
         categoria=categoria, activo=True
     ).select_related('insumo').first()
@@ -58,6 +61,58 @@ def _obtener_item_plantilla(categoria):
             'proporcion': float(plantilla.proporcion),
             'insumo_id': insumo.id,
         }
+    
+    # 2. FALLBACK INTELIGENTE: Buscar insumo por nombre similar
+    BUSQUEDA_KEYWORDS = {
+        # Cervezas
+        'CERVEZA': ['cerveza', 'caguama'],
+        # Nacionales
+        'TEQUILA_NAC': ['tequila'],
+        'WHISKY_NAC': ['whisky', 'whiskey'],
+        'RON_NAC': ['ron'],
+        'VODKA_NAC': ['vodka'],
+        # Premium
+        'TEQUILA_PREM': ['tequila', 'don julio', 'herradura'],
+        'WHISKY_PREM': ['whisky', 'whiskey', 'jack', 'buchanan'],
+        'GIN_PREM': ['gin', 'ginebra', 'hendrick'],
+        # Mezcladores
+        'REFRESCO_COLA': ['coca', 'cola', 'refresco'],
+        'REFRESCO_TORONJA': ['toronja', 'squirt', 'fresca'],
+        'AGUA_MINERAL': ['mineral', 'topochico', 'topo chico'],
+        'AGUA_NATURAL': ['agua', 'garrafon', 'garrafón'],
+        # Hielo
+        'HIELO': ['hielo'],
+        # Coctelería
+        'LIMON': ['limon', 'limón'],
+        'HIERBABUENA': ['hierbabuena', 'menta', 'yerba'],
+        'JARABE': ['jarabe'],
+        'FRUTOS_ROJOS': ['frutos', 'berries', 'zarzamora', 'frambuesa'],
+        'CAFE': ['café', 'cafe', 'espresso'],
+        # Consumibles
+        'SERVILLETAS': ['servilleta', 'popote', 'desechable'],
+    }
+    
+    keywords = BUSQUEDA_KEYWORDS.get(categoria, [])
+    
+    for keyword in keywords:
+        insumo = Insumo.objects.filter(
+            nombre__icontains=keyword,
+            categoria='CONSUMIBLE'
+        ).first()
+        
+        if insumo:
+            nombre = insumo.nombre
+            if insumo.presentacion:
+                nombre = f"{insumo.nombre} ({insumo.presentacion})"
+            return {
+                'nombre': nombre,
+                'proveedor': insumo.proveedor or '⚠️ Sin proveedor',
+                'costo_unitario': float(insumo.costo_unitario),
+                'proporcion': 1.0,
+                'insumo_id': insumo.id,
+                '_via_fallback': True,
+            }
+    
     return None
 
 
@@ -98,8 +153,8 @@ def generar_lista_compras_barra(cotizacion):
     Genera la lista de compras usando PlantillaBarra para obtener
     los datos reales de cada insumo (nombre, presentación, proveedor, costo).
     
-    Si no hay plantilla configurada para algún concepto, usa un fallback genérico
-    para no romper la funcionalidad.
+    Si no hay plantilla configurada para algún concepto, usa un fallback inteligente
+    que busca en el catálogo de insumos por nombre similar.
     """
     calc = CalculadoraBarraService(cotizacion)
     datos = calc.calcular()
@@ -128,7 +183,6 @@ def generar_lista_compras_barra(cotizacion):
     if datos['botellas_nacional'] > 0:
         b = datos['botellas_nacional']
         
-        # Buscamos cada tipo de licor nacional en la plantilla
         mapeo_nacional = [
             ('TEQUILA_NAC', 'Tequila Nacional', 0.40),
             ('WHISKY_NAC', 'Whisky Nacional', 0.30),
@@ -149,7 +203,6 @@ def generar_lista_compras_barra(cotizacion):
                         costo_unitario=p['costo_unitario']
                     )
             else:
-                # Fallback: usa proporción por defecto
                 cant = math.ceil(b * default_prop)
                 if cant > 0:
                     _agregar_a_lista(
@@ -291,6 +344,149 @@ def generar_lista_compras_barra(cotizacion):
                 item['costo_total'] = round(item['costo_unitario'] * item['cantidad'], 2)
 
     return lista_compras
+
+
+# ==========================================
+# 0.5 ASISTENTE DE CONFIGURACIÓN DE PLANTILLA DE BARRA
+# ==========================================
+
+@staff_member_required
+def configurar_plantilla_barra(request):
+    """
+    Vista de asistente visual para vincular insumos reales
+    a cada concepto de la Plantilla de Barra.
+    """
+    from django.contrib import admin as django_admin
+    
+    GRUPO_CONFIG = {
+        'ALCOHOL_NACIONAL': {'nombre': 'Licores Nacionales', 'color': '#e67e22', 'icono': '🥃',
+                             'categorias': ['TEQUILA_NAC', 'WHISKY_NAC', 'RON_NAC', 'VODKA_NAC']},
+        'ALCOHOL_PREMIUM': {'nombre': 'Licores Premium', 'color': '#9b59b6', 'icono': '✨',
+                            'categorias': ['TEQUILA_PREM', 'WHISKY_PREM', 'GIN_PREM']},
+        'CERVEZA': {'nombre': 'Cerveza', 'color': '#f39c12', 'icono': '🍺',
+                    'categorias': ['CERVEZA']},
+        'MEZCLADOR': {'nombre': 'Bebidas y Mezcladores', 'color': '#3498db', 'icono': '🥤',
+                      'categorias': ['REFRESCO_COLA', 'REFRESCO_TORONJA', 'AGUA_MINERAL', 'AGUA_NATURAL']},
+        'HIELO': {'nombre': 'Hielo', 'color': '#1abc9c', 'icono': '🧊',
+                  'categorias': ['HIELO']},
+        'COCTELERIA': {'nombre': 'Frutas y Verduras (Coctelería)', 'color': '#27ae60', 'icono': '🍋',
+                       'categorias': ['LIMON', 'HIERBABUENA', 'JARABE', 'FRUTOS_ROJOS', 'CAFE']},
+        'CONSUMIBLE': {'nombre': 'Abarrotes y Consumibles', 'color': '#95a5a6', 'icono': '📦',
+                       'categorias': ['SERVILLETAS']},
+    }
+    
+    cat_labels = dict(PlantillaBarra.CATEGORIAS_BARRA)
+    insumos = Insumo.objects.all().order_by('nombre')
+    
+    mensaje_exito = None
+    mensaje_error = None
+    
+    # ─── PROCESAR POST ───
+    if request.method == 'POST':
+        creados = 0
+        actualizados = 0
+        errores = 0
+        
+        for cat_key, cat_label in PlantillaBarra.CATEGORIAS_BARRA:
+            insumo_id = request.POST.get(f'insumo_{cat_key}', '')
+            proporcion_pct = request.POST.get(f'proporcion_{cat_key}', '100')
+            
+            try:
+                proporcion_pct = int(proporcion_pct)
+            except (ValueError, TypeError):
+                proporcion_pct = 100
+            
+            proporcion_decimal = Decimal(proporcion_pct) / Decimal('100')
+            
+            # Determinar grupo automáticamente
+            grupo = 'CONSUMIBLE'
+            for g_key, g_conf in GRUPO_CONFIG.items():
+                if cat_key in g_conf['categorias']:
+                    grupo = g_key
+                    break
+            
+            if insumo_id:
+                try:
+                    insumo = Insumo.objects.get(id=int(insumo_id))
+                    plantilla = PlantillaBarra.objects.filter(categoria=cat_key).first()
+                    
+                    if plantilla:
+                        plantilla.insumo = insumo
+                        plantilla.proporcion = proporcion_decimal
+                        plantilla.grupo = grupo
+                        plantilla.activo = True
+                        plantilla.save()
+                        actualizados += 1
+                    else:
+                        PlantillaBarra.objects.create(
+                            categoria=cat_key,
+                            grupo=grupo,
+                            insumo=insumo,
+                            proporcion=proporcion_decimal,
+                            activo=True,
+                            orden=0
+                        )
+                        creados += 1
+                        
+                except (Insumo.DoesNotExist, ValueError) as e:
+                    errores += 1
+            else:
+                PlantillaBarra.objects.filter(categoria=cat_key).update(activo=False)
+        
+        if errores == 0:
+            mensaje_exito = f"Plantilla guardada: {creados} nuevos, {actualizados} actualizados."
+        else:
+            mensaje_error = f"Guardado con {errores} errores. {creados} nuevos, {actualizados} actualizados."
+    
+    # ─── PREPARAR DATOS PARA TEMPLATE ───
+    grupos = []
+    vinculados = 0
+    sin_vincular = 0
+    
+    for g_key, g_conf in GRUPO_CONFIG.items():
+        categorias_grupo = []
+        
+        for cat_key in g_conf['categorias']:
+            cat_label = cat_labels.get(cat_key, cat_key)
+            plantilla = PlantillaBarra.objects.filter(
+                categoria=cat_key, activo=True
+            ).select_related('insumo').first()
+            
+            insumo_actual = plantilla.insumo if plantilla else None
+            proporcion_pct = int(plantilla.proporcion * 100) if plantilla else 100
+            
+            if insumo_actual:
+                vinculados += 1
+            else:
+                sin_vincular += 1
+            
+            categorias_grupo.append({
+                'key': cat_key,
+                'label': cat_label,
+                'insumo_actual': insumo_actual,
+                'proporcion_pct': proporcion_pct,
+            })
+        
+        grupos.append({
+            'key': g_key,
+            'nombre': g_conf['nombre'],
+            'color': g_conf['color'],
+            'icono': g_conf['icono'],
+            'categorias': categorias_grupo,
+        })
+    
+    context = {
+        **django_admin.site.each_context(request),
+        'grupos': grupos,
+        'insumos': insumos,
+        'vinculados': vinculados,
+        'sin_vincular': sin_vincular,
+        'total_insumos': insumos.count(),
+        'mensaje_exito': mensaje_exito,
+        'mensaje_error': mensaje_error,
+    }
+    
+    return render(request, 'admin/comercial/configurar_plantilla_barra.html', context)
 
 
 # ==========================================
