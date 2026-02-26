@@ -86,7 +86,7 @@ def _obtener_item_plantilla(categoria):
             nombre = f"{insumo.nombre} ({insumo.presentacion})"
         return {
             'nombre': nombre,
-            'proveedor': insumo.proveedor or '',
+            'proveedor': insumo.proveedor.nombre if insumo.proveedor else '',
             'costo_unitario': float(insumo.costo_unitario),
             'proporcion': float(plantilla.proporcion),
             'insumo_id': insumo.id,
@@ -150,7 +150,7 @@ def _obtener_item_plantilla(categoria):
                 nombre = f"{insumo.nombre} ({insumo.presentacion})"
             return {
                 'nombre': nombre,
-                'proveedor': insumo.proveedor or '⚠️ Sin proveedor',
+                'proveedor': insumo.proveedor.nombre if insumo.proveedor else '⚠️ Sin proveedor',
                 'costo_unitario': float(insumo.costo_unitario),
                 'proporcion': 1.0,
                 'insumo_id': insumo.id,

@@ -18,6 +18,26 @@ class ConstanteSistema(models.Model):
     def __str__(self): return f"{self.clave}: ${self.valor}"
     class Meta: verbose_name = "Constante del Sistema"
 
+
+# ==========================================
+# 0.5 PROVEEDORES
+# ==========================================
+class Proveedor(models.Model):
+    nombre = models.CharField(max_length=200, unique=True, verbose_name="Nombre / Razón Social")
+    contacto = models.CharField(max_length=200, blank=True, verbose_name="Persona de Contacto")
+    telefono = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    notas = models.TextField(blank=True, verbose_name="Notas",
+                             help_text="Horarios, condiciones de pago, dirección, etc.")
+    activo = models.BooleanField(default=True)
+
+    def __str__(self): return self.nombre
+    class Meta:
+        verbose_name = "Proveedor"
+        verbose_name_plural = "Proveedores"
+        ordering = ['nombre']
+
+
 # ==========================================
 # 1. INSUMOS
 # ==========================================
@@ -35,12 +55,17 @@ class Insumo(models.Model):
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
     crear_como_subproducto = models.BooleanField(default=False, verbose_name="¿Crear también como Subproducto?")
     
-    # ===== NUEVOS CAMPOS =====
-    proveedor = models.CharField(max_length=200, blank=True, verbose_name="Proveedor", 
-                                  help_text="Ej: Costco, Sam's Club, Distribuidora X")
+    # CAMPO LEGACY — se eliminará después de migrar datos
+    proveedor_legacy = models.CharField(max_length=200, blank=True, verbose_name="Proveedor (texto antiguo)",
+                                         editable=False)
+    
+    # NUEVO: FK a Proveedor
+    proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True,
+                                   verbose_name="Proveedor",
+                                   help_text="Selecciona el proveedor de este insumo")
+    
     presentacion = models.CharField(max_length=100, blank=True, verbose_name="Presentación",
                                      help_text="Ej: 940ml, Botella 750ml, Bolsa 20kg, Garrafón 20L")
-    # ==========================
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -54,50 +79,33 @@ class Insumo(models.Model):
             partes.append(f"({self.presentacion})")
         partes.append(f"- ${self.costo_unitario}")
         if self.proveedor:
-            partes.append(f"[{self.proveedor}]")
+            partes.append(f"[{self.proveedor.nombre}]")
         return " ".join(partes)
 
 
 # ==========================================
-# 1.5 PLANTILLA DE BARRA (NUEVO)
+# 1.5 PLANTILLA DE BARRA
 # ==========================================
 class PlantillaBarra(models.Model):
-    """
-    Mapea cada concepto de la lista de compras de barra
-    a un Insumo real del catálogo con su proporción.
-    
-    Ejemplo:
-        TEQUILA_NAC -> Insumo "Tequila Tradicional 750ml" -> proporción 0.40 (40% del nacional)
-        WHISKY_NAC  -> Insumo "Whisky Red Label 750ml"    -> proporción 0.30
-        RON_NAC     -> Insumo "Ron Bacardí Carta Blanca 940ml" -> proporción 0.20
-        VODKA_NAC   -> Insumo "Vodka Smirnoff 750ml"      -> proporción 0.10
-    """
     CATEGORIAS_BARRA = [
-        # Cervezas
         ('CERVEZA', 'Cerveza'),
-        # Licores Nacionales
         ('TEQUILA_NAC', 'Tequila Nacional'),
         ('WHISKY_NAC', 'Whisky Nacional'),
         ('RON_NAC', 'Ron Nacional'),
         ('VODKA_NAC', 'Vodka Nacional'),
-        # Licores Premium
         ('TEQUILA_PREM', 'Tequila Premium'),
         ('WHISKY_PREM', 'Whisky Premium'),
         ('GIN_PREM', 'Ginebra / Ron Premium'),
-        # Mezcladores
         ('REFRESCO_COLA', 'Refresco de Cola'),
         ('REFRESCO_TORONJA', 'Refresco de Toronja'),
         ('AGUA_MINERAL', 'Agua Mineral'),
         ('AGUA_NATURAL', 'Agua Natural'),
-        # Hielo
         ('HIELO', 'Hielo'),
-        # Coctelería
         ('LIMON', 'Limón'),
         ('HIERBABUENA', 'Hierbabuena'),
         ('JARABE', 'Jarabe Natural'),
         ('FRUTOS_ROJOS', 'Frutos Rojos'),
         ('CAFE', 'Café Espresso'),
-        # Consumibles
         ('SERVILLETAS', 'Servilletas / Popotes'),
     ]
     
@@ -126,7 +134,7 @@ class PlantillaBarra(models.Model):
         verbose_name = "Plantilla de Barra"
         verbose_name_plural = "Plantilla de Barra"
         ordering = ['grupo', 'orden', 'categoria']
-        unique_together = ['categoria', 'insumo']  # Evitar duplicados
+        unique_together = ['categoria', 'insumo']
     
     def __str__(self):
         return f"{self.get_categoria_display()} → {self.insumo.nombre} ({self.proporcion*100:.0f}%)"
@@ -197,7 +205,6 @@ class Cotizacion(models.Model):
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
     
-    # Configuración de Barra
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     incluye_refrescos = models.BooleanField(default=True, verbose_name="Refrescos y Mezcladores")
     incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza (Caguama)")
@@ -209,7 +216,6 @@ class Cotizacion(models.Model):
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
     factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=2.20, verbose_name="Factor Utilidad")
 
-    # Insumos Vinculados (Opcional, si null usa Constantes)
     insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo")
     insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco")
     insumo_agua = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Agua")

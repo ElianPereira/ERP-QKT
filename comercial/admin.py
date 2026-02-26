@@ -8,7 +8,7 @@ from django.db.models import Sum
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
     Cliente, Cotizacion, ItemCotizacion, Pago, 
-    Compra, Gasto, ConstanteSistema, PlantillaBarra
+    Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor
 )
 from .services import CalculadoraBarraService
 
@@ -22,12 +22,49 @@ class ConstanteSistemaAdmin(admin.ModelAdmin):
     list_display = ('clave', 'valor', 'descripcion')
     list_editable = ('valor',)
 
+
+# ==========================================
+# PROVEEDORES
+# ==========================================
+@admin.register(Proveedor)
+class ProveedorAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'contacto', 'telefono', 'email', 'total_insumos', 'activo')
+    list_filter = ('activo',)
+    list_editable = ('activo',)
+    search_fields = ('nombre', 'contacto', 'telefono', 'email')
+    list_per_page = 25
+    fieldsets = (
+        (None, {'fields': ('nombre', 'contacto', 'telefono', 'email')}),
+        ('Información Adicional', {'fields': ('notas', 'activo')}),
+    )
+
+    def total_insumos(self, obj):
+        count = obj.insumo_set.count()
+        if count > 0:
+            return format_html(
+                '<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px;">{} insumos</span>',
+                count
+            )
+        return format_html(
+            '<span style="color:#999;">Sin insumos</span>'
+        )
+    total_insumos.short_description = "Insumos Vinculados"
+
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
+
+
+# ==========================================
+# INSUMOS
+# ==========================================
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'presentacion', 'categoria', 'proveedor', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
-    list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria', 'proveedor')
+    list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
     list_filter = ('categoria', 'proveedor')
-    search_fields = ('nombre', 'proveedor', 'presentacion') 
+    search_fields = ('nombre', 'proveedor__nombre', 'presentacion') 
+    autocomplete_fields = ['proveedor']
     list_per_page = 20
     fieldsets = (
         (None, {'fields': ('nombre', 'presentacion', 'categoria', 'unidad_medida')}),
@@ -50,7 +87,7 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'activo')
     list_editable = ('proporcion', 'activo')
     list_filter = ('grupo', 'activo')
-    search_fields = ('insumo__nombre', 'insumo__proveedor')
+    search_fields = ('insumo__nombre', 'insumo__proveedor__nombre')
     raw_id_fields = ['insumo']
     list_per_page = 30
     ordering = ['grupo', 'orden', 'categoria']
@@ -92,7 +129,9 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     insumo_presentacion.short_description = "Presentación"
     
     def proveedor_insumo(self, obj):
-        return obj.insumo.proveedor or "⚠️ Sin proveedor"
+        if obj.insumo.proveedor:
+            return obj.insumo.proveedor.nombre
+        return "⚠️ Sin proveedor"
     proveedor_insumo.short_description = "Proveedor"
     
     def costo_insumo(self, obj):
