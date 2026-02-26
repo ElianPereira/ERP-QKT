@@ -45,9 +45,8 @@ class ProveedorAdmin(admin.ModelAdmin):
                 '<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px;">{} insumos</span>',
                 count
             )
-        return format_html(
-            '<span style="color:#999;">Sin insumos</span>'
-        )
+        return mark_safe('<span style="color:#999;">Sin insumos</span>')
+    
     total_insumos.short_description = "Insumos Vinculados"
 
     class Media:
@@ -82,7 +81,6 @@ class InsumoAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(PlantillaBarra)
 class PlantillaBarraAdmin(admin.ModelAdmin):
-    change_list_template = "admin/comercial/plantillabarra_change_list.html"
     
     list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'activo')
     list_editable = ('proporcion', 'activo')
