@@ -918,58 +918,279 @@ def descargar_ficha_producto(request, producto_id):
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     HTML(string=html_string).write_pdf(response)
     return response
-
 # ==========================================
-# 6. INTEGRACIÓN MANYCHAT (WEBHOOK)
+# 6. INTEGRACIÓN MANYCHAT (WEBHOOK V2)
+# ==========================================
+# INSTRUCCIONES: 
+# Busca en tu comercial/views.py la sección "6. INTEGRACIÓN MANYCHAT"
+# Borra desde "def _verificar_token_webhook" hasta el final de "def webhook_manychat"
+# Pega TODO este bloque en su lugar.
 # ==========================================
 
 def _verificar_token_webhook(request):
     """Valida el token secreto del webhook. Retorna True si es válido."""
     token_esperado = config('MANYCHAT_WEBHOOK_TOKEN', default='')
     if not token_esperado:
-        return True  # Si no hay token configurado, acepta todo (desarrollo)
+        return True
     token_recibido = request.headers.get('X-Webhook-Token', '')
     return hmac.compare_digest(token_recibido, token_esperado)
 
 
+def _redondear_personas(num, es_pasadia=False):
+    """Redondea al múltiplo de 10 hacia arriba. Ej: 91 → 100, 23 → 30"""
+    if es_pasadia:
+        return min(int(num), 20)
+    return max(20, math.ceil(int(num) / 10) * 10)
+
+
+def _buscar_producto_por_nombre(nombre_parcial):
+    """Busca un producto por nombre parcial (case-insensitive)."""
+    return Producto.objects.filter(nombre__icontains=nombre_parcial).first()
+
+
+def _agregar_item_producto(cotizacion, producto, cantidad=1, descripcion_override=None):
+    """Agrega un ItemCotizacion con un Producto, usando su precio sugerido."""
+    if not producto:
+        return None
+    precio = producto.sugerencia_precio()
+    desc = descripcion_override or producto.nombre
+    return ItemCotizacion.objects.create(
+        cotizacion=cotizacion,
+        producto=producto,
+        descripcion=desc,
+        cantidad=Decimal(str(cantidad)),
+        precio_unitario=Decimal(str(precio))
+    )
+
+
 @csrf_exempt
 def webhook_manychat(request):
-    if request.method == 'POST':
-        # Validar token de autenticación
-        if not _verificar_token_webhook(request):
-            return JsonResponse({'status': 'error', 'message': 'Token inválido'}, status=403)
-        
+    """
+    Webhook V2: Recibe datos completos del flujo de ManyChat,
+    crea cliente + cotización + items + genera PDF en Cloudinary.
+    
+    Retorna JSON con folio, precio_final, pdf_url y resumen.
+    ManyChat usa pdf_url para enviar el PDF como documento adjunto por WhatsApp.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+    if not _verificar_token_webhook(request):
+        return JsonResponse({'status': 'error', 'message': 'Token inválido'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'JSON inválido'}, status=400)
+
+    try:
+        # =====================
+        # 1. PARSEAR DATOS
+        # =====================
+        telefono = data.get('telefono_cliente', '')
+        nombre = data.get('nombre_cliente', '')
+        tipo_servicio = data.get('tipo_servicio', 'Evento').strip()
+        tipo_evento = data.get('tipo_evento', 'Evento General').strip()
+        fecha_str = data.get('fecha_tentativa', '')
+
+        # Número de personas
+        num_raw = data.get('num_personas', '50')
         try:
-            data = json.loads(request.body)
-            telefono = data.get('telefono_cliente', '')
-            tipo_renta = data.get('tipo_renta', 'No especificado')
-            tipo_evento = data.get('tipo_evento', 'Evento General')
-            fecha_tentativa_str = data.get('fecha_tentativa', '')
-            num_invitados_str = data.get('num_invitados', '')
-            invitados_int = 50
-            num_str_lower = str(num_invitados_str).lower()
-            if 'hasta 50' in num_str_lower: invitados_int = 50
-            elif '51 a 100' in num_str_lower: invitados_int = 100
-            elif 'más de 100' in num_str_lower or 'mas de 100' in num_str_lower: invitados_int = 150
-            elif '1 a 10' in num_str_lower: invitados_int = 10
-            elif '11 a 20' in num_str_lower: invitados_int = 20
-            else:
-                numeros = re.findall(r'\d+', num_str_lower)
-                if numeros: invitados_int = int(max(numeros, key=int))
-            try:
-                fecha_evento = datetime.strptime(fecha_tentativa_str.strip(), "%d/%m/%Y").date()
-            except ValueError:
-                fecha_evento = timezone.now().date() + timedelta(days=30)
-            if telefono:
-                telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
-                cliente = Cliente.objects.filter(telefono=telefono_limpio).first()
-                if not cliente:
-                    cliente = Cliente.objects.create(telefono=telefono_limpio, nombre=f'Prospecto WA ({telefono_limpio[-4:]})', origen='Otro')
-                nombre_ev = f"{tipo_renta} - {tipo_evento}"
-                cotizacion = Cotizacion.objects.create(cliente=cliente, nombre_evento=nombre_ev[:200], fecha_evento=fecha_evento, num_personas=invitados_int, estado='BORRADOR')
-            return JsonResponse({'status': 'success', 'message': 'Datos procesados y guardados en el ERP'}, status=200)
-        except json.JSONDecodeError:
-            return JsonResponse({'status': 'error', 'message': 'Formato JSON inválido'}, status=400)
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': 'Error interno del servidor'}, status=500)
-    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+            num_personas_raw = int(re.findall(r'\d+', str(num_raw))[0])
+        except (IndexError, ValueError):
+            num_personas_raw = 50
+
+        es_pasadia = 'pasad' in tipo_servicio.lower()
+        num_personas = _redondear_personas(num_personas_raw, es_pasadia)
+
+        # Horas de evento (mínimo 6)
+        horas_raw = data.get('horas_evento', '6')
+        try:
+            horas_evento = max(6, int(re.findall(r'\d+', str(horas_raw))[0]))
+        except (IndexError, ValueError):
+            horas_evento = 6
+
+        # Fecha
+        try:
+            fecha_evento = datetime.strptime(fecha_str.strip(), "%d/%m/%Y").date()
+        except ValueError:
+            fecha_evento = timezone.now().date() + timedelta(days=30)
+
+        # Helper para parsear booleanos desde ManyChat
+        def _bool(val):
+            if isinstance(val, bool):
+                return val
+            return str(val).lower().strip() in ('true', 'si', 'sí', '1', 'yes')
+
+        # Servicios de barra (todos independientes, el cliente puede elegir los que quiera)
+        inc_cerveza = _bool(data.get('incluye_cerveza', False))
+        inc_nacional = _bool(data.get('incluye_licor_nacional', False))
+        inc_premium = _bool(data.get('incluye_licor_premium', False))
+        inc_cocteleria = _bool(data.get('incluye_cocteleria_basica', False))
+        inc_mixologia = _bool(data.get('incluye_mixologia', False))
+
+        # Refrescos se incluyen automáticamente si hay cualquier servicio de barra
+        inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
+
+        # Servicios adicionales
+        inc_dj_basico = _bool(data.get('incluye_dj_basico', False))
+        inc_dj_iluminacion = _bool(data.get('incluye_dj_iluminacion', False))
+        inc_catering = _bool(data.get('incluye_catering', False))
+        inc_taquiza = _bool(data.get('incluye_taquiza', False))
+
+        # =====================
+        # 2. CREAR/OBTENER CLIENTE
+        # =====================
+        if not telefono:
+            return JsonResponse({'status': 'error', 'message': 'Teléfono requerido'}, status=400)
+
+        telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
+        cliente = Cliente.objects.filter(telefono=telefono_limpio).first()
+        if not cliente:
+            cliente = Cliente.objects.create(
+                telefono=telefono_limpio,
+                nombre=nombre or f'Prospecto WA ({telefono_limpio[-4:]})',
+                origen='Otro'
+            )
+        elif nombre and cliente.nombre.startswith('Prospecto'):
+            cliente.nombre = nombre
+            cliente.save(update_fields=['nombre'])
+
+        # =====================
+        # 3. CREAR COTIZACIÓN (siempre con IVA)
+        # =====================
+        nombre_ev = f"{tipo_servicio} - {tipo_evento}"
+
+        cotizacion = Cotizacion(
+            cliente=cliente,
+            nombre_evento=nombre_ev[:200],
+            fecha_evento=fecha_evento,
+            num_personas=num_personas,
+            horas_servicio=horas_evento,
+            estado='BORRADOR',
+            clima='calor',  # Default Mérida
+            requiere_factura=True,  # SIEMPRE con IVA
+            # Flags de barra (todos independientes)
+            incluye_refrescos=inc_refrescos,
+            incluye_cerveza=inc_cerveza,
+            incluye_licor_nacional=inc_nacional,
+            incluye_licor_premium=inc_premium,
+            incluye_cocteleria_basica=inc_cocteleria,
+            incluye_cocteleria_premium=inc_mixologia,
+        )
+        cotizacion.save()  # Dispara actualizar_item_cotizacion → crea item de barra
+
+        # =====================
+        # 4. AGREGAR ITEMS ADICIONALES
+        # =====================
+        resumen_partes = []
+
+        # --- Pasadía ---
+        if es_pasadia:
+            prod = _buscar_producto_por_nombre('Pasadía') or _buscar_producto_por_nombre('Pasadia')
+            if prod:
+                _agregar_item_producto(cotizacion, prod, cantidad=1,
+                    descripcion_override=f"Renta de Quinta - Pasadía ({num_personas} Pax)")
+                resumen_partes.append("Pasadía")
+
+        # --- DJ ---
+        if inc_dj_iluminacion:
+            prod = _buscar_producto_por_nombre('DJ Con Iluminación') or _buscar_producto_por_nombre('DJ Iluminacion')
+            if prod:
+                _agregar_item_producto(cotizacion, prod, cantidad=1,
+                    descripcion_override=f"Servicio de DJ con Iluminación - {horas_evento} Hrs")
+                resumen_partes.append("DJ + Iluminación")
+        elif inc_dj_basico:
+            prod = _buscar_producto_por_nombre('Básico De DJ') or _buscar_producto_por_nombre('DJ Basico')
+            if prod:
+                _agregar_item_producto(cotizacion, prod, cantidad=1,
+                    descripcion_override=f"Servicio de DJ Básico - {horas_evento} Hrs")
+                resumen_partes.append("DJ Básico")
+
+        # --- Catering (producto para 10 pax, se multiplica) ---
+        if inc_catering:
+            prod = _buscar_producto_por_nombre('Catering')
+            if prod:
+                multiplicador = math.ceil(num_personas / 10)
+                _agregar_item_producto(cotizacion, prod, cantidad=multiplicador,
+                    descripcion_override=f"Servicio de Catering ({num_personas} Pax)")
+                resumen_partes.append("Catering")
+
+        # --- Taquiza (producto para 10 pax, se multiplica) ---
+        if inc_taquiza:
+            prod = _buscar_producto_por_nombre('Taquiza')
+            if prod:
+                multiplicador = math.ceil(num_personas / 10)
+                _agregar_item_producto(cotizacion, prod, cantidad=multiplicador,
+                    descripcion_override=f"Servicio de Taquiza ({num_personas} Pax)")
+                resumen_partes.append("Taquiza")
+
+        # --- Horas extra (si > 6 horas) ---
+        if horas_evento > 6:
+            horas_extra = horas_evento - 6
+            prod = _buscar_producto_por_nombre('Hora Extra') or _buscar_producto_por_nombre('hora extra')
+            if prod:
+                _agregar_item_producto(cotizacion, prod, cantidad=horas_extra,
+                    descripcion_override=f"Horas Extra de Evento ({horas_extra} hrs adicionales)")
+                resumen_partes.append(f"+{horas_extra}hrs extra")
+
+        # =====================
+        # 5. RECALCULAR TOTALES (con IVA)
+        # =====================
+        cotizacion.calcular_totales()
+        Cotizacion.objects.filter(pk=cotizacion.pk).update(
+            subtotal=cotizacion.subtotal,
+            iva=cotizacion.iva,
+            retencion_isr=cotizacion.retencion_isr,
+            retencion_iva=cotizacion.retencion_iva,
+            precio_final=cotizacion.precio_final
+        )
+        cotizacion.refresh_from_db()
+
+        # =====================
+        # 6. GENERAR PDF Y SUBIR A CLOUDINARY
+        # =====================
+        context = obtener_contexto_cotizacion(cotizacion)
+        html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
+        pdf_bytes = HTML(string=html_string).write_pdf()
+
+        folio = f"COT-{cotizacion.id:03d}"
+        filename = f"{folio}_{timezone.now().strftime('%d-%m-%Y')}.pdf"
+
+        # Guardar en el campo archivo_pdf (Cloudinary via RawMediaCloudinaryStorage)
+        from django.core.files.base import ContentFile
+        cotizacion.archivo_pdf.save(filename, ContentFile(pdf_bytes), save=False)
+        Cotizacion.objects.filter(pk=cotizacion.pk).update(archivo_pdf=cotizacion.archivo_pdf.name)
+        cotizacion.refresh_from_db()
+
+        # URL pública del PDF en Cloudinary (para enviar por WhatsApp)
+        pdf_url = cotizacion.archivo_pdf.url if cotizacion.archivo_pdf else ''
+
+        # =====================
+        # 7. CONSTRUIR RESUMEN
+        # =====================
+        barra_partes = []
+        if inc_cerveza: barra_partes.append("Cerveza")
+        if inc_nacional: barra_partes.append("Nacional")
+        if inc_premium: barra_partes.append("Premium")
+        if inc_cocteleria: barra_partes.append("Cocteles")
+        if inc_mixologia: barra_partes.append("Mixología")
+        if barra_partes:
+            resumen_partes.insert(0, "Barra(" + "/".join(barra_partes) + ")")
+
+        resumen = " + ".join(resumen_partes) + f" | {num_personas} Pax - {horas_evento} Hrs"
+
+        return JsonResponse({
+            'status': 'success',
+            'cotizacion_id': cotizacion.id,
+            'folio': folio,
+            'precio_final': f"${cotizacion.precio_final:,.2f}",
+            'pdf_url': pdf_url,
+            'resumen': resumen,
+            'num_personas_final': num_personas,
+        }, status=200)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': f'Error interno: {str(e)}'}, status=500)
