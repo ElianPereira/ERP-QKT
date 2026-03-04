@@ -918,10 +918,11 @@ def descargar_ficha_producto(request, producto_id):
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     HTML(string=html_string).write_pdf(response)
     return response
+
 # ==========================================
-# 6. INTEGRACIÓN MANYCHAT (WEBHOOK V2)
+# 6. INTEGRACIÓN MANYCHAT (WEBHOOK V6)
 # ==========================================
-# INSTRUCCIONES: 
+# INSTRUCCIONES:
 # Busca en tu comercial/views.py la sección "6. INTEGRACIÓN MANYCHAT"
 # Borra desde "def _verificar_token_webhook" hasta el final de "def webhook_manychat"
 # Pega TODO este bloque en su lugar.
@@ -963,14 +964,80 @@ def _agregar_item_producto(cotizacion, producto, cantidad=1, descripcion_overrid
     )
 
 
+def _detectar_clima_por_fecha(fecha):
+    """
+    Detecta automáticamente el clima según el mes del evento.
+    Basado en el clima de Mérida, Yucatán:
+    - 'extremo': Mayo (pico de calor, +60% hielo)
+    - 'calor':   Mar, Abr, Jun, Jul, Ago, Sep, Oct (calor estándar, +30% hielo)
+    - 'normal':  Nov, Dic, Ene, Feb (temporada fresca)
+    """
+    if not fecha:
+        return 'calor'
+    mes = fecha.month
+    if mes == 5:
+        return 'extremo'
+    elif mes in (3, 4, 6, 7, 8, 9, 10):
+        return 'calor'
+    else:
+        return 'normal'
+
+
+def _parsear_hora(hora_str):
+    """
+    Parsea una hora desde string. Soporta formatos:
+    '14:00', '14:30', '14h', '2pm', '2:00pm', '14'
+    Retorna un objeto time o None.
+    """
+    if not hora_str:
+        return None
+    hora_str = hora_str.strip().lower().replace(' ', '')
+
+    # Formato HH:MM
+    try:
+        return datetime.strptime(hora_str, "%H:%M").time()
+    except ValueError:
+        pass
+
+    # Formato H:MMpm/am
+    try:
+        return datetime.strptime(hora_str, "%I:%M%p").time()
+    except ValueError:
+        pass
+
+    # Formato Hpm/am (ej: 2pm)
+    try:
+        return datetime.strptime(hora_str, "%I%p").time()
+    except ValueError:
+        pass
+
+    # Formato HHh (ej: 14h)
+    try:
+        return datetime.strptime(hora_str.replace('h', '').strip(), "%H").time()
+    except ValueError:
+        pass
+
+    # Formato solo número (ej: 14)
+    try:
+        h = int(hora_str)
+        if 0 <= h <= 23:
+            from datetime import time as dt_time
+            return dt_time(h, 0)
+    except ValueError:
+        pass
+
+    return None
+
+
 @csrf_exempt
 def webhook_manychat(request):
     """
-    Webhook V2: Recibe datos completos del flujo de ManyChat,
-    crea cliente + cotización + items + genera PDF en Cloudinary.
-    
-    Retorna JSON con folio, precio_final, pdf_url y resumen.
-    ManyChat usa pdf_url para enviar el PDF como documento adjunto por WhatsApp.
+    Webhook V6: Procesa 3 líneas de negocio:
+    - Evento (Solo Arrendamiento o Renta + Servicios)
+    - Pasadía (paquete fijo + extras opcionales)
+    Recibe hora_inicio y hora_fin, calcula horas de servicio.
+    Auto-detecta clima según fecha para ajustar precios de barra.
+    Genera cotización + PDF en Cloudinary para envío por WhatsApp.
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
@@ -985,7 +1052,7 @@ def webhook_manychat(request):
 
     try:
         # =====================
-        # 1. PARSEAR DATOS
+        # 1. PARSEAR DATOS BASE
         # =====================
         telefono = data.get('telefono_cliente', '')
         nombre = data.get('nombre_cliente', '')
@@ -993,22 +1060,40 @@ def webhook_manychat(request):
         tipo_evento = data.get('tipo_evento', 'Evento General').strip()
         fecha_str = data.get('fecha_tentativa', '')
 
+        es_pasadia = 'pasad' in tipo_servicio.lower()
+        es_solo_arrendamiento = 'arrendamiento' in tipo_servicio.lower()
+
         # Número de personas
         num_raw = data.get('num_personas', '50')
         try:
             num_personas_raw = int(re.findall(r'\d+', str(num_raw))[0])
         except (IndexError, ValueError):
-            num_personas_raw = 50
+            num_personas_raw = 50 if not es_pasadia else 10
 
-        es_pasadia = 'pasad' in tipo_servicio.lower()
         num_personas = _redondear_personas(num_personas_raw, es_pasadia)
 
-        # Horas de evento (mínimo 6)
-        horas_raw = data.get('horas_evento', '6')
-        try:
-            horas_evento = max(6, int(re.findall(r'\d+', str(horas_raw))[0]))
-        except (IndexError, ValueError):
+        # Horas: calcular desde hora_inicio y hora_fin
+        hora_inicio_str = data.get('hora_inicio', '').strip()
+        hora_fin_str = data.get('hora_fin', '').strip()
+        hora_inicio_obj = _parsear_hora(hora_inicio_str)
+        hora_fin_obj = _parsear_hora(hora_fin_str)
+
+        if hora_inicio_obj and hora_fin_obj:
+            from datetime import date as dt_date
+            dt_inicio = datetime.combine(dt_date.today(), hora_inicio_obj)
+            dt_fin = datetime.combine(dt_date.today(), hora_fin_obj)
+            # Si hora_fin es menor que hora_inicio, el evento cruza medianoche
+            if dt_fin <= dt_inicio:
+                dt_fin += timedelta(days=1)
+            horas_evento = max(6, int((dt_fin - dt_inicio).total_seconds() / 3600))
+        else:
             horas_evento = 6
+
+        # Pasadía: forzar horario fijo 10am-7pm
+        if es_pasadia:
+            horas_evento = 9
+            hora_inicio_obj = datetime.strptime("10:00", "%H:%M").time()
+            hora_fin_obj = datetime.strptime("19:00", "%H:%M").time()
 
         # Fecha
         try:
@@ -1016,27 +1101,14 @@ def webhook_manychat(request):
         except ValueError:
             fecha_evento = timezone.now().date() + timedelta(days=30)
 
-        # Helper para parsear booleanos desde ManyChat
+        # Auto-detectar clima según la fecha del evento
+        clima_auto = _detectar_clima_por_fecha(fecha_evento)
+
+        # Helper booleano
         def _bool(val):
             if isinstance(val, bool):
                 return val
             return str(val).lower().strip() in ('true', 'si', 'sí', '1', 'yes')
-
-        # Servicios de barra (todos independientes, el cliente puede elegir los que quiera)
-        inc_cerveza = _bool(data.get('incluye_cerveza', False))
-        inc_nacional = _bool(data.get('incluye_licor_nacional', False))
-        inc_premium = _bool(data.get('incluye_licor_premium', False))
-        inc_cocteleria = _bool(data.get('incluye_cocteleria_basica', False))
-        inc_mixologia = _bool(data.get('incluye_mixologia', False))
-
-        # Refrescos se incluyen automáticamente si hay cualquier servicio de barra
-        inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
-
-        # Servicios adicionales
-        inc_dj_basico = _bool(data.get('incluye_dj_basico', False))
-        inc_dj_iluminacion = _bool(data.get('incluye_dj_iluminacion', False))
-        inc_catering = _bool(data.get('incluye_catering', False))
-        inc_taquiza = _bool(data.get('incluye_taquiza', False))
 
         # =====================
         # 2. CREAR/OBTENER CLIENTE
@@ -1057,85 +1129,206 @@ def webhook_manychat(request):
             cliente.save(update_fields=['nombre'])
 
         # =====================
-        # 3. CREAR COTIZACIÓN (siempre con IVA)
-        # =====================
-        nombre_ev = f"{tipo_servicio} - {tipo_evento}"
-
-        cotizacion = Cotizacion(
-            cliente=cliente,
-            nombre_evento=nombre_ev[:200],
-            fecha_evento=fecha_evento,
-            num_personas=num_personas,
-            horas_servicio=horas_evento,
-            estado='BORRADOR',
-            clima='calor',  # Default Mérida
-            requiere_factura=True,  # SIEMPRE con IVA
-            # Flags de barra (todos independientes)
-            incluye_refrescos=inc_refrescos,
-            incluye_cerveza=inc_cerveza,
-            incluye_licor_nacional=inc_nacional,
-            incluye_licor_premium=inc_premium,
-            incluye_cocteleria_basica=inc_cocteleria,
-            incluye_cocteleria_premium=inc_mixologia,
-        )
-        cotizacion.save()  # Dispara actualizar_item_cotizacion → crea item de barra
-
-        # =====================
-        # 4. AGREGAR ITEMS ADICIONALES
+        # 3. CREAR COTIZACIÓN
         # =====================
         resumen_partes = []
 
-        # --- Pasadía ---
         if es_pasadia:
+            # ===========================
+            # FLUJO PASADÍA
+            # ===========================
+            cotizacion = Cotizacion(
+                cliente=cliente,
+                nombre_evento=f"Pasadía - {nombre}"[:200],
+                fecha_evento=fecha_evento,
+                num_personas=num_personas,
+                horas_servicio=horas_evento,
+                hora_inicio=hora_inicio_obj,
+                hora_fin=hora_fin_obj,
+                estado='BORRADOR',
+                clima=clima_auto,
+                requiere_factura=True,
+                incluye_refrescos=False,
+                incluye_cerveza=False,
+                incluye_licor_nacional=False,
+                incluye_licor_premium=False,
+                incluye_cocteleria_basica=False,
+                incluye_cocteleria_premium=False,
+            )
+            cotizacion.save()
+
+            # Paquete Pasadía (precio fijo)
             prod = _buscar_producto_por_nombre('Pasadía') or _buscar_producto_por_nombre('Pasadia')
             if prod:
                 _agregar_item_producto(cotizacion, prod, cantidad=1,
-                    descripcion_override=f"Renta de Quinta - Pasadía ({num_personas} Pax)")
+                    descripcion_override=f"Paquete Pasadía QKT ({num_personas} Pax, 10am-7pm)")
                 resumen_partes.append("Pasadía")
 
-        # --- DJ ---
-        if inc_dj_iluminacion:
-            prod = _buscar_producto_por_nombre('DJ Con Iluminación') or _buscar_producto_por_nombre('DJ Iluminacion')
-            if prod:
-                _agregar_item_producto(cotizacion, prod, cantidad=1,
-                    descripcion_override=f"Servicio de DJ con Iluminación - {horas_evento} Hrs")
-                resumen_partes.append("DJ + Iluminación")
-        elif inc_dj_basico:
-            prod = _buscar_producto_por_nombre('Básico De DJ') or _buscar_producto_por_nombre('DJ Basico')
-            if prod:
-                _agregar_item_producto(cotizacion, prod, cantidad=1,
-                    descripcion_override=f"Servicio de DJ Básico - {horas_evento} Hrs")
-                resumen_partes.append("DJ Básico")
+            # Extras opcionales
+            if _bool(data.get('pasadia_brincolin', False)):
+                prod = _buscar_producto_por_nombre('Brincolín') or _buscar_producto_por_nombre('Brincolin')
+                if prod:
+                    _agregar_item_producto(cotizacion, prod, cantidad=1,
+                        descripcion_override="Brincolín Inflable Tipo Castillo 4x4 Mts (6 Hrs)")
+                    resumen_partes.append("Brincolín")
 
-        # --- Catering (producto para 10 pax, se multiplica) ---
-        if inc_catering:
-            prod = _buscar_producto_por_nombre('Catering')
-            if prod:
-                multiplicador = math.ceil(num_personas / 10)
-                _agregar_item_producto(cotizacion, prod, cantidad=multiplicador,
-                    descripcion_override=f"Servicio de Catering ({num_personas} Pax)")
-                resumen_partes.append("Catering")
+            if _bool(data.get('pasadia_bolis', False)):
+                prod = _buscar_producto_por_nombre('Carrito Con Bolis')
+                if prod:
+                    _agregar_item_producto(cotizacion, prod, cantidad=1,
+                        descripcion_override="Servicio de Carrito con Bolis (25 pzas)")
+                    resumen_partes.append("Bolis")
 
-        # --- Taquiza (producto para 10 pax, se multiplica) ---
-        if inc_taquiza:
-            prod = _buscar_producto_por_nombre('Taquiza')
-            if prod:
-                multiplicador = math.ceil(num_personas / 10)
-                _agregar_item_producto(cotizacion, prod, cantidad=multiplicador,
-                    descripcion_override=f"Servicio de Taquiza ({num_personas} Pax)")
-                resumen_partes.append("Taquiza")
+            if _bool(data.get('pasadia_paletas', False)):
+                prod = _buscar_producto_por_nombre('Carrito Con Paletas')
+                if prod:
+                    _agregar_item_producto(cotizacion, prod, cantidad=1,
+                        descripcion_override="Servicio de Carrito con Paletas (25 pzas)")
+                    resumen_partes.append("Paletas")
 
-        # --- Horas extra (si > 6 horas) ---
-        if horas_evento > 6:
-            horas_extra = horas_evento - 6
-            prod = _buscar_producto_por_nombre('Hora Extra') or _buscar_producto_por_nombre('hora extra')
-            if prod:
-                _agregar_item_producto(cotizacion, prod, cantidad=horas_extra,
-                    descripcion_override=f"Horas Extra de Evento ({horas_extra} hrs adicionales)")
-                resumen_partes.append(f"+{horas_extra}hrs extra")
+        else:
+            # ===========================
+            # FLUJO EVENTO
+            # ===========================
+            inc_cerveza = _bool(data.get('incluye_cerveza', False)) if not es_solo_arrendamiento else False
+            inc_nacional = _bool(data.get('incluye_licor_nacional', False)) if not es_solo_arrendamiento else False
+            inc_premium = _bool(data.get('incluye_licor_premium', False)) if not es_solo_arrendamiento else False
+            inc_cocteleria = _bool(data.get('incluye_cocteleria_basica', False)) if not es_solo_arrendamiento else False
+            inc_mixologia = _bool(data.get('incluye_mixologia', False)) if not es_solo_arrendamiento else False
+            inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
+
+            inc_dj_basico = _bool(data.get('incluye_dj_basico', False)) if not es_solo_arrendamiento else False
+            inc_dj_iluminacion = _bool(data.get('incluye_dj_iluminacion', False)) if not es_solo_arrendamiento else False
+            inc_catering = _bool(data.get('incluye_catering', False)) if not es_solo_arrendamiento else False
+            inc_taquiza = _bool(data.get('incluye_taquiza', False)) if not es_solo_arrendamiento else False
+
+            nombre_ev = f"{tipo_servicio} - {tipo_evento}"
+
+            cotizacion = Cotizacion(
+                cliente=cliente,
+                nombre_evento=nombre_ev[:200],
+                fecha_evento=fecha_evento,
+                num_personas=num_personas,
+                horas_servicio=horas_evento,
+                hora_inicio=hora_inicio_obj,
+                hora_fin=hora_fin_obj,
+                estado='BORRADOR',
+                clima=clima_auto,
+                requiere_factura=True,
+                incluye_refrescos=inc_refrescos,
+                incluye_cerveza=inc_cerveza,
+                incluye_licor_nacional=inc_nacional,
+                incluye_licor_premium=inc_premium,
+                incluye_cocteleria_basica=inc_cocteleria,
+                incluye_cocteleria_premium=inc_mixologia,
+            )
+            cotizacion.save()
+
+            # --- SOLO ARRENDAMIENTO ---
+            if es_solo_arrendamiento:
+                prod = _buscar_producto_por_nombre('Paquete Esencial')
+                if prod:
+                    _agregar_item_producto(cotizacion, prod, cantidad=1,
+                        descripcion_override=f"Paquete Esencial QKT - Arrendamiento ({num_personas} Pax, {horas_evento} Hrs)")
+                    resumen_partes.append("Arrendamiento")
+
+            # --- MOBILIARIO (solo con servicios) ---
+            if not es_solo_arrendamiento:
+                mob_principal = data.get('mobiliario_principal', '').strip()
+                mob_lounge_tipo = data.get('mobiliario_lounge_tipo', '').strip()
+                mob_lounge_cant_raw = data.get('mobiliario_lounge_cantidad', '0')
+                mob_coctel_raw = data.get('mobiliario_coctel', '0')
+
+                try:
+                    mob_lounge_cant = max(0, int(re.findall(r'\d+', str(mob_lounge_cant_raw))[0]))
+                except (IndexError, ValueError):
+                    mob_lounge_cant = 0
+                try:
+                    mob_coctel_cant = max(0, int(re.findall(r'\d+', str(mob_coctel_raw))[0]))
+                except (IndexError, ValueError):
+                    mob_coctel_cant = 0
+
+                if mob_principal:
+                    prod = _buscar_producto_por_nombre(f'Mobiliario {mob_principal}')
+                    if prod:
+                        mult = math.ceil(num_personas / 10)
+                        _agregar_item_producto(cotizacion, prod, cantidad=mult,
+                            descripcion_override=f"Mobiliario {mob_principal} ({num_personas} Pax)")
+                        resumen_partes.append(f"Mob.{mob_principal}")
+
+                if mob_lounge_tipo and mob_lounge_tipo.lower() != 'ninguno' and mob_lounge_cant > 0:
+                    prod = _buscar_producto_por_nombre(f'Mobiliario Set {mob_lounge_tipo}')
+                    if prod:
+                        _agregar_item_producto(cotizacion, prod, cantidad=mob_lounge_cant,
+                            descripcion_override=f"{mob_lounge_tipo} ({mob_lounge_cant} sets)")
+                        resumen_partes.append(f"Lounge x{mob_lounge_cant}")
+
+                if mob_coctel_cant > 0:
+                    prod = _buscar_producto_por_nombre('Mesa Cóctel') or _buscar_producto_por_nombre('Mesa Coctel')
+                    if prod:
+                        _agregar_item_producto(cotizacion, prod, cantidad=mob_coctel_cant,
+                            descripcion_override=f"Mesas Cóctel ({mob_coctel_cant} unidades)")
+                        resumen_partes.append(f"Cóctel x{mob_coctel_cant}")
+
+            # --- COMIDA ---
+            if inc_catering:
+                prod = _buscar_producto_por_nombre('Catering')
+                if prod:
+                    mult = math.ceil(num_personas / 10)
+                    _agregar_item_producto(cotizacion, prod, cantidad=mult,
+                        descripcion_override=f"Servicio de Catering ({num_personas} Pax)")
+                    resumen_partes.append("Catering")
+
+            if inc_taquiza:
+                prod = _buscar_producto_por_nombre('Taquiza')
+                if prod:
+                    mult = math.ceil(num_personas / 10)
+                    _agregar_item_producto(cotizacion, prod, cantidad=mult,
+                        descripcion_override=f"Servicio de Taquiza ({num_personas} Pax)")
+                    resumen_partes.append("Taquiza")
+
+            # --- DJ ---
+            if inc_dj_iluminacion:
+                prod = _buscar_producto_por_nombre('DJ Con Iluminación') or _buscar_producto_por_nombre('DJ Iluminacion')
+                if prod:
+                    _agregar_item_producto(cotizacion, prod, cantidad=1,
+                        descripcion_override=f"Servicio de DJ con Iluminación - {horas_evento} Hrs")
+                    resumen_partes.append("DJ+Ilum")
+            elif inc_dj_basico:
+                prod = _buscar_producto_por_nombre('Básico De DJ') or _buscar_producto_por_nombre('DJ Basico')
+                if prod:
+                    _agregar_item_producto(cotizacion, prod, cantidad=1,
+                        descripcion_override=f"Servicio de DJ Básico - {horas_evento} Hrs")
+                    resumen_partes.append("DJ")
+
+            # --- BARRA (resumen) ---
+            barra_partes = []
+            if inc_cerveza: barra_partes.append("Cerveza")
+            if inc_nacional: barra_partes.append("Nacional")
+            if inc_premium: barra_partes.append("Premium")
+            if inc_cocteleria: barra_partes.append("Cocteles")
+            if inc_mixologia: barra_partes.append("Mixología")
+            if barra_partes:
+                resumen_partes.append("Barra(" + "/".join(barra_partes) + ")")
+
+            # --- HORAS EXTRA ---
+            if horas_evento > 6:
+                horas_extra = horas_evento - 6
+                prod = _buscar_producto_por_nombre('Hora Extra') or _buscar_producto_por_nombre('hora extra')
+                if prod:
+                    _agregar_item_producto(cotizacion, prod, cantidad=horas_extra,
+                        descripcion_override=f"Horas Extra ({horas_extra} hrs adicionales)")
+                    resumen_partes.append(f"+{horas_extra}hrs")
+
+            # --- MENSAJE LIBRE ---
+            mensaje_libre = data.get('mensaje_libre', '').strip()
+            if mensaje_libre and mensaje_libre.lower() not in ('no', 'nada', 'ninguno', ''):
+                nota = f" | Nota: {mensaje_libre[:150]}"
+                nuevo_nombre = (cotizacion.nombre_evento + nota)[:200]
+                Cotizacion.objects.filter(pk=cotizacion.pk).update(nombre_evento=nuevo_nombre)
 
         # =====================
-        # 5. RECALCULAR TOTALES (con IVA)
+        # 4. RECALCULAR TOTALES (con IVA)
         # =====================
         cotizacion.calcular_totales()
         Cotizacion.objects.filter(pk=cotizacion.pk).update(
@@ -1148,7 +1341,7 @@ def webhook_manychat(request):
         cotizacion.refresh_from_db()
 
         # =====================
-        # 6. GENERAR PDF Y SUBIR A CLOUDINARY
+        # 5. GENERAR PDF Y SUBIR A CLOUDINARY
         # =====================
         context = obtener_contexto_cotizacion(cotizacion)
         html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
@@ -1157,28 +1350,23 @@ def webhook_manychat(request):
         folio = f"COT-{cotizacion.id:03d}"
         filename = f"{folio}_{timezone.now().strftime('%d-%m-%Y')}.pdf"
 
-        # Guardar en el campo archivo_pdf (Cloudinary via RawMediaCloudinaryStorage)
         from django.core.files.base import ContentFile
         cotizacion.archivo_pdf.save(filename, ContentFile(pdf_bytes), save=False)
         Cotizacion.objects.filter(pk=cotizacion.pk).update(archivo_pdf=cotizacion.archivo_pdf.name)
         cotizacion.refresh_from_db()
 
-        # URL pública del PDF en Cloudinary (para enviar por WhatsApp)
         pdf_url = cotizacion.archivo_pdf.url if cotizacion.archivo_pdf else ''
 
         # =====================
-        # 7. CONSTRUIR RESUMEN
+        # 6. RESUMEN
         # =====================
-        barra_partes = []
-        if inc_cerveza: barra_partes.append("Cerveza")
-        if inc_nacional: barra_partes.append("Nacional")
-        if inc_premium: barra_partes.append("Premium")
-        if inc_cocteleria: barra_partes.append("Cocteles")
-        if inc_mixologia: barra_partes.append("Mixología")
-        if barra_partes:
-            resumen_partes.insert(0, "Barra(" + "/".join(barra_partes) + ")")
+        clima_tag = ""
+        if clima_auto == 'extremo':
+            clima_tag = " 🔥Temporada calor extremo"
+        elif clima_auto == 'calor':
+            clima_tag = " ☀️Temporada calor"
 
-        resumen = " + ".join(resumen_partes) + f" | {num_personas} Pax - {horas_evento} Hrs"
+        resumen = " + ".join(resumen_partes) + f" | {num_personas} Pax - {horas_evento} Hrs{clima_tag}"
 
         return JsonResponse({
             'status': 'success',
