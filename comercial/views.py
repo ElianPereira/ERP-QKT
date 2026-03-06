@@ -1123,11 +1123,11 @@ def webhook_manychat(request):
         if not cliente:
             cliente = Cliente.objects.create(
                 telefono=telefono_limpio,
-                nombre=nombre.strip().title() if nombre else f'Prospecto WA ({telefono_limpio[-4:]})',
+                nombre=nombre.strip().upper() if nombre else f'PROSPECTO WA ({telefono_limpio[-4:]})',
                 origen='WhatsApp'
             )
         elif nombre and cliente.nombre.startswith('Prospecto'):
-            cliente.nombre = nombre.strip().title()
+            cliente.nombre = nombre.strip().upper()
             cliente.save(update_fields=['nombre'])
 
         # =====================
