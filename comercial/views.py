@@ -920,7 +920,7 @@ def descargar_ficha_producto(request, producto_id):
     return response
 
 # ==========================================
-# 6. INTEGRACIÓN MANYCHAT (WEBHOOK V6)
+# 6. INTEGRACIÓN MANYCHAT (WEBHOOK V6 - CORREGIDO)
 # ==========================================
 # INSTRUCCIONES:
 # Busca en tu comercial/views.py la sección "6. INTEGRACIÓN MANYCHAT"
@@ -1032,12 +1032,14 @@ def _parsear_hora(hora_str):
 @csrf_exempt
 def webhook_manychat(request):
     """
-    Webhook V6: Procesa 3 líneas de negocio:
+    Webhook V6 CORREGIDO: Procesa 3 líneas de negocio:
     - Evento (Solo Arrendamiento o Renta + Servicios)
     - Pasadía (paquete fijo + extras opcionales)
-    Recibe hora_inicio y hora_fin, calcula horas de servicio.
-    Auto-detecta clima según fecha para ajustar precios de barra.
-    Genera cotización + PDF en Cloudinary para envío por WhatsApp.
+    
+    CORRECCIONES APLICADAS:
+    - Paquete Esencial QKT se agrega SIEMPRE para eventos (no solo arrendamiento)
+    - Horas Extra busca "Hora Extra De Arrendamiento" (nombre correcto en BD)
+    - Cliente se crea/actualiza con nombre real de ManyChat
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
@@ -1121,11 +1123,11 @@ def webhook_manychat(request):
         if not cliente:
             cliente = Cliente.objects.create(
                 telefono=telefono_limpio,
-                nombre=nombre or f'Prospecto WA ({telefono_limpio[-4:]})',
-                origen='Otro'
+                nombre=nombre.strip().title() if nombre else f'Prospecto WA ({telefono_limpio[-4:]})',
+                origen='WhatsApp'
             )
         elif nombre and cliente.nombre.startswith('Prospecto'):
-            cliente.nombre = nombre
+            cliente.nombre = nombre.strip().title()
             cliente.save(update_fields=['nombre'])
 
         # =====================
@@ -1224,13 +1226,16 @@ def webhook_manychat(request):
             )
             cotizacion.save()
 
-            # --- SOLO ARRENDAMIENTO ---
-            if es_solo_arrendamiento:
-                prod = _buscar_producto_por_nombre('Paquete Esencial')
-                if prod:
-                    _agregar_item_producto(cotizacion, prod, cantidad=1,
-                        descripcion_override=f"Paquete Esencial QKT - Arrendamiento ({num_personas} Pax, {horas_evento} Hrs)")
+            # --- PAQUETE BASE (siempre se agrega para eventos) ---
+            prod = _buscar_producto_por_nombre('Paquete Esencial')
+            if prod:
+                if es_solo_arrendamiento:
+                    desc = f"Paquete Esencial QKT - Arrendamiento ({num_personas} Pax, {horas_evento} Hrs)"
                     resumen_partes.append("Arrendamiento")
+                else:
+                    desc = f"Paquete Esencial QKT - {tipo_evento} ({num_personas} Pax, {horas_evento} Hrs)"
+                    resumen_partes.append("Paquete Base")
+                _agregar_item_producto(cotizacion, prod, cantidad=1, descripcion_override=desc)
 
             # --- MOBILIARIO (solo con servicios) ---
             if not es_solo_arrendamiento:
@@ -1311,13 +1316,15 @@ def webhook_manychat(request):
             if barra_partes:
                 resumen_partes.append("Barra(" + "/".join(barra_partes) + ")")
 
-            # --- HORAS EXTRA ---
+            # --- HORAS EXTRA (corregido: busca nombre exacto del producto) ---
             if horas_evento > 6:
                 horas_extra = horas_evento - 6
-                prod = _buscar_producto_por_nombre('Hora Extra') or _buscar_producto_por_nombre('hora extra')
+                prod = _buscar_producto_por_nombre('Hora Extra De Arrendamiento')
+                if not prod:
+                    prod = _buscar_producto_por_nombre('Hora Extra')
                 if prod:
                     _agregar_item_producto(cotizacion, prod, cantidad=horas_extra,
-                        descripcion_override=f"Horas Extra ({horas_extra} hrs adicionales)")
+                        descripcion_override=f"Horas Extra de Arrendamiento ({horas_extra} hrs adicionales)")
                     resumen_partes.append(f"+{horas_extra}hrs")
 
             # --- MENSAJE LIBRE ---
