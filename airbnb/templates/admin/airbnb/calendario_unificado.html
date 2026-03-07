@@ -1,0 +1,175 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js"></script>
+<style>
+    .calendario-container {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 20px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .calendario-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .calendario-header h2 {
+        margin: 0;
+        color: #333;
+    }
+    .leyenda {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+    .leyenda-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13px;
+        color: #555;
+    }
+    .leyenda-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+    }
+    .alerta-conflictos {
+        background: #ffebee;
+        border: 1px solid #e74c3c;
+        border-radius: 6px;
+        padding: 12px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .alerta-conflictos a {
+        color: #c0392b;
+        font-weight: bold;
+    }
+    #calendar {
+        margin-top: 10px;
+    }
+    .fc-event {
+        cursor: pointer;
+        font-size: 11px;
+        padding: 2px 4px;
+    }
+    .btn-sync {
+        padding: 10px 20px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .btn-sync:hover {
+        background: #2980b9;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="calendario-container">
+    
+    <div class="calendario-header">
+        <h2>📅 Calendario Unificado</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="{% url 'admin:airbnb_anuncioairbnb_sincronizar_todos' %}" class="btn-sync">
+                🔄 Sincronizar Airbnb
+            </a>
+            <a href="{% url 'ver_calendario' %}" class="btn-sync" style="background: #95a5a6;">
+                📅 Solo Eventos
+            </a>
+        </div>
+    </div>
+    
+    {% if conflictos_pendientes > 0 %}
+    <div class="alerta-conflictos">
+        <span style="font-size: 24px;">⚠️</span>
+        <div>
+            <strong>{{ conflictos_pendientes }} conflicto{{ conflictos_pendientes|pluralize }} pendiente{{ conflictos_pendientes|pluralize }}</strong><br>
+            <a href="{% url 'admin:airbnb_conflictocalendario_changelist' %}?estado__exact=PENDIENTE">
+                Ver y resolver conflictos →
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="leyenda">
+        <div class="leyenda-item">
+            <div class="leyenda-color" style="background: #28a745;"></div>
+            Evento Confirmado
+        </div>
+        <div class="leyenda-item">
+            <div class="leyenda-color" style="background: #6c757d;"></div>
+            Evento Borrador
+        </div>
+        <div class="leyenda-item">
+            <div class="leyenda-color" style="background: #fd7e14;"></div>
+            Airbnb (Habitación)
+        </div>
+        <div class="leyenda-item">
+            <div class="leyenda-color" style="background: #17a2b8;"></div>
+            Airbnb (Casa)
+        </div>
+        <div class="leyenda-item">
+            <div class="leyenda-color" style="background: #e74c3c;"></div>
+            ⚠️ Conflicto
+        </div>
+    </div>
+    
+    <div id="calendar"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var eventos = {{ eventos_json|safe }};
+    
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listWeek'
+        },
+        events: eventos,
+        eventClick: function(info) {
+            if (info.event.url) {
+                window.location.href = info.event.url;
+                info.jsEvent.preventDefault();
+            }
+        },
+        eventDidMount: function(info) {
+            // Tooltip básico
+            info.el.title = info.event.title;
+        },
+        height: 'auto',
+        firstDay: 1, // Lunes como primer día
+        buttonText: {
+            today: 'Hoy',
+            month: 'Mes',
+            week: 'Semana',
+            list: 'Lista'
+        }
+    });
+    
+    calendar.render();
+});
+</script>
+{% endblock %}

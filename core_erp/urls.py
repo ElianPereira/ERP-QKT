@@ -1,3 +1,7 @@
+try:
+    from airbnb.views import dashboard_airbnb, calendario_unificado, reporte_pagos_airbnb
+except ImportError:
+    dashboard_airbnb = calendario_unificado = reporte_pagos_airbnb = None
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -80,10 +84,15 @@ urlpatterns = [
     path('admin/nomina/cargar/', cargar_nomina if cargar_nomina else admin.site.urls, name='cargar_nomina'),
     path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
 
-    # --- 5. ADMIN DE DJANGO (El resto de las URLs del admin) ---
+    # --- 5.MÓDULO AIRBNB ---
+    path('admin/airbnb/dashboard/', dashboard_airbnb, name='dashboard_airbnb'),
+    path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
+    path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
+
+    # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
 
-    # --- 6. RUTA RAÍZ ---
+    # --- 7. RUTA RAÍZ ---
     path('', RedirectView.as_view(url='/admin/', permanent=False)), 
 ]
 

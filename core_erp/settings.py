@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'facturacion',
     'weasyprint',
     'anymail',
+    'airbnb',
 ]
 
 MIDDLEWARE = [
@@ -169,6 +170,10 @@ JAZZMIN_SETTINGS = {
         "nomina.ReciboNomina": "fas fa-file-contract",
         "facturacion.ClienteFiscal": "fas fa-building",
         "facturacion.SolicitudFactura": "fas fa-file-signature",
+        "airbnb.AnuncioAirbnb": "fas fa-home",
+        "airbnb.ReservaAirbnb": "fas fa-calendar-check",
+        "airbnb.PagoAirbnb": "fas fa-money-bill-wave",
+        "airbnb.ConflictoCalendario": "fas fa-exclamation-triangle",
     },
 
     "topmenu_links": [

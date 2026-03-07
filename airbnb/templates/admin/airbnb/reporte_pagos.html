@@ -1,0 +1,300 @@
+{% extends "admin/base_site.html" %}
+{% load humanize %}
+
+{% block extrahead %}
+<style>
+    .reporte-container {
+        max-width: 1400px;
+        margin: 20px auto;
+        padding: 20px;
+    }
+    .reporte-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .reporte-header h2 {
+        margin: 0;
+        color: #333;
+    }
+    .filtros-form {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .filtros-form select {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .btn-primary { background: #3498db; color: white; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-secondary { background: #95a5a6; color: white; }
+    
+    .cards-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    .card-stat {
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .card-stat .valor {
+        font-size: 28px;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .card-stat .label {
+        font-size: 13px;
+        color: #666;
+        text-transform: uppercase;
+    }
+    .card-stat.bruto .valor { color: #2c3e50; }
+    .card-stat.comisiones .valor { color: #e74c3c; }
+    .card-stat.retenciones .valor { color: #e67e22; }
+    .card-stat.neto .valor { color: #27ae60; }
+    
+    .tabla-container {
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        overflow-x: auto;
+        margin-bottom: 30px;
+    }
+    .tabla-container h3 {
+        margin: 0 0 15px 0;
+        color: #333;
+    }
+    .tabla-pagos {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    .tabla-pagos th {
+        background: #34495e;
+        color: white;
+        padding: 10px 8px;
+        text-align: left;
+    }
+    .tabla-pagos td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #eee;
+    }
+    .tabla-pagos tr:hover {
+        background: #f8f9fa;
+    }
+    .monto-positivo { color: #27ae60; font-weight: bold; }
+    .monto-negativo { color: #e74c3c; }
+    
+    .regimen-info {
+        background: #e8f4fd;
+        border: 1px solid #3498db;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .regimen-info h4 {
+        margin: 0 0 10px 0;
+        color: #2980b9;
+    }
+    .regimen-info p {
+        margin: 0;
+        color: #555;
+        font-size: 14px;
+    }
+    
+    .resumen-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="reporte-container">
+    
+    <div class="reporte-header">
+        <h2>📊 Reporte de Pagos Airbnb</h2>
+        <form method="get" class="filtros-form">
+            <select name="año">
+                {% for a in años_disponibles %}
+                <option value="{{ a }}" {% if a == año_actual %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+            <select name="mes">
+                <option value="">Todo el año</option>
+                <option value="1" {% if mes_actual == 1 %}selected{% endif %}>Enero</option>
+                <option value="2" {% if mes_actual == 2 %}selected{% endif %}>Febrero</option>
+                <option value="3" {% if mes_actual == 3 %}selected{% endif %}>Marzo</option>
+                <option value="4" {% if mes_actual == 4 %}selected{% endif %}>Abril</option>
+                <option value="5" {% if mes_actual == 5 %}selected{% endif %}>Mayo</option>
+                <option value="6" {% if mes_actual == 6 %}selected{% endif %}>Junio</option>
+                <option value="7" {% if mes_actual == 7 %}selected{% endif %}>Julio</option>
+                <option value="8" {% if mes_actual == 8 %}selected{% endif %}>Agosto</option>
+                <option value="9" {% if mes_actual == 9 %}selected{% endif %}>Septiembre</option>
+                <option value="10" {% if mes_actual == 10 %}selected{% endif %}>Octubre</option>
+                <option value="11" {% if mes_actual == 11 %}selected{% endif %}>Noviembre</option>
+                <option value="12" {% if mes_actual == 12 %}selected{% endif %}>Diciembre</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="?año={{ año_actual }}&mes={{ mes_actual|default:'' }}&export=excel" class="btn btn-success">
+                📥 Exportar Excel
+            </a>
+        </form>
+    </div>
+    
+    <div class="regimen-info">
+        <h4>📋 Régimen Fiscal: Actividad Empresarial - Plataformas Tecnológicas</h4>
+        <p>
+            Art. 113-A LISR • Retención ISR: 4% • Retención IVA: 8%<br>
+            Las retenciones son efectuadas directamente por Airbnb y deben declararse mensualmente.
+        </p>
+    </div>
+    
+    <div class="cards-row">
+        <div class="card-stat bruto">
+            <div class="valor">${{ totales.total_bruto|floatformat:2|intcomma }}</div>
+            <div class="label">Ingresos Brutos</div>
+        </div>
+        <div class="card-stat comisiones">
+            <div class="valor">-${{ totales.total_comision|floatformat:2|intcomma }}</div>
+            <div class="label">Comisión Airbnb</div>
+        </div>
+        <div class="card-stat retenciones">
+            <div class="valor">-${{ totales.total_isr|floatformat:2|intcomma }}</div>
+            <div class="label">Retención ISR 4%</div>
+        </div>
+        <div class="card-stat retenciones">
+            <div class="valor">-${{ totales.total_iva|floatformat:2|intcomma }}</div>
+            <div class="label">Retención IVA 8%</div>
+        </div>
+        <div class="card-stat neto">
+            <div class="valor">${{ totales.total_neto|floatformat:2|intcomma }}</div>
+            <div class="label">Neto Recibido</div>
+        </div>
+    </div>
+    
+    <div class="resumen-grid">
+        {% if resumen_mensual %}
+        <div class="tabla-container">
+            <h3>📅 Resumen Mensual</h3>
+            <table class="tabla-pagos">
+                <thead>
+                    <tr>
+                        <th>Mes</th>
+                        <th>Reservas</th>
+                        <th>Bruto</th>
+                        <th>ISR</th>
+                        <th>IVA</th>
+                        <th>Neto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in resumen_mensual %}
+                    <tr>
+                        <td>{{ row.mes|date:"M Y" }}</td>
+                        <td>{{ row.reservas }}</td>
+                        <td>${{ row.bruto|floatformat:2|intcomma }}</td>
+                        <td class="monto-negativo">-${{ row.isr|floatformat:2|intcomma }}</td>
+                        <td class="monto-negativo">-${{ row.iva|floatformat:2|intcomma }}</td>
+                        <td class="monto-positivo">${{ row.neto|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        {% if resumen_anuncio %}
+        <div class="tabla-container">
+            <h3>🏠 Resumen por Anuncio</h3>
+            <table class="tabla-pagos">
+                <thead>
+                    <tr>
+                        <th>Anuncio</th>
+                        <th>Reservas</th>
+                        <th>Bruto</th>
+                        <th>Neto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in resumen_anuncio %}
+                    <tr>
+                        <td>{{ row.anuncio__nombre|default:"Sin asignar" }}</td>
+                        <td>{{ row.reservas }}</td>
+                        <td>${{ row.bruto|floatformat:2|intcomma }}</td>
+                        <td class="monto-positivo">${{ row.neto|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="tabla-container">
+        <h3>📝 Detalle de Pagos ({{ pagos.count }} registros)</h3>
+        <table class="tabla-pagos">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Huésped</th>
+                    <th>Anuncio</th>
+                    <th>Check-in</th>
+                    <th>Noches</th>
+                    <th>Bruto</th>
+                    <th>Comisión</th>
+                    <th>ISR 4%</th>
+                    <th>IVA 8%</th>
+                    <th>Neto</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pago in pagos %}
+                <tr>
+                    <td><code>{{ pago.codigo_confirmacion|default:"-" }}</code></td>
+                    <td>{{ pago.huesped }}</td>
+                    <td>{{ pago.anuncio.nombre|default:"-" }}</td>
+                    <td>{{ pago.fecha_checkin|date:"d/m/Y" }}</td>
+                    <td>{{ pago.noches }}</td>
+                    <td>${{ pago.monto_bruto|floatformat:2|intcomma }}</td>
+                    <td class="monto-negativo">-${{ pago.comision_airbnb|floatformat:2|intcomma }}</td>
+                    <td class="monto-negativo">-${{ pago.retencion_isr|floatformat:2|intcomma }}</td>
+                    <td class="monto-negativo">-${{ pago.retencion_iva|floatformat:2|intcomma }}</td>
+                    <td class="monto-positivo">${{ pago.monto_neto|floatformat:2|intcomma }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" style="text-align: center; padding: 30px; color: #999;">
+                        No hay pagos registrados en este periodo
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+</div>
+{% endblock %}

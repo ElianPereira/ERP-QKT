@@ -1,0 +1,68 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 20px auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+    
+    <h2 style="margin-bottom: 20px; color: #333;">
+        📥 Importar Pagos desde CSV de Airbnb
+    </h2>
+    
+    <div style="background: #e8f5e9; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 10px 0; color: #2e7d32;">📋 Instrucciones:</h4>
+        <ol style="margin: 0; padding-left: 20px; color: #555;">
+            <li>Ingresa a <a href="https://www.airbnb.com/hosting/earnings" target="_blank">Airbnb > Ganancias</a></li>
+            <li>Selecciona el rango de fechas que deseas exportar</li>
+            <li>Click en "Exportar CSV" o "Descargar"</li>
+            <li>Sube el archivo descargado aquí</li>
+        </ol>
+    </div>
+    
+    <div style="background: #fff3e0; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 10px 0; color: #e65100;">⚠️ Régimen Fiscal:</h4>
+        <p style="margin: 0; color: #555;">
+            <strong>Actividad Empresarial - Plataformas Tecnológicas</strong><br>
+            Las retenciones se calcularán automáticamente:<br>
+            • ISR: 4% sobre monto bruto<br>
+            • IVA: 8% sobre monto bruto
+        </p>
+    </div>
+    
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div style="margin-bottom: 20px;">
+            <label for="archivo_csv" style="display: block; margin-bottom: 8px; font-weight: bold; color: #333;">
+                Archivo CSV de Airbnb:
+            </label>
+            <input 
+                type="file" 
+                name="archivo_csv" 
+                id="archivo_csv" 
+                accept=".csv"
+                required
+                style="width: 100%; padding: 12px; border: 2px dashed #ccc; border-radius: 6px; background: #fafafa;"
+            >
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button type="submit" style="flex: 1; padding: 12px 24px; background: #27ae60; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold;">
+                📤 Importar Pagos
+            </button>
+            <a href="{% url 'admin:airbnb_pagoairbnb_changelist' %}" style="flex: 1; padding: 12px 24px; background: #95a5a6; color: white; border: none; border-radius: 6px; font-size: 16px; text-align: center; text-decoration: none; font-weight: bold;">
+                Cancelar
+            </a>
+        </div>
+    </form>
+    
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <h4 style="color: #666; margin-bottom: 10px;">💡 Columnas esperadas en el CSV:</h4>
+        <code style="display: block; background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; color: #333;">
+            Confirmation code, Guest, Start date, End date, Gross earnings, Host service fee, Payout, Payout date
+        </code>
+        <p style="margin-top: 10px; font-size: 12px; color: #999;">
+            El sistema detecta automáticamente las columnas aunque estén en español o tengan nombres ligeramente diferentes.
+        </p>
+    </div>
+</div>
+{% endblock %}
