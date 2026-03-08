@@ -5,101 +5,67 @@
     {{ block.super }}
     
     <li>
-        <a href="importar-csv/" class="btn" style="
-            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+        <a href="importar-csv/" style="
+            background: #27ae60;
             color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
+            padding: 6px 12px;
+            border-radius: 4px;
             text-decoration: none;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 12px;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
-            transition: all 0.3s ease;
-        "
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(39, 174, 96, 0.4)';" 
-        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(39, 174, 96, 0.3)';">
-            <span style="font-size: 18px;">📥</span>
-            Importar CSV de Airbnb
+            gap: 5px;
+        ">
+            📥 Importar CSV
         </a>
     </li>
     
     <li>
-        <a href="{% url 'reporte_pagos_airbnb' %}" class="btn" style="
-            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        <a href="{% url 'reporte_pagos_airbnb' %}" style="
+            background: #3498db;
             color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
+            padding: 6px 12px;
+            border-radius: 4px;
             text-decoration: none;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 12px;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
-            transition: all 0.3s ease;
-        "
-        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(52, 152, 219, 0.4)';" 
-        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(52, 152, 219, 0.3)';">
-            <span style="font-size: 18px;">📊</span>
-            Reporte para Contador
+            gap: 5px;
+        ">
+            📊 Reporte Contador
         </a>
     </li>
 {% endblock %}
 
 {% block content %}
-<style>
-    /* Resumen de totales del mes */
-    .airbnb-summary {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 15px;
-        margin-bottom: 25px;
-        padding: 20px;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-radius: 12px;
-        border: 1px solid #dee2e6;
-    }
-    .summary-card {
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .summary-card .label {
-        font-size: 11px;
-        color: #6c757d;
-        text-transform: uppercase;
-        font-weight: 600;
-        margin-bottom: 5px;
-    }
-    .summary-card .value {
-        font-size: 20px;
-        font-weight: 700;
-    }
-    .summary-card.bruto .value { color: #2c3e50; }
-    .summary-card.neto .value { color: #27ae60; }
-    .summary-card.isr .value, .summary-card.iva .value { color: #e74c3c; }
-</style>
-
 {% if totales_mes %}
-<div class="airbnb-summary">
-    <div class="summary-card bruto">
-        <div class="label">Bruto (Mes)</div>
-        <div class="value">${{ totales_mes.total_bruto|default:"0"|floatformat:0 }}</div>
+<div style="
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+">
+    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:120px;">
+        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">Bruto Mes</div>
+        <div style="font-size:18px; font-weight:700; color:#2c3e50;">${{ totales_mes.total_bruto|default:"0"|floatformat:0 }}</div>
     </div>
-    <div class="summary-card isr">
-        <div class="label">ISR 4%</div>
-        <div class="value">-${{ totales_mes.total_isr|default:"0"|floatformat:0 }}</div>
+    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:100px;">
+        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">ISR 4%</div>
+        <div style="font-size:16px; font-weight:700; color:#e74c3c;">-${{ totales_mes.total_isr|default:"0"|floatformat:0 }}</div>
     </div>
-    <div class="summary-card iva">
-        <div class="label">IVA 8%</div>
-        <div class="value">-${{ totales_mes.total_iva|default:"0"|floatformat:0 }}</div>
+    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:100px;">
+        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">IVA 8%</div>
+        <div style="font-size:16px; font-weight:700; color:#e74c3c;">-${{ totales_mes.total_iva|default:"0"|floatformat:0 }}</div>
     </div>
-    <div class="summary-card neto">
-        <div class="label">Neto (Mes)</div>
-        <div class="value">${{ totales_mes.total_neto|default:"0"|floatformat:0 }}</div>
+    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:120px;">
+        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">Neto Mes</div>
+        <div style="font-size:18px; font-weight:700; color:#27ae60;">${{ totales_mes.total_neto|default:"0"|floatformat:0 }}</div>
     </div>
 </div>
 {% endif %}
