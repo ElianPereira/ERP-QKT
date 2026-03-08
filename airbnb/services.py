@@ -1,186 +1,90 @@
 """
 Servicios del módulo Airbnb
 ===========================
-Lógica de negocio para sincronización de calendarios y detección de conflictos.
+Lógica de negocio para sincronización, detección de conflictos e importación.
 """
 import re
 import csv
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from decimal import Decimal
-from typing import List, Tuple, Optional
-from urllib.request import urlopen
-from urllib.error import URLError
+from typing import List, Tuple, Optional, Dict, Any
 
+import requests
 from django.utils import timezone
-from django.db import transaction
+from django.db.models import Q
 
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
 
 
+# ==========================================
+# PARSER DE ICAL
+# ==========================================
 class ICalParserService:
-    """
-    Parser de feeds iCal de Airbnb.
-    Extrae eventos de bloqueo/reserva del calendario.
-    """
+    """Parsea archivos iCal de Airbnb."""
     
-    def __init__(self, anuncio: AnuncioAirbnb):
-        self.anuncio = anuncio
-    
-    def fetch_and_parse(self) -> List[dict]:
+    def parsear(self, contenido_ical: str) -> List[Dict[str, Any]]:
         """
-        Descarga el feed iCal y extrae los eventos.
-        Retorna lista de diccionarios con datos de cada evento.
-        """
-        try:
-            response = urlopen(self.anuncio.url_ical, timeout=30)
-            content = response.read().decode('utf-8')
-            return self._parse_ical(content)
-        except URLError as e:
-            raise Exception(f"Error al conectar con Airbnb: {str(e)}")
-        except Exception as e:
-            raise Exception(f"Error procesando iCal: {str(e)}")
-    
-    def _parse_ical(self, content: str) -> List[dict]:
-        """
-        Parsea el contenido iCal y extrae eventos VEVENT.
+        Parsea contenido iCal y retorna lista de eventos.
+        
+        Returns:
+            Lista de diccionarios con: uid, titulo, fecha_inicio, fecha_fin
         """
         eventos = []
-        lines = content.replace('\r\n ', '').replace('\r\n\t', '').split('\r\n')
+        evento_actual = {}
         
-        evento_actual = None
-        
-        for line in lines:
-            if line == 'BEGIN:VEVENT':
+        for linea in contenido_ical.split('\n'):
+            linea = linea.strip()
+            
+            if linea == 'BEGIN:VEVENT':
                 evento_actual = {}
-            elif line == 'END:VEVENT' and evento_actual:
-                if 'uid' in evento_actual and 'dtstart' in evento_actual:
+            elif linea == 'END:VEVENT':
+                if evento_actual.get('uid') and evento_actual.get('fecha_inicio'):
                     eventos.append(evento_actual)
-                evento_actual = None
-            elif evento_actual is not None:
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    # Limpiar parámetros del key (ej: DTSTART;VALUE=DATE)
-                    key = key.split(';')[0].lower()
-                    
-                    if key == 'uid':
-                        evento_actual['uid'] = value
-                    elif key == 'dtstart':
-                        evento_actual['dtstart'] = self._parse_date(value)
-                    elif key == 'dtend':
-                        evento_actual['dtend'] = self._parse_date(value)
-                    elif key == 'summary':
-                        evento_actual['summary'] = value
-                    elif key == 'description':
-                        evento_actual['description'] = value
+                evento_actual = {}
+            elif linea.startswith('UID:'):
+                evento_actual['uid'] = linea[4:].strip()
+            elif linea.startswith('SUMMARY:'):
+                evento_actual['titulo'] = linea[8:].strip()
+            elif linea.startswith('DTSTART'):
+                fecha = self._parsear_fecha(linea)
+                if fecha:
+                    evento_actual['fecha_inicio'] = fecha
+            elif linea.startswith('DTEND'):
+                fecha = self._parsear_fecha(linea)
+                if fecha:
+                    evento_actual['fecha_fin'] = fecha
         
         return eventos
     
-    def _parse_date(self, value: str) -> Optional[datetime]:
-        """Parsea fecha de iCal (formato YYYYMMDD o YYYYMMDDTHHMMSS)"""
+    def _parsear_fecha(self, linea: str) -> Optional[date]:
+        """Extrae fecha de una línea DTSTART o DTEND."""
+        # Formato: DTSTART;VALUE=DATE:20260315 o DTSTART:20260315T120000Z
         try:
-            value = value.replace('Z', '')
-            if 'T' in value:
-                return datetime.strptime(value[:15], '%Y%m%dT%H%M%S').date()
-            else:
-                return datetime.strptime(value[:8], '%Y%m%d').date()
-        except:
-            return None
+            partes = linea.split(':')
+            if len(partes) >= 2:
+                fecha_str = partes[-1].strip()
+                # Solo fecha (8 dígitos)
+                if len(fecha_str) >= 8:
+                    return datetime.strptime(fecha_str[:8], '%Y%m%d').date()
+        except (ValueError, IndexError):
+            pass
+        return None
 
 
+# ==========================================
+# SINCRONIZADOR DE AIRBNB
+# ==========================================
 class SincronizadorAirbnbService:
-    """
-    Servicio principal de sincronización de calendarios Airbnb.
-    """
+    """Sincroniza reservas desde calendarios iCal de Airbnb."""
     
-    def sincronizar_anuncio(self, anuncio: AnuncioAirbnb) -> Tuple[int, int, int]:
-        """
-        Sincroniza un anuncio específico con su feed iCal.
-        
-        Returns:
-            Tuple (creadas, actualizadas, errores)
-        """
-        parser = ICalParserService(anuncio)
-        eventos = parser.fetch_and_parse()
-        
-        creadas = 0
-        actualizadas = 0
-        errores = 0
-        
-        uids_procesados = set()
-        
-        with transaction.atomic():
-            for evento in eventos:
-                try:
-                    uid = evento.get('uid', '')
-                    if not uid:
-                        continue
-                    
-                    uids_procesados.add(uid)
-                    
-                    fecha_inicio = evento.get('dtstart')
-                    fecha_fin = evento.get('dtend')
-                    
-                    if not fecha_inicio:
-                        continue
-                    
-                    # Si no hay fecha fin, asumimos una noche
-                    if not fecha_fin:
-                        fecha_fin = fecha_inicio + timedelta(days=1)
-                    
-                    # Determinar si es reserva o bloqueo
-                    summary = evento.get('summary', '')
-                    descripcion = evento.get('description', '')
-                    
-                    # Airbnb usa "Reserved" o "Not available" típicamente
-                    if 'reserved' in summary.lower() or 'airbnb' in summary.lower():
-                        estado = 'CONFIRMADA'
-                        origen = 'AIRBNB'
-                    elif 'not available' in summary.lower() or 'blocked' in summary.lower():
-                        estado = 'BLOQUEADA'
-                        origen = 'MANUAL'
-                    else:
-                        estado = 'CONFIRMADA'
-                        origen = 'AIRBNB'
-                    
-                    # Crear o actualizar reserva
-                    reserva, created = ReservaAirbnb.objects.update_or_create(
-                        uid_ical=uid,
-                        defaults={
-                            'anuncio': anuncio,
-                            'titulo': summary[:200] if summary else 'Reserva Airbnb',
-                            'fecha_inicio': fecha_inicio,
-                            'fecha_fin': fecha_fin,
-                            'estado': estado,
-                            'origen': origen,
-                            'notas': descripcion[:500] if descripcion else '',
-                        }
-                    )
-                    
-                    if created:
-                        creadas += 1
-                    else:
-                        actualizadas += 1
-                        
-                except Exception as e:
-                    errores += 1
-                    print(f"Error procesando evento: {e}")
-            
-            # Actualizar timestamp de sincronización
-            anuncio.ultima_sincronizacion = timezone.now()
-            anuncio.save(update_fields=['ultima_sincronizacion'])
-        
-        return creadas, actualizadas, errores
+    def __init__(self):
+        self.parser = ICalParserService()
     
-    def sincronizar_todos(self) -> dict:
-        """
-        Sincroniza todos los anuncios activos.
-        
-        Returns:
-            Dict con resultados por anuncio
-        """
-        resultados = {}
+    def sincronizar_todos(self) -> Dict[str, Any]:
+        """Sincroniza todos los anuncios activos."""
         anuncios = AnuncioAirbnb.objects.filter(activo=True)
+        resultados = {}
         
         for anuncio in anuncios:
             try:
@@ -189,117 +93,214 @@ class SincronizadorAirbnbService:
                     'status': 'ok',
                     'creadas': creadas,
                     'actualizadas': actualizadas,
-                    'errores': errores,
+                    'errores': errores
                 }
             except Exception as e:
                 resultados[anuncio.nombre] = {
                     'status': 'error',
-                    'mensaje': str(e),
+                    'mensaje': str(e)
                 }
         
         return resultados
-
-
-class DetectorConflictosService:
-    """
-    Detecta conflictos entre reservas de Airbnb y eventos de la quinta.
-    """
     
-    def detectar_conflictos(self, fecha_inicio=None, fecha_fin=None) -> List[ConflictoCalendario]:
+    def sincronizar_anuncio(self, anuncio: AnuncioAirbnb) -> Tuple[int, int, int]:
         """
-        Busca conflictos en un rango de fechas.
-        Si no se especifica rango, busca los próximos 90 días.
+        Sincroniza un anuncio específico.
+        
+        Returns:
+            Tuple (creadas, actualizadas, errores)
+        """
+        if not anuncio.url_ical:
+            raise ValueError(f"El anuncio '{anuncio.nombre}' no tiene URL iCal configurada")
+        
+        # Descargar iCal
+        try:
+            response = requests.get(anuncio.url_ical, timeout=30)
+            response.raise_for_status()
+            contenido = response.text
+        except requests.RequestException as e:
+            raise ValueError(f"Error al descargar calendario: {str(e)}")
+        
+        # Parsear eventos
+        eventos = self.parser.parsear(contenido)
+        
+        creadas = 0
+        actualizadas = 0
+        errores = 0
+        
+        for evento in eventos:
+            try:
+                reserva, fue_creada = self._procesar_evento(anuncio, evento)
+                if fue_creada:
+                    creadas += 1
+                else:
+                    actualizadas += 1
+            except Exception as e:
+                errores += 1
+                print(f"Error procesando evento: {e}")
+        
+        # Actualizar timestamp de sincronización
+        anuncio.ultima_sincronizacion = timezone.now()
+        anuncio.save(update_fields=['ultima_sincronizacion'])
+        
+        return creadas, actualizadas, errores
+    
+    def _procesar_evento(self, anuncio: AnuncioAirbnb, evento: Dict) -> Tuple[ReservaAirbnb, bool]:
+        """
+        Procesa un evento del iCal y crea/actualiza la reserva.
+        
+        LÓGICA DE DETECCIÓN DE ESTADO:
+        - "Reserved" → CONFIRMADA (reserva pagada)
+        - Nombre de huésped (sin "Not available") → CONFIRMADA
+        - "Not available" → BLOQUEADA (bloqueo manual o pendiente)
+        - "(Not available)" → PENDIENTE (solicitud sin aceptar)
+        """
+        uid = evento['uid']
+        titulo = evento.get('titulo', '')
+        fecha_inicio = evento['fecha_inicio']
+        fecha_fin = evento.get('fecha_fin', fecha_inicio + timedelta(days=1))
+        
+        # Determinar estado y origen basado en el título
+        estado, origen = self._detectar_estado_y_origen(titulo)
+        
+        # Buscar o crear reserva
+        reserva, creada = ReservaAirbnb.objects.update_or_create(
+            uid_ical=uid,
+            defaults={
+                'anuncio': anuncio,
+                'titulo': titulo,
+                'fecha_inicio': fecha_inicio,
+                'fecha_fin': fecha_fin,
+                'estado': estado,
+                'origen': origen,
+            }
+        )
+        
+        return reserva, creada
+    
+    def _detectar_estado_y_origen(self, titulo: str) -> Tuple[str, str]:
+        """
+        Detecta el estado y origen de una reserva basado en el título del iCal.
+        
+        Patrones de Airbnb:
+        - "Reserved" → Reserva confirmada y pagada
+        - "Juan Pérez" (nombre sin keywords) → Reserva confirmada con nombre del huésped
+        - "Airbnb (Not available)" → Solicitud pendiente de aceptar
+        - "Not available" → Bloqueo manual del anfitrión
+        - "Blocked" → Bloqueo manual
+        
+        Returns:
+            Tuple (estado, origen)
+        """
+        titulo_lower = titulo.lower().strip()
+        
+        # Caso 1: Reserva confirmada explícita
+        if titulo_lower == 'reserved':
+            return 'CONFIRMADA', 'AIRBNB'
+        
+        # Caso 2: Bloqueo explícito
+        if titulo_lower in ('blocked', 'block', 'bloqueado'):
+            return 'BLOQUEADA', 'MANUAL'
+        
+        # Caso 3: Not available con paréntesis → Pendiente de aceptar
+        if '(not available)' in titulo_lower:
+            return 'PENDIENTE', 'AIRBNB'
+        
+        # Caso 4: Not available sin paréntesis → Bloqueo manual
+        if 'not available' in titulo_lower:
+            return 'BLOQUEADA', 'MANUAL'
+        
+        # Caso 5: Airbnb con algo más → Pendiente
+        if titulo_lower.startswith('airbnb'):
+            return 'PENDIENTE', 'AIRBNB'
+        
+        # Caso 6: Tiene un nombre (probablemente huésped) → Confirmada
+        # Si no contiene keywords de bloqueo y tiene texto, es nombre de huésped
+        if titulo and not any(word in titulo_lower for word in ['available', 'block', 'airbnb']):
+            return 'CONFIRMADA', 'AIRBNB'
+        
+        # Default: Pendiente
+        return 'PENDIENTE', 'AIRBNB'
+
+
+# ==========================================
+# DETECTOR DE CONFLICTOS
+# ==========================================
+class DetectorConflictosService:
+    """Detecta conflictos entre reservas de Airbnb y eventos de la quinta."""
+    
+    def detectar_conflictos(self) -> List[ConflictoCalendario]:
+        """
+        Detecta nuevos conflictos entre reservas Airbnb y cotizaciones.
+        Solo considera:
+        - Reservas de anuncios que afectan eventos de la quinta
+        - Reservas CONFIRMADAS (no pendientes ni bloqueadas)
+        - Cotizaciones CONFIRMADAS
+        
+        Returns:
+            Lista de conflictos creados
         """
         from comercial.models import Cotizacion
         
-        if not fecha_inicio:
-            fecha_inicio = timezone.now().date()
-        if not fecha_fin:
-            fecha_fin = fecha_inicio + timedelta(days=90)
-        
-        conflictos_nuevos = []
-        
-        # Obtener reservas de Airbnb que afectan la quinta
+        # Reservas que afectan la quinta
         reservas = ReservaAirbnb.objects.filter(
             anuncio__afecta_eventos_quinta=True,
             anuncio__activo=True,
-            estado='CONFIRMADA',
-            fecha_inicio__lte=fecha_fin,
-            fecha_fin__gte=fecha_inicio,
+            estado='CONFIRMADA',  # Solo confirmadas generan conflictos reales
         ).select_related('anuncio')
         
-        # Obtener eventos confirmados de la quinta
-        eventos = Cotizacion.objects.filter(
-            estado='CONFIRMADA',
-            fecha_evento__gte=fecha_inicio,
-            fecha_evento__lte=fecha_fin,
-        )
+        # Cotizaciones confirmadas
+        cotizaciones = Cotizacion.objects.filter(
+            estado='CONFIRMADA'
+        ).select_related('cliente')
+        
+        conflictos_creados = []
         
         for reserva in reservas:
-            for evento in eventos:
-                # Verificar si hay solapamiento de fechas
-                fecha_evento = evento.fecha_evento
-                
-                # El evento cae dentro del rango de la reserva
-                if reserva.fecha_inicio <= fecha_evento < reserva.fecha_fin:
-                    # Verificar si ya existe este conflicto
-                    existe = ConflictoCalendario.objects.filter(
+            for cotizacion in cotizaciones:
+                # Verificar si hay overlap de fechas
+                if self._hay_conflicto_fechas(reserva, cotizacion):
+                    # Crear conflicto si no existe
+                    conflicto, creado = ConflictoCalendario.objects.get_or_create(
                         reserva_airbnb=reserva,
-                        cotizacion=evento,
-                        fecha_conflicto=fecha_evento,
-                    ).exists()
-                    
-                    if not existe:
-                        conflicto = ConflictoCalendario.objects.create(
-                            reserva_airbnb=reserva,
-                            cotizacion=evento,
-                            fecha_conflicto=fecha_evento,
-                            descripcion=f"Reserva en {reserva.anuncio.nombre} ({reserva.fecha_inicio} - {reserva.fecha_fin}) "
-                                       f"choca con evento '{evento.nombre_evento}' del {fecha_evento}",
-                            estado='PENDIENTE',
-                        )
-                        conflictos_nuevos.append(conflicto)
+                        cotizacion=cotizacion,
+                        fecha_conflicto=cotizacion.fecha_evento,
+                        defaults={
+                            'estado': 'PENDIENTE',
+                            'descripcion': self._generar_descripcion(reserva, cotizacion)
+                        }
+                    )
+                    if creado:
+                        conflictos_creados.append(conflicto)
         
-        return conflictos_nuevos
+        return conflictos_creados
     
-    def obtener_conflictos_pendientes(self) -> List[ConflictoCalendario]:
-        """Retorna todos los conflictos sin resolver."""
-        return ConflictoCalendario.objects.filter(
-            estado='PENDIENTE'
-        ).select_related('reserva_airbnb', 'cotizacion', 'reserva_airbnb__anuncio')
+    def _hay_conflicto_fechas(self, reserva: ReservaAirbnb, cotizacion) -> bool:
+        """Verifica si la fecha del evento cae dentro de la reserva."""
+        # La fecha del evento debe estar entre check-in y check-out (exclusivo)
+        return reserva.fecha_inicio <= cotizacion.fecha_evento < reserva.fecha_fin
+    
+    def _generar_descripcion(self, reserva: ReservaAirbnb, cotizacion) -> str:
+        """Genera descripción del conflicto."""
+        return (
+            f"El evento '{cotizacion.nombre_evento}' del {cotizacion.fecha_evento.strftime('%d/%m/%Y')} "
+            f"conflicta con la reserva de Airbnb en '{reserva.anuncio.nombre}' "
+            f"({reserva.fecha_inicio.strftime('%d/%m')} - {reserva.fecha_fin.strftime('%d/%m')})"
+        )
 
 
+# ==========================================
+# IMPORTADOR DE CSV DE PAGOS
+# ==========================================
 class ImportadorCSVPagosService:
-    """
-    Importa pagos desde CSV exportado de Airbnb.
+    """Importa pagos desde CSV de Airbnb."""
     
-    El CSV de Airbnb típicamente tiene columnas como:
-    - Confirmation code
-    - Guest
-    - Start date
-    - End date
-    - Gross earnings
-    - Host service fee
-    - Payout
-    - Payout date
-    """
+    # Retenciones según régimen de plataformas tecnológicas
+    TASA_ISR = Decimal('0.04')  # 4%
+    TASA_IVA = Decimal('0.08')  # 8%
     
-    # Mapeo de columnas (Airbnb puede variar los nombres)
-    COLUMN_MAPPINGS = {
-        'codigo_confirmacion': ['confirmation code', 'código de confirmación', 'confirmation', 'codigo'],
-        'huesped': ['guest', 'huésped', 'guest name', 'nombre del huésped'],
-        'fecha_checkin': ['start date', 'fecha de inicio', 'check-in', 'checkin', 'inicio'],
-        'fecha_checkout': ['end date', 'fecha de fin', 'check-out', 'checkout', 'fin'],
-        'monto_bruto': ['gross earnings', 'ganancias brutas', 'earnings', 'importe bruto', 'amount'],
-        'comision_airbnb': ['host service fee', 'comisión de servicio', 'service fee', 'host fee'],
-        'monto_neto': ['payout', 'pago', 'amount paid out', 'cobro neto'],
-        'fecha_pago': ['payout date', 'fecha de pago', 'paid date'],
-        'listing': ['listing', 'anuncio', 'property'],
-    }
-    
-    def __init__(self, archivo_nombre: str = ''):
+    def __init__(self, archivo_nombre: str = None):
         self.archivo_nombre = archivo_nombre
-        self.errores = []
     
     def importar(self, contenido_csv: str, usuario=None) -> Tuple[int, int, List[str]]:
         """
@@ -310,128 +311,133 @@ class ImportadorCSVPagosService:
         """
         importados = 0
         duplicados = 0
-        self.errores = []
+        errores = []
         
         try:
-            # Detectar delimitador
-            dialect = csv.Sniffer().sniff(contenido_csv[:2048])
-            reader = csv.DictReader(io.StringIO(contenido_csv), dialect=dialect)
-        except:
-            # Fallback a coma
             reader = csv.DictReader(io.StringIO(contenido_csv))
+        except Exception as e:
+            errores.append(f"Error al leer CSV: {str(e)}")
+            return importados, duplicados, errores
         
-        # Normalizar headers
-        if reader.fieldnames:
-            header_map = self._mapear_columnas(reader.fieldnames)
-        else:
-            self.errores.append("No se encontraron encabezados en el CSV")
-            return 0, 0, self.errores
-        
-        for i, row in enumerate(reader, start=2):  # start=2 porque fila 1 es header
+        for i, row in enumerate(reader, start=2):  # Empezar en 2 por el header
             try:
-                datos = self._extraer_datos_fila(row, header_map)
-                
-                if not datos.get('codigo_confirmacion') and not datos.get('huesped'):
-                    continue  # Fila vacía
-                
-                # Verificar duplicado
-                if datos.get('codigo_confirmacion'):
-                    existe = PagoAirbnb.objects.filter(
-                        codigo_confirmacion=datos['codigo_confirmacion']
-                    ).exists()
-                    if existe:
-                        duplicados += 1
-                        continue
-                
-                # Crear pago
-                pago = PagoAirbnb(
-                    codigo_confirmacion=datos.get('codigo_confirmacion', ''),
-                    huesped=datos.get('huesped', 'Sin nombre'),
-                    fecha_checkin=datos.get('fecha_checkin'),
-                    fecha_checkout=datos.get('fecha_checkout'),
-                    monto_bruto=datos.get('monto_bruto', Decimal('0')),
-                    comision_airbnb=datos.get('comision_airbnb', Decimal('0')),
-                    monto_neto=datos.get('monto_neto', Decimal('0')),
-                    fecha_pago=datos.get('fecha_pago'),
-                    estado='PAGADO' if datos.get('fecha_pago') else 'PENDIENTE',
-                    archivo_csv_origen=self.archivo_nombre,
-                    created_by=usuario,
-                )
-                
-                # Calcular retenciones si no vienen en el CSV
-                if pago.monto_bruto > 0:
-                    pago.calcular_retenciones()
-                
-                # Intentar vincular con anuncio
-                listing_name = datos.get('listing', '')
-                if listing_name:
-                    anuncio = AnuncioAirbnb.objects.filter(
-                        nombre__icontains=listing_name
-                    ).first()
-                    if anuncio:
-                        pago.anuncio = anuncio
-                
-                pago.save()
-                importados += 1
-                
+                resultado = self._procesar_fila(row, usuario)
+                if resultado == 'creado':
+                    importados += 1
+                elif resultado == 'duplicado':
+                    duplicados += 1
             except Exception as e:
-                self.errores.append(f"Fila {i}: {str(e)}")
+                errores.append(f"Fila {i}: {str(e)}")
         
-        return importados, duplicados, self.errores
+        return importados, duplicados, errores
     
-    def _mapear_columnas(self, headers: List[str]) -> dict:
-        """Mapea los headers del CSV a nuestros campos."""
-        header_map = {}
-        headers_lower = [h.lower().strip() for h in headers]
+    def _procesar_fila(self, row: Dict, usuario) -> str:
+        """
+        Procesa una fila del CSV.
         
-        for campo, variantes in self.COLUMN_MAPPINGS.items():
-            for variante in variantes:
-                if variante in headers_lower:
-                    idx = headers_lower.index(variante)
-                    header_map[campo] = headers[idx]
-                    break
+        Returns:
+            'creado', 'duplicado', o raise Exception
+        """
+        # Mapeo de columnas (ajustar según formato real de Airbnb)
+        codigo = row.get('Confirmation code', row.get('Código de confirmación', '')).strip()
+        if not codigo:
+            raise ValueError("Sin código de confirmación")
         
-        return header_map
+        # Verificar duplicado
+        if PagoAirbnb.objects.filter(codigo_confirmacion=codigo).exists():
+            return 'duplicado'
+        
+        # Parsear datos
+        huesped = row.get('Guest name', row.get('Nombre del huésped', 'Huésped'))
+        
+        # Fechas
+        fecha_checkin = self._parsear_fecha(
+            row.get('Start date', row.get('Fecha de inicio', ''))
+        )
+        fecha_checkout = self._parsear_fecha(
+            row.get('End date', row.get('Fecha de finalización', ''))
+        )
+        
+        # Montos
+        monto_bruto = self._parsear_monto(
+            row.get('Amount', row.get('Importe', row.get('Monto', '0')))
+        )
+        
+        # Buscar anuncio por listing ID o nombre
+        listing = row.get('Listing', row.get('Anuncio', ''))
+        anuncio = self._buscar_anuncio(listing)
+        
+        # Calcular retenciones
+        retencion_isr = monto_bruto * self.TASA_ISR
+        retencion_iva = monto_bruto * self.TASA_IVA
+        
+        # Comisión de Airbnb (si viene en el CSV, sino 0)
+        comision = self._parsear_monto(
+            row.get('Host Fee', row.get('Tarifa del anfitrión', '0'))
+        )
+        
+        monto_neto = monto_bruto - comision - retencion_isr - retencion_iva
+        
+        # Crear pago
+        pago = PagoAirbnb.objects.create(
+            anuncio=anuncio,
+            codigo_confirmacion=codigo,
+            huesped=huesped,
+            fecha_checkin=fecha_checkin,
+            fecha_checkout=fecha_checkout or fecha_checkin + timedelta(days=1),
+            monto_bruto=monto_bruto,
+            comision_airbnb=comision,
+            retencion_isr=retencion_isr,
+            retencion_iva=retencion_iva,
+            monto_neto=monto_neto,
+            estado='PAGADO',
+            archivo_csv_origen=self.archivo_nombre,
+            created_by=usuario,
+        )
+        
+        return 'creado'
     
-    def _extraer_datos_fila(self, row: dict, header_map: dict) -> dict:
-        """Extrae y parsea datos de una fila del CSV."""
-        datos = {}
-        
-        for campo, header in header_map.items():
-            valor = row.get(header, '').strip()
-            
-            if campo in ['fecha_checkin', 'fecha_checkout', 'fecha_pago']:
-                datos[campo] = self._parsear_fecha(valor)
-            elif campo in ['monto_bruto', 'comision_airbnb', 'monto_neto']:
-                datos[campo] = self._parsear_monto(valor)
-            else:
-                datos[campo] = valor
-        
-        return datos
-    
-    def _parsear_fecha(self, valor: str):
-        """Parsea fecha de varios formatos."""
-        if not valor:
+    def _parsear_fecha(self, fecha_str: str) -> Optional[date]:
+        """Parsea fecha desde string."""
+        if not fecha_str:
             return None
         
         formatos = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y']
         for fmt in formatos:
             try:
-                return datetime.strptime(valor, fmt).date()
-            except:
+                return datetime.strptime(fecha_str.strip(), fmt).date()
+            except ValueError:
                 continue
+        
         return None
     
-    def _parsear_monto(self, valor: str) -> Decimal:
-        """Parsea monto limpiando símbolos de moneda."""
-        if not valor:
-            return Decimal('0')
+    def _parsear_monto(self, monto_str: str) -> Decimal:
+        """Parsea monto desde string."""
+        if not monto_str:
+            return Decimal('0.00')
         
-        # Limpiar símbolos
-        valor = re.sub(r'[^\d.,\-]', '', valor)
-        valor = valor.replace(',', '')
+        # Limpiar caracteres no numéricos excepto punto y coma
+        limpio = re.sub(r'[^\d.,\-]', '', str(monto_str))
+        limpio = limpio.replace(',', '.')
+        
+        # Si hay múltiples puntos, quitar todos menos el último (miles vs decimales)
+        partes = limpio.split('.')
+        if len(partes) > 2:
+            limpio = ''.join(partes[:-1]) + '.' + partes[-1]
         
         try:
-            return Decimal(valor).quantize(Decimal('0.01'))
+            return Decimal(limpio).quantize(Decimal('0.01'))
         except:
-            return Decimal('0')
+            return Decimal('0.00')
+    
+    def _buscar_anuncio(self, texto: str) -> Optional[AnuncioAirbnb]:
+        """Busca anuncio por nombre o listing ID."""
+        if not texto:
+            return None
+        
+        # Buscar por nombre parcial
+        anuncio = AnuncioAirbnb.objects.filter(
+            Q(nombre__icontains=texto) | Q(airbnb_listing_id__icontains=texto)
+        ).first()
+        
+        return anuncio

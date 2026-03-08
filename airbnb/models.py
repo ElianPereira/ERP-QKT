@@ -85,6 +85,7 @@ class ReservaAirbnb(models.Model):
     """
     ESTADO_CHOICES = [
         ('CONFIRMADA', 'Confirmada'),
+        ('PENDIENTE', 'Pendiente de Aceptar'),
         ('CANCELADA', 'Cancelada'),
         ('BLOQUEADA', 'Bloqueado por Host'),
     ]
