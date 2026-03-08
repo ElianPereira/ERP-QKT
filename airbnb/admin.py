@@ -2,10 +2,11 @@
 Admin del módulo Airbnb
 =======================
 Panel de administración para gestión de anuncios, reservas y pagos.
+Compatible con Django 6.0+
 """
 from decimal import Decimal
 from django.contrib import admin
-from django.utils.html import format_html, mark_safe
+from django.utils.html import mark_safe
 from django.urls import path, reverse
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -32,12 +33,9 @@ MEDIA_CONFIG = {
 class AnuncioAirbnbAdmin(admin.ModelAdmin):
     list_display = (
         'nombre', 
-        'get_tipo_badge', 
-        'get_afecta_quinta',
-        'get_reservas_count',
-        'get_ultima_sync',
+        'tipo',
+        'afecta_eventos_quinta',
         'activo',
-        'get_acciones'
     )
     list_filter = ('tipo', 'afecta_eventos_quinta', 'activo')
     list_editable = ('activo',)
@@ -62,6 +60,8 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         }),
     )
     
+    actions = ['sincronizar_seleccionados']
+    
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -82,51 +82,21 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         ]
         return custom_urls + urls
     
-    @admin.display(description="Tipo")
-    def get_tipo_badge(self, obj):
-        color = '#3498db' if obj.tipo == 'HABITACION' else '#27ae60'
-        return format_html(
-            '<span style="background:{}; color:white; padding:3px 8px; '
-            'border-radius:4px; font-size:11px;">{}</span>',
-            color, obj.get_tipo_display()
-        )
-    
-    @admin.display(description="Afecta Eventos")
-    def get_afecta_quinta(self, obj):
-        if obj.afecta_eventos_quinta:
-            return format_html('<span style="color:#e74c3c;">⚠️ Sí</span>')
-        return format_html('<span style="color:#95a5a6;">No</span>')
-    
-    @admin.display(description="Reservas")
-    def get_reservas_count(self, obj):
-        count = obj.reservas.filter(estado='CONFIRMADA').count()
-        return format_html(
-            '<span style="background:#34495e; color:white; padding:2px 8px; '
-            'border-radius:10px;">{}</span>',
-            count
-        )
-    
-    @admin.display(description="Última Sync")
-    def get_ultima_sync(self, obj):
-        if obj.ultima_sincronizacion:
-            diff = timezone.now() - obj.ultima_sincronizacion
-            if diff.days > 0:
-                return format_html('<span style="color:#e74c3c;">Hace {} días</span>', diff.days)
-            hours = diff.seconds // 3600
-            if hours > 0:
-                return format_html('<span style="color:#f39c12;">Hace {} hrs</span>', hours)
-            return format_html('<span style="color:#27ae60;">Reciente</span>')
-        return format_html('<span style="color:#95a5a6;">Nunca</span>')
-    
-    @admin.display(description="Acciones")
-    def get_acciones(self, obj):
-        url = reverse('admin:airbnb_anuncioairbnb_sincronizar', args=[obj.pk])
-        return format_html(
-            '<a href="{}" class="button" style="padding:5px 10px; '
-            'background:#3498db; color:white; border-radius:4px; '
-            'text-decoration:none;">🔄 Sync</a>',
-            url
-        )
+    @admin.action(description="🔄 Sincronizar anuncios seleccionados")
+    def sincronizar_seleccionados(self, request, queryset):
+        servicio = SincronizadorAirbnbService()
+        total_creadas = 0
+        total_actualizadas = 0
+        
+        for anuncio in queryset:
+            try:
+                creadas, actualizadas, errores = servicio.sincronizar_anuncio(anuncio)
+                total_creadas += creadas
+                total_actualizadas += actualizadas
+            except Exception as e:
+                messages.error(request, f"Error en {anuncio.nombre}: {str(e)}")
+        
+        messages.success(request, f"✅ Sincronización: {total_creadas} nuevas, {total_actualizadas} actualizadas")
     
     def sincronizar_anuncio(self, request, object_id):
         anuncio = AnuncioAirbnb.objects.get(pk=object_id)
@@ -139,7 +109,6 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
                 f"✅ Sincronización completada: {creadas} nuevas, {actualizadas} actualizadas, {errores} errores"
             )
             
-            # Detectar conflictos
             detector = DetectorConflictosService()
             conflictos = detector.detectar_conflictos()
             if conflictos:
@@ -164,21 +133,12 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         if errores > 0:
             messages.error(request, f"❌ {errores} anuncios con errores")
         
-        # Detectar conflictos
         detector = DetectorConflictosService()
         conflictos = detector.detectar_conflictos()
         if conflictos:
-            messages.warning(
-                request,
-                f"⚠️ Se detectaron {len(conflictos)} nuevos conflictos"
-            )
+            messages.warning(request, f"⚠️ Se detectaron {len(conflictos)} nuevos conflictos")
         
         return redirect('admin:airbnb_anuncioairbnb_changelist')
-    
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        extra_context['show_sync_all_button'] = True
-        return super().changelist_view(request, extra_context=extra_context)
 
 
 # ==========================================
@@ -191,10 +151,8 @@ class ReservaAirbnbAdmin(admin.ModelAdmin):
         'titulo',
         'fecha_inicio',
         'fecha_fin',
-        'get_noches',
-        'get_estado',
-        'get_origen',
-        'get_conflicto',
+        'estado',
+        'origen',
     )
     list_filter = ('anuncio', 'estado', 'origen', 'fecha_inicio')
     search_fields = ('titulo', 'uid_ical', 'notas')
@@ -219,48 +177,6 @@ class ReservaAirbnbAdmin(admin.ModelAdmin):
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
-    
-    @admin.display(description="Noches")
-    def get_noches(self, obj):
-        return format_html(
-            '<span style="background:#9b59b6; color:white; padding:2px 8px; '
-            'border-radius:10px;">{}</span>',
-            obj.noches
-        )
-    
-    @admin.display(description="Estado")
-    def get_estado(self, obj):
-        colores = {
-            'CONFIRMADA': '#27ae60',
-            'CANCELADA': '#e74c3c',
-            'BLOQUEADA': '#f39c12',
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        return format_html(
-            '<span style="background:{}; color:white; padding:3px 8px; '
-            'border-radius:4px; font-size:11px;">{}</span>',
-            color, obj.get_estado_display()
-        )
-    
-    @admin.display(description="Origen")
-    def get_origen(self, obj):
-        iconos = {
-            'AIRBNB': '🏠',
-            'MANUAL': '✏️',
-            'EVENTO': '🎉',
-        }
-        return format_html('{} {}', iconos.get(obj.origen, ''), obj.get_origen_display())
-    
-    @admin.display(description="Conflictos")
-    def get_conflicto(self, obj):
-        conflictos = obj.conflictos.filter(estado='PENDIENTE').count()
-        if conflictos > 0:
-            return format_html(
-                '<span style="background:#e74c3c; color:white; padding:2px 8px; '
-                'border-radius:10px;">⚠️ {}</span>',
-                conflictos
-            )
-        return format_html('<span style="color:#27ae60;">✓</span>')
 
 
 # ==========================================
@@ -273,11 +189,10 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
         'huesped',
         'anuncio',
         'fecha_checkin',
-        'get_noches',
-        'get_monto_bruto',
-        'get_retenciones',
-        'get_monto_neto',
-        'get_estado',
+        'fecha_checkout',
+        'monto_bruto',
+        'monto_neto',
+        'estado',
     )
     list_filter = ('estado', 'anuncio', 'fecha_checkin')
     search_fields = ('codigo_confirmacion', 'huesped')
@@ -327,47 +242,6 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
         ]
         return custom_urls + urls
     
-    @admin.display(description="Noches")
-    def get_noches(self, obj):
-        return format_html(
-            '<span style="background:#9b59b6; color:white; padding:2px 6px; '
-            'border-radius:10px; font-size:11px;">{}</span>',
-            obj.noches
-        )
-    
-    @admin.display(description="Bruto")
-    def get_monto_bruto(self, obj):
-        return format_html('<strong>${:,.2f}</strong>', obj.monto_bruto)
-    
-    @admin.display(description="Retenciones")
-    def get_retenciones(self, obj):
-        total_ret = obj.retencion_isr + obj.retencion_iva + obj.comision_airbnb
-        return format_html(
-            '<span style="color:#e74c3c;">-${:,.2f}</span>',
-            total_ret
-        )
-    
-    @admin.display(description="Neto")
-    def get_monto_neto(self, obj):
-        return format_html(
-            '<span style="color:#27ae60; font-weight:bold;">${:,.2f}</span>',
-            obj.monto_neto
-        )
-    
-    @admin.display(description="Estado")
-    def get_estado(self, obj):
-        colores = {
-            'PENDIENTE': '#f39c12',
-            'PAGADO': '#27ae60',
-            'CANCELADO': '#e74c3c',
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        return format_html(
-            '<span style="background:{}; color:white; padding:3px 8px; '
-            'border-radius:4px; font-size:11px;">{}</span>',
-            color, obj.get_estado_display()
-        )
-    
     def importar_csv_view(self, request):
         if request.method == 'POST':
             archivo = request.FILES.get('archivo_csv')
@@ -393,38 +267,17 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
             if duplicados > 0:
                 messages.warning(request, f"⚠️ {duplicados} pagos ya existían (omitidos)")
             if errores:
-                for error in errores[:5]:  # Mostrar máximo 5 errores
+                for error in errores[:5]:
                     messages.error(request, f"❌ {error}")
             
             return redirect('admin:airbnb_pagoairbnb_changelist')
         
-        # GET: Mostrar formulario
         context = {
             **self.admin_site.each_context(request),
             'title': 'Importar Pagos desde CSV de Airbnb',
             'opts': self.model._meta,
         }
         return render(request, 'admin/airbnb/importar_csv.html', context)
-    
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        extra_context['show_import_button'] = True
-        
-        # Calcular totales del mes
-        hoy = timezone.now()
-        pagos_mes = PagoAirbnb.objects.filter(
-            fecha_checkin__year=hoy.year,
-            fecha_checkin__month=hoy.month,
-            estado='PAGADO'
-        ).aggregate(
-            total_bruto=Sum('monto_bruto'),
-            total_neto=Sum('monto_neto'),
-            total_isr=Sum('retencion_isr'),
-            total_iva=Sum('retencion_iva'),
-        )
-        extra_context['totales_mes'] = pagos_mes
-        
-        return super().changelist_view(request, extra_context=extra_context)
 
 
 # ==========================================
@@ -434,10 +287,9 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
 class ConflictoCalendarioAdmin(admin.ModelAdmin):
     list_display = (
         'fecha_conflicto',
-        'get_reserva_info',
-        'get_evento_info',
-        'get_estado',
-        'get_acciones',
+        'reserva_airbnb',
+        'cotizacion',
+        'estado',
     )
     list_filter = ('estado', 'fecha_conflicto')
     search_fields = (
@@ -458,53 +310,25 @@ class ConflictoCalendarioAdmin(admin.ModelAdmin):
         }),
     )
     
+    actions = ['marcar_resuelto', 'marcar_ignorado']
+    
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
     
-    @admin.display(description="Reserva Airbnb")
-    def get_reserva_info(self, obj):
-        return format_html(
-            '<strong>{}</strong><br>'
-            '<small style="color:#666;">{} → {}</small>',
-            obj.reserva_airbnb.anuncio.nombre,
-            obj.reserva_airbnb.fecha_inicio.strftime('%d/%m'),
-            obj.reserva_airbnb.fecha_fin.strftime('%d/%m')
+    @admin.action(description="✅ Marcar como resuelto")
+    def marcar_resuelto(self, request, queryset):
+        queryset.update(
+            estado='RESUELTO',
+            resuelto_por=request.user,
+            fecha_resolucion=timezone.now()
         )
+        messages.success(request, f"✅ {queryset.count()} conflictos marcados como resueltos")
     
-    @admin.display(description="Evento Quinta")
-    def get_evento_info(self, obj):
-        return format_html(
-            '<strong>{}</strong><br>'
-            '<small style="color:#666;">{}</small>',
-            obj.cotizacion.nombre_evento[:30],
-            obj.cotizacion.cliente.nombre
-        )
-    
-    @admin.display(description="Estado")
-    def get_estado(self, obj):
-        colores = {
-            'PENDIENTE': '#e74c3c',
-            'RESUELTO': '#27ae60',
-            'IGNORADO': '#95a5a6',
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        return format_html(
-            '<span style="background:{}; color:white; padding:3px 8px; '
-            'border-radius:4px; font-size:11px;">{}</span>',
-            color, obj.get_estado_display()
-        )
-    
-    @admin.display(description="Acción")
-    def get_acciones(self, obj):
-        if obj.estado == 'PENDIENTE':
-            return format_html(
-                '<a href="{}" class="button" style="padding:3px 8px; '
-                'background:#27ae60; color:white; border-radius:4px; '
-                'text-decoration:none; font-size:11px;">Resolver</a>',
-                reverse('admin:airbnb_conflictocalendario_change', args=[obj.pk])
-            )
-        return '-'
+    @admin.action(description="⏭️ Marcar como ignorado")
+    def marcar_ignorado(self, request, queryset):
+        queryset.update(estado='IGNORADO')
+        messages.success(request, f"⏭️ {queryset.count()} conflictos ignorados")
     
     def save_model(self, request, obj, form, change):
         if obj.estado == 'RESUELTO' and not obj.resuelto_por:
