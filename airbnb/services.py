@@ -7,8 +7,9 @@ import re
 import csv
 import io
 from datetime import datetime, date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import List, Tuple, Optional, Dict, Any
+from collections import defaultdict
 
 import requests
 from django.utils import timezone
@@ -59,12 +60,10 @@ class ICalParserService:
     
     def _parsear_fecha(self, linea: str) -> Optional[date]:
         """Extrae fecha de una línea DTSTART o DTEND."""
-        # Formato: DTSTART;VALUE=DATE:20260315 o DTSTART:20260315T120000Z
         try:
             partes = linea.split(':')
             if len(partes) >= 2:
                 fecha_str = partes[-1].strip()
-                # Solo fecha (8 dígitos)
                 if len(fecha_str) >= 8:
                     return datetime.strptime(fecha_str[:8], '%Y%m%d').date()
         except (ValueError, IndexError):
@@ -113,7 +112,6 @@ class SincronizadorAirbnbService:
         if not anuncio.url_ical:
             raise ValueError(f"El anuncio '{anuncio.nombre}' no tiene URL iCal configurada")
         
-        # Descargar iCal
         try:
             response = requests.get(anuncio.url_ical, timeout=30)
             response.raise_for_status()
@@ -121,7 +119,6 @@ class SincronizadorAirbnbService:
         except requests.RequestException as e:
             raise ValueError(f"Error al descargar calendario: {str(e)}")
         
-        # Parsear eventos
         eventos = self.parser.parsear(contenido)
         
         creadas = 0
@@ -139,31 +136,20 @@ class SincronizadorAirbnbService:
                 errores += 1
                 print(f"Error procesando evento: {e}")
         
-        # Actualizar timestamp de sincronización
         anuncio.ultima_sincronizacion = timezone.now()
         anuncio.save(update_fields=['ultima_sincronizacion'])
         
         return creadas, actualizadas, errores
     
     def _procesar_evento(self, anuncio: AnuncioAirbnb, evento: Dict) -> Tuple[ReservaAirbnb, bool]:
-        """
-        Procesa un evento del iCal y crea/actualiza la reserva.
-        
-        LÓGICA DE DETECCIÓN DE ESTADO:
-        - "Reserved" → CONFIRMADA (reserva pagada)
-        - Nombre de huésped (sin "Not available") → CONFIRMADA
-        - "Not available" → BLOQUEADA (bloqueo manual o pendiente)
-        - "(Not available)" → PENDIENTE (solicitud sin aceptar)
-        """
+        """Procesa un evento del iCal y crea/actualiza la reserva."""
         uid = evento['uid']
         titulo = evento.get('titulo', '')
         fecha_inicio = evento['fecha_inicio']
         fecha_fin = evento.get('fecha_fin', fecha_inicio + timedelta(days=1))
         
-        # Determinar estado y origen basado en el título
         estado, origen = self._detectar_estado_y_origen(titulo)
         
-        # Buscar o crear reserva
         reserva, creada = ReservaAirbnb.objects.update_or_create(
             uid_ical=uid,
             defaults={
@@ -181,45 +167,27 @@ class SincronizadorAirbnbService:
     def _detectar_estado_y_origen(self, titulo: str) -> Tuple[str, str]:
         """
         Detecta el estado y origen de una reserva basado en el título del iCal.
-        
-        Patrones de Airbnb:
-        - "Reserved" → Reserva confirmada y pagada
-        - "Juan Pérez" (nombre sin keywords) → Reserva confirmada con nombre del huésped
-        - "Airbnb (Not available)" → Solicitud pendiente de aceptar
-        - "Not available" → Bloqueo manual del anfitrión
-        - "Blocked" → Bloqueo manual
-        
-        Returns:
-            Tuple (estado, origen)
         """
         titulo_lower = titulo.lower().strip()
         
-        # Caso 1: Reserva confirmada explícita
         if titulo_lower == 'reserved':
             return 'CONFIRMADA', 'AIRBNB'
         
-        # Caso 2: Bloqueo explícito
         if titulo_lower in ('blocked', 'block', 'bloqueado'):
             return 'BLOQUEADA', 'MANUAL'
         
-        # Caso 3: Not available con paréntesis → Pendiente de aceptar
         if '(not available)' in titulo_lower:
             return 'PENDIENTE', 'AIRBNB'
         
-        # Caso 4: Not available sin paréntesis → Bloqueo manual
         if 'not available' in titulo_lower:
             return 'BLOQUEADA', 'MANUAL'
         
-        # Caso 5: Airbnb con algo más → Pendiente
         if titulo_lower.startswith('airbnb'):
             return 'PENDIENTE', 'AIRBNB'
         
-        # Caso 6: Tiene un nombre (probablemente huésped) → Confirmada
-        # Si no contiene keywords de bloqueo y tiene texto, es nombre de huésped
         if titulo and not any(word in titulo_lower for word in ['available', 'block', 'airbnb']):
             return 'CONFIRMADA', 'AIRBNB'
         
-        # Default: Pendiente
         return 'PENDIENTE', 'AIRBNB'
 
 
@@ -230,26 +198,15 @@ class DetectorConflictosService:
     """Detecta conflictos entre reservas de Airbnb y eventos de la quinta."""
     
     def detectar_conflictos(self) -> List[ConflictoCalendario]:
-        """
-        Detecta nuevos conflictos entre reservas Airbnb y cotizaciones.
-        Solo considera:
-        - Reservas de anuncios que afectan eventos de la quinta
-        - Reservas CONFIRMADAS (no pendientes ni bloqueadas)
-        - Cotizaciones CONFIRMADAS
-        
-        Returns:
-            Lista de conflictos creados
-        """
+        """Detecta nuevos conflictos entre reservas Airbnb y cotizaciones."""
         from comercial.models import Cotizacion
         
-        # Reservas que afectan la quinta
         reservas = ReservaAirbnb.objects.filter(
             anuncio__afecta_eventos_quinta=True,
             anuncio__activo=True,
-            estado='CONFIRMADA',  # Solo confirmadas generan conflictos reales
+            estado='CONFIRMADA',
         ).select_related('anuncio')
         
-        # Cotizaciones confirmadas
         cotizaciones = Cotizacion.objects.filter(
             estado='CONFIRMADA'
         ).select_related('cliente')
@@ -258,9 +215,7 @@ class DetectorConflictosService:
         
         for reserva in reservas:
             for cotizacion in cotizaciones:
-                # Verificar si hay overlap de fechas
                 if self._hay_conflicto_fechas(reserva, cotizacion):
-                    # Crear conflicto si no existe
                     conflicto, creado = ConflictoCalendario.objects.get_or_create(
                         reserva_airbnb=reserva,
                         cotizacion=cotizacion,
@@ -276,12 +231,9 @@ class DetectorConflictosService:
         return conflictos_creados
     
     def _hay_conflicto_fechas(self, reserva: ReservaAirbnb, cotizacion) -> bool:
-        """Verifica si la fecha del evento cae dentro de la reserva."""
-        # La fecha del evento debe estar entre check-in y check-out (exclusivo)
         return reserva.fecha_inicio <= cotizacion.fecha_evento < reserva.fecha_fin
     
     def _generar_descripcion(self, reserva: ReservaAirbnb, cotizacion) -> str:
-        """Genera descripción del conflicto."""
         return (
             f"El evento '{cotizacion.nombre_evento}' del {cotizacion.fecha_evento.strftime('%d/%m/%Y')} "
             f"conflicta con la reserva de Airbnb en '{reserva.anuncio.nombre}' "
@@ -290,14 +242,21 @@ class DetectorConflictosService:
 
 
 # ==========================================
-# IMPORTADOR DE CSV DE PAGOS
+# IMPORTADOR DE CSV DE PAGOS (AIRBNB MÉXICO)
 # ==========================================
 class ImportadorCSVPagosService:
-    """Importa pagos desde CSV de Airbnb."""
+    """
+    Importa pagos desde CSV de Airbnb (formato México).
     
-    # Retenciones según régimen de plataformas tecnológicas
-    TASA_ISR = Decimal('0.04')  # 4%
-    TASA_IVA = Decimal('0.08')  # 8%
+    El CSV de Airbnb tiene múltiples filas por reserva:
+    - Reservación: Monto principal
+    - Retención del impuesto sobre la renta para México: ISR (negativo)
+    - Retención del IVA en México: IVA (negativo)
+    - Impuestos liquidados como anfitrión: Impuesto de hospedaje
+    - Payout: Transferencia (sin código, se ignora)
+    
+    Este servicio agrupa todo por código de confirmación.
+    """
     
     def __init__(self, archivo_nombre: str = None):
         self.archivo_nombre = archivo_nombre
@@ -313,86 +272,240 @@ class ImportadorCSVPagosService:
         duplicados = 0
         errores = []
         
+        # Limpiar BOM si existe
+        if contenido_csv.startswith('\ufeff'):
+            contenido_csv = contenido_csv[1:]
+        
         try:
             reader = csv.DictReader(io.StringIO(contenido_csv))
+            filas = list(reader)
         except Exception as e:
             errores.append(f"Error al leer CSV: {str(e)}")
             return importados, duplicados, errores
         
-        for i, row in enumerate(reader, start=2):  # Empezar en 2 por el header
+        # Agrupar filas por código de confirmación
+        reservas_agrupadas = self._agrupar_por_codigo(filas)
+        
+        for codigo, datos in reservas_agrupadas.items():
             try:
-                resultado = self._procesar_fila(row, usuario)
+                resultado = self._procesar_reserva_agrupada(codigo, datos, usuario)
                 if resultado == 'creado':
                     importados += 1
                 elif resultado == 'duplicado':
                     duplicados += 1
             except Exception as e:
-                errores.append(f"Fila {i}: {str(e)}")
+                errores.append(f"Código {codigo}: {str(e)}")
         
         return importados, duplicados, errores
     
-    def _procesar_fila(self, row: Dict, usuario) -> str:
+    def _agrupar_por_codigo(self, filas: List[Dict]) -> Dict[str, Dict]:
         """
-        Procesa una fila del CSV.
+        Agrupa las filas del CSV por código de confirmación.
+        
+        Estructura del resultado:
+        {
+            'HMPJA8HHFJ': {
+                'huesped': 'Lazlie Obregon',
+                'espacio': 'Casa Miel Y Mar',
+                'fecha_checkin': date,
+                'fecha_checkout': date,
+                'noches': 7,
+                'monto_reservacion': Decimal,
+                'retencion_isr': Decimal,
+                'retencion_iva': Decimal,
+                'impuesto_hospedaje': Decimal,
+                'tarifa_servicio': Decimal,
+            }
+        }
+        """
+        agrupado = defaultdict(lambda: {
+            'huesped': '',
+            'espacio': '',
+            'fecha_checkin': None,
+            'fecha_checkout': None,
+            'noches': 0,
+            'monto_reservacion': Decimal('0.00'),
+            'retencion_isr': Decimal('0.00'),
+            'retencion_iva': Decimal('0.00'),
+            'impuesto_hospedaje': Decimal('0.00'),
+            'tarifa_servicio': Decimal('0.00'),
+            'ingresos_brutos': Decimal('0.00'),
+        })
+        
+        for fila in filas:
+            # Obtener código de confirmación
+            codigo = (
+                fila.get('Código de confirmación', '') or 
+                fila.get('Codigo de confirmacion', '') or
+                fila.get('Confirmation code', '') or
+                ''
+            ).strip()
+            
+            # Ignorar filas sin código (como Payout, Resolution, etc.)
+            if not codigo:
+                continue
+            
+            tipo = (
+                fila.get('Tipo', '') or 
+                fila.get('Type', '') or
+                ''
+            ).strip().lower()
+            
+            datos = agrupado[codigo]
+            
+            # Extraer datos comunes (de cualquier fila con este código)
+            if not datos['huesped']:
+                datos['huesped'] = (
+                    fila.get('Huésped', '') or 
+                    fila.get('Huesped', '') or
+                    fila.get('Guest', '') or
+                    ''
+                ).strip()
+            
+            if not datos['espacio']:
+                datos['espacio'] = (
+                    fila.get('Espacio', '') or 
+                    fila.get('Listing', '') or
+                    ''
+                ).strip()
+            
+            if not datos['fecha_checkin']:
+                fecha_inicio = (
+                    fila.get('Fecha de inicio', '') or 
+                    fila.get('Start date', '') or
+                    ''
+                ).strip()
+                if fecha_inicio:
+                    datos['fecha_checkin'] = self._parsear_fecha(fecha_inicio)
+            
+            if not datos['fecha_checkout']:
+                fecha_fin = (
+                    fila.get('Fecha de finalización', '') or 
+                    fila.get('Fecha de finalizacion', '') or
+                    fila.get('End date', '') or
+                    ''
+                ).strip()
+                if fecha_fin:
+                    datos['fecha_checkout'] = self._parsear_fecha(fecha_fin)
+            
+            if not datos['noches']:
+                noches_str = (
+                    fila.get('Noches', '') or 
+                    fila.get('Nights', '') or
+                    ''
+                ).strip()
+                if noches_str:
+                    try:
+                        datos['noches'] = int(noches_str)
+                    except:
+                        pass
+            
+            # Parsear monto
+            monto = self._parsear_monto(
+                fila.get('Monto', '') or 
+                fila.get('Amount', '') or
+                '0'
+            )
+            
+            # Parsear tarifa de servicio
+            tarifa = self._parsear_monto(
+                fila.get('Tarifa de servicio', '') or 
+                fila.get('Service fee', '') or
+                '0'
+            )
+            
+            # Parsear ingresos brutos
+            ingresos_brutos = self._parsear_monto(
+                fila.get('Ingresos brutos', '') or 
+                fila.get('Gross earnings', '') or
+                '0'
+            )
+            
+            # Clasificar según tipo de fila
+            if 'reservaci' in tipo or 'reservation' in tipo:
+                datos['monto_reservacion'] = monto
+                datos['tarifa_servicio'] = abs(tarifa)
+                if ingresos_brutos > 0:
+                    datos['ingresos_brutos'] = ingresos_brutos
+            
+            elif 'retenci' in tipo and 'renta' in tipo:
+                # Retención ISR (viene como negativo)
+                datos['retencion_isr'] = abs(monto)
+            
+            elif 'retenci' in tipo and 'iva' in tipo:
+                # Retención IVA (viene como negativo)
+                datos['retencion_iva'] = abs(monto)
+            
+            elif 'impuesto' in tipo and 'liquidado' in tipo:
+                # Impuesto de hospedaje
+                datos['impuesto_hospedaje'] = monto
+        
+        return dict(agrupado)
+    
+    def _procesar_reserva_agrupada(self, codigo: str, datos: Dict, usuario) -> str:
+        """
+        Procesa una reserva agrupada y crea el pago.
         
         Returns:
             'creado', 'duplicado', o raise Exception
         """
-        # Mapeo de columnas (ajustar según formato real de Airbnb)
-        codigo = row.get('Confirmation code', row.get('Código de confirmación', '')).strip()
-        if not codigo:
-            raise ValueError("Sin código de confirmación")
-        
         # Verificar duplicado
         if PagoAirbnb.objects.filter(codigo_confirmacion=codigo).exists():
             return 'duplicado'
         
-        # Parsear datos
-        huesped = row.get('Guest name', row.get('Nombre del huésped', 'Huésped'))
+        # Validar datos mínimos
+        if not datos['huesped']:
+            raise ValueError("Sin nombre de huésped")
         
-        # Fechas
-        fecha_checkin = self._parsear_fecha(
-            row.get('Start date', row.get('Fecha de inicio', ''))
+        if not datos['fecha_checkin']:
+            raise ValueError("Sin fecha de check-in")
+        
+        # Calcular monto bruto (usar ingresos_brutos si está disponible, sino monto_reservacion)
+        if datos['ingresos_brutos'] > 0:
+            monto_bruto = datos['ingresos_brutos']
+        else:
+            monto_bruto = datos['monto_reservacion']
+        
+        if monto_bruto <= 0:
+            raise ValueError("Sin monto de reservación")
+        
+        # Calcular checkout si no existe
+        fecha_checkout = datos['fecha_checkout']
+        if not fecha_checkout and datos['noches'] > 0:
+            fecha_checkout = datos['fecha_checkin'] + timedelta(days=datos['noches'])
+        elif not fecha_checkout:
+            fecha_checkout = datos['fecha_checkin'] + timedelta(days=1)
+        
+        # Calcular monto neto
+        monto_neto = (
+            datos['monto_reservacion'] 
+            - datos['tarifa_servicio']
+            # Las retenciones ya vienen restadas en monto_reservacion en algunos casos
         )
-        fecha_checkout = self._parsear_fecha(
-            row.get('End date', row.get('Fecha de finalización', ''))
-        )
         
-        # Montos
-        monto_bruto = self._parsear_monto(
-            row.get('Amount', row.get('Importe', row.get('Monto', '0')))
-        )
+        # Si el monto neto es muy diferente, recalcular
+        if monto_neto <= 0:
+            monto_neto = monto_bruto - datos['tarifa_servicio'] - datos['retencion_isr'] - datos['retencion_iva']
         
-        # Buscar anuncio por listing ID o nombre
-        listing = row.get('Listing', row.get('Anuncio', ''))
-        anuncio = self._buscar_anuncio(listing)
-        
-        # Calcular retenciones
-        retencion_isr = monto_bruto * self.TASA_ISR
-        retencion_iva = monto_bruto * self.TASA_IVA
-        
-        # Comisión de Airbnb (si viene en el CSV, sino 0)
-        comision = self._parsear_monto(
-            row.get('Host Fee', row.get('Tarifa del anfitrión', '0'))
-        )
-        
-        monto_neto = monto_bruto - comision - retencion_isr - retencion_iva
+        # Buscar anuncio por nombre
+        anuncio = self._buscar_anuncio(datos['espacio'])
         
         # Crear pago
         pago = PagoAirbnb.objects.create(
             anuncio=anuncio,
             codigo_confirmacion=codigo,
-            huesped=huesped,
-            fecha_checkin=fecha_checkin,
-            fecha_checkout=fecha_checkout or fecha_checkin + timedelta(days=1),
+            huesped=datos['huesped'],
+            fecha_checkin=datos['fecha_checkin'],
+            fecha_checkout=fecha_checkout,
             monto_bruto=monto_bruto,
-            comision_airbnb=comision,
-            retencion_isr=retencion_isr,
-            retencion_iva=retencion_iva,
-            monto_neto=monto_neto,
+            comision_airbnb=datos['tarifa_servicio'],
+            retencion_isr=datos['retencion_isr'],
+            retencion_iva=datos['retencion_iva'],
+            monto_neto=monto_neto if monto_neto > 0 else monto_bruto,
             estado='PAGADO',
-            archivo_csv_origen=self.archivo_nombre,
+            archivo_csv_origen=self.archivo_nombre or '',
             created_by=usuario,
+            notas=f"Impuesto hospedaje: ${datos['impuesto_hospedaje']}" if datos['impuesto_hospedaje'] > 0 else '',
         )
         
         return 'creado'
@@ -402,10 +515,19 @@ class ImportadorCSVPagosService:
         if not fecha_str:
             return None
         
-        formatos = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y']
+        fecha_str = fecha_str.strip()
+        
+        # Formatos comunes de Airbnb
+        formatos = [
+            '%m/%d/%Y',   # 01/25/2026 (formato USA que usa Airbnb)
+            '%d/%m/%Y',   # 25/01/2026
+            '%Y-%m-%d',   # 2026-01-25
+            '%d-%m-%Y',   # 25-01-2026
+        ]
+        
         for fmt in formatos:
             try:
-                return datetime.strptime(fecha_str.strip(), fmt).date()
+                return datetime.strptime(fecha_str, fmt).date()
             except ValueError:
                 continue
         
@@ -416,28 +538,55 @@ class ImportadorCSVPagosService:
         if not monto_str:
             return Decimal('0.00')
         
-        # Limpiar caracteres no numéricos excepto punto y coma
-        limpio = re.sub(r'[^\d.,\-]', '', str(monto_str))
-        limpio = limpio.replace(',', '.')
+        # Limpiar caracteres no numéricos excepto punto, coma y signo negativo
+        monto_str = str(monto_str).strip()
         
-        # Si hay múltiples puntos, quitar todos menos el último (miles vs decimales)
-        partes = limpio.split('.')
-        if len(partes) > 2:
-            limpio = ''.join(partes[:-1]) + '.' + partes[-1]
+        # Detectar si es negativo
+        es_negativo = '-' in monto_str or '(' in monto_str
+        
+        # Limpiar
+        limpio = re.sub(r'[^\d.,]', '', monto_str)
+        
+        if not limpio:
+            return Decimal('0.00')
+        
+        # Manejar separadores de miles vs decimales
+        # Si tiene coma y punto, el último es el decimal
+        if ',' in limpio and '.' in limpio:
+            # Determinar cuál es el separador decimal (el último)
+            ultima_coma = limpio.rfind(',')
+            ultimo_punto = limpio.rfind('.')
+            
+            if ultima_coma > ultimo_punto:
+                # Coma es decimal: 1.234,56
+                limpio = limpio.replace('.', '').replace(',', '.')
+            else:
+                # Punto es decimal: 1,234.56
+                limpio = limpio.replace(',', '')
+        elif ',' in limpio:
+            # Solo coma - puede ser decimal o miles
+            # Si hay exactamente 2 dígitos después de la coma, es decimal
+            partes = limpio.split(',')
+            if len(partes) == 2 and len(partes[1]) <= 2:
+                limpio = limpio.replace(',', '.')
+            else:
+                limpio = limpio.replace(',', '')
         
         try:
-            return Decimal(limpio).quantize(Decimal('0.01'))
-        except:
+            valor = Decimal(limpio).quantize(Decimal('0.01'))
+            return -valor if es_negativo else valor
+        except (InvalidOperation, ValueError):
             return Decimal('0.00')
     
     def _buscar_anuncio(self, texto: str) -> Optional[AnuncioAirbnb]:
-        """Busca anuncio por nombre o listing ID."""
+        """Busca anuncio por nombre parcial."""
         if not texto:
             return None
         
-        # Buscar por nombre parcial
+        # Buscar coincidencia parcial
         anuncio = AnuncioAirbnb.objects.filter(
-            Q(nombre__icontains=texto) | Q(airbnb_listing_id__icontains=texto)
+            Q(nombre__icontains=texto) | 
+            Q(nombre__icontains=texto.split()[0] if texto.split() else texto)
         ).first()
         
         return anuncio
