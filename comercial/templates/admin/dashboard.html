@@ -89,6 +89,12 @@
             <div class="action-icon icon-nomina"><i class="fas fa-users"></i></div>
             <div class="action-label">Nómina</div>
         </a>
+
+        <a href="{% url 'reporte_pagos_airbnb' %}" class="action-btn">
+            <div class="action-icon" style="color: #FF5A5F;"><i class="fas fa-home"></i></div>
+            <div class="action-label">Airbnb</div>
+        </a>
+
     </div>
 
     <div class="kpi-grid">
@@ -142,7 +148,7 @@
                 <p style="color:#ccc; text-align:center;">Sin eventos próximos.</p>
             {% endif %}
             <div style="margin-top:15px; text-align:center;">
-                <a href="{% url 'ver_calendario' %}" style="color: #3498db; font-size: 12px; font-weight: bold;">Ver Todo →</a>
+                <a href="{% url 'calendario_unificado' %}" style="color: #3498db; font-size: 12px; font-weight: bold;">Ver Todo →</a>
             </div>
         </div>
     </div>

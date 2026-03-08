@@ -182,8 +182,7 @@ JAZZMIN_SETTINGS = {
 
     "topmenu_links": [
         {"name": "Inicio", "url": "admin:index", "permissions": ["auth.view_user"]},
-        {"name": "📅 Calendario", "url": "calendario_unificado"},  # <-- CAMBIAR ESTA LÍNEA
-        {"name": "📊 Reportes Airbnb", "url": "reporte_pagos_airbnb"},  # <-- AGREGAR ESTA LÍNEA
+        {"name": "📅 Calendario", "url": "calendario_unificado"},
         {"name": "Cerrar Sesión", "url": "/admin/logout/", "new_window": False},
     ],
 
