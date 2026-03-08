@@ -152,50 +152,111 @@ JAZZMIN_SETTINGS = {
     "copyright": "Quinta Ko'ox Tanil",
     "site_logo": "img/logo.png",
     "login_logo": "img/logo.png",
-    
+
     "show_sidebar": True,
     "navigation_expanded": True,
 
+    # --------------------------------------------------
+    # ICONOS
+    # --------------------------------------------------
     "icons": {
-        "auth": "fas fa-users-cog",
-        "auth.user": "fas fa-user",
-        "comercial.Insumo": "fas fa-cubes",
-        "comercial.SubProducto": "fas fa-blender",
-        "comercial.Producto": "fas fa-box-open",
-        "comercial.Cliente": "fas fa-address-book",
-        "comercial.Cotizacion": "fas fa-file-invoice-dollar",
-        "comercial.Pago": "fas fa-hand-holding-usd",
-        "comercial.Gasto": "fas fa-money-bill-wave",
-        "nomina.Empleado": "fas fa-user-tie",
-        "nomina.ReciboNomina": "fas fa-file-contract",
-        "facturacion.ClienteFiscal": "fas fa-building",
-        "facturacion.SolicitudFactura": "fas fa-file-signature",
-        "airbnb.AnuncioAirbnb": "fas fa-home",
-        "airbnb.ReservaAirbnb": "fas fa-calendar-check",
-        "airbnb.PagoAirbnb": "fas fa-money-bill-wave",
-        "airbnb.ConflictoCalendario": "fas fa-exclamation-triangle",
-        "airbnb.AnuncioAirbnb": "fas fa-home",
-        "airbnb.ReservaAirbnb": "fas fa-calendar-check", 
-        "airbnb.PagoAirbnb": "fas fa-money-bill-wave",
-        "airbnb.ConflictoCalendario": "fas fa-exclamation-triangle",
+        # App-level
+        "comercial":                        "fas fa-calendar-star",
+        "airbnb":                           "fas fa-home",
+        "nomina":                           "fas fa-users",
+        "facturacion":                      "fas fa-file-invoice",
+        "auth":                             "fas fa-cog",
+
+        # EVENTOS & SERVICIOS (comercial)
+        "comercial.Cotizacion":             "fas fa-file-invoice-dollar",
+        "comercial.Cliente":                "fas fa-address-book",
+        "comercial.Pago":                   "fas fa-hand-holding-usd",
+        "comercial.Gasto":                  "fas fa-money-bill-wave",
+        "comercial.Producto":               "fas fa-box-open",
+        "comercial.SubProducto":            "fas fa-blender",
+        "comercial.Insumo":                 "fas fa-cubes",
+        "comercial.PlantillaBarra":         "fas fa-cocktail",
+        "comercial.Proveedor":              "fas fa-truck",
+        "comercial.ConstanteSistema":       "fas fa-sliders-h",
+
+        # AIRBNB & HOSPEDAJE (airbnb)
+        "airbnb.AnuncioAirbnb":             "fas fa-home",
+        "airbnb.ReservaAirbnb":             "fas fa-calendar-check",
+        "airbnb.PagoAirbnb":               "fas fa-money-bill-wave",
+        "airbnb.ConflictoCalendario":       "fas fa-exclamation-triangle",
+
+        # NÓMINA
+        "nomina.Empleado":                  "fas fa-user-tie",
+        "nomina.ReciboNomina":              "fas fa-file-contract",
+
+        # FACTURACIÓN
+        "facturacion.ClienteFiscal":        "fas fa-building",
+        "facturacion.SolicitudFactura":     "fas fa-file-signature",
+
+        # AUTH
+        "auth.user":                        "fas fa-user",
+        "auth.group":                       "fas fa-users-cog",
     },
 
+    # --------------------------------------------------
+    # TOP MENU
+    # --------------------------------------------------
     "topmenu_links": [
-        {"name": "Inicio", "url": "admin:index", "permissions": ["auth.view_user"]},
-        {"name": "📅 Calendario", "url": "calendario_unificado"},
-        {"name": "Cerrar Sesión", "url": "/admin/logout/", "new_window": False},
+        {"name": "🏠 Inicio",          "url": "admin:index",           "permissions": ["auth.view_user"]},
+        {"name": "📅 Calendario",       "url": "ver_calendario"},
+        {"name": "🔗 Cal. Unificado",   "url": "calendario_unificado"},
+        {"name": "🧮 Calculadora",      "url": "admin_calculadora"},
+        {"name": "🛒 Lista de Compras", "url": "generar_lista_compras"},
+        {"name": "🚪 Cerrar Sesión",    "url": "/admin/logout/",        "new_window": False},
     ],
 
+    # --------------------------------------------------
+    # ORDEN DEL SIDEBAR
+    # Jazzmin agrupa por app automáticamente.
+    # El nombre de la cabecera viene del verbose_name de cada app.
+    # --------------------------------------------------
     "order_with_respect_to": [
-        "comercial", "comercial.Insumo", "comercial.SubProducto",        
-        "comercial.Producto", "comercial.Cliente", "comercial.Cotizacion",         
-        "comercial.Pago", "comercial.Gasto", "nomina", "facturacion", "auth",
+        # === 1. EVENTOS & SERVICIOS ===
+        "comercial",
+        "comercial.Cotizacion",
+        "comercial.Cliente",
+        "comercial.Pago",
+        "comercial.Gasto",
+        # Catálogo al fondo de la misma sección
+        "comercial.Producto",
+        "comercial.SubProducto",
+        "comercial.Insumo",
+        "comercial.PlantillaBarra",
+        "comercial.Proveedor",
+        "comercial.ConstanteSistema",
+
+        # === 2. AIRBNB & HOSPEDAJE ===
         "airbnb",
+        "airbnb.ReservaAirbnb",
+        "airbnb.PagoAirbnb",
+        "airbnb.ConflictoCalendario",
+        "airbnb.AnuncioAirbnb",
+
+        # === 3. NÓMINA ===
+        "nomina",
+        "nomina.Empleado",
+        "nomina.ReciboNomina",
+
+        # === 4. FACTURACIÓN ===
+        "facturacion",
+        "facturacion.ClienteFiscal",
+        "facturacion.SolicitudFactura",
+
+        # === 5. ADMINISTRACIÓN ===
+        "auth",
+        "auth.user",
+        "auth.group",
     ],
-    
+
     "custom_css": "css/mobile_fix_v4.css",
     "custom_js": "js/tabs_fix.js",
 }
+
 JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
 
 # --- REDIRECCIONES DE LOGIN/LOGOUT ---
