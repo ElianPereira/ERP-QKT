@@ -6,12 +6,12 @@ Compatible con Django 6.0+
 """
 from decimal import Decimal
 from django.contrib import admin
-from django.utils.html import mark_safe
 from django.urls import path, reverse
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.db.models import Sum, Count
 from django.utils import timezone
+from django.http import HttpResponseRedirect
 
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
 from .services import SincronizadorAirbnbService, DetectorConflictosService, ImportadorCSVPagosService
@@ -35,6 +35,7 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         'nombre', 
         'tipo',
         'afecta_eventos_quinta',
+        'ultima_sincronizacion',
         'activo',
     )
     list_filter = ('tipo', 'afecta_eventos_quinta', 'activo')
@@ -48,7 +49,7 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         }),
         ('Configuración', {
             'fields': ('afecta_eventos_quinta', 'activo'),
-            'description': 'Las habitaciones dentro de la quinta deben tener "Afecta eventos" activo.'
+            'description': 'Las habitaciones dentro de la quinta deben tener "Afecta eventos" activo para bloquear fechas.'
         }),
         ('Sincronización', {
             'fields': ('ultima_sincronizacion',),
@@ -69,11 +70,6 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path(
-                '<int:object_id>/sincronizar/',
-                self.admin_site.admin_view(self.sincronizar_anuncio),
-                name='airbnb_anuncioairbnb_sincronizar'
-            ),
             path(
                 'sincronizar-todos/',
                 self.admin_site.admin_view(self.sincronizar_todos),
@@ -96,30 +92,13 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
             except Exception as e:
                 messages.error(request, f"Error en {anuncio.nombre}: {str(e)}")
         
+        # Detectar conflictos
+        detector = DetectorConflictosService()
+        conflictos = detector.detectar_conflictos()
+        
         messages.success(request, f"✅ Sincronización: {total_creadas} nuevas, {total_actualizadas} actualizadas")
-    
-    def sincronizar_anuncio(self, request, object_id):
-        anuncio = AnuncioAirbnb.objects.get(pk=object_id)
-        servicio = SincronizadorAirbnbService()
-        
-        try:
-            creadas, actualizadas, errores = servicio.sincronizar_anuncio(anuncio)
-            messages.success(
-                request, 
-                f"✅ Sincronización completada: {creadas} nuevas, {actualizadas} actualizadas, {errores} errores"
-            )
-            
-            detector = DetectorConflictosService()
-            conflictos = detector.detectar_conflictos()
-            if conflictos:
-                messages.warning(
-                    request,
-                    f"⚠️ Se detectaron {len(conflictos)} nuevos conflictos con eventos de la quinta"
-                )
-        except Exception as e:
-            messages.error(request, f"❌ Error: {str(e)}")
-        
-        return redirect('admin:airbnb_anuncioairbnb_changelist')
+        if conflictos:
+            messages.warning(request, f"⚠️ {len(conflictos)} nuevos conflictos detectados")
     
     def sincronizar_todos(self, request):
         servicio = SincronizadorAirbnbService()
@@ -133,12 +112,18 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         if errores > 0:
             messages.error(request, f"❌ {errores} anuncios con errores")
         
+        # Detectar conflictos
         detector = DetectorConflictosService()
         conflictos = detector.detectar_conflictos()
         if conflictos:
-            messages.warning(request, f"⚠️ Se detectaron {len(conflictos)} nuevos conflictos")
+            messages.warning(request, f"⚠️ {len(conflictos)} nuevos conflictos detectados")
         
         return redirect('admin:airbnb_anuncioairbnb_changelist')
+    
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['title'] = 'Anuncios Airbnb'
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 # ==========================================
@@ -278,6 +263,12 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
             'opts': self.model._meta,
         }
         return render(request, 'admin/airbnb/importar_csv.html', context)
+    
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['show_import_button'] = True
+        extra_context['title'] = 'Pagos Airbnb'
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 # ==========================================

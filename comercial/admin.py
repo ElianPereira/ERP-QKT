@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.contrib import admin
 from django.utils.html import format_html, mark_safe
 from django.template.loader import render_to_string
@@ -224,6 +225,39 @@ class CotizacionAdmin(admin.ModelAdmin):
         ('Documentos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
     )
     readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html')
+
+    def save_model(self, request, obj, form, change):
+
+    # Solo validar si es una cotización nueva o si cambió la fecha
+        if not change or 'fecha_evento' in form.changed_data:
+            try:
+                from airbnb.models import ReservaAirbnb
+            
+                # Buscar reservas de Airbnb que bloqueen esta fecha
+                reservas_conflicto = ReservaAirbnb.objects.filter(
+                    anuncio__afecta_eventos_quinta=True,
+                    anuncio__activo=True,
+                    estado='CONFIRMADA',
+                    fecha_inicio__lte=obj.fecha_evento,
+                    fecha_fin__gt=obj.fecha_evento,
+                ).select_related('anuncio')
+            
+                if reservas_conflicto.exists():
+                    reserva = reservas_conflicto.first()
+                    messages.error(
+                        request,
+                        f"⚠️ NO SE PUEDE GUARDAR: La fecha {obj.fecha_evento.strftime('%d/%m/%Y')} "
+                        f"está bloqueada por una reserva de Airbnb en '{reserva.anuncio.nombre}' "
+                        f"({reserva.fecha_inicio.strftime('%d/%m')} - {reserva.fecha_fin.strftime('%d/%m')}). "
+                        f"Debes cancelar la reserva de Airbnb primero o elegir otra fecha."
+                    )
+                    return  # No guardar
+                
+            except ImportError:
+                # Si el módulo airbnb no está instalado, continuar normal
+                pass
+    
+        super().save_model(request, obj, form, change)
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
 

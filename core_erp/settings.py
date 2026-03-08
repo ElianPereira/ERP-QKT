@@ -174,19 +174,24 @@ JAZZMIN_SETTINGS = {
         "airbnb.ReservaAirbnb": "fas fa-calendar-check",
         "airbnb.PagoAirbnb": "fas fa-money-bill-wave",
         "airbnb.ConflictoCalendario": "fas fa-exclamation-triangle",
+        "airbnb.AnuncioAirbnb": "fas fa-home",
+        "airbnb.ReservaAirbnb": "fas fa-calendar-check", 
+        "airbnb.PagoAirbnb": "fas fa-money-bill-wave",
+        "airbnb.ConflictoCalendario": "fas fa-exclamation-triangle",
     },
 
     "topmenu_links": [
-        {"name": "Inicio",  "url": "admin:index", "permissions": ["auth.view_user"]},
-        {"name": "📅 Ver Calendario", "url": "ver_calendario"}, 
-        {"name": "Ver Sitio", "url": "/"},
-        {"name": "Cerrar Sesión", "url": "/admin/logout/", "new_window": False, "icon": "fas fa-sign-out-alt"},
+        {"name": "Inicio", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"name": "📅 Calendario", "url": "calendario_unificado"},  # <-- CAMBIAR ESTA LÍNEA
+        {"name": "📊 Reportes Airbnb", "url": "reporte_pagos_airbnb"},  # <-- AGREGAR ESTA LÍNEA
+        {"name": "Cerrar Sesión", "url": "/admin/logout/", "new_window": False},
     ],
 
     "order_with_respect_to": [
         "comercial", "comercial.Insumo", "comercial.SubProducto",        
         "comercial.Producto", "comercial.Cliente", "comercial.Cotizacion",         
         "comercial.Pago", "comercial.Gasto", "nomina", "facturacion", "auth",
+        "airbnb",
     ],
     
     "custom_css": "css/mobile_fix_v4.css",

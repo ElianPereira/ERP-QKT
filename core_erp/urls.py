@@ -1,7 +1,7 @@
 try:
-    from airbnb.views import dashboard_airbnb, calendario_unificado, reporte_pagos_airbnb
+    from airbnb.views import calendario_unificado, reporte_pagos_airbnb
 except ImportError:
-    dashboard_airbnb = calendario_unificado = reporte_pagos_airbnb = None
+    calendario_unificado = reporte_pagos_airbnb = None
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -85,7 +85,7 @@ urlpatterns = [
     path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
 
     # --- 5.MÓDULO AIRBNB ---
-    path('admin/airbnb/dashboard/', dashboard_airbnb, name='dashboard_airbnb'),
+
     path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
     path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
 

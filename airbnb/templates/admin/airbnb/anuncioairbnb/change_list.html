@@ -1,0 +1,48 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    
+    <li>
+        <a href="sincronizar-todos/" class="btn" style="
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+            transition: all 0.3s ease;
+        "
+        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(52, 152, 219, 0.4)';" 
+        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(52, 152, 219, 0.3)';">
+            <span style="font-size: 18px;">🔄</span>
+            Sincronizar Todos
+        </a>
+    </li>
+    
+    <li>
+        <a href="{% url 'calendario_unificado' %}" class="btn" style="
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(155, 89, 182, 0.3);
+            transition: all 0.3s ease;
+        "
+        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(155, 89, 182, 0.4)';" 
+        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(155, 89, 182, 0.3)';">
+            <span style="font-size: 18px;">📅</span>
+            Ver Calendario
+        </a>
+    </li>
+{% endblock %}
