@@ -1,3 +1,4 @@
+from django.urls import path, include
 try:
     from airbnb.views import calendario_unificado, reporte_pagos_airbnb
 except ImportError:
@@ -56,6 +57,7 @@ urlpatterns = [
     
     # FIX LOGOUT: Esta línea intercepta CUALQUIER intento de ir a /admin/logout/
     path('admin/logout/', custom_logout, name='logout'),
+    path('airbnb/', include('airbnb.urls')),
 
     # --- 2. EL DASHBOARD (Tu página principal del admin) ---
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),
