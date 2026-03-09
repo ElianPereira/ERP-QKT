@@ -1,14 +1,16 @@
 """
 URLs del módulo Airbnb
 ======================
-Rutas para dashboard, calendario unificado y reportes.
 """
 from django.urls import path
-
 from . import views
 
+app_name = 'airbnb'
+
 urlpatterns = [
-    path('dashboard/', views.dashboard_airbnb, name='dashboard_airbnb'),
-    path('calendario/', views.calendario_unificado, name='calendario_unificado'),
-    path('reportes/pagos/', views.reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
+    # Calendario público iCal (sin autenticación para que Airbnb pueda acceder)
+    path('ical/eventos/', views.generar_ical_eventos, name='ical_eventos'),
+    
+    # Bloqueo manual
+    path('bloquear/<int:cotizacion_id>/', views.bloquear_en_airbnb, name='bloquear_en_airbnb'),
 ]

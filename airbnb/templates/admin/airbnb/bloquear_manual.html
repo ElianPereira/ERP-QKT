@@ -1,0 +1,176 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<style>
+    .bloquear-container {
+        max-width: 600px;
+        margin: 40px auto;
+        padding: 30px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .bloquear-header {
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .bloquear-header h2 {
+        margin: 0 0 10px 0;
+        color: #2c3e50;
+        font-size: 24px;
+    }
+    
+    .bloquear-header .fecha {
+        font-size: 18px;
+        color: #e74c3c;
+        font-weight: 600;
+    }
+    
+    .evento-info {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+    }
+    
+    .evento-info p {
+        margin: 5px 0;
+        color: #555;
+    }
+    
+    .evento-info strong {
+        color: #2c3e50;
+    }
+    
+    .anuncios-lista {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .anuncios-lista li {
+        margin-bottom: 15px;
+    }
+    
+    .anuncios-lista a {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 20px;
+        background: linear-gradient(135deg, #FF5A5F 0%, #FF385C 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.2s;
+        box-shadow: 0 3px 10px rgba(255, 90, 95, 0.3);
+    }
+    
+    .anuncios-lista a:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(255, 90, 95, 0.4);
+    }
+    
+    .anuncios-lista .icon {
+        font-size: 28px;
+    }
+    
+    .anuncios-lista .nombre {
+        flex: 1;
+    }
+    
+    .anuncios-lista .arrow {
+        font-size: 20px;
+    }
+    
+    .instrucciones {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 25px;
+    }
+    
+    .instrucciones h4 {
+        margin: 0 0 10px 0;
+        color: #856404;
+        font-size: 14px;
+    }
+    
+    .instrucciones ol {
+        margin: 0;
+        padding-left: 20px;
+        color: #856404;
+        font-size: 13px;
+    }
+    
+    .instrucciones li {
+        margin-bottom: 5px;
+    }
+    
+    .btn-volver {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 10px 25px;
+        background: #6c757d;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 600;
+    }
+    
+    .btn-volver:hover {
+        background: #5a6268;
+        color: white;
+    }
+</style>
+
+<div class="bloquear-container">
+    <div class="bloquear-header">
+        <h2>🔒 Bloquear en Airbnb</h2>
+        <div class="fecha">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</div>
+    </div>
+    
+    <div class="evento-info">
+        <p><strong>Evento:</strong> {{ cotizacion.nombre_evento }}</p>
+        <p><strong>Cliente:</strong> {{ cotizacion.cliente.nombre }}</p>
+        <p><strong>Personas:</strong> {{ cotizacion.num_personas }}</p>
+    </div>
+    
+    <p style="color: #555; margin-bottom: 20px;">
+        Haz clic en cada anuncio para abrir su calendario en Airbnb y bloquear la fecha:
+    </p>
+    
+    <ul class="anuncios-lista">
+        {% for item in urls_bloqueo %}
+        <li>
+            <a href="{{ item.url }}" target="_blank">
+                <span class="icon">🏠</span>
+                <span class="nombre">{{ item.nombre }}</span>
+                <span class="arrow">→</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    
+    <div class="instrucciones">
+        <h4>📋 Pasos en Airbnb:</h4>
+        <ol>
+            <li>Se abrirá el calendario del anuncio</li>
+            <li>Haz clic en la fecha <strong>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</strong></li>
+            <li>Selecciona "Bloquear fechas"</li>
+            <li>Guarda los cambios</li>
+            <li>Repite para cada anuncio</li>
+        </ol>
+    </div>
+    
+    <a href="{% url 'admin:comercial_cotizacion_change' cotizacion.id %}" class="btn-volver">
+        ← Volver a la cotización
+    </a>
+</div>
+{% endblock %}

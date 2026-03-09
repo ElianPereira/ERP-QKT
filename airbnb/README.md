@@ -1,181 +1,162 @@
-# Módulo Airbnb - ERP Quinta Ko'ox Tanil
+# Actualización Módulo Airbnb v3
+## Con iCal inverso y bloqueo manual
 
-## Descripción
+---
 
-Módulo de integración con Airbnb para:
-- Sincronización de calendario vía iCal
-- Detección automática de conflictos con eventos de la quinta
-- Gestión de pagos con régimen fiscal de Plataformas Tecnológicas
-- Reportes contables separados para el contador
-
-## Estructura
+## 📦 Archivos incluidos
 
 ```
-airbnb/
-├── __init__.py
-├── apps.py
-├── models.py            # AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
-├── admin.py             # Panel de administración
-├── views.py             # Dashboard, calendario, reportes
-├── urls.py              # Rutas del módulo
-├── services.py          # Lógica de negocio (sincronización, importación CSV)
-├── migrations/
-│   └── __init__.py
-├── management/
-│   └── commands/
-│       ├── setup_airbnb.py        # Configuración inicial
-│       └── sincronizar_airbnb.py  # Comando de sincronización
-└── templates/
-    └── admin/
-        └── airbnb/
-            ├── dashboard.html
-            ├── calendario_unificado.html
-            ├── reporte_pagos.html
-            └── importar_csv.html
+airbnb_update/
+├── admin.py                    → Reemplaza airbnb/admin.py
+├── views.py                    → Reemplaza airbnb/views.py
+├── services.py                 → Reemplaza airbnb/services.py
+├── urls.py                     → NUEVO: Crear airbnb/urls.py
+├── validacion_fechas.py        → Copiar a airbnb/
+├── templates/admin/airbnb/
+│   ├── calendario_unificado.html
+│   ├── bloquear_manual.html          → NUEVO
+│   ├── pagoairbnb/change_list.html
+│   └── anuncioairbnb/change_list.html
+└── INSTRUCCIONES_validacion_cotizacion.py  → Leer y aplicar
 ```
 
-## Instalación
+---
 
-### Paso 1: Copiar archivos
+## 🔧 Pasos de instalación
 
-Copia la carpeta `airbnb/` completa a la raíz de tu proyecto Django (al mismo nivel que `comercial/`, `nomina/`, etc.)
+### 1. Reemplazar archivos en `airbnb/`
 
-### Paso 2: Registrar la app en settings.py
+```bash
+# Reemplazar estos archivos:
+airbnb/admin.py
+airbnb/views.py
+airbnb/services.py
 
-Edita `core_erp/settings.py` y agrega `'airbnb'` a `INSTALLED_APPS`:
+# Crear estos archivos nuevos:
+airbnb/urls.py
+airbnb/validacion_fechas.py
+airbnb/templates/admin/airbnb/bloquear_manual.html
+```
+
+### 2. Actualizar `airbnb/models.py`
+
+Agregar estado PENDIENTE a ReservaAirbnb (línea ~68):
 
 ```python
-INSTALLED_APPS = [
-    'jazzmin',
-    'django.contrib.admin',
-    # ... otras apps ...
-    'comercial',
-    'nomina',
-    'facturacion',
-    'airbnb',  # <-- AGREGAR ESTA LÍNEA
-    # ...
+ESTADO_CHOICES = [
+    ('CONFIRMADA', 'Confirmada'),
+    ('PENDIENTE', 'Pendiente de Aceptar'),  # <-- AGREGAR
+    ('CANCELADA', 'Cancelada'),
+    ('BLOQUEADA', 'Bloqueado por Host'),
 ]
 ```
 
-### Paso 3: Agregar URLs
+### 3. Actualizar `core_erp/urls.py`
 
-Edita `core_erp/urls.py` y agrega las rutas del módulo:
-
+Agregar al inicio:
 ```python
-# Al inicio, agregar el import
+from django.urls import path, include
+
 try:
-    from airbnb.views import dashboard_airbnb, calendario_unificado, reporte_pagos_airbnb
+    from airbnb.views import (
+        calendario_unificado, 
+        reporte_pagos_airbnb, 
+        dashboard_airbnb,
+        bloquear_en_airbnb,
+    )
 except ImportError:
-    dashboard_airbnb = calendario_unificado = reporte_pagos_airbnb = None
-
-# En urlpatterns, agregar estas rutas (antes de path('admin/', admin.site.urls)):
-    # --- MÓDULO AIRBNB ---
-    path('admin/airbnb/dashboard/', dashboard_airbnb, name='dashboard_airbnb'),
-    path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
-    path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
+    calendario_unificado = reporte_pagos_airbnb = dashboard_airbnb = bloquear_en_airbnb = None
 ```
 
-### Paso 4: Agregar icono en Jazzmin (opcional)
-
-En `core_erp/settings.py`, dentro de `JAZZMIN_SETTINGS["icons"]`, agregar:
-
+Agregar rutas (antes de `admin.site.urls`):
 ```python
-"icons": {
-    # ... iconos existentes ...
-    "airbnb.AnuncioAirbnb": "fas fa-home",
-    "airbnb.ReservaAirbnb": "fas fa-calendar-check",
-    "airbnb.PagoAirbnb": "fas fa-money-bill-wave",
-    "airbnb.ConflictoCalendario": "fas fa-exclamation-triangle",
-},
+# --- MÓDULO AIRBNB ---
+path('airbnb/', include('airbnb.urls')),
+path('admin/airbnb/dashboard/', dashboard_airbnb, name='dashboard_airbnb'),
+path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
+path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
+path('admin/airbnb/bloquear/<int:cotizacion_id>/', bloquear_en_airbnb, name='bloquear_en_airbnb'),
 ```
 
-### Paso 5: Ejecutar migraciones
+### 4. Migraciones
 
 ```bash
 python manage.py makemigrations airbnb
 python manage.py migrate
 ```
 
-### Paso 6: Configurar anuncios iniciales
-
-```bash
-python manage.py setup_airbnb
-```
-
-Esto creará los 3 anuncios con sus URLs de iCal:
-- Habitación 1 - Quinta (afecta eventos)
-- Habitación 2 - Quinta (afecta eventos)
-- Casa Completa (NO afecta eventos)
-
-### Paso 7: Primera sincronización
-
-```bash
-python manage.py sincronizar_airbnb
-```
-
-### Paso 8: Subir a producción
+### 5. Subir cambios
 
 ```bash
 git add .
-git commit -m "feat: Agregar módulo Airbnb con sincronización iCal y reportes"
+git commit -m "feat: Agregar iCal inverso y bloqueo manual en Airbnb"
 git push origin main
 ```
 
-## Uso
+---
 
-### Panel de Administración
+## 🆕 Nuevas funcionalidades
 
-Después de la instalación, en el admin verás la sección "Airbnb - Hospedaje" con:
+### 1. iCal Inverso (ERP → Airbnb)
 
-- **Anuncios Airbnb**: Gestión de listings
-- **Reservas Airbnb**: Reservaciones sincronizadas
-- **Pagos Airbnb**: Ingresos con retenciones calculadas
-- **Conflictos de Calendario**: Alertas de fechas que chocan
+**URL pública:** `https://tu-dominio.com/airbnb/ical/eventos/`
 
-### Dashboard
+**Configurar en Airbnb:**
+1. Ir a cada anuncio → Calendario → Disponibilidad
+2. Click en "Importar calendario"
+3. Pegar la URL del iCal
+4. Airbnb sincronizará cada 2-24 horas
 
-Accede a `/admin/airbnb/dashboard/` para ver:
-- Estadísticas del mes
-- Próximas reservas
-- Conflictos pendientes
-- Gráfico de ingresos
+### 2. Bloqueo Manual
 
-### Calendario Unificado
+Cuando confirmas un evento, puedes ir directamente a bloquear en Airbnb:
 
-Accede a `/admin/airbnb/calendario/` para ver eventos de la quinta + reservas de Airbnb en una sola vista.
+**URL:** `/admin/airbnb/bloquear/{cotizacion_id}/`
 
-### Reportes para Contador
+O agregar un botón en el admin de cotizaciones (ver siguiente sección).
 
-Accede a `/admin/airbnb/reportes/pagos/` para:
-- Ver desglose de pagos con retenciones (ISR 4%, IVA 8%)
-- Filtrar por mes/año
-- Exportar a Excel
+---
 
-### Importar Pagos desde CSV
+## 🔘 Agregar botón "Bloquear en Airbnb" en Cotizaciones (Opcional)
 
-1. Ve a Admin > Pagos Airbnb
-2. Click en "Importar CSV"
-3. Sube el archivo descargado de Airbnb > Ganancias
+En `comercial/admin.py`, dentro de `CotizacionAdmin`, agregar método:
 
-### Sincronización Automática (Opcional)
-
-Para sincronizar automáticamente cada 6 horas, agrega al cron:
-
-```bash
-0 */6 * * * cd /ruta/proyecto && python manage.py sincronizar_airbnb >> /var/log/airbnb_sync.log 2>&1
+```python
+def bloquear_airbnb_btn(self, obj):
+    if obj.estado == 'CONFIRMADA':
+        url = reverse('bloquear_en_airbnb', args=[obj.pk])
+        return format_html(
+            '<a href="{}" class="button" style="background:#FF5A5F; color:white; '
+            'padding:5px 10px; border-radius:4px; text-decoration:none;" '
+            'target="_blank">🔒 Airbnb</a>',
+            url
+        )
+    return '-'
+bloquear_airbnb_btn.short_description = "Bloquear"
 ```
 
-## Régimen Fiscal
+Y agregarlo a `list_display`:
+```python
+list_display = (..., 'bloquear_airbnb_btn')
+```
 
-El módulo está configurado para **Actividad Empresarial - Plataformas Tecnológicas** (Art. 113-A LISR):
+---
 
-- Retención ISR: 4%
-- Retención IVA: 8%
+## 📊 Mejoras en importación CSV
 
-Las retenciones se calculan automáticamente al registrar pagos.
+El servicio ahora:
+- Agrupa filas por código de confirmación
+- Ignora filas de "Payout" (sin código)
+- Suma correctamente retenciones ISR/IVA
+- Soporta formato de Airbnb México
 
-## Notas
+---
 
-- Las habitaciones 1 y 2 están marcadas como "afecta eventos" - generarán alertas de conflicto
-- La casa completa NO afecta eventos de la quinta
-- Los conflictos se detectan automáticamente al sincronizar
+## ✅ Resumen de URLs
+
+| URL | Descripción |
+|-----|-------------|
+| `/airbnb/ical/eventos/` | iCal público para importar en Airbnb |
+| `/admin/airbnb/calendario/` | Calendario unificado |
+| `/admin/airbnb/reportes/pagos/` | Reportes para contador |
+| `/admin/airbnb/bloquear/{id}/` | Bloqueo manual en Airbnb |

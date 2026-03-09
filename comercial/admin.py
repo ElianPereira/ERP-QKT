@@ -227,8 +227,11 @@ class CotizacionAdmin(admin.ModelAdmin):
     readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html')
 
     def save_model(self, request, obj, form, change):
-
-    # Solo validar si es una cotización nueva o si cambió la fecha
+        """
+        Valida que la fecha del evento no esté bloqueada por Airbnb
+        antes de guardar la cotización.
+        """
+        # Solo validar si es una cotización nueva o si cambió la fecha
         if not change or 'fecha_evento' in form.changed_data:
             try:
                 from airbnb.models import ReservaAirbnb
