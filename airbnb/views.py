@@ -353,8 +353,8 @@ def bloquear_en_airbnb(request, cotizacion_id):
     
     for anuncio in anuncios:
         if anuncio.airbnb_listing_id:
-            # URL directa al calendario del anuncio en la fecha específica
-            url = f"https://www.airbnb.com/hosting/calendar/{anuncio.airbnb_listing_id}?date={fecha_str}"
+            # URL directa al multicalendar de Airbnb México
+            url = f"https://www.airbnb.mx/multicalendar/{anuncio.airbnb_listing_id}"
             urls_bloqueo.append({
                 'nombre': anuncio.nombre,
                 'url': url,
