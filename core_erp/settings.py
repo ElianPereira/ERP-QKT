@@ -156,34 +156,33 @@ JAZZMIN_SETTINGS = {
     "show_sidebar": True,
     "navigation_expanded": True,
 
-    # --------------------------------------------------
-    # ICONOS
-    # --------------------------------------------------
     "icons": {
         # App-level
-        "comercial":                        "fas fa-calendar-star",
+        "comercial":                        "fas fa-calendar-alt",
         "airbnb":                           "fas fa-home",
         "nomina":                           "fas fa-users",
         "facturacion":                      "fas fa-file-invoice",
         "auth":                             "fas fa-cog",
 
-        # EVENTOS & SERVICIOS (comercial)
+        # EVENTOS & SERVICIOS
         "comercial.Cotizacion":             "fas fa-file-invoice-dollar",
         "comercial.Cliente":                "fas fa-address-book",
         "comercial.Pago":                   "fas fa-hand-holding-usd",
         "comercial.Gasto":                  "fas fa-money-bill-wave",
+        # Catálogo
         "comercial.Producto":               "fas fa-box-open",
         "comercial.SubProducto":            "fas fa-blender",
         "comercial.Insumo":                 "fas fa-cubes",
         "comercial.PlantillaBarra":         "fas fa-cocktail",
         "comercial.Proveedor":              "fas fa-truck",
+        "comercial.Compra":                 "fas fa-shopping-cart",
         "comercial.ConstanteSistema":       "fas fa-sliders-h",
 
-        # AIRBNB & HOSPEDAJE (airbnb)
-        "airbnb.AnuncioAirbnb":             "fas fa-home",
+        # AIRBNB & HOSPEDAJE
         "airbnb.ReservaAirbnb":             "fas fa-calendar-check",
-        "airbnb.PagoAirbnb":               "fas fa-money-bill-wave",
+        "airbnb.PagoAirbnb":               "fas fa-hand-holding-usd",
         "airbnb.ConflictoCalendario":       "fas fa-exclamation-triangle",
+        "airbnb.AnuncioAirbnb":             "fas fa-home",
 
         # NÓMINA
         "nomina.Empleado":                  "fas fa-user-tie",
@@ -198,9 +197,6 @@ JAZZMIN_SETTINGS = {
         "auth.group":                       "fas fa-users-cog",
     },
 
-    # --------------------------------------------------
-    # TOP MENU
-    # --------------------------------------------------
     "topmenu_links": [
         {"name": "🏠 Inicio",          "url": "admin:index",           "permissions": ["auth.view_user"]},
         {"name": "📅 Calendario",       "url": "ver_calendario"},
@@ -210,44 +206,40 @@ JAZZMIN_SETTINGS = {
         {"name": "🚪 Cerrar Sesión",    "url": "/admin/logout/",        "new_window": False},
     ],
 
-    # --------------------------------------------------
-    # ORDEN DEL SIDEBAR
-    # Jazzmin agrupa por app automáticamente.
-    # El nombre de la cabecera viene del verbose_name de cada app.
-    # --------------------------------------------------
     "order_with_respect_to": [
-        # === 1. EVENTOS & SERVICIOS ===
+        # === EVENTOS & SERVICIOS ===
         "comercial",
         "comercial.Cotizacion",
         "comercial.Cliente",
         "comercial.Pago",
         "comercial.Gasto",
-        # Catálogo al fondo de la misma sección
+        # Catálogo (uso ocasional)
         "comercial.Producto",
         "comercial.SubProducto",
         "comercial.Insumo",
         "comercial.PlantillaBarra",
         "comercial.Proveedor",
-        "comercial.ConstanteSistema",
+        "comercial.Compra",
+        "comercial.ConstanteSistema",   # ← al fondo
 
-        # === 2. AIRBNB & HOSPEDAJE ===
+        # === AIRBNB & HOSPEDAJE ===
         "airbnb",
         "airbnb.ReservaAirbnb",
         "airbnb.PagoAirbnb",
         "airbnb.ConflictoCalendario",
-        "airbnb.AnuncioAirbnb",
+        "airbnb.AnuncioAirbnb",         # ← configuración al fondo
 
-        # === 3. NÓMINA ===
+        # === NÓMINA ===
         "nomina",
         "nomina.Empleado",
         "nomina.ReciboNomina",
 
-        # === 4. FACTURACIÓN ===
+        # === FACTURACIÓN ===
         "facturacion",
         "facturacion.ClienteFiscal",
         "facturacion.SolicitudFactura",
 
-        # === 5. ADMINISTRACIÓN ===
+        # === ADMINISTRACIÓN ===
         "auth",
         "auth.user",
         "auth.group",
