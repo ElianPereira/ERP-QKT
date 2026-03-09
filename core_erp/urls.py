@@ -1,15 +1,15 @@
-from django.urls import path, include
-try:
-    from airbnb.views import calendario_unificado, reporte_pagos_airbnb
-except ImportError:
-    calendario_unificado = reporte_pagos_airbnb = None
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 from django.contrib.auth import logout
 from django.shortcuts import redirect
+
+try:
+    from airbnb.views import calendario_unificado, reporte_pagos_airbnb, bloquear_en_airbnb
+except ImportError:
+    calendario_unificado = reporte_pagos_airbnb = bloquear_en_airbnb = None
 
 # --- FUNCIÓN DE LOGOUT MANUAL (CORREGIDA) ---
 def custom_logout(request):
@@ -90,7 +90,7 @@ urlpatterns = [
 
     path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
     path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
-
+    path('admin/airbnb/bloquear/<int:cotizacion_id>/', bloquear_en_airbnb, name='bloquear_en_airbnb'),
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
 
