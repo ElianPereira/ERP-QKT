@@ -201,6 +201,7 @@ class PagoInline(admin.TabularInline):
 
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
+    change_form_template = 'admin/comercial/cotizacion/change_form.html'
     inlines = [ItemCotizacionInline, PagoInline]
     list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'precio_final', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
