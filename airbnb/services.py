@@ -142,7 +142,13 @@ class SincronizadorAirbnbService:
         return creadas, actualizadas, errores
     
     def _procesar_evento(self, anuncio: AnuncioAirbnb, evento: Dict) -> Tuple[ReservaAirbnb, bool]:
-        """Procesa un evento del iCal y crea/actualiza la reserva."""
+        """
+        Procesa un evento del iCal y crea/actualiza la reserva.
+        
+        Usa doble verificación para evitar duplicados:
+        1. Primero busca por uid_ical (identificador único del iCal)
+        2. Si no existe, busca por anuncio + fechas (evita duplicados por UIDs cambiantes)
+        """
         uid = evento['uid']
         titulo = evento.get('titulo', '')
         fecha_inicio = evento['fecha_inicio']
@@ -150,19 +156,48 @@ class SincronizadorAirbnbService:
         
         estado, origen = self._detectar_estado_y_origen(titulo)
         
-        reserva, creada = ReservaAirbnb.objects.update_or_create(
+        # Primero intentar buscar por UID
+        reserva_existente = ReservaAirbnb.objects.filter(uid_ical=uid).first()
+        
+        if reserva_existente:
+            # Actualizar reserva existente
+            reserva_existente.anuncio = anuncio
+            reserva_existente.titulo = titulo
+            reserva_existente.fecha_inicio = fecha_inicio
+            reserva_existente.fecha_fin = fecha_fin
+            reserva_existente.estado = estado
+            reserva_existente.origen = origen
+            reserva_existente.save()
+            return reserva_existente, False
+        
+        # Si no existe por UID, buscar por anuncio + fechas exactas (evita duplicados)
+        reserva_por_fechas = ReservaAirbnb.objects.filter(
+            anuncio=anuncio,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin
+        ).first()
+        
+        if reserva_por_fechas:
+            # Actualizar la reserva existente con el nuevo UID
+            reserva_por_fechas.uid_ical = uid
+            reserva_por_fechas.titulo = titulo
+            reserva_por_fechas.estado = estado
+            reserva_por_fechas.origen = origen
+            reserva_por_fechas.save()
+            return reserva_por_fechas, False
+        
+        # Crear nueva reserva
+        reserva = ReservaAirbnb.objects.create(
             uid_ical=uid,
-            defaults={
-                'anuncio': anuncio,
-                'titulo': titulo,
-                'fecha_inicio': fecha_inicio,
-                'fecha_fin': fecha_fin,
-                'estado': estado,
-                'origen': origen,
-            }
+            anuncio=anuncio,
+            titulo=titulo,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            estado=estado,
+            origen=origen,
         )
         
-        return reserva, creada
+        return reserva, True
     
     def _detectar_estado_y_origen(self, titulo: str) -> Tuple[str, str]:
         """
