@@ -190,3 +190,17 @@ body.login-page .main-footer {
         font-size: 16px !important;
     }
 }
+
+/* Ocultar logo duplicado - Jazzmin genera logo-light y logo-dark */
+body.login-page .login-logo .logo-dark {
+    display: none !important;
+}
+
+body.login-page .login-logo .logo-light {
+    display: block !important;
+    max-width: 210px !important;
+    width: 72% !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.18)) !important;
+}
