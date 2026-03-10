@@ -88,7 +88,7 @@
                         <i class="fas fa-file-signature"></i> Pedir Factura
                     </a>
                     {% if es_jefe %}
-                        <a href="{% url 'admin:comercial_gasto_add' %}" class="btn btn-app">
+                        <a href="{% url 'admin:comercial_compra_changelist' %}" class="btn btn-app">
                             <i class="fas fa-file-invoice"></i> Registrar Gasto
                         </a>
                         <a href="{% url 'exportar_cierre_excel' %}" class="btn btn-app" style="background-color: #28a745; color: white;">
