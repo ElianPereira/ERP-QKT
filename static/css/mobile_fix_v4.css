@@ -1,17 +1,192 @@
 /* static/css/mobile_fix_v4.css */
-/* VERSIÓN MINIMALISTA: Solo Scroll de Tablas */
 
+/* ============================================================
+   SCROLL DE TABLAS INLINE (fix original)
+   ============================================================ */
 @media screen and (max-width: 900px) {
-    /* Solo aplicamos scroll al contenedor de la tabla inline */
     .inline-group .tabular {
         display: block;
         overflow-x: auto;
         width: 100%;
         -webkit-overflow-scrolling: touch;
     }
-    
-    /* Forzamos ancho mínimo para que no se apriete */
     .inline-group .tabular table {
-        min-width: 800px; 
+        min-width: 800px;
+    }
+}
+
+
+/* ============================================================
+   LOGIN PAGE — REDISEÑO COMPLETO (clases reales de Jazzmin)
+   ============================================================ */
+
+/* Fondo de página */
+body.login-page {
+    background-color: #f0ebe0 !important;
+    min-height: 100vh;
+}
+
+/* Caja principal centrada */
+body.login-page .login-box {
+    width: 100% !important;
+    max-width: 420px !important;
+    margin: 0 auto !important;
+    padding: 40px 15px !important;
+}
+
+/* ---- LOGO ---- */
+body.login-page .login-logo {
+    background: #F5C518 !important;
+    border-radius: 16px 16px 0 0 !important;
+    padding: 30px 24px 24px !important;
+    text-align: center !important;
+    margin-bottom: 0 !important;
+}
+
+body.login-page .login-logo img {
+    max-width: 210px !important;
+    width: 72% !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto !important;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.18)) !important;
+}
+
+/* Ocultar link del logo si existe */
+body.login-page .login-logo a {
+    display: block !important;
+    line-height: 0 !important;
+}
+
+/* ---- CARD ---- */
+body.login-page .login-box .card {
+    border-radius: 0 0 16px 16px !important;
+    border: none !important;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.07) !important;
+    overflow: hidden !important;
+    margin-top: 0 !important;
+}
+
+/* ---- BODY DEL FORM ---- */
+body.login-page .login-card-body {
+    padding: 28px 28px 24px !important;
+    background: #ffffff !important;
+}
+
+/* Subtítulo bienvenida */
+body.login-page .login-box-msg {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #666 !important;
+    text-align: center !important;
+    margin-bottom: 22px !important;
+    letter-spacing: 0.3px !important;
+}
+
+/* ---- INPUTS ---- */
+body.login-page .input-group {
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    border: 2px solid #e8e8e8 !important;
+    transition: border-color 0.2s !important;
+    margin-bottom: 14px !important;
+}
+
+body.login-page .input-group:focus-within {
+    border-color: #F5C518 !important;
+    box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.15) !important;
+}
+
+body.login-page .input-group .form-control {
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px 14px !important;
+    font-size: 15px !important;
+    background: #fafafa !important;
+    color: #333 !important;
+    box-shadow: none !important;
+}
+
+body.login-page .input-group .form-control:focus {
+    background: #fff !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+body.login-page .input-group .input-group-text {
+    background: #fafafa !important;
+    border: none !important;
+    color: #aaa !important;
+    font-size: 14px !important;
+    padding: 0 14px !important;
+}
+
+/* ---- BOTÓN SUBMIT ---- */
+body.login-page .btn-primary,
+body.login-page input[type="submit"] {
+    width: 100% !important;
+    padding: 13px !important;
+    background: #1a1a2e !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px !important;
+    cursor: pointer !important;
+    margin-top: 6px !important;
+    transition: background 0.2s, transform 0.1s, color 0.2s !important;
+}
+
+body.login-page .btn-primary:hover,
+body.login-page input[type="submit"]:hover {
+    background: #F5C518 !important;
+    color: #1a1a2e !important;
+    transform: translateY(-1px) !important;
+}
+
+body.login-page .btn-primary:active {
+    transform: translateY(0) !important;
+}
+
+/* ---- MENSAJES DE ERROR ---- */
+body.login-page .alert-danger,
+body.login-page .errornote {
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 16px !important;
+}
+
+/* ---- OCULTAR FOOTER EN LOGIN ---- */
+body.login-page footer,
+body.login-page .main-footer {
+    display: none !important;
+}
+
+/* ============================================================
+   LOGIN — RESPONSIVE MÓVIL
+   ============================================================ */
+@media screen and (max-width: 480px) {
+    body.login-page .login-box {
+        padding: 20px 12px !important;
+    }
+
+    body.login-page .login-logo {
+        padding: 22px 16px 18px !important;
+    }
+
+    body.login-page .login-logo img {
+        width: 62% !important;
+        max-width: 160px !important;
+    }
+
+    body.login-page .login-card-body {
+        padding: 22px 18px 18px !important;
+    }
+
+    /* Evita zoom automático en iOS al hacer focus */
+    body.login-page .input-group .form-control {
+        font-size: 16px !important;
     }
 }
