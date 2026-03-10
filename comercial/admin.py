@@ -9,7 +9,8 @@ from django.db.models import Sum
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
     Cliente, Cotizacion, ItemCotizacion, Pago, 
-    Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor
+    Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
+    MovimientoInventario
 )
 from .services import CalculadoraBarraService
 
@@ -60,7 +61,7 @@ class ProveedorAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(Insumo)
 class InsumoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'presentacion', 'categoria', 'proveedor', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock')
+    list_display = ('nombre', 'presentacion', 'categoria', 'proveedor', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock', 'badge_stock')
     list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
     list_filter = ('categoria', 'proveedor')
     search_fields = ('nombre', 'proveedor__nombre', 'presentacion') 
@@ -68,10 +69,89 @@ class InsumoAdmin(admin.ModelAdmin):
     list_per_page = 20
     fieldsets = (
         (None, {'fields': ('nombre', 'presentacion', 'categoria', 'unidad_medida')}),
-        ('Costos y Stock', {'fields': ('costo_unitario', 'factor_rendimiento', 'cantidad_stock')}),
+        ('Costos y Stock', {'fields': ('costo_unitario', 'factor_rendimiento', 'cantidad_stock', 'stock_minimo')}),
         ('Proveedor', {'fields': ('proveedor',)}),
         ('Opciones', {'fields': ('crear_como_subproducto',), 'classes': ('collapse',)}),
     )
+    
+    def badge_stock(self, obj):
+        """Muestra badge visual del estado del stock."""
+        if obj.stock_minimo > 0 and obj.cantidad_stock < obj.stock_minimo:
+            return format_html(
+                '<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">⚠️ BAJO</span>'
+            )
+        elif obj.cantidad_stock > 0:
+            return format_html(
+                '<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">✅ OK</span>'
+            )
+        return format_html(
+            '<span style="background:#95a5a6; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">Sin stock</span>'
+        )
+    badge_stock.short_description = "Estado"
+    
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
+
+
+# ==========================================
+# MOVIMIENTOS DE INVENTARIO (NUEVO)
+# ==========================================
+@admin.register(MovimientoInventario)
+class MovimientoInventarioAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'insumo', 'tipo_badge', 'cantidad', 'stock_anterior', 'stock_posterior', 'nota_corta', 'created_by')
+    list_filter = ('tipo', 'created_at', 'insumo')
+    search_fields = ('insumo__nombre', 'nota')
+    raw_id_fields = ['insumo', 'compra', 'cotizacion']
+    readonly_fields = ('stock_anterior', 'stock_posterior', 'created_at', 'created_by')
+    list_per_page = 30
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Movimiento', {'fields': ('insumo', 'tipo', 'cantidad')}),
+        ('Referencias', {'fields': ('compra', 'cotizacion', 'nota'), 'classes': ('collapse',)}),
+        ('Auditoría', {'fields': ('stock_anterior', 'stock_posterior', 'created_by', 'created_at')}),
+    )
+    
+    def tipo_badge(self, obj):
+        colores = {
+            'ENTRADA': '#27ae60',
+            'SALIDA': '#e74c3c',
+            'AJUSTE_POS': '#3498db',
+            'AJUSTE_NEG': '#e67e22',
+            'DEVOLUCION': '#9b59b6',
+        }
+        color = colores.get(obj.tipo, '#666')
+        signo = '+' if obj.tipo in ('ENTRADA', 'AJUSTE_POS') else '-'
+        return format_html(
+            '<span style="background:{}; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">{} {}</span>',
+            color, signo, obj.get_tipo_display()
+        )
+    tipo_badge.short_description = "Tipo"
+    tipo_badge.admin_order_field = 'tipo'
+    
+    def nota_corta(self, obj):
+        if obj.nota:
+            return obj.nota[:50] + '...' if len(obj.nota) > 50 else obj.nota
+        return '-'
+    nota_corta.short_description = "Nota"
+    
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.full_clean()
+        super().save_model(request, obj, form, change)
+    
+    def has_delete_permission(self, request, obj=None):
+        """Los movimientos de inventario NO se eliminan (auditoría)."""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Los movimientos de inventario NO se editan."""
+        if obj:
+            return False
+        return True
+    
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -196,14 +276,14 @@ class ItemCotizacionInline(admin.TabularInline):
 class PagoInline(admin.TabularInline):
     model = Pago
     extra = 0
-    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'usuario')
-    readonly_fields = ('usuario',)
+    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'notas', 'usuario', 'created_at')
+    readonly_fields = ('usuario', 'created_at')
 
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
     inlines = [ItemCotizacionInline, PagoInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'precio_final', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn')
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
@@ -223,44 +303,128 @@ class CotizacionAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
         ('Finanzas', {'fields': ('subtotal', 'descuento', 'requiere_factura', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final')}),
+        ('Cancelación', {
+            'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'),
+            'classes': ('collapse',),
+        }),
         ('Documentos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion')
+
+    def estado_badge(self, obj):
+        """Badge visual para el estado del pipeline."""
+        colores = {
+            'BORRADOR': '#95a5a6',
+            'COTIZADA': '#3498db',
+            'ANTICIPO': '#f39c12',
+            'CONFIRMADA': '#27ae60',
+            'EN_PREPARACION': '#8e44ad',
+            'EJECUTADA': '#2c3e50',
+            'CERRADA': '#1abc9c',
+            'CANCELADA': '#e74c3c',
+        }
+        color = colores.get(obj.estado, '#666')
+        return format_html(
+            '<span style="background:{}; color:white; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:bold;">{}</span>',
+            color, obj.get_estado_display()
+        )
+    estado_badge.short_description = "Estado"
+    estado_badge.admin_order_field = 'estado'
+    
+    def pago_badge(self, obj):
+        """Badge visual del porcentaje de pago."""
+        porcentaje = obj.porcentaje_pagado
+        if porcentaje >= 100:
+            color = '#27ae60'
+            icono = '✅'
+        elif porcentaje >= 50:
+            color = '#f39c12'
+            icono = '🔶'
+        elif porcentaje > 0:
+            color = '#e67e22'
+            icono = '🔸'
+        else:
+            color = '#e74c3c'
+            icono = '⭕'
+        
+        return format_html(
+            '<span style="color:{}; font-weight:bold;">{} {}%</span>',
+            color, icono, porcentaje
+        )
+    pago_badge.short_description = "Pagado"
 
     def save_model(self, request, obj, form, change):
         """
-        Valida que la fecha del evento no esté bloqueada por Airbnb
-        antes de guardar la cotización.
+        Valida transición de estado y conflictos Airbnb.
         """
-        # Solo validar si es una cotización nueva o si cambió la fecha
-        if not change or 'fecha_evento' in form.changed_data:
-            try:
-                from airbnb.models import ReservaAirbnb
+        if change:
+            # Obtener estado anterior
+            old_obj = Cotizacion.objects.filter(pk=obj.pk).values('estado').first()
+            old_estado = old_obj['estado'] if old_obj else 'BORRADOR'
             
-                # Buscar reservas de Airbnb que bloqueen esta fecha
-                reservas_conflicto = ReservaAirbnb.objects.filter(
-                    anuncio__afecta_eventos_quinta=True,
-                    anuncio__activo=True,
-                    estado='CONFIRMADA',
-                    fecha_inicio__lte=obj.fecha_evento,
-                    fecha_fin__gt=obj.fecha_evento,
-                ).select_related('anuncio')
-            
-                if reservas_conflicto.exists():
-                    reserva = reservas_conflicto.first()
+            # Si el estado cambió, validar la transición
+            if obj.estado != old_estado:
+                permitidos = Cotizacion.TRANSICIONES_PERMITIDAS.get(old_estado, [])
+                if obj.estado not in permitidos:
                     messages.error(
                         request,
-                        f"⚠️ NO SE PUEDE GUARDAR: La fecha {obj.fecha_evento.strftime('%d/%m/%Y')} "
-                        f"está bloqueada por una reserva de Airbnb en '{reserva.anuncio.nombre}' "
-                        f"({reserva.fecha_inicio.strftime('%d/%m')} - {reserva.fecha_fin.strftime('%d/%m')}). "
-                        f"Debes cancelar la reserva de Airbnb primero o elegir otra fecha."
+                        f"⛔ No se puede cambiar de '{dict(Cotizacion.ESTADOS).get(old_estado)}' a "
+                        f"'{obj.get_estado_display()}'. "
+                        f"Transiciones permitidas: {', '.join(dict(Cotizacion.ESTADOS).get(e, e) for e in permitidos) or 'Ninguna'}"
                     )
                     return  # No guardar
                 
+                # Validar anticipo para CONFIRMADA
+                if obj.estado == 'CONFIRMADA':
+                    try:
+                        porcentaje_minimo = float(ConstanteSistema.objects.get(clave='PORCENTAJE_ANTICIPO_MINIMO').valor)
+                    except ConstanteSistema.DoesNotExist:
+                        porcentaje_minimo = 0
+                    
+                    if porcentaje_minimo > 0 and obj.precio_final > 0:
+                        pagado = obj.total_pagado()
+                        porcentaje_pagado = (pagado / obj.precio_final) * 100
+                        if porcentaje_pagado < porcentaje_minimo:
+                            messages.error(
+                                request,
+                                f"⛔ Se requiere al menos {porcentaje_minimo}% de anticipo para confirmar. "
+                                f"Pagado: {porcentaje_pagado:.1f}% (${pagado:,.2f} de ${obj.precio_final:,.2f})"
+                            )
+                            return
+                
+                # Validar que tenga items para avanzar de BORRADOR
+                if old_estado == 'BORRADOR' and obj.estado != 'CANCELADA':
+                    if obj.pk and not obj.items.exists():
+                        messages.error(request, "⛔ La cotización debe tener al menos un item antes de avanzar.")
+                        return
+                
+                # Validar motivo de cancelación
+                if obj.estado == 'CANCELADA' and not obj.motivo_cancelacion:
+                    messages.error(request, "⛔ Debe indicar el motivo de cancelación.")
+                    return
+                
+                # Registrar datos de cancelación
+                if obj.estado == 'CANCELADA':
+                    obj.cancelada_por = request.user
+                    from django.utils.timezone import now
+                    obj.fecha_cancelacion = now()
+        
+        # Validar conflictos Airbnb para estados que implican uso del espacio
+        if obj.estado in ('CONFIRMADA', 'EN_PREPARACION'):
+            try:
+                from airbnb.validacion_fechas import validar_fecha_disponible
+                disponible, mensaje = validar_fecha_disponible(obj.fecha_evento, exclude_cotizacion_id=obj.pk)
+                if not disponible:
+                    messages.error(
+                        request,
+                        f"⛔ Conflicto de calendario: {mensaje}. "
+                        f"Debes cancelar la reserva de Airbnb primero o elegir otra fecha."
+                    )
+                    return
             except ImportError:
-                # Si el módulo airbnb no está instalado, continuar normal
                 pass
     
+        if not obj.pk: obj.usuario = request.user
         super().save_model(request, obj, form, change)
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
@@ -282,10 +446,6 @@ class CotizacionAdmin(admin.ModelAdmin):
         return mark_safe(render_to_string('admin/comercial/resumen_barra_partial.html', {'datos': datos}))
     resumen_barra_html.short_description = "Reporte Ejecutivo"
 
-    def save_model(self, request, obj, form, change):
-        if not obj.pk: obj.usuario = request.user
-        super().save_model(request, obj, form, change)
-
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for obj in formset.deleted_objects: obj.delete()
@@ -296,44 +456,44 @@ class CotizacionAdmin(admin.ModelAdmin):
         cot = formset.instance
         if isinstance(cot, Cotizacion):
             cot.calcular_totales()
-            Cotizacion.objects.filter(pk=cot.pk).update(subtotal=cot.subtotal, precio_final=cot.precio_final)
+            Cotizacion.objects.filter(pk=cot.pk).update(
+                subtotal=cot.subtotal, iva=cot.iva,
+                retencion_isr=cot.retencion_isr, retencion_iva=cot.retencion_iva,
+                precio_final=cot.precio_final
+            )
 
     def ver_pdf(self, obj):
-        if obj.id:
-            try:
-                url = reverse('cotizacion_pdf', args=[obj.id])
-                return format_html('<a href="{}" target="_blank" class="btn btn-primary">PDF</a>', url)
-            except NoReverseMatch: return "-"
-        return "-"
+        try:
+            url = reverse('cotizacion_pdf', args=[obj.id])
+            return format_html('<a href="{}" target="_blank" class="btn btn-sm" style="background:#17a2b8; color:white; padding:4px 10px; border-radius:4px;">📄 PDF</a>', url)
+        except NoReverseMatch: return "-"
     ver_pdf.short_description = "PDF"
 
     def ver_lista_compras(self, obj):
-        if obj.id:
-            try:
-                checks = [obj.incluye_refrescos, obj.incluye_cerveza, obj.incluye_licor_nacional, obj.incluye_licor_premium, obj.incluye_cocteleria_basica, obj.incluye_cocteleria_premium]
-                if any(checks):
-                    url = reverse('cotizacion_lista_compras', args=[obj.id])
-                    return format_html('<a href="{}" target="_blank" class="btn btn-warning" style="background-color:#ffc107; color:#212529; border:none;">📋 Lista</a>', url)
-            except NoReverseMatch: return "-"
-        return "-"
-    ver_lista_compras.short_description = "Insumos"
+        try:
+            url = reverse('cotizacion_lista_compras', args=[obj.id])
+            return format_html('<a href="{}" target="_blank" class="btn btn-sm" style="background:#28a745; color:white; padding:4px 10px; border-radius:4px;">🛒 Lista</a>', url)
+        except NoReverseMatch: return "-"
+    ver_lista_compras.short_description = "Compras"
 
     def enviar_email_btn(self, obj):
-        if obj.id:
+        if obj.pk:
             try:
                 url = reverse('cotizacion_email', args=[obj.id])
-                return format_html('<a href="{}" class="btn btn-success">Enviar</a>', url)
+                return format_html('<a href="{}" class="btn btn-sm" style="background:#ffc107; color:#333; padding:4px 10px; border-radius:4px;" onclick="return confirm(\'¿Enviar cotización por email?\')">📧 Enviar</a>', url)
             except NoReverseMatch: return "-"
         return "-"
     enviar_email_btn.short_description = "Email"
 
+
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    list_display = ('fecha_pago', 'cotizacion', 'monto', 'metodo', 'usuario')
-    list_filter = ('fecha_pago', 'metodo', 'usuario')
-    search_fields = ('cotizacion__cliente__nombre', 'referencia')
+    list_display = ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
+    list_filter = ('metodo', 'fecha_pago')
+    search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
+    readonly_fields = ('usuario', 'created_at', 'updated_at')
     date_hierarchy = 'fecha_pago'
-    raw_id_fields = ['cotizacion'] 
+    
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -387,22 +547,13 @@ class CompraAdmin(admin.ModelAdmin):
             if exitos > 0: messages.success(request, f"✅ Se procesaron {exitos} facturas correctamente.")
             if errores > 0: messages.warning(request, f"⚠️ Hubo problemas con {errores} archivos.")
             return redirect('..')
-        context = dict(self.admin_site.each_context(request))
-        return render(request, "comercial/carga_masiva.html", context)
+        return render(request, 'comercial/carga_masiva_xml.html', {'title': 'Carga Masiva de XML'})
+    
     def total_format(self, obj): return f"${obj.total:,.2f}"
+    total_format.short_description = "Total"
+    
     def ver_pdf(self, obj):
-        if obj.archivo_pdf: return format_html('<a href="{}" target="_blank" style="background-color:#dc3545; color:white; padding:2px 5px; border-radius:3px;">PDF</a>', obj.archivo_pdf.url)
+        if obj.archivo_pdf:
+            return format_html('<a href="{}" target="_blank">📄 Ver</a>', obj.archivo_pdf.url)
         return "-"
-
-@admin.register(Gasto)
-class GastoAdmin(admin.ModelAdmin):
-    change_list_template = "comercial/gasto_change_list.html"
-    list_display = ('descripcion', 'categoria', 'total_linea', 'proveedor', 'fecha_gasto', 'evento_relacionado')
-    list_filter = ('categoria', 'fecha_gasto', 'proveedor')
-    search_fields = ('descripcion', 'proveedor')
-    list_editable = ('categoria', 'evento_relacionado') 
-    list_per_page = 50
-    autocomplete_fields = ['compra', 'evento_relacionado']
-    class Media:
-        css = MEDIA_CONFIG['css']
-        js = MEDIA_CONFIG['js']
+    ver_pdf.short_description = "PDF"

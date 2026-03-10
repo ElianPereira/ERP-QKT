@@ -204,6 +204,7 @@ JAZZMIN_SETTINGS = {
         {"name": "🧮 Calculadora",      "url": "admin_calculadora"},
         {"name": "🛒 Lista de Compras", "url": "generar_lista_compras"},
         {"name": "🚪 Cerrar Sesión",    "url": "/admin/logout/",        "new_window": False},
+        {"name": "💰 Cartera", "url": "cartera_cxc"},
     ],
 
     "order_with_respect_to": [

@@ -3,6 +3,7 @@ import math
 import os
 import re
 import openpyxl 
+from .models import MovimientoInventario
 from datetime import datetime, timedelta
 from openpyxl.styles import Font, PatternFill
 from django.shortcuts import render, get_object_or_404, redirect
@@ -1389,3 +1390,99 @@ def webhook_manychat(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': f'Error interno: {str(e)}'}, status=500)
+
+
+# ==========================================
+# NUEVO: DASHBOARD CxC (CARTERA DE CLIENTES)
+# ==========================================
+# Agregar este import arriba en views.py:
+# from django.db.models import F, Value, CharField, Case, When, DecimalField
+# from django.db.models.functions import Coalesce
+
+@staff_member_required
+def ver_cartera_cxc(request):
+    """
+    Dashboard de Cuentas por Cobrar.
+    Muestra cotizaciones con saldo pendiente, antigüedad y alertas.
+    """
+    from django.db.models import F, Case, When, Value, CharField, DecimalField
+    from django.db.models.functions import Coalesce
+    
+    context = admin.site.each_context(request)
+    hoy = timezone.now().date()
+    
+    # Cotizaciones con saldo pendiente (excluir canceladas y cerradas)
+    cotizaciones = Cotizacion.objects.filter(
+        estado__in=['COTIZADA', 'ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION', 'EJECUTADA']
+    ).select_related('cliente').prefetch_related('pagos').order_by('fecha_evento')
+    
+    cartera = []
+    total_por_cobrar = Decimal('0.00')
+    total_vencido = Decimal('0.00')
+    total_por_vencer = Decimal('0.00')
+    
+    # Contadores por antigüedad
+    al_dia = 0
+    vence_7_dias = 0
+    vence_30_dias = 0
+    vencido = 0
+    
+    for cot in cotizaciones:
+        saldo = cot.saldo_pendiente()
+        if saldo <= Decimal('0.50'):
+            continue  # Ya pagado
+        
+        total_por_cobrar += saldo
+        dias_evento = (cot.fecha_evento - hoy).days
+        
+        # Clasificar antigüedad
+        if dias_evento < 0:
+            # Evento ya pasó y no ha pagado todo
+            antiguedad = 'VENCIDO'
+            vencido += 1
+            total_vencido += saldo
+        elif dias_evento <= 7:
+            antiguedad = 'URGENTE'
+            vence_7_dias += 1
+            total_por_vencer += saldo
+        elif dias_evento <= 30:
+            antiguedad = 'PROXIMO'
+            vence_30_dias += 1
+            total_por_vencer += saldo
+        else:
+            antiguedad = 'AL_DIA'
+            al_dia += 1
+        
+        cartera.append({
+            'cotizacion': cot,
+            'folio': f"COT-{cot.id:03d}",
+            'cliente': cot.cliente.nombre,
+            'evento': cot.nombre_evento,
+            'fecha_evento': cot.fecha_evento,
+            'precio_final': cot.precio_final,
+            'total_pagado': cot.total_pagado(),
+            'saldo': saldo,
+            'porcentaje_pagado': cot.porcentaje_pagado,
+            'dias_evento': dias_evento,
+            'antiguedad': antiguedad,
+            'telefono': cot.cliente.telefono,
+            'email': cot.cliente.email,
+        })
+    
+    # Ordenar: vencidos primero, luego por fecha de evento
+    orden_prioridad = {'VENCIDO': 0, 'URGENTE': 1, 'PROXIMO': 2, 'AL_DIA': 3}
+    cartera.sort(key=lambda x: (orden_prioridad.get(x['antiguedad'], 4), x['fecha_evento']))
+    
+    context.update({
+        'cartera': cartera,
+        'total_por_cobrar': total_por_cobrar,
+        'total_vencido': total_vencido,
+        'total_por_vencer': total_por_vencer,
+        'count_total': len(cartera),
+        'count_vencido': vencido,
+        'count_urgente': vence_7_dias,
+        'count_proximo': vence_30_dias,
+        'count_al_dia': al_dia,
+    })
+    
+    return render(request, 'admin/comercial/cartera_cxc.html', context)

@@ -1,0 +1,151 @@
+{% extends "admin/base_site.html" %}
+{% load humanize %}
+
+{% block title %}Cartera de Clientes - CxC{% endblock %}
+
+{% block content %}
+<style>
+    .cxc-container { max-width: 1400px; margin: 0 auto; padding: 15px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+    .kpi-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center; border-left: 4px solid #3498db; }
+    .kpi-card.vencido { border-left-color: #e74c3c; }
+    .kpi-card.urgente { border-left-color: #f39c12; }
+    .kpi-card.proximo { border-left-color: #3498db; }
+    .kpi-card.ok { border-left-color: #27ae60; }
+    .kpi-value { font-size: 28px; font-weight: 700; color: #2c3e50; margin-bottom: 5px; }
+    .kpi-label { font-size: 13px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
+    .kpi-count { font-size: 14px; color: #95a5a6; margin-top: 3px; }
+    
+    .cartera-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .cartera-table th { background: #2c3e50; color: white; padding: 12px 15px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .cartera-table td { padding: 10px 15px; border-bottom: 1px solid #ecf0f1; font-size: 13px; }
+    .cartera-table tr:hover { background: #f8f9fa; }
+    
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; color: white; }
+    .badge-vencido { background: #e74c3c; }
+    .badge-urgente { background: #f39c12; }
+    .badge-proximo { background: #3498db; }
+    .badge-ok { background: #27ae60; }
+    
+    .progress-bar-container { width: 100%; background: #ecf0f1; border-radius: 10px; height: 8px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 10px; transition: width 0.3s; }
+    
+    .btn-action { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 11px; text-decoration: none; margin: 1px; }
+    .btn-whatsapp { background: #25D366; color: white; }
+    .btn-email { background: #3498db; color: white; }
+    .btn-ver { background: #6c757d; color: white; }
+    
+    .section-title { font-size: 20px; font-weight: 700; color: #2c3e50; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    .empty-state { text-align: center; padding: 40px; color: #95a5a6; font-size: 16px; }
+    
+    @media (max-width: 768px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        .cartera-table { display: block; overflow-x: auto; }
+    }
+</style>
+
+<div class="cxc-container">
+    <div class="section-title">
+        💰 Cartera de Clientes — Cuentas por Cobrar
+    </div>
+    
+    <!-- KPIs -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-value">${{ total_por_cobrar|floatformat:0|intcomma }}</div>
+            <div class="kpi-label">Total por Cobrar</div>
+            <div class="kpi-count">{{ count_total }} cotizaciones</div>
+        </div>
+        <div class="kpi-card vencido">
+            <div class="kpi-value" style="color:#e74c3c;">${{ total_vencido|floatformat:0|intcomma }}</div>
+            <div class="kpi-label">Vencido</div>
+            <div class="kpi-count">{{ count_vencido }} eventos pasados sin pago total</div>
+        </div>
+        <div class="kpi-card urgente">
+            <div class="kpi-value" style="color:#f39c12;">${{ total_por_vencer|floatformat:0|intcomma }}</div>
+            <div class="kpi-label">Por Vencer (30 días)</div>
+            <div class="kpi-count">{{ count_urgente }} en 7 días · {{ count_proximo }} en 30 días</div>
+        </div>
+        <div class="kpi-card ok">
+            <div class="kpi-value" style="color:#27ae60;">{{ count_al_dia }}</div>
+            <div class="kpi-label">Al Día</div>
+            <div class="kpi-count">Eventos a más de 30 días</div>
+        </div>
+    </div>
+    
+    {% if cartera %}
+    <!-- Tabla de Cartera -->
+    <table class="cartera-table">
+        <thead>
+            <tr>
+                <th>Folio</th>
+                <th>Cliente</th>
+                <th>Evento</th>
+                <th>Fecha</th>
+                <th>Total</th>
+                <th>Pagado</th>
+                <th>Saldo</th>
+                <th>% Pago</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in cartera %}
+            <tr>
+                <td><strong>{{ item.folio }}</strong></td>
+                <td>{{ item.cliente }}</td>
+                <td>{{ item.evento }}</td>
+                <td>
+                    {{ item.fecha_evento|date:"d/M/Y" }}
+                    <br>
+                    <small style="color: {% if item.dias_evento < 0 %}#e74c3c{% elif item.dias_evento <= 7 %}#f39c12{% else %}#95a5a6{% endif %};">
+                        {% if item.dias_evento < 0 %}
+                            Hace {{ item.dias_evento|floatformat:0 }} días
+                        {% elif item.dias_evento == 0 %}
+                            ¡HOY!
+                        {% else %}
+                            En {{ item.dias_evento }} días
+                        {% endif %}
+                    </small>
+                </td>
+                <td>${{ item.precio_final|floatformat:2|intcomma }}</td>
+                <td>${{ item.total_pagado|floatformat:2|intcomma }}</td>
+                <td><strong style="color: #e74c3c;">${{ item.saldo|floatformat:2|intcomma }}</strong></td>
+                <td>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" style="width: {{ item.porcentaje_pagado }}%; background: {% if item.porcentaje_pagado >= 80 %}#27ae60{% elif item.porcentaje_pagado >= 50 %}#f39c12{% else %}#e74c3c{% endif %};"></div>
+                    </div>
+                    <small>{{ item.porcentaje_pagado }}%</small>
+                </td>
+                <td>
+                    {% if item.antiguedad == 'VENCIDO' %}
+                        <span class="badge badge-vencido">⚠️ Vencido</span>
+                    {% elif item.antiguedad == 'URGENTE' %}
+                        <span class="badge badge-urgente">🔥 Urgente</span>
+                    {% elif item.antiguedad == 'PROXIMO' %}
+                        <span class="badge badge-proximo">📅 Próximo</span>
+                    {% else %}
+                        <span class="badge badge-ok">✅ Al día</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/admin/comercial/cotizacion/{{ item.cotizacion.id }}/change/" class="btn-action btn-ver">📋 Ver</a>
+                    {% if item.telefono %}
+                    <a href="https://wa.me/52{{ item.telefono }}?text=Hola%20{{ item.cliente|urlencode }},%20le%20recordamos%20que%20tiene%20un%20saldo%20pendiente%20de%20${{ item.saldo|floatformat:2 }}%20para%20el%20evento%20{{ item.evento|urlencode }}." target="_blank" class="btn-action btn-whatsapp">💬 WA</a>
+                    {% endif %}
+                    {% if item.email %}
+                    <a href="mailto:{{ item.email }}?subject=Recordatorio%20de%20pago%20-%20{{ item.folio }}&body=Estimado(a)%20{{ item.cliente|urlencode }},%0A%0ALe%20recordamos%20que%20tiene%20un%20saldo%20pendiente%20de%20${{ item.saldo|floatformat:2 }}%20para%20el%20evento%20{{ item.evento|urlencode }}." class="btn-action btn-email">📧 Email</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        🎉 ¡No hay saldos pendientes! Todas las cotizaciones están al corriente.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
