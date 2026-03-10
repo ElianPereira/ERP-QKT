@@ -214,7 +214,7 @@ class Cotizacion(models.Model):
     incluye_cocteleria_premium = models.BooleanField(default=False, verbose_name="Mixología")
     clima = models.CharField(max_length=20, choices=CLIMA_CHOICES, default='calor', verbose_name="Clima")
     horas_servicio = models.IntegerField(default=5, verbose_name="Horas Servicio")
-    factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=2.20, verbose_name="Factor Utilidad")
+    factor_utilidad_barra = models.DecimalField(max_digits=5, decimal_places=2, default=1.30, verbose_name="Factor Utilidad")
 
     insumo_hielo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Hielo")
     insumo_refresco = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name="Insumo Refresco")
