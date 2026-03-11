@@ -624,3 +624,99 @@ class Gasto(models.Model):
     archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
     archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
     def __str__(self): return f"{self.descripcion} (${self.total_linea})"
+
+# ==========================================
+# AGREGAR AL FINAL DE comercial/models.py
+# ==========================================
+
+class PlanPago(models.Model):
+    """
+    Plan de pagos calendarizado para una cotización.
+    Se genera automáticamente según la anticipación del evento.
+    Solo puede existir UN plan activo por cotización.
+    """
+    cotizacion = models.OneToOneField(
+        Cotizacion, on_delete=models.CASCADE, 
+        related_name='plan_pago',
+        verbose_name="Cotización"
+    )
+    
+    fecha_generacion = models.DateTimeField(auto_now_add=True)
+    generado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="Generado por"
+    )
+    notas = models.TextField(blank=True, verbose_name="Notas / Condiciones especiales")
+    activo = models.BooleanField(default=True)
+    
+    def total_plan(self):
+        return self.parcialidades.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+    
+    def parcialidades_pagadas(self):
+        return self.parcialidades.filter(pagada=True).count()
+    
+    def parcialidades_pendientes(self):
+        return self.parcialidades.filter(pagada=False).count()
+    
+    def siguiente_pago(self):
+        """Retorna la próxima parcialidad pendiente."""
+        return self.parcialidades.filter(pagada=False).order_by('fecha_limite').first()
+    
+    def __str__(self):
+        return f"Plan de pagos COT-{self.cotizacion.id:03d} ({self.parcialidades.count()} parcialidades)"
+    
+    class Meta:
+        verbose_name = "Plan de Pago"
+        verbose_name_plural = "Planes de Pago"
+
+
+class ParcialidadPago(models.Model):
+    """
+    Cada parcialidad dentro de un plan de pagos.
+    Se marca como pagada cuando el cliente realiza el pago correspondiente.
+    """
+    plan = models.ForeignKey(
+        PlanPago, on_delete=models.CASCADE, 
+        related_name='parcialidades',
+        verbose_name="Plan"
+    )
+    numero = models.PositiveIntegerField(verbose_name="# Parcialidad")
+    concepto = models.CharField(max_length=100, verbose_name="Concepto",
+                                 help_text="Ej: Anticipo, 2da parcialidad, Liquidación")
+    monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto")
+    porcentaje = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% del Total")
+    fecha_limite = models.DateField(verbose_name="Fecha Límite de Pago")
+    
+    pagada = models.BooleanField(default=False, verbose_name="¿Pagada?")
+    fecha_pago_real = models.DateField(null=True, blank=True, verbose_name="Fecha de Pago Real")
+    pago_vinculado = models.ForeignKey(
+        'Pago', on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="Pago Registrado",
+        help_text="Vincular con el pago real cuando se reciba"
+    )
+    
+    @property
+    def dias_restantes(self):
+        """Días que faltan para la fecha límite. Negativo = vencido."""
+        from django.utils import timezone
+        return (self.fecha_limite - timezone.now().date()).days
+    
+    @property
+    def estado(self):
+        if self.pagada:
+            return 'PAGADA'
+        if self.dias_restantes < 0:
+            return 'VENCIDA'
+        if self.dias_restantes <= 7:
+            return 'URGENTE'
+        return 'PENDIENTE'
+    
+    def __str__(self):
+        estado = "✅" if self.pagada else "⏳"
+        return f"{estado} #{self.numero} - ${self.monto:,.2f} - {self.fecha_limite}"
+    
+    class Meta:
+        verbose_name = "Parcialidad"
+        verbose_name_plural = "Parcialidades"
+        ordering = ['numero']
+        unique_together = ['plan', 'numero']

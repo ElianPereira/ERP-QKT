@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page { size: letter; margin: 2cm; }
+        body { font-family: Arial, sans-serif; color: #333; font-size: 13px; line-height: 1.5; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #356685; padding-bottom: 15px; margin-bottom: 25px; }
+        .header img { max-height: 70px; }
+        .header-info { text-align: right; }
+        .header-info h2 { margin: 0; color: #356685; font-size: 18px; }
+        .header-info p { margin: 2px 0; color: #666; font-size: 11px; }
+        
+        .seccion { margin-bottom: 20px; }
+        .seccion-titulo { font-size: 14px; font-weight: bold; color: #356685; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
+        
+        .datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .dato { display: flex; }
+        .dato-label { font-weight: bold; min-width: 130px; color: #555; }
+        .dato-valor { color: #333; }
+        
+        .tabla-pagos { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .tabla-pagos th { background: #356685; color: white; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .tabla-pagos td { padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 13px; }
+        .tabla-pagos tr:nth-child(even) { background: #f8f9fa; }
+        .tabla-pagos tr:last-child td { border-bottom: 2px solid #356685; }
+        
+        .monto { font-weight: bold; text-align: right; }
+        .porcentaje { color: #666; text-align: center; }
+        .fecha { text-align: center; }
+        
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; color: white; }
+        .badge-pendiente { background: #f39c12; }
+        .badge-pagada { background: #27ae60; }
+        
+        .total-row { background: #356685 !important; }
+        .total-row td { color: white !important; font-weight: bold; font-size: 14px; border-bottom: none !important; }
+        
+        .resumen-box { background: #f0f7fb; border: 1px solid #b8d4e3; border-radius: 8px; padding: 15px; margin-top: 20px; }
+        .resumen-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center; }
+        .resumen-item h3 { margin: 0; font-size: 22px; color: #356685; }
+        .resumen-item p { margin: 3px 0 0; font-size: 11px; color: #666; text-transform: uppercase; }
+        
+        .condiciones { margin-top: 25px; padding: 15px; background: #fafafa; border-radius: 6px; border: 1px solid #eee; }
+        .condiciones h4 { margin: 0 0 8px; color: #356685; font-size: 13px; }
+        .condiciones ul { margin: 0; padding-left: 18px; font-size: 11px; color: #555; }
+        .condiciones li { margin-bottom: 4px; }
+        
+        .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
+        
+        .highlight { color: #356685; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <!-- ENCABEZADO -->
+    <div class="header">
+        <img src="{{ logo_url }}" alt="Quinta Ko'ox Tanil">
+        <div class="header-info">
+            <h2>Plan de Pagos</h2>
+            <p>Folio: COT-{{ cotizacion.id|stringformat:"03d" }}</p>
+            <p>Generado: {{ fecha_generacion|date:"d/m/Y" }}</p>
+        </div>
+    </div>
+    
+    <!-- DATOS DEL EVENTO -->
+    <div class="seccion">
+        <div class="seccion-titulo">Datos del Evento</div>
+        <div class="datos-grid">
+            <div class="dato">
+                <span class="dato-label">Cliente:</span>
+                <span class="dato-valor">{{ cotizacion.cliente.nombre }}</span>
+            </div>
+            <div class="dato">
+                <span class="dato-label">Evento:</span>
+                <span class="dato-valor">{{ cotizacion.nombre_evento }}</span>
+            </div>
+            <div class="dato">
+                <span class="dato-label">Fecha del Evento:</span>
+                <span class="dato-valor highlight">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</span>
+            </div>
+            <div class="dato">
+                <span class="dato-label">No. Personas:</span>
+                <span class="dato-valor">{{ cotizacion.num_personas }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- RESUMEN FINANCIERO -->
+    <div class="resumen-box">
+        <div class="resumen-grid">
+            <div class="resumen-item">
+                <h3>${{ cotizacion.precio_final|floatformat:2 }}</h3>
+                <p>Total del Evento</p>
+            </div>
+            <div class="resumen-item">
+                <h3>{{ parcialidades|length }}</h3>
+                <p>Parcialidades</p>
+            </div>
+            <div class="resumen-item">
+                <h3>{{ cotizacion.fecha_evento|date:"d/M/Y" }}</h3>
+                <p>Fecha del Evento</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TABLA DE PARCIALIDADES -->
+    <div class="seccion" style="margin-top: 25px;">
+        <div class="seccion-titulo">Calendario de Pagos</div>
+        <table class="tabla-pagos">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">#</th>
+                    <th style="width: 30%;">Concepto</th>
+                    <th style="width: 15%; text-align: center;">Porcentaje</th>
+                    <th style="width: 22%; text-align: right;">Monto</th>
+                    <th style="width: 25%; text-align: center;">Fecha Límite</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in parcialidades %}
+                <tr>
+                    <td><strong>{{ p.numero }}</strong></td>
+                    <td>{{ p.concepto }}</td>
+                    <td class="porcentaje">{{ p.porcentaje|floatformat:0 }}%</td>
+                    <td class="monto">${{ p.monto|floatformat:2 }}</td>
+                    <td class="fecha">{{ p.fecha_limite|date:"d/m/Y" }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td colspan="2"><strong>TOTAL</strong></td>
+                    <td style="text-align: center;">100%</td>
+                    <td style="text-align: right;">${{ cotizacion.precio_final|floatformat:2 }}</td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- CONDICIONES -->
+    <div class="condiciones">
+        <h4>Condiciones de Pago</h4>
+        <ul>
+            <li>Los pagos pueden realizarse por <strong>transferencia bancaria, efectivo o tarjeta</strong>.</li>
+            <li>El anticipo es <strong>necesario para apartar la fecha</strong> y confirmar el evento.</li>
+            <li>El <strong>pago total debe completarse mínimo 15 días antes</strong> de la fecha del evento.</li>
+            <li>En caso de cancelación, el anticipo <strong>no es reembolsable</strong>.</li>
+            <li>Los precios incluyen los servicios acordados en la cotización original.</li>
+            <li>Cualquier servicio adicional se cotizará por separado.</li>
+        </ul>
+    </div>
+
+    {% if plan.notas %}
+    <div class="condiciones" style="margin-top: 10px;">
+        <h4>Notas</h4>
+        <p style="font-size: 12px; color: #555;">{{ plan.notas }}</p>
+    </div>
+    {% endif %}
+    
+    <!-- FOOTER -->
+    <div class="footer">
+        <p><strong>Quinta Ko'ox Tanil</strong> — Mérida, Yucatán</p>
+        <p>Este documento es informativo. Los términos definitivos se establecen en el contrato de servicios.</p>
+    </div>
+</body>
+</html>

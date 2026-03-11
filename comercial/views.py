@@ -1486,3 +1486,77 @@ def ver_cartera_cxc(request):
     })
     
     return render(request, 'admin/comercial/cartera_cxc.html', context)
+
+# ==========================================
+# AGREGAR A comercial/views.py
+# ==========================================
+# Imports adicionales necesarios (agregar arriba si no existen):
+# from .models import PlanPago, ParcialidadPago
+# from .services import PlanPagosService
+
+
+@staff_member_required
+def generar_plan_pagos(request, cotizacion_id):
+    """
+    Genera un plan de pagos para una cotización.
+    Redirige de vuelta a la cotización con mensaje de éxito/error.
+    """
+    from .models import PlanPago
+    from .services import PlanPagosService
+    
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+    
+    if cotizacion.precio_final <= 0:
+        messages.error(request, "⛔ La cotización no tiene precio calculado. Agrega items primero.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+    
+    try:
+        servicio = PlanPagosService(cotizacion)
+        plan = servicio.generar(usuario=request.user)
+        parcialidades = plan.parcialidades.count()
+        messages.success(request, f"✅ Plan de {parcialidades} pagos generado para COT-{cotizacion.id:03d}")
+    except Exception as e:
+        messages.error(request, f"❌ Error al generar plan: {e}")
+    
+    return redirect(request.META.get('HTTP_REFERER', f'/admin/comercial/cotizacion/{cotizacion_id}/change/'))
+
+
+@staff_member_required
+def descargar_plan_pagos_pdf(request, cotizacion_id):
+    """
+    Genera un PDF profesional del plan de pagos para enviar al cliente.
+    """
+    from .models import PlanPago
+    
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+    
+    try:
+        plan = cotizacion.plan_pago
+    except PlanPago.DoesNotExist:
+        messages.error(request, "⛔ Esta cotización no tiene plan de pagos. Genera uno primero.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+    
+    if not plan.activo:
+        messages.error(request, "⛔ El plan de pagos está inactivo.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+    
+    parcialidades = plan.parcialidades.all()
+    
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+    
+    context = {
+        'cotizacion': cotizacion,
+        'plan': plan,
+        'parcialidades': parcialidades,
+        'logo_url': logo_url,
+        'fecha_generacion': timezone.now(),
+    }
+    
+    html_string = render_to_string('cotizaciones/pdf_plan_pagos.html', context)
+    response = HttpResponse(content_type='application/pdf')
+    folio = f"COT-{cotizacion.id:03d}"
+    filename = f"Plan_Pagos_{folio}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    HTML(string=html_string).write_pdf(response)
+    return response

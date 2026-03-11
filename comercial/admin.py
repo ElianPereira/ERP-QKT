@@ -10,7 +10,7 @@ from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
     Cliente, Cotizacion, ItemCotizacion, Pago, 
     Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
-    MovimientoInventario
+    MovimientoInventario, PlanPago, ParcialidadPago
 )
 from .services import CalculadoraBarraService
 
@@ -75,7 +75,6 @@ class InsumoAdmin(admin.ModelAdmin):
     )
     
     def badge_stock(self, obj):
-        """Muestra badge visual del estado del stock."""
         if obj.stock_minimo > 0 and obj.cantidad_stock < obj.stock_minimo:
             return format_html(
                 '<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">⚠️ BAJO</span>'
@@ -95,7 +94,7 @@ class InsumoAdmin(admin.ModelAdmin):
 
 
 # ==========================================
-# MOVIMIENTOS DE INVENTARIO (NUEVO)
+# MOVIMIENTOS DE INVENTARIO
 # ==========================================
 @admin.register(MovimientoInventario)
 class MovimientoInventarioAdmin(admin.ModelAdmin):
@@ -143,11 +142,9 @@ class MovimientoInventarioAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
     
     def has_delete_permission(self, request, obj=None):
-        """Los movimientos de inventario NO se eliminan (auditoría)."""
         return False
     
     def has_change_permission(self, request, obj=None):
-        """Los movimientos de inventario NO se editan."""
         if obj:
             return False
         return True
@@ -266,6 +263,109 @@ class ClienteAdmin(admin.ModelAdmin):
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
 
+
+# ==========================================
+# PLAN DE PAGOS
+# ==========================================
+class ParcialidadInline(admin.TabularInline):
+    model = ParcialidadPago
+    extra = 0
+    fields = ('numero', 'concepto', 'porcentaje', 'monto', 'fecha_limite', 'pagada', 'fecha_pago_real', 'pago_vinculado')
+    readonly_fields = ('numero', 'concepto', 'porcentaje', 'monto', 'fecha_limite')
+    can_delete = False
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PlanPago)
+class PlanPagoAdmin(admin.ModelAdmin):
+    list_display = ('cotizacion_folio', 'cliente', 'monto_total', 'num_parcialidades', 'progreso_badge', 'siguiente_pago_info', 'activo')
+    list_filter = ('activo',)
+    search_fields = ('cotizacion__cliente__nombre', 'cotizacion__nombre_evento')
+    readonly_fields = ('cotizacion', 'generado_por', 'fecha_generacion')
+    inlines = [ParcialidadInline]
+    
+    def cotizacion_folio(self, obj):
+        return f"COT-{obj.cotizacion.id:03d}"
+    cotizacion_folio.short_description = "Folio"
+    
+    def cliente(self, obj):
+        return obj.cotizacion.cliente.nombre
+    cliente.short_description = "Cliente"
+    
+    def monto_total(self, obj):
+        return f"${obj.cotizacion.precio_final:,.2f}"
+    monto_total.short_description = "Total"
+    
+    def num_parcialidades(self, obj):
+        pagadas = obj.parcialidades_pagadas()
+        total = obj.parcialidades.count()
+        return f"{pagadas}/{total}"
+    num_parcialidades.short_description = "Pagadas"
+    
+    def progreso_badge(self, obj):
+        pagadas = obj.parcialidades_pagadas()
+        total = obj.parcialidades.count()
+        if total == 0:
+            return '-'
+        porcentaje = int((pagadas / total) * 100)
+        if porcentaje >= 100:
+            color = '#27ae60'
+        elif porcentaje >= 50:
+            color = '#f39c12'
+        else:
+            color = '#e74c3c'
+        return format_html(
+            '<div style="width:80px; background:#ecf0f1; border-radius:10px; height:12px; overflow:hidden; display:inline-block;">'
+            '<div style="width:{}%; background:{}; height:100%; border-radius:10px;"></div>'
+            '</div> <small style="color:{};">{}%</small>',
+            porcentaje, color, color, porcentaje
+        )
+    progreso_badge.short_description = "Progreso"
+    
+    def siguiente_pago_info(self, obj):
+        siguiente = obj.siguiente_pago()
+        if not siguiente:
+            return format_html('<span style="color:#27ae60; font-weight:bold;">✅ Liquidado</span>')
+        
+        dias = siguiente.dias_restantes
+        if dias < 0:
+            return format_html(
+                '<span style="color:#e74c3c; font-weight:bold;">⚠️ ${} vencido hace {} días</span>',
+                f"{siguiente.monto:,.2f}", abs(dias)
+            )
+        elif dias <= 7:
+            return format_html(
+                '<span style="color:#f39c12; font-weight:bold;">🔥 ${} en {} días</span>',
+                f"{siguiente.monto:,.2f}", dias
+            )
+        else:
+            return format_html(
+                '<span style="color:#3498db;">${} el {}</span>',
+                f"{siguiente.monto:,.2f}", siguiente.fecha_limite.strftime('%d/%m/%Y')
+            )
+    siguiente_pago_info.short_description = "Próximo Pago"
+    
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
+
+
+class PlanPagoResumenInline(admin.StackedInline):
+    model = PlanPago
+    extra = 0
+    max_num = 1
+    can_delete = False
+    readonly_fields = ('generado_por', 'fecha_generacion')
+    fields = ('activo', 'notas', 'generado_por', 'fecha_generacion')
+    verbose_name = "Plan de Pagos"
+    verbose_name_plural = "Plan de Pagos"
+
+
+# ==========================================
+# COTIZACIONES
+# ==========================================
 class ItemCotizacionInline(admin.TabularInline):
     model = ItemCotizacion
     extra = 1
@@ -282,8 +382,8 @@ class PagoInline(admin.TabularInline):
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
-    inlines = [ItemCotizacionInline, PagoInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn')
+    inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_plan_pagos', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
@@ -312,7 +412,6 @@ class CotizacionAdmin(admin.ModelAdmin):
     readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion')
 
     def estado_badge(self, obj):
-        """Badge visual para el estado del pipeline."""
         colores = {
             'BORRADOR': '#95a5a6',
             'COTIZADA': '#3498db',
@@ -332,7 +431,6 @@ class CotizacionAdmin(admin.ModelAdmin):
     estado_badge.admin_order_field = 'estado'
     
     def pago_badge(self, obj):
-        """Badge visual del porcentaje de pago."""
         porcentaje = obj.porcentaje_pagado
         if porcentaje >= 100:
             color = '#27ae60'
@@ -353,16 +451,38 @@ class CotizacionAdmin(admin.ModelAdmin):
         )
     pago_badge.short_description = "Pagado"
 
+    def ver_plan_pagos(self, obj):
+        """Botón para generar o ver plan de pagos."""
+        try:
+            plan = obj.plan_pago
+            if plan and plan.activo:
+                url_pdf = reverse('plan_pagos_pdf', args=[obj.id])
+                pagadas = plan.parcialidades_pagadas()
+                total = plan.parcialidades.count()
+                return format_html(
+                    '<a href="{}" target="_blank" class="btn btn-sm" '
+                    'style="background:#8e44ad; color:white; padding:4px 10px; border-radius:4px;">'
+                    '📋 {}/{}</a>', url_pdf, pagadas, total
+                )
+        except PlanPago.DoesNotExist:
+            pass
+        
+        if obj.precio_final > 0:
+            url_generar = reverse('generar_plan_pagos', args=[obj.id])
+            return format_html(
+                '<a href="{}" class="btn btn-sm" '
+                'style="background:#3498db; color:white; padding:4px 10px; border-radius:4px;" '
+                'onclick="return confirm(\'¿Generar plan de pagos para esta cotización?\')">'
+                '➕ Plan</a>', url_generar
+            )
+        return '-'
+    ver_plan_pagos.short_description = "Plan Pagos"
+
     def save_model(self, request, obj, form, change):
-        """
-        Valida transición de estado y conflictos Airbnb.
-        """
         if change:
-            # Obtener estado anterior
             old_obj = Cotizacion.objects.filter(pk=obj.pk).values('estado').first()
             old_estado = old_obj['estado'] if old_obj else 'BORRADOR'
             
-            # Si el estado cambió, validar la transición
             if obj.estado != old_estado:
                 permitidos = Cotizacion.TRANSICIONES_PERMITIDAS.get(old_estado, [])
                 if obj.estado not in permitidos:
@@ -372,9 +492,8 @@ class CotizacionAdmin(admin.ModelAdmin):
                         f"'{obj.get_estado_display()}'. "
                         f"Transiciones permitidas: {', '.join(dict(Cotizacion.ESTADOS).get(e, e) for e in permitidos) or 'Ninguna'}"
                     )
-                    return  # No guardar
+                    return
                 
-                # Validar anticipo para CONFIRMADA
                 if obj.estado == 'CONFIRMADA':
                     try:
                         porcentaje_minimo = float(ConstanteSistema.objects.get(clave='PORCENTAJE_ANTICIPO_MINIMO').valor)
@@ -392,24 +511,20 @@ class CotizacionAdmin(admin.ModelAdmin):
                             )
                             return
                 
-                # Validar que tenga items para avanzar de BORRADOR
                 if old_estado == 'BORRADOR' and obj.estado != 'CANCELADA':
                     if obj.pk and not obj.items.exists():
                         messages.error(request, "⛔ La cotización debe tener al menos un item antes de avanzar.")
                         return
                 
-                # Validar motivo de cancelación
                 if obj.estado == 'CANCELADA' and not obj.motivo_cancelacion:
                     messages.error(request, "⛔ Debe indicar el motivo de cancelación.")
                     return
                 
-                # Registrar datos de cancelación
                 if obj.estado == 'CANCELADA':
                     obj.cancelada_por = request.user
                     from django.utils.timezone import now
                     obj.fecha_cancelacion = now()
         
-        # Validar conflictos Airbnb para estados que implican uso del espacio
         if obj.estado in ('CONFIRMADA', 'EN_PREPARACION'):
             try:
                 from airbnb.validacion_fechas import validar_fecha_disponible

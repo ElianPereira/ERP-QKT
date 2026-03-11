@@ -315,3 +315,188 @@ def actualizar_item_cotizacion(cotizacion):
             )
     else:
         if item_barra: item_barra.delete()
+
+
+# ==========================================
+# AGREGAR AL FINAL DE comercial/services.py
+# ==========================================
+
+from datetime import timedelta
+from django.utils import timezone
+
+
+class PlanPagosService:
+    """
+    Genera planes de pago calendarizados según la anticipación del evento.
+    
+    Reglas de negocio:
+    - +4 meses:       4 pagos → 30% / 25% / 25% / 20%
+    - 2-4 meses:      3 pagos → 30% / 35% / 35%
+    - 1-2 meses:      2 pagos → 50% / 50%
+    - Menos de 1 mes: 2 pagos → 50% / 50%
+    
+    Constantes:
+    - Primer pago: al contratar (mínimo 30% en planes de +4 meses)
+    - Último pago: 15 días antes del evento
+    - Pagos intermedios: equidistantes entre el primero y el último
+    """
+    
+    ESQUEMAS = {
+        'largo':   {'min_dias': 120, 'parcialidades': [30, 25, 25, 20], 
+                    'conceptos': ['Anticipo', '2da Parcialidad', '3ra Parcialidad', 'Liquidación']},
+        'medio':   {'min_dias': 60,  'parcialidades': [30, 35, 35],
+                    'conceptos': ['Anticipo', '2da Parcialidad', 'Liquidación']},
+        'corto':   {'min_dias': 30,  'parcialidades': [50, 50],
+                    'conceptos': ['Anticipo (50%)', 'Liquidación']},
+        'urgente': {'min_dias': 0,   'parcialidades': [50, 50],
+                    'conceptos': ['Anticipo (50%)', 'Liquidación']},
+    }
+    
+    DIAS_ANTES_ULTIMO_PAGO = 15
+    
+    def __init__(self, cotizacion):
+        self.cotizacion = cotizacion
+    
+    def _get_esquema(self, dias_anticipacion):
+        """Determina qué esquema de pagos aplicar según los días de anticipación."""
+        if dias_anticipacion >= 120:
+            return self.ESQUEMAS['largo']
+        elif dias_anticipacion >= 60:
+            return self.ESQUEMAS['medio']
+        elif dias_anticipacion >= 30:
+            return self.ESQUEMAS['corto']
+        else:
+            return self.ESQUEMAS['urgente']
+    
+    def _calcular_fechas(self, fecha_contratacion, fecha_evento, num_parcialidades):
+        """
+        Calcula las fechas de cada parcialidad.
+        - Primera: fecha de contratación (hoy)
+        - Última: 15 días antes del evento
+        - Intermedias: equidistantes
+        """
+        fecha_ultimo_pago = fecha_evento - timedelta(days=self.DIAS_ANTES_ULTIMO_PAGO)
+        
+        # Si la fecha límite ya pasó o es hoy, ajustar
+        hoy = timezone.now().date()
+        if fecha_ultimo_pago <= hoy:
+            fecha_ultimo_pago = fecha_evento - timedelta(days=3)
+        if fecha_ultimo_pago <= hoy:
+            fecha_ultimo_pago = hoy
+        
+        if num_parcialidades == 1:
+            return [fecha_contratacion]
+        
+        if num_parcialidades == 2:
+            return [fecha_contratacion, fecha_ultimo_pago]
+        
+        # Para 3+ parcialidades, distribuir equidistante
+        dias_total = (fecha_ultimo_pago - fecha_contratacion).days
+        intervalo = dias_total / (num_parcialidades - 1)
+        
+        fechas = [fecha_contratacion]
+        for i in range(1, num_parcialidades - 1):
+            fecha = fecha_contratacion + timedelta(days=int(intervalo * i))
+            fechas.append(fecha)
+        fechas.append(fecha_ultimo_pago)
+        
+        return fechas
+    
+    def generar(self, usuario=None):
+        """
+        Genera el plan de pagos para la cotización.
+        Si ya existe un plan activo, lo desactiva y crea uno nuevo.
+        
+        Returns:
+            PlanPago: El plan generado
+        """
+        from .models import PlanPago, ParcialidadPago
+        
+        cotizacion = self.cotizacion
+        
+        if cotizacion.precio_final <= 0:
+            raise ValueError("La cotización no tiene precio final calculado.")
+        
+        # Desactivar plan anterior si existe
+        PlanPago.objects.filter(cotizacion=cotizacion, activo=True).update(activo=False)
+        
+        # Calcular anticipación
+        hoy = timezone.now().date()
+        dias_anticipacion = (cotizacion.fecha_evento - hoy).days
+        
+        # Obtener esquema
+        esquema = self._get_esquema(dias_anticipacion)
+        porcentajes = esquema['parcialidades']
+        conceptos = esquema['conceptos']
+        
+        # Calcular fechas
+        fechas = self._calcular_fechas(hoy, cotizacion.fecha_evento, len(porcentajes))
+        
+        # Crear plan
+        plan = PlanPago.objects.create(
+            cotizacion=cotizacion,
+            generado_por=usuario,
+            notas=f"Plan generado automáticamente. Anticipación: {dias_anticipacion} días."
+        )
+        
+        # Crear parcialidades
+        monto_total = cotizacion.precio_final
+        monto_acumulado = Decimal('0.00')
+        
+        for i, (porcentaje, concepto, fecha) in enumerate(zip(porcentajes, conceptos, fechas), 1):
+            if i == len(porcentajes):
+                # Última parcialidad: ajustar para que sume exacto
+                monto = monto_total - monto_acumulado
+            else:
+                monto = (monto_total * Decimal(porcentaje) / Decimal(100)).quantize(Decimal('0.01'))
+                monto_acumulado += monto
+            
+            ParcialidadPago.objects.create(
+                plan=plan,
+                numero=i,
+                concepto=concepto,
+                monto=monto,
+                porcentaje=Decimal(porcentaje),
+                fecha_limite=fecha,
+            )
+        
+        return plan
+    
+    def get_resumen(self):
+        """
+        Retorna un resumen del plan de pagos (sin crearlo).
+        Útil para previsualizar antes de generar.
+        """
+        hoy = timezone.now().date()
+        dias_anticipacion = (self.cotizacion.fecha_evento - hoy).days
+        esquema = self._get_esquema(dias_anticipacion)
+        porcentajes = esquema['parcialidades']
+        conceptos = esquema['conceptos']
+        fechas = self._calcular_fechas(hoy, self.cotizacion.fecha_evento, len(porcentajes))
+        
+        monto_total = self.cotizacion.precio_final
+        parcialidades = []
+        monto_acumulado = Decimal('0.00')
+        
+        for i, (porcentaje, concepto, fecha) in enumerate(zip(porcentajes, conceptos, fechas), 1):
+            if i == len(porcentajes):
+                monto = monto_total - monto_acumulado
+            else:
+                monto = (monto_total * Decimal(porcentaje) / Decimal(100)).quantize(Decimal('0.01'))
+                monto_acumulado += monto
+            
+            parcialidades.append({
+                'numero': i,
+                'concepto': concepto,
+                'porcentaje': porcentaje,
+                'monto': monto,
+                'fecha_limite': fecha,
+            })
+        
+        return {
+            'dias_anticipacion': dias_anticipacion,
+            'esquema': 'largo' if dias_anticipacion >= 120 else 'medio' if dias_anticipacion >= 60 else 'corto',
+            'num_parcialidades': len(porcentajes),
+            'parcialidades': parcialidades,
+            'monto_total': monto_total,
+        }

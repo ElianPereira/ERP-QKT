@@ -6,6 +6,7 @@ from django.views.generic import RedirectView
 from django.contrib.auth import logout
 from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc
+from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 
 try:
     from airbnb.views import calendario_unificado, reporte_pagos_airbnb, bloquear_en_airbnb
@@ -95,6 +96,10 @@ urlpatterns = [
     
     #---- CXC VISUALIZACION---
     path('admin/cartera/', ver_cartera_cxc, name='cartera_cxc'),
+
+    #--- PLAN DE PAGOS---
+    path('cotizacion/<int:cotizacion_id>/plan-pagos/generar/', generar_plan_pagos, name='generar_plan_pagos'),
+    path('cotizacion/<int:cotizacion_id>/plan-pagos/pdf/', descargar_plan_pagos_pdf, name='plan_pagos_pdf'),
     
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
