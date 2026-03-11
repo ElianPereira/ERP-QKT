@@ -203,8 +203,9 @@ JAZZMIN_SETTINGS = {
         {"name": "🔗 Cal. Unificado",   "url": "calendario_unificado"},
         {"name": "🧮 Calculadora",      "url": "admin_calculadora"},
         {"name": "🛒 Lista de Compras", "url": "generar_lista_compras"},
-        {"name": "🚪 Cerrar Sesión",    "url": "/admin/logout/",        "new_window": False},
         {"name": "💰 Cartera", "url": "cartera_cxc"},
+        {"name": "🚪 Cerrar Sesión",    "url": "/admin/logout/",        "new_window": False},
+        
     ],
 
     "order_with_respect_to": [
