@@ -215,7 +215,7 @@ body.login-page .login-logo .logo-light {
     #result_list,
     .results {
         display: block;
-        overflow-x: auto;
+        overflow-x: scroll;
         width: 100%;
         -webkit-overflow-scrolling: touch;
     }
@@ -253,6 +253,21 @@ body.login-page .login-logo .logo-light {
     position: relative;
     z-index: 1;
     pointer-events: auto !important;
+}
+
+/* ============================================================
+   FIX SAFARI IOS — clicks dentro de contenedor con overflow
+   Safari iOS no dispara click en <a> dentro de overflow:auto/scroll
+   a menos que el contenedor o el elemento tenga cursor:pointer
+   ============================================================ */
+#result_list td,
+.results td {
+    cursor: pointer;
+}
+
+#result_list td a,
+.results td a {
+    cursor: pointer;
 }
 
 /* ============================================================
