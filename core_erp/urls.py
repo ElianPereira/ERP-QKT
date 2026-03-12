@@ -7,6 +7,7 @@ from django.contrib.auth import logout
 from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
+from comercial.views import generar_contrato, enviar_contrato_email
 
 try:
     from airbnb.views import calendario_unificado, reporte_pagos_airbnb, bloquear_en_airbnb
@@ -101,6 +102,10 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/plan-pagos/generar/', generar_plan_pagos, name='generar_plan_pagos'),
     path('cotizacion/<int:cotizacion_id>/plan-pagos/pdf/', descargar_plan_pagos_pdf, name='plan_pagos_pdf'),
     
+    #---Contrato de prestacion de servicios---
+    path('cotizacion/<int:cotizacion_id>/contrato/generar/', generar_contrato,    name='cotizacion_contrato'),
+    path('contrato/<int:contrato_id>/email/', enviar_contrato_email, name='contrato_email'),
+
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
 

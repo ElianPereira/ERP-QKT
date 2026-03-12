@@ -300,7 +300,7 @@ class PagoInline(admin.TabularInline):
 class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
     inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_plan_pagos', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn')
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_plan_pagos', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn','ver_contrato')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
@@ -508,6 +508,52 @@ class CotizacionAdmin(admin.ModelAdmin):
                 precio_final=cot.precio_final
             )
 
+    def ver_contrato(self, obj):
+        if obj.id and obj.estado == 'CONFIRMADA':
+            url = reverse('cotizacion_contrato', args=[obj.id])
+            return format_html(
+                '<a href="{}" class="btn btn-info btn-sm" '
+                'style="background:#0d6efd;color:#fff;border:none;padding:3px 8px;font-size:11px;" '
+                'onclick="return confirm(\'¿Generar contrato con depósito $0? Puedes cambiarlo en la pantalla del contrato.\')">📄 Contrato</a>',
+                url
+            )
+        return "—"
+    ver_contrato.short_description = "Contrato"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('<int:cotizacion_id>/contrato/',
+                self.admin_site.admin_view(self.contrato_form_view),
+                name='cotizacion_contrato_form'),
+        ]
+        return custom_urls + urls
+
+    def contrato_form_view(self, request, cotizacion_id):
+        """Formulario intermedio para seleccionar tipo y depósito antes de generar."""
+        from .models import ContratoServicio
+        cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+
+        if cotizacion.estado != 'CONFIRMADA':
+            messages.error(request, "❌ Solo cotizaciones CONFIRMADAS.")
+            return redirect('admin:comercial_cotizacion_changelist')
+
+        contratos_previos = ContratoServicio.objects.filter(cotizacion=cotizacion).order_by('-generado_en')
+
+        if request.method == 'POST':
+            from django.urls import reverse as _reverse
+            return redirect(f"/cotizacion/{cotizacion_id}/contrato/generar/?"
+                        f"tipo={request.POST.get('tipo_servicio','EVENTO')}"
+                        f"&deposito={request.POST.get('deposito_garantia','0')}")
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Generar Contrato — {cotizacion}',
+            'cotizacion': cotizacion,
+            'contratos_previos': contratos_previos,
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/comercial/cotizacion/contrato_form.html', context)
 
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
@@ -566,3 +612,25 @@ class CompraAdmin(admin.ModelAdmin):
             return format_html('<a href="{}" target="_blank">Ver</a>', obj.archivo_pdf.url)
         return "-"
     ver_pdf.short_description = "PDF"
+
+from .models import ContratoServicio
+
+@admin.register(ContratoServicio)
+class ContratoServicioAdmin(admin.ModelAdmin):
+    list_display  = ('numero', 'cotizacion', 'tipo_servicio', 'deposito_garantia',
+                     'generado_en', 'generado_por', 'enviado_email', 'descargar_btn', 'enviar_btn')
+    list_filter   = ('tipo_servicio', 'enviado_email', 'generado_en')
+    search_fields = ('numero', 'cotizacion__cliente__nombre')
+    readonly_fields = ('numero', 'generado_por', 'generado_en', 'enviado_email')
+
+    @admin.display(description="Descargar")
+    def descargar_btn(self, obj):
+        if obj.archivo:
+            return format_html('<a href="{}" class="btn btn-primary btn-sm">⬇ .docx</a>', obj.archivo.url)
+        return "—"
+
+    @admin.display(description="Email")
+    def enviar_btn(self, obj):
+        url = reverse('contrato_email', args=[obj.id])
+        icono = "✅" if obj.enviado_email else "📧"
+        return format_html('<a href="{}" class="btn btn-success btn-sm">{} Enviar</a>', url, icono)

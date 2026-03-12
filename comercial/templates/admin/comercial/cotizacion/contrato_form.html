@@ -1,0 +1,54 @@
+{% extends "admin/base_site.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="card" style="max-width:600px; margin:20px auto; padding:24px;">
+  <h2>📄 Generar Contrato</h2>
+  <p><strong>Cliente:</strong> {{ cotizacion.cliente.nombre }}<br>
+     <strong>Evento:</strong> {{ cotizacion.nombre_evento }}<br>
+     <strong>Fecha:</strong> {{ cotizacion.fecha_evento|date:"d/m/Y" }}<br>
+     <strong>Total:</strong> ${{ cotizacion.precio_final|floatformat:2 }} MXN</p>
+
+  <hr>
+  <form method="POST">{% csrf_token %}
+    <div class="form-row" style="margin-bottom:16px;">
+      <label><strong>Tipo de servicio</strong></label><br>
+      <select name="tipo_servicio" class="form-control">
+        <option value="EVENTO">Evento</option>
+        <option value="PASADIA">Pasadía</option>
+        <option value="HOSPEDAJE">Hospedaje</option>
+      </select>
+    </div>
+    <div class="form-row" style="margin-bottom:20px;">
+      <label><strong>Depósito en garantía (MXN)</strong></label><br>
+      <input type="number" name="deposito_garantia" class="form-control"
+             value="0" min="0" step="100" style="max-width:200px;">
+    </div>
+    <button type="submit" class="btn btn-primary">⬇ Generar y descargar contrato</button>
+    <a href="{% url 'admin:comercial_cotizacion_changelist' %}" class="btn btn-secondary" style="margin-left:10px;">Cancelar</a>
+  </form>
+
+  {% if contratos_previos %}
+  <hr>
+  <h4>Contratos anteriores</h4>
+  <table class="table table-sm">
+    <thead><tr><th>N°</th><th>Tipo</th><th>Depósito</th><th>Generado</th><th>Email</th><th></th></tr></thead>
+    <tbody>
+    {% for c in contratos_previos %}
+    <tr>
+      <td>{{ c.numero }}</td>
+      <td>{{ c.get_tipo_servicio_display }}</td>
+      <td>${{ c.deposito_garantia|floatformat:2 }}</td>
+      <td>{{ c.generado_en|date:"d/m/Y H:i" }}</td>
+      <td>{% if c.enviado_email %}✅{% else %}—{% endif %}</td>
+      <td>
+        {% if c.archivo %}<a href="{{ c.archivo.url }}" class="btn btn-sm btn-outline-primary">⬇</a>{% endif %}
+        <a href="{% url 'contrato_email' c.id %}" class="btn btn-sm btn-outline-success">📧</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

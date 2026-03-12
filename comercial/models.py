@@ -356,6 +356,7 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
+    archivo_contrato = models.FileField(upload_to='contratos_docx/', blank=True, null=True, storage=RawMediaCloudinaryStorage(), verbose_name="Contrato (.docx)")
 
     def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
         """
@@ -526,6 +527,36 @@ class Pago(models.Model):
             models.Index(fields=['fecha_pago']),
             models.Index(fields=['cotizacion', 'fecha_pago']),
         ]
+class ContratoServicio(models.Model):
+    """
+    Registro de contratos generados por cotización.
+    Guarda historial: versión, quién lo generó y cuándo.
+    """
+    TIPO_CHOICES = [
+        ('EVENTO',    'Evento'),
+        ('PASADIA',   'Pasadía'),
+        ('HOSPEDAJE', 'Hospedaje'),
+    ]
+
+    cotizacion   = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='contratos')
+    numero       = models.CharField(max_length=30, unique=True, verbose_name="Número de Contrato")
+    tipo_servicio = models.CharField(max_length=20, choices=TIPO_CHOICES, default='EVENTO')
+    deposito_garantia = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
+                                            verbose_name="Depósito en Garantía (MXN)")
+    archivo      = models.FileField(upload_to='contratos_docx/', storage=RawMediaCloudinaryStorage(),
+                                    verbose_name="Archivo .docx")
+    generado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    generado_en  = models.DateTimeField(auto_now_add=True)
+    enviado_email = models.BooleanField(default=False)
+    notas        = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.numero} — {self.cotizacion.cliente.nombre}"
+
+    class Meta:
+        verbose_name = "Contrato de Servicio"
+        verbose_name_plural = "Contratos de Servicio"
+        ordering = ['-generado_en']
 
 # --- COMPRA Y GASTO ---
 class Compra(models.Model):

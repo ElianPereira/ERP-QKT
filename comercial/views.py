@@ -1596,3 +1596,108 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
     response['Content-Disposition'] = f'inline; filename="Plan_Pagos_COT-{cotizacion.id:03d}.pdf"'
     HTML(string=html_string).write_pdf(response)
     return response
+
+# ==========================================
+# CONTRATO DE SERVICIO
+# ==========================================
+@staff_member_required
+def generar_contrato(request, cotizacion_id):
+    """
+    Genera el contrato .docx para una cotización CONFIRMADA,
+    lo guarda en Cloudinary y registra en ContratoServicio.
+    Requiere POST con: tipo_servicio y deposito_garantia.
+    """
+    from .models import ContratoServicio
+    from .services import ContratoService
+
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+
+    if cotizacion.estado != 'CONFIRMADA':
+        messages.error(request, "❌ Solo se pueden generar contratos para cotizaciones CONFIRMADAS.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
+    tipo      = request.POST.get('tipo_servicio', 'EVENTO')
+    deposito  = Decimal(request.POST.get('deposito_garantia', '0') or '0')
+
+    try:
+        servicio = ContratoService(cotizacion, tipo_servicio=tipo, deposito=deposito)
+        docx_bytes, numero = servicio.generar()
+
+        filename = f"Contrato_{numero}.docx"
+
+        contrato = ContratoServicio(
+            cotizacion=cotizacion,
+            numero=numero,
+            tipo_servicio=tipo,
+            deposito_garantia=deposito,
+            generado_por=request.user,
+        )
+        contrato.archivo.save(filename, ContentFile(docx_bytes), save=False)
+        contrato.save()
+
+        # También actualiza el campo rápido en Cotizacion
+        cotizacion.archivo_contrato.save(filename, ContentFile(docx_bytes), save=False)
+        Cotizacion.objects.filter(pk=cotizacion.pk).update(
+            archivo_contrato=cotizacion.archivo_contrato.name
+        )
+
+        messages.success(request, f"✅ Contrato {numero} generado correctamente.")
+
+        # Descarga directa
+        response = HttpResponse(
+            docx_bytes,
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    except Exception as e:
+        messages.error(request, f"❌ Error al generar el contrato: {e}")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
+
+@staff_member_required
+def enviar_contrato_email(request, contrato_id):
+    """
+    Envía el contrato por email al cliente adjuntando el .docx.
+    """
+    from .models import ContratoServicio
+
+    contrato   = get_object_or_404(ContratoServicio, id=contrato_id)
+    cotizacion = contrato.cotizacion
+    cliente    = cotizacion.cliente
+
+    if not cliente.email:
+        messages.error(request, f"❌ El cliente {cliente.nombre} no tiene email registrado.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
+    try:
+        contrato.archivo.open('rb')
+        docx_bytes = contrato.archivo.read()
+        contrato.archivo.close()
+
+        html_email = render_to_string('emails/contrato.html', {
+            'cliente':    cliente,
+            'cotizacion': cotizacion,
+            'contrato':   contrato,
+            'folio':      f"COT-{cotizacion.id:03d}",
+        })
+
+        msg = EmailMultiAlternatives(
+            subject=f"Contrato de Servicio {contrato.numero} — Quinta Ko'ox Tanil",
+            body=strip_tags(html_email),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[cliente.email],
+        )
+        msg.attach_alternative(html_email, "text/html")
+        msg.attach(f"{contrato.numero}.docx", docx_bytes,
+                   'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        msg.send()
+
+        ContratoServicio.objects.filter(pk=contrato.pk).update(enviado_email=True)
+        messages.success(request, f"✅ Contrato enviado a {cliente.email}")
+
+    except Exception as e:
+        messages.error(request, f"❌ Error al enviar el contrato: {e}")
+
+    return redirect(request.META.get('HTTP_REFERER', '/admin/'))

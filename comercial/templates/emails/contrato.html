@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; }
+    .header { text-align: center; padding-bottom: 16px; border-bottom: 2px solid #2E7D32; }
+    .logo { max-height: 70px; }
+    .badge { display:inline-block; background:#2E7D32; color:#fff; padding:4px 12px; border-radius:4px; font-size:13px; }
+    .table { width:100%; border-collapse:collapse; margin:16px 0; }
+    .table td { padding:8px 10px; border-bottom:1px solid #eee; font-size:13px; }
+    .table td:first-child { font-weight:bold; width:40%; color:#555; }
+    .footer { text-align:center; font-size:11px; color:#888; margin-top:20px; border-top:1px solid #eee; padding-top:10px; }
+    .btn { display:inline-block; padding:10px 20px; background:#2E7D32; color:#fff !important;
+           text-decoration:none; border-radius:4px; font-weight:bold; margin-top:16px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <img src="https://erp-qkt.up.railway.app/static/img/logo.png" alt="Quinta Ko'ox Tanil" class="logo">
+  </div>
+
+  <p>Estimado/a <strong>{{ cliente.nombre }}</strong>,</p>
+  <p>Adjunto encontrará el contrato de prestación de servicios correspondiente a su evento. Por favor léalo con detenimiento, fírmelo y devuélvanos una copia escaneada o por WhatsApp.</p>
+
+  <table class="table">
+    <tr><td>N° Contrato</td><td><span class="badge">{{ contrato.numero }}</span></td></tr>
+    <tr><td>Folio ERP</td><td>{{ folio }}</td></tr>
+    <tr><td>Evento</td><td>{{ cotizacion.nombre_evento }}</td></tr>
+    <tr><td>Fecha del evento</td><td>{{ cotizacion.fecha_evento|date:"d \d\e F \d\e Y" }}</td></tr>
+    <tr><td>Total del servicio</td><td><strong>${{ cotizacion.precio_final|floatformat:2 }} MXN</strong></td></tr>
+    <tr><td>Depósito en garantía</td><td>${{ contrato.deposito_garantia|floatformat:2 }} MXN</td></tr>
+  </table>
+
+  <p>Si tiene alguna pregunta o necesita modificar algún dato, contáctenos antes de firmar.</p>
+
+  <div style="text-align:center;">
+    <a href="https://wa.me/529999999999" class="btn">Contactar por WhatsApp</a>
+  </div>
+
+  <div class="footer">
+    <p><strong>Quinta Ko'ox Tanil</strong> — Yecapixtla, Morelos<br>
+    Este correo fue generado automáticamente por el ERP QKT.</p>
+  </div>
+</div>
+</body>
+</html>

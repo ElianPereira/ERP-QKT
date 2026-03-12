@@ -470,3 +470,346 @@ class PlanPagosService:
             )
         
         return plan
+    
+# ==========================================
+# GENERADOR DE CONTRATO DOCX
+# ==========================================
+class ContratoService:
+    """
+    Genera el contrato .docx a partir de una Cotizacion confirmada.
+    Usa python-docx para crear el documento con todos los datos pre-llenados.
+    """
+
+    VERDE      = "2E7D32"
+    VERDE_CLR  = "E8F5E9"
+    GRIS_CLR   = "F5F5F5"
+    NEGRO      = "1A1A1A"
+    ROJO       = "C62828"
+
+    def __init__(self, cotizacion, tipo_servicio='EVENTO', deposito=Decimal('0.00')):
+        self.cot   = cotizacion
+        self.cli   = cotizacion.cliente
+        self.tipo  = tipo_servicio
+        self.dep   = deposito
+
+    # ── helpers internos ────────────────────────────────────────────────
+    def _fmt_fecha(self, d):
+        if not d:
+            return "—"
+        meses = ["", "enero", "febrero", "marzo", "abril", "mayo", "junio",
+                 "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+        return f"{d.day} de {meses[d.month]} de {d.year}"
+
+    def _fmt_hora(self, t):
+        return t.strftime("%H:%M h") if t else "—"
+
+    def _fmt_money(self, v):
+        return f"${v:,.2f} MXN"
+
+    def _tipo_servicio_display(self):
+        return {"EVENTO": "Evento", "PASADIA": "Pasadía", "HOSPEDAJE": "Hospedaje"}.get(self.tipo, self.tipo)
+
+    def _servicios_incluidos(self):
+        """Construye texto de servicios a partir de los items y flags de barra."""
+        partes = []
+        for item in self.cot.items.select_related('producto').all():
+            partes.append(item.descripcion or (item.producto.nombre if item.producto else ""))
+        barra = []
+        if self.cot.incluye_refrescos:         barra.append("Refrescos/Mezcladores")
+        if self.cot.incluye_cerveza:           barra.append("Cerveza")
+        if self.cot.incluye_licor_nacional:    barra.append("Licor Nacional")
+        if self.cot.incluye_licor_premium:     barra.append("Licor Premium")
+        if self.cot.incluye_cocteleria_basica: barra.append("Coctelería")
+        if self.cot.incluye_cocteleria_premium:barra.append("Mixología")
+        if barra:
+            partes.append("Barra: " + ", ".join(barra))
+        return " | ".join(filter(None, partes)) or "Según cotización adjunta"
+
+    def _primer_pago(self):
+        """Retorna el primer pago registrado (anticipo)."""
+        return self.cot.pagos.order_by('fecha_pago').first()
+
+    def _numero_contrato(self):
+        from .models import ContratoServicio
+        year = self.cot.fecha_evento.year if self.cot.fecha_evento else timezone.now().year
+        seq  = ContratoServicio.objects.filter(
+            cotizacion__fecha_evento__year=year
+        ).count() + 1
+        return f"CONT-{year}-{seq:04d}"
+
+    # ── construcción del documento ───────────────────────────────────────
+    def generar(self):
+        """
+        Genera el .docx y retorna bytes listos para guardar en FileField.
+        """
+        from docx import Document
+        from docx.shared import Pt, RGBColor, Inches, Cm
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        import io
+
+        doc = Document()
+
+        # ── Estilos globales ────────────────────────────────────────────
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(10)
+
+        def set_col_widths(table, widths):
+            for row in table.rows:
+                for i, cell in enumerate(row.cells):
+                    cell.width = widths[i]
+
+        def add_heading(text, level=2, color_hex=None):
+            p = doc.add_heading(text, level=level)
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            run = p.runs[0] if p.runs else p.add_run(text)
+            run.font.name = 'Arial'
+            run.font.size = Pt(12 if level == 2 else 16)
+            if color_hex:
+                r, g, b = int(color_hex[0:2], 16), int(color_hex[2:4], 16), int(color_hex[4:6], 16)
+                run.font.color.rgb = RGBColor(r, g, b)
+            return p
+
+        def add_field_table(rows_data):
+            """rows_data: lista de (label, value)"""
+            table = doc.add_table(rows=len(rows_data), cols=2)
+            table.style = 'Table Grid'
+            table.alignment = WD_TABLE_ALIGNMENT.LEFT
+            for i, (label, value) in enumerate(rows_data):
+                lc = table.cell(i, 0)
+                vc = table.cell(i, 1)
+                lc.text = label
+                vc.text = str(value)
+                lc.paragraphs[0].runs[0].bold = True
+                lc.paragraphs[0].runs[0].font.size = Pt(9)
+                vc.paragraphs[0].runs[0].font.size = Pt(9)
+            # anchos: 5cm + 11cm
+            for row in table.rows:
+                row.cells[0].width = Cm(5)
+                row.cells[1].width = Cm(11)
+            return table
+
+        def add_spacer(n=1):
+            for _ in range(n):
+                doc.add_paragraph("")
+
+        # ── Encabezado ──────────────────────────────────────────────────
+        titulo = doc.add_paragraph()
+        titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = titulo.add_run("CONTRATO DE PRESTACIÓN DE SERVICIOS")
+        run.bold = True
+        run.font.size = Pt(16)
+        run.font.name = 'Arial'
+        r, g, b = int(self.VERDE[0:2], 16), int(self.VERDE[2:4], 16), int(self.VERDE[4:6], 16)
+        run.font.color.rgb = RGBColor(r, g, b)
+
+        sub = doc.add_paragraph()
+        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sub.add_run("Quinta Ko'ox Tanil  •  Yecapixtla, Morelos").font.size = Pt(9)
+
+        numero = self._numero_contrato()
+        folio  = f"COT-{self.cot.id:03d}"
+        fecha_doc = self._fmt_fecha(timezone.now().date())
+
+        ref = doc.add_paragraph()
+        ref.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        ref.add_run(f"N° Contrato: {numero}  |  Folio ERP: {folio}  |  Fecha: {fecha_doc}").font.size = Pt(8)
+
+        add_spacer()
+
+        # ── I. PARTES ───────────────────────────────────────────────────
+        add_heading("I. PARTES", color_hex=self.VERDE)
+        p = doc.add_paragraph()
+        p.add_run("PRESTADOR DE SERVICIOS: ").bold = True
+        p.add_run("Quinta Ko'ox Tanil, con domicilio en Yecapixtla, Morelos "
+                  "(en adelante \"LA QUINTA\").")
+        p2 = doc.add_paragraph()
+        p2.add_run("CONTRATANTE: ").bold = True
+        p2.add_run("La persona cuyos datos se indican a continuación (en adelante \"EL CONTRATANTE\"):")
+
+        add_spacer()
+        nombre_fiscal = self.cli.razon_social or self.cli.nombre
+        rfc_curp      = self.cli.rfc or "No proporcionado"
+        add_field_table([
+            ("Nombre / Razón Social", nombre_fiscal),
+            ("RFC / CURP",            rfc_curp),
+            ("Teléfono",              self.cli.telefono or "—"),
+            ("Correo electrónico",    self.cli.email or "—"),
+        ])
+        add_spacer()
+
+        # ── II. OBJETO ──────────────────────────────────────────────────
+        add_heading("II. OBJETO DEL CONTRATO", color_hex=self.VERDE)
+
+        tipo_marca = {
+            'EVENTO':    '☑ Evento     ☐ Pasadía     ☐ Hospedaje',
+            'PASADIA':   '☐ Evento     ☑ Pasadía     ☐ Hospedaje',
+            'HOSPEDAJE': '☐ Evento     ☐ Pasadía     ☑ Hospedaje',
+        }.get(self.tipo, '☐ Evento     ☐ Pasadía     ☐ Hospedaje')
+
+        hora_ini = self._fmt_hora(self.cot.hora_inicio)
+        hora_fin = self._fmt_hora(self.cot.hora_fin)
+
+        add_field_table([
+            ("Tipo de servicio",    tipo_marca),
+            ("Nombre del evento",   self.cot.nombre_evento),
+            ("Fecha del evento",    self._fmt_fecha(self.cot.fecha_evento)),
+            ("Hora de inicio",      hora_ini),
+            ("Hora de término",     hora_fin),
+            ("N° de personas",      str(self.cot.num_personas)),
+            ("Servicios incluidos", self._servicios_incluidos()),
+        ])
+        add_spacer()
+
+        # ── III. PRECIO Y PAGOS ─────────────────────────────────────────
+        add_heading("III. PRECIO Y FORMA DE PAGO", color_hex=self.VERDE)
+
+        primer_pago  = self._primer_pago()
+        total_pagado = self.cot.total_pagado()
+        saldo        = self.cot.saldo_pendiente()
+
+        metodos_map = dict(self.cot.pagos.model.METODOS) if self.cot.pagos.exists() else {}
+        pago_str = (
+            f"{self._fmt_money(primer_pago.monto)} — "
+            f"{metodos_map.get(primer_pago.metodo, primer_pago.metodo)} — "
+            f"{primer_pago.fecha_pago.strftime('%d/%m/%Y')}"
+        ) if primer_pago else "Pendiente"
+
+        add_field_table([
+            ("Total del servicio",    self._fmt_money(self.cot.precio_final)),
+            ("Anticipo pagado",       pago_str),
+            ("Total pagado a la fecha", self._fmt_money(total_pagado)),
+            ("Saldo pendiente",       self._fmt_money(saldo)),
+            ("Depósito en garantía",  self._fmt_money(self.dep)),
+            ("Datos bancarios",       "CLABE: ______________________________  Banco: __________"),
+        ])
+
+        add_spacer()
+        p_aviso = doc.add_paragraph()
+        p_aviso.add_run("⚠ IMPORTANTE: ").bold = True
+        p_aviso.add_run("La fecha queda reservada ÚNICAMENTE al recibirse el anticipo pactado. "
+                        "Sin pago confirmado, LA QUINTA puede ceder la fecha a terceros.")
+        p_aviso.paragraph_format.left_indent = Cm(0.5)
+        add_spacer()
+
+        # ── IV. CANCELACIONES ───────────────────────────────────────────
+        add_heading("IV. POLÍTICA DE CANCELACIÓN", color_hex=self.VERDE)
+
+        cancel_data = [
+            ("Más de 60 días",          "100% anticipo",  "100% saldo"),
+            ("30 a 59 días",            "50% anticipo",   "100% saldo"),
+            ("15 a 29 días",            "0% anticipo",    "80% saldo"),
+            ("Menos de 15 días",        "0% anticipo",    "0% saldo"),
+            ("Fuerza mayor documentada","100% anticipo",  "100% saldo"),
+        ]
+        ct = doc.add_table(rows=len(cancel_data) + 1, cols=3)
+        ct.style = 'Table Grid'
+        headers = ["Tiempo antes del evento", "Reembolso del anticipo", "Reembolso del saldo"]
+        for i, h in enumerate(headers):
+            cell = ct.cell(0, i)
+            cell.text = h
+            cell.paragraphs[0].runs[0].bold = True
+            cell.paragraphs[0].runs[0].font.size = Pt(9)
+        for ri, row_data in enumerate(cancel_data, 1):
+            for ci, val in enumerate(row_data):
+                c = ct.cell(ri, ci)
+                c.text = val
+                c.paragraphs[0].runs[0].font.size = Pt(9)
+        add_spacer()
+
+        # ── V. OBLIGACIONES ─────────────────────────────────────────────
+        add_heading("V. OBLIGACIONES DE LAS PARTES", color_hex=self.VERDE)
+        p = doc.add_paragraph(); p.add_run("5.1 LA QUINTA se obliga a:").bold = True
+        for txt in [
+            "Entregar el espacio limpio en el horario pactado.",
+            "Proporcionar los servicios descritos en la Cláusula II.",
+            "Designar un coordinador disponible durante el servicio.",
+        ]:
+            doc.add_paragraph(txt, style='List Bullet')
+
+        p = doc.add_paragraph(); p.add_run("5.2 EL CONTRATANTE se obliga a:").bold = True
+        for txt in [
+            "Pagar en los términos y plazos pactados.",
+            "Respetar el horario acordado (horas extra con cargo previo acuerdo).",
+            f"No exceder el aforo de {self.cot.num_personas} personas.",
+            "Hacerse responsable del comportamiento de sus invitados y proveedores externos.",
+            "No instalar infraestructura sin autorización escrita.",
+            "Respetar el reglamento interno del lugar.",
+        ]:
+            doc.add_paragraph(txt, style='List Bullet')
+        add_spacer()
+
+        # ── VI. DAÑOS Y DEPÓSITO ────────────────────────────────────────
+        add_heading("VI. DAÑOS Y DEPÓSITO EN GARANTÍA", color_hex=self.VERDE)
+        add_field_table([
+            ("Depósito en garantía", self._fmt_money(self.dep)),
+            ("Devolución",           "Dentro de 5 días hábiles post-evento, previo inventario."),
+        ])
+        add_spacer()
+
+        # ── VII. CLÁUSULA ESPECÍFICA POR TIPO ──────────────────────────
+        add_heading(f"VII. DISPOSICIONES — {self._tipo_servicio_display().upper()}", color_hex=self.VERDE)
+        clausulas = {
+            'EVENTO': [
+                f"Música y sonido deben concluir conforme al horario pactado ({hora_fin}).",
+                "Prohibido el acceso con pirotecnia, armas o sustancias ilícitas.",
+                "Catering externo debe retirar todos sus residuos al concluir.",
+            ],
+            'PASADIA': [
+                f"El acceso es de {hora_ini} a {hora_fin}. No se permite pernoctar.",
+                "Personas adicionales al aforo pactado tienen costo extra.",
+            ],
+            'HOSPEDAJE': [
+                "Check-in y check-out en horarios acordados.",
+                "Prohibido organizar eventos o reuniones sin contrato independiente.",
+                "Fumar dentro de habitaciones genera cargo de limpieza extraordinaria.",
+            ],
+        }
+        for txt in clausulas.get(self.tipo, []):
+            doc.add_paragraph(txt, style='List Bullet')
+        add_spacer()
+
+        # ── VIII. JURISDICCIÓN ──────────────────────────────────────────
+        add_heading("VIII. JURISDICCIÓN", color_hex=self.VERDE)
+        doc.add_paragraph(
+            "Las partes se someten a los Tribunales del Estado de Morelos, "
+            "renunciando a cualquier otro fuero. Ante controversia, intentarán "
+            "resolución amigable en 10 días hábiles antes de acción legal. "
+            "Adicionalmente podrán acudir a PROFECO como instancia de mediación."
+        ).font.size = Pt(9)
+        add_spacer()
+
+        # ── IX. FIRMAS ──────────────────────────────────────────────────
+        add_heading("IX. ACEPTACIÓN Y FIRMAS", color_hex=self.VERDE)
+        doc.add_paragraph(
+            "Leído y entendido en todas sus partes, ambas partes lo aceptan y se obligan a su cumplimiento. "
+            "La firma puede ser física o electrónica (WhatsApp/correo con valor probatorio)."
+        ).font.size = Pt(9)
+        add_spacer(2)
+
+        firma_table = doc.add_table(rows=3, cols=3)
+        firma_table.cell(0, 0).text = "_" * 30
+        firma_table.cell(0, 2).text = "_" * 30
+        firma_table.cell(1, 0).text = nombre_fiscal
+        firma_table.cell(1, 2).text = "Quinta Ko'ox Tanil"
+        firma_table.cell(2, 0).text = "CONTRATANTE"
+        firma_table.cell(2, 2).text = "PRESTADOR DE SERVICIOS"
+        for ri in range(3):
+            for ci in [0, 2]:
+                p = firma_table.cell(ri, ci).paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if p.runs:
+                    p.runs[0].bold = (ri > 0)
+                    p.runs[0].font.size = Pt(9)
+
+        add_spacer()
+        doc.add_paragraph(f"Fecha: {fecha_doc}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # ── Serializar a bytes ──────────────────────────────────────────
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer.read(), numero
