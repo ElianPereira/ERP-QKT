@@ -204,3 +204,53 @@ body.login-page .login-logo .logo-light {
     margin: 0 auto !important;
     filter: drop-shadow(0 3px 8px rgba(0,0,0,0.18)) !important;
 }
+
+
+/* ============================================================
+   CHANGELIST — SCROLL HORIZONTAL + BOTONES TÁCTILES EN MÓVIL
+   ============================================================ */
+@media screen and (max-width: 900px) {
+
+    /* Scroll horizontal en la tabla principal del listado */
+    #result_list,
+    .results {
+        display: block;
+        overflow-x: auto;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #result_list table,
+    .results table {
+        min-width: 700px;
+    }
+
+    /* Columnas de acción (últimas 3) — no colapsar */
+    #result_list th:last-child,
+    #result_list td:last-child,
+    #result_list th:nth-last-child(2),
+    #result_list td:nth-last-child(2),
+    #result_list th:nth-last-child(3),
+    #result_list td:nth-last-child(3) {
+        white-space: nowrap;
+        min-width: 70px;
+    }
+}
+
+/* Botones dentro de celdas — área táctil mínima (aplica siempre, no solo móvil) */
+#result_list td a,
+.results td a {
+    display: inline-block;
+    min-height: 34px;
+    line-height: 34px;
+    padding: 0 10px;
+    white-space: nowrap;
+    vertical-align: middle;
+    /* Elimina el delay de 300ms en iOS/Android */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
+    /* Asegura que el tap llegue al enlace y no lo capture el scroll */
+    position: relative;
+    z-index: 1;
+    pointer-events: auto !important;
+}
