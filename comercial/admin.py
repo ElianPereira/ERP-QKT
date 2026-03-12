@@ -626,11 +626,17 @@ class ContratoServicioAdmin(admin.ModelAdmin):
     @admin.display(description="Descargar")
     def descargar_btn(self, obj):
         if obj.archivo:
-            return format_html('<a href="{}" class="btn btn-primary btn-sm">⬇ .docx</a>', obj.archivo.url)
+            return format_html(
+                '<a href="{}" target="_blank" class="btn btn-primary">PDF</a>',
+                obj.archivo.url
+            )
         return "—"
 
     @admin.display(description="Email")
     def enviar_btn(self, obj):
         url = reverse('contrato_email', args=[obj.id])
-        icono = "✅" if obj.enviado_email else "📧"
-        return format_html('<a href="{}" class="btn btn-success btn-sm">{} Enviar</a>', url, icono)
+        icono = "✅ Enviado" if obj.enviado_email else "Enviar"
+        return format_html(
+            '<a href="{}" class="btn btn-success">{}</a>',
+            url, icono
+        )
