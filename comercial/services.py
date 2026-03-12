@@ -541,7 +541,7 @@ class ContratoService:
 
         sub = doc.add_paragraph()
         sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        rs = sub.add_run("Quinta Ko'ox Tanil  •  Yecapixtla, Morelos")
+        rs = sub.add_run("Quinta Ko'ox Tanil  •  Tanil, Umán.")
         rs.font.size = Pt(9)
 
         numero    = self._numero_contrato()
@@ -559,7 +559,7 @@ class ContratoService:
         add_heading("I. Partes")
         p = doc.add_paragraph()
         p.add_run("PRESTADOR DE SERVICIOS: ").bold = True
-        p.add_run("Quinta Ko'ox Tanil, con domicilio en Yecapixtla, Morelos (en adelante \"LA QUINTA\").")
+        p.add_run("Quinta Ko'ox Tanil, con domicilio en Tanil, Umán (en adelante \"LA QUINTA\").")
 
         p2 = doc.add_paragraph()
         p2.add_run("CONTRATANTE: ").bold = True
@@ -618,7 +618,7 @@ class ContratoService:
             ("Total pagado a la fecha", self._fmt_money(total_pagado)),
             ("Saldo pendiente",         self._fmt_money(saldo)),
             ("Depósito en garantía",    self._fmt_money(self.dep)),
-            ("Datos bancarios",         "CLABE: ______________________________  Banco: __________"),
+            ("Datos bancarios",         "CLABE: 012910004895703146  Banco: BBVA "),
         ])
         add_spacer()
 
