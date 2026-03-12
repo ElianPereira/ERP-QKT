@@ -164,6 +164,8 @@ JAZZMIN_SETTINGS = {
         "facturacion":                      "fas fa-file-invoice",
         "auth":                             "fas fa-cog",
         "comercial.MovimientoInventario":   "fas fa-boxes",
+        "comercial.ContratoServicio":       "fas fa-file-contract",
+        "comercial.PlanDePago":             "fas fa-calendar-alt",
 
         # EVENTOS & SERVICIOS
         "comercial.Cotizacion":             "fas fa-file-invoice-dollar",

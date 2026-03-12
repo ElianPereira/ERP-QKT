@@ -553,8 +553,8 @@ class ContratoServicio(models.Model):
         return f"{self.numero} — {self.cotizacion.cliente.nombre}"
 
     class Meta:
-        verbose_name = "Contrato de Servicio"
-        verbose_name_plural = "Contratos de Servicio"
+        verbose_name = "Contrato"
+        verbose_name_plural = "Contratos"
         ordering = ['-generado_en']
 
 # --- COMPRA Y GASTO ---
