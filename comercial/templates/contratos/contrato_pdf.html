@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    /* ── Reset y base ─────────────────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      color: #1A1A1A;
+      line-height: 1.5;
+    }
+
+    /* ── Página ───────────────────────────────────────────── */
+    @page {
+      size: letter;
+      margin: 2cm 2.5cm 2.5cm 2.5cm;
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 8pt;
+        color: #888;
+      }
+    }
+
+    /* ── Encabezado ───────────────────────────────────────── */
+    .header { text-align: center; margin-bottom: 18px; }
+    .logo   { height: 60px; margin-bottom: 8px; }
+    .titulo {
+      font-size: 16pt;
+      font-weight: bold;
+      color: #2E7D32;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .subtitulo {
+      font-size: 9pt;
+      color: #555;
+      margin-top: 4px;
+    }
+    .folio-bar {
+      font-size: 8pt;
+      color: #777;
+      margin-top: 6px;
+      border-top: 1px solid #e0e0e0;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 4px 0;
+    }
+
+    /* ── Secciones ────────────────────────────────────────── */
+    .seccion {
+      margin-top: 16px;
+      margin-bottom: 6px;
+    }
+    .seccion-titulo {
+      font-size: 10pt;
+      font-weight: bold;
+      color: #2E7D32;
+      text-transform: uppercase;
+      border-bottom: 2px solid #2E7D32;
+      padding-bottom: 2px;
+      margin-bottom: 8px;
+    }
+
+    /* ── Tablas de campos ─────────────────────────────────── */
+    .tabla-campos {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      font-size: 9pt;
+    }
+    .tabla-campos td {
+      border: 1px solid #CCCCCC;
+      padding: 5px 8px;
+      vertical-align: top;
+    }
+    .tabla-campos td.label {
+      background: #F5F5F5;
+      font-weight: bold;
+      width: 32%;
+      color: #333;
+    }
+
+    /* ── Tabla de cancelaciones ───────────────────────────── */
+    .tabla-cancel {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin-bottom: 10px;
+    }
+    .tabla-cancel th {
+      background: #2E7D32;
+      color: #fff;
+      padding: 5px 8px;
+      text-align: center;
+      font-weight: bold;
+    }
+    .tabla-cancel td {
+      border: 1px solid #CCCCCC;
+      padding: 5px 8px;
+      text-align: center;
+    }
+    .tabla-cancel tr:nth-child(even) td { background: #F9F9F9; }
+    .tabla-cancel td:first-child { text-align: left; }
+    .verde { color: #2E7D32; font-weight: bold; }
+    .rojo  { color: #C62828; font-weight: bold; }
+
+    /* ── Párrafos y listas ────────────────────────────────── */
+    p { margin-bottom: 6px; font-size: 10pt; }
+    ul { margin-left: 18px; margin-bottom: 8px; }
+    ul li { margin-bottom: 3px; font-size: 10pt; }
+    .bold { font-weight: bold; }
+    .small { font-size: 9pt; color: #444; }
+
+    /* ── Aviso importante ─────────────────────────────────── */
+    .aviso {
+      background: #E8F5E9;
+      border-left: 4px solid #2E7D32;
+      padding: 8px 12px;
+      margin: 10px 0;
+      font-size: 9pt;
+    }
+
+    /* ── Firmas ───────────────────────────────────────────── */
+    .firmas {
+      margin-top: 30px;
+      page-break-inside: avoid;
+    }
+    .firmas-grid {
+      display: table;
+      width: 100%;
+    }
+    .firma-col {
+      display: table-cell;
+      width: 45%;
+      text-align: center;
+      vertical-align: bottom;
+      padding: 0 10px;
+    }
+    .firma-espacio {
+      height: 50px;
+      border-bottom: 1px solid #333;
+      margin-bottom: 6px;
+    }
+    .firma-nombre { font-weight: bold; font-size: 10pt; }
+    .firma-rol    { font-size: 8pt; color: #666; }
+    .firma-sep    { display: table-cell; width: 10%; }
+
+    /* ── Salto de página ──────────────────────────────────── */
+    .page-break { page-break-after: always; }
+
+    /* ── Reglamento ───────────────────────────────────────── */
+    .reglamento-titulo {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #2E7D32;
+      text-align: center;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .reglamento-sub {
+      font-size: 8pt;
+      color: #777;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     ENCABEZADO
+═══════════════════════════════════════════════════════════ -->
+<div class="header">
+  {% if logo_url %}
+  <img src="{{ logo_url }}" class="logo" alt="Logo">
+  {% endif %}
+  <div class="titulo">Contrato de Prestación de Servicios</div>
+  <div class="subtitulo">Quinta Ko'ox Tanil &nbsp;•&nbsp; Tanil, Umán </div>
+  <div class="folio-bar">
+    N° Contrato: <strong>{{ numero }}</strong> &nbsp;|&nbsp;
+    Folio ERP: <strong>{{ folio }}</strong> &nbsp;|&nbsp;
+    Fecha: <strong>{{ fecha_doc }}</strong>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     I. PARTES
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">I. Partes</div>
+  <p><span class="bold">PRESTADOR DE SERVICIOS:</span>
+     Quinta Ko'ox Tanil, con domicilio en Tanil, Umán (en adelante "LA QUINTA").</p>
+  <p><span class="bold">CONTRATANTE:</span>
+     La persona cuyos datos se indican a continuación (en adelante "EL CONTRATANTE"):</p>
+
+  <table class="tabla-campos">
+    <tr><td class="label">Nombre / Razón Social</td><td>{{ nombre_fiscal }}</td></tr>
+    <tr><td class="label">RFC / CURP</td><td>{{ rfc_curp }}</td></tr>
+    <tr><td class="label">Teléfono</td><td>{{ telefono }}</td></tr>
+    <tr><td class="label">Correo electrónico</td><td>{{ email }}</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     II. OBJETO
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">II. Objeto del Contrato</div>
+  <table class="tabla-campos">
+    <tr><td class="label">Tipo de servicio</td><td>{{ tipo_marca }}</td></tr>
+    <tr><td class="label">Nombre del evento</td><td>{{ cotizacion.nombre_evento }}</td></tr>
+    <tr><td class="label">Fecha del evento</td><td>{{ fecha_evento }}</td></tr>
+    <tr><td class="label">Hora de inicio</td><td>{{ hora_ini }}</td></tr>
+    <tr><td class="label">Hora de término</td><td>{{ hora_fin }}</td></tr>
+    <tr><td class="label">N° de personas</td><td>{{ cotizacion.num_personas }}</td></tr>
+    <tr><td class="label">Servicios incluidos</td><td>{{ servicios_incluidos }}</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     III. PRECIO Y PAGOS
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">III. Precio y Forma de Pago</div>
+  <table class="tabla-campos">
+    <tr><td class="label">Total del servicio</td><td><strong>{{ precio_total }}</strong></td></tr>
+    <tr><td class="label">Anticipo pagado</td><td>{{ anticipo_str }}</td></tr>
+    <tr><td class="label">Total pagado a la fecha</td><td>{{ total_pagado_str }}</td></tr>
+    <tr><td class="label">Saldo pendiente</td><td>{{ saldo_str }}</td></tr>
+    <tr><td class="label">Depósito en garantía</td><td>{{ deposito_str }}</td></tr>
+    <tr><td class="label">Datos bancarios</td><td>CLABE: 012910004895703146 &nbsp; Banco: BBVA </td></tr>
+  </table>
+
+  <div class="aviso">
+    <strong>⚠ IMPORTANTE:</strong> La fecha queda reservada ÚNICAMENTE al recibirse el anticipo pactado.
+    Sin pago confirmado, LA QUINTA puede ceder la fecha a terceros sin previo aviso.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     IV. CANCELACIONES
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">IV. Política de Cancelación</div>
+  <table class="tabla-cancel">
+    <thead>
+      <tr>
+        <th>Tiempo antes del evento</th>
+        <th>Reembolso del anticipo</th>
+        <th>Reembolso del saldo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Más de 60 días</td>
+          <td class="verde">100%</td><td class="verde">100%</td></tr>
+      <tr><td>30 a 59 días</td>
+          <td class="verde">50%</td><td class="verde">100%</td></tr>
+      <tr><td>15 a 29 días</td>
+          <td class="rojo">0%</td><td class="verde">80%</td></tr>
+      <tr><td>Menos de 15 días</td>
+          <td class="rojo">0%</td><td class="rojo">0%</td></tr>
+      <tr><td>Fuerza mayor documentada</td>
+          <td class="verde">100%</td><td class="verde">100%</td></tr>
+    </tbody>
+  </table>
+  <p class="small">
+    <strong>Fuerza mayor:</strong> Fallecimiento de familiar directo, hospitalización urgente documentada
+    o desastre natural. Se ofrece reagendar sin costo dentro de los 12 meses siguientes, sujeto a disponibilidad.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     V. OBLIGACIONES
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">V. Obligaciones de las Partes</div>
+  <p class="bold">5.1 &nbsp;LA QUINTA se obliga a:</p>
+  <ul>
+    <li>Entregar el espacio limpio y en las condiciones acordadas en el horario pactado.</li>
+    <li>Proporcionar los servicios descritos en la Cláusula II.</li>
+    <li>Designar un coordinador disponible durante el servicio.</li>
+    <li>Informar oportunamente cualquier situación que impida el cumplimiento del contrato.</li>
+  </ul>
+
+  <p class="bold">5.2 &nbsp;EL CONTRATANTE se obliga a:</p>
+  <ul>
+    <li>Pagar en los términos y plazos pactados en la Cláusula III.</li>
+    <li>Respetar el horario acordado (horas extra tienen costo adicional previo acuerdo).</li>
+    <li>No exceder el aforo de <strong>{{ cotizacion.num_personas }}</strong> personas.</li>
+    <li>Hacerse responsable del comportamiento de sus invitados y proveedores externos.</li>
+    <li>No instalar infraestructura (toldos, templetes, generadores) sin autorización escrita.</li>
+    <li>Respetar el reglamento interno del lugar (disponible en recepción).</li>
+  </ul>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     VI. DAÑOS Y DEPÓSITO
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">VI. Daños y Depósito en Garantía</div>
+  <table class="tabla-campos">
+    <tr><td class="label">Depósito en garantía</td><td><strong>{{ deposito_str }}</strong></td></tr>
+    <tr><td class="label">Devolución</td>
+        <td>Dentro de los 5 días hábiles posteriores al evento, previo inventario de instalaciones.</td></tr>
+  </table>
+  <p class="small">
+    El depósito cubre: roturas, daños al mobiliario o infraestructura, limpieza extraordinaria,
+    horas extra no pagadas y faltantes de inventario. Si los daños superan el depósito, EL CONTRATANTE
+    se obliga a cubrir la diferencia en un plazo máximo de 10 días hábiles.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     VII. DISPOSICIONES POR TIPO
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">VII. Disposiciones — {{ tipo_display }}</div>
+  <ul>
+    {% for clausula in clausulas_tipo %}
+    <li>{{ clausula }}</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     VIII. JURISDICCIÓN
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">VIII. Jurisdicción</div>
+  <p class="small">
+    Las partes se someten a los Tribunales del Estado de Yucatán, renunciando a cualquier otro fuero
+    que pudiera corresponderles por razón de su domicilio presente o futuro. Ante cualquier controversia,
+    las partes intentarán resolución amigable en un plazo de 10 días hábiles. De no lograrse acuerdo,
+    podrán acudir a PROFECO como instancia de mediación antes de iniciar acción legal.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     IX. ACEPTACIÓN Y FIRMAS
+═══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">IX. Aceptación y Firmas</div>
+  <p class="small">
+    Leído y entendido el presente contrato en todas sus partes, ambas partes lo aceptan y se obligan
+    a su cumplimiento. La firma puede ser física o mediante aceptación electrónica (WhatsApp, correo
+    o firma digital), con valor probatorio conforme a la legislación mexicana vigente.
+  </p>
+</div>
+
+<div class="firmas">
+  <div class="firmas-grid">
+    <div class="firma-col">
+      <div class="firma-espacio"></div>
+      <div class="firma-nombre">{{ nombre_fiscal }}</div>
+      <div class="firma-rol">CONTRATANTE</div>
+    </div>
+    <div class="firma-sep"></div>
+    <div class="firma-col">
+      <div class="firma-espacio"></div>
+      <div class="firma-nombre">Quinta Ko'ox Tanil</div>
+      <div class="firma-rol">PRESTADOR DE SERVICIOS</div>
+    </div>
+  </div>
+  <p style="text-align:center; margin-top:20px; font-size:9pt; color:#666;">
+    Fecha: {{ fecha_doc }}
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     PÁGINA 2 — REGLAMENTO INTERNO
+═══════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<div class="reglamento-titulo">Reglamento Interno — Quinta Ko'ox Tanil</div>
+<div class="reglamento-sub">Anexo I del Contrato {{ numero }} — Firma requerida al pie</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Acceso y Capacidad</div>
+  <ul>
+    <li>El acceso de invitados es únicamente por el área designada. Prohibido acceder a zonas privadas o de servicio.</li>
+    <li>El aforo máximo del espacio es el acordado en el contrato. Se puede detener el acceso si se supera.</li>
+    <li>Las mascotas están permitidas solo en áreas exteriores con correa y autorización escrita previa.</li>
+  </ul>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Ruido y Música</div>
+  <ul>
+    <li>La música a alto volumen está permitida hasta el horario límite acordado, conforme al Bando Municipal.</li>
+    <li>Pasado el horario límite, el volumen debe reducirse a nivel conversacional. El incumplimiento puede derivar en suspensión del servicio sin reembolso.</li>
+    <li>Los equipos de sonido externos deben ser autorizados previamente. El cableado no debe dañar pisos o muros.</li>
+  </ul>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Alimentos, Bebidas y Barra</div>
+  <ul>
+    <li>Está prohibida la introducción de bebidas alcohólicas externas cuando se contrató servicio de barra con LA QUINTA.</li>
+    <li>El uso de cuetes, pirotecnia o fogatas queda estrictamente prohibido.</li>
+    <li>Las empresas externas de catering deben mantener su área limpia y retirar todos sus residuos al concluir.</li>
+  </ul>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Cuidado de las Instalaciones</div>
+  <ul>
+    <li>Prohibido clavar, atornillar o pegar cinta industrial en muros, puertas o muebles sin autorización.</li>
+    <li>Los adornos con confeti o papel picado requieren autorización y generan cargo de limpieza adicional.</li>
+    <li>La alberca / cenote (si aplica) solo puede usarse en los horarios acordados. LA QUINTA no responde por accidentes por uso irresponsable.</li>
+  </ul>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Seguridad</div>
+  <ul>
+    <li>El consumo de sustancias ilícitas está terminantemente prohibido y es causa de desalojo inmediato sin reembolso.</li>
+    <li>Cualquier comportamiento violento que ponga en riesgo la integridad de personas o instalaciones será motivo de desalojo.</li>
+    <li>EL CONTRATANTE es responsable del orden de su evento. El personal de LA QUINTA no interviene en disputas entre invitados.</li>
+  </ul>
+</div>
+
+<div class="firmas" style="margin-top:40px;">
+  <p style="text-align:center; font-weight:bold; margin-bottom:20px; font-size:10pt;">
+    He leído y acepto el presente Reglamento Interno como parte integral del contrato.
+  </p>
+  <div class="firmas-grid">
+    <div class="firma-col">
+      <div class="firma-espacio"></div>
+      <div class="firma-nombre">{{ nombre_fiscal }}</div>
+      <div class="firma-rol">CONTRATANTE</div>
+    </div>
+    <div class="firma-sep"></div>
+    <div class="firma-col">
+      <div class="firma-espacio"></div>
+      <div class="firma-nombre">Quinta Ko'ox Tanil</div>
+      <div class="firma-rol">PRESTADOR DE SERVICIOS</div>
+    </div>
+  </div>
+  <p style="text-align:center; margin-top:16px; font-size:9pt; color:#666;">
+    Fecha: {{ fecha_doc }}
+  </p>
+</div>
+
+</body>
+</html>

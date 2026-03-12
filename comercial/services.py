@@ -375,15 +375,13 @@ class PlanPagosService:
 
 
 # ==========================================
-# GENERADOR DE CONTRATO DOCX
+# GENERADOR DE CONTRATO PDF
 # ==========================================
 class ContratoService:
     """
-    Genera el contrato .docx a partir de una Cotizacion confirmada.
+    Genera el contrato como PDF usando WeasyPrint + template HTML.
+    Mismo patrón que la cotización y nómina.
     """
-
-    VERDE = "2E7D32"
-    NEGRO = "1A1A1A"
 
     def __init__(self, cotizacion, tipo_servicio='EVENTO', deposito=Decimal('0.00')):
         self.cot  = cotizacion
@@ -404,7 +402,7 @@ class ContratoService:
     def _fmt_money(self, v):
         return f"${v:,.2f} MXN"
 
-    def _tipo_servicio_display(self):
+    def _tipo_display(self):
         return {"EVENTO": "Evento", "PASADIA": "Pasadía", "HOSPEDAJE": "Hospedaje"}.get(self.tipo, self.tipo)
 
     def _servicios_incluidos(self):
@@ -422,9 +420,6 @@ class ContratoService:
             partes.append("Barra: " + ", ".join(barra))
         return " | ".join(filter(None, partes)) or "Según cotización adjunta"
 
-    def _primer_pago(self):
-        return self.cot.pagos.order_by('fecha_pago').first()
-
     def _numero_contrato(self):
         from .models import ContratoServicio
         year = self.cot.fecha_evento.year if self.cot.fecha_evento else timezone.now().year
@@ -433,325 +428,90 @@ class ContratoService:
         ).count() + 1
         return f"CONT-{year}-{seq:04d}"
 
-    def _add_bullet(self, doc, text):
-        """Agrega un párrafo con viñeta manual, sin depender del estilo 'List Bullet'."""
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = __import__('docx').shared.Cm(1)
-        p.paragraph_format.first_line_indent = __import__('docx').shared.Cm(-0.5)
-        run = p.add_run(f"• {text}")
-        run.font.size = __import__('docx').shared.Pt(10)
-        return p
+    def _clausulas_tipo(self):
+        hora_ini = self._fmt_hora(self.cot.hora_inicio)
+        hora_fin = self._fmt_hora(self.cot.hora_fin)
+        return {
+            'EVENTO': [
+                f"Música y sonido deben concluir conforme al horario pactado ({hora_fin}).",
+                "Prohibido el acceso con pirotecnia, armas o sustancias ilícitas.",
+                "Catering externo debe retirar todos sus residuos al concluir.",
+                "EL CONTRATANTE es responsable de obtener permisos para personal externo si aplica.",
+            ],
+            'PASADIA': [
+                f"El acceso es de {hora_ini} a {hora_fin}. No se permite pernoctar.",
+                "Personas adicionales al aforo pactado tienen costo extra por persona.",
+                "No se permite el acceso de proveedores externos sin notificación previa.",
+            ],
+            'HOSPEDAJE': [
+                "Check-in y check-out en los horarios acordados.",
+                "Prohibido organizar eventos o reuniones sin contrato independiente.",
+                "Fumar dentro de habitaciones genera cargo de limpieza extraordinaria.",
+                "Prohibido el ingreso de personas no registradas después de las 23:00 h.",
+            ],
+        }.get(self.tipo, [])
 
     def generar(self):
-        from docx import Document
-        from docx.shared import Pt, RGBColor, Cm
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.enum.table import WD_TABLE_ALIGNMENT
-        import io
-
-        doc = Document()
-
-        # Márgenes del documento
-        for section in doc.sections:
-            section.top_margin    = Cm(2)
-            section.bottom_margin = Cm(2)
-            section.left_margin   = Cm(2.5)
-            section.right_margin  = Cm(2.5)
-
-        # Estilo normal base
-        doc.styles['Normal'].font.name = 'Arial'
-        doc.styles['Normal'].font.size = Pt(10)
-
-        rv, gv, bv = int(self.VERDE[0:2], 16), int(self.VERDE[2:4], 16), int(self.VERDE[4:6], 16)
-        color_verde = RGBColor(rv, gv, bv)
-
-        # ── helpers locales ──────────────────────────────────────────────
-        def add_heading(text, level=2):
-            p = doc.add_paragraph()
-            run = p.add_run(text.upper())
-            run.bold = True
-            run.font.name = 'Arial'
-            run.font.size = Pt(11) if level == 2 else Pt(14)
-            run.font.color.rgb = color_verde
-            p.paragraph_format.space_before = Pt(12)
-            p.paragraph_format.space_after  = Pt(4)
-            # Línea inferior simulada con borde de párrafo
-            from docx.oxml.ns import qn
-            from docx.oxml import OxmlElement
-            pPr = p._p.get_or_add_pPr()
-            pBdr = OxmlElement('w:pBdr')
-            bottom = OxmlElement('w:bottom')
-            bottom.set(qn('w:val'), 'single')
-            bottom.set(qn('w:sz'), '4')
-            bottom.set(qn('w:space'), '4')
-            bottom.set(qn('w:color'), self.VERDE)
-            pBdr.append(bottom)
-            pPr.append(pBdr)
-            return p
-
-        def add_field_table(rows_data):
-            table = doc.add_table(rows=len(rows_data), cols=2)
-            table.style = 'Table Grid'
-            for i, (label, value) in enumerate(rows_data):
-                lc = table.cell(i, 0)
-                vc = table.cell(i, 1)
-                lc.text = label
-                vc.text = str(value)
-                lr = lc.paragraphs[0].runs[0]
-                lr.bold = True
-                lr.font.size = Pt(9)
-                vr = vc.paragraphs[0].runs[0]
-                vr.font.size = Pt(9)
-            for row in table.rows:
-                row.cells[0].width = Cm(5)
-                row.cells[1].width = Cm(11)
-            return table
-
-        def add_spacer(n=1):
-            for _ in range(n):
-                p = doc.add_paragraph("")
-                p.paragraph_format.space_before = Pt(0)
-                p.paragraph_format.space_after  = Pt(0)
-
-        def add_bullet(text):
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent       = Cm(1)
-            p.paragraph_format.first_line_indent = Cm(-0.5)
-            r = p.add_run(f"\u2022  {text}")
-            r.font.size = Pt(10)
-            r.font.name = 'Arial'
-            return p
-
-        def add_body(text):
-            p = doc.add_paragraph(text)
-            p.paragraph_format.space_before = Pt(2)
-            p.paragraph_format.space_after  = Pt(2)
-            if p.runs:
-                p.runs[0].font.size = Pt(10)
-            return p
-
-        # ── ENCABEZADO ───────────────────────────────────────────────────
-        titulo = doc.add_paragraph()
-        titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = titulo.add_run("CONTRATO DE PRESTACIÓN DE SERVICIOS")
-        r.bold = True
-        r.font.size = Pt(16)
-        r.font.name = 'Arial'
-        r.font.color.rgb = color_verde
-
-        sub = doc.add_paragraph()
-        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        rs = sub.add_run("Quinta Ko'ox Tanil  •  Tanil, Umán.")
-        rs.font.size = Pt(9)
+        """
+        Genera el PDF del contrato y retorna (pdf_bytes, numero_contrato).
+        """
+        import os
+        from django.conf import settings
+        from django.template.loader import render_to_string
+        from weasyprint import HTML
 
         numero    = self._numero_contrato()
         folio     = f"COT-{self.cot.id:03d}"
         fecha_doc = self._fmt_fecha(timezone.now().date())
 
-        ref = doc.add_paragraph()
-        ref.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        rr = ref.add_run(f"N° Contrato: {numero}  |  Folio ERP: {folio}  |  Fecha: {fecha_doc}")
-        rr.font.size = Pt(8)
-
-        add_spacer()
-
-        # ── I. PARTES ─────────────────────────────────────────────────────
-        add_heading("I. Partes")
-        p = doc.add_paragraph()
-        p.add_run("PRESTADOR DE SERVICIOS: ").bold = True
-        p.add_run("Quinta Ko'ox Tanil, con domicilio en Tanil, Umán (en adelante \"LA QUINTA\").")
-
-        p2 = doc.add_paragraph()
-        p2.add_run("CONTRATANTE: ").bold = True
-        p2.add_run("La persona cuyos datos se indican a continuación (en adelante \"EL CONTRATANTE\"):")
-
-        add_spacer()
-        nombre_fiscal = self.cli.razon_social or self.cli.nombre
-        rfc_curp      = self.cli.rfc or "No proporcionado"
-        add_field_table([
-            ("Nombre / Razón Social", nombre_fiscal),
-            ("RFC / CURP",            rfc_curp),
-            ("Teléfono",              self.cli.telefono or "—"),
-            ("Correo electrónico",    self.cli.email or "—"),
-        ])
-        add_spacer()
-
-        # ── II. OBJETO ───────────────────────────────────────────────────
-        add_heading("II. Objeto del Contrato")
-        tipo_marca = {
-            'EVENTO':    '☑ Evento     ☐ Pasadía     ☐ Hospedaje',
-            'PASADIA':   '☐ Evento     ☑ Pasadía     ☐ Hospedaje',
-            'HOSPEDAJE': '☐ Evento     ☐ Pasadía     ☑ Hospedaje',
-        }.get(self.tipo, '☐ Evento     ☐ Pasadía     ☐ Hospedaje')
-
-        hora_ini = self._fmt_hora(self.cot.hora_inicio)
-        hora_fin = self._fmt_hora(self.cot.hora_fin)
-
-        add_field_table([
-            ("Tipo de servicio",    tipo_marca),
-            ("Nombre del evento",   self.cot.nombre_evento),
-            ("Fecha del evento",    self._fmt_fecha(self.cot.fecha_evento)),
-            ("Hora de inicio",      hora_ini),
-            ("Hora de término",     hora_fin),
-            ("N° de personas",      str(self.cot.num_personas)),
-            ("Servicios incluidos", self._servicios_incluidos()),
-        ])
-        add_spacer()
-
-        # ── III. PRECIO Y PAGOS ──────────────────────────────────────────
-        add_heading("III. Precio y Forma de Pago")
-        primer_pago  = self._primer_pago()
+        primer_pago  = self.cot.pagos.order_by('fecha_pago').first()
         total_pagado = self.cot.total_pagado()
         saldo        = self.cot.saldo_pendiente()
 
         if primer_pago:
             metodos_map = dict(self.cot.pagos.model.METODOS)
-            pago_str = (f"{self._fmt_money(primer_pago.monto)} — "
-                        f"{metodos_map.get(primer_pago.metodo, primer_pago.metodo)} — "
-                        f"{primer_pago.fecha_pago.strftime('%d/%m/%Y')}")
+            anticipo_str = (
+                f"{self._fmt_money(primer_pago.monto)} — "
+                f"{metodos_map.get(primer_pago.metodo, primer_pago.metodo)} — "
+                f"{primer_pago.fecha_pago.strftime('%d/%m/%Y')}"
+            )
         else:
-            pago_str = "Pendiente"
+            anticipo_str = "Pendiente"
 
-        add_field_table([
-            ("Total del servicio",      self._fmt_money(self.cot.precio_final)),
-            ("Anticipo pagado",         pago_str),
-            ("Total pagado a la fecha", self._fmt_money(total_pagado)),
-            ("Saldo pendiente",         self._fmt_money(saldo)),
-            ("Depósito en garantía",    self._fmt_money(self.dep)),
-            ("Datos bancarios",         "CLABE: 012910004895703146  Banco: BBVA "),
-        ])
-        add_spacer()
+        tipo_marca = {
+            'EVENTO':    '☑ Evento   ☐ Pasadía   ☐ Hospedaje',
+            'PASADIA':   '☐ Evento   ☑ Pasadía   ☐ Hospedaje',
+            'HOSPEDAJE': '☐ Evento   ☐ Pasadía   ☑ Hospedaje',
+        }.get(self.tipo, '☐ Evento   ☐ Pasadía   ☐ Hospedaje')
 
-        p_av = doc.add_paragraph()
-        p_av.paragraph_format.left_indent = Cm(0.3)
-        r1 = p_av.add_run("⚠ IMPORTANTE: ")
-        r1.bold = True
-        r1.font.size = Pt(9)
-        r2 = p_av.add_run("La fecha queda reservada ÚNICAMENTE al recibirse el anticipo. "
-                           "Sin pago confirmado, LA QUINTA puede ceder la fecha a terceros.")
-        r2.font.size = Pt(9)
-        add_spacer()
+        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+        logo_url  = f"file://{ruta_logo}" if os.name != 'nt' else f"file:///{ruta_logo.replace(os.sep, '/')}"
 
-        # ── IV. CANCELACIONES ────────────────────────────────────────────
-        add_heading("IV. Política de Cancelación")
-        cancel_data = [
-            ("Más de 60 días",           "100% anticipo", "100% saldo"),
-            ("30 a 59 días",             "50% anticipo",  "100% saldo"),
-            ("15 a 29 días",             "0% anticipo",   "80% saldo"),
-            ("Menos de 15 días",         "0% anticipo",   "0% saldo"),
-            ("Fuerza mayor documentada", "100% anticipo", "100% saldo"),
-        ]
-        ct = doc.add_table(rows=len(cancel_data) + 1, cols=3)
-        ct.style = 'Table Grid'
-        for i, h in enumerate(["Tiempo antes del evento", "Reembolso anticipo", "Reembolso saldo"]):
-            cell = ct.cell(0, i)
-            cell.text = h
-            cell.paragraphs[0].runs[0].bold = True
-            cell.paragraphs[0].runs[0].font.size = Pt(9)
-        for ri, row_data in enumerate(cancel_data, 1):
-            for ci, val in enumerate(row_data):
-                c = ct.cell(ri, ci)
-                c.text = val
-                c.paragraphs[0].runs[0].font.size = Pt(9)
-        add_spacer()
-
-        # ── V. OBLIGACIONES ──────────────────────────────────────────────
-        add_heading("V. Obligaciones de las Partes")
-        p = doc.add_paragraph()
-        p.add_run("5.1  LA QUINTA se obliga a:").bold = True
-        for txt in [
-            "Entregar el espacio limpio en el horario pactado.",
-            "Proporcionar los servicios descritos en la Cláusula II.",
-            "Designar un coordinador disponible durante el servicio.",
-        ]:
-            add_bullet(txt)
-
-        add_spacer()
-        p = doc.add_paragraph()
-        p.add_run("5.2  EL CONTRATANTE se obliga a:").bold = True
-        for txt in [
-            "Pagar en los términos y plazos pactados.",
-            "Respetar el horario acordado (horas extra con cargo previo acuerdo).",
-            f"No exceder el aforo de {self.cot.num_personas} personas.",
-            "Hacerse responsable del comportamiento de sus invitados y proveedores externos.",
-            "No instalar infraestructura sin autorización escrita.",
-            "Respetar el reglamento interno del lugar.",
-        ]:
-            add_bullet(txt)
-        add_spacer()
-
-        # ── VI. DAÑOS Y DEPÓSITO ─────────────────────────────────────────
-        add_heading("VI. Daños y Depósito en Garantía")
-        add_field_table([
-            ("Depósito en garantía", self._fmt_money(self.dep)),
-            ("Devolución",           "Dentro de 5 días hábiles post-evento, previo inventario."),
-        ])
-        add_spacer()
-
-        # ── VII. DISPOSICIONES POR TIPO ──────────────────────────────────
-        add_heading(f"VII. Disposiciones — {self._tipo_servicio_display()}")
-        clausulas = {
-            'EVENTO': [
-                f"Música y sonido deben concluir a las {hora_fin}.",
-                "Prohibido el acceso con pirotecnia, armas o sustancias ilícitas.",
-                "Catering externo debe retirar todos sus residuos al concluir.",
-            ],
-            'PASADIA': [
-                f"Acceso de {hora_ini} a {hora_fin}. No se permite pernoctar.",
-                "Personas adicionales al aforo pactado tienen costo extra.",
-            ],
-            'HOSPEDAJE': [
-                "Check-in y check-out en los horarios acordados.",
-                "Prohibido organizar eventos sin contrato independiente.",
-                "Fumar en habitaciones genera cargo de limpieza extraordinaria.",
-            ],
+        context = {
+            'numero':            numero,
+            'folio':             folio,
+            'fecha_doc':         fecha_doc,
+            'cotizacion':        self.cot,
+            'nombre_fiscal':     self.cli.razon_social or self.cli.nombre,
+            'rfc_curp':          self.cli.rfc or "No proporcionado",
+            'telefono':          self.cli.telefono or "—",
+            'email':             self.cli.email or "—",
+            'tipo_marca':        tipo_marca,
+            'tipo_display':      self._tipo_display(),
+            'fecha_evento':      self._fmt_fecha(self.cot.fecha_evento),
+            'hora_ini':          self._fmt_hora(self.cot.hora_inicio),
+            'hora_fin':          self._fmt_hora(self.cot.hora_fin),
+            'servicios_incluidos': self._servicios_incluidos(),
+            'precio_total':      self._fmt_money(self.cot.precio_final),
+            'anticipo_str':      anticipo_str,
+            'total_pagado_str':  self._fmt_money(total_pagado),
+            'saldo_str':         self._fmt_money(saldo),
+            'deposito_str':      self._fmt_money(self.dep),
+            'clausulas_tipo':    self._clausulas_tipo(),
+            'logo_url':          logo_url,
         }
-        for txt in clausulas.get(self.tipo, []):
-            add_bullet(txt)
-        add_spacer()
 
-        # ── VIII. JURISDICCIÓN ───────────────────────────────────────────
-        add_heading("VIII. Jurisdicción")
-        p = doc.add_paragraph()
-        r = p.add_run(
-            "Las partes se someten a los Tribunales del Estado de Morelos, renunciando a cualquier "
-            "otro fuero. Ante controversia intentarán resolución amigable en 10 días hábiles antes "
-            "de acción legal. Adicionalmente podrán acudir a PROFECO como instancia de mediación."
-        )
-        r.font.size = Pt(9)
-        add_spacer()
+        html_string = render_to_string('contratos/contrato_pdf.html', context)
+        pdf_bytes   = HTML(string=html_string).write_pdf()
 
-        # ── IX. ACEPTACIÓN Y FIRMAS ──────────────────────────────────────
-        add_heading("IX. Aceptación y Firmas")
-        p = doc.add_paragraph()
-        r = p.add_run(
-            "Leído y entendido en todas sus partes, ambas partes lo aceptan y se obligan a su "
-            "cumplimiento. La firma puede ser física o electrónica (WhatsApp/correo con valor probatorio)."
-        )
-        r.font.size = Pt(9)
-        add_spacer(2)
-
-        firma_table = doc.add_table(rows=3, cols=3)
-        firma_table.cell(0, 0).text = "_" * 30
-        firma_table.cell(0, 2).text = "_" * 30
-        firma_table.cell(1, 0).text = nombre_fiscal
-        firma_table.cell(1, 2).text = "Quinta Ko'ox Tanil"
-        firma_table.cell(2, 0).text = "CONTRATANTE"
-        firma_table.cell(2, 2).text = "PRESTADOR DE SERVICIOS"
-        for ri in range(3):
-            for ci in [0, 2]:
-                cell_p = firma_table.cell(ri, ci).paragraphs[0]
-                cell_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                if cell_p.runs:
-                    cell_p.runs[0].bold = (ri > 0)
-                    cell_p.runs[0].font.size = Pt(9)
-
-        add_spacer()
-        pf = doc.add_paragraph(f"Fecha: {fecha_doc}")
-        pf.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        # ── Serializar ───────────────────────────────────────────────────
-        buffer = io.BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        return buffer.read(), numero
+        return pdf_bytes, numero

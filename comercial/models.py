@@ -356,7 +356,7 @@ class Cotizacion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
-    archivo_contrato = models.FileField(upload_to='contratos_docx/', blank=True, null=True, storage=RawMediaCloudinaryStorage(), verbose_name="Contrato (.docx)")
+    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage(), verbose_name="Contrato PDF")
 
     def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
         """
@@ -543,8 +543,7 @@ class ContratoServicio(models.Model):
     tipo_servicio = models.CharField(max_length=20, choices=TIPO_CHOICES, default='EVENTO')
     deposito_garantia = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
                                             verbose_name="Depósito en Garantía (MXN)")
-    archivo      = models.FileField(upload_to='contratos_docx/', storage=RawMediaCloudinaryStorage(),
-                                    verbose_name="Archivo .docx")
+    archivo = models.FileField(upload_to='contratos_pdf/', storage=RawMediaCloudinaryStorage(), verbose_name="Archivo PDF")
     generado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     generado_en  = models.DateTimeField(auto_now_add=True)
     enviado_email = models.BooleanField(default=False)

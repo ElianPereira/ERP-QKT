@@ -1603,11 +1603,6 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
 # ==========================================
 @staff_member_required
 def generar_contrato(request, cotizacion_id):
-    """
-    Genera el contrato .docx para una cotización CONFIRMADA,
-    lo guarda en Cloudinary y registra en ContratoServicio.
-    Requiere POST con: tipo_servicio y deposito_garantia.
-    """
     from .models import ContratoServicio
     from .services import ContratoService
 
@@ -1617,15 +1612,16 @@ def generar_contrato(request, cotizacion_id):
         messages.error(request, "❌ Solo se pueden generar contratos para cotizaciones CONFIRMADAS.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
-    tipo      = request.POST.get('tipo_servicio', 'EVENTO')
-    deposito  = Decimal(request.POST.get('deposito_garantia', '0') or '0')
+    tipo     = request.GET.get('tipo_servicio', 'EVENTO')
+    deposito = Decimal(request.GET.get('deposito', '0') or '0')
 
     try:
-        servicio = ContratoService(cotizacion, tipo_servicio=tipo, deposito=deposito)
-        docx_bytes, numero = servicio.generar()
+        servicio  = ContratoService(cotizacion, tipo_servicio=tipo, deposito=deposito)
+        pdf_bytes, numero = servicio.generar()
 
-        filename = f"Contrato_{numero}.docx"
+        filename = f"Contrato_{numero}.pdf"
 
+        # Guardar registro en DB
         contrato = ContratoServicio(
             cotizacion=cotizacion,
             numero=numero,
@@ -1633,23 +1629,19 @@ def generar_contrato(request, cotizacion_id):
             deposito_garantia=deposito,
             generado_por=request.user,
         )
-        contrato.archivo.save(filename, ContentFile(docx_bytes), save=False)
+        contrato.archivo.save(filename, ContentFile(pdf_bytes), save=False)
         contrato.save()
 
-        # También actualiza el campo rápido en Cotizacion
-        cotizacion.archivo_contrato.save(filename, ContentFile(docx_bytes), save=False)
+        # Actualizar campo rápido en Cotizacion
+        cotizacion.archivo_contrato.save(filename, ContentFile(pdf_bytes), save=False)
         Cotizacion.objects.filter(pk=cotizacion.pk).update(
             archivo_contrato=cotizacion.archivo_contrato.name
         )
 
         messages.success(request, f"✅ Contrato {numero} generado correctamente.")
 
-        # Descarga directa
-        response = HttpResponse(
-            docx_bytes,
-            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
         return response
 
     except Exception as e:
