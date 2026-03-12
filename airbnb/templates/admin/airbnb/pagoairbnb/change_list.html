@@ -41,9 +41,9 @@
     <li>
         <form method="get" action="{{ reporte_fiscal_url }}"
               style="display:inline-flex; align-items:center; gap:6px;">
-            <select name="anio" style="padding:5px 8px; border-radius:4px; border:1px solid #ccc;">
-                {% for a in anios %}
-                    <option value="{{ a }}" {% if a == anio_actual %}selected{% endif %}>{{ a }}</option>
+            <select name="mes" style="padding:5px 8px; border-radius:4px; border:1px solid #ccc;">
+                {% for num, nombre in meses %}
+                    <option value="{{ num }}" {% if num == mes_actual %}selected{% endif %}>{{ nombre }}</option>
                 {% endfor %}
             </select>
             <select name="anio" style="padding:5px 8px; border-radius:4px; border:1px solid #ccc;">
