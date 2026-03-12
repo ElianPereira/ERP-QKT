@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
+from airbnb.views import reporte_fiscal_airbnb
 
 try:
     from airbnb.views import calendario_unificado, reporte_pagos_airbnb, bloquear_en_airbnb
@@ -105,6 +106,9 @@ urlpatterns = [
     #---Contrato de prestacion de servicios---
     path('cotizacion/<int:cotizacion_id>/contrato/generar/', generar_contrato,    name='cotizacion_contrato'),
     path('contrato/<int:contrato_id>/email/', enviar_contrato_email, name='contrato_email'),
+
+    #---Reporte contbale airbnb---
+    path('admin/airbnb/reporte-fiscal/', reporte_fiscal_airbnb, name='reporte_fiscal_airbnb'),
 
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),

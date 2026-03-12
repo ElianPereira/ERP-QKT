@@ -452,3 +452,122 @@ def dashboard_airbnb(request):
     }
     
     return render(request, 'admin/airbnb/dashboard.html', context)
+
+@staff_member_required
+def reporte_fiscal_airbnb(request):
+    """
+    Reporte fiscal mensual de ingresos Airbnb.
+    Incluye: detalle por reserva, resumen por propiedad y caja de declaración.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+    from .models import PagoAirbnb, AnuncioAirbnb
+    from django.db.models import Sum, Count
+    from decimal import Decimal
+    import calendar
+
+    # ── Parámetros de filtro ──────────────────────────────────
+    hoy   = timezone.now().date()
+    mes   = int(request.GET.get('mes', hoy.month))
+    anio  = int(request.GET.get('anio', hoy.year))
+
+    MESES = {
+        1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril',
+        5:'Mayo', 6:'Junio', 7:'Julio', 8:'Agosto',
+        9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'
+    }
+
+    # ── Pagos del período ─────────────────────────────────────
+    pagos = PagoAirbnb.objects.filter(
+        fecha_checkin__month=mes,
+        fecha_checkin__year=anio,
+    ).exclude(estado='CANCELADO').select_related('anuncio').order_by('anuncio', 'fecha_checkin')
+
+    # ── Totales globales ──────────────────────────────────────
+    agg = pagos.aggregate(
+        bruto    = Sum('monto_bruto'),
+        comision = Sum('comision_airbnb'),
+        isr      = Sum('retencion_isr'),
+        iva      = Sum('retencion_iva'),
+        neto     = Sum('monto_neto'),
+    )
+
+    def _d(v):
+        return v or Decimal('0.00')
+
+    bruto    = _d(agg['bruto'])
+    comision = _d(agg['comision'])
+    isr      = _d(agg['isr'])
+    iva      = _d(agg['iva'])
+    neto     = _d(agg['neto'])
+
+    noches_total = sum(p.noches for p in pagos)
+    ingreso_actividad  = bruto - comision
+    total_retenciones  = isr + iva
+    tarifa_promedio    = (bruto / noches_total).quantize(Decimal('0.01')) if noches_total > 0 else Decimal('0.00')
+
+    totales = {
+        'bruto':              bruto,
+        'comision':           comision,
+        'isr':                isr,
+        'iva':                iva,
+        'neto':               neto,
+        'num_reservas':       pagos.count(),
+        'noches':             noches_total,
+        'ingreso_actividad':  ingreso_actividad,
+        'total_retenciones':  total_retenciones,
+        'tarifa_promedio':    tarifa_promedio,
+    }
+
+    # ── Resumen por propiedad ─────────────────────────────────
+    resumen_propiedades = []
+    anuncios = AnuncioAirbnb.objects.filter(activo=True)
+
+    for anuncio in anuncios:
+        p_prop = pagos.filter(anuncio=anuncio)
+        if not p_prop.exists():
+            continue
+        agg_p = p_prop.aggregate(
+            bruto    = Sum('monto_bruto'),
+            comision = Sum('comision_airbnb'),
+            isr      = Sum('retencion_isr'),
+            iva      = Sum('retencion_iva'),
+            neto     = Sum('monto_neto'),
+        )
+        noches_prop = sum(pp.noches for pp in p_prop)
+        bruto_prop  = _d(agg_p['bruto'])
+        tarifa_prom = (bruto_prop / noches_prop).quantize(Decimal('0.01')) if noches_prop > 0 else Decimal('0.00')
+        porcentaje  = (bruto_prop / bruto * 100).quantize(Decimal('0.1')) if bruto > 0 else Decimal('0.0')
+
+        resumen_propiedades.append({
+            'nombre':          anuncio.nombre,
+            'num_reservas':    p_prop.count(),
+            'noches':          noches_prop,
+            'tarifa_promedio': tarifa_prom,
+            'bruto':           bruto_prop,
+            'comision':        _d(agg_p['comision']),
+            'isr':             _d(agg_p['isr']),
+            'iva':             _d(agg_p['iva']),
+            'neto':            _d(agg_p['neto']),
+            'porcentaje':      porcentaje,
+        })
+
+    # ── Contexto ──────────────────────────────────────────────
+    context = {
+        'pagos':                pagos,
+        'totales':              totales,
+        'resumen_propiedades':  resumen_propiedades,
+        'mes':                  mes,
+        'anio':                 anio,
+        'mes_nombre':           MESES[mes],
+        'total_propiedades':    anuncios.count(),
+        'fecha_generacion':     hoy.strftime('%d/%m/%Y'),
+    }
+
+    html_string = render_to_string('airbnb/reporte_fiscal_airbnb.html', context)
+    pdf_bytes   = HTML(string=html_string).write_pdf()
+
+    filename = f"Reporte_Fiscal_Airbnb_{MESES[mes]}_{anio}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response

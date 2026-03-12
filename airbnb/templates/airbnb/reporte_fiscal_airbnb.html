@@ -1,0 +1,507 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Reporte Fiscal Airbnb — {{ mes_nombre }} {{ anio }}</title>
+  <style>
+    /* ── Base — idéntica al reporte de eventos ───────────────── */
+    @page {
+      size: legal landscape;
+      margin: 1cm;
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-family: sans-serif;
+        font-size: 9px;
+        color: #777;
+      }
+    }
+    body {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-size: 10px;
+      color: #333;
+      line-height: 1.2;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .header-tbl {
+      width: 100%;
+      border-bottom: 2px solid #356685;
+      margin-bottom: 12px;
+      padding-bottom: 5px;
+    }
+    .header-tbl td { border: none; padding: 0; vertical-align: middle; }
+    .logo-img { height: 55px; width: auto; object-fit: contain; display: block; }
+    .title    { font-size: 18px; font-weight: 900; color: #356685; text-transform: uppercase; }
+    .subtitle { font-size: 10px; color: #666; margin-top: 2px; }
+
+    /* ── Barra fiscal ────────────────────────────────────────── */
+    .fiscal-bar {
+      width: 100%;
+      background-color: #eaf0f6;
+      border-left: 4px solid #356685;
+      padding: 5px 10px;
+      margin-bottom: 10px;
+      font-size: 9px;
+      color: #333;
+    }
+    .fiscal-bar strong { color: #356685; }
+
+    /* ── KPI boxes ───────────────────────────────────────────── */
+    .kpi-wrapper {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 5px;
+      margin-bottom: 12px;
+    }
+    .kpi-wrapper td { width: 16.6%; }
+    .kpi-box {
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 7px 10px;
+      text-align: center;
+      background: #fcfcfc;
+    }
+    .kpi-box.verde  { border-top: 3px solid #27ae60; background: #eafaf1; }
+    .kpi-box.rojo   { border-top: 3px solid #c0392b; background: #fdedec; }
+    .kpi-box.azul   { border-top: 3px solid #356685; background: #eaf0f6; }
+    .kpi-box.gris   { border-top: 3px solid #7f8c8d; background: #f2f3f4; }
+    .kpi-label { font-size: 7.5px; color: #666; font-weight: bold; text-transform: uppercase; }
+    .kpi-value { font-size: 13px;  font-weight: 900; color: #2c3e50; margin: 3px 0 1px; }
+    .kpi-sub   { font-size: 7px;   color: #999; }
+
+    /* ── Títulos de sección ──────────────────────────────────── */
+    h4 {
+      margin: 12px 0 5px 0;
+      color: #356685;
+      border-bottom: 1px solid #ccc;
+      font-size: 11px;
+      padding-bottom: 3px;
+    }
+
+    /* ── Tabla principal ─────────────────────────────────────── */
+    .main-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+    }
+    .main-table th {
+      background: #2c3e50;
+      color: white;
+      padding: 5px 4px;
+      text-align: right;
+      font-size: 8px;
+      font-weight: bold;
+      border: 1px solid #1a252f;
+      vertical-align: middle;
+    }
+    .main-table th.left { text-align: left; }
+    .main-table td {
+      padding: 4px;
+      border: 1px solid #ddd;
+      text-align: right;
+      font-size: 9px;
+      vertical-align: middle;
+    }
+    .main-table td.left   { text-align: left; }
+    .main-table td.center { text-align: center; }
+    .main-table tr:nth-child(even) td { background-color: #f8f9fa; }
+
+    /* Colores de celdas — mismo patrón que reporte eventos */
+    .bg-venta    { background-color: #eafaf1 !important; font-weight: bold; }
+    .bg-fiscal   { background-color: #fdedec !important; }
+    .total-row td {
+      background-color: #2c3e50 !important;
+      color: white;
+      font-weight: bold;
+      border-top: 2px solid #1a252f;
+    }
+    .text-red   { color: #c0392b; }
+    .text-blue  { color: #2980b9; }
+    .text-green { color: #27ae60; font-weight: bold; }
+
+    /* ── Badge estado ────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 7.5px;
+      font-weight: bold;
+    }
+    .badge-pagado    { background: #eafaf1; color: #27ae60; }
+    .badge-pendiente { background: #fef9e7; color: #e67e22; }
+    .badge-cancelado { background: #fdedec; color: #c0392b; }
+
+    /* ── Cajas de resumen ────────────────────────────────────── */
+    .summary-wrapper {
+      width: 100%;
+      margin-top: 12px;
+      page-break-inside: avoid;
+    }
+    .box-container {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      overflow: hidden;
+      background-color: #fcfcfc;
+    }
+    .box-header {
+      padding: 6px 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      font-size: 10px;
+      border-bottom: 1px solid #ccc;
+      color: #fff;
+    }
+    .box-header.azul   { background: #356685; }
+    .box-header.oscuro { background: #2c3e50; }
+    .box-header.verde  { background: #27ae60; }
+
+    .inner-table { width: 100%; border-collapse: collapse; }
+    .inner-table td {
+      padding: 5px 10px;
+      border-bottom: 1px solid #eee;
+      font-size: 10px;
+    }
+    .inner-table tr:last-child td { border-bottom: none; }
+    .label-col { text-align: left; color: #555; width: 65%; }
+    .value-col { text-align: right; font-weight: bold; width: 35%; }
+    .final-total-row td {
+      background-color: #eee;
+      border-top: 2px solid #aaa;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    /* ── Aviso vacío ─────────────────────────────────────────── */
+    .aviso-vacio {
+      text-align: center;
+      padding: 15px;
+      color: #999;
+      font-size: 10px;
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin: 8px 0;
+    }
+
+    /* ── Firmas ──────────────────────────────────────────────── */
+    .firmas-tbl { width: 100%; margin-top: 20px; }
+    .firmas-tbl td { text-align: center; width: 33%; border: none; padding: 0 15px; vertical-align: bottom; }
+    .firma-linea { border-top: 1px solid #333; margin-bottom: 4px; margin-top: 35px; }
+    .firma-nombre { font-size: 9px; font-weight: bold; }
+    .firma-rol    { font-size: 8px; color: #666; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════ -->
+<table class="header-tbl">
+  <tr>
+    <td width="40%">
+      <table style="width:100%;">
+        <tr>
+          {% if logo_url %}
+          <td style="width:65px; border:none; padding:0;">
+            <img src="{{ logo_url }}" class="logo-img">
+          </td>
+          {% endif %}
+          <td style="border:none; padding-left:10px; vertical-align:middle;">
+            <div style="font-size:15px; font-weight:900; color:#333;">QUINTA KO'OX TANIL</div>
+            <div style="font-size:9px; color:#666;">Línea de negocio — Airbnb &amp; Hospedaje</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+    <td width="60%" style="text-align:right;">
+      <div class="title">Reporte Fiscal Airbnb</div>
+      <div class="subtitle">Ingresos, Retenciones y Base Gravable — Plataformas Tecnológicas</div>
+      <div style="font-size:9px; margin-top:4px;">
+        <strong>Período:</strong> {{ mes_nombre }} {{ anio }} &nbsp;|&nbsp;
+        <strong>Folio:</strong> RPT-AIRBNB-{{ anio }}{{ mes|stringformat:"02d" }} &nbsp;|&nbsp;
+        <strong>Generado:</strong> {{ fecha_generacion }}
+      </div>
+    </td>
+  </tr>
+</table>
+
+<!-- ── Barra fiscal ───────────────────────────────────────── -->
+<div class="fiscal-bar">
+  <strong>Régimen:</strong> Actividad Empresarial — Plataformas Tecnológicas &nbsp;|&nbsp;
+  <strong>Retenciones:</strong> ISR 4% + IVA 8% (retenidos por Airbnb como intermediario) &nbsp;|&nbsp;
+  <strong>Ref. SAT:</strong> Art. 18-J LIVA &amp; Art. 113-A LISR &nbsp;|&nbsp;
+  <strong>Propiedades:</strong> {{ total_propiedades }}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     KPIs
+══════════════════════════════════════════════════════════ -->
+<table class="kpi-wrapper">
+  <tr>
+    <td>
+      <div class="kpi-box verde">
+        <div class="kpi-label">Ingreso Bruto</div>
+        <div class="kpi-value">${{ totales.bruto|floatformat:2|intcomma }}</div>
+        <div class="kpi-sub">Total facturado</div>
+      </div>
+    </td>
+    <td>
+      <div class="kpi-box rojo">
+        <div class="kpi-label">Comisión Airbnb</div>
+        <div class="kpi-value">${{ totales.comision|floatformat:2|intcomma }}</div>
+        <div class="kpi-sub">Cobrada por plataforma</div>
+      </div>
+    </td>
+    <td>
+      <div class="kpi-box rojo">
+        <div class="kpi-label">Ret. ISR (4%)</div>
+        <div class="kpi-value">${{ totales.isr|floatformat:2|intcomma }}</div>
+        <div class="kpi-sub">Acreditable en declaración</div>
+      </div>
+    </td>
+    <td>
+      <div class="kpi-box rojo">
+        <div class="kpi-label">Ret. IVA (8%)</div>
+        <div class="kpi-value">${{ totales.iva|floatformat:2|intcomma }}</div>
+        <div class="kpi-sub">Acreditable en declaración</div>
+      </div>
+    </td>
+    <td>
+      <div class="kpi-box verde">
+        <div class="kpi-label">Neto Depositado</div>
+        <div class="kpi-value">${{ totales.neto|floatformat:2|intcomma }}</div>
+        <div class="kpi-sub">Recibido de Airbnb</div>
+      </div>
+    </td>
+    <td>
+      <div class="kpi-box gris">
+        <div class="kpi-label">Reservas / Noches</div>
+        <div class="kpi-value">{{ totales.num_reservas }}</div>
+        <div class="kpi-sub">{{ totales.noches }} noches totales</div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════
+     DETALLE DE INGRESOS POR RESERVA
+══════════════════════════════════════════════════════════ -->
+<h4>1. Detalle de Ingresos por Reserva</h4>
+
+{% if pagos %}
+<table class="main-table">
+  <thead>
+    <tr>
+      <th class="left" width="9%">Código</th>
+      <th class="left" width="16%">Huésped</th>
+      <th class="left" width="14%">Propiedad</th>
+      <th width="7%">Check-in</th>
+      <th width="7%">Check-out</th>
+      <th width="4%">Noc.</th>
+      <th width="9%" style="background:#27ae60;">Bruto MXN</th>
+      <th width="8%" style="background:#c0392b;">Comisión</th>
+      <th width="7%" style="background:#c0392b;">ISR (4%)</th>
+      <th width="7%" style="background:#c0392b;">IVA (8%)</th>
+      <th width="9%" style="background:#2c3e50;">Neto MXN</th>
+      <th width="7%">Estado</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in pagos %}
+    <tr>
+      <td class="left"><strong>{{ p.codigo_confirmacion|default:"—" }}</strong></td>
+      <td class="left">{{ p.huesped }}</td>
+      <td class="left">{{ p.anuncio.nombre|default:"—" }}</td>
+      <td class="center">{{ p.fecha_checkin|date:"d/m/Y" }}</td>
+      <td class="center">{{ p.fecha_checkout|date:"d/m/Y" }}</td>
+      <td class="center">{{ p.noches }}</td>
+      <td class="bg-venta">${{ p.monto_bruto|floatformat:2|intcomma }}</td>
+      <td class="bg-fiscal text-red">-${{ p.comision_airbnb|floatformat:2|intcomma }}</td>
+      <td class="bg-fiscal text-red">-${{ p.retencion_isr|floatformat:2|intcomma }}</td>
+      <td class="bg-fiscal text-red">-${{ p.retencion_iva|floatformat:2|intcomma }}</td>
+      <td class="text-green">${{ p.monto_neto|floatformat:2|intcomma }}</td>
+      <td class="center">
+        {% if p.estado == 'PAGADO' %}
+          <span class="badge badge-pagado">Pagado</span>
+        {% elif p.estado == 'PENDIENTE' %}
+          <span class="badge badge-pendiente">Pendiente</span>
+        {% else %}
+          <span class="badge badge-cancelado">Cancelado</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="total-row">
+      <td colspan="6" class="left">TOTALES DEL PERÍODO</td>
+      <td>${{ totales.bruto|floatformat:2|intcomma }}</td>
+      <td>-${{ totales.comision|floatformat:2|intcomma }}</td>
+      <td>-${{ totales.isr|floatformat:2|intcomma }}</td>
+      <td>-${{ totales.iva|floatformat:2|intcomma }}</td>
+      <td>${{ totales.neto|floatformat:2|intcomma }}</td>
+      <td></td>
+    </tr>
+  </tfoot>
+</table>
+{% else %}
+<div class="aviso-vacio">
+  Sin registros de pagos para el período seleccionado.<br>
+  <small>Importa el CSV de Airbnb correspondiente al mes.</small>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════
+     RESUMEN POR PROPIEDAD + CAJA FISCAL (lado a lado)
+══════════════════════════════════════════════════════════ -->
+<h4>2. Resumen por Propiedad &amp; Datos para Declaración</h4>
+
+<table style="width:100%; border-collapse:separate; border-spacing:8px;">
+  <tr>
+
+    <!-- Resumen por propiedad -->
+    <td style="width:58%; vertical-align:top; padding:0;">
+      {% if resumen_propiedades %}
+      <div class="box-container">
+        <div class="box-header oscuro">Desglose por Propiedad</div>
+        <table class="inner-table">
+          <thead>
+            <tr style="background:#ecf0f1;">
+              <td style="font-weight:bold; font-size:8px; text-transform:uppercase;">Propiedad</td>
+              <td style="text-align:center; font-weight:bold; font-size:8px; text-transform:uppercase;">Res.</td>
+              <td style="text-align:center; font-weight:bold; font-size:8px; text-transform:uppercase;">Noches</td>
+              <td style="text-align:right; font-weight:bold; font-size:8px; text-transform:uppercase;">Bruto</td>
+              <td style="text-align:right; font-weight:bold; font-size:8px; text-transform:uppercase;">ISR+IVA</td>
+              <td style="text-align:right; font-weight:bold; font-size:8px; text-transform:uppercase;">Neto</td>
+              <td style="text-align:center; font-weight:bold; font-size:8px; text-transform:uppercase;">%</td>
+            </tr>
+          </thead>
+          {% for prop in resumen_propiedades %}
+          <tr>
+            <td><strong>{{ prop.nombre }}</strong></td>
+            <td style="text-align:center;">{{ prop.num_reservas }}</td>
+            <td style="text-align:center;">{{ prop.noches }}</td>
+            <td style="text-align:right;">${{ prop.bruto|floatformat:2|intcomma }}</td>
+            <td style="text-align:right;" class="text-red">
+              -${{ prop.isr|floatformat:2|intcomma }}<br>
+              <span style="font-size:8px;">-${{ prop.iva|floatformat:2|intcomma }}</span>
+            </td>
+            <td style="text-align:right;" class="text-green">${{ prop.neto|floatformat:2|intcomma }}</td>
+            <td style="text-align:center;">{{ prop.porcentaje|floatformat:1 }}%</td>
+          </tr>
+          {% endfor %}
+          <tr class="final-total-row">
+            <td><strong>TOTAL</strong></td>
+            <td style="text-align:center;"><strong>{{ totales.num_reservas }}</strong></td>
+            <td style="text-align:center;"><strong>{{ totales.noches }}</strong></td>
+            <td style="text-align:right;"><strong>${{ totales.bruto|floatformat:2|intcomma }}</strong></td>
+            <td style="text-align:right;" class="text-red">
+              <strong>-${{ totales.total_retenciones|floatformat:2|intcomma }}</strong>
+            </td>
+            <td style="text-align:right;" class="text-green"><strong>${{ totales.neto|floatformat:2|intcomma }}</strong></td>
+            <td></td>
+          </tr>
+        </table>
+      </div>
+      {% endif %}
+    </td>
+
+    <!-- Caja declaración fiscal -->
+    <td style="width:42%; vertical-align:top; padding:0;">
+      <div class="box-container">
+        <div class="box-header azul">📋 Datos para Declaración Fiscal — {{ mes_nombre }} {{ anio }}</div>
+        <table class="inner-table">
+          <tr style="background:#eaf0f6;">
+            <td colspan="2" style="font-weight:bold; font-size:9px; color:#356685; text-transform:uppercase;">
+              Ingresos
+            </td>
+          </tr>
+          <tr>
+            <td class="label-col">Ingreso bruto plataforma</td>
+            <td class="value-col text-green">${{ totales.bruto|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="label-col">Menos: Comisión Airbnb</td>
+            <td class="value-col text-red">- ${{ totales.comision|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="label-col"><strong>= Ingreso neto de actividad</strong></td>
+            <td class="value-col" style="color:#356685;"><strong>${{ totales.ingreso_actividad|floatformat:2|intcomma }}</strong></td>
+          </tr>
+
+          <tr style="background:#fdedec;">
+            <td colspan="2" style="font-weight:bold; font-size:9px; color:#c0392b; text-transform:uppercase;">
+              Retenciones Acreditables
+            </td>
+          </tr>
+          <tr>
+            <td class="label-col">ISR retenido (4%)</td>
+            <td class="value-col text-red">${{ totales.isr|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="label-col">IVA retenido (8%)</td>
+            <td class="value-col text-red">${{ totales.iva|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="label-col"><strong>Total retenciones</strong></td>
+            <td class="value-col text-red"><strong>${{ totales.total_retenciones|floatformat:2|intcomma }}</strong></td>
+          </tr>
+
+          <tr style="background:#eafaf1;">
+            <td colspan="2" style="font-weight:bold; font-size:9px; color:#27ae60; text-transform:uppercase;">
+              Flujo Real
+            </td>
+          </tr>
+          <tr>
+            <td class="label-col">Neto depositado por Airbnb</td>
+            <td class="value-col text-green">${{ totales.neto|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="label-col">Noches vendidas</td>
+            <td class="value-col">{{ totales.noches }} noches</td>
+          </tr>
+          <tr>
+            <td class="label-col">Tarifa promedio por noche</td>
+            <td class="value-col">${{ totales.tarifa_promedio|floatformat:2 }}</td>
+          </tr>
+
+          <tr class="final-total-row">
+            <td class="label-col">⚠ Reportar al SAT: ingreso BRUTO</td>
+            <td class="value-col">${{ totales.bruto|floatformat:2|intcomma }}</td>
+          </tr>
+        </table>
+      </div>
+    </td>
+
+  </tr>
+</table>
+
+<!-- ── Firmas ─────────────────────────────────────────────── -->
+<table class="firmas-tbl" style="margin-top:18px;">
+  <tr>
+    <td>
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">Elaboró</div>
+      <div class="firma-rol">Administración</div>
+    </td>
+    <td>
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">Revisó</div>
+      <div class="firma-rol">Contador / Fiscal</div>
+    </td>
+    <td>
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">Autorizó</div>
+      <div class="firma-rol">Responsable del Negocio</div>
+    </td>
+  </tr>
+</table>
+
+<p style="text-align:center; margin-top:10px; font-size:8px; color:#aaa;">
+  Quinta Ko'ox Tanil — Reporte Fiscal Airbnb {{ mes_nombre }} {{ anio }} —
+  Generado por ERP QKT el {{ fecha_generacion }} — DOCUMENTO CONFIDENCIAL
+</p>
+
+</body>
+</html>
