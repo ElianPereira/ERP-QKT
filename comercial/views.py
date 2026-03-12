@@ -1521,11 +1521,51 @@ def generar_plan_pagos(request, cotizacion_id):
     return redirect(request.META.get('HTTP_REFERER', f'/admin/comercial/cotizacion/{cotizacion_id}/change/'))
 
 
+# ==========================================
+# REEMPLAZAR las vistas generar_plan_pagos y descargar_plan_pagos_pdf
+# en comercial/views.py
+# ==========================================
+
+@staff_member_required
+def generar_plan_pagos(request, cotizacion_id):
+    """
+    Genera un plan de pagos para una cotización.
+    Acepta ?parcialidades=N para personalizar el número de parcialidades.
+    """
+    from .models import PlanPago
+    from .services import PlanPagosService
+    
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+    
+    if cotizacion.precio_final <= 0:
+        messages.error(request, "La cotización no tiene precio calculado. Agrega items primero.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+    
+    # Parcialidades personalizadas vía GET
+    num_parcialidades = request.GET.get('parcialidades')
+    if num_parcialidades:
+        try:
+            num_parcialidades = int(num_parcialidades)
+            if num_parcialidades < 1 or num_parcialidades > 12:
+                num_parcialidades = None
+                messages.warning(request, "Número de parcialidades debe ser entre 1 y 12. Se usó el default.")
+        except ValueError:
+            num_parcialidades = None
+    
+    try:
+        servicio = PlanPagosService(cotizacion)
+        plan = servicio.generar(usuario=request.user, num_parcialidades=num_parcialidades)
+        n = plan.parcialidades.count()
+        messages.success(request, f"Plan de {n} pagos generado para COT-{cotizacion.id:03d}")
+    except Exception as e:
+        messages.error(request, f"Error al generar plan: {e}")
+    
+    return redirect(request.META.get('HTTP_REFERER', f'/admin/comercial/cotizacion/{cotizacion_id}/change/'))
+
+
 @staff_member_required
 def descargar_plan_pagos_pdf(request, cotizacion_id):
-    """
-    Genera un PDF profesional del plan de pagos para enviar al cliente.
-    """
+    """Genera PDF del plan de pagos."""
     from .models import PlanPago
     
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
@@ -1533,14 +1573,12 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
     try:
         plan = cotizacion.plan_pago
     except PlanPago.DoesNotExist:
-        messages.error(request, "⛔ Esta cotización no tiene plan de pagos. Genera uno primero.")
+        messages.error(request, "Esta cotización no tiene plan de pagos.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
     
     if not plan.activo:
-        messages.error(request, "⛔ El plan de pagos está inactivo.")
+        messages.error(request, "El plan de pagos está inactivo.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
-    
-    parcialidades = plan.parcialidades.all()
     
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
@@ -1548,15 +1586,13 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
     context = {
         'cotizacion': cotizacion,
         'plan': plan,
-        'parcialidades': parcialidades,
+        'parcialidades': plan.parcialidades.all(),
         'logo_url': logo_url,
         'fecha_generacion': timezone.now(),
     }
     
     html_string = render_to_string('cotizaciones/pdf_plan_pagos.html', context)
     response = HttpResponse(content_type='application/pdf')
-    folio = f"COT-{cotizacion.id:03d}"
-    filename = f"Plan_Pagos_{folio}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    response['Content-Disposition'] = f'inline; filename="Plan_Pagos_COT-{cotizacion.id:03d}.pdf"'
     HTML(string=html_string).write_pdf(response)
     return response

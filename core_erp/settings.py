@@ -163,6 +163,7 @@ JAZZMIN_SETTINGS = {
         "nomina":                           "fas fa-users",
         "facturacion":                      "fas fa-file-invoice",
         "auth":                             "fas fa-cog",
+        "comercial.MovimientoInventario":   "fas fa-boxes",
 
         # EVENTOS & SERVICIOS
         "comercial.Cotizacion":             "fas fa-file-invoice-dollar",
@@ -222,6 +223,7 @@ JAZZMIN_SETTINGS = {
         "comercial.PlantillaBarra",
         "comercial.Proveedor",
         "comercial.Compra",
+        "comercial.MovimientoInventario",
         "comercial.ConstanteSistema",   # ← al fondo
 
         # === AIRBNB & HOSPEDAJE ===

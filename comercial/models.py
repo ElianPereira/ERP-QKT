@@ -133,8 +133,8 @@ class MovimientoInventario(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        verbose_name = "Movimiento de Inventario"
-        verbose_name_plural = "Movimientos de Inventario"
+        verbose_name = "Inventario"
+        verbose_name_plural = "Inventarios"
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['insumo', '-created_at']),

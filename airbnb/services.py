@@ -27,45 +27,72 @@ class ICalParserService:
     def parsear(self, contenido_ical: str) -> List[Dict[str, Any]]:
         """
         Parsea contenido iCal y retorna lista de eventos.
-        
-        Returns:
-            Lista de diccionarios con: uid, titulo, fecha_inicio, fecha_fin
+        Maneja líneas multi-línea (folded lines) del estándar iCal.
         """
-        eventos = []
-        evento_actual = {}
+        # Paso 1: Desplegar líneas folded (las que empiezan con espacio/tab son continuación)
+        lineas_raw = contenido_ical.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+        lineas = []
+        for linea in lineas_raw:
+            if linea.startswith(' ') or linea.startswith('\t'):
+                if lineas:
+                    lineas[-1] += linea[1:]  # Concatenar sin el espacio/tab inicial
+            else:
+                lineas.append(linea)
         
-        for linea in contenido_ical.split('\n'):
+        eventos = []
+        evento_actual = None
+        
+        for linea in lineas:
             linea = linea.strip()
             
             if linea == 'BEGIN:VEVENT':
                 evento_actual = {}
             elif linea == 'END:VEVENT':
-                if evento_actual.get('uid') and evento_actual.get('fecha_inicio'):
+                if evento_actual and evento_actual.get('uid') and evento_actual.get('fecha_inicio'):
+                    # Asegurar fecha_fin
+                    if 'fecha_fin' not in evento_actual:
+                        evento_actual['fecha_fin'] = evento_actual['fecha_inicio'] + timedelta(days=1)
                     eventos.append(evento_actual)
-                evento_actual = {}
-            elif linea.startswith('UID:'):
-                evento_actual['uid'] = linea[4:].strip()
-            elif linea.startswith('SUMMARY:'):
-                evento_actual['titulo'] = linea[8:].strip()
-            elif linea.startswith('DTSTART'):
-                fecha = self._parsear_fecha(linea)
-                if fecha:
-                    evento_actual['fecha_inicio'] = fecha
-            elif linea.startswith('DTEND'):
-                fecha = self._parsear_fecha(linea)
-                if fecha:
-                    evento_actual['fecha_fin'] = fecha
+                evento_actual = None
+            elif evento_actual is not None:
+                if linea.startswith('UID:'):
+                    evento_actual['uid'] = linea[4:].strip()
+                elif linea.startswith('SUMMARY:'):
+                    evento_actual['titulo'] = linea[8:].strip()
+                elif linea.startswith('DTSTART'):
+                    fecha = self._parsear_fecha(linea)
+                    if fecha:
+                        evento_actual['fecha_inicio'] = fecha
+                elif linea.startswith('DTEND'):
+                    fecha = self._parsear_fecha(linea)
+                    if fecha:
+                        evento_actual['fecha_fin'] = fecha
+                elif linea.startswith('DESCRIPTION:'):
+                    evento_actual['descripcion'] = linea[12:].strip()
         
         return eventos
     
     def _parsear_fecha(self, linea: str) -> Optional[date]:
-        """Extrae fecha de una línea DTSTART o DTEND."""
+        """Extrae fecha de una línea DTSTART o DTEND. Maneja múltiples formatos."""
         try:
+            # Obtener la parte del valor (después del último ':')
             partes = linea.split(':')
-            if len(partes) >= 2:
-                fecha_str = partes[-1].strip()
-                if len(fecha_str) >= 8:
-                    return datetime.strptime(fecha_str[:8], '%Y%m%d').date()
+            if len(partes) < 2:
+                return None
+            fecha_str = partes[-1].strip()
+            
+            # Formato date-only: 20260315
+            if len(fecha_str) == 8 and fecha_str.isdigit():
+                return datetime.strptime(fecha_str, '%Y%m%d').date()
+            
+            # Formato datetime: 20260315T120000 o 20260315T120000Z
+            if len(fecha_str) >= 15 and 'T' in fecha_str:
+                return datetime.strptime(fecha_str[:8], '%Y%m%d').date()
+            
+            # Intentar parsear los primeros 8 caracteres
+            if len(fecha_str) >= 8:
+                return datetime.strptime(fecha_str[:8], '%Y%m%d').date()
+                
         except (ValueError, IndexError):
             pass
         return None
@@ -75,7 +102,14 @@ class ICalParserService:
 # SINCRONIZADOR DE AIRBNB
 # ==========================================
 class SincronizadorAirbnbService:
-    """Sincroniza reservas desde calendarios iCal de Airbnb."""
+    """
+    Sincroniza reservas desde calendarios iCal de Airbnb.
+    
+    FIX de duplicados:
+    - El uid_ical ahora se usa como clave única COMPUESTA con el anuncio
+    - Se usa update_or_create con uid_ical como lookup
+    - Se limpian reservas que ya no existen en el iCal (canceladas por Airbnb)
+    """
     
     def __init__(self):
         self.parser = ICalParserService()
@@ -103,12 +137,7 @@ class SincronizadorAirbnbService:
         return resultados
     
     def sincronizar_anuncio(self, anuncio: AnuncioAirbnb) -> Tuple[int, int, int]:
-        """
-        Sincroniza un anuncio específico.
-        
-        Returns:
-            Tuple (creadas, actualizadas, errores)
-        """
+        """Sincroniza un anuncio específico."""
         if not anuncio.url_ical:
             raise ValueError(f"El anuncio '{anuncio.nombre}' no tiene URL iCal configurada")
         
@@ -124,9 +153,16 @@ class SincronizadorAirbnbService:
         creadas = 0
         actualizadas = 0
         errores = 0
+        uids_en_ical = set()
         
         for evento in eventos:
             try:
+                uid = evento.get('uid', '').strip()
+                if not uid:
+                    errores += 1
+                    continue
+                
+                uids_en_ical.add(uid)
                 reserva, fue_creada = self._procesar_evento(anuncio, evento)
                 if fue_creada:
                     creadas += 1
@@ -134,7 +170,22 @@ class SincronizadorAirbnbService:
                     actualizadas += 1
             except Exception as e:
                 errores += 1
-                print(f"Error procesando evento: {e}")
+                print(f"Error procesando evento {evento.get('uid', '?')}: {e}")
+        
+        # Marcar como canceladas las reservas de este anuncio que ya no están en el iCal
+        # (solo las que fueron importadas de Airbnb, no las manuales ni las de eventos)
+        reservas_obsoletas = ReservaAirbnb.objects.filter(
+            anuncio=anuncio,
+            origen='AIRBNB',
+        ).exclude(
+            uid_ical__in=uids_en_ical
+        ).exclude(
+            estado='CANCELADA'
+        )
+        
+        canceladas = reservas_obsoletas.update(estado='CANCELADA')
+        if canceladas > 0:
+            print(f"  {canceladas} reservas obsoletas marcadas como canceladas en {anuncio.nombre}")
         
         anuncio.ultima_sincronizacion = timezone.now()
         anuncio.save(update_fields=['ultima_sincronizacion'])
@@ -144,87 +195,70 @@ class SincronizadorAirbnbService:
     def _procesar_evento(self, anuncio: AnuncioAirbnb, evento: Dict) -> Tuple[ReservaAirbnb, bool]:
         """
         Procesa un evento del iCal y crea/actualiza la reserva.
-        
-        Usa doble verificación para evitar duplicados:
-        1. Primero busca por uid_ical (identificador único del iCal)
-        2. Si no existe, busca por anuncio + fechas (evita duplicados por UIDs cambiantes)
+        Usa uid_ical como clave única para evitar duplicados.
         """
-        uid = evento['uid']
-        titulo = evento.get('titulo', '')
+        uid = evento['uid'].strip()
+        titulo = evento.get('titulo', '').strip()
         fecha_inicio = evento['fecha_inicio']
         fecha_fin = evento.get('fecha_fin', fecha_inicio + timedelta(days=1))
         
         estado, origen = self._detectar_estado_y_origen(titulo)
         
-        # Primero intentar buscar por UID
-        reserva_existente = ReservaAirbnb.objects.filter(uid_ical=uid).first()
-        
-        if reserva_existente:
-            # Actualizar reserva existente
-            reserva_existente.anuncio = anuncio
-            reserva_existente.titulo = titulo
-            reserva_existente.fecha_inicio = fecha_inicio
-            reserva_existente.fecha_fin = fecha_fin
-            reserva_existente.estado = estado
-            reserva_existente.origen = origen
-            reserva_existente.save()
-            return reserva_existente, False
-        
-        # Si no existe por UID, buscar por anuncio + fechas exactas (evita duplicados)
-        reserva_por_fechas = ReservaAirbnb.objects.filter(
-            anuncio=anuncio,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin
-        ).first()
-        
-        if reserva_por_fechas:
-            # Actualizar la reserva existente con el nuevo UID
-            reserva_por_fechas.uid_ical = uid
-            reserva_por_fechas.titulo = titulo
-            reserva_por_fechas.estado = estado
-            reserva_por_fechas.origen = origen
-            reserva_por_fechas.save()
-            return reserva_por_fechas, False
-        
-        # Crear nueva reserva
-        reserva = ReservaAirbnb.objects.create(
+        # update_or_create usando uid_ical como lookup
+        # Si el UID ya existe, actualiza los datos; si no, crea nuevo
+        reserva, creada = ReservaAirbnb.objects.update_or_create(
             uid_ical=uid,
-            anuncio=anuncio,
-            titulo=titulo,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            estado=estado,
-            origen=origen,
+            defaults={
+                'anuncio': anuncio,
+                'titulo': titulo,
+                'fecha_inicio': fecha_inicio,
+                'fecha_fin': fecha_fin,
+                'estado': estado,
+                'origen': origen,
+            }
         )
         
-        return reserva, True
+        return reserva, creada
     
     def _detectar_estado_y_origen(self, titulo: str) -> Tuple[str, str]:
         """
         Detecta el estado y origen de una reserva basado en el título del iCal.
+        
+        Títulos conocidos de Airbnb:
+        - "Reserved"                    → Confirmada (huésped ya pagó)
+        - "Airbnb (Not available)"      → Pendiente (solicitud sin aceptar)
+        - "Not available"               → Bloqueada por host
+        - "Blocked"                     → Bloqueada por host
+        - Nombre de persona             → Confirmada (huésped con nombre)
+        - ""  (vacío)                   → Pendiente
         """
         titulo_lower = titulo.lower().strip()
         
+        # Reserva confirmada por Airbnb
         if titulo_lower == 'reserved':
             return 'CONFIRMADA', 'AIRBNB'
         
-        if titulo_lower in ('blocked', 'block', 'bloqueado'):
+        # Bloqueo manual del host
+        if titulo_lower in ('blocked', 'block', 'bloqueado', 'not available'):
             return 'BLOQUEADA', 'MANUAL'
         
-        if '(not available)' in titulo_lower:
+        # Solicitud pendiente de Airbnb
+        if 'not available' in titulo_lower and 'airbnb' in titulo_lower:
             return 'PENDIENTE', 'AIRBNB'
         
-        if 'not available' in titulo_lower:
-            return 'BLOQUEADA', 'MANUAL'
-        
+        # Título que empieza con "airbnb" sin más contexto
         if titulo_lower.startswith('airbnb'):
             return 'PENDIENTE', 'AIRBNB'
         
-        if titulo and not any(word in titulo_lower for word in ['available', 'block', 'airbnb']):
+        # Título vacío
+        if not titulo_lower:
+            return 'PENDIENTE', 'AIRBNB'
+        
+        # Si tiene un nombre de persona (no contiene palabras clave) → Confirmada
+        if titulo and not any(word in titulo_lower for word in ['available', 'block', 'airbnb', 'evento', 'qkt']):
             return 'CONFIRMADA', 'AIRBNB'
         
         return 'PENDIENTE', 'AIRBNB'
-
 
 # ==========================================
 # DETECTOR DE CONFLICTOS
