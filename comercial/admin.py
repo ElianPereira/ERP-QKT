@@ -362,6 +362,8 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     # --- BOTONES ESTANDARIZADOS (Punto 4, sin emojis) ---
     def ver_plan_pagos(self, obj):
+        """Botón Plan con opciones de parcialidades."""
+        # Si ya tiene plan activo → botón morado que abre PDF
         try:
             plan = obj.plan_pago
             if plan and plan.activo:
@@ -371,9 +373,39 @@ class CotizacionAdmin(admin.ModelAdmin):
                 return format_html(BTN, url=url_pdf, target='target="_blank"', bg='#8e44ad', fg='white', label=f'{pagadas}/{total}', extra='')
         except PlanPago.DoesNotExist:
             pass
+        
+        # Si no tiene plan → dropdown con opciones
         if obj.precio_final > 0:
-            url_generar = reverse('generar_plan_pagos', args=[obj.id])
-            return format_html(BTN, url=url_generar, target='', bg='#3498db', fg='white', label='+ Plan', extra='onclick="return confirm(\'¿Generar plan de pagos?\')"')
+            url_auto = reverse('generar_plan_pagos', args=[obj.id])
+            uid = f'pp-{obj.id}'
+            return format_html(
+                '<div style="position:relative; display:inline-block;">'
+                  '<button type="button" onclick="document.getElementById(\'{uid}\').style.display = document.getElementById(\'{uid}\').style.display === \'block\' ? \'none\' : \'block\'" '
+                  'style="background:#3498db; color:white; padding:4px 12px; border-radius:4px; font-size:11px; font-weight:600; border:none; cursor:pointer;">'
+                  '+ Plan</button>'
+                  '<div id="{uid}" style="display:none; position:absolute; top:28px; left:0; z-index:999; background:white; border:1px solid #ddd; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:130px; padding:4px 0;">'
+                    '<a href="{url_auto}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none; font-weight:600;" '
+                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">Auto</a>'
+                    '<a href="{url_2}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
+                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">2 pagos</a>'
+                    '<a href="{url_3}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
+                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">3 pagos</a>'
+                    '<a href="{url_4}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
+                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">4 pagos</a>'
+                    '<a href="{url_5}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
+                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">5 pagos</a>'
+                    '<a href="{url_6}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
+                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">6 pagos</a>'
+                  '</div>'
+                '</div>',
+                uid=uid,
+                url_auto=url_auto,
+                url_2=f'{url_auto}?parcialidades=2',
+                url_3=f'{url_auto}?parcialidades=3',
+                url_4=f'{url_auto}?parcialidades=4',
+                url_5=f'{url_auto}?parcialidades=5',
+                url_6=f'{url_auto}?parcialidades=6',
+            )
         return '-'
     ver_plan_pagos.short_description = "Plan"
 
