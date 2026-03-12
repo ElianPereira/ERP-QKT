@@ -40,3 +40,20 @@
     });
 
 })(window.jQuery || django.jQuery || window.$ || {});
+
+
+/* ============================================================
+   FIX BFCACHE — Botones que dejan de funcionar al regresar
+   con el botón "atrás" del navegador móvil.
+
+   Causa: el browser restaura la página desde caché congelada
+   (bfcache). Los enlaces quedan en estado muerto.
+   Solución: detectar restauración desde bfcache con el evento
+   'pageshow' y forzar recarga completa de la página.
+   ============================================================ */
+window.addEventListener('pageshow', function(event) {
+    // event.persisted = true significa que viene del bfcache
+    if (event.persisted) {
+        window.location.reload();
+    }
+});
