@@ -26,6 +26,7 @@ from django.views.decorators.csrf import csrf_exempt
 from decouple import config
 import hmac
 import hashlib
+from django.core.files.base import ContentFile
 
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra, Insumo
 from .forms import CalculadoraForm
