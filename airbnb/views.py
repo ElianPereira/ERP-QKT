@@ -469,7 +469,7 @@ def reporte_fiscal_airbnb(request):
     # ── Parámetros de filtro ──────────────────────────────────
     hoy   = timezone.now().date()
     mes   = int(request.GET.get('mes', hoy.month))
-    anio  = int(request.GET.get('anio', hoy.year))
+    anio = int(str(request.GET.get('anio', hoy.year)).replace(',', '').strip())
 
     MESES = {
         1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril',
