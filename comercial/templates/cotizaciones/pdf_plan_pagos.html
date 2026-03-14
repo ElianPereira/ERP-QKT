@@ -137,25 +137,77 @@
         </table>
     </div>
     
-    <!-- CONDICIONES -->
+        <!-- CONDICIONES DE PAGO -->
     <div class="condiciones">
         <h4>Condiciones de Pago</h4>
         <ul>
-            <li>Los pagos pueden realizarse por <strong>transferencia bancaria, efectivo o tarjeta</strong>.</li>
-            <li>El anticipo es <strong>necesario para apartar la fecha</strong> y confirmar el evento.</li>
-            <li>El <strong>pago total debe completarse mínimo 15 días antes</strong> de la fecha del evento.</li>
-            <li>En caso de cancelación, el anticipo <strong>no es reembolsable</strong>.</li>
-            <li>Los precios incluyen los servicios acordados en la cotización original.</li>
-            <li>Cualquier servicio adicional se cotizará por separado.</li>
+            <li>Los pagos pueden realizarse por <strong>transferencia bancaria, efectivo o tarjeta de débito/crédito</strong>. Todo pago debe contar con comprobante (recibo, captura de transferencia o voucher).</li>
+            <li>El anticipo es <strong>indispensable para apartar la fecha</strong> del evento. La fecha no se considera reservada hasta que se reciba el anticipo y se confirme por escrito.</li>
+            <li>El <strong>pago total debe completarse mínimo 15 días naturales antes</strong> de la fecha del evento. De no cumplirse, el prestador de servicios se reserva el derecho de cancelar el evento sin obligación de reembolso de los pagos realizados.</li>
+            <li>Los pagos realizados después de la fecha límite de cada parcialidad generarán un <strong>cargo por mora del 5% mensual</strong> sobre el monto vencido.</li>
         </ul>
     </div>
 
-    {% if plan.notas %}
+    <!-- POLÍTICA DE CANCELACIÓN -->
     <div class="condiciones" style="margin-top: 10px;">
-        <h4>Notas</h4>
-        <p style="font-size: 12px; color: #555;">{{ plan.notas }}</p>
+        <h4>Política de Cancelación</h4>
+        <ul>
+            <li>El consumidor cuenta con <strong>5 días hábiles posteriores a la firma</strong> del acuerdo para cancelar sin penalización, conforme a la NOM-174-SCFI-2007, siempre que el servicio no se haya comenzado a prestar.</li>
+            <li>Cancelación solicitada <strong>con más de 90 días de anticipación</strong> al evento: se retiene el <strong>10%</strong> del monto total como penalización. Se reembolsa el resto.</li>
+            <li>Cancelación solicitada <strong>entre 60 y 90 días antes</strong>: se retiene el <strong>25%</strong> del monto total.</li>
+            <li>Cancelación solicitada <strong>entre 30 y 60 días antes</strong>: se retiene el <strong>50%</strong> del monto total.</li>
+            <li>Cancelación solicitada <strong>con menos de 30 días de anticipación</strong>: se retiene el <strong>100%</strong> del monto total. No aplica reembolso.</li>
+            <li>Toda solicitud de cancelación debe realizarse <strong>por escrito</strong> (correo electrónico o documento firmado).</li>
+        </ul>
     </div>
-    {% endif %}
+
+    <!-- CAMBIO DE FECHA -->
+    <div class="condiciones" style="margin-top: 10px;">
+        <h4>Cambio de Fecha</h4>
+        <ul>
+            <li>Se permite <strong>un cambio de fecha sin costo</strong> siempre que se solicite con al menos 60 días naturales de anticipación y esté sujeto a disponibilidad.</li>
+            <li>Cambios de fecha solicitados con <strong>menos de 60 días</strong> generarán un cargo administrativo del <strong>10% del monto total</strong>.</li>
+            <li>No se permiten más de <strong>dos cambios de fecha</strong> por evento. Un tercer cambio se considerará cancelación.</li>
+        </ul>
+    </div>
+
+    <!-- RESPONSABILIDADES -->
+    <div class="condiciones" style="margin-top: 10px;">
+        <h4>Responsabilidades del Cliente</h4>
+        <ul>
+            <li>El cliente se compromete a <strong>designar un responsable</strong> que esté presente durante todo el evento para coordinar cualquier asunto relacionado con el servicio.</li>
+            <li>El cliente es responsable de los <strong>daños causados a las instalaciones, mobiliario o equipo</strong> por parte de sus invitados. Los daños se valuarán y cobrarán por separado.</li>
+            <li>El número final de personas debe confirmarse <strong>al menos 10 días antes del evento</strong>. Incrementos superiores al 10% del número original están sujetos a disponibilidad y ajuste de precio.</li>
+            <li>El consumo de alcohol es responsabilidad exclusiva de los asistentes. Quinta Ko'ox Tanil se reserva el derecho de <strong>suspender el servicio de barra</strong> si detecta conductas que pongan en riesgo la integridad de personas o instalaciones.</li>
+        </ul>
+    </div>
+
+    <!-- FUERZA MAYOR -->
+    <div class="condiciones" style="margin-top: 10px;">
+        <h4>Caso Fortuito y Fuerza Mayor</h4>
+        <ul>
+            <li>En caso de imposibilidad de prestar el servicio por causas de <strong>fuerza mayor</strong> (desastres naturales, contingencias sanitarias, disposiciones gubernamentales), ninguna de las partes incurrirá en incumplimiento.</li>
+            <li>En estos casos, se ofrecerá al cliente la opción de <strong>reprogramar el evento</strong> sin costo adicional o el <strong>reembolso del anticipo entregado</strong>, descontando únicamente los gastos ya incurridos y comprobables.</li>
+        </ul>
+    </div>
+
+    <!-- DATOS PERSONALES -->
+    <div class="condiciones" style="margin-top: 10px;">
+        <h4>Aviso de Privacidad</h4>
+        <ul>
+            <li>Los datos personales proporcionados serán tratados conforme a la <strong>Ley Federal de Protección de Datos Personales en Posesión de los Particulares</strong> y se utilizarán exclusivamente para la prestación del servicio contratado.</li>
+        </ul>
+    </div>
+
+    <!-- GENERAL -->
+    <div class="condiciones" style="margin-top: 10px;">
+        <h4>Disposiciones Generales</h4>
+        <ul>
+            <li>Los precios incluyen los servicios descritos en la cotización original. <strong>Cualquier servicio adicional</strong> no contemplado se cotizará y cobrará por separado previo acuerdo.</li>
+            <li>Este plan de pagos forma parte integral de la cotización <strong>COT-{{ cotizacion.id|stringformat:"03d" }}</strong> y tiene validez de <strong>15 días naturales</strong> a partir de su fecha de generación.</li>
+            <li>Para cualquier controversia, las partes se someten a la jurisdicción de los tribunales de <strong>Mérida, Yucatán</strong>, y al procedimiento de conciliación de PROFECO.</li>
+        </ul>
+    </div>
     
     <!-- FOOTER -->
     <div class="footer">

@@ -143,12 +143,15 @@ MEDIA_URL = '/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CONFIGURACIÓN JAZZMIN ---
+# ==============================================================
+# SECCIÓN JAZZMIN
+# ==============================================================
+
 JAZZMIN_SETTINGS = {
-    "site_title": "ERP Quinta Ko'ox Tanil",
-    "site_header": "Sistema de Eventos",
+    "site_title": "QKT ERP",
+    "site_header": "QKT ERP",
     "site_brand": "QKT ERP",
-    "welcome_sign": "Bienvenido al Panel de Control",
+    "welcome_sign": "Iniciar sesión",
     "copyright": "Quinta Ko'ox Tanil",
     "site_logo": "img/logo.png",
     "login_logo": "img/logo.png",
@@ -200,15 +203,15 @@ JAZZMIN_SETTINGS = {
         "auth.group":                       "fas fa-users-cog",
     },
 
+    # ── TOP MENU: Sin emojis, solo texto limpio ──
     "topmenu_links": [
-        {"name": "🏠 Inicio",          "url": "admin:index",           "permissions": ["auth.view_user"]},
-        {"name": "📅 Calendario",       "url": "ver_calendario"},
-        {"name": "🔗 Cal. Unificado",   "url": "calendario_unificado"},
-        {"name": "🧮 Calculadora",      "url": "admin_calculadora"},
-        {"name": "🛒 Lista de Compras", "url": "generar_lista_compras"},
-        {"name": "💰 Cartera", "url": "cartera_cxc"},
-        {"name": "🚪 Cerrar Sesión",    "url": "/admin/logout/",        "new_window": False},
-        
+        {"name": "Inicio",             "url": "admin:index",       "permissions": ["auth.view_user"]},
+        {"name": "Calendario",         "url": "ver_calendario"},
+        {"name": "Cal. Unificado",     "url": "calendario_unificado"},
+        {"name": "Calculadora",        "url": "admin_calculadora"},
+        {"name": "Compras",            "url": "generar_lista_compras"},
+        {"name": "Cartera",            "url": "cartera_cxc"},
+        {"name": "Cerrar sesión",      "url": "/admin/logout/",    "new_window": False},
     ],
 
     "order_with_respect_to": [
@@ -218,7 +221,6 @@ JAZZMIN_SETTINGS = {
         "comercial.Cliente",
         "comercial.Pago",
         "comercial.Gasto",
-        # Catálogo (uso ocasional)
         "comercial.Producto",
         "comercial.SubProducto",
         "comercial.Insumo",
@@ -226,14 +228,14 @@ JAZZMIN_SETTINGS = {
         "comercial.Proveedor",
         "comercial.Compra",
         "comercial.MovimientoInventario",
-        "comercial.ConstanteSistema",   # ← al fondo
+        "comercial.ConstanteSistema",
 
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",
         "airbnb.ReservaAirbnb",
         "airbnb.PagoAirbnb",
         "airbnb.ConflictoCalendario",
-        "airbnb.AnuncioAirbnb",         # ← configuración al fondo
+        "airbnb.AnuncioAirbnb",
 
         # === NÓMINA ===
         "nomina",
@@ -255,7 +257,13 @@ JAZZMIN_SETTINGS = {
     "custom_js": "js/tabs_fix.js",
 }
 
-JAZZMIN_UI_TWEAKS = {"theme": "flatly"}
+JAZZMIN_UI_TWEAKS = {
+    "theme": "darkly",
+    "navbar": "navbar-dark",
+    "sidebar": "sidebar-dark-success",
+    "accent": "accent-success",
+    "brand_colour": "navbar-success",
+}
 
 # --- REDIRECCIONES DE LOGIN/LOGOUT ---
 LOGIN_REDIRECT_URL = '/admin/'  

@@ -1,32 +1,98 @@
 /* static/css/admin_fix.css */
-
 /* ============================================================
-   CORRECCIONES DE INPUTS Y SELECTS (Evitar Desbordamientos)
+   QKT ERP — SISTEMA DE DISEÑO v2.0
+   Paleta: Verde (#2E7D32) + Amarillo (#F5C518)
+   Tipografía: IBM Plex Sans
+   Tema: Oscuro cálido (#2c2b28)
    ============================================================ */
+
+/* ── VARIABLES GLOBALES ───────────────────────────────────── */
+:root {
+    /* Tipografía */
+    --font-principal: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    /* Verde (primario) */
+    --qkt-green: #2E7D32;
+    --qkt-green-hover: #388E3C;
+    --qkt-green-dark: #1B5E20;
+    --qkt-green-light: #E8F5E9;
+    --qkt-green-text: #4CAF50;
+
+    /* Amarillo (marca / acento) */
+    --qkt-yellow: #F5C518;
+    --qkt-yellow-hover: #E6B800;
+    --qkt-yellow-light: #FFF8E1;
+    --qkt-yellow-dark: #5D4E00;
+
+    /* Semánticos */
+    --qkt-success: #27ae60;
+    --qkt-warning: #e67e22;
+    --qkt-danger: #e74c3c;
+    --qkt-info: #3498db;
+    --qkt-neutral: #95a5a6;
+    --qkt-teal: #1abc9c;
+
+    /* Fondo oscuro */
+    --qkt-bg: #2c2b28;
+    --qkt-bg-card: #383632;
+    --qkt-bg-header: #33312e;
+    --qkt-border: #4a4845;
+    --qkt-border-light: #3d3b38;
+
+    /* Texto */
+    --qkt-text: #d4d1c8;
+    --qkt-text-bright: #e0ddd4;
+    --qkt-text-dim: #8a8780;
+
+    /* Botones */
+    --qkt-btn-radius: 4px;
+    --qkt-badge-radius: 12px;
+}
+
+/* ── TIPOGRAFÍA GLOBAL ────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+body,
+.content-wrapper,
+.main-sidebar,
+.main-header,
+.card,
+.modal,
+.table,
+select,
+input,
+textarea,
+button,
+.btn,
+.nav-link,
+.info-box,
+.small-box {
+    font-family: var(--font-principal) !important;
+}
+
+/* ── CORRECCIONES DE INPUTS Y SELECTS ─────────────────────── */
 select, option, input[type="text"], input[type="number"], input[type="email"], input[type="url"] {
     background-color: #ffffff !important;
     color: #333333 !important;
     border: 1px solid #cccccc !important;
-    max-width: 100%; /* REGLA CLAVE: Nunca exceder el contenedor */
-    box-sizing: border-box; /* Incluir padding en el ancho */
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
-/* Fix específico para los contenedores de Jazzmin/Django Admin */
 .related-widget-wrapper {
     display: flex !important;
-    flex-wrap: nowrap; /* No romper línea si es posible */
+    flex-wrap: nowrap;
     align-items: center;
-    max-width: 100%; /* El contenedor padre manda */
+    max-width: 100%;
 }
 
-/* Forzar al select nativo a encogerse si falta espacio */
 .related-widget-wrapper > select {
-    flex: 1 1 auto; /* Crecer y encogerse */
-    width: 1%; /* Truco CSS: forzar a que el flex dicte el ancho real */
-    min-width: 150px; /* Pero no menos de esto */
+    flex: 1 1 auto;
+    width: 1%;
+    min-width: 150px;
 }
 
-/* Estilos para Select2 (Autocompletar) */
+/* Select2 */
 .select2-container--admin-autocomplete .select2-selection--single {
     background-color: #ffffff !important;
     color: #333333 !important;
@@ -37,16 +103,15 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
 }
 
 .select2-container {
-    max-width: 100% !important; /* Asegurar que Select2 tampoco se desborde */
+    max-width: 100% !important;
     flex: 1 1 auto;
 }
 
 .select2-results__option--highlighted[aria-selected] {
-    background-color: #356685 !important; 
+    background-color: var(--qkt-green) !important;
     color: #ffffff !important;
 }
 
-/* Iconos de añadir/editar al lado del select */
 .related-widget-wrapper-link {
     margin-left: 8px;
     opacity: 0.7;
@@ -55,9 +120,7 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
     opacity: 1;
 }
 
-/* ============================================================
-   PAGINACIÓN MODERNA
-   ============================================================ */
+/* ── PAGINACIÓN ───────────────────────────────────────────── */
 .paginator {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -65,12 +128,12 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
     justify-content: center !important;
     gap: 5px !important;
     padding: 20px 0 !important;
-    border-top: 1px solid #eee !important;
-    font-family: 'Segoe UI', sans-serif !important;
+    border-top: 1px solid var(--qkt-border) !important;
+    font-family: var(--font-principal) !important;
     font-size: 13px !important;
 }
 
-.paginator a:not(.showall), 
+.paginator a:not(.showall),
 .paginator span.this-page {
     display: inline-flex !important;
     justify-content: center !important;
@@ -82,7 +145,7 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
     background-color: #fff !important;
     color: #333 !important;
     text-decoration: none !important;
-    border-radius: 4px !important;
+    border-radius: var(--qkt-btn-radius) !important;
     font-weight: 600 !important;
 }
 
@@ -93,8 +156,28 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
 }
 
 .paginator span.this-page {
-    background-color: #007bff !important;
+    background-color: var(--qkt-green) !important;
     color: #fff !important;
-    border-color: #007bff !important;
+    border-color: var(--qkt-green) !important;
     cursor: default !important;
+}
+
+/* ── ENCABEZADOS DE TABLA (verde en changelist) ───────────── */
+#result_list th,
+.results th {
+    color: var(--qkt-green-text) !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+}
+
+/* ── LINKS DE FOLIO (verde) ───────────────────────────────── */
+#result_list td a,
+.results td a {
+    color: var(--qkt-green-text) !important;
+    font-weight: 600 !important;
+}
+
+#result_list td a:hover,
+.results td a:hover {
+    color: var(--qkt-green-hover) !important;
 }
