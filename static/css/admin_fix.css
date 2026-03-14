@@ -181,3 +181,65 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
 .results td a:hover {
     color: var(--qkt-green-hover) !important;
 }
+
+/* ── FONDO OSCURO GLOBAL (Jazzmin/AdminLTE override) ──────── */
+.content-wrapper,
+.main-footer,
+.card,
+.card-header,
+.card-body,
+.card-footer,
+.modal-content,
+.table-responsive,
+#changelist,
+#changelist-form {
+    background-color: var(--qkt-bg) !important;
+    color: var(--qkt-text) !important;
+}
+
+/* Cards elevadas */
+.card {
+    background-color: var(--qkt-bg-card) !important;
+    border: 1px solid var(--qkt-border-light) !important;
+}
+
+/* Tablas */
+.table, .table th, .table td,
+#result_list table, #result_list th, #result_list td {
+    background-color: transparent !important;
+    color: var(--qkt-text) !important;
+    border-color: var(--qkt-border-light) !important;
+}
+
+/* Filas alternas */
+.table-striped tbody tr:nth-of-type(odd),
+#result_list tbody tr:nth-of-type(odd) {
+    background-color: var(--qkt-bg-header) !important;
+}
+
+/* Breadcrumbs */
+.breadcrumb {
+    background: transparent !important;
+}
+.breadcrumb-item a {
+    color: var(--qkt-green-text) !important;
+}
+.breadcrumb-item.active {
+    color: var(--qkt-text-dim) !important;
+}
+
+/* Filtros laterales del changelist */
+#changelist-filter {
+    background: var(--qkt-bg-card) !important;
+    color: var(--qkt-text) !important;
+}
+#changelist-filter h2, #changelist-filter h3 {
+    color: var(--qkt-text-bright) !important;
+}
+#changelist-filter li a {
+    color: var(--qkt-text) !important;
+}
+#changelist-filter li.selected a {
+    color: var(--qkt-green-text) !important;
+    font-weight: 600;
+}
