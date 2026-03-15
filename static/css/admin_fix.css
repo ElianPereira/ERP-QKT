@@ -608,13 +608,30 @@ small.text-muted {
 }
 
 /* ── NUCLEAR: Fondo oscuro y bordes ──────────────────────── */
+/* ── FONDO OSCURO DEFINITIVO ─────────────────────────────── */
+html body .content-wrapper {
+    background-color: #2c2b28 !important;
+    background: #2c2b28 !important;
+}
+html body .wrapper {
+    background-color: #2c2b28 !important;
+}
+html body {
+    background-color: #2c2b28 !important;
+}
 * {
     border-color: #4a4845 !important;
 }
-.content-wrapper,
-.content-wrapper > .content,
-.content-wrapper > section.content {
-    background: #2c2b28 !important;
+.card {
+    border: 1px solid #4a4845 !important;
+    box-shadow: none !important;
+}
+#result_list,
+#result_list table,
+.results,
+.results table {
+    border: none !important;
+    box-shadow: none !important;
 }
 .card {
     border: 1px solid #4a4845 !important;
