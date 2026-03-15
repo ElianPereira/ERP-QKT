@@ -10,7 +10,7 @@
      <strong>Total:</strong> ${{ cotizacion.precio_final|floatformat:2 }} MXN</p>
 
   <hr>
-  <form method="POST">{% csrf_token %}
+  <form method="POST" target="_blank">{% csrf_token %}
     <div class="form-row" style="margin-bottom:16px;">
       <label><strong>Tipo de servicio</strong></label><br>
       <select name="tipo_servicio" class="form-control">
