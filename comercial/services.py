@@ -492,7 +492,7 @@ class ContratoService:
             'folio':             folio,
             'fecha_doc':         fecha_doc,
             'cotizacion':        self.cot,
-            'nombre_fiscal':     self.cli.razon_social or self.cli.nombre,
+            'nombre_fiscal':     self.cli.razon_social if self.cli.es_cliente_fiscal and self.cli.razon_social else self.cli.nombre,
             'rfc_curp':          self.cli.rfc or "No proporcionado",
             'telefono':          self.cli.telefono or "—",
             'email':             self.cli.email or "—",

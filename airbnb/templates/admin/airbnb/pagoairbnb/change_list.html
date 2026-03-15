@@ -17,7 +17,7 @@
     </li>
 
     <li>
-        <form method="get" action="{{ reporte_fiscal_url }}" style="display:inline-flex; align-items:center; gap:6px;">
+        <form method="get" action="{{ reporte_fiscal_url }}" target="_blank" style="display:inline-flex; align-items:center; gap:6px;">
             <select name="mes" style="padding:5px 8px; border-radius:4px; border:1px solid #4a4845; background:#383632; color:#d4d1c8;">
                 {% for num, nombre in meses %}
                     <option value="{{ num }}" {% if num == mes_actual %}selected{% endif %}>{{ nombre }}</option>
