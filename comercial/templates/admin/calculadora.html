@@ -6,8 +6,8 @@
     <div class="row">
         <div class="col-md-5">
             <div class="card card-primary">
-                <div class="card-header" style="background-color: #447e9b; color: white;">
-                    <h3 class="card-title">🧮 Parámetros del Evento</h3>
+                <div class="card-header" style="background-color: #2E7D32; color: white;">
+                    <h3 class="card-title">Parámetros del evento</h3>
                 </div>
                 <form method="post">
                     {% csrf_token %}
@@ -20,8 +20,8 @@
                         {% endfor %}
                     </div>
                     <div class="card-footer">
-                        <button type="submit" class="btn btn-success btn-block" style="width: 100%; font-size: 1.1em; padding: 10px;">
-                             Calcular Insumos
+                        <button type="submit" class="btn btn-block" style="width:100%; font-size:1.1em; padding:10px; background:#2E7D32; color:white; border:none;">
+                            Calcular insumos
                         </button>
                     </div>
                 </form>
@@ -30,9 +30,9 @@
 
         <div class="col-md-7">
             {% if resultado %}
-            <div class="card card-outline card-success" style="border-top: 3px solid #28a745;">
+            <div class="card" style="border-top: 3px solid #2E7D32;">
                 <div class="card-header">
-                    <h3 class="card-title" style="font-weight: bold;"> Lista de Compras Sugerida</h3>
+                    <h3 class="card-title" style="font-weight: bold;">Lista de compras sugerida</h3>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info">
@@ -67,7 +67,7 @@
             </div>
             {% else %}
             <div class="alert alert-warning">
-                <h5>👈 Ingresa los datos</h5>
+                <h5> Ingresa los datos</h5>
                 Configura los parámetros a la izquierda y presiona "Calcular" para ver la lista de compras.
             </div>
             {% endif %}

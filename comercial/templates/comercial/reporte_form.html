@@ -3,43 +3,40 @@
 
 {% block content %}
 <div class="col-md-6 offset-md-3" style="margin-top: 40px;">
-    <div class="card card-primary">
-        <div class="card-header" style="background-color: #356685;">
-            <h3 class="card-title text-white mb-0">
-                <i class="fas fa-file-pdf"></i> {{ titulo|default:"Generar Reporte de Ventas" }}
-            </h3>
+    <div class="card">
+        <div class="card-header" style="background-color: #2E7D32; color: white;">
+            <h3 class="card-title mb-0">{{ titulo|default:"Generar reporte" }}</h3>
         </div>
         <div class="card-body">
             <form method="post" action="">
                 {% csrf_token %}
-                
+
                 <div class="form-group">
-                    <label>Fecha Inicial</label>
+                    <label>Fecha inicial</label>
                     <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required>
                 </div>
 
                 <div class="form-group">
-                    <label>Fecha Final</label>
+                    <label>Fecha final</label>
                     <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required>
                 </div>
 
                 <div class="form-group">
-                    <label>Filtrar por Estado</label>
+                    <label>Filtrar por estado</label>
                     <select name="estado" class="form-control">
                         <option value="TODAS">-- Todos los estados --</option>
-                        <option value="CONFIRMADA"> Confirmadas (Vendidas)</option>
-                        <option value="BORRADOR"> Borradores</option>
-                        <option value="CANCELADA"> Canceladas</option>
+                        <option value="CONFIRMADA">Confirmadas</option>
+                        <option value="BORRADOR">Borradores</option>
+                        <option value="CANCELADA">Canceladas</option>
                     </select>
-                    <small class="text-muted">Nota: Para "Lista de Compras", el sistema tomará automáticamente solo las confirmadas.</small>
+                    <small>Nota: Para "Lista de Compras", el sistema tomará automáticamente solo las confirmadas.</small>
                 </div>
-                
+
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-danger btn-block btn-lg" style="background-color: #dc3545; border-color: #dc3545;">
-                        <i class="fas fa-file-pdf"></i> Generar Documento
+                    <button type="submit" class="btn btn-block btn-lg" style="background:#2E7D32; color:white; border:none;">
+                        Generar documento
                     </button>
-                    
-                    <a href="{% url 'admin:index' %}" class="btn btn-light btn-block text-muted">Cancelar</a>
+                    <a href="{% url 'admin:index' %}" class="btn btn-block" style="background:#4a4845; color:#d4d1c8; border:none; margin-top:8px;">Cancelar</a>
                 </div>
             </form>
         </div>
@@ -47,22 +44,15 @@
 </div>
 
 <script>
-    // Script para poner automáticamente el mes actual
     var date = new Date();
     var firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
     var lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
     function formatDate(d) {
-        let month = '' + (d.getMonth() + 1),
-            day = '' + d.getDate(),
-            year = d.getFullYear();
-
+        let month = '' + (d.getMonth() + 1), day = '' + d.getDate(), year = d.getFullYear();
         if (month.length < 2) month = '0' + month;
         if (day.length < 2) day = '0' + day;
-
         return [year, month, day].join('-');
     }
-
     document.getElementById("fecha_inicio").value = formatDate(firstDay);
     document.getElementById("fecha_fin").value = formatDate(lastDay);
 </script>
