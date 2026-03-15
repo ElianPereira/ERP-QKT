@@ -3,16 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    /* ── Reset y base ─────────────────────────────────────── */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: Arial, sans-serif;
       font-size: 10pt;
       color: #1A1A1A;
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
-    /* ── Página ───────────────────────────────────────────── */
     @page {
       size: letter;
       margin: 2cm 2.5cm 2.5cm 2.5cm;
@@ -24,69 +22,100 @@
     }
 
     /* ── Encabezado ───────────────────────────────────────── */
-    .header { text-align: center; margin-bottom: 18px; }
-    .logo   { height: 60px; margin-bottom: 8px; }
+    .header { text-align: center; margin-bottom: 14px; }
+    .logo   { height: 58px; margin-bottom: 6px; }
     .titulo {
-      font-size: 16pt;
+      font-size: 13pt;
       font-weight: bold;
-      color: #2E7D32;
-      letter-spacing: 1px;
+      color: #1B5E20;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .subtitulo {
-      font-size: 9pt;
-      color: #555;
-      margin-top: 4px;
-    }
+    .subtitulo { font-size: 9pt; color: #555; margin-top: 3px; }
     .folio-bar {
       font-size: 8pt;
-      color: #777;
+      color: #666;
+      margin-top: 5px;
+      border-top: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+      padding: 3px 0;
+    }
+    .profeco-bar {
+      background: #F1F8E9;
+      border: 1px solid #A5D6A7;
+      border-radius: 3px;
+      padding: 5px 10px;
+      font-size: 8pt;
+      color: #2E7D32;
       margin-top: 6px;
-      border-top: 1px solid #e0e0e0;
-      border-bottom: 1px solid #e0e0e0;
-      padding: 4px 0;
+      text-align: center;
     }
 
     /* ── Secciones ────────────────────────────────────────── */
-    .seccion {
-      margin-top: 16px;
-      margin-bottom: 6px;
-    }
+    .seccion { margin-top: 13px; margin-bottom: 5px; }
     .seccion-titulo {
-      font-size: 10pt;
+      font-size: 9.5pt;
       font-weight: bold;
-      color: #2E7D32;
+      color: #1B5E20;
       text-transform: uppercase;
       border-bottom: 2px solid #2E7D32;
       padding-bottom: 2px;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
     }
+
+    /* ── Glosario ─────────────────────────────────────────── */
+    .glosario-item {
+      margin-bottom: 4px;
+      font-size: 9.5pt;
+    }
+    .glosario-item strong { color: #1B5E20; }
+
+    /* ── Declaraciones ────────────────────────────────────── */
+    .decl-bloque {
+      margin-bottom: 6px;
+      font-size: 9.5pt;
+    }
+    .decl-titulo {
+      font-weight: bold;
+      text-decoration: underline;
+      margin-bottom: 3px;
+    }
+    ol.decl-lista { margin-left: 20px; }
+    ol.decl-lista li { margin-bottom: 3px; font-size: 9.5pt; }
 
     /* ── Tablas de campos ─────────────────────────────────── */
     .tabla-campos {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 10px;
-      font-size: 9pt;
+      margin-bottom: 8px;
+      font-size: 9.5pt;
     }
     .tabla-campos td {
-      border: 1px solid #CCCCCC;
-      padding: 5px 8px;
+      border: 1px solid #C8C8C8;
+      padding: 4px 8px;
       vertical-align: top;
     }
     .tabla-campos td.label {
       background: #F5F5F5;
       font-weight: bold;
-      width: 32%;
+      width: 33%;
       color: #333;
     }
+
+    /* ── Cláusulas ────────────────────────────────────────── */
+    .clausula {
+      margin-bottom: 8px;
+      font-size: 9.5pt;
+      text-align: justify;
+    }
+    .clausula-titulo { font-weight: bold; }
 
     /* ── Tabla de cancelaciones ───────────────────────────── */
     .tabla-cancel {
       width: 100%;
       border-collapse: collapse;
       font-size: 9pt;
-      margin-bottom: 10px;
+      margin: 6px 0 8px 0;
     }
     .tabla-cancel th {
       background: #2E7D32;
@@ -96,8 +125,8 @@
       font-weight: bold;
     }
     .tabla-cancel td {
-      border: 1px solid #CCCCCC;
-      padding: 5px 8px;
+      border: 1px solid #C8C8C8;
+      padding: 4px 8px;
       text-align: center;
     }
     .tabla-cancel tr:nth-child(even) td { background: #F9F9F9; }
@@ -105,64 +134,78 @@
     .verde { color: #2E7D32; font-weight: bold; }
     .rojo  { color: #C62828; font-weight: bold; }
 
-    /* ── Párrafos y listas ────────────────────────────────── */
-    p { margin-bottom: 6px; font-size: 10pt; }
-    ul { margin-left: 18px; margin-bottom: 8px; }
-    ul li { margin-bottom: 3px; font-size: 10pt; }
-    .bold { font-weight: bold; }
-    .small { font-size: 9pt; color: #444; }
+    /* ── Párrafos, listas ─────────────────────────────────── */
+    p   { margin-bottom: 5px; font-size: 9.5pt; text-align: justify; }
+    ul  { margin-left: 18px; margin-bottom: 6px; }
+    ul li { margin-bottom: 2px; font-size: 9.5pt; }
+    .bold  { font-weight: bold; }
+    .small { font-size: 8.5pt; color: #444; }
+    .italic { font-style: italic; }
 
-    /* ── Aviso importante ─────────────────────────────────── */
+    /* ── Aviso ────────────────────────────────────────────── */
     .aviso {
       background: #E8F5E9;
       border-left: 4px solid #2E7D32;
-      padding: 8px 12px;
-      margin: 10px 0;
+      padding: 7px 11px;
+      margin: 8px 0;
+      font-size: 9pt;
+    }
+    .aviso-warn {
+      background: #FFF8E1;
+      border-left: 4px solid #F9A825;
+      padding: 7px 11px;
+      margin: 8px 0;
       font-size: 9pt;
     }
 
+    /* ── Autorización mercadotecnia ───────────────────────── */
+    .autorizacion-box {
+      border: 1px solid #C8C8C8;
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-top: 10px;
+      font-size: 9pt;
+    }
+    .check-row { margin: 5px 0; }
+
     /* ── Firmas ───────────────────────────────────────────── */
-    .firmas {
-      margin-top: 30px;
-      page-break-inside: avoid;
-    }
-    .firmas-grid {
-      display: table;
-      width: 100%;
-    }
+    .firmas { margin-top: 28px; page-break-inside: avoid; }
+    .firmas-grid { display: table; width: 100%; }
     .firma-col {
       display: table-cell;
-      width: 45%;
+      width: 48%;
       text-align: center;
-      vertical-align: bottom;
       padding: 0 10px;
+      vertical-align: bottom;
     }
-    .firma-espacio {
-      height: 50px;
-      border-bottom: 1px solid #333;
-      margin-bottom: 6px;
+    .firma-linea {
+      border-top: 1px solid #333;
+      margin-bottom: 4px;
+      margin-top: 38px;
     }
-    .firma-nombre { font-weight: bold; font-size: 10pt; }
-    .firma-rol    { font-size: 8pt; color: #666; }
-    .firma-sep    { display: table-cell; width: 10%; }
+    .firma-nombre { font-size: 9pt; font-weight: bold; }
+    .firma-rol    { font-size: 8pt; color: #555; }
+    .firma-rfc    { font-size: 8pt; color: #777; font-style: italic; }
 
-    /* ── Salto de página ──────────────────────────────────── */
+    /* ── Separador de página ──────────────────────────────── */
     .page-break { page-break-after: always; }
 
     /* ── Reglamento ───────────────────────────────────────── */
     .reglamento-titulo {
-      font-size: 13pt;
+      font-size: 12pt;
       font-weight: bold;
-      color: #2E7D32;
       text-align: center;
       text-transform: uppercase;
-      margin-bottom: 4px;
+      color: #1B5E20;
+      margin-bottom: 8px;
+      border-bottom: 2px solid #2E7D32;
+      padding-bottom: 4px;
     }
-    .reglamento-sub {
-      font-size: 8pt;
-      color: #777;
-      text-align: center;
-      margin-bottom: 16px;
+    ol.reglamento { margin-left: 20px; }
+    ol.reglamento li {
+      margin-bottom: 5px;
+      font-size: 9.5pt;
+      text-align: justify;
     }
   </style>
 </head>
@@ -170,277 +213,594 @@
 
 <!-- ══════════════════════════════════════════════════════════
      ENCABEZADO
-═══════════════════════════════════════════════════════════ -->
+══════════════════════════════════════════════════════════ -->
 <div class="header">
   {% if logo_url %}
   <img src="{{ logo_url }}" class="logo" alt="Logo">
   {% endif %}
-  <div class="titulo">Contrato de Prestación de Servicios</div>
-  <div class="subtitulo">Quinta Ko'ox Tanil &nbsp;•&nbsp; Tanil, Umán </div>
+  <div class="titulo">
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+      Contrato de Arrendamiento de Bienes Muebles para Eventos Sociales
+    {% else %}
+      Contrato de Arrendamiento de Salón para Eventos Sociales
+    {% endif %}
+  </div>
+  <div class="subtitulo">Quinta Ko'ox Tanil &mdash; Mérida, Yucatán, México</div>
   <div class="folio-bar">
-    N° Contrato: <strong>{{ numero }}</strong> &nbsp;|&nbsp;
-    Folio ERP: <strong>{{ folio }}</strong> &nbsp;|&nbsp;
-    Fecha: <strong>{{ fecha_doc }}</strong>
+    <strong>Contrato No.:</strong> {{ numero }} &nbsp;|&nbsp;
+    <strong>Folio Cotización:</strong> {{ folio }} &nbsp;|&nbsp;
+    <strong>Fecha:</strong> {{ fecha_doc }}
+  </div>
+  <div class="profeco-bar">
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+      Contrato registrado ante PROFECO bajo el número <strong>9339-2023</strong>
+      de fecha 31 de octubre de 2023 &mdash; Expediente PFC.B.E.7/009990-2023
+    {% else %}
+      Contrato registrado ante PROFECO bajo el número <strong>9341-2023</strong>
+      de fecha 31 de octubre de 2023 &mdash; Expediente PFC.B.E.7/009991-2023
+    {% endif %}
+    &mdash; Cumple NOM-174-SCFI-2007
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     I. PARTES
-═══════════════════════════════════════════════════════════ -->
+     PROEMIO
+══════════════════════════════════════════════════════════ -->
 <div class="seccion">
-  <div class="seccion-titulo">I. Partes</div>
-  <p><span class="bold">PRESTADOR DE SERVICIOS:</span>
-     Quinta Ko'ox Tanil, con domicilio en Tanil, Umán (en adelante "LA QUINTA").</p>
-  <p><span class="bold">CONTRATANTE:</span>
-     La persona cuyos datos se indican a continuación (en adelante "EL CONTRATANTE"):</p>
+  <p>
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+      Contrato de arrendamiento de bienes muebles para eventos sociales que celebran
+      por una parte el Proveedor <strong>RUBY ELISABETH CEH</strong>, a quien en lo sucesivo
+      se denominará <strong>"EL ARRENDADOR"</strong>, y en contraparte el Consumidor
+      <strong>{{ nombre_fiscal|upper }}</strong>, a quien en lo sucesivo se denominará
+      <strong>"EL ARRENDATARIO"</strong>, mismos que manifiestan su voluntad para obligarse
+      conforme al siguiente glosario, declaraciones y cláusulas:
+    {% else %}
+      Contrato de arrendamiento de salón para eventos sociales que celebran por una parte
+      <strong>RUBY ELISABETH CEH</strong>, a quien en lo sucesivo se denominará
+      <strong>"EL ARRENDADOR"</strong>, y por la otra <strong>{{ nombre_fiscal|upper }}</strong>,
+      a quien en lo sucesivo se denominará <strong>"EL ARRENDATARIO"</strong>, al tenor
+      del siguiente glosario, declaraciones y cláusulas:
+    {% endif %}
+  </p>
+</div>
 
+<!-- ══════════════════════════════════════════════════════════
+     GLOSARIO
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Glosario</div>
+  <div class="glosario-item">
+    <strong>a) Arrendador.</strong> RUBY ELISABETH CEH, proveedor que ofrece
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+      el uso y goce temporal de bienes muebles para eventos sociales
+    {% else %}
+      el uso y disfrute del salón para eventos sociales
+    {% endif %}
+    mediante el cobro de un precio cierto y determinado.
+  </div>
+  <div class="glosario-item">
+    <strong>b) Arrendatario.</strong> El consumidor que adquiere el derecho de usar
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+      los bienes muebles para eventos sociales
+    {% else %}
+      el salón para eventos sociales
+    {% endif %}
+    a cambio del pago de un precio cierto y determinado.
+  </div>
+  {% if tipo_servicio != 'HOSPEDAJE' %}
+  <div class="glosario-item">
+    <strong>c) Salón.</strong> El bien inmueble destinado a la celebración de eventos sociales
+    que el arrendador pone a disposición del arrendatario, ubicado en Quinta Ko'ox Tanil,
+    Mérida, Yucatán.
+  </div>
+  <div class="glosario-item">
+    <strong>d) Reglamento.</strong> Conjunto de normas que regulan los términos, condiciones,
+    reglas de uso y comportamiento que el arrendatario y/o sus invitados se obligan a cumplir
+    en el salón del arrendador.
+  </div>
+  {% else %}
+  <div class="glosario-item">
+    <strong>c) Bienes muebles.</strong> Aquellos bienes que por su constitución presentan
+    movilidad natural, mismos que se describen en el objeto de este contrato y serán utilizados
+    para el evento social del arrendatario.
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     DECLARACIONES
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Declaraciones</div>
+
+  <div class="decl-bloque">
+    <div class="decl-titulo">I. Declara EL ARRENDADOR:</div>
+    <ol class="decl-lista" type="a">
+      <li>Es una persona física de nacionalidad mexicana con suficiente capacidad legal para
+          obligarse en los términos del presente Contrato.</li>
+      <li>Su domicilio se ubica en: <strong>Tanil Ticimul, Km 1.920, Colonia Umán,
+          C.P. 97390, Umán, Yucatán, México.</strong></li>
+      <li>Se encuentra inscrito en el Registro Federal de Contribuyentes con la clave
+          <strong>CERU580518QZ5</strong>.</li>
+      <li>Cuenta con la infraestructura, recursos técnicos y humanos suficientes para cumplir
+          sus obligaciones conforme al presente Contrato.</li>
+      <li>Cumple con las licencias, permisos, avisos y autorizaciones previstas en las
+          disposiciones legales y normas vigentes.</li>
+      <li>Para atención de dudas, aclaraciones o reclamaciones relacionadas con este contrato,
+          pone a disposición el correo electrónico:
+          <strong>quintakooxtanil@gmail.com</strong>
+          con horario de atención de 09:00 a 20:00 horas.</li>
+      <li>Informó al arrendatario los alcances y efectos jurídicos del presente contrato,
+          así como las restricciones de uso del
+          {% if tipo_servicio == 'HOSPEDAJE' %}bien mueble{% else %}salón{% endif %}
+          objeto del mismo.</li>
+    </ol>
+  </div>
+
+  <div class="decl-bloque">
+    <div class="decl-titulo">II. Declara EL ARRENDATARIO:</div>
+    <ol class="decl-lista" type="a">
+      <li>Llamarse <strong>{{ nombre_fiscal }}</strong>, con RFC/CURP:
+          <strong>{{ rfc_curp }}</strong>.</li>
+      <li>Que es su deseo obligarse en los términos y condiciones del presente Contrato,
+          manifestando contar con capacidad legal para su celebración.</li>
+      <li>Que sus datos de contacto son: teléfono <strong>{{ telefono }}</strong>,
+          correo electrónico <strong>{{ email }}</strong>.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     I. OBJETO
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Primera — Consentimiento y Objeto</div>
+  <p>
+    Las partes de común acuerdo consienten que el objeto del presente Contrato es
+    el arrendamiento de
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+      los bienes muebles descritos a continuación, para uso exclusivo del evento social
+      del arrendatario.
+    {% else %}
+      el salón para eventos sociales de Quinta Ko'ox Tanil, ubicado en Mérida, Yucatán,
+      con capacidad para <strong>{{ cotizacion.num_personas }}</strong> personas.
+    {% endif %}
+    Por lo que el arrendador se obliga a conceder su uso y disfrute en la fecha acordada,
+    y el arrendatario se obliga a pagar la contraprestación estipulada.
+  </p>
   <table class="tabla-campos">
-    <tr><td class="label">Nombre / Razón Social</td><td>{{ nombre_fiscal }}</td></tr>
-    <tr><td class="label">RFC / CURP</td><td>{{ rfc_curp }}</td></tr>
-    <tr><td class="label">Teléfono</td><td>{{ telefono }}</td></tr>
-    <tr><td class="label">Correo electrónico</td><td>{{ email }}</td></tr>
+    <tr>
+      <td class="label">Tipo de servicio</td>
+      <td>{{ tipo_marca }}</td>
+    </tr>
+    <tr>
+      <td class="label">Nombre del evento</td>
+      <td>{{ cotizacion.nombre_evento }}</td>
+    </tr>
+    <tr>
+      <td class="label">Fecha del evento</td>
+      <td>{{ fecha_evento }}</td>
+    </tr>
+    <tr>
+      <td class="label">Horario</td>
+      <td>{{ hora_ini }} a {{ hora_fin }} horas</td>
+    </tr>
+    <tr>
+      <td class="label">Número de personas</td>
+      <td>{{ cotizacion.num_personas }} personas (aforo máximo)</td>
+    </tr>
+    <tr>
+      <td class="label">Servicios incluidos</td>
+      <td>{{ servicios_incluidos }}</td>
+    </tr>
+    {% if tipo_servicio != 'HOSPEDAJE' %}
+    <tr>
+      <td class="label">Hora extra adicional</td>
+      <td>Costo por acuerdo previo entre las partes, no incluido en este contrato</td>
+    </tr>
+    {% endif %}
   </table>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     II. OBJETO
-═══════════════════════════════════════════════════════════ -->
+     II. PRECIO Y PAGO
+══════════════════════════════════════════════════════════ -->
 <div class="seccion">
-  <div class="seccion-titulo">II. Objeto del Contrato</div>
+  <div class="seccion-titulo">Cláusula Segunda — Costo y Forma de Pago</div>
+  <p>
+    El precio total que el arrendatario se obliga a pagar como contraprestación es el
+    siguiente, el cual contempla todas las cantidades y conceptos referentes al objeto del
+    presente Contrato. El arrendador se obliga a respetar en todo momento dicho costo
+    sin cobrar cantidad alguna no estipulada aquí.
+  </p>
   <table class="tabla-campos">
-    <tr><td class="label">Tipo de servicio</td><td>{{ tipo_marca }}</td></tr>
-    <tr><td class="label">Nombre del evento</td><td>{{ cotizacion.nombre_evento }}</td></tr>
-    <tr><td class="label">Fecha del evento</td><td>{{ fecha_evento }}</td></tr>
-    <tr><td class="label">Hora de inicio</td><td>{{ hora_ini }}</td></tr>
-    <tr><td class="label">Hora de término</td><td>{{ hora_fin }}</td></tr>
-    <tr><td class="label">N° de personas</td><td>{{ cotizacion.num_personas }}</td></tr>
-    <tr><td class="label">Servicios incluidos</td><td>{{ servicios_incluidos }}</td></tr>
+    <tr>
+      <td class="label">Total del servicio (con IVA)</td>
+      <td><strong>{{ precio_total }}</strong></td>
+    </tr>
+    <tr>
+      <td class="label">Anticipo pagado</td>
+      <td>{{ anticipo_str }}</td>
+    </tr>
+    <tr>
+      <td class="label">Total pagado a la fecha</td>
+      <td>{{ total_pagado_str }}</td>
+    </tr>
+    <tr>
+      <td class="label">Saldo pendiente</td>
+      <td><strong>{{ saldo_str }}</strong></td>
+    </tr>
+    <tr>
+      <td class="label">Datos bancarios</td>
+      <td>CLABE: 012910004895703146 &nbsp;|&nbsp; Banco: BBVA &nbsp;|&nbsp; Titular: Ruby E. Ceh</td>
+    </tr>
   </table>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════
-     III. PRECIO Y PAGOS
-═══════════════════════════════════════════════════════════ -->
-<div class="seccion">
-  <div class="seccion-titulo">III. Precio y Forma de Pago</div>
-  <table class="tabla-campos">
-    <tr><td class="label">Total del servicio</td><td><strong>{{ precio_total }}</strong></td></tr>
-    <tr><td class="label">Anticipo pagado</td><td>{{ anticipo_str }}</td></tr>
-    <tr><td class="label">Total pagado a la fecha</td><td>{{ total_pagado_str }}</td></tr>
-    <tr><td class="label">Saldo pendiente</td><td>{{ saldo_str }}</td></tr>
-    <tr><td class="label">Depósito en garantía</td><td>{{ deposito_str }}</td></tr>
-    <tr><td class="label">Datos bancarios</td><td>CLABE: 012910004895703146 &nbsp; Banco: BBVA </td></tr>
-  </table>
-
+  <p class="small">
+    El pago podrá realizarse en efectivo, transferencia bancaria, cheque o tarjeta de crédito/débito.
+    En caso de pago con cheque devuelto por causas imputables al librador, el arrendador se reserva
+    el derecho de cobrar el 20% adicional del valor del documento por daños y perjuicios.
+  </p>
   <div class="aviso">
-    <strong> IMPORTANTE:</strong> La fecha queda reservada ÚNICAMENTE al recibirse el anticipo pactado.
+    <strong>IMPORTANTE:</strong> La fecha queda reservada ÚNICAMENTE al recibirse el anticipo pactado.
     Sin pago confirmado, LA QUINTA puede ceder la fecha a terceros sin previo aviso.
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     IV. CANCELACIONES
-═══════════════════════════════════════════════════════════ -->
+     III. CANCELACIONES (tabla PROFECO)
+══════════════════════════════════════════════════════════ -->
 <div class="seccion">
-  <div class="seccion-titulo">IV. Política de Cancelación</div>
+  <div class="seccion-titulo">Cláusula Tercera — Cancelación</div>
+  <p>
+    El arrendatario cuenta con un plazo de <strong>5 (cinco) días hábiles</strong>
+    posteriores a la firma del presente Contrato para cancelar la operación sin
+    responsabilidad ni penalización alguna, en cuyo caso el arrendador reintegrará
+    todas las cantidades entregadas en un plazo de <strong>5 días naturales</strong>.
+  </p>
+  <p>
+    Una vez transcurrido dicho plazo, cualquiera de las partes que requiera cancelar
+    deberá sujetarse a la siguiente tabla de penalidades:
+  </p>
   <table class="tabla-cancel">
     <thead>
       <tr>
         <th>Tiempo antes del evento</th>
-        <th>Reembolso del anticipo</th>
-        <th>Reembolso del saldo</th>
+        <th>Penalidad sobre el total</th>
+        <th>Reembolso al arrendatario</th>
       </tr>
     </thead>
     <tbody>
-      <tr><td>Más de 60 días</td>
-          <td class="verde">100%</td><td class="verde">100%</td></tr>
-      <tr><td>30 a 59 días</td>
-          <td class="verde">50%</td><td class="verde">100%</td></tr>
-      <tr><td>15 a 29 días</td>
-          <td class="rojo">0%</td><td class="verde">80%</td></tr>
-      <tr><td>Menos de 15 días</td>
-          <td class="rojo">0%</td><td class="rojo">0%</td></tr>
-      <tr><td>Fuerza mayor documentada</td>
-          <td class="verde">100%</td><td class="verde">100%</td></tr>
+      <tr>
+        <td>90 a 61 días naturales antes</td>
+        <td class="rojo">10%</td>
+        <td class="verde">90%</td>
+      </tr>
+      <tr>
+        <td>60 a 31 días naturales antes</td>
+        <td class="rojo">25%</td>
+        <td class="verde">75%</td>
+      </tr>
+      <tr>
+        <td>30 a 16 días naturales antes</td>
+        <td class="rojo">50%</td>
+        <td class="verde">50%</td>
+      </tr>
+      <tr>
+        <td>15 a 10 días naturales antes</td>
+        <td class="rojo">100%</td>
+        <td class="rojo">0%</td>
+      </tr>
+      <tr>
+        <td>Caso fortuito o fuerza mayor documentado</td>
+        <td class="verde">0%</td>
+        <td class="verde">100%</td>
+      </tr>
     </tbody>
   </table>
   <p class="small">
-    <strong>Fuerza mayor:</strong> Fallecimiento de familiar directo, hospitalización urgente documentada
-    o desastre natural. Se ofrece reagendar sin costo dentro de los 12 meses siguientes, sujeto a disponibilidad.
+    La cancelación deberá hacerse de manera <strong>escrita</strong> en el domicilio del arrendador
+    o por correo electrónico con acuse de recibo, tomando como fecha de cancelación la de recepción.
+    En caso de cancelación imputable al arrendador, éste deberá devolver el 100% de los montos
+    recibidos más una pena convencional del <strong>10%</strong> del precio total pactado, en un
+    plazo no mayor a 5 días naturales. Se ofrece reagendar sin costo dentro de los
+    12 meses siguientes, sujeto a disponibilidad.
   </p>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     V. OBLIGACIONES
-═══════════════════════════════════════════════════════════ -->
+     IV. OBLIGACIONES
+══════════════════════════════════════════════════════════ -->
 <div class="seccion">
-  <div class="seccion-titulo">V. Obligaciones de las Partes</div>
-  <p class="bold">5.1 &nbsp;LA QUINTA se obliga a:</p>
+  <div class="seccion-titulo">Cláusula Cuarta — Derechos y Obligaciones de las Partes</div>
+
+  <p class="bold">4.1 EL ARRENDADOR se obliga a:</p>
   <ul>
-    <li>Entregar el espacio limpio y en las condiciones acordadas en el horario pactado.</li>
-    <li>Proporcionar los servicios descritos en la Cláusula II.</li>
-    <li>Designar un coordinador disponible durante el servicio.</li>
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+    <li>Entregar los bienes muebles en el lugar, fecha y horario acordado en este Contrato.</li>
+    <li>Responder por el incumplimiento en el arrendamiento de los bienes, aun cuando
+        subcontrate con terceros.</li>
+    {% else %}
+    <li>Entregar el salón limpio y en las condiciones acordadas en el horario pactado.</li>
+    <li>Proporcionar a el arrendatario el uso y disfrute del salón conforme a lo estipulado.</li>
+    <li>Tener en óptimo estado el salón para el evento.</li>
+    <li>Designar, de entre su personal, a una persona que durante el evento atienda los
+        asuntos relacionados con el arrendamiento.</li>
+    {% endif %}
+    <li>Proporcionar los servicios descritos en la Cláusula Primera.</li>
+    <li>No hacer ningún cobro extraordinario ajeno al señalado en el presente Contrato.</li>
     <li>Informar oportunamente cualquier situación que impida el cumplimiento del contrato.</li>
+    <li>Atender quejas o reclamaciones en un lapso no mayor a <strong>48 horas</strong>
+        a partir de su recepción.</li>
   </ul>
 
-  <p class="bold">5.2 &nbsp;EL CONTRATANTE se obliga a:</p>
+  <p class="bold">4.2 EL ARRENDATARIO se obliga a:</p>
   <ul>
-    <li>Pagar en los términos y plazos pactados en la Cláusula III.</li>
-    <li>Respetar el horario acordado (horas extra tienen costo adicional previo acuerdo).</li>
+    <li>Pagar íntegramente los importes en los términos y plazos pactados.</li>
+    <li>Respetar el horario acordado. Las horas adicionales tienen costo extra previo acuerdo.</li>
+    {% if tipo_servicio != 'HOSPEDAJE' %}
     <li>No exceder el aforo de <strong>{{ cotizacion.num_personas }}</strong> personas.</li>
+    <li>Designar a una persona de confianza que durante el evento trate los asuntos
+        relacionados con el arrendamiento.</li>
+    <li>Abstenerse de dar instrucciones al personal del arrendador ajenas al objeto del contrato.</li>
+    {% endif %}
     <li>Hacerse responsable del comportamiento de sus invitados y proveedores externos.</li>
-    <li>No instalar infraestructura (toldos, templetes, generadores) sin autorización escrita.</li>
-    <li>Respetar el reglamento interno del lugar (disponible en recepción).</li>
+    <li>No utilizar el
+        {% if tipo_servicio == 'HOSPEDAJE' %}bien mueble{% else %}salón{% endif %}
+        para fines distintos a los estipulados en este Contrato.</li>
+    {% if tipo_servicio != 'HOSPEDAJE' %}
+    <li>No instalar infraestructura (toldos, templetes, generadores) sin autorización escrita previa.</li>
+    {% endif %}
+    <li>Respetar el Reglamento Interno (se adjunta al presente contrato).</li>
+    {% if tipo_servicio == 'HOSPEDAJE' %}
+    <li>Devolver los bienes muebles en las mismas condiciones que los recibió.</li>
+    <li>Devolver los bienes en la fecha y hora pactadas.</li>
+    {% endif %}
   </ul>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     VI. DAÑOS Y DEPÓSITO
-═══════════════════════════════════════════════════════════ -->
+     V. DISPOSICIONES POR TIPO DE SERVICIO
+══════════════════════════════════════════════════════════ -->
+{% if clausulas_tipo %}
 <div class="seccion">
-  <div class="seccion-titulo">VI. Daños y Depósito en Garantía</div>
-  <table class="tabla-campos">
-    <tr><td class="label">Depósito en garantía</td><td><strong>{{ deposito_str }}</strong></td></tr>
-    <tr><td class="label">Devolución</td>
-        <td>Dentro de los 5 días hábiles posteriores al evento, previo inventario de instalaciones.</td></tr>
-  </table>
-  <p class="small">
-    El depósito cubre: roturas, daños al mobiliario o infraestructura, limpieza extraordinaria,
-    horas extra no pagadas y faltantes de inventario. Si los daños superan el depósito, EL CONTRATANTE
-    se obliga a cubrir la diferencia en un plazo máximo de 10 días hábiles.
-  </p>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════
-     VII. DISPOSICIONES POR TIPO
-═══════════════════════════════════════════════════════════ -->
-<div class="seccion">
-  <div class="seccion-titulo">VII. Disposiciones — {{ tipo_display }}</div>
+  <div class="seccion-titulo">Cláusula Quinta — Disposiciones Particulares ({{ tipo_display }})</div>
   <ul>
-    {% for clausula in clausulas_tipo %}
-    <li>{{ clausula }}</li>
+    {% for c in clausulas_tipo %}
+    <li>{{ c }}</li>
     {% endfor %}
   </ul>
 </div>
+{% endif %}
 
 <!-- ══════════════════════════════════════════════════════════
-     VIII. JURISDICCIÓN
-═══════════════════════════════════════════════════════════ -->
+     VI. GASTOS DE REPARACIÓN
+══════════════════════════════════════════════════════════ -->
 <div class="seccion">
-  <div class="seccion-titulo">VIII. Jurisdicción</div>
-  <p class="small">
-    Las partes se someten a los Tribunales del Estado de Yucatán, renunciando a cualquier otro fuero
-    que pudiera corresponderles por razón de su domicilio presente o futuro. Ante cualquier controversia,
-    las partes intentarán resolución amigable en un plazo de 10 días hábiles. De no lograrse acuerdo,
-    podrán acudir a PROFECO como instancia de mediación antes de iniciar acción legal.
+  <div class="seccion-titulo">Cláusula Sexta — Daños y Gastos de Reparación</div>
+  <p>
+    En caso de que el
+    {% if tipo_servicio == 'HOSPEDAJE' %}bien mueble{% else %}salón{% endif %}
+    sufriera un menoscabo por culpa o negligencia debidamente comprobada del arrendatario
+    o de sus invitados, éste se obliga a cubrir los gastos de reparación o reposición dentro
+    de los <strong>10 (diez) días naturales</strong> siguientes al evento. El costo se calculará
+    con referencia al valor actual del bien dañado y a su depreciación por uso habitual,
+    fehacientemente comprobable por el arrendador. El arrendatario no estará obligado a
+    indemnizar por daños causados por caso fortuito o fuerza mayor.
   </p>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     IX. ACEPTACIÓN Y FIRMAS
-═══════════════════════════════════════════════════════════ -->
+     VII. CASO FORTUITO Y FUERZA MAYOR
+══════════════════════════════════════════════════════════ -->
 <div class="seccion">
-  <div class="seccion-titulo">IX. Aceptación y Firmas</div>
-  <p class="small">
-    Leído y entendido el presente contrato en todas sus partes, ambas partes lo aceptan y se obligan
-    a su cumplimiento. La firma puede ser física o mediante aceptación electrónica (WhatsApp, correo
-    o firma digital), con valor probatorio conforme a la legislación mexicana vigente.
+  <div class="seccion-titulo">Cláusula Séptima — Caso Fortuito y Fuerza Mayor</div>
+  <p>
+    En caso de que el arrendador se encuentre imposibilitado para otorgar el servicio por
+    caso fortuito o fuerza mayor (incendio, sismo, inundación u otros eventos ajenos a su
+    voluntad), no se considerará incumplimiento, pero el arrendador deberá reintegrar al
+    arrendatario la totalidad de las cantidades que le haya entregado en un plazo no mayor
+    a <strong>5 días naturales</strong>, ofreciendo alternativamente una fecha de reagendamiento
+    sin costo adicional.
   </p>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════
+     VIII. PRIVACIDAD Y PROTECCIÓN DE DATOS
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Octava — Aviso de Privacidad y Datos Personales</div>
+  <p>
+    En cumplimiento de la Ley Federal de Protección de Datos Personales en Posesión de
+    los Particulares, el arrendador hace del conocimiento del arrendatario que la información
+    contenida en este Contrato será utilizada únicamente para los fines propios de este acto
+    jurídico. Cualquier uso distinto al pactado será considerado incumplimiento. El arrendatario
+    puede ejercer sus derechos de acceso, rectificación, cancelación y oposición (derechos ARCO)
+    dirigiéndose al correo electrónico del arrendador.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     IX. FIRMA ELECTRÓNICA
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Novena — Contratación por Medios Electrónicos</div>
+  <p>
+    Las partes acuerdan que en lugar de firma autógrafa, este contrato podrá ser firmado
+    por medios electrónicos, digitales, biométricos o cualquier otra forma equivalente, con
+    la misma fuerza y consecuencias que la firma autógrafa original, conforme a la
+    <strong>NOM-151-SCFI-2016</strong>. Los documentos firmados de tal modo serán conservados
+    y estarán a disposición del consumidor.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     X. JURISDICCIÓN
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Décima — Jurisdicción y Competencia</div>
+  <p>
+    La <strong>Procuraduría Federal del Consumidor (PROFECO)</strong> es competente en
+    la vía administrativa para resolver cualquier controversia sobre la interpretación o
+    cumplimiento del presente Contrato. Sin perjuicio de lo anterior, las partes se someten
+    a la jurisdicción de los Tribunales competentes de <strong>Mérida, Yucatán</strong>,
+    renunciando expresamente a cualquier otra jurisdicción que pudiera corresponderles.
+  </p>
+  <p>
+    Leído que fue el presente Contrato por las partes, comprendiendo su alcance legal,
+    lo suscriben en la Ciudad de <strong>Mérida, Yucatán</strong>, a los {{ fecha_doc }}.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     FIRMAS
+══════════════════════════════════════════════════════════ -->
 <div class="firmas">
   <div class="firmas-grid">
     <div class="firma-col">
-      <div class="firma-espacio"></div>
-      <div class="firma-nombre">{{ nombre_fiscal }}</div>
-      <div class="firma-rol">CONTRATANTE</div>
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">RUBY ELISABETH CEH</div>
+      <div class="firma-rol">EL ARRENDADOR</div>
+      <div class="firma-rfc">RFC: CERU580518QZ5</div>
     </div>
-    <div class="firma-sep"></div>
     <div class="firma-col">
-      <div class="firma-espacio"></div>
-      <div class="firma-nombre">Quinta Ko'ox Tanil</div>
-      <div class="firma-rol">PRESTADOR DE SERVICIOS</div>
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">{{ nombre_fiscal|upper }}</div>
+      <div class="firma-rol">EL ARRENDATARIO</div>
+      <div class="firma-rfc">RFC/CURP: {{ rfc_curp }}</div>
     </div>
   </div>
-  <p style="text-align:center; margin-top:20px; font-size:9pt; color:#666;">
-    Fecha: {{ fecha_doc }}
-  </p>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     PÁGINA 2 — REGLAMENTO INTERNO
-═══════════════════════════════════════════════════════════ -->
-<div class="page-break"></div>
-
-<div class="reglamento-titulo">Reglamento Interno — Quinta Ko'ox Tanil</div>
-<div class="reglamento-sub">Anexo I del Contrato {{ numero }} — Firma requerida al pie</div>
-
-<div class="seccion">
-  <div class="seccion-titulo">Acceso y Capacidad</div>
-  <ul>
-    <li>El acceso de invitados es únicamente por el área designada. Prohibido acceder a zonas privadas o de servicio.</li>
-    <li>El aforo máximo del espacio es el acordado en el contrato. Se puede detener el acceso si se supera.</li>
-    <li>Las mascotas están permitidas solo en áreas exteriores con correa y autorización escrita previa.</li>
-  </ul>
-</div>
-
-<div class="seccion">
-  <div class="seccion-titulo">Ruido y Música</div>
-  <ul>
-    <li>La música a alto volumen está permitida hasta el horario límite acordado, conforme al Bando Municipal.</li>
-    <li>Pasado el horario límite, el volumen debe reducirse a nivel conversacional. El incumplimiento puede derivar en suspensión del servicio sin reembolso.</li>
-    <li>Los equipos de sonido externos deben ser autorizados previamente. El cableado no debe dañar pisos o muros.</li>
-  </ul>
-</div>
-
-<div class="seccion">
-  <div class="seccion-titulo">Alimentos, Bebidas y Barra</div>
-  <ul>
-    <li>Está prohibida la introducción de bebidas alcohólicas externas cuando se contrató servicio de barra con LA QUINTA.</li>
-    <li>Las empresas externas de catering deben mantener su área limpia y retirar todos sus residuos al concluir.</li>
-  </ul>
-</div>
-
-<div class="seccion">
-  <div class="seccion-titulo">Cuidado de las Instalaciones</div>
-  <ul>
-    <li>Prohibido clavar, atornillar o pegar cinta industrial en muros, puertas o muebles sin autorización.</li>
-    <li>Los adornos con confeti o papel picado requieren autorización y generan cargo de limpieza adicional.</li>
-    <li>La alberca / cenote (si aplica) solo puede usarse en los horarios acordados. LA QUINTA no responde por accidentes por uso irresponsable.</li>
-  </ul>
-</div>
-
-<div class="seccion">
-  <div class="seccion-titulo">Seguridad</div>
-  <ul>
-    <li>El consumo de sustancias ilícitas está terminantemente prohibido y es causa de desalojo inmediato sin reembolso.</li>
-    <li>Cualquier comportamiento violento que ponga en riesgo la integridad de personas o instalaciones será motivo de desalojo.</li>
-    <li>EL CONTRATANTE es responsable del orden de su evento. El personal de LA QUINTA no interviene en disputas entre invitados.</li>
-    <li>El uso de cuetes, pirotecnia o fogatas queda estrictamente prohibido.</li>
-  </ul>
-</div>
-
-<div class="firmas" style="margin-top:40px;">
-  <p style="text-align:center; font-weight:bold; margin-bottom:20px; font-size:10pt;">
-    He leído y acepto el presente Reglamento Interno como parte integral del contrato.
-  </p>
-  <div class="firmas-grid">
-    <div class="firma-col">
-      <div class="firma-espacio"></div>
-      <div class="firma-nombre">{{ nombre_fiscal }}</div>
-      <div class="firma-rol">CONTRATANTE</div>
-    </div>
-    <div class="firma-sep"></div>
-    <div class="firma-col">
-      <div class="firma-espacio"></div>
-      <div class="firma-nombre">Quinta Ko'ox Tanil</div>
-      <div class="firma-rol">PRESTADOR DE SERVICIOS</div>
+     AUTORIZACIÓN MERCADOTECNIA
+══════════════════════════════════════════════════════════ -->
+<div class="autorizacion-box" style="margin-top: 18px;">
+  <p class="bold">Autorización para la utilización de información con fines mercadotécnicos o publicitarios</p>
+  <p>EL ARRENDATARIO:</p>
+  <div class="check-row">
+    Si ( &nbsp; ) &nbsp; No ( &nbsp; ) &mdash; acepta que EL ARRENDADOR ceda o transmita a terceros,
+    con fines mercadotécnicos o publicitarios, la información proporcionada con motivo del
+    presente Contrato.
+  </div>
+  <div class="check-row">
+    Si ( &nbsp; ) &nbsp; No ( &nbsp; ) &mdash; acepta que EL ARRENDADOR le envíe publicidad sobre
+    bienes y servicios.
+  </div>
+  <div style="margin-top: 24px; text-align: center;">
+    <div style="border-top: 1px solid #333; width: 60%; margin: 0 auto;"></div>
+    <div style="font-size: 9pt; font-weight: bold; margin-top: 4px;">
+      Firma de autorización de EL ARRENDATARIO
     </div>
   </div>
-  <p style="text-align:center; margin-top:16px; font-size:9pt; color:#666;">
-    Fecha: {{ fecha_doc }}
-  </p>
 </div>
+
+<p class="small italic" style="margin-top: 10px; text-align: center;">
+  {% if tipo_servicio == 'HOSPEDAJE' %}
+    Este contrato fue aprobado y registrado por la Procuraduría Federal del Consumidor
+    bajo el número <strong>9339-2023</strong> de fecha 31 de octubre de 2023.
+  {% else %}
+    Este contrato fue aprobado y registrado por la Procuraduría Federal del Consumidor
+    bajo el número <strong>9341-2023</strong> de fecha 31 de octubre de 2023.
+  {% endif %}
+  Cualquier variación del presente contrato en perjuicio del arrendatario,
+  frente al contrato de adhesión registrado, se tendrá por no puesta.
+</p>
+
+<!-- ══════════════════════════════════════════════════════════
+     PÁGINA 2 — REGLAMENTO INTERNO
+══════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<div class="header" style="margin-bottom: 12px;">
+  {% if logo_url %}
+  <img src="{{ logo_url }}" class="logo" alt="Logo">
+  {% endif %}
+  <div class="titulo">Reglamento Interno</div>
+  <div class="subtitulo">Quinta Ko'ox Tanil — Anexo al Contrato {{ numero }}</div>
+</div>
+
+<p style="margin-bottom: 10px; text-align: justify;">
+  El presente Reglamento se considera anexo integral al Contrato y es de observancia
+  obligatoria para ambas partes y para todos los invitados del Arrendatario.
+</p>
+
+{% if tipo_servicio == 'HOSPEDAJE' %}
+<ol class="reglamento">
+  <li>Al momento de recibir los bienes muebles, el arrendatario deberá revisarlos con el
+      personal del arrendador, señalando cualquier deterioro existente en ese momento.</li>
+  <li>Los bienes muebles arrendados estarán a disposición únicamente durante el tiempo
+      estipulado en el Contrato.</li>
+  <li>Está prohibido utilizar los bienes muebles para fines distintos a los estipulados
+      en el Contrato.</li>
+  <li>Los bienes deberán devolverse en las mismas condiciones en que fueron recibidos,
+      en el lugar, fecha y hora pactados.</li>
+  <li>El arrendatario es responsable del cuidado y uso adecuado de los bienes durante
+      todo el período de arrendamiento.</li>
+  <li>Queda prohibido subarrendar o ceder el uso de los bienes a terceros sin autorización
+      escrita del arrendador.</li>
+  <li>Check-in y check-out en los horarios acordados y señalados en el Contrato.</li>
+  <li>Prohibido organizar eventos o reuniones adicionales sin contrato independiente.</li>
+  <li>Fumar dentro de las habitaciones o áreas cerradas genera cargo de limpieza extraordinaria.</li>
+  <li>Prohibido el ingreso de personas no registradas después de las 23:00 horas.</li>
+  <li>El arrendador no se hace responsable del extravío de objetos del arrendatario o
+      sus invitados que no hayan sido resguardados adecuadamente.</li>
+  <li>El arrendatario se responsabiliza de respetar y hacer respetar el presente
+      Reglamento. En caso de daño, cubrirá el costo de reparación o reposición.</li>
+</ol>
+{% else %}
+<ol class="reglamento">
+  <li>Antes de dar inicio al evento, el arrendatario recorrerá las instalaciones con el
+      personal del arrendador para revisar las condiciones generales del salón.</li>
+  <li>El salón estará a disposición únicamente el tiempo estipulado en el Contrato.
+      Se otorgarán <strong>30 minutos de tolerancia</strong> para desocupar el salón al
+      final del evento.</li>
+  <li>En caso de requerir tiempo adicional, deberá acordarse y pagarse con anticipación.
+      El arrendatario que exceda el horario sin autorización se hará acreedor al cobro
+      correspondiente por hora adicional.</li>
+  <li>Está prohibido fumar dentro del salón y áreas techadas.</li>
+  <li>En caso de requerir introducir equipo adicional al salón (sonido externo, templetes,
+      generadores, toldos), se deberá contar con autorización escrita del arrendador.</li>
+  <li>El arrendatario que contrate personal externo para su evento será responsable por
+      la conducta de éstos.</li>
+  <li>Está prohibido clavar, engrapar o atornillar objetos en paredes, techos, ventanas,
+      piso o cualquier parte de las instalaciones del salón.</li>
+  <li>El arrendador no se hace responsable por ningún daño o lesión que pudieran sufrir
+      los invitados del arrendatario, salvo que sea por causas imputables al arrendador.</li>
+  <li>No se permite la entrada de animales (mascotas), salvo casos justificados y
+      previamente autorizados.</li>
+  <li>El cuidado de los menores de edad es responsabilidad exclusiva de los padres,
+      tutores o responsables de los mismos.</li>
+  <li>El arrendador no se hace responsable del extravío u objetos olvidados del
+      arrendatario o sus invitados, que no hayan sido depositados en el guardarropa.</li>
+  <li>Queda estrictamente prohibido el acceso y uso de cualquier tipo de arma dentro
+      de las instalaciones.</li>
+  <li>No se permite el aforo mayor al contratado. La entrada de personas adicionales
+      deberá ser previamente autorizada y podrá implicar un costo adicional.</li>
+  <li>El arrendatario se responsabiliza de respetar y hacer respetar el presente
+      Reglamento con sus invitados. En caso de daño, cubrirá el costo de su reparación
+      o reposición según lo estipulado en el Contrato.</li>
+</ol>
+{% endif %}
+
+<div class="firmas" style="margin-top: 24px;">
+  <div class="firmas-grid">
+    <div class="firma-col">
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">RUBY ELISABETH CEH</div>
+      <div class="firma-rol">El Arrendador</div>
+    </div>
+    <div class="firma-col">
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">{{ nombre_fiscal|upper }}</div>
+      <div class="firma-rol">El Arrendatario — De conformidad con el Reglamento</div>
+    </div>
+  </div>
+</div>
+
+<p class="small italic" style="text-align:center; margin-top: 14px;">
+  Quinta Ko'ox Tanil &mdash; Contrato {{ numero }} &mdash; {{ fecha_doc }} &mdash; DOCUMENTO CONFIDENCIAL
+</p>
 
 </body>
 </html>
