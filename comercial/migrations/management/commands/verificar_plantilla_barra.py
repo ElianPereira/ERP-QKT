@@ -14,7 +14,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write("\n" + "=" * 70)
-        self.stdout.write("  📋 DIAGNÓSTICO DE PLANTILLA DE BARRA")
+        self.stdout.write("   DIAGNÓSTICO DE PLANTILLA DE BARRA")
         self.stdout.write("=" * 70)
 
         total = PlantillaBarra.objects.count()
@@ -22,12 +22,12 @@ class Command(BaseCommand):
 
         if total == 0:
             self.stdout.write(self.style.WARNING(
-                "\n⚠️  La tabla PlantillaBarra está VACÍA."
+                "\n  La tabla PlantillaBarra está VACÍA."
                 "\n   Por eso la lista de compras muestra nombres genéricos."
                 "\n   Usa el Asistente en Admin > Plantilla de Barra > 'Configurar Plantilla'"
             ))
         else:
-            self.stdout.write(self.style.SUCCESS(f"\n✅ Registros totales: {total} ({activos} activos)"))
+            self.stdout.write(self.style.SUCCESS(f"\n Registros totales: {total} ({activos} activos)"))
 
         self.stdout.write("\n" + "-" * 70)
         self.stdout.write("  ESTADO POR CATEGORÍA:")
@@ -37,7 +37,7 @@ class Command(BaseCommand):
             plantilla = PlantillaBarra.objects.filter(categoria=cat_key, activo=True).first()
             if plantilla:
                 self.stdout.write(self.style.SUCCESS(
-                    f"  ✅ {cat_label:25s} → {plantilla.insumo.nombre} "
+                    f"   {cat_label:25s} → {plantilla.insumo.nombre} "
                     f"({plantilla.insumo.presentacion or 'sin presentación'}) "
                     f"[{plantilla.insumo.proveedor or 'sin proveedor'}]"
                 ))
@@ -55,11 +55,11 @@ class Command(BaseCommand):
                 if candidatos.exists() and candidatos.count() <= 5:
                     sugerencias = ", ".join([f"{c.nombre} (${c.costo_unitario})" for c in candidatos[:3]])
                     self.stdout.write(self.style.WARNING(
-                        f"  ❌ {cat_label:25s} → SIN VINCULAR  💡 Sugerencias: {sugerencias}"
+                        f"   {cat_label:25s} → SIN VINCULAR   Sugerencias: {sugerencias}"
                     ))
                 else:
                     self.stdout.write(self.style.ERROR(
-                        f"  ❌ {cat_label:25s} → SIN VINCULAR  (No hay insumos similares)"
+                        f"   {cat_label:25s} → SIN VINCULAR  (No hay insumos similares)"
                     ))
 
         self.stdout.write("\n" + "-" * 70)

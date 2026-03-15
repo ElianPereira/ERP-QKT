@@ -89,7 +89,7 @@ def crear_solicitud(request):
             filename = f"Solicitud_{cliente.rfc}_SOL-{solicitud.id}.pdf"
             solicitud.archivo_pdf.save(filename, ContentFile(pdf_file))
             
-            messages.success(request, f"✅ Solicitud SOL-{int(solicitud.id):03d} creada correctamente.")
+            messages.success(request, f" Solicitud SOL-{int(solicitud.id):03d} creada correctamente.")
             return redirect('/admin/facturacion/solicitudfactura/')
             
         except Exception as e:

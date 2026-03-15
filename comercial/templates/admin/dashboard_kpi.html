@@ -7,11 +7,11 @@
     
     {% if es_jefe %}
         <h3 style="margin-bottom: 20px; color: #447e9b;">
-            🚀 Finanzas de {% now "F Y" %}
+            Finanzas de {% now "F Y" %}
         </h3>
     {% else %}
         <h3 style="margin-bottom: 20px; color: #6c757d;">
-            👋 Bienvenido al Panel Operativo
+            Panel operativo
         </h3>
     {% endif %}
 
@@ -22,7 +22,7 @@
             <div class="col-lg-3 col-md-6 col-sm-12">
                 <div class="card bg-info text-white">
                     <div class="card-body text-center">
-                        <h5>💰 Ingresos (Ventas)</h5>
+                        <h5>Ingresos</h5>
                         <h2 style="font-weight: bold;">
                             ${{ stats.total_vendido|floatformat:2|intcomma }}
                         </h2>
@@ -33,7 +33,7 @@
             <div class="col-lg-3 col-md-6 col-sm-12">
                 <div class="card text-white" style="background-color: #dc3545;"> 
                     <div class="card-body text-center">
-                        <h5>💸 Gastos Reales</h5>
+                        <h5>Gastos</h5>
                         <h2 style="font-weight: bold;">
                             - ${{ stats.total_gastado|floatformat:2|intcomma }}
                         </h2>
@@ -44,7 +44,7 @@
             <div class="col-lg-3 col-md-6 col-sm-12">
                 <div class="card bg-success text-white">
                     <div class="card-body text-center">
-                        <h5>📈 Utilidad Neta</h5>
+                        <h5>Utilidad neta</h5>
                         <h2 style="font-weight: bold;">
                             ${{ stats.utilidad_real|floatformat:2|intcomma }}
                         </h2>
@@ -55,7 +55,7 @@
             <div class="col-lg-3 col-md-6 col-sm-12">
                 <div class="card bg-secondary text-white">
                     <div class="card-body text-center">
-                        <h5>📅 Eventos Confirmados</h5>
+                        <h5>Eventos</h5>
                         <h2 style="font-weight: bold;">
                             {{ stats.cantidad_eventos }}
                         </h2>
@@ -71,7 +71,7 @@
         <div class="col-md-12"> 
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h3 class="card-title">⚡ Acciones Rápidas</h3>
+                    <h3 class="card-title">Acciones rápidas</h3>
                 </div>
                 <div class="card-body">
                     <a href="{% url 'admin:comercial_cotizacion_add' %}" class="btn btn-app">

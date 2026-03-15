@@ -34,10 +34,10 @@ def calendario_unificado(request):
     for c in cotizaciones:
         if c.estado == 'CONFIRMADA':
             color = '#27ae60'
-            icon = '🎉'
+            icon = ''
         else:
             color = '#95a5a6'
-            icon = '📝'
+            icon = ''
         
         eventos_lista.append({
             'title': f"{icon} {c.cliente.nombre} - {c.nombre_evento}",
@@ -58,19 +58,19 @@ def calendario_unificado(request):
         
         if tiene_conflicto:
             color = '#e74c3c'
-            icon = '⚠️'
+            icon = ''
         elif r.estado == 'PENDIENTE':
             color = '#f39c12'
-            icon = '⏳'
+            icon = ''
         elif r.estado == 'BLOQUEADA':
             color = '#6c757d'
-            icon = '🔒'
+            icon = ''
         elif r.anuncio.tipo == 'CASA':
             color = '#3498db'
-            icon = '🏠'
+            icon = ''
         else:
             color = '#e67e22'
-            icon = '🛏️'
+            icon = ''
         
         eventos_lista.append({
             'title': f"{icon} {r.anuncio.nombre}: {r.titulo or 'Reserva'}",
@@ -344,7 +344,7 @@ def bloquear_en_airbnb(request, cotizacion_id):
     )
     
     if not anuncios.exists():
-        messages.warning(request, "⚠️ No hay anuncios configurados que afecten la quinta")
+        messages.warning(request, " No hay anuncios configurados que afecten la quinta")
         return redirect('admin:comercial_cotizacion_change', cotizacion_id)
     
     # Generar URLs de bloqueo para cada anuncio
@@ -362,14 +362,14 @@ def bloquear_en_airbnb(request, cotizacion_id):
             })
     
     if not urls_bloqueo:
-        messages.warning(request, "⚠️ Los anuncios no tienen Listing ID configurado")
+        messages.warning(request, " Los anuncios no tienen Listing ID configurado")
         return redirect('admin:comercial_cotizacion_change', cotizacion_id)
     
     if len(urls_bloqueo) == 1:
         # Si solo hay un anuncio, redirigir directamente
         messages.info(
             request, 
-            f"🔒 Bloquea la fecha {cotizacion.fecha_evento.strftime('%d/%m/%Y')} en el calendario de Airbnb"
+            f" Bloquea la fecha {cotizacion.fecha_evento.strftime('%d/%m/%Y')} en el calendario de Airbnb"
         )
         return redirect(urls_bloqueo[0]['url'])
     

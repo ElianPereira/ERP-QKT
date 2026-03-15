@@ -253,3 +253,62 @@ section.content-header h1 {
     text-shadow: none !important;
     -webkit-text-stroke: 0 !important;
 }
+
+/* ── FIX TÍTULOS DE MÓDULO ────────────────────────────────── */
+.content-header h1,
+.content-header .content-header-title,
+section.content-header h1 {
+    color: var(--qkt-text-bright) !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    -webkit-text-stroke: 0 !important;
+}
+
+/* ── BOTÓN AGREGAR (Jazzmin object-tools) ─────────────────── */
+.object-tools a,
+.object-tools .addlink,
+#changelist .object-tools a {
+    background: var(--qkt-green) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: var(--qkt-btn-radius) !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+}
+.object-tools a:hover {
+    background: var(--qkt-green-hover) !important;
+}
+
+/* ── BOTÓN BUSCAR / EJECUTAR ──────────────────────────────── */
+.btn-primary,
+input[type="submit"].default {
+    background: var(--qkt-green) !important;
+    border-color: var(--qkt-green) !important;
+    color: white !important;
+}
+.btn-primary:hover,
+input[type="submit"].default:hover {
+    background: var(--qkt-green-hover) !important;
+}
+
+/* ── FORMULARIOS DENTRO DE CARDS (fondo oscuro) ───────────── */
+.card-header {
+    background: var(--qkt-bg-header) !important;
+    border-bottom: 1px solid var(--qkt-border) !important;
+}
+
+/* ── KPI BOXES en changelist (Pagos Airbnb) ───────────────── */
+#changelist .card,
+#changelist div[style*="background: #f8f9fa"],
+#changelist div[style*="background:#f8f9fa"] {
+    background: var(--qkt-bg-card) !important;
+    border-color: var(--qkt-border) !important;
+}
+
+/* ── REPORTES FORM (lista compras, reporte pagos, ventas) ── */
+.card-primary .card-header,
+.card-info .card-header {
+    background: var(--qkt-green) !important;
+    border-color: var(--qkt-green) !important;
+    color: white !important;
+}

@@ -141,7 +141,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='gasto',
             name='categoria',
-            field=models.CharField(choices=[('SIN_CLASIFICAR', '⚠️ Sin Clasificar'), ('INSUMO_COCINA', 'Insumos Cocina (Carne, Verdura)'), ('BEBIDAS', 'Bebidas y Alcohol'), ('DESECHABLES', 'Desechables y Limpieza'), ('MOBILIARIO_EQ', 'Mobiliario y Equipo'), ('MANTENIMIENTO', 'Mantenimiento y Reparaciones'), ('NOMINA_EXT', 'Servicios Staff Externo'), ('IMPUESTOS', 'Pago de Impuestos'), ('PUBLICIDAD', 'Publicidad y Marketing'), ('COMBUSTIBLE', 'Combustible y Viáticos'), ('OFICINA', 'Papelería y Oficina'), ('OTRO', 'Otros Gastos')], default='SIN_CLASIFICAR', max_length=20),
+            field=models.CharField(choices=[('SIN_CLASIFICAR', ' Sin Clasificar'), ('INSUMO_COCINA', 'Insumos Cocina (Carne, Verdura)'), ('BEBIDAS', 'Bebidas y Alcohol'), ('DESECHABLES', 'Desechables y Limpieza'), ('MOBILIARIO_EQ', 'Mobiliario y Equipo'), ('MANTENIMIENTO', 'Mantenimiento y Reparaciones'), ('NOMINA_EXT', 'Servicios Staff Externo'), ('IMPUESTOS', 'Pago de Impuestos'), ('PUBLICIDAD', 'Publicidad y Marketing'), ('COMBUSTIBLE', 'Combustible y Viáticos'), ('OFICINA', 'Papelería y Oficina'), ('OTRO', 'Otros Gastos')], default='SIN_CLASIFICAR', max_length=20),
         ),
         migrations.AlterField(
             model_name='gasto',

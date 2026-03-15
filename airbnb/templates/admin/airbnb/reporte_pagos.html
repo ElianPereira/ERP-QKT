@@ -91,7 +91,7 @@
         font-size: 13px;
     }
     .tabla-pagos th {
-        background: #34495e;
+        background: #2E7D32;
         color: white;
         padding: 10px 8px;
         text-align: left;
@@ -107,15 +107,15 @@
     .monto-negativo { color: #e74c3c; }
     
     .regimen-info {
-        background: #e8f4fd;
-        border: 1px solid #3498db;
+        background: #E8F5E9;
+        border: 1px solid #2E7D32;
         border-radius: 6px;
         padding: 15px;
         margin-bottom: 20px;
     }
     .regimen-info h4 {
         margin: 0 0 10px 0;
-        color: #2980b9;
+        color: #2E7D32;
     }
     .regimen-info p {
         margin: 0;
@@ -136,7 +136,7 @@
 <div class="reporte-container">
     
     <div class="reporte-header">
-        <h2>📊 Reporte de Pagos Airbnb</h2>
+       <h2>Reporte de pagos Airbnb</h2>
         <form method="get" class="filtros-form">
             <select name="año">
                 {% for a in años_disponibles %}
@@ -160,13 +160,13 @@
             </select>
             <button type="submit" class="btn btn-primary">Filtrar</button>
             <a href="?año={{ año_actual }}&mes={{ mes_actual|default:'' }}&export=excel" class="btn btn-success">
-                📥 Exportar Excel
+                 Exportar Excel
             </a>
         </form>
     </div>
     
     <div class="regimen-info">
-        <h4>📋 Régimen Fiscal: Actividad Empresarial - Plataformas Tecnológicas</h4>
+        <h4> Régimen Fiscal: Actividad Empresarial - Plataformas Tecnológicas</h4>
         <p>
             Art. 113-A LISR • Retención ISR: 4% • Retención IVA: 8%<br>
             Las retenciones son efectuadas directamente por Airbnb y deben declararse mensualmente.
@@ -199,7 +199,7 @@
     <div class="resumen-grid">
         {% if resumen_mensual %}
         <div class="tabla-container">
-            <h3>📅 Resumen Mensual</h3>
+            <h3>Resumen mensual</h3>
             <table class="tabla-pagos">
                 <thead>
                     <tr>
@@ -229,7 +229,7 @@
         
         {% if resumen_anuncio %}
         <div class="tabla-container">
-            <h3>🏠 Resumen por Anuncio</h3>
+            <h3>Resumen por anuncio</h3>
             <table class="tabla-pagos">
                 <thead>
                     <tr>
@@ -255,7 +255,7 @@
     </div>
     
     <div class="tabla-container">
-        <h3>📝 Detalle de Pagos ({{ pagos.count }} registros)</h3>
+        <h3>Detalle de pagos ({{ pagos.count }} registros)</h3>
         <table class="tabla-pagos">
             <thead>
                 <tr>

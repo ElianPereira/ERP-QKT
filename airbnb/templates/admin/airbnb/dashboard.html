@@ -198,37 +198,37 @@
 <div class="dashboard-container">
     
     <div class="dashboard-header">
-        <h2>🏠 Dashboard Airbnb</h2>
+        <h2> Dashboard Airbnb</h2>
         <div class="header-actions">
             <a href="{% url 'admin:airbnb_anuncioairbnb_sincronizar_todos' %}" class="btn btn-primary">
-                🔄 Sincronizar
+                 Sincronizar
             </a>
             <a href="{% url 'calendario_unificado' %}" class="btn btn-success">
-                📅 Calendario
+                 Calendario
             </a>
             <a href="{% url 'reporte_pagos_airbnb' %}" class="btn btn-warning">
-                📊 Reportes
+                 Reportes
             </a>
         </div>
     </div>
     
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-icon blue">🏠</div>
+            <div class="stat-icon blue"></div>
             <div class="stat-content">
                 <div class="valor">{{ total_anuncios }}</div>
                 <div class="label">Anuncios Activos</div>
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon green">💰</div>
+            <div class="stat-icon green"></div>
             <div class="stat-content">
                 <div class="valor">${{ pagos_mes.total_neto|floatformat:0|intcomma|default:"0" }}</div>
                 <div class="label">Ingresos Netos (Mes)</div>
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon orange">📋</div>
+            <div class="stat-icon orange"></div>
             <div class="stat-content">
                 <div class="valor">{{ pagos_mes.num_reservas|default:"0" }}</div>
                 <div class="label">Reservas (Mes)</div>
@@ -236,7 +236,7 @@
         </div>
         <div class="stat-card">
             <div class="stat-icon {% if conflictos_count > 0 %}red{% else %}green{% endif %}">
-                {% if conflictos_count > 0 %}⚠️{% else %}✓{% endif %}
+                {% if conflictos_count > 0 %}{% else %}✓{% endif %}
             </div>
             <div class="stat-content">
                 <div class="valor">{{ conflictos_count }}</div>
@@ -248,7 +248,7 @@
     <div class="content-grid">
         <div class="panel">
             <div class="panel-header">
-                <h3>📈 Ingresos Últimos 6 Meses</h3>
+                <h3> Ingresos Últimos 6 Meses</h3>
             </div>
             <div class="panel-body">
                 <div class="chart-container">
@@ -259,7 +259,7 @@
         
         <div class="panel">
             <div class="panel-header">
-                <h3>📅 Próximas Reservas</h3>
+                <h3> Próximas Reservas</h3>
                 <a href="{% url 'admin:airbnb_reservaairbnb_changelist' %}" style="font-size: 13px;">Ver todas →</a>
             </div>
             <div class="panel-body">
@@ -281,7 +281,7 @@
                 </ul>
                 {% else %}
                 <div class="empty-state">
-                    <div class="icon">📭</div>
+                    <div class="icon"></div>
                     <p>No hay reservas próximas</p>
                 </div>
                 {% endif %}
@@ -292,7 +292,7 @@
     {% if conflictos %}
     <div class="panel" style="margin-bottom: 30px;">
         <div class="panel-header">
-            <h3>⚠️ Conflictos Pendientes</h3>
+            <h3> Conflictos Pendientes</h3>
             <a href="{% url 'admin:airbnb_conflictocalendario_changelist' %}?estado__exact=PENDIENTE" style="font-size: 13px;">Ver todos →</a>
         </div>
         <div class="panel-body">

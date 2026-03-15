@@ -98,7 +98,7 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         
         messages.success(request, f"Sincronización: {total_creadas} nuevas, {total_actualizadas} actualizadas")
         if conflictos:
-            messages.warning(request, f"⚠️ {len(conflictos)} nuevos conflictos detectados")
+            messages.warning(request, f" {len(conflictos)} nuevos conflictos detectados")
     
     def sincronizar_todos(self, request):
         servicio = SincronizadorAirbnbService()
@@ -108,15 +108,15 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         errores = sum(1 for r in resultados.values() if r.get('status') == 'error')
         
         if exitos > 0:
-            messages.success(request, f"✅ {exitos} anuncios sincronizados correctamente")
+            messages.success(request, f" {exitos} anuncios sincronizados correctamente")
         if errores > 0:
-            messages.error(request, f"❌ {errores} anuncios con errores")
+            messages.error(request, f" {errores} anuncios con errores")
         
         # Detectar conflictos
         detector = DetectorConflictosService()
         conflictos = detector.detectar_conflictos()
         if conflictos:
-            messages.warning(request, f"⚠️ {len(conflictos)} nuevos conflictos detectados")
+            messages.warning(request, f" {len(conflictos)} nuevos conflictos detectados")
         
         return redirect('admin:airbnb_anuncioairbnb_changelist')
     
@@ -233,7 +233,7 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
         if request.method == 'POST':
             archivo = request.FILES.get('archivo_csv')
             if not archivo:
-                messages.error(request, "❌ Debes seleccionar un archivo CSV")
+                messages.error(request, "Debes seleccionar un archivo CSV")
                 return redirect('admin:airbnb_pagoairbnb_changelist')
             
             try:
@@ -243,19 +243,19 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
                     archivo.seek(0)
                     contenido = archivo.read().decode('latin-1')
                 except:
-                    messages.error(request, "❌ No se pudo leer el archivo. Verifica la codificación.")
+                    messages.error(request, "No se pudo leer el archivo. Verifica la codificación.")
                     return redirect('admin:airbnb_pagoairbnb_changelist')
             
             importador = ImportadorCSVPagosService(archivo_nombre=archivo.name)
             importados, duplicados, errores = importador.importar(contenido, usuario=request.user)
             
             if importados > 0:
-                messages.success(request, f"✅ {importados} pagos importados correctamente")
+                messages.success(request, f"{importados} pagos importados correctamente")
             if duplicados > 0:
-                messages.warning(request, f"⚠️ {duplicados} pagos ya existían (omitidos)")
+                messages.warning(request, f"{duplicados} pagos ya existían (omitidos)")
             if errores:
                 for error in errores[:5]:
-                    messages.error(request, f"❌ {error}")
+                    messages.error(request, f"{error}")
             
             return redirect('admin:airbnb_pagoairbnb_changelist')
         

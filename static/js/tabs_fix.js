@@ -4,7 +4,7 @@
     'use strict';
     
     $(document).ready(function() {
-        console.log("✅ Tabs Fix V2: Cargado y blindado.");
+        console.log(" Tabs Fix V2: Cargado y blindado.");
 
         var storageKey = 'tab_pref_' + window.location.pathname;
 

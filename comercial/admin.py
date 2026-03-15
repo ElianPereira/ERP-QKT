@@ -522,7 +522,7 @@ class CotizacionAdmin(admin.ModelAdmin):
             return format_html(
                 '<a href="{}" class="btn btn-info btn-sm" '
                 'style="background:#F5C518;color:#333;border:none;padding:3px 8px;font-size:11px;"'
-                'onclick="return confirm(\'¿Generar contrato con depósito $0? Puedes cambiarlo en la pantalla del contrato.\')">📄 Contrato</a>',
+                'onclick="return confirm(\'¿Generar contrato con depósito $0? Puedes cambiarlo en la pantalla del contrato.\')"> Contrato</a>',
                 url
             )
         return "—"

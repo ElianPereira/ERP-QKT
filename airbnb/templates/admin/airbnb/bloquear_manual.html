@@ -132,7 +132,7 @@
 
 <div class="bloquear-container">
     <div class="bloquear-header">
-        <h2>🔒 Bloquear en Airbnb</h2>
+        <h2> Bloquear en Airbnb</h2>
         <div class="fecha">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</div>
     </div>
     
@@ -150,7 +150,7 @@
         {% for item in urls_bloqueo %}
         <li>
             <a href="{{ item.url }}" target="_blank">
-                <span class="icon">🏠</span>
+                <span class="icon"></span>
                 <span class="nombre">{{ item.nombre }}</span>
                 <span class="arrow">→</span>
             </a>
@@ -159,7 +159,7 @@
     </ul>
     
     <div class="instrucciones">
-        <h4>📋 Pasos en Airbnb:</h4>
+        <h4> Pasos en Airbnb:</h4>
         <ol>
             <li>Se abrirá el calendario del anuncio</li>
             <li>Haz clic en la fecha <strong>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</strong></li>

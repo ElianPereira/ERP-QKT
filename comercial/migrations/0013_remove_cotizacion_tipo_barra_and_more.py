@@ -18,22 +18,22 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='cotizacion',
             name='incluye_cerveza',
-            field=models.BooleanField(default=False, verbose_name='✅ Cerveza'),
+            field=models.BooleanField(default=False, verbose_name=' Cerveza'),
         ),
         migrations.AddField(
             model_name='cotizacion',
             name='incluye_cocteleria',
-            field=models.BooleanField(default=False, verbose_name='✅ Coctelería (Mixología)'),
+            field=models.BooleanField(default=False, verbose_name=' Coctelería (Mixología)'),
         ),
         migrations.AddField(
             model_name='cotizacion',
             name='incluye_licor',
-            field=models.BooleanField(default=False, verbose_name='✅ Licores (Alcohol)'),
+            field=models.BooleanField(default=False, verbose_name=' Licores (Alcohol)'),
         ),
         migrations.AddField(
             model_name='cotizacion',
             name='incluye_refrescos',
-            field=models.BooleanField(default=True, verbose_name='✅ Refrescos y Mezcladores'),
+            field=models.BooleanField(default=True, verbose_name=' Refrescos y Mezcladores'),
         ),
         migrations.AlterField(
             model_name='cotizacion',

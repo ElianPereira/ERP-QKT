@@ -63,7 +63,7 @@ def cargar_nomina(request):
                     break
             
             if not mapa_columnas_fechas:
-                messages.error(request, "❌ No encontré la fila de fechas en el archivo.")
+                messages.error(request, " No encontré la fila de fechas en el archivo.")
                 # Redirige de vuelta a la lista del admin
                 return redirect('admin:nomina_recibonomina_changelist')
 
@@ -142,8 +142,8 @@ def cargar_nomina(request):
                 recibo.archivo_pdf.save(f"Nomina_{safe_name}.pdf", ContentFile(pdf))
                 count += 1
 
-            if count > 0: messages.success(request, f"✅ Éxito: {count} recibos generados.")
-            else: messages.warning(request, "⚠️ No se encontraron datos procesables.")
+            if count > 0: messages.success(request, f" Éxito: {count} recibos generados.")
+            else: messages.warning(request, " No se encontraron datos procesables.")
             
             # --- CORRECCIÓN FINAL ---
             # Redirigir siempre a la LISTA del admin, nunca al formulario vacío

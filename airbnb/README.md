@@ -3,7 +3,7 @@
 
 ---
 
-## 📦 Archivos incluidos
+##  Archivos incluidos
 
 ```
 airbnb_update/
@@ -128,7 +128,7 @@ def bloquear_airbnb_btn(self, obj):
         return format_html(
             '<a href="{}" class="button" style="background:#FF5A5F; color:white; '
             'padding:5px 10px; border-radius:4px; text-decoration:none;" '
-            'target="_blank">🔒 Airbnb</a>',
+            'target="_blank"> Airbnb</a>',
             url
         )
     return '-'
@@ -142,7 +142,7 @@ list_display = (..., 'bloquear_airbnb_btn')
 
 ---
 
-## 📊 Mejoras en importación CSV
+##  Mejoras en importación CSV
 
 El servicio ahora:
 - Agrupa filas por código de confirmación
@@ -152,7 +152,7 @@ El servicio ahora:
 
 ---
 
-## ✅ Resumen de URLs
+##  Resumen de URLs
 
 | URL | Descripción |
 |-----|-------------|

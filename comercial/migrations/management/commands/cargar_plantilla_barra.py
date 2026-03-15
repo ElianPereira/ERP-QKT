@@ -67,7 +67,7 @@ class Command(BaseCommand):
         
         if force and not dry_run:
             borrados = PlantillaBarra.objects.all().delete()[0]
-            self.stdout.write(self.style.WARNING(f'🗑️  Se borraron {borrados} registros existentes.'))
+            self.stdout.write(self.style.WARNING(f'  Se borraron {borrados} registros existentes.'))
         
         creados = 0
         no_encontrados = []
@@ -88,7 +88,7 @@ class Command(BaseCommand):
             
             if insumo:
                 if dry_run:
-                    self.stdout.write(f'  ✅ {cat} → {insumo.nombre} ({insumo.presentacion or "sin presentación"}) [{insumo.proveedor or "sin proveedor"}]')
+                    self.stdout.write(f'   {cat} → {insumo.nombre} ({insumo.presentacion or "sin presentación"}) [{insumo.proveedor or "sin proveedor"}]')
                 else:
                     PlantillaBarra.objects.create(
                         categoria=cat,
@@ -98,21 +98,21 @@ class Command(BaseCommand):
                         orden=orden,
                         activo=True
                     )
-                    self.stdout.write(self.style.SUCCESS(f'  ✅ {cat} → {insumo.nombre}'))
+                    self.stdout.write(self.style.SUCCESS(f'   {cat} → {insumo.nombre}'))
                 creados += 1
             else:
                 no_encontrados.append((cat, fallback, keywords))
-                self.stdout.write(self.style.WARNING(f'  ⚠️  {cat}: No se encontró insumo con: {", ".join(keywords)}'))
+                self.stdout.write(self.style.WARNING(f'    {cat}: No se encontró insumo con: {", ".join(keywords)}'))
         
         self.stdout.write('')
-        self.stdout.write(f'📊 Resumen:')
+        self.stdout.write(f' Resumen:')
         self.stdout.write(f'   Creados: {creados}')
         self.stdout.write(f'   Ya existían: {ya_existen}')
         self.stdout.write(f'   Sin insumo encontrado: {len(no_encontrados)}')
         
         if no_encontrados:
             self.stdout.write('')
-            self.stdout.write(self.style.WARNING('⚠️  Los siguientes conceptos NO se pudieron vincular:'))
+            self.stdout.write(self.style.WARNING('  Los siguientes conceptos NO se pudieron vincular:'))
             self.stdout.write('   Debes crearlos como Insumos y luego asignarlos manualmente en Admin > Plantilla de Barra:')
             for cat, nombre, kws in no_encontrados:
                 self.stdout.write(f'   - {nombre} (buscó: {", ".join(kws)})')

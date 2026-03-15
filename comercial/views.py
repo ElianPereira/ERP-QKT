@@ -152,7 +152,7 @@ def _obtener_item_plantilla(categoria):
                 nombre = f"{insumo.nombre} ({insumo.presentacion})"
             return {
                 'nombre': nombre,
-                'proveedor': insumo.proveedor.nombre if insumo.proveedor else '⚠️ Sin proveedor',
+                'proveedor': insumo.proveedor.nombre if insumo.proveedor else ' Sin proveedor',
                 'costo_unitario': float(insumo.costo_unitario),
                 'proporcion': 1.0,
                 'insumo_id': insumo.id,
@@ -166,7 +166,7 @@ def _fallback_item(nombre_generico):
     """Devuelve un item con datos genéricos cuando no hay plantilla configurada."""
     return {
         'nombre': nombre_generico,
-        'proveedor': '⚠️ Sin asignar',
+        'proveedor': ' Sin asignar',
         'costo_unitario': 0,
         'proporcion': 1.0,
         'insumo_id': None,
@@ -254,7 +254,7 @@ def generar_lista_compras_barra(cotizacion):
                     _agregar_a_lista(
                         lista_compras, 'Licores y Alcohol',
                         fallback_nombre, cant, 'Botellas',
-                        proveedor='⚠️ Configurar en Plantilla de Barra'
+                        proveedor=' Configurar en Plantilla de Barra'
                     )
 
     # --- Licores Premium ---
@@ -285,7 +285,7 @@ def generar_lista_compras_barra(cotizacion):
                     _agregar_a_lista(
                         lista_compras, 'Licores y Alcohol',
                         fallback_nombre, cant, 'Botellas',
-                        proveedor='⚠️ Configurar en Plantilla de Barra'
+                        proveedor=' Configurar en Plantilla de Barra'
                     )
 
     # ==========================================
@@ -314,7 +314,7 @@ def generar_lista_compras_barra(cotizacion):
                     _agregar_a_lista(
                         lista_compras, 'Bebidas y Mezcladores',
                         fallback_nombre, cant, 'Botellas',
-                        proveedor='⚠️ Configurar en Plantilla de Barra'
+                        proveedor=' Configurar en Plantilla de Barra'
                     )
 
     # --- Agua Natural ---
@@ -405,19 +405,19 @@ def configurar_plantilla_barra(request):
     from django.contrib import admin as django_admin
     
     GRUPO_CONFIG = {
-        'ALCOHOL_NACIONAL': {'nombre': 'Licores Nacionales', 'color': '#e67e22', 'icono': '🥃',
+        'ALCOHOL_NACIONAL': {'nombre': 'Licores Nacionales', 'color': '#e67e22', 'icono': '',
                              'categorias': ['TEQUILA_NAC', 'WHISKY_NAC', 'RON_NAC', 'VODKA_NAC']},
-        'ALCOHOL_PREMIUM': {'nombre': 'Licores Premium', 'color': '#9b59b6', 'icono': '✨',
+        'ALCOHOL_PREMIUM': {'nombre': 'Licores Premium', 'color': '#9b59b6', 'icono': '',
                             'categorias': ['TEQUILA_PREM', 'WHISKY_PREM', 'GIN_PREM']},
-        'CERVEZA': {'nombre': 'Cerveza', 'color': '#f39c12', 'icono': '🍺',
+        'CERVEZA': {'nombre': 'Cerveza', 'color': '#f39c12', 'icono': '',
                     'categorias': ['CERVEZA']},
-        'MEZCLADOR': {'nombre': 'Bebidas y Mezcladores', 'color': '#3498db', 'icono': '🥤',
+        'MEZCLADOR': {'nombre': 'Bebidas y Mezcladores', 'color': '#3498db', 'icono': '',
                       'categorias': ['REFRESCO_COLA', 'REFRESCO_TORONJA', 'AGUA_MINERAL', 'AGUA_NATURAL']},
-        'HIELO': {'nombre': 'Hielo', 'color': '#1abc9c', 'icono': '🧊',
+        'HIELO': {'nombre': 'Hielo', 'color': '#1abc9c', 'icono': '',
                   'categorias': ['HIELO']},
-        'COCTELERIA': {'nombre': 'Frutas y Verduras (Coctelería)', 'color': '#27ae60', 'icono': '🍋',
+        'COCTELERIA': {'nombre': 'Frutas y Verduras (Coctelería)', 'color': '#27ae60', 'icono': '',
                        'categorias': ['LIMON', 'HIERBABUENA', 'JARABE', 'FRUTOS_ROJOS', 'CAFE']},
-        'CONSUMIBLE': {'nombre': 'Abarrotes y Consumibles', 'color': '#95a5a6', 'icono': '📦',
+        'CONSUMIBLE': {'nombre': 'Abarrotes y Consumibles', 'color': '#95a5a6', 'icono': '',
                        'categorias': ['SERVILLETAS']},
     }
     
@@ -890,7 +890,7 @@ def calculadora_insumos(request):
 
 @staff_member_required
 def forzar_migracion(request):
-    if not request.user.is_superuser: return HttpResponse("⛔ Acceso denegado.")
+    if not request.user.is_superuser: return HttpResponse(" Acceso denegado.")
     try:
         call_command('migrate', interactive=False)
         return HttpResponse(" ¡MIGRACIÓN EXITOSA!")
@@ -1371,9 +1371,9 @@ def webhook_manychat(request):
         # =====================
         clima_tag = ""
         if clima_auto == 'extremo':
-            clima_tag = " 🔥Temporada calor extremo"
+            clima_tag = " Temporada calor extremo"
         elif clima_auto == 'calor':
-            clima_tag = " ☀️Temporada calor"
+            clima_tag = " Temporada calor"
 
         resumen = " + ".join(resumen_partes) + f" | {num_personas} Pax - {horas_evento} Hrs{clima_tag}"
 
@@ -1508,7 +1508,7 @@ def generar_plan_pagos(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     
     if cotizacion.precio_final <= 0:
-        messages.error(request, "⛔ La cotización no tiene precio calculado. Agrega items primero.")
+        messages.error(request, " La cotización no tiene precio calculado. Agrega items primero.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
     
     try:

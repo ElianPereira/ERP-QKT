@@ -298,22 +298,22 @@
     
     <div class="calendario-header">
         <h1>
-            <span>📅</span>
-            Calendario Unificado
+            <span></span>
+            Calendario unificado
         </h1>
         <div class="header-actions">
             <a href="{% url 'admin:airbnb_anuncioairbnb_sincronizar_todos' %}" class="btn-action btn-sync">
-                <span>🔄</span> Sincronizar Airbnb
+                <a ... style="background:#2E7D32; color:white; padding:8px 16px; border-radius:4px; text-decoration:none; font-weight:600; font-size:13px;">Sincronizar</a>
             </a>
             <a href="{% url 'reporte_pagos_airbnb' %}" class="btn-action btn-reportes">
-                <span>📊</span> Reportes
+                <a ... style="background:#F5C518; color:#333; padding:8px 16px; border-radius:4px; text-decoration:none; font-weight:600; font-size:13px;">Reportes</a>
             </a>
         </div>
     </div>
     
     {% if conflictos_pendientes > 0 %}
     <div class="alerta-conflictos">
-        <span class="icon">⚠️</span>
+        <span class="icon"></span>
         <div class="content">
             <h4>{{ conflictos_pendientes }} conflicto{{ conflictos_pendientes|pluralize }} pendiente{{ conflictos_pendientes|pluralize }}</h4>
             <a href="{% url 'admin:airbnb_conflictocalendario_changelist' %}?estado__exact=PENDIENTE">
@@ -343,7 +343,7 @@
             </div>
             <div class="leyenda-item">
                 <div class="leyenda-color" style="background: #e74c3c;"></div>
-                ⚠️ Conflicto
+                 Conflicto
             </div>
         </div>
     </div>

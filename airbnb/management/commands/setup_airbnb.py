@@ -67,7 +67,7 @@ class Command(BaseCommand):
             
             # Mostrar info adicional
             self.stdout.write(f"    Tipo: {anuncio.get_tipo_display()}")
-            self.stdout.write(f"    Afecta quinta: {'Sí ⚠️' if anuncio.afecta_eventos_quinta else 'No'}")
+            self.stdout.write(f"    Afecta quinta: {'Sí ' if anuncio.afecta_eventos_quinta else 'No'}")
             self.stdout.write(f"    Listing ID: {anuncio.airbnb_listing_id}")
             self.stdout.write("")
         

@@ -72,7 +72,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             # Guardar overwrite
             solicitud.archivo_pdf.save(filename, ContentFile(pdf_file), save=True)
             
-            self.message_user(request, f"✅ PDF actualizado para SOL-{object_id}", level=messages.SUCCESS)
+            self.message_user(request, f" PDF actualizado para SOL-{object_id}", level=messages.SUCCESS)
             
         except Exception as e:
             self.message_user(request, f"Error generando PDF: {e}", level=messages.ERROR)

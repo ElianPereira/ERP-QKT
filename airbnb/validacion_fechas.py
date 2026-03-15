@@ -37,7 +37,7 @@ def verificar_disponibilidad_fecha(fecha_evento: date, cotizacion_id: int = None
     if reservas_conflicto.exists():
         reserva = reservas_conflicto.first()
         mensaje = (
-            f"⚠️ Fecha bloqueada por Airbnb: {reserva.anuncio.nombre} "
+            f" Fecha bloqueada por Airbnb: {reserva.anuncio.nombre} "
             f"tiene reserva del {reserva.fecha_inicio.strftime('%d/%m/%Y')} "
             f"al {reserva.fecha_fin.strftime('%d/%m/%Y')}"
         )

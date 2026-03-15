@@ -5,89 +5,54 @@
     {{ block.super }}
 
     <li>
-        <a href="importar-csv/" style="
-            background: #27ae60;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        ">
-            📥 Importar CSV
+        <a href="importar-csv/" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
+            Importar CSV
         </a>
     </li>
 
     <li>
-        <a href="{% url 'reporte_pagos_airbnb' %}" style="
-            background: #3498db;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        ">
-            📊 Reporte Contador
+        <a href="{% url 'reporte_pagos_airbnb' %}" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
+            Reporte
         </a>
     </li>
 
     <li>
-        <form method="get" action="{{ reporte_fiscal_url }}"
-              style="display:inline-flex; align-items:center; gap:6px;">
-            <select name="mes" style="padding:5px 8px; border-radius:4px; border:1px solid #ccc;">
+        <form method="get" action="{{ reporte_fiscal_url }}" style="display:inline-flex; align-items:center; gap:6px;">
+            <select name="mes" style="padding:5px 8px; border-radius:4px; border:1px solid #4a4845; background:#383632; color:#d4d1c8;">
                 {% for num, nombre in meses %}
                     <option value="{{ num }}" {% if num == mes_actual %}selected{% endif %}>{{ nombre }}</option>
                 {% endfor %}
             </select>
-            <select name="anio" style="padding:5px 8px; border-radius:4px; border:1px solid #ccc;">
+            <select name="anio" style="padding:5px 8px; border-radius:4px; border:1px solid #4a4845; background:#383632; color:#d4d1c8;">
                 {% for a in anios %}
                     <option value="{{ a }}" {% if a == anio_actual %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
             </select>
-            <button type="submit"
-                    style="background:#c0392b; color:white; border:none; padding:6px 12px;
-                           border-radius:4px; font-weight:bold; cursor:pointer;">
-                📄 Reporte Fiscal PDF
+            <button type="submit" style="background:#2E7D32; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:600; font-size:12px; cursor:pointer;">
+                Fiscal PDF
             </button>
         </form>
     </li>
-
 {% endblock %}
 
 {% block content %}
 {% if totales_mes %}
-<div style="
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 1px solid #dee2e6;
-">
-    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:120px;">
-        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">Bruto Mes</div>
-        <div style="font-size:18px; font-weight:700; color:#2c3e50;">${{ totales_mes.total_bruto|default:"0"|floatformat:0 }}</div>
+<div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; padding:15px; background:#383632; border-radius:8px; border:1px solid #4a4845;">
+    <div style="background:#33312e; padding:10px 15px; border-radius:6px; text-align:center; min-width:120px;">
+        <div style="font-size:10px; color:#8a8780; text-transform:uppercase; font-weight:600;">Bruto mes</div>
+        <div style="font-size:18px; font-weight:700; color:#e0ddd4;">${{ totales_mes.total_bruto|default:"0"|floatformat:0 }}</div>
     </div>
-    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:100px;">
-        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">ISR 4%</div>
+    <div style="background:#33312e; padding:10px 15px; border-radius:6px; text-align:center; min-width:100px;">
+        <div style="font-size:10px; color:#8a8780; text-transform:uppercase; font-weight:600;">ISR 4%</div>
         <div style="font-size:16px; font-weight:700; color:#e74c3c;">-${{ totales_mes.total_isr|default:"0"|floatformat:0 }}</div>
     </div>
-    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:100px;">
-        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">IVA 8%</div>
+    <div style="background:#33312e; padding:10px 15px; border-radius:6px; text-align:center; min-width:100px;">
+        <div style="font-size:10px; color:#8a8780; text-transform:uppercase; font-weight:600;">IVA 8%</div>
         <div style="font-size:16px; font-weight:700; color:#e74c3c;">-${{ totales_mes.total_iva|default:"0"|floatformat:0 }}</div>
     </div>
-    <div style="background:white; padding:10px 15px; border-radius:6px; text-align:center; min-width:120px;">
-        <div style="font-size:10px; color:#6c757d; text-transform:uppercase; font-weight:600;">Neto Mes</div>
-        <div style="font-size:18px; font-weight:700; color:#27ae60;">${{ totales_mes.total_neto|default:"0"|floatformat:0 }}</div>
+    <div style="background:#33312e; padding:10px 15px; border-radius:6px; text-align:center; min-width:120px;">
+        <div style="font-size:10px; color:#8a8780; text-transform:uppercase; font-weight:600;">Neto mes</div>
+        <div style="font-size:18px; font-weight:700; color:#4CAF50;">${{ totales_mes.total_neto|default:"0"|floatformat:0 }}</div>
     </div>
 </div>
 {% endif %}
