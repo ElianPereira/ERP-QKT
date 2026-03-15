@@ -268,16 +268,19 @@ section.content-header h1 {
 /* ── BOTÓN AGREGAR (Jazzmin object-tools) ─────────────────── */
 .object-tools a,
 .object-tools .addlink,
-#changelist .object-tools a {
-    background: var(--qkt-green) !important;
+#changelist .object-tools a,
+.btn-success,
+a.btn-success,
+.addlink {
+    background: #2E7D32 !important;
+    background-color: #2E7D32 !important;
     color: white !important;
     border: none !important;
-    border-radius: var(--qkt-btn-radius) !important;
-    font-weight: 600 !important;
-    font-size: 12px !important;
 }
-.object-tools a:hover {
-    background: var(--qkt-green-hover) !important;
+.object-tools a:hover,
+.btn-success:hover {
+    background: #388E3C !important;
+    background-color: #388E3C !important;
 }
 
 /* ── BOTÓN BUSCAR / EJECUTAR ──────────────────────────────── */
@@ -643,4 +646,12 @@ html body {
 .results table {
     border: none !important;
     box-shadow: none !important;
+}
+
+/* ── BOTONES EN TABLA: texto siempre blanco ───────────────── */
+#result_list td .btn,
+#result_list td a.btn,
+#result_list td a[style*="background"],
+.results td a[style*="background"] {
+    color: white !important;
 }
