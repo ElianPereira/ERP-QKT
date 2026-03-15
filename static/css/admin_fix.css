@@ -606,3 +606,24 @@ small.text-muted {
     background-color: #2E7D32 !important;
     color: white !important;
 }
+
+/* ── NUCLEAR: Fondo oscuro y bordes ──────────────────────── */
+* {
+    border-color: #4a4845 !important;
+}
+.content-wrapper,
+.content-wrapper > .content,
+.content-wrapper > section.content {
+    background: #2c2b28 !important;
+}
+.card {
+    border: 1px solid #4a4845 !important;
+    box-shadow: none !important;
+}
+#result_list,
+#result_list table,
+.results,
+.results table {
+    border: none !important;
+    box-shadow: none !important;
+}
