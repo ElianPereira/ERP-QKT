@@ -18,7 +18,7 @@
         .header-container { width: 100%; margin-bottom: 20px; }
         .header-table { width: 100%; border: none; }
         .header-table td { vertical-align: top; }
-        .company-name { font-size: 18px; font-weight: bold; color: #356685; margin-bottom: 5px; }
+        .company-name { font-size: 18px; font-weight: bold; color: #2E7D32; margin-bottom: 5px; }
         .company-details { font-size: 11px; color: #666; line-height: 1.4; }
 
         /* TÍTULO */
@@ -32,16 +32,16 @@
             background-color: #fcfcfc; margin-bottom: 20px; position: relative; display: block;
         }
         .card-table { width: 100%; }
-        .card-label { color: #356685; font-weight: bold; width: 100px; }
+        .card-label { color: #2E7D32; font-weight: bold; width: 100px; }
         .card-value { color: #333; }
 
         /* TABLA DE DETALLE */
         .data-table {
             width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px;
-            border-bottom: 2px solid #356685;
+            border-bottom: 2px solid #2E7D32;
         }
         .data-table th {
-            background-color: #4a86a6; color: white; padding: 8px; text-align: left;
+            background-color: #2E7D32; color: white; padding: 8px; text-align: left;
             font-weight: normal; font-size: 11px; border: none;
         }
         .data-table th:first-child { border-top-left-radius: 5px; padding-left: 15px; }
@@ -82,7 +82,7 @@
         .total-row { margin-bottom: 4px; font-size: 11px; }
         
         .grand-total {
-            background-color: #356685; color: white; padding: 6px; text-align: center;
+            background-color: #2E7D32; color: white; padding: 6px; text-align: center;
             border-radius: 4px; font-weight: bold; font-size: 13px; margin-top: 8px;
         }
         
@@ -203,7 +203,7 @@
                     {% if barra.desglose_venta.refrescos > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            <strong style="color:#356685;">• Refrescos y Mezcladores</strong>
+                            <strong style="color:#2E7D32;">• Refrescos y Mezcladores</strong>
                             <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
                                 Barra Libre de: Coca-Cola, Coca-Cola Light/Zero, Squirt, Agua Mineral Peñafiel, Agua Purificada y Hielo Ilimitado.
                             </span>
@@ -216,7 +216,7 @@
                     {% if barra.desglose_venta.cerveza > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            <strong style="color:#356685;">• Cerveza Nacional</strong>
+                            <strong style="color:#2E7D32;">• Cerveza Nacional</strong>
                             <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
                                 Servicio ilimitado. Presentación Caguama (940ml) servida en vaso. Marcas: Corona, Victoria o Superior (sujeto a disponibilidad).
                             </span>
@@ -229,7 +229,7 @@
                     {% if barra.desglose_venta.nacional > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            <strong style="color:#356685;">• Barra Libre Nacional</strong>
+                            <strong style="color:#2E7D32;">• Barra Libre Nacional</strong>
                             <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
                                 Incluye: Tequila (Tradicional/José Cuervo), Ron (Bacardí Blanco/Añejo), Vodka (Smirnoff/Absolut), Whisky (Red Label/William Lawson's).
                             </span>
@@ -242,7 +242,7 @@
                     {% if barra.desglose_venta.premium > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            <strong style="color:#356685;">• Barra Libre Premium</strong>
+                            <strong style="color:#2E7D32;">• Barra Libre Premium</strong>
                             <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
                                 Marcas de Prestigio: Tequila (Don Julio 70 / Herradura Ultra), Whisky (Black Label / Chivas 12), Ron (Matusalem / Zacapa), Vodka (Grey Goose / Belvedere), Ginebra (Tanqueray / Bombay).
                             </span>
@@ -255,7 +255,7 @@
                     {% if barra.desglose_venta.coctel > 0 %}
                     <tr class="barra-breakdown-row">
                         <td style="padding-left: 25px;">
-                            <strong style="color:#356685;">• Coctelería y Mixología</strong>
+                            <strong style="color:#2E7D32;">• Coctelería y Mixología</strong>
                             <span style="display:block; font-size:9px; color:#666; margin-top:2px; line-height: 1.3;">
                                 {% if cotizacion.incluye_cocteleria_basica %}
                                     <strong>Clásicos:</strong> Mojitos (Limón y Frutos Rojos), Margaritas (Limón, Tamarindo, Jamaica), Palomas Escarchadas, Vampiritos, Daiquiris.<br>
@@ -300,7 +300,7 @@
 
     {% if cotizacion.pagos.exists %}
     <div style="margin-top: 20px; margin-bottom: 15px;">
-        <h4 style="color: #356685; margin-bottom: 5px; border-bottom: 1px solid #ccc; font-size: 11px;">Historial de Abonos</h4>
+        <h4 style="color: #2E7D32; margin-bottom: 5px; border-bottom: 1px solid #ccc; font-size: 11px;">Historial de Abonos</h4>
         <table class="payments-table" style="margin-top: 0;">
             <thead>
                 <tr>

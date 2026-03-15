@@ -26,26 +26,26 @@
     /* ── Header ─────────────────────────────────────────────── */
     .header-tbl {
       width: 100%;
-      border-bottom: 2px solid #356685;
+      border-bottom: 2px solid #2E7D32;
       margin-bottom: 12px;
       padding-bottom: 5px;
     }
     .header-tbl td { border: none; padding: 0; vertical-align: middle; }
     .logo-img { height: 55px; width: auto; object-fit: contain; display: block; }
-    .title    { font-size: 18px; font-weight: 900; color: #356685; text-transform: uppercase; }
+    .title    { font-size: 18px; font-weight: 900; color: #2E7D32; text-transform: uppercase; }
     .subtitle { font-size: 10px; color: #666; margin-top: 2px; }
 
     /* ── Barra fiscal ────────────────────────────────────────── */
     .fiscal-bar {
       width: 100%;
       background-color: #eaf0f6;
-      border-left: 4px solid #356685;
+      border-left: 4px solid #2E7D32;
       padding: 5px 10px;
       margin-bottom: 10px;
       font-size: 9px;
       color: #333;
     }
-    .fiscal-bar strong { color: #356685; }
+    .fiscal-bar strong { color: #2E7D32; }
 
     /* ── KPI boxes ───────────────────────────────────────────── */
     .kpi-wrapper {
@@ -64,7 +64,7 @@
     }
     .kpi-box.verde  { border-top: 3px solid #27ae60; background: #eafaf1; }
     .kpi-box.rojo   { border-top: 3px solid #c0392b; background: #fdedec; }
-    .kpi-box.azul   { border-top: 3px solid #356685; background: #eaf0f6; }
+    .kpi-box.azul   { border-top: 3px solid #2E7D32; background: #E8F5E9; }
     .kpi-box.gris   { border-top: 3px solid #7f8c8d; background: #f2f3f4; }
     .kpi-label { font-size: 7.5px; color: #666; font-weight: bold; text-transform: uppercase; }
     .kpi-value { font-size: 13px;  font-weight: 900; color: #2c3e50; margin: 3px 0 1px; }
@@ -73,7 +73,7 @@
     /* ── Títulos de sección ──────────────────────────────────── */
     h4 {
       margin: 12px 0 5px 0;
-      color: #356685;
+      color: #2E7D32;
       border-bottom: 1px solid #ccc;
       font-size: 11px;
       padding-bottom: 3px;
@@ -152,7 +152,7 @@
       border-bottom: 1px solid #ccc;
       color: #fff;
     }
-    .box-header.azul   { background: #356685; }
+    .box-header.azul   { background: #2E7D32; }
     .box-header.oscuro { background: #2c3e50; }
     .box-header.verde  { background: #27ae60; }
 
@@ -413,7 +413,7 @@
         <div class="box-header azul">📋 Datos para Declaración Fiscal — {{ mes_nombre }} {{ anio }}</div>
         <table class="inner-table">
           <tr style="background:#eaf0f6;">
-            <td colspan="2" style="font-weight:bold; font-size:9px; color:#356685; text-transform:uppercase;">
+            <td colspan="2" style="font-weight:bold; font-size:9px; color:#2E7D32; text-transform:uppercase;">
               Ingresos
             </td>
           </tr>
@@ -427,7 +427,7 @@
           </tr>
           <tr>
             <td class="label-col"><strong>= Ingreso neto de actividad</strong></td>
-            <td class="value-col" style="color:#356685;"><strong>${{ totales.ingreso_actividad|floatformat:2|intcomma }}</strong></td>
+            <td class="value-col" style="color:#2E7D32;"><strong>${{ totales.ingreso_actividad|floatformat:2|intcomma }}</strong></td>
           </tr>
 
           <tr style="background:#fdedec;">

@@ -17,7 +17,7 @@
             .header-container { width: 100%; margin-bottom: 30px; }
             .header-table { width: 100%; border: none; }
             .header-table td { vertical-align: top; }
-            .company-name { font-size: 18px; font-weight: bold; color: #356685; margin-bottom: 5px; }
+            .company-name { font-size: 18px; font-weight: bold; color: #2E7D32; margin-bottom: 5px; }
             .company-details { font-size: 11px; color: #666; line-height: 1.4; }
 
             .doc-title { text-align: center; margin-top: 10px; margin-bottom: 20px; }
@@ -29,12 +29,12 @@
                 background-color: #fcfcfc; margin-bottom: 30px; position: relative; display: block;
             }
             .card-table { width: 100%; }
-            .card-label { color: #356685; font-weight: bold; width: 110px; }
+            .card-label { color: #2E7D32; font-weight: bold; width: 110px; }
             .card-value { color: #333; }
 
             .data-table {
                 width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px;
-                border-bottom: 2px solid #356685;
+                border-bottom: 2px solid #2E7D32;
             }
             .data-table th {
                 background-color: #4a86a6; color: white; padding: 10px; text-align: center;
@@ -57,7 +57,7 @@
             .total-row span:last-child { color: #333; }
             
             .grand-total {
-                background-color: #356685; color: white; padding: 10px; 
+                background-color: #2E7D32; color: white; padding: 10px; 
                 border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 8px;
                 display: flex; justify-content: space-between;
             }
@@ -118,7 +118,7 @@
                             
                             <tr>
                                 <td class="card-label" style="text-align: right;">Origen:</td>
-                                <td class="card-value" style="text-align: right; font-weight: bold; color: #356685;">
+                                <td class="card-value" style="text-align: right; font-weight: bold; color: #2E7D32;">
                                     {% if solicitud.cotizacion %}
                                         COT-{{ solicitud.cotizacion.id|stringformat:"03d" }}
                                     {% else %}
