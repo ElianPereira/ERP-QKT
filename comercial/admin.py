@@ -85,10 +85,10 @@ class InsumoAdmin(admin.ModelAdmin):
     
     def badge_stock(self, obj):
         if obj.stock_minimo > 0 and obj.cantidad_stock < obj.stock_minimo:
-            return format_html('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">BAJO</span>')
+            return mark_safe('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">BAJO</span>')
         elif obj.cantidad_stock > 0:
-            return format_html('<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">OK</span>')
-        return format_html('<span style="background:#95a5a6; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">Sin stock</span>')
+            return mark_safe('<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">OK</span>')
+        return mark_safe('<span style="background:#95a5a6; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">Sin stock</span>')
     badge_stock.short_description = "Estado"
     
     class Media:
@@ -270,7 +270,7 @@ class PlanPagoAdmin(admin.ModelAdmin):
     def siguiente_pago_info(self, obj):
         sig = obj.siguiente_pago()
         if not sig:
-            return format_html('<span style="color:#27ae60; font-weight:bold;">Liquidado</span>')
+            return mark_safe('<span style="color:#27ae60; font-weight:bold;">Liquidado</span>')
         dias = sig.dias_restantes
         if dias < 0:
             return format_html('<span style="color:#e74c3c; font-weight:bold;">${} vencido hace {} días</span>', f"{sig.monto:,.2f}", abs(dias))
@@ -644,7 +644,7 @@ class ContratoServicioAdmin(admin.ModelAdmin):
     def enviar_btn(self, obj):
         url = reverse('contrato_email', args=[obj.id])
         if obj.enviado_email:
-            return format_html(
+            return mark_safe(
                 '<span style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;">Enviado</span>')
         return format_html(
             '<a href="{}" style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Enviar</a>',
