@@ -78,7 +78,7 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         ]
         return custom_urls + urls
     
-    @admin.action(description="🔄 Sincronizar anuncios seleccionados")
+    @admin.action(description="Sincronizar seleccionados")
     def sincronizar_seleccionados(self, request, queryset):
         servicio = SincronizadorAirbnbService()
         total_creadas = 0
@@ -96,7 +96,7 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
         detector = DetectorConflictosService()
         conflictos = detector.detectar_conflictos()
         
-        messages.success(request, f"✅ Sincronización: {total_creadas} nuevas, {total_actualizadas} actualizadas")
+        messages.success(request, f"Sincronización: {total_creadas} nuevas, {total_actualizadas} actualizadas")
         if conflictos:
             messages.warning(request, f"⚠️ {len(conflictos)} nuevos conflictos detectados")
     
@@ -318,19 +318,19 @@ class ConflictoCalendarioAdmin(admin.ModelAdmin):
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
     
-    @admin.action(description="✅ Marcar como resuelto")
+    @admin.action(description="Marcar como resuelto")
     def marcar_resuelto(self, request, queryset):
         queryset.update(
             estado='RESUELTO',
             resuelto_por=request.user,
             fecha_resolucion=timezone.now()
         )
-        messages.success(request, f"✅ {queryset.count()} conflictos marcados como resueltos")
+        messages.success(request, f"{queryset.count()} conflictos marcados como resueltos")
     
-    @admin.action(description="⏭️ Marcar como ignorado")
+    @admin.action(description="Marcar como ignorado")
     def marcar_ignorado(self, request, queryset):
         queryset.update(estado='IGNORADO')
-        messages.success(request, f"⏭️ {queryset.count()} conflictos ignorados")
+        messages.success(request, f"{queryset.count()} conflictos ignorados")
     
     def save_model(self, request, obj, form, change):
         if obj.estado == 'RESUELTO' and not obj.resuelto_por:

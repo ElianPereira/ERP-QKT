@@ -92,16 +92,16 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         if obj.cotizacion:
             url = reverse('admin:comercial_cotizacion_change', args=[obj.cotizacion.id])
             texto_boton = f"COT-{int(obj.cotizacion.id):03d}"
-            return format_html('<a href="{}" style="color: #2c3e50; font-weight: bold;"><i class="fas fa-file-contract"></i> {}</a>', url, texto_boton)
+            return format_html('<a href="{}" style="color:#4CAF50; font-weight:600;">{}</a>', url, texto_boton)
         return format_html('<span style="color: #999;">{}</span>', "Directa")
     link_cotizacion.short_description = "Origen"
 
     def ver_pdf(self, obj):
         if obj.archivo_pdf:
-            return format_html('<a href="{}" target="_blank" class="button" style="background-color:#17a2b8; color:white; padding:4px 10px; border-radius:4px; text-decoration:none; font-weight:bold;"><i class="fas fa-file-pdf"></i> Ver PDF</a>', obj.archivo_pdf.url)
+            return format_html('<a href="{}" target="_blank" style="background:#2E7D32; color:white; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:11px; font-weight:600;">PDF</a>', obj.archivo_pdf.url)
         else:
             url_generar = reverse('admin:facturacion_solicitudfactura_generar_pdf', args=[obj.id])
-            return format_html('<a href="{}" class="button" style="background-color:#ffc107; color:#333; padding:4px 10px; border-radius:4px; text-decoration:none; font-weight:bold;"><i class="fas fa-cog"></i> Generar</a>', url_generar)
+            return format_html('<a href="{}" style="background:#F5C518; color:#333; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:11px; font-weight:600;">Generar</a>', url_generar)
     ver_pdf.short_description = "Documento"
     ver_pdf.allow_tags = True
 

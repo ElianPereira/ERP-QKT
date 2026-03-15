@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="card" style="max-width:600px; margin:20px auto; padding:24px;">
-  <h2>📄 Generar Contrato</h2>
+  <h2>Generar contrato</h2>
   <p><strong>Cliente:</strong> {{ cotizacion.cliente.nombre }}<br>
      <strong>Evento:</strong> {{ cotizacion.nombre_evento }}<br>
      <strong>Fecha:</strong> {{ cotizacion.fecha_evento|date:"d/m/Y" }}<br>
@@ -24,7 +24,7 @@
       <input type="number" name="deposito_garantia" class="form-control"
              value="0" min="0" step="100" style="max-width:200px;">
     </div>
-    <button type="submit" class="btn btn-primary">⬇ Generar y descargar contrato</button>
+    <button type="submit" class="btn" style="background:#2E7D32;color:white;border:none;padding:8px 20px;border-radius:4px;font-weight:600;">Generar contrato</button>
     <a href="{% url 'admin:comercial_cotizacion_changelist' %}" class="btn btn-secondary" style="margin-left:10px;">Cancelar</a>
   </form>
 
@@ -40,10 +40,10 @@
       <td>{{ c.get_tipo_servicio_display }}</td>
       <td>${{ c.deposito_garantia|floatformat:2 }}</td>
       <td>{{ c.generado_en|date:"d/m/Y H:i" }}</td>
-      <td>{% if c.enviado_email %}✅{% else %}—{% endif %}</td>
+      <td>{% if c.enviado_email %}<span style="color:#2E7D32;font-weight:bold;">Si</span>{% else %}—{% endif %}</td>
       <td>
-        {% if c.archivo %}<a href="{{ c.archivo.url }}" class="btn btn-sm btn-outline-primary">⬇</a>{% endif %}
-        <a href="{% url 'contrato_email' c.id %}" class="btn btn-sm btn-outline-success">📧</a>
+        {% if c.archivo %}<a href="{{ c.archivo.url }}" class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-size:11px;">PDF</a>{% endif %}
+        <a href="{% url 'contrato_email' c.id %}" class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-size:11px;">Email</a>
       </td>
     </tr>
     {% endfor %}

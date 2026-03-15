@@ -651,9 +651,9 @@ def enviar_cotizacion_email(request, cotizacion_id):
         msg.attach_alternative(html_email, "text/html")
         msg.attach(filename, pdf_file, 'application/pdf')
         msg.send()
-        messages.success(request, f"✅ Enviado a {cliente.email}")
+        messages.success(request, f" Enviado a {cliente.email}")
     except Exception as e:
-        messages.error(request, f"❌ Error: {e}")
+        messages.error(request, f" Error: {e}")
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
 # ==========================================
@@ -893,8 +893,8 @@ def forzar_migracion(request):
     if not request.user.is_superuser: return HttpResponse("⛔ Acceso denegado.")
     try:
         call_command('migrate', interactive=False)
-        return HttpResponse("✅ ¡MIGRACIÓN EXITOSA!")
-    except Exception as e: return HttpResponse(f"❌ Error: {str(e)}")
+        return HttpResponse(" ¡MIGRACIÓN EXITOSA!")
+    except Exception as e: return HttpResponse(f" Error: {str(e)}")
 
 # ==========================================
 # 5. FICHA TÉCNICA
@@ -1515,9 +1515,9 @@ def generar_plan_pagos(request, cotizacion_id):
         servicio = PlanPagosService(cotizacion)
         plan = servicio.generar(usuario=request.user)
         parcialidades = plan.parcialidades.count()
-        messages.success(request, f"✅ Plan de {parcialidades} pagos generado para COT-{cotizacion.id:03d}")
+        messages.success(request, f" Plan de {parcialidades} pagos generado para COT-{cotizacion.id:03d}")
     except Exception as e:
-        messages.error(request, f"❌ Error al generar plan: {e}")
+        messages.error(request, f" Error al generar plan: {e}")
     
     return redirect(request.META.get('HTTP_REFERER', f'/admin/comercial/cotizacion/{cotizacion_id}/change/'))
 
@@ -1609,7 +1609,7 @@ def generar_contrato(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
 
     if cotizacion.estado != 'CONFIRMADA':
-        messages.error(request, "❌ Solo se pueden generar contratos para cotizaciones CONFIRMADAS.")
+        messages.error(request, " Solo se pueden generar contratos para cotizaciones CONFIRMADAS.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
     tipo     = request.GET.get('tipo_servicio', 'EVENTO')
@@ -1638,14 +1638,14 @@ def generar_contrato(request, cotizacion_id):
             archivo_contrato=cotizacion.archivo_contrato.name
         )
 
-        messages.success(request, f"✅ Contrato {numero} generado correctamente.")
+        messages.success(request, f" Contrato {numero} generado correctamente.")
 
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="{filename}"'
         return response
 
     except Exception as e:
-        messages.error(request, f"❌ Error al generar el contrato: {e}")
+        messages.error(request, f" Error al generar el contrato: {e}")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
 
@@ -1661,7 +1661,7 @@ def enviar_contrato_email(request, contrato_id):
     cliente    = cotizacion.cliente
 
     if not cliente.email:
-        messages.error(request, f"❌ El cliente {cliente.nombre} no tiene email registrado.")
+        messages.error(request, f" El cliente {cliente.nombre} no tiene email registrado.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
     try:
@@ -1688,9 +1688,9 @@ def enviar_contrato_email(request, contrato_id):
         msg.send()
 
         ContratoServicio.objects.filter(pk=contrato.pk).update(enviado_email=True)
-        messages.success(request, f"✅ Contrato enviado a {cliente.email}")
+        messages.success(request, f" Contrato enviado a {cliente.email}")
 
     except Exception as e:
-        messages.error(request, f"❌ Error al enviar el contrato: {e}")
+        messages.error(request, f" Error al enviar el contrato: {e}")
 
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))

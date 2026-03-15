@@ -3,38 +3,14 @@
 
 {% block object-tools-items %}
     {{ block.super }}
-    
     <li>
-        <a href="sincronizar-todos/" style="
-            background: #3498db;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        ">
-            🔄 Sincronizar Todos
+        <a href="sincronizar-todos/" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
+            Sincronizar
         </a>
     </li>
-    
     <li>
-        <a href="{% url 'calendario_unificado' %}" style="
-            background: #9b59b6;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        ">
-            📅 Calendario
+        <a href="{% url 'calendario_unificado' %}" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
+            Calendario
         </a>
     </li>
 {% endblock %}

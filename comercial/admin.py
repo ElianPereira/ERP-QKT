@@ -15,7 +15,14 @@ from .models import (
 from .services import CalculadoraBarraService
 
 # Estilo estandarizado para botones
-BTN = '<a href="{url}" {target} class="btn btn-sm" style="background:{bg}; color:{fg}; padding:4px 12px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none; display:inline-block;" {extra}>{label}</a>'
+
+BTN = '<a href="{url}" {target} class="btn btn-sm" style="background:{bg}; color:{fg}; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none; display:inline-block; font-family:IBM Plex Sans,sans-serif;" {extra}>{label}</a>'
+
+# Colores estándar para usar con BTN:
+# Verde primario (acciones principales): bg='#2E7D32', fg='white'
+# Amarillo marca (documentos especiales): bg='#F5C518', fg='#333'
+# Rojo (peligro/cancelar):               bg='#e74c3c', fg='white'
+# Gris (neutral/inactivo):               bg='#95a5a6', fg='white'
 
 MEDIA_CONFIG = {
     'css': { 'all': ('css/admin_fix.css', 'css/mobile_fix.css') },
@@ -327,10 +334,11 @@ class CotizacionAdmin(admin.ModelAdmin):
     # --- BADGES CORTOS (Punto 3) ---
     def estado_badge(self, obj):
         colores = {
-            'BORRADOR': '#95a5a6', 'COTIZADA': '#3498db', 'ANTICIPO': '#f39c12',
-            'CONFIRMADA': '#27ae60', 'EN_PREPARACION': '#8e44ad', 'EJECUTADA': '#2c3e50',
+            'BORRADOR': '#95a5a6', 'COTIZADA': '#3498db', 'ANTICIPO': '#e67e22',
+            'CONFIRMADA': '#2E7D32', 'EN_PREPARACION': '#8e44ad', 'EJECUTADA': '#1B5E20',
             'CERRADA': '#1abc9c', 'CANCELADA': '#e74c3c',
         }
+
         # Etiquetas cortas de 1 palabra
         etiquetas = {
             'BORRADOR': 'Borrador', 'COTIZADA': 'Cotizada', 'ANTICIPO': 'Anticipo',
@@ -370,7 +378,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                 url_pdf = reverse('plan_pagos_pdf', args=[obj.id])
                 pagadas = plan.parcialidades_pagadas()
                 total = plan.parcialidades.count()
-                return format_html(BTN, url=url_pdf, target='target="_blank"', bg='#8e44ad', fg='white', label=f'{pagadas}/{total}', extra='')
+                return format_html(BTN, url=url_pdf, target='target="_blank"', bg='#2E7D32', fg='white', label=f'{pagadas}/{total}', extra='')
         except PlanPago.DoesNotExist:
             pass
         
@@ -381,21 +389,21 @@ class CotizacionAdmin(admin.ModelAdmin):
             return format_html(
                 '<div style="position:relative; display:inline-block;">'
                   '<button type="button" onclick="document.getElementById(\'{uid}\').style.display = document.getElementById(\'{uid}\').style.display === \'block\' ? \'none\' : \'block\'" '
-                  'style="background:#3498db; color:white; padding:4px 12px; border-radius:4px; font-size:11px; font-weight:600; border:none; cursor:pointer;">'
+                  'style="background:#2E7D32; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; border:none; cursor:pointer;">'
                   '+ Plan</button>'
-                  '<div id="{uid}" style="display:none; position:absolute; top:28px; left:0; z-index:999; background:white; border:1px solid #ddd; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:130px; padding:4px 0;">'
-                    '<a href="{url_auto}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none; font-weight:600;" '
-                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">Auto</a>'
-                    '<a href="{url_2}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
-                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">2 pagos</a>'
-                    '<a href="{url_3}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
-                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">3 pagos</a>'
-                    '<a href="{url_4}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
-                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">4 pagos</a>'
-                    '<a href="{url_5}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
-                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">5 pagos</a>'
-                    '<a href="{url_6}" style="display:block; padding:6px 14px; font-size:12px; color:#333; text-decoration:none;" '
-                       'onmouseover="this.style.background=\'#f0f0f0\'" onmouseout="this.style.background=\'white\'">6 pagos</a>'
+                  '<div id="{uid}" style="display:none; position:absolute; top:28px; left:0; z-index:999; background:#383632; border:1px solid #4a4845; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.3); min-width:130px; padding:4px 0;">'
+                    '<a href="{url_auto}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none; font-weight:600;" '
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
+                    '<a href="{url_2}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
+                    '<a href="{url_3}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
+                    '<a href="{url_4}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
+                    '<a href="{url_5}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
+                    '<a href="{url_6}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
                   '</div>'
                 '</div>',
                 uid=uid,
@@ -412,14 +420,14 @@ class CotizacionAdmin(admin.ModelAdmin):
     def ver_pdf(self, obj):
         try:
             url = reverse('cotizacion_pdf', args=[obj.id])
-            return format_html(BTN, url=url, target='target="_blank"', bg='#17a2b8', fg='white', label='PDF', extra='')
+            return format_html(BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='PDF', extra='')
         except NoReverseMatch: return "-"
     ver_pdf.short_description = "PDF"
 
     def ver_lista_compras(self, obj):
         try:
             url = reverse('cotizacion_lista_compras', args=[obj.id])
-            return format_html(BTN, url=url, target='target="_blank"', bg='#28a745', fg='white', label='Lista', extra='')
+            return format_html(BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='Lista', extra='')
         except NoReverseMatch: return "-"
     ver_lista_compras.short_description = "Compras"
 
@@ -427,7 +435,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         if obj.pk:
             try:
                 url = reverse('cotizacion_email', args=[obj.id])
-                return format_html(BTN, url=url, target='', bg='#ffc107', fg='#333', label='Email', extra='onclick="return confirm(\'¿Enviar cotización por email?\')"')
+                return format_html(BTN, url=url, target='', bg='#2E7D32', fg='white', label='Email', extra='onclick="return confirm(\'¿Enviar cotización por email?\')"')
             except NoReverseMatch: return "-"
         return "-"
     enviar_email_btn.short_description = "Email"
@@ -513,7 +521,7 @@ class CotizacionAdmin(admin.ModelAdmin):
             url = reverse('cotizacion_contrato', args=[obj.id])
             return format_html(
                 '<a href="{}" class="btn btn-info btn-sm" '
-                'style="background:#0d6efd;color:#fff;border:none;padding:3px 8px;font-size:11px;" '
+                'style="background:#F5C518;color:#333;border:none;padding:3px 8px;font-size:11px;"'
                 'onclick="return confirm(\'¿Generar contrato con depósito $0? Puedes cambiarlo en la pantalla del contrato.\')">📄 Contrato</a>',
                 url
             )
@@ -535,7 +543,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
 
         if cotizacion.estado != 'CONFIRMADA':
-            messages.error(request, "❌ Solo cotizaciones CONFIRMADAS.")
+            messages.error(request, "Solo cotizaciones confirmadas.")
             return redirect('admin:comercial_cotizacion_changelist')
 
         contratos_previos = ContratoServicio.objects.filter(cotizacion=cotizacion).order_by('-generado_en')
@@ -635,8 +643,9 @@ class ContratoServicioAdmin(admin.ModelAdmin):
     @admin.display(description="Email")
     def enviar_btn(self, obj):
         url = reverse('contrato_email', args=[obj.id])
-        icono = "✅ Enviado" if obj.enviado_email else "Enviar"
+        if obj.enviado_email:
+            return format_html(
+                '<span style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;">Enviado</span>')
         return format_html(
-            '<a href="{}" class="btn btn-success">{}</a>',
-            url, icono
-        )
+            '<a href="{}" style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Enviar</a>',
+            url)

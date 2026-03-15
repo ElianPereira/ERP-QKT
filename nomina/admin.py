@@ -29,8 +29,8 @@ class ReciboNominaAdmin(admin.ModelAdmin):
     def ver_pdf(self, obj):
         if obj.archivo_pdf:
             return format_html(
-                '<a href="{}" target="_blank" style="background-color:#17a2b8; color:white; padding:5px 10px; border-radius:5px; text-decoration:none;">'
-                '<i class="fas fa-file-pdf"></i> Ver PDF</a>',
+                '<a href="{}" target="_blank" style="background:#2E7D32; color:white; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:11px; font-weight:600;">'
+                'PDF</a>',
                 obj.archivo_pdf.url
             )
         return "-"
