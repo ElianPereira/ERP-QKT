@@ -253,7 +253,7 @@ JAZZMIN_SETTINGS = {
         "auth.group",
     ],
 
-    "custom_css": "css/mobile_fix_v4.css",
+    "custom_css": "css/admin_fix.css",
     "custom_js": "js/tabs_fix.js",
 }
 
