@@ -316,12 +316,24 @@ input[type="submit"].default:hover {
 
 /* ── FONDO OSCURO FORZADO EN TODO EL ADMIN ────────────────── */
 body,
+html,
 .wrapper,
 .content-wrapper,
 .content,
+.content-page,
 .main-footer,
-.login-page {
+.login-page,
+section.content,
+.container-fluid,
+#content-main {
     background-color: #2c2b28 !important;
+    background: #2c2b28 !important;
+}
+
+.content-wrapper {
+    background: #2c2b28 !important;
+    background-color: #2c2b28 !important;
+    background-image: none !important;
 }
 
 /* Cards y contenedores */
