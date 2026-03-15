@@ -243,3 +243,13 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
     color: var(--qkt-green-text) !important;
     font-weight: 600;
 }
+
+/* ── FIX TÍTULOS DE MÓDULO (doble renderizado Darkly) ───── */
+.content-header h1,
+.content-header .content-header-title,
+section.content-header h1 {
+    color: var(--qkt-text-bright) !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    -webkit-text-stroke: 0 !important;
+}
