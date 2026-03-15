@@ -1,80 +1,80 @@
 {% load humanize %}
-<div style="border:1px solid #ccc; border-radius:5px; overflow:hidden;">
-    <div style="background:#2c3e50; color:white; padding:10px; font-weight:bold;">
-        Resumen de Consumo Ponderado (Utilidad: x{{ datos.margen_aplicado }})
+<div style="border:1px solid #4a4845; border-radius:5px; overflow:hidden;">
+    <div style="background:#2E7D32; color:white; padding:10px; font-weight:bold;">
+        Resumen de consumo ponderado (Utilidad: x{{ datos.margen_aplicado }})
     </div>
-    <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:sans-serif;">
+    <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:'IBM Plex Sans',sans-serif; color:#d4d1c8;">
         
-        <tr style="background:#ecf0f1; font-weight:bold;"><td colspan="3" style="padding:5px;"> ALCOHOL Y CERVEZA</td></tr>
+        <tr style="background:#33312e; font-weight:bold;"><td colspan="3" style="padding:5px; color:#8a8780;">ALCOHOL Y CERVEZA</td></tr>
         
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid #4a4845;">
             <td style="padding:8px;">Cerveza (Caguamas):</td>
             <td style="padding:8px; text-align:right;"><strong>{{ datos.cervezas_unidades }} u.</strong></td>
-            <td style="padding:8px; text-align:right; color:#7f8c8d;">(Incluido)</td>
+            <td style="padding:8px; text-align:right; color:#8a8780;">(Incluido)</td>
         </tr>
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid #4a4845;">
             <td style="padding:8px;">Licores (Botellas):</td>
             <td style="padding:8px; text-align:right;">
                 <strong>{{ datos.botellas }} u.</strong><br>
-                <span style="font-size:10px; color:#666;">(Nac: {{ datos.botellas_nacional }} / Prem: {{ datos.botellas_premium }})</span>
+                <span style="font-size:10px; color:#8a8780;">(Nac: {{ datos.botellas_nacional }} / Prem: {{ datos.botellas_premium }})</span>
             </td>
-            <td style="padding:8px; text-align:right; color:#c0392b;">${{ datos.costo_alcohol|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:#e74c3c;">${{ datos.costo_alcohol|floatformat:2|intcomma }}</td>
         </tr>
 
-        <tr style="background:#ecf0f1; font-weight:bold;"><td colspan="3" style="padding:5px;"> INSUMOS OPERATIVOS</td></tr>
+        <tr style="background:#33312e; font-weight:bold;"><td colspan="3" style="padding:5px; color:#8a8780;">INSUMOS OPERATIVOS</td></tr>
         
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid #4a4845;">
             <td style="padding:8px;">Hielo (20kg):</td>
             <td style="padding:8px; text-align:right;">
                 <strong>{{ datos.bolsas_hielo_20kg }} bolsas</strong><br>
-                <span style="font-size:10px; color:#666;">{{ datos.hielo_info }}</span>
+                <span style="font-size:10px; color:#8a8780;">{{ datos.hielo_info }}</span>
             </td>
-            <td style="padding:8px; text-align:right; color:#c0392b;">${{ datos.costo_hielo|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:#e74c3c;">${{ datos.costo_hielo|floatformat:2|intcomma }}</td>
         </tr>
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid #4a4845;">
             <td style="padding:8px;">Mixers y Agua:</td>
             <td style="padding:8px; text-align:right;">{{ datos.litros_mezcladores }}L Mix / {{ datos.litros_agua }}L Agua</td>
-            <td style="padding:8px; text-align:right; color:#c0392b;">${{ datos.costo_mixers_agua|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:#e74c3c;">${{ datos.costo_mixers_agua|floatformat:2|intcomma }}</td>
         </tr>
         
         {% if datos.costo_fruta > 0 %}
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid #4a4845;">
             <td style="padding:8px;">Garnituras y Fruta:</td>
             <td style="padding:8px; text-align:right;">-</td>
-            <td style="padding:8px; text-align:right; color:#c0392b;">${{ datos.costo_fruta|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:#e74c3c;">${{ datos.costo_fruta|floatformat:2|intcomma }}</td>
         </tr>
         {% endif %}
 
         {% if datos.costo_extra > 0 %}
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid #4a4845;">
             <td style="padding:8px;">Desgaste Mobiliario/Extra:</td>
             <td style="padding:8px; text-align:right;">Tarifa Fija</td>
-            <td style="padding:8px; text-align:right; color:#c0392b;">${{ datos.costo_extra|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:#e74c3c;">${{ datos.costo_extra|floatformat:2|intcomma }}</td>
         </tr>
         {% endif %}
 
-        <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:8px;"><strong>Total Insumos Varios:</strong><br><span style="font-size:10px;">(Suma de lo anterior)</span></td>
+        <tr style="border-bottom:1px solid #4a4845;">
+            <td style="padding:8px;"><strong>Total Insumos Varios:</strong><br><span style="font-size:10px; color:#8a8780;">(Suma de lo anterior)</span></td>
             <td style="padding:8px; text-align:right;">-</td>
-            <td style="padding:8px; text-align:right; font-weight:bold; color:#c0392b;">${{ datos.costo_insumos_varios|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; font-weight:bold; color:#e74c3c;">${{ datos.costo_insumos_varios|floatformat:2|intcomma }}</td>
         </tr>
 
-        <tr style="background:#ecf0f1; font-weight:bold;"><td colspan="3" style="padding:5px;">🤵 STAFF</td></tr>
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="background:#33312e; font-weight:bold;"><td colspan="3" style="padding:5px; color:#8a8780;">STAFF</td></tr>
+        <tr style="border-bottom:1px solid #4a4845;">
             <td style="padding:8px;">Brigada:</td>
             <td style="padding:8px; text-align:right;">{{ datos.num_barmans }} Barman / {{ datos.num_auxiliares }} Aux</td>
-            <td style="padding:8px; text-align:right; color:#c0392b;">${{ datos.costo_staff|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:#e74c3c;">${{ datos.costo_staff|floatformat:2|intcomma }}</td>
         </tr>
 
-        <tr style="background:#fff3cd; border-top:2px solid #ffeeba; font-weight:bold;">
-            <td style="padding:8px;">COSTO TOTAL (Puro):</td>
+        <tr style="background:#4a4845; border-top:2px solid #5a5855; font-weight:bold;">
+            <td style="padding:8px; color:#F5C518;">COSTO TOTAL (Puro):</td>
             <td></td>
-            <td style="padding:8px; text-align:right; color:#d35400;">${{ datos.costo_total_estimado|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:#F5C518;">${{ datos.costo_total_estimado|floatformat:2|intcomma }}</td>
         </tr>
-        <tr style="background:#d4edda; border-top:2px solid #c3e6cb; font-weight:bold; font-size:14px;">
-            <td style="padding:8px; color:#155724;">PRECIO SUGERIDO:</td>
+        <tr style="background:#2E7D32; font-weight:bold; font-size:14px;">
+            <td style="padding:8px; color:white;">PRECIO SUGERIDO:</td>
             <td></td>
-            <td style="padding:8px; text-align:right; color:#155724;">${{ datos.precio_venta_sugerido_total|floatformat:2|intcomma }}</td>
+            <td style="padding:8px; text-align:right; color:white;">${{ datos.precio_venta_sugerido_total|floatformat:2|intcomma }}</td>
         </tr>
     </table>
 </div>
