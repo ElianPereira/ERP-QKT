@@ -388,6 +388,16 @@ fieldset,
     background-color: #33312e !important;
 }
 
+.table-striped tbody tr:nth-of-type(even),
+#result_list tbody tr:nth-of-type(even) {
+    background-color: #383632 !important;
+}
+
+#result_list tbody tr,
+.table tbody tr {
+    background-color: #383632 !important;
+}
+
 /* Hover en filas */
 .table-hover tbody tr:hover,
 #result_list tbody tr:hover {
