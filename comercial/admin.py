@@ -10,7 +10,7 @@ from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
     Cliente, Cotizacion, ItemCotizacion, Pago, 
     Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
-    MovimientoInventario, PlanPago, ParcialidadPago
+    MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago
 )
 from .services import CalculadoraBarraService
 
@@ -650,3 +650,51 @@ class ContratoServicioAdmin(admin.ModelAdmin):
         return format_html(
             '<a href="{}" style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Enviar</a>',
             url)
+
+@admin.register(RecordatorioPago)
+class RecordatorioPagoAdmin(admin.ModelAdmin):
+    list_display = (
+        'parcialidad_info', 'cliente', 'fecha_envio',
+        'estado_badge', 'monto_parcialidad'
+    )
+    list_filter = ('estado', 'fecha_envio')
+    search_fields = (
+        'parcialidad__plan__cotizacion__cliente__nombre',
+        'parcialidad__plan__cotizacion__nombre_evento',
+    )
+    readonly_fields = (
+        'parcialidad', 'fecha_envio', 'estado',
+        'mensaje_enviado', 'respuesta_api', 'error_detalle', 'created_at'
+    )
+    date_hierarchy = 'fecha_envio'
+    ordering = ['-fecha_envio']
+
+    def parcialidad_info(self, obj):
+        cot = obj.parcialidad.plan.cotizacion
+        return f"COT-{cot.id:03d} — {obj.parcialidad.concepto}"
+    parcialidad_info.short_description = "Parcialidad"
+
+    def cliente(self, obj):
+        return obj.parcialidad.plan.cotizacion.cliente.nombre
+    cliente.short_description = "Cliente"
+
+    def monto_parcialidad(self, obj):
+        return f"${obj.parcialidad.monto:,.2f}"
+    monto_parcialidad.short_description = "Monto"
+
+    def estado_badge(self, obj):
+        colores = {
+            'ENVIADO': ('#2E7D32', 'white'),
+            'FALLIDO': ('#e74c3c', 'white'),
+            'OMITIDO': ('#95a5a6', 'white'),
+        }
+        bg, fg = colores.get(obj.estado, ('#333', 'white'))
+        return format_html(
+            '<span style="background:{};color:{};padding:2px 8px;'
+            'border-radius:4px;font-size:11px;font-weight:600;">{}</span>',
+            bg, fg, obj.get_estado_display()
+        )
+    estado_badge.short_description = "Estado"
+
+    def has_add_permission(self, request): return False
+    def has_delete_permission(self, request, obj=None): return False

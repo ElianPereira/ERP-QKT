@@ -244,7 +244,7 @@ def actualizar_item_cotizacion(cotizacion):
         if cotizacion.incluye_cocteleria_premium: partes.append("Mixología")
 
         info = "/".join(partes) if partes else "Básico"
-        clima_tag = "🔥" if cotizacion.clima in ['calor', 'extremo'] else ""
+        clima_tag = "" if cotizacion.clima in ['calor', 'extremo'] else ""
         nueva_desc = f"{desc_clave} [{info}] {clima_tag} | {cotizacion.num_personas} Pax - {cotizacion.horas_servicio} Hrs"
 
         if item_barra:

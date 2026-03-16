@@ -660,11 +660,7 @@ class Gasto(models.Model):
 # ==========================================
 
 class PlanPago(models.Model):
-    """
-    Plan de pagos calendarizado para una cotización.
-    Se genera automáticamente según la anticipación del evento.
-    Solo puede existir UN plan activo por cotización.
-    """
+
     cotizacion = models.OneToOneField(
         Cotizacion, on_delete=models.CASCADE, 
         related_name='plan_pago',
@@ -701,10 +697,7 @@ class PlanPago(models.Model):
 
 
 class ParcialidadPago(models.Model):
-    """
-    Cada parcialidad dentro de un plan de pagos.
-    Se marca como pagada cuando el cliente realiza el pago correspondiente.
-    """
+
     plan = models.ForeignKey(
         PlanPago, on_delete=models.CASCADE, 
         related_name='parcialidades',
@@ -750,3 +743,33 @@ class ParcialidadPago(models.Model):
         verbose_name_plural = "Parcialidades"
         ordering = ['numero']
         unique_together = ['plan', 'numero']
+
+# ==========================================
+# RECORDATORIOS DE PAGO (WHATSAPP)
+# ==========================================
+class RecordatorioPago(models.Model):
+    ESTADOS = [
+        ('ENVIADO', 'Enviado'),
+        ('FALLIDO', 'Fallido'),
+        ('OMITIDO', 'Omitido (sin teléfono)'),
+    ]
+
+    parcialidad = models.ForeignKey(
+        ParcialidadPago, on_delete=models.CASCADE,
+        related_name='recordatorios',
+        verbose_name="Parcialidad"
+    )
+    fecha_envio = models.DateTimeField(auto_now_add=True)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='ENVIADO')
+    mensaje_enviado = models.TextField(blank=True, verbose_name="Mensaje enviado")
+    respuesta_api = models.TextField(blank=True, verbose_name="Respuesta API WhatsApp")
+    error_detalle = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Recordatorio de Pago"
+        verbose_name_plural = "Recordatorios de Pago"
+        ordering = ['-fecha_envio']
+
+    def __str__(self):
+        return f"Recordatorio {self.parcialidad} — {self.get_estado_display()}"

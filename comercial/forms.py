@@ -8,7 +8,7 @@ class CalculadoraForm(forms.Form):
     ]
     
     CLIMA = [
-        ('calor', 'Día / Calor (Mérida 🔥)'),
+        ('calor', 'Día / Calor (Mérida)'),
         ('fresco', 'Noche / Aire Acondicionado'),
     ]
 
