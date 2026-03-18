@@ -15,6 +15,37 @@ from django.utils import timezone
 
 
 # ==========================================
+# CATÁLOGO DE REGÍMENES FISCALES SAT
+# ==========================================
+
+REGIMEN_FISCAL_SAT_CHOICES = [
+    ('601', '601 - General de Ley Personas Morales'),
+    ('603', '603 - Personas Morales con Fines no Lucrativos'),
+    ('605', '605 - Sueldos y Salarios e Ingresos Asimilados a Salarios'),
+    ('606', '606 - Arrendamiento'),
+    ('607', '607 - Régimen de Enajenación o Adquisición de Bienes'),
+    ('608', '608 - Demás ingresos'),
+    ('609', '609 - Consolidación'),
+    ('610', '610 - Residentes en el Extranjero sin Establecimiento Permanente en México'),
+    ('611', '611 - Ingresos por Dividendos (socios y accionistas)'),
+    ('612', '612 - Personas Físicas con Actividades Empresariales y Profesionales'),
+    ('614', '614 - Ingresos por intereses'),
+    ('615', '615 - Régimen de los ingresos por obtención de premios'),
+    ('616', '616 - Sin obligaciones fiscales'),
+    ('620', '620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos'),
+    ('621', '621 - Incorporación Fiscal'),
+    ('622', '622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras'),
+    ('623', '623 - Opcional para Grupos de Sociedades'),
+    ('624', '624 - Coordinados'),
+    ('625', '625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas'),
+    ('626', '626 - Régimen Simplificado de Confianza'),
+    ('628', '628 - Hidrocarburos'),
+    ('629', '629 - De los Regímenes Fiscales Preferentes y de las Empresas Multinacionales'),
+    ('630', '630 - Enajenación de acciones en bolsa de valores'),
+]
+
+
+# ==========================================
 # 1. CATÁLOGO DE CUENTAS (SAT 2024)
 # ==========================================
 
@@ -119,12 +150,6 @@ class UnidadNegocio(models.Model):
     Permite separar la contabilidad por línea de negocio.
     Útil para reportes de rentabilidad por segmento.
     """
-    REGIMEN_CHOICES = [
-        ('EMPRESARIAL', 'Actividad Empresarial'),
-        ('PLATAFORMAS', 'Plataformas Tecnológicas'),
-        ('MIXTO', 'Mixto'),
-    ]
-    
     clave = models.CharField(
         max_length=20,
         unique=True,
@@ -134,10 +159,10 @@ class UnidadNegocio(models.Model):
     nombre = models.CharField(max_length=100, verbose_name="Nombre")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
     regimen_fiscal = models.CharField(
-        max_length=20,
-        choices=REGIMEN_CHOICES,
-        default='EMPRESARIAL',
-        verbose_name="Régimen fiscal"
+        max_length=3,
+        choices=REGIMEN_FISCAL_SAT_CHOICES,
+        default='612',
+        verbose_name="Régimen fiscal SAT"
     )
     activa = models.BooleanField(default=True)
     
