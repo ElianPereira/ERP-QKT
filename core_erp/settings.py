@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'weasyprint',
     'anymail',
     'airbnb',
+    'contabilidad',
 ]
 
 MIDDLEWARE = [
@@ -190,6 +191,15 @@ JAZZMIN_SETTINGS = {
         "airbnb.ConflictoCalendario":       "fas fa-exclamation-triangle",
         "airbnb.AnuncioAirbnb":             "fas fa-home",
 
+        "contabilidad":                     "fas fa-calculator",
+        "contabilidad.poliza":              "fas fa-file-invoice",
+        "contabilidad.cuentacontable":      "fas fa-sitemap",
+        "contabilidad.movimientocontable":  "fas fa-exchange-alt",
+        "contabilidad.conciliacionbancaria":    "fas fa-balance-scale",
+        "contabilidad.cuentabancaria":      "fas fa-university",
+        "contabilidad.unidadnegocio":       "fas fa-building",
+        "contabilidad.configuracioncontable":   "fas fa-cogs",
+
         # NÓMINA
         "nomina.Empleado":                  "fas fa-user-tie",
         "nomina.ReciboNomina":              "fas fa-file-contract",
@@ -237,6 +247,16 @@ JAZZMIN_SETTINGS = {
         "airbnb.ConflictoCalendario",
         "airbnb.AnuncioAirbnb",
 
+        # Contabilidad (NUEVO)
+        "contabilidad",
+        "contabilidad.poliza",
+        "contabilidad.cuentacontable",
+        "contabilidad.movimientocontable",
+        "contabilidad.conciliacionbancaria",
+        "contabilidad.cuentabancaria",
+        "contabilidad.unidadnegocio",
+        "contabilidad.configuracioncontable",
+
         # === NÓMINA ===
         "nomina",
         "nomina.Empleado",
@@ -278,3 +298,5 @@ JAZZMIN_UI_TWEAKS = {
 # --- REDIRECCIONES DE LOGIN/LOGOUT ---
 LOGIN_REDIRECT_URL = '/admin/'  
 LOGOUT_REDIRECT_URL = '/admin/login/'
+
+CONTABILIDAD_SIGNALS_ENABLED = False
