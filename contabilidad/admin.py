@@ -36,7 +36,7 @@ class SubcuentaInline(admin.TabularInline):
 
 @admin.register(CuentaContable)
 class CuentaContableAdmin(admin.ModelAdmin):
-    list_display = ['codigo_sat', 'nombre', 'tipo_badge', 'naturaleza_badge', 'nivel', 'permite_movimientos', 'activa']
+    list_display = ['codigo_sat', 'nombre', 'get_tipo_badge', 'get_naturaleza_badge', 'nivel', 'permite_movimientos', 'activa']
     list_filter = ['tipo', 'naturaleza', 'nivel', 'activa', 'permite_movimientos']
     search_fields = ['codigo_sat', 'nombre']
     ordering = ['codigo_sat']
@@ -44,7 +44,8 @@ class CuentaContableAdmin(admin.ModelAdmin):
     autocomplete_fields = ['padre']
     inlines = [SubcuentaInline]
     
-    def tipo_badge(self, obj):
+    @admin.display(description="Tipo", ordering="tipo")
+    def get_tipo_badge(self, obj):
         colores = {
             'ACTIVO': '#2196F3', 'PASIVO': '#9C27B0', 'CAPITAL': '#4CAF50',
             'INGRESO': '#8BC34A', 'COSTO': '#FF9800', 'GASTO': '#F44336', 'ORDEN': '#607D8B',
@@ -54,13 +55,12 @@ class CuentaContableAdmin(admin.ModelAdmin):
             '<span style="background:{}; color:white; padding:3px 8px; border-radius:4px; font-size:11px;">{}</span>',
             color, obj.get_tipo_display().split(' - ')[0]
         )
-    tipo_badge.short_description = "Tipo"
     
-    def naturaleza_badge(self, obj):
+    @admin.display(description="Naturaleza", ordering="naturaleza")
+    def get_naturaleza_badge(self, obj):
         if obj.naturaleza == 'D':
             return format_html('<span style="color:#1976D2; font-weight:600;">⬆ Deudora</span>')
         return format_html('<span style="color:#7B1FA2; font-weight:600;">⬇ Acreedora</span>')
-    naturaleza_badge.short_description = "Naturaleza"
 
 
 @admin.register(UnidadNegocio)
@@ -72,49 +72,49 @@ class UnidadNegocioAdmin(admin.ModelAdmin):
 
 @admin.register(CuentaBancaria)
 class CuentaBancariaAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'banco', 'clabe_display', 'cuenta_contable', 'activa']
+    list_display = ['nombre', 'banco', 'get_clabe_display', 'cuenta_contable', 'activa']
     list_filter = ['banco', 'activa']
     search_fields = ['nombre', 'banco', 'clabe']
     
-    def clabe_display(self, obj):
+    @admin.display(description="CLABE")
+    def get_clabe_display(self, obj):
         if obj.clabe:
             return f"***{obj.clabe[-4:]}"
         return "-"
-    clabe_display.short_description = "CLABE"
 
 
 @admin.register(Poliza)
 class PolizaAdmin(admin.ModelAdmin):
-    list_display = ['folio_display', 'tipo_badge', 'fecha', 'concepto_corto', 'unidad_negocio', 'estado_badge']
+    list_display = ['get_folio_display', 'get_tipo_badge', 'fecha', 'get_concepto_corto', 'unidad_negocio', 'get_estado_badge']
     list_filter = ['tipo', 'estado', 'unidad_negocio', 'origen', 'fecha']
     search_fields = ['folio', 'concepto']
     date_hierarchy = 'fecha'
     ordering = ['-fecha', '-folio']
     inlines = [MovimientoContableInline]
     
-    def folio_display(self, obj):
+    @admin.display(description="Folio", ordering="folio")
+    def get_folio_display(self, obj):
         return format_html('<strong>{}-{:04d}</strong>', obj.tipo, obj.folio)
-    folio_display.short_description = "Folio"
     
-    def tipo_badge(self, obj):
+    @admin.display(description="Tipo", ordering="tipo")
+    def get_tipo_badge(self, obj):
         colores = {'I': '#4CAF50', 'E': '#F44336', 'D': '#2196F3'}
         return format_html(
             '<span style="background:{}; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">{}</span>',
             colores.get(obj.tipo, '#666'), obj.get_tipo_display()
         )
-    tipo_badge.short_description = "Tipo"
     
-    def concepto_corto(self, obj):
+    @admin.display(description="Concepto")
+    def get_concepto_corto(self, obj):
         return obj.concepto[:60] + "..." if len(obj.concepto) > 60 else obj.concepto
-    concepto_corto.short_description = "Concepto"
     
-    def estado_badge(self, obj):
+    @admin.display(description="Estado", ordering="estado")
+    def get_estado_badge(self, obj):
         colores = {'BORRADOR': '#FF9800', 'APLICADA': '#4CAF50', 'CANCELADA': '#9E9E9E'}
         return format_html(
             '<span style="background:{}; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">{}</span>',
             colores.get(obj.estado, '#666'), obj.get_estado_display()
         )
-    estado_badge.short_description = "Estado"
     
     def save_model(self, request, obj, form, change):
         if not change:
@@ -125,14 +125,14 @@ class PolizaAdmin(admin.ModelAdmin):
 
 @admin.register(ConciliacionBancaria)
 class ConciliacionBancariaAdmin(admin.ModelAdmin):
-    list_display = ['cuenta_bancaria', 'periodo_display', 'saldo_segun_banco', 'saldo_segun_libros', 'diferencia', 'estado']
+    list_display = ['cuenta_bancaria', 'get_periodo_display', 'saldo_segun_banco', 'saldo_segun_libros', 'diferencia', 'estado']
     list_filter = ['estado', 'cuenta_bancaria', 'anio']
     ordering = ['-anio', '-mes']
     
-    def periodo_display(self, obj):
+    @admin.display(description="Período")
+    def get_periodo_display(self, obj):
         meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
         return f"{meses[obj.mes]} {obj.anio}"
-    periodo_display.short_description = "Período"
 
 
 @admin.register(ConfiguracionContable)
