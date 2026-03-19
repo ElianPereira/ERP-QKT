@@ -502,7 +502,14 @@ class Pago(models.Model):
     metodo = models.CharField(max_length=20, choices=METODOS)
     referencia = models.CharField(max_length=100, blank=True)
     
-    # Auditoría (NUEVO)
+    # Facturación
+    solicitar_factura = models.BooleanField(
+        default=False,
+        verbose_name="¿Solicitar factura?",
+        help_text="Genera automáticamente una solicitud de factura al guardar"
+    )
+    
+    # Auditoría
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
     updated_at = models.DateTimeField(auto_now=True)
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas")
