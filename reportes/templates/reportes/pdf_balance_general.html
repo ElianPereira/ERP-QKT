@@ -1,0 +1,133 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block subtitulo %}Estado de Situación Financiera.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Al:</strong> {{ fecha_corte|date:"d/m/Y" }}
+{% endblock %}
+
+{% block extra_css %}
+    .cuadre-ok { background: #E8F5E9; color: #2E7D32; padding: 6px 12px; border-radius: 4px; font-weight: 700; font-size: 10px; display: inline-block; margin-top: 8px; }
+    .cuadre-error { background: #FFEBEE; color: #e74c3c; padding: 6px 12px; border-radius: 4px; font-weight: 700; font-size: 10px; display: inline-block; margin-top: 8px; }
+{% endblock %}
+
+{% block content %}
+
+<!-- RESUMEN -->
+<div class="resumen-grid">
+    <div class="resumen-card">
+        <div class="valor">${{ total_activo|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Total Activo</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ total_pasivo|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Total Pasivo</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ total_capital_mas_resultado|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Capital + Resultado</div>
+    </div>
+</div>
+
+<!-- ACTIVO -->
+<div class="seccion-titulo">ACTIVO</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:70px;">Código</th>
+            <th>Cuenta</th>
+            <th class="right" style="width:130px;">Saldo</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in activos %}
+        <tr class="no-break">
+            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
+            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total">
+            <td colspan="2">TOTAL ACTIVO</td>
+            <td class="right">${{ total_activo|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- PASIVO -->
+<div class="seccion-titulo">PASIVO</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:70px;">Código</th>
+            <th>Cuenta</th>
+            <th class="right" style="width:130px;">Saldo</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in pasivos %}
+        <tr class="no-break">
+            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
+            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total">
+            <td colspan="2">TOTAL PASIVO</td>
+            <td class="right">${{ total_pasivo|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- CAPITAL -->
+<div class="seccion-titulo">CAPITAL CONTABLE</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:70px;">Código</th>
+            <th>Cuenta</th>
+            <th class="right" style="width:130px;">Saldo</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in capital %}
+        <tr class="no-break">
+            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
+            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="subtotal">
+            <td colspan="2">Subtotal Capital</td>
+            <td class="right">${{ total_capital|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr class="no-break">
+            <td></td>
+            <td class="text-bold">Resultado del Ejercicio</td>
+            <td class="right text-bold" style="color:{% if resultado_ejercicio >= 0 %}#2E7D32{% else %}#e74c3c{% endif %}">
+                ${{ resultado_ejercicio|floatformat:2|intcomma }}
+            </td>
+        </tr>
+        <tr class="total">
+            <td colspan="2">TOTAL CAPITAL + RESULTADO</td>
+            <td class="right">${{ total_capital_mas_resultado|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- CUADRE -->
+<table class="reporte" style="margin-top:10px;">
+    <tr class="total">
+        <td>TOTAL PASIVO + CAPITAL</td>
+        <td class="right" style="width:130px;">${{ total_pasivo_capital|floatformat:2|intcomma }}</td>
+    </tr>
+</table>
+
+{% if cuadra %}
+<div class="cuadre-ok">La ecuación contable cuadra (A = P + C)</div>
+{% else %}
+<div class="cuadre-error">DESCUADRE: Diferencia de ${{ diferencia|floatformat:2|intcomma }}</div>
+{% endif %}
+
+{% endblock %}

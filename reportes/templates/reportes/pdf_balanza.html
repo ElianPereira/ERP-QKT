@@ -1,0 +1,54 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block orientation %}landscape{% endblock %}
+
+{% block subtitulo %}Saldos iniciales, movimientos del período y saldos finales.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+    | <strong>Nivel:</strong> {{ nivel }}
+{% endblock %}
+
+{% block content %}
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:60px;">Código</th>
+            <th>Cuenta</th>
+            <th class="right">S.I. Debe</th>
+            <th class="right">S.I. Haber</th>
+            <th class="right">Cargos</th>
+            <th class="right">Abonos</th>
+            <th class="right">S.F. Debe</th>
+            <th class="right">S.F. Haber</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in datos %}
+        <tr class="no-break">
+            <td><span class="nivel-{{ r.nivel }}">{{ r.codigo }}</span></td>
+            <td class="nivel-{{ r.nivel }}">{{ r.nombre }}</td>
+            <td class="right">{{ r.saldo_inicial_debe|floatformat:2|intcomma }}</td>
+            <td class="right">{{ r.saldo_inicial_haber|floatformat:2|intcomma }}</td>
+            <td class="right">{{ r.cargos|floatformat:2|intcomma }}</td>
+            <td class="right">{{ r.abonos|floatformat:2|intcomma }}</td>
+            <td class="right">{{ r.saldo_final_debe|floatformat:2|intcomma }}</td>
+            <td class="right">{{ r.saldo_final_haber|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted">Sin movimientos en el período.</td></tr>
+        {% endfor %}
+
+        <tr class="total">
+            <td colspan="2">TOTALES</td>
+            <td class="right">${{ total_si_debe|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_si_haber|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_cargos|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_abonos|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_sf_debe|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_sf_haber|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

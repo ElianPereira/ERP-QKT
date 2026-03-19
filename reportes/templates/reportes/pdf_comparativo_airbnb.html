@@ -1,0 +1,100 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block subtitulo %}Ingresos brutos, comisiones, retenciones y neto por mes.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+{% endblock %}
+
+{% block content %}
+
+<!-- RESUMEN -->
+<div class="resumen-grid">
+    <div class="resumen-card">
+        <div class="valor">${{ gran_total.bruto|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Ingreso Bruto</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor" style="color:#e74c3c">${{ gran_total.comision|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Comisiones</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor" style="color:#e67e22">${{ gran_total.isr|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Ret. ISR (4%)</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ gran_total.neto|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Neto Recibido</div>
+    </div>
+</div>
+
+<!-- TABLA MENSUAL -->
+<div class="seccion-titulo">Desglose Mensual</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th>Mes</th>
+            <th class="center" style="width:50px;">Reservas</th>
+            <th class="right" style="width:95px;">Bruto</th>
+            <th class="right" style="width:85px;">Comisión</th>
+            <th class="right" style="width:85px;">Ret. ISR</th>
+            <th class="right" style="width:85px;">Ret. IVA</th>
+            <th class="right" style="width:95px;">Neto</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in meses %}
+        <tr class="no-break">
+            <td class="text-bold">{{ m.label }}</td>
+            <td class="center">{{ m.reservas }}</td>
+            <td class="right">${{ m.bruto|floatformat:2|intcomma }}</td>
+            <td class="right">${{ m.comision|floatformat:2|intcomma }}</td>
+            <td class="right">${{ m.isr|floatformat:2|intcomma }}</td>
+            <td class="right">${{ m.iva|floatformat:2|intcomma }}</td>
+            <td class="right">${{ m.neto|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted">Sin pagos en el período.</td></tr>
+        {% endfor %}
+
+        {% if meses %}
+        <tr class="total">
+            <td>TOTAL</td>
+            <td class="center">{{ gran_total.reservas }}</td>
+            <td class="right">${{ gran_total.bruto|floatformat:2|intcomma }}</td>
+            <td class="right">${{ gran_total.comision|floatformat:2|intcomma }}</td>
+            <td class="right">${{ gran_total.isr|floatformat:2|intcomma }}</td>
+            <td class="right">${{ gran_total.iva|floatformat:2|intcomma }}</td>
+            <td class="right">${{ gran_total.neto|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- POR LISTING -->
+{% if por_listing %}
+<div class="seccion-titulo">Desglose por Listing</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th>Listing</th>
+            <th class="center" style="width:60px;">Reservas</th>
+            <th class="right" style="width:110px;">Bruto</th>
+            <th class="right" style="width:110px;">Neto</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in por_listing %}
+        <tr class="no-break">
+            <td class="text-bold">{{ l.anuncio__nombre }}</td>
+            <td class="center">{{ l.num_reservas }}</td>
+            <td class="right">${{ l.total_bruto|floatformat:2|intcomma }}</td>
+            <td class="right">${{ l.total_neto|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block orientation %}landscape{% endblock %}
+
+{% block subtitulo %}Resumen de cotizaciones por período y estado.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+    {% if estado_filtro %} | <strong>Estado:</strong> {{ estado_filtro }}{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!-- RESUMEN -->
+<div class="resumen-grid">
+    <div class="resumen-card">
+        <div class="valor">{{ count }}</div>
+        <div class="etiqueta">Cotizaciones</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ total_cotizado|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Total Cotizado</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ total_cobrado|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Total Cobrado</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor" style="color:#e67e22">${{ total_pendiente|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Pendiente</div>
+    </div>
+</div>
+
+{% if resumen_estados %}
+<div style="margin-bottom:10px; font-size:9px;">
+    <strong>Por estado:</strong>
+    {% for estado, count in resumen_estados.items %}
+        {{ estado }}: {{ count }}{% if not forloop.last %} | {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:55px;">Folio</th>
+            <th>Cliente</th>
+            <th>Evento</th>
+            <th class="center" style="width:55px;">Tipo</th>
+            <th class="center" style="width:65px;">Fecha</th>
+            <th class="right" style="width:85px;">Precio</th>
+            <th class="right" style="width:85px;">Pagado</th>
+            <th class="right" style="width:85px;">Saldo</th>
+            <th class="center" style="width:70px;">Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in cotizaciones %}
+        <tr class="no-break">
+            <td class="text-bold">{{ c.folio }}</td>
+            <td>{{ c.cliente|truncatechars:25 }}</td>
+            <td>{{ c.evento|truncatechars:25 }}</td>
+            <td class="center">{{ c.tipo_evento }}</td>
+            <td class="center">{{ c.fecha_evento|date:"d/m/y" }}</td>
+            <td class="right">${{ c.precio_final|floatformat:2|intcomma }}</td>
+            <td class="right">${{ c.total_pagado|floatformat:2|intcomma }}</td>
+            <td class="right">${{ c.saldo|floatformat:2|intcomma }}</td>
+            <td class="center"><span class="badge badge-neutral">{{ c.estado }}</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted">Sin cotizaciones en el período.</td></tr>
+        {% endfor %}
+
+        {% if cotizaciones %}
+        <tr class="total">
+            <td colspan="5">TOTALES ({{ count }})</td>
+            <td class="right">${{ total_cotizado|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_cobrado|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_pendiente|floatformat:2|intcomma }}</td>
+            <td></td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

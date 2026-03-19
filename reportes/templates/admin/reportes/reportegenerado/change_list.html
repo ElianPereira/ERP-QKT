@@ -1,0 +1,11 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <li>
+        <a href="{% url 'reportes:selector' %}" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
+            Centro de Reportes
+        </a>
+    </li>
+{% endblock %}

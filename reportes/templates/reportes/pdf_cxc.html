@@ -1,0 +1,83 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block orientation %}landscape{% endblock %}
+
+{% block subtitulo %}Antigüedad de saldos pendientes de cobro.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Fecha de Corte:</strong> {{ fecha_corte|date:"d/m/Y" }}
+{% endblock %}
+
+{% block content %}
+
+<!-- RESUMEN -->
+<div class="resumen-grid">
+    <div class="resumen-card">
+        <div class="valor">${{ total_por_cobrar|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Total por Cobrar</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor" style="color:#e74c3c">${{ total_vencido|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Vencido</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor" style="color:#e67e22">${{ total_por_vencer|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Por Vencer (&le;30 días)</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">{{ count_total }}</div>
+        <div class="etiqueta">Cotizaciones</div>
+    </div>
+</div>
+
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:60px;">Folio</th>
+            <th>Cliente</th>
+            <th>Evento</th>
+            <th class="center" style="width:70px;">Fecha</th>
+            <th class="right" style="width:80px;">Precio</th>
+            <th class="right" style="width:80px;">Pagado</th>
+            <th class="right" style="width:80px;">Saldo</th>
+            <th class="center" style="width:40px;">%</th>
+            <th class="center" style="width:50px;">Días</th>
+            <th class="center" style="width:70px;">Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in cartera %}
+        <tr class="no-break">
+            <td class="text-bold">{{ c.folio }}</td>
+            <td>{{ c.cliente }}</td>
+            <td>{{ c.evento|truncatechars:30 }}</td>
+            <td class="center">{{ c.fecha_evento|date:"d/m/y" }}</td>
+            <td class="right">${{ c.precio_final|floatformat:2|intcomma }}</td>
+            <td class="right">${{ c.total_pagado|floatformat:2|intcomma }}</td>
+            <td class="right text-bold">${{ c.saldo|floatformat:2|intcomma }}</td>
+            <td class="center">{{ c.porcentaje_pagado }}%</td>
+            <td class="center">{{ c.dias_evento }}</td>
+            <td class="center">
+                {% if c.antiguedad == 'VENCIDO' %}<span class="badge badge-danger">VENCIDO</span>
+                {% elif c.antiguedad == 'URGENTE' %}<span class="badge badge-warning">URGENTE</span>
+                {% elif c.antiguedad == 'PROXIMO' %}<span class="badge badge-info">PRÓXIMO</span>
+                {% else %}<span class="badge badge-success">AL DÍA</span>{% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10" class="text-center text-muted">No hay saldos pendientes.</td></tr>
+        {% endfor %}
+
+        {% if cartera %}
+        <tr class="total">
+            <td colspan="4">TOTAL ({{ count_total }} cotizaciones)</td>
+            <td class="right"></td>
+            <td class="right"></td>
+            <td class="right">${{ total_por_cobrar|floatformat:2|intcomma }}</td>
+            <td colspan="3"></td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

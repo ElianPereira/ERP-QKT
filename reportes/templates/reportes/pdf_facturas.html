@@ -1,0 +1,71 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block subtitulo %}Solicitudes de facturación emitidas en el período.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+{% endblock %}
+
+{% block content %}
+
+<!-- RESUMEN -->
+<div class="resumen-grid">
+    <div class="resumen-card">
+        <div class="valor">{{ count }}</div>
+        <div class="etiqueta">Facturas</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ total_monto|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Monto Total</div>
+    </div>
+</div>
+
+{% if resumen_forma_pago %}
+<div style="margin-bottom:10px; font-size:9px;">
+    <strong>Por forma de pago:</strong>
+    {% for forma, n in resumen_forma_pago.items %}
+        {{ forma }}: {{ n }}{% if not forloop.last %} | {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:50px;">Folio</th>
+            <th class="center" style="width:70px;">Fecha</th>
+            <th>Cliente</th>
+            <th style="width:90px;">RFC</th>
+            <th style="width:55px;">Cotización</th>
+            <th>Concepto</th>
+            <th class="right" style="width:90px;">Monto</th>
+            <th class="center" style="width:80px;">Forma Pago</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for f in facturas %}
+        <tr class="no-break">
+            <td class="text-bold">{{ f.folio }}</td>
+            <td class="center">{{ f.fecha|date:"d/m/y" }}</td>
+            <td>{{ f.cliente|truncatechars:25 }}</td>
+            <td>{{ f.rfc }}</td>
+            <td class="center">{{ f.cotizacion }}</td>
+            <td>{{ f.concepto }}</td>
+            <td class="right">${{ f.monto|floatformat:2|intcomma }}</td>
+            <td class="center" style="font-size:8px;">{{ f.forma_pago }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted">Sin facturas en el período.</td></tr>
+        {% endfor %}
+
+        {% if facturas %}
+        <tr class="total">
+            <td colspan="6">TOTAL ({{ count }} facturas)</td>
+            <td class="right">${{ total_monto|floatformat:2|intcomma }}</td>
+            <td></td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

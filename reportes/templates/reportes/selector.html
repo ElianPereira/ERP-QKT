@@ -1,0 +1,468 @@
+{% extends "admin/base_site.html" %}
+{% load static humanize %}
+
+{% block content %}
+<style>
+    .reportes-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px 0;
+    }
+    @media (max-width: 900px) {
+        .reportes-grid { grid-template-columns: 1fr; }
+    }
+
+    .seccion-reportes {
+        background: #383632;
+        border: 1px solid #4a4845;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .seccion-header {
+        padding: 14px 18px;
+        font-weight: 700;
+        font-size: 14px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .seccion-header i { font-size: 16px; }
+    .seccion-header.contabilidad { background: #2E7D32; }
+    .seccion-header.comercial { background: #e67e22; }
+    .seccion-header.airbnb { background: #e74c3c; }
+    .seccion-header.facturacion { background: #3498db; }
+
+    .reporte-item {
+        padding: 14px 18px;
+        border-bottom: 1px solid #4a4845;
+    }
+    .reporte-item:last-child { border-bottom: none; }
+
+    .reporte-titulo {
+        font-weight: 600;
+        font-size: 13px;
+        color: #e0ddd4;
+        margin-bottom: 10px;
+    }
+    .reporte-titulo i {
+        margin-right: 6px;
+        color: #4CAF50;
+        width: 18px;
+        text-align: center;
+    }
+
+    .filtros-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: flex-end;
+    }
+    .filtro-grupo {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+    .filtro-grupo label {
+        font-size: 10px;
+        color: #8a8780;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .filtro-grupo input,
+    .filtro-grupo select {
+        background: #fff !important;
+        color: #333 !important;
+        border: 1px solid #ccc !important;
+        border-radius: 4px;
+        padding: 6px 8px;
+        font-size: 12px;
+        font-family: 'IBM Plex Sans', sans-serif;
+        min-width: 130px;
+    }
+    .filtro-grupo select {
+        min-width: 160px;
+    }
+
+    .btn-generar {
+        background: #2E7D32;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 7px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: 'IBM Plex Sans', sans-serif;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    .btn-generar:hover { background: #388E3C; }
+    .btn-generar i { font-size: 11px; }
+
+    /* Page header */
+    .reportes-header {
+        text-align: center;
+        padding: 20px 0 10px;
+    }
+    .reportes-header h2 {
+        color: #e0ddd4;
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 6px;
+    }
+    .reportes-header p {
+        color: #8a8780;
+        font-size: 13px;
+        margin: 0;
+    }
+
+    /* Acceso rápido */
+    .quick-links {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+    .quick-link {
+        background: #33312e;
+        border: 1px solid #4a4845;
+        border-radius: 6px;
+        padding: 8px 14px;
+        color: #d4d1c8;
+        font-size: 11px;
+        font-weight: 600;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .quick-link:hover {
+        background: #3d3b38;
+        color: #4CAF50;
+    }
+    .quick-link i { color: #4CAF50; }
+</style>
+
+<div class="reportes-header">
+    <h2><i class="fas fa-chart-bar"></i> Centro de Reportes</h2>
+    <p>Quinta Ko'ox Tanil — Reportes consolidados por módulo</p>
+</div>
+
+<!-- Accesos rápidos con defaults -->
+<div class="quick-links">
+    <a class="quick-link" href="{% url 'reportes:balanza' %}?fecha_inicio={{ inicio_anio|date:'Y-m-d' }}&fecha_fin={{ hoy|date:'Y-m-d' }}">
+        <i class="fas fa-balance-scale"></i> Balanza Rápida (YTD)
+    </a>
+    <a class="quick-link" href="{% url 'reportes:estado_resultados' %}?fecha_inicio={{ inicio_anio|date:'Y-m-d' }}&fecha_fin={{ hoy|date:'Y-m-d' }}">
+        <i class="fas fa-chart-line"></i> P&L Rápido (YTD)
+    </a>
+    <a class="quick-link" href="{% url 'reportes:balance_general' %}?fecha_fin={{ hoy|date:'Y-m-d' }}">
+        <i class="fas fa-file-invoice-dollar"></i> Balance Hoy
+    </a>
+    <a class="quick-link" href="{% url 'reportes:cxc' %}?fecha_corte={{ hoy|date:'Y-m-d' }}">
+        <i class="fas fa-hand-holding-usd"></i> Cartera Hoy
+    </a>
+</div>
+
+<div class="reportes-grid">
+
+    <!-- ============================================================ -->
+    <!-- CONTABILIDAD                                                  -->
+    <!-- ============================================================ -->
+    <div class="seccion-reportes">
+        <div class="seccion-header contabilidad">
+            <i class="fas fa-calculator"></i> Contabilidad
+        </div>
+
+        <!-- 1. Balanza de Comprobación -->
+        <div class="reporte-item">
+            <div class="reporte-titulo"><i class="fas fa-balance-scale"></i> Balanza de Comprobación</div>
+            <form method="get" action="{% url 'reportes:balanza' %}" target="_blank">
+                <div class="filtros-row">
+                    <div class="filtro-grupo">
+                        <label>Desde</label>
+                        <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Hasta</label>
+                        <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Nivel</label>
+                        <select name="nivel">
+                            <option value="2">Nivel 2 (Grupos)</option>
+                            <option value="3" selected>Nivel 3 (Cuentas)</option>
+                            <option value="4">Nivel 4 (Subcuentas)</option>
+                        </select>
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Unidad</label>
+                        <select name="unidad_negocio">
+                            <option value="">Todas</option>
+                            {% for u in unidades_negocio %}
+                            <option value="{{ u.pk }}">{{ u.clave }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 2. Estado de Resultados -->
+        <div class="reporte-item">
+            <div class="reporte-titulo"><i class="fas fa-chart-line"></i> Estado de Resultados</div>
+            <form method="get" action="{% url 'reportes:estado_resultados' %}" target="_blank">
+                <div class="filtros-row">
+                    <div class="filtro-grupo">
+                        <label>Desde</label>
+                        <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Hasta</label>
+                        <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Unidad</label>
+                        <select name="unidad_negocio">
+                            <option value="">Todas</option>
+                            {% for u in unidades_negocio %}
+                            <option value="{{ u.pk }}">{{ u.clave }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 3. Balance General -->
+        <div class="reporte-item">
+            <div class="reporte-titulo"><i class="fas fa-file-invoice-dollar"></i> Balance General</div>
+            <form method="get" action="{% url 'reportes:balance_general' %}" target="_blank">
+                <div class="filtros-row">
+                    <div class="filtro-grupo">
+                        <label>Fecha de Corte</label>
+                        <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Unidad</label>
+                        <select name="unidad_negocio">
+                            <option value="">Todas</option>
+                            {% for u in unidades_negocio %}
+                            <option value="{{ u.pk }}">{{ u.clave }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 4. Libro Mayor -->
+        <div class="reporte-item">
+            <div class="reporte-titulo"><i class="fas fa-book"></i> Libro Mayor</div>
+            <form method="get" action="{% url 'reportes:libro_mayor' %}" target="_blank">
+                <div class="filtros-row">
+                    <div class="filtro-grupo">
+                        <label>Cuenta</label>
+                        <select name="cuenta_id" required>
+                            <option value="">— Seleccionar —</option>
+                            {% for c in cuentas_movimiento %}
+                            <option value="{{ c.pk }}">{{ c.codigo_sat }} {{ c.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Desde</label>
+                        <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Hasta</label>
+                        <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                    </div>
+                    <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 5. Auxiliar de Cuentas -->
+        <div class="reporte-item">
+            <div class="reporte-titulo"><i class="fas fa-sitemap"></i> Auxiliar de Cuentas</div>
+            <form method="get" action="{% url 'reportes:auxiliar' %}" target="_blank">
+                <div class="filtros-row">
+                    <div class="filtro-grupo">
+                        <label>Cuenta Padre</label>
+                        <select name="cuenta_padre_id" required>
+                            <option value="">— Seleccionar —</option>
+                            {% for c in cuentas_padre %}
+                            <option value="{{ c.pk }}">{{ c.codigo_sat }} {{ c.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Desde</label>
+                        <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                    </div>
+                    <div class="filtro-grupo">
+                        <label>Hasta</label>
+                        <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                    </div>
+                    <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- COLUMNA DERECHA: COMERCIAL + AIRBNB + FACTURACIÓN             -->
+    <!-- ============================================================ -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+        <!-- COMERCIAL -->
+        <div class="seccion-reportes">
+            <div class="seccion-header comercial">
+                <i class="fas fa-hand-holding-usd"></i> Comercial
+            </div>
+
+            <!-- 6. CxC Cartera -->
+            <div class="reporte-item">
+                <div class="reporte-titulo"><i class="fas fa-clock"></i> CxC — Antigüedad de Saldos</div>
+                <form method="get" action="{% url 'reportes:cxc' %}" target="_blank">
+                    <div class="filtros-row">
+                        <div class="filtro-grupo">
+                            <label>Fecha de Corte</label>
+                            <input type="date" name="fecha_corte" value="{{ hoy|date:'Y-m-d' }}">
+                        </div>
+                        <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 7. Cotizaciones -->
+            <div class="reporte-item">
+                <div class="reporte-titulo"><i class="fas fa-file-invoice-dollar"></i> Cotizaciones por Período</div>
+                <form method="get" action="{% url 'reportes:cotizaciones' %}" target="_blank">
+                    <div class="filtros-row">
+                        <div class="filtro-grupo">
+                            <label>Desde</label>
+                            <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Hasta</label>
+                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Estado</label>
+                            <select name="estado_cotizacion">
+                                <option value="">Todos</option>
+                                <option value="BORRADOR">Borrador</option>
+                                <option value="CONFIRMADA">Confirmada</option>
+                                <option value="EJECUTADA">Ejecutada</option>
+                                <option value="CANCELADA">Cancelada</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- AIRBNB -->
+        <div class="seccion-reportes">
+            <div class="seccion-header airbnb">
+                <i class="fas fa-home"></i> Airbnb
+            </div>
+
+            <!-- 8. Ocupación -->
+            <div class="reporte-item">
+                <div class="reporte-titulo"><i class="fas fa-bed"></i> Ocupación por Listing</div>
+                <form method="get" action="{% url 'reportes:ocupacion' %}" target="_blank">
+                    <div class="filtros-row">
+                        <div class="filtro-grupo">
+                            <label>Desde</label>
+                            <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Hasta</label>
+                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Anuncio</label>
+                            <select name="anuncio_id">
+                                <option value="">Todos</option>
+                                {% for a in anuncios_airbnb %}
+                                <option value="{{ a.pk }}">{{ a.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 9. Comparativo Mensual -->
+            <div class="reporte-item">
+                <div class="reporte-titulo"><i class="fas fa-chart-bar"></i> Comparativo Mensual</div>
+                <form method="get" action="{% url 'reportes:comparativo_airbnb' %}" target="_blank">
+                    <div class="filtros-row">
+                        <div class="filtro-grupo">
+                            <label>Desde</label>
+                            <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Hasta</label>
+                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Anuncio</label>
+                            <select name="anuncio_id">
+                                <option value="">Todos</option>
+                                {% for a in anuncios_airbnb %}
+                                <option value="{{ a.pk }}">{{ a.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- FACTURACIÓN -->
+        <div class="seccion-reportes">
+            <div class="seccion-header facturacion">
+                <i class="fas fa-file-invoice"></i> Facturación
+            </div>
+
+            <!-- 10. Facturas Emitidas -->
+            <div class="reporte-item">
+                <div class="reporte-titulo"><i class="fas fa-file-signature"></i> Facturas Emitidas</div>
+                <form method="get" action="{% url 'reportes:facturas' %}" target="_blank">
+                    <div class="filtros-row">
+                        <div class="filtro-grupo">
+                            <label>Desde</label>
+                            <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Hasta</label>
+                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
+                        </div>
+                        <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

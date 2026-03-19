@@ -1,0 +1,143 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block subtitulo %}Ingresos, costos, gastos y utilidad del período.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+{% endblock %}
+
+{% block content %}
+
+<!-- RESUMEN -->
+<div class="resumen-grid">
+    <div class="resumen-card">
+        <div class="valor">${{ total_ingresos|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Ingresos</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ utilidad_bruta|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Utilidad Bruta</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor" style="color:{% if utilidad_antes_impuestos >= 0 %}#2E7D32{% else %}#e74c3c{% endif %}">
+            ${{ utilidad_antes_impuestos|floatformat:2|intcomma }}
+        </div>
+        <div class="etiqueta">Utilidad Neta</div>
+    </div>
+</div>
+
+<!-- INGRESOS -->
+<div class="seccion-titulo">1. Ingresos</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:70px;">Código</th>
+            <th>Cuenta</th>
+            <th class="right" style="width:120px;">Importe</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in ingresos %}
+        <tr class="no-break">
+            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
+            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total">
+            <td colspan="2">Total Ingresos</td>
+            <td class="right">${{ total_ingresos|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- COSTOS -->
+<div class="seccion-titulo">2. Costo de Ventas</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:70px;">Código</th>
+            <th>Cuenta</th>
+            <th class="right" style="width:120px;">Importe</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in costos %}
+        <tr class="no-break">
+            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
+            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="subtotal">
+            <td colspan="2">Total Costo de Ventas</td>
+            <td class="right">${{ total_costos|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr class="total">
+            <td colspan="2">UTILIDAD BRUTA</td>
+            <td class="right">${{ utilidad_bruta|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- GASTOS -->
+<div class="seccion-titulo">3. Gastos de Operación</div>
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:70px;">Código</th>
+            <th>Cuenta</th>
+            <th class="right" style="width:120px;">Importe</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in gastos %}
+        <tr class="no-break">
+            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
+            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="subtotal">
+            <td colspan="2">Total Gastos</td>
+            <td class="right">${{ total_gastos|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr class="total">
+            <td colspan="2">UTILIDAD DE OPERACIÓN</td>
+            <td class="right">${{ utilidad_operacion|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- OTROS INGRESOS -->
+{% if otros_ingresos %}
+<div class="seccion-titulo">4. Otros Ingresos / Gastos</div>
+<table class="reporte">
+    <tbody>
+        {% for l in otros_ingresos %}
+        <tr class="no-break">
+            <td style="width:70px;">{{ l.codigo }}</td>
+            <td>{{ l.nombre }}</td>
+            <td class="right" style="width:120px;">${{ l.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="subtotal">
+            <td colspan="2">Total Otros</td>
+            <td class="right">${{ total_otros|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+{% endif %}
+
+<!-- RESULTADO FINAL -->
+<table class="reporte" style="margin-top:10px;">
+    <tr class="total">
+        <td style="font-size:12px;">UTILIDAD ANTES DE IMPUESTOS</td>
+        <td class="right" style="font-size:13px; width:140px; color:{% if utilidad_antes_impuestos >= 0 %}#2E7D32{% else %}#e74c3c{% endif %}">
+            ${{ utilidad_antes_impuestos|floatformat:2|intcomma }}
+        </td>
+    </tr>
+</table>
+
+{% endblock %}

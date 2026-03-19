@@ -1,0 +1,48 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block subtitulo %}Desglose de subcuentas y movimientos.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Cuenta:</strong> {{ cuenta_padre.codigo_sat }} — {{ cuenta_padre.nombre }}
+    | <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+{% endblock %}
+
+{% block content %}
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:80px;">Código</th>
+            <th>Subcuenta</th>
+            <th class="right" style="width:90px;">S. Inicial</th>
+            <th class="right" style="width:90px;">Cargos</th>
+            <th class="right" style="width:90px;">Abonos</th>
+            <th class="right" style="width:90px;">S. Final</th>
+            <th class="center" style="width:50px;">Movs.</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in lineas %}
+        <tr class="no-break">
+            <td>{{ l.codigo }}</td>
+            <td>{{ l.nombre }}</td>
+            <td class="right">${{ l.saldo_inicial|floatformat:2|intcomma }}</td>
+            <td class="right">${{ l.cargos|floatformat:2|intcomma }}</td>
+            <td class="right">${{ l.abonos|floatformat:2|intcomma }}</td>
+            <td class="right">${{ l.saldo_final|floatformat:2|intcomma }}</td>
+            <td class="center">{{ l.num_movimientos }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted">Sin subcuentas con movimientos.</td></tr>
+        {% endfor %}
+
+        <tr class="total">
+            <td colspan="3">TOTALES</td>
+            <td class="right">${{ total_debe|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_haber|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_saldo|floatformat:2|intcomma }}</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

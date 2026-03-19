@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: letter {% block orientation %}{% endblock %};
+            margin: 1.5cm 1.5cm 2cm 1.5cm;
+            @bottom-center {
+                content: "Página " counter(page) " de " counter(pages);
+                font-size: 8px;
+                color: #999;
+                font-family: 'Helvetica', sans-serif;
+            }
+        }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-size: 10px;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        /* === ENCABEZADO === */
+        .header-tbl { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .header-tbl td { border: none; vertical-align: middle; }
+        .logo-img { max-height: 50px; }
+        .empresa { margin: 0; color: #333; font-size: 15px; font-weight: 700; }
+        .title { font-size: 14px; font-weight: 900; color: #2E7D32; }
+        .subtitle { font-size: 9px; color: #666; margin-top: 2px; }
+
+        /* === SECCIONES === */
+        .seccion-titulo {
+            font-size: 11px;
+            font-weight: 700;
+            color: #2E7D32;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 4px;
+            margin: 14px 0 6px;
+        }
+
+        /* === TABLAS === */
+        table.reporte {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+            margin-bottom: 10px;
+        }
+        table.reporte th {
+            background: #2E7D32;
+            color: #fff;
+            padding: 5px 6px;
+            text-align: left;
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        table.reporte th.right,
+        table.reporte td.right { text-align: right; }
+        table.reporte th.center,
+        table.reporte td.center { text-align: center; }
+
+        table.reporte td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        table.reporte tr:nth-child(even) td {
+            background: #fafafa;
+        }
+        table.reporte tr.total td {
+            background: #E8F5E9;
+            font-weight: 700;
+            border-top: 2px solid #2E7D32;
+            font-size: 10px;
+        }
+        table.reporte tr.subtotal td {
+            background: #f5f5f5;
+            font-weight: 600;
+            border-top: 1px solid #aaa;
+        }
+
+        /* Niveles de indentación contable */
+        .nivel-1 { font-weight: 700; font-size: 10px; }
+        .nivel-2 { padding-left: 14px !important; font-weight: 600; }
+        .nivel-3 { padding-left: 28px !important; }
+        .nivel-4 { padding-left: 42px !important; font-size: 8px; color: #555; }
+
+        /* === RESUMEN CARDS === */
+        .resumen-grid {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .resumen-card {
+            flex: 1;
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 10px;
+            text-align: center;
+        }
+        .resumen-card .valor {
+            font-size: 14px;
+            font-weight: 700;
+            color: #2E7D32;
+        }
+        .resumen-card .etiqueta {
+            font-size: 8px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        /* === BADGES === */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 8px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .badge-success { background: #27ae60; }
+        .badge-warning { background: #e67e22; }
+        .badge-danger { background: #e74c3c; }
+        .badge-info { background: #3498db; }
+        .badge-neutral { background: #95a5a6; }
+
+        /* === PIE DE PÁGINA === */
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 8px;
+            color: #999;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+        }
+
+        /* === UTILIDADES === */
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-bold { font-weight: 700; }
+        .text-green { color: #2E7D32; }
+        .text-red { color: #e74c3c; }
+        .text-muted { color: #999; }
+        .no-break { page-break-inside: avoid; }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+
+    <!-- ENCABEZADO -->
+    <table class="header-tbl">
+        <tr>
+            <td width="40%">
+                <table style="width:100%;">
+                    <tr>
+                        {% if logo_url %}
+                        <td style="width:55px; border:none; padding:0;">
+                            <img src="{{ logo_url }}" class="logo-img">
+                        </td>
+                        {% endif %}
+                        <td style="border:none; padding-left:8px; vertical-align:middle;">
+                            <p class="empresa">QUINTA KO'OX TANIL</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+            <td width="60%" style="text-align:right;">
+                <div class="title">{{ titulo }}</div>
+                <div class="subtitle">{% block subtitulo %}{% endblock %}</div>
+                <div style="font-size:8px; margin-top:4px;">
+                    {% block periodo_header %}{% endblock %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    {% block content %}{% endblock %}
+
+    <div class="footer">
+        ERP Quinta Ko'ox Tanil — Generado {{ fecha_impresion|date:"d/m/Y H:i" }}
+        {% if unidad %} | Unidad: {{ unidad.clave }}{% endif %}
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,82 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block orientation %}landscape{% endblock %}
+
+{% block subtitulo %}Detalle de movimientos por cuenta contable.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Cuenta:</strong> {{ cuenta.codigo_sat }} — {{ cuenta.nombre }}
+    | <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+{% endblock %}
+
+{% block content %}
+
+<!-- RESUMEN -->
+<div class="resumen-grid">
+    <div class="resumen-card">
+        <div class="valor">${{ saldo_inicial|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Saldo Inicial</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ total_debe|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Total Cargos</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor">${{ total_haber|floatformat:2|intcomma }}</div>
+        <div class="etiqueta">Total Abonos</div>
+    </div>
+    <div class="resumen-card">
+        <div class="valor" style="color:{% if saldo_final >= 0 %}#2E7D32{% else %}#e74c3c{% endif %}">
+            ${{ saldo_final|floatformat:2|intcomma }}
+        </div>
+        <div class="etiqueta">Saldo Final</div>
+    </div>
+</div>
+
+<table class="reporte">
+    <thead>
+        <tr>
+            <th style="width:65px;">Fecha</th>
+            <th style="width:50px;">Tipo</th>
+            <th style="width:55px;">Folio</th>
+            <th>Concepto</th>
+            <th style="width:60px;">Referencia</th>
+            <th class="right" style="width:90px;">Debe</th>
+            <th class="right" style="width:90px;">Haber</th>
+            <th class="right" style="width:100px;">Saldo</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Saldo inicial -->
+        <tr style="background:#E8F5E9;">
+            <td colspan="5" class="text-bold">Saldo Inicial</td>
+            <td class="right">—</td>
+            <td class="right">—</td>
+            <td class="right text-bold">${{ saldo_inicial|floatformat:2|intcomma }}</td>
+        </tr>
+
+        {% for m in movimientos %}
+        <tr class="no-break">
+            <td>{{ m.fecha|date:"d/m/Y" }}</td>
+            <td>{{ m.tipo_poliza }}</td>
+            <td>{{ m.folio }}</td>
+            <td>{{ m.concepto|truncatechars:50 }}</td>
+            <td>{{ m.referencia|default:"—" }}</td>
+            <td class="right">{% if m.debe %}${{ m.debe|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+            <td class="right">{% if m.haber %}${{ m.haber|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+            <td class="right">${{ m.saldo|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted">Sin movimientos en el período.</td></tr>
+        {% endfor %}
+
+        <tr class="total">
+            <td colspan="5">TOTALES</td>
+            <td class="right">${{ total_debe|floatformat:2|intcomma }}</td>
+            <td class="right">${{ total_haber|floatformat:2|intcomma }}</td>
+            <td class="right">${{ saldo_final|floatformat:2|intcomma }}</td>
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

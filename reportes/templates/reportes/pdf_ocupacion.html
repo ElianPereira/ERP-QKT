@@ -1,0 +1,58 @@
+{% extends "reportes/pdf_base.html" %}
+{% load humanize %}
+
+{% block orientation %}landscape{% endblock %}
+
+{% block subtitulo %}Tasa de ocupación por listing y mes.{% endblock %}
+
+{% block periodo_header %}
+    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+{% endblock %}
+
+{% block content %}
+<table class="reporte">
+    <thead>
+        <tr>
+            <th>Listing</th>
+            <th class="center" style="width:60px;">Tipo</th>
+            {% for m in meses %}
+            <th class="center" style="width:65px;">{{ m.label }}</th>
+            {% endfor %}
+            <th class="center" style="width:55px;">Global</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for fila in data %}
+        <tr class="no-break">
+            <td class="text-bold">{{ fila.anuncio }}</td>
+            <td class="center">{{ fila.tipo }}</td>
+            {% for m in fila.meses %}
+            <td class="center" style="{% if m.tasa >= 70 %}color:#2E7D32; font-weight:700;{% elif m.tasa >= 40 %}color:#e67e22;{% else %}color:#e74c3c;{% endif %}">
+                {{ m.tasa }}%
+                <div style="font-size:7px; color:#999;">{{ m.noches }}/{{ m.disponibles }}</div>
+            </td>
+            {% endfor %}
+            <td class="center text-bold" style="{% if fila.tasa_global >= 70 %}color:#2E7D32;{% elif fila.tasa_global >= 40 %}color:#e67e22;{% else %}color:#e74c3c;{% endif %}">
+                {{ fila.tasa_global }}%
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="100" class="text-center text-muted">Sin datos de ocupación.</td></tr>
+        {% endfor %}
+
+        {% if totales_meses %}
+        <tr class="total">
+            <td colspan="2">PROMEDIO</td>
+            {% for t in totales_meses %}
+            <td class="center">{{ t.tasa }}%</td>
+            {% endfor %}
+            <td></td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<div style="margin-top:10px; font-size:8px; color:#666;">
+    <strong>Nota:</strong> Ocupación = noches reservadas / noches del mes. No incluye reservas canceladas ni bloqueos del host.
+</div>
+{% endblock %}
