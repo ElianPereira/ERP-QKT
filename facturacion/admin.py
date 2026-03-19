@@ -22,8 +22,11 @@ class ConfiguracionContadorAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         # Solo permitir un registro activo
-        if ConfiguracionContador.objects.filter(activo=True).exists():
-            return False
+        try:
+            if ConfiguracionContador.objects.filter(activo=True).exists():
+                return False
+        except Exception:
+            pass  # Tabla no existe aún
         return True
 
 
@@ -276,7 +279,3 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     def marcar_canceladas(self, request, queryset):
         count = queryset.exclude(estado='FACTURADA').update(estado='CANCELADA')
         self.message_user(request, f"✓ {count} solicitud(es) cancelada(s)")
-
-
-# ─── JavaScript para marcar enviada después de WhatsApp ───────
-# Este script se inyecta en el template del changelist
