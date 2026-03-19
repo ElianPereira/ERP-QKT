@@ -1,16 +1,14 @@
 """
 Admin del Módulo de Facturación
 ===============================
-Sistema de Diseño QKT v2.0
+Versión simplificada compatible con Django 6.x + Jazzmin
 """
 from django.contrib import admin
-from django.utils.html import format_html
 from django.urls import path, reverse
 from django.http import HttpResponseRedirect, JsonResponse
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.conf import settings
-from django.utils import timezone
 
 from .models import SolicitudFactura, ConfiguracionContador
 
@@ -21,33 +19,28 @@ class ConfiguracionContadorAdmin(admin.ModelAdmin):
     list_filter = ['activo']
     
     def has_add_permission(self, request):
-        # Solo permitir un registro activo
         try:
             if ConfiguracionContador.objects.filter(activo=True).exists():
                 return False
         except Exception:
-            pass  # Tabla no existe aún
+            pass
         return True
 
 
 @admin.register(SolicitudFactura)
 class SolicitudFacturaAdmin(admin.ModelAdmin):
-    change_list_template = 'admin/facturacion/solicitudfactura/change_list.html'
-    
     list_display = [
-        'folio_badge', 
-        'cliente_link', 
-        'monto_badge', 
+        'id',
+        'cliente',
+        'monto',
         'forma_pago',
-        'fecha_solicitud_fmt',
-        'estado_badge', 
-        'acciones_badge'
+        'fecha_solicitud',
+        'estado',
     ]
     list_filter = ['estado', 'forma_pago', 'fecha_solicitud']
     search_fields = ['cliente__nombre', 'rfc', 'razon_social', 'concepto']
     date_hierarchy = 'fecha_solicitud'
     ordering = ['-fecha_solicitud']
-    autocomplete_fields = ['cliente', 'cotizacion', 'pago']
     readonly_fields = [
         'created_by', 'created_at', 'updated_at',
         'enviada_por', 'fecha_envio', 'metodo_envio',
@@ -56,7 +49,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Cliente y Origen', {
-            'fields': ('cliente', 'cotizacion', 'pago')
+            'fields': ('cliente',)
         }),
         ('Datos Fiscales', {
             'fields': (
@@ -96,123 +89,6 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         }),
     )
     
-    # ─── Display methods ──────────────────────────────────────
-    
-    @admin.display(description="Folio", ordering="id")
-    def folio_badge(self, obj):
-        if obj.id:
-            return format_html(
-                '<span style="color:#4CAF50; font-weight:700;">SOL-{:04d}</span>',
-                int(obj.id)
-            )
-        return "-"
-    
-    @admin.display(description="Cliente", ordering="cliente__nombre")
-    def cliente_link(self, obj):
-        if not obj.cliente:
-            return "-"
-        return format_html(
-            '<a href="/admin/comercial/cliente/{}/change/" style="color:#4CAF50;">{}</a><br>'
-            '<small style="color:#95a5a6;">{}</small>',
-            int(obj.cliente.id),
-            obj.cliente.nombre[:30],
-            obj.rfc or "-"
-        )
-    
-    @admin.display(description="Monto", ordering="monto")
-    def monto_badge(self, obj):
-        if obj.monto:
-            return format_html(
-                '<span style="font-weight:600; color:#d4d1c8;">${:,.2f}</span>',
-                float(obj.monto)
-            )
-        return "-"
-    
-    @admin.display(description="Fecha", ordering="fecha_solicitud")
-    def fecha_solicitud_fmt(self, obj):
-        if obj.fecha_solicitud:
-            return obj.fecha_solicitud.strftime('%d/%m/%Y')
-        return "-"
-    
-    @admin.display(description="Estado", ordering="estado")
-    def estado_badge(self, obj):
-        colores = {
-            'PENDIENTE': '#e67e22',   # Warning
-            'ENVIADA': '#3498db',     # Info
-            'FACTURADA': '#27ae60',   # Success
-            'CANCELADA': '#95a5a6',   # Neutral
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        
-        icono = ''
-        if obj.estado == 'FACTURADA':
-            icono = ' ✓'
-        elif obj.estado == 'PENDIENTE':
-            icono = ' ⏳'
-        
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}{}</span>',
-            color,
-            obj.get_estado_display(),
-            icono
-        )
-    
-    @admin.display(description="Acciones")
-    def acciones_badge(self, obj):
-        if not obj.id:
-            return "-"
-            
-        if obj.estado == 'FACTURADA':
-            # Mostrar link a descargar factura
-            if obj.archivo_zip:
-                return format_html(
-                    '<a href="{}" target="_blank" class="btn btn-sm" '
-                    'style="background:#27ae60; color:#fff; padding:4px 8px; '
-                    'border-radius:4px; font-size:11px;">📥 ZIP</a>',
-                    obj.archivo_zip.url
-                )
-            elif obj.archivo_pdf:
-                return format_html(
-                    '<a href="{}" target="_blank" class="btn btn-sm" '
-                    'style="background:#27ae60; color:#fff; padding:4px 8px; '
-                    'border-radius:4px; font-size:11px;">📄 PDF</a>',
-                    obj.archivo_pdf.url
-                )
-            return format_html('<span style="color:#27ae60;">✓ Facturada</span>')
-        
-        if obj.estado == 'CANCELADA':
-            return format_html('<span style="color:#95a5a6;">—</span>')
-        
-        # Botones de envío para PENDIENTE y ENVIADA
-        whatsapp_url = obj.get_whatsapp_url()
-        
-        botones = []
-        
-        # Botón WhatsApp
-        if whatsapp_url:
-            botones.append(format_html(
-                '<a href="{}" target="_blank" class="btn btn-sm" '
-                'style="background:#25D366; color:#fff; padding:4px 8px; '
-                'border-radius:4px; font-size:11px; margin-right:4px;" '
-                'onclick="marcarEnviada({}, \'WHATSAPP\')">📱 WA</a>',
-                whatsapp_url,
-                int(obj.id)
-            ))
-        
-        # Botón Email
-        botones.append(format_html(
-            '<a href="/admin/facturacion/solicitudfactura/{}/enviar_email/" '
-            'class="btn btn-sm" '
-            'style="background:#3498db; color:#fff; padding:4px 8px; '
-            'border-radius:4px; font-size:11px;">📧 Email</a>',
-            int(obj.id)
-        ))
-        
-        return format_html(''.join([str(b) for b in botones]))
-    
-    # ─── Custom URLs ──────────────────────────────────────────
-    
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -235,11 +111,11 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         contador = ConfiguracionContador.get_activo()
         
         if not contador:
-            messages.error(request, "No hay contador configurado. Ve a Configuración del Contador.")
+            messages.error(request, "No hay contador configurado.")
             return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         
         try:
-            asunto = f"Solicitud de Factura SOL-{int(solicitud.id):04d} | {solicitud.cliente.nombre}"
+            asunto = f"Solicitud de Factura #{solicitud.id} | {solicitud.cliente.nombre}"
             cuerpo = solicitud.get_datos_para_contador()
             
             send_mail(
@@ -261,20 +137,16 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         )
     
     def marcar_enviada_view(self, request, solicitud_id):
-        """Marca la solicitud como enviada (llamado desde JS después de WhatsApp)."""
+        """Marca la solicitud como enviada."""
         solicitud = SolicitudFactura.objects.get(pk=solicitud_id)
         metodo = request.GET.get('metodo', 'WHATSAPP')
         solicitud.marcar_enviada(request.user, metodo)
         return JsonResponse({'status': 'ok'})
     
-    # ─── Save model ───────────────────────────────────────────
-    
     def save_model(self, request, obj, form, change):
         if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
-    
-    # ─── Actions ──────────────────────────────────────────────
     
     actions = ['marcar_enviadas', 'marcar_canceladas']
     
