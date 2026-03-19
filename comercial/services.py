@@ -337,7 +337,7 @@ class PlanPagosService:
         if monto_total <= 0:
             raise ValueError("La cotización no tiene precio final calculado.")
 
-        PlanPago.objects.filter(cotizacion=cotizacion, activo=True).update(activo=False)
+        PlanPago.objects.filter(cotizacion=cotizacion).delete()
 
         hoy = timezone.now().date()
         dias_anticipacion = (cotizacion.fecha_evento - hoy).days

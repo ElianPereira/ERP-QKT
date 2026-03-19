@@ -401,9 +401,9 @@ class CotizacionAdmin(admin.ModelAdmin):
                     '<a href="{url_4}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
                       'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
                     '<a href="{url_5}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">5 pagos</a>'
                     '<a href="{url_6}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
+                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">6 pagos</a>'
                   '</div>'
                 '</div>',
                 uid=uid,

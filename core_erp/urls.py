@@ -9,7 +9,6 @@ from comercial.views import ver_cartera_cxc
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
 from airbnb.views import reporte_fiscal_airbnb
-from django.urls import path, include
 
 try:
     from airbnb.views import calendario_unificado, reporte_pagos_airbnb, bloquear_en_airbnb
@@ -36,7 +35,6 @@ try:
         exportar_cierre_excel,
         exportar_reporte_cotizaciones,
         generar_lista_compras,
-        forzar_migracion,
         exportar_reporte_pagos,
         descargar_lista_compras_pdf,
         descargar_ficha_producto,
