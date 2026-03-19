@@ -68,7 +68,7 @@ def revertir_configuracion(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contabilidad', '0004_convertir_regimenes_existentes'),
+        ('contabilidad', '0003_actualizar_regimenes_sat'),
     ]
 
     operations = [
