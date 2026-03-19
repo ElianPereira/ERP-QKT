@@ -5,6 +5,7 @@ Sistema de Diseño QKT v2.0
 """
 from django.contrib import admin
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.urls import path, reverse
 from django.http import HttpResponseRedirect, JsonResponse
 from django.contrib import messages
@@ -97,16 +98,19 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     def folio_display(self, obj):
         if not obj.id:
             return "-"
+        folio = str(obj.id).zfill(4)
         return format_html(
             '<span style="color:#4CAF50; font-weight:600;">SOL-{}</span>',
-            str(obj.id).zfill(4)
+            folio
         )
     
     @admin.display(description="Cliente", ordering="cliente__nombre")
     def cliente_display(self, obj):
         if not obj.cliente:
             return "-"
-        nombre = obj.cliente.nombre[:35] if len(obj.cliente.nombre) > 35 else obj.cliente.nombre
+        nombre = obj.cliente.nombre
+        if len(nombre) > 35:
+            nombre = nombre[:35] + "..."
         return format_html(
             '<span style="color:#d4d1c8;">{}</span>',
             nombre
@@ -116,9 +120,10 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     def monto_display(self, obj):
         if not obj.monto:
             return "-"
+        monto_str = "${:,.2f}".format(float(obj.monto))
         return format_html(
-            '<span style="font-weight:600; color:#d4d1c8;">${}</span>',
-            "{:,.2f}".format(float(obj.monto))
+            '<span style="font-weight:600; color:#d4d1c8;">{}</span>',
+            monto_str
         )
     
     @admin.display(description="Fecha", ordering="fecha_solicitud")
@@ -136,17 +141,20 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             'CANCELADA': '#95a5a6',
         }
         color = colores.get(obj.estado, '#95a5a6')
+        estado_texto = obj.get_estado_display()
         return format_html(
             '<span style="background:{}; color:#fff; padding:4px 12px; '
             'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
             color,
-            obj.get_estado_display()
+            estado_texto
         )
     
     @admin.display(description="Acciones")
     def acciones_display(self, obj):
         if not obj.id:
             return "-"
+        
+        obj_id = int(obj.id)
         
         # Si ya está facturada, mostrar link de descarga
         if obj.estado == 'FACTURADA':
@@ -166,40 +174,42 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
                     'Descargar PDF</a>',
                     obj.archivo_pdf.url
                 )
-            return format_html(
+            return mark_safe(
                 '<span style="color:#27ae60; font-weight:600;">Facturada</span>'
             )
         
         # Si está cancelada
         if obj.estado == 'CANCELADA':
-            return format_html(
+            return mark_safe(
                 '<span style="color:#95a5a6;">Cancelada</span>'
             )
         
         # Botones para PENDIENTE y ENVIADA
-        botones = []
+        html_parts = []
         
         # Botón WhatsApp
         whatsapp_url = obj.get_whatsapp_url()
         if whatsapp_url:
-            botones.append(
-                '<a href="{}" target="_blank" '
+            wa_btn = (
+                '<a href="{wa_url}" target="_blank" '
                 'style="background:#25D366; color:#fff; padding:4px 10px; '
                 'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; margin-right:4px;" '
-                'onclick="marcarEnviada({}, \'WHATSAPP\')">'
-                'WhatsApp</a>'.format(whatsapp_url, obj.id)
-            )
+                'onclick="marcarEnviada({obj_id}, \'WHATSAPP\')">'
+                'WhatsApp</a>'
+            ).format(wa_url=whatsapp_url, obj_id=obj_id)
+            html_parts.append(wa_btn)
         
         # Botón Email
-        email_url = '/admin/facturacion/solicitudfactura/{}/enviar_email/'.format(obj.id)
-        botones.append(
-            '<a href="{}" '
+        email_url = '/admin/facturacion/solicitudfactura/{}/enviar_email/'.format(obj_id)
+        email_btn = (
+            '<a href="{email_url}" '
             'style="background:#3498db; color:#fff; padding:4px 10px; '
             'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600;">'
-            'Email</a>'.format(email_url)
-        )
+            'Email</a>'
+        ).format(email_url=email_url)
+        html_parts.append(email_btn)
         
-        return format_html(''.join(botones))
+        return mark_safe(''.join(html_parts))
     
     # ─── Custom URLs ──────────────────────────────────────────
     
@@ -229,10 +239,8 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         
         try:
-            asunto = "Solicitud de Factura SOL-{} | {}".format(
-                str(solicitud.id).zfill(4),
-                solicitud.cliente.nombre
-            )
+            folio = str(solicitud.id).zfill(4)
+            asunto = "Solicitud de Factura SOL-{} | {}".format(folio, solicitud.cliente.nombre)
             cuerpo = solicitud.get_datos_para_contador()
             
             send_mail(
