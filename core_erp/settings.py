@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'anymail',
     'airbnb',
     'contabilidad',
+    'reportes',
 ]
 
 MIDDLEWARE = [
@@ -211,6 +212,10 @@ JAZZMIN_SETTINGS = {
         # AUTH
         "auth.user":                        "fas fa-user",
         "auth.group":                       "fas fa-users-cog",
+
+        #REPORTERIA
+        "reportes":                          "fas fa-chart-bar",
+        "reportes.reportegenerado":          "fas fa-history",
     },
 
     # ── TOP MENU: Sin emojis, solo texto limpio ──
@@ -221,6 +226,7 @@ JAZZMIN_SETTINGS = {
         {"name": "Calculadora",        "url": "admin_calculadora"},
         {"name": "Compras",            "url": "generar_lista_compras"},
         {"name": "Cartera",            "url": "cartera_cxc"},
+        {"name": "Reportes", "url": "reportes:selector"},
         {"name": "Cerrar sesión",      "url": "/admin/logout/",    "new_window": False},
     ],
 
@@ -266,6 +272,10 @@ JAZZMIN_SETTINGS = {
         "facturacion",
         "facturacion.ClienteFiscal",
         "facturacion.SolicitudFactura",
+
+        # === REPORTES ===
+        "reportes",
+        "reportes.reportegenerado",
 
         # === ADMINISTRACIÓN ===
         "auth",
