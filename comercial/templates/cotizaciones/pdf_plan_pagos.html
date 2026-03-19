@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <style>
         @page { size: letter; margin: 2cm; }
-        body { font-family: Arial, sans-serif; color: #333; font-size: 13px; line-height: 1.5; }
+        body { font-family: 'IBM Plex Sans', 'Helvetica', 'Arial', sans-serif; color: #333; font-size: 13px; line-height: 1.5; }
         
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #2E7D32; padding-bottom: 15px; margin-bottom: 25px; }
         .header img { max-height: 70px; }
@@ -30,14 +30,10 @@
         .porcentaje { color: #666; text-align: center; }
         .fecha { text-align: center; }
         
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; color: white; }
-        .badge-pendiente { background: #f39c12; }
-        .badge-pagada { background: #27ae60; }
-        
         .total-row { background: #2E7D32 !important; }
         .total-row td { color: white !important; font-weight: bold; font-size: 14px; border-bottom: none !important; }
         
-        .resumen-box { background: #f0f7fb; border: 1px solid #b8d4e3; border-radius: 8px; padding: 15px; margin-top: 20px; }
+        .resumen-box { background: #E8F5E9; border: 1px solid #A5D6A7; border-radius: 8px; padding: 15px; margin-top: 20px; }
         .resumen-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center; }
         .resumen-item h3 { margin: 0; font-size: 22px; color: #2E7D32; }
         .resumen-item p { margin: 3px 0 0; font-size: 11px; color: #666; text-transform: uppercase; }
@@ -48,12 +44,10 @@
         .condiciones li { margin-bottom: 4px; }
         
         .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
-        
         .highlight { color: #2E7D32; font-weight: bold; }
     </style>
 </head>
 <body>
-    <!-- ENCABEZADO -->
     <div class="header">
         <img src="{{ logo_url }}" alt="Quinta Ko'ox Tanil">
         <div class="header-info">
@@ -63,30 +57,16 @@
         </div>
     </div>
     
-    <!-- DATOS DEL EVENTO -->
     <div class="seccion">
         <div class="seccion-titulo">Datos del Evento</div>
         <div class="datos-grid">
-            <div class="dato">
-                <span class="dato-label">Cliente:</span>
-                <span class="dato-valor">{{ cotizacion.cliente.nombre }}</span>
-            </div>
-            <div class="dato">
-                <span class="dato-label">Evento:</span>
-                <span class="dato-valor">{{ cotizacion.nombre_evento }}</span>
-            </div>
-            <div class="dato">
-                <span class="dato-label">Fecha del Evento:</span>
-                <span class="dato-valor highlight">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</span>
-            </div>
-            <div class="dato">
-                <span class="dato-label">No. Personas:</span>
-                <span class="dato-valor">{{ cotizacion.num_personas }}</span>
-            </div>
+            <div class="dato"><span class="dato-label">Cliente:</span><span class="dato-valor">{{ cotizacion.cliente.nombre }}</span></div>
+            <div class="dato"><span class="dato-label">Evento:</span><span class="dato-valor">{{ cotizacion.nombre_evento }}</span></div>
+            <div class="dato"><span class="dato-label">Fecha del Evento:</span><span class="dato-valor highlight">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</span></div>
+            <div class="dato"><span class="dato-label">No. Personas:</span><span class="dato-valor">{{ cotizacion.num_personas }}</span></div>
         </div>
     </div>
     
-    <!-- RESUMEN FINANCIERO -->
     <div class="resumen-box">
         <div class="resumen-grid">
             <div class="resumen-item">
@@ -104,7 +84,6 @@
         </div>
     </div>
     
-    <!-- TABLA DE PARCIALIDADES -->
     <div class="seccion" style="margin-top: 25px;">
         <div class="seccion-titulo">Calendario de Pagos</div>
         <table class="tabla-pagos">
@@ -137,79 +116,72 @@
         </table>
     </div>
     
-        <!-- CONDICIONES DE PAGO -->
+    <!-- CONDICIONES DE PAGO -->
     <div class="condiciones">
         <h4>Condiciones de Pago</h4>
         <ul>
-            <li>Los pagos pueden realizarse por <strong>transferencia bancaria, efectivo o tarjeta de débito/crédito</strong>. Todo pago debe contar con comprobante (recibo, captura de transferencia o voucher).</li>
+            <li>Los pagos pueden realizarse por <strong>transferencia bancaria, efectivo o tarjeta de débito/crédito</strong>. Todo pago debe contar con comprobante.</li>
             <li>El anticipo es <strong>indispensable para apartar la fecha</strong> del evento. La fecha no se considera reservada hasta que se reciba el anticipo y se confirme por escrito.</li>
-            <li>El <strong>pago total debe completarse mínimo 15 días naturales antes</strong> de la fecha del evento. De no cumplirse, el prestador de servicios se reserva el derecho de cancelar el evento sin obligación de reembolso de los pagos realizados.</li>
+            <li>El <strong>pago total debe completarse mínimo 15 días naturales antes</strong> de la fecha del evento.</li>
             <li>Los pagos realizados después de la fecha límite de cada parcialidad generarán un <strong>cargo por mora del 5% mensual</strong> sobre el monto vencido.</li>
         </ul>
     </div>
 
-    <!-- POLÍTICA DE CANCELACIÓN -->
     <div class="condiciones" style="margin-top: 10px;">
         <h4>Política de Cancelación</h4>
         <ul>
-            <li>El consumidor cuenta con <strong>5 días hábiles posteriores a la firma</strong> del acuerdo para cancelar sin penalización, conforme a la NOM-174-SCFI-2007, siempre que el servicio no se haya comenzado a prestar.</li>
-            <li>Cancelación solicitada <strong>con más de 90 días de anticipación</strong> al evento: se retiene el <strong>10%</strong> del monto total como penalización. Se reembolsa el resto.</li>
-            <li>Cancelación solicitada <strong>entre 60 y 90 días antes</strong>: se retiene el <strong>25%</strong> del monto total.</li>
-            <li>Cancelación solicitada <strong>entre 30 y 60 días antes</strong>: se retiene el <strong>50%</strong> del monto total.</li>
-            <li>Cancelación solicitada <strong>con menos de 30 días de anticipación</strong>: se retiene el <strong>100%</strong> del monto total. No aplica reembolso.</li>
-            <li>Toda solicitud de cancelación debe realizarse <strong>por escrito</strong> (correo electrónico o documento firmado).</li>
+            <li>El consumidor cuenta con <strong>5 días hábiles posteriores a la firma</strong> para cancelar sin penalización (NOM-174-SCFI-2007).</li>
+            <li>Cancelación <strong>+90 días antes</strong>: retención del <strong>10%</strong>.</li>
+            <li>Cancelación <strong>60-90 días antes</strong>: retención del <strong>25%</strong>.</li>
+            <li>Cancelación <strong>30-60 días antes</strong>: retención del <strong>50%</strong>.</li>
+            <li>Cancelación <strong>menos de 30 días</strong>: retención del <strong>100%</strong>.</li>
+            <li>Toda solicitud de cancelación debe realizarse <strong>por escrito</strong>.</li>
         </ul>
     </div>
 
-    <!-- CAMBIO DE FECHA -->
     <div class="condiciones" style="margin-top: 10px;">
         <h4>Cambio de Fecha</h4>
         <ul>
-            <li>Se permite <strong>un cambio de fecha sin costo</strong> siempre que se solicite con al menos 60 días naturales de anticipación y esté sujeto a disponibilidad.</li>
-            <li>Cambios de fecha solicitados con <strong>menos de 60 días</strong> generarán un cargo administrativo del <strong>10% del monto total</strong>.</li>
-            <li>No se permiten más de <strong>dos cambios de fecha</strong> por evento. Un tercer cambio se considerará cancelación.</li>
+            <li>Se permite <strong>un cambio de fecha sin costo</strong> con al menos 60 días de anticipación, sujeto a disponibilidad.</li>
+            <li>Cambios con <strong>menos de 60 días</strong>: cargo administrativo del <strong>10%</strong>.</li>
+            <li>Máximo <strong>dos cambios</strong> por evento. Un tercer cambio se considera cancelación.</li>
         </ul>
     </div>
 
-    <!-- RESPONSABILIDADES -->
     <div class="condiciones" style="margin-top: 10px;">
         <h4>Responsabilidades del Cliente</h4>
         <ul>
-            <li>El cliente se compromete a <strong>designar un responsable</strong> que esté presente durante todo el evento para coordinar cualquier asunto relacionado con el servicio.</li>
-            <li>El cliente es responsable de los <strong>daños causados a las instalaciones, mobiliario o equipo</strong> por parte de sus invitados. Los daños se valuarán y cobrarán por separado.</li>
-            <li>El número final de personas debe confirmarse <strong>al menos 10 días antes del evento</strong>. Incrementos superiores al 10% del número original están sujetos a disponibilidad y ajuste de precio.</li>
-            <li>El consumo de alcohol es responsabilidad exclusiva de los asistentes. Quinta Ko'ox Tanil se reserva el derecho de <strong>suspender el servicio de barra</strong> si detecta conductas que pongan en riesgo la integridad de personas o instalaciones.</li>
+            <li>Designar un <strong>responsable presente durante el evento</strong>.</li>
+            <li>Responsable de <strong>daños a instalaciones, mobiliario o equipo</strong> causados por invitados.</li>
+            <li>Confirmar número final de personas <strong>10 días antes</strong>. Incrementos superiores al 10% sujetos a disponibilidad.</li>
+            <li>Quinta Ko'ox Tanil se reserva el derecho de <strong>suspender el servicio de barra</strong> ante conductas de riesgo.</li>
         </ul>
     </div>
 
-    <!-- FUERZA MAYOR -->
     <div class="condiciones" style="margin-top: 10px;">
         <h4>Caso Fortuito y Fuerza Mayor</h4>
         <ul>
-            <li>En caso de imposibilidad de prestar el servicio por causas de <strong>fuerza mayor</strong> (desastres naturales, contingencias sanitarias, disposiciones gubernamentales), ninguna de las partes incurrirá en incumplimiento.</li>
-            <li>En estos casos, se ofrecerá al cliente la opción de <strong>reprogramar el evento</strong> sin costo adicional o el <strong>reembolso del anticipo entregado</strong>, descontando únicamente los gastos ya incurridos y comprobables.</li>
+            <li>En caso de <strong>fuerza mayor</strong>, ninguna parte incurre en incumplimiento.</li>
+            <li>Se ofrecerá <strong>reprogramación sin costo</strong> o <strong>reembolso</strong> descontando gastos incurridos.</li>
         </ul>
     </div>
 
-    <!-- DATOS PERSONALES -->
-    <div class="condiciones" style="margin-top: 10px;">
-        <h4>Aviso de Privacidad</h4>
-        <ul>
-            <li>Los datos personales proporcionados serán tratados conforme a la <strong>Ley Federal de Protección de Datos Personales en Posesión de los Particulares</strong> y se utilizarán exclusivamente para la prestación del servicio contratado.</li>
-        </ul>
-    </div>
-
-    <!-- GENERAL -->
     <div class="condiciones" style="margin-top: 10px;">
         <h4>Disposiciones Generales</h4>
         <ul>
-            <li>Los precios incluyen los servicios descritos en la cotización original. <strong>Cualquier servicio adicional</strong> no contemplado se cotizará y cobrará por separado previo acuerdo.</li>
-            <li>Este plan de pagos forma parte integral de la cotización <strong>COT-{{ cotizacion.id|stringformat:"03d" }}</strong> y tiene validez de <strong>15 días naturales</strong> a partir de su fecha de generación.</li>
-            <li>Para cualquier controversia, las partes se someten a la jurisdicción de los tribunales de <strong>Mérida, Yucatán</strong>, y al procedimiento de conciliación de PROFECO.</li>
+            <li>Servicios adicionales se cotizarán por separado previo acuerdo.</li>
+            <li>Este plan tiene validez de <strong>15 días naturales</strong> a partir de su generación.</li>
+            <li>Jurisdicción: tribunales de <strong>Mérida, Yucatán</strong> y PROFECO.</li>
         </ul>
     </div>
+
+    {% if plan.notas %}
+    <div class="condiciones" style="margin-top: 10px;">
+        <h4>Notas</h4>
+        <p style="font-size: 12px; color: #555;">{{ plan.notas }}</p>
+    </div>
+    {% endif %}
     
-    <!-- FOOTER -->
     <div class="footer">
         <p><strong>Quinta Ko'ox Tanil</strong> — Mérida, Yucatán</p>
         <p>Este documento es informativo. Los términos definitivos se establecen en el contrato de servicios.</p>

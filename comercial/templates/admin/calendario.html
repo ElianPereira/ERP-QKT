@@ -3,30 +3,36 @@
 
 {% block content %}
 <style>
-    /* Forzar pantalla completa */
     .content-wrapper > .content { padding: 0 !important; }
     .container-fluid, .row, .col-12 { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
     #content-main { width: 100% !important; max-width: 100% !important; }
 
-    /* Tarjeta Full Screen */
-    .card { border: none; border-radius: 0; margin: -15px -10px 0 -10px; width: calc(100% + 20px); box-shadow: none; }
-    .card-header { background-color: #356685; color: white; padding: 15px 20px; border-radius: 0 !important; }
+    .card { border: none; border-radius: 0; margin: -15px -10px 0 -10px; width: calc(100% + 20px); box-shadow: none; background: #383632 !important; }
+    .card-header { background-color: #2E7D32 !important; color: white; padding: 15px 20px; border-radius: 0 !important; }
+    .card-header h3 { color: white !important; }
 
-    /* Estilos FullCalendar */
-    .fc { font-family: -apple-system, sans-serif; }
-    .fc-toolbar-title { font-size: 1.5rem !important; font-weight: 600; color: #333; }
-    .fc-col-header-cell { background-color: #f4f6f9; padding: 10px 0 !important; }
-    .fc-event { border: none; padding: 3px 5px; font-size: 0.85rem; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; }
+    .fc { font-family: 'IBM Plex Sans', sans-serif; }
+    .fc-toolbar-title { font-size: 1.4rem !important; font-weight: 600; color: #e0ddd4 !important; }
+    .fc-col-header-cell { background-color: #33312e !important; padding: 10px 0 !important; color: #d4d1c8 !important; }
+    .fc-daygrid-day { background: #383632 !important; }
+    .fc-daygrid-day-number { color: #d4d1c8 !important; }
+    .fc-day-today { background: rgba(46,125,50,0.1) !important; }
+    .fc-event { border: none; padding: 3px 5px; font-size: 0.82rem; border-radius: 4px; cursor: pointer; font-family: 'IBM Plex Sans', sans-serif; }
+    .fc-button { background: #2E7D32 !important; border-color: #2E7D32 !important; font-family: 'IBM Plex Sans', sans-serif !important; font-weight: 600 !important; font-size: 12px !important; }
+    .fc-button:hover { background: #388E3C !important; }
+    .fc-button-active { background: #1B5E20 !important; }
+    .fc-scrollgrid { border-color: #4a4845 !important; }
+    .fc td, .fc th { border-color: #4a4845 !important; }
 </style>
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title" style="margin:0; font-size: 1.3rem;">
+        <h3 class="card-title" style="margin:0; font-size: 1.2rem; font-weight: 600;">
             <i class="fas fa-calendar-alt"></i> Calendario de Eventos
         </h3>
         <div>
-            <span class="badge badge-light mr-2" style="color:#333;"><i class="fas fa-circle text-success"></i> Confirmados</span>
-            <span class="badge badge-light" style="color:#333;"><i class="fas fa-circle text-secondary"></i> Borradores</span>
+            <span style="font-size:12px; color:rgba(255,255,255,0.8); margin-right:12px;"><i class="fas fa-circle" style="color:#2E7D32;"></i> Confirmados</span>
+            <span style="font-size:12px; color:rgba(255,255,255,0.8);"><i class="fas fa-circle" style="color:#95a5a6;"></i> Borradores</span>
         </div>
     </div>
     <div class="card-body p-0">
@@ -37,25 +43,20 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    var calendarEl = document.getElementById('calendar');
     var eventos = JSON.parse("{{ eventos_json|escapejs }}");
-
-    var calendar = new FullCalendar.Calendar(calendarEl, {
+    var calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
       initialView: 'dayGridMonth',
-      locale: 'es', 
-      height: '85vh', 
-      expandRows: true, 
+      locale: 'es',
+      height: '85vh',
+      expandRows: true,
       headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
       buttonText: { today: 'Hoy', month: 'Mes', list: 'Lista' },
-      events: eventos, 
-      dayMaxEvents: true, 
-      firstDay: 1, 
+      events: eventos,
+      dayMaxEvents: true,
+      firstDay: 1,
       eventDidMount: function(info) { info.el.title = info.event.title; },
       eventClick: function(info) {
-          if (info.event.url) {
-              window.open(info.event.url, "_self");
-              info.jsEvent.preventDefault();
-          }
+          if (info.event.url) { window.open(info.event.url, "_self"); info.jsEvent.preventDefault(); }
       }
     });
     calendar.render();
