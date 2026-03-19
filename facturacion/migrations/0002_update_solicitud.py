@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('facturacion', '0001_initial'),  # Ajusta según tu última migración
-        ('comercial', '0001_initial'),  # Para la FK a Pago
+        ('comercial', '0026_add_solicitar_factura'),  # Para la FK a Pago
     ]
 
     operations = [
