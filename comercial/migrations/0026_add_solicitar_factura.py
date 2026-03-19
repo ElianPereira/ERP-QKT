@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('comercial', '0001_initial'),  # Ajusta según tu última migración
+        ('comercial', '0025_recordatorio_pago'),  # Ajusta según tu última migración
     ]
 
     operations = [
