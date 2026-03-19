@@ -100,31 +100,39 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     
     @admin.display(description="Folio", ordering="id")
     def folio_badge(self, obj):
-        return format_html(
-            '<span style="color:#4CAF50; font-weight:700;">SOL-{:04d}</span>',
-            obj.id
-        )
+        if obj.id:
+            return format_html(
+                '<span style="color:#4CAF50; font-weight:700;">SOL-{:04d}</span>',
+                int(obj.id)
+            )
+        return "-"
     
     @admin.display(description="Cliente", ordering="cliente__nombre")
     def cliente_link(self, obj):
+        if not obj.cliente:
+            return "-"
         return format_html(
             '<a href="/admin/comercial/cliente/{}/change/" style="color:#4CAF50;">{}</a><br>'
             '<small style="color:#95a5a6;">{}</small>',
-            obj.cliente.id,
+            int(obj.cliente.id),
             obj.cliente.nombre[:30],
-            obj.rfc
+            obj.rfc or "-"
         )
     
     @admin.display(description="Monto", ordering="monto")
     def monto_badge(self, obj):
-        return format_html(
-            '<span style="font-weight:600; color:#d4d1c8;">${:,.2f}</span>',
-            obj.monto
-        )
+        if obj.monto:
+            return format_html(
+                '<span style="font-weight:600; color:#d4d1c8;">${:,.2f}</span>',
+                float(obj.monto)
+            )
+        return "-"
     
     @admin.display(description="Fecha", ordering="fecha_solicitud")
     def fecha_solicitud_fmt(self, obj):
-        return obj.fecha_solicitud.strftime('%d/%m/%Y')
+        if obj.fecha_solicitud:
+            return obj.fecha_solicitud.strftime('%d/%m/%Y')
+        return "-"
     
     @admin.display(description="Estado", ordering="estado")
     def estado_badge(self, obj):
@@ -152,6 +160,9 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     
     @admin.display(description="Acciones")
     def acciones_badge(self, obj):
+        if not obj.id:
+            return "-"
+            
         if obj.estado == 'FACTURADA':
             # Mostrar link a descargar factura
             if obj.archivo_zip:
@@ -186,7 +197,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
                 'border-radius:4px; font-size:11px; margin-right:4px;" '
                 'onclick="marcarEnviada({}, \'WHATSAPP\')">📱 WA</a>',
                 whatsapp_url,
-                obj.id
+                int(obj.id)
             ))
         
         # Botón Email
@@ -195,7 +206,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             'class="btn btn-sm" '
             'style="background:#3498db; color:#fff; padding:4px 8px; '
             'border-radius:4px; font-size:11px;">📧 Email</a>',
-            obj.id
+            int(obj.id)
         ))
         
         return format_html(''.join([str(b) for b in botones]))
@@ -228,7 +239,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         
         try:
-            asunto = f"Solicitud de Factura SOL-{solicitud.id:04d} | {solicitud.cliente.nombre}"
+            asunto = f"Solicitud de Factura SOL-{int(solicitud.id):04d} | {solicitud.cliente.nombre}"
             cuerpo = solicitud.get_datos_para_contador()
             
             send_mail(
