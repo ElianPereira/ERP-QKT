@@ -12,6 +12,9 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     """
     Crea una SolicitudFactura cuando se registra un Pago
     con solicitar_factura=True.
+    
+    Si el cliente tiene datos fiscales completos, usa esos datos.
+    Si no, factura a Público en General.
     """
     if not created:
         return
@@ -22,16 +25,28 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     if not getattr(pago, 'solicitar_factura', False):
         return
     
-    # Verificar que la cotización requiere factura y tiene datos fiscales
     cotizacion = pago.cotizacion
     cliente = cotizacion.cliente
-    
-    if not cliente.es_cliente_fiscal or not cliente.rfc:
-        return
     
     # Importar aquí para evitar circular imports
     from facturacion.models import SolicitudFactura
     from facturacion.choices import FormaPago
+    
+    # Determinar datos fiscales: del cliente o Público en General
+    if cliente.rfc and cliente.razon_social:
+        # Cliente con datos fiscales completos
+        rfc = cliente.rfc
+        razon_social = cliente.razon_social
+        codigo_postal = cliente.codigo_postal_fiscal or '97238'
+        regimen_fiscal = cliente.regimen_fiscal or '616'
+        uso_cfdi = cliente.uso_cfdi or 'G03'
+    else:
+        # Público en General
+        rfc = 'XAXX010101000'
+        razon_social = 'PUBLICO EN GENERAL'
+        codigo_postal = '97238'
+        regimen_fiscal = '616'  # Sin obligaciones fiscales
+        uso_cfdi = 'S01'  # Sin efectos fiscales
     
     # Mapear método de pago de Pago a FormaPago SAT
     mapeo_forma_pago = {
@@ -40,7 +55,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         'TARJETA_CREDITO': FormaPago.TARJETA_CREDITO,
         'TARJETA_DEBITO': FormaPago.TARJETA_DEBITO,
         'CHEQUE': FormaPago.CHEQUE,
-        'DEPOSITO': FormaPago.TRANSFERENCIA,  # Depósito = Transferencia para SAT
+        'DEPOSITO': FormaPago.TRANSFERENCIA,
         'PLATAFORMA': FormaPago.TRANSFERENCIA,
         'OTRO': FormaPago.POR_DEFINIR,
     }
@@ -53,12 +68,12 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         cotizacion=cotizacion,
         pago=pago,
         monto=pago.monto,
-        concepto=f"Pago por evento: {cotizacion.nombre_evento}",
-        rfc=cliente.rfc or '',
-        razon_social=cliente.razon_social or cliente.nombre,
-        codigo_postal=cliente.codigo_postal_fiscal or '',
-        regimen_fiscal=cliente.regimen_fiscal or '616',  # Default: Sin obligaciones
-        uso_cfdi=cliente.uso_cfdi or 'G03',  # Default: Gastos en general
+        concepto="Pago por evento: {}".format(cotizacion.nombre_evento),
+        rfc=rfc,
+        razon_social=razon_social,
+        codigo_postal=codigo_postal,
+        regimen_fiscal=regimen_fiscal,
+        uso_cfdi=uso_cfdi,
         forma_pago=forma_pago,
         fecha_pago=pago.fecha_pago,
         created_by=pago.usuario,
