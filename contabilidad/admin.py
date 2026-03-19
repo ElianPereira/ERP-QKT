@@ -50,7 +50,7 @@ class SubcuentaInline(admin.TabularInline):
 
 @admin.register(CuentaContable)
 class CuentaContableAdmin(admin.ModelAdmin):
-    list_display = ['codigo_sat', 'nombre', 'tipo_badge', 'naturaleza_badge', 'nivel', 'permite_movimientos', 'activa']
+    list_display = ['codigo_sat', 'nombre', 'cuenta_tipo_badge', 'cuenta_naturaleza_badge', 'nivel', 'permite_movimientos', 'activa']
     list_filter = ['tipo', 'naturaleza', 'nivel', 'activa', 'permite_movimientos']
     search_fields = ['codigo_sat', 'nombre']
     ordering = ['codigo_sat']
@@ -59,16 +59,15 @@ class CuentaContableAdmin(admin.ModelAdmin):
     inlines = [SubcuentaInline]
     
     @admin.display(description="Tipo", ordering="tipo")
-    def tipo_badge(self, obj):
-        # Colores alineados al sistema QKT
+    def cuenta_tipo_badge(self, obj):
         colores = {
-            'ACTIVO': '#3498db',      # Info - azul
-            'PASIVO': '#9b59b6',      # Morado
-            'CAPITAL': '#2E7D32',     # Verde QKT primario
-            'INGRESO': '#27ae60',     # Success
-            'COSTO': '#e67e22',       # Warning
-            'GASTO': '#e74c3c',       # Danger
-            'ORDEN': '#95a5a6',       # Neutral
+            'ACTIVO': '#3498db',
+            'PASIVO': '#9b59b6',
+            'CAPITAL': '#2E7D32',
+            'INGRESO': '#27ae60',
+            'COSTO': '#e67e22',
+            'GASTO': '#e74c3c',
+            'ORDEN': '#95a5a6',
         }
         color = colores.get(obj.tipo, '#95a5a6')
         return format_html(
@@ -79,7 +78,7 @@ class CuentaContableAdmin(admin.ModelAdmin):
         )
     
     @admin.display(description="Nat.", ordering="naturaleza")
-    def naturaleza_badge(self, obj):
+    def cuenta_naturaleza_badge(self, obj):
         if obj.naturaleza == 'D':
             return format_html(
                 '<span style="color:#3498db; font-weight:600;">↑ D</span>'
@@ -97,7 +96,6 @@ class UnidadNegocioAdmin(admin.ModelAdmin):
     
     @admin.display(description="Régimen Fiscal")
     def regimen_fiscal_badge(self, obj):
-        # Mostrar código + nombre corto
         texto = obj.get_regimen_fiscal_display()
         return format_html(
             '<span style="color:#d4d1c8; font-size:12px;">{}</span>',
@@ -124,9 +122,9 @@ class CuentaBancariaAdmin(admin.ModelAdmin):
     def saldo_badge(self, obj):
         saldo = obj.saldo_actual
         if saldo >= 0:
-            color = '#27ae60'  # Success
+            color = '#27ae60'
         else:
-            color = '#e74c3c'  # Danger
+            color = '#e74c3c'
         return format_html(
             '<span style="color:{}; font-weight:600;">${:,.2f}</span>',
             color,
@@ -136,7 +134,7 @@ class CuentaBancariaAdmin(admin.ModelAdmin):
 
 @admin.register(Poliza)
 class PolizaAdmin(admin.ModelAdmin):
-    list_display = ['folio_badge', 'tipo_badge', 'fecha', 'concepto_corto', 'unidad_negocio', 'total_badge', 'estado_badge']
+    list_display = ['folio_badge', 'poliza_tipo_badge', 'fecha', 'concepto_corto', 'unidad_negocio', 'total_badge', 'poliza_estado_badge']
     list_filter = ['tipo', 'estado', 'unidad_negocio', 'origen', 'fecha']
     search_fields = ['folio', 'concepto']
     date_hierarchy = 'fecha'
@@ -170,11 +168,11 @@ class PolizaAdmin(admin.ModelAdmin):
         )
     
     @admin.display(description="Tipo", ordering="tipo")
-    def tipo_badge(self, obj):
+    def poliza_tipo_badge(self, obj):
         colores = {
-            'I': '#27ae60',   # Ingreso = Success (verde)
-            'E': '#e74c3c',   # Egreso = Danger (rojo)
-            'D': '#3498db'    # Diario = Info (azul)
+            'I': '#27ae60',
+            'E': '#e74c3c',
+            'D': '#3498db'
         }
         color = colores.get(obj.tipo, '#95a5a6')
         return format_html(
@@ -205,11 +203,11 @@ class PolizaAdmin(admin.ModelAdmin):
         )
     
     @admin.display(description="Estado", ordering="estado")
-    def estado_badge(self, obj):
+    def poliza_estado_badge(self, obj):
         colores = {
-            'BORRADOR': '#e67e22',   # Warning (naranja)
-            'APLICADA': '#27ae60',   # Success (verde)
-            'CANCELADA': '#95a5a6'   # Neutral (gris)
+            'BORRADOR': '#e67e22',
+            'APLICADA': '#27ae60',
+            'CANCELADA': '#95a5a6'
         }
         color = colores.get(obj.estado, '#95a5a6')
         return format_html(
@@ -257,7 +255,7 @@ class PolizaAdmin(admin.ModelAdmin):
 
 @admin.register(ConciliacionBancaria)
 class ConciliacionBancariaAdmin(admin.ModelAdmin):
-    list_display = ['cuenta_bancaria', 'periodo_badge', 'saldo_segun_banco', 'saldo_segun_libros', 'diferencia_badge', 'estado_badge']
+    list_display = ['cuenta_bancaria', 'periodo_badge', 'saldo_segun_banco', 'saldo_segun_libros', 'diferencia_badge', 'conciliacion_estado_badge']
     list_filter = ['estado', 'cuenta_bancaria', 'anio']
     ordering = ['-anio', '-mes']
     
@@ -283,11 +281,11 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
         )
     
     @admin.display(description="Estado")
-    def estado_badge(self, obj):
+    def conciliacion_estado_badge(self, obj):
         colores = {
-            'PENDIENTE': '#e67e22',    # Warning
-            'EN_PROCESO': '#3498db',   # Info
-            'CONCILIADA': '#27ae60'    # Success
+            'PENDIENTE': '#e67e22',
+            'EN_PROCESO': '#3498db',
+            'CONCILIADA': '#27ae60'
         }
         color = colores.get(obj.estado, '#95a5a6')
         return format_html(
