@@ -123,7 +123,7 @@ class CotizacionesPeriodoService:
                 'folio': f"COT-{cot.id:03d}",
                 'cliente': cot.cliente.nombre,
                 'evento': cot.nombre_evento,
-                'tipo_evento': cot.get_tipo_evento_display() if hasattr(cot, 'get_tipo_evento_display') else cot.tipo_evento,
+                'tipo_evento': cot.nombre_evento[:20],
                 'fecha_evento': cot.fecha_evento,
                 'precio_final': cot.precio_final,
                 'total_pagado': pagado,
