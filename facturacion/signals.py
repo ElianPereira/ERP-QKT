@@ -68,7 +68,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         cotizacion=cotizacion,
         pago=pago,
         monto=pago.monto,
-        concepto="Pago por evento: {}".format(cotizacion.nombre_evento),
+        concepto="COT-{} Servicio De Evento En General".format(str(cotizacion.id).zfill(4)),
         rfc=rfc,
         razon_social=razon_social,
         codigo_postal=codigo_postal,
