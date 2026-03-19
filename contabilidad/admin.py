@@ -1,12 +1,10 @@
 """
 Admin del Módulo de Contabilidad
 ================================
-Siguiendo Sistema de Diseño QKT v2.0
-Paleta: Verde (#2E7D32) + Amarillo (#F5C518)
+Versión simplificada compatible con Django 6.x + Jazzmin
 """
 from decimal import Decimal
 from django.contrib import admin
-from django.utils.html import format_html
 from django.db.models import Sum
 
 from .models import (
@@ -14,17 +12,6 @@ from .models import (
     Poliza, MovimientoContable, ConciliacionBancaria,
     ConfiguracionContable
 )
-
-
-# ============================================================
-# ESTILOS QKT v2.0
-# ============================================================
-# Verde primario: #2E7D32 (hover: #388E3C, texto: #4CAF50)
-# Amarillo marca: #F5C518
-# Success: #27ae60 | Warning: #e67e22 | Danger: #e74c3c
-# Info: #3498db | Neutral: #95a5a6 | Teal: #1abc9c
-# Badge radius: 12px
-# ============================================================
 
 
 class MovimientoContableInline(admin.TabularInline):
@@ -50,91 +37,32 @@ class SubcuentaInline(admin.TabularInline):
 
 @admin.register(CuentaContable)
 class CuentaContableAdmin(admin.ModelAdmin):
-    list_display = ['codigo_sat', 'nombre', 'cuenta_tipo_badge', 'cuenta_naturaleza_badge', 'nivel', 'permite_movimientos', 'activa']
+    list_display = ['codigo_sat', 'nombre', 'tipo', 'naturaleza', 'nivel', 'permite_movimientos', 'activa']
     list_filter = ['tipo', 'naturaleza', 'nivel', 'activa', 'permite_movimientos']
     search_fields = ['codigo_sat', 'nombre']
     ordering = ['codigo_sat']
     list_per_page = 50
     autocomplete_fields = ['padre']
     inlines = [SubcuentaInline]
-    
-    @admin.display(description="Tipo", ordering="tipo")
-    def cuenta_tipo_badge(self, obj):
-        colores = {
-            'ACTIVO': '#3498db',
-            'PASIVO': '#9b59b6',
-            'CAPITAL': '#2E7D32',
-            'INGRESO': '#27ae60',
-            'COSTO': '#e67e22',
-            'GASTO': '#e74c3c',
-            'ORDEN': '#95a5a6',
-        }
-        color = colores.get(obj.tipo, '#95a5a6')
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:4px 10px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
-            color,
-            obj.tipo
-        )
-    
-    @admin.display(description="Nat.", ordering="naturaleza")
-    def cuenta_naturaleza_badge(self, obj):
-        if obj.naturaleza == 'D':
-            return format_html(
-                '<span style="color:#3498db; font-weight:600;">↑ D</span>'
-            )
-        return format_html(
-            '<span style="color:#9b59b6; font-weight:600;">↓ A</span>'
-        )
 
 
 @admin.register(UnidadNegocio)
 class UnidadNegocioAdmin(admin.ModelAdmin):
-    list_display = ['clave', 'nombre', 'regimen_fiscal_badge', 'activa']
+    list_display = ['clave', 'nombre', 'regimen_fiscal', 'activa']
     list_filter = ['regimen_fiscal', 'activa']
     search_fields = ['clave', 'nombre']
-    
-    @admin.display(description="Régimen Fiscal")
-    def regimen_fiscal_badge(self, obj):
-        texto = obj.get_regimen_fiscal_display()
-        return format_html(
-            '<span style="color:#d4d1c8; font-size:12px;">{}</span>',
-            texto[:50] + '...' if len(texto) > 50 else texto
-        )
 
 
 @admin.register(CuentaBancaria)
 class CuentaBancariaAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'banco', 'clabe_oculta', 'cuenta_contable', 'saldo_badge', 'activa']
+    list_display = ['nombre', 'banco', 'clabe', 'cuenta_contable', 'activa']
     list_filter = ['banco', 'activa']
     search_fields = ['nombre', 'banco', 'clabe']
-    
-    @admin.display(description="CLABE")
-    def clabe_oculta(self, obj):
-        if obj.clabe:
-            return format_html(
-                '<span style="color:#95a5a6;">****{}</span>',
-                obj.clabe[-4:]
-            )
-        return "-"
-    
-    @admin.display(description="Saldo")
-    def saldo_badge(self, obj):
-        saldo = obj.saldo_actual
-        if saldo >= 0:
-            color = '#27ae60'
-        else:
-            color = '#e74c3c'
-        return format_html(
-            '<span style="color:{}; font-weight:600;">${:,.2f}</span>',
-            color,
-            saldo
-        )
 
 
 @admin.register(Poliza)
 class PolizaAdmin(admin.ModelAdmin):
-    list_display = ['folio_badge', 'poliza_tipo_badge', 'fecha', 'concepto_corto', 'unidad_negocio', 'total_badge', 'poliza_estado_badge']
+    list_display = ['folio', 'tipo', 'fecha', 'concepto', 'unidad_negocio', 'estado']
     list_filter = ['tipo', 'estado', 'unidad_negocio', 'origen', 'fecha']
     search_fields = ['folio', 'concepto']
     date_hierarchy = 'fecha'
@@ -158,64 +86,6 @@ class PolizaAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
-    @admin.display(description="Folio", ordering="folio")
-    def folio_badge(self, obj):
-        return format_html(
-            '<span style="color:#4CAF50; font-weight:700;">{}-{:04d}</span>',
-            obj.tipo,
-            obj.folio
-        )
-    
-    @admin.display(description="Tipo", ordering="tipo")
-    def poliza_tipo_badge(self, obj):
-        colores = {
-            'I': '#27ae60',
-            'E': '#e74c3c',
-            'D': '#3498db'
-        }
-        color = colores.get(obj.tipo, '#95a5a6')
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
-            color,
-            obj.get_tipo_display()
-        )
-    
-    @admin.display(description="Concepto")
-    def concepto_corto(self, obj):
-        if len(obj.concepto) > 45:
-            return obj.concepto[:45] + "..."
-        return obj.concepto
-    
-    @admin.display(description="Total")
-    def total_badge(self, obj):
-        total = obj.total_debe
-        cuadra = obj.esta_cuadrada
-        if cuadra:
-            return format_html(
-                '<span style="color:#27ae60; font-weight:600;">${:,.2f} ✓</span>',
-                total
-            )
-        return format_html(
-            '<span style="color:#e74c3c; font-weight:600;">${:,.2f} ✗</span>',
-            total
-        )
-    
-    @admin.display(description="Estado", ordering="estado")
-    def poliza_estado_badge(self, obj):
-        colores = {
-            'BORRADOR': '#e67e22',
-            'APLICADA': '#27ae60',
-            'CANCELADA': '#95a5a6'
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
-            color,
-            obj.get_estado_display()
-        )
     
     def save_model(self, request, obj, form, change):
         if not change:
@@ -255,104 +125,25 @@ class PolizaAdmin(admin.ModelAdmin):
 
 @admin.register(ConciliacionBancaria)
 class ConciliacionBancariaAdmin(admin.ModelAdmin):
-    list_display = ['cuenta_bancaria', 'periodo_badge', 'saldo_segun_banco', 'saldo_segun_libros', 'diferencia_badge', 'conciliacion_estado_badge']
+    list_display = ['cuenta_bancaria', 'mes', 'anio', 'saldo_segun_banco', 'saldo_segun_libros', 'diferencia', 'estado']
     list_filter = ['estado', 'cuenta_bancaria', 'anio']
     ordering = ['-anio', '-mes']
-    
-    @admin.display(description="Período")
-    def periodo_badge(self, obj):
-        meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
-                 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-        return format_html(
-            '<span style="color:#F5C518; font-weight:600;">{} {}</span>',
-            meses[obj.mes],
-            obj.anio
-        )
-    
-    @admin.display(description="Diferencia")
-    def diferencia_badge(self, obj):
-        if abs(obj.diferencia) < Decimal('0.01'):
-            return format_html(
-                '<span style="color:#27ae60; font-weight:600;">$0.00 ✓</span>'
-            )
-        return format_html(
-            '<span style="color:#e74c3c; font-weight:600;">${:,.2f}</span>',
-            obj.diferencia
-        )
-    
-    @admin.display(description="Estado")
-    def conciliacion_estado_badge(self, obj):
-        colores = {
-            'PENDIENTE': '#e67e22',
-            'EN_PROCESO': '#3498db',
-            'CONCILIADA': '#27ae60'
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
-            color,
-            obj.get_estado_display()
-        )
 
 
 @admin.register(ConfiguracionContable)
 class ConfiguracionContableAdmin(admin.ModelAdmin):
-    list_display = ['operacion_badge', 'cuenta_badge', 'descripcion', 'activa']
+    list_display = ['operacion', 'cuenta', 'descripcion', 'activa']
     list_filter = ['activa']
     search_fields = ['operacion', 'cuenta__codigo_sat', 'descripcion']
     autocomplete_fields = ['cuenta']
-    
-    @admin.display(description="Operación", ordering="operacion")
-    def operacion_badge(self, obj):
-        return format_html(
-            '<span style="color:#4CAF50; font-weight:600;">{}</span>',
-            obj.get_operacion_display()
-        )
-    
-    @admin.display(description="Cuenta")
-    def cuenta_badge(self, obj):
-        return format_html(
-            '<span style="color:#d4d1c8;">{} - {}</span>',
-            obj.cuenta.codigo_sat,
-            obj.cuenta.nombre[:30]
-        )
 
 
 @admin.register(MovimientoContable)
 class MovimientoContableAdmin(admin.ModelAdmin):
-    list_display = ['poliza_link', 'cuenta', 'concepto', 'debe_badge', 'haber_badge', 'referencia']
+    list_display = ['poliza', 'cuenta', 'concepto', 'debe', 'haber', 'referencia']
     list_filter = ['poliza__tipo', 'poliza__estado', 'cuenta__tipo']
     search_fields = ['cuenta__codigo_sat', 'cuenta__nombre', 'concepto', 'poliza__concepto']
     autocomplete_fields = ['cuenta']
-    
-    @admin.display(description="Póliza")
-    def poliza_link(self, obj):
-        return format_html(
-            '<a href="/admin/contabilidad/poliza/{}/change/" '
-            'style="color:#4CAF50; font-weight:600;">{}-{:04d}</a>',
-            obj.poliza.pk,
-            obj.poliza.tipo,
-            obj.poliza.folio
-        )
-    
-    @admin.display(description="Debe")
-    def debe_badge(self, obj):
-        if obj.debe > 0:
-            return format_html(
-                '<span style="color:#3498db; font-weight:600;">${:,.2f}</span>',
-                obj.debe
-            )
-        return format_html('<span style="color:#95a5a6;">-</span>')
-    
-    @admin.display(description="Haber")
-    def haber_badge(self, obj):
-        if obj.haber > 0:
-            return format_html(
-                '<span style="color:#9b59b6; font-weight:600;">${:,.2f}</span>',
-                obj.haber
-            )
-        return format_html('<span style="color:#95a5a6;">-</span>')
     
     def has_add_permission(self, request):
         return False
