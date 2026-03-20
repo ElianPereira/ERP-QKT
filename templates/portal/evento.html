@@ -153,7 +153,7 @@
                     <tbody>
                         {% for item in items %}
                         <tr>
-                            <td>{{ item.descripcion|default:item.producto.nombre|default:"—" }}</td>
+                            <td>{% if item.descripcion %}{{ item.descripcion }}{% elif item.producto %}{{ item.producto.nombre }}{% else %}—{% endif %}</td>
                             <td style="text-align:center;">{{ item.cantidad|floatformat:0 }}</td>
                             <td style="text-align:right;">${{ item.precio_unitario|floatformat:2 }}</td>
                             <td style="text-align:right; font-weight:600;">${{ item.subtotal|floatformat:2 }}</td>
