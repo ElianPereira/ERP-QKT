@@ -6,6 +6,7 @@ from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.db.models import Sum
+from .models import PortalCliente
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
     Cliente, Cotizacion, ItemCotizacion, Pago, 
@@ -282,6 +283,34 @@ class PlanPagoAdmin(admin.ModelAdmin):
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
 
+@admin.register(PortalCliente)
+class PortalClienteAdmin(admin.ModelAdmin):
+    list_display = ('cotizacion_folio', 'cliente', 'activo', 'visitas', 'ultima_visita', 'link_portal')
+    list_filter = ('activo',)
+    readonly_fields = ('token', 'visitas', 'ultima_visita', 'created_at', 'created_by')
+    raw_id_fields = ('cotizacion',)
+
+    def cotizacion_folio(self, obj):
+        return f"COT-{obj.cotizacion.id:03d}"
+    cotizacion_folio.short_description = "Folio"
+
+    def cliente(self, obj):
+        return obj.cotizacion.cliente.nombre
+    cliente.short_description = "Cliente"
+
+    def link_portal(self, obj):
+        url = obj.get_full_url()
+        return format_html('<a href="{}" target="_blank" style="color:#2E7D32;">Abrir portal</a>', url)
+    link_portal.short_description = "Link"
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 class PlanPagoResumenInline(admin.StackedInline):
     model = PlanPago; extra = 0; max_num = 1; can_delete = False
@@ -307,7 +336,7 @@ class PagoInline(admin.TabularInline):
 class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
     inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_plan_pagos', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn','ver_contrato')
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_plan_pagos', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn','ver_contrato', 'ver_portal')
     list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
@@ -564,6 +593,25 @@ class CotizacionAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/comercial/cotizacion/contrato_form.html', context)
 
+    def ver_portal(self, obj):
+        from .models import PortalCliente
+        try:
+            portal = obj.portal
+            if portal and portal.activo:
+                url = portal.get_full_url()
+                tel = ''.join(filter(str.isdigit, obj.cliente.telefono or ''))
+                wa_url = f"https://wa.me/{tel}?text=Hola%20{obj.cliente.nombre}%2C%20aquí%20puedes%20ver%20los%20detalles%20de%20tu%20evento%3A%20{url}"
+                return format_html(
+                    '<a href="{}" target="_blank" style="background:#2E7D32; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none; margin-right:4px;">Portal</a>'
+                    '<a href="{}" target="_blank" style="background:#25D366; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none;">Enviar</a>',
+                    url, wa_url
+                )
+        except PortalCliente.DoesNotExist:
+            pass
+        create_url = f"/admin/comercial/portalcliente/add/?cotizacion={obj.id}"
+        return format_html(BTN, url=create_url, target='', bg='#3498db', fg='white', label='+ Portal', extra='')
+    ver_portal.short_description = "Portal"
+
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
     list_display = ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'solicitar_factura', 'usuario', 'created_at')
@@ -698,3 +746,4 @@ class RecordatorioPagoAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request): return False
     def has_delete_permission(self, request, obj=None): return False
+

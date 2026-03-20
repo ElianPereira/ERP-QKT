@@ -216,6 +216,9 @@ JAZZMIN_SETTINGS = {
         #REPORTERIA
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-history",
+
+        #PORTAL CLIENTE
+         "comercial.PortalCliente": "fas fa-globe",
     },
 
     # ── TOP MENU: Sin emojis, solo texto limpio ──
@@ -226,7 +229,7 @@ JAZZMIN_SETTINGS = {
         {"name": "Calculadora",        "url": "admin_calculadora"},
         {"name": "Compras",            "url": "generar_lista_compras"},
         {"name": "Cartera",            "url": "cartera_cxc"},
-        {"name": "Reportes", "url": "reportes:selector"},
+        {"name": "Reportes",           "url": "reportes:selector"},
         {"name": "Cerrar sesión",      "url": "/admin/logout/",    "new_window": False},
     ],
 
@@ -244,8 +247,9 @@ JAZZMIN_SETTINGS = {
         "comercial.Proveedor",
         "comercial.Compra",
         "comercial.MovimientoInventario",
+        "comercial.PortalCliente",
         "comercial.ConstanteSistema",
-
+        
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",
         "airbnb.ReservaAirbnb",

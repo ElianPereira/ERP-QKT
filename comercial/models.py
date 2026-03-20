@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from facturacion.choices import RegimenFiscal, UsoCFDI
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
+import secrets
 
 # ==========================================
 # 0. CONFIGURACIÓN DEL SISTEMA
@@ -780,3 +781,64 @@ class RecordatorioPago(models.Model):
 
     def __str__(self):
         return f"Recordatorio {self.parcialidad} — {self.get_estado_display()}"
+
+#PAGINA PARA CLIENTES
+
+
+class PortalCliente(models.Model):
+    """
+    Token de acceso público para que el cliente vea su cotización,
+    plan de pagos, contrato y estado de pagos sin necesidad de login.
+    
+    Acceso: código de cotización + últimos 4 dígitos del teléfono.
+    URL: /mi-evento/<token>/
+    """
+    cotizacion = models.OneToOneField(
+        Cotizacion, on_delete=models.CASCADE,
+        related_name='portal', verbose_name="Cotización"
+    )
+    token = models.CharField(
+        max_length=64, unique=True, db_index=True,
+        verbose_name="Token de Acceso",
+        help_text="Se genera automáticamente. No editar."
+    )
+    activo = models.BooleanField(default=True, verbose_name="Portal Activo")
+    visitas = models.PositiveIntegerField(default=0, verbose_name="Visitas")
+    ultima_visita = models.DateTimeField(null=True, blank=True)
+    
+    # Auditoría
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="Creado por"
+    )
+    
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+    
+    def get_url(self):
+        """Retorna la URL pública del portal."""
+        return f"/mi-evento/{self.token}/"
+    
+    def get_full_url(self, request=None):
+        """Retorna la URL completa con dominio."""
+        base = "https://erp-qkt.up.railway.app"
+        if request:
+            base = request.build_absolute_uri('/')[:-1]
+        return f"{base}{self.get_url()}"
+    
+    def registrar_visita(self):
+        """Incrementa contador de visitas."""
+        from django.utils import timezone
+        self.visitas += 1
+        self.ultima_visita = timezone.now()
+        self.save(update_fields=['visitas', 'ultima_visita'])
+    
+    def __str__(self):
+        return f"Portal COT-{self.cotizacion.id:03d} ({self.visitas} visitas)"
+    
+    class Meta:
+        verbose_name = "Portal del Cliente"
+        verbose_name_plural = "Portales de Clientes"

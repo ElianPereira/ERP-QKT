@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Evento — {{ cotizacion.nombre_evento }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f3ef; color: #2c2b28; }
+        
+        /* Header */
+        .header { background: #2E7D32; color: white; padding: 20px; text-align: center; }
+        .header img { max-height: 50px; margin-bottom: 8px; }
+        .header h1 { font-size: 18px; font-weight: 700; }
+        .header .folio { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+        
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        
+        /* Cards */
+        .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .card-title { font-size: 16px; font-weight: 700; color: #2E7D32; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .card-title i { font-size: 18px; }
+        
+        /* KPIs */
+        .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+        .kpi { background: #f8f8f6; border-radius: 8px; padding: 16px; text-align: center; }
+        .kpi .valor { font-size: 22px; font-weight: 700; }
+        .kpi .label { font-size: 11px; color: #8a8780; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; font-weight: 600; }
+        .kpi.green .valor { color: #2E7D32; }
+        .kpi.orange .valor { color: #e67e22; }
+        .kpi.red .valor { color: #e74c3c; }
+        
+        /* Progreso */
+        .progress-section { margin-bottom: 20px; }
+        .progress-bar-bg { width: 100%; background: #e8e6e0; border-radius: 10px; height: 12px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; border-radius: 10px; transition: width 0.5s ease; }
+        .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: #8a8780; margin-top: 4px; }
+        
+        /* Tabla */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #f8f8f6; color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; text-align: left; font-weight: 600; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f0ede8; }
+        tr:last-child td { border-bottom: none; }
+        
+        /* Badges */
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+        .badge-green { background: #E8F5E9; color: #2E7D32; }
+        .badge-orange { background: #FFF3E0; color: #e67e22; }
+        .badge-red { background: #FFEBEE; color: #e74c3c; }
+        .badge-gray { background: #f0ede8; color: #8a8780; }
+        
+        /* Botones */
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; font-family: 'IBM Plex Sans', sans-serif; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-green { background: #2E7D32; color: white; }
+        .btn-yellow { background: #F5C518; color: #333; }
+        .btn-outline { background: white; color: #2E7D32; border: 2px solid #2E7D32; }
+        .btn-wa { background: #25D366; color: white; }
+        
+        .btn-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        
+        /* Estado del evento */
+        .estado-banner { padding: 14px 20px; border-radius: 8px; margin-bottom: 16px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+        .estado-confirmada { background: #E8F5E9; color: #2E7D32; }
+        .estado-cotizada { background: #E3F2FD; color: #1565C0; }
+        .estado-anticipo { background: #FFF3E0; color: #E65100; }
+        .estado-preparacion { background: #F3E5F5; color: #7B1FA2; }
+        .estado-borrador { background: #f0ede8; color: #8a8780; }
+        .estado-ejecutada { background: #E8F5E9; color: #1B5E20; }
+        .estado-cerrada { background: #E0F2F1; color: #00695C; }
+        
+        /* Footer */
+        .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #aaa; }
+        .footer strong { color: #2E7D32; }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .btn-grid { flex-direction: column; }
+            .btn { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <img src="/static/img/logo.png" alt="Quinta Ko'ox Tanil">
+        <h1>{{ cotizacion.nombre_evento }}</h1>
+        <div class="folio">COT-{{ cotizacion.id|stringformat:"03d" }} — {{ cotizacion.fecha_evento|date:"d \d\e F \d\e Y" }}</div>
+    </div>
+    
+    <div class="container">
+        
+        <!-- Estado -->
+        {% with estado=cotizacion.estado %}
+        <div class="estado-banner estado-{% if estado == 'CONFIRMADA' %}confirmada{% elif estado == 'COTIZADA' %}cotizada{% elif estado == 'ANTICIPO' %}anticipo{% elif estado == 'EN_PREPARACION' %}preparacion{% elif estado == 'EJECUTADA' %}ejecutada{% elif estado == 'CERRADA' %}cerrada{% else %}borrador{% endif %}">
+            <i class="fas {% if estado == 'CONFIRMADA' %}fa-check-circle{% elif estado == 'CERRADA' %}fa-flag-checkered{% else %}fa-info-circle{% endif %}"></i>
+            Estado: {{ cotizacion.get_estado_display }}
+        </div>
+        {% endwith %}
+        
+        <!-- KPIs -->
+        <div class="card">
+            <div class="kpi-grid">
+                <div class="kpi green">
+                    <div class="valor">${{ cotizacion.precio_final|floatformat:2 }}</div>
+                    <div class="label">Total del evento</div>
+                </div>
+                <div class="kpi {% if porcentaje >= 100 %}green{% elif porcentaje >= 50 %}orange{% else %}red{% endif %}">
+                    <div class="valor">{{ porcentaje }}%</div>
+                    <div class="label">Pagado</div>
+                </div>
+                <div class="kpi {% if saldo_pendiente <= 0 %}green{% else %}orange{% endif %}">
+                    <div class="valor">${{ saldo_pendiente|floatformat:2 }}</div>
+                    <div class="label">Saldo pendiente</div>
+                </div>
+            </div>
+            
+            <!-- Barra de progreso -->
+            <div class="progress-section">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" style="width: {{ porcentaje }}%; background: {% if porcentaje >= 100 %}#2E7D32{% elif porcentaje >= 50 %}#e67e22{% else %}#e74c3c{% endif %};"></div>
+                </div>
+                <div class="progress-label">
+                    <span>Pagado: ${{ total_pagado|floatformat:2 }}</span>
+                    <span>Total: ${{ cotizacion.precio_final|floatformat:2 }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Datos del evento -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-calendar-alt"></i> Datos del evento</div>
+            <table>
+                <tr><td style="font-weight:600; color:#555; width:40%;">Cliente</td><td>{{ cliente.nombre }}</td></tr>
+                <tr><td style="font-weight:600; color:#555;">Fecha</td><td>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</td></tr>
+                {% if cotizacion.hora_inicio %}<tr><td style="font-weight:600; color:#555;">Horario</td><td>{{ cotizacion.hora_inicio|time:"H:i" }} — {{ cotizacion.hora_fin|time:"H:i" }}</td></tr>{% endif %}
+                <tr><td style="font-weight:600; color:#555;">Personas</td><td>{{ cotizacion.num_personas }}</td></tr>
+            </table>
+        </div>
+        
+        <!-- Detalle de cotización -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-list"></i> Detalle de cotización</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:right;">P. Unit.</th><th style="text-align:right;">Subtotal</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.descripcion|default:item.producto.nombre|default:"—" }}</td>
+                            <td style="text-align:center;">{{ item.cantidad|floatformat:0 }}</td>
+                            <td style="text-align:right;">${{ item.precio_unitario|floatformat:2 }}</td>
+                            <td style="text-align:right; font-weight:600;">${{ item.subtotal|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if cotizacion.descuento > 0 %}
+            <div style="text-align:right; padding:10px 12px; color:#e67e22; font-weight:600;">
+                Descuento: -${{ cotizacion.descuento|floatformat:2 }}
+            </div>
+            {% endif %}
+            {% if cotizacion.requiere_factura %}
+            <div style="text-align:right; padding:4px 12px; font-size:12px; color:#555;">
+                IVA (16%): ${{ cotizacion.iva|floatformat:2 }}
+                {% if cotizacion.retencion_isr > 0 %} | Ret. ISR: -${{ cotizacion.retencion_isr|floatformat:2 }}{% endif %}
+            </div>
+            {% endif %}
+            <div style="text-align:right; padding:10px 12px; font-size:18px; font-weight:700; color:#2E7D32; border-top:2px solid #E8F5E9;">
+                Total: ${{ cotizacion.precio_final|floatformat:2 }}
+            </div>
+        </div>
+        
+        <!-- Plan de pagos -->
+        {% if parcialidades %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-calendar-check"></i> Plan de pagos</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>#</th><th>Concepto</th><th style="text-align:right;">Monto</th><th style="text-align:center;">Fecha límite</th><th style="text-align:center;">Estado</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in parcialidades %}
+                        <tr>
+                            <td>{{ p.numero }}</td>
+                            <td>{{ p.concepto }}</td>
+                            <td style="text-align:right; font-weight:600;">${{ p.monto|floatformat:2 }}</td>
+                            <td style="text-align:center;">{{ p.fecha_limite|date:"d/m/Y" }}</td>
+                            <td style="text-align:center;">
+                                {% if p.pagada %}
+                                    <span class="badge badge-green">Pagada</span>
+                                {% elif p.dias_restantes < 0 %}
+                                    <span class="badge badge-red">Vencida</span>
+                                {% elif p.dias_restantes <= 7 %}
+                                    <span class="badge badge-orange">{{ p.dias_restantes }}d</span>
+                                {% else %}
+                                    <span class="badge badge-gray">Pendiente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Historial de pagos -->
+        {% if pagos %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-receipt"></i> Pagos realizados</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Fecha</th><th>Método</th><th style="text-align:right;">Monto</th><th>Referencia</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for pago in pagos %}
+                        <tr>
+                            <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+                            <td>{{ pago.get_metodo_display }}</td>
+                            <td style="text-align:right; font-weight:600; color:#2E7D32;">${{ pago.monto|floatformat:2 }}</td>
+                            <td style="color:#8a8780;">{{ pago.referencia|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Documentos y acciones -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-file-download"></i> Documentos</div>
+            <div class="btn-grid">
+                <a href="{% url 'portal_descargar_cotizacion' portal.token %}" class="btn btn-green" target="_blank">
+                    <i class="fas fa-file-pdf"></i> Cotización PDF
+                </a>
+                {% if parcialidades %}
+                <a href="{% url 'portal_descargar_plan' portal.token %}" class="btn btn-outline" target="_blank">
+                    <i class="fas fa-calendar-alt"></i> Plan de pagos PDF
+                </a>
+                {% endif %}
+                {% if contrato %}
+                <a href="{% url 'portal_descargar_contrato' portal.token %}" class="btn btn-outline" target="_blank">
+                    <i class="fas fa-file-contract"></i> Contrato PDF
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- WhatsApp -->
+        <div style="text-align:center; margin: 20px 0;">
+            <a href="https://wa.me/{{ wa_numero }}?text=Hola%2C%20tengo%20una%20pregunta%20sobre%20mi%20evento%20COT-{{ cotizacion.id|stringformat:'03d' }}" class="btn btn-wa" target="_blank" style="font-size:15px; padding:14px 28px;">
+                <i class="fab fa-whatsapp" style="font-size:20px;"></i> Contactar por WhatsApp
+            </a>
+        </div>
+        
+    </div>
+    
+    <div class="footer">
+        <strong>Quinta Ko'ox Tanil</strong> — Mérida, Yucatán<br>
+        Haciendo tus eventos inolvidables
+    </div>
+</body>
+</html>

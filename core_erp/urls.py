@@ -10,6 +10,11 @@ from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
 from airbnb.views import reporte_fiscal_airbnb
 
+from comercial.views_portal import (
+portal_acceso, portal_evento, 
+portal_descargar_cotizacion, portal_descargar_plan, portal_descargar_contrato
+)
+
 try:
     from airbnb.views import calendario_unificado, reporte_pagos_airbnb, bloquear_en_airbnb
 except ImportError:
@@ -111,6 +116,13 @@ urlpatterns = [
 
     # --- MÓDULO REPORTES ---
     path('admin/reportes/', include('reportes.urls')),
+
+    # --- PORTAL DEL CLIENTE (público) ---
+    path('mi-evento/', portal_acceso, name='portal_acceso'),
+    path('mi-evento/<str:token>/', portal_evento, name='portal_evento'),
+    path('mi-evento/<str:token>/cotizacion.pdf', portal_descargar_cotizacion, name='portal_descargar_cotizacion'),
+    path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
+    path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),
 
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
