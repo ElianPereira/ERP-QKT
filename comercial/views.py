@@ -48,7 +48,6 @@ def _buscar_insumo_palabra_completa(keyword):
     no parte de otra palabra.
     Evita que 'ron' matchee 'Toronja' o 'gin' matchee 'Original'.
     """
-    # 1. El nombre EMPIEZA con el keyword (ej: "Ron Bacardí")
     insumo = Insumo.objects.filter(
         nombre__istartswith=keyword,
         categoria='CONSUMIBLE'
@@ -56,7 +55,6 @@ def _buscar_insumo_palabra_completa(keyword):
     if insumo:
         return insumo
     
-    # 2. El keyword aparece después de un espacio (ej: "Botella Ron Bacardí")
     insumo = Insumo.objects.filter(
         nombre__icontains=f' {keyword}',
         categoria='CONSUMIBLE'
@@ -68,15 +66,6 @@ def _buscar_insumo_palabra_completa(keyword):
 
 
 def _obtener_item_plantilla(categoria):
-    """
-    Busca en PlantillaBarra el insumo activo para una categoría.
-    
-    MEJORA: Si no hay plantilla configurada, busca en Insumos 
-    por nombre similar para evitar mostrar nombres genéricos.
-    Usa búsqueda por palabra completa para evitar falsos positivos
-    (ej: 'ron' no matchea 'Toronja', 'gin' no matchea 'Original').
-    """
-    # 1. Buscar en PlantillaBarra (fuente principal)
     plantilla = PlantillaBarra.objects.filter(
         categoria=categoria, activo=True
     ).select_related('insumo').first()
@@ -94,53 +83,39 @@ def _obtener_item_plantilla(categoria):
             'insumo_id': insumo.id,
         }
     
-    # 2. FALLBACK INTELIGENTE: Buscar insumo por nombre similar
-    # Keywords ordenados del más específico al más genérico
     BUSQUEDA_KEYWORDS = {
-        # Cervezas
         'CERVEZA': ['cerveza', 'caguama', 'tecate', 'corona'],
-        # Nacionales (keywords específicos para evitar falsos positivos)
         'TEQUILA_NAC': ['tequila cuervo', 'tequila tradicional', 'tequila'],
         'WHISKY_NAC': ['whisky', 'whiskey'],
         'RON_NAC': ['ron bacardi', 'ron castillo', 'ron havana', 'ron '],
         'VODKA_NAC': ['vodka'],
-        # Premium (más específicos primero)
         'TEQUILA_PREM': ['don julio', 'herradura', 'tequila 1800'],
         'WHISKY_PREM': ['buchanan', 'jack daniel', 'johnnie walker black', 'etiqueta negra'],
         'GIN_PREM': ['ginebra', 'hendrick', 'tanqueray', 'bombay'],
-        # Mezcladores
         'REFRESCO_COLA': ['coca cola', 'coca-cola'],
         'REFRESCO_TORONJA': ['toronja', 'squirt', 'fresca'],
         'AGUA_MINERAL': ['agua mineral', 'topochico', 'topo chico', 'peñafiel mineral'],
         'AGUA_NATURAL': ['garrafon', 'garrafón', 'agua natural', 'agua purificada'],
-        # Hielo
         'HIELO': ['hielo'],
-        # Coctelería
         'LIMON': ['limon', 'limón'],
         'HIERBABUENA': ['hierbabuena', 'menta'],
         'JARABE': ['jarabe'],
         'FRUTOS_ROJOS': ['frutos rojos', 'berries', 'zarzamora', 'frambuesa'],
         'CAFE': ['café', 'cafe', 'espresso'],
-        # Consumibles
         'SERVILLETAS': ['servilleta', 'popote'],
     }
     
     keywords = BUSQUEDA_KEYWORDS.get(categoria, [])
     
     for keyword in keywords:
-        # Para keywords de 4+ letras: búsqueda por palabra completa (evita falsos positivos)
-        # Para keywords largos (2+ palabras): búsqueda normal icontains (ya son específicos)
         if ' ' in keyword:
-            # Keyword compuesto ("coca cola", "agua mineral") → búsqueda normal
             insumo = Insumo.objects.filter(
                 nombre__icontains=keyword,
                 categoria='CONSUMIBLE'
             ).first()
         elif len(keyword) <= 4:
-            # Keywords cortos ("ron", "gin", "café") → búsqueda por palabra completa
             insumo = _buscar_insumo_palabra_completa(keyword)
         else:
-            # Keywords medianos ("vodka", "hielo") → búsqueda normal (bajo riesgo)
             insumo = Insumo.objects.filter(
                 nombre__icontains=keyword,
                 categoria='CONSUMIBLE'
@@ -195,13 +170,6 @@ def _agregar_a_lista(lista, seccion, item_nombre, cantidad, unidad, nota='', pro
 
 
 def generar_lista_compras_barra(cotizacion):
-    """
-    Genera la lista de compras usando PlantillaBarra para obtener
-    los datos reales de cada insumo (nombre, presentación, proveedor, costo).
-    
-    Si no hay plantilla configurada para algún concepto, usa un fallback inteligente
-    que busca en el catálogo de insumos por nombre similar.
-    """
     calc = CalculadoraBarraService(cotizacion)
     datos = calc.calcular()
     if not datos: 
@@ -210,139 +178,74 @@ def generar_lista_compras_barra(cotizacion):
     lista_compras = {}
     costo_total_lista = Decimal('0.00')
 
-    # ==========================================
-    # ALCOHOL
-    # ==========================================
-    
-    # --- Cerveza ---
     if datos['cervezas_unidades'] > 0:
         p = _obtener_item_plantilla('CERVEZA') or _fallback_item('Cerveza Nacional (Caguama)')
         cajas = math.ceil(datos['cervezas_unidades'] / 12.0)
-        _agregar_a_lista(
-            lista_compras, 'Licores y Alcohol',
-            p['nombre'], cajas, 'Cajas (12u)',
-            proveedor=p['proveedor'],
-            costo_unitario=p['costo_unitario']
-        )
+        _agregar_a_lista(lista_compras, 'Licores y Alcohol', p['nombre'], cajas, 'Cajas (12u)', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
 
-    # --- Licores Nacionales ---
     if datos['botellas_nacional'] > 0:
         b = datos['botellas_nacional']
-        
         mapeo_nacional = [
             ('TEQUILA_NAC', 'Tequila Nacional', 0.40),
             ('WHISKY_NAC', 'Whisky Nacional', 0.30),
             ('RON_NAC', 'Ron Nacional', 0.20),
             ('VODKA_NAC', 'Vodka Nacional', 0.10),
         ]
-        
         for cat, fallback_nombre, default_prop in mapeo_nacional:
             p = _obtener_item_plantilla(cat)
             if p:
                 prop = p['proporcion']
                 cant = math.ceil(b * prop)
                 if cant > 0:
-                    _agregar_a_lista(
-                        lista_compras, 'Licores y Alcohol',
-                        p['nombre'], cant, 'Botellas',
-                        proveedor=p['proveedor'],
-                        costo_unitario=p['costo_unitario']
-                    )
+                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', p['nombre'], cant, 'Botellas', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
             else:
                 cant = math.ceil(b * default_prop)
                 if cant > 0:
-                    _agregar_a_lista(
-                        lista_compras, 'Licores y Alcohol',
-                        fallback_nombre, cant, 'Botellas',
-                        proveedor=' Configurar en Plantilla de Barra'
-                    )
+                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
 
-    # --- Licores Premium ---
     if datos['botellas_premium'] > 0:
         b = datos['botellas_premium']
-        
         mapeo_premium = [
             ('TEQUILA_PREM', 'Tequila Premium', 0.40),
             ('WHISKY_PREM', 'Whisky Premium', 0.30),
             ('GIN_PREM', 'Ginebra / Ron Premium', 0.30),
         ]
-        
         for cat, fallback_nombre, default_prop in mapeo_premium:
             p = _obtener_item_plantilla(cat)
             if p:
                 prop = p['proporcion']
                 cant = math.ceil(b * prop)
                 if cant > 0:
-                    _agregar_a_lista(
-                        lista_compras, 'Licores y Alcohol',
-                        p['nombre'], cant, 'Botellas',
-                        proveedor=p['proveedor'],
-                        costo_unitario=p['costo_unitario']
-                    )
+                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', p['nombre'], cant, 'Botellas', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
             else:
                 cant = math.ceil(b * default_prop)
                 if cant > 0:
-                    _agregar_a_lista(
-                        lista_compras, 'Licores y Alcohol',
-                        fallback_nombre, cant, 'Botellas',
-                        proveedor=' Configurar en Plantilla de Barra'
-                    )
+                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
 
-    # ==========================================
-    # MEZCLADORES
-    # ==========================================
     if l := datos['litros_mezcladores']:
         mapeo_mezcladores = [
             ('REFRESCO_COLA', 'Coca-Cola (2.5L)', 0.60, 2.5),
             ('REFRESCO_TORONJA', 'Refresco Toronja (2L)', 0.20, 2.0),
             ('AGUA_MINERAL', 'Agua Mineral (2L)', 0.20, 2.0),
         ]
-        
         for cat, fallback_nombre, share, litros_envase in mapeo_mezcladores:
             p = _obtener_item_plantilla(cat)
             litros_necesarios = l * share
             cant = math.ceil(litros_necesarios / litros_envase)
             if cant > 0:
                 if p:
-                    _agregar_a_lista(
-                        lista_compras, 'Bebidas y Mezcladores',
-                        p['nombre'], cant, 'Botellas',
-                        proveedor=p['proveedor'],
-                        costo_unitario=p['costo_unitario']
-                    )
+                    _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', p['nombre'], cant, 'Botellas', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
                 else:
-                    _agregar_a_lista(
-                        lista_compras, 'Bebidas y Mezcladores',
-                        fallback_nombre, cant, 'Botellas',
-                        proveedor=' Configurar en Plantilla de Barra'
-                    )
+                    _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
 
-    # --- Agua Natural ---
     if datos['litros_agua'] > 0:
         p = _obtener_item_plantilla('AGUA_NATURAL') or _fallback_item('Agua Natural (Garrafón 20L)')
         cant = math.ceil(datos['litros_agua'] / 20)
-        _agregar_a_lista(
-            lista_compras, 'Bebidas y Mezcladores',
-            p['nombre'], cant, 'Garrafones',
-            proveedor=p['proveedor'],
-            costo_unitario=p['costo_unitario']
-        )
+        _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', p['nombre'], cant, 'Garrafones', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
 
-    # ==========================================
-    # HIELO
-    # ==========================================
     p = _obtener_item_plantilla('HIELO') or _fallback_item('Hielo (Bolsa 20kg)')
-    _agregar_a_lista(
-        lista_compras, 'Abarrotes y Consumibles',
-        p['nombre'], datos['bolsas_hielo_20kg'], 'Bolsas',
-        nota=datos['hielo_info'],
-        proveedor=p['proveedor'],
-        costo_unitario=p['costo_unitario']
-    )
+    _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles', p['nombre'], datos['bolsas_hielo_20kg'], 'Bolsas', nota=datos['hielo_info'], proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
 
-    # ==========================================
-    # COCTELERÍA
-    # ==========================================
     if cotizacion.incluye_cocteleria_basica:
         for cat, fallback, cant_calc, unidad in [
             ('LIMON', 'Limón Persa', math.ceil(cotizacion.num_personas / 8), 'Kg'),
@@ -351,12 +254,7 @@ def generar_lista_compras_barra(cotizacion):
         ]:
             p = _obtener_item_plantilla(cat) or _fallback_item(fallback)
             seccion = 'Frutas y Verduras' if cat in ('LIMON', 'HIERBABUENA') else 'Abarrotes y Consumibles'
-            _agregar_a_lista(
-                lista_compras, seccion,
-                p['nombre'], cant_calc, unidad,
-                proveedor=p['proveedor'],
-                costo_unitario=p['costo_unitario']
-            )
+            _agregar_a_lista(lista_compras, seccion, p['nombre'], cant_calc, unidad, proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
 
     if cotizacion.incluye_cocteleria_premium:
         for cat, fallback, cant_calc, unidad in [
@@ -365,25 +263,11 @@ def generar_lista_compras_barra(cotizacion):
         ]:
             p = _obtener_item_plantilla(cat) or _fallback_item(fallback)
             seccion = 'Frutas y Verduras' if cat == 'FRUTOS_ROJOS' else 'Abarrotes y Consumibles'
-            _agregar_a_lista(
-                lista_compras, seccion,
-                p['nombre'], cant_calc, unidad,
-                proveedor=p['proveedor'],
-                costo_unitario=p['costo_unitario']
-            )
+            _agregar_a_lista(lista_compras, seccion, p['nombre'], cant_calc, unidad, proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
 
-    # --- Consumibles Generales ---
     p = _obtener_item_plantilla('SERVILLETAS') or _fallback_item('Servilletas / Popotes')
-    _agregar_a_lista(
-        lista_compras, 'Abarrotes y Consumibles',
-        p['nombre'], 1, 'Kit',
-        proveedor=p['proveedor'],
-        costo_unitario=p['costo_unitario']
-    )
+    _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles', p['nombre'], 1, 'Kit', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
 
-    # ==========================================
-    # CALCULAR COSTO TOTAL DE LA LISTA
-    # ==========================================
     for seccion, items in lista_compras.items():
         for item in items:
             if 'costo_total' not in item and item.get('costo_unitario', 0) > 0:
@@ -398,10 +282,7 @@ def generar_lista_compras_barra(cotizacion):
 
 @staff_member_required
 def configurar_plantilla_barra(request):
-    """
-    Vista de asistente visual para vincular insumos reales
-    a cada concepto de la Plantilla de Barra.
-    """
+    """Vista de asistente visual para vincular insumos reales a cada concepto de la Plantilla de Barra."""
     from django.contrib import admin as django_admin
     
     GRUPO_CONFIG = {
@@ -423,11 +304,9 @@ def configurar_plantilla_barra(request):
     
     cat_labels = dict(PlantillaBarra.CATEGORIAS_BARRA)
     insumos = Insumo.objects.all().order_by('nombre')
-    
     mensaje_exito = None
     mensaje_error = None
     
-    # ─── PROCESAR POST ───
     if request.method == 'POST':
         creados = 0
         actualizados = 0
@@ -444,7 +323,6 @@ def configurar_plantilla_barra(request):
             
             proporcion_decimal = Decimal(proporcion_pct) / Decimal('100')
             
-            # Determinar grupo automáticamente
             grupo = 'CONSUMIBLE'
             for g_key, g_conf in GRUPO_CONFIG.items():
                 if cat_key in g_conf['categorias']:
@@ -465,12 +343,8 @@ def configurar_plantilla_barra(request):
                         actualizados += 1
                     else:
                         PlantillaBarra.objects.create(
-                            categoria=cat_key,
-                            grupo=grupo,
-                            insumo=insumo,
-                            proporcion=proporcion_decimal,
-                            activo=True,
-                            orden=0
+                            categoria=cat_key, grupo=grupo, insumo=insumo,
+                            proporcion=proporcion_decimal, activo=True, orden=0
                         )
                         creados += 1
                         
@@ -484,7 +358,6 @@ def configurar_plantilla_barra(request):
         else:
             mensaje_error = f"Guardado con {errores} errores. {creados} nuevos, {actualizados} actualizados."
     
-    # ─── PREPARAR DATOS PARA TEMPLATE ───
     grupos = []
     vinculados = 0
     sin_vincular = 0
@@ -922,12 +795,7 @@ def descargar_ficha_producto(request, producto_id):
     return response
 
 # ==========================================
-# 6. INTEGRACIÓN MANYCHAT (WEBHOOK V6 - CORREGIDO)
-# ==========================================
-# INSTRUCCIONES:
-# Busca en tu comercial/views.py la sección "6. INTEGRACIÓN MANYCHAT"
-# Borra desde "def _verificar_token_webhook" hasta el final de "def webhook_manychat"
-# Pega TODO este bloque en su lugar.
+# 6. INTEGRACIÓN MANYCHAT (WEBHOOK V7)
 # ==========================================
 
 def _verificar_token_webhook(request):
@@ -969,10 +837,9 @@ def _agregar_item_producto(cotizacion, producto, cantidad=1, descripcion_overrid
 def _detectar_clima_por_fecha(fecha):
     """
     Detecta automáticamente el clima según el mes del evento.
-    Basado en el clima de Mérida, Yucatán:
-    - 'extremo': Mayo (pico de calor, +60% hielo)
-    - 'calor':   Mar, Abr, Jun, Jul, Ago, Sep, Oct (calor estándar, +30% hielo)
-    - 'normal':  Nov, Dic, Ene, Feb (temporada fresca)
+    - 'extremo': Mayo
+    - 'calor':   Mar, Abr, Jun, Jul, Ago, Sep, Oct
+    - 'normal':  Nov, Dic, Ene, Feb
     """
     if not fecha:
         return 'calor'
@@ -995,31 +862,26 @@ def _parsear_hora(hora_str):
         return None
     hora_str = hora_str.strip().lower().replace(' ', '')
 
-    # Formato HH:MM
     try:
         return datetime.strptime(hora_str, "%H:%M").time()
     except ValueError:
         pass
 
-    # Formato H:MMpm/am
     try:
         return datetime.strptime(hora_str, "%I:%M%p").time()
     except ValueError:
         pass
 
-    # Formato Hpm/am (ej: 2pm)
     try:
         return datetime.strptime(hora_str, "%I%p").time()
     except ValueError:
         pass
 
-    # Formato HHh (ej: 14h)
     try:
         return datetime.strptime(hora_str.replace('h', '').strip(), "%H").time()
     except ValueError:
         pass
 
-    # Formato solo número (ej: 14)
     try:
         h = int(hora_str)
         if 0 <= h <= 23:
@@ -1034,14 +896,9 @@ def _parsear_hora(hora_str):
 @csrf_exempt
 def webhook_manychat(request):
     """
-    Webhook V6 CORREGIDO: Procesa 3 líneas de negocio:
-    - Evento (Solo Arrendamiento o Renta + Servicios)
-    - Pasadía (paquete fijo + extras opcionales)
-    
-    CORRECCIONES APLICADAS:
-    - Paquete Esencial QKT se agrega SIEMPRE para eventos (no solo arrendamiento)
-    - Horas Extra busca "Hora Extra De Arrendamiento" (nombre correcto en BD)
-    - Cliente se crea/actualiza con nombre real de ManyChat
+    Webhook V7: Procesa Evento y Pasadía.
+    - Nombre de evento personalizado con fallback.
+    - Crea PortalCliente y devuelve portal_url.
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
@@ -1067,7 +924,6 @@ def webhook_manychat(request):
         es_pasadia = 'pasad' in tipo_servicio.lower()
         es_solo_arrendamiento = 'arrendamiento' in tipo_servicio.lower()
 
-        # Número de personas
         num_raw = data.get('num_personas', '50')
         try:
             num_personas_raw = int(re.findall(r'\d+', str(num_raw))[0])
@@ -1076,7 +932,6 @@ def webhook_manychat(request):
 
         num_personas = _redondear_personas(num_personas_raw, es_pasadia)
 
-        # Horas: calcular desde hora_inicio y hora_fin
         hora_inicio_str = data.get('hora_inicio', '').strip()
         hora_fin_str = data.get('hora_fin', '').strip()
         hora_inicio_obj = _parsear_hora(hora_inicio_str)
@@ -1086,29 +941,24 @@ def webhook_manychat(request):
             from datetime import date as dt_date
             dt_inicio = datetime.combine(dt_date.today(), hora_inicio_obj)
             dt_fin = datetime.combine(dt_date.today(), hora_fin_obj)
-            # Si hora_fin es menor que hora_inicio, el evento cruza medianoche
             if dt_fin <= dt_inicio:
                 dt_fin += timedelta(days=1)
             horas_evento = max(6, int((dt_fin - dt_inicio).total_seconds() / 3600))
         else:
             horas_evento = 6
 
-        # Pasadía: forzar horario fijo 10am-7pm
         if es_pasadia:
             horas_evento = 9
             hora_inicio_obj = datetime.strptime("10:00", "%H:%M").time()
             hora_fin_obj = datetime.strptime("19:00", "%H:%M").time()
 
-        # Fecha
         try:
             fecha_evento = datetime.strptime(fecha_str.strip(), "%d/%m/%Y").date()
         except ValueError:
             fecha_evento = timezone.now().date() + timedelta(days=30)
 
-        # Auto-detectar clima según la fecha del evento
         clima_auto = _detectar_clima_por_fecha(fecha_evento)
 
-        # Helper booleano
         def _bool(val):
             if isinstance(val, bool):
                 return val
@@ -1137,13 +987,18 @@ def webhook_manychat(request):
         # =====================
         resumen_partes = []
 
+        # Nombre personalizado (aplica a ambos flujos)
+        nombre_evento_custom = str(data.get('nombre_evento', '')).strip()
+
         if es_pasadia:
             # ===========================
             # FLUJO PASADÍA
             # ===========================
+            nombre_ev_pasadia = nombre_evento_custom if nombre_evento_custom else f"Pasadía - {nombre}"
+
             cotizacion = Cotizacion(
                 cliente=cliente,
-                nombre_evento=f"Pasadía - {nombre}"[:200],
+                nombre_evento=nombre_ev_pasadia[:200],
                 fecha_evento=fecha_evento,
                 num_personas=num_personas,
                 horas_servicio=horas_evento,
@@ -1161,14 +1016,12 @@ def webhook_manychat(request):
             )
             cotizacion.save()
 
-            # Paquete Pasadía (precio fijo)
             prod = _buscar_producto_por_nombre('Pasadía') or _buscar_producto_por_nombre('Pasadia')
             if prod:
                 _agregar_item_producto(cotizacion, prod, cantidad=1,
                     descripcion_override=f"Paquete Pasadía QKT ({num_personas} Pax, 10am-7pm)")
                 resumen_partes.append("Pasadía")
 
-            # Extras opcionales
             if _bool(data.get('pasadia_brincolin', False)):
                 prod = _buscar_producto_por_nombre('Brincolín') or _buscar_producto_por_nombre('Brincolin')
                 if prod:
@@ -1206,7 +1059,6 @@ def webhook_manychat(request):
             inc_catering = _bool(data.get('incluye_catering', False)) if not es_solo_arrendamiento else False
             inc_taquiza = _bool(data.get('incluye_taquiza', False)) if not es_solo_arrendamiento else False
 
-            nombre_evento_custom = str(data.get('nombre_evento', '')).strip()
             nombre_ev = nombre_evento_custom if nombre_evento_custom else f"{tipo_servicio} - {tipo_evento}"
 
             cotizacion = Cotizacion(
@@ -1229,7 +1081,6 @@ def webhook_manychat(request):
             )
             cotizacion.save()
 
-            # --- PAQUETE BASE (siempre se agrega para eventos) ---
             prod = _buscar_producto_por_nombre('Paquete Esencial')
             if prod:
                 if es_solo_arrendamiento:
@@ -1240,7 +1091,6 @@ def webhook_manychat(request):
                     resumen_partes.append("Paquete Base")
                 _agregar_item_producto(cotizacion, prod, cantidad=1, descripcion_override=desc)
 
-            # --- MOBILIARIO (solo con servicios) ---
             if not es_solo_arrendamiento:
                 mob_principal = data.get('mobiliario_principal', '').strip()
                 mob_lounge_tipo = data.get('mobiliario_lounge_tipo', '').strip()
@@ -1278,7 +1128,6 @@ def webhook_manychat(request):
                             descripcion_override=f"Mesas Cóctel ({mob_coctel_cant} unidades)")
                         resumen_partes.append(f"Cóctel x{mob_coctel_cant}")
 
-            # --- COMIDA ---
             if inc_catering:
                 prod = _buscar_producto_por_nombre('Catering')
                 if prod:
@@ -1295,7 +1144,6 @@ def webhook_manychat(request):
                         descripcion_override=f"Servicio de Taquiza ({num_personas} Pax)")
                     resumen_partes.append("Taquiza")
 
-            # --- DJ ---
             if inc_dj_iluminacion:
                 prod = _buscar_producto_por_nombre('DJ Con Iluminación') or _buscar_producto_por_nombre('DJ Iluminacion')
                 if prod:
@@ -1309,7 +1157,6 @@ def webhook_manychat(request):
                         descripcion_override=f"Servicio de DJ Básico - {horas_evento} Hrs")
                     resumen_partes.append("DJ")
 
-            # --- BARRA (resumen) ---
             barra_partes = []
             if inc_cerveza: barra_partes.append("Cerveza")
             if inc_nacional: barra_partes.append("Nacional")
@@ -1319,7 +1166,6 @@ def webhook_manychat(request):
             if barra_partes:
                 resumen_partes.append("Barra(" + "/".join(barra_partes) + ")")
 
-            # --- HORAS EXTRA (corregido: busca nombre exacto del producto) ---
             if horas_evento > 6:
                 horas_extra = horas_evento - 6
                 prod = _buscar_producto_por_nombre('Hora Extra De Arrendamiento')
@@ -1330,7 +1176,6 @@ def webhook_manychat(request):
                         descripcion_override=f"Horas Extra de Arrendamiento ({horas_extra} hrs adicionales)")
                     resumen_partes.append(f"+{horas_extra}hrs")
 
-            # --- MENSAJE LIBRE ---
             mensaje_libre = data.get('mensaje_libre', '').strip()
             if mensaje_libre and mensaje_libre.lower() not in ('no', 'nada', 'ninguno', ''):
                 nota = f" | Nota: {mensaje_libre[:150]}"
@@ -1399,26 +1244,25 @@ def webhook_manychat(request):
             'num_personas_final': num_personas,
         }, status=200)
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': f'Error interno: {str(e)}'}, status=500)
+
+
 # ==========================================
-# NUEVO: DASHBOARD CxC (CARTERA DE CLIENTES)
+# DASHBOARD CxC (CARTERA DE CLIENTES)
 # ==========================================
-# Agregar este import arriba en views.py:
-# from django.db.models import F, Value, CharField, Case, When, DecimalField
-# from django.db.models.functions import Coalesce
 
 @staff_member_required
 def ver_cartera_cxc(request):
-    """
-    Dashboard de Cuentas por Cobrar.
-    Muestra cotizaciones con saldo pendiente, antigüedad y alertas.
-    """
+    """Dashboard de Cuentas por Cobrar."""
     from django.db.models import F, Case, When, Value, CharField, DecimalField
     from django.db.models.functions import Coalesce
     
     context = admin.site.each_context(request)
     hoy = timezone.now().date()
     
-    # Cotizaciones con saldo pendiente (excluir canceladas y cerradas)
     cotizaciones = Cotizacion.objects.filter(
         estado__in=['COTIZADA', 'ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION', 'EJECUTADA']
     ).select_related('cliente').prefetch_related('pagos').order_by('fecha_evento')
@@ -1427,8 +1271,6 @@ def ver_cartera_cxc(request):
     total_por_cobrar = Decimal('0.00')
     total_vencido = Decimal('0.00')
     total_por_vencer = Decimal('0.00')
-    
-    # Contadores por antigüedad
     al_dia = 0
     vence_7_dias = 0
     vence_30_dias = 0
@@ -1437,14 +1279,12 @@ def ver_cartera_cxc(request):
     for cot in cotizaciones:
         saldo = cot.saldo_pendiente()
         if saldo <= Decimal('0.50'):
-            continue  # Ya pagado
+            continue
         
         total_por_cobrar += saldo
         dias_evento = (cot.fecha_evento - hoy).days
         
-        # Clasificar antigüedad
         if dias_evento < 0:
-            # Evento ya pasó y no ha pagado todo
             antiguedad = 'VENCIDO'
             vencido += 1
             total_vencido += saldo
@@ -1476,7 +1316,6 @@ def ver_cartera_cxc(request):
             'email': cot.cliente.email,
         })
     
-    # Ordenar: vencidos primero, luego por fecha de evento
     orden_prioridad = {'VENCIDO': 0, 'URGENTE': 1, 'PROXIMO': 2, 'AL_DIA': 3}
     cartera.sort(key=lambda x: (orden_prioridad.get(x['antiguedad'], 4), x['fecha_evento']))
     
@@ -1494,43 +1333,9 @@ def ver_cartera_cxc(request):
     
     return render(request, 'admin/comercial/cartera_cxc.html', context)
 
-# ==========================================
-# AGREGAR A comercial/views.py
-# ==========================================
-# Imports adicionales necesarios (agregar arriba si no existen):
-# from .models import PlanPago, ParcialidadPago
-# from .services import PlanPagosService
-
-
-@staff_member_required
-def generar_plan_pagos(request, cotizacion_id):
-    """
-    Genera un plan de pagos para una cotización.
-    Redirige de vuelta a la cotización con mensaje de éxito/error.
-    """
-    from .models import PlanPago
-    from .services import PlanPagosService
-    
-    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    
-    if cotizacion.precio_final <= 0:
-        messages.error(request, " La cotización no tiene precio calculado. Agrega items primero.")
-        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
-    
-    try:
-        servicio = PlanPagosService(cotizacion)
-        plan = servicio.generar(usuario=request.user)
-        parcialidades = plan.parcialidades.count()
-        messages.success(request, f" Plan de {parcialidades} pagos generado para COT-{cotizacion.id:03d}")
-    except Exception as e:
-        messages.error(request, f" Error al generar plan: {e}")
-    
-    return redirect(request.META.get('HTTP_REFERER', f'/admin/comercial/cotizacion/{cotizacion_id}/change/'))
-
 
 # ==========================================
-# REEMPLAZAR las vistas generar_plan_pagos y descargar_plan_pagos_pdf
-# en comercial/views.py
+# PLAN DE PAGOS
 # ==========================================
 
 @staff_member_required
@@ -1548,7 +1353,6 @@ def generar_plan_pagos(request, cotizacion_id):
         messages.error(request, "La cotización no tiene precio calculado. Agrega items primero.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
     
-    # Parcialidades personalizadas vía GET
     num_parcialidades = request.GET.get('parcialidades')
     if num_parcialidades:
         try:
@@ -1604,6 +1408,7 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
     HTML(string=html_string).write_pdf(response)
     return response
 
+
 # ==========================================
 # CONTRATO DE SERVICIO
 # ==========================================
@@ -1627,7 +1432,6 @@ def generar_contrato(request, cotizacion_id):
 
         filename = f"Contrato_{numero}.pdf"
 
-        # Guardar registro en DB
         contrato = ContratoServicio(
             cotizacion=cotizacion,
             numero=numero,
@@ -1638,7 +1442,6 @@ def generar_contrato(request, cotizacion_id):
         contrato.archivo.save(filename, ContentFile(pdf_bytes), save=False)
         contrato.save()
 
-        # Actualizar campo rápido en Cotizacion
         cotizacion.archivo_contrato.save(filename, ContentFile(pdf_bytes), save=False)
         Cotizacion.objects.filter(pk=cotizacion.pk).update(
             archivo_contrato=cotizacion.archivo_contrato.name
@@ -1657,9 +1460,7 @@ def generar_contrato(request, cotizacion_id):
 
 @staff_member_required
 def enviar_contrato_email(request, contrato_id):
-    """
-    Envía el contrato por email al cliente adjuntando el .docx.
-    """
+    """Envía el contrato por email al cliente."""
     from .models import ContratoServicio
 
     contrato   = get_object_or_404(ContratoServicio, id=contrato_id)
