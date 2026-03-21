@@ -1206,7 +1206,8 @@ def webhook_manychat(request):
             inc_catering = _bool(data.get('incluye_catering', False)) if not es_solo_arrendamiento else False
             inc_taquiza = _bool(data.get('incluye_taquiza', False)) if not es_solo_arrendamiento else False
 
-            nombre_ev = f"{tipo_servicio} - {tipo_evento}"
+            nombre_evento_custom = str(data.get('nombre_evento', '')).strip()
+            nombre_ev = nombre_evento_custom if nombre_evento_custom else f"{tipo_servicio} - {tipo_evento}"
 
             cotizacion = Cotizacion(
                 cliente=cliente,
