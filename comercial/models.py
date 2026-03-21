@@ -459,6 +459,14 @@ class Cotizacion(models.Model):
             retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva, 
             precio_final=self.precio_final
         )
+        try:
+            from .models import PortalCliente
+            PortalCliente.objects.get_or_create(
+                cotizacion=self,
+                defaults={'activo': True}
+            )
+        except Exception:
+            pass
 
     def total_pagado(self): return self.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     def saldo_pendiente(self): return self.precio_final - self.total_pagado()
