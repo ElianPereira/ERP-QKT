@@ -1368,6 +1368,16 @@ def webhook_manychat(request):
         pdf_url = cotizacion.archivo_pdf.url if cotizacion.archivo_pdf else ''
 
         # =====================
+        # 5.5 CREAR PORTAL DEL CLIENTE
+        # =====================
+        from .models import PortalCliente
+        portal, _ = PortalCliente.objects.get_or_create(
+            cotizacion=cotizacion,
+            defaults={'activo': True}
+        )
+        portal_url = f"https://erp-qkt.up.railway.app/portal/{portal.token}/"
+
+        # =====================
         # 6. RESUMEN
         # =====================
         clima_tag = ""
@@ -1384,15 +1394,10 @@ def webhook_manychat(request):
             'folio': folio,
             'precio_final': f"${cotizacion.precio_final:,.2f}",
             'pdf_url': pdf_url,
+            'portal_url': portal_url,
             'resumen': resumen,
             'num_personas_final': num_personas,
         }, status=200)
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'status': 'error', 'message': f'Error interno: {str(e)}'}, status=500)
-
 
 # ==========================================
 # NUEVO: DASHBOARD CxC (CARTERA DE CLIENTES)

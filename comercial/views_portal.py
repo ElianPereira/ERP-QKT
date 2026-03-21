@@ -142,7 +142,6 @@ def portal_descargar_cotizacion(request, token):
     HTML(string=html_string).write_pdf(response)
     return response
 
-
 def portal_descargar_plan(request, token):
     """Descarga PDF del plan de pagos desde el portal."""
     portal = get_object_or_404(PortalCliente, token=token, activo=True)
