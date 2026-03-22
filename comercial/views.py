@@ -1249,6 +1249,11 @@ def webhook_manychat(request):
         traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': f'Error interno: {str(e)}'}, status=500)
 
+# DEBUG TEMPORAL
+import logging
+logger = logging.getLogger(__name__)
+logger.error(f"WEBHOOK DATA: telefono={data.get('telefono_cliente')} nombre={data.get('nombre_cliente')}")
+
 
 # ==========================================
 # DASHBOARD CxC (CARTERA DE CLIENTES)
