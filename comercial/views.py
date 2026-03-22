@@ -1220,7 +1220,7 @@ def webhook_manychat(request):
             cotizacion=cotizacion,
             defaults={'activo': True}
         )
-        portal_url = f"https://erp-qkt.up.railway.app/portal/{portal.token}/"
+        portal_url = f"https://erp-qkt.up.railway.app/mi-evento/{portal.token}/"
 
         # =====================
         # 6. RESUMEN
