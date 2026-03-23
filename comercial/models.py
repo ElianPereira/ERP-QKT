@@ -460,7 +460,8 @@ class Cotizacion(models.Model):
             precio_final=self.precio_final
         )
         try:
-            from .models import PortalCliente
+            from django.apps import apps
+            PortalCliente = apps.get_model('comercial', 'PortalCliente')
             PortalCliente.objects.get_or_create(
                 cotizacion=self,
                 defaults={'activo': True}
