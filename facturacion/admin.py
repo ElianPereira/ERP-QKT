@@ -3,17 +3,20 @@ Admin del Módulo de Facturación
 ===============================
 Sistema de Diseño QKT v2.0
 """
+import os
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.urls import path, reverse
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponseRedirect, HttpResponse, JsonResponse
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.conf import settings
-
 from .models import SolicitudFactura, ConfiguracionContador
-
+from decimal import Decimal
+from django.template.loader import render_to_string
+from django.core.files.base import ContentFile
+from weasyprint import HTML
 
 @admin.register(ConfiguracionContador)
 class ConfiguracionContadorAdmin(admin.ModelAdmin):
@@ -186,6 +189,16 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         
         # Botones para PENDIENTE y ENVIADA
         html_parts = []
+
+        # Botón PDF de solicitud
+        pdf_url = '/admin/facturacion/solicitudfactura/{}/generar_pdf/'.format(obj_id)
+        pdf_btn = (
+            '<a href="{pdf_url}" target="_blank" '
+            'style="background:#8e44ad; color:#fff; padding:4px 10px; '
+            'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; margin-right:4px;">'
+            'PDF</a>'
+        ).format(pdf_url=pdf_url)
+        html_parts.append(pdf_btn)        
         
         # Botón WhatsApp
         whatsapp_url = obj.get_whatsapp_url()
@@ -217,6 +230,11 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path(
+                '<int:solicitud_id>/generar_pdf/',
+                self.admin_site.admin_view(self.generar_pdf_view),
+                name='solicitudfactura_generar_pdf'
+            ),
+            path(
                 '<int:solicitud_id>/enviar_email/',
                 self.admin_site.admin_view(self.enviar_email_view),
                 name='solicitudfactura_enviar_email'
@@ -228,6 +246,53 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             ),
         ]
         return custom_urls + urls
+    
+    def generar_pdf_view(self, request, solicitud_id):
+        """Genera y retorna el PDF de la solicitud para el contador."""
+        solicitud = SolicitudFactura.objects.select_related('cliente', 'cotizacion').get(pk=solicitud_id)
+        cliente = solicitud.cliente
+
+        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+        if os.name == 'nt':
+            logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
+        else:
+            logo_url = f"file://{ruta_logo}"
+
+        # Cálculo inverso de impuestos
+        total = Decimal(str(solicitud.monto))
+        subtotal = total
+        iva = Decimal('0.00')
+        ret_isr = Decimal('0.00')
+
+        if cliente.rfc and cliente.rfc != 'XAXX010101000':
+            tipo = getattr(cliente, 'tipo_persona', None)
+            if tipo == 'MORAL':
+                factor_divisor = Decimal('1.1475')
+                subtotal = total / factor_divisor
+                iva = subtotal * Decimal('0.16')
+                ret_isr = subtotal * Decimal('0.0125')
+            else:
+                factor_divisor = Decimal('1.16')
+                subtotal = total / factor_divisor
+                iva = subtotal * Decimal('0.16')
+
+        context = {
+            'solicitud': solicitud,
+            'cliente': cliente,
+            'folio': f"SOL-{int(solicitud.id):03d}",
+            'logo_url': logo_url,
+            'calc_subtotal': subtotal,
+            'calc_iva': iva,
+            'calc_ret_isr': ret_isr,
+            'calc_total': total,
+        }
+
+        html_string = render_to_string('facturacion/solicitud_pdf.html', context)
+        pdf_file = HTML(string=html_string).write_pdf()
+
+        response = HttpResponse(pdf_file, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="Solicitud_SOL-{solicitud.id:04d}.pdf"'
+        return response
     
     def enviar_email_view(self, request, solicitud_id):
         """Envía la solicitud por email al contador."""
