@@ -147,47 +147,24 @@ class JibbleService:
         return personas if personas else None
 
     def _obtener_tracked_time(self, fecha_inicio, fecha_fin, person_ids=None):
-        params = {'from': f'{fecha_inicio}T00:00:00.000Z', 'to': f'{fecha_fin}T23:59:59.000Z'}
+        """
+        POST /v1/TrackedTimeReport
+        Body JSON: {from, to, personIds}
+        """
+        body = {
+            'from': f'{fecha_inicio}T00:00:00.000Z',
+            'to': f'{fecha_fin}T23:59:59.000Z',
+        }
         if person_ids:
-            params['personIds'] = ','.join(person_ids)
-        response = self._session.get(JIBBLE_TRACKED_TIME_URL, params=params, timeout=30)
+            body['personIds'] = person_ids
+
+        response = self._session.post(
+            JIBBLE_TRACKED_TIME_URL,
+            json=body,
+            timeout=30,
+        )
         response.raise_for_status()
         data = response.json()
-        items = data if isinstance(data, list) else data.get('value', [])
-        personas = {}
-        for item in items:
-            nombre = item.get('memberName') or item.get('personName') or item.get('name', 'Desconocido')
-            nombre_upper = nombre.upper().strip()
-            person_id = item.get('personId') or item.get('memberId', '')
-            if nombre_upper not in personas:
-                personas[nombre_upper] = {'person_id': str(person_id), 'dias': []}
-            daily_data = item.get('dailyData') or item.get('days') or item.get('entries') or []
-            if isinstance(daily_data, list):
-                for day in daily_data:
-                    fecha = day.get('date', '')
-                    if isinstance(fecha, str) and len(fecha) >= 10:
-                        fecha = fecha[:10]
-                    duracion = self._parsear_duracion_jibble(day)
-                    if duracion > 0:
-                        personas[nombre_upper]['dias'].append({
-                            'fecha': fecha,
-                            'duracion_segundos': duracion,
-                            'entrada': self._formatear_hora(day.get('firstIn', '')),
-                            'salida': self._formatear_hora(day.get('lastOut', '')),
-                        })
-            else:
-                duracion = self._parsear_duracion_jibble(item)
-                fecha = item.get('date', fecha_inicio)
-                if isinstance(fecha, str) and len(fecha) >= 10:
-                    fecha = fecha[:10]
-                if duracion > 0:
-                    personas[nombre_upper]['dias'].append({
-                        'fecha': fecha,
-                        'duracion_segundos': duracion,
-                        'entrada': self._formatear_hora(item.get('firstIn', '')),
-                        'salida': self._formatear_hora(item.get('lastOut', '')),
-                    })
-        return personas
 
     def _verificar_token(self):
         if not self.access_token:
