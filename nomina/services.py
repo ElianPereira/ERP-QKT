@@ -147,7 +147,7 @@ class JibbleService:
         return personas if personas else None
 
     def _obtener_tracked_time(self, fecha_inicio, fecha_fin, person_ids=None):
-        params = {'period.startDate': fecha_inicio, 'period.endDate': fecha_fin}
+        params = {'from': f'{fecha_inicio}T00:00:00.000Z', 'to': f'{fecha_fin}T23:59:59.000Z'}
         if person_ids:
             params['personIds'] = ','.join(person_ids)
         response = self._session.get(JIBBLE_TRACKED_TIME_URL, params=params, timeout=30)
