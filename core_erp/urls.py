@@ -51,9 +51,9 @@ except ImportError as e:
 
 # Importamos vistas de otros módulos de forma segura
 try:
-    from nomina.views import cargar_nomina
+    from nomina.views import cargar_nomina, sync_jibble_view, jibble_diagnostico_view, webhook_sync_jibble
 except ImportError:
-    cargar_nomina = None
+    cargar_nomina = sync_jibble_view = jibble_diagnostico_view = webhook_sync_jibble = None
 
 try:
     from facturacion.views import crear_solicitud
@@ -93,6 +93,9 @@ urlpatterns = [
     # --- 4. MÓDULOS EXTRA ---
     path('admin/nomina/cargar/', cargar_nomina if cargar_nomina else admin.site.urls, name='cargar_nomina'),
     path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
+    path('admin/nomina/sync-jibble/', sync_jibble_view, name='sync_jibble'),
+    path('admin/nomina/jibble-diagnostico/', jibble_diagnostico_view, name='jibble_diagnostico'),
+    path('api/nomina/sync-jibble/', webhook_sync_jibble, name='webhook_sync_jibble'),
 
     # --- 5.MÓDULO AIRBNB ---
 

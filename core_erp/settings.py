@@ -145,6 +145,11 @@ MEDIA_URL = '/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# --- JIBBLE API ---
+JIBBLE_CLIENT_ID = config('JIBBLE_CLIENT_ID', default='')
+JIBBLE_CLIENT_SECRET = config('JIBBLE_CLIENT_SECRET', default='')
+NOMINA_CRON_TOKEN = config('NOMINA_CRON_TOKEN', default='')
+
 # ==============================================================
 # SECCIÓN JAZZMIN
 # ==============================================================
@@ -314,6 +319,3 @@ LOGIN_REDIRECT_URL = '/admin/'
 LOGOUT_REDIRECT_URL = '/admin/login/'
 
 CONTABILIDAD_SIGNALS_ENABLED = True
-
-JIBBLE_CLIENT_ID = config('JIBBLE_CLIENT_ID', default='')
-JIBBLE_CLIENT_SECRET = config('JIBBLE_CLIENT_SECRET', default='')

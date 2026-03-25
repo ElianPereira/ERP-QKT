@@ -46,7 +46,6 @@ class ReciboNominaAdmin(admin.ModelAdmin):
         jibble_id = getattr(settings, 'JIBBLE_CLIENT_ID', '')
         jibble_secret = getattr(settings, 'JIBBLE_CLIENT_SECRET', '')
         jibble_configurado = bool(jibble_id and jibble_secret)
-
         extra_context['jibble_configurado'] = jibble_configurado
 
         if jibble_configurado:
