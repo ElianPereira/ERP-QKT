@@ -751,3 +751,11 @@ body.login-page footer,
 body.login-page .main-footer {
     display: none !important;
 }
+
+/* FIX: franja blanca entre navbar y contenido */
+.content-header,
+section.content-header,
+.content-wrapper > .content-header {
+    background-color: #2c2b28 !important;
+    background: #2c2b28 !important;
+}
