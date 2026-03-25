@@ -198,7 +198,9 @@ class RecetaInline(admin.TabularInline):
 
 @admin.register(SubProducto)
 class SubProductoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'costo_insumos'); inlines = [RecetaInline]; search_fields = ('nombre',)
+    list_display = ('nombre', 'costo_display'); inlines = [RecetaInline]; search_fields = ('nombre',)
+    def costo_display(self, obj): return f"${obj.costo_insumos():,.2f}"
+    costo_display.short_description = "Costo Insumos"
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
 
@@ -207,7 +209,11 @@ class ComponenteInline(admin.TabularInline):
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    inlines = [ComponenteInline]; list_display = ('nombre', 'calcular_costo', 'sugerencia_precio'); search_fields = ('nombre',)
+    inlines = [ComponenteInline]; list_display = ('nombre', 'costo_display', 'precio_display'); search_fields = ('nombre',)
+    def costo_display(self, obj): return f"${obj.calcular_costo():,.2f}"
+    costo_display.short_description = "Calcular costo"
+    def precio_display(self, obj): return f"${obj.sugerencia_precio():,.2f}"
+    precio_display.short_description = "Sugerencia precio"
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
 
