@@ -147,23 +147,25 @@ class JibbleService:
         return personas if personas else None
 
     def _obtener_tracked_time(self, fecha_inicio, fecha_fin, person_ids=None):
-        """
-        POST /v1/TrackedTimeReport
-        Body JSON: {from, to, personIds}
-        """
-        body = {
+        """GET /v1/TrackedTimeReport con from/to ISO datetime."""
+        params = {
             'from': f'{fecha_inicio}T00:00:00.000Z',
             'to': f'{fecha_fin}T23:59:59.000Z',
         }
         if person_ids:
-            body['personIds'] = person_ids
+            params['personIds'] = ','.join(person_ids)
 
-        response = self._session.post(
+        response = self._session.get(
             JIBBLE_TRACKED_TIME_URL,
-            json=body,
+            params=params,
             timeout=30,
         )
-        response.raise_for_status()
+        
+        # Log del error para diagnóstico
+        if response.status_code != 200:
+            logger.error(f"Jibble TrackedTimeReport {response.status_code}: {response.text[:500]}")
+            response.raise_for_status()
+        
         data = response.json()
 
     def _verificar_token(self):
