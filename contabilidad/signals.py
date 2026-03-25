@@ -93,7 +93,7 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
         return  # Sin configuración, no genera póliza
     
     # Obtener unidad de negocio
-    unidad = get_unidad_negocio('QUINTA')
+    unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
         return
     
@@ -275,7 +275,7 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
         return
     
     # Obtener unidad de negocio (default QUINTA)
-    unidad = get_unidad_negocio('QUINTA')
+    unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
         return
     
@@ -357,7 +357,7 @@ def crear_poliza_nomina(sender, instance, created, **kwargs):
         return
     
     # Obtener unidad de negocio
-    unidad = get_unidad_negocio('QUINTA')
+    unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
         return
     
