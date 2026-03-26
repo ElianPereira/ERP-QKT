@@ -104,7 +104,7 @@ class JibbleService:
 
                 # Excluir owners/admins si no son empleados operativos
                 # (puedes ajustar este filtro según necesites)
-                if status == 'joined' and pid:
+                if status == 'joined' and pid and role not in ('owner', 'admin'):
                     mapa[pid] = nombre.upper().strip()
 
             return mapa
