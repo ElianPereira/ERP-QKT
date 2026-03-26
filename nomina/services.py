@@ -1,46 +1,37 @@
 """
 Servicio de integración con Jibble API
 =======================================
-Maneja autenticación OAuth2, obtención de empleados y timesheets.
+Basado en la estructura real de la API verificada en producción.
 
-Endpoints:
-- Token:      POST https://identity.prod.jibble.io/connect/token
-- People:     GET  https://workspace.prod.jibble.io/v1/People
-- Timesheets: GET  https://time-attendance.prod.jibble.io/v1/TrackedTimeReport
-- Daily:      GET  https://time-attendance.prod.jibble.io/v1/DailyTimesheetsSummary
+Endpoints verificados:
+- Token:  POST https://identity.prod.jibble.io/connect/token
+- People: GET  https://workspace.prod.jibble.io/v1/People
+- Report: GET  https://time-attendance.prod.jibble.io/v1/TrackedTimeReport
+          Params: from, to, groupBy (date|member), personId (opcional)
+          Duración: ISO 8601 (PT6H6M52.753408S)
+          Fecha id: "16 March 2026"
 
-Variables de entorno requeridas:
-- JIBBLE_CLIENT_ID
-- JIBBLE_CLIENT_SECRET
+Variables de entorno: JIBBLE_CLIENT_ID, JIBBLE_CLIENT_SECRET
 """
 
+import re
 import logging
 import requests
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 JIBBLE_TOKEN_URL = 'https://identity.prod.jibble.io/connect/token'
 JIBBLE_PEOPLE_URL = 'https://workspace.prod.jibble.io/v1/People'
-JIBBLE_TRACKED_TIME_URL = 'https://time-attendance.prod.jibble.io/v1/TrackedTimeReport'
-JIBBLE_DAILY_SUMMARY_URL = 'https://time-attendance.prod.jibble.io/v1/DailyTimesheetsSummary'
+JIBBLE_REPORT_URL = 'https://time-attendance.prod.jibble.io/v1/TrackedTimeReport'
 
 
 class JibbleAPIError(Exception):
-    """Error al comunicarse con la API de Jibble."""
     pass
 
 
 class JibbleService:
-    """
-    Servicio para consumir la API REST de Jibble.
-    
-    Flujo OAuth2 Client Credentials:
-    1. POST a /connect/token con client_id + client_secret
-    2. Obtener access_token (Bearer)
-    3. Usar token en headers de cada request
-    """
 
     def __init__(self):
         self.client_id = getattr(settings, 'JIBBLE_CLIENT_ID', '') or ''
@@ -73,8 +64,7 @@ class JibbleService:
             )
             if response.status_code != 200:
                 raise JibbleAPIError(
-                    f"Error de autenticación Jibble (HTTP {response.status_code}). "
-                    f"Verifica tu Client ID y Client Secret."
+                    f"Auth error (HTTP {response.status_code}): {response.text[:200]}"
                 )
             data = response.json()
             self.access_token = data.get('access_token')
@@ -84,180 +74,237 @@ class JibbleService:
             logger.info("Jibble autenticación exitosa.")
             return True
         except requests.exceptions.RequestException as e:
-            raise JibbleAPIError(f"Error de conexión con Jibble: {e}")
-
-    def obtener_personas(self):
-        self._verificar_token()
-        try:
-            response = self._session.get(JIBBLE_PEOPLE_URL, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, list):
-                return data
-            elif isinstance(data, dict) and 'value' in data:
-                return data['value']
-            return data if isinstance(data, list) else [data]
-        except requests.exceptions.RequestException as e:
-            raise JibbleAPIError(f"Error al obtener personas: {e}")
-
-    def obtener_timesheets_semana(self, fecha_inicio, fecha_fin, person_ids=None):
-        self._verificar_token()
-        try:
-            resultado = self._obtener_daily_summary(fecha_inicio, fecha_fin, person_ids)
-            if resultado:
-                return {'personas': resultado, 'fuente': 'DailyTimesheetsSummary'}
-        except Exception as e:
-            logger.warning(f"DailyTimesheetsSummary falló, intentando TrackedTimeReport: {e}")
-        try:
-            resultado = self._obtener_tracked_time(fecha_inicio, fecha_fin, person_ids)
-            return {'personas': resultado, 'fuente': 'TrackedTimeReport'}
-        except Exception as e:
-            raise JibbleAPIError(f"No se pudieron obtener timesheets de Jibble: {e}")
-
-    def _obtener_daily_summary(self, fecha_inicio, fecha_fin, person_ids=None):
-        personas = {}
-        dt_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
-        dt_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
-        current = dt_inicio
-        while current <= dt_fin:
-            params = {'date': current.strftime('%Y-%m-%d')}
-            if person_ids:
-                params['personIds'] = ','.join(person_ids)
-            response = self._session.get(JIBBLE_DAILY_SUMMARY_URL, params=params, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-            items = data if isinstance(data, list) else data.get('value', [])
-            for item in items:
-                nombre = item.get('memberName') or item.get('personName') or item.get('name', 'Desconocido')
-                nombre_upper = nombre.upper().strip()
-                person_id = item.get('personId') or item.get('memberId', '')
-                if nombre_upper not in personas:
-                    personas[nombre_upper] = {'person_id': str(person_id), 'dias': []}
-                duracion = self._parsear_duracion_jibble(item)
-                if duracion > 0:
-                    entrada = item.get('firstIn') or item.get('clockIn') or ''
-                    salida = item.get('lastOut') or item.get('clockOut') or ''
-                    personas[nombre_upper]['dias'].append({
-                        'fecha': current.strftime('%Y-%m-%d'),
-                        'duracion_segundos': duracion,
-                        'entrada': self._formatear_hora(entrada),
-                        'salida': self._formatear_hora(salida),
-                    })
-            current += timedelta(days=1)
-        return personas if personas else None
-
-    def _obtener_tracked_time(self, fecha_inicio, fecha_fin, person_ids=None):
-        """GET /v1/TrackedTimeReport con from/to ISO datetime."""
-        params = {
-            'from': f'{fecha_inicio}T00:00:00.000Z',
-            'to': f'{fecha_fin}T23:59:59.000Z',
-            'groupBy': 'date',
-        }
-        if person_ids:
-            params['personIds'] = ','.join(person_ids)
-
-        response = self._session.get(
-            JIBBLE_TRACKED_TIME_URL,
-            params=params,
-            timeout=30,
-        )
-        
-        # Log del error para diagnóstico
-        if response.status_code != 200:
-            logger.error(f"Jibble TrackedTimeReport {response.status_code}: {response.text[:500]}")
-            response.raise_for_status()
-        
-        data = response.json()
+            raise JibbleAPIError(f"Error de conexión: {e}")
 
     def _verificar_token(self):
         if not self.access_token:
             self.autenticar()
 
+    # ==========================================
+    # PEOPLE — obtener mapa {person_id: nombre}
+    # ==========================================
+    def obtener_personas(self):
+        """
+        GET /v1/People → lista de miembros.
+        Retorna dict {person_id: fullName} solo de miembros activos.
+        """
+        self._verificar_token()
+        try:
+            response = self._session.get(JIBBLE_PEOPLE_URL, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            items = data.get('value', []) if isinstance(data, dict) else data
+
+            mapa = {}
+            for p in items:
+                pid = p.get('id', '')
+                nombre = p.get('fullName') or p.get('preferredName', 'Desconocido')
+                status = p.get('status', '').lower()
+                role = p.get('role', '').lower()
+
+                # Excluir owners/admins si no son empleados operativos
+                # (puedes ajustar este filtro según necesites)
+                if status == 'joined' and pid:
+                    mapa[pid] = nombre.upper().strip()
+
+            return mapa
+        except requests.exceptions.RequestException as e:
+            raise JibbleAPIError(f"Error al obtener personas: {e}")
+
+    # ==========================================
+    # TIMESHEETS — desglose diario por persona
+    # ==========================================
+    def obtener_timesheets_semana(self, fecha_inicio, fecha_fin, person_ids=None):
+        """
+        Obtiene horas por día por empleado.
+        
+        Estrategia:
+        1. GET People → mapa {id: nombre}
+        2. Por cada persona, GET TrackedTimeReport?groupBy=date&personId=X
+        3. Parsear duración ISO 8601 y fecha textual
+        
+        Returns:
+            dict {
+                'personas': {
+                    'NOMBRE': {
+                        'person_id': 'xxx',
+                        'dias': [{fecha, duracion_segundos, entrada, salida}, ...]
+                    }
+                },
+                'fuente': 'TrackedTimeReport'
+            }
+        """
+        self._verificar_token()
+
+        # 1. Obtener personas
+        mapa_personas = self.obtener_personas()
+        if not mapa_personas:
+            raise JibbleAPIError("No se encontraron personas activas en Jibble.")
+
+        # Filtrar si se proporcionaron IDs específicos
+        if person_ids:
+            mapa_personas = {k: v for k, v in mapa_personas.items() if k in person_ids}
+
+        logger.info(f"Jibble: {len(mapa_personas)} personas activas encontradas.")
+
+        # 2. Por cada persona, obtener desglose diario
+        personas = {}
+
+        for person_id, nombre in mapa_personas.items():
+            try:
+                params = {
+                    'from': f'{fecha_inicio}T00:00:00.000Z',
+                    'to': f'{fecha_fin}T23:59:59.000Z',
+                    'groupBy': 'date',
+                    'personId': person_id,
+                }
+
+                response = self._session.get(
+                    JIBBLE_REPORT_URL,
+                    params=params,
+                    timeout=20,
+                )
+
+                if response.status_code != 200:
+                    logger.warning(
+                        f"Jibble report para {nombre} ({person_id}): "
+                        f"HTTP {response.status_code} - {response.text[:200]}"
+                    )
+                    continue
+
+                data = response.json()
+                items = data.get('value', [])
+
+                if not items:
+                    continue
+
+                dias = []
+                for item in items:
+                    # Parsear fecha: "16 March 2026" → "2026-03-16"
+                    fecha_str = self._parsear_fecha_jibble(item.get('id', ''))
+                    if not fecha_str:
+                        continue
+
+                    # Parsear duración ISO 8601: "PT6H6M52.753408S" → segundos
+                    duracion_seg = self._parsear_iso_duration(
+                        item.get('trackedTime') or item.get('time', '')
+                    )
+
+                    if duracion_seg > 60:  # Ignorar registros < 1 minuto (check-in accidental)
+                        dias.append({
+                            'fecha': fecha_str,
+                            'duracion_segundos': duracion_seg,
+                            'entrada': '-',  # La API de report no da hora exacta
+                            'salida': '-',
+                        })
+
+                if dias:
+                    personas[nombre] = {
+                        'person_id': person_id,
+                        'dias': sorted(dias, key=lambda d: d['fecha']),
+                    }
+
+            except Exception as e:
+                logger.warning(f"Error procesando {nombre}: {e}")
+                continue
+
+        return {'personas': personas, 'fuente': 'TrackedTimeReport'}
+
+    # ==========================================
+    # PARSERS
+    # ==========================================
     @staticmethod
-    def _parsear_duracion_jibble(item):
-        for key in ('durationInSeconds', 'totalSeconds', 'payrollSeconds', 'regularSeconds'):
-            val = item.get(key)
-            if val is not None:
-                try:
-                    return int(val)
-                except (ValueError, TypeError):
-                    pass
-        for key in ('durationInMinutes', 'totalMinutes'):
-            val = item.get(key)
-            if val is not None:
-                try:
-                    return int(float(val) * 60)
-                except (ValueError, TypeError):
-                    pass
-        for key in ('payrollHours', 'totalHours', 'duration', 'regularHours', 'total'):
-            val = item.get(key)
-            if val and isinstance(val, str) and ':' in val:
-                try:
-                    parts = val.split(':')
-                    h = int(parts[0])
-                    m = int(parts[1])
-                    s = int(parts[2]) if len(parts) > 2 else 0
-                    return h * 3600 + m * 60 + s
-                except (ValueError, IndexError):
-                    pass
-        for key in ('hours', 'totalHoursDecimal'):
-            val = item.get(key)
-            if val is not None:
-                try:
-                    return int(float(val) * 3600)
-                except (ValueError, TypeError):
-                    pass
-        return 0
+    def _parsear_iso_duration(valor):
+        """
+        Parsea duración ISO 8601 a segundos.
+        
+        Formatos de Jibble:
+            PT6H6M52.753408S    → 6h 6m 52s = 22012s
+            P1DT11H40M37.534S  → 1d 11h 40m 37s = 128437s
+            PT6.830227S         → 0h 0m 6s = 6s
+            PT0S                → 0s
+        
+        Regex: P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?
+        """
+        if not valor or not isinstance(valor, str):
+            return 0
+
+        try:
+            pattern = r'P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?'
+            match = re.match(pattern, valor)
+            if not match:
+                return 0
+
+            days = int(match.group(1) or 0)
+            hours = int(match.group(2) or 0)
+            minutes = int(match.group(3) or 0)
+            seconds = float(match.group(4) or 0)
+
+            total = (days * 86400) + (hours * 3600) + (minutes * 60) + int(seconds)
+            return total
+        except (ValueError, TypeError):
+            return 0
 
     @staticmethod
-    def _formatear_hora(valor):
-        if not valor:
-            return '-'
-        s = str(valor).strip()
-        if 'T' in s:
+    def _parsear_fecha_jibble(valor):
+        """
+        Parsea fecha textual de Jibble a formato YYYY-MM-DD.
+        
+        Formatos:
+            "16 March 2026" → "2026-03-16"
+            "2026-03-16"    → "2026-03-16" (pass-through)
+        """
+        if not valor or not isinstance(valor, str):
+            return None
+
+        # Si ya está en formato ISO
+        if re.match(r'\d{4}-\d{2}-\d{2}', valor):
+            return valor[:10]
+
+        # Parsear formato "16 March 2026"
+        try:
+            dt = datetime.strptime(valor.strip(), '%d %B %Y')
+            return dt.strftime('%Y-%m-%d')
+        except ValueError:
+            pass
+
+        # Intentar otros formatos
+        for fmt in ('%B %d, %Y', '%d %b %Y', '%b %d, %Y'):
             try:
-                dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
-                return dt.strftime('%H:%M')
+                dt = datetime.strptime(valor.strip(), fmt)
+                return dt.strftime('%Y-%m-%d')
             except ValueError:
-                pass
-            try:
-                parte_hora = s.split('T')[1][:8]
-                dt = datetime.strptime(parte_hora, '%H:%M:%S')
-                return dt.strftime('%H:%M')
-            except (ValueError, IndexError):
-                pass
-        if ':' in s:
-            parts = s.split(':')
-            try:
-                return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
-            except (ValueError, IndexError):
-                pass
-        return '-'
+                continue
 
+        logger.warning(f"No se pudo parsear fecha Jibble: '{valor}'")
+        return None
+
+    # ==========================================
+    # DIAGNÓSTICO
+    # ==========================================
     def diagnostico(self):
         resultado = {
             'configurado': self.esta_configurado(),
             'autenticado': False,
-            'personas_count': 0,
-            'personas_muestra': [],
+            'personas': {},
             'errores': [],
         }
+
         if not resultado['configurado']:
             resultado['errores'].append('JIBBLE_CLIENT_ID y/o JIBBLE_CLIENT_SECRET no configurados.')
             return resultado
+
         try:
             self.autenticar()
             resultado['autenticado'] = True
         except JibbleAPIError as e:
             resultado['errores'].append(f'Auth: {e}')
             return resultado
+
         try:
             personas = self.obtener_personas()
-            resultado['personas_count'] = len(personas)
-            for p in personas[:3]:
-                nombre = p.get('fullName') or p.get('name') or p.get('displayName', '???')
-                pid = p.get('id') or p.get('personId', '???')
-                resultado['personas_muestra'].append({'nombre': nombre, 'id': pid})
+            resultado['personas'] = personas
         except JibbleAPIError as e:
             resultado['errores'].append(f'People: {e}')
+
         return resultado
