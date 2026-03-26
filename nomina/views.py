@@ -14,6 +14,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.utils import timezone
 from .models import Empleado, ReciboNomina
 from weasyprint import HTML
 
@@ -25,7 +26,6 @@ logger = logging.getLogger(__name__)
 # ==========================================
 
 def parsear_horas_complejas(valor):
-    """Parsea h:mm:ss, h:mm, decimal. Retorna float horas decimales."""
     try:
         if pd.isna(valor) or valor == '-' or str(valor).strip() == '':
             return 0.0
@@ -42,7 +42,6 @@ def parsear_horas_complejas(valor):
 
 
 def parsear_hms(valor):
-    """Parsea h:mm:ss → tupla (h, m, s)."""
     try:
         if pd.isna(valor) or valor == '-' or str(valor).strip() == '':
             return (0, 0, 0)
@@ -61,10 +60,7 @@ def parsear_hms(valor):
 
 
 def redondear_horas_90(horas_decimal):
-    """
-    Regla 90%: fracción < 54 min → truncar. >= 54 min → redondear arriba.
-    Ej: 6.11h (7min) → 6h | 6.92h (55min) → 7h
-    """
+    """Regla 90%: fraccion < 54 min -> truncar. >= 54 min -> redondear arriba."""
     if horas_decimal <= 0:
         return 0.0
     parte_entera = int(horas_decimal)
@@ -76,7 +72,6 @@ def redondear_horas_90(horas_decimal):
 
 
 def calcular_hora_salida(hora_entrada, horas_h, horas_m, horas_s):
-    """Calcula salida = entrada + duración."""
     try:
         dt_entrada = datetime(2026, 1, 1, hora_entrada.hour, hora_entrada.minute, 0)
         dt_salida = dt_entrada + timedelta(hours=horas_h, minutes=horas_m, seconds=horas_s)
@@ -86,7 +81,6 @@ def calcular_hora_salida(hora_entrada, horas_h, horas_m, horas_s):
 
 
 def parsear_horario_trabajo(df):
-    """Extrae Work Schedule del Excel. Retorna {weekday: time}."""
     DIAS_EN = {
         'MONDAY': 0, 'TUESDAY': 1, 'WEDNESDAY': 2, 'THURSDAY': 3,
         'FRIDAY': 4, 'SATURDAY': 5, 'SUNDAY': 6
@@ -126,11 +120,15 @@ def parsear_horario_trabajo(df):
 # GENERADOR DE RECIBOS (reutilizable)
 # ==========================================
 
-def _generar_recibos_desde_datos(datos_empleados):
-    """Genera recibos PDF desde dict {nombre: [registros]}. Retorna count."""
+def _generar_recibos_desde_datos(datos_empleados, fecha_emision_por_empleado=None):
+    """
+    Genera recibos PDF.
+    fecha_emision_por_empleado: {nombre: 'YYYY-MM-DD HH:MM'} -> ultima salida semanal.
+    """
     count = 0
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
+    fecha_emision_por_empleado = fecha_emision_por_empleado or {}
 
     for nombre, registros in datos_empleados.items():
         if not registros:
@@ -139,16 +137,24 @@ def _generar_recibos_desde_datos(datos_empleados):
         total_horas_reales = round(sum(r['horas_raw'] for r in registros), 2)
         total_horas_a_pagar = sum(r['horas_a_pagar'] for r in registros)
         ahorro_horas = round(total_horas_reales - total_horas_a_pagar, 2)
-
         empleado_obj, _ = Empleado.objects.get_or_create(nombre=nombre)
-
         fechas_dt = [pd.to_datetime(r['fecha']) for r in registros]
         periodo = f"{min(fechas_dt).strftime('%Y-%m-%d')} al {max(fechas_dt).strftime('%Y-%m-%d')}"
-
         tarifa = float(empleado_obj.tarifa_base)
         total_pagado = round(total_horas_a_pagar * tarifa, 2)
         total_sin_redondeo = round(total_horas_reales * tarifa, 2)
         ahorro_dinero = round(total_sin_redondeo - total_pagado, 2)
+
+        # Fecha de emision: ultima salida de la semana o ahora
+        fecha_emision = fecha_emision_por_empleado.get(nombre, '')
+        if not fecha_emision:
+            fecha_emision = timezone.now().strftime('%d/%m/%Y %H:%M')
+        else:
+            try:
+                dt = datetime.strptime(fecha_emision, '%Y-%m-%d %H:%M')
+                fecha_emision = dt.strftime('%d/%m/%Y %H:%M')
+            except ValueError:
+                fecha_emision = timezone.now().strftime('%d/%m/%Y %H:%M')
 
         context = {
             'empleado': empleado_obj,
@@ -162,14 +168,13 @@ def _generar_recibos_desde_datos(datos_empleados):
             'ahorro_dinero': f"{ahorro_dinero:,.2f}",
             'folio': f"NOM-{ReciboNomina.objects.count()+1:03d}",
             'logo_url': logo_url,
+            'fecha_emision': fecha_emision,
         }
 
         html = render_to_string('nomina/recibo_nomina.html', context)
         pdf = HTML(string=html).write_pdf()
-
         recibo = ReciboNomina.objects.create(
-            empleado=empleado_obj,
-            periodo=periodo,
+            empleado=empleado_obj, periodo=periodo,
             horas_trabajadas=Decimal(str(total_horas_a_pagar)),
             tarifa_aplicada=empleado_obj.tarifa_base,
             total_pagado=Decimal(str(total_pagado)),
@@ -196,13 +201,12 @@ def cargar_nomina(request):
                 df = pd.read_excel(archivo, header=None)
 
             horarios_semana = parsear_horario_trabajo(df)
-
             row_fechas_idx = -1
             mapa_columnas_fechas = {}
             for r in range(min(20, len(df))):
                 fila = df.iloc[r].values
-                fechas_encontradas = 0
                 temp_map = {}
+                fechas_encontradas = 0
                 for c, val in enumerate(fila):
                     if pd.isna(val):
                         continue
@@ -219,18 +223,19 @@ def cargar_nomina(request):
                     break
 
             if not mapa_columnas_fechas:
-                messages.error(request, "No encontré la fila de fechas en el archivo.")
+                messages.error(request, "No encontre la fila de fechas en el archivo.")
                 return redirect('admin:nomina_recibonomina_changelist')
 
             datos_empleados = {}
+            fecha_emision_por_empleado = {}
+
             for r in range(row_fechas_idx + 1, len(df)):
                 fila = df.iloc[r]
                 fila_txt = [str(x).upper().strip() for x in fila.values]
                 es_fila_payroll = False
                 nombre = ""
                 for i in range(min(5, len(fila_txt))):
-                    txt = fila_txt[i]
-                    if "PAYROLL" in txt or "HORAS" in txt:
+                    if "PAYROLL" in fila_txt[i] or "HORAS" in fila_txt[i]:
                         es_fila_payroll = True
                         nombre = fila_txt[0]
                         break
@@ -257,16 +262,20 @@ def cargar_nomina(request):
                                     'horas_a_pagar_fmt': f"{horas_a_pagar:.0f}:00",
                                     'fue_recortado': horas_a_pagar < horas_raw,
                                 })
+                                # Ultima salida para fecha de emision
+                                salida_dt = f"{fecha_obj.strftime('%Y-%m-%d')} {hora_salida}"
+                                if nombre not in fecha_emision_por_empleado or salida_dt > fecha_emision_por_empleado[nombre]:
+                                    fecha_emision_por_empleado[nombre] = salida_dt
 
-            count = _generar_recibos_desde_datos(datos_empleados)
+            count = _generar_recibos_desde_datos(datos_empleados, fecha_emision_por_empleado)
             if count > 0:
-                messages.success(request, f"Éxito: {count} recibos generados con regla de redondeo 90%.")
+                messages.success(request, f"Exito: {count} recibos generados con regla de redondeo 90%.")
             else:
                 messages.warning(request, "No se encontraron datos procesables.")
             return redirect('admin:nomina_recibonomina_changelist')
 
         except Exception as e:
-            messages.error(request, f"Error crítico al procesar: {e}")
+            messages.error(request, f"Error critico al procesar: {e}")
             return redirect('admin:nomina_recibonomina_changelist')
 
     return render(request, 'nomina/formulario_carga.html')
@@ -278,9 +287,7 @@ def cargar_nomina(request):
 
 @staff_member_required
 def sync_jibble_view(request):
-    """Sincroniza timesheets desde Jibble vía API."""
     from .services import JibbleService, JibbleAPIError
-
     svc = JibbleService()
     if not svc.esta_configurado():
         messages.error(request, "Jibble no configurado. Agrega JIBBLE_CLIENT_ID y JIBBLE_CLIENT_SECRET en Railway.")
@@ -300,8 +307,8 @@ def sync_jibble_view(request):
             if not personas:
                 messages.warning(request, f"Jibble ({fuente}): No se encontraron datos para el periodo.")
                 return redirect('admin:nomina_recibonomina_changelist')
-            datos_empleados = _transformar_datos_jibble(personas)
-            count = _generar_recibos_desde_datos(datos_empleados)
+            datos_empleados, fecha_emision_map = _transformar_datos_jibble(personas)
+            count = _generar_recibos_desde_datos(datos_empleados, fecha_emision_map)
             if count > 0:
                 messages.success(request, f"Jibble ({fuente}): {count} recibos generados con regla 90%.")
             else:
@@ -316,23 +323,16 @@ def sync_jibble_view(request):
 
 
 # ==========================================
-# VISTA 3: WEBHOOK CRON (cron-job.org)
+# VISTA 3: WEBHOOK CRON
 # ==========================================
 
 @csrf_exempt
 @require_POST
 def webhook_sync_jibble(request):
-    """
-    Webhook para cron externo. Protegido por Bearer token.
-    POST /api/nomina/sync-jibble/
-    Header: Authorization: Bearer <NOMINA_CRON_TOKEN>
-    """
     from .services import JibbleService, JibbleAPIError
-
     cron_token = getattr(settings, 'NOMINA_CRON_TOKEN', '')
     if not cron_token:
         return JsonResponse({'error': 'NOMINA_CRON_TOKEN no configurado'}, status=500)
-
     auth_header = request.headers.get('Authorization', '')
     if auth_header != f'Bearer {cron_token}':
         return JsonResponse({'error': 'No autorizado'}, status=401)
@@ -355,7 +355,6 @@ def webhook_sync_jibble(request):
     svc = JibbleService()
     if not svc.esta_configurado():
         return JsonResponse({'error': 'Jibble no configurado'}, status=500)
-
     try:
         svc.autenticar()
         resultado = svc.obtener_timesheets_semana(fecha_inicio, fecha_fin)
@@ -363,8 +362,8 @@ def webhook_sync_jibble(request):
         fuente = resultado.get('fuente', '?')
         if not personas:
             return JsonResponse({'status': 'ok', 'recibos_generados': 0, 'fuente': fuente})
-        datos_empleados = _transformar_datos_jibble(personas)
-        count = _generar_recibos_desde_datos(datos_empleados)
+        datos_empleados, fecha_emision_map = _transformar_datos_jibble(personas)
+        count = _generar_recibos_desde_datos(datos_empleados, fecha_emision_map)
         return JsonResponse({
             'status': 'ok', 'periodo': f'{fecha_inicio} al {fecha_fin}',
             'fuente': fuente, 'empleados_procesados': len(personas),
@@ -377,7 +376,7 @@ def webhook_sync_jibble(request):
 
 
 # ==========================================
-# VISTA 4: DIAGNÓSTICO JIBBLE
+# VISTA 4: DIAGNOSTICO JIBBLE
 # ==========================================
 
 @staff_member_required
@@ -392,12 +391,21 @@ def jibble_diagnostico_view(request):
 # ==========================================
 
 def _transformar_datos_jibble(personas):
-    """Transforma dict Jibble al formato estándar de _generar_recibos_desde_datos()."""
+    """
+    Transforma dict Jibble al formato estandar.
+    Returns: (datos_empleados, fecha_emision_por_empleado)
+    """
     datos_empleados = {}
+    fecha_emision_por_empleado = {}
+
     for nombre, info in personas.items():
         if not info['dias']:
             continue
         datos_empleados[nombre] = []
+        ultima_salida = info.get('ultima_salida', '')
+        if ultima_salida:
+            fecha_emision_por_empleado[nombre] = ultima_salida
+
         for dia in info['dias']:
             seg = dia['duracion_segundos']
             horas_decimal = seg / 3600.0
@@ -416,4 +424,5 @@ def _transformar_datos_jibble(personas):
                 'horas_a_pagar_fmt': f"{horas_a_pagar:.0f}:00",
                 'fue_recortado': horas_a_pagar < horas_decimal,
             })
-    return datos_empleados
+
+    return datos_empleados, fecha_emision_por_empleado

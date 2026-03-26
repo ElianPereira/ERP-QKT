@@ -5,14 +5,12 @@ Endpoints verificados:
 - Token:      POST https://identity.prod.jibble.io/connect/token
 - People:     GET  https://workspace.prod.jibble.io/v1/People
 - Timesheets: GET  https://time-attendance.prod.jibble.io/v1/Timesheets?date=YYYY-MM-DD
-              Retorna por persona: firstIn, lastOut, payrollHours.total
-- Report:     GET  https://time-attendance.prod.jibble.io/v1/TrackedTimeReport
-              Params: from, to, groupBy, personIds
 
 Variables de entorno: JIBBLE_CLIENT_ID, JIBBLE_CLIENT_SECRET
 """
 
 import re
+import time
 import logging
 import requests
 from datetime import datetime, timedelta
@@ -69,10 +67,10 @@ class JibbleService:
             if not self.access_token:
                 raise JibbleAPIError("Jibble respondió OK pero sin access_token.")
             self._session.headers.update({'Authorization': f'Bearer {self.access_token}'})
-            logger.info("Jibble autenticación exitosa.")
+            logger.info("Jibble autenticacion exitosa.")
             return True
         except requests.exceptions.RequestException as e:
-            raise JibbleAPIError(f"Error de conexión: {e}")
+            raise JibbleAPIError(f"Error de conexion: {e}")
 
     def _verificar_token(self):
         if not self.access_token:
@@ -82,10 +80,7 @@ class JibbleService:
     # PEOPLE
     # ==========================================
     def obtener_personas(self):
-        """
-        GET /v1/People → {person_id: nombre_upper}
-        Excluye owners y admins.
-        """
+        """GET /v1/People -> {person_id: nombre_upper}. Excluye owners/admins."""
         self._verificar_token()
         try:
             response = self._session.get(JIBBLE_PEOPLE_URL, timeout=15)
@@ -110,19 +105,16 @@ class JibbleService:
     # ==========================================
     def obtener_timesheets_semana(self, fecha_inicio, fecha_fin, person_ids=None):
         """
-        Obtiene horas por día por empleado usando el endpoint Timesheets.
-        
-        Estrategia:
-        1. GET People → mapa {id: nombre}
-        2. Para cada día en el rango: GET /v1/Timesheets?date=YYYY-MM-DD
-        3. Cada respuesta trae datos por persona con firstIn, lastOut, payrollHours
+        Obtiene horas por dia por empleado usando el endpoint Timesheets.
+        Incluye pausa entre requests para evitar rate limit (429).
         
         Returns:
             dict {
                 'personas': {
                     'NOMBRE': {
                         'person_id': 'xxx',
-                        'dias': [{fecha, duracion_segundos, entrada, salida}, ...]
+                        'dias': [{fecha, duracion_segundos, entrada, salida, salida_raw}, ...],
+                        'ultima_salida': '2026-03-21 14:39'  # Última salida de la semana
                     }
                 },
                 'fuente': 'Timesheets'
@@ -140,21 +132,47 @@ class JibbleService:
 
         logger.info(f"Jibble: {len(mapa_personas)} empleados encontrados.")
 
-        # 2. Iterar día por día
+        # 2. Iterar dia por dia con pausa para evitar rate limit
         personas = {}
         dt_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
         dt_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
         current = dt_inicio
+        es_primer_dia = True
 
         while current <= dt_fin:
             fecha_str = current.strftime('%Y-%m-%d')
 
             try:
+                # Pausa entre requests para evitar rate limit (429)
+                if not es_primer_dia:
+                    time.sleep(2)
+                es_primer_dia = False
+
                 response = self._session.get(
                     JIBBLE_TIMESHEETS_URL,
                     params={'date': fecha_str},
                     timeout=20,
                 )
+
+                # Retry si hay rate limit
+                if response.status_code == 429:
+                    logger.warning(f"Timesheets {fecha_str}: rate limit, esperando 6s...")
+                    time.sleep(6)
+                    response = self._session.get(
+                        JIBBLE_TIMESHEETS_URL,
+                        params={'date': fecha_str},
+                        timeout=20,
+                    )
+
+                # Segundo retry si sigue 429
+                if response.status_code == 429:
+                    logger.warning(f"Timesheets {fecha_str}: segundo rate limit, esperando 10s...")
+                    time.sleep(10)
+                    response = self._session.get(
+                        JIBBLE_TIMESHEETS_URL,
+                        params={'date': fecha_str},
+                        timeout=20,
+                    )
 
                 if response.status_code != 200:
                     logger.warning(f"Timesheets {fecha_str}: HTTP {response.status_code}")
@@ -166,35 +184,32 @@ class JibbleService:
 
                 for item in items:
                     pid = item.get('personId', '')
-
-                    # Solo procesar empleados que nos interesan
                     if pid not in mapa_personas:
                         continue
 
                     nombre = mapa_personas[pid]
-
                     if nombre not in personas:
-                        personas[nombre] = {'person_id': pid, 'dias': []}
+                        personas[nombre] = {'person_id': pid, 'dias': [], 'ultima_salida': ''}
 
-                    # Buscar datos del día en el array 'daily'
                     daily_list = item.get('daily', [])
                     for day in daily_list:
                         day_date = day.get('date', '')
                         if isinstance(day_date, str) and len(day_date) >= 10:
                             day_date = day_date[:10]
 
-                        # Duración: payrollHours.total o trackedHours.total
+                        # Duracion: payroll -> tracked -> worked
                         payroll_hours = day.get('payrollHours', {})
                         tracked_hours = day.get('trackedHours', {})
 
-                        duracion_str = (
-                            payroll_hours.get('total')
-                            or tracked_hours.get('total')
-                            or item.get('totalPayroll')
-                            or item.get('totalTracked')
-                            or 'PT0S'
-                        )
-                        duracion_seg = self._parsear_iso_duration(duracion_str)
+                        duracion_seg = self._parsear_iso_duration(payroll_hours.get('total', ''))
+                        if duracion_seg == 0:
+                            duracion_seg = self._parsear_iso_duration(tracked_hours.get('total', ''))
+                        if duracion_seg == 0:
+                            duracion_seg = self._parsear_iso_duration(tracked_hours.get('worked', ''))
+                        if duracion_seg == 0:
+                            duracion_seg = self._parsear_iso_duration(item.get('totalPayroll', ''))
+                        if duracion_seg == 0:
+                            duracion_seg = self._parsear_iso_duration(item.get('totalTracked', ''))
 
                         # Entrada y salida reales
                         first_in = day.get('firstIn') or day.get('firstInTimestamp') or ''
@@ -212,12 +227,22 @@ class JibbleService:
                                 'salida': salida,
                             })
 
+                            # Rastrear la última salida de la semana para fecha de emisión
+                            salida_raw = str(last_out).strip() if last_out else ''
+                            ultima_actual = personas[nombre].get('ultima_salida', '')
+
+                            # Construir datetime de salida: fecha + hora
+                            if salida != '-':
+                                salida_dt_str = f"{day_date or fecha_str} {salida}"
+                                if not ultima_actual or salida_dt_str > ultima_actual:
+                                    personas[nombre]['ultima_salida'] = salida_dt_str
+
             except Exception as e:
                 logger.warning(f"Error procesando Timesheets {fecha_str}: {e}")
 
             current += timedelta(days=1)
 
-        # Ordenar días de cada persona
+        # Ordenar dias de cada persona
         for nombre in personas:
             personas[nombre]['dias'].sort(key=lambda d: d['fecha'])
 
@@ -228,11 +253,8 @@ class JibbleService:
     # ==========================================
     @staticmethod
     def _parsear_iso_duration(valor):
-        """
-        Parsea duración ISO 8601 a segundos.
-        Formatos: PT6H6M52.753408S, P1DT11H40M37.534S, PT6.830227S, PT0S
-        """
-        if not valor or not isinstance(valor, str):
+        """Parsea ISO 8601 duration a segundos: PT6H6M52.753408S -> 22012"""
+        if not valor or not isinstance(valor, str) or valor == 'PT0S':
             return 0
         try:
             pattern = r'P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?'
@@ -249,12 +271,10 @@ class JibbleService:
 
     @staticmethod
     def _formatear_hora(valor):
-        """Formatea hora de Jibble (ISO datetime o time string) a HH:MM."""
+        """Formatea hora de Jibble a HH:MM."""
         if not valor:
             return '-'
         s = str(valor).strip()
-
-        # ISO datetime: "2026-03-17T08:00:15.000Z"
         if 'T' in s:
             try:
                 parte_hora = s.split('T')[1][:8]
@@ -262,19 +282,16 @@ class JibbleService:
                 return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
             except (ValueError, IndexError):
                 pass
-
-        # Time string
         if ':' in s:
             parts = s.split(':')
             try:
                 return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
             except (ValueError, IndexError):
                 pass
-
         return '-'
 
     # ==========================================
-    # DIAGNÓSTICO
+    # DIAGNOSTICO
     # ==========================================
     def diagnostico(self):
         resultado = {

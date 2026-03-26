@@ -193,7 +193,7 @@
                     <div class="company-details">
                         Ctra Tanil - Ticimul KM 1.920<br>
                         Umán, Yucatán<br>
-                        quintakooxtanil@gmail.com
+                        <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="becfcbd7d0cadfd5d1d1c6cadfd0d7d2fed9d3dfd7d290ddd1d3">[email&#160;protected]</a>
                     </div>
                 </td>
             </tr>
@@ -216,7 +216,7 @@
                         </tr>
                         <tr>
                             <td class="card-label">Fecha Emisión:</td>
-                            <td class="card-value">{% now "d/m/Y H:i" %}</td>
+                            <td class="card-value">{{ fecha_emision }}</td>
                         </tr>
                     </table>
                 </td>
@@ -307,11 +307,3 @@
             <div class="grand-total">
                 <span style="float:left;">NETO A PAGAR:</span>
                 <span style="float:right;">${{ total_pagado }}</span>
-                <div class="clearfix"></div>
-            </div>
-        </div>
-        <div class="clearfix"></div>
-    </div>
-
-</body>
-</html>
