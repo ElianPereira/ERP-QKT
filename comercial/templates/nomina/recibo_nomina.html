@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <title>Recibo de Nómina</title>
     <style>
-        /* CONFIGURACIÓN DE PÁGINA */
         @page {
             size: letter;
-            margin: 1.5cm;
+            margin: 1cm 1.5cm;
+        }
+        * {
+            box-sizing: border-box;
         }
         body { 
             font-family: 'Helvetica', sans-serif; 
@@ -16,14 +18,11 @@
             padding: 0;
             font-size: 11px;
         }
-
-        /* UTILIDADES */
         .clearfix { clear: both; }
 
-        /* ENCABEZADO (LOGO Y DATOS) */
         .header-container {
             width: 100%;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
         .header-table {
             width: 100%;
@@ -44,11 +43,10 @@
             line-height: 1.4;
         }
 
-        /* TÍTULO DEL DOCUMENTO */
         .doc-title {
             text-align: center;
-            margin-top: 10px;
-            margin-bottom: 15px;
+            margin-top: 8px;
+            margin-bottom: 12px;
         }
         .doc-title h1 {
             margin: 0;
@@ -56,71 +54,63 @@
             font-size: 20px;
         }
         .doc-title p {
-            margin: 4px 0 0 0;
+            margin: 3px 0 0 0;
             color: #7f8c8d;
             font-size: 11px;
         }
 
-        /* TARJETA DE EMPLEADO */
         .employee-card {
             border: 1px solid #e0e0e0;
             border-radius: 10px;
-            padding: 12px 15px;
+            padding: 10px 12px;
             background-color: #fcfcfc;
-            margin-bottom: 20px;
-            position: relative; 
-            display: block; 
+            margin-bottom: 15px;
         }
         .card-table { width: 100%; }
         .card-label {
             color: #2E7D32;
             font-weight: bold;
-            width: 100px;
-            font-size: 11px;
+            width: 95px;
+            font-size: 10px;
         }
         .card-value { 
             color: #333; 
-            font-size: 11px;
+            font-size: 10px;
         }
 
-        /* TABLA DE ASISTENCIA */
         .data-table {
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
-            margin-top: 8px;
+            margin-top: 6px;
             border-bottom: 2px solid #2E7D32;
         }
         .data-table th {
             background-color: #2E7D32;
             color: white;
-            padding: 8px 5px;
+            padding: 6px 4px;
             text-align: center;
             font-weight: normal;
-            font-size: 10px;
+            font-size: 9px;
             border: none;
         }
         .data-table th:first-child { border-top-left-radius: 5px; }
         .data-table th:last-child { border-top-right-radius: 5px; }
-
         .data-table td {
-            padding: 7px 5px;
+            padding: 5px 4px;
             text-align: center;
             border-bottom: 1px solid #f0f0f0;
             color: #555;
-            font-size: 11px;
+            font-size: 10px;
         }
         .data-table tr:last-child td { border-bottom: none; }
-        
         .col-horas {
             font-weight: bold;
             color: #000;
         }
-        
-        /* Indicador visual de recorte */
         .recortado {
             color: #c0392b;
-            font-size: 9px;
+            font-size: 8px;
             margin-left: 2px;
         }
         .col-pagar {
@@ -128,52 +118,51 @@
             color: #2E7D32;
         }
 
-        /* LEYENDA REGLA */
         .regla-box {
-            margin-top: 12px;
-            margin-bottom: 15px;
-            padding: 8px 12px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            padding: 6px 10px;
             background-color: #FFF8E1;
             border-left: 3px solid #F9A825;
             border-radius: 3px;
-            font-size: 9px;
+            font-size: 8px;
             color: #555;
         }
         .regla-box strong {
             color: #E65100;
         }
 
-        /* TOTALES */
         .totals-section {
-            margin-top: 15px;
+            margin-top: 10px;
             width: 100%;
+            page-break-inside: avoid;
         }
         .totals-table {
             float: right;
-            width: 300px;
+            width: 280px;
             border: 1px solid #eee;
             border-radius: 5px;
-            padding: 10px;
+            padding: 8px;
         }
         .total-row {
-            margin-bottom: 5px;
-            font-size: 11px;
+            margin-bottom: 4px;
+            font-size: 10px;
         }
         .total-row-ahorro {
-            margin-bottom: 5px;
-            font-size: 10px;
+            margin-bottom: 4px;
+            font-size: 9px;
             color: #888;
             text-decoration: line-through;
         }
         .grand-total {
             background-color: #2E7D32;
             color: white;
-            padding: 8px;
+            padding: 7px;
             text-align: center;
             border-radius: 4px;
             font-weight: bold;
-            font-size: 13px;
-            margin-top: 8px;
+            font-size: 12px;
+            margin-top: 6px;
         }
     </style>
 </head>
@@ -185,15 +174,14 @@
                 <td style="width: 50%;">
                     <img src="{{ logo_url }}" 
                          alt="LOGO" 
-                         style="height: 65px; display: block;">
+                         style="height: 60px; display: block;">
                 </td>
-                
                 <td style="width: 50%; text-align: right;">
                     <div class="company-name">Quinta Ko'ox Tanil</div>
                     <div class="company-details">
                         Ctra Tanil - Ticimul KM 1.920<br>
                         Umán, Yucatán<br>
-                        <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="becfcbd7d0cadfd5d1d1c6cadfd0d7d2fed9d3dfd7d290ddd1d3">[email&#160;protected]</a>
+                        quintakooxtanil@gmail.com
                     </div>
                 </td>
             </tr>
@@ -236,8 +224,6 @@
         </table>
     </div>
 
-    <div class="clearfix" style="height: 5px;"></div>
-
     <table class="data-table">
         <thead>
             <tr>
@@ -256,9 +242,7 @@
                 <td>{{ fila.dia }}</td>
                 <td>{{ fila.entrada }}</td>
                 <td>{{ fila.salida }}</td>
-                <td class="col-horas">
-                    {{ fila.horas_fmt }}
-                </td>
+                <td class="col-horas">{{ fila.horas_fmt }}</td>
                 <td class="col-pagar">
                     {{ fila.horas_a_pagar_fmt }}
                     {% if fila.fue_recortado %}<span class="recortado">▼</span>{% endif %}
@@ -292,7 +276,7 @@
                 <span style="float:right; color:#c0392b;">-{{ ahorro_horas }} hrs</span>
                 <div class="clearfix"></div>
             </div>
-            <div style="border-top: 1px dashed #ddd; margin: 6px 0;"></div>
+            <div style="border-top: 1px dashed #ddd; margin: 5px 0;"></div>
             <div class="total-row">
                 <span style="float:left;">Tarifa por Hora:</span>
                 <span style="float:right; font-weight:bold;">${{ empleado.tarifa_base }}</span>
@@ -303,7 +287,14 @@
                 <span style="float:right;">${{ total_sin_redondeo }}</span>
                 <div class="clearfix"></div>
             </div>
-            
             <div class="grand-total">
                 <span style="float:left;">NETO A PAGAR:</span>
                 <span style="float:right;">${{ total_pagado }}</span>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+    </div>
+
+</body>
+</html>
