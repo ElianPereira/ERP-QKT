@@ -151,6 +151,7 @@ class JibbleService:
         params = {
             'from': f'{fecha_inicio}T00:00:00.000Z',
             'to': f'{fecha_fin}T23:59:59.000Z',
+            'groupBy': 'date',
         }
         if person_ids:
             params['personIds'] = ','.join(person_ids)
