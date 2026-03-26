@@ -230,7 +230,7 @@ JAZZMIN_SETTINGS = {
     "topmenu_links": [
         {"name": "Inicio",             "url": "admin:index",       "permissions": ["auth.view_user"]},
         {"name": "Calendario",         "url": "ver_calendario"},
-        {"name": "Cal. Unificado",     "url": "calendario_unificado"},
+        {"name": "Cal. Unificado",     "url": "/admin/airbnb/calendario/"},
         {"name": "Calculadora",        "url": "admin_calculadora"},
         {"name": "Compras",            "url": "generar_lista_compras"},
         {"name": "Cartera",            "url": "cartera_cxc"},
