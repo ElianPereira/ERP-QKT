@@ -165,6 +165,8 @@ class UnidadNegocio(models.Model):
         verbose_name="Régimen fiscal SAT"
     )
     activa = models.BooleanField(default=True)
+    rfc = models.CharField(max_length=13, blank=True, verbose_name="RFC")
+    razon_social = models.CharField(max_length=300, blank=True, verbose_name="Razón Social")
     
     class Meta:
         verbose_name = "Unidad de negocio"

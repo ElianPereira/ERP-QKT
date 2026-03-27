@@ -588,6 +588,13 @@ class Compra(models.Model):
     archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    unidad_negocio = models.ForeignKey(
+        'contabilidad.UnidadNegocio',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Unidad de Negocio"
+    )
     
     def save(self, *args, **kwargs):
         if self.archivo_xml and not self.pk:

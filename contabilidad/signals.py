@@ -275,7 +275,7 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
         return
     
     # Obtener unidad de negocio (default QUINTA)
-    unidad = get_unidad_negocio('EVENTOS')
+    unidad = getattr(compra, 'unidad_negocio', None) or get_unidad_negocio('EVENTOS')
     if not unidad:
         return
     
