@@ -839,10 +839,10 @@ class PortalCliente(models.Model):
     
     def get_full_url(self, request=None):
         """Retorna la URL completa con dominio.
-        Usa SITE_URL de settings para respetar el dominio personalizado.
+        Usa PORTAL_URL para el subdominio dedicado a clientes.
         """
         from django.conf import settings
-        base = getattr(settings, 'SITE_URL', 'https://erp-qkt.up.railway.app')
+        base = getattr(settings, 'PORTAL_URL', 'https://clientes.quintakooxtanil.com')
         if request:
             base = request.build_absolute_uri('/')[:-1]
         return f"{base}{self.get_url()}"
