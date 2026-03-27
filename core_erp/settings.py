@@ -13,7 +13,12 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv(
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
     'https://*.railway.app',
+    'https://quintakooxtanil.com',
+    'https://erp.quintakooxtanil.com',
 ]
+
+# --- URL canónica del sitio (para links en emails, portales, etc.) ---
+SITE_URL = config('SITE_URL', default='https://erp-qkt.up.railway.app')
 
 # --- Seguridad en producción (se activan cuando DEBUG=False) ---
 if not DEBUG:
@@ -35,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.humanize', 
+    'django.contrib.humanize',
     'cloudinary_storage',
     'cloudinary',
     'comercial',
@@ -99,23 +104,23 @@ db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
 
 AUTH_PASSWORD_VALIDATORS = [
-    { 'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator', },
-    { 'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', },
-    { 'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator', },
-    { 'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator', },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 LANGUAGE_CODE = 'es-mx'
 TIME_ZONE = 'America/Merida'
 USE_I18N = True
 USE_TZ = True
-USE_L10N = False 
+USE_L10N = False
 USE_THOUSAND_SEPARATOR = True
 DECIMAL_SEPARATOR = '.'
 THOUSAND_SEPARATOR = ','
 
 # --- RUTA ESTÁTICA ---
-STATIC_URL = '/static/'  
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
@@ -163,40 +168,31 @@ JAZZMIN_SETTINGS = {
     "site_logo": "img/logo.png",
     "login_logo": "img/logo.png",
 
-    "show_sidebar": True,
-    "navigation_expanded": True,
-
     "icons": {
-        # App-level
-        "comercial":                        "fas fa-calendar-alt",
-        "airbnb":                           "fas fa-home",
-        "nomina":                           "fas fa-users",
-        "facturacion":                      "fas fa-file-invoice",
-        "auth":                             "fas fa-cog",
-        "comercial.MovimientoInventario":   "fas fa-boxes",
-        "comercial.ContratoServicio":       "fas fa-file-contract",
-        "comercial.PlanDePago":             "fas fa-calendar-alt",
-
-        # EVENTOS & SERVICIOS
+        # COMERCIAL
+        "comercial":                        "fas fa-store",
         "comercial.Cotizacion":             "fas fa-file-invoice-dollar",
-        "comercial.Cliente":                "fas fa-address-book",
-        "comercial.Pago":                   "fas fa-hand-holding-usd",
-        "comercial.Gasto":                  "fas fa-money-bill-wave",
-        # Catálogo
+        "comercial.Cliente":                "fas fa-user-friends",
+        "comercial.Pago":                   "fas fa-dollar-sign",
+        "comercial.Gasto":                  "fas fa-receipt",
         "comercial.Producto":               "fas fa-box-open",
-        "comercial.SubProducto":            "fas fa-blender",
-        "comercial.Insumo":                 "fas fa-cubes",
+        "comercial.SubProducto":            "fas fa-cubes",
+        "comercial.Insumo":                 "fas fa-wine-bottle",
         "comercial.PlantillaBarra":         "fas fa-cocktail",
         "comercial.Proveedor":              "fas fa-truck",
         "comercial.Compra":                 "fas fa-shopping-cart",
-        "comercial.ConstanteSistema":       "fas fa-sliders-h",
+        "comercial.MovimientoInventario":   "fas fa-boxes",
+        "comercial.PortalCliente":          "fas fa-globe",
+        "comercial.ConstanteSistema":       "fas fa-cog",
 
-        # AIRBNB & HOSPEDAJE
+        # AIRBNB
+        "airbnb":                           "fas fa-bed",
         "airbnb.ReservaAirbnb":             "fas fa-calendar-check",
-        "airbnb.PagoAirbnb":               "fas fa-hand-holding-usd",
+        "airbnb.PagoAirbnb":               "fas fa-money-bill-wave",
         "airbnb.ConflictoCalendario":       "fas fa-exclamation-triangle",
         "airbnb.AnuncioAirbnb":             "fas fa-home",
 
+        # CONTABILIDAD
         "contabilidad":                     "fas fa-calculator",
         "contabilidad.poliza":              "fas fa-file-invoice",
         "contabilidad.cuentacontable":      "fas fa-sitemap",
@@ -218,24 +214,21 @@ JAZZMIN_SETTINGS = {
         "auth.user":                        "fas fa-user",
         "auth.group":                       "fas fa-users-cog",
 
-        #REPORTERIA
+        # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-history",
-
-        #PORTAL CLIENTE
-         "comercial.PortalCliente": "fas fa-globe",
     },
 
-    # ── TOP MENU: Sin emojis, solo texto limpio ──
+    # ── TOP MENU ──────────────────────────────────────────────
     "topmenu_links": [
-        {"name": "Inicio",             "url": "admin:index",       "permissions": ["auth.view_user"]},
+        {"name": "Inicio",             "url": "admin:index",            "permissions": ["auth.view_user"]},
         {"name": "Calendario",         "url": "ver_calendario"},
         {"name": "Cal. Unificado",     "url": "/admin/airbnb/calendario/"},
         {"name": "Calculadora",        "url": "admin_calculadora"},
         {"name": "Compras",            "url": "generar_lista_compras"},
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},
-        {"name": "Cerrar sesión",      "url": "/admin/logout/",    "new_window": False},
+        {"name": "Cerrar sesión",      "url": "/admin/logout/",          "new_window": False},
     ],
 
     "order_with_respect_to": [
@@ -254,7 +247,7 @@ JAZZMIN_SETTINGS = {
         "comercial.MovimientoInventario",
         "comercial.PortalCliente",
         "comercial.ConstanteSistema",
-        
+
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",
         "airbnb.ReservaAirbnb",
@@ -262,7 +255,7 @@ JAZZMIN_SETTINGS = {
         "airbnb.ConflictoCalendario",
         "airbnb.AnuncioAirbnb",
 
-        # Contabilidad (NUEVO)
+        # === CONTABILIDAD ===
         "contabilidad",
         "contabilidad.poliza",
         "contabilidad.cuentacontable",
@@ -296,7 +289,7 @@ JAZZMIN_SETTINGS = {
     "custom_js": "js/tabs_fix.js",
 }
 
-JAZZMIN_UI_TWEAKS = {   
+JAZZMIN_UI_TWEAKS = {
     "theme": "darkly",
     "dark_mode_theme": "darkly",
     "navbar": "navbar-dark",
@@ -315,7 +308,7 @@ JAZZMIN_UI_TWEAKS = {
 }
 
 # --- REDIRECCIONES DE LOGIN/LOGOUT ---
-LOGIN_REDIRECT_URL = '/admin/'  
+LOGIN_REDIRECT_URL = '/admin/'
 LOGOUT_REDIRECT_URL = '/admin/login/'
 
 CONTABILIDAD_SIGNALS_ENABLED = True

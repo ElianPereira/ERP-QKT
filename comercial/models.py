@@ -831,9 +831,12 @@ class PortalCliente(models.Model):
         return f"/mi-evento/{self.token}/"
     
     def get_full_url(self, request=None):
-        """Retorna la URL completa con dominio."""
-        base = "https://erp-qkt.up.railway.app"
-        if request:
+        """Retorna la URL completa con dominio.
+        Usa SITE_URL de settings para respetar el dominio personalizado.
+        """
+        from django.conf import settings
+        base = getattr(settings, 'SITE_URL', 'https://erp-qkt.up.railway.app')
+    |   if request:
             base = request.build_absolute_uri('/')[:-1]
         return f"{base}{self.get_url()}"
     
