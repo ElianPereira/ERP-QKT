@@ -836,7 +836,7 @@ class PortalCliente(models.Model):
         """
         from django.conf import settings
         base = getattr(settings, 'SITE_URL', 'https://erp-qkt.up.railway.app')
-    |   if request:
+        if request:
             base = request.build_absolute_uri('/')[:-1]
         return f"{base}{self.get_url()}"
     
