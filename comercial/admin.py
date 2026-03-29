@@ -335,7 +335,7 @@ class ItemCotizacionInline(admin.TabularInline):
 
 class PagoInline(admin.TabularInline):
     model = Pago; extra = 0
-    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'solicitar_factura', 'notas', 'usuario', 'created_at')
+    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'notas', 'usuario', 'created_at')
     readonly_fields = ('usuario', 'created_at')
 
 @admin.register(Cotizacion)
@@ -620,7 +620,7 @@ class CotizacionAdmin(admin.ModelAdmin):
 
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    list_display = ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'solicitar_factura', 'usuario', 'created_at')
+    list_display = ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
     list_filter = ('metodo', 'fecha_pago')
     search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
     readonly_fields = ('usuario', 'created_at', 'updated_at')

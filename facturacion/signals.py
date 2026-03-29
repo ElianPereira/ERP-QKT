@@ -24,10 +24,6 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     
     pago = instance
     
-    # Verificar si el pago tiene el flag de solicitar factura
-    if not getattr(pago, 'solicitar_factura', False):
-        return
-    
     cotizacion = pago.cotizacion
     cliente = cotizacion.cliente
     
