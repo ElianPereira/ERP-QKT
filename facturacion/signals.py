@@ -54,12 +54,11 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     # ─── Calcular desglose fiscal ───────────────────────────────
     monto_pago = Decimal(str(pago.monto))
     
-    if cotizacion.requiere_factura and cotizacion.precio_final > 0:
-        # Cotización tiene factura: calcular proporción del pago
+# Todo pago tiene IVA — desglose proporcional de la cotización
+    if cotizacion.precio_final > 0:
         precio_final = Decimal(str(cotizacion.precio_final))
         proporcion = monto_pago / precio_final
-        
-        # Desglose proporcional
+
         subtotal = (Decimal(str(cotizacion.subtotal)) * proporcion).quantize(
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
@@ -72,30 +71,18 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         retencion_iva = (Decimal(str(cotizacion.retencion_iva)) * proporcion).quantize(
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
-        
-        # Ajustar subtotal para que cuadre con el monto
-        # monto = subtotal + iva - retencion_isr - retencion_iva
         subtotal_calculado = monto_pago - iva + retencion_isr + retencion_iva
         if abs(subtotal - subtotal_calculado) <= Decimal('0.02'):
             subtotal = subtotal_calculado
     else:
-        # Cotización sin factura: calcular IVA sobre el monto
-        # El monto del pago será el total, hay que desglosar
-        # Total = Subtotal * 1.16 → Subtotal = Total / 1.16
+        # Cotización sin precio aún: desglosar el pago directamente
         subtotal = (monto_pago / Decimal('1.16')).quantize(
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
-        iva = (subtotal * Decimal('0.16')).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        
-        # Ajustar para que cuadre exactamente
-        if subtotal + iva != monto_pago:
-            subtotal = monto_pago - iva
-        
+        iva = monto_pago - subtotal
         retencion_isr = Decimal('0.00')
         retencion_iva = Decimal('0.00')
-    
+        
     # ─── Mapear método de pago ──────────────────────────────────
     mapeo_forma_pago = {
         'EFECTIVO': FormaPago.EFECTIVO,

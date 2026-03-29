@@ -435,20 +435,13 @@ class Cotizacion(models.Model):
         self.subtotal = suma_items
         base = Decimal(self.subtotal) - Decimal(self.descuento)
         if base < 0: base = Decimal('0.00')
-        if self.requiere_factura:
-            self.iva = base * Decimal('0.16')
-            if self.cliente.tipo_persona == 'MORAL':
-                self.retencion_isr = base * Decimal('0.0125')
-                self.retencion_iva = Decimal('0.00')
-            else:
-                self.retencion_isr = Decimal('0.00')
-                self.retencion_iva = Decimal('0.00')
+        self.iva = base * Decimal('0.16')
+        if self.cliente.tipo_persona == 'MORAL':
+            self.retencion_isr = base * Decimal('0.0125')
+            self.retencion_iva = Decimal('0.00')
         else:
-            self.iva = Decimal('0.00')
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
-        self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
-
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         from .services import actualizar_item_cotizacion

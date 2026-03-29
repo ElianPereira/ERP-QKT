@@ -59,16 +59,16 @@ class CotizacionTotalesTest(TestCase):
         cot.calcular_totales()
         self.assertEqual(cot.subtotal, Decimal('23000.00'))
     
-    def test_cotizacion_sin_factura_iva_cero(self):
+    def test_cotizacion_siempre_tiene_iva(self):
+        """Todo ingreso aplica IVA 16% sin excepción."""
         cot = self._crear_cotizacion_limpia(requiere_factura=False)
         ItemCotizacion.objects.create(
             cotizacion=cot, descripcion='Renta',
             cantidad=1, precio_unitario=Decimal('10000.00')
         )
         cot.calcular_totales()
-        self.assertEqual(cot.iva, Decimal('0.00'))
-        self.assertEqual(cot.retencion_isr, Decimal('0.00'))
-        self.assertEqual(cot.precio_final, Decimal('10000.00'))
+        self.assertEqual(cot.iva, Decimal('1600.00'))
+        self.assertEqual(cot.precio_final, Decimal('11600.00'))
     
     def test_cotizacion_con_factura_persona_fisica(self):
         self.cliente.tipo_persona = 'FISICA'

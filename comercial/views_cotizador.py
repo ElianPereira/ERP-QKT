@@ -226,7 +226,7 @@ def cotizador_enviar(request):
         hora_fin=hora_fin_obj,
         estado='BORRADOR',
         clima=clima,
-        requiere_factura=False,
+        requiere_factura=True,
         incluye_refrescos=inc_refrescos,
         incluye_cerveza=inc_cerveza,
         incluye_licor_nacional=inc_nacional,

@@ -343,7 +343,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
     inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
     list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_plan_pagos', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn','ver_contrato', 'ver_portal')
-    list_filter = ('estado', 'requiere_factura', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
+    list_filter = ('estado', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
     
@@ -360,7 +360,7 @@ class CotizacionAdmin(admin.ModelAdmin):
             'fields': ('insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_barman', 'insumo_auxiliar', 'insumo_alcohol_basico', 'insumo_alcohol_premium'),
             'classes': ('collapse',),
         }),
-        ('Finanzas', {'fields': ('subtotal', 'descuento', 'requiere_factura', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final')}),
+        ('Finanzas', {'fields': ('subtotal', 'descuento', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final')}),
         ('Cancelación', {'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'), 'classes': ('collapse',)}),
         ('Documentos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
     )
