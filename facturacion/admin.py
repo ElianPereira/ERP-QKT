@@ -4,6 +4,8 @@ Admin del Módulo de Facturación
 Sistema de Diseño QKT v2.0
 """
 import os
+import io
+import requests
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -17,12 +19,110 @@ from decimal import Decimal
 from django.template.loader import render_to_string
 from django.core.files.base import ContentFile
 from weasyprint import HTML
+from decouple import config
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _generar_pdf_solicitud(solicitud):
+    """Genera el PDF de la solicitud y retorna los bytes."""
+    cliente = solicitud.cliente
+
+    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
+    if os.name == 'nt':
+        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
+    else:
+        logo_url = f"file://{ruta_logo}"
+
+    total    = Decimal(str(solicitud.monto))
+    subtotal = (total / Decimal('1.16')).quantize(Decimal('0.01'))
+    iva      = (total - subtotal).quantize(Decimal('0.01'))
+    ret_isr  = Decimal('0.00')
+    if getattr(cliente, 'tipo_persona', None) == 'MORAL':
+        ret_isr = (subtotal * Decimal('0.0125')).quantize(Decimal('0.01'))
+
+    context = {
+        'solicitud':    solicitud,
+        'cliente':      cliente,
+        'folio':        f"SOL-{int(solicitud.id):03d}",
+        'logo_url':     logo_url,
+        'calc_subtotal':subtotal,
+        'calc_iva':     iva,
+        'calc_ret_isr': ret_isr,
+        'calc_total':   total,
+    }
+    html_string = render_to_string('facturacion/solicitud_pdf.html', context)
+    return HTML(string=html_string).write_pdf()
+
+
+def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
+    """
+    Envía el PDF de la solicitud al contador via WhatsApp Cloud API.
+    1. Sube el PDF al Media API → obtiene media_id
+    2. Envía mensaje tipo 'document' con el media_id
+    Retorna (True, '') o (False, 'mensaje de error')
+    """
+    wa_token    = config('WA_CLOUD_API_TOKEN', default='')
+    wa_phone_id = config('WA_PHONE_NUMBER_ID', default='')
+
+    if not wa_token or not wa_phone_id:
+        return False, "WA_CLOUD_API_TOKEN o WA_PHONE_NUMBER_ID no configurados."
+
+    headers_auth = {"Authorization": f"Bearer {wa_token}"}
+
+    # 1. Subir PDF
+    try:
+        resp_upload = requests.post(
+            f"https://graph.facebook.com/v19.0/{wa_phone_id}/media",
+            headers=headers_auth,
+            files={
+                'file':               (filename, io.BytesIO(pdf_bytes), 'application/pdf'),
+                'messaging_product':  (None, 'whatsapp'),
+                'type':               (None, 'application/pdf'),
+            },
+            timeout=30,
+        )
+    except Exception as e:
+        return False, f"Error al subir PDF: {e}"
+
+    if resp_upload.status_code != 200:
+        return False, f"Error upload ({resp_upload.status_code}): {resp_upload.text[:200]}"
+
+    media_id = resp_upload.json().get('id')
+    if not media_id:
+        return False, f"No se obtuvo media_id: {resp_upload.text[:200]}"
+
+    # 2. Enviar documento
+    try:
+        resp_send = requests.post(
+            f"https://graph.facebook.com/v19.0/{wa_phone_id}/messages",
+            headers={**headers_auth, "Content-Type": "application/json"},
+            json={
+                "messaging_product": "whatsapp",
+                "to": telefono,
+                "type": "document",
+                "document": {
+                    "id": media_id,
+                    "filename": filename,
+                    "caption": f"Solicitud de Factura {folio} — {cliente_nombre}",
+                },
+            },
+            timeout=15,
+        )
+    except Exception as e:
+        return False, f"Error al enviar documento: {e}"
+
+    if resp_send.status_code == 200:
+        return True, ''
+    return False, f"Error envío ({resp_send.status_code}): {resp_send.text[:200]}"
+
 
 @admin.register(ConfiguracionContador)
 class ConfiguracionContadorAdmin(admin.ModelAdmin):
     list_display = ['nombre', 'email', 'telefono_whatsapp', 'activo']
-    list_filter = ['activo']
-    
+    list_filter  = ['activo']
+
     def has_add_permission(self, request):
         try:
             if ConfiguracionContador.objects.filter(activo=True).exists():
@@ -35,78 +135,48 @@ class ConfiguracionContadorAdmin(admin.ModelAdmin):
 @admin.register(SolicitudFactura)
 class SolicitudFacturaAdmin(admin.ModelAdmin):
     list_display = [
-        'folio_display',
-        'cliente_display',
-        'monto_display',
-        'forma_pago',
-        'fecha_display',
-        'estado_display',
-        'acciones_display',
+        'folio_display', 'cliente_display', 'monto_display',
+        'forma_pago', 'fecha_display', 'estado_display', 'acciones_display',
     ]
-    list_filter = ['estado', 'forma_pago', 'fecha_solicitud']
-    search_fields = ['cliente__nombre', 'rfc', 'razon_social', 'concepto']
+    list_filter    = ['estado', 'forma_pago', 'fecha_solicitud']
+    search_fields  = ['cliente__nombre', 'rfc', 'razon_social', 'concepto']
     date_hierarchy = 'fecha_solicitud'
-    ordering = ['-fecha_solicitud']
+    ordering       = ['-fecha_solicitud']
     readonly_fields = [
         'created_by', 'created_at', 'updated_at',
-        'enviada_por', 'fecha_envio', 'metodo_envio',
-        'uuid_factura'
+        'enviada_por', 'fecha_envio', 'metodo_envio', 'uuid_factura'
     ]
-    
+
     fieldsets = (
-        ('Cliente', {
-            'fields': ('cliente',)
-        }),
+        ('Cliente', {'fields': ('cliente',)}),
         ('Datos Fiscales', {
-            'fields': (
-                ('rfc', 'razon_social'),
-                ('codigo_postal', 'regimen_fiscal'),
-                'uso_cfdi'
-            )
+            'fields': (('rfc', 'razon_social'), ('codigo_postal', 'regimen_fiscal'), 'uso_cfdi')
         }),
         ('Datos del Pago', {
-            'fields': (
-                ('monto', 'concepto'),
-                ('forma_pago', 'metodo_pago'),
-                'fecha_pago'
-            )
+            'fields': (('monto', 'concepto'), ('forma_pago', 'metodo_pago'), 'fecha_pago')
         }),
         ('Estado y Envío', {
-            'fields': (
-                'estado',
-                ('enviada_por', 'fecha_envio', 'metodo_envio'),
-            )
+            'fields': ('estado', ('enviada_por', 'fecha_envio', 'metodo_envio'))
         }),
         ('Archivos de Factura', {
-            'fields': (
-                'archivo_zip',
-                ('archivo_pdf', 'archivo_xml'),
-                ('uuid_factura', 'fecha_factura'),
-            ),
+            'fields': ('archivo_zip', ('archivo_pdf', 'archivo_xml'), ('uuid_factura', 'fecha_factura')),
             'description': 'Sube el ZIP con PDF y XML, o ambos archivos por separado.'
         }),
-        ('Notas', {
-            'fields': ('notas',),
-            'classes': ('collapse',)
-        }),
-        ('Auditoría', {
-            'fields': ('created_by', 'created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
+        ('Notas',     {'fields': ('notas',), 'classes': ('collapse',)}),
+        ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
-    
+
     # ─── Display methods ──────────────────────────────────────
-    
+
     @admin.display(description="Folio", ordering="id")
     def folio_display(self, obj):
         if not obj.id:
             return "-"
-        folio = str(obj.id).zfill(4)
         return format_html(
             '<span style="color:#4CAF50; font-weight:600;">SOL-{}</span>',
-            folio
+            str(obj.id).zfill(4)
         )
-    
+
     @admin.display(description="Cliente", ordering="cliente__nombre")
     def cliente_display(self, obj):
         if not obj.cliente:
@@ -114,230 +184,199 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         nombre = obj.cliente.nombre
         if len(nombre) > 35:
             nombre = nombre[:35] + "..."
-        return format_html(
-            '<span style="color:#d4d1c8;">{}</span>',
-            nombre
-        )
-    
+        return format_html('<span style="color:#d4d1c8;">{}</span>', nombre)
+
     @admin.display(description="Monto", ordering="monto")
     def monto_display(self, obj):
         if not obj.monto:
             return "-"
-        monto_str = "${:,.2f}".format(float(obj.monto))
         return format_html(
-            '<span style="font-weight:600; color:#d4d1c8;">{}</span>',
-            monto_str
+            '<span style="font-weight:600; color:#d4d1c8;">${:,.2f}</span>',
+            float(obj.monto)
         )
-    
+
     @admin.display(description="Fecha", ordering="fecha_solicitud")
     def fecha_display(self, obj):
         if not obj.fecha_solicitud:
             return "-"
         return obj.fecha_solicitud.strftime('%d/%m/%Y')
-    
+
     @admin.display(description="Estado", ordering="estado")
     def estado_display(self, obj):
         colores = {
-            'PENDIENTE': '#e67e22',
-            'ENVIADA': '#3498db',
-            'FACTURADA': '#27ae60',
-            'CANCELADA': '#95a5a6',
+            'PENDIENTE': '#e67e22', 'ENVIADA': '#3498db',
+            'FACTURADA': '#27ae60', 'CANCELADA': '#95a5a6',
         }
-        color = colores.get(obj.estado, '#95a5a6')
-        estado_texto = obj.get_estado_display()
         return format_html(
             '<span style="background:{}; color:#fff; padding:4px 12px; '
             'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
-            color,
-            estado_texto
+            colores.get(obj.estado, '#95a5a6'), obj.get_estado_display()
         )
-    
+
     @admin.display(description="Acciones")
     def acciones_display(self, obj):
         if not obj.id:
             return "-"
-        
+
         obj_id = int(obj.id)
-        
+
         if obj.estado == 'FACTURADA':
             if obj.archivo_zip:
                 return format_html(
-                    '<a href="{}" target="_blank" '
-                    'style="background:#27ae60; color:#fff; padding:4px 10px; '
-                    'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600;">'
-                    'Descargar ZIP</a>',
+                    '<a href="{}" target="_blank" style="background:#27ae60; color:#fff; '
+                    'padding:4px 10px; border-radius:4px; font-size:11px; '
+                    'text-decoration:none; font-weight:600;">Descargar ZIP</a>',
                     obj.archivo_zip.url
                 )
             elif obj.archivo_pdf:
                 return format_html(
-                    '<a href="{}" target="_blank" '
-                    'style="background:#27ae60; color:#fff; padding:4px 10px; '
-                    'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600;">'
-                    'Descargar PDF</a>',
+                    '<a href="{}" target="_blank" style="background:#27ae60; color:#fff; '
+                    'padding:4px 10px; border-radius:4px; font-size:11px; '
+                    'text-decoration:none; font-weight:600;">Descargar PDF</a>',
                     obj.archivo_pdf.url
                 )
-            return mark_safe(
-                '<span style="color:#27ae60; font-weight:600;">Facturada</span>'
-            )
-        
-        if obj.estado == 'CANCELADA':
-            return mark_safe(
-                '<span style="color:#95a5a6;">Cancelada</span>'
-            )
-        
-        html_parts = []
+            return mark_safe('<span style="color:#27ae60; font-weight:600;">Facturada</span>')
 
-        pdf_url = '/admin/facturacion/solicitudfactura/{}/generar_pdf/'.format(obj_id)
-        pdf_btn = (
-            '<a href="{pdf_url}" target="_blank" '
-            'style="background:#8e44ad; color:#fff; padding:4px 10px; '
-            'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; margin-right:4px;">'
-            'PDF</a>'
-        ).format(pdf_url=pdf_url)
-        html_parts.append(pdf_btn)        
-        
-        whatsapp_url = obj.get_whatsapp_url()
-        if whatsapp_url:
-            wa_btn = (
-                '<a href="{wa_url}" target="_blank" '
-                'style="background:#25D366; color:#fff; padding:4px 10px; '
-                'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; margin-right:4px;" '
-                'onclick="marcarEnviada({obj_id}, \'WHATSAPP\')">'
-                'WhatsApp</a>'
-            ).format(wa_url=whatsapp_url, obj_id=obj_id)
-            html_parts.append(wa_btn)
-        
-        email_url = '/admin/facturacion/solicitudfactura/{}/enviar_email/'.format(obj_id)
-        email_btn = (
-            '<a href="{email_url}" '
-            'style="background:#3498db; color:#fff; padding:4px 10px; '
-            'border-radius:4px; font-size:11px; text-decoration:none; font-weight:600;">'
-            'Email</a>'
-        ).format(email_url=email_url)
-        html_parts.append(email_btn)
-        
+        if obj.estado == 'CANCELADA':
+            return mark_safe('<span style="color:#95a5a6;">Cancelada</span>')
+
+        btn = '<a href="{url}" {extra} style="background:{bg}; color:{fg}; padding:4px 10px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; margin-right:4px;">{label}</a>'
+
+        html_parts = [
+            btn.format(
+                url=f'/admin/facturacion/solicitudfactura/{obj_id}/generar_pdf/',
+                extra='target="_blank"', bg='#8e44ad', fg='#fff', label='PDF'
+            ),
+            btn.format(
+                url=f'/admin/facturacion/solicitudfactura/{obj_id}/enviar_whatsapp/',
+                extra='', bg='#25D366', fg='#fff', label='WhatsApp'
+            ),
+            btn.format(
+                url=f'/admin/facturacion/solicitudfactura/{obj_id}/enviar_email/',
+                extra='', bg='#3498db', fg='#fff', label='Email'
+            ),
+        ]
         return mark_safe(''.join(html_parts))
-    
+
     # ─── Custom URLs ──────────────────────────────────────────
-    
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path(
-                '<int:solicitud_id>/generar_pdf/',
-                self.admin_site.admin_view(self.generar_pdf_view),
-                name='solicitudfactura_generar_pdf'
-            ),
-            path(
-                '<int:solicitud_id>/enviar_email/',
-                self.admin_site.admin_view(self.enviar_email_view),
-                name='solicitudfactura_enviar_email'
-            ),
-            path(
-                '<int:solicitud_id>/marcar_enviada/',
-                self.admin_site.admin_view(self.marcar_enviada_view),
-                name='solicitudfactura_marcar_enviada'
-            ),
+            path('<int:solicitud_id>/generar_pdf/',
+                 self.admin_site.admin_view(self.generar_pdf_view),
+                 name='solicitudfactura_generar_pdf'),
+            path('<int:solicitud_id>/enviar_whatsapp/',
+                 self.admin_site.admin_view(self.enviar_whatsapp_view),
+                 name='solicitudfactura_enviar_whatsapp'),
+            path('<int:solicitud_id>/enviar_email/',
+                 self.admin_site.admin_view(self.enviar_email_view),
+                 name='solicitudfactura_enviar_email'),
+            path('<int:solicitud_id>/marcar_enviada/',
+                 self.admin_site.admin_view(self.marcar_enviada_view),
+                 name='solicitudfactura_marcar_enviada'),
         ]
         return custom_urls + urls
-    
+
     def generar_pdf_view(self, request, solicitud_id):
-        """Genera y retorna el PDF de la solicitud para el contador."""
+        """Descarga el PDF de la solicitud."""
         solicitud = SolicitudFactura.objects.select_related('cliente', 'cotizacion').get(pk=solicitud_id)
-        cliente = solicitud.cliente
-
-        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-        if os.name == 'nt':
-            logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
-        else:
-            logo_url = f"file://{ruta_logo}"
-
-        # Todo ingreso tiene IVA — el monto del pago ya incluye IVA
-        total = Decimal(str(solicitud.monto))
-        subtotal = (total / Decimal('1.16')).quantize(Decimal('0.01'))
-        iva = (total - subtotal).quantize(Decimal('0.01'))
-        ret_isr = Decimal('0.00')
-        if getattr(cliente, 'tipo_persona', None) == 'MORAL':
-            ret_isr = (subtotal * Decimal('0.0125')).quantize(Decimal('0.01'))
-
-        context = {
-            'solicitud': solicitud,
-            'cliente': cliente,
-            'folio': f"SOL-{int(solicitud.id):03d}",
-            'logo_url': logo_url,
-            'calc_subtotal': subtotal,
-            'calc_iva': iva,
-            'calc_ret_isr': ret_isr,
-            'calc_total': total,
-        }
-
-        html_string = render_to_string('facturacion/solicitud_pdf.html', context)
-        pdf_file = HTML(string=html_string).write_pdf()
-
-        response = HttpResponse(pdf_file, content_type='application/pdf')
+        pdf_bytes = _generar_pdf_solicitud(solicitud)
+        response  = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="Solicitud_SOL-{solicitud.id:04d}.pdf"'
         return response
-    
-    def enviar_email_view(self, request, solicitud_id):
-        """Envía la solicitud por email al contador."""
-        solicitud = SolicitudFactura.objects.get(pk=solicitud_id)
-        contador = ConfiguracionContador.get_activo()
-        
+
+    def enviar_whatsapp_view(self, request, solicitud_id):
+        """Genera el PDF y lo envía al contador via WhatsApp Cloud API."""
+        solicitud = SolicitudFactura.objects.select_related('cliente').get(pk=solicitud_id)
+        contador  = ConfiguracionContador.get_activo()
+
         if not contador:
-            messages.error(request, "No hay contador configurado. Ve a Configuración del Contador.")
+            messages.error(request, "No hay contador configurado.")
             return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
-        
+
+        telefono = ''.join(filter(str.isdigit, contador.telefono_whatsapp or ''))
+        if not telefono:
+            messages.error(request, "El contador no tiene teléfono WhatsApp configurado.")
+            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
+
         try:
-            folio = str(solicitud.id).zfill(4)
-            asunto = "Solicitud de Factura SOL-{} | {}".format(folio, solicitud.cliente.nombre)
-            cuerpo = solicitud.get_datos_para_contador()
-            
-            send_mail(
-                subject=asunto,
-                message=cuerpo,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[contador.email],
-                fail_silently=False,
-            )
-            
-            solicitud.marcar_enviada(request.user, 'EMAIL')
-            messages.success(request, "Solicitud enviada por email a {}".format(contador.email))
-            
+            pdf_bytes = _generar_pdf_solicitud(solicitud)
         except Exception as e:
-            messages.error(request, "Error al enviar email: {}".format(str(e)))
-        
+            messages.error(request, f"Error al generar PDF: {e}")
+            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
+
+        folio    = f"SOL-{solicitud.id:04d}"
+        filename = f"Solicitud_{folio}.pdf"
+        ok, error = _enviar_pdf_whatsapp(
+            pdf_bytes, filename, telefono, folio, solicitud.cliente.nombre
+        )
+
+        if ok:
+            solicitud.marcar_enviada(request.user, 'WHATSAPP')
+            messages.success(request, f"PDF {folio} enviado por WhatsApp a {contador.nombre}.")
+        else:
+            messages.error(request, f"Error WhatsApp: {error}")
+
         return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
-    
+
+    def enviar_email_view(self, request, solicitud_id):
+        """Envía email al contador con PDF adjunto."""
+        solicitud = SolicitudFactura.objects.select_related('cliente').get(pk=solicitud_id)
+        contador  = ConfiguracionContador.get_activo()
+
+        if not contador:
+            messages.error(request, "No hay contador configurado.")
+            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
+
+        try:
+            from django.core.mail import EmailMessage
+            pdf_bytes = _generar_pdf_solicitud(solicitud)
+            folio     = f"SOL-{solicitud.id:04d}"
+            email     = EmailMessage(
+                subject=f"Solicitud de Factura {folio} | {solicitud.cliente.nombre}",
+                body=solicitud.get_datos_para_contador(),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[contador.email],
+            )
+            email.attach(f"Solicitud_{folio}.pdf", pdf_bytes, 'application/pdf')
+            email.send()
+            solicitud.marcar_enviada(request.user, 'EMAIL')
+            messages.success(request, f"Email enviado a {contador.email} con PDF adjunto.")
+        except Exception as e:
+            messages.error(request, f"Error al enviar email: {e}")
+
+        return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
+
     def marcar_enviada_view(self, request, solicitud_id):
-        """Marca la solicitud como enviada (llamado desde JS después de WhatsApp)."""
         solicitud = SolicitudFactura.objects.get(pk=solicitud_id)
-        metodo = request.GET.get('metodo', 'WHATSAPP')
+        metodo    = request.GET.get('metodo', 'WHATSAPP')
         solicitud.marcar_enviada(request.user, metodo)
         return JsonResponse({'status': 'ok'})
-    
+
     # ─── Save model ───────────────────────────────────────────
-    
+
     def save_model(self, request, obj, form, change):
         if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
-    
+
     # ─── Actions ──────────────────────────────────────────────
-    
+
     actions = ['marcar_enviadas', 'marcar_canceladas']
-    
+
     @admin.action(description="Marcar como enviadas")
     def marcar_enviadas(self, request, queryset):
         count = 0
         for sol in queryset.filter(estado='PENDIENTE'):
             sol.marcar_enviada(request.user, 'EMAIL')
             count += 1
-        self.message_user(request, "{} solicitud(es) marcada(s) como enviadas".format(count))
-    
+        self.message_user(request, f"{count} solicitud(es) marcada(s) como enviadas.")
+
     @admin.action(description="Cancelar solicitudes")
     def marcar_canceladas(self, request, queryset):
         count = queryset.exclude(estado='FACTURADA').update(estado='CANCELADA')
-        self.message_user(request, "{} solicitud(es) cancelada(s)".format(count))
-    
+        self.message_user(request, f"{count} solicitud(es) cancelada(s).")
+
     class Media:
         js = ('admin/js/solicitud_factura.js',)
