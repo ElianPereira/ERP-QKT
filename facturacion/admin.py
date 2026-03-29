@@ -191,8 +191,8 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         if not obj.monto:
             return "-"
         return format_html(
-            '<span style="font-weight:600; color:#d4d1c8;">${:,.2f}</span>',
-            float(obj.monto)
+            '<span style="font-weight:600; color:#d4d1c8;">{}</span>',
+            "${:,.2f}".format(float(obj.monto))
         )
 
     @admin.display(description="Fecha", ordering="fecha_solicitud")
