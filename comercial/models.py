@@ -442,6 +442,7 @@ class Cotizacion(models.Model):
         else:
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
+        self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         from .services import actualizar_item_cotizacion
