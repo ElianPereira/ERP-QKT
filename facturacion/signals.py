@@ -71,9 +71,16 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         retencion_iva = (Decimal(str(cotizacion.retencion_iva)) * proporcion).quantize(
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
-        subtotal_calculado = monto_pago - iva + retencion_isr + retencion_iva
-        if abs(subtotal - subtotal_calculado) <= Decimal('0.02'):
-            subtotal = subtotal_calculado
+        subtotal = (monto_pago / Decimal('1.16')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        iva = (monto_pago - subtotal).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        if cliente.tipo_persona == 'MORAL':
+            retencion_isr = (subtotal * Decimal('0.0125')).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            )
     else:
         # Cotización sin precio aún: desglosar el pago directamente
         subtotal = (monto_pago / Decimal('1.16')).quantize(
