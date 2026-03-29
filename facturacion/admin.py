@@ -159,7 +159,6 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         
         obj_id = int(obj.id)
         
-        # Si ya está facturada, mostrar link de descarga
         if obj.estado == 'FACTURADA':
             if obj.archivo_zip:
                 return format_html(
@@ -181,16 +180,13 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
                 '<span style="color:#27ae60; font-weight:600;">Facturada</span>'
             )
         
-        # Si está cancelada
         if obj.estado == 'CANCELADA':
             return mark_safe(
                 '<span style="color:#95a5a6;">Cancelada</span>'
             )
         
-        # Botones para PENDIENTE y ENVIADA
         html_parts = []
 
-        # Botón PDF de solicitud
         pdf_url = '/admin/facturacion/solicitudfactura/{}/generar_pdf/'.format(obj_id)
         pdf_btn = (
             '<a href="{pdf_url}" target="_blank" '
@@ -200,7 +196,6 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         ).format(pdf_url=pdf_url)
         html_parts.append(pdf_btn)        
         
-        # Botón WhatsApp
         whatsapp_url = obj.get_whatsapp_url()
         if whatsapp_url:
             wa_btn = (
@@ -212,7 +207,6 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             ).format(wa_url=whatsapp_url, obj_id=obj_id)
             html_parts.append(wa_btn)
         
-        # Botón Email
         email_url = '/admin/facturacion/solicitudfactura/{}/enviar_email/'.format(obj_id)
         email_btn = (
             '<a href="{email_url}" '
@@ -258,23 +252,13 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         else:
             logo_url = f"file://{ruta_logo}"
 
-        # Cálculo inverso de impuestos
+        # Todo ingreso tiene IVA — el monto del pago ya incluye IVA
         total = Decimal(str(solicitud.monto))
-        subtotal = total
-        iva = Decimal('0.00')
+        subtotal = (total / Decimal('1.16')).quantize(Decimal('0.01'))
+        iva = (total - subtotal).quantize(Decimal('0.01'))
         ret_isr = Decimal('0.00')
-
-        if cliente.rfc and cliente.rfc != 'XAXX010101000':
-            tipo = getattr(cliente, 'tipo_persona', None)
-            if tipo == 'MORAL':
-                factor_divisor = Decimal('1.1475')
-                subtotal = total / factor_divisor
-                iva = subtotal * Decimal('0.16')
-                ret_isr = subtotal * Decimal('0.0125')
-            else:
-                factor_divisor = Decimal('1.16')
-                subtotal = total / factor_divisor
-                iva = subtotal * Decimal('0.16')
+        if getattr(cliente, 'tipo_persona', None) == 'MORAL':
+            ret_isr = (subtotal * Decimal('0.0125')).quantize(Decimal('0.01'))
 
         context = {
             'solicitud': solicitud,
