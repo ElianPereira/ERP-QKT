@@ -16,232 +16,133 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 html{scroll-behavior:smooth;}
-body{
-  font-family:'IBM Plex Sans',sans-serif;
-  background:var(--crema);color:var(--texto);
-  min-height:100vh;
-}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--texto);min-height:100vh;}
 
-/* ── HEADER ── */
-.header{
-  background:var(--verde-d);
-  padding:1.2rem 5%;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.header-logo{
-  font-family:'Cormorant Garamond',serif;
-  color:var(--amarillo);font-size:1.3rem;font-weight:400;
-  text-decoration:none;letter-spacing:.03em;
-}
+.header{background:var(--verde-d);padding:1.2rem 5%;display:flex;align-items:center;justify-content:space-between;}
+.header-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.3rem;font-weight:400;text-decoration:none;letter-spacing:.03em;}
 .header-logo em{font-style:italic;}
-.header-back{
-  color:rgba(255,255,255,.65);font-size:.75rem;font-weight:400;
-  letter-spacing:.1em;text-transform:uppercase;text-decoration:none;
-  transition:color .2s;
-}
+.header-back{color:rgba(255,255,255,.65);font-size:.75rem;font-weight:400;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;transition:color .2s;}
 .header-back:hover{color:var(--amarillo);}
 
-/* ── HERO COTIZADOR ── */
-.cot-hero{
-  background:linear-gradient(135deg,var(--verde-d) 0%,var(--verde) 100%);
-  padding:3rem 5%;text-align:center;
-}
-.cot-hero h1{
-  font-family:'Cormorant Garamond',serif;
-  color:var(--blanco);font-size:clamp(1.8rem,4vw,2.8rem);
-  font-weight:300;line-height:1.2;margin-bottom:.6rem;
-}
+.cot-hero{background:linear-gradient(135deg,var(--verde-d) 0%,var(--verde) 100%);padding:3rem 5%;text-align:center;}
+.cot-hero h1{font-family:'Cormorant Garamond',serif;color:var(--blanco);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:300;line-height:1.2;margin-bottom:.6rem;}
 .cot-hero h1 em{font-style:italic;color:var(--amarillo);}
-.cot-hero p{
-  color:rgba(255,255,255,.68);font-size:.9rem;font-weight:300;
-  max-width:420px;margin:0 auto;line-height:1.7;
-}
+.cot-hero p{color:rgba(255,255,255,.68);font-size:.9rem;font-weight:300;max-width:420px;margin:0 auto;line-height:1.7;}
 
-/* ── STEPS INDICATOR ── */
-.steps{
-  display:flex;justify-content:center;align-items:center;
-  gap:0;padding:2rem 5% 0;max-width:500px;margin:0 auto;
-}
-.step{
-  display:flex;flex-direction:column;align-items:center;gap:.4rem;
-  flex:1;position:relative;
-}
-.step:not(:last-child)::after{
-  content:'';position:absolute;top:15px;left:calc(50% + 15px);
-  right:calc(-50% + 15px);height:1px;background:var(--borde);z-index:0;
-}
+/* Steps */
+.steps{display:flex;justify-content:center;align-items:center;padding:2rem 5% 0;max-width:600px;margin:0 auto;}
+.step{display:flex;flex-direction:column;align-items:center;gap:.4rem;flex:1;position:relative;}
+.step:not(:last-child)::after{content:'';position:absolute;top:15px;left:calc(50% + 15px);right:calc(-50% + 15px);height:1px;background:var(--borde);z-index:0;}
 .step.done:not(:last-child)::after{background:var(--verde);}
-.step-num{
-  width:30px;height:30px;border-radius:50%;
-  border:2px solid var(--borde);background:var(--blanco);
-  display:flex;align-items:center;justify-content:center;
-  font-size:.72rem;font-weight:600;color:var(--texto-s);
-  position:relative;z-index:1;transition:all .3s;
-}
-.step.active .step-num{
-  background:var(--verde);border-color:var(--verde);color:var(--blanco);
-}
-.step.done .step-num{
-  background:var(--verde);border-color:var(--verde);color:var(--blanco);
-}
+.step-num{width:30px;height:30px;border-radius:50%;border:2px solid var(--borde);background:var(--blanco);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;color:var(--texto-s);position:relative;z-index:1;transition:all .3s;}
+.step.active .step-num{background:var(--verde);border-color:var(--verde);color:var(--blanco);}
+.step.done .step-num{background:var(--verde);border-color:var(--verde);color:var(--blanco);}
 .step.done .step-num::after{content:'✓';}
 .step.done .step-num span{display:none;}
-.step-label{
-  font-size:.6rem;font-weight:500;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--texto-s);
-}
+.step-label{font-size:.58rem;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:var(--texto-s);}
 .step.active .step-label{color:var(--verde);font-weight:600;}
 
-/* ── FORMULARIO ── */
-.cot-form{
-  max-width:560px;margin:2rem auto 4rem;
-  padding:0 5%;
-}
+/* Form */
+.cot-form{max-width:580px;margin:2rem auto 4rem;padding:0 5%;}
 .step-panel{display:none;}
-.step-panel.active{display:block;animation:fadeIn .35s ease;}
-@keyframes fadeIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.step-panel.active{display:block;animation:fadeIn .3s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 
-.panel-title{
-  font-family:'Cormorant Garamond',serif;
-  font-size:1.6rem;font-weight:300;color:var(--verde-d);
-  margin-bottom:.3rem;
-}
+.panel-title{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--verde-d);margin-bottom:.3rem;}
 .panel-title em{font-style:italic;color:var(--verde);}
-.panel-sub{
-  color:var(--texto-s);font-size:.85rem;font-weight:300;
-  margin-bottom:2rem;line-height:1.6;
-}
+.panel-sub{color:var(--texto-s);font-size:.85rem;font-weight:300;margin-bottom:2rem;line-height:1.6;}
 
 /* Campos */
-.campo{margin-bottom:1.5rem;}
-.campo label{
-  display:block;font-size:.72rem;font-weight:600;
-  letter-spacing:.1em;text-transform:uppercase;
-  color:var(--verde-d);margin-bottom:.5rem;
-}
-.campo input,.campo textarea{
-  width:100%;padding:.75rem 1rem;
+.campo{margin-bottom:1.4rem;}
+.campo label{display:block;font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--verde-d);margin-bottom:.45rem;}
+.campo input,.campo select,.campo textarea{
+  width:100%;padding:.72rem 1rem;
   border:1.5px solid var(--borde);border-radius:4px;
-  font-family:'IBM Plex Sans',sans-serif;font-size:.9rem;font-weight:300;
+  font-family:'IBM Plex Sans',sans-serif;font-size:.88rem;font-weight:300;
   color:var(--texto);background:var(--blanco);
-  transition:border-color .2s,box-shadow .2s;
-  outline:none;
+  transition:border-color .2s,box-shadow .2s;outline:none;
 }
-.campo input:focus,.campo textarea:focus{
-  border-color:var(--verde);box-shadow:0 0 0 3px rgba(46,125,50,.1);
-}
-.campo input.error{border-color:var(--error);}
-.campo-error{font-size:.75rem;color:var(--error);margin-top:.35rem;display:none;}
-.campo textarea{resize:vertical;min-height:80px;}
+.campo input:focus,.campo select:focus,.campo textarea:focus{border-color:var(--verde);box-shadow:0 0 0 3px rgba(46,125,50,.1);}
+.campo input.error,.campo select.error{border-color:var(--error);}
+.campo-error{font-size:.73rem;color:var(--error);margin-top:.3rem;display:none;}
+.campo textarea{resize:vertical;min-height:75px;}
+.campo-fila{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
 
-/* Opciones de servicio */
-.servicios-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;
-  margin-bottom:1.5rem;
-}
-.servicio-opt{
+/* Tarjetas de servicio */
+.srv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;margin-bottom:1.5rem;}
+.srv-card{
   border:1.5px solid var(--borde);border-radius:6px;
-  padding:1.2rem 1rem;text-align:center;cursor:pointer;
-  transition:all .25s;background:var(--blanco);
+  padding:1.2rem .8rem;text-align:center;cursor:pointer;
+  transition:all .25s;background:var(--blanco);user-select:none;
 }
-.servicio-opt:hover{border-color:var(--verde);background:#f0f7f0;}
-.servicio-opt.selected{
-  border-color:var(--verde);background:#e8f5e9;
+.srv-card:hover{border-color:var(--verde);background:#f0f7f0;}
+.srv-card.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 2px rgba(46,125,50,.15);}
+.srv-ico{font-size:1.8rem;display:block;margin-bottom:.5rem;}
+.srv-nom{font-size:.8rem;font-weight:600;color:var(--verde-d);}
+.srv-desc{font-size:.67rem;font-weight:300;color:var(--texto-s);margin-top:.25rem;line-height:1.4;}
+
+/* Checkboxes visuales */
+.extras-titulo{font-size:.68rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--verde-d);margin:1.5rem 0 .8rem;padding-top:1.2rem;border-top:1px solid var(--borde);}
+.extras-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.5rem;}
+.extra-opt{
+  display:flex;align-items:center;gap:.7rem;
+  border:1.5px solid var(--borde);border-radius:4px;
+  padding:.7rem .9rem;cursor:pointer;background:var(--blanco);
+  transition:all .2s;user-select:none;
 }
-.servicio-opt input[type="radio"]{display:none;}
-.servicio-ico{font-size:1.6rem;display:block;margin-bottom:.5rem;}
-.servicio-nom{font-size:.78rem;font-weight:500;color:var(--verde-d);}
-.servicio-desc{font-size:.68rem;font-weight:300;color:var(--texto-s);margin-top:.2rem;}
+.extra-opt:hover{border-color:var(--verde);background:#f5fbf5;}
+.extra-opt.selected{border-color:var(--verde);background:#e8f5e9;}
+.extra-opt input[type="checkbox"]{display:none;}
+.extra-check{
+  width:18px;height:18px;border:2px solid var(--borde);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .2s;font-size:.7rem;color:transparent;
+}
+.extra-opt.selected .extra-check{background:var(--verde);border-color:var(--verde);color:white;}
+.extra-nom{font-size:.78rem;font-weight:500;color:var(--verde-d);}
+.extra-desc{font-size:.65rem;font-weight:300;color:var(--texto-s);}
 
 /* Personas slider */
-.personas-wrap{
-  display:flex;align-items:center;gap:1rem;
-}
-.personas-wrap input[type="range"]{
-  flex:1;height:4px;
-  -webkit-appearance:none;
-  background:linear-gradient(to right,var(--verde) 0%,var(--borde) 0%);
-  border-radius:2px;outline:none;
-}
-.personas-wrap input[type="range"]::-webkit-slider-thumb{
-  -webkit-appearance:none;width:20px;height:20px;
-  border-radius:50%;background:var(--verde);cursor:pointer;
-  border:2px solid var(--blanco);box-shadow:0 2px 6px rgba(0,0,0,.15);
-}
-.personas-val{
-  font-family:'Cormorant Garamond',serif;
-  font-size:1.8rem;font-weight:300;color:var(--verde-d);
-  min-width:60px;text-align:right;
-}
+.personas-wrap{display:flex;align-items:center;gap:1rem;}
+.personas-wrap input[type="range"]{flex:1;height:4px;-webkit-appearance:none;background:linear-gradient(to right,var(--verde) 0%,var(--borde) 0%);border-radius:2px;outline:none;}
+.personas-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--verde);cursor:pointer;border:2px solid var(--blanco);box-shadow:0 2px 6px rgba(0,0,0,.15);}
+.personas-val{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;color:var(--verde-d);min-width:55px;text-align:right;}
 
-/* Botones nav */
-.btn-nav{
-  display:flex;gap:1rem;justify-content:space-between;
-  margin-top:2rem;
-}
-.btn-prev{
-  background:none;border:1.5px solid var(--borde);
-  color:var(--texto-s);padding:.8rem 1.8rem;border-radius:40px;
-  font-family:'IBM Plex Sans',sans-serif;font-size:.78rem;font-weight:500;
-  letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
-  transition:all .2s;
-}
+/* Nav botones */
+.btn-nav{display:flex;gap:1rem;justify-content:space-between;margin-top:2rem;}
+.btn-prev{background:none;border:1.5px solid var(--borde);color:var(--texto-s);padding:.8rem 1.8rem;border-radius:40px;font-family:'IBM Plex Sans',sans-serif;font-size:.78rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
 .btn-prev:hover{border-color:var(--verde);color:var(--verde);}
-.btn-next,.btn-submit{
-  background:var(--verde);color:var(--blanco);
-  padding:.8rem 2rem;border-radius:40px;border:none;
-  font-family:'IBM Plex Sans',sans-serif;font-size:.78rem;font-weight:600;
-  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
-  transition:all .25s;flex:1;
-}
-.btn-next:hover,.btn-submit:hover{background:var(--verde-h);transform:translateY(-1px);}
-.btn-submit{background:var(--amarillo);color:var(--verde-d);}
+.btn-next{background:var(--verde);color:var(--blanco);padding:.8rem 2rem;border-radius:40px;border:none;font-family:'IBM Plex Sans',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .25s;flex:1;}
+.btn-next:hover{background:var(--verde-h);transform:translateY(-1px);}
+.btn-submit{background:var(--amarillo);color:var(--verde-d);padding:.8rem 2rem;border-radius:40px;border:none;font-family:'IBM Plex Sans',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .25s;flex:1;}
 .btn-submit:hover{background:var(--amarillo-h);}
-.btn-submit:disabled{background:#ccc;color:#999;transform:none;cursor:not-allowed;}
+.btn-submit:disabled{background:#ccc;color:#999;cursor:not-allowed;transform:none;}
 
 /* Resumen */
-.resumen-card{
-  background:var(--blanco);border:1.5px solid var(--borde);
-  border-radius:6px;padding:1.5rem;margin-bottom:1.5rem;
-}
-.resumen-titulo{
-  font-size:.65rem;font-weight:600;letter-spacing:.15em;
-  text-transform:uppercase;color:var(--verde);margin-bottom:1rem;
-  padding-bottom:.6rem;border-bottom:1px solid var(--borde);
-}
-.resumen-item{
-  display:flex;justify-content:space-between;align-items:baseline;
-  margin-bottom:.6rem;
-}
+.resumen-card{background:var(--blanco);border:1.5px solid var(--borde);border-radius:6px;padding:1.5rem;margin-bottom:1.5rem;}
+.resumen-titulo{font-size:.63rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--verde);margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid var(--borde);}
+.resumen-item{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.55rem;}
 .resumen-item:last-child{margin-bottom:0;}
-.resumen-key{font-size:.78rem;color:var(--texto-s);font-weight:300;}
-.resumen-val{font-size:.85rem;color:var(--verde-d);font-weight:500;}
+.resumen-key{font-size:.77rem;color:var(--texto-s);font-weight:300;}
+.resumen-val{font-size:.84rem;color:var(--verde-d);font-weight:500;text-align:right;max-width:55%;}
+.resumen-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--borde);}
+.tag{background:#e8f5e9;color:var(--verde-d);font-size:.65rem;font-weight:500;padding:.25rem .6rem;border-radius:20px;letter-spacing:.05em;}
 
-/* Alert errores */
-.alert-error{
-  background:#fdf2f2;border:1px solid #fcc;border-radius:4px;
-  padding:.9rem 1rem;margin-bottom:1.2rem;
-  font-size:.82rem;color:var(--error);display:none;
-}
-
-/* Spinner */
-.spinner{
-  width:18px;height:18px;border:2px solid rgba(27,94,32,.2);
-  border-top-color:var(--verde-d);border-radius:50%;
-  animation:spin .7s linear infinite;display:inline-block;margin-right:.5rem;
-  vertical-align:middle;
-}
+.alert-error{background:#fdf2f2;border:1px solid #fcc;border-radius:4px;padding:.9rem 1rem;margin-bottom:1.2rem;font-size:.82rem;color:var(--error);display:none;}
+.spinner{width:16px;height:16px;border:2px solid rgba(27,94,32,.2);border-top-color:var(--verde-d);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;margin-right:.5rem;vertical-align:middle;}
 @keyframes spin{to{transform:rotate(360deg);}}
+.nota{font-size:.72rem;color:var(--texto-s);font-weight:300;text-align:center;margin-top:1rem;line-height:1.6;}
 
-/* Footer */
-.cot-footer{
-  background:var(--oscuro);text-align:center;
-  padding:1.5rem;color:rgba(255,255,255,.4);font-size:.7rem;
-}
+.cot-footer{background:var(--oscuro);text-align:center;padding:1.5rem;color:rgba(255,255,255,.38);font-size:.68rem;}
 
-@media(max-width:480px){
-  .servicios-grid{grid-template-columns:1fr;}
-  .steps{gap:0;}
+/* Panel condicional */
+.panel-condicional{display:none;}
+.panel-condicional.visible{display:block;}
+
+@media(max-width:520px){
+  .srv-grid{grid-template-columns:1fr;}
+  .extras-grid{grid-template-columns:1fr;}
+  .campo-fila{grid-template-columns:1fr;}
 }
 </style>
 </head>
@@ -254,73 +155,87 @@ body{
 
 <div class="cot-hero">
   <h1>Cotiza tu <em>evento</em></h1>
-  <p>Cuéntanos qué tienes en mente. En minutos recibirás acceso a tu cotización personalizada.</p>
+  <p>Cuéntanos qué tienes en mente. Recibirás acceso a tu cotización personalizada al instante.</p>
 </div>
 
 <!-- STEPS -->
 <div class="steps" id="stepsBar">
-  <div class="step active" data-step="1">
-    <div class="step-num"><span>1</span></div>
-    <div class="step-label">Servicio</div>
-  </div>
-  <div class="step" data-step="2">
-    <div class="step-num"><span>2</span></div>
-    <div class="step-label">Detalles</div>
-  </div>
-  <div class="step" data-step="3">
-    <div class="step-num"><span>3</span></div>
-    <div class="step-label">Contacto</div>
-  </div>
-  <div class="step" data-step="4">
-    <div class="step-num"><span>4</span></div>
-    <div class="step-label">Confirmar</div>
-  </div>
+  <div class="step active" data-step="1"><div class="step-num"><span>1</span></div><div class="step-label">Servicio</div></div>
+  <div class="step" data-step="2"><div class="step-num"><span>2</span></div><div class="step-label">Detalles</div></div>
+  <div class="step" data-step="3"><div class="step-num"><span>3</span></div><div class="step-label">Extras</div></div>
+  <div class="step" data-step="4"><div class="step-num"><span>4</span></div><div class="step-label">Contacto</div></div>
+  <div class="step" data-step="5"><div class="step-num"><span>5</span></div><div class="step-label">Confirmar</div></div>
 </div>
 
-<!-- FORMULARIO -->
 <div class="cot-form">
 
-  <!-- PASO 1: Tipo de servicio -->
+  <!-- PASO 1: Servicio -->
   <div class="step-panel active" id="panel-1">
-    <h2 class="panel-title">¿Qué tipo de <em>servicio</em> buscas?</h2>
+    <h2 class="panel-title">¿Qué tipo de <em>servicio</em> necesitas?</h2>
     <p class="panel-sub">Selecciona el servicio que mejor describe tu necesidad.</p>
-    <div class="servicios-grid">
-      <label class="servicio-opt" onclick="selServicio('EVENTO',this)">
-        <input type="radio" name="servicio" value="EVENTO">
-        <span class="servicio-ico">🎉</span>
-        <span class="servicio-nom">Evento Social</span>
-        <span class="servicio-desc">Bodas, XV años, graduaciones y más</span>
-      </label>
-      <label class="servicio-opt" onclick="selServicio('PASADIA',this)">
-        <input type="radio" name="servicio" value="PASADIA">
-        <span class="servicio-ico">☀️</span>
-        <span class="servicio-nom">Pasadía</span>
-        <span class="servicio-desc">Día de descanso con alberca y áreas verdes</span>
-      </label>
-      <label class="servicio-opt" onclick="selServicio('HOSPEDAJE',this)">
-        <input type="radio" name="servicio" value="HOSPEDAJE">
-        <span class="servicio-ico">🏠</span>
-        <span class="servicio-nom">Hospedaje</span>
-        <span class="servicio-desc">Habitaciones o casa completa</span>
-      </label>
+    <div class="srv-grid">
+      <div class="srv-card" onclick="selServicio('EVENTO',this)">
+        <span class="srv-ico">🎉</span>
+        <span class="srv-nom">Evento Social</span>
+        <span class="srv-desc">Bodas, XV años, graduaciones, cumpleaños y más</span>
+      </div>
+      <div class="srv-card" onclick="selServicio('PASADIA',this)">
+        <span class="srv-ico">☀️</span>
+        <span class="srv-nom">Pasadía</span>
+        <span class="srv-desc">Día de descanso con alberca y áreas verdes</span>
+      </div>
+      <div class="srv-card" onclick="selServicio('HOSPEDAJE',this)">
+        <span class="srv-ico">🏠</span>
+        <span class="srv-nom">Hospedaje</span>
+        <span class="srv-desc">Habitaciones o casa completa en Airbnb</span>
+      </div>
     </div>
-    <div class="campo-error" id="err-servicio" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona un tipo de servicio.</div>
+    <div id="err-servicio" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona un tipo de servicio para continuar.</div>
     <div class="btn-nav">
       <div></div>
       <button class="btn-next" style="flex:0 0 auto;padding:.8rem 2.5rem;" onclick="irA(2)">Siguiente →</button>
     </div>
   </div>
 
-  <!-- PASO 2: Fecha y personas -->
+  <!-- PASO 2: Detalles básicos -->
   <div class="step-panel" id="panel-2">
     <h2 class="panel-title">Cuéntanos los <em>detalles</em></h2>
-    <p class="panel-sub">Fecha tentativa y número aproximado de personas.</p>
+    <p class="panel-sub" id="sub-detalles">Fecha y datos del evento.</p>
+
+    <!-- Tipo de evento (solo EVENTO) -->
+    <div class="campo panel-condicional" id="blq-tipo-evento">
+      <label for="tipo_evento">Tipo de evento</label>
+      <select id="tipo_evento">
+        <option value="Boda">Boda</option>
+        <option value="XV Años">XV Años</option>
+        <option value="Graduación">Graduación</option>
+        <option value="Cumpleaños">Cumpleaños</option>
+        <option value="Bautizo">Bautizo</option>
+        <option value="Aniversario">Aniversario</option>
+        <option value="Evento Corporativo">Evento Corporativo</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+
     <div class="campo">
-      <label for="fecha">Fecha tentativa del evento</label>
-      <input type="date" id="fecha" name="fecha" min="">
+      <label for="fecha" id="lbl-fecha">Fecha del evento</label>
+      <input type="date" id="fecha" min="">
       <div class="campo-error" id="err-fecha">Selecciona una fecha.</div>
     </div>
-    <div class="campo">
+
+    <!-- Horario (solo EVENTO) -->
+    <div class="panel-condicional campo-fila" id="blq-horario">
+      <div class="campo">
+        <label for="hora_inicio">Hora de inicio</label>
+        <input type="time" id="hora_inicio" value="14:00">
+      </div>
+      <div class="campo">
+        <label for="hora_fin">Hora de fin</label>
+        <input type="time" id="hora_fin" value="22:00">
+      </div>
+    </div>
+
+    <div class="campo" id="blq-personas">
       <label>Número de personas: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
         <input type="range" id="personas" min="5" max="600" step="5" value="50"
@@ -328,65 +243,140 @@ body{
         <div class="personas-val" id="personas-val">50</div>
       </div>
     </div>
-    <div class="campo">
-      <label for="notas">¿Algo adicional que quieras contarnos? <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
-      <textarea id="notas" name="notas" placeholder="Tipo de celebración, horario preferido, servicios adicionales..."></textarea>
-    </div>
+
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(1)">← Atrás</button>
       <button class="btn-next" onclick="irA(3)">Siguiente →</button>
     </div>
   </div>
 
-  <!-- PASO 3: Datos de contacto -->
+  <!-- PASO 3: Extras según servicio -->
   <div class="step-panel" id="panel-3">
-    <h2 class="panel-title">Tus datos de <em>contacto</em></h2>
-    <p class="panel-sub">Para enviarte acceso a tu cotización personalizada.</p>
-    <div class="campo">
-      <label for="nombre">Nombre completo</label>
-      <input type="text" id="nombre" name="nombre" placeholder="Ej: María García López" autocomplete="name">
-      <div class="campo-error" id="err-nombre">Ingresa tu nombre.</div>
+    <h2 class="panel-title">¿Qué servicios <em>incluyes</em>?</h2>
+    <p class="panel-sub">Selecciona los servicios adicionales que necesitas. <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
+
+    <!-- Extras EVENTO -->
+    <div class="panel-condicional" id="blq-extras-evento">
+      <div class="extras-titulo">🍺 Servicio de Barra</div>
+      <div class="extras-grid">
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_cerveza')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Cerveza</div><div class="extra-desc">Caguamas y cervezas</div></div>
+        </div>
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_nacional')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Licor Nacional</div><div class="extra-desc">Tequila, ron, vodka</div></div>
+        </div>
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_premium')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Licor Premium</div><div class="extra-desc">Marcas de importación</div></div>
+        </div>
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_cocteleria')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Coctelería</div><div class="extra-desc">Cócteles preparados</div></div>
+        </div>
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_mixologia')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Mixología</div><div class="extra-desc">Cócteles artesanales premium</div></div>
+        </div>
+      </div>
+
+      <div class="extras-titulo">🎵 Entretenimiento</div>
+      <div class="extras-grid">
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_dj_basico')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">DJ Básico</div><div class="extra-desc">Equipo de sonido + DJ</div></div>
+        </div>
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_dj_ilum')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">DJ + Iluminación</div><div class="extra-desc">Sonido + luces + DJ</div></div>
+        </div>
+      </div>
+
+      <div class="extras-titulo">🍽️ Servicio de Comida</div>
+      <div class="extras-grid">
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_catering')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Catering</div><div class="extra-desc">Servicio de banquete completo</div></div>
+        </div>
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_taquiza')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Taquiza</div><div class="extra-desc">Servicio de tacos en el evento</div></div>
+        </div>
+      </div>
     </div>
-    <div class="campo">
-      <label for="telefono">Teléfono (WhatsApp)</label>
-      <input type="tel" id="telefono" name="telefono" placeholder="Ej: 9991234567" autocomplete="tel" maxlength="15">
-      <div class="campo-error" id="err-telefono">Ingresa un teléfono de 10 dígitos.</div>
+
+    <!-- Extras PASADÍA -->
+    <div class="panel-condicional" id="blq-extras-pasadia">
+      <div class="extras-titulo">🎪 Extras para tu pasadía</div>
+      <div class="extras-grid">
+        <div class="extra-opt" onclick="toggleExtra(this,'inc_brincolin')">
+          <div class="extra-check">✓</div>
+          <div><div class="extra-nom">Brincolín</div><div class="extra-desc">Ideal para los más pequeños</div></div>
+        </div>
+      </div>
     </div>
+
+    <!-- Extras HOSPEDAJE -->
+    <div class="panel-condicional" id="blq-extras-hospedaje">
+      <p style="color:var(--texto-s);font-size:.88rem;font-weight:300;line-height:1.8;padding:1rem 0;">
+        Cuéntanos en las notas qué fechas necesitas (check-in / check-out) y cualquier requerimiento especial. Nos pondremos en contacto para confirmar disponibilidad.
+      </p>
+    </div>
+
+    <div class="campo" style="margin-top:1.5rem;">
+      <label for="notas">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
+      <textarea id="notas" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
+    </div>
+
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(2)">← Atrás</button>
       <button class="btn-next" onclick="irA(4)">Siguiente →</button>
     </div>
   </div>
 
-  <!-- PASO 4: Resumen y confirmar -->
+  <!-- PASO 4: Datos de contacto -->
   <div class="step-panel" id="panel-4">
-    <h2 class="panel-title">Confirma tu <em>solicitud</em></h2>
-    <p class="panel-sub">Verifica que todo esté correcto antes de enviar.</p>
-
-    <div class="resumen-card" id="resumen"></div>
-
-    <div class="alert-error" id="alert-global"></div>
-
+    <h2 class="panel-title">Tus datos de <em>contacto</em></h2>
+    <p class="panel-sub">Para enviarte acceso a tu cotización personalizada al instante.</p>
+    <div class="campo">
+      <label for="nombre">Nombre completo</label>
+      <input type="text" id="nombre" placeholder="Ej: María García López" autocomplete="name">
+      <div class="campo-error" id="err-nombre">Ingresa tu nombre completo.</div>
+    </div>
+    <div class="campo">
+      <label for="telefono">Teléfono (WhatsApp)</label>
+      <input type="tel" id="telefono" placeholder="Ej: 9991234567" autocomplete="tel" maxlength="15">
+      <div class="campo-error" id="err-telefono">Ingresa un teléfono válido de 10 dígitos.</div>
+    </div>
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(3)">← Atrás</button>
-      <button class="btn-submit" id="btnEnviar" onclick="enviarSolicitud()">
-        Solicitar cotización
-      </button>
+      <button class="btn-next" onclick="irA(5)">Siguiente →</button>
     </div>
-    <p style="text-align:center;font-size:.72rem;color:var(--texto-s);margin-top:1rem;font-weight:300;">
-      Al enviar aceptas que nos pongamos en contacto contigo para darte seguimiento.
-    </p>
   </div>
 
-</div><!-- /cot-form -->
+  <!-- PASO 5: Resumen y confirmar -->
+  <div class="step-panel" id="panel-5">
+    <h2 class="panel-title">Confirma tu <em>solicitud</em></h2>
+    <p class="panel-sub">Verifica los detalles antes de enviar.</p>
+    <div class="resumen-card" id="resumen"></div>
+    <div class="alert-error" id="alert-global"></div>
+    <div class="btn-nav">
+      <button class="btn-prev" onclick="irA(4)">← Atrás</button>
+      <button class="btn-submit" id="btnEnviar" onclick="enviarSolicitud()">Solicitar cotización</button>
+    </div>
+    <p class="nota">Al enviar aceptas que nos pongamos en contacto contigo para darte seguimiento a tu solicitud.</p>
+  </div>
 
-<footer class="cot-footer">
-  © 2025 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com
-</footer>
+</div>
+
+<footer class="cot-footer">© 2025 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com</footer>
 
 <script>
-let servicioSeleccionado = '';
+let servicioSel = '';
+let extras = {};
 let pasoActual = 1;
+const totalPasos = 5;
 
 // Fecha mínima = mañana
 const hoy = new Date();
@@ -394,13 +384,66 @@ hoy.setDate(hoy.getDate() + 1);
 document.getElementById('fecha').min = hoy.toISOString().split('T')[0];
 
 function selServicio(val, el) {
-  servicioSeleccionado = val;
-  document.querySelectorAll('.servicio-opt').forEach(o => o.classList.remove('selected'));
+  servicioSel = val;
+  document.querySelectorAll('.srv-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('err-servicio').style.display = 'none';
+  actualizarPanelSegunServicio();
+}
+
+function actualizarPanelSegunServicio() {
+  // Panel 2 condicionales
+  const esEvento  = servicioSel === 'EVENTO';
+  const esPasadia = servicioSel === 'PASADIA';
+  const esHosp    = servicioSel === 'HOSPEDAJE';
+
+  toggle('blq-tipo-evento', esEvento);
+  toggle('blq-horario', esEvento);
+
+  const lblFecha = document.getElementById('lbl-fecha');
+  if (esPasadia) lblFecha.textContent = 'Fecha de la visita';
+  else if (esHosp) lblFecha.textContent = 'Fecha de llegada';
+  else lblFecha.textContent = 'Fecha del evento';
+
+  const subDet = document.getElementById('sub-detalles');
+  if (esPasadia) subDet.textContent = 'Selecciona la fecha de tu visita y el número de personas.';
+  else if (esHosp) subDet.textContent = 'Selecciona las fechas y número de huéspedes.';
+  else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
+
+  // Slider personas: max diferente para pasadía
+  const slider = document.getElementById('personas');
+  if (esPasadia) { slider.max = 20; if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); } }
+  else { slider.max = 600; }
+
+  // Panel 3 condicionales
+  toggle('blq-extras-evento',   esEvento);
+  toggle('blq-extras-pasadia',  esPasadia);
+  toggle('blq-extras-hospedaje',esHosp);
+}
+
+function toggle(id, visible) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (visible) el.classList.add('visible');
+  else el.classList.remove('visible');
+}
+
+function toggleExtra(el, key) {
+  el.classList.toggle('selected');
+  extras[key] = el.classList.contains('selected');
+  // DJ: mutuamente exclusivos
+  if (key === 'inc_dj_ilum' && extras[key]) {
+    const djBasico = document.querySelector('[onclick*="inc_dj_basico"]');
+    if (djBasico) { djBasico.classList.remove('selected'); extras['inc_dj_basico'] = false; }
+  }
+  if (key === 'inc_dj_basico' && extras[key]) {
+    const djIlum = document.querySelector('[onclick*="inc_dj_ilum"]');
+    if (djIlum) { djIlum.classList.remove('selected'); extras['inc_dj_ilum'] = false; }
+  }
 }
 
 function actualizarPersonas(val) {
+  val = parseInt(val);
   document.getElementById('personas-label').textContent = val;
   document.getElementById('personas-val').textContent = val;
   const input = document.getElementById('personas');
@@ -409,80 +452,87 @@ function actualizarPersonas(val) {
 }
 
 function irA(paso) {
-  // Validar antes de avanzar
-  if (paso > pasoActual) {
-    if (!validarPaso(pasoActual)) return;
-  }
+  if (paso > pasoActual && !validarPaso(pasoActual)) return;
   document.getElementById(`panel-${pasoActual}`).classList.remove('active');
   document.getElementById(`panel-${paso}`).classList.add('active');
-
-  // Actualizar steps bar
   document.querySelectorAll('.step').forEach(s => {
     const n = parseInt(s.dataset.step);
-    s.classList.remove('active', 'done');
+    s.classList.remove('active','done');
     if (n < paso) s.classList.add('done');
     if (n === paso) s.classList.add('active');
   });
-
-  // Si vamos al paso 4, construir resumen
-  if (paso === 4) construirResumen();
-
+  if (paso === totalPasos) construirResumen();
   pasoActual = paso;
-  window.scrollTo({top: 0, behavior: 'smooth'});
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 function validarPaso(paso) {
   if (paso === 1) {
-    if (!servicioSeleccionado) {
-      document.getElementById('err-servicio').style.display = 'block';
-      return false;
-    }
+    if (!servicioSel) { document.getElementById('err-servicio').style.display = 'block'; return false; }
   }
   if (paso === 2) {
-    const fecha = document.getElementById('fecha').value;
-    if (!fecha) {
-      mostrarError('err-fecha', 'fecha');
-      return false;
+    if (!document.getElementById('fecha').value) {
+      mostrarErr('err-fecha','fecha'); return false;
     }
   }
-  if (paso === 3) {
+  if (paso === 4) {
     let ok = true;
-    const nombre = document.getElementById('nombre').value.trim();
-    const tel = document.getElementById('telefono').value.replace(/\D/g, '');
-    if (!nombre) { mostrarError('err-nombre', 'nombre'); ok = false; }
-    if (tel.length < 10) { mostrarError('err-telefono', 'telefono'); ok = false; }
+    if (!document.getElementById('nombre').value.trim()) { mostrarErr('err-nombre','nombre'); ok=false; }
+    const tel = document.getElementById('telefono').value.replace(/\D/g,'');
+    if (tel.length < 10) { mostrarErr('err-telefono','telefono'); ok=false; }
     if (!ok) return false;
   }
   return true;
 }
 
-function mostrarError(errId, inputId) {
+function mostrarErr(errId, inputId) {
   document.getElementById(errId).style.display = 'block';
   document.getElementById(inputId).classList.add('error');
   document.getElementById(inputId).addEventListener('input', () => {
     document.getElementById(errId).style.display = 'none';
     document.getElementById(inputId).classList.remove('error');
-  }, {once: true});
+  }, {once:true});
 }
 
 function construirResumen() {
-  const nombres = {'EVENTO': 'Evento Social / Boda', 'PASADIA': 'Pasadía', 'HOSPEDAJE': 'Hospedaje'};
+  const nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','HOSPEDAJE':'Hospedaje'};
   const fecha = document.getElementById('fecha').value;
-  const fechaFmt = fecha ? new Date(fecha + 'T00:00:00').toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'}) : '—';
-  const personas = document.getElementById('personas').value;
-  const nombre = document.getElementById('nombre').value.trim();
-  const tel = document.getElementById('telefono').value.trim();
-  const notas = document.getElementById('notas').value.trim();
+  const fechaFmt = fecha
+    ? new Date(fecha+'T00:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})
+    : '—';
+  const personas  = document.getElementById('personas').value;
+  const nombre    = document.getElementById('nombre').value.trim();
+  const tel       = document.getElementById('telefono').value.trim();
+  const notas     = document.getElementById('notas').value.trim();
+  const tipoEv    = document.getElementById('tipo_evento')?.value || '';
+  const hi        = document.getElementById('hora_inicio')?.value || '';
+  const hf        = document.getElementById('hora_fin')?.value || '';
 
-  document.getElementById('resumen').innerHTML = `
-    <div class="resumen-titulo">Resumen de tu solicitud</div>
-    <div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">${nombres[servicioSeleccionado] || servicioSeleccionado}</span></div>
-    <div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">${fechaFmt}</span></div>
-    <div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">${personas} personas</span></div>
+  const etiquetas = {
+    inc_cerveza:'Cerveza', inc_nacional:'Licor Nacional', inc_premium:'Licor Premium',
+    inc_cocteleria:'Coctelería', inc_mixologia:'Mixología',
+    inc_dj_basico:'DJ Básico', inc_dj_ilum:'DJ+Iluminación',
+    inc_catering:'Catering', inc_taquiza:'Taquiza',
+    inc_brincolin:'Brincolín',
+  };
+  const tagsHtml = Object.entries(extras)
+    .filter(([,v]) => v)
+    .map(([k]) => `<span class="tag">${etiquetas[k]||k}</span>`)
+    .join('');
+
+  let html = `<div class="resumen-titulo">Resumen de tu solicitud</div>
+    <div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">${nombres[servicioSel]||servicioSel}${tipoEv && servicioSel==='EVENTO' ? ' — '+tipoEv : ''}</span></div>
+    <div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">${fechaFmt}</span></div>`;
+  if (servicioSel === 'EVENTO') {
+    html += `<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">${hi} — ${hf}</span></div>`;
+  }
+  html += `<div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">${personas}</span></div>
     <div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">${nombre}</span></div>
-    <div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">${tel}</span></div>
-    ${notas ? `<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val" style="max-width:200px;text-align:right;">${notas}</span></div>` : ''}
-  `;
+    <div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">${tel}</span></div>`;
+  if (notas) html += `<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">${notas}</span></div>`;
+  if (tagsHtml) html += `<div class="resumen-tags">${tagsHtml}</div>`;
+
+  document.getElementById('resumen').innerHTML = html;
 }
 
 async function enviarSolicitud() {
@@ -491,29 +541,31 @@ async function enviarSolicitud() {
   btn.innerHTML = '<span class="spinner"></span>Enviando...';
 
   const payload = {
-    servicio:  servicioSeleccionado,
-    fecha:     document.getElementById('fecha').value,
-    personas:  document.getElementById('personas').value,
-    nombre:    document.getElementById('nombre').value.trim(),
-    telefono:  document.getElementById('telefono').value.trim(),
-    notas:     document.getElementById('notas').value.trim(),
+    servicio:   servicioSel,
+    fecha:      document.getElementById('fecha').value,
+    personas:   document.getElementById('personas').value,
+    hora_inicio:document.getElementById('hora_inicio')?.value || '',
+    hora_fin:   document.getElementById('hora_fin')?.value || '',
+    tipo_evento:document.getElementById('tipo_evento')?.value || 'Evento',
+    nombre:     document.getElementById('nombre').value.trim(),
+    telefono:   document.getElementById('telefono').value.trim(),
+    notas:      document.getElementById('notas').value.trim(),
+    ...extras,
   };
 
   try {
     const resp = await fetch('/cotizar/enviar/', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
     });
     const data = await resp.json();
-
     if (data.ok) {
-      // Redirigir al portal del cliente
       window.location.href = data.portal_url;
     } else {
       const al = document.getElementById('alert-global');
       al.style.display = 'block';
-      al.textContent = (data.errores || ['Error al procesar la solicitud.']).join(' ');
+      al.textContent = (data.errores||['Error al procesar la solicitud.']).join(' ');
       btn.disabled = false;
       btn.innerHTML = 'Solicitar cotización';
     }
@@ -525,6 +577,9 @@ async function enviarSolicitud() {
     btn.innerHTML = 'Solicitar cotización';
   }
 }
+
+// Inicializar slider
+actualizarPersonas(50);
 </script>
 </body>
 </html>

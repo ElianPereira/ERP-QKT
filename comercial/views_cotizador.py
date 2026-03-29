@@ -1,16 +1,25 @@
 """
 Cotizador Público — comercial/views_cotizador.py
 =================================================
-Flujo:
+Replica el flujo del webhook de ManyChat:
+- Crea Cliente (reutiliza si ya existe por teléfono)
+- Crea Cotización BORRADOR con items reales del catálogo
+- Crea PortalCliente automáticamente
+- Envía notificación WhatsApp al negocio
+- Retorna URL del portal para redirigir al cliente
+
+Rutas:
   GET  /cotizar/         → Formulario multi-paso
-  POST /cotizar/enviar/  → Crea Cliente + Cotización BORRADOR + Portal → JSON
-  GET  /cotizar/gracias/ → Página de confirmación (fallback)
+  POST /cotizar/enviar/  → Procesa y crea en ERP → JSON
+  GET  /cotizar/gracias/ → Fallback de confirmación
 """
 
 import json
+import math
 import requests
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -19,39 +28,72 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from decouple import config
 
-from .models import Cliente, Cotizacion, PortalCliente, ConstanteSistema
+from .models import (
+    Cliente, Cotizacion, ItemCotizacion, Producto, PortalCliente
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _enviar_whatsapp_negocio(mensaje: str) -> bool:
-    """Envía notificación al número del negocio vía WhatsApp Cloud API."""
+# ─── Helpers (reutilizados del webhook) ───────────────────────────────────────
+
+def _buscar_producto_por_nombre(nombre_parcial):
+    return Producto.objects.filter(nombre__icontains=nombre_parcial).first()
+
+
+def _agregar_item(cotizacion, producto, cantidad=1, desc_override=None):
+    if not producto:
+        return None
+    precio = producto.sugerencia_precio()
+    return ItemCotizacion.objects.create(
+        cotizacion=cotizacion,
+        producto=producto,
+        descripcion=desc_override or producto.nombre,
+        cantidad=Decimal(str(cantidad)),
+        precio_unitario=Decimal(str(precio)),
+    )
+
+
+def _detectar_clima(fecha):
+    if not fecha:
+        return 'calor'
+    m = fecha.month
+    if m == 5:
+        return 'extremo'
+    elif m in (3, 4, 6, 7, 8, 9, 10):
+        return 'calor'
+    return 'normal'
+
+
+def _redondear_personas(n, es_pasadia=False):
+    if es_pasadia:
+        return min(int(n), 20)
+    return max(20, math.ceil(int(n) / 10) * 10)
+
+
+def _enviar_wa_negocio(mensaje: str) -> bool:
     wa_token    = config('WA_CLOUD_API_TOKEN', default='')
     wa_phone_id = config('WA_PHONE_NUMBER_ID', default='')
     wa_negocio  = config('WA_NUMERO_NEGOCIO', default='529994457178')
-
     if not wa_token or not wa_phone_id:
-        logger.warning("WA_CLOUD_API_TOKEN o WA_PHONE_NUMBER_ID no configurados.")
         return False
-
-    url     = f"https://graph.facebook.com/v19.0/{wa_phone_id}/messages"
-    headers = {"Authorization": f"Bearer {wa_token}", "Content-Type": "application/json"}
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": wa_negocio,
-        "type": "text",
-        "text": {"preview_url": False, "body": mensaje},
-    }
     try:
-        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        resp = requests.post(
+            f"https://graph.facebook.com/v19.0/{wa_phone_id}/messages",
+            headers={"Authorization": f"Bearer {wa_token}", "Content-Type": "application/json"},
+            json={"messaging_product": "whatsapp", "to": wa_negocio,
+                  "type": "text", "text": {"preview_url": False, "body": mensaje}},
+            timeout=10,
+        )
         return resp.status_code == 200
     except Exception as e:
-        logger.error(f"Error notificación WhatsApp negocio: {e}")
+        logger.error(f"Error WA negocio: {e}")
         return False
 
 
+# ─── Vistas ───────────────────────────────────────────────────────────────────
+
 def cotizador_publico(request):
-    """GET: Renderiza el formulario multi-paso."""
     return render(request, 'cotizador/index.html')
 
 
@@ -59,105 +101,235 @@ def cotizador_publico(request):
 @require_http_methods(["POST"])
 def cotizador_enviar(request):
     """
-    POST JSON: Crea Cliente + Cotización BORRADOR + Portal.
-    Retorna {'ok': True, 'portal_url': '...', 'folio': 'COT-001'}
+    Procesa la solicitud del cotizador web.
+    Replica exactamente la lógica del webhook de ManyChat.
     """
     try:
         data = json.loads(request.body)
     except Exception:
         data = request.POST.dict()
 
+    # ── Datos base ─────────────────────────────────────────────
     nombre    = str(data.get('nombre', '')).strip()
     telefono  = str(data.get('telefono', '')).strip()
-    servicio  = str(data.get('servicio', '')).strip()   # EVENTO|PASADIA|HOSPEDAJE
+    servicio  = str(data.get('servicio', '')).strip()      # EVENTO|PASADIA|HOSPEDAJE
     fecha_str = str(data.get('fecha', '')).strip()
     personas  = str(data.get('personas', '50')).strip()
+    hora_ini  = str(data.get('hora_inicio', '')).strip()
+    hora_fin  = str(data.get('hora_fin', '')).strip()
+    tipo_ev   = str(data.get('tipo_evento', 'Evento General')).strip()
     notas     = str(data.get('notas', '')).strip()
 
+    # Extras evento
+    inc_cerveza    = bool(data.get('inc_cerveza', False))
+    inc_nacional   = bool(data.get('inc_nacional', False))
+    inc_premium    = bool(data.get('inc_premium', False))
+    inc_cocteleria = bool(data.get('inc_cocteleria', False))
+    inc_mixologia  = bool(data.get('inc_mixologia', False))
+    inc_dj_basico  = bool(data.get('inc_dj_basico', False))
+    inc_dj_ilum    = bool(data.get('inc_dj_ilum', False))
+    inc_catering   = bool(data.get('inc_catering', False))
+    inc_taquiza    = bool(data.get('inc_taquiza', False))
+
+    # Extras pasadía
+    inc_brincolin  = bool(data.get('inc_brincolin', False))
+
     # Validaciones
+    tel_d = ''.join(filter(str.isdigit, telefono))
     errores = []
-    if not nombre:
-        errores.append("El nombre es requerido.")
-    tel_digitos = ''.join(filter(str.isdigit, telefono))
-    if len(tel_digitos) < 10:
-        errores.append("El teléfono debe tener al menos 10 dígitos.")
-    if not servicio:
-        errores.append("Selecciona un tipo de servicio.")
-    if not fecha_str:
-        errores.append("La fecha es requerida.")
+    if not nombre:      errores.append("El nombre es requerido.")
+    if len(tel_d) < 10: errores.append("El teléfono debe tener al menos 10 dígitos.")
+    if not servicio:    errores.append("Selecciona un tipo de servicio.")
+    if not fecha_str:   errores.append("La fecha es requerida.")
     if errores:
         return JsonResponse({'ok': False, 'errores': errores}, status=400)
 
-    # Parsear fecha
+    # ── Parsear fecha ──────────────────────────────────────────
+    fecha_evento = None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
         try:
             fecha_evento = datetime.strptime(fecha_str, fmt).date()
             break
         except ValueError:
             pass
-    else:
+    if not fecha_evento:
         fecha_evento = timezone.now().date() + timedelta(days=30)
 
-    # Número de personas
-    try:
-        num_personas = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 2000))
-    except ValueError:
-        num_personas = 50
+    # ── Horas ──────────────────────────────────────────────────
+    def _parsear_hora(s):
+        if not s:
+            return None
+        for fmt in ("%H:%M", "%H:%M:%S"):
+            try:
+                return datetime.strptime(s.strip(), fmt).time()
+            except ValueError:
+                pass
+        return None
 
-    # Cliente: reutilizar si existe el teléfono
-    cliente = Cliente.objects.filter(telefono=tel_digitos).first()
+    hora_inicio_obj = _parsear_hora(hora_ini)
+    hora_fin_obj    = _parsear_hora(hora_fin)
+
+    if servicio == 'PASADIA':
+        hora_inicio_obj = datetime.strptime("10:00", "%H:%M").time()
+        hora_fin_obj    = datetime.strptime("19:00", "%H:%M").time()
+        horas_evento    = 9
+    elif hora_inicio_obj and hora_fin_obj:
+        from datetime import date as dt_date, datetime as dt
+        dt_i = dt.combine(dt_date.today(), hora_inicio_obj)
+        dt_f = dt.combine(dt_date.today(), hora_fin_obj)
+        if dt_f <= dt_i:
+            dt_f += timedelta(days=1)
+        horas_evento = max(6, int((dt_f - dt_i).total_seconds() / 3600))
+    else:
+        horas_evento = 6
+
+    # ── Número de personas ─────────────────────────────────────
+    try:
+        num_raw = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 2000))
+    except ValueError:
+        num_raw = 50
+    num_personas = _redondear_personas(num_raw, servicio == 'PASADIA')
+
+    # ── Cliente ────────────────────────────────────────────────
+    cliente = Cliente.objects.filter(telefono=tel_d).first()
     if not cliente:
         cliente = Cliente.objects.create(
-            nombre=nombre.upper(),
-            telefono=tel_digitos,
-            origen='Web',
+            nombre=nombre.upper(), telefono=tel_d, origen='Web'
         )
     else:
         if not cliente.nombre or cliente.nombre.startswith('PROSPECTO'):
             cliente.nombre = nombre.upper()
             cliente.save(update_fields=['nombre'])
 
-    # Nombre del evento
+    # ── Nombre del evento ──────────────────────────────────────
     nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pasadía', 'HOSPEDAJE': 'Hospedaje'}
-    nombre_evento = f"{nombres_srv.get(servicio, servicio)} — {nombre}"
+    if servicio == 'EVENTO':
+        nombre_evento = f"{tipo_ev} — {nombre}"
+    elif servicio == 'PASADIA':
+        nombre_evento = f"Pasadía — {nombre}"
+    else:
+        nombre_evento = f"Hospedaje — {nombre}"
     if notas:
-        nombre_evento += f" | {notas[:50]}"
+        nombre_evento += f" | {notas[:60]}"
 
-    # Crear Cotización BORRADOR
+    # ── Crear Cotización ───────────────────────────────────────
+    inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
+    clima = _detectar_clima(fecha_evento)
+
     cotizacion = Cotizacion(
         cliente=cliente,
         nombre_evento=nombre_evento[:200],
         fecha_evento=fecha_evento,
         num_personas=num_personas,
+        horas_servicio=horas_evento,
+        hora_inicio=hora_inicio_obj,
+        hora_fin=hora_fin_obj,
         estado='BORRADOR',
-        clima='normal',
+        clima=clima,
         requiere_factura=False,
-        incluye_refrescos=False,
-        incluye_cerveza=False,
-        incluye_licor_nacional=False,
-        incluye_licor_premium=False,
-        incluye_cocteleria_basica=False,
-        incluye_cocteleria_premium=False,
+        incluye_refrescos=inc_refrescos,
+        incluye_cerveza=inc_cerveza,
+        incluye_licor_nacional=inc_nacional,
+        incluye_licor_premium=inc_premium,
+        incluye_cocteleria_basica=inc_cocteleria,
+        incluye_cocteleria_premium=inc_mixologia,
     )
     cotizacion.save()
 
-    # Crear Portal del Cliente
+    resumen_partes = []
+
+    # ── Items según servicio ───────────────────────────────────
+    if servicio == 'EVENTO':
+        prod = _buscar_producto_por_nombre('Paquete Esencial')
+        if prod:
+            _agregar_item(cotizacion, prod, 1,
+                f"Paquete Esencial QKT — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)")
+            resumen_partes.append("Paquete Esencial")
+
+        if horas_evento > 6:
+            horas_extra = horas_evento - 6
+            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
+                    or _buscar_producto_por_nombre('Hora Extra'))
+            if prod:
+                _agregar_item(cotizacion, prod, horas_extra,
+                    f"Horas Extra de Arrendamiento ({horas_extra} hrs adicionales)")
+                resumen_partes.append(f"+{horas_extra}hrs")
+
+        if inc_dj_ilum:
+            prod = (_buscar_producto_por_nombre('DJ Con Iluminación')
+                    or _buscar_producto_por_nombre('DJ Iluminacion'))
+            if prod:
+                _agregar_item(cotizacion, prod, 1, f"DJ con Iluminación — {horas_evento} Hrs")
+                resumen_partes.append("DJ+Ilum")
+        elif inc_dj_basico:
+            prod = (_buscar_producto_por_nombre('Básico De DJ')
+                    or _buscar_producto_por_nombre('DJ Basico'))
+            if prod:
+                _agregar_item(cotizacion, prod, 1, f"DJ Básico — {horas_evento} Hrs")
+                resumen_partes.append("DJ")
+
+        if inc_catering:
+            prod = _buscar_producto_por_nombre('Catering')
+            if prod:
+                mult = math.ceil(num_personas / 10)
+                _agregar_item(cotizacion, prod, mult,
+                    f"Servicio de Catering ({num_personas} Pax)")
+                resumen_partes.append("Catering")
+
+        if inc_taquiza:
+            prod = _buscar_producto_por_nombre('Taquiza')
+            if prod:
+                mult = math.ceil(num_personas / 10)
+                _agregar_item(cotizacion, prod, mult,
+                    f"Servicio de Taquiza ({num_personas} Pax)")
+                resumen_partes.append("Taquiza")
+
+        barra = []
+        if inc_cerveza:    barra.append("Cerveza")
+        if inc_nacional:   barra.append("Nacional")
+        if inc_premium:    barra.append("Premium")
+        if inc_cocteleria: barra.append("Coctelería")
+        if inc_mixologia:  barra.append("Mixología")
+        if barra:
+            resumen_partes.append("Barra(" + "/".join(barra) + ")")
+
+    elif servicio == 'PASADIA':
+        prod = (_buscar_producto_por_nombre('Pasadía')
+                or _buscar_producto_por_nombre('Pasadia'))
+        if prod:
+            _agregar_item(cotizacion, prod, 1,
+                f"Paquete Pasadía QKT ({num_personas} Pax, 10am-7pm)")
+            resumen_partes.append("Pasadía")
+
+        if inc_brincolin:
+            prod = (_buscar_producto_por_nombre('Brincolín')
+                    or _buscar_producto_por_nombre('Brincolin'))
+            if prod:
+                _agregar_item(cotizacion, prod, 1, "Brincolín")
+                resumen_partes.append("Brincolín")
+
+    elif servicio == 'HOSPEDAJE':
+        resumen_partes.append("Hospedaje")
+
+    # ── Portal del cliente ─────────────────────────────────────
     portal, _ = PortalCliente.objects.get_or_create(
         cotizacion=cotizacion,
         defaults={'activo': True},
     )
-
     portal_url = f"https://clientes.quintakooxtanil.com/mi-evento/{portal.token}/"
 
-    # Notificación WhatsApp al negocio
-    emojis = {'EVENTO': '🎉', 'PASADIA': '☀️', 'HOSPEDAJE': '🏠'}
-    _enviar_whatsapp_negocio(
+    # ── Notificación WA al negocio ─────────────────────────────
+    emoji = {'EVENTO': '🎉', 'PASADIA': '☀️', 'HOSPEDAJE': '🏠'}.get(servicio, '📋')
+    resumen_txt = ", ".join(resumen_partes) if resumen_partes else "Sin servicios adicionales"
+    _enviar_wa_negocio(
         f"🔔 *Nueva solicitud web*\n\n"
-        f"{emojis.get(servicio,'📋')} *Servicio:* {nombres_srv.get(servicio, servicio)}\n"
+        f"{emoji} *Servicio:* {nombres_srv.get(servicio, servicio)}\n"
         f"👤 *Nombre:* {nombre}\n"
-        f"📞 *Teléfono:* {tel_digitos}\n"
+        f"📞 *Teléfono:* {tel_d}\n"
         f"📅 *Fecha:* {fecha_evento.strftime('%d/%m/%Y')}\n"
         f"👥 *Personas:* {num_personas}\n"
+        f"🕐 *Horario:* {hora_ini or '—'} a {hora_fin or '—'}\n"
+        f"📋 *Servicios:* {resumen_txt}\n"
         f"📝 *Notas:* {notas or 'Sin notas'}\n\n"
         f"🔗 Ver cotización:\n{portal_url}\n\n"
         f"_COT-{cotizacion.id:03d} — ERP QKT_"
