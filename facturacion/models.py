@@ -84,6 +84,10 @@ class SolicitudFactura(models.Model):
     # ─── Datos para facturar ──────────────────────────────────
     fecha_solicitud = models.DateTimeField(default=now, verbose_name="Fecha de Solicitud")
     monto = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Monto a Facturar")
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Subtotal")
+    iva = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="IVA")
+    retencion_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Retención ISR")
+    retencion_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Retención IVA")
     concepto = models.TextField(verbose_name="Concepto / Descripción")
 
     # Datos fiscales (copiados del cliente al crear, editables)
