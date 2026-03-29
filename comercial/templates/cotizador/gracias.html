@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>¡Solicitud recibida! — Quinta Ko'ox Tanil</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--verde:#2E7D32;--verde-d:#1B5E20;--amarillo:#F5C518;--oscuro:#2c2b28;--crema:#F7F7F4;--blanco:#FFFFFF;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);min-height:100vh;display:flex;flex-direction:column;}
+.header{background:var(--verde-d);padding:1.2rem 5%;}
+.header-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.3rem;font-weight:400;text-decoration:none;}
+.header-logo em{font-style:italic;}
+.main{flex:1;display:flex;align-items:center;justify-content:center;padding:3rem 5%;}
+.card{
+  background:var(--blanco);border-radius:8px;
+  border:1px solid #e0e0d8;
+  max-width:480px;width:100%;
+  padding:3rem 2.5rem;text-align:center;
+}
+.check{
+  width:64px;height:64px;border-radius:50%;
+  background:#e8f5e9;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 1.5rem;font-size:1.8rem;
+}
+h1{
+  font-family:'Cormorant Garamond',serif;
+  font-size:2rem;font-weight:300;color:var(--verde-d);
+  margin-bottom:.6rem;line-height:1.2;
+}
+h1 em{font-style:italic;color:var(--verde);}
+p{color:#4a4a4a;font-size:.9rem;font-weight:300;line-height:1.8;margin-bottom:1.5rem;}
+.btn{
+  display:inline-block;background:var(--amarillo);color:var(--verde-d);
+  padding:.9rem 2.2rem;border-radius:40px;
+  font-size:.78rem;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;text-decoration:none;transition:all .2s;
+}
+.btn:hover{background:#E6B800;transform:translateY(-1px);}
+.footer{background:var(--oscuro);text-align:center;padding:1.2rem;color:rgba(255,255,255,.35);font-size:.68rem;}
+</style>
+</head>
+<body>
+<header class="header">
+  <a href="https://quintakooxtanil.com" class="header-logo">Quinta <em>Ko'ox Tanil</em></a>
+</header>
+<main class="main">
+  <div class="card">
+    <div class="check">✓</div>
+    <h1>¡Solicitud <em>recibida</em>!</h1>
+    <p>Hemos recibido tu solicitud de cotización. En breve nuestro equipo revisará los detalles y te dará seguimiento.</p>
+    <a href="{{ portal_url }}" class="btn">Ver mi cotización</a>
+  </div>
+</main>
+<footer class="footer">© 2025 Quinta Ko'ox Tanil · Umán, Yucatán</footer>
+<script>
+  // Auto-redirigir al portal en 3 segundos si hay URL
+  const url = "{{ portal_url }}";
+  if (url && url !== 'https://clientes.quintakooxtanil.com') {
+    setTimeout(() => window.location.href = url, 3000);
+  }
+</script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -126,6 +127,10 @@ urlpatterns = [
     path('mi-evento/<str:token>/cotizacion.pdf', portal_descargar_cotizacion, name='portal_descargar_cotizacion'),
     path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
     path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),
+
+    path('cotizar/', cotizador_publico, name='cotizador_publico'),
+    path('cotizar/enviar/', cotizador_enviar, name='cotizador_enviar'),
+    path('cotizar/gracias/', cotizador_gracias, name='cotizador_gracias'),
 
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
