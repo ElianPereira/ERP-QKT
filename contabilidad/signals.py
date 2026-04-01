@@ -5,8 +5,13 @@ Genera pólizas automáticas cuando se registran operaciones en otros módulos.
 
 Para desactivar temporalmente (migraciones masivas):
     settings.CONTABILIDAD_SIGNALS_ENABLED = False
+
+Mejoras v2.0:
+- Desglose de IVA trasladado en pagos de clientes
+- Registro de retenciones ISR de clientes morales
+- Mapeo de categorías de gasto a cuentas específicas
 """
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -54,6 +59,74 @@ def get_unidad_negocio(clave):
         return UnidadNegocio.objects.filter(activa=True).first()
 
 
+def calcular_desglose_proporcional(monto_pago, cotizacion):
+    """
+    Calcula el desglose fiscal proporcional de un pago basado en la cotización.
+    
+    Args:
+        monto_pago: Decimal - Monto del pago
+        cotizacion: Cotizacion - Objeto cotización con los totales
+    
+    Returns:
+        dict con keys: subtotal, iva, retencion_isr, retencion_iva
+        
+    La fórmula es: monto_pago = subtotal + iva - retencion_isr - retencion_iva
+    """
+    precio_final = Decimal(str(cotizacion.precio_final))
+    
+    if precio_final <= 0:
+        # Fallback: calcular IVA estándar 16%
+        subtotal = (monto_pago / Decimal('1.16')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        return {
+            'subtotal': subtotal,
+            'iva': monto_pago - subtotal,
+            'retencion_isr': Decimal('0.00'),
+            'retencion_iva': Decimal('0.00'),
+        }
+    
+    # Calcular proporción del pago vs total
+    proporcion = monto_pago / precio_final
+    
+    # Obtener valores de la cotización (descontando descuento del subtotal)
+    cot_subtotal = Decimal(str(cotizacion.subtotal)) - Decimal(str(cotizacion.descuento))
+    if cot_subtotal < 0:
+        cot_subtotal = Decimal('0.00')
+    
+    cot_iva = Decimal(str(cotizacion.iva))
+    cot_ret_isr = Decimal(str(cotizacion.retencion_isr))
+    cot_ret_iva = Decimal(str(cotizacion.retencion_iva))
+    
+    # Desglose proporcional
+    subtotal = (cot_subtotal * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    iva = (cot_iva * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    retencion_isr = (cot_ret_isr * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    retencion_iva = (cot_ret_iva * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    
+    # Ajustar subtotal para que cuadre exactamente
+    # monto = subtotal + iva - retencion_isr - retencion_iva
+    calculado = subtotal + iva - retencion_isr - retencion_iva
+    diferencia = monto_pago - calculado
+    if abs(diferencia) <= Decimal('0.05'):
+        subtotal = subtotal + diferencia
+    
+    return {
+        'subtotal': subtotal,
+        'iva': iva,
+        'retencion_isr': retencion_isr,
+        'retencion_iva': retencion_iva,
+    }
+
+
 # ==========================================
 # SIGNAL: PAGO DE CLIENTE (comercial.Pago)
 # ==========================================
@@ -62,45 +135,65 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
     """
     Genera póliza de ingreso cuando se registra un pago de cliente.
     
-    Asiento:
-        DEBE: Bancos/Caja (según método de pago)
-        HABER: Anticipo de clientes (o Ingreso si evento ya ejecutado)
+    Asiento con desglose de IVA (ejemplo pago $11,600 de cotización persona física):
+        DEBE: Bancos/Caja                  $11,600.00
+        HABER: Anticipo clientes           $10,000.00 (subtotal proporcional)
+        HABER: IVA trasladado               $1,600.00 (16% proporcional)
+    
+    Asiento cliente MORAL (ejemplo pago $11,475 con retención ISR 1.25%):
+        DEBE: Bancos/Caja                  $11,475.00
+        DEBE: ISR retenido por cliente        $125.00 (impuesto a favor)
+        HABER: Anticipo clientes           $10,000.00
+        HABER: IVA trasladado               $1,600.00
     """
     if not signals_enabled() or not created:
         return
-    
+
     pago = instance
-    
-    # Determinar cuenta de cargo según método de pago
+    cotizacion = pago.cotizacion
+    monto = Decimal(str(pago.monto))
+
+    # ─── Determinar cuenta de cargo según método de pago ────────
     if pago.metodo == 'EFECTIVO':
         cuenta_cargo = get_cuenta('CAJA')
     elif pago.metodo in ('TRANSFERENCIA', 'DEPOSITO'):
         cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
     elif pago.metodo in ('TARJETA_CREDITO', 'TARJETA_DEBITO'):
-        cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')  # Normalmente cae al banco
+        cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
     else:
         cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
-    
-    # Determinar cuenta de abono: anticipo o ingreso
-    cotizacion = pago.cotizacion
+
+    # ─── Determinar cuenta de abono principal ───────────────────
+    # Anticipo si el evento no se ha ejecutado, Ingreso si ya se ejecutó
     if cotizacion.estado in ('EJECUTADA', 'CERRADA'):
         cuenta_abono = get_cuenta('INGRESO_EVENTOS')
     else:
         cuenta_abono = get_cuenta('ANTICIPO_CLIENTES')
-    
-    # Validar que existan las cuentas
+
+    # ─── Obtener cuentas de impuestos ───────────────────────────
+    cuenta_iva_trasladado = get_cuenta('IVA_TRASLADADO')
+    cuenta_isr_retenido = get_cuenta('ISR_RETENIDO_CLIENTES')
+
+    # Validar que existan las cuentas mínimas
     if not cuenta_cargo or not cuenta_abono:
-        return  # Sin configuración, no genera póliza
-    
-    # Obtener unidad de negocio
+        return
+
+    # ─── Obtener unidad de negocio ──────────────────────────────
     unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
         return
-    
-    # Crear póliza
+
+    # ─── Calcular desglose proporcional ─────────────────────────
+    desglose = calcular_desglose_proporcional(monto, cotizacion)
+    subtotal = desglose['subtotal']
+    iva = desglose['iva']
+    retencion_isr = desglose['retencion_isr']
+    retencion_iva = desglose['retencion_iva']
+
+    # ─── Crear póliza ───────────────────────────────────────────
     usuario = get_usuario_sistema()
     content_type = ContentType.objects.get_for_model(pago)
-    
+
     poliza = Poliza.objects.create(
         tipo='I',
         folio=Poliza.siguiente_folio('I', pago.fecha_pago),
@@ -113,26 +206,59 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
         object_id=pago.pk,
         created_by=usuario,
     )
-    
-    # Movimiento DEBE: Bancos/Caja
+
+    # ─── DEBE: Bancos/Caja (monto neto recibido) ────────────────
     MovimientoContable.objects.create(
         poliza=poliza,
         cuenta=cuenta_cargo,
-        debe=pago.monto,
+        debe=monto,
         haber=Decimal('0.00'),
         concepto=f"Pago {pago.get_metodo_display()}",
         referencia=pago.referencia or '',
     )
-    
-    # Movimiento HABER: Anticipo/Ingreso
+
+    # ─── DEBE: ISR retenido por cliente (si aplica) ─────────────
+    # Cuando cliente MORAL retiene ISR, es un impuesto a FAVOR de QKT
+    if cuenta_isr_retenido and retencion_isr > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_isr_retenido,
+            debe=retencion_isr,
+            haber=Decimal('0.00'),
+            concepto="ISR retenido por cliente (1.25%)",
+            referencia=f"COT-{cotizacion.pk:03d}",
+        )
+
+    # ─── HABER: Anticipo/Ingreso (subtotal sin IVA) ─────────────
     MovimientoContable.objects.create(
         poliza=poliza,
         cuenta=cuenta_abono,
         debe=Decimal('0.00'),
-        haber=pago.monto,
-        concepto=f"COT-{cotizacion.pk:03d}",
+        haber=subtotal,
+        concepto=f"COT-{cotizacion.pk:03d} (Subtotal)",
         referencia=pago.referencia or '',
     )
+
+    # ─── HABER: IVA trasladado ──────────────────────────────────
+    if cuenta_iva_trasladado and iva > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_iva_trasladado,
+            debe=Decimal('0.00'),
+            haber=iva,
+            concepto="IVA trasladado 16%",
+            referencia=f"COT-{cotizacion.pk:03d}",
+        )
+    elif iva > 0:
+        # Fallback: si no hay cuenta IVA configurada, incluir en ingreso
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_abono,
+            debe=Decimal('0.00'),
+            haber=iva,
+            concepto=f"COT-{cotizacion.pk:03d} (IVA incluido)",
+            referencia=pago.referencia or '',
+        )
 
 
 # ==========================================
@@ -142,7 +268,7 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
 def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
     """
     Genera póliza de ingreso cuando se registra un pago de Airbnb.
-    
+
     Asiento (ejemplo pago $10,000 bruto):
         DEBE: Bancos                    $8,500 (neto recibido)
         DEBE: Retención ISR (4%)          $400 (impuesto a favor)
@@ -152,35 +278,35 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
     """
     if not signals_enabled() or not created:
         return
-    
+
     pago = instance
-    
+
     # Solo generar póliza si está marcado como PAGADO
     if pago.estado != 'PAGADO':
         return
-    
+
     # Obtener cuentas
     cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
     cuenta_ingreso = get_cuenta('INGRESO_AIRBNB')
     cuenta_ret_isr = get_cuenta('RETENCION_ISR_AIRBNB')
     cuenta_ret_iva = get_cuenta('RETENCION_IVA_AIRBNB')
     cuenta_comision = get_cuenta('COMISION_AIRBNB')
-    
+
     # Validar cuentas mínimas
     if not cuenta_banco or not cuenta_ingreso:
         return
-    
+
     # Obtener unidad de negocio
     unidad = get_unidad_negocio('AIRBNB')
     if not unidad:
         return
-    
+
     # Crear póliza
     usuario = get_usuario_sistema()
     content_type = ContentType.objects.get_for_model(pago)
-    
+
     fecha_poliza = pago.fecha_pago or pago.fecha_checkin
-    
+
     poliza = Poliza.objects.create(
         tipo='I',
         folio=Poliza.siguiente_folio('I', fecha_poliza),
@@ -193,7 +319,7 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
         object_id=pago.pk,
         created_by=usuario,
     )
-    
+
     # DEBE: Banco (monto neto)
     MovimientoContable.objects.create(
         poliza=poliza,
@@ -203,7 +329,7 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
         concepto="Depósito Airbnb",
         referencia=pago.codigo_confirmacion or '',
     )
-    
+
     # DEBE: Retención ISR (si existe cuenta configurada)
     if cuenta_ret_isr and pago.retencion_isr > 0:
         MovimientoContable.objects.create(
@@ -213,7 +339,7 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
             haber=Decimal('0.00'),
             concepto="ISR retenido 4%",
         )
-    
+
     # DEBE: Retención IVA (si existe cuenta configurada)
     if cuenta_ret_iva and pago.retencion_iva > 0:
         MovimientoContable.objects.create(
@@ -223,7 +349,7 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
             haber=Decimal('0.00'),
             concepto="IVA retenido 8%",
         )
-    
+
     # DEBE: Comisión Airbnb (si existe cuenta configurada)
     if cuenta_comision and pago.comision_airbnb > 0:
         MovimientoContable.objects.create(
@@ -233,7 +359,7 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
             haber=Decimal('0.00'),
             concepto="Comisión plataforma",
         )
-    
+
     # HABER: Ingreso bruto
     MovimientoContable.objects.create(
         poliza=poliza,
@@ -245,6 +371,79 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
 
 
 # ==========================================
+# MAPEO DE CATEGORÍAS DE GASTO A CUENTAS
+# ==========================================
+MAPEO_CATEGORIA_CUENTA = {
+    # Categoría de gasto -> Operación de ConfiguracionContable
+    'INSUMOS': 'GASTO_INSUMOS',
+    'BEBIDAS': 'GASTO_INSUMOS',
+    'LICOR': 'GASTO_INSUMOS',
+    'HIELO': 'GASTO_INSUMOS',
+    'SERVICIOS': 'GASTO_SERVICIOS',
+    'AGUA': 'GASTO_SERVICIOS',
+    'LUZ': 'GASTO_SERVICIOS',
+    'INTERNET': 'GASTO_SERVICIOS',
+    'TELEFONO': 'GASTO_SERVICIOS',
+    'MANTENIMIENTO': 'GASTO_MANTENIMIENTO',
+    'JARDINERIA': 'GASTO_MANTENIMIENTO',
+    'LIMPIEZA': 'GASTO_MANTENIMIENTO',
+    'REPARACIONES': 'GASTO_MANTENIMIENTO',
+    'PUBLICIDAD': 'GASTO_PUBLICIDAD',
+    'MARKETING': 'GASTO_PUBLICIDAD',
+    'REDES': 'GASTO_PUBLICIDAD',
+    'EQUIPO': 'GASTO_EQUIPO',
+    'MOBILIARIO': 'GASTO_EQUIPO',
+    'HERRAMIENTAS': 'GASTO_EQUIPO',
+    'VEHICULOS': 'GASTO_VEHICULOS',
+    'GASOLINA': 'GASTO_VEHICULOS',
+    'COMBUSTIBLE': 'GASTO_VEHICULOS',
+    'OFICINA': 'GASTO_OFICINA',
+    'PAPELERIA': 'GASTO_OFICINA',
+    'ADMINISTRATIVO': 'GASTO_OFICINA',
+    'IMPUESTOS': 'GASTO_IMPUESTOS',
+    'SAT': 'GASTO_IMPUESTOS',
+    'PREDIAL': 'GASTO_IMPUESTOS',
+    'SEGUROS': 'GASTO_SEGUROS',
+    'FIANZAS': 'GASTO_SEGUROS',
+    'BANCARIOS': 'GASTO_BANCARIOS',
+    'COMISIONES': 'GASTO_BANCARIOS',
+    'OTROS': 'GASTOS_GENERALES',
+}
+
+
+def get_cuenta_por_categoria(categoria):
+    """
+    Obtiene la cuenta contable apropiada según la categoría del gasto.
+    
+    Args:
+        categoria: str - Categoría del gasto (puede ser None)
+    
+    Returns:
+        CuentaContable o None
+    """
+    if not categoria:
+        return get_cuenta('GASTOS_GENERALES')
+    
+    # Buscar mapeo exacto
+    operacion = MAPEO_CATEGORIA_CUENTA.get(categoria.upper())
+    if operacion:
+        cuenta = get_cuenta(operacion)
+        if cuenta:
+            return cuenta
+    
+    # Buscar por palabra clave parcial
+    categoria_upper = categoria.upper()
+    for keyword, op in MAPEO_CATEGORIA_CUENTA.items():
+        if keyword in categoria_upper:
+            cuenta = get_cuenta(op)
+            if cuenta:
+                return cuenta
+    
+    # Fallback a gastos generales
+    return get_cuenta('GASTOS_GENERALES')
+
+
+# ==========================================
 # SIGNAL: COMPRA/GASTO (comercial.Compra)
 # ==========================================
 @receiver(post_save, sender='comercial.Compra')
@@ -252,44 +451,51 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     """
     Genera póliza de egreso cuando se registra una compra.
     
+    Mejoras:
+    - Mapea categoría de gasto a cuenta contable específica
+    - Soporta unidad de negocio asignada a la compra
+
     Asiento:
-        DEBE: Gastos generales (subtotal)
-        DEBE: IVA acreditable
-        HABER: Bancos/Proveedores (total)
+        DEBE: Cuenta de gasto según categoría (subtotal)
+        DEBE: IVA acreditable (si aplica)
+        HABER: Bancos (total)
     """
     if not signals_enabled() or not created:
         return
-    
+
     compra = instance
-    
+
     # Solo si tiene total > 0
     if compra.total <= 0:
         return
-    
+
     # Obtener cuentas
     cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
-    cuenta_gasto = get_cuenta('GASTOS_GENERALES')
     cuenta_iva = get_cuenta('IVA_ACREDITABLE')
     
+    # Obtener cuenta de gasto según categoría
+    categoria = getattr(compra, 'categoria', None)
+    cuenta_gasto = get_cuenta_por_categoria(categoria)
+
     if not cuenta_banco or not cuenta_gasto:
         return
-    
-    # Obtener unidad de negocio (default QUINTA)
+
+    # Obtener unidad de negocio desde la compra o default EVENTOS
     unidad = getattr(compra, 'unidad_negocio', None) or get_unidad_negocio('EVENTOS')
     if not unidad:
         return
-    
+
     # Crear póliza
     usuario = get_usuario_sistema()
     content_type = ContentType.objects.get_for_model(compra)
-    
+
     fecha_poliza = compra.fecha_emision or compra.uploaded_at.date()
-    
+
     poliza = Poliza.objects.create(
         tipo='E',
         folio=Poliza.siguiente_folio('E', fecha_poliza),
         fecha=fecha_poliza,
-        concepto=f"Compra: {compra.proveedor or 'Proveedor'}",
+        concepto=f"Compra: {compra.proveedor or 'Proveedor'}" + (f" [{categoria}]" if categoria else ""),
         unidad_negocio=unidad,
         estado='APLICADA',
         origen='COMPRA',
@@ -297,7 +503,7 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
         object_id=compra.pk,
         created_by=usuario,
     )
-    
+
     # DEBE: Gasto (subtotal)
     MovimientoContable.objects.create(
         poliza=poliza,
@@ -307,7 +513,7 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
         concepto=compra.proveedor[:100] if compra.proveedor else "Compra",
         referencia=compra.uuid[:20] if compra.uuid else '',
     )
-    
+
     # DEBE: IVA acreditable (si aplica)
     if cuenta_iva and compra.iva > 0:
         MovimientoContable.objects.create(
@@ -317,7 +523,7 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
             haber=Decimal('0.00'),
             concepto="IVA acreditable",
         )
-    
+
     # HABER: Banco (total)
     MovimientoContable.objects.create(
         poliza=poliza,
@@ -336,37 +542,37 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
 def crear_poliza_nomina(sender, instance, created, **kwargs):
     """
     Genera póliza de egreso cuando se registra un recibo de nómina.
-    
+
     Asiento:
         DEBE: Sueldos y salarios
         HABER: Bancos/Caja
     """
     if not signals_enabled() or not created:
         return
-    
+
     recibo = instance
-    
+
     if recibo.total_pagado <= 0:
         return
-    
+
     # Obtener cuentas
     cuenta_sueldos = get_cuenta('SUELDOS_SALARIOS')
     cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
-    
+
     if not cuenta_sueldos or not cuenta_banco:
         return
-    
+
     # Obtener unidad de negocio
     unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
         return
-    
+
     # Crear póliza
     usuario = get_usuario_sistema()
     content_type = ContentType.objects.get_for_model(recibo)
-    
+
     fecha_poliza = recibo.fecha_generacion.date()
-    
+
     poliza = Poliza.objects.create(
         tipo='E',
         folio=Poliza.siguiente_folio('E', fecha_poliza),
@@ -379,7 +585,7 @@ def crear_poliza_nomina(sender, instance, created, **kwargs):
         object_id=recibo.pk,
         created_by=usuario,
     )
-    
+
     # DEBE: Sueldos y salarios
     MovimientoContable.objects.create(
         poliza=poliza,
@@ -388,7 +594,7 @@ def crear_poliza_nomina(sender, instance, created, **kwargs):
         haber=Decimal('0.00'),
         concepto=f"{recibo.empleado.nombre} - {recibo.horas_trabajadas}h",
     )
-    
+
     # HABER: Banco
     MovimientoContable.objects.create(
         poliza=poliza,

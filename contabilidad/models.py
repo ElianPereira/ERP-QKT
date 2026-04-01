@@ -58,7 +58,7 @@ class CuentaContable(models.Model):
         ('D', 'Deudora'),
         ('A', 'Acreedora'),
     ]
-    
+
     TIPO_CHOICES = [
         ('ACTIVO', '1 - Activo'),
         ('PASIVO', '2 - Pasivo'),
@@ -68,7 +68,7 @@ class CuentaContable(models.Model):
         ('GASTO', '6 - Gastos'),
         ('ORDEN', '8 - Cuentas de orden'),
     ]
-    
+
     codigo_sat = models.CharField(
         max_length=20,
         unique=True,
@@ -102,11 +102,11 @@ class CuentaContable(models.Model):
         help_text="False para cuentas de acumulación (solo totalizan subcuentas)"
     )
     activa = models.BooleanField(default=True, verbose_name="Activa")
-    
+
     # Metadatos
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Cuenta contable"
         verbose_name_plural = "Catálogo de cuentas"
@@ -115,14 +115,14 @@ class CuentaContable(models.Model):
             models.Index(fields=['codigo_sat']),
             models.Index(fields=['tipo', 'activa']),
         ]
-    
+
     def __str__(self):
         return f"{self.codigo_sat} - {self.nombre}"
-    
+
     def clean(self):
         if self.padre and self.padre == self:
             raise ValidationError("Una cuenta no puede ser su propio padre.")
-    
+
     @property
     def saldo_actual(self):
         """Calcula el saldo actual de la cuenta (debe - haber o viceversa según naturaleza)."""
@@ -134,7 +134,7 @@ class CuentaContable(models.Model):
         )
         debe = movimientos['total_debe'] or Decimal('0.00')
         haber = movimientos['total_haber'] or Decimal('0.00')
-        
+
         if self.naturaleza == 'D':
             return debe - haber
         else:
@@ -166,13 +166,13 @@ class UnidadNegocio(models.Model):
     )
     activa = models.BooleanField(default=True)
     rfc = models.CharField(max_length=13, blank=True, verbose_name="RFC")
-    razon_social = models.CharField(max_length=300, blank=True, verbose_name="Razón Social")
-    
+    razon_social = models.CharField(max_length=500, blank=True, verbose_name="Razón Social")
+
     class Meta:
         verbose_name = "Unidad de negocio"
         verbose_name_plural = "Unidades de negocio"
         ordering = ['clave']
-    
+
     def __str__(self):
         return f"{self.clave} - {self.nombre}"
 
@@ -228,19 +228,19 @@ class CuentaBancaria(models.Model):
         verbose_name="Fecha del saldo inicial"
     )
     activa = models.BooleanField(default=True)
-    
+
     # Metadatos
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Cuenta bancaria"
         verbose_name_plural = "Cuentas bancarias"
         ordering = ['banco', 'nombre']
-    
+
     def __str__(self):
         return f"{self.banco} - {self.nombre}"
-    
+
     @property
     def saldo_actual(self):
         """Calcula saldo actual: inicial + movimientos contables."""
@@ -263,13 +263,13 @@ class Poliza(models.Model):
         ('E', 'Egreso'),
         ('D', 'Diario'),
     ]
-    
+
     ESTADO_CHOICES = [
         ('BORRADOR', 'Borrador'),
         ('APLICADA', 'Aplicada'),
         ('CANCELADA', 'Cancelada'),
     ]
-    
+
     ORIGEN_CHOICES = [
         ('MANUAL', 'Captura manual'),
         ('PAGO_CLIENTE', 'Pago de cliente'),
@@ -278,7 +278,7 @@ class Poliza(models.Model):
         ('NOMINA', 'Nómina'),
         ('AJUSTE', 'Ajuste contable'),
     ]
-    
+
     tipo = models.CharField(
         max_length=1,
         choices=TIPO_CHOICES,
@@ -286,14 +286,14 @@ class Poliza(models.Model):
     )
     folio = models.PositiveIntegerField(verbose_name="Folio")
     fecha = models.DateField(verbose_name="Fecha de póliza")
-    concepto = models.CharField(max_length=300, verbose_name="Concepto")
-    
+    concepto = models.CharField(max_length=500, verbose_name="Concepto")
+
     unidad_negocio = models.ForeignKey(
         UnidadNegocio,
         on_delete=models.PROTECT,
         verbose_name="Unidad de negocio"
     )
-    
+
     estado = models.CharField(
         max_length=10,
         choices=ESTADO_CHOICES,
@@ -306,7 +306,7 @@ class Poliza(models.Model):
         default='MANUAL',
         verbose_name="Origen"
     )
-    
+
     # Referencias opcionales a documentos origen
     content_type = models.ForeignKey(
         'contenttypes.ContentType',
@@ -320,7 +320,7 @@ class Poliza(models.Model):
         blank=True,
         verbose_name="ID del documento origen"
     )
-    
+
     # Auditoría
     created_by = models.ForeignKey(
         User,
@@ -340,7 +340,7 @@ class Poliza(models.Model):
     )
     fecha_cancelacion = models.DateTimeField(null=True, blank=True)
     motivo_cancelacion = models.TextField(blank=True, verbose_name="Motivo de cancelación")
-    
+
     class Meta:
         verbose_name = "Póliza contable"
         verbose_name_plural = "Pólizas contables"
@@ -350,29 +350,29 @@ class Poliza(models.Model):
             models.Index(fields=['estado']),
             models.Index(fields=['unidad_negocio', 'fecha']),
         ]
-    
+
     def __str__(self):
         return f"{self.get_tipo_display()}-{self.folio} | {self.fecha} | {self.concepto[:50]}"
-    
+
     @property
     def total_debe(self):
         return self.movimientos.aggregate(t=Sum('debe'))['t'] or Decimal('0.00')
-    
+
     @property
     def total_haber(self):
         return self.movimientos.aggregate(t=Sum('haber'))['t'] or Decimal('0.00')
-    
+
     @property
     def esta_cuadrada(self):
         """Verifica que la póliza cuadre (debe = haber)."""
         return abs(self.total_debe - self.total_haber) < Decimal('0.01')
-    
+
     def clean(self):
         if self.estado == 'APLICADA' and not self.esta_cuadrada:
             raise ValidationError(
                 f"La póliza no cuadra. Debe: ${self.total_debe}, Haber: ${self.total_haber}"
             )
-    
+
     def aplicar(self, usuario):
         """Aplica la póliza (la hace definitiva)."""
         if not self.esta_cuadrada:
@@ -381,7 +381,7 @@ class Poliza(models.Model):
             raise ValidationError("Solo se pueden aplicar pólizas en borrador.")
         self.estado = 'APLICADA'
         self.save()
-    
+
     def cancelar(self, usuario, motivo):
         """Cancela la póliza con motivo y usuario."""
         if self.estado == 'CANCELADA':
@@ -391,7 +391,7 @@ class Poliza(models.Model):
         self.fecha_cancelacion = timezone.now()
         self.motivo_cancelacion = motivo
         self.save()
-    
+
     @classmethod
     def siguiente_folio(cls, tipo, fecha):
         """Obtiene el siguiente folio disponible para el tipo y mes."""
@@ -448,7 +448,7 @@ class MovimientoContable(models.Model):
         verbose_name="Referencia",
         help_text="Número de cheque, transferencia, factura, etc."
     )
-    
+
     class Meta:
         verbose_name = "Movimiento contable"
         verbose_name_plural = "Movimientos contables"
@@ -456,12 +456,12 @@ class MovimientoContable(models.Model):
         indexes = [
             models.Index(fields=['cuenta', 'poliza']),
         ]
-    
+
     def __str__(self):
         tipo = "Cargo" if self.debe > 0 else "Abono"
         monto = self.debe if self.debe > 0 else self.haber
         return f"{tipo} ${monto} → {self.cuenta.codigo_sat}"
-    
+
     def clean(self):
         if self.debe > 0 and self.haber > 0:
             raise ValidationError("Un movimiento no puede tener cargo y abono simultáneamente.")
@@ -484,7 +484,7 @@ class ConciliacionBancaria(models.Model):
         ('EN_PROCESO', 'En proceso'),
         ('CONCILIADA', 'Conciliada'),
     ]
-    
+
     cuenta_bancaria = models.ForeignKey(
         CuentaBancaria,
         on_delete=models.PROTECT,
@@ -493,7 +493,7 @@ class ConciliacionBancaria(models.Model):
     )
     mes = models.PositiveSmallIntegerField(verbose_name="Mes")
     anio = models.PositiveSmallIntegerField(verbose_name="Año")
-    
+
     saldo_segun_banco = models.DecimalField(
         max_digits=14,
         decimal_places=2,
@@ -506,7 +506,7 @@ class ConciliacionBancaria(models.Model):
         default=Decimal('0.00'),
         verbose_name="Saldo según libros"
     )
-    
+
     # Partidas en conciliación
     cargos_banco_no_registrados = models.DecimalField(
         max_digits=14,
@@ -536,7 +536,7 @@ class ConciliacionBancaria(models.Model):
         verbose_name="Depósitos en tránsito",
         help_text="Depósitos registrados pendientes de acreditación"
     )
-    
+
     diferencia = models.DecimalField(
         max_digits=14,
         decimal_places=2,
@@ -549,7 +549,7 @@ class ConciliacionBancaria(models.Model):
         default='PENDIENTE'
     )
     notas = models.TextField(blank=True, verbose_name="Notas")
-    
+
     # Auditoría
     conciliada_por = models.ForeignKey(
         User,
@@ -561,16 +561,16 @@ class ConciliacionBancaria(models.Model):
     fecha_conciliacion = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Conciliación bancaria"
         verbose_name_plural = "Conciliaciones bancarias"
         unique_together = ['cuenta_bancaria', 'mes', 'anio']
         ordering = ['-anio', '-mes']
-    
+
     def __str__(self):
         return f"{self.cuenta_bancaria} - {self.mes:02d}/{self.anio}"
-    
+
     def calcular_diferencia(self):
         """
         Calcula la diferencia entre saldo banco y saldo libros ajustado.
@@ -588,7 +588,7 @@ class ConciliacionBancaria(models.Model):
         )
         self.diferencia = saldo_libros_ajustado - saldo_banco_ajustado
         return self.diferencia
-    
+
     def save(self, *args, **kwargs):
         self.calcular_diferencia()
         super().save(*args, **kwargs)
@@ -604,40 +604,67 @@ class ConfiguracionContable(models.Model):
     Permite configurar qué cuentas usar en las pólizas automáticas.
     """
     OPERACION_CHOICES = [
-        # Comercial
+        # ═══════════════════════════════════════════
+        # COMERCIAL - INGRESOS
+        # ═══════════════════════════════════════════
         ('PAGO_CLIENTE_EFECTIVO', 'Pago cliente - Efectivo'),
         ('PAGO_CLIENTE_TRANSFERENCIA', 'Pago cliente - Transferencia'),
         ('PAGO_CLIENTE_TARJETA', 'Pago cliente - Tarjeta'),
         ('INGRESO_EVENTOS', 'Ingreso por eventos'),
         ('IVA_TRASLADADO', 'IVA trasladado'),
         ('ANTICIPO_CLIENTES', 'Anticipo de clientes'),
-        
-        # Airbnb
+        ('ISR_RETENIDO_CLIENTES', 'ISR retenido por clientes'),
+
+        # ═══════════════════════════════════════════
+        # AIRBNB
+        # ═══════════════════════════════════════════
         ('INGRESO_AIRBNB', 'Ingreso Airbnb'),
         ('RETENCION_ISR_AIRBNB', 'Retención ISR Airbnb'),
         ('RETENCION_IVA_AIRBNB', 'Retención IVA Airbnb'),
         ('IMPUESTO_HOSPEDAJE', 'Impuesto al hospedaje'),
         ('COMISION_AIRBNB', 'Comisión Airbnb'),
-        
-        # Compras/Gastos
+
+        # ═══════════════════════════════════════════
+        # COMPRAS/GASTOS - GENERALES
+        # ═══════════════════════════════════════════
         ('PROVEEDORES', 'Proveedores'),
         ('IVA_ACREDITABLE', 'IVA acreditable'),
         ('GASTOS_GENERALES', 'Gastos generales'),
+
+        # ═══════════════════════════════════════════
+        # COMPRAS/GASTOS - POR CATEGORÍA
+        # ═══════════════════════════════════════════
+        ('GASTO_INSUMOS', 'Gastos - Insumos y bebidas'),
+        ('GASTO_SERVICIOS', 'Gastos - Servicios (agua, luz, internet)'),
+        ('GASTO_MANTENIMIENTO', 'Gastos - Mantenimiento y limpieza'),
+        ('GASTO_PUBLICIDAD', 'Gastos - Publicidad y marketing'),
+        ('GASTO_EQUIPO', 'Gastos - Equipo y mobiliario'),
+        ('GASTO_VEHICULOS', 'Gastos - Vehículos y combustible'),
+        ('GASTO_OFICINA', 'Gastos - Oficina y papelería'),
+        ('GASTO_IMPUESTOS', 'Gastos - Impuestos y derechos'),
+        ('GASTO_SEGUROS', 'Gastos - Seguros y fianzas'),
+        ('GASTO_BANCARIOS', 'Gastos - Comisiones bancarias'),
+
+        # Legacy (mantener por compatibilidad)
         ('GASTOS_BEBIDAS', 'Gastos bebidas'),
         ('GASTOS_NOMINA_EXT', 'Gastos nómina externa'),
-        
-        # Nómina
+
+        # ═══════════════════════════════════════════
+        # NÓMINA
+        # ═══════════════════════════════════════════
         ('SUELDOS_SALARIOS', 'Sueldos y salarios'),
         ('IMSS_PATRONAL', 'IMSS patronal'),
-        
-        # Bancos
+
+        # ═══════════════════════════════════════════
+        # BANCOS Y CAJA
+        # ═══════════════════════════════════════════
         ('BANCO_PRINCIPAL', 'Banco principal'),
         ('BANCO_SECUNDARIO', 'Banco secundario'),
         ('CAJA', 'Caja'),
     ]
-    
+
     operacion = models.CharField(
-        max_length=30,
+        max_length=50,
         choices=OPERACION_CHOICES,
         unique=True,
         verbose_name="Tipo de operación"
@@ -653,15 +680,15 @@ class ConfiguracionContable(models.Model):
         verbose_name="Descripción"
     )
     activa = models.BooleanField(default=True)
-    
+
     class Meta:
         verbose_name = "Configuración contable"
         verbose_name_plural = "Configuración contable"
         ordering = ['operacion']
-    
+
     def __str__(self):
         return f"{self.get_operacion_display()} → {self.cuenta.codigo_sat}"
-    
+
     @classmethod
     def obtener_cuenta(cls, operacion):
         """Obtiene la cuenta configurada para una operación."""
