@@ -655,6 +655,7 @@ class CompraAdmin(admin.ModelAdmin):
         my_urls = [path('carga-masiva/', self.admin_site.admin_view(self.carga_masiva_view), name='compra_carga_masiva')]
         return my_urls + urls
     def carga_masiva_view(self, request):
+        from django.core.files.base import ContentFile
         if request.method == "POST":
             files = request.FILES.getlist('xml_files')
             if not files:
@@ -662,8 +663,17 @@ class CompraAdmin(admin.ModelAdmin):
                 return redirect('.')
             exitos = errores = 0
             for f in files:
-                try: Compra.objects.create(archivo_xml=f); exitos += 1
-                except Exception as e: errores += 1; print(f"Error subiendo {f.name}: {e}")
+                try:
+                    f.seek(0)
+                    content = f.read()
+                    if not content:
+                        raise ValueError("Archivo vacío")
+                    new_file = ContentFile(content, name=f.name)
+                    Compra.objects.create(archivo_xml=new_file)
+                    exitos += 1
+                except Exception as e:
+                    errores += 1
+                    print(f"Error subiendo {f.name}: {e}")
             if exitos > 0: messages.success(request, f"{exitos} facturas procesadas.")
             if errores > 0: messages.warning(request, f"{errores} archivos con problemas.")
             return redirect('..')
