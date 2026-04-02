@@ -603,7 +603,9 @@ class Compra(models.Model):
                 self.subtotal = Decimal(root.attrib.get('SubTotal', 0))
                 self.descuento = Decimal(root.attrib.get('Descuento', 0))
                 fecha_str = root.attrib.get('Fecha', '')
-                if fecha_str: self.fecha_emision = fecha_str.split('T')[0] 
+                if fecha_str:
+                    from datetime import datetime
+                    self.fecha_emision = datetime.strptime(fecha_str.split('T')[0], '%Y-%m-%d').date() 
                 emisor = root.find('cfdi:Emisor', ns)
                 if emisor is not None: 
                     self.proveedor = emisor.attrib.get('Nombre', '')
