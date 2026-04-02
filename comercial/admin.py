@@ -655,7 +655,8 @@ class CompraAdmin(admin.ModelAdmin):
         my_urls = [path('carga-masiva/', self.admin_site.admin_view(self.carga_masiva_view), name='compra_carga_masiva')]
         return my_urls + urls
     def carga_masiva_view(self, request):
-        from django.core.files.base import ContentFile
+        from django.core.files.uploadedfile import InMemoryUploadedFile
+        from io import BytesIO
         if request.method == "POST":
             files = request.FILES.getlist('xml_files')
             if not files:
@@ -666,9 +667,18 @@ class CompraAdmin(admin.ModelAdmin):
                 try:
                     f.seek(0)
                     content = f.read()
-                    if not content:
-                        raise ValueError("Archivo vacío")
-                    new_file = ContentFile(content, name=f.name)
+                    if not content or len(content) < 100:
+                        raise ValueError(f"Archivo vacío o muy pequeño ({len(content)} bytes)")
+                    # Crear nuevo InMemoryUploadedFile con el contenido
+                    file_io = BytesIO(content)
+                    new_file = InMemoryUploadedFile(
+                        file=file_io,
+                        field_name='archivo_xml',
+                        name=f.name,
+                        content_type='application/xml',
+                        size=len(content),
+                        charset=None
+                    )
                     Compra.objects.create(archivo_xml=new_file)
                     exitos += 1
                 except Exception as e:
