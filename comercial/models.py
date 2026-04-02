@@ -625,6 +625,8 @@ class Compra(models.Model):
                         for t in traslados.findall('cfdi:Traslado', ns):
                             if t.attrib.get('Impuesto') == '002': self.iva = Decimal(t.attrib.get('Importe', 0))
             except Exception as e: print(f"Error procesando XML cabecera: {e}")
+            finally:
+                if self.archivo_xml: self.archivo_xml.seek(0)
         super().save(*args, **kwargs)
         if self.archivo_xml and self.pk:
             try:
