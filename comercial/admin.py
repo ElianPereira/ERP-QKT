@@ -657,37 +657,84 @@ class CompraAdmin(admin.ModelAdmin):
     def carga_masiva_view(self, request):
         from django.core.files.uploadedfile import InMemoryUploadedFile
         from io import BytesIO
+        from contabilidad.models import UnidadNegocio
+        import xml.etree.ElementTree as ET
+        
+        # Mapeo de RFC receptor -> Unidad de negocio
+        RFC_UNIDAD_MAP = {
+            'PECE010202IA0': 'EVENTOS',  # Elian - Quinta Ko'ox Tanil
+            'CERU580518QZ5': 'AIRBNB',   # Ruby - Hospedaje Airbnb
+        }
+        
+        def detectar_unidad_por_rfc(xml_content):
+            """Detecta la unidad de negocio basándose en el RFC del receptor."""
+            try:
+                root = ET.fromstring(xml_content)
+                ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
+                if 'http://www.sat.gob.mx/cfd/3' in root.tag:
+                    ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+                receptor = root.find('cfdi:Receptor', ns)
+                if receptor is not None:
+                    rfc = receptor.attrib.get('Rfc', '')
+                    clave = RFC_UNIDAD_MAP.get(rfc)
+                    if clave:
+                        return UnidadNegocio.objects.filter(clave=clave).first()
+            except Exception:
+                pass
+            return None
+        
         if request.method == "POST":
             files = request.FILES.getlist('xml_files')
             if not files:
                 messages.error(request, "No seleccionaste ningún archivo.")
                 return redirect('.')
+            
+            # Obtener unidad de negocio seleccionada (si hay)
+            unidad_id = request.POST.get('unidad_negocio')
+            unidad_fija = None
+            if unidad_id:
+                unidad_fija = UnidadNegocio.objects.filter(pk=unidad_id).first()
+            
             exitos = errores = 0
             for f in files:
                 try:
                     f.seek(0)
-                    content = f.read()
-                    if not content or len(content) < 100:
-                        raise ValueError(f"Archivo vacío o muy pequeño ({len(content)} bytes)")
+                    file_content = f.read()
+                    if not file_content or len(file_content) < 100:
+                        raise ValueError(f"Archivo vacío o muy pequeño ({len(file_content)} bytes)")
+                    
+                    # Determinar unidad de negocio
+                    if unidad_fija:
+                        unidad = unidad_fija
+                    else:
+                        unidad = detectar_unidad_por_rfc(file_content)
+                    
                     # Crear nuevo InMemoryUploadedFile con el contenido
-                    file_io = BytesIO(content)
+                    file_io = BytesIO(file_content)
                     new_file = InMemoryUploadedFile(
                         file=file_io,
                         field_name='archivo_xml',
                         name=f.name,
                         content_type='application/xml',
-                        size=len(content),
+                        size=len(file_content),
                         charset=None
                     )
-                    Compra.objects.create(archivo_xml=new_file)
+                    Compra.objects.create(archivo_xml=new_file, unidad_negocio=unidad)
                     exitos += 1
                 except Exception as e:
                     errores += 1
                     print(f"Error subiendo {f.name}: {e}")
-            if exitos > 0: messages.success(request, f"{exitos} facturas procesadas.")
-            if errores > 0: messages.warning(request, f"{errores} archivos con problemas.")
+            
+            if exitos > 0: messages.success(request, f"{exitos} facturas procesadas correctamente.")
+            if errores > 0: messages.warning(request, f"{errores} archivos con problemas (duplicados o errores).")
             return redirect('..')
-        return render(request, 'comercial/carga_masiva_xml.html', {'title': 'Carga Masiva de XML'})
+        
+        # GET: mostrar formulario con unidades de negocio
+        unidades = UnidadNegocio.objects.filter(activa=True)
+        return render(request, 'comercial/carga_masiva_xml.html', {
+            'title': 'Carga Masiva de XML',
+            'unidades': unidades,
+        })
     def total_format(self, obj): return f"${obj.total:,.2f}"
     total_format.short_description = "Total"
     def ver_pdf(self, obj):
