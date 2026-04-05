@@ -606,18 +606,25 @@ class CotizacionAdmin(admin.ModelAdmin):
             if portal and portal.activo:
                 url = portal.get_full_url()
                 tel = ''.join(filter(str.isdigit, obj.cliente.telefono or ''))
-                wa_url = f"https://wa.me/{tel}?text=Hola%20{obj.cliente.nombre}%2C%20aquí%20puedes%20ver%20los%20detalles%20de%20tu%20evento%3A%20{url}"
-                return format_html(
-                    '<a href="{}" target="_blank" style="background:#2E7D32; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none; margin-right:4px;">Portal</a>'
-                    '<a href="{}" target="_blank" style="background:#25D366; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none;">Enviar</a>',
-                    url, wa_url
+                wa_url = (
+                    f"https://wa.me/{tel}"
+                    f"?text=Hola%20{obj.cliente.nombre}%2C%20aqu%C3%AD%20puedes%20ver%20"
+                    f"los%20detalles%20de%20tu%20evento%3A%20{url}"
                 )
-        except PortalCliente.DoesNotExist:
+                copy_id = f"portal-url-{obj.pk}"
+                return format_html(
+                    '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;margin-right:3px;">Portal</a>'
+                    '<a href="{}" target="_blank" style="background:#25D366;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;margin-right:3px;">WA</a>'
+                    '<span id="{}" style="display:none">{}</span>'
+                    '<button onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;">Copiar</button>',
+                    url, wa_url, copy_id, url, copy_id
+                )
+        except Exception:
             pass
-        create_url = f"/admin/comercial/portalcliente/add/?cotizacion={obj.id}"
-        return format_html(BTN, url=create_url, target='', bg='#3498db', fg='white', label='+ Portal', extra='')
+        return format_html(
+            '<span style="color:#95a5a6;font-size:11px;">Sin portal</span>'
+        )
     ver_portal.short_description = "Portal"
-
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
     list_display = ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
