@@ -16,8 +16,8 @@ from django.dispatch import receiver
 @receiver(post_save, sender='comercial.Pago')
 def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     """
-    Crea una SolicitudFactura cuando se registra un Pago
-    con solicitar_factura=True.
+    Crea una SolicitudFactura automáticamente cuando se registra un Pago.
+    Todos los pagos nuevos generan solicitud de factura.
     
     El desglose fiscal se calcula proporcionalmente basado en la cotización.
     """
@@ -25,11 +25,6 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         return
     
     pago = instance
-    
-    # Verificar si el pago tiene el flag de solicitar factura
-    if not getattr(pago, 'solicitar_factura', False):
-        return
-    
     cotizacion = pago.cotizacion
     cliente = cotizacion.cliente
     
@@ -39,29 +34,25 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     
     # ─── Determinar datos fiscales ──────────────────────────────
     if cliente.rfc and cliente.razon_social:
-        # Cliente con datos fiscales completos
         rfc = cliente.rfc
         razon_social = cliente.razon_social
         codigo_postal = cliente.codigo_postal_fiscal or '97238'
         regimen_fiscal = cliente.regimen_fiscal or '616'
         uso_cfdi = cliente.uso_cfdi or 'G03'
     else:
-        # Público en General
         rfc = 'XAXX010101000'
         razon_social = 'PUBLICO EN GENERAL'
         codigo_postal = '97238'
-        regimen_fiscal = '616'  # Sin obligaciones fiscales
-        uso_cfdi = 'S01'  # Sin efectos fiscales
+        regimen_fiscal = '616'
+        uso_cfdi = 'S01'
     
     # ─── Calcular desglose fiscal proporcional ──────────────────
     monto_pago = Decimal(str(pago.monto))
     precio_final = Decimal(str(cotizacion.precio_final))
     
     if precio_final > 0:
-        # Calcular proporción del pago respecto al total
         proporcion = monto_pago / precio_final
         
-        # Obtener valores de la cotización
         cot_subtotal = Decimal(str(cotizacion.subtotal)) - Decimal(str(cotizacion.descuento))
         if cot_subtotal < 0:
             cot_subtotal = Decimal('0.00')
@@ -69,7 +60,6 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         cot_ret_isr = Decimal(str(cotizacion.retencion_isr))
         cot_ret_iva = Decimal(str(cotizacion.retencion_iva))
         
-        # Desglose proporcional
         subtotal = (cot_subtotal * proporcion).quantize(
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
@@ -83,14 +73,11 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
         
-        # Ajustar subtotal para que cuadre exactamente con el monto
-        # monto = subtotal + iva - retencion_isr - retencion_iva
         calculado = subtotal + iva - retencion_isr - retencion_iva
         diferencia = monto_pago - calculado
         if abs(diferencia) <= Decimal('0.05'):
             subtotal = subtotal + diferencia
     else:
-        # Fallback: si no hay precio_final, calcular IVA estándar
         subtotal = (monto_pago / Decimal('1.16')).quantize(
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
