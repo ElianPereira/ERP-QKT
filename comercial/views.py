@@ -802,7 +802,7 @@ def _verificar_token_webhook(request):
     """Valida el token secreto del webhook. Retorna True si es válido."""
     token_esperado = config('MANYCHAT_WEBHOOK_TOKEN', default='')
     if not token_esperado:
-        return True
+        return False
     token_recibido = request.headers.get('X-Webhook-Token', '')
     return hmac.compare_digest(token_recibido, token_esperado)
 

@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from decimal import Decimal
-from django.db import models
-from django.db.models import Sum
+from django.db import models, transaction
+from django.db.models import F, Sum
 from django.utils.timezone import now
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -154,17 +154,31 @@ class MovimientoInventario(models.Model):
                 })
     
     def save(self, *args, **kwargs):
-        """Guarda el movimiento y actualiza el stock del insumo."""
-        self.stock_anterior = self.insumo.cantidad_stock
-        
-        if self.tipo in ('ENTRADA', 'AJUSTE_POS'):
-            self.insumo.cantidad_stock += self.cantidad
-        elif self.tipo in ('SALIDA', 'AJUSTE_NEG', 'DEVOLUCION'):
-            self.insumo.cantidad_stock -= self.cantidad
-        
-        self.stock_posterior = self.insumo.cantidad_stock
-        self.insumo.save(update_fields=['cantidad_stock'])
-        super().save(*args, **kwargs)
+        """Guarda el movimiento y actualiza el stock del insumo atómicamente."""
+        with transaction.atomic():
+            # Lock el insumo para evitar actualizaciones concurrentes
+            insumo = Insumo.objects.select_for_update().get(pk=self.insumo_id)
+            self.stock_anterior = insumo.cantidad_stock
+            self.stock_posterior = insumo.cantidad_stock  # Placeholder; se recalcula abajo
+
+            # Validar cantidad y stock suficiente
+            self.clean()
+
+            # Update atómico con F() expression
+            if self.tipo in ('ENTRADA', 'AJUSTE_POS'):
+                Insumo.objects.filter(pk=self.insumo_id).update(
+                    cantidad_stock=F('cantidad_stock') + self.cantidad
+                )
+            elif self.tipo in ('SALIDA', 'AJUSTE_NEG', 'DEVOLUCION'):
+                Insumo.objects.filter(pk=self.insumo_id).update(
+                    cantidad_stock=F('cantidad_stock') - self.cantidad
+                )
+
+            # Leer valor real post-update
+            insumo.refresh_from_db()
+            self.insumo = insumo
+            self.stock_posterior = insumo.cantidad_stock
+            super().save(*args, **kwargs)
     
     def __str__(self):
         signo = '+' if self.tipo in ('ENTRADA', 'AJUSTE_POS') else '-'
@@ -310,7 +324,7 @@ class Cotizacion(models.Model):
         ('extremo', 'Ola de Calor / Mayo (+60% Hielo)'),
     ]
     
-    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT)
     nombre_evento = models.CharField(max_length=200, default="Evento General")
     fecha_evento = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True)
@@ -444,23 +458,24 @@ class Cotizacion(models.Model):
             self.retencion_iva = Decimal('0.00')
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        from .services import actualizar_item_cotizacion
-        actualizar_item_cotizacion(self)
-        self.calcular_totales()
-        Cotizacion.objects.filter(pk=self.pk).update(
-            subtotal=self.subtotal, iva=self.iva, 
-            retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva, 
-            precio_final=self.precio_final
-        )
-        try:
-            from .models import PortalCliente
-            PortalCliente.objects.get_or_create(
-                cotizacion=self,
-                defaults={'activo': True}
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            from .services import actualizar_item_cotizacion
+            actualizar_item_cotizacion(self)
+            self.calcular_totales()
+            Cotizacion.objects.filter(pk=self.pk).update(
+                subtotal=self.subtotal, iva=self.iva,
+                retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
+                precio_final=self.precio_final
             )
-        except Exception:
-            pass
+            try:
+                from .models import PortalCliente
+                PortalCliente.objects.get_or_create(
+                    cotizacion=self,
+                    defaults={'activo': True}
+                )
+            except Exception:
+                pass
 
     def total_pagado(self): return self.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
     def saldo_pendiente(self): return self.precio_final - self.total_pagado()
@@ -523,13 +538,21 @@ class Pago(models.Model):
             total_pagado = self.cotizacion.pagos.exclude(pk=self.pk).aggregate(
                 Sum('monto'))['monto__sum'] or Decimal('0.00')
             saldo_disponible = self.cotizacion.precio_final - total_pagado
-            
+
             if self.monto > saldo_disponible + Decimal('0.50'):  # Tolerancia de 50 centavos
                 raise ValidationError({
                     'monto': f'El monto (${self.monto:,.2f}) excede el saldo pendiente (${saldo_disponible:,.2f}). '
                              f'Total cotización: ${self.cotizacion.precio_final:,.2f}, Ya pagado: ${total_pagado:,.2f}'
                 })
-    
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.cotizacion_id:
+                # Lock la cotización para evitar pagos simultáneos
+                Cotizacion.objects.select_for_update().get(pk=self.cotizacion_id)
+            self.full_clean()
+            super().save(*args, **kwargs)
+
     def __str__(self): return f"${self.monto}"
     
     class Meta:

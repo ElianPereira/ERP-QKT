@@ -300,7 +300,16 @@ class DetectorConflictosService:
         return conflictos_creados
     
     def _hay_conflicto_fechas(self, reserva: ReservaAirbnb, cotizacion) -> bool:
-        return reserva.fecha_inicio <= cotizacion.fecha_evento < reserva.fecha_fin
+        from datetime import timedelta
+        evento_inicio = cotizacion.fecha_evento
+        # Si hora_fin < hora_inicio, el evento cruza medianoche y ocupa 2 días
+        if (cotizacion.hora_inicio and cotizacion.hora_fin
+                and cotizacion.hora_fin < cotizacion.hora_inicio):
+            evento_fin = cotizacion.fecha_evento + timedelta(days=1)
+        else:
+            evento_fin = cotizacion.fecha_evento
+        # Hay conflicto si los rangos se solapan
+        return reserva.fecha_inicio <= evento_fin and evento_inicio < reserva.fecha_fin
     
     def _generar_descripcion(self, reserva: ReservaAirbnb, cotizacion) -> str:
         return (

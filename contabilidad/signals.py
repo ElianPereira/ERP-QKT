@@ -11,12 +11,15 @@ Mejoras v2.0:
 - Registro de retenciones ISR de clientes morales
 - Mapeo de categorías de gasto a cuentas específicas
 """
+import logging
 from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     Poliza, MovimientoContable, ConfiguracionContable, UnidadNegocio
@@ -59,72 +62,7 @@ def get_unidad_negocio(clave):
         return UnidadNegocio.objects.filter(activa=True).first()
 
 
-def calcular_desglose_proporcional(monto_pago, cotizacion):
-    """
-    Calcula el desglose fiscal proporcional de un pago basado en la cotización.
-    
-    Args:
-        monto_pago: Decimal - Monto del pago
-        cotizacion: Cotizacion - Objeto cotización con los totales
-    
-    Returns:
-        dict con keys: subtotal, iva, retencion_isr, retencion_iva
-        
-    La fórmula es: monto_pago = subtotal + iva - retencion_isr - retencion_iva
-    """
-    precio_final = Decimal(str(cotizacion.precio_final))
-    
-    if precio_final <= 0:
-        # Fallback: calcular IVA estándar 16%
-        subtotal = (monto_pago / Decimal('1.16')).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        return {
-            'subtotal': subtotal,
-            'iva': monto_pago - subtotal,
-            'retencion_isr': Decimal('0.00'),
-            'retencion_iva': Decimal('0.00'),
-        }
-    
-    # Calcular proporción del pago vs total
-    proporcion = monto_pago / precio_final
-    
-    # Obtener valores de la cotización (descontando descuento del subtotal)
-    cot_subtotal = Decimal(str(cotizacion.subtotal)) - Decimal(str(cotizacion.descuento))
-    if cot_subtotal < 0:
-        cot_subtotal = Decimal('0.00')
-    
-    cot_iva = Decimal(str(cotizacion.iva))
-    cot_ret_isr = Decimal(str(cotizacion.retencion_isr))
-    cot_ret_iva = Decimal(str(cotizacion.retencion_iva))
-    
-    # Desglose proporcional
-    subtotal = (cot_subtotal * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    iva = (cot_iva * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    retencion_isr = (cot_ret_isr * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    retencion_iva = (cot_ret_iva * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    
-    # Ajustar subtotal para que cuadre exactamente
-    # monto = subtotal + iva - retencion_isr - retencion_iva
-    calculado = subtotal + iva - retencion_isr - retencion_iva
-    diferencia = monto_pago - calculado
-    if abs(diferencia) <= Decimal('0.05'):
-        subtotal = subtotal + diferencia
-    
-    return {
-        'subtotal': subtotal,
-        'iva': iva,
-        'retencion_isr': retencion_isr,
-        'retencion_iva': retencion_iva,
-    }
+from comercial.services import calcular_desglose_proporcional  # noqa: F401 — shared fiscal logic
 
 
 # ==========================================
@@ -176,11 +114,16 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
 
     # Validar que existan las cuentas mínimas
     if not cuenta_cargo or not cuenta_abono:
+        logger.warning(
+            "Póliza NO generada para Pago #%s: falta configuración contable "
+            "(cuenta_cargo=%s, cuenta_abono=%s)", pago.pk, cuenta_cargo, cuenta_abono
+        )
         return
 
     # ─── Obtener unidad de negocio ──────────────────────────────
     unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
+        logger.warning("Póliza NO generada para Pago #%s: falta UnidadNegocio 'EVENTOS'", pago.pk)
         return
 
     # ─── Calcular desglose proporcional ─────────────────────────
@@ -294,11 +237,16 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
 
     # Validar cuentas mínimas
     if not cuenta_banco or not cuenta_ingreso:
+        logger.warning(
+            "Póliza NO generada para PagoAirbnb #%s: falta configuración contable "
+            "(cuenta_banco=%s, cuenta_ingreso=%s)", pago.pk, cuenta_banco, cuenta_ingreso
+        )
         return
 
     # Obtener unidad de negocio
     unidad = get_unidad_negocio('AIRBNB')
     if not unidad:
+        logger.warning("Póliza NO generada para PagoAirbnb #%s: falta UnidadNegocio 'AIRBNB'", pago.pk)
         return
 
     # Crear póliza
@@ -478,11 +426,16 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     cuenta_gasto = get_cuenta_por_categoria(categoria)
 
     if not cuenta_banco or not cuenta_gasto:
+        logger.warning(
+            "Póliza NO generada para Compra #%s: falta configuración contable "
+            "(cuenta_banco=%s, cuenta_gasto=%s)", compra.pk, cuenta_banco, cuenta_gasto
+        )
         return
 
     # Obtener unidad de negocio desde la compra o default EVENTOS
     unidad = getattr(compra, 'unidad_negocio', None) or get_unidad_negocio('EVENTOS')
     if not unidad:
+        logger.warning("Póliza NO generada para Compra #%s: falta UnidadNegocio", compra.pk)
         return
 
     # Crear póliza
@@ -560,11 +513,16 @@ def crear_poliza_nomina(sender, instance, created, **kwargs):
     cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
 
     if not cuenta_sueldos or not cuenta_banco:
+        logger.warning(
+            "Póliza NO generada para ReciboNomina #%s: falta configuración contable "
+            "(cuenta_sueldos=%s, cuenta_banco=%s)", recibo.pk, cuenta_sueldos, cuenta_banco
+        )
         return
 
     # Obtener unidad de negocio
     unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
+        logger.warning("Póliza NO generada para ReciboNomina #%s: falta UnidadNegocio 'EVENTOS'", recibo.pk)
         return
 
     # Crear póliza

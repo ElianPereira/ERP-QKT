@@ -1,7 +1,69 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import math
 from django.conf import settings
 from .models import ItemCotizacion, ConstanteSistema
+
+
+def calcular_desglose_proporcional(monto_pago, cotizacion):
+    """
+    Calcula el desglose fiscal proporcional de un pago basado en la cotización.
+
+    Args:
+        monto_pago: Decimal - Monto del pago
+        cotizacion: Cotizacion - Objeto cotización con los totales
+
+    Returns:
+        dict con keys: subtotal, iva, retencion_isr, retencion_iva
+
+    La fórmula es: monto_pago = subtotal + iva - retencion_isr - retencion_iva
+    """
+    precio_final = Decimal(str(cotizacion.precio_final))
+
+    if precio_final <= 0:
+        subtotal = (monto_pago / Decimal('1.16')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        return {
+            'subtotal': subtotal,
+            'iva': monto_pago - subtotal,
+            'retencion_isr': Decimal('0.00'),
+            'retencion_iva': Decimal('0.00'),
+        }
+
+    proporcion = monto_pago / precio_final
+
+    cot_subtotal = Decimal(str(cotizacion.subtotal)) - Decimal(str(cotizacion.descuento))
+    if cot_subtotal < 0:
+        cot_subtotal = Decimal('0.00')
+
+    cot_iva = Decimal(str(cotizacion.iva))
+    cot_ret_isr = Decimal(str(cotizacion.retencion_isr))
+    cot_ret_iva = Decimal(str(cotizacion.retencion_iva))
+
+    subtotal = (cot_subtotal * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    iva = (cot_iva * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    retencion_isr = (cot_ret_isr * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    retencion_iva = (cot_ret_iva * proporcion).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+
+    calculado = subtotal + iva - retencion_isr - retencion_iva
+    diferencia = monto_pago - calculado
+    if abs(diferencia) <= Decimal('0.05'):
+        subtotal = subtotal + diferencia
+
+    return {
+        'subtotal': subtotal,
+        'iva': iva,
+        'retencion_isr': retencion_isr,
+        'retencion_iva': retencion_iva,
+    }
 
 class CalculadoraBarraService:
     """
