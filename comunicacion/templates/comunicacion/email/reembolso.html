@@ -1,0 +1,13 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#e67e22;margin-top:0;">Reembolso procesado</h2>
+<p>Hola {{ cotizacion.cliente.nombre }}, te informamos que hemos procesado un reembolso correspondiente a tu evento <strong>{{ cotizacion.nombre_evento }}</strong>.</p>
+
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">Monto reembolsado:</td><td style="padding:8px;font-size:18px;color:#e67e22;"><strong>${{ pago.monto|floatformat:2 }}</strong></td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Método:</td><td style="padding:8px;">{{ pago.get_metodo_display }}</td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Fecha:</td><td style="padding:8px;">{{ pago.fecha_pago|date:"d/m/Y" }}</td></tr>
+</table>
+
+<p>El movimiento debe reflejarse en tu cuenta en los próximos días hábiles, dependiendo de tu institución bancaria. Si tienes dudas, responde a este correo.</p>
+{% endblock %}

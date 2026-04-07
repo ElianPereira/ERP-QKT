@@ -190,6 +190,16 @@ def cotizador_enviar(request):
         num_raw = 50
     num_personas = _redondear_personas(num_raw, servicio == 'PASADIA')
 
+    # ── Disponibilidad de fecha ────────────────────────────────
+    aviso_fecha = None
+    try:
+        from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+        disponible, msg_disp = verificar_disponibilidad_fecha(fecha_evento)
+        if not disponible:
+            aviso_fecha = msg_disp
+    except Exception:
+        pass
+
     # ── Cliente ────────────────────────────────────────────────
     cliente = Cliente.objects.filter(telefono=tel_d).first()
     if not cliente:
@@ -335,11 +345,77 @@ def cotizador_enviar(request):
         f"_COT-{cotizacion.id:03d} — ERP QKT_"
     )
 
+    if aviso_fecha:
+        try:
+            from comunicacion.services import alertar_equipo_fecha_chocada
+            alertar_equipo_fecha_chocada(cotizacion, aviso_fecha)
+        except Exception:
+            pass
+
     return JsonResponse({
         'ok': True,
         'portal_url': portal_url,
         'cotizacion_id': cotizacion.id,
         'folio': f"COT-{cotizacion.id:03d}",
+        'aviso_fecha': aviso_fecha,
+    })
+
+
+def api_disponibilidad_fecha(request):
+    """GET /api/disponibilidad/?fecha=YYYY-MM-DD
+    Responde si la fecha está libre o ya apartada (Airbnb / cotización confirmada)."""
+    fecha_str = (request.GET.get('fecha') or '').strip()
+    fecha = None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            fecha = datetime.strptime(fecha_str, fmt).date()
+            break
+        except ValueError:
+            pass
+    if not fecha:
+        return JsonResponse({'ok': False, 'error': 'Fecha inválida'}, status=400)
+    try:
+        from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+        disponible, mensaje = verificar_disponibilidad_fecha(fecha)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+    return JsonResponse({
+        'ok': True,
+        'fecha': fecha.strftime('%Y-%m-%d'),
+        'disponible': disponible,
+        'mensaje': mensaje or 'Fecha disponible',
+    })
+
+
+def api_fechas_ocupadas(request):
+    """GET /api/fechas-ocupadas/?dias=365
+    Devuelve la lista de fechas no disponibles (Airbnb + cotizaciones apartadas)
+    en el rango [hoy, hoy+dias] para pintar un calendario."""
+    try:
+        dias = int(request.GET.get('dias', '365'))
+    except ValueError:
+        dias = 365
+    dias = max(1, min(dias, 730))
+    hoy = timezone.now().date()
+    fin = hoy + timedelta(days=dias)
+    try:
+        from airbnb.validacion_fechas import obtener_fechas_bloqueadas
+        bloqueos = obtener_fechas_bloqueadas(hoy, fin)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+    fechas = set()
+    for b in bloqueos:
+        ini, f_fin = b['fecha_inicio'], b['fecha_fin']
+        d = ini
+        while d <= f_fin:
+            fechas.add(d.strftime('%Y-%m-%d'))
+            d += timedelta(days=1)
+    return JsonResponse({
+        'ok': True,
+        'desde': hoy.strftime('%Y-%m-%d'),
+        'hasta': fin.strftime('%Y-%m-%d'),
+        'fechas_ocupadas': sorted(fechas),
     })
 
 

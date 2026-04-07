@@ -8,9 +8,11 @@ Lógica de desglose fiscal:
 - La cotización SIEMPRE tiene IVA calculado (precio_final = subtotal + iva - retenciones)
 - El pago es una fracción del precio_final, se desglosa proporcionalmente
 """
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
+from comercial.services import calcular_desglose_proporcional
 
 
 @receiver(post_save, sender='comercial.Pago')
@@ -18,20 +20,24 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     """
     Crea una SolicitudFactura automáticamente cuando se registra un Pago.
     Todos los pagos nuevos generan solicitud de factura.
-    
+
     El desglose fiscal se calcula proporcionalmente basado en la cotización.
     """
     if not created:
         return
-    
+
     pago = instance
     cotizacion = pago.cotizacion
     cliente = cotizacion.cliente
-    
+
     # Importar aquí para evitar circular imports
     from facturacion.models import SolicitudFactura
     from facturacion.choices import FormaPago
-    
+
+    # ─── Idempotencia: no crear duplicados ──────────────────────
+    if SolicitudFactura.objects.filter(pago=pago).exists():
+        return
+
     # ─── Determinar datos fiscales ──────────────────────────────
     if cliente.rfc and cliente.razon_social:
         rfc = cliente.rfc
@@ -45,46 +51,15 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         codigo_postal = '97238'
         regimen_fiscal = '616'
         uso_cfdi = 'S01'
-    
+
     # ─── Calcular desglose fiscal proporcional ──────────────────
     monto_pago = Decimal(str(pago.monto))
-    precio_final = Decimal(str(cotizacion.precio_final))
-    
-    if precio_final > 0:
-        proporcion = monto_pago / precio_final
-        
-        cot_subtotal = Decimal(str(cotizacion.subtotal)) - Decimal(str(cotizacion.descuento))
-        if cot_subtotal < 0:
-            cot_subtotal = Decimal('0.00')
-        cot_iva = Decimal(str(cotizacion.iva))
-        cot_ret_isr = Decimal(str(cotizacion.retencion_isr))
-        cot_ret_iva = Decimal(str(cotizacion.retencion_iva))
-        
-        subtotal = (cot_subtotal * proporcion).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        iva = (cot_iva * proporcion).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        retencion_isr = (cot_ret_isr * proporcion).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        retencion_iva = (cot_ret_iva * proporcion).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        
-        calculado = subtotal + iva - retencion_isr - retencion_iva
-        diferencia = monto_pago - calculado
-        if abs(diferencia) <= Decimal('0.05'):
-            subtotal = subtotal + diferencia
-    else:
-        subtotal = (monto_pago / Decimal('1.16')).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        iva = monto_pago - subtotal
-        retencion_isr = Decimal('0.00')
-        retencion_iva = Decimal('0.00')
-    
+    desglose = calcular_desglose_proporcional(monto_pago, cotizacion)
+    subtotal = desglose['subtotal']
+    iva = desglose['iva']
+    retencion_isr = desglose['retencion_isr']
+    retencion_iva = desglose['retencion_iva']
+
     # ─── Mapear método de pago ──────────────────────────────────
     mapeo_forma_pago = {
         'EFECTIVO': FormaPago.EFECTIVO,
@@ -96,9 +71,9 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         'PLATAFORMA': FormaPago.TRANSFERENCIA,
         'OTRO': FormaPago.POR_DEFINIR,
     }
-    
+
     forma_pago = mapeo_forma_pago.get(pago.metodo, FormaPago.TRANSFERENCIA)
-    
+
     # ─── Crear la solicitud ─────────────────────────────────────
     SolicitudFactura.objects.create(
         cliente=cliente,

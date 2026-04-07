@@ -23,6 +23,7 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
+from core_erp.ratelimit import rate_limit as _rate_limit
 from decouple import config
 import hmac
 import hashlib
@@ -802,7 +803,7 @@ def _verificar_token_webhook(request):
     """Valida el token secreto del webhook. Retorna True si es válido."""
     token_esperado = config('MANYCHAT_WEBHOOK_TOKEN', default='')
     if not token_esperado:
-        return True
+        return False
     token_recibido = request.headers.get('X-Webhook-Token', '')
     return hmac.compare_digest(token_recibido, token_esperado)
 
@@ -894,6 +895,7 @@ def _parsear_hora(hora_str):
 
 
 @csrf_exempt
+@_rate_limit(key='webhook_manychat', limit=60, window=60)
 def webhook_manychat(request):
     """
     Webhook V7: Procesa Evento y Pasadía.
@@ -958,6 +960,16 @@ def webhook_manychat(request):
             fecha_evento = timezone.now().date() + timedelta(days=30)
 
         clima_auto = _detectar_clima_por_fecha(fecha_evento)
+
+        # Verificar disponibilidad de la fecha
+        aviso_fecha = None
+        try:
+            from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+            _disp, _msg = verificar_disponibilidad_fecha(fecha_evento)
+            if not _disp:
+                aviso_fecha = _msg
+        except Exception:
+            pass
 
         def _bool(val):
             if isinstance(val, bool):
@@ -1233,6 +1245,13 @@ def webhook_manychat(request):
 
         resumen = " + ".join(resumen_partes) + f" | {num_personas} Pax - {horas_evento} Hrs{clima_tag}"
 
+        if aviso_fecha:
+            try:
+                from comunicacion.services import alertar_equipo_fecha_chocada
+                alertar_equipo_fecha_chocada(cotizacion, aviso_fecha)
+            except Exception:
+                pass
+
         return JsonResponse({
             'status': 'success',
             'cotizacion_id': cotizacion.id,
@@ -1242,6 +1261,8 @@ def webhook_manychat(request):
             'portal_url': portal_url,
             'resumen': resumen,
             'num_personas_final': num_personas,
+            'aviso_fecha': aviso_fecha,
+            'fecha_disponible': aviso_fecha is None,
         }, status=200)
 
     except Exception as e:
@@ -1262,10 +1283,14 @@ def ver_cartera_cxc(request):
     context = admin.site.each_context(request)
     hoy = timezone.now().date()
     
+    from django.db.models import Sum, Q
     cotizaciones = Cotizacion.objects.filter(
         estado__in=['COTIZADA', 'ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION', 'EJECUTADA']
-    ).select_related('cliente').prefetch_related('pagos').order_by('fecha_evento')
-    
+    ).select_related('cliente').annotate(
+        _ingresos=Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='INGRESO')), Decimal('0.00')),
+        _reembolsos=Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='REEMBOLSO')), Decimal('0.00')),
+    ).order_by('fecha_evento')
+
     cartera = []
     total_por_cobrar = Decimal('0.00')
     total_vencido = Decimal('0.00')
@@ -1274,12 +1299,13 @@ def ver_cartera_cxc(request):
     vence_7_dias = 0
     vence_30_dias = 0
     vencido = 0
-    
+
     for cot in cotizaciones:
-        saldo = cot.saldo_pendiente()
+        total_pagado = cot._ingresos - cot._reembolsos
+        saldo = cot.precio_final - total_pagado
         if saldo <= Decimal('0.50'):
             continue
-        
+
         total_por_cobrar += saldo
         dias_evento = (cot.fecha_evento - hoy).days
         
@@ -1306,9 +1332,9 @@ def ver_cartera_cxc(request):
             'evento': cot.nombre_evento,
             'fecha_evento': cot.fecha_evento,
             'precio_final': cot.precio_final,
-            'total_pagado': cot.total_pagado(),
+            'total_pagado': total_pagado,
             'saldo': saldo,
-            'porcentaje_pagado': cot.porcentaje_pagado,
+            'porcentaje_pagado': round((total_pagado / cot.precio_final) * 100, 1) if cot.precio_final > 0 else Decimal('0.0'),
             'dias_evento': dias_evento,
             'antiguedad': antiguedad,
             'telefono': cot.cliente.telefono,

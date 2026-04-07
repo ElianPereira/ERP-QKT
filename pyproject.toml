@@ -1,0 +1,29 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = [
+    "*/migrations/*",
+    "venv",
+    ".venv",
+    "manage.py",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E402",  # module-level import not at top
+    "F401",  # unused import (Django apps re-export)
+    "F403",  # star imports
+    "F405",  # may be undefined from star imports
+    "E731",  # lambda assignments
+    "E741",  # ambiguous variable name
+]
+
+[tool.coverage.run]
+omit = [
+    "*/migrations/*",
+    "*/tests.py",
+    "manage.py",
+    "venv/*",
+]

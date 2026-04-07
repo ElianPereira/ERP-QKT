@@ -81,6 +81,30 @@ def calendario_unificado(request):
             'extendedProps': {'tipo': 'airbnb'}
         })
     
+    # ASIGNACIONES DE ESPACIO
+    from comercial.models import AsignacionEspacio, AsignacionPersonal
+    asignaciones_esp = AsignacionEspacio.objects.select_related('espacio', 'cotizacion__cliente')
+    for a in asignaciones_esp:
+        eventos_lista.append({
+            'title': f"📍 {a.espacio.nombre}: COT-{a.cotizacion_id:03d}",
+            'start': f"{a.fecha.strftime('%Y-%m-%d')}T{a.hora_inicio.strftime('%H:%M:%S')}",
+            'end': f"{a.fecha.strftime('%Y-%m-%d')}T{a.hora_fin.strftime('%H:%M:%S')}" if a.hora_fin > a.hora_inicio else None,
+            'color': '#9b59b6',
+            'url': f'/admin/comercial/asignacionespacio/{a.id}/change/',
+            'extendedProps': {'tipo': 'espacio'}
+        })
+
+    # ASIGNACIONES DE PERSONAL
+    asignaciones_per = AsignacionPersonal.objects.select_related('empleado')
+    for a in asignaciones_per:
+        eventos_lista.append({
+            'title': f"👤 {a.empleado.nombre} ({a.get_rol_display()})",
+            'start': f"{a.fecha.strftime('%Y-%m-%d')}T{a.hora_inicio.strftime('%H:%M:%S')}",
+            'color': '#16a085',
+            'url': f'/admin/comercial/asignacionpersonal/{a.id}/change/',
+            'extendedProps': {'tipo': 'personal'}
+        })
+
     conflictos_pendientes = ConflictoCalendario.objects.filter(estado='PENDIENTE').count()
     
     # URL de iCal para mostrar en la página
@@ -258,13 +282,22 @@ def generar_ical_eventos(request):
     """
     Genera un archivo iCal con los eventos confirmados del ERP.
     Esta URL se importa en Airbnb para bloquear fechas automáticamente.
-    
-    URL: /airbnb/ical/eventos/
-    
-    Airbnb sincroniza calendarios externos cada 2-24 horas.
-    No requiere autenticación para que Airbnb pueda acceder.
+
+    URL: /airbnb/ical/eventos/?token=XXX
+
+    Si está configurado ICAL_PUBLIC_TOKEN en settings, exige el token por
+    query string. Si no, la URL queda abierta (para retrocompatibilidad).
     """
+    from django.http import HttpResponseForbidden
+    from decouple import config
     from comercial.models import Cotizacion
+
+    token_esperado = config('ICAL_PUBLIC_TOKEN', default='')
+    if token_esperado:
+        import hmac
+        token_recibido = request.GET.get('token', '')
+        if not hmac.compare_digest(token_recibido, token_esperado):
+            return HttpResponseForbidden('Token inválido')
     
     # Solo eventos confirmados (últimos 30 días + futuros)
     cotizaciones = Cotizacion.objects.filter(

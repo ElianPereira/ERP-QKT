@@ -40,6 +40,19 @@
                 <div id="file-count" style="margin-top: 15px; font-weight: bold; color: #28a745;"></div>
             </div>
 
+            <div class="form-group mt-3" style="background:#fff8e1; padding:12px; border-left:4px solid #f5c518; border-radius:4px;">
+                <strong>Filtros automáticos activos:</strong>
+                <ul style="margin:8px 0 8px 20px; font-size:0.9rem;">
+                    <li>Solo CFDI tipo <b>Ingreso</b> (excluye Nómina, Pagos, Egresos, Traslados)</li>
+                    <li>Solo receptores: <b>PECE010202IA0</b> (Eventos) o <b>CERU580518QZ5</b> (Airbnb)</li>
+                    <li>Excluye Usos CFDI personales: D01–D10 (médicos, colegiaturas, donativos…), CP01, S01</li>
+                </ul>
+                <label style="font-size:0.9rem;">
+                    <input type="checkbox" name="ignorar_filtros" value="1">
+                    Ignorar filtros y subir todo (no recomendado)
+                </label>
+            </div>
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-lg btn-block" style="background-color: #2E7D32; border-color: #2E7D32; color:white;">
                     <i class="fas fa-cogs"></i> Procesar archivos

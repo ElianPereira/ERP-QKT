@@ -11,12 +11,15 @@ Mejoras v2.0:
 - Registro de retenciones ISR de clientes morales
 - Mapeo de categorías de gasto a cuentas específicas
 """
+import logging
 from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     Poliza, MovimientoContable, ConfiguracionContable, UnidadNegocio
@@ -59,72 +62,7 @@ def get_unidad_negocio(clave):
         return UnidadNegocio.objects.filter(activa=True).first()
 
 
-def calcular_desglose_proporcional(monto_pago, cotizacion):
-    """
-    Calcula el desglose fiscal proporcional de un pago basado en la cotización.
-    
-    Args:
-        monto_pago: Decimal - Monto del pago
-        cotizacion: Cotizacion - Objeto cotización con los totales
-    
-    Returns:
-        dict con keys: subtotal, iva, retencion_isr, retencion_iva
-        
-    La fórmula es: monto_pago = subtotal + iva - retencion_isr - retencion_iva
-    """
-    precio_final = Decimal(str(cotizacion.precio_final))
-    
-    if precio_final <= 0:
-        # Fallback: calcular IVA estándar 16%
-        subtotal = (monto_pago / Decimal('1.16')).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
-        return {
-            'subtotal': subtotal,
-            'iva': monto_pago - subtotal,
-            'retencion_isr': Decimal('0.00'),
-            'retencion_iva': Decimal('0.00'),
-        }
-    
-    # Calcular proporción del pago vs total
-    proporcion = monto_pago / precio_final
-    
-    # Obtener valores de la cotización (descontando descuento del subtotal)
-    cot_subtotal = Decimal(str(cotizacion.subtotal)) - Decimal(str(cotizacion.descuento))
-    if cot_subtotal < 0:
-        cot_subtotal = Decimal('0.00')
-    
-    cot_iva = Decimal(str(cotizacion.iva))
-    cot_ret_isr = Decimal(str(cotizacion.retencion_isr))
-    cot_ret_iva = Decimal(str(cotizacion.retencion_iva))
-    
-    # Desglose proporcional
-    subtotal = (cot_subtotal * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    iva = (cot_iva * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    retencion_isr = (cot_ret_isr * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    retencion_iva = (cot_ret_iva * proporcion).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    
-    # Ajustar subtotal para que cuadre exactamente
-    # monto = subtotal + iva - retencion_isr - retencion_iva
-    calculado = subtotal + iva - retencion_isr - retencion_iva
-    diferencia = monto_pago - calculado
-    if abs(diferencia) <= Decimal('0.05'):
-        subtotal = subtotal + diferencia
-    
-    return {
-        'subtotal': subtotal,
-        'iva': iva,
-        'retencion_isr': retencion_isr,
-        'retencion_iva': retencion_iva,
-    }
+from comercial.services import calcular_desglose_proporcional  # noqa: F401 — shared fiscal logic
 
 
 # ==========================================
@@ -153,6 +91,11 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
     cotizacion = pago.cotizacion
     monto = Decimal(str(pago.monto))
 
+    # Si es reembolso, generar póliza inversa de egreso
+    if getattr(pago, 'tipo', 'INGRESO') == 'REEMBOLSO':
+        crear_poliza_reembolso_cliente(pago)
+        return
+
     # ─── Determinar cuenta de cargo según método de pago ────────
     if pago.metodo == 'EFECTIVO':
         cuenta_cargo = get_cuenta('CAJA')
@@ -176,11 +119,16 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
 
     # Validar que existan las cuentas mínimas
     if not cuenta_cargo or not cuenta_abono:
+        logger.warning(
+            "Póliza NO generada para Pago #%s: falta configuración contable "
+            "(cuenta_cargo=%s, cuenta_abono=%s)", pago.pk, cuenta_cargo, cuenta_abono
+        )
         return
 
     # ─── Obtener unidad de negocio ──────────────────────────────
     unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
+        logger.warning("Póliza NO generada para Pago #%s: falta UnidadNegocio 'EVENTOS'", pago.pk)
         return
 
     # ─── Calcular desglose proporcional ─────────────────────────
@@ -262,6 +210,155 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
 
 
 # ==========================================
+# REEMBOLSO A CLIENTE (póliza inversa)
+# ==========================================
+def crear_poliza_reembolso_cliente(pago):
+    """
+    Genera póliza de egreso al reembolsar a un cliente.
+
+    Asiento (inverso al pago original):
+        DEBE: Anticipo clientes      (subtotal)
+        DEBE: IVA trasladado         (iva)
+        HABER: ISR retenido clientes (si aplica)
+        HABER: Bancos/Caja           (monto neto devuelto)
+    """
+    cotizacion = pago.cotizacion
+    monto = Decimal(str(pago.monto))
+
+    if pago.metodo == 'EFECTIVO':
+        cuenta_banco = get_cuenta('CAJA')
+    else:
+        cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+
+    cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
+    cuenta_iva = get_cuenta('IVA_TRASLADADO')
+    cuenta_isr_ret = get_cuenta('ISR_RETENIDO_CLIENTES')
+
+    if not cuenta_banco or not cuenta_anticipo:
+        logger.warning(
+            "Póliza NO generada para Reembolso #%s: falta configuración contable", pago.pk
+        )
+        return
+
+    unidad = get_unidad_negocio('EVENTOS')
+    if not unidad:
+        logger.warning("Póliza NO generada para Reembolso #%s: falta UnidadNegocio", pago.pk)
+        return
+
+    desglose = calcular_desglose_proporcional(monto, cotizacion)
+    subtotal = desglose['subtotal']
+    iva = desglose['iva']
+    retencion_isr = desglose['retencion_isr']
+
+    usuario = get_usuario_sistema()
+    content_type = ContentType.objects.get_for_model(pago)
+
+    poliza = Poliza.objects.create(
+        tipo='E',
+        folio=Poliza.siguiente_folio('E', pago.fecha_pago),
+        fecha=pago.fecha_pago,
+        concepto=f"Reembolso cliente: {cotizacion.cliente.nombre} - {cotizacion.nombre_evento}",
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='PAGO_CLIENTE',
+        content_type=content_type,
+        object_id=pago.pk,
+        created_by=usuario,
+    )
+
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_anticipo,
+        debe=subtotal, haber=Decimal('0.00'),
+        concepto=f"Reembolso COT-{cotizacion.pk:03d} (Subtotal)",
+        referencia=pago.referencia or '',
+    )
+    if cuenta_iva and iva > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta_iva,
+            debe=iva, haber=Decimal('0.00'),
+            concepto="Reverso IVA trasladado 16%",
+            referencia=f"COT-{cotizacion.pk:03d}",
+        )
+    if cuenta_isr_ret and retencion_isr > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta_isr_ret,
+            debe=Decimal('0.00'), haber=retencion_isr,
+            concepto="Reverso ISR retenido por cliente",
+            referencia=f"COT-{cotizacion.pk:03d}",
+        )
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_banco,
+        debe=Decimal('0.00'), haber=monto,
+        concepto=f"Devolución {pago.get_metodo_display()}",
+        referencia=pago.referencia or '',
+    )
+
+
+# ==========================================
+# REVERSIÓN POR CANCELACIÓN DE COTIZACIÓN
+# ==========================================
+def crear_polizas_reversion_cancelacion(cotizacion, usuario=None, motivo=''):
+    """
+    Al cancelar una cotización, crea pólizas de reversión por cada póliza
+    APLICADA originada por sus pagos. Cada nueva póliza invierte los movimientos
+    DEBE↔HABER y queda marcada como APLICADA con origen='AJUSTE'.
+
+    No modifica ni elimina las pólizas originales (auditoría preservada).
+    Idempotente: omite pagos cuya reversión ya existe.
+    """
+    if not signals_enabled():
+        return
+
+    from comercial.models import Pago
+    pagos = cotizacion.pagos.all()
+    if not pagos.exists():
+        return
+
+    usuario = usuario or get_usuario_sistema()
+    pago_ct = ContentType.objects.get_for_model(Pago)
+
+    polizas_originales = Poliza.objects.filter(
+        origen='PAGO_CLIENTE',
+        content_type=pago_ct,
+        object_id__in=pagos.values_list('pk', flat=True),
+        estado='APLICADA',
+    ).prefetch_related('movimientos')
+
+    for original in polizas_originales:
+        # Idempotencia: evitar reversiones duplicadas
+        ya_revertida = Poliza.objects.filter(
+            origen='AJUSTE',
+            content_type=pago_ct,
+            object_id=original.object_id,
+            concepto__startswith=f"Reversión cancelación COT-{cotizacion.pk:03d}",
+        ).exists()
+        if ya_revertida:
+            continue
+
+        reversion = Poliza.objects.create(
+            tipo='D',
+            folio=Poliza.siguiente_folio('D', cotizacion.fecha_cancelacion.date() if cotizacion.fecha_cancelacion else original.fecha),
+            fecha=cotizacion.fecha_cancelacion.date() if cotizacion.fecha_cancelacion else original.fecha,
+            concepto=f"Reversión cancelación COT-{cotizacion.pk:03d}: {motivo or 'Cancelada'}"[:500],
+            unidad_negocio=original.unidad_negocio,
+            estado='APLICADA',
+            origen='AJUSTE',
+            content_type=pago_ct,
+            object_id=original.object_id,
+            created_by=usuario,
+        )
+        for mov in original.movimientos.all():
+            MovimientoContable.objects.create(
+                poliza=reversion,
+                cuenta=mov.cuenta,
+                debe=mov.haber,
+                haber=mov.debe,
+                concepto=f"Reversión: {mov.concepto}"[:255],
+                referencia=mov.referencia,
+            )
+
+
+# ==========================================
 # SIGNAL: PAGO AIRBNB (airbnb.PagoAirbnb)
 # ==========================================
 @receiver(post_save, sender='airbnb.PagoAirbnb')
@@ -294,11 +391,16 @@ def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
 
     # Validar cuentas mínimas
     if not cuenta_banco or not cuenta_ingreso:
+        logger.warning(
+            "Póliza NO generada para PagoAirbnb #%s: falta configuración contable "
+            "(cuenta_banco=%s, cuenta_ingreso=%s)", pago.pk, cuenta_banco, cuenta_ingreso
+        )
         return
 
     # Obtener unidad de negocio
     unidad = get_unidad_negocio('AIRBNB')
     if not unidad:
+        logger.warning("Póliza NO generada para PagoAirbnb #%s: falta UnidadNegocio 'AIRBNB'", pago.pk)
         return
 
     # Crear póliza
@@ -478,11 +580,16 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     cuenta_gasto = get_cuenta_por_categoria(categoria)
 
     if not cuenta_banco or not cuenta_gasto:
+        logger.warning(
+            "Póliza NO generada para Compra #%s: falta configuración contable "
+            "(cuenta_banco=%s, cuenta_gasto=%s)", compra.pk, cuenta_banco, cuenta_gasto
+        )
         return
 
     # Obtener unidad de negocio desde la compra o default EVENTOS
     unidad = getattr(compra, 'unidad_negocio', None) or get_unidad_negocio('EVENTOS')
     if not unidad:
+        logger.warning("Póliza NO generada para Compra #%s: falta UnidadNegocio", compra.pk)
         return
 
     # Crear póliza
@@ -560,11 +667,16 @@ def crear_poliza_nomina(sender, instance, created, **kwargs):
     cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
 
     if not cuenta_sueldos or not cuenta_banco:
+        logger.warning(
+            "Póliza NO generada para ReciboNomina #%s: falta configuración contable "
+            "(cuenta_sueldos=%s, cuenta_banco=%s)", recibo.pk, cuenta_sueldos, cuenta_banco
+        )
         return
 
     # Obtener unidad de negocio
     unidad = get_unidad_negocio('EVENTOS')
     if not unidad:
+        logger.warning("Póliza NO generada para ReciboNomina #%s: falta UnidadNegocio 'EVENTOS'", recibo.pk)
         return
 
     # Crear póliza

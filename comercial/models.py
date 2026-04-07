@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from decimal import Decimal
-from django.db import models
-from django.db.models import Sum
+from django.db import models, transaction
+from django.db.models import F, Sum
 from django.utils.timezone import now
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -154,17 +154,31 @@ class MovimientoInventario(models.Model):
                 })
     
     def save(self, *args, **kwargs):
-        """Guarda el movimiento y actualiza el stock del insumo."""
-        self.stock_anterior = self.insumo.cantidad_stock
-        
-        if self.tipo in ('ENTRADA', 'AJUSTE_POS'):
-            self.insumo.cantidad_stock += self.cantidad
-        elif self.tipo in ('SALIDA', 'AJUSTE_NEG', 'DEVOLUCION'):
-            self.insumo.cantidad_stock -= self.cantidad
-        
-        self.stock_posterior = self.insumo.cantidad_stock
-        self.insumo.save(update_fields=['cantidad_stock'])
-        super().save(*args, **kwargs)
+        """Guarda el movimiento y actualiza el stock del insumo atómicamente."""
+        with transaction.atomic():
+            # Lock el insumo para evitar actualizaciones concurrentes
+            insumo = Insumo.objects.select_for_update().get(pk=self.insumo_id)
+            self.stock_anterior = insumo.cantidad_stock
+            self.stock_posterior = insumo.cantidad_stock  # Placeholder; se recalcula abajo
+
+            # Validar cantidad y stock suficiente
+            self.clean()
+
+            # Update atómico con F() expression
+            if self.tipo in ('ENTRADA', 'AJUSTE_POS'):
+                Insumo.objects.filter(pk=self.insumo_id).update(
+                    cantidad_stock=F('cantidad_stock') + self.cantidad
+                )
+            elif self.tipo in ('SALIDA', 'AJUSTE_NEG', 'DEVOLUCION'):
+                Insumo.objects.filter(pk=self.insumo_id).update(
+                    cantidad_stock=F('cantidad_stock') - self.cantidad
+                )
+
+            # Leer valor real post-update
+            insumo.refresh_from_db()
+            self.insumo = insumo
+            self.stock_posterior = insumo.cantidad_stock
+            super().save(*args, **kwargs)
     
     def __str__(self):
         signo = '+' if self.tipo in ('ENTRADA', 'AJUSTE_POS') else '-'
@@ -310,7 +324,17 @@ class Cotizacion(models.Model):
         ('extremo', 'Ola de Calor / Mayo (+60% Hielo)'),
     ]
     
-    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
+    TIPO_SERVICIO_CHOICES = [
+        ('EVENTO', 'Evento'),
+        ('PASADIA', 'Pasadía'),
+        ('HOSPEDAJE', 'Hospedaje'),
+    ]
+
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT)
+    tipo_servicio = models.CharField(
+        max_length=15, choices=TIPO_SERVICIO_CHOICES, default='EVENTO',
+        verbose_name="Tipo de servicio"
+    )
     nombre_evento = models.CharField(max_length=200, default="Evento General")
     fecha_evento = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True)
@@ -397,6 +421,14 @@ class Cotizacion(models.Model):
             self.motivo_cancelacion = motivo
             self.cancelada_por = usuario
             self.fecha_cancelacion = now()
+            try:
+                from contabilidad.signals import crear_polizas_reversion_cancelacion
+                crear_polizas_reversion_cancelacion(self, usuario, motivo)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Error generando póliza de reversión para Cotización #%s: %s", self.pk, e
+                )
         
         # Si reactiva desde CANCELADA, limpiar campos de cancelación
         if estado_actual == 'CANCELADA' and nuevo_estado == 'BORRADOR':
@@ -443,26 +475,66 @@ class Cotizacion(models.Model):
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        from .services import actualizar_item_cotizacion
-        actualizar_item_cotizacion(self)
-        self.calcular_totales()
-        Cotizacion.objects.filter(pk=self.pk).update(
-            subtotal=self.subtotal, iva=self.iva, 
-            retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva, 
-            precio_final=self.precio_final
-        )
-        try:
-            from .models import PortalCliente
-            PortalCliente.objects.get_or_create(
-                cotizacion=self,
-                defaults={'activo': True}
-            )
-        except Exception:
-            pass
+    def clean(self):
+        """Si la cotización está apartando una fecha (anticipo o superior),
+        valida que no choque con Airbnb u otra cotización ya apartada."""
+        super().clean()
+        if self.fecha_evento and self.estado in ('ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION'):
+            try:
+                from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+                disponible, msg = verificar_disponibilidad_fecha(
+                    self.fecha_evento, cotizacion_id=self.pk
+                )
+                if not disponible:
+                    raise ValidationError({'fecha_evento': msg})
+            except ValidationError:
+                raise
+            except Exception:
+                pass
 
-    def total_pagado(self): return self.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            from .services import actualizar_item_cotizacion
+            actualizar_item_cotizacion(self)
+            self.calcular_totales()
+            Cotizacion.objects.filter(pk=self.pk).update(
+                subtotal=self.subtotal, iva=self.iva,
+                retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
+                precio_final=self.precio_final
+            )
+            try:
+                from .models import PortalCliente
+                PortalCliente.objects.get_or_create(
+                    cotizacion=self,
+                    defaults={'activo': True}
+                )
+            except Exception:
+                pass
+
+    def total_pagado(self):
+        """Total neto cobrado (ingresos - reembolsos)."""
+        return self.total_pagado_neto()
+
+    def total_pagado_neto(self, excluir_pk=None):
+        qs = self.pagos.all()
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+        ingresos = qs.filter(tipo='INGRESO').aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+        reembolsos = qs.filter(tipo='REEMBOLSO').aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+        return ingresos - reembolsos
+
+    def total_cobrado_bruto(self, excluir_pk=None):
+        qs = self.pagos.filter(tipo='INGRESO')
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+        return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+
+    def total_reembolsado(self, excluir_pk=None):
+        qs = self.pagos.filter(tipo='REEMBOLSO')
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+        return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
     def saldo_pendiente(self): return self.precio_final - self.total_pagado()
     def __str__(self): return f"{self.cliente} - {self.nombre_evento}"
     class Meta: 
@@ -497,6 +569,8 @@ class ItemCotizacion(models.Model):
 
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia Electrónica'), ('TARJETA_CREDITO', 'Tarjeta de Crédito'), ('TARJETA_DEBITO', 'Tarjeta de Débito'), ('CHEQUE', 'Cheque Nominativo'), ('DEPOSITO', 'Depósito Bancario'), ('PLATAFORMA', 'Plataforma'), ('CONDONACION', 'Condonación / Cortesía'), ('OTRO', 'Otro Método')]
+    TIPOS = [('INGRESO', 'Ingreso'), ('REEMBOLSO', 'Reembolso')]
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='INGRESO', verbose_name="Tipo")
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, 
                                  verbose_name="Registrado por")
@@ -518,18 +592,35 @@ class Pago(models.Model):
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas")
     
     def clean(self):
-        """Valida que el pago no exceda el saldo pendiente."""
-        if self.cotizacion_id:
-            total_pagado = self.cotizacion.pagos.exclude(pk=self.pk).aggregate(
-                Sum('monto'))['monto__sum'] or Decimal('0.00')
+        """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos)."""
+        if self.cotizacion_id and self.tipo == 'INGRESO':
+            total_pagado = self.cotizacion.total_pagado_neto(excluir_pk=self.pk)
             saldo_disponible = self.cotizacion.precio_final - total_pagado
-            
+
             if self.monto > saldo_disponible + Decimal('0.50'):  # Tolerancia de 50 centavos
                 raise ValidationError({
                     'monto': f'El monto (${self.monto:,.2f}) excede el saldo pendiente (${saldo_disponible:,.2f}). '
                              f'Total cotización: ${self.cotizacion.precio_final:,.2f}, Ya pagado: ${total_pagado:,.2f}'
                 })
-    
+
+        if self.cotizacion_id and self.tipo == 'REEMBOLSO':
+            # Un reembolso no puede exceder lo realmente cobrado
+            cobrado = self.cotizacion.total_cobrado_bruto(excluir_pk=self.pk)
+            reembolsado = self.cotizacion.total_reembolsado(excluir_pk=self.pk)
+            disponible = cobrado - reembolsado
+            if self.monto > disponible + Decimal('0.50'):
+                raise ValidationError({
+                    'monto': f'El reembolso (${self.monto:,.2f}) excede lo cobrado neto disponible (${disponible:,.2f}).'
+                })
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.cotizacion_id:
+                # Lock la cotización para evitar pagos simultáneos
+                Cotizacion.objects.select_for_update().get(pk=self.cotizacion_id)
+            self.full_clean()
+            super().save(*args, **kwargs)
+
     def __str__(self): return f"${self.monto}"
     
     class Meta:
@@ -858,3 +949,151 @@ class PortalCliente(models.Model):
     class Meta:
         verbose_name = "Portal del Cliente"
         verbose_name_plural = "Portales de Clientes"
+
+# ==========================================
+# 5. ESPACIOS Y ASIGNACIONES (Fase 4)
+# ==========================================
+class Espacio(models.Model):
+    """Espacios físicos rentables: jardín, terraza, salón, palapa."""
+    TIPO_CHOICES = [
+        ('JARDIN', 'Jardín'),
+        ('TERRAZA', 'Terraza'),
+        ('SALON', 'Salón'),
+        ('PALAPA', 'Palapa'),
+        ('ALBERCA', 'Alberca'),
+        ('OTRO', 'Otro'),
+    ]
+    nombre = models.CharField(max_length=100, unique=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='OTRO')
+    capacidad_max = models.PositiveIntegerField(default=50, verbose_name="Capacidad máxima")
+    descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Espacio"
+        verbose_name_plural = "Espacios"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return f"{self.nombre} ({self.get_tipo_display()})"
+
+
+def _rangos_solapados(a_ini, a_fin, b_ini, b_fin):
+    """True si dos rangos [ini, fin] se traslapan."""
+    return a_ini < b_fin and b_ini < a_fin
+
+
+class AsignacionEspacio(models.Model):
+    """Reserva de un espacio para una cotización en una franja horaria."""
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE,
+                                    related_name='espacios_asignados')
+    espacio = models.ForeignKey(Espacio, on_delete=models.PROTECT,
+                                 related_name='asignaciones')
+    fecha = models.DateField()
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+    notas = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Asignación de espacio"
+        verbose_name_plural = "Asignaciones de espacios"
+        indexes = [
+            models.Index(fields=['espacio', 'fecha']),
+        ]
+
+    def _intervalos(self):
+        """Devuelve [(datetime_ini, datetime_fin)] considerando overnight."""
+        from datetime import datetime, timedelta
+        ini = datetime.combine(self.fecha, self.hora_inicio)
+        if self.hora_fin <= self.hora_inicio:
+            fin = datetime.combine(self.fecha + timedelta(days=1), self.hora_fin)
+        else:
+            fin = datetime.combine(self.fecha, self.hora_fin)
+        return ini, fin
+
+    def clean(self):
+        ini, fin = self._intervalos()
+        # Validar conflictos contra otras asignaciones del mismo espacio
+        from datetime import timedelta
+        candidatas = AsignacionEspacio.objects.filter(
+            espacio=self.espacio,
+            fecha__gte=self.fecha - timedelta(days=1),
+            fecha__lte=self.fecha + timedelta(days=1),
+        ).exclude(pk=self.pk)
+        for otra in candidatas:
+            o_ini, o_fin = otra._intervalos()
+            if _rangos_solapados(ini, fin, o_ini, o_fin):
+                raise ValidationError(
+                    f"Conflicto: el espacio '{self.espacio}' ya está asignado a la "
+                    f"cotización #{otra.cotizacion_id} en ese horario."
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.espacio} {self.fecha} {self.hora_inicio}-{self.hora_fin}"
+
+
+class AsignacionPersonal(models.Model):
+    """Asignación de un empleado a una cotización en una franja horaria."""
+    ROL_CHOICES = [
+        ('COORDINADOR', 'Coordinador'),
+        ('BARMAN', 'Barman'),
+        ('MESERO', 'Mesero'),
+        ('LIMPIEZA', 'Limpieza'),
+        ('SEGURIDAD', 'Seguridad'),
+        ('COCINA', 'Cocina'),
+        ('OTRO', 'Otro'),
+    ]
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE,
+                                    related_name='personal_asignado')
+    empleado = models.ForeignKey('nomina.Empleado', on_delete=models.PROTECT,
+                                  related_name='asignaciones')
+    rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='OTRO')
+    fecha = models.DateField()
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+    notas = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Asignación de personal"
+        verbose_name_plural = "Asignaciones de personal"
+        indexes = [
+            models.Index(fields=['empleado', 'fecha']),
+        ]
+
+    def _intervalos(self):
+        from datetime import datetime, timedelta
+        ini = datetime.combine(self.fecha, self.hora_inicio)
+        if self.hora_fin <= self.hora_inicio:
+            fin = datetime.combine(self.fecha + timedelta(days=1), self.hora_fin)
+        else:
+            fin = datetime.combine(self.fecha, self.hora_fin)
+        return ini, fin
+
+    def clean(self):
+        ini, fin = self._intervalos()
+        from datetime import timedelta
+        candidatas = AsignacionPersonal.objects.filter(
+            empleado=self.empleado,
+            fecha__gte=self.fecha - timedelta(days=1),
+            fecha__lte=self.fecha + timedelta(days=1),
+        ).exclude(pk=self.pk)
+        for otra in candidatas:
+            o_ini, o_fin = otra._intervalos()
+            if _rangos_solapados(ini, fin, o_ini, o_fin):
+                raise ValidationError(
+                    f"Conflicto: {self.empleado} ya está asignado a la "
+                    f"cotización #{otra.cotizacion_id} en ese horario."
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.empleado} → COT-{self.cotizacion_id} ({self.rol})"

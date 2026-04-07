@@ -1,0 +1,18 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Recordatorio de pago</h2>
+<p>Hola {{ cotizacion.cliente.nombre }}, te recordamos que tienes una parcialidad próxima a vencer para tu evento <strong>{{ cotizacion.nombre_evento }}</strong>.</p>
+
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">Monto a pagar:</td><td style="padding:8px;font-size:18px;"><strong>${{ parcialidad.monto|floatformat:2 }}</strong></td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Fecha límite:</td><td style="padding:8px;">{{ parcialidad.fecha_limite|date:"d/m/Y" }}</td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Días restantes:</td><td style="padding:8px;">{{ dias_restantes }}</td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Saldo total:</td><td style="padding:8px;">${{ saldo|floatformat:2 }}</td></tr>
+</table>
+
+{% if portal_url %}
+<p style="text-align:center;margin:25px 0;">
+  <a href="{{ portal_url }}" style="background:#2E7D32;color:#F5C518;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:bold;">Ver mi plan de pagos</a>
+</p>
+{% endif %}
+{% endblock %}
