@@ -12,8 +12,10 @@ from django.contrib.auth.models import User
 
 from comercial.models import (
     Cliente, Cotizacion, ItemCotizacion, Pago, Insumo,
-    ConstanteSistema, MovimientoInventario, PlanPago, ParcialidadPago
+    ConstanteSistema, MovimientoInventario, PlanPago, ParcialidadPago,
+    Espacio, AsignacionEspacio, AsignacionPersonal,
 )
+from nomina.models import Empleado
 from comercial.services import PlanPagosService
 
 
@@ -333,3 +335,112 @@ class MovimientoInventarioTest(TestCase):
         mov.save()
         self.assertEqual(mov.stock_anterior, Decimal('10.00'))
         self.assertEqual(mov.stock_posterior, Decimal('15.00'))
+
+class AsignacionEspacioTest(TestCase):
+    """Verifica detección de conflictos de asignación de espacios."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('u', password='x')
+        self.cliente = Cliente.objects.create(nombre='C')
+        self.espacio = Espacio.objects.create(nombre='Jardín Principal', tipo='JARDIN', capacidad_max=100)
+        self.cot1 = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='E1',
+            fecha_evento=date.today() + timedelta(days=10),
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        self.cot2 = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='E2',
+            fecha_evento=date.today() + timedelta(days=10),
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+
+    def test_asignacion_simple_ok(self):
+        from datetime import time
+        AsignacionEspacio.objects.create(
+            cotizacion=self.cot1, espacio=self.espacio,
+            fecha=self.cot1.fecha_evento,
+            hora_inicio=time(14, 0), hora_fin=time(22, 0),
+        )
+        self.assertEqual(self.espacio.asignaciones.count(), 1)
+
+    def test_conflicto_solapamiento_rechazado(self):
+        from datetime import time
+        AsignacionEspacio.objects.create(
+            cotizacion=self.cot1, espacio=self.espacio,
+            fecha=self.cot1.fecha_evento,
+            hora_inicio=time(14, 0), hora_fin=time(22, 0),
+        )
+        with self.assertRaises(ValidationError):
+            AsignacionEspacio.objects.create(
+                cotizacion=self.cot2, espacio=self.espacio,
+                fecha=self.cot2.fecha_evento,
+                hora_inicio=time(20, 0), hora_fin=time(23, 0),
+            )
+
+    def test_overnight_no_solapado_ok(self):
+        from datetime import time
+        AsignacionEspacio.objects.create(
+            cotizacion=self.cot1, espacio=self.espacio,
+            fecha=self.cot1.fecha_evento,
+            hora_inicio=time(20, 0), hora_fin=time(2, 0),  # cruza medianoche
+        )
+        # Otra al día siguiente desde 8am no conflicta
+        AsignacionEspacio.objects.create(
+            cotizacion=self.cot2, espacio=self.espacio,
+            fecha=self.cot2.fecha_evento + timedelta(days=1),
+            hora_inicio=time(8, 0), hora_fin=time(14, 0),
+        )
+
+    def test_overnight_si_solapado_rechazado(self):
+        from datetime import time
+        AsignacionEspacio.objects.create(
+            cotizacion=self.cot1, espacio=self.espacio,
+            fecha=self.cot1.fecha_evento,
+            hora_inicio=time(20, 0), hora_fin=time(5, 0),  # cruza medianoche
+        )
+        with self.assertRaises(ValidationError):
+            AsignacionEspacio.objects.create(
+                cotizacion=self.cot2, espacio=self.espacio,
+                fecha=self.cot2.fecha_evento + timedelta(days=1),
+                hora_inicio=time(3, 0), hora_fin=time(9, 0),
+            )
+
+
+class AsignacionPersonalTest(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user('u', password='x')
+        self.cliente = Cliente.objects.create(nombre='C')
+        self.empleado = Empleado.objects.create(nombre='Juan', puesto='MESERO')
+        self.cot1 = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='E1',
+            fecha_evento=date.today() + timedelta(days=10),
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        self.cot2 = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='E2',
+            fecha_evento=date.today() + timedelta(days=10),
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+
+    def test_doble_asignacion_rechazada(self):
+        from datetime import time
+        AsignacionPersonal.objects.create(
+            cotizacion=self.cot1, empleado=self.empleado, rol='MESERO',
+            fecha=self.cot1.fecha_evento,
+            hora_inicio=time(15, 0), hora_fin=time(23, 0),
+        )
+        with self.assertRaises(ValidationError):
+            AsignacionPersonal.objects.create(
+                cotizacion=self.cot2, empleado=self.empleado, rol='MESERO',
+                fecha=self.cot2.fecha_evento,
+                hora_inicio=time(18, 0), hora_fin=time(22, 0),
+            )

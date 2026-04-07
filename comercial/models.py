@@ -324,7 +324,17 @@ class Cotizacion(models.Model):
         ('extremo', 'Ola de Calor / Mayo (+60% Hielo)'),
     ]
     
+    TIPO_SERVICIO_CHOICES = [
+        ('EVENTO', 'Evento'),
+        ('PASADIA', 'Pasadía'),
+        ('HOSPEDAJE', 'Hospedaje'),
+    ]
+
     cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT)
+    tipo_servicio = models.CharField(
+        max_length=15, choices=TIPO_SERVICIO_CHOICES, default='EVENTO',
+        verbose_name="Tipo de servicio"
+    )
     nombre_evento = models.CharField(max_length=200, default="Evento General")
     fecha_evento = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True)
@@ -922,3 +932,151 @@ class PortalCliente(models.Model):
     class Meta:
         verbose_name = "Portal del Cliente"
         verbose_name_plural = "Portales de Clientes"
+
+# ==========================================
+# 5. ESPACIOS Y ASIGNACIONES (Fase 4)
+# ==========================================
+class Espacio(models.Model):
+    """Espacios físicos rentables: jardín, terraza, salón, palapa."""
+    TIPO_CHOICES = [
+        ('JARDIN', 'Jardín'),
+        ('TERRAZA', 'Terraza'),
+        ('SALON', 'Salón'),
+        ('PALAPA', 'Palapa'),
+        ('ALBERCA', 'Alberca'),
+        ('OTRO', 'Otro'),
+    ]
+    nombre = models.CharField(max_length=100, unique=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='OTRO')
+    capacidad_max = models.PositiveIntegerField(default=50, verbose_name="Capacidad máxima")
+    descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Espacio"
+        verbose_name_plural = "Espacios"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return f"{self.nombre} ({self.get_tipo_display()})"
+
+
+def _rangos_solapados(a_ini, a_fin, b_ini, b_fin):
+    """True si dos rangos [ini, fin] se traslapan."""
+    return a_ini < b_fin and b_ini < a_fin
+
+
+class AsignacionEspacio(models.Model):
+    """Reserva de un espacio para una cotización en una franja horaria."""
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE,
+                                    related_name='espacios_asignados')
+    espacio = models.ForeignKey(Espacio, on_delete=models.PROTECT,
+                                 related_name='asignaciones')
+    fecha = models.DateField()
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+    notas = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Asignación de espacio"
+        verbose_name_plural = "Asignaciones de espacios"
+        indexes = [
+            models.Index(fields=['espacio', 'fecha']),
+        ]
+
+    def _intervalos(self):
+        """Devuelve [(datetime_ini, datetime_fin)] considerando overnight."""
+        from datetime import datetime, timedelta
+        ini = datetime.combine(self.fecha, self.hora_inicio)
+        if self.hora_fin <= self.hora_inicio:
+            fin = datetime.combine(self.fecha + timedelta(days=1), self.hora_fin)
+        else:
+            fin = datetime.combine(self.fecha, self.hora_fin)
+        return ini, fin
+
+    def clean(self):
+        ini, fin = self._intervalos()
+        # Validar conflictos contra otras asignaciones del mismo espacio
+        from datetime import timedelta
+        candidatas = AsignacionEspacio.objects.filter(
+            espacio=self.espacio,
+            fecha__gte=self.fecha - timedelta(days=1),
+            fecha__lte=self.fecha + timedelta(days=1),
+        ).exclude(pk=self.pk)
+        for otra in candidatas:
+            o_ini, o_fin = otra._intervalos()
+            if _rangos_solapados(ini, fin, o_ini, o_fin):
+                raise ValidationError(
+                    f"Conflicto: el espacio '{self.espacio}' ya está asignado a la "
+                    f"cotización #{otra.cotizacion_id} en ese horario."
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.espacio} {self.fecha} {self.hora_inicio}-{self.hora_fin}"
+
+
+class AsignacionPersonal(models.Model):
+    """Asignación de un empleado a una cotización en una franja horaria."""
+    ROL_CHOICES = [
+        ('COORDINADOR', 'Coordinador'),
+        ('BARMAN', 'Barman'),
+        ('MESERO', 'Mesero'),
+        ('LIMPIEZA', 'Limpieza'),
+        ('SEGURIDAD', 'Seguridad'),
+        ('COCINA', 'Cocina'),
+        ('OTRO', 'Otro'),
+    ]
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE,
+                                    related_name='personal_asignado')
+    empleado = models.ForeignKey('nomina.Empleado', on_delete=models.PROTECT,
+                                  related_name='asignaciones')
+    rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='OTRO')
+    fecha = models.DateField()
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+    notas = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Asignación de personal"
+        verbose_name_plural = "Asignaciones de personal"
+        indexes = [
+            models.Index(fields=['empleado', 'fecha']),
+        ]
+
+    def _intervalos(self):
+        from datetime import datetime, timedelta
+        ini = datetime.combine(self.fecha, self.hora_inicio)
+        if self.hora_fin <= self.hora_inicio:
+            fin = datetime.combine(self.fecha + timedelta(days=1), self.hora_fin)
+        else:
+            fin = datetime.combine(self.fecha, self.hora_fin)
+        return ini, fin
+
+    def clean(self):
+        ini, fin = self._intervalos()
+        from datetime import timedelta
+        candidatas = AsignacionPersonal.objects.filter(
+            empleado=self.empleado,
+            fecha__gte=self.fecha - timedelta(days=1),
+            fecha__lte=self.fecha + timedelta(days=1),
+        ).exclude(pk=self.pk)
+        for otra in candidatas:
+            o_ini, o_fin = otra._intervalos()
+            if _rangos_solapados(ini, fin, o_ini, o_fin):
+                raise ValidationError(
+                    f"Conflicto: {self.empleado} ya está asignado a la "
+                    f"cotización #{otra.cotizacion_id} en ese horario."
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.empleado} → COT-{self.cotizacion_id} ({self.rol})"
