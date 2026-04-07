@@ -345,6 +345,13 @@ def cotizador_enviar(request):
         f"_COT-{cotizacion.id:03d} — ERP QKT_"
     )
 
+    if aviso_fecha:
+        try:
+            from comunicacion.services import alertar_equipo_fecha_chocada
+            alertar_equipo_fecha_chocada(cotizacion, aviso_fecha)
+        except Exception:
+            pass
+
     return JsonResponse({
         'ok': True,
         'portal_url': portal_url,
@@ -377,6 +384,38 @@ def api_disponibilidad_fecha(request):
         'fecha': fecha.strftime('%Y-%m-%d'),
         'disponible': disponible,
         'mensaje': mensaje or 'Fecha disponible',
+    })
+
+
+def api_fechas_ocupadas(request):
+    """GET /api/fechas-ocupadas/?dias=365
+    Devuelve la lista de fechas no disponibles (Airbnb + cotizaciones apartadas)
+    en el rango [hoy, hoy+dias] para pintar un calendario."""
+    try:
+        dias = int(request.GET.get('dias', '365'))
+    except ValueError:
+        dias = 365
+    dias = max(1, min(dias, 730))
+    hoy = timezone.now().date()
+    fin = hoy + timedelta(days=dias)
+    try:
+        from airbnb.validacion_fechas import obtener_fechas_bloqueadas
+        bloqueos = obtener_fechas_bloqueadas(hoy, fin)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+    fechas = set()
+    for b in bloqueos:
+        ini, f_fin = b['fecha_inicio'], b['fecha_fin']
+        d = ini
+        while d <= f_fin:
+            fechas.add(d.strftime('%Y-%m-%d'))
+            d += timedelta(days=1)
+    return JsonResponse({
+        'ok': True,
+        'desde': hoy.strftime('%Y-%m-%d'),
+        'hasta': fin.strftime('%Y-%m-%d'),
+        'fechas_ocupadas': sorted(fechas),
     })
 
 

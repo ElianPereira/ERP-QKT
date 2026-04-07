@@ -97,4 +97,23 @@ def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]
             'titulo': reserva.titulo or 'Reserva Airbnb',
         })
     
+    # Cotizaciones apartadas en el rango
+    try:
+        from comercial.models import Cotizacion
+        cots = Cotizacion.objects.filter(
+            fecha_evento__gte=fecha_inicio,
+            fecha_evento__lte=fecha_fin,
+            estado__in=['ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION'],
+        )
+        for c in cots:
+            bloqueos.append({
+                'fecha_inicio': c.fecha_evento,
+                'fecha_fin': c.fecha_evento,
+                'anuncio': 'Quinta Ko\'ox Tanil',
+                'tipo': 'cotizacion',
+                'titulo': f"Evento COT-{c.id:03d}",
+            })
+    except Exception:
+        pass
+
     return bloqueos

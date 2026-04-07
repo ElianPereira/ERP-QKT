@@ -219,8 +219,9 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <div class="campo">
       <label for="fecha" id="lbl-fecha">Fecha del evento</label>
-      <input type="date" id="fecha" min="">
+      <input type="date" id="fecha" min="" onchange="chequearDisponibilidad()">
       <div class="campo-error" id="err-fecha">Selecciona una fecha.</div>
+      <div id="aviso-fecha" style="display:none; margin-top:8px; padding:10px 12px; background:#FFF3CD; border-left:4px solid #F5C518; color:#664d03; border-radius:6px; font-size:14px;"></div>
     </div>
 
     <!-- Horario (solo EVENTO) -->
@@ -382,6 +383,22 @@ const totalPasos = 5;
 const hoy = new Date();
 hoy.setDate(hoy.getDate() + 1);
 document.getElementById('fecha').min = hoy.toISOString().split('T')[0];
+
+async function chequearDisponibilidad() {
+  const f = document.getElementById('fecha').value;
+  const aviso = document.getElementById('aviso-fecha');
+  if (!f) { aviso.style.display='none'; return; }
+  try {
+    const r = await fetch('/api/disponibilidad/?fecha=' + encodeURIComponent(f));
+    const d = await r.json();
+    if (d.ok && !d.disponible) {
+      aviso.textContent = '⚠️ ' + d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
+      aviso.style.display = 'block';
+    } else {
+      aviso.style.display = 'none';
+    }
+  } catch(e) { aviso.style.display='none'; }
+}
 
 function selServicio(val, el) {
   servicioSel = val;

@@ -75,6 +75,42 @@ def enviar_email(
     return comm
 
 
+def alertar_equipo_fecha_chocada(cotizacion, mensaje: str) -> None:
+    """Notifica internamente al equipo cuando entra una cotización con fecha ocupada."""
+    destinatarios = getattr(settings, 'ALERTAS_INTERNAS_EMAIL', None) or [
+        getattr(settings, 'DEFAULT_FROM_EMAIL', 'alertas@qkt.mx')
+    ]
+    asunto = f"⚠️ Cotización con fecha chocada — COT-{cotizacion.id:03d}"
+    cuerpo = (
+        f"La cotización COT-{cotizacion.id:03d} fue creada con una fecha ocupada.\n\n"
+        f"Cliente: {cotizacion.cliente}\n"
+        f"Fecha evento: {cotizacion.fecha_evento}\n"
+        f"Detalle: {mensaje}\n\n"
+        f"Revisa el admin y contacta al cliente para confirmar alternativas."
+    )
+    try:
+        from django.core.mail import send_mail
+        send_mail(
+            asunto, cuerpo,
+            settings.DEFAULT_FROM_EMAIL,
+            destinatarios,
+            fail_silently=True,
+        )
+        ComunicacionCliente.objects.create(
+            cotizacion=cotizacion,
+            canal='EMAIL',
+            tipo='OTRO',
+            trigger='SIGNAL',
+            destinatario=', '.join(destinatarios),
+            asunto=asunto,
+            cuerpo=cuerpo[:5000],
+            estado='ENVIADO',
+            fecha_envio=timezone.now(),
+        )
+    except Exception as e:
+        logger.exception("Error alertando equipo: %s", e)
+
+
 def enviar_whatsapp(
     *,
     cotizacion=None,

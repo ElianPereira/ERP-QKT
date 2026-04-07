@@ -1245,6 +1245,13 @@ def webhook_manychat(request):
 
         resumen = " + ".join(resumen_partes) + f" | {num_personas} Pax - {horas_evento} Hrs{clima_tag}"
 
+        if aviso_fecha:
+            try:
+                from comunicacion.services import alertar_equipo_fecha_chocada
+                alertar_equipo_fecha_chocada(cotizacion, aviso_fecha)
+            except Exception:
+                pass
+
         return JsonResponse({
             'status': 'success',
             'cotizacion_id': cotizacion.id,
