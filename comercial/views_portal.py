@@ -21,6 +21,10 @@ from weasyprint import HTML
 from .models import Cotizacion, PortalCliente, PlanPago
 
 
+from core_erp.ratelimit import rate_limit as _rate_limit
+
+
+@_rate_limit(key='portal_acceso', limit=20, window=60)
 def portal_acceso(request):
     """
     Página de acceso al portal. El cliente ingresa:

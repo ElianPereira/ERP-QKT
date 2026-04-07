@@ -1,0 +1,50 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>Estado de Resultados</h1>
+<form method="get" style="margin-bottom:20px;">
+  Desde: <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}">
+  Hasta: <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}">
+  Unidad:
+  <select name="unidad">
+    <option value="">Todas</option>
+    {% for u in unidades %}
+      <option value="{{ u.id }}" {% if unidad_id|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.nombre }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Filtrar</button>
+</form>
+
+<h2 style="color:#27ae60;">Ingresos</h2>
+<table style="width:100%; margin-bottom:20px;">
+  {% for r in ingresos %}
+  <tr><td>{{ r.codigo }} {{ r.nombre }}</td><td style="text-align:right;">${{ r.monto|floatformat:2 }}</td></tr>
+  {% endfor %}
+  <tr style="font-weight:bold; border-top:2px solid #27ae60;">
+    <td>Total Ingresos</td><td style="text-align:right;">${{ total_ingresos|floatformat:2 }}</td>
+  </tr>
+</table>
+
+<h2 style="color:#e67e22;">Costos</h2>
+<table style="width:100%; margin-bottom:20px;">
+  {% for r in costos %}
+  <tr><td>{{ r.codigo }} {{ r.nombre }}</td><td style="text-align:right;">${{ r.monto|floatformat:2 }}</td></tr>
+  {% endfor %}
+  <tr style="font-weight:bold; border-top:2px solid #e67e22;">
+    <td>Total Costos</td><td style="text-align:right;">${{ total_costos|floatformat:2 }}</td>
+  </tr>
+</table>
+
+<h2 style="color:#e74c3c;">Gastos</h2>
+<table style="width:100%; margin-bottom:20px;">
+  {% for r in gastos %}
+  <tr><td>{{ r.codigo }} {{ r.nombre }}</td><td style="text-align:right;">${{ r.monto|floatformat:2 }}</td></tr>
+  {% endfor %}
+  <tr style="font-weight:bold; border-top:2px solid #e74c3c;">
+    <td>Total Gastos</td><td style="text-align:right;">${{ total_gastos|floatformat:2 }}</td>
+  </tr>
+</table>
+
+<h2 style="background:{% if utilidad >= 0 %}#27ae60{% else %}#e74c3c{% endif %}; color:white; padding:15px; text-align:right;">
+  Utilidad neta: ${{ utilidad|floatformat:2 }}
+</h2>
+{% endblock %}

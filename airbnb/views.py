@@ -282,13 +282,22 @@ def generar_ical_eventos(request):
     """
     Genera un archivo iCal con los eventos confirmados del ERP.
     Esta URL se importa en Airbnb para bloquear fechas automáticamente.
-    
-    URL: /airbnb/ical/eventos/
-    
-    Airbnb sincroniza calendarios externos cada 2-24 horas.
-    No requiere autenticación para que Airbnb pueda acceder.
+
+    URL: /airbnb/ical/eventos/?token=XXX
+
+    Si está configurado ICAL_PUBLIC_TOKEN en settings, exige el token por
+    query string. Si no, la URL queda abierta (para retrocompatibilidad).
     """
+    from django.http import HttpResponseForbidden
+    from decouple import config
     from comercial.models import Cotizacion
+
+    token_esperado = config('ICAL_PUBLIC_TOKEN', default='')
+    if token_esperado:
+        import hmac
+        token_recibido = request.GET.get('token', '')
+        if not hmac.compare_digest(token_recibido, token_esperado):
+            return HttpResponseForbidden('Token inválido')
     
     # Solo eventos confirmados (últimos 30 días + futuros)
     cotizaciones = Cotizacion.objects.filter(

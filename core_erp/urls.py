@@ -106,6 +106,7 @@ urlpatterns = [
     
     #---- CXC VISUALIZACION---
     path('admin/cartera/', ver_cartera_cxc, name='cartera_cxc'),
+    path('admin/contabilidad/reportes/', include('contabilidad.urls')),
 
     #--- PLAN DE PAGOS---
     path('cotizacion/<int:cotizacion_id>/plan-pagos/generar/', generar_plan_pagos, name='generar_plan_pagos'),

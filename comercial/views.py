@@ -23,6 +23,7 @@ from decimal import Decimal
 from weasyprint import HTML
 from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
+from core_erp.ratelimit import rate_limit as _rate_limit
 from decouple import config
 import hmac
 import hashlib
@@ -894,6 +895,7 @@ def _parsear_hora(hora_str):
 
 
 @csrf_exempt
+@_rate_limit(key='webhook_manychat', limit=60, window=60)
 def webhook_manychat(request):
     """
     Webhook V7: Procesa Evento y Pasadía.
