@@ -1262,10 +1262,14 @@ def ver_cartera_cxc(request):
     context = admin.site.each_context(request)
     hoy = timezone.now().date()
     
+    from django.db.models import Sum, Q
     cotizaciones = Cotizacion.objects.filter(
         estado__in=['COTIZADA', 'ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION', 'EJECUTADA']
-    ).select_related('cliente').prefetch_related('pagos').order_by('fecha_evento')
-    
+    ).select_related('cliente').annotate(
+        _ingresos=Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='INGRESO')), Decimal('0.00')),
+        _reembolsos=Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='REEMBOLSO')), Decimal('0.00')),
+    ).order_by('fecha_evento')
+
     cartera = []
     total_por_cobrar = Decimal('0.00')
     total_vencido = Decimal('0.00')
@@ -1274,12 +1278,13 @@ def ver_cartera_cxc(request):
     vence_7_dias = 0
     vence_30_dias = 0
     vencido = 0
-    
+
     for cot in cotizaciones:
-        saldo = cot.saldo_pendiente()
+        total_pagado = cot._ingresos - cot._reembolsos
+        saldo = cot.precio_final - total_pagado
         if saldo <= Decimal('0.50'):
             continue
-        
+
         total_por_cobrar += saldo
         dias_evento = (cot.fecha_evento - hoy).days
         
@@ -1306,9 +1311,9 @@ def ver_cartera_cxc(request):
             'evento': cot.nombre_evento,
             'fecha_evento': cot.fecha_evento,
             'precio_final': cot.precio_final,
-            'total_pagado': cot.total_pagado(),
+            'total_pagado': total_pagado,
             'saldo': saldo,
-            'porcentaje_pagado': cot.porcentaje_pagado,
+            'porcentaje_pagado': round((total_pagado / cot.precio_final) * 100, 1) if cot.precio_final > 0 else Decimal('0.0'),
             'dias_evento': dias_evento,
             'antiguedad': antiguedad,
             'telefono': cot.cliente.telefono,
