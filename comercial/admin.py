@@ -5,13 +5,15 @@ from django.template.loader import render_to_string
 from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
 from django.shortcuts import render, redirect
+from django.utils import timezone
 from django.db.models import Sum
 from .models import PortalCliente
 from .models import (
-    Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto, 
-    Cliente, Cotizacion, ItemCotizacion, Pago, 
+    Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto,
+    Cliente, Cotizacion, ItemCotizacion, Pago,
     Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
-    MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago
+    MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago,
+    Espacio, AsignacionEspacio, AsignacionPersonal,
 )
 from .services import CalculadoraBarraService
 
@@ -627,16 +629,58 @@ class CotizacionAdmin(admin.ModelAdmin):
     ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    list_display = ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
-    list_filter = ('metodo', 'fecha_pago')
+    list_display = ('cotizacion', 'tipo_badge', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
+    list_filter = ('tipo', 'metodo', 'fecha_pago')
     search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
     readonly_fields = ('usuario', 'created_at', 'updated_at')
     date_hierarchy = 'fecha_pago'
+    actions = ['registrar_reembolso']
+    fieldsets = (
+        ('Tipo', {'fields': ('tipo',)}),
+        ('Datos', {'fields': ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'notas')}),
+        ('Facturación', {'fields': ('solicitar_factura',)}),
+        ('Auditoría', {'fields': ('usuario', 'created_at', 'updated_at')}),
+    )
+
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+
+    def tipo_badge(self, obj):
+        color = '#e74c3c' if obj.tipo == 'REEMBOLSO' else '#2E7D32'
+        return format_html(
+            '<span style="background:{};color:white;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;">{}</span>',
+            color, obj.get_tipo_display()
+        )
+    tipo_badge.short_description = 'Tipo'
+
     def save_model(self, request, obj, form, change):
         if not obj.pk: obj.usuario = request.user
         super().save_model(request, obj, form, change)
+
+    def registrar_reembolso(self, request, queryset):
+        """Crea un Pago tipo REEMBOLSO espejo por cada pago seleccionado."""
+        creados = 0
+        errores = []
+        for pago in queryset.filter(tipo='INGRESO'):
+            try:
+                Pago.objects.create(
+                    cotizacion=pago.cotizacion,
+                    tipo='REEMBOLSO',
+                    fecha_pago=timezone.now().date(),
+                    monto=pago.monto,
+                    metodo=pago.metodo,
+                    referencia=f"REEMB de pago #{pago.pk}",
+                    notas=f"Reembolso generado desde admin del pago #{pago.pk}",
+                    usuario=request.user,
+                )
+                creados += 1
+            except Exception as e:
+                errores.append(f"Pago #{pago.pk}: {e}")
+        if creados:
+            self.message_user(request, f"{creados} reembolso(s) registrado(s).", messages.SUCCESS)
+        for err in errores:
+            self.message_user(request, err, messages.ERROR)
+    registrar_reembolso.short_description = "Registrar reembolso (espejo del pago)"
 
 class GastoInline(admin.TabularInline):
     model = Gasto; extra = 0; can_delete = True
@@ -827,3 +871,43 @@ class RecordatorioPagoAdmin(admin.ModelAdmin):
     def has_add_permission(self, request): return False
     def has_delete_permission(self, request, obj=None): return False
 
+
+
+# ==========================================
+# ADMIN: ESPACIOS Y ASIGNACIONES (Fase 4)
+# ==========================================
+@admin.register(Espacio)
+class EspacioAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'tipo', 'capacidad_max', 'activo')
+    list_filter = ('tipo', 'activo')
+    search_fields = ('nombre', 'descripcion')
+
+
+class AsignacionEspacioInline(admin.TabularInline):
+    model = AsignacionEspacio
+    extra = 0
+    fields = ('espacio', 'fecha', 'hora_inicio', 'hora_fin', 'notas')
+
+
+class AsignacionPersonalInline(admin.TabularInline):
+    model = AsignacionPersonal
+    extra = 0
+    fields = ('empleado', 'rol', 'fecha', 'hora_inicio', 'hora_fin', 'notas')
+
+
+@admin.register(AsignacionEspacio)
+class AsignacionEspacioAdmin(admin.ModelAdmin):
+    list_display = ('espacio', 'cotizacion', 'fecha', 'hora_inicio', 'hora_fin')
+    list_filter = ('espacio', 'fecha')
+    search_fields = ('cotizacion__nombre_evento', 'cotizacion__cliente__nombre', 'espacio__nombre')
+    date_hierarchy = 'fecha'
+    autocomplete_fields = ('cotizacion',)
+
+
+@admin.register(AsignacionPersonal)
+class AsignacionPersonalAdmin(admin.ModelAdmin):
+    list_display = ('empleado', 'rol', 'cotizacion', 'fecha', 'hora_inicio', 'hora_fin')
+    list_filter = ('rol', 'fecha')
+    search_fields = ('empleado__nombre', 'cotizacion__nombre_evento', 'cotizacion__cliente__nombre')
+    date_hierarchy = 'fecha'
+    autocomplete_fields = ('cotizacion',)
