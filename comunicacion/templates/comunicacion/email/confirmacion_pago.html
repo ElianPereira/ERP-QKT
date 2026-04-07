@@ -1,0 +1,20 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#2E7D32;margin-top:0;">¡Recibimos tu pago, {{ cotizacion.cliente.nombre }}!</h2>
+<p>Confirmamos la recepción de tu pago para <strong>{{ cotizacion.nombre_evento }}</strong>.</p>
+
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">Monto recibido:</td><td style="padding:8px;font-size:18px;color:#27ae60;"><strong>${{ pago.monto|floatformat:2 }}</strong></td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Método:</td><td style="padding:8px;">{{ pago.get_metodo_display }}</td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Fecha:</td><td style="padding:8px;">{{ pago.fecha_pago|date:"d/m/Y" }}</td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Total cotización:</td><td style="padding:8px;">${{ cotizacion.precio_final|floatformat:2 }}</td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Total pagado:</td><td style="padding:8px;">${{ total_pagado|floatformat:2 }}</td></tr>
+  <tr><td style="padding:10px 8px;background:#2E7D32;color:#F5C518;font-weight:bold;">Saldo restante:</td><td style="padding:10px 8px;background:#2E7D32;color:#F5C518;font-weight:bold;">${{ saldo|floatformat:2 }}</td></tr>
+</table>
+
+{% if portal_url %}
+<p style="text-align:center;margin:25px 0;">
+  <a href="{{ portal_url }}" style="background:#2E7D32;color:#F5C518;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:bold;">Ver estado de mi evento</a>
+</p>
+{% endif %}
+{% endblock %}
