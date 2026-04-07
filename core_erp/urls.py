@@ -1,4 +1,4 @@
-from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias
+from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias, api_disponibilidad_fecha
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -132,6 +132,7 @@ urlpatterns = [
     path('cotizar/', cotizador_publico, name='cotizador_publico'),
     path('cotizar/enviar/', cotizador_enviar, name='cotizador_enviar'),
     path('cotizar/gracias/', cotizador_gracias, name='cotizador_gracias'),
+    path('api/disponibilidad/', api_disponibilidad_fecha, name='api_disponibilidad_fecha'),
 
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),

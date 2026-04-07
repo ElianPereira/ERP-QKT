@@ -37,12 +37,33 @@ def verificar_disponibilidad_fecha(fecha_evento: date, cotizacion_id: int = None
     if reservas_conflicto.exists():
         reserva = reservas_conflicto.first()
         mensaje = (
-            f" Fecha bloqueada por Airbnb: {reserva.anuncio.nombre} "
+            f"Fecha no disponible: {reserva.anuncio.nombre} "
             f"tiene reserva del {reserva.fecha_inicio.strftime('%d/%m/%Y')} "
-            f"al {reserva.fecha_fin.strftime('%d/%m/%Y')}"
+            f"al {reserva.fecha_fin.strftime('%d/%m/%Y')}."
         )
         return False, mensaje
-    
+
+    # Cotizaciones ya apartadas (anticipo/confirmada/en preparación)
+    try:
+        from comercial.models import Cotizacion
+        ESTADOS_APARTADO = ['ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION']
+        qs = Cotizacion.objects.filter(
+            fecha_evento=fecha_evento,
+            estado__in=ESTADOS_APARTADO,
+        )
+        if cotizacion_id:
+            qs = qs.exclude(pk=cotizacion_id)
+        if qs.exists():
+            cot = qs.first()
+            mensaje = (
+                f"Fecha no disponible: ya existe un evento apartado para "
+                f"{fecha_evento.strftime('%d/%m/%Y')} "
+                f"({cot.get_estado_display()})."
+            )
+            return False, mensaje
+    except Exception:
+        pass
+
     return True, None
 
 

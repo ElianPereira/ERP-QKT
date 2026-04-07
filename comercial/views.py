@@ -961,6 +961,16 @@ def webhook_manychat(request):
 
         clima_auto = _detectar_clima_por_fecha(fecha_evento)
 
+        # Verificar disponibilidad de la fecha
+        aviso_fecha = None
+        try:
+            from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+            _disp, _msg = verificar_disponibilidad_fecha(fecha_evento)
+            if not _disp:
+                aviso_fecha = _msg
+        except Exception:
+            pass
+
         def _bool(val):
             if isinstance(val, bool):
                 return val
@@ -1244,6 +1254,8 @@ def webhook_manychat(request):
             'portal_url': portal_url,
             'resumen': resumen,
             'num_personas_final': num_personas,
+            'aviso_fecha': aviso_fecha,
+            'fecha_disponible': aviso_fecha is None,
         }, status=200)
 
     except Exception as e:

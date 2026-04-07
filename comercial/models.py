@@ -475,6 +475,23 @@ class Cotizacion(models.Model):
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
         self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
+    def clean(self):
+        """Si la cotización está apartando una fecha (anticipo o superior),
+        valida que no choque con Airbnb u otra cotización ya apartada."""
+        super().clean()
+        if self.fecha_evento and self.estado in ('ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION'):
+            try:
+                from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+                disponible, msg = verificar_disponibilidad_fecha(
+                    self.fecha_evento, cotizacion_id=self.pk
+                )
+                if not disponible:
+                    raise ValidationError({'fecha_evento': msg})
+            except ValidationError:
+                raise
+            except Exception:
+                pass
+
     def save(self, *args, **kwargs):
         with transaction.atomic():
             super().save(*args, **kwargs)

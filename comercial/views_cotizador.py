@@ -190,6 +190,16 @@ def cotizador_enviar(request):
         num_raw = 50
     num_personas = _redondear_personas(num_raw, servicio == 'PASADIA')
 
+    # ── Disponibilidad de fecha ────────────────────────────────
+    aviso_fecha = None
+    try:
+        from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+        disponible, msg_disp = verificar_disponibilidad_fecha(fecha_evento)
+        if not disponible:
+            aviso_fecha = msg_disp
+    except Exception:
+        pass
+
     # ── Cliente ────────────────────────────────────────────────
     cliente = Cliente.objects.filter(telefono=tel_d).first()
     if not cliente:
@@ -340,6 +350,33 @@ def cotizador_enviar(request):
         'portal_url': portal_url,
         'cotizacion_id': cotizacion.id,
         'folio': f"COT-{cotizacion.id:03d}",
+        'aviso_fecha': aviso_fecha,
+    })
+
+
+def api_disponibilidad_fecha(request):
+    """GET /api/disponibilidad/?fecha=YYYY-MM-DD
+    Responde si la fecha está libre o ya apartada (Airbnb / cotización confirmada)."""
+    fecha_str = (request.GET.get('fecha') or '').strip()
+    fecha = None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            fecha = datetime.strptime(fecha_str, fmt).date()
+            break
+        except ValueError:
+            pass
+    if not fecha:
+        return JsonResponse({'ok': False, 'error': 'Fecha inválida'}, status=400)
+    try:
+        from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+        disponible, mensaje = verificar_disponibilidad_fecha(fecha)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+    return JsonResponse({
+        'ok': True,
+        'fecha': fecha.strftime('%Y-%m-%d'),
+        'disponible': disponible,
+        'mensaje': mensaje or 'Fecha disponible',
     })
 
 
