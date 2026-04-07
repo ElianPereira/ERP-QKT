@@ -100,6 +100,15 @@ def portal_evento(request, token):
     except Exception:
         pass
     
+    # Historial de comunicaciones
+    try:
+        from comunicacion.models import ComunicacionCliente
+        comunicaciones = ComunicacionCliente.objects.filter(
+            cotizacion=cotizacion
+        ).order_by('-fecha_envio')[:20]
+    except Exception:
+        comunicaciones = []
+
     # Calcular datos
     total_pagado = cotizacion.total_pagado()
     saldo_pendiente = cotizacion.saldo_pendiente()
@@ -127,6 +136,7 @@ def portal_evento(request, token):
         'saldo_pendiente': saldo_pendiente,
         'porcentaje': porcentaje,
         'wa_numero': wa_numero,
+        'comunicaciones': comunicaciones,
     }
     
     return render(request, 'portal/evento.html', context)

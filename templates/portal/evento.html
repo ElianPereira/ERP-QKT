@@ -257,6 +257,34 @@
             </div>
         </div>
         
+        {% if comunicaciones %}
+        <div class="card" style="margin-top:20px;">
+            <h3 style="color:#2E7D32; margin-top:0;">
+                <i class="fas fa-envelope-open-text"></i> Historial de notificaciones
+            </h3>
+            <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                <thead>
+                    <tr style="border-bottom:2px solid #2E7D32;">
+                        <th style="text-align:left; padding:8px;">Fecha</th>
+                        <th style="text-align:left; padding:8px;">Tipo</th>
+                        <th style="text-align:left; padding:8px;">Canal</th>
+                        <th style="text-align:left; padding:8px;">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in comunicaciones %}
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">{{ c.fecha_envio|date:"d/m/Y H:i" }}</td>
+                        <td style="padding:8px;">{{ c.get_tipo_display }}</td>
+                        <td style="padding:8px;">{{ c.get_canal_display }}</td>
+                        <td style="padding:8px;">{{ c.get_estado_display }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
         <!-- WhatsApp -->
         <div style="text-align:center; margin: 20px 0;">
             <a href="https://wa.me/{{ wa_numero }}?text=Hola%2C%20tengo%20una%20pregunta%20sobre%20mi%20evento%20COT-{{ cotizacion.id|stringformat:'03d' }}" class="btn btn-wa" target="_blank" style="font-size:15px; padding:14px 28px;">
