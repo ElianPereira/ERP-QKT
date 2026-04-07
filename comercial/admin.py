@@ -710,57 +710,99 @@ class CompraAdmin(admin.ModelAdmin):
         from io import BytesIO
         from contabilidad.models import UnidadNegocio
         import xml.etree.ElementTree as ET
-        
+
         # Mapeo de RFC receptor -> Unidad de negocio
         RFC_UNIDAD_MAP = {
             'PECE010202IA0': 'EVENTOS',  # Elian - Quinta Ko'ox Tanil
             'CERU580518QZ5': 'AIRBNB',   # Ruby - Hospedaje Airbnb
         }
-        
-        def detectar_unidad_por_rfc(xml_content):
-            """Detecta la unidad de negocio basándose en el RFC del receptor."""
+        RFCS_VALIDOS = set(RFC_UNIDAD_MAP.keys())
+
+        # Usos CFDI personales (deducciones personales — NO son del negocio)
+        USOS_CFDI_PERSONALES = {
+            'D01',  # Honorarios médicos, dentales y gastos hospitalarios
+            'D02',  # Gastos médicos por incapacidad o discapacidad
+            'D03',  # Gastos funerales
+            'D04',  # Donativos
+            'D05',  # Intereses reales por créditos hipotecarios
+            'D06',  # Aportaciones voluntarias al SAR
+            'D07',  # Primas por seguros de gastos médicos
+            'D08',  # Gastos de transportación escolar obligatoria
+            'D09',  # Depósitos en cuentas para el ahorro
+            'D10',  # Pagos por servicios educativos (colegiaturas)
+            'CP01', # Pagos
+            'S01',  # Sin efectos fiscales
+        }
+
+        # Tipos de comprobante aceptados (solo Ingreso = gasto deducible para nosotros)
+        TIPOS_VALIDOS = {'I'}
+
+        def analizar_xml(xml_content):
+            """
+            Devuelve (valido: bool, motivo: str|None, unidad: UnidadNegocio|None,
+                     rfc_receptor: str, tipo: str, uso_cfdi: str)
+            """
             try:
                 root = ET.fromstring(xml_content)
-                ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
-                if 'http://www.sat.gob.mx/cfd/3' in root.tag:
-                    ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
-                receptor = root.find('cfdi:Receptor', ns)
-                if receptor is not None:
-                    rfc = receptor.attrib.get('Rfc', '')
-                    clave = RFC_UNIDAD_MAP.get(rfc)
-                    if clave:
-                        return UnidadNegocio.objects.filter(clave=clave).first()
-            except Exception:
-                pass
-            return None
-        
+            except ET.ParseError as e:
+                return False, f"XML inválido: {e}", None, '', '', ''
+
+            ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
+            if 'http://www.sat.gob.mx/cfd/3' in root.tag:
+                ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+
+            tipo = root.attrib.get('TipoDeComprobante', '')
+            if tipo not in TIPOS_VALIDOS:
+                return False, f"Tipo de comprobante '{tipo}' no es de Ingreso (excluido)", None, '', tipo, ''
+
+            receptor = root.find('cfdi:Receptor', ns)
+            if receptor is None:
+                return False, "Sin nodo Receptor", None, '', tipo, ''
+
+            rfc_receptor = receptor.attrib.get('Rfc', '')
+            uso_cfdi = receptor.attrib.get('UsoCFDI', '')
+
+            if rfc_receptor not in RFCS_VALIDOS:
+                return False, f"RFC receptor '{rfc_receptor}' no pertenece al negocio", None, rfc_receptor, tipo, uso_cfdi
+
+            if uso_cfdi in USOS_CFDI_PERSONALES:
+                return False, f"Uso CFDI '{uso_cfdi}' es deducción personal (no del negocio)", None, rfc_receptor, tipo, uso_cfdi
+
+            unidad = UnidadNegocio.objects.filter(clave=RFC_UNIDAD_MAP[rfc_receptor]).first()
+            return True, None, unidad, rfc_receptor, tipo, uso_cfdi
+
         if request.method == "POST":
             files = request.FILES.getlist('xml_files')
             if not files:
                 messages.error(request, "No seleccionaste ningún archivo.")
                 return redirect('.')
-            
-            # Obtener unidad de negocio seleccionada (si hay)
+
+            # Si forzaron unidad manual, respetarla
             unidad_id = request.POST.get('unidad_negocio')
             unidad_fija = None
             if unidad_id:
                 unidad_fija = UnidadNegocio.objects.filter(pk=unidad_id).first()
-            
-            exitos = errores = 0
+
+            ignorar_filtros = request.POST.get('ignorar_filtros') == '1'
+
+            exitos = errores = excluidas = 0
+            motivos_excluidas = []
             for f in files:
                 try:
                     f.seek(0)
                     file_content = f.read()
                     if not file_content or len(file_content) < 100:
                         raise ValueError(f"Archivo vacío o muy pequeño ({len(file_content)} bytes)")
-                    
-                    # Determinar unidad de negocio
-                    if unidad_fija:
-                        unidad = unidad_fija
-                    else:
-                        unidad = detectar_unidad_por_rfc(file_content)
-                    
-                    # Crear nuevo InMemoryUploadedFile con el contenido
+
+                    valido, motivo, unidad_detectada, rfc_r, tipo, uso = analizar_xml(file_content)
+
+                    if not valido and not ignorar_filtros:
+                        excluidas += 1
+                        motivos_excluidas.append(f"{f.name}: {motivo}")
+                        continue
+
+                    unidad = unidad_fija or unidad_detectada
+
                     file_io = BytesIO(file_content)
                     new_file = InMemoryUploadedFile(
                         file=file_io,
@@ -775,11 +817,20 @@ class CompraAdmin(admin.ModelAdmin):
                 except Exception as e:
                     errores += 1
                     print(f"Error subiendo {f.name}: {e}")
-            
-            if exitos > 0: messages.success(request, f"{exitos} facturas procesadas correctamente.")
-            if errores > 0: messages.warning(request, f"{errores} archivos con problemas (duplicados o errores).")
+
+            if exitos > 0:
+                messages.success(request, f"{exitos} facturas del negocio procesadas correctamente.")
+            if excluidas > 0:
+                resumen = "; ".join(motivos_excluidas[:5])
+                extra = f" (+{excluidas - 5} más)" if excluidas > 5 else ""
+                messages.warning(
+                    request,
+                    f"{excluidas} facturas EXCLUIDAS por no pertenecer al negocio: {resumen}{extra}"
+                )
+            if errores > 0:
+                messages.error(request, f"{errores} archivos con errores técnicos (XML corrupto o duplicado).")
             return redirect('..')
-        
+
         # GET: mostrar formulario con unidades de negocio
         unidades = UnidadNegocio.objects.filter(activa=True)
         return render(request, 'comercial/carga_masiva_xml.html', {
