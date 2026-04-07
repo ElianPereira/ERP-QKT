@@ -91,6 +91,11 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
     cotizacion = pago.cotizacion
     monto = Decimal(str(pago.monto))
 
+    # Si es reembolso, generar póliza inversa de egreso
+    if getattr(pago, 'tipo', 'INGRESO') == 'REEMBOLSO':
+        crear_poliza_reembolso_cliente(pago)
+        return
+
     # ─── Determinar cuenta de cargo según método de pago ────────
     if pago.metodo == 'EFECTIVO':
         cuenta_cargo = get_cuenta('CAJA')
@@ -202,6 +207,155 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
             concepto=f"COT-{cotizacion.pk:03d} (IVA incluido)",
             referencia=pago.referencia or '',
         )
+
+
+# ==========================================
+# REEMBOLSO A CLIENTE (póliza inversa)
+# ==========================================
+def crear_poliza_reembolso_cliente(pago):
+    """
+    Genera póliza de egreso al reembolsar a un cliente.
+
+    Asiento (inverso al pago original):
+        DEBE: Anticipo clientes      (subtotal)
+        DEBE: IVA trasladado         (iva)
+        HABER: ISR retenido clientes (si aplica)
+        HABER: Bancos/Caja           (monto neto devuelto)
+    """
+    cotizacion = pago.cotizacion
+    monto = Decimal(str(pago.monto))
+
+    if pago.metodo == 'EFECTIVO':
+        cuenta_banco = get_cuenta('CAJA')
+    else:
+        cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+
+    cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
+    cuenta_iva = get_cuenta('IVA_TRASLADADO')
+    cuenta_isr_ret = get_cuenta('ISR_RETENIDO_CLIENTES')
+
+    if not cuenta_banco or not cuenta_anticipo:
+        logger.warning(
+            "Póliza NO generada para Reembolso #%s: falta configuración contable", pago.pk
+        )
+        return
+
+    unidad = get_unidad_negocio('EVENTOS')
+    if not unidad:
+        logger.warning("Póliza NO generada para Reembolso #%s: falta UnidadNegocio", pago.pk)
+        return
+
+    desglose = calcular_desglose_proporcional(monto, cotizacion)
+    subtotal = desglose['subtotal']
+    iva = desglose['iva']
+    retencion_isr = desglose['retencion_isr']
+
+    usuario = get_usuario_sistema()
+    content_type = ContentType.objects.get_for_model(pago)
+
+    poliza = Poliza.objects.create(
+        tipo='E',
+        folio=Poliza.siguiente_folio('E', pago.fecha_pago),
+        fecha=pago.fecha_pago,
+        concepto=f"Reembolso cliente: {cotizacion.cliente.nombre} - {cotizacion.nombre_evento}",
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='PAGO_CLIENTE',
+        content_type=content_type,
+        object_id=pago.pk,
+        created_by=usuario,
+    )
+
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_anticipo,
+        debe=subtotal, haber=Decimal('0.00'),
+        concepto=f"Reembolso COT-{cotizacion.pk:03d} (Subtotal)",
+        referencia=pago.referencia or '',
+    )
+    if cuenta_iva and iva > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta_iva,
+            debe=iva, haber=Decimal('0.00'),
+            concepto="Reverso IVA trasladado 16%",
+            referencia=f"COT-{cotizacion.pk:03d}",
+        )
+    if cuenta_isr_ret and retencion_isr > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta_isr_ret,
+            debe=Decimal('0.00'), haber=retencion_isr,
+            concepto="Reverso ISR retenido por cliente",
+            referencia=f"COT-{cotizacion.pk:03d}",
+        )
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_banco,
+        debe=Decimal('0.00'), haber=monto,
+        concepto=f"Devolución {pago.get_metodo_display()}",
+        referencia=pago.referencia or '',
+    )
+
+
+# ==========================================
+# REVERSIÓN POR CANCELACIÓN DE COTIZACIÓN
+# ==========================================
+def crear_polizas_reversion_cancelacion(cotizacion, usuario=None, motivo=''):
+    """
+    Al cancelar una cotización, crea pólizas de reversión por cada póliza
+    APLICADA originada por sus pagos. Cada nueva póliza invierte los movimientos
+    DEBE↔HABER y queda marcada como APLICADA con origen='AJUSTE'.
+
+    No modifica ni elimina las pólizas originales (auditoría preservada).
+    Idempotente: omite pagos cuya reversión ya existe.
+    """
+    if not signals_enabled():
+        return
+
+    from comercial.models import Pago
+    pagos = cotizacion.pagos.all()
+    if not pagos.exists():
+        return
+
+    usuario = usuario or get_usuario_sistema()
+    pago_ct = ContentType.objects.get_for_model(Pago)
+
+    polizas_originales = Poliza.objects.filter(
+        origen='PAGO_CLIENTE',
+        content_type=pago_ct,
+        object_id__in=pagos.values_list('pk', flat=True),
+        estado='APLICADA',
+    ).prefetch_related('movimientos')
+
+    for original in polizas_originales:
+        # Idempotencia: evitar reversiones duplicadas
+        ya_revertida = Poliza.objects.filter(
+            origen='AJUSTE',
+            content_type=pago_ct,
+            object_id=original.object_id,
+            concepto__startswith=f"Reversión cancelación COT-{cotizacion.pk:03d}",
+        ).exists()
+        if ya_revertida:
+            continue
+
+        reversion = Poliza.objects.create(
+            tipo='D',
+            folio=Poliza.siguiente_folio('D', cotizacion.fecha_cancelacion.date() if cotizacion.fecha_cancelacion else original.fecha),
+            fecha=cotizacion.fecha_cancelacion.date() if cotizacion.fecha_cancelacion else original.fecha,
+            concepto=f"Reversión cancelación COT-{cotizacion.pk:03d}: {motivo or 'Cancelada'}"[:500],
+            unidad_negocio=original.unidad_negocio,
+            estado='APLICADA',
+            origen='AJUSTE',
+            content_type=pago_ct,
+            object_id=original.object_id,
+            created_by=usuario,
+        )
+        for mov in original.movimientos.all():
+            MovimientoContable.objects.create(
+                poliza=reversion,
+                cuenta=mov.cuenta,
+                debe=mov.haber,
+                haber=mov.debe,
+                concepto=f"Reversión: {mov.concepto}"[:255],
+                referencia=mov.referencia,
+            )
 
 
 # ==========================================

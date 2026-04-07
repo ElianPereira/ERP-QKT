@@ -411,6 +411,14 @@ class Cotizacion(models.Model):
             self.motivo_cancelacion = motivo
             self.cancelada_por = usuario
             self.fecha_cancelacion = now()
+            try:
+                from contabilidad.signals import crear_polizas_reversion_cancelacion
+                crear_polizas_reversion_cancelacion(self, usuario, motivo)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Error generando póliza de reversión para Cotización #%s: %s", self.pk, e
+                )
         
         # Si reactiva desde CANCELADA, limpiar campos de cancelación
         if estado_actual == 'CANCELADA' and nuevo_estado == 'BORRADOR':
@@ -477,7 +485,29 @@ class Cotizacion(models.Model):
             except Exception:
                 pass
 
-    def total_pagado(self): return self.pagos.aggregate(Sum('monto'))['monto__sum'] or 0
+    def total_pagado(self):
+        """Total neto cobrado (ingresos - reembolsos)."""
+        return self.total_pagado_neto()
+
+    def total_pagado_neto(self, excluir_pk=None):
+        qs = self.pagos.all()
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+        ingresos = qs.filter(tipo='INGRESO').aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+        reembolsos = qs.filter(tipo='REEMBOLSO').aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+        return ingresos - reembolsos
+
+    def total_cobrado_bruto(self, excluir_pk=None):
+        qs = self.pagos.filter(tipo='INGRESO')
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+        return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+
+    def total_reembolsado(self, excluir_pk=None):
+        qs = self.pagos.filter(tipo='REEMBOLSO')
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+        return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
     def saldo_pendiente(self): return self.precio_final - self.total_pagado()
     def __str__(self): return f"{self.cliente} - {self.nombre_evento}"
     class Meta: 
@@ -512,6 +542,8 @@ class ItemCotizacion(models.Model):
 
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia Electrónica'), ('TARJETA_CREDITO', 'Tarjeta de Crédito'), ('TARJETA_DEBITO', 'Tarjeta de Débito'), ('CHEQUE', 'Cheque Nominativo'), ('DEPOSITO', 'Depósito Bancario'), ('PLATAFORMA', 'Plataforma'), ('CONDONACION', 'Condonación / Cortesía'), ('OTRO', 'Otro Método')]
+    TIPOS = [('INGRESO', 'Ingreso'), ('REEMBOLSO', 'Reembolso')]
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='INGRESO', verbose_name="Tipo")
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, 
                                  verbose_name="Registrado por")
@@ -533,16 +565,25 @@ class Pago(models.Model):
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas")
     
     def clean(self):
-        """Valida que el pago no exceda el saldo pendiente."""
-        if self.cotizacion_id:
-            total_pagado = self.cotizacion.pagos.exclude(pk=self.pk).aggregate(
-                Sum('monto'))['monto__sum'] or Decimal('0.00')
+        """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos)."""
+        if self.cotizacion_id and self.tipo == 'INGRESO':
+            total_pagado = self.cotizacion.total_pagado_neto(excluir_pk=self.pk)
             saldo_disponible = self.cotizacion.precio_final - total_pagado
 
             if self.monto > saldo_disponible + Decimal('0.50'):  # Tolerancia de 50 centavos
                 raise ValidationError({
                     'monto': f'El monto (${self.monto:,.2f}) excede el saldo pendiente (${saldo_disponible:,.2f}). '
                              f'Total cotización: ${self.cotizacion.precio_final:,.2f}, Ya pagado: ${total_pagado:,.2f}'
+                })
+
+        if self.cotizacion_id and self.tipo == 'REEMBOLSO':
+            # Un reembolso no puede exceder lo realmente cobrado
+            cobrado = self.cotizacion.total_cobrado_bruto(excluir_pk=self.pk)
+            reembolsado = self.cotizacion.total_reembolsado(excluir_pk=self.pk)
+            disponible = cobrado - reembolsado
+            if self.monto > disponible + Decimal('0.50'):
+                raise ValidationError({
+                    'monto': f'El reembolso (${self.monto:,.2f}) excede lo cobrado neto disponible (${disponible:,.2f}).'
                 })
 
     def save(self, *args, **kwargs):
