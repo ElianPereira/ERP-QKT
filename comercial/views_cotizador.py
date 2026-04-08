@@ -201,15 +201,12 @@ def cotizador_enviar(request):
         pass
 
     # ── Cliente ────────────────────────────────────────────────
-    cliente = Cliente.objects.filter(telefono=tel_d).first()
-    if not cliente:
-        cliente = Cliente.objects.create(
-            nombre=nombre.upper(), telefono=tel_d, origen='Web'
-        )
-    else:
-        if not cliente.nombre or cliente.nombre.startswith('PROSPECTO'):
-            cliente.nombre = nombre.upper()
-            cliente.save(update_fields=['nombre'])
+    from .services import get_or_create_cliente_desde_canal
+    cliente, _ = get_or_create_cliente_desde_canal(
+        telefono_raw=tel_d,
+        nombre_raw=nombre,
+        origen='Web',
+    )
 
     # ── Nombre del evento ──────────────────────────────────────
     nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pasadía', 'HOSPEDAJE': 'Hospedaje'}

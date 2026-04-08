@@ -982,17 +982,13 @@ def webhook_manychat(request):
         if not telefono:
             return JsonResponse({'status': 'error', 'message': 'Teléfono requerido'}, status=400)
 
-        telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
-        cliente = Cliente.objects.filter(telefono=telefono_limpio).first()
-        if not cliente:
-            cliente = Cliente.objects.create(
-                telefono=telefono_limpio,
-                nombre=nombre.strip().upper() if nombre else f'PROSPECTO WA ({telefono_limpio[-4:]})',
-                origen='WhatsApp'
-            )
-        elif nombre and cliente.nombre.startswith('Prospecto'):
-            cliente.nombre = nombre.strip().upper()
-            cliente.save(update_fields=['nombre'])
+        from .services import get_or_create_cliente_desde_canal
+        cliente, _ = get_or_create_cliente_desde_canal(
+            telefono_raw=telefono,
+            nombre_raw=nombre,
+            origen='WhatsApp',
+        )
+        telefono_limpio = cliente.telefono
 
         # =====================
         # 3. CREAR COTIZACIÓN
