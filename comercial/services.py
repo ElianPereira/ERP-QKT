@@ -16,7 +16,26 @@ def _es_nombre_generico(nombre: str) -> bool:
     return any(n.startswith(p) for p in NOMBRES_GENERICOS_PREFIJOS)
 
 
-def get_or_create_cliente_desde_canal(*, telefono_raw: str, nombre_raw: str, origen: str):
+def _email_valido(email: str) -> bool:
+    """Validación liviana de formato de email (sin tocar BD)."""
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+    if not email:
+        return False
+    try:
+        validate_email(email)
+        return True
+    except ValidationError:
+        return False
+
+
+def get_or_create_cliente_desde_canal(
+    *,
+    telefono_raw: str,
+    nombre_raw: str,
+    origen: str,
+    email_raw: str = '',
+):
     """
     Obtiene o crea un Cliente a partir de los datos crudos de un canal externo
     (webhook ManyChat, cotizador web, etc).
@@ -28,11 +47,14 @@ def get_or_create_cliente_desde_canal(*, telefono_raw: str, nombre_raw: str, ori
     - Si el cliente reusado tiene nombre genérico (PROSPECTO, PUBLICO EN GENERAL,
       vacío) y llega un nombre real, sobrescribe el nombre.
     - Si el cliente reusado ya tiene un nombre real, lo respeta.
+    - Email: se guarda solo si llega válido. En clientes existentes, NO se
+      sobrescribe si ya hay uno; solo se completa si está vacío.
 
     Args:
         telefono_raw: string crudo del canal (puede incluir +, espacios, etc)
         nombre_raw: nombre del cliente tal como llegó del canal
         origen: etiqueta de origen ('WhatsApp', 'Web', etc)
+        email_raw: email opcional del canal (se guarda solo si pasa validación)
 
     Returns:
         (cliente, created) — created=True si se creó uno nuevo
@@ -42,6 +64,8 @@ def get_or_create_cliente_desde_canal(*, telefono_raw: str, nombre_raw: str, ori
     telefono_limpio = ''.join(filter(str.isdigit, str(telefono_raw or '')))
     nombre_limpio = (nombre_raw or '').strip()
     nombre_upper = nombre_limpio.upper() if nombre_limpio else ''
+    email_limpio = (email_raw or '').strip().lower()
+    email_ok = _email_valido(email_limpio)
 
     # Sin teléfono válido → siempre nuevo, nunca matchear con fantasmas
     if len(telefono_limpio) < 10:
@@ -49,6 +73,7 @@ def get_or_create_cliente_desde_canal(*, telefono_raw: str, nombre_raw: str, ori
             telefono=telefono_limpio,
             nombre=nombre_upper or 'PROSPECTO SIN TELEFONO',
             origen=origen,
+            email=email_limpio if email_ok else '',
         )
         return cliente, True
 
@@ -58,13 +83,20 @@ def get_or_create_cliente_desde_canal(*, telefono_raw: str, nombre_raw: str, ori
             telefono=telefono_limpio,
             nombre=nombre_upper or f'PROSPECTO {origen.upper()} ({telefono_limpio[-4:]})',
             origen=origen,
+            email=email_limpio if email_ok else '',
         )
         return cliente, True
 
-    # Cliente existente: solo sobrescribimos el nombre si el actual es genérico
+    # Cliente existente: actualizamos campos vacíos sin pisar datos reales
+    update_fields = []
     if nombre_upper and _es_nombre_generico(cliente.nombre):
         cliente.nombre = nombre_upper
-        cliente.save(update_fields=['nombre'])
+        update_fields.append('nombre')
+    if email_ok and not cliente.email:
+        cliente.email = email_limpio
+        update_fields.append('email')
+    if update_fields:
+        cliente.save(update_fields=update_fields)
 
     return cliente, False
 

@@ -90,3 +90,59 @@ class GetOrCreateClienteDesdeCanalTest(TestCase):
         # Primero ya tenía nombre real, no se sobrescribe
         self.assertEqual(cliente2.nombre, 'PRIMERO')
         self.assertEqual(Cliente.objects.filter(telefono='9991111111').count(), 1)
+
+    def test_email_valido_se_guarda_en_cliente_nuevo(self):
+        cliente, created = get_or_create_cliente_desde_canal(
+            telefono_raw='9995550001',
+            nombre_raw='Sofia Ruiz',
+            origen='Web',
+            email_raw='Sofia@Correo.com',
+        )
+        self.assertTrue(created)
+        # Se normaliza a minúsculas
+        self.assertEqual(cliente.email, 'sofia@correo.com')
+
+    def test_email_invalido_se_ignora(self):
+        cliente, created = get_or_create_cliente_desde_canal(
+            telefono_raw='9995550002',
+            nombre_raw='Carlos',
+            origen='Web',
+            email_raw='no-es-un-email',
+        )
+        self.assertTrue(created)
+        self.assertEqual(cliente.email, '')
+
+    def test_email_vacio_no_falla(self):
+        cliente, created = get_or_create_cliente_desde_canal(
+            telefono_raw='9995550003',
+            nombre_raw='Ana',
+            origen='Web',
+            email_raw='',
+        )
+        self.assertTrue(created)
+        self.assertEqual(cliente.email, '')
+
+    def test_email_no_sobrescribe_si_cliente_ya_tiene(self):
+        Cliente.objects.create(
+            nombre='LUIS', telefono='9995550004', email='luis@viejo.com'
+        )
+        cliente, created = get_or_create_cliente_desde_canal(
+            telefono_raw='9995550004',
+            nombre_raw='Luis',
+            origen='Web',
+            email_raw='luis@nuevo.com',
+        )
+        self.assertFalse(created)
+        # NO se sobrescribe el email existente
+        self.assertEqual(cliente.email, 'luis@viejo.com')
+
+    def test_email_completa_si_cliente_existente_estaba_vacio(self):
+        Cliente.objects.create(nombre='ELENA', telefono='9995550005', email='')
+        cliente, created = get_or_create_cliente_desde_canal(
+            telefono_raw='9995550005',
+            nombre_raw='Elena',
+            origen='Web',
+            email_raw='elena@correo.com',
+        )
+        self.assertFalse(created)
+        self.assertEqual(cliente.email, 'elena@correo.com')

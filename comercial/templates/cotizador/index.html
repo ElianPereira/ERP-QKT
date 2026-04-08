@@ -350,6 +350,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <input type="tel" id="telefono" placeholder="Ej: 9991234567" autocomplete="tel" maxlength="15">
       <div class="campo-error" id="err-telefono">Ingresa un teléfono válido de 10 dígitos.</div>
     </div>
+    <div class="campo">
+      <label for="email">Correo electrónico <span style="opacity:.6;font-weight:400;">(opcional)</span></label>
+      <input type="email" id="email" placeholder="Ej: tunombre@correo.com" autocomplete="email" maxlength="120">
+      <div class="campo-error" id="err-email">Ingresa un correo válido o déjalo vacío.</div>
+    </div>
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(3)">← Atrás</button>
       <button class="btn-next" onclick="irA(5)">Siguiente →</button>
@@ -497,6 +502,10 @@ function validarPaso(paso) {
     if (!document.getElementById('nombre').value.trim()) { mostrarErr('err-nombre','nombre'); ok=false; }
     const tel = document.getElementById('telefono').value.replace(/\D/g,'');
     if (tel.length < 10) { mostrarErr('err-telefono','telefono'); ok=false; }
+    const email = document.getElementById('email').value.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      mostrarErr('err-email','email'); ok=false;
+    }
     if (!ok) return false;
   }
   return true;
@@ -520,6 +529,7 @@ function construirResumen() {
   const personas  = document.getElementById('personas').value;
   const nombre    = document.getElementById('nombre').value.trim();
   const tel       = document.getElementById('telefono').value.trim();
+  const email     = document.getElementById('email').value.trim();
   const notas     = document.getElementById('notas').value.trim();
   const tipoEv    = document.getElementById('tipo_evento')?.value || '';
   const hi        = document.getElementById('hora_inicio')?.value || '';
@@ -546,6 +556,7 @@ function construirResumen() {
   html += `<div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">${personas}</span></div>
     <div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">${nombre}</span></div>
     <div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">${tel}</span></div>`;
+  if (email) html += `<div class="resumen-item"><span class="resumen-key">Correo</span><span class="resumen-val">${email}</span></div>`;
   if (notas) html += `<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">${notas}</span></div>`;
   if (tagsHtml) html += `<div class="resumen-tags">${tagsHtml}</div>`;
 
@@ -566,6 +577,7 @@ async function enviarSolicitud() {
     tipo_evento:document.getElementById('tipo_evento')?.value || 'Evento',
     nombre:     document.getElementById('nombre').value.trim(),
     telefono:   document.getElementById('telefono').value.trim(),
+    email:      document.getElementById('email').value.trim(),
     notas:      document.getElementById('notas').value.trim(),
     ...extras,
   };
