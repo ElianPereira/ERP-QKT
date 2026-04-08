@@ -4,6 +4,71 @@ from django.conf import settings
 from .models import ItemCotizacion, ConstanteSistema
 
 
+# Nombres considerados "genéricos" — si un cliente existente tiene uno
+# de estos, se sobrescribe con el nombre real cuando llega del canal.
+NOMBRES_GENERICOS_PREFIJOS = ('PROSPECTO', 'PUBLICO EN GENERAL', 'PÚBLICO EN GENERAL')
+
+
+def _es_nombre_generico(nombre: str) -> bool:
+    if not nombre:
+        return True
+    n = nombre.strip().upper()
+    return any(n.startswith(p) for p in NOMBRES_GENERICOS_PREFIJOS)
+
+
+def get_or_create_cliente_desde_canal(*, telefono_raw: str, nombre_raw: str, origen: str):
+    """
+    Obtiene o crea un Cliente a partir de los datos crudos de un canal externo
+    (webhook ManyChat, cotizador web, etc).
+
+    Reglas:
+    - Si el teléfono no tiene al menos 10 dígitos, NUNCA matchea por teléfono
+      (evita colisiones con clientes fantasma de teléfono vacío). Crea uno nuevo.
+    - Si el teléfono es válido y existe un Cliente con ese teléfono, lo reusa.
+    - Si el cliente reusado tiene nombre genérico (PROSPECTO, PUBLICO EN GENERAL,
+      vacío) y llega un nombre real, sobrescribe el nombre.
+    - Si el cliente reusado ya tiene un nombre real, lo respeta.
+
+    Args:
+        telefono_raw: string crudo del canal (puede incluir +, espacios, etc)
+        nombre_raw: nombre del cliente tal como llegó del canal
+        origen: etiqueta de origen ('WhatsApp', 'Web', etc)
+
+    Returns:
+        (cliente, created) — created=True si se creó uno nuevo
+    """
+    from .models import Cliente
+
+    telefono_limpio = ''.join(filter(str.isdigit, str(telefono_raw or '')))
+    nombre_limpio = (nombre_raw or '').strip()
+    nombre_upper = nombre_limpio.upper() if nombre_limpio else ''
+
+    # Sin teléfono válido → siempre nuevo, nunca matchear con fantasmas
+    if len(telefono_limpio) < 10:
+        cliente = Cliente.objects.create(
+            telefono=telefono_limpio,
+            nombre=nombre_upper or 'PROSPECTO SIN TELEFONO',
+            origen=origen,
+        )
+        return cliente, True
+
+    cliente = Cliente.objects.filter(telefono=telefono_limpio).first()
+    if cliente is None:
+        cliente = Cliente.objects.create(
+            telefono=telefono_limpio,
+            nombre=nombre_upper or f'PROSPECTO {origen.upper()} ({telefono_limpio[-4:]})',
+            origen=origen,
+        )
+        return cliente, True
+
+    # Cliente existente: solo sobrescribimos el nombre si el actual es genérico
+    if nombre_upper and _es_nombre_generico(cliente.nombre):
+        cliente.nombre = nombre_upper
+        cliente.save(update_fields=['nombre'])
+
+    return cliente, False
+
+
 def calcular_desglose_proporcional(monto_pago, cotizacion):
     """
     Calcula el desglose fiscal proporcional de un pago basado en la cotización.
