@@ -919,6 +919,7 @@ def webhook_manychat(request):
         # =====================
         telefono = data.get('telefono_cliente', '')
         nombre = data.get('nombre_cliente', '')
+        email_cliente = str(data.get('email_cliente', '') or '').strip()
         tipo_servicio = data.get('tipo_servicio', 'Evento').strip()
         tipo_evento = data.get('tipo_evento', 'Evento General').strip()
         fecha_str = data.get('fecha_tentativa', '')
@@ -987,6 +988,7 @@ def webhook_manychat(request):
             telefono_raw=telefono,
             nombre_raw=nombre,
             origen='WhatsApp',
+            email_raw=email_cliente,
         )
         telefono_limpio = cliente.telefono
 

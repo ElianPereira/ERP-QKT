@@ -112,6 +112,7 @@ def cotizador_enviar(request):
     # ── Datos base ─────────────────────────────────────────────
     nombre    = str(data.get('nombre', '')).strip()
     telefono  = str(data.get('telefono', '')).strip()
+    email     = str(data.get('email', '')).strip()
     servicio  = str(data.get('servicio', '')).strip()      # EVENTO|PASADIA|HOSPEDAJE
     fecha_str = str(data.get('fecha', '')).strip()
     personas  = str(data.get('personas', '50')).strip()
@@ -206,6 +207,7 @@ def cotizador_enviar(request):
         telefono_raw=tel_d,
         nombre_raw=nombre,
         origen='Web',
+        email_raw=email,
     )
 
     # ── Nombre del evento ──────────────────────────────────────
