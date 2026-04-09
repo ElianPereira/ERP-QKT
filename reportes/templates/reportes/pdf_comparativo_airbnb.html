@@ -87,7 +87,7 @@
     <tbody>
         {% for l in por_listing %}
         <tr class="no-break">
-            <td class="text-bold">{{ l.anuncio__nombre }}</td>
+            <td class="text-bold">{{ l.anuncio__nombre|default:"Sin anuncio asignado" }}</td>
             <td class="center">{{ l.num_reservas }}</td>
             <td class="right">${{ l.total_bruto|floatformat:2|intcomma }}</td>
             <td class="right">${{ l.total_neto|floatformat:2|intcomma }}</td>

@@ -657,14 +657,37 @@ class ImportadorCSVPagosService:
             return Decimal('0.00')
     
     def _buscar_anuncio(self, texto: str) -> Optional[AnuncioAirbnb]:
-        """Busca anuncio por nombre parcial."""
+        """
+        Busca anuncio por nombre contra el texto del campo Espacio/Listing del CSV.
+
+        El CSV de Airbnb puede enviar el título completo del listing, que a veces
+        incluye prefijos del anfitrión (p.ej. "Quinta Ko'ox Tanil - Casa Miel Y Mar").
+        Se prueban tres estrategias en orden de precisión:
+          1. El texto del CSV está contenido en el nombre del anuncio (coincidencia exacta/parcial directa).
+          2. El nombre del anuncio está contenido en el texto del CSV (coincidencia inversa;
+             se prefiere el match más largo para evitar falsos positivos).
+          3. Sólo la primera palabra del texto del CSV aparece en el nombre del anuncio.
+        """
         if not texto:
             return None
-        
-        # Buscar coincidencia parcial
-        anuncio = AnuncioAirbnb.objects.filter(
-            Q(nombre__icontains=texto) | 
-            Q(nombre__icontains=texto.split()[0] if texto.split() else texto)
-        ).first()
-        
-        return anuncio
+
+        # Estrategia 1: el nombre del anuncio contiene el texto del CSV
+        anuncio = AnuncioAirbnb.objects.filter(nombre__icontains=texto).first()
+        if anuncio:
+            return anuncio
+
+        # Estrategia 2: el texto del CSV contiene el nombre del anuncio (lógica inversa)
+        # Se evalúa a nivel Python para poder usar LIKE en dirección invertida.
+        texto_lower = texto.lower()
+        mejor = None
+        for a in AnuncioAirbnb.objects.filter(activo=True):
+            if a.nombre.lower() in texto_lower:
+                # Preferir el match más largo para evitar coincidencias ambiguas
+                if mejor is None or len(a.nombre) > len(mejor.nombre):
+                    mejor = a
+        if mejor:
+            return mejor
+
+        # Estrategia 3: fallback por primera palabra del texto del CSV
+        primera_palabra = texto.split()[0] if texto.split() else texto
+        return AnuncioAirbnb.objects.filter(nombre__icontains=primera_palabra).first()

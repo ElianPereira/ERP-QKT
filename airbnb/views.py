@@ -585,6 +585,33 @@ def reporte_fiscal_airbnb(request):
             'porcentaje':      porcentaje,
         })
 
+    # Pagos sin anuncio asignado — se incluyen en los totales globales pero
+    # quedarían invisibles en el desglose por propiedad si no se agregan aquí.
+    p_sin_asignar = pagos.filter(anuncio__isnull=True)
+    if p_sin_asignar.exists():
+        agg_sa = p_sin_asignar.aggregate(
+            bruto    = Sum('monto_bruto'),
+            comision = Sum('comision_airbnb'),
+            isr      = Sum('retencion_isr'),
+            iva      = Sum('retencion_iva'),
+            neto     = Sum('monto_neto'),
+        )
+        noches_sa  = sum(pp.noches for pp in p_sin_asignar)
+        bruto_sa   = _d(agg_sa['bruto'])
+        porcentaje_sa = (bruto_sa / bruto * 100).quantize(Decimal('0.1')) if bruto > 0 else Decimal('0.0')
+        resumen_propiedades.append({
+            'nombre':          '⚠ Sin anuncio asignado',
+            'num_reservas':    p_sin_asignar.count(),
+            'noches':          noches_sa,
+            'tarifa_promedio': (bruto_sa / noches_sa).quantize(Decimal('0.01')) if noches_sa > 0 else Decimal('0.00'),
+            'bruto':           bruto_sa,
+            'comision':        _d(agg_sa['comision']),
+            'isr':             _d(agg_sa['isr']),
+            'iva':             _d(agg_sa['iva']),
+            'neto':            _d(agg_sa['neto']),
+            'porcentaje':      porcentaje_sa,
+        })
+
     # ── Contexto ──────────────────────────────────────────────
     context = {
         'pagos':                pagos,
