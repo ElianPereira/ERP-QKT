@@ -12,6 +12,94 @@ from comercial.models import Cliente, Cotizacion, Pago
 from facturacion.choices import FormaPago, MetodoPago, RegimenFiscal, UsoCFDI
 
 
+class EmisorFiscal(models.Model):
+    """
+    Emisores fiscales habilitados para emitir CFDI desde el ERP.
+    Cada unidad de negocio (Eventos, Airbnb, etc.) tiene su propio emisor.
+
+    Los CSDs (.cer y .key) se cargan UNA sola vez en Facturama (cuenta API
+    Multiemisor). Este modelo guarda los datos NO secretos del emisor que
+    se mandan en cada petición CFDI. Las credenciales de Facturama viven
+    en variables de entorno (FACTURAMA_USER/PASS).
+    """
+    # ─── Identificación ───────────────────────────────────────
+    nombre_interno = models.CharField(
+        max_length=100,
+        unique=True,
+        verbose_name="Nombre interno",
+        help_text="Nombre corto para distinguir en el admin (ej: 'Eventos Elian')"
+    )
+    unidad_negocio = models.ForeignKey(
+        'contabilidad.UnidadNegocio',
+        on_delete=models.PROTECT,
+        related_name='emisores_fiscales',
+        null=True,
+        blank=True,
+        verbose_name="Unidad de negocio"
+    )
+
+    # ─── Datos fiscales ───────────────────────────────────────
+    rfc = models.CharField(
+        max_length=13,
+        unique=True,
+        verbose_name="RFC"
+    )
+    razon_social = models.CharField(
+        max_length=300,
+        verbose_name="Razón Social",
+        help_text="Como aparece en la Constancia de Situación Fiscal"
+    )
+    regimen_fiscal = models.CharField(
+        max_length=3,
+        choices=RegimenFiscal.choices,
+        verbose_name="Régimen Fiscal"
+    )
+    codigo_postal = models.CharField(
+        max_length=5,
+        verbose_name="C.P. Fiscal"
+    )
+
+    # ─── Configuración de facturación ─────────────────────────
+    serie_folio = models.CharField(
+        max_length=10,
+        default='A',
+        verbose_name="Serie de folio",
+        help_text="Serie que se usará al emitir CFDIs (ej: A, WEB, EVT)"
+    )
+    lugar_expedicion = models.CharField(
+        max_length=5,
+        blank=True,
+        verbose_name="Lugar de expedición",
+        help_text="CP del lugar de expedición. Si se deja vacío se usa el CP fiscal."
+    )
+
+    # ─── Estado ───────────────────────────────────────────────
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Solo los emisores activos pueden emitir CFDIs"
+    )
+    notas = models.TextField(
+        blank=True,
+        verbose_name="Notas internas"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Emisor Fiscal"
+        verbose_name_plural = "Emisores Fiscales"
+        ordering = ['nombre_interno']
+
+    def __str__(self):
+        return f"{self.nombre_interno} ({self.rfc})"
+
+    @property
+    def lugar_expedicion_efectivo(self):
+        """Retorna el lugar de expedición o el CP fiscal si no está definido."""
+        return self.lugar_expedicion or self.codigo_postal
+
+
 class ConfiguracionContador(models.Model):
     """
     Datos del contador para envío de solicitudes de factura.
@@ -79,6 +167,15 @@ class SolicitudFactura(models.Model):
         blank=True,
         verbose_name="Pago Origen",
         related_name="solicitudes_factura"
+    )
+    emisor = models.ForeignKey(
+        'EmisorFiscal',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='solicitudes',
+        verbose_name="Emisor Fiscal",
+        help_text="RFC desde el que se emitirá este CFDI"
     )
 
     # ─── Datos para facturar ──────────────────────────────────

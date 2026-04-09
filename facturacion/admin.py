@@ -14,7 +14,12 @@ from django.http import HttpResponseRedirect, HttpResponse, JsonResponse
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import SolicitudFactura, ConfiguracionContador
+from .models import SolicitudFactura, ConfiguracionContador, EmisorFiscal
+from .services.facturama_client import FacturamaError
+from .services.facturama_service import (
+    emitir_cfdi_desde_solicitud,
+    SolicitudNoFacturableError,
+)
 from decimal import Decimal
 from django.template.loader import render_to_string
 from django.core.files.base import ContentFile
@@ -118,6 +123,37 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
     return False, f"Error envío ({resp_send.status_code}): {resp_send.text[:200]}"
 
 
+@admin.register(EmisorFiscal)
+class EmisorFiscalAdmin(admin.ModelAdmin):
+    list_display = [
+        'nombre_interno', 'rfc', 'razon_social',
+        'regimen_fiscal', 'unidad_negocio', 'serie_folio', 'activo',
+    ]
+    list_filter = ['activo', 'regimen_fiscal', 'unidad_negocio']
+    search_fields = ['nombre_interno', 'rfc', 'razon_social']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Identificación', {
+            'fields': ('nombre_interno', 'unidad_negocio', 'activo'),
+        }),
+        ('Datos fiscales', {
+            'fields': (
+                ('rfc', 'razon_social'),
+                ('regimen_fiscal', 'codigo_postal'),
+                'lugar_expedicion',
+            ),
+        }),
+        ('Facturación', {
+            'fields': ('serie_folio',),
+        }),
+        ('Notas', {'fields': ('notas',), 'classes': ('collapse',)}),
+        ('Auditoría', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+
 @admin.register(ConfiguracionContador)
 class ConfiguracionContadorAdmin(admin.ModelAdmin):
     list_display = ['nombre', 'email', 'telefono_whatsapp', 'activo']
@@ -135,10 +171,10 @@ class ConfiguracionContadorAdmin(admin.ModelAdmin):
 @admin.register(SolicitudFactura)
 class SolicitudFacturaAdmin(admin.ModelAdmin):
     list_display = [
-        'folio_display', 'cliente_display', 'monto_display',
+        'folio_display', 'cliente_display', 'emisor_display', 'monto_display',
         'forma_pago', 'fecha_display', 'estado_display', 'acciones_display',
     ]
-    list_filter    = ['estado', 'forma_pago', 'fecha_solicitud']
+    list_filter    = ['estado', 'emisor', 'forma_pago', 'fecha_solicitud']
     search_fields  = ['cliente__nombre', 'rfc', 'razon_social', 'concepto']
     date_hierarchy = 'fecha_solicitud'
     ordering       = ['-fecha_solicitud']
@@ -149,6 +185,14 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Cliente', {'fields': ('cliente',)}),
+        ('Emisor Fiscal (RFC desde el que se emite)', {
+            'fields': ('emisor',),
+            'description': (
+                'Elige el RFC emisor. Las nuevas solicitudes creadas '
+                'desde pagos se asignan automáticamente según la unidad '
+                'de negocio.'
+            ),
+        }),
         ('Datos Fiscales', {
             'fields': (('rfc', 'razon_social'), ('codigo_postal', 'regimen_fiscal'), 'uso_cfdi')
         }),
@@ -175,6 +219,17 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="color:#4CAF50; font-weight:600;">SOL-{}</span>',
             str(obj.id).zfill(4)
+        )
+
+    @admin.display(description="Emisor", ordering="emisor__nombre_interno")
+    def emisor_display(self, obj):
+        if not obj.emisor:
+            return format_html(
+                '<span style="color:#e67e22;">— sin emisor —</span>'
+            )
+        return format_html(
+            '<span style="color:#8e44ad; font-weight:600;">{}</span>',
+            obj.emisor.nombre_interno,
         )
 
     @admin.display(description="Cliente", ordering="cliente__nombre")
@@ -363,7 +418,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
     # ─── Actions ──────────────────────────────────────────────
 
-    actions = ['marcar_enviadas', 'marcar_canceladas']
+    actions = ['marcar_enviadas', 'marcar_canceladas', 'emitir_ante_sat']
 
     @admin.action(description="Marcar como enviadas")
     def marcar_enviadas(self, request, queryset):
@@ -377,6 +432,39 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     def marcar_canceladas(self, request, queryset):
         count = queryset.exclude(estado='FACTURADA').update(estado='CANCELADA')
         self.message_user(request, f"{count} solicitud(es) cancelada(s).")
+
+    @admin.action(description="Emitir CFDI ante el SAT (Facturama)")
+    def emitir_ante_sat(self, request, queryset):
+        """
+        Emite cada solicitud seleccionada como CFDI ante el SAT.
+        Omite las ya facturadas/canceladas y reporta errores uno por uno.
+        """
+        ok = 0
+        errores = []
+        for solicitud in queryset.select_related('emisor', 'cliente'):
+            try:
+                resultado = emitir_cfdi_desde_solicitud(solicitud)
+                ok += 1
+                messages.success(
+                    request,
+                    f"SOL-{solicitud.pk:04d} timbrada: UUID {resultado.uuid}"
+                )
+            except SolicitudNoFacturableError as exc:
+                errores.append(f"SOL-{solicitud.pk:04d}: {exc.message}")
+            except FacturamaError as exc:
+                errores.append(f"SOL-{solicitud.pk:04d}: {exc.message}")
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "Error inesperado emitiendo SolicitudFactura #%s", solicitud.pk
+                )
+                errores.append(
+                    f"SOL-{solicitud.pk:04d}: error inesperado ({exc})"
+                )
+
+        if ok:
+            messages.success(request, f"{ok} CFDI(s) emitido(s) correctamente.")
+        for err in errores:
+            messages.error(request, err)
 
     class Media:
         js = ('admin/js/solicitud_factura.js',)
