@@ -571,6 +571,7 @@ class ImportadorCSVPagosService:
         # Crear pago
         pago = PagoAirbnb.objects.create(
             anuncio=anuncio,
+            espacio_csv=datos.get('espacio', ''),
             codigo_confirmacion=codigo,
             huesped=datos['huesped'],
             fecha_checkin=datos['fecha_checkin'],

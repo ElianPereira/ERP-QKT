@@ -182,18 +182,20 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
         'estado',
     )
     list_filter = ('estado', 'anuncio', 'fecha_checkin')
-    search_fields = ('codigo_confirmacion', 'huesped')
+    search_fields = ('codigo_confirmacion', 'huesped', 'espacio_csv')
     date_hierarchy = 'fecha_checkin'
     readonly_fields = (
-        'retencion_isr', 
-        'retencion_iva', 
+        'retencion_isr',
+        'retencion_iva',
+        'espacio_csv',
         'archivo_csv_origen',
         'created_by',
-        'created_at', 
+        'created_at',
         'updated_at'
     )
     raw_id_fields = ('anuncio', 'reserva')
-    
+    actions = ['action_reasignar_anuncio']
+
     fieldsets = (
         ('Reserva', {
             'fields': ('anuncio', 'reserva', 'codigo_confirmacion', 'huesped')
@@ -209,10 +211,33 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
             'fields': ('estado', 'notas')
         }),
         ('Auditoría', {
-            'fields': ('archivo_csv_origen', 'created_by', 'created_at', 'updated_at'),
+            'fields': ('espacio_csv', 'archivo_csv_origen', 'created_by', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+
+    @admin.action(description="Intentar reasignar anuncio automáticamente")
+    def action_reasignar_anuncio(self, request, queryset):
+        from airbnb.management.commands.reasignar_anuncios_airbnb import Command as ReasignarCmd
+        cmd = ReasignarCmd()
+        asignados = 0
+        sin_match = 0
+        for pago in queryset.filter(anuncio__isnull=True):
+            anuncio, _ = cmd._resolver_anuncio(pago)
+            if anuncio:
+                pago.anuncio = anuncio
+                pago.save(update_fields=['anuncio'])
+                asignados += 1
+            else:
+                sin_match += 1
+        if asignados:
+            self.message_user(request, f"{asignados} pago(s) asignados correctamente.", messages.SUCCESS)
+        if sin_match:
+            self.message_user(
+                request,
+                f"{sin_match} pago(s) no encontraron coincidencia — verifica que el anuncio exista con el nombre correcto.",
+                messages.WARNING,
+            )
     
     class Media:
         css = MEDIA_CONFIG['css']

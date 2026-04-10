@@ -249,6 +249,12 @@ class PagoAirbnb(models.Model):
     
     # Auditoría
     notas = models.TextField(blank=True)
+    espacio_csv = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Espacio (CSV)",
+        help_text="Nombre del listing tal como llegó en el CSV de Airbnb"
+    )
     archivo_csv_origen = models.CharField(
         max_length=255, 
         blank=True,
