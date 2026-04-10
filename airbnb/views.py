@@ -132,7 +132,7 @@ def reporte_pagos_airbnb(request):
     
     try:
         año = int(año)
-    except:
+    except (ValueError, TypeError):
         año = hoy.year
     
     pagos = PagoAirbnb.objects.filter(estado='PAGADO')
@@ -142,8 +142,8 @@ def reporte_pagos_airbnb(request):
     if mes:
         try:
             pagos = pagos.filter(fecha_checkin__month=int(mes))
-        except:
-            pass
+        except (ValueError, TypeError):
+            mes = ''
     
     totales = pagos.aggregate(
         total_bruto=Sum('monto_bruto'),
@@ -262,9 +262,10 @@ def exportar_reporte_excel(pagos, totales, año):
     ws[f'A{nota_row}'] = 'Régimen: Actividad Empresarial - Plataformas Tecnológicas (Art. 113-A LISR)'
     ws[f'A{nota_row}'].font = Font(italic=True, color="666666")
     
+    from openpyxl.utils import get_column_letter
     column_widths = [15, 25, 20, 12, 12, 12, 12, 10, 10, 12]
     for i, width in enumerate(column_widths, 1):
-        ws.column_dimensions[chr(64 + i)].width = width
+        ws.column_dimensions[get_column_letter(i)].width = width
     
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -514,7 +515,8 @@ def reporte_fiscal_airbnb(request):
     pagos = PagoAirbnb.objects.filter(
         fecha_checkin__month=mes,
         fecha_checkin__year=anio,
-    ).exclude(estado='CANCELADO').select_related('anuncio').order_by('anuncio', 'fecha_checkin')
+        estado='PAGADO',
+    ).select_related('anuncio').order_by('anuncio', 'fecha_checkin')
 
     # ── Totales globales ──────────────────────────────────────
     agg = pagos.aggregate(

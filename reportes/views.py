@@ -103,7 +103,10 @@ def reporte_balanza(request):
     fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
     fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
     unidad_id = request.GET.get('unidad_negocio')
-    nivel = int(request.GET.get('nivel', '3'))
+    try:
+        nivel = int(request.GET.get('nivel', '3'))
+    except (ValueError, TypeError):
+        nivel = 3
 
     unidad = None
     if unidad_id:
@@ -235,8 +238,13 @@ def reporte_libro_mayor(request):
     if unidad_id:
         unidad = get_object_or_404(UnidadNegocio, pk=unidad_id)
 
+    try:
+        cuenta_id = int(cuenta_id)
+    except (ValueError, TypeError):
+        return HttpResponse("El parámetro 'cuenta_id' debe ser un número entero.", status=400)
+
     datos = LibroMayorService.generar(
-        cuenta_id=int(cuenta_id),
+        cuenta_id=cuenta_id,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
         unidad_negocio=unidad,
@@ -275,8 +283,13 @@ def reporte_auxiliar(request):
     if unidad_id:
         unidad = get_object_or_404(UnidadNegocio, pk=unidad_id)
 
+    try:
+        cuenta_padre_id = int(cuenta_padre_id)
+    except (ValueError, TypeError):
+        return HttpResponse("El parámetro 'cuenta_padre_id' debe ser un número entero.", status=400)
+
     datos = AuxiliarCuentasService.generar(
-        cuenta_padre_id=int(cuenta_padre_id),
+        cuenta_padre_id=cuenta_padre_id,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
         unidad_negocio=unidad,

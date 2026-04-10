@@ -41,7 +41,7 @@ class FacturasEmitidasService:
                 'cliente': f.cliente.nombre if f.cliente else '—',
                 'rfc': f.cliente.rfc if f.cliente else '—',
                 'cotizacion': folio_cot,
-                'concepto': f.concepto[:60],
+                'concepto': (f.concepto or '')[:60],
                 'monto': f.monto,
                 'forma_pago': forma,
                 'metodo_pago': f.get_metodo_pago_display(),

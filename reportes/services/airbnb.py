@@ -84,8 +84,10 @@ class OcupacionService:
             )
             data_por_listing.append(fila)
 
-        # Totales generales por mes
+        # Totales generales por mes + acumulado global
         totales_meses = []
+        total_noches_global = 0
+        total_disponibles_global = 0
         for mes in meses:
             t = totales_por_mes[mes['key']]
             tasa = (Decimal(t['noches']) / Decimal(t['disponibles']) * 100).quantize(Decimal('0.1')) if t['disponibles'] > 0 else Decimal('0.0')
@@ -94,6 +96,13 @@ class OcupacionService:
                 'disponibles': t['disponibles'],
                 'tasa': tasa,
             })
+            total_noches_global += t['noches']
+            total_disponibles_global += t['disponibles']
+
+        tasa_global = (
+            (Decimal(total_noches_global) / Decimal(total_disponibles_global) * 100).quantize(Decimal('0.1'))
+            if total_disponibles_global > 0 else Decimal('0.0')
+        )
 
         return {
             'fecha_inicio': fecha_inicio,
@@ -101,6 +110,7 @@ class OcupacionService:
             'meses': meses,
             'data': data_por_listing,
             'totales_meses': totales_meses,
+            'tasa_global_total': tasa_global,
         }
 
     @classmethod
