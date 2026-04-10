@@ -74,7 +74,7 @@ def _redondear_personas(n, es_pasadia=False):
 def _enviar_wa_negocio(mensaje: str) -> bool:
     wa_token    = config('WA_CLOUD_API_TOKEN', default='')
     wa_phone_id = config('WA_PHONE_NUMBER_ID', default='')
-    wa_negocio  = config('WA_NUMERO_NEGOCIO', default='529994457178')
+    wa_negocio  = config('WA_NUMERO_NEGOCIO', default='529991699191')
     if not wa_token or not wa_phone_id:
         return False
     try:

@@ -115,7 +115,7 @@ def portal_evento(request, token):
     porcentaje = cotizacion.porcentaje_pagado
     
     # WhatsApp URL
-    wa_numero = '529999999999'  # Cambiar por tu número real
+    wa_numero = '529991699191'
     try:
         from .models import ConstanteSistema
         obj = ConstanteSistema.objects.get(clave='WHATSAPP_NEGOCIO')
