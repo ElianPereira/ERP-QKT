@@ -186,6 +186,12 @@ JAZZMIN_SETTINGS = {
         "comercial.MovimientoInventario":   "fas fa-boxes",
         "comercial.PortalCliente":          "fas fa-door-open",
         "comercial.ConstanteSistema":       "fas fa-cog",
+        "comercial.ContratoServicio":       "fas fa-handshake",
+        "comercial.Espacio":                "fas fa-map-marker-alt",
+        "comercial.AsignacionEspacio":      "fas fa-map-pin",
+        "comercial.AsignacionPersonal":     "fas fa-user-check",
+        "comercial.PlanPago":               "fas fa-calendar-alt",
+        "comercial.RecordatorioPago":       "fas fa-bell",
 
         # AIRBNB
         "airbnb":                           "fas fa-bed",
@@ -213,6 +219,7 @@ JAZZMIN_SETTINGS = {
         "facturacion":                      "fas fa-stamp",
         "facturacion.ClienteFiscal":        "fas fa-id-card",
         "facturacion.SolicitudFactura":     "fas fa-file-signature",
+        "facturacion.ConfiguracionContador": "fas fa-user-cog",
 
         # COMUNICACIÓN
         "comunicacion":                     "fas fa-comments",
@@ -256,6 +263,12 @@ JAZZMIN_SETTINGS = {
         "comercial.MovimientoInventario",
         "comercial.PortalCliente",
         "comercial.ConstanteSistema",
+        "comercial.ContratoServicio",
+        "comercial.Espacio",
+        "comercial.AsignacionEspacio",
+        "comercial.AsignacionPersonal",
+        "comercial.PlanPago",
+        "comercial.RecordatorioPago",
 
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",
@@ -283,6 +296,7 @@ JAZZMIN_SETTINGS = {
         "facturacion",
         "facturacion.ClienteFiscal",
         "facturacion.SolicitudFactura",
+        "facturacion.ConfiguracionContador",
 
         # === COMUNICACIÓN ===
         "comunicacion",
