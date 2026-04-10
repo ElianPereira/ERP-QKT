@@ -137,13 +137,28 @@ class Command(BaseCommand):
         if reservas_fecha.count() == 1:
             return reservas_fecha.first().anuncio, "fechas_exactas"
 
-        # Estrategia 4: por fecha de check-in (tolerancia ±0 días) cuando hay un único anuncio activo
+        # Estrategia 4: por fecha de check-in único en ese día
         reservas_checkin = ReservaAirbnb.objects.filter(
             fecha_inicio=pago.fecha_checkin,
         ).exclude(estado__in=["CANCELADA", "BLOQUEADA"]).select_related("anuncio")
 
         if reservas_checkin.count() == 1:
             return reservas_checkin.first().anuncio, "checkin_único"
+
+        # Estrategia 5: fechas con tolerancia ±1 día en checkout
+        # (a veces Airbnb CSV y iCal difieren un día en fecha_fin)
+        from datetime import timedelta
+        reservas_tolerancia = ReservaAirbnb.objects.filter(
+            fecha_inicio=pago.fecha_checkin,
+            fecha_fin__in=[
+                pago.fecha_checkout,
+                pago.fecha_checkout + timedelta(days=1),
+                pago.fecha_checkout - timedelta(days=1),
+            ],
+        ).exclude(estado__in=["CANCELADA", "BLOQUEADA"]).select_related("anuncio")
+
+        if reservas_tolerancia.count() == 1:
+            return reservas_tolerancia.first().anuncio, "fechas_tolerancia±1"
 
         return None, ""
 

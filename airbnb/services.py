@@ -565,12 +565,34 @@ class ImportadorCSVPagosService:
         if monto_neto <= 0:
             monto_neto = monto_bruto - datos['tarifa_servicio'] - datos['retencion_isr'] - datos['retencion_iva']
         
-        # Buscar anuncio por nombre
+        # Buscar anuncio por nombre del espacio
         anuncio = self._buscar_anuncio(datos['espacio'])
-        
+        reserva_vinculada = None
+
+        # Si no se encontró anuncio por nombre, intentar por código de confirmación
+        # cruzando con ReservaAirbnb (cuyo uid_ical contiene el código de Airbnb).
+        if anuncio is None and codigo:
+            reserva_vinculada = ReservaAirbnb.objects.filter(
+                uid_ical__icontains=codigo
+            ).exclude(estado='CANCELADA').select_related('anuncio').first()
+            if reserva_vinculada:
+                anuncio = reserva_vinculada.anuncio
+
+        # Si tampoco se encontró por código, intentar por coincidencia exacta de fechas.
+        if anuncio is None:
+            fecha_checkout_busq = fecha_checkout or datos['fecha_checkin']
+            reservas_fecha = ReservaAirbnb.objects.filter(
+                fecha_inicio=datos['fecha_checkin'],
+                fecha_fin=fecha_checkout_busq,
+            ).exclude(estado__in=['CANCELADA', 'BLOQUEADA']).select_related('anuncio')
+            if reservas_fecha.count() == 1:
+                reserva_vinculada = reservas_fecha.first()
+                anuncio = reserva_vinculada.anuncio
+
         # Crear pago
         pago = PagoAirbnb.objects.create(
             anuncio=anuncio,
+            reserva=reserva_vinculada,
             espacio_csv=datos.get('espacio', ''),
             codigo_confirmacion=codigo,
             huesped=datos['huesped'],
