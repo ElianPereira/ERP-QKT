@@ -175,16 +175,16 @@ JAZZMIN_SETTINGS = {
         "comercial":                        "fas fa-store",
         "comercial.Cotizacion":             "fas fa-file-invoice-dollar",
         "comercial.Cliente":                "fas fa-user-friends",
-        "comercial.Pago":                   "fas fa-dollar-sign",
+        "comercial.Pago":                   "fas fa-credit-card",
         "comercial.Gasto":                  "fas fa-receipt",
         "comercial.Producto":               "fas fa-box-open",
         "comercial.SubProducto":            "fas fa-cubes",
-        "comercial.Insumo":                 "fas fa-wine-bottle",
+        "comercial.Insumo":                 "fas fa-tools",
         "comercial.PlantillaBarra":         "fas fa-cocktail",
         "comercial.Proveedor":              "fas fa-truck",
         "comercial.Compra":                 "fas fa-shopping-cart",
         "comercial.MovimientoInventario":   "fas fa-boxes",
-        "comercial.PortalCliente":          "fas fa-globe",
+        "comercial.PortalCliente":          "fas fa-door-open",
         "comercial.ConstanteSistema":       "fas fa-cog",
 
         # AIRBNB
@@ -205,20 +205,27 @@ JAZZMIN_SETTINGS = {
         "contabilidad.configuracioncontable":   "fas fa-cogs",
 
         # NÓMINA
+        "nomina":                           "fas fa-money-check-alt",
         "nomina.Empleado":                  "fas fa-user-tie",
         "nomina.ReciboNomina":              "fas fa-file-contract",
 
         # FACTURACIÓN
-        "facturacion.ClienteFiscal":        "fas fa-building",
+        "facturacion":                      "fas fa-stamp",
+        "facturacion.ClienteFiscal":        "fas fa-id-card",
         "facturacion.SolicitudFactura":     "fas fa-file-signature",
 
+        # COMUNICACIÓN
+        "comunicacion":                     "fas fa-comments",
+        "comunicacion.ComunicacionCliente": "fas fa-paper-plane",
+
         # AUTH
+        "auth":                             "fas fa-shield-alt",
         "auth.user":                        "fas fa-user",
         "auth.group":                       "fas fa-users-cog",
 
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
-        "reportes.reportegenerado":          "fas fa-history",
+        "reportes.reportegenerado":          "fas fa-clipboard-list",
     },
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -276,6 +283,10 @@ JAZZMIN_SETTINGS = {
         "facturacion",
         "facturacion.ClienteFiscal",
         "facturacion.SolicitudFactura",
+
+        # === COMUNICACIÓN ===
+        "comunicacion",
+        "comunicacion.ComunicacionCliente",
 
         # === REPORTES ===
         "reportes",
