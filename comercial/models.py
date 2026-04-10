@@ -186,9 +186,64 @@ class MovimientoInventario(models.Model):
 
 
 # ==========================================
-# 1.5 PLANTILLA DE BARRA
+# 1.5 CATÁLOGO DE BARRA (DATA-DRIVEN)
 # ==========================================
+class GrupoBarra(models.Model):
+    """Agrupación de categorías de barra. Ej: 'Licores Nacionales', 'Licores Premium'."""
+    clave = models.CharField(max_length=40, unique=True,
+        help_text="Identificador interno. Ej: ALCOHOL_NACIONAL")
+    nombre = models.CharField(max_length=100, verbose_name="Nombre para mostrar")
+    color = models.CharField(max_length=7, default='#666666',
+        help_text="Color hex para la UI. Ej: #e67e22")
+    peso_calculadora = models.PositiveIntegerField(default=0,
+        verbose_name="Peso en calculadora",
+        help_text="Peso relativo para distribución de tragos. "
+                  "Ej: cerveza=55, nacional=35. 0 = no participa en cálculo de tragos.")
+    campo_cotizacion = models.CharField(max_length=50, blank=True,
+        help_text="Campo booleano en Cotizacion que activa este grupo. "
+                  "Ej: incluye_cerveza, incluye_licor_nacional")
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Grupo de Barra"
+        verbose_name_plural = "Grupos de Barra"
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class CategoriaBarra(models.Model):
+    """Categoría específica dentro de un grupo. Ej: 'Tequila Nacional' en 'Licores Nacionales'."""
+    grupo = models.ForeignKey(GrupoBarra, on_delete=models.CASCADE,
+        related_name='categorias', verbose_name="Grupo")
+    clave = models.CharField(max_length=40, unique=True,
+        help_text="Identificador interno. Ej: TEQUILA_NAC")
+    nombre = models.CharField(max_length=100, verbose_name="Nombre para mostrar")
+    proporcion_default = models.DecimalField(max_digits=4, decimal_places=2,
+        default=Decimal('1.00'), verbose_name="Proporción dentro del grupo",
+        help_text="0.40 = 40% del total de botellas/unidades de su grupo")
+    unidad_compra = models.CharField(max_length=30, default='Botellas',
+        help_text="Unidad para lista de compras: Botellas, Cajas, Bolsas, Kg, etc.")
+    unidad_contenido = models.DecimalField(max_digits=6, decimal_places=2,
+        default=Decimal('1.00'),
+        help_text="Litros/kg por unidad de compra. Ej: botella 2.5L = 2.50")
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Categoría de Barra"
+        verbose_name_plural = "Categorías de Barra"
+        ordering = ['grupo', 'orden', 'nombre']
+
+    def __str__(self):
+        return f"{self.nombre} ({self.grupo.nombre})"
+
+
 class PlantillaBarra(models.Model):
+    """Mapeo de una categoría de barra a un insumo real del catálogo. Soporta N insumos por categoría."""
+    # Campos legacy (se eliminarán en migración cleanup)
     CATEGORIAS_BARRA = [
         ('CERVEZA', 'Cerveza'),
         ('TEQUILA_NAC', 'Tequila Nacional'),
@@ -210,7 +265,6 @@ class PlantillaBarra(models.Model):
         ('CAFE', 'Café Espresso'),
         ('SERVILLETAS', 'Servilletas / Popotes'),
     ]
-    
     GRUPOS = [
         ('ALCOHOL_NACIONAL', 'Licores Nacionales'),
         ('ALCOHOL_PREMIUM', 'Licores Premium'),
@@ -220,26 +274,45 @@ class PlantillaBarra(models.Model):
         ('COCTELERIA', 'Frutas y Verduras'),
         ('CONSUMIBLE', 'Abarrotes y Consumibles'),
     ]
-    
-    categoria = models.CharField(max_length=30, choices=CATEGORIAS_BARRA, verbose_name="Concepto de Barra")
-    grupo = models.CharField(max_length=30, choices=GRUPOS, verbose_name="Grupo en Lista de Compras",
-                             help_text="Sección donde aparece en la lista de compras")
-    insumo = models.ForeignKey(Insumo, on_delete=models.CASCADE, verbose_name="Insumo del Catálogo",
-                               help_text="Selecciona el insumo real del catálogo")
-    proporcion = models.DecimalField(max_digits=4, decimal_places=2, default=1.00, 
-                                      verbose_name="Proporción", 
-                                      help_text="Ej: 0.40 = 40% del total de su grupo de alcohol")
+    categoria = models.CharField(max_length=30, choices=CATEGORIAS_BARRA,
+        verbose_name="Concepto de Barra", blank=True, default='')
+    grupo = models.CharField(max_length=30, choices=GRUPOS,
+        verbose_name="Grupo en Lista de Compras", blank=True, default='',
+        help_text="Sección donde aparece en la lista de compras")
+
+    # Nuevo campo data-driven (FK a CategoriaBarra)
+    categoria_ref = models.ForeignKey(CategoriaBarra, on_delete=models.CASCADE,
+        related_name='plantillas', verbose_name="Categoría de Barra",
+        null=True, blank=True)
+    insumo = models.ForeignKey(Insumo, on_delete=models.CASCADE,
+        verbose_name="Insumo del Catálogo",
+        help_text="Selecciona el insumo real del catálogo")
+    proporcion = models.DecimalField(max_digits=4, decimal_places=2, default=1.00,
+        verbose_name="Proporción",
+        help_text="Proporción de este insumo dentro de su categoría. "
+                  "Si hay 2 tequilas, cada uno podría ser 0.50.")
     activo = models.BooleanField(default=True)
     orden = models.PositiveIntegerField(default=0, help_text="Orden de aparición en la lista")
-    
+    es_default = models.BooleanField(default=False,
+        help_text="Insumo preferido para cálculo de costo. Solo uno por categoría.")
+
     class Meta:
         verbose_name = "Plantilla de Barra"
         verbose_name_plural = "Plantilla de Barra"
         ordering = ['grupo', 'orden', 'categoria']
         unique_together = ['categoria', 'insumo']
-    
+
+    def get_categoria_obj(self):
+        """Retorna CategoriaBarra si existe, None si no."""
+        return self.categoria_ref
+
+    def get_grupo_obj(self):
+        """Retorna GrupoBarra vía categoria_ref si existe."""
+        return self.categoria_ref.grupo if self.categoria_ref else None
+
     def __str__(self):
-        return f"{self.get_categoria_display()} → {self.insumo.nombre} ({self.proporcion*100:.0f}%)"
+        cat_name = self.categoria_ref.nombre if self.categoria_ref else self.get_categoria_display()
+        return f"{cat_name} → {self.insumo.nombre} ({self.proporcion*100:.0f}%)"
 
 
 # ==========================================

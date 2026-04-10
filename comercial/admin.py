@@ -14,6 +14,7 @@ from .models import (
     Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
     MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago,
     Espacio, AsignacionEspacio, AsignacionPersonal,
+    GrupoBarra, CategoriaBarra,
 )
 from .services import CalculadoraBarraService
 
@@ -158,28 +159,60 @@ class MovimientoInventarioAdmin(admin.ModelAdmin):
 # ==========================================
 # PLANTILLA DE BARRA
 # ==========================================
+@admin.register(GrupoBarra)
+class GrupoBarraAdmin(admin.ModelAdmin):
+    list_display = ('clave', 'nombre', 'color_badge', 'peso_calculadora', 'campo_cotizacion', 'num_categorias', 'orden', 'activo')
+    list_editable = ('peso_calculadora', 'orden', 'activo')
+    list_per_page = 20
+    ordering = ['orden']
+
+    def color_badge(self, obj):
+        return format_html('<span style="background:{}; padding:2px 12px; border-radius:4px; color:#fff;">{}</span>', obj.color, obj.color)
+    color_badge.short_description = "Color"
+
+    def num_categorias(self, obj):
+        return obj.categorias.filter(activo=True).count()
+    num_categorias.short_description = "Categorías activas"
+
+
+@admin.register(CategoriaBarra)
+class CategoriaBarraAdmin(admin.ModelAdmin):
+    list_display = ('clave', 'nombre', 'grupo', 'proporcion_default', 'unidad_compra', 'num_insumos', 'orden', 'activo')
+    list_editable = ('proporcion_default', 'orden', 'activo')
+    list_filter = ('grupo', 'activo')
+    list_per_page = 30
+    ordering = ['grupo__orden', 'orden']
+
+    def num_insumos(self, obj):
+        return obj.plantillas.filter(activo=True).count()
+    num_insumos.short_description = "Insumos activos"
+
+
 @admin.register(PlantillaBarra)
 class PlantillaBarraAdmin(admin.ModelAdmin):
-    list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'activo')
-    list_editable = ('proporcion', 'activo')
-    list_filter = ('grupo', 'activo')
+    list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'es_default', 'activo')
+    list_editable = ('proporcion', 'es_default', 'activo')
+    list_filter = ('grupo', 'activo', 'es_default')
     search_fields = ('insumo__nombre', 'insumo__proveedor__nombre')
     raw_id_fields = ['insumo']
     list_per_page = 30
     ordering = ['grupo', 'orden', 'categoria']
-    fieldsets = (('Configuración', {'fields': ('categoria', 'grupo', 'insumo', 'proporcion', 'orden', 'activo')}),)
-    
-    def categoria_display(self, obj): return obj.get_categoria_display()
+    fieldsets = (('Configuración', {'fields': ('categoria_ref', 'categoria', 'grupo', 'insumo', 'proporcion', 'orden', 'es_default', 'activo')}),)
+
+    def categoria_display(self, obj):
+        return obj.categoria_ref.nombre if obj.categoria_ref else obj.get_categoria_display()
     categoria_display.short_description = "Concepto"
     categoria_display.admin_order_field = 'categoria'
-    
+
     def grupo_display(self, obj):
+        if obj.categoria_ref and obj.categoria_ref.grupo:
+            grupo_obj = obj.categoria_ref.grupo
+            return format_html('<span style="background:{}; padding:2px 8px; border-radius:4px; color:#fff; font-size:11px;">{}</span>', grupo_obj.color, grupo_obj.nombre)
         colores = {'ALCOHOL_NACIONAL': '#e67e22', 'ALCOHOL_PREMIUM': '#9b59b6', 'CERVEZA': '#f1c40f', 'MEZCLADOR': '#3498db', 'HIELO': '#ecf0f1', 'COCTELERIA': '#2ecc71', 'CONSUMIBLE': '#95a5a6'}
         color = colores.get(obj.grupo, '#666')
         return format_html('<span style="background:{}; padding:2px 8px; border-radius:4px; color:#fff; font-size:11px;">{}</span>', color, obj.get_grupo_display())
     grupo_display.short_description = "Grupo"
-    grupo_display.admin_order_field = 'grupo'
-    
+
     def insumo_nombre(self, obj): return obj.insumo.nombre
     insumo_nombre.short_description = "Insumo"
     insumo_nombre.admin_order_field = 'insumo__nombre'
@@ -189,7 +222,7 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     proveedor_insumo.short_description = "Proveedor"
     def costo_insumo(self, obj): return f"${obj.insumo.costo_unitario:,.2f}"
     costo_insumo.short_description = "Costo"
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']

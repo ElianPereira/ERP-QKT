@@ -1,7 +1,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 import math
 from django.conf import settings
-from .models import ItemCotizacion, ConstanteSistema
+from .models import ItemCotizacion, ConstanteSistema, GrupoBarra, CategoriaBarra, PlantillaBarra
 
 
 # Nombres considerados "genéricos" — si un cliente existente tiene uno
@@ -164,8 +164,8 @@ def calcular_desglose_proporcional(monto_pago, cotizacion):
 
 class CalculadoraBarraService:
     """
-    Servicio encargado de toda la lógica de cálculo de barra, 
-    separando la lógica de negocio del modelo de base de datos.
+    Servicio encargado de toda la lógica de cálculo de barra.
+    Lee pesos y costos desde GrupoBarra/CategoriaBarra/PlantillaBarra (data-driven).
     """
 
     def __init__(self, cotizacion):
@@ -181,6 +181,53 @@ class CalculadoraBarraService:
         except ConstanteSistema.DoesNotExist:
             return Decimal(default_val)
 
+    def _get_grupo_cost(self, grupo_clave, clave_constante=None, default_val='0.00'):
+        """Costo promedio ponderado desde PlantillaBarra activas para un grupo."""
+        items = PlantillaBarra.objects.filter(
+            categoria_ref__grupo__clave=grupo_clave,
+            categoria_ref__activo=True,
+            activo=True,
+        ).select_related('insumo', 'categoria_ref')
+        if items.exists():
+            default_item = items.filter(es_default=True).first()
+            if default_item:
+                insumo = default_item.insumo
+                factor = insumo.factor_rendimiento if insumo.factor_rendimiento > 0 else 1
+                return insumo.costo_unitario / Decimal(factor)
+            # Weighted average fallback
+            total_cost = Decimal(0)
+            total_prop = Decimal(0)
+            for i in items:
+                factor = i.insumo.factor_rendimiento if i.insumo.factor_rendimiento > 0 else 1
+                total_cost += (i.insumo.costo_unitario / Decimal(factor)) * i.proporcion
+                total_prop += i.proporcion
+            if total_prop > 0:
+                return total_cost / total_prop
+        # Fallback to ConstanteSistema / default
+        if clave_constante:
+            return self._get_costo(None, clave_constante, default_val)
+        return Decimal(default_val)
+
+    def _build_pesos(self):
+        """Construye pesos de distribución de tragos desde GrupoBarra, filtrados por toggles de Cotizacion."""
+        c = self.cot
+        pesos = {}
+        for grupo in GrupoBarra.objects.filter(activo=True, peso_calculadora__gt=0):
+            campo = grupo.campo_cotizacion
+            if campo and hasattr(c, campo) and getattr(c, campo):
+                pesos[grupo.clave] = grupo.peso_calculadora
+        # Caso especial: refrescos solos obtienen peso 100
+        if not pesos:
+            g_ref = GrupoBarra.objects.filter(clave='MEZCLADOR', activo=True).first()
+            if g_ref and g_ref.campo_cotizacion and getattr(c, g_ref.campo_cotizacion, False):
+                pesos[g_ref.clave] = 100
+        return pesos
+
+    def _has_cocteleria(self):
+        """Retorna True si algún toggle de coctelería está activo."""
+        c = self.cot
+        return c.incluye_cocteleria_basica or c.incluye_cocteleria_premium
+
     def calcular(self):
         c = self.cot
         checks = {
@@ -195,13 +242,18 @@ class CalculadoraBarraService:
         if not any(checks.values()) or c.num_personas <= 0:
             return None
 
+        # Costos con fallback: Cotizacion FK → PlantillaBarra → ConstanteSistema → default
         C_HIELO = self._get_costo(c.insumo_hielo, 'PRECIO_HIELO_20KG', '90.00')
         C_MIXER = self._get_costo(c.insumo_refresco, 'PRECIO_REFRESCO_2L', '22.00')
         C_AGUA = self._get_costo(c.insumo_agua, 'PRECIO_AGUA_GAL', '10.00')
-        C_ALC_NAC = self._get_costo(c.insumo_alcohol_basico, 'PRECIO_ALC_NAC', '380.00')
-        C_ALC_PREM = self._get_costo(c.insumo_alcohol_premium, 'PRECIO_ALC_PREM', '1150.00')
-        C_CERVEZA = Decimal('42.00')
-        C_GIN = Decimal('550.00')
+        C_ALC_NAC = (self._get_costo(c.insumo_alcohol_basico, None, '0')
+                     if c.insumo_alcohol_basico
+                     else self._get_grupo_cost('ALCOHOL_NACIONAL', 'PRECIO_ALC_NAC', '380.00'))
+        C_ALC_PREM = (self._get_costo(c.insumo_alcohol_premium, None, '0')
+                      if c.insumo_alcohol_premium
+                      else self._get_grupo_cost('ALCOHOL_PREMIUM', 'PRECIO_ALC_PREM', '1150.00'))
+        C_CERVEZA = self._get_grupo_cost('CERVEZA', None, '42.00')
+        C_GIN = self._get_grupo_cost('COCTELERIA_PREMIUM', None, '550.00')
         C_INSUMO_COCTEL_BASE = Decimal('15.00')
         C_INSUMO_COCTEL_PREM = Decimal('28.00')
         C_EXTRA_BARRA = self._get_costo(None, 'COSTO_EXTRA_BARRA', '0.00')
@@ -221,15 +273,22 @@ class CalculadoraBarraService:
 
         TOTAL_TRAGOS = c.num_personas * c.horas_servicio * tragos_ph
 
+        # Pesos data-driven desde GrupoBarra
+        pesos_db = self._build_pesos()
+        # Mapear claves de GrupoBarra a las claves internas del cálculo
+        GRUPO_TO_CALC = {
+            'CERVEZA': 'cerveza',
+            'ALCOHOL_NACIONAL': 'nacional',
+            'ALCOHOL_PREMIUM': 'premium',
+            'COCTELERIA_BASICA': 'coctel_base',
+            'COCTELERIA_PREMIUM': 'coctel_prem',
+            'MEZCLADOR': 'refrescos',
+        }
         pesos = {}
-        if checks['cerveza']: pesos['cerveza'] = 55
-        if checks['nacional']: pesos['nacional'] = 35
-        if checks['premium']: pesos['premium'] = 25
-        if checks['coctel_base']: pesos['coctel_base'] = 20
-        if checks['coctel_prem']: pesos['coctel_prem'] = 15
-        if checks['refrescos']:
-            if not pesos: pesos['refrescos'] = 100
-            else: pesos['refrescos'] = 15
+        for grupo_clave, peso in pesos_db.items():
+            calc_key = GRUPO_TO_CALC.get(grupo_clave)
+            if calc_key:
+                pesos[calc_key] = peso
 
         total_peso = sum(pesos.values()) or 1
 
@@ -325,7 +384,7 @@ class CalculadoraBarraService:
 
         res['costo_insumos_varios'] = costo_agua + costo_hielo + c_mixers_total + costo_fruta + C_EXTRA_BARRA
 
-        ratio_barman = 40 if (checks['coctel_base'] or checks['coctel_prem']) else 50
+        ratio_barman = 40 if self._has_cocteleria() else 50
         num_barmans = math.ceil(c.num_personas / ratio_barman)
         num_auxiliares = math.ceil(num_barmans / 2)
         if num_barmans > 1 and num_auxiliares == 0: num_auxiliares = 1

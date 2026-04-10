@@ -29,7 +29,7 @@ import hmac
 import hashlib
 from django.core.files.base import ContentFile
 
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra, Insumo
+from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra, Insumo, GrupoBarra, CategoriaBarra
 from .forms import CalculadoraForm
 from .services import CalculadoraBarraService, actualizar_item_cotizacion
 
@@ -43,117 +43,10 @@ except ImportError:
 # 0. LÓGICA DE LISTA DE COMPRAS (REFACTORIZADO)
 # ==========================================
 
-def _buscar_insumo_palabra_completa(keyword):
-    """
-    Busca un insumo donde el keyword sea una PALABRA COMPLETA,
-    no parte de otra palabra.
-    Evita que 'ron' matchee 'Toronja' o 'gin' matchee 'Original'.
-    """
-    insumo = Insumo.objects.filter(
-        nombre__istartswith=keyword,
-        categoria='CONSUMIBLE'
-    ).first()
-    if insumo:
-        return insumo
-    
-    insumo = Insumo.objects.filter(
-        nombre__icontains=f' {keyword}',
-        categoria='CONSUMIBLE'
-    ).first()
-    if insumo:
-        return insumo
-    
-    return None
-
-
-def _obtener_item_plantilla(categoria):
-    plantilla = PlantillaBarra.objects.filter(
-        categoria=categoria, activo=True
-    ).select_related('insumo').first()
-    
-    if plantilla and plantilla.insumo:
-        insumo = plantilla.insumo
-        nombre = insumo.nombre
-        if insumo.presentacion:
-            nombre = f"{insumo.nombre} ({insumo.presentacion})"
-        return {
-            'nombre': nombre,
-            'proveedor': insumo.proveedor.nombre if insumo.proveedor else '',
-            'costo_unitario': float(insumo.costo_unitario),
-            'proporcion': float(plantilla.proporcion),
-            'insumo_id': insumo.id,
-        }
-    
-    BUSQUEDA_KEYWORDS = {
-        'CERVEZA': ['cerveza', 'caguama', 'tecate', 'corona'],
-        'TEQUILA_NAC': ['tequila cuervo', 'tequila tradicional', 'tequila'],
-        'WHISKY_NAC': ['whisky', 'whiskey'],
-        'RON_NAC': ['ron bacardi', 'ron castillo', 'ron havana', 'ron '],
-        'VODKA_NAC': ['vodka'],
-        'TEQUILA_PREM': ['don julio', 'herradura', 'tequila 1800'],
-        'WHISKY_PREM': ['buchanan', 'jack daniel', 'johnnie walker black', 'etiqueta negra'],
-        'GIN_PREM': ['ginebra', 'hendrick', 'tanqueray', 'bombay'],
-        'REFRESCO_COLA': ['coca cola', 'coca-cola'],
-        'REFRESCO_TORONJA': ['toronja', 'squirt', 'fresca'],
-        'AGUA_MINERAL': ['agua mineral', 'topochico', 'topo chico', 'peñafiel mineral'],
-        'AGUA_NATURAL': ['garrafon', 'garrafón', 'agua natural', 'agua purificada'],
-        'HIELO': ['hielo'],
-        'LIMON': ['limon', 'limón'],
-        'HIERBABUENA': ['hierbabuena', 'menta'],
-        'JARABE': ['jarabe'],
-        'FRUTOS_ROJOS': ['frutos rojos', 'berries', 'zarzamora', 'frambuesa'],
-        'CAFE': ['café', 'cafe', 'espresso'],
-        'SERVILLETAS': ['servilleta', 'popote'],
-    }
-    
-    keywords = BUSQUEDA_KEYWORDS.get(categoria, [])
-    
-    for keyword in keywords:
-        if ' ' in keyword:
-            insumo = Insumo.objects.filter(
-                nombre__icontains=keyword,
-                categoria='CONSUMIBLE'
-            ).first()
-        elif len(keyword) <= 4:
-            insumo = _buscar_insumo_palabra_completa(keyword)
-        else:
-            insumo = Insumo.objects.filter(
-                nombre__icontains=keyword,
-                categoria='CONSUMIBLE'
-            ).first()
-        
-        if insumo:
-            nombre = insumo.nombre
-            if insumo.presentacion:
-                nombre = f"{insumo.nombre} ({insumo.presentacion})"
-            return {
-                'nombre': nombre,
-                'proveedor': insumo.proveedor.nombre if insumo.proveedor else ' Sin proveedor',
-                'costo_unitario': float(insumo.costo_unitario),
-                'proporcion': 1.0,
-                'insumo_id': insumo.id,
-                '_via_fallback': True,
-            }
-    
-    return None
-
-
-def _fallback_item(nombre_generico):
-    """Devuelve un item con datos genéricos cuando no hay plantilla configurada."""
-    return {
-        'nombre': nombre_generico,
-        'proveedor': ' Sin asignar',
-        'costo_unitario': 0,
-        'proporcion': 1.0,
-        'insumo_id': None,
-    }
-
-
 def _agregar_a_lista(lista, seccion, item_nombre, cantidad, unidad, nota='', proveedor='', costo_unitario=0):
     """Helper para agregar un ítem a la lista de compras con formato consistente."""
     if seccion not in lista:
         lista[seccion] = []
-    
     entry = {
         'item': item_nombre,
         'cantidad': cantidad,
@@ -166,109 +59,192 @@ def _agregar_a_lista(lista, seccion, item_nombre, cantidad, unidad, nota='', pro
     if costo_unitario > 0:
         entry['costo_unitario'] = costo_unitario
         entry['costo_total'] = round(costo_unitario * cantidad, 2)
-    
     lista[seccion].append(entry)
 
 
+def _obtener_plantillas_categoria(categoria_clave):
+    """Obtiene las PlantillaBarra activas para una categoría (por clave)."""
+    return PlantillaBarra.objects.filter(
+        categoria_ref__clave=categoria_clave,
+        categoria_ref__activo=True,
+        activo=True,
+    ).select_related('insumo', 'insumo__proveedor', 'categoria_ref').order_by('orden')
+
+
+def _nombre_insumo(insumo):
+    """Nombre formateado del insumo incluyendo presentación."""
+    if insumo.presentacion:
+        return f"{insumo.nombre} ({insumo.presentacion})"
+    return insumo.nombre
+
+
+def _generar_items_grupo(lista_compras, grupo_clave, cantidad_total, seccion_nombre):
+    """Genera items de lista de compras para todas las categorías activas de un grupo."""
+    categorias = CategoriaBarra.objects.filter(
+        grupo__clave=grupo_clave,
+        activo=True,
+    ).order_by('orden')
+
+    for cat in categorias:
+        plantillas = list(_obtener_plantillas_categoria(cat.clave))
+        if not plantillas:
+            # Fallback: mostrar categoría sin insumo vinculado
+            cant = math.ceil(cantidad_total * float(cat.proporcion_default))
+            if cant > 0:
+                _agregar_a_lista(lista_compras, seccion_nombre, cat.nombre, cant,
+                    cat.unidad_compra, proveedor='Configurar en Plantilla de Barra')
+            continue
+
+        for p in plantillas:
+            prop = float(cat.proporcion_default) * float(p.proporcion)
+            if cat.unidad_contenido and float(cat.unidad_contenido) > 1:
+                # Para mezcladores: convertir litros necesarios a unidades de envase
+                litros_necesarios = cantidad_total * prop
+                cant = math.ceil(litros_necesarios / float(cat.unidad_contenido))
+            else:
+                cant = math.ceil(cantidad_total * prop)
+            if cant <= 0:
+                continue
+            insumo = p.insumo
+            _agregar_a_lista(
+                lista_compras, seccion_nombre, _nombre_insumo(insumo), cant,
+                cat.unidad_compra,
+                proveedor=insumo.proveedor.nombre if insumo.proveedor else '',
+                costo_unitario=float(insumo.costo_unitario),
+            )
+
+
+def _generar_items_cocteleria(lista_compras, cotizacion, grupo_clave, seccion_nombre):
+    """Genera items de coctelería con cálculos por persona."""
+    CALCULO_POR_PERSONA = {
+        'LIMON': lambda n: math.ceil(n / 8),
+        'HIERBABUENA': lambda n: math.ceil(n / 15),
+        'JARABE': lambda n: math.ceil(n / 40),
+        'FRUTOS_ROJOS': lambda n: math.ceil(n / 20),
+        'CAFE': lambda n: 1,
+    }
+    categorias = CategoriaBarra.objects.filter(
+        grupo__clave=grupo_clave,
+        activo=True,
+    ).order_by('orden')
+
+    for cat in categorias:
+        calc_fn = CALCULO_POR_PERSONA.get(cat.clave)
+        if not calc_fn:
+            continue
+        cant = calc_fn(cotizacion.num_personas)
+        if cant <= 0:
+            continue
+        plantillas = list(_obtener_plantillas_categoria(cat.clave))
+        if plantillas:
+            for p in plantillas:
+                insumo = p.insumo
+                _agregar_a_lista(
+                    lista_compras, seccion_nombre, _nombre_insumo(insumo),
+                    cant, cat.unidad_compra,
+                    proveedor=insumo.proveedor.nombre if insumo.proveedor else '',
+                    costo_unitario=float(insumo.costo_unitario),
+                )
+        else:
+            _agregar_a_lista(lista_compras, seccion_nombre, cat.nombre,
+                cant, cat.unidad_compra, proveedor='Configurar en Plantilla de Barra')
+
+
 def generar_lista_compras_barra(cotizacion):
+    """Genera lista de compras data-driven desde GrupoBarra/CategoriaBarra/PlantillaBarra."""
     calc = CalculadoraBarraService(cotizacion)
     datos = calc.calcular()
-    if not datos: 
+    if not datos:
         return {}
 
     lista_compras = {}
-    costo_total_lista = Decimal('0.00')
 
+    # Cerveza
     if datos['cervezas_unidades'] > 0:
-        p = _obtener_item_plantilla('CERVEZA') or _fallback_item('Cerveza Nacional (Caguama)')
         cajas = math.ceil(datos['cervezas_unidades'] / 12.0)
-        _agregar_a_lista(lista_compras, 'Licores y Alcohol', p['nombre'], cajas, 'Cajas (12u)', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
+        _generar_items_grupo(lista_compras, 'CERVEZA', cajas, 'Licores y Alcohol')
 
+    # Licores Nacionales
     if datos['botellas_nacional'] > 0:
-        b = datos['botellas_nacional']
-        mapeo_nacional = [
-            ('TEQUILA_NAC', 'Tequila Nacional', 0.40),
-            ('WHISKY_NAC', 'Whisky Nacional', 0.30),
-            ('RON_NAC', 'Ron Nacional', 0.20),
-            ('VODKA_NAC', 'Vodka Nacional', 0.10),
-        ]
-        for cat, fallback_nombre, default_prop in mapeo_nacional:
-            p = _obtener_item_plantilla(cat)
-            if p:
-                prop = p['proporcion']
-                cant = math.ceil(b * prop)
-                if cant > 0:
-                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', p['nombre'], cant, 'Botellas', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
-            else:
-                cant = math.ceil(b * default_prop)
-                if cant > 0:
-                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
+        _generar_items_grupo(lista_compras, 'ALCOHOL_NACIONAL', datos['botellas_nacional'], 'Licores y Alcohol')
 
+    # Licores Premium
     if datos['botellas_premium'] > 0:
-        b = datos['botellas_premium']
-        mapeo_premium = [
-            ('TEQUILA_PREM', 'Tequila Premium', 0.40),
-            ('WHISKY_PREM', 'Whisky Premium', 0.30),
-            ('GIN_PREM', 'Ginebra / Ron Premium', 0.30),
-        ]
-        for cat, fallback_nombre, default_prop in mapeo_premium:
-            p = _obtener_item_plantilla(cat)
-            if p:
-                prop = p['proporcion']
-                cant = math.ceil(b * prop)
-                if cant > 0:
-                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', p['nombre'], cant, 'Botellas', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
+        _generar_items_grupo(lista_compras, 'ALCOHOL_PREMIUM', datos['botellas_premium'], 'Licores y Alcohol')
+
+    # Mezcladores (sin AGUA_NATURAL, que va aparte)
+    if datos['litros_mezcladores'] > 0:
+        categorias_mixer = CategoriaBarra.objects.filter(
+            grupo__clave='MEZCLADOR', activo=True
+        ).exclude(clave='AGUA_NATURAL').order_by('orden')
+        for cat in categorias_mixer:
+            plantillas = list(_obtener_plantillas_categoria(cat.clave))
+            litros_necesarios = datos['litros_mezcladores'] * float(cat.proporcion_default)
+            contenido = float(cat.unidad_contenido) if cat.unidad_contenido and float(cat.unidad_contenido) > 0 else 1.0
+            cant = math.ceil(litros_necesarios / contenido)
+            if cant <= 0:
+                continue
+            if plantillas:
+                for p in plantillas:
+                    insumo = p.insumo
+                    _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores',
+                        _nombre_insumo(insumo), cant, cat.unidad_compra,
+                        proveedor=insumo.proveedor.nombre if insumo.proveedor else '',
+                        costo_unitario=float(insumo.costo_unitario))
             else:
-                cant = math.ceil(b * default_prop)
-                if cant > 0:
-                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
+                _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores',
+                    cat.nombre, cant, cat.unidad_compra,
+                    proveedor='Configurar en Plantilla de Barra')
 
-    if l := datos['litros_mezcladores']:
-        mapeo_mezcladores = [
-            ('REFRESCO_COLA', 'Coca-Cola (2.5L)', 0.60, 2.5),
-            ('REFRESCO_TORONJA', 'Refresco Toronja (2L)', 0.20, 2.0),
-            ('AGUA_MINERAL', 'Agua Mineral (2L)', 0.20, 2.0),
-        ]
-        for cat, fallback_nombre, share, litros_envase in mapeo_mezcladores:
-            p = _obtener_item_plantilla(cat)
-            litros_necesarios = l * share
-            cant = math.ceil(litros_necesarios / litros_envase)
-            if cant > 0:
-                if p:
-                    _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', p['nombre'], cant, 'Botellas', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
-                else:
-                    _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
-
+    # Agua Natural
     if datos['litros_agua'] > 0:
-        p = _obtener_item_plantilla('AGUA_NATURAL') or _fallback_item('Agua Natural (Garrafón 20L)')
+        plantillas_agua = list(_obtener_plantillas_categoria('AGUA_NATURAL'))
         cant = math.ceil(datos['litros_agua'] / 20)
-        _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', p['nombre'], cant, 'Garrafones', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
+        if plantillas_agua:
+            insumo = plantillas_agua[0].insumo
+            _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores',
+                _nombre_insumo(insumo), cant, 'Garrafones',
+                proveedor=insumo.proveedor.nombre if insumo.proveedor else '',
+                costo_unitario=float(insumo.costo_unitario))
+        else:
+            _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores',
+                'Agua Natural (Garrafón 20L)', cant, 'Garrafones')
 
-    p = _obtener_item_plantilla('HIELO') or _fallback_item('Hielo (Bolsa 20kg)')
-    _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles', p['nombre'], datos['bolsas_hielo_20kg'], 'Bolsas', nota=datos['hielo_info'], proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
+    # Hielo
+    plantillas_hielo = list(_obtener_plantillas_categoria('HIELO'))
+    if plantillas_hielo:
+        insumo = plantillas_hielo[0].insumo
+        _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles',
+            _nombre_insumo(insumo), datos['bolsas_hielo_20kg'], 'Bolsas',
+            nota=datos['hielo_info'],
+            proveedor=insumo.proveedor.nombre if insumo.proveedor else '',
+            costo_unitario=float(insumo.costo_unitario))
+    else:
+        _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles',
+            'Hielo (Bolsa 20kg)', datos['bolsas_hielo_20kg'], 'Bolsas',
+            nota=datos['hielo_info'])
 
+    # Coctelería Básica (ingredientes)
     if cotizacion.incluye_cocteleria_basica:
-        for cat, fallback, cant_calc, unidad in [
-            ('LIMON', 'Limón Persa', math.ceil(cotizacion.num_personas / 8), 'Kg'),
-            ('HIERBABUENA', 'Hierbabuena', math.ceil(cotizacion.num_personas / 15), 'Manojos'),
-            ('JARABE', 'Jarabe Natural', math.ceil(cotizacion.num_personas / 40), 'Litros'),
-        ]:
-            p = _obtener_item_plantilla(cat) or _fallback_item(fallback)
-            seccion = 'Frutas y Verduras' if cat in ('LIMON', 'HIERBABUENA') else 'Abarrotes y Consumibles'
-            _agregar_a_lista(lista_compras, seccion, p['nombre'], cant_calc, unidad, proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
+        _generar_items_cocteleria(lista_compras, cotizacion, 'COCTELERIA_BASICA', 'Frutas y Verduras')
 
+    # Coctelería Premium (ingredientes)
     if cotizacion.incluye_cocteleria_premium:
-        for cat, fallback, cant_calc, unidad in [
-            ('FRUTOS_ROJOS', 'Frutos Rojos', math.ceil(cotizacion.num_personas / 20), 'Bolsas'),
-            ('CAFE', 'Café Espresso', 1, 'Kg'),
-        ]:
-            p = _obtener_item_plantilla(cat) or _fallback_item(fallback)
-            seccion = 'Frutas y Verduras' if cat == 'FRUTOS_ROJOS' else 'Abarrotes y Consumibles'
-            _agregar_a_lista(lista_compras, seccion, p['nombre'], cant_calc, unidad, proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
+        _generar_items_cocteleria(lista_compras, cotizacion, 'COCTELERIA_PREMIUM', 'Frutas y Verduras')
 
-    p = _obtener_item_plantilla('SERVILLETAS') or _fallback_item('Servilletas / Popotes')
-    _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles', p['nombre'], 1, 'Kit', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
+    # Consumibles
+    plantillas_serv = list(_obtener_plantillas_categoria('SERVILLETAS'))
+    if plantillas_serv:
+        insumo = plantillas_serv[0].insumo
+        _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles',
+            _nombre_insumo(insumo), 1, 'Kit',
+            proveedor=insumo.proveedor.nombre if insumo.proveedor else '',
+            costo_unitario=float(insumo.costo_unitario))
+    else:
+        _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles',
+            'Servilletas / Popotes', 1, 'Kit')
 
+    # Calcular costos totales
     for seccion, items in lista_compras.items():
         for item in items:
             if 'costo_total' not in item and item.get('costo_unitario', 0) > 0:
@@ -278,123 +254,113 @@ def generar_lista_compras_barra(cotizacion):
 
 
 # ==========================================
-# 0.5 ASISTENTE DE CONFIGURACIÓN DE PLANTILLA DE BARRA
+# 0.5 ASISTENTE DE CONFIGURACIÓN DE PLANTILLA DE BARRA (DATA-DRIVEN)
 # ==========================================
 
 @staff_member_required
 def configurar_plantilla_barra(request):
     """Vista de asistente visual para vincular insumos reales a cada concepto de la Plantilla de Barra."""
     from django.contrib import admin as django_admin
-    
-    GRUPO_CONFIG = {
-        'ALCOHOL_NACIONAL': {'nombre': 'Licores Nacionales', 'color': '#e67e22', 'icono': '',
-                             'categorias': ['TEQUILA_NAC', 'WHISKY_NAC', 'RON_NAC', 'VODKA_NAC']},
-        'ALCOHOL_PREMIUM': {'nombre': 'Licores Premium', 'color': '#9b59b6', 'icono': '',
-                            'categorias': ['TEQUILA_PREM', 'WHISKY_PREM', 'GIN_PREM']},
-        'CERVEZA': {'nombre': 'Cerveza', 'color': '#f39c12', 'icono': '',
-                    'categorias': ['CERVEZA']},
-        'MEZCLADOR': {'nombre': 'Bebidas y Mezcladores', 'color': '#3498db', 'icono': '',
-                      'categorias': ['REFRESCO_COLA', 'REFRESCO_TORONJA', 'AGUA_MINERAL', 'AGUA_NATURAL']},
-        'HIELO': {'nombre': 'Hielo', 'color': '#1abc9c', 'icono': '',
-                  'categorias': ['HIELO']},
-        'COCTELERIA': {'nombre': 'Frutas y Verduras (Coctelería)', 'color': '#27ae60', 'icono': '',
-                       'categorias': ['LIMON', 'HIERBABUENA', 'JARABE', 'FRUTOS_ROJOS', 'CAFE']},
-        'CONSUMIBLE': {'nombre': 'Abarrotes y Consumibles', 'color': '#95a5a6', 'icono': '',
-                       'categorias': ['SERVILLETAS']},
-    }
-    
-    cat_labels = dict(PlantillaBarra.CATEGORIAS_BARRA)
+
     insumos = Insumo.objects.all().order_by('nombre')
     mensaje_exito = None
     mensaje_error = None
-    
+
     if request.method == 'POST':
         creados = 0
         actualizados = 0
         errores = 0
-        
-        for cat_key, cat_label in PlantillaBarra.CATEGORIAS_BARRA:
-            insumo_id = request.POST.get(f'insumo_{cat_key}', '')
-            proporcion_pct = request.POST.get(f'proporcion_{cat_key}', '100')
-            
+
+        for cat in CategoriaBarra.objects.select_related('grupo').all():
+            insumo_id = request.POST.get(f'insumo_{cat.clave}', '')
+            proporcion_pct = request.POST.get(f'proporcion_{cat.clave}', '100')
+            cat_activo = request.POST.get(f'activo_{cat.clave}', '') == 'on'
+
             try:
                 proporcion_pct = int(proporcion_pct)
             except (ValueError, TypeError):
                 proporcion_pct = 100
-            
             proporcion_decimal = Decimal(proporcion_pct) / Decimal('100')
-            
-            grupo = 'CONSUMIBLE'
-            for g_key, g_conf in GRUPO_CONFIG.items():
-                if cat_key in g_conf['categorias']:
-                    grupo = g_key
-                    break
-            
+
+            # Actualizar activo de CategoriaBarra
+            if cat.activo != cat_activo:
+                cat.activo = cat_activo
+                cat.save(update_fields=['activo'])
+
             if insumo_id:
                 try:
                     insumo = Insumo.objects.get(id=int(insumo_id))
-                    plantilla = PlantillaBarra.objects.filter(categoria=cat_key).first()
-                    
+                    plantilla = PlantillaBarra.objects.filter(
+                        categoria_ref=cat
+                    ).first()
+
                     if plantilla:
                         plantilla.insumo = insumo
                         plantilla.proporcion = proporcion_decimal
-                        plantilla.grupo = grupo
+                        plantilla.categoria = cat.clave
+                        plantilla.grupo = cat.grupo.clave if cat.grupo else ''
                         plantilla.activo = True
                         plantilla.save()
                         actualizados += 1
                     else:
                         PlantillaBarra.objects.create(
-                            categoria=cat_key, grupo=grupo, insumo=insumo,
-                            proporcion=proporcion_decimal, activo=True, orden=0
+                            categoria_ref=cat,
+                            categoria=cat.clave,
+                            grupo=cat.grupo.clave if cat.grupo else '',
+                            insumo=insumo,
+                            proporcion=proporcion_decimal,
+                            activo=True, es_default=True, orden=0
                         )
                         creados += 1
-                        
-                except (Insumo.DoesNotExist, ValueError) as e:
+
+                except (Insumo.DoesNotExist, ValueError):
                     errores += 1
             else:
-                PlantillaBarra.objects.filter(categoria=cat_key).update(activo=False)
-        
+                PlantillaBarra.objects.filter(categoria_ref=cat).update(activo=False)
+
         if errores == 0:
             mensaje_exito = f"Plantilla guardada: {creados} nuevos, {actualizados} actualizados."
         else:
             mensaje_error = f"Guardado con {errores} errores. {creados} nuevos, {actualizados} actualizados."
-    
+
+    # Construir datos para el template desde BD
     grupos = []
     vinculados = 0
     sin_vincular = 0
-    
-    for g_key, g_conf in GRUPO_CONFIG.items():
+
+    for grupo_obj in GrupoBarra.objects.filter(activo=True).order_by('orden'):
         categorias_grupo = []
-        
-        for cat_key in g_conf['categorias']:
-            cat_label = cat_labels.get(cat_key, cat_key)
-            plantilla = PlantillaBarra.objects.filter(
-                categoria=cat_key, activo=True
-            ).select_related('insumo').first()
-            
-            insumo_actual = plantilla.insumo if plantilla else None
-            proporcion_pct = int(plantilla.proporcion * 100) if plantilla else 100
-            
+
+        for cat in CategoriaBarra.objects.filter(grupo=grupo_obj).order_by('orden'):
+            plantillas = PlantillaBarra.objects.filter(
+                categoria_ref=cat, activo=True
+            ).select_related('insumo').order_by('orden')
+
+            insumo_actual = plantillas.first().insumo if plantillas.exists() else None
+            proporcion_pct = int(plantillas.first().proporcion * 100) if plantillas.exists() else 100
+
             if insumo_actual:
                 vinculados += 1
             else:
                 sin_vincular += 1
-            
+
             categorias_grupo.append({
-                'key': cat_key,
-                'label': cat_label,
+                'key': cat.clave,
+                'label': cat.nombre,
                 'insumo_actual': insumo_actual,
                 'proporcion_pct': proporcion_pct,
+                'cat_activo': cat.activo,
+                'plantillas': list(plantillas),
             })
-        
+
         grupos.append({
-            'key': g_key,
-            'nombre': g_conf['nombre'],
-            'color': g_conf['color'],
-            'icono': g_conf['icono'],
+            'key': grupo_obj.clave,
+            'nombre': grupo_obj.nombre,
+            'color': grupo_obj.color,
+            'icono': '',
             'categorias': categorias_grupo,
         })
-    
+
     context = {
         **django_admin.site.each_context(request),
         'grupos': grupos,
@@ -405,7 +371,7 @@ def configurar_plantilla_barra(request):
         'mensaje_exito': mensaje_exito,
         'mensaje_error': mensaje_error,
     }
-    
+
     return render(request, 'admin/comercial/configurar_plantilla_barra.html', context)
 
 

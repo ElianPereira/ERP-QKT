@@ -14,9 +14,11 @@ from comercial.models import (
     Cliente, Cotizacion, ItemCotizacion, Pago, Insumo,
     ConstanteSistema, MovimientoInventario, PlanPago, ParcialidadPago,
     Espacio, AsignacionEspacio, AsignacionPersonal,
+    GrupoBarra, CategoriaBarra, PlantillaBarra,
 )
 from nomina.models import Empleado
-from comercial.services import PlanPagosService
+from comercial.services import PlanPagosService, CalculadoraBarraService
+from comercial.views import generar_lista_compras_barra
 
 
 class CotizacionTotalesTest(TestCase):
@@ -444,3 +446,270 @@ class AsignacionPersonalTest(TestCase):
                 fecha=self.cot2.fecha_evento,
                 hora_inicio=time(18, 0), hora_fin=time(22, 0),
             )
+
+
+# ==========================================
+# TESTS DEL SERVICIO DE BARRA (DATA-DRIVEN)
+# ==========================================
+class BarraTestMixin:
+    """Setup compartido para tests de barra: crea GrupoBarra, CategoriaBarra y PlantillaBarra."""
+
+    def _setup_catalogo_barra(self):
+        self.cliente = Cliente.objects.create(nombre='Test Barra', tipo_persona='FISICA')
+
+        # Limpiar datos semilla de la migración 0033
+        PlantillaBarra.objects.all().delete()
+        CategoriaBarra.objects.all().delete()
+        GrupoBarra.objects.all().delete()
+
+        # Grupos
+        self.g_cerveza = GrupoBarra.objects.create(
+            clave='CERVEZA', nombre='Cerveza', color='#f39c12',
+            peso_calculadora=55, campo_cotizacion='incluye_cerveza', orden=5)
+        self.g_nacional = GrupoBarra.objects.create(
+            clave='ALCOHOL_NACIONAL', nombre='Licores Nacionales', color='#e67e22',
+            peso_calculadora=35, campo_cotizacion='incluye_licor_nacional', orden=10)
+        self.g_premium = GrupoBarra.objects.create(
+            clave='ALCOHOL_PREMIUM', nombre='Licores Premium', color='#9b59b6',
+            peso_calculadora=25, campo_cotizacion='incluye_licor_premium', orden=20)
+        self.g_coctel_base = GrupoBarra.objects.create(
+            clave='COCTELERIA_BASICA', nombre='Coctelería Básica', color='#27ae60',
+            peso_calculadora=20, campo_cotizacion='incluye_cocteleria_basica', orden=30)
+        self.g_coctel_prem = GrupoBarra.objects.create(
+            clave='COCTELERIA_PREMIUM', nombre='Mixología Premium', color='#8e44ad',
+            peso_calculadora=15, campo_cotizacion='incluye_cocteleria_premium', orden=35)
+        self.g_mezclador = GrupoBarra.objects.create(
+            clave='MEZCLADOR', nombre='Bebidas y Mezcladores', color='#3498db',
+            peso_calculadora=15, campo_cotizacion='incluye_refrescos', orden=40)
+        self.g_hielo = GrupoBarra.objects.create(
+            clave='HIELO', nombre='Hielo', color='#1abc9c',
+            peso_calculadora=0, campo_cotizacion='', orden=50)
+        self.g_consumible = GrupoBarra.objects.create(
+            clave='CONSUMIBLE', nombre='Consumibles', color='#95a5a6',
+            peso_calculadora=0, campo_cotizacion='', orden=60)
+
+        # Categorías
+        self.cat_cerveza = CategoriaBarra.objects.create(
+            grupo=self.g_cerveza, clave='CERVEZA', nombre='Cerveza',
+            proporcion_default=Decimal('1.00'), unidad_compra='Cajas (12u)', orden=1)
+        self.cat_tequila_nac = CategoriaBarra.objects.create(
+            grupo=self.g_nacional, clave='TEQUILA_NAC', nombre='Tequila Nacional',
+            proporcion_default=Decimal('0.50'), unidad_compra='Botellas', orden=10)
+        self.cat_ron_nac = CategoriaBarra.objects.create(
+            grupo=self.g_nacional, clave='RON_NAC', nombre='Ron Nacional',
+            proporcion_default=Decimal('0.50'), unidad_compra='Botellas', orden=12)
+        self.cat_tequila_prem = CategoriaBarra.objects.create(
+            grupo=self.g_premium, clave='TEQUILA_PREM', nombre='Tequila Premium',
+            proporcion_default=Decimal('0.50'), unidad_compra='Botellas', orden=20)
+        self.cat_whisky_prem = CategoriaBarra.objects.create(
+            grupo=self.g_premium, clave='WHISKY_PREM', nombre='Whisky Premium',
+            proporcion_default=Decimal('0.50'), unidad_compra='Botellas', orden=21)
+        self.cat_refresco = CategoriaBarra.objects.create(
+            grupo=self.g_mezclador, clave='REFRESCO_COLA', nombre='Refresco de Cola',
+            proporcion_default=Decimal('0.60'), unidad_compra='Botellas',
+            unidad_contenido=Decimal('2.50'), orden=30)
+        self.cat_hielo = CategoriaBarra.objects.create(
+            grupo=self.g_hielo, clave='HIELO', nombre='Hielo',
+            proporcion_default=Decimal('1.00'), unidad_compra='Bolsas', orden=40)
+        self.cat_limon = CategoriaBarra.objects.create(
+            grupo=self.g_coctel_base, clave='LIMON', nombre='Limón',
+            proporcion_default=Decimal('1.00'), unidad_compra='Kg', orden=50)
+        self.cat_servilletas = CategoriaBarra.objects.create(
+            grupo=self.g_consumible, clave='SERVILLETAS', nombre='Servilletas',
+            proporcion_default=Decimal('1.00'), unidad_compra='Kit', orden=60)
+
+        # Insumos de prueba
+        self.insumo_cerveza = Insumo.objects.create(
+            nombre='Cerveza Test', unidad_medida='Caja', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('42.00'), factor_rendimiento=Decimal('1.00'))
+        self.insumo_tequila = Insumo.objects.create(
+            nombre='Tequila Test', unidad_medida='Botella', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('380.00'), factor_rendimiento=Decimal('1.00'))
+        self.insumo_ron = Insumo.objects.create(
+            nombre='Ron Test', unidad_medida='Botella', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('300.00'), factor_rendimiento=Decimal('1.00'))
+        self.insumo_tequila_prem = Insumo.objects.create(
+            nombre='Tequila Premium Test', unidad_medida='Botella', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('1150.00'), factor_rendimiento=Decimal('1.00'))
+        self.insumo_refresco = Insumo.objects.create(
+            nombre='Coca-Cola 2.5L', unidad_medida='Botella', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('22.00'), factor_rendimiento=Decimal('1.00'))
+
+        # PlantillaBarra
+        PlantillaBarra.objects.create(
+            categoria_ref=self.cat_cerveza, categoria='CERVEZA', grupo='CERVEZA',
+            insumo=self.insumo_cerveza, proporcion=Decimal('1.00'), activo=True, es_default=True)
+        PlantillaBarra.objects.create(
+            categoria_ref=self.cat_tequila_nac, categoria='TEQUILA_NAC', grupo='ALCOHOL_NACIONAL',
+            insumo=self.insumo_tequila, proporcion=Decimal('1.00'), activo=True, es_default=True)
+        PlantillaBarra.objects.create(
+            categoria_ref=self.cat_ron_nac, categoria='RON_NAC', grupo='ALCOHOL_NACIONAL',
+            insumo=self.insumo_ron, proporcion=Decimal('1.00'), activo=True, es_default=True)
+        PlantillaBarra.objects.create(
+            categoria_ref=self.cat_tequila_prem, categoria='TEQUILA_PREM', grupo='ALCOHOL_PREMIUM',
+            insumo=self.insumo_tequila_prem, proporcion=Decimal('1.00'), activo=True, es_default=True)
+        PlantillaBarra.objects.create(
+            categoria_ref=self.cat_refresco, categoria='REFRESCO_COLA', grupo='MEZCLADOR',
+            insumo=self.insumo_refresco, proporcion=Decimal('1.00'), activo=True, es_default=True)
+
+    def _crear_cotizacion_barra(self, **kwargs):
+        """Crea cotización para tests de barra sin disparar el auto-cálculo."""
+        defaults = {
+            'cliente': self.cliente,
+            'nombre_evento': 'Evento Test Barra',
+            'fecha_evento': date.today() + timedelta(days=30),
+            'num_personas': 100,
+            'horas_servicio': 5,
+            'clima': 'calor',
+            'incluye_refrescos': False,
+            'incluye_cerveza': False,
+            'incluye_licor_nacional': False,
+            'incluye_licor_premium': False,
+            'incluye_cocteleria_basica': False,
+            'incluye_cocteleria_premium': False,
+        }
+        defaults.update(kwargs)
+        return Cotizacion(**defaults)
+
+
+class CalculadoraBarraServiceTest(BarraTestMixin, TestCase):
+    """Tests unitarios para CalculadoraBarraService con catálogo data-driven."""
+
+    def setUp(self):
+        self._setup_catalogo_barra()
+
+    def test_sin_barra_retorna_none(self):
+        """Sin ningún toggle activo, el servicio retorna None."""
+        cot = self._crear_cotizacion_barra()
+        calc = CalculadoraBarraService(cot)
+        self.assertIsNone(calc.calcular())
+
+    def test_sin_personas_retorna_none(self):
+        """Con 0 personas, retorna None aunque haya barra."""
+        cot = self._crear_cotizacion_barra(incluye_cerveza=True, num_personas=0)
+        self.assertIsNone(CalculadoraBarraService(cot).calcular())
+
+    def test_solo_cerveza(self):
+        """Solo cerveza: genera cervezas > 0, botellas_nacional = 0."""
+        cot = self._crear_cotizacion_barra(incluye_cerveza=True)
+        datos = CalculadoraBarraService(cot).calcular()
+        self.assertIsNotNone(datos)
+        self.assertGreater(datos['cervezas_unidades'], 0)
+        self.assertEqual(datos['botellas_nacional'], 0)
+        self.assertEqual(datos['botellas_premium'], 0)
+
+    def test_nacional_genera_botellas_y_mixers(self):
+        """Nacional + refrescos genera botellas y litros de mezcladores."""
+        cot = self._crear_cotizacion_barra(
+            incluye_licor_nacional=True, incluye_refrescos=True)
+        datos = CalculadoraBarraService(cot).calcular()
+        self.assertGreater(datos['botellas_nacional'], 0)
+        self.assertGreater(datos['litros_mezcladores'], 0)
+
+    def test_pesos_from_db(self):
+        """Cambiar peso_calculadora en BD modifica proporción de cervezas."""
+        cot = self._crear_cotizacion_barra(
+            incluye_cerveza=True, incluye_licor_nacional=True, incluye_refrescos=True)
+        datos1 = CalculadoraBarraService(cot).calcular()
+        cervezas_orig = datos1['cervezas_unidades']
+
+        # Duplicar peso de cerveza
+        self.g_cerveza.peso_calculadora = 200
+        self.g_cerveza.save()
+        datos2 = CalculadoraBarraService(cot).calcular()
+        self.assertGreater(datos2['cervezas_unidades'], cervezas_orig)
+
+    def test_clima_calor_vs_normal_hielo(self):
+        """Clima calor genera más hielo que normal."""
+        cot_normal = self._crear_cotizacion_barra(incluye_cerveza=True, clima='normal')
+        cot_calor = self._crear_cotizacion_barra(incluye_cerveza=True, clima='calor')
+        d_normal = CalculadoraBarraService(cot_normal).calcular()
+        d_calor = CalculadoraBarraService(cot_calor).calcular()
+        self.assertGreater(d_calor['bolsas_hielo_20kg'], d_normal['bolsas_hielo_20kg'])
+
+    def test_precio_sugerido_positivo_y_con_margen(self):
+        """Precio sugerido es positivo y mayor al costo."""
+        cot = self._crear_cotizacion_barra(
+            incluye_cerveza=True, incluye_licor_nacional=True,
+            incluye_licor_premium=True, incluye_refrescos=True)
+        datos = CalculadoraBarraService(cot).calcular()
+        self.assertGreater(datos['precio_venta_sugerido_total'], 0)
+        self.assertGreater(datos['costo_total_estimado'], 0)
+        self.assertGreater(datos['precio_venta_sugerido_total'],
+                           datos['costo_total_estimado'])
+
+    def test_grupo_inactivo_no_participa(self):
+        """Un grupo con activo=False no participa en los pesos."""
+        cot = self._crear_cotizacion_barra(
+            incluye_cerveza=True, incluye_licor_nacional=True)
+        datos1 = CalculadoraBarraService(cot).calcular()
+        # Desactivar grupo nacional
+        self.g_nacional.activo = False
+        self.g_nacional.save()
+        datos2 = CalculadoraBarraService(cot).calcular()
+        # Con nacional desactivado, más tragos van a cerveza
+        self.assertGreater(datos2['cervezas_unidades'], datos1['cervezas_unidades'])
+        self.assertEqual(datos2['botellas_nacional'], 0)
+
+    def test_desglose_suma_precio_sugerido(self):
+        """La suma del desglose debe ser cercana al precio sugerido total."""
+        cot = self._crear_cotizacion_barra(
+            incluye_cerveza=True, incluye_licor_nacional=True,
+            incluye_refrescos=True)
+        datos = CalculadoraBarraService(cot).calcular()
+        suma_desglose = sum(datos['desglose_venta'].values())
+        diff = abs(datos['precio_venta_sugerido_total'] - suma_desglose)
+        self.assertLess(diff, Decimal('1.00'))
+
+
+class ListaComprasBarraTest(BarraTestMixin, TestCase):
+    """Tests para generar_lista_compras_barra con catálogo data-driven."""
+
+    def setUp(self):
+        self._setup_catalogo_barra()
+
+    def test_lista_vacia_sin_barra(self):
+        """Sin barra activa, lista de compras vacía."""
+        cot = self._crear_cotizacion_barra()
+        lista = generar_lista_compras_barra(cot)
+        self.assertEqual(lista, {})
+
+    def test_lista_con_cerveza(self):
+        """Con cerveza, aparece sección 'Licores y Alcohol'."""
+        cot = self._crear_cotizacion_barra(incluye_cerveza=True)
+        lista = generar_lista_compras_barra(cot)
+        self.assertIn('Licores y Alcohol', lista)
+        items = [i['item'] for i in lista['Licores y Alcohol']]
+        self.assertTrue(any('Cerveza' in item for item in items))
+
+    def test_multiples_insumos_por_categoria(self):
+        """Cuando una categoría tiene 2 insumos, ambos aparecen en la lista."""
+        insumo2 = Insumo.objects.create(
+            nombre='Cerveza Premium', unidad_medida='Caja', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('60.00'), factor_rendimiento=Decimal('1.00'))
+        PlantillaBarra.objects.create(
+            categoria_ref=self.cat_cerveza, categoria='CERVEZA', grupo='CERVEZA',
+            insumo=insumo2, proporcion=Decimal('0.30'), activo=True)
+        # Ajustar proporción del primer insumo
+        PlantillaBarra.objects.filter(
+            insumo=self.insumo_cerveza, categoria_ref=self.cat_cerveza
+        ).update(proporcion=Decimal('0.70'))
+
+        cot = self._crear_cotizacion_barra(incluye_cerveza=True)
+        lista = generar_lista_compras_barra(cot)
+        items = [i['item'] for i in lista.get('Licores y Alcohol', [])]
+        self.assertTrue(any('Cerveza Test' in item for item in items))
+        self.assertTrue(any('Cerveza Premium' in item for item in items))
+
+    def test_categoria_inactiva_no_aparece(self):
+        """Categoría con activo=False no genera items en la lista."""
+        self.cat_tequila_nac.activo = False
+        self.cat_tequila_nac.save()
+
+        cot = self._crear_cotizacion_barra(
+            incluye_licor_nacional=True, incluye_refrescos=True)
+        lista = generar_lista_compras_barra(cot)
+        items_alcohol = [i['item'] for i in lista.get('Licores y Alcohol', [])]
+        # Tequila no debe aparecer, pero Ron sí
+        self.assertFalse(any('Tequila' in item for item in items_alcohol))
+        self.assertTrue(any('Ron' in item for item in items_alcohol))
