@@ -592,7 +592,21 @@ class Pago(models.Model):
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas")
     
     def clean(self):
-        """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos)."""
+        """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos).
+
+        Si el registro ya existe en BD y ni el monto ni el tipo cambiaron, se omite
+        la validación de saldo. Esto permite editar la cotización padre (p.ej. corregir
+        un insumo que modifica el precio_final) sin que los pagos existentes sin cambios
+        bloqueen el guardado.
+        """
+        if self.pk:
+            try:
+                original = Pago.objects.get(pk=self.pk)
+                if original.monto == self.monto and original.tipo == self.tipo:
+                    return  # Pago sin cambios — no re-validar contra el saldo actual
+            except Pago.DoesNotExist:
+                pass
+
         if self.cotizacion_id and self.tipo == 'INGRESO':
             total_pagado = self.cotizacion.total_pagado_neto(excluir_pk=self.pk)
             saldo_disponible = self.cotizacion.precio_final - total_pagado
