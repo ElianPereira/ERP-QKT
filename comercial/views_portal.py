@@ -24,6 +24,14 @@ from .models import Cotizacion, PortalCliente, PlanPago
 from core_erp.ratelimit import rate_limit as _rate_limit
 
 
+def landing_publico(request):
+    """
+    Landing pública — raíz de clientes.quintakooxtanil.com.
+    Dos caminos: cotizar (nuevos) o entrar al portal (con evento vigente).
+    """
+    return render(request, 'landing/index.html')
+
+
 @_rate_limit(key='portal_acceso', limit=20, window=60)
 def portal_acceso(request):
     """

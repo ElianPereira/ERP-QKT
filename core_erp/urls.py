@@ -3,7 +3,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic import RedirectView
 from django.contrib.auth import logout
 from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc
@@ -12,7 +11,7 @@ from comercial.views import generar_contrato, enviar_contrato_email
 from airbnb.views import reporte_fiscal_airbnb
 
 from comercial.views_portal import (
-portal_acceso, portal_evento, 
+landing_publico, portal_acceso, portal_evento,
 portal_descargar_cotizacion, portal_descargar_plan, portal_descargar_contrato
 )
 
@@ -138,8 +137,8 @@ urlpatterns = [
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
 
-    # --- 7. RUTA RAÍZ ---
-    path('', RedirectView.as_view(url='/admin/', permanent=False)), 
+    # --- 7. RUTA RAÍZ — LANDING PÚBLICA ---
+    path('', landing_publico, name='landing'),
 ]
 
 if settings.DEBUG:
