@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+{% load static %}
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -53,14 +54,21 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 }
 .btn-secundario:hover{border-color:var(--blanco);background:rgba(255,255,255,.08);}
 
-/* Placeholder de foto hero (para reemplazar después) */
+/* Placeholder de foto (se reemplaza automáticamente cuando existe el archivo) */
 .hero-foto-wrap{max-width:960px;margin:-3rem auto 0;padding:0 5%;position:relative;z-index:3;}
-.foto-placeholder{
-  background:#edece3;border:2px dashed #cac8b9;border-radius:10px;
-  display:flex;align-items:center;justify-content:center;
-  color:#9a9684;font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;
-  font-weight:500;
+.foto{
+  position:relative;background:#edece3;border:2px dashed #cac8b9;border-radius:10px;
+  overflow:hidden;
 }
+.foto.loaded{border:none;background:transparent;}
+.foto::before{
+  content:attr(data-label);
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  color:#9a9684;font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;font-weight:500;
+  z-index:0;pointer-events:none;
+}
+.foto img{width:100%;height:100%;object-fit:cover;display:block;position:relative;z-index:1;}
 .foto-hero{aspect-ratio:16/7;}
 
 /* Sección "Elige tu camino" */
@@ -171,7 +179,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 </section>
 
 <div class="hero-foto-wrap">
-  <div class="foto-placeholder foto-hero">Foto principal</div>
+  <div class="foto foto-hero" data-label="Foto principal">
+    <img src="{% static 'img/landing/hero.jpg' %}" alt="Quinta Ko'ox Tanil"
+         onload="this.parentElement.classList.add('loaded')"
+         onerror="this.remove()">
+  </div>
 </div>
 
 <!-- Elige tu camino -->
@@ -204,21 +216,33 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     </div>
     <div class="srv-grid">
       <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="srv-card">
-        <div class="foto-placeholder srv-foto">Foto evento</div>
+        <div class="foto srv-foto" data-label="Foto evento">
+          <img src="{% static 'img/landing/evento.jpg' %}" alt="Eventos sociales"
+               onload="this.parentElement.classList.add('loaded')"
+               onerror="this.remove()">
+        </div>
         <div class="srv-ico">🎉</div>
         <div class="srv-nom"><em>Eventos sociales</em></div>
         <p class="srv-desc">Bodas, XV años, graduaciones, cumpleaños, aniversarios y eventos corporativos.</p>
         <span class="srv-link">Cotizar →</span>
       </a>
       <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="srv-card">
-        <div class="foto-placeholder srv-foto">Foto pasadía</div>
+        <div class="foto srv-foto" data-label="Foto pasadía">
+          <img src="{% static 'img/landing/pasadia.jpg' %}" alt="Pasadía"
+               onload="this.parentElement.classList.add('loaded')"
+               onerror="this.remove()">
+        </div>
         <div class="srv-ico">☀️</div>
         <div class="srv-nom"><em>Pasadía</em></div>
         <p class="srv-desc">Un día de descanso con alberca, jardines y todas las comodidades de la quinta.</p>
         <span class="srv-link">Cotizar →</span>
       </a>
       <a href="{% url 'cotizador_publico' %}?servicio=HOSPEDAJE" class="srv-card">
-        <div class="foto-placeholder srv-foto">Foto hospedaje</div>
+        <div class="foto srv-foto" data-label="Foto hospedaje">
+          <img src="{% static 'img/landing/hospedaje.jpg' %}" alt="Hospedaje"
+               onload="this.parentElement.classList.add('loaded')"
+               onerror="this.remove()">
+        </div>
         <div class="srv-ico">🏠</div>
         <div class="srv-nom"><em>Hospedaje</em></div>
         <p class="srv-desc">Habitaciones o la casa completa, disponibles en Airbnb, con todas las comodidades.</p>
