@@ -609,6 +609,20 @@ async function enviarSolicitud() {
 
 // Inicializar slider
 actualizarPersonas(50);
+
+// Preselección por ?servicio=EVENTO|PASADIA|HOSPEDAJE (deep-link desde landing)
+(function preseleccionarDesdeURL(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const srv = (params.get('servicio') || '').toUpperCase();
+    if (!['EVENTO','PASADIA','HOSPEDAJE'].includes(srv)) return;
+    const cards = document.querySelectorAll('.srv-card');
+    cards.forEach(card => {
+      const oc = card.getAttribute('onclick') || '';
+      if (oc.includes("'" + srv + "'")) selServicio(srv, card);
+    });
+  } catch(e) { /* silencioso */ }
+})();
 </script>
 </body>
 </html>

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quinta Ko'ox Tanil — Eventos, pasadía y hospedaje en Umán, Yucatán</title>
+<meta name="description" content="Cotiza tu evento, pasadía u hospedaje en Quinta Ko'ox Tanil. Recibe tu cotización al instante y accede a tu portal privado.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --verde:#2E7D32;--verde-d:#1B5E20;--verde-h:#388E3C;
+  --amarillo:#F5C518;--amarillo-h:#E6B800;
+  --oscuro:#2c2b28;--crema:#F7F7F4;
+  --texto:#1A1A1A;--texto-s:#4A4A4A;--blanco:#FFFFFF;
+  --borde:#e0e0d8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--texto);min-height:100vh;}
+
+/* Header */
+.header{background:var(--verde-d);padding:1.2rem 5%;display:flex;align-items:center;justify-content:space-between;}
+.header-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.3rem;font-weight:400;text-decoration:none;letter-spacing:.03em;}
+.header-logo em{font-style:italic;}
+.header-nav{display:flex;gap:1.4rem;align-items:center;}
+.header-nav a{color:rgba(255,255,255,.72);font-size:.72rem;font-weight:400;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;transition:color .2s;}
+.header-nav a:hover{color:var(--amarillo);}
+
+/* Hero */
+.hero{
+  background:linear-gradient(135deg,var(--verde-d) 0%,var(--verde) 100%);
+  padding:5rem 5% 4rem;text-align:center;color:var(--blanco);
+  position:relative;overflow:hidden;
+}
+.hero-inner{max-width:760px;margin:0 auto;position:relative;z-index:2;}
+.hero h1{font-family:'Cormorant Garamond',serif;font-size:clamp(2.2rem,5vw,3.6rem);font-weight:300;line-height:1.15;margin-bottom:2rem;}
+.hero h1 em{font-style:italic;color:var(--amarillo);}
+.hero-cta{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:1rem;}
+
+.btn-primario{
+  display:inline-block;background:var(--amarillo);color:var(--verde-d);
+  padding:1rem 2.4rem;border-radius:40px;
+  font-size:.78rem;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;text-decoration:none;transition:all .2s;border:none;cursor:pointer;
+}
+.btn-primario:hover{background:var(--amarillo-h);transform:translateY(-1px);box-shadow:0 8px 22px rgba(245,197,24,.28);}
+.btn-secundario{
+  display:inline-block;background:transparent;color:var(--blanco);
+  padding:1rem 2.4rem;border-radius:40px;border:1.5px solid rgba(255,255,255,.55);
+  font-size:.78rem;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;text-decoration:none;transition:all .2s;
+}
+.btn-secundario:hover{border-color:var(--blanco);background:rgba(255,255,255,.08);}
+
+/* Placeholder de foto (se reemplaza automáticamente cuando existe el archivo) */
+.hero-foto-wrap{max-width:960px;margin:-3rem auto 0;padding:0 5%;position:relative;z-index:3;}
+.foto{
+  position:relative;background:#edece3;border:2px dashed #cac8b9;border-radius:10px;
+  overflow:hidden;
+}
+.foto.loaded{border:none;background:transparent;}
+.foto::before{
+  content:attr(data-label);
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  color:#9a9684;font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;font-weight:500;
+  z-index:0;pointer-events:none;
+}
+.foto img{width:100%;height:100%;object-fit:cover;display:block;position:relative;z-index:1;}
+.foto-hero{aspect-ratio:16/7;}
+
+/* Sección "Elige tu camino" */
+.caminos{max-width:1000px;margin:5rem auto;padding:0 5%;}
+.seccion-titulo{text-align:center;margin-bottom:3rem;}
+.seccion-titulo h2{font-family:'Cormorant Garamond',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);font-weight:300;color:var(--verde-d);line-height:1.2;}
+.seccion-titulo h2 em{font-style:italic;color:var(--verde);}
+.seccion-titulo p{color:var(--texto-s);font-size:.9rem;font-weight:300;margin-top:.6rem;}
+.caminos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;}
+.camino-card{
+  background:var(--blanco);border:1.5px solid var(--borde);border-radius:8px;
+  padding:2.5rem 2rem;text-align:center;text-decoration:none;color:inherit;
+  transition:all .3s;display:flex;flex-direction:column;align-items:center;
+}
+.camino-card:hover{border-color:var(--verde);transform:translateY(-4px);box-shadow:0 12px 30px rgba(27,94,32,.08);}
+.camino-ico{
+  width:64px;height:64px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.8rem;margin-bottom:1.2rem;
+}
+.camino-card.nueva .camino-ico{background:#e8f5e9;color:var(--verde-d);}
+.camino-card.existente .camino-ico{background:#fff8dc;color:#a8850d;}
+.camino-nom{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--verde-d);margin-bottom:.6rem;}
+.camino-nom em{font-style:italic;color:var(--verde);}
+.camino-desc{color:var(--texto-s);font-size:.86rem;font-weight:300;line-height:1.7;margin-bottom:1.6rem;}
+.camino-btn{
+  margin-top:auto;color:var(--verde-d);font-size:.7rem;font-weight:600;
+  letter-spacing:.15em;text-transform:uppercase;
+  border-bottom:1.5px solid var(--amarillo);padding-bottom:.25rem;
+}
+
+/* Servicios */
+.servicios{background:var(--blanco);padding:5rem 5%;border-top:1px solid var(--borde);border-bottom:1px solid var(--borde);}
+.servicios-inner{max-width:1100px;margin:0 auto;}
+.srv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.4rem;}
+.srv-card{
+  border:1.5px solid var(--borde);border-radius:8px;padding:1.8rem 1.5rem;
+  text-align:center;text-decoration:none;background:var(--blanco);color:inherit;
+  transition:all .25s;display:flex;flex-direction:column;align-items:center;
+}
+.srv-card:hover{border-color:var(--verde);background:#f5fbf5;transform:translateY(-2px);}
+.srv-foto{width:100%;aspect-ratio:4/3;margin-bottom:1.2rem;}
+.srv-ico{font-size:2rem;margin-bottom:.5rem;}
+.srv-nom{font-family:'Cormorant Garamond',serif;font-size:1.45rem;font-weight:300;color:var(--verde-d);margin-bottom:.5rem;}
+.srv-nom em{font-style:italic;}
+.srv-desc{font-size:.8rem;color:var(--texto-s);font-weight:300;line-height:1.7;margin-bottom:1.2rem;flex:1;}
+.srv-link{color:var(--verde);font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;}
+
+/* Cómo funciona */
+.pasos{max-width:900px;margin:5rem auto;padding:0 5%;}
+.pasos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:2rem;}
+.paso{text-align:center;}
+.paso-num{
+  width:46px;height:46px;border-radius:50%;
+  background:var(--verde-d);color:var(--amarillo);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;
+  margin:0 auto 1rem;
+}
+.paso h3{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400;color:var(--verde-d);margin-bottom:.5rem;}
+.paso p{font-size:.82rem;color:var(--texto-s);font-weight:300;line-height:1.7;}
+
+/* CTA final */
+.cta-final{background:linear-gradient(135deg,var(--verde-d) 0%,var(--verde) 100%);padding:4rem 5%;text-align:center;color:var(--blanco);}
+.cta-final h2{font-family:'Cormorant Garamond',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);font-weight:300;margin-bottom:1.8rem;}
+.cta-final h2 em{font-style:italic;color:var(--amarillo);}
+
+/* Footer */
+.footer{background:var(--oscuro);color:rgba(255,255,255,.55);padding:2.5rem 5% 1.5rem;}
+.footer-inner{max-width:1000px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;}
+.footer-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.1rem;font-weight:400;text-decoration:none;}
+.footer-logo em{font-style:italic;}
+.footer-links{display:flex;gap:1.5rem;flex-wrap:wrap;}
+.footer-links a{color:rgba(255,255,255,.55);font-size:.76rem;text-decoration:none;transition:color .2s;}
+.footer-links a:hover{color:var(--amarillo);}
+.footer-copy{text-align:center;margin-top:1.8rem;padding-top:1.4rem;border-top:1px solid rgba(255,255,255,.08);font-size:.68rem;color:rgba(255,255,255,.32);}
+
+@media(max-width:600px){
+  .hero{padding:3.5rem 5% 3rem;}
+  .hero-cta{flex-direction:column;}
+  .hero-cta a{width:100%;}
+  .hero-foto-wrap{margin-top:-1.5rem;}
+  .caminos{margin:3.5rem auto;}
+  .servicios{padding:3.5rem 5%;}
+  .pasos{margin:3.5rem auto;}
+  .footer-inner{flex-direction:column;text-align:center;}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="header-logo">Quinta <em>Ko'ox Tanil</em></a>
+  <nav class="header-nav">
+    <a href="{% url 'portal_acceso' %}">Mi evento</a>
+    <a href="https://quintakooxtanil.com" target="_blank" rel="noopener">quintakooxtanil.com</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <h1>Tu evento, <em>como lo imaginaste</em>.</h1>
+    <div class="hero-cta">
+      <a href="{% url 'cotizador_publico' %}" class="btn-primario">Cotizar mi evento</a>
+      <a href="{% url 'portal_acceso' %}" class="btn-secundario">Ver mi cotización</a>
+    </div>
+  </div>
+</section>
+
+<div class="hero-foto-wrap">
+  <div class="foto foto-hero" data-label="Foto principal">
+    <img src="{% static 'img/landing/hero.jpg' %}" alt="Quinta Ko'ox Tanil"
+         onload="this.parentElement.classList.add('loaded')"
+         onerror="this.remove()">
+  </div>
+</div>
+
+<!-- Elige tu camino -->
+<section class="caminos" id="caminos">
+  <div class="seccion-titulo">
+    <h2>¿Cómo quieres <em>continuar</em>?</h2>
+    <p>Elige la opción que mejor describe tu momento.</p>
+  </div>
+  <div class="caminos-grid">
+    <a href="{% url 'cotizador_publico' %}" class="camino-card nueva">
+      <div class="camino-ico">✨</div>
+      <div class="camino-nom">Quiero <em>cotizar</em></div>
+      <p class="camino-desc">Cuéntanos de tu evento, pasadía u hospedaje y recibe tu cotización personalizada al instante.</p>
+      <span class="camino-btn">Empezar cotización →</span>
+    </a>
+    <a href="{% url 'portal_acceso' %}" class="camino-card existente">
+      <div class="camino-ico">🔑</div>
+      <div class="camino-nom">Ya tengo <em>evento</em></div>
+      <p class="camino-desc">Consulta tu cotización, plan de pagos, contrato y estado de tu evento en tu portal privado.</p>
+      <span class="camino-btn">Entrar a mi evento →</span>
+    </a>
+  </div>
+</section>
+
+<!-- Servicios -->
+<section class="servicios">
+  <div class="servicios-inner">
+    <div class="seccion-titulo">
+      <h2>Nuestros <em>servicios</em></h2>
+    </div>
+    <div class="srv-grid">
+      <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="srv-card">
+        <div class="foto srv-foto" data-label="Foto evento">
+          <img src="{% static 'img/landing/evento.jpg' %}" alt="Eventos sociales"
+               onload="this.parentElement.classList.add('loaded')"
+               onerror="this.remove()">
+        </div>
+        <div class="srv-ico">🎉</div>
+        <div class="srv-nom"><em>Eventos sociales</em></div>
+        <p class="srv-desc">Bodas, XV años, graduaciones, cumpleaños, aniversarios y eventos corporativos.</p>
+        <span class="srv-link">Cotizar →</span>
+      </a>
+      <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="srv-card">
+        <div class="foto srv-foto" data-label="Foto pasadía">
+          <img src="{% static 'img/landing/pasadia.jpg' %}" alt="Pasadía"
+               onload="this.parentElement.classList.add('loaded')"
+               onerror="this.remove()">
+        </div>
+        <div class="srv-ico">☀️</div>
+        <div class="srv-nom"><em>Pasadía</em></div>
+        <p class="srv-desc">Un día de descanso con alberca, jardines y todas las comodidades de la quinta.</p>
+        <span class="srv-link">Cotizar →</span>
+      </a>
+      <a href="{% url 'cotizador_publico' %}?servicio=HOSPEDAJE" class="srv-card">
+        <div class="foto srv-foto" data-label="Foto hospedaje">
+          <img src="{% static 'img/landing/hospedaje.jpg' %}" alt="Hospedaje"
+               onload="this.parentElement.classList.add('loaded')"
+               onerror="this.remove()">
+        </div>
+        <div class="srv-ico">🏠</div>
+        <div class="srv-nom"><em>Hospedaje</em></div>
+        <p class="srv-desc">Habitaciones o la casa completa, disponibles en Airbnb, con todas las comodidades.</p>
+        <span class="srv-link">Cotizar →</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Cómo funciona -->
+<section class="pasos">
+  <div class="seccion-titulo">
+    <h2>Cómo <em>funciona</em></h2>
+  </div>
+  <div class="pasos-grid">
+    <div class="paso">
+      <div class="paso-num">1</div>
+      <h3>Cotiza en línea</h3>
+      <p>Completa un formulario corto con los detalles de tu evento y obtén tu cotización al instante.</p>
+    </div>
+    <div class="paso">
+      <div class="paso-num">2</div>
+      <h3>Recibe tu portal</h3>
+      <p>Te enviamos acceso a un portal privado donde ves tu cotización, plan de pagos y contrato.</p>
+    </div>
+    <div class="paso">
+      <div class="paso-num">3</div>
+      <h3>Confirma tu fecha</h3>
+      <p>Aparta tu fecha con tu anticipo y nuestro equipo te acompaña hasta el día de tu evento.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA final -->
+<section class="cta-final">
+  <h2>¿Listo para <em>empezar</em>?</h2>
+  <a href="{% url 'cotizador_publico' %}" class="btn-primario">Cotizar mi evento</a>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <a href="/" class="footer-logo">Quinta <em>Ko'ox Tanil</em></a>
+    <div class="footer-links">
+      <a href="{% url 'cotizador_publico' %}">Cotizar</a>
+      <a href="{% url 'portal_acceso' %}">Mi evento</a>
+      <a href="https://wa.me/529991699191" target="_blank" rel="noopener">WhatsApp</a>
+      <a href="https://quintakooxtanil.com" target="_blank" rel="noopener">quintakooxtanil.com</a>
+    </div>
+  </div>
+  <div class="footer-copy">© 2025 Quinta Ko'ox Tanil · Umán, Yucatán</div>
+</footer>
+
+</body>
+</html>
