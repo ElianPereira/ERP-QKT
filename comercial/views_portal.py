@@ -27,8 +27,11 @@ from core_erp.ratelimit import rate_limit as _rate_limit
 def landing_publico(request):
     """
     Landing pública — raíz de clientes.quintakooxtanil.com.
-    Dos caminos: cotizar (nuevos) o entrar al portal (con evento vigente).
+    En erp.* redirige al admin; en clientes.* muestra la landing.
     """
+    host = request.get_host().split(':')[0].lower()
+    if host.startswith('erp.'):
+        return redirect('/admin/')
     return render(request, 'landing/index.html')
 
 
