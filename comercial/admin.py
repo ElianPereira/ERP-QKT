@@ -211,11 +211,44 @@ class ComponenteInline(admin.TabularInline):
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    inlines = [ComponenteInline]; list_display = ('nombre', 'costo_display', 'precio_display'); search_fields = ('nombre',)
+    inlines = [ComponenteInline]
+    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador')
+    list_filter = ('visible_cotizador', 'grupo_cotizador')
+    search_fields = ('nombre',)
+    fieldsets = (
+        (None, {'fields': ('nombre', 'descripcion', 'margen_ganancia', 'imagen_promocional')}),
+        ('Cotizador Web', {
+            'fields': (
+                'visible_cotizador',
+                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_hospedaje'),
+                'grupo_cotizador', 'icono', 'descripcion_corta',
+                'orden_cotizador', 'grupo_exclusion',
+                ('cantidad_por_persona', 'factor_personas'),
+            ),
+            'description': 'Configura cómo aparece este producto en el cotizador público.',
+        }),
+    )
+
     def costo_display(self, obj): return f"${obj.calcular_costo():,.2f}"
-    costo_display.short_description = "Calcular costo"
+    costo_display.short_description = "Costo"
     def precio_display(self, obj): return f"${obj.sugerencia_precio():,.2f}"
-    precio_display.short_description = "Sugerencia precio"
+    precio_display.short_description = "Precio sugerido"
+
+    def badge_cotizador(self, obj):
+        if not obj.visible_cotizador:
+            return mark_safe('<span style="color:#999;">—</span>')
+        servicios = []
+        if obj.cotizador_evento: servicios.append('E')
+        if obj.cotizador_pasadia: servicios.append('P')
+        if obj.cotizador_hospedaje: servicios.append('H')
+        txt = '/'.join(servicios) or '—'
+        return mark_safe(
+            f'<span style="background:#2E7D32;color:white;padding:2px 8px;'
+            f'border-radius:4px;font-size:11px;font-weight:600;">'
+            f'{obj.icono} {txt}</span>'
+        )
+    badge_cotizador.short_description = "Cotizador"
+
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
 

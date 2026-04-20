@@ -256,69 +256,37 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <h2 class="panel-title">¿Qué servicios <em>incluyes</em>?</h2>
     <p class="panel-sub">Selecciona los servicios adicionales que necesitas. <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
 
-    <!-- Extras EVENTO -->
-    <div class="panel-condicional" id="blq-extras-evento">
+    <!-- Barra — solo EVENTO (hardcoded: alimenta CalculadoraBarraService) -->
+    <div class="panel-condicional" id="blq-extras-barra">
       <div class="extras-titulo">🍺 Servicio de Barra</div>
       <div class="extras-grid">
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_cerveza')">
+        <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
           <div class="extra-check">✓</div>
           <div><div class="extra-nom">Cerveza</div><div class="extra-desc">Caguamas y cervezas</div></div>
         </div>
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_nacional')">
+        <div class="extra-opt" onclick="toggleBarra(this,'inc_nacional')">
           <div class="extra-check">✓</div>
           <div><div class="extra-nom">Licor Nacional</div><div class="extra-desc">Tequila, ron, vodka</div></div>
         </div>
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_premium')">
+        <div class="extra-opt" onclick="toggleBarra(this,'inc_premium')">
           <div class="extra-check">✓</div>
           <div><div class="extra-nom">Licor Premium</div><div class="extra-desc">Marcas de importación</div></div>
         </div>
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_cocteleria')">
+        <div class="extra-opt" onclick="toggleBarra(this,'inc_cocteleria')">
           <div class="extra-check">✓</div>
           <div><div class="extra-nom">Coctelería</div><div class="extra-desc">Cócteles preparados</div></div>
         </div>
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_mixologia')">
+        <div class="extra-opt" onclick="toggleBarra(this,'inc_mixologia')">
           <div class="extra-check">✓</div>
           <div><div class="extra-nom">Mixología</div><div class="extra-desc">Cócteles artesanales premium</div></div>
         </div>
       </div>
-
-      <div class="extras-titulo">🎵 Entretenimiento</div>
-      <div class="extras-grid">
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_dj_basico')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">DJ Básico</div><div class="extra-desc">Equipo de sonido + DJ</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_dj_ilum')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">DJ + Iluminación</div><div class="extra-desc">Sonido + luces + DJ</div></div>
-        </div>
-      </div>
-
-      <div class="extras-titulo">🍽️ Servicio de Comida</div>
-      <div class="extras-grid">
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_catering')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Catering</div><div class="extra-desc">Servicio de banquete completo</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_taquiza')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Taquiza</div><div class="extra-desc">Servicio de tacos en el evento</div></div>
-        </div>
-      </div>
     </div>
 
-    <!-- Extras PASADÍA -->
-    <div class="panel-condicional" id="blq-extras-pasadia">
-      <div class="extras-titulo">🎪 Extras para tu pasadía</div>
-      <div class="extras-grid">
-        <div class="extra-opt" onclick="toggleExtra(this,'inc_brincolin')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Brincolín</div><div class="extra-desc">Ideal para los más pequeños</div></div>
-        </div>
-      </div>
-    </div>
+    <!-- Extras dinámicos (cargados por API según servicio) -->
+    <div id="extras-dinamicos"></div>
 
-    <!-- Extras HOSPEDAJE -->
+    <!-- Hospedaje — texto guía -->
     <div class="panel-condicional" id="blq-extras-hospedaje">
       <p style="color:var(--texto-s);font-size:.88rem;font-weight:300;line-height:1.8;padding:1rem 0;">
         Cuéntanos en las notas qué fechas necesitas (check-in / check-out) y cualquier requerimiento especial. Nos pondremos en contacto para confirmar disponibilidad.
@@ -380,11 +348,12 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
 <script>
 let servicioSel = '';
-let extras = {};
+let barraExtras = {};
+let selectedExtras = new Set();
+let extrasInfo = {};
 let pasoActual = 1;
 const totalPasos = 5;
 
-// Fecha mínima = mañana
 const hoy = new Date();
 hoy.setDate(hoy.getDate() + 1);
 document.getElementById('fecha').min = hoy.toISOString().split('T')[0];
@@ -397,7 +366,7 @@ async function chequearDisponibilidad() {
     const r = await fetch('/api/disponibilidad/?fecha=' + encodeURIComponent(f));
     const d = await r.json();
     if (d.ok && !d.disponible) {
-      aviso.textContent = '⚠️ ' + d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
+      aviso.textContent = '\u26a0\ufe0f ' + d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
       aviso.style.display = 'block';
     } else {
       aviso.style.display = 'none';
@@ -411,16 +380,18 @@ function selServicio(val, el) {
   el.classList.add('selected');
   document.getElementById('err-servicio').style.display = 'none';
   actualizarPanelSegunServicio();
+  cargarExtras(val);
 }
 
 function actualizarPanelSegunServicio() {
-  // Panel 2 condicionales
   const esEvento  = servicioSel === 'EVENTO';
   const esPasadia = servicioSel === 'PASADIA';
   const esHosp    = servicioSel === 'HOSPEDAJE';
 
   toggle('blq-tipo-evento', esEvento);
   toggle('blq-horario', esEvento);
+  toggle('blq-extras-barra', esEvento);
+  toggle('blq-extras-hospedaje', esHosp);
 
   const lblFecha = document.getElementById('lbl-fecha');
   if (esPasadia) lblFecha.textContent = 'Fecha de la visita';
@@ -432,15 +403,64 @@ function actualizarPanelSegunServicio() {
   else if (esHosp) subDet.textContent = 'Selecciona las fechas y número de huéspedes.';
   else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
 
-  // Slider personas: max diferente para pasadía
   const slider = document.getElementById('personas');
   if (esPasadia) { slider.max = 20; if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); } }
   else { slider.max = 600; }
+}
 
-  // Panel 3 condicionales
-  toggle('blq-extras-evento',   esEvento);
-  toggle('blq-extras-pasadia',  esPasadia);
-  toggle('blq-extras-hospedaje',esHosp);
+async function cargarExtras(servicio) {
+  const container = document.getElementById('extras-dinamicos');
+  selectedExtras.clear();
+  extrasInfo = {};
+  container.innerHTML = '';
+  try {
+    const resp = await fetch('/api/cotizador/productos/?servicio=' + encodeURIComponent(servicio));
+    const data = await resp.json();
+    if (data.ok && data.grupos.length) renderizarExtras(data.grupos);
+  } catch(e) { /* silencioso */ }
+}
+
+function renderizarExtras(grupos) {
+  const container = document.getElementById('extras-dinamicos');
+  let html = '';
+  for (const g of grupos) {
+    html += '<div class="extras-titulo">' + esc(g.icono) + ' ' + esc(g.nombre) + '</div><div class="extras-grid">';
+    for (const p of g.productos) {
+      extrasInfo[p.id] = { nombre: p.nombre, icono: p.icono };
+      html += '<div class="extra-opt" data-prod-id="' + p.id + '" data-exclusion="' + esc(p.grupo_exclusion || '') + '" onclick="toggleExtraDinamico(this)">'
+        + '<div class="extra-check">\u2713</div>'
+        + '<div><div class="extra-nom">' + (p.icono ? esc(p.icono) + ' ' : '') + esc(p.nombre) + '</div>'
+        + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '')
+        + '</div></div>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toggleExtraDinamico(el) {
+  const id = parseInt(el.dataset.prodId);
+  const exclusion = el.dataset.exclusion;
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) {
+    selectedExtras.add(id);
+    if (exclusion) {
+      document.querySelectorAll('#extras-dinamicos [data-exclusion="' + exclusion + '"]').forEach(other => {
+        if (other !== el && other.classList.contains('selected')) {
+          other.classList.remove('selected');
+          selectedExtras.delete(parseInt(other.dataset.prodId));
+        }
+      });
+    }
+  } else {
+    selectedExtras.delete(id);
+  }
 }
 
 function toggle(id, visible) {
@@ -450,18 +470,9 @@ function toggle(id, visible) {
   else el.classList.remove('visible');
 }
 
-function toggleExtra(el, key) {
+function toggleBarra(el, key) {
   el.classList.toggle('selected');
-  extras[key] = el.classList.contains('selected');
-  // DJ: mutuamente exclusivos
-  if (key === 'inc_dj_ilum' && extras[key]) {
-    const djBasico = document.querySelector('[onclick*="inc_dj_basico"]');
-    if (djBasico) { djBasico.classList.remove('selected'); extras['inc_dj_basico'] = false; }
-  }
-  if (key === 'inc_dj_basico' && extras[key]) {
-    const djIlum = document.querySelector('[onclick*="inc_dj_ilum"]');
-    if (djIlum) { djIlum.classList.remove('selected'); extras['inc_dj_ilum'] = false; }
-  }
+  barraExtras[key] = el.classList.contains('selected');
 }
 
 function actualizarPersonas(val) {
@@ -470,13 +481,13 @@ function actualizarPersonas(val) {
   document.getElementById('personas-val').textContent = val;
   const input = document.getElementById('personas');
   const pct = ((val - input.min) / (input.max - input.min)) * 100;
-  input.style.background = `linear-gradient(to right, var(--verde) ${pct}%, var(--borde) ${pct}%)`;
+  input.style.background = 'linear-gradient(to right, var(--verde) ' + pct + '%, var(--borde) ' + pct + '%)';
 }
 
 function irA(paso) {
   if (paso > pasoActual && !validarPaso(pasoActual)) return;
-  document.getElementById(`panel-${pasoActual}`).classList.remove('active');
-  document.getElementById(`panel-${paso}`).classList.add('active');
+  document.getElementById('panel-' + pasoActual).classList.remove('active');
+  document.getElementById('panel-' + paso).classList.add('active');
   document.querySelectorAll('.step').forEach(s => {
     const n = parseInt(s.dataset.step);
     s.classList.remove('active','done');
@@ -514,7 +525,7 @@ function validarPaso(paso) {
 function mostrarErr(errId, inputId) {
   document.getElementById(errId).style.display = 'block';
   document.getElementById(inputId).classList.add('error');
-  document.getElementById(inputId).addEventListener('input', () => {
+  document.getElementById(inputId).addEventListener('input', function() {
     document.getElementById(errId).style.display = 'none';
     document.getElementById(inputId).classList.remove('error');
   }, {once:true});
@@ -525,81 +536,88 @@ function construirResumen() {
   const fecha = document.getElementById('fecha').value;
   const fechaFmt = fecha
     ? new Date(fecha+'T00:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})
-    : '—';
+    : '\u2014';
   const personas  = document.getElementById('personas').value;
   const nombre    = document.getElementById('nombre').value.trim();
   const tel       = document.getElementById('telefono').value.trim();
   const email     = document.getElementById('email').value.trim();
   const notas     = document.getElementById('notas').value.trim();
-  const tipoEv    = document.getElementById('tipo_evento')?.value || '';
-  const hi        = document.getElementById('hora_inicio')?.value || '';
-  const hf        = document.getElementById('hora_fin')?.value || '';
+  const tipoEv    = document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : '';
+  const hi        = document.getElementById('hora_inicio') ? document.getElementById('hora_inicio').value : '';
+  const hf        = document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '';
 
-  const etiquetas = {
+  var tags = [];
+  var barraLabels = {
     inc_cerveza:'Cerveza', inc_nacional:'Licor Nacional', inc_premium:'Licor Premium',
     inc_cocteleria:'Coctelería', inc_mixologia:'Mixología',
-    inc_dj_basico:'DJ Básico', inc_dj_ilum:'DJ+Iluminación',
-    inc_catering:'Catering', inc_taquiza:'Taquiza',
-    inc_brincolin:'Brincolín',
   };
-  const tagsHtml = Object.entries(extras)
-    .filter(([,v]) => v)
-    .map(([k]) => `<span class="tag">${etiquetas[k]||k}</span>`)
-    .join('');
-
-  let html = `<div class="resumen-titulo">Resumen de tu solicitud</div>
-    <div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">${nombres[servicioSel]||servicioSel}${tipoEv && servicioSel==='EVENTO' ? ' — '+tipoEv : ''}</span></div>
-    <div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">${fechaFmt}</span></div>`;
-  if (servicioSel === 'EVENTO') {
-    html += `<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">${hi} — ${hf}</span></div>`;
+  for (var bk in barraExtras) {
+    if (barraExtras[bk] && barraLabels[bk]) tags.push(barraLabels[bk]);
   }
-  html += `<div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">${personas}</span></div>
-    <div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">${nombre}</span></div>
-    <div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">${tel}</span></div>`;
-  if (email) html += `<div class="resumen-item"><span class="resumen-key">Correo</span><span class="resumen-val">${email}</span></div>`;
-  if (notas) html += `<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">${notas}</span></div>`;
-  if (tagsHtml) html += `<div class="resumen-tags">${tagsHtml}</div>`;
+  selectedExtras.forEach(function(id) {
+    var info = extrasInfo[id];
+    if (info) tags.push(info.nombre);
+  });
+  var tagsHtml = tags.map(function(t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('');
+
+  var html = '<div class="resumen-titulo">Resumen de tu solicitud</div>'
+    + '<div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">' + esc(nombres[servicioSel]||servicioSel) + (tipoEv && servicioSel==='EVENTO' ? ' \u2014 '+esc(tipoEv) : '') + '</span></div>'
+    + '<div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">' + fechaFmt + '</span></div>';
+  if (servicioSel === 'EVENTO') {
+    html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">' + esc(hi) + ' \u2014 ' + esc(hf) + '</span></div>';
+  }
+  html += '<div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">' + esc(personas) + '</span></div>'
+    + '<div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">' + esc(nombre) + '</span></div>'
+    + '<div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">' + esc(tel) + '</span></div>';
+  if (email) html += '<div class="resumen-item"><span class="resumen-key">Correo</span><span class="resumen-val">' + esc(email) + '</span></div>';
+  if (notas) html += '<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">' + esc(notas) + '</span></div>';
+  if (tagsHtml) html += '<div class="resumen-tags">' + tagsHtml + '</div>';
 
   document.getElementById('resumen').innerHTML = html;
 }
 
 async function enviarSolicitud() {
-  const btn = document.getElementById('btnEnviar');
+  var btn = document.getElementById('btnEnviar');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Enviando...';
 
-  const payload = {
+  var payload = {
     servicio:   servicioSel,
     fecha:      document.getElementById('fecha').value,
     personas:   document.getElementById('personas').value,
-    hora_inicio:document.getElementById('hora_inicio')?.value || '',
-    hora_fin:   document.getElementById('hora_fin')?.value || '',
-    tipo_evento:document.getElementById('tipo_evento')?.value || 'Evento',
+    hora_inicio:document.getElementById('hora_inicio') ? document.getElementById('hora_inicio').value : '',
+    hora_fin:   document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '',
+    tipo_evento:document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : 'Evento',
     nombre:     document.getElementById('nombre').value.trim(),
     telefono:   document.getElementById('telefono').value.trim(),
     email:      document.getElementById('email').value.trim(),
     notas:      document.getElementById('notas').value.trim(),
-    ...extras,
+    inc_cerveza:    !!barraExtras.inc_cerveza,
+    inc_nacional:   !!barraExtras.inc_nacional,
+    inc_premium:    !!barraExtras.inc_premium,
+    inc_cocteleria: !!barraExtras.inc_cocteleria,
+    inc_mixologia:  !!barraExtras.inc_mixologia,
+    extras_ids:     Array.from(selectedExtras),
   };
 
   try {
-    const resp = await fetch('/cotizar/enviar/', {
+    var resp = await fetch('/cotizar/enviar/', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(payload),
     });
-    const data = await resp.json();
+    var data = await resp.json();
     if (data.ok) {
       window.location.href = data.portal_url;
     } else {
-      const al = document.getElementById('alert-global');
+      var al = document.getElementById('alert-global');
       al.style.display = 'block';
       al.textContent = (data.errores||['Error al procesar la solicitud.']).join(' ');
       btn.disabled = false;
       btn.innerHTML = 'Solicitar cotización';
     }
   } catch(e) {
-    const al = document.getElementById('alert-global');
+    var al = document.getElementById('alert-global');
     al.style.display = 'block';
     al.textContent = 'Error de conexión. Intenta de nuevo.';
     btn.disabled = false;
@@ -607,19 +625,17 @@ async function enviarSolicitud() {
   }
 }
 
-// Inicializar slider
 actualizarPersonas(50);
 
-// Preselección por ?servicio=EVENTO|PASADIA|HOSPEDAJE (deep-link desde landing)
 (function preseleccionarDesdeURL(){
   try {
-    const params = new URLSearchParams(window.location.search);
-    const srv = (params.get('servicio') || '').toUpperCase();
-    if (!['EVENTO','PASADIA','HOSPEDAJE'].includes(srv)) return;
-    const cards = document.querySelectorAll('.srv-card');
-    cards.forEach(card => {
-      const oc = card.getAttribute('onclick') || '';
-      if (oc.includes("'" + srv + "'")) selServicio(srv, card);
+    var params = new URLSearchParams(window.location.search);
+    var srv = (params.get('servicio') || '').toUpperCase();
+    if (['EVENTO','PASADIA','HOSPEDAJE'].indexOf(srv) === -1) return;
+    var cards = document.querySelectorAll('.srv-card');
+    cards.forEach(function(card) {
+      var oc = card.getAttribute('onclick') || '';
+      if (oc.indexOf("'" + srv + "'") !== -1) selServicio(srv, card);
     });
   } catch(e) { /* silencioso */ }
 })();

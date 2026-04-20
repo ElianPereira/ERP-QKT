@@ -121,19 +121,15 @@ def cotizador_enviar(request):
     tipo_ev   = str(data.get('tipo_evento', 'Evento General')).strip()
     notas     = str(data.get('notas', '')).strip()
 
-    # Extras evento
+    # Barra (siguen como booleanos — alimentan CalculadoraBarraService)
     inc_cerveza    = bool(data.get('inc_cerveza', False))
     inc_nacional   = bool(data.get('inc_nacional', False))
     inc_premium    = bool(data.get('inc_premium', False))
     inc_cocteleria = bool(data.get('inc_cocteleria', False))
     inc_mixologia  = bool(data.get('inc_mixologia', False))
-    inc_dj_basico  = bool(data.get('inc_dj_basico', False))
-    inc_dj_ilum    = bool(data.get('inc_dj_ilum', False))
-    inc_catering   = bool(data.get('inc_catering', False))
-    inc_taquiza    = bool(data.get('inc_taquiza', False))
 
-    # Extras pasadía
-    inc_brincolin  = bool(data.get('inc_brincolin', False))
+    # Extras dinámicos (IDs de Producto con visible_cotizador=True)
+    extras_ids_raw = data.get('extras_ids', [])
 
     # Validaciones
     tel_d = ''.join(filter(str.isdigit, telefono))
@@ -264,35 +260,6 @@ def cotizador_enviar(request):
                     f"Horas Extra de Arrendamiento ({horas_extra} hrs adicionales)")
                 resumen_partes.append(f"+{horas_extra}hrs")
 
-        if inc_dj_ilum:
-            prod = (_buscar_producto_por_nombre('DJ Con Iluminación')
-                    or _buscar_producto_por_nombre('DJ Iluminacion'))
-            if prod:
-                _agregar_item(cotizacion, prod, 1, f"DJ con Iluminación — {horas_evento} Hrs")
-                resumen_partes.append("DJ+Ilum")
-        elif inc_dj_basico:
-            prod = (_buscar_producto_por_nombre('Básico De DJ')
-                    or _buscar_producto_por_nombre('DJ Basico'))
-            if prod:
-                _agregar_item(cotizacion, prod, 1, f"DJ Básico — {horas_evento} Hrs")
-                resumen_partes.append("DJ")
-
-        if inc_catering:
-            prod = _buscar_producto_por_nombre('Catering')
-            if prod:
-                mult = math.ceil(num_personas / 10)
-                _agregar_item(cotizacion, prod, mult,
-                    f"Servicio de Catering ({num_personas} Pax)")
-                resumen_partes.append("Catering")
-
-        if inc_taquiza:
-            prod = _buscar_producto_por_nombre('Taquiza')
-            if prod:
-                mult = math.ceil(num_personas / 10)
-                _agregar_item(cotizacion, prod, mult,
-                    f"Servicio de Taquiza ({num_personas} Pax)")
-                resumen_partes.append("Taquiza")
-
         barra = []
         if inc_cerveza:    barra.append("Cerveza")
         if inc_nacional:   barra.append("Nacional")
@@ -310,15 +277,22 @@ def cotizador_enviar(request):
                 f"Paquete Pasadía QKT ({num_personas} Pax, 10am-7pm)")
             resumen_partes.append("Pasadía")
 
-        if inc_brincolin:
-            prod = (_buscar_producto_por_nombre('Brincolín')
-                    or _buscar_producto_por_nombre('Brincolin'))
-            if prod:
-                _agregar_item(cotizacion, prod, 1, "Brincolín")
-                resumen_partes.append("Brincolín")
-
     elif servicio == 'HOSPEDAJE':
         resumen_partes.append("Hospedaje")
+
+    # ── Extras dinámicos (productos marcados visible_cotizador) ───
+    extras_ids = [int(x) for x in extras_ids_raw if str(x).isdigit()]
+    if extras_ids:
+        productos_extra = Producto.objects.filter(
+            id__in=extras_ids, visible_cotizador=True,
+        )
+        for prod in productos_extra:
+            qty = 1
+            if prod.cantidad_por_persona and prod.factor_personas > 0:
+                qty = math.ceil(num_personas / prod.factor_personas)
+            desc = f"{prod.nombre} ({num_personas} Pax)" if prod.cantidad_por_persona else None
+            _agregar_item(cotizacion, prod, qty, desc)
+            resumen_partes.append(prod.nombre)
 
     # ── Portal del cliente ─────────────────────────────────────
     portal, _ = PortalCliente.objects.get_or_create(
@@ -416,6 +390,50 @@ def api_fechas_ocupadas(request):
         'hasta': fin.strftime('%Y-%m-%d'),
         'fechas_ocupadas': sorted(fechas),
     })
+
+
+def api_productos_cotizador(request):
+    """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|HOSPEDAJE
+    Devuelve los productos visibles en el cotizador, agrupados por grupo_cotizador."""
+    servicio = (request.GET.get('servicio') or '').upper()
+
+    filtro = {'visible_cotizador': True}
+    if servicio == 'EVENTO':
+        filtro['cotizador_evento'] = True
+    elif servicio == 'PASADIA':
+        filtro['cotizador_pasadia'] = True
+    elif servicio == 'HOSPEDAJE':
+        filtro['cotizador_hospedaje'] = True
+
+    productos = Producto.objects.filter(**filtro).order_by('grupo_cotizador', 'orden_cotizador', 'nombre')
+
+    NOMBRES_GRUPO = dict(Producto.GRUPO_COTIZADOR_CHOICES)
+    ICONOS_GRUPO = {
+        'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'MOBILIARIO': '🪑',
+        'DECORACION': '💐', 'INFANTIL': '🎪', 'OTRO': '✨',
+    }
+
+    grupos_dict = {}
+    for p in productos:
+        clave = p.grupo_cotizador or 'OTRO'
+        if clave not in grupos_dict:
+            grupos_dict[clave] = {
+                'clave': clave,
+                'nombre': NOMBRES_GRUPO.get(clave, clave),
+                'icono': ICONOS_GRUPO.get(clave, '✨'),
+                'productos': [],
+            }
+        grupos_dict[clave]['productos'].append({
+            'id': p.id,
+            'nombre': p.nombre,
+            'icono': p.icono,
+            'descripcion': p.descripcion_corta,
+            'grupo_exclusion': p.grupo_exclusion,
+            'cantidad_por_persona': p.cantidad_por_persona,
+            'factor_personas': p.factor_personas,
+        })
+
+    return JsonResponse({'ok': True, 'grupos': list(grupos_dict.values())})
 
 
 def cotizador_gracias(request):
