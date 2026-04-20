@@ -259,10 +259,47 @@ class RecetaSubProducto(models.Model):
     def __str__(self): return f"{self.subproducto.nombre} <- {self.insumo.nombre}"
 
 class Producto(models.Model):
+    GRUPO_COTIZADOR_CHOICES = [
+        ('ENTRETENIMIENTO', 'Entretenimiento'),
+        ('COMIDA', 'Comida'),
+        ('MOBILIARIO', 'Mobiliario'),
+        ('DECORACION', 'Decoración'),
+        ('INFANTIL', 'Infantil'),
+        ('OTRO', 'Otros'),
+    ]
+
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
     margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
     imagen_promocional = models.ImageField(upload_to='productos/', blank=True, null=True)
+
+    visible_cotizador = models.BooleanField(default=False, verbose_name="Mostrar en cotizador web")
+    grupo_cotizador = models.CharField(
+        max_length=20, blank=True, choices=GRUPO_COTIZADOR_CHOICES,
+        verbose_name="Grupo en cotizador",
+    )
+    icono = models.CharField(max_length=10, blank=True, help_text="Emoji, ej: 🎧")
+    descripcion_corta = models.CharField(
+        max_length=120, blank=True, verbose_name="Descripción corta",
+        help_text="Texto debajo del nombre en el cotizador",
+    )
+    orden_cotizador = models.PositiveIntegerField(default=0, verbose_name="Orden en cotizador")
+    grupo_exclusion = models.CharField(
+        max_length=30, blank=True, verbose_name="Grupo de exclusión",
+        help_text="Productos con el mismo valor son mutuamente exclusivos. Ej: DJ",
+    )
+    cantidad_por_persona = models.BooleanField(
+        default=False, verbose_name="Cantidad según personas",
+        help_text="Si activo, cantidad = ceil(personas / factor)",
+    )
+    factor_personas = models.PositiveIntegerField(
+        default=1, verbose_name="Factor divisor",
+        help_text="Ej: 10 → una unidad cada 10 personas",
+    )
+    cotizador_evento = models.BooleanField(default=False, verbose_name="Disponible para Evento")
+    cotizador_pasadia = models.BooleanField(default=False, verbose_name="Disponible para Pasadía")
+    cotizador_hospedaje = models.BooleanField(default=False, verbose_name="Disponible para Hospedaje")
+
     def calcular_costo(self): return sum(c.subtotal_costo() for c in self.componentes.all())
     def sugerencia_precio(self): return round(self.calcular_costo() * (1 + self.margen_ganancia), 2)
     def __str__(self): return self.nombre
