@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'contabilidad',
     'reportes',
     'comunicacion',
+    'configuracion',
 ]
 
 MIDDLEWARE = [
@@ -219,6 +220,10 @@ JAZZMIN_SETTINGS = {
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-history",
+
+        # CONFIGURACIÓN
+        "configuracion":                     "fas fa-sliders-h",
+        "configuracion.CategoriaGasto":      "fas fa-tags",
     },
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -280,6 +285,10 @@ JAZZMIN_SETTINGS = {
         # === REPORTES ===
         "reportes",
         "reportes.reportegenerado",
+
+        # === CONFIGURACIÓN ===
+        "configuracion",
+        "configuracion.CategoriaGasto",
 
         # === ADMINISTRACIÓN ===
         "auth",

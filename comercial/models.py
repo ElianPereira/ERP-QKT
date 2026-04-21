@@ -746,18 +746,26 @@ class Compra(models.Model):
                                     if t.attrib.get('Impuesto') == '002':
                                         try: iva_linea += Decimal(t.attrib.get('Importe', 0))
                                         except: iva_linea = importe * Decimal('0.16')
-                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor, categoria='SIN_CLASIFICAR')
+                            from configuracion.models import CategoriaGasto
+                            cat_default = CategoriaGasto.objects.filter(clave='SIN_CLASIFICAR').first()
+                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor, categoria=cat_default)
             except Exception as e: print(f"Error procesando conceptos: {e}")
     def __str__(self): return f"{self.proveedor} - ${self.total}"
 
 class Gasto(models.Model):
-    CATEGORIAS = [('SIN_CLASIFICAR', 'Sin Clasificar'), ('SERVICIO_EXTERNO', 'Servicio Externo'), ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'), ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'), ('LIMPIEZA', 'Limpieza Y Desechables'), ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'), ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'), ('NOMINA_EXT', 'Servicios Staff Externo'), ('IMPUESTOS', 'Pago De Impuestos'), ('PUBLICIDAD', 'Publicidad Y Marketing'), ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'), ('OTRO', 'Otros Gastos')]
     compra = models.ForeignKey(Compra, related_name='gastos', on_delete=models.CASCADE)
     descripcion = models.CharField(max_length=255)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    total_linea = models.DecimalField(max_digits=10, decimal_places=2, default=0) 
-    categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='SIN_CLASIFICAR')
+    total_linea = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    categoria = models.ForeignKey(
+        'configuracion.CategoriaGasto',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='gastos',
+        verbose_name="Categoría",
+    )
     evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
     clave_sat = models.CharField(max_length=20, blank=True)
     unidad_medida = models.CharField(max_length=20, blank=True)

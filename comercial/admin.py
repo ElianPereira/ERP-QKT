@@ -687,6 +687,11 @@ class GastoInline(admin.TabularInline):
     fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea', 'categoria', 'evento_relacionado')
     readonly_fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea')
     def get_readonly_fields(self, request, obj=None): return [f for f in self.readonly_fields]
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'categoria':
+            from configuracion.models import CategoriaGasto
+            kwargs['queryset'] = CategoriaGasto.objects.filter(activa=True)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):

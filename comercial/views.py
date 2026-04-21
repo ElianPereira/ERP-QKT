@@ -637,16 +637,18 @@ def exportar_reporte_cotizaciones(request):
             'iva_acreditable': ev_fiscal_iva, 'utilidad': utilidad_bruta
         })
 
-    gastos_qs = Gasto.objects.filter(evento_relacionado__isnull=True).select_related('compra')
+    gastos_qs = Gasto.objects.filter(evento_relacionado__isnull=True).select_related('compra', 'categoria')
     if fecha_inicio: gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
     if fecha_fin: gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
 
     ops_fiscales = []
     ops_nofiscales = []
-    
+
     for g in gastos_qs:
         total_linea = g.total_linea or Decimal(0)
         compra = g.compra
+        cat_id = g.categoria_id
+        cat_nombre = g.categoria.nombre if g.categoria else 'Sin Clasificar'
         if compra.uuid:
             if compra.total > 0 and compra.iva > 0:
                 factor = total_linea / compra.total
@@ -657,29 +659,28 @@ def exportar_reporte_cotizaciones(request):
                 base_prop = total_linea
             t_gastos_op_fiscal_base += base_prop
             t_gastos_op_fiscal_iva += iva_prop
-            
+
             found = False
             for item in ops_fiscales:
-                if item['cat'] == g.categoria:
+                if item['cat_id'] == cat_id:
                     item['base'] += base_prop
                     item['iva'] += iva_prop
                     item['total'] += total_linea
                     found = True
                     break
-            if not found: ops_fiscales.append({'cat': g.categoria, 'base': base_prop, 'iva': iva_prop, 'total': total_linea})
+            if not found: ops_fiscales.append({'cat_id': cat_id, 'nombre': cat_nombre, 'base': base_prop, 'iva': iva_prop, 'total': total_linea})
         else:
             t_gastos_op_nofiscal += total_linea
             found = False
             for item in ops_nofiscales:
-                if item['cat'] == g.categoria:
+                if item['cat_id'] == cat_id:
                     item['total'] += total_linea
                     found = True
                     break
-            if not found: ops_nofiscales.append({'cat': g.categoria, 'total': total_linea})
+            if not found: ops_nofiscales.append({'cat_id': cat_id, 'nombre': cat_nombre, 'total': total_linea})
 
-    cat_labels = dict(Gasto.CATEGORIAS)
-    gastos_operativos_fiscales_list = [{'nombre': cat_labels.get(item['cat'], item['cat']), 'base': item['base'], 'iva': item['iva'], 'total': item['total']} for item in ops_fiscales]
-    gastos_operativos_nofiscales_list = [{'nombre': cat_labels.get(item['cat'], item['cat']), 'total': item['total']} for item in ops_nofiscales]
+    gastos_operativos_fiscales_list = [{'nombre': item['nombre'], 'base': item['base'], 'iva': item['iva'], 'total': item['total']} for item in ops_fiscales]
+    gastos_operativos_nofiscales_list = [{'nombre': item['nombre'], 'total': item['total']} for item in ops_nofiscales]
 
     total_costos_deducibles = t_gastos_ev_fiscal_base + t_gastos_op_fiscal_base
     total_costos_no_deducibles = t_gastos_ev_nofiscal + t_gastos_op_nofiscal
