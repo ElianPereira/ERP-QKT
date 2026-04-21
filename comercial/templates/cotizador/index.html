@@ -184,10 +184,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
         <span class="srv-nom">Pasadía</span>
         <span class="srv-desc">Día de descanso con alberca y áreas verdes</span>
       </div>
-      <div class="srv-card" onclick="selServicio('HOSPEDAJE',this)">
-        <span class="srv-ico">🏠</span>
-        <span class="srv-nom">Hospedaje</span>
-        <span class="srv-desc">Habitaciones o casa completa en Airbnb</span>
+      <div class="srv-card" onclick="selServicio('ARRENDAMIENTO',this)">
+        <span class="srv-ico">🪑</span>
+        <span class="srv-nom">Arrendamiento de Mobiliario</span>
+        <span class="srv-desc">Renta de mobiliario y equipo para tu evento</span>
       </div>
     </div>
     <div id="err-servicio" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona un tipo de servicio para continuar.</div>
@@ -286,10 +286,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <!-- Extras dinámicos (cargados por API según servicio) -->
     <div id="extras-dinamicos"></div>
 
-    <!-- Hospedaje — texto guía -->
-    <div class="panel-condicional" id="blq-extras-hospedaje">
+    <!-- Arrendamiento — texto guía -->
+    <div class="panel-condicional" id="blq-extras-arrendamiento">
       <p style="color:var(--texto-s);font-size:.88rem;font-weight:300;line-height:1.8;padding:1rem 0;">
-        Cuéntanos en las notas qué fechas necesitas (check-in / check-out) y cualquier requerimiento especial. Nos pondremos en contacto para confirmar disponibilidad.
+        Cuéntanos en las notas qué mobiliario o equipo necesitas y las fechas de entrega y devolución. Nos pondremos en contacto para confirmar disponibilidad y cotización.
       </p>
     </div>
 
@@ -386,21 +386,21 @@ function selServicio(val, el) {
 function actualizarPanelSegunServicio() {
   const esEvento  = servicioSel === 'EVENTO';
   const esPasadia = servicioSel === 'PASADIA';
-  const esHosp    = servicioSel === 'HOSPEDAJE';
+  const esArr     = servicioSel === 'ARRENDAMIENTO';
 
   toggle('blq-tipo-evento', esEvento);
   toggle('blq-horario', esEvento);
   toggle('blq-extras-barra', esEvento);
-  toggle('blq-extras-hospedaje', esHosp);
+  toggle('blq-extras-arrendamiento', esArr);
 
   const lblFecha = document.getElementById('lbl-fecha');
   if (esPasadia) lblFecha.textContent = 'Fecha de la visita';
-  else if (esHosp) lblFecha.textContent = 'Fecha de llegada';
+  else if (esArr) lblFecha.textContent = 'Fecha de entrega';
   else lblFecha.textContent = 'Fecha del evento';
 
   const subDet = document.getElementById('sub-detalles');
   if (esPasadia) subDet.textContent = 'Selecciona la fecha de tu visita y el número de personas.';
-  else if (esHosp) subDet.textContent = 'Selecciona las fechas y número de huéspedes.';
+  else if (esArr) subDet.textContent = 'Selecciona la fecha de entrega del mobiliario.';
   else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
 
   const slider = document.getElementById('personas');
@@ -532,7 +532,7 @@ function mostrarErr(errId, inputId) {
 }
 
 function construirResumen() {
-  const nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','HOSPEDAJE':'Hospedaje'};
+  const nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','ARRENDAMIENTO':'Arrendamiento de Mobiliario'};
   const fecha = document.getElementById('fecha').value;
   const fechaFmt = fecha
     ? new Date(fecha+'T00:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})
@@ -631,7 +631,7 @@ actualizarPersonas(50);
   try {
     var params = new URLSearchParams(window.location.search);
     var srv = (params.get('servicio') || '').toUpperCase();
-    if (['EVENTO','PASADIA','HOSPEDAJE'].indexOf(srv) === -1) return;
+    if (['EVENTO','PASADIA','ARRENDAMIENTO'].indexOf(srv) === -1) return;
     var cards = document.querySelectorAll('.srv-card');
     cards.forEach(function(card) {
       var oc = card.getAttribute('onclick') || '';

@@ -234,7 +234,7 @@
   <img src="{{ logo_url }}" class="logo" alt="Logo">
   {% endif %}
   <div class="titulo">
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
       Contrato de Arrendamiento de Bienes Muebles para Eventos Sociales
     {% else %}
       Contrato de Arrendamiento de Salón para Eventos Sociales
@@ -247,7 +247,7 @@
     <strong>Fecha:</strong> {{ fecha_doc }}
   </div>
   <div class="profeco-bar">
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
       Contrato registrado ante PROFECO bajo el número <strong>9339-2023</strong>
       de fecha 31 de octubre de 2023 &mdash; Expediente PFC.B.E.7/009990-2023
     {% else %}
@@ -263,7 +263,7 @@
 ══════════════════════════════════════════════════════════ -->
 <div class="seccion">
   <p>
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
       Contrato de arrendamiento de bienes muebles para eventos sociales que celebran
       por una parte el Proveedor <strong>ELIAN DE JESUS PEREIRA CEH</strong>, a quien en lo sucesivo
       se denominará <strong>"EL ARRENDADOR"</strong>, y en contraparte el Consumidor
@@ -287,7 +287,7 @@
   <div class="seccion-titulo">Glosario</div>
   <div class="glosario-item">
     <strong>a) Arrendador.</strong> ELIAN DE JESUS PEREIRA CEH, proveedor que ofrece
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
       el uso y goce temporal de bienes muebles para eventos sociales
     {% else %}
       el uso y disfrute del salón para eventos sociales
@@ -296,14 +296,14 @@
   </div>
   <div class="glosario-item">
     <strong>b) Arrendatario.</strong> El consumidor que adquiere el derecho de usar
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
       los bienes muebles para eventos sociales
     {% else %}
       el salón para eventos sociales
     {% endif %}
     a cambio del pago de un precio cierto y determinado.
   </div>
-  {% if tipo_servicio != 'HOSPEDAJE' %}
+  {% if tipo_servicio != 'ARRENDAMIENTO' %}
   <div class="glosario-item">
     <strong>c) Salón.</strong> El bien inmueble destinado a la celebración de eventos sociales
     que el arrendador pone a disposición del arrendatario, ubicado en Quinta Ko'ox Tanil,
@@ -338,7 +338,7 @@
     <div class="decl-inciso">d) Cuenta con la infraestructura, recursos técnicos y humanos suficientes para cumplir sus obligaciones conforme al presente Contrato.</div>
     <div class="decl-inciso">e) Cumple con las licencias, permisos, avisos y autorizaciones previstas en las disposiciones legales y normas vigentes.</div>
     <div class="decl-inciso">f) Para atención de dudas, aclaraciones o reclamaciones relacionadas con este contrato, pone a disposición el correo electrónico: <strong>quintakooxtanil@gmail.com</strong> con horario de atención de 09:00 a 20:00 horas.</div>
-    <div class="decl-inciso">g) Informó al arrendatario los alcances y efectos jurídicos del presente contrato, así como las restricciones de uso del {% if tipo_servicio == 'HOSPEDAJE' %}bien mueble{% else %}salón{% endif %} objeto del mismo.</div>
+    <div class="decl-inciso">g) Informó al arrendatario los alcances y efectos jurídicos del presente contrato, así como las restricciones de uso del {% if tipo_servicio == 'ARRENDAMIENTO' %}bien mueble{% else %}salón{% endif %} objeto del mismo.</div>
   </div>
 
   <!-- Declaración II -->
@@ -358,7 +358,7 @@
   <p>
     Las partes de común acuerdo consienten que el objeto del presente Contrato es
     el arrendamiento de
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
       los bienes muebles descritos a continuación, para uso exclusivo del evento social
       del arrendatario.
     {% else %}
@@ -375,7 +375,7 @@
     <tr><td class="label">Horario</td><td>{{ hora_ini }} a {{ hora_fin }} horas</td></tr>
     <tr><td class="label">Número de personas</td><td>{{ cotizacion.num_personas }} personas (aforo máximo)</td></tr>
     <tr><td class="label">Servicios incluidos</td><td>{{ servicios_incluidos }}</td></tr>
-    {% if tipo_servicio != 'HOSPEDAJE' %}
+    {% if tipo_servicio != 'ARRENDAMIENTO' %}
     <tr><td class="label">Hora extra adicional</td><td>Costo por acuerdo previo entre las partes, no incluido en este contrato</td></tr>
     {% endif %}
   </table>
@@ -459,7 +459,7 @@
 
   <p class="bold">4.1 EL ARRENDADOR se obliga a:</p>
   <div class="lista-obligaciones">
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
     <div class="item">Entregar los bienes muebles en el lugar, fecha y horario acordado en este Contrato.</div>
     <div class="item">Responder por el incumplimiento en el arrendamiento de los bienes, aun cuando subcontrate con terceros.</div>
     {% else %}
@@ -478,18 +478,18 @@
   <div class="lista-obligaciones">
     <div class="item">Pagar íntegramente los importes en los términos y plazos pactados.</div>
     <div class="item">Respetar el horario acordado. Las horas adicionales tienen costo extra previo acuerdo.</div>
-    {% if tipo_servicio != 'HOSPEDAJE' %}
+    {% if tipo_servicio != 'ARRENDAMIENTO' %}
     <div class="item">No exceder el aforo de <strong>{{ cotizacion.num_personas }}</strong> personas.</div>
     <div class="item">Designar a una persona de confianza que durante el evento trate los asuntos relacionados con el arrendamiento.</div>
     <div class="item">Abstenerse de dar instrucciones al personal del arrendador ajenas al objeto del contrato.</div>
     {% endif %}
     <div class="item">Hacerse responsable del comportamiento de sus invitados y proveedores externos.</div>
-    <div class="item">No utilizar el {% if tipo_servicio == 'HOSPEDAJE' %}bien mueble{% else %}salón{% endif %} para fines distintos a los estipulados en este Contrato.</div>
-    {% if tipo_servicio != 'HOSPEDAJE' %}
+    <div class="item">No utilizar el {% if tipo_servicio == 'ARRENDAMIENTO' %}bien mueble{% else %}salón{% endif %} para fines distintos a los estipulados en este Contrato.</div>
+    {% if tipo_servicio != 'ARRENDAMIENTO' %}
     <div class="item">No instalar infraestructura (toldos, templetes, generadores) sin autorización escrita previa.</div>
     {% endif %}
     <div class="item">Respetar el Reglamento Interno (se adjunta al presente contrato).</div>
-    {% if tipo_servicio == 'HOSPEDAJE' %}
+    {% if tipo_servicio == 'ARRENDAMIENTO' %}
     <div class="item">Devolver los bienes muebles en las mismas condiciones que los recibió.</div>
     <div class="item">Devolver los bienes en la fecha y hora pactadas.</div>
     {% endif %}
@@ -516,7 +516,7 @@
 <div class="seccion">
   <div class="seccion-titulo">Cláusula Sexta — Daños y Gastos de Reparación</div>
   <p>
-    En caso de que el {% if tipo_servicio == 'HOSPEDAJE' %}bien mueble{% else %}salón{% endif %}
+    En caso de que el {% if tipo_servicio == 'ARRENDAMIENTO' %}bien mueble{% else %}salón{% endif %}
     sufriera un menoscabo por culpa o negligencia debidamente comprobada del arrendatario
     o de sus invitados, éste se obliga a cubrir los gastos de reparación o reposición dentro
     de los <strong>10 (diez) días naturales</strong> siguientes al evento. El costo se calculará
@@ -630,7 +630,7 @@
 </div>
 
 <p class="small italic" style="margin-top: 10px; text-align: center;">
-  {% if tipo_servicio == 'HOSPEDAJE' %}
+  {% if tipo_servicio == 'ARRENDAMIENTO' %}
     Este contrato fue aprobado y registrado por la Procuraduría Federal del Consumidor
     bajo el número <strong>9339-2023</strong> de fecha 31 de octubre de 2023.
   {% else %}
@@ -659,7 +659,7 @@
   obligatoria para ambas partes y para todos los invitados del Arrendatario.
 </p>
 
-{% if tipo_servicio == 'HOSPEDAJE' %}
+{% if tipo_servicio == 'ARRENDAMIENTO' %}
 <ol class="reglamento">
   <li>Al momento de recibir los bienes muebles, el arrendatario deberá revisarlos con el personal del arrendador, señalando cualquier deterioro existente en ese momento.</li>
   <li>Los bienes muebles arrendados estarán a disposición únicamente durante el tiempo estipulado en el Contrato.</li>

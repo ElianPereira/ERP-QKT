@@ -562,7 +562,7 @@ class ContratoService:
         return f"${v:,.2f} MXN"
 
     def _tipo_display(self):
-        return {"EVENTO": "Evento", "PASADIA": "Pasadía", "HOSPEDAJE": "Hospedaje"}.get(self.tipo, self.tipo)
+        return {"EVENTO": "Evento", "PASADIA": "Pasadía", "ARRENDAMIENTO": "Arrendamiento de Mobiliario"}.get(self.tipo, self.tipo)
 
     def _servicios_incluidos(self):
         partes = []
@@ -602,11 +602,11 @@ class ContratoService:
                 "Personas adicionales al aforo pactado tienen costo extra por persona.",
                 "No se permite el acceso de proveedores externos sin notificación previa.",
             ],
-            'HOSPEDAJE': [
-                "Check-in y check-out en los horarios acordados.",
-                "Prohibido organizar eventos o reuniones sin contrato independiente.",
-                "Fumar dentro de habitaciones genera cargo de limpieza extraordinaria.",
-                "Prohibido el ingreso de personas no registradas después de las 23:00 h.",
+            'ARRENDAMIENTO': [
+                "Los bienes muebles serán entregados en el lugar y fecha acordados.",
+                "Cualquier daño o extravío de los bienes será responsabilidad del arrendatario.",
+                "La devolución de los bienes debe realizarse en las mismas condiciones de entrega.",
+                "No se permite subarrendar o ceder el uso de los bienes sin autorización escrita.",
             ],
         }.get(self.tipo, [])
 
@@ -638,10 +638,10 @@ class ContratoService:
             anticipo_str = "Pendiente"
 
         tipo_marca = {
-            'EVENTO':    '☑ Evento   ☐ Pasadía   ☐ Hospedaje',
-            'PASADIA':   '☐ Evento   ☑ Pasadía   ☐ Hospedaje',
-            'HOSPEDAJE': '☐ Evento   ☐ Pasadía   ☑ Hospedaje',
-        }.get(self.tipo, '☐ Evento   ☐ Pasadía   ☐ Hospedaje')
+            'EVENTO':         '☑ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario',
+            'PASADIA':        '☐ Evento   ☑ Pasadía   ☐ Arrend. Mobiliario',
+            'ARRENDAMIENTO':  '☐ Evento   ☐ Pasadía   ☑ Arrend. Mobiliario',
+        }.get(self.tipo, '☐ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario')
 
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url  = f"file://{ruta_logo}" if os.name != 'nt' else f"file:///{ruta_logo.replace(os.sep, '/')}"

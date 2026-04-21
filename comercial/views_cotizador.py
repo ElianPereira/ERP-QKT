@@ -113,7 +113,7 @@ def cotizador_enviar(request):
     nombre    = str(data.get('nombre', '')).strip()
     telefono  = str(data.get('telefono', '')).strip()
     email     = str(data.get('email', '')).strip()
-    servicio  = str(data.get('servicio', '')).strip()      # EVENTO|PASADIA|HOSPEDAJE
+    servicio  = str(data.get('servicio', '')).strip()      # EVENTO|PASADIA|ARRENDAMIENTO
     fecha_str = str(data.get('fecha', '')).strip()
     personas  = str(data.get('personas', '50')).strip()
     hora_ini  = str(data.get('hora_inicio', '')).strip()
@@ -207,13 +207,13 @@ def cotizador_enviar(request):
     )
 
     # ── Nombre del evento ──────────────────────────────────────
-    nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pasadía', 'HOSPEDAJE': 'Hospedaje'}
+    nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pasadía', 'ARRENDAMIENTO': 'Arrendamiento de Mobiliario'}
     if servicio == 'EVENTO':
         nombre_evento = f"{tipo_ev} — {nombre}"
     elif servicio == 'PASADIA':
         nombre_evento = f"Pasadía — {nombre}"
     else:
-        nombre_evento = f"Hospedaje — {nombre}"
+        nombre_evento = f"Arrendamiento de Mobiliario — {nombre}"
     if notas:
         nombre_evento += f" | {notas[:60]}"
 
@@ -277,8 +277,8 @@ def cotizador_enviar(request):
                 f"Paquete Pasadía QKT ({num_personas} Pax, 10am-7pm)")
             resumen_partes.append("Pasadía")
 
-    elif servicio == 'HOSPEDAJE':
-        resumen_partes.append("Hospedaje")
+    elif servicio == 'ARRENDAMIENTO':
+        resumen_partes.append("Arrendamiento de Mobiliario")
 
     # ── Extras dinámicos (productos marcados visible_cotizador) ───
     extras_ids = [int(x) for x in extras_ids_raw if str(x).isdigit()]
@@ -302,7 +302,7 @@ def cotizador_enviar(request):
     portal_url = f"https://clientes.quintakooxtanil.com/mi-evento/{portal.token}/"
 
     # ── Notificación WA al negocio ─────────────────────────────
-    emoji = {'EVENTO': '🎉', 'PASADIA': '☀️', 'HOSPEDAJE': '🏠'}.get(servicio, '📋')
+    emoji = {'EVENTO': '🎉', 'PASADIA': '☀️', 'ARRENDAMIENTO': '🪑'}.get(servicio, '📋')
     resumen_txt = ", ".join(resumen_partes) if resumen_partes else "Sin servicios adicionales"
     _enviar_wa_negocio(
         f"🔔 *Nueva solicitud web*\n\n"
@@ -393,7 +393,7 @@ def api_fechas_ocupadas(request):
 
 
 def api_productos_cotizador(request):
-    """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|HOSPEDAJE
+    """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|ARRENDAMIENTO
     Devuelve los productos visibles en el cotizador, agrupados por grupo_cotizador."""
     servicio = (request.GET.get('servicio') or '').upper()
 
@@ -402,8 +402,8 @@ def api_productos_cotizador(request):
         filtro['cotizador_evento'] = True
     elif servicio == 'PASADIA':
         filtro['cotizador_pasadia'] = True
-    elif servicio == 'HOSPEDAJE':
-        filtro['cotizador_hospedaje'] = True
+    elif servicio == 'ARRENDAMIENTO':
+        filtro['cotizador_arrendamiento'] = True
 
     productos = Producto.objects.filter(**filtro).order_by('grupo_cotizador', 'orden_cotizador', 'nombre')
 
