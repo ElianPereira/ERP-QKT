@@ -684,7 +684,7 @@ class PagoAdmin(admin.ModelAdmin):
 
 class GastoInline(admin.TabularInline):
     model = Gasto; extra = 0; can_delete = True
-    fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea', 'categoria', 'evento_relacionado')
+    fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea', 'categoria', 'unidad_negocio', 'evento_relacionado')
     readonly_fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea')
     def get_readonly_fields(self, request, obj=None): return [f for f in self.readonly_fields]
     def formfield_for_foreignkey(self, db_field, request, **kwargs):

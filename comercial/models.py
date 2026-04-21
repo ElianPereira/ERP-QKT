@@ -748,7 +748,7 @@ class Compra(models.Model):
                                         except: iva_linea = importe * Decimal('0.16')
                             from configuracion.models import CategoriaGasto
                             cat_default = CategoriaGasto.objects.filter(clave='SIN_CLASIFICAR').first()
-                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor, categoria=cat_default)
+                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor, categoria=cat_default, unidad_negocio=self.unidad_negocio)
             except Exception as e: print(f"Error procesando conceptos: {e}")
     def __str__(self): return f"{self.proveedor} - ${self.total}"
 
@@ -765,6 +765,14 @@ class Gasto(models.Model):
         blank=True,
         related_name='gastos',
         verbose_name="Categoría",
+    )
+    unidad_negocio = models.ForeignKey(
+        'contabilidad.UnidadNegocio',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Unidad de Negocio",
+        help_text="Se hereda de la Compra al crear. Editable por línea.",
     )
     evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
     clave_sat = models.CharField(max_length=20, blank=True)
