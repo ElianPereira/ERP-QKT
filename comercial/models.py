@@ -298,7 +298,7 @@ class Producto(models.Model):
     )
     cotizador_evento = models.BooleanField(default=False, verbose_name="Disponible para Evento")
     cotizador_pasadia = models.BooleanField(default=False, verbose_name="Disponible para Pasadía")
-    cotizador_hospedaje = models.BooleanField(default=False, verbose_name="Disponible para Hospedaje")
+    cotizador_arrendamiento = models.BooleanField(default=False, verbose_name="Disponible para Arrendamiento de Mobiliario")
 
     def calcular_costo(self): return sum(c.subtotal_costo() for c in self.componentes.all())
     def sugerencia_precio(self): return round(self.calcular_costo() * (1 + self.margen_ganancia), 2)
@@ -364,7 +364,7 @@ class Cotizacion(models.Model):
     TIPO_SERVICIO_CHOICES = [
         ('EVENTO', 'Evento'),
         ('PASADIA', 'Pasadía'),
-        ('HOSPEDAJE', 'Hospedaje'),
+        ('ARRENDAMIENTO', 'Arrendamiento de Mobiliario'),
     ]
 
     cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT)
@@ -671,9 +671,9 @@ class ContratoServicio(models.Model):
     Guarda historial: versión, quién lo generó y cuándo.
     """
     TIPO_CHOICES = [
-        ('EVENTO',    'Evento'),
-        ('PASADIA',   'Pasadía'),
-        ('HOSPEDAJE', 'Hospedaje'),
+        ('EVENTO',         'Evento'),
+        ('PASADIA',        'Pasadía'),
+        ('ARRENDAMIENTO',  'Arrendamiento de Mobiliario'),
     ]
 
     cotizacion   = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='contratos')

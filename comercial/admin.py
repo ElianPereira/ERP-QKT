@@ -220,7 +220,7 @@ class ProductoAdmin(admin.ModelAdmin):
         ('Cotizador Web', {
             'fields': (
                 'visible_cotizador',
-                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_hospedaje'),
+                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_arrendamiento'),
                 'grupo_cotizador', 'icono', 'descripcion_corta',
                 'orden_cotizador', 'grupo_exclusion',
                 ('cantidad_por_persona', 'factor_personas'),
@@ -240,7 +240,7 @@ class ProductoAdmin(admin.ModelAdmin):
         servicios = []
         if obj.cotizador_evento: servicios.append('E')
         if obj.cotizador_pasadia: servicios.append('P')
-        if obj.cotizador_hospedaje: servicios.append('H')
+        if obj.cotizador_arrendamiento: servicios.append('A')
         txt = '/'.join(servicios) or '—'
         return mark_safe(
             f'<span style="background:#2E7D32;color:white;padding:2px 8px;'
