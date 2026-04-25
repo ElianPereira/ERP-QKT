@@ -386,7 +386,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
 
     fieldsets = (
-        ('Información del Evento', {'fields': ('cliente', 'nombre_evento', 'fecha_evento', 'hora_inicio', 'hora_fin', 'num_personas', 'estado')}),
+        ('Información del Evento', {'fields': ('cliente', 'tipo_servicio', 'nombre_evento', 'fecha_evento', 'hora_inicio', 'hora_fin', 'num_personas', 'estado')}),
         ('Configuración de Barra', {
             'fields': ('incluye_refrescos', 'incluye_cerveza', 'incluye_licor_nacional', 'incluye_licor_premium', 'incluye_cocteleria_basica', 'incluye_cocteleria_premium', 'clima', 'horas_servicio', 'factor_utilidad_barra', 'resumen_barra_html'),
             'description': 'Selecciona los componentes para armar el paquete.'
