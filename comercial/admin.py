@@ -656,9 +656,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                 )
         except Exception:
             pass
-        return format_html(
-            '<span style="color:#95a5a6;font-size:11px;">Sin portal</span>'
-        )
+        return mark_safe('<span style="color:#95a5a6;font-size:11px;">Sin portal</span>')
     ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
