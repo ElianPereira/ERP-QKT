@@ -1,0 +1,80 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Importar Historial{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:16px;margin-bottom:24px;">
+  <strong>⚠ Lee antes de continuar</strong><br>
+  Esta operación crea registros históricos en el ERP.
+  <strong>Es idempotente</strong>: si la ejecutas más de una vez,
+  las cotizaciones que ya existen se omiten automáticamente.
+  Los pagos se importan con <em>solicitar_factura = No</em>
+  y los portales de cliente quedan desactivados.
+</div>
+
+<div style="display:flex;gap:24px;margin-bottom:24px;">
+  <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:16px;flex:1;text-align:center;">
+    <div style="font-size:32px;font-weight:700;color:#2e7d32;">{{ n_clientes }}</div>
+    <div>Clientes</div>
+  </div>
+  <div style="background:#e3f2fd;border:1px solid #2196f3;border-radius:6px;padding:16px;flex:1;text-align:center;">
+    <div style="font-size:32px;font-weight:700;color:#1565c0;">{{ n_cotizaciones }}</div>
+    <div>Cotizaciones</div>
+  </div>
+  <div style="background:#f3e5f5;border:1px solid #9c27b0;border-radius:6px;padding:16px;flex:1;text-align:center;">
+    <div style="font-size:32px;font-weight:700;color:#6a1b9a;">{{ n_pagos }}</div>
+    <div>Pagos</div>
+  </div>
+</div>
+
+{% if resultado %}
+  <div style="background:{% if resultado_ok %}#e8f5e9{% else %}#ffebee{% endif %};border:1px solid {% if resultado_ok %}#4caf50{% else %}#e53935{% endif %};border-radius:6px;padding:16px;margin-bottom:24px;">
+    <strong>{% if resultado_ok %}✅ Importación completada{% else %}❌ Error{% endif %}</strong>
+    <pre style="margin-top:8px;white-space:pre-wrap;font-size:12px;">{{ resultado }}</pre>
+  </div>
+{% endif %}
+
+<h2 style="margin-bottom:12px;">Cotizaciones a importar</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px;">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="padding:8px;border:1px solid #ddd;text-align:left;">ID Hist.</th>
+      <th style="padding:8px;border:1px solid #ddd;text-align:left;">Fecha Evento</th>
+      <th style="padding:8px;border:1px solid #ddd;text-align:left;">Tipo</th>
+      <th style="padding:8px;border:1px solid #ddd;text-align:right;">Total</th>
+      <th style="padding:8px;border:1px solid #ddd;text-align:center;">Pagos</th>
+      <th style="padding:8px;border:1px solid #ddd;text-align:center;">Estado final</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in preview %}
+    <tr>
+      <td style="padding:7px 8px;border:1px solid #ddd;">{{ row.cot_id }}</td>
+      <td style="padding:7px 8px;border:1px solid #ddd;">{{ row.fecha }}</td>
+      <td style="padding:7px 8px;border:1px solid #ddd;">{{ row.tipo }}</td>
+      <td style="padding:7px 8px;border:1px solid #ddd;text-align:right;">${{ row.total }}</td>
+      <td style="padding:7px 8px;border:1px solid #ddd;text-align:center;">{{ row.n_pagos }}</td>
+      <td style="padding:7px 8px;border:1px solid #ddd;text-align:center;">
+        <span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;
+          background:{% if row.estado == 'CERRADA' %}#e8f5e9;color:#2e7d32{% else %}#fff3cd;color:#795548{% endif %};">
+          {{ row.estado }}
+        </span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if not resultado or not resultado_ok %}
+<form method="post">
+  {% csrf_token %}
+  <button type="submit"
+    style="background:#2E7D32;color:white;border:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;">
+    ▶ Ejecutar Importación
+  </button>
+  <a href="/admin/" style="margin-left:16px;color:#666;">Cancelar</a>
+</form>
+{% endif %}
+
+{% endblock %}

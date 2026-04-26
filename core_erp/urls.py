@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import logout
 from django.shortcuts import redirect
-from comercial.views import ver_cartera_cxc
+from comercial.views import ver_cartera_cxc, importar_historico_view
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
 from airbnb.views import reporte_fiscal_airbnb
@@ -105,6 +105,9 @@ urlpatterns = [
     
     #---- CXC VISUALIZACION---
     path('admin/cartera/', ver_cartera_cxc, name='cartera_cxc'),
+
+    # IMPORTACIÓN HISTÓRICA (una sola vez)
+    path('admin/importar-historico/', importar_historico_view, name='importar_historico'),
     path('admin/contabilidad/reportes/', include('contabilidad.urls')),
 
     #--- PLAN DE PAGOS---
