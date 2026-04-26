@@ -1573,7 +1573,7 @@ def importar_historico_view(request):
             return redirect("/admin/")
 
         out = StringIO()
-        cmd = Command(stdout=out)
+        cmd = Command(stdout=out, no_color=True)
         try:
             cmd.handle(dry_run=False)
             context["resultado"] = out.getvalue()
