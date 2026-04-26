@@ -16,3 +16,6 @@ media/
 
 # Respaldos
 cementerio/
+
+# Datos de importación histórica (no subir excels privados)
+historico_import/
