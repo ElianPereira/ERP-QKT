@@ -1524,3 +1524,62 @@ def enviar_contrato_email(request, contrato_id):
         messages.error(request, f" Error al enviar el contrato: {e}")
 
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
+
+# ---------------------------------------------------------------------------
+# IMPORTACIÓN HISTÓRICA (una sola vez, desde el sistema anterior)
+# ---------------------------------------------------------------------------
+
+@staff_member_required
+def importar_historico_view(request):
+    """
+    Página de administración para importar el historial del sistema anterior.
+    GET  → muestra resumen y botón de confirmación.
+    POST → ejecuta la importación y muestra resultados.
+    """
+    from io import StringIO
+    from comercial.management.commands.importar_historico import (
+        CLIENTES, COTIZACIONES, PAGOS, Command,
+    )
+
+    pagos_por_cot = {}
+    for row in PAGOS:
+        pagos_por_cot.setdefault(row[0], []).append(row)
+
+    resumen_preview = []
+    for cot_id, cliente_clave, fecha, tipo, total, estado in COTIZACIONES:
+        n_pagos = len(pagos_por_cot.get(cot_id, []))
+        resumen_preview.append({
+            "cot_id": cot_id,
+            "fecha": fecha,
+            "tipo": tipo,
+            "total": total,
+            "estado": estado,
+            "n_pagos": n_pagos,
+        })
+
+    context = {
+        "title": "Importar Historial del Sistema Anterior",
+        "n_clientes": len(CLIENTES),
+        "n_cotizaciones": len(COTIZACIONES),
+        "n_pagos": len(PAGOS),
+        "preview": resumen_preview,
+        "resultado": None,
+    }
+
+    if request.method == "POST":
+        if not request.user.is_superuser:
+            messages.error(request, "Solo un superusuario puede ejecutar esta importación.")
+            return redirect("/admin/")
+
+        out = StringIO()
+        cmd = Command(stdout=out)
+        try:
+            cmd.handle(dry_run=False)
+            context["resultado"] = out.getvalue()
+            context["resultado_ok"] = True
+        except Exception as exc:
+            context["resultado"] = f"Error durante la importación:\n{exc}"
+            context["resultado_ok"] = False
+
+    return render(request, "admin/importar_historico.html", context)
