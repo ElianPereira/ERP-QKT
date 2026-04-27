@@ -1283,7 +1283,7 @@ def ver_cartera_cxc(request):
     
     from django.db.models import Sum, Q
     cotizaciones = Cotizacion.objects.filter(
-        estado__in=['COTIZADA', 'ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION', 'EJECUTADA']
+        estado__in=['COTIZADA', 'CONFIRMADA', 'EJECUTADA']
     ).select_related('cliente').annotate(
         _ingresos=Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='INGRESO')), Decimal('0.00')),
         _reembolsos=Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='REEMBOLSO')), Decimal('0.00')),

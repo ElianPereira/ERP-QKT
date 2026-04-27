@@ -405,15 +405,14 @@ class CotizacionAdmin(admin.ModelAdmin):
     # --- BADGES CORTOS (Punto 3) ---
     def estado_badge(self, obj):
         colores = {
-            'BORRADOR': '#95a5a6', 'COTIZADA': '#3498db', 'ANTICIPO': '#e67e22',
-            'CONFIRMADA': '#2E7D32', 'EN_PREPARACION': '#8e44ad', 'EJECUTADA': '#1B5E20',
+            'BORRADOR': '#95a5a6', 'COTIZADA': '#3498db',
+            'CONFIRMADA': '#2E7D32', 'EJECUTADA': '#1B5E20',
             'CERRADA': '#1abc9c', 'CANCELADA': '#e74c3c',
         }
 
-        # Etiquetas cortas de 1 palabra
         etiquetas = {
-            'BORRADOR': 'Borrador', 'COTIZADA': 'Cotizada', 'ANTICIPO': 'Anticipo',
-            'CONFIRMADA': 'Confirmada', 'EN_PREPARACION': 'Preparación', 'EJECUTADA': 'Ejecutada',
+            'BORRADOR': 'Borrador', 'COTIZADA': 'Cotizada',
+            'CONFIRMADA': 'Confirmada', 'EJECUTADA': 'Ejecutada',
             'CERRADA': 'Cerrada', 'CANCELADA': 'Cancelada',
         }
         color = colores.get(obj.estado, '#666')
@@ -556,7 +555,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     from django.utils.timezone import now
                     obj.fecha_cancelacion = now()
         
-        if obj.estado in ('CONFIRMADA', 'EN_PREPARACION'):
+        if obj.estado == 'CONFIRMADA':
             try:
                 from airbnb.validacion_fechas import validar_fecha_disponible
                 disponible, mensaje = validar_fecha_disponible(obj.fecha_evento, exclude_cotizacion_id=obj.pk)

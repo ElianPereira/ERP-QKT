@@ -43,13 +43,12 @@ def verificar_disponibilidad_fecha(fecha_evento: date, cotizacion_id: int = None
         )
         return False, mensaje
 
-    # Cotizaciones ya apartadas (anticipo/confirmada/en preparación)
+    # Cotizaciones ya apartadas (confirmada)
     try:
         from comercial.models import Cotizacion
-        ESTADOS_APARTADO = ['ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION']
         qs = Cotizacion.objects.filter(
             fecha_evento=fecha_evento,
-            estado__in=ESTADOS_APARTADO,
+            estado='CONFIRMADA',
         )
         if cotizacion_id:
             qs = qs.exclude(pk=cotizacion_id)
@@ -103,7 +102,7 @@ def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]
         cots = Cotizacion.objects.filter(
             fecha_evento__gte=fecha_inicio,
             fecha_evento__lte=fecha_fin,
-            estado__in=['ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION'],
+            estado='CONFIRMADA',
         )
         for c in cots:
             bloqueos.append({

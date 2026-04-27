@@ -67,7 +67,7 @@ class Command(BaseCommand):
             fecha_limite=fecha_objetivo,
             pagada=False,
             plan__activo=True,
-            plan__cotizacion__estado__in=['ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION'],
+            plan__cotizacion__estado__in=['CONFIRMADA', 'EJECUTADA'],
         ).select_related(
             'plan__cotizacion__cliente',
         ).order_by('plan__cotizacion__fecha_evento')

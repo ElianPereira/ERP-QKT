@@ -47,12 +47,6 @@ class DisponibilidadFechaTest(TestCase):
         disponible, _ = verificar_disponibilidad_fecha(self.fecha)
         self.assertTrue(disponible)
 
-    def test_fecha_con_anticipo_bloquea(self):
-        self._crear_cot('ANTICIPO')
-        disponible, msg = verificar_disponibilidad_fecha(self.fecha)
-        self.assertFalse(disponible)
-        self.assertIn('apartado', msg.lower())
-
     def test_fecha_con_confirmada_bloquea(self):
         self._crear_cot('CONFIRMADA')
         disponible, msg = verificar_disponibilidad_fecha(self.fecha)

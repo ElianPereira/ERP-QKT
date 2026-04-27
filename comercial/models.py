@@ -335,21 +335,17 @@ class Cotizacion(models.Model):
     ESTADOS = [
         ('BORRADOR', 'Borrador'),
         ('COTIZADA', 'Cotización Enviada'),
-        ('ANTICIPO', 'Anticipo Recibido'),
         ('CONFIRMADA', 'Venta Confirmada'),
-        ('EN_PREPARACION', 'En Preparación'),
         ('EJECUTADA', 'Evento Ejecutado'),
         ('CERRADA', 'Cerrada / Completada'),
         ('CANCELADA', 'Cancelada'),
     ]
-    
+
     # Transiciones permitidas: estado_actual -> [estados_destino]
     TRANSICIONES_PERMITIDAS = {
         'BORRADOR': ['COTIZADA', 'CANCELADA'],
-        'COTIZADA': ['ANTICIPO', 'CONFIRMADA', 'CANCELADA'],
-        'ANTICIPO': ['CONFIRMADA', 'CANCELADA'],
-        'CONFIRMADA': ['EN_PREPARACION', 'CANCELADA'],
-        'EN_PREPARACION': ['EJECUTADA', 'CANCELADA'],
+        'COTIZADA': ['CONFIRMADA', 'CANCELADA'],
+        'CONFIRMADA': ['EJECUTADA', 'CANCELADA'],
         'EJECUTADA': ['CERRADA'],
         'CERRADA': [],  # Estado final
         'CANCELADA': ['BORRADOR'],  # Permite reactivar
@@ -516,7 +512,7 @@ class Cotizacion(models.Model):
         """Si la cotización está apartando una fecha (anticipo o superior),
         valida que no choque con Airbnb u otra cotización ya apartada."""
         super().clean()
-        if self.fecha_evento and self.estado in ('ANTICIPO', 'CONFIRMADA', 'EN_PREPARACION'):
+        if self.fecha_evento and self.estado == 'CONFIRMADA':
             try:
                 from airbnb.validacion_fechas import verificar_disponibilidad_fecha
                 disponible, msg = verificar_disponibilidad_fecha(
