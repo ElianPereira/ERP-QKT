@@ -381,6 +381,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
+    ordering = ['-fecha_evento', '-id']
     
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
