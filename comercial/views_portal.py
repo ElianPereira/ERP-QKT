@@ -32,8 +32,6 @@ def landing_publico(request):
     host = request.get_host().split(':')[0].lower()
     if host.startswith('erp.'):
         return redirect('/admin/')
-    if host.startswith('clientes.'):
-        return redirect('https://quintakooxtanil.com' + request.get_full_path())
 
     imagenes = ImagenLanding.objects.filter(activo=True)
     img = {}
