@@ -1153,8 +1153,8 @@ class ImagenLanding(models.Model):
 
     class Meta:
         ordering = ['seccion', 'orden']
-        verbose_name = "Imagen de landing"
-        verbose_name_plural = "Imágenes de landing"
+        verbose_name = "Imagen de la página web"
+        verbose_name_plural = "Página Web — Imágenes"
 
     def __str__(self):
         return f"{self.get_seccion_display()} — {self.titulo or 'Sin título'}"
@@ -1171,8 +1171,8 @@ class TestimonioLanding(models.Model):
 
     class Meta:
         ordering = ['orden']
-        verbose_name = "Testimonio"
-        verbose_name_plural = "Testimonios"
+        verbose_name = "Testimonio de cliente"
+        verbose_name_plural = "Página Web — Testimonios"
 
     def __str__(self):
         return f"{self.nombre} — {self.evento}"
