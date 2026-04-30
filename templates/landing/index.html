@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-{% load static %}
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -236,13 +235,13 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
   </div>
 </section>
 
+{% if img.hero %}
 <div class="hero-foto-wrap">
-  <div class="foto foto-hero" data-label="Foto principal">
-    <img src="{% static 'img/landing/hero.jpg' %}" alt="Quinta Ko'ox Tanil"
-         onload="this.parentElement.classList.add('loaded')"
-         onerror="this.remove()">
+  <div class="foto foto-hero loaded">
+    <img src="{{ img.hero.imagen.url }}" alt="{{ img.hero.alt_text|default:'Quinta Ko\'ox Tanil' }}">
   </div>
 </div>
+{% endif %}
 
 <!-- Elige tu camino -->
 <section class="caminos" id="caminos">
@@ -274,33 +273,33 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     </div>
     <div class="srv-grid">
       <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="srv-card">
-        <div class="foto srv-foto" data-label="Foto evento">
-          <img src="{% static 'img/landing/evento.jpg' %}" alt="Eventos sociales"
-               onload="this.parentElement.classList.add('loaded')"
-               onerror="this.remove()">
+        {% if img.evento %}
+        <div class="foto srv-foto loaded">
+          <img src="{{ img.evento.imagen.url }}" alt="{{ img.evento.alt_text|default:'Eventos sociales' }}">
         </div>
+        {% endif %}
         <div class="srv-ico">🎉</div>
         <div class="srv-nom"><em>Eventos sociales</em></div>
         <p class="srv-desc">Bodas, XV años, graduaciones, cumpleaños, aniversarios y eventos corporativos.</p>
         <span class="srv-link">Cotizar →</span>
       </a>
       <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="srv-card">
-        <div class="foto srv-foto" data-label="Foto pasadía">
-          <img src="{% static 'img/landing/pasadia.jpg' %}" alt="Pasadía"
-               onload="this.parentElement.classList.add('loaded')"
-               onerror="this.remove()">
+        {% if img.pasadia %}
+        <div class="foto srv-foto loaded">
+          <img src="{{ img.pasadia.imagen.url }}" alt="{{ img.pasadia.alt_text|default:'Pasadía' }}">
         </div>
+        {% endif %}
         <div class="srv-ico">☀️</div>
         <div class="srv-nom"><em>Pasadía</em></div>
         <p class="srv-desc">Un día de descanso con alberca, jardines y todas las comodidades de la quinta.</p>
         <span class="srv-link">Cotizar →</span>
       </a>
       <a href="{% url 'cotizador_publico' %}?servicio=HOSPEDAJE" class="srv-card">
-        <div class="foto srv-foto" data-label="Foto hospedaje">
-          <img src="{% static 'img/landing/hospedaje.jpg' %}" alt="Hospedaje"
-               onload="this.parentElement.classList.add('loaded')"
-               onerror="this.remove()">
+        {% if img.hospedaje %}
+        <div class="foto srv-foto loaded">
+          <img src="{{ img.hospedaje.imagen.url }}" alt="{{ img.hospedaje.alt_text|default:'Hospedaje' }}">
         </div>
+        {% endif %}
         <div class="srv-ico">🏠</div>
         <div class="srv-nom"><em>Hospedaje</em></div>
         <p class="srv-desc">Habitaciones o la casa completa, disponibles en Airbnb, con todas las comodidades.</p>
@@ -311,32 +310,21 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 </section>
 
 <!-- Galería -->
+{% if img.galeria %}
 <section class="galeria">
   <div class="seccion-titulo">
     <h2>Conoce <em>nuestro espacio</em></h2>
     <p>Momentos reales en Quinta Ko'ox Tanil.</p>
   </div>
   <div class="galeria-grid">
-    <div class="galeria-item" onclick="abrirLightbox(0)">
-      <img src="{% static 'img/landing/gallery1.jpg' %}" alt="Evento nocturno con pirotecnia" loading="lazy">
+    {% for foto in img.galeria %}
+    <div class="galeria-item" onclick="abrirLightbox({{ forloop.counter0 }})">
+      <img src="{{ foto.imagen.url }}" alt="{{ foto.alt_text|default:foto.titulo }}" loading="lazy">
     </div>
-    <div class="galeria-item" onclick="abrirLightbox(1)">
-      <img src="{% static 'img/landing/gallery2.jpg' %}" alt="Alberca y área de jardín" loading="lazy">
-    </div>
-    <div class="galeria-item" onclick="abrirLightbox(2)">
-      <img src="{% static 'img/landing/gallery3.jpg' %}" alt="Montaje de mesas para evento" loading="lazy">
-    </div>
-    <div class="galeria-item" onclick="abrirLightbox(3)">
-      <img src="{% static 'img/landing/gallery4.jpg' %}" alt="Cena de gala al aire libre" loading="lazy">
-    </div>
-    <div class="galeria-item" onclick="abrirLightbox(4)">
-      <img src="{% static 'img/landing/gallery5.jpg' %}" alt="Hacienda iluminada de noche" loading="lazy">
-    </div>
-    <div class="galeria-item" onclick="abrirLightbox(5)">
-      <img src="{% static 'img/landing/gallery6.jpg' %}" alt="Fiesta en la terraza" loading="lazy">
-    </div>
+    {% endfor %}
   </div>
 </section>
+{% endif %}
 
 <!-- Lightbox -->
 <div class="lightbox" id="lightbox">
@@ -347,39 +335,27 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 </div>
 
 <!-- Testimonios -->
+{% if testimonios %}
 <section class="testimonios">
   <div class="testimonios-inner">
     <div class="seccion-titulo">
       <h2>Lo que dicen <em>nuestros clientes</em></h2>
     </div>
     <div class="test-grid">
+      {% for t in testimonios %}
       <div class="test-card">
-        <div class="test-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <p class="test-texto">"El lugar es hermoso, el servicio de primera y todo quedó exactamente como lo soñamos. Nuestros invitados no dejaban de decir lo increíble que estaba todo."</p>
+        <div class="test-stars">{% for i in "12345" %}{% if forloop.counter <= t.estrellas %}&#9733;{% else %}&#9734;{% endif %}{% endfor %}</div>
+        <p class="test-texto">"{{ t.texto }}"</p>
         <div class="test-autor">
-          <div class="test-avatar">M</div>
-          <div><div class="test-nombre">María &amp; Jorge</div><div class="test-evento">Boda · 150 invitados</div></div>
+          <div class="test-avatar">{{ t.nombre|first }}</div>
+          <div><div class="test-nombre">{{ t.nombre }}</div><div class="test-evento">{{ t.evento }}</div></div>
         </div>
       </div>
-      <div class="test-card">
-        <div class="test-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <p class="test-texto">"Hicimos el pasadía para el cumpleaños de mi hija y fue un éxito total. La alberca, el brincolín, todo perfecto. Ya estamos planeando el siguiente."</p>
-        <div class="test-autor">
-          <div class="test-avatar">L</div>
-          <div><div class="test-nombre">Laura Méndez</div><div class="test-evento">Pasadía · Cumpleaños infantil</div></div>
-        </div>
-      </div>
-      <div class="test-card">
-        <div class="test-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <p class="test-texto">"Celebramos los XV años de mi sobrina aquí y superó todas las expectativas. El equipo de la quinta se encargó de todo, nosotros solo disfrutamos."</p>
-        <div class="test-autor">
-          <div class="test-avatar">R</div>
-          <div><div class="test-nombre">Roberto Canul</div><div class="test-evento">XV Años · 200 invitados</div></div>
-        </div>
-      </div>
+      {% endfor %}
     </div>
   </div>
 </section>
+{% endif %}
 
 <!-- Ubicación -->
 <section class="ubicacion">

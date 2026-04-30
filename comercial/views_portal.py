@@ -18,7 +18,7 @@ from django.utils import timezone
 from django.conf import settings
 from weasyprint import HTML
 
-from .models import Cotizacion, PortalCliente, PlanPago
+from .models import Cotizacion, PortalCliente, PlanPago, ImagenLanding, TestimonioLanding
 
 
 from core_erp.ratelimit import rate_limit as _rate_limit
@@ -32,7 +32,20 @@ def landing_publico(request):
     host = request.get_host().split(':')[0].lower()
     if host.startswith('erp.'):
         return redirect('/admin/')
-    return render(request, 'landing/index.html')
+
+    imagenes = ImagenLanding.objects.filter(activo=True)
+    img = {}
+    for sec in ('HERO', 'EVENTO', 'PASADIA', 'HOSPEDAJE'):
+        img[sec.lower()] = imagenes.filter(seccion=sec).first()
+    img['galeria'] = imagenes.filter(seccion='GALERIA')
+
+    testimonios = TestimonioLanding.objects.filter(activo=True)
+
+    context = {
+        'img': img,
+        'testimonios': testimonios,
+    }
+    return render(request, 'landing/index.html', context)
 
 
 @_rate_limit(key='portal_acceso', limit=20, window=60)
