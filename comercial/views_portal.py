@@ -26,12 +26,14 @@ from core_erp.ratelimit import rate_limit as _rate_limit
 
 def landing_publico(request):
     """
-    Landing pública — raíz de clientes.quintakooxtanil.com.
-    En erp.* redirige al admin; en clientes.* muestra la landing.
+    Landing pública — quintakooxtanil.com
+    erp.* redirige al admin; clientes.* redirige al dominio principal.
     """
     host = request.get_host().split(':')[0].lower()
     if host.startswith('erp.'):
         return redirect('/admin/')
+    if host.startswith('clientes.'):
+        return redirect('https://quintakooxtanil.com' + request.get_full_path())
 
     imagenes = ImagenLanding.objects.filter(activo=True)
     img = {}
