@@ -192,6 +192,8 @@ JAZZMIN_SETTINGS = {
         "comercial.AsignacionPersonal":     "fas fa-user-check",
         "comercial.PlanPago":               "fas fa-calendar-alt",
         "comercial.RecordatorioPago":       "fas fa-bell",
+        "comercial.ImagenLanding":          "fas fa-images",
+        "comercial.TestimonioLanding":      "fas fa-star",
 
         # AIRBNB
         "airbnb":                           "fas fa-bed",
@@ -269,6 +271,8 @@ JAZZMIN_SETTINGS = {
         "comercial.AsignacionPersonal",
         "comercial.PlanPago",
         "comercial.RecordatorioPago",
+        "comercial.ImagenLanding",
+        "comercial.TestimonioLanding",
 
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",
