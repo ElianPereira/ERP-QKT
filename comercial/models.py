@@ -1130,3 +1130,49 @@ class AsignacionPersonal(models.Model):
 
     def __str__(self):
         return f"{self.empleado} → COT-{self.cotizacion_id} ({self.rol})"
+
+
+# ==========================================
+# CONTENIDO DE LANDING PAGE
+# ==========================================
+class ImagenLanding(models.Model):
+    SECCION_CHOICES = [
+        ('HERO', 'Banner principal'),
+        ('EVENTO', 'Servicio — Eventos'),
+        ('PASADIA', 'Servicio — Pasadía'),
+        ('HOSPEDAJE', 'Servicio — Hospedaje'),
+        ('GALERIA', 'Galería de fotos'),
+    ]
+    seccion = models.CharField(max_length=20, choices=SECCION_CHOICES, verbose_name="Sección")
+    imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
+    titulo = models.CharField(max_length=120, blank=True, verbose_name="Título / descripción interna")
+    alt_text = models.CharField(max_length=200, blank=True, verbose_name="Texto alternativo",
+                                help_text="Describe la imagen para accesibilidad y SEO")
+    orden = models.PositiveIntegerField(default=0, verbose_name="Orden")
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['seccion', 'orden']
+        verbose_name = "Imagen de landing"
+        verbose_name_plural = "Imágenes de landing"
+
+    def __str__(self):
+        return f"{self.get_seccion_display()} — {self.titulo or 'Sin título'}"
+
+
+class TestimonioLanding(models.Model):
+    nombre = models.CharField(max_length=100, verbose_name="Nombre del cliente")
+    evento = models.CharField(max_length=100, verbose_name="Tipo de evento",
+                              help_text="Ej: Boda · 150 invitados")
+    texto = models.TextField(verbose_name="Testimonio")
+    estrellas = models.PositiveIntegerField(default=5, verbose_name="Estrellas (1-5)")
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Testimonio"
+        verbose_name_plural = "Testimonios"
+
+    def __str__(self):
+        return f"{self.nombre} — {self.evento}"

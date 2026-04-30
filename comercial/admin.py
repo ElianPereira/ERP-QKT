@@ -14,6 +14,7 @@ from .models import (
     Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
     MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago,
     Espacio, AsignacionEspacio, AsignacionPersonal,
+    ImagenLanding, TestimonioLanding,
 )
 from .services import CalculadoraBarraService
 
@@ -993,3 +994,59 @@ class AsignacionPersonalAdmin(admin.ModelAdmin):
     search_fields = ('empleado__nombre', 'cotizacion__nombre_evento', 'cotizacion__cliente__nombre')
     date_hierarchy = 'fecha'
     autocomplete_fields = ('cotizacion',)
+
+
+# ==========================================
+# CONTENIDO DE LANDING PAGE
+# ==========================================
+@admin.register(ImagenLanding)
+class ImagenLandingAdmin(admin.ModelAdmin):
+    list_display = ('preview_mini', 'seccion', 'titulo', 'orden', 'activo')
+    list_filter = ('seccion', 'activo')
+    list_editable = ('orden', 'activo')
+    list_display_links = ('preview_mini', 'seccion')
+    fieldsets = (
+        (None, {
+            'fields': ('seccion', 'imagen', 'preview_grande'),
+        }),
+        ('Detalles', {
+            'fields': ('titulo', 'alt_text', 'orden', 'activo'),
+        }),
+    )
+    readonly_fields = ('preview_grande',)
+
+    @admin.display(description="Preview")
+    def preview_mini(self, obj):
+        if obj.imagen:
+            return format_html(
+                '<img src="{}" style="width:80px;height:55px;object-fit:cover;border-radius:4px;">',
+                obj.imagen.url
+            )
+        return "—"
+
+    @admin.display(description="Vista previa")
+    def preview_grande(self, obj):
+        if obj.imagen:
+            return format_html(
+                '<img src="{}" style="max-width:400px;max-height:300px;border-radius:6px;">',
+                obj.imagen.url
+            )
+        return "Sin imagen"
+
+
+@admin.register(TestimonioLanding)
+class TestimonioLandingAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'evento', 'estrellas_display', 'texto_corto', 'activo')
+    list_filter = ('activo', 'estrellas')
+    list_editable = ('activo',)
+
+    @admin.display(description="Estrellas")
+    def estrellas_display(self, obj):
+        return format_html(
+            '<span style="color:#F5C518;font-size:1.1em;">{}</span>',
+            '★' * obj.estrellas + '☆' * (5 - obj.estrellas)
+        )
+
+    @admin.display(description="Testimonio")
+    def texto_corto(self, obj):
+        return obj.texto[:80] + '…' if len(obj.texto) > 80 else obj.texto
