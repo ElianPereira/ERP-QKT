@@ -3,160 +3,185 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quinta Ko'ox Tanil — Eventos, pasadía y hospedaje en Umán, Yucatán</title>
-<meta name="description" content="Cotiza tu evento, pasadía u hospedaje en Quinta Ko'ox Tanil. Recibe tu cotización al instante y accede a tu portal privado.">
+<meta name="description" content="Quinta Ko'ox Tanil — Eventos sociales, bodas, pasadía y hospedaje en Umán, Yucatán.">
+<title>Quinta Ko'ox Tanil — Umán, Yucatán</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
   --verde:#2E7D32;--verde-d:#1B5E20;--verde-h:#388E3C;
   --amarillo:#F5C518;--amarillo-h:#E6B800;
   --oscuro:#2c2b28;--crema:#F7F7F4;
   --texto:#1A1A1A;--texto-s:#4A4A4A;--blanco:#FFFFFF;
-  --borde:#e0e0d8;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 html{scroll-behavior:smooth;}
-body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--texto);min-height:100vh;}
+body{font-family:'IBM Plex Sans',sans-serif;color:var(--texto);background:var(--blanco);overflow-x:hidden;}
 
-/* Header */
-.header{background:var(--verde-d);padding:1.2rem 5%;display:flex;align-items:center;justify-content:space-between;}
-.header-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.3rem;font-weight:400;text-decoration:none;letter-spacing:.03em;}
-.header-logo em{font-style:italic;}
-.header-nav{display:flex;gap:1.4rem;align-items:center;}
-.header-nav a{color:rgba(255,255,255,.72);font-size:.72rem;font-weight:400;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;transition:color .2s;}
-.header-nav a:hover{color:var(--amarillo);}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:1.2rem 5%;background:rgba(27,94,32,.94);backdrop-filter:blur(12px);transition:all .3s;}
+nav.scrolled{padding:.8rem 5%;background:rgba(27,94,32,.99);}
+.nav-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.35rem;font-weight:400;letter-spacing:.04em;text-decoration:none;}
+.nav-logo em{font-style:italic;}
+.nav-links{display:flex;gap:2rem;list-style:none;}
+.nav-links a{color:rgba(255,255,255,.85);text-decoration:none;font-size:.75rem;font-weight:400;letter-spacing:.12em;text-transform:uppercase;transition:color .2s;}
+.nav-links a:hover{color:var(--amarillo);}
+.nav-wa{background:var(--amarillo);color:var(--verde-d);padding:.5rem 1.2rem;border-radius:40px;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;display:flex;align-items:center;gap:.4rem;transition:all .2s;}
+.nav-wa:hover{background:var(--amarillo-h);transform:translateY(-1px);}
+.menu-btn{display:none;background:none;border:none;cursor:pointer;padding:4px;}
+.menu-btn span{display:block;width:22px;height:1.5px;background:var(--amarillo);margin:5px 0;}
 
-/* Hero */
-.hero{
-  background:linear-gradient(135deg,var(--verde-d) 0%,var(--verde) 100%);
-  padding:5rem 5% 4rem;text-align:center;color:var(--blanco);
-  position:relative;overflow:hidden;
-}
-.hero-inner{max-width:760px;margin:0 auto;position:relative;z-index:2;}
-.hero h1{font-family:'Cormorant Garamond',serif;font-size:clamp(2.2rem,5vw,3.6rem);font-weight:300;line-height:1.15;margin-bottom:2rem;}
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 5%;position:relative;overflow:hidden;background-size:cover;background-position:center;}
+.hero-grad{position:absolute;inset:0;background:linear-gradient(160deg,rgba(27,94,32,.93) 0%,rgba(15,50,20,.82) 50%,rgba(27,94,32,.95) 100%);}
+.hero-orn{position:absolute;width:540px;height:540px;border:1px solid rgba(245,197,24,.07);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);animation:pulseOrn 8s ease-in-out infinite;z-index:1;}
+.hero-orn::before{content:'';position:absolute;inset:40px;border:1px solid rgba(245,197,24,.04);border-radius:50%;}
+@keyframes pulseOrn{0%,100%{opacity:.4;transform:translate(-50%,-50%) scale(1);}50%{opacity:.7;transform:translate(-50%,-50%) scale(1.03);}}
+.hero-c{position:relative;z-index:2;max-width:680px;}
+.hero-tag{display:inline-block;color:var(--amarillo);font-size:.68rem;font-weight:400;letter-spacing:.3em;text-transform:uppercase;margin-bottom:1.5rem;padding-bottom:.5rem;border-bottom:1px solid rgba(245,197,24,.3);}
+.hero h1{font-family:'Cormorant Garamond',serif;color:var(--blanco);font-size:clamp(3rem,8vw,6rem);font-weight:300;line-height:1.05;margin-bottom:.3rem;animation:fadeUp 1s ease both;}
 .hero h1 em{font-style:italic;color:var(--amarillo);}
-.hero-cta{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:1rem;}
+.hero-sub{font-family:'Cormorant Garamond',serif;color:rgba(255,255,255,.52);font-size:clamp(.85rem,2vw,1rem);font-weight:300;letter-spacing:.25em;text-transform:uppercase;margin-bottom:1.8rem;animation:fadeUp 1s .2s ease both;}
+.hero-desc{color:rgba(255,255,255,.7);font-size:.95rem;font-weight:300;line-height:1.85;max-width:460px;margin:0 auto 2.5rem;animation:fadeUp 1s .35s ease both;}
+.hero-ctas{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;animation:fadeUp 1s .5s ease both;}
+.btn-am{background:var(--amarillo);color:var(--verde-d);padding:.9rem 2.2rem;border-radius:40px;font-size:.76rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;transition:all .25s;}
+.btn-am:hover{background:var(--amarillo-h);transform:translateY(-2px);box-shadow:0 8px 25px rgba(245,197,24,.28);}
+.btn-out{border:1px solid rgba(255,255,255,.38);color:var(--blanco);padding:.9rem 2.2rem;border-radius:40px;font-size:.76rem;font-weight:400;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;transition:all .25s;}
+.btn-out:hover{border-color:rgba(255,255,255,.65);background:rgba(255,255,255,.07);}
+.hero-scroll{position:absolute;bottom:2.5rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.5rem;animation:fadeUp 1s .8s ease both;color:rgba(255,255,255,.32);font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;z-index:2;}
+.hero-sl{width:1px;height:38px;background:linear-gradient(to bottom,rgba(245,197,24,.55),transparent);animation:sl 2s ease-in-out infinite;}
+@keyframes sl{0%,100%{transform:scaleY(1);opacity:.55;}50%{transform:scaleY(1.3);opacity:1;}}
 
-.btn-primario{
-  display:inline-block;background:var(--amarillo);color:var(--verde-d);
-  padding:1rem 2.4rem;border-radius:40px;
-  font-size:.78rem;font-weight:600;letter-spacing:.12em;
-  text-transform:uppercase;text-decoration:none;transition:all .2s;border:none;cursor:pointer;
-}
-.btn-primario:hover{background:var(--amarillo-h);transform:translateY(-1px);box-shadow:0 8px 22px rgba(245,197,24,.28);}
-.btn-secundario{
-  display:inline-block;background:transparent;color:var(--blanco);
-  padding:1rem 2.4rem;border-radius:40px;border:1.5px solid rgba(255,255,255,.55);
-  font-size:.78rem;font-weight:600;letter-spacing:.12em;
-  text-transform:uppercase;text-decoration:none;transition:all .2s;
-}
-.btn-secundario:hover{border-color:var(--blanco);background:rgba(255,255,255,.08);}
+section{padding:6rem 5%;}
+.stag{display:block;color:var(--verde);font-size:.64rem;font-weight:500;letter-spacing:.28em;text-transform:uppercase;margin-bottom:1rem;}
+.stitle{font-family:'Cormorant Garamond',serif;font-size:clamp(1.9rem,4vw,2.85rem);font-weight:300;line-height:1.2;color:var(--verde-d);margin-bottom:1.5rem;}
+.stitle em{font-style:italic;color:var(--verde);}
+.divider{width:46px;height:2px;background:linear-gradient(to right,var(--amarillo),transparent);margin:1.5rem 0;}
 
-/* Placeholder de foto (se reemplaza automáticamente cuando existe el archivo) */
-.hero-foto-wrap{max-width:960px;margin:-3rem auto 0;padding:0 5%;position:relative;z-index:3;}
-.foto{
-  position:relative;background:#edece3;border:2px dashed #cac8b9;border-radius:10px;
-  overflow:hidden;
-}
-.foto.loaded{border:none;background:transparent;}
-.foto::before{
-  content:attr(data-label);
-  position:absolute;inset:0;
-  display:flex;align-items:center;justify-content:center;
-  color:#9a9684;font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;font-weight:500;
-  z-index:0;pointer-events:none;
-}
-.foto img{width:100%;height:100%;object-fit:cover;display:block;position:relative;z-index:1;}
-.foto-hero{aspect-ratio:16/7;}
+.nosotros{background:var(--crema);display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center;}
+.nos-vis{position:relative;height:440px;}
+.nos-bg{position:absolute;inset:0;border-radius:4px;overflow:hidden;background-size:cover;background-position:center;}
+.nos-bg-grad{position:absolute;inset:0;background:radial-gradient(ellipse at 35% 65%,rgba(46,125,50,.55) 0%,transparent 55%),radial-gradient(ellipse at 70% 30%,rgba(245,197,24,.17) 0%,transparent 50%),linear-gradient(135deg,#1B5E20 0%,#2E7D32 55%,#1a4822 100%);}
+.nos-bg::after{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23F5C518' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");}
+.nos-badge{position:absolute;bottom:2rem;right:-1.5rem;background:var(--amarillo);color:var(--verde-d);padding:1.2rem 1.5rem;text-align:center;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.2);z-index:1;}
+.nos-bnum{font-family:'Cormorant Garamond',serif;font-size:2.2rem;font-weight:600;display:block;line-height:1;}
+.nos-btxt{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600;opacity:.8;}
+.nos-txt p{color:var(--texto-s);font-size:.95rem;font-weight:300;line-height:1.9;margin-bottom:1.2rem;}
+.nos-datos{display:flex;gap:2rem;margin-top:2rem;padding-top:2rem;border-top:1px solid #e2e2da;}
+.nos-dato span:first-child{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:var(--verde-d);display:block;line-height:1;}
+.nos-dato span:last-child{font-size:.67rem;letter-spacing:.1em;text-transform:uppercase;color:var(--texto-s);}
 
-/* Sección "Elige tu camino" */
-.caminos{max-width:1000px;margin:5rem auto;padding:0 5%;}
-.seccion-titulo{text-align:center;margin-bottom:3rem;}
-.seccion-titulo h2{font-family:'Cormorant Garamond',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);font-weight:300;color:var(--verde-d);line-height:1.2;}
-.seccion-titulo h2 em{font-style:italic;color:var(--verde);}
-.seccion-titulo p{color:var(--texto-s);font-size:.9rem;font-weight:300;margin-top:.6rem;}
+.servicios{background:var(--blanco);}
+.srv-hdr{text-align:center;max-width:520px;margin:0 auto 4rem;}
+.srv-hdr .divider{margin:1.5rem auto;}
+.srv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;max-width:1080px;margin:0 auto;}
+.srv-card{position:relative;border-radius:4px;overflow:hidden;cursor:pointer;transition:transform .3s ease;text-decoration:none;color:inherit;}
+.srv-card:hover{transform:translateY(-6px);}
+.srv-card:hover .srv-ov{opacity:1;}
+.srv-card:hover .srv-img{transform:scale(1.04);}
+.srv-wrap{height:420px;overflow:hidden;}
+.srv-img{width:100%;height:100%;transition:transform .5s ease;display:flex;align-items:flex-end;position:relative;background-size:cover;background-position:center;}
+.srv-img-grad{position:absolute;inset:0;background:linear-gradient(to top,rgba(27,94,32,.93) 0%,rgba(27,94,32,.35) 50%,transparent 100%);}
+.srv-pat{position:absolute;inset:0;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='17' fill='none' stroke='%23F5C518' stroke-width='0.7'/%3E%3C/svg%3E");}
+.srv-body{position:absolute;bottom:0;left:0;right:0;padding:2rem 1.8rem 1.8rem;z-index:2;}
+.srv-num{font-size:.64rem;font-weight:400;color:var(--amarillo);letter-spacing:.2em;display:block;margin-bottom:.4rem;}
+.srv-body h3{font-family:'Cormorant Garamond',serif;font-size:1.72rem;font-weight:300;color:var(--blanco);line-height:1.2;margin-bottom:.6rem;}
+.srv-body p{font-size:.79rem;font-weight:300;color:rgba(255,255,255,.73);line-height:1.65;margin-bottom:1.2rem;}
+.srv-lnk{display:inline-flex;align-items:center;gap:.5rem;color:var(--amarillo);font-size:.67rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;text-decoration:none;transition:gap .2s;}
+.srv-lnk:hover{gap:.85rem;}
+.srv-ov{position:absolute;inset:0;border:2px solid rgba(245,197,24,.42);border-radius:4px;opacity:0;transition:opacity .3s;pointer-events:none;}
+
+.galeria{background:var(--crema);}
+.gal-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:auto auto;gap:.5rem;}
+.gal-item{border-radius:3px;overflow:hidden;cursor:pointer;position:relative;}
+.gal-item:first-child{grid-column:span 2;grid-row:span 2;}
+.gal-item:nth-child(4){grid-column:span 2;}
+.gal-box{width:100%;height:100%;min-height:180px;transition:transform .4s ease;position:relative;background-size:cover;background-position:center;background-color:var(--verde-d);}
+.gal-item:first-child .gal-box{min-height:370px;}
+.gal-item:hover .gal-box{transform:scale(1.03);}
+
+.testimonios{background:var(--blanco);padding:6rem 5%;}
+.test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:1000px;margin:0 auto;}
+.test-card{background:var(--crema);border-radius:4px;padding:2rem;display:flex;flex-direction:column;border:1px solid rgba(46,125,50,.08);}
+.test-stars{color:var(--amarillo);font-size:1.1rem;margin-bottom:1rem;letter-spacing:.15em;}
+.test-texto{font-size:.88rem;color:var(--texto-s);font-weight:300;line-height:1.8;font-style:italic;flex:1;margin-bottom:1.2rem;}
+.test-autor{display:flex;align-items:center;gap:.8rem;}
+.test-avatar{width:42px;height:42px;border-radius:50%;background:var(--verde);color:var(--blanco);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:400;}
+.test-nombre{font-size:.82rem;font-weight:500;color:var(--texto);}
+.test-evento{font-size:.72rem;color:var(--texto-s);font-weight:300;}
+
+/* Elige tu camino */
+.caminos{max-width:1000px;margin:0 auto;padding:5rem 5%;}
 .caminos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;}
-.camino-card{
-  background:var(--blanco);border:1.5px solid var(--borde);border-radius:8px;
-  padding:2.5rem 2rem;text-align:center;text-decoration:none;color:inherit;
-  transition:all .3s;display:flex;flex-direction:column;align-items:center;
-}
+.camino-card{background:var(--blanco);border:1.5px solid #e0e0d8;border-radius:4px;padding:2.5rem 2rem;text-align:center;text-decoration:none;color:inherit;transition:all .3s;display:flex;flex-direction:column;align-items:center;}
 .camino-card:hover{border-color:var(--verde);transform:translateY(-4px);box-shadow:0 12px 30px rgba(27,94,32,.08);}
-.camino-ico{
-  width:64px;height:64px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-size:1.8rem;margin-bottom:1.2rem;
-}
+.camino-ico{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin-bottom:1.2rem;}
 .camino-card.nueva .camino-ico{background:#e8f5e9;color:var(--verde-d);}
 .camino-card.existente .camino-ico{background:#fff8dc;color:#a8850d;}
 .camino-nom{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--verde-d);margin-bottom:.6rem;}
 .camino-nom em{font-style:italic;color:var(--verde);}
 .camino-desc{color:var(--texto-s);font-size:.86rem;font-weight:300;line-height:1.7;margin-bottom:1.6rem;}
-.camino-btn{
-  margin-top:auto;color:var(--verde-d);font-size:.7rem;font-weight:600;
-  letter-spacing:.15em;text-transform:uppercase;
-  border-bottom:1.5px solid var(--amarillo);padding-bottom:.25rem;
-}
+.camino-btn{margin-top:auto;color:var(--verde-d);font-size:.7rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;border-bottom:1.5px solid var(--amarillo);padding-bottom:.25rem;}
 
-/* Servicios */
-.servicios{background:var(--blanco);padding:5rem 5%;border-top:1px solid var(--borde);border-bottom:1px solid var(--borde);}
-.servicios-inner{max-width:1100px;margin:0 auto;}
-.srv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.4rem;}
-.srv-card{
-  border:1.5px solid var(--borde);border-radius:8px;padding:1.8rem 1.5rem;
-  text-align:center;text-decoration:none;background:var(--blanco);color:inherit;
-  transition:all .25s;display:flex;flex-direction:column;align-items:center;
-}
-.srv-card:hover{border-color:var(--verde);background:#f5fbf5;transform:translateY(-2px);}
-.srv-foto{width:100%;aspect-ratio:4/3;margin-bottom:1.2rem;}
-.srv-ico{font-size:2rem;margin-bottom:.5rem;}
-.srv-nom{font-family:'Cormorant Garamond',serif;font-size:1.45rem;font-weight:300;color:var(--verde-d);margin-bottom:.5rem;}
-.srv-nom em{font-style:italic;}
-.srv-desc{font-size:.8rem;color:var(--texto-s);font-weight:300;line-height:1.7;margin-bottom:1.2rem;flex:1;}
-.srv-link{color:var(--verde);font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;}
-
-/* Cómo funciona */
-.pasos{max-width:900px;margin:5rem auto;padding:0 5%;}
+/* Como funciona */
+.pasos{max-width:900px;margin:0 auto;padding:5rem 5%;}
 .pasos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:2rem;}
 .paso{text-align:center;}
-.paso-num{
-  width:46px;height:46px;border-radius:50%;
-  background:var(--verde-d);color:var(--amarillo);
-  display:flex;align-items:center;justify-content:center;
-  font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;
-  margin:0 auto 1rem;
-}
+.paso-num{width:46px;height:46px;border-radius:50%;background:var(--verde-d);color:var(--amarillo);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;margin:0 auto 1rem;}
 .paso h3{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400;color:var(--verde-d);margin-bottom:.5rem;}
 .paso p{font-size:.82rem;color:var(--texto-s);font-weight:300;line-height:1.7;}
 
-/* CTA final */
-.cta-final{background:linear-gradient(135deg,var(--verde-d) 0%,var(--verde) 100%);padding:4rem 5%;text-align:center;color:var(--blanco);}
-.cta-final h2{font-family:'Cormorant Garamond',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);font-weight:300;margin-bottom:1.8rem;}
-.cta-final h2 em{font-style:italic;color:var(--amarillo);}
+.dif{background:var(--verde-d);padding:5rem 5%;text-align:center;}
+.dif .stag{color:var(--amarillo);}
+.dif .stitle{color:var(--blanco);}
+.dif .stitle em{color:var(--amarillo);}
+.dif-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2rem;max-width:940px;margin:3rem auto 0;}
+.dif-item{border:1px solid rgba(245,197,24,.14);border-radius:4px;padding:2rem 1.5rem;transition:border-color .25s;}
+.dif-item:hover{border-color:rgba(245,197,24,.38);}
+.dif-ico{width:42px;height:42px;border-radius:50%;border:1px solid rgba(245,197,24,.28);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;}
+.dif-ico svg{width:17px;height:17px;fill:none;stroke:var(--amarillo);stroke-width:1.5;}
+.dif-item h4{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:400;color:var(--blanco);margin-bottom:.5rem;}
+.dif-item p{font-size:.77rem;font-weight:300;color:rgba(255,255,255,.52);line-height:1.7;}
 
-/* Footer */
-.footer{background:var(--oscuro);color:rgba(255,255,255,.55);padding:2.5rem 5% 1.5rem;}
-.footer-inner{max-width:1000px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;}
-.footer-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.1rem;font-weight:400;text-decoration:none;}
-.footer-logo em{font-style:italic;}
-.footer-links{display:flex;gap:1.5rem;flex-wrap:wrap;}
-.footer-links a{color:rgba(255,255,255,.55);font-size:.76rem;text-decoration:none;transition:color .2s;}
-.footer-links a:hover{color:var(--amarillo);}
-.footer-copy{text-align:center;margin-top:1.8rem;padding-top:1.4rem;border-top:1px solid rgba(255,255,255,.08);font-size:.68rem;color:rgba(255,255,255,.32);}
+.ubicacion{background:var(--blanco);display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center;}
+.ub-datos{margin-top:2rem;}
+.ub-dato{display:flex;align-items:flex-start;gap:1rem;margin-bottom:1.2rem;}
+.ub-ico{width:36px;height:36px;border:1px solid rgba(46,125,50,.22);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ub-ico svg{width:14px;height:14px;fill:var(--verde);}
+.ub-dat small{display:block;color:var(--verde);font-size:.59rem;letter-spacing:.2em;text-transform:uppercase;margin-bottom:.2rem;}
+.ub-dat span{color:var(--texto-s);font-size:.87rem;font-weight:300;}
+.ub-dat a{color:var(--texto-s);font-size:.87rem;font-weight:300;text-decoration:none;}
+.ub-dat a:hover{color:var(--verde);}
+.ub-map{border-radius:4px;overflow:hidden;height:350px;border:1px solid #e0e0d8;}
+.ub-map iframe{width:100%;height:100%;border:none;}
 
-/* Galería */
-.galeria{max-width:1100px;margin:5rem auto;padding:0 5%;}
-.galeria-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;}
-.galeria-item{
-  position:relative;border-radius:8px;overflow:hidden;cursor:pointer;
-  aspect-ratio:4/3;background:#edece3;
-}
-.galeria-item img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s;}
-.galeria-item:hover img{transform:scale(1.05);}
-.galeria-item:first-child{grid-column:span 2;grid-row:span 2;aspect-ratio:auto;}
+.cta{background:var(--crema);text-align:center;padding:6rem 5%;position:relative;overflow:hidden;}
+.cta::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;border:1px solid rgba(46,125,50,.06);border-radius:50%;pointer-events:none;}
+.cta .stag{margin-bottom:1rem;}
+.cta .stitle{margin:0 auto 1rem;max-width:460px;}
+.cta-p{color:var(--texto-s);font-size:.95rem;font-weight:300;max-width:400px;margin:0 auto 2.5rem;line-height:1.8;}
+.cta-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;}
+.btn-wa{background:#25D366;color:white;padding:1rem 2.2rem;border-radius:40px;font-size:.78rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;gap:.5rem;transition:all .25s;}
+.btn-wa:hover{background:#20bd5a;transform:translateY(-2px);box-shadow:0 8px 25px rgba(37,211,102,.28);}
+.btn-vd{background:var(--verde-d);color:var(--blanco);padding:1rem 2.2rem;border-radius:40px;font-size:.78rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:all .25s;}
+.btn-vd:hover{background:var(--verde);transform:translateY(-2px);}
 
-/* Lightbox */
+footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1.5rem;}
+.ft-logo{font-family:'Cormorant Garamond',serif;color:var(--amarillo);font-size:1.18rem;font-weight:300;}
+.ft-logo span{display:block;font-family:'IBM Plex Sans',sans-serif;font-size:.57rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-top:.25rem;}
+.ft-links{display:flex;gap:1.5rem;flex-wrap:wrap;}
+.ft-links a{color:rgba(255,255,255,.42);text-decoration:none;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;transition:color .2s;}
+.ft-links a:hover{color:var(--amarillo);}
+.ft-soc{display:flex;gap:.7rem;}
+.soc-btn{width:33px;height:33px;border:1px solid rgba(255,255,255,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .2s;text-decoration:none;}
+.soc-btn:hover{border-color:var(--amarillo);background:rgba(245,197,24,.1);}
+.soc-btn svg{width:13px;height:13px;fill:rgba(255,255,255,.48);}
+.ft-copy{width:100%;padding-top:1.5rem;border-top:1px solid rgba(255,255,255,.05);text-align:center;font-size:.63rem;letter-spacing:.05em;}
+
+.wa-float{position:fixed;bottom:2rem;right:2rem;z-index:200;width:54px;height:54px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(37,211,102,.38);text-decoration:none;transition:all .25s;animation:pwa 3s ease-in-out infinite;}
+.wa-float:hover{transform:scale(1.1);animation:none;}
+.wa-float svg{width:26px;height:26px;fill:white;}
+@keyframes pwa{0%,100%{box-shadow:0 4px 18px rgba(37,211,102,.38);}50%{box-shadow:0 4px 28px rgba(37,211,102,.6),0 0 0 7px rgba(37,211,102,.07);}}
+
 .lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1000;align-items:center;justify-content:center;padding:2rem;}
 .lightbox.active{display:flex;}
 .lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:6px;}
@@ -166,167 +191,296 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .lightbox-prev{left:1.5rem;}
 .lightbox-next{right:1.5rem;}
 
-/* Testimonios */
-.testimonios{background:var(--blanco);padding:5rem 5%;border-top:1px solid var(--borde);border-bottom:1px solid var(--borde);}
-.testimonios-inner{max-width:1000px;margin:0 auto;}
-.test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;}
-.test-card{
-  background:var(--crema);border-radius:8px;padding:2rem;
-  display:flex;flex-direction:column;
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:translateY(0);}}
+
+.mobile-nav{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--verde-d);z-index:99;flex-direction:column;align-items:center;justify-content:center;gap:2.5rem;}
+.mobile-nav.open{display:flex;}
+.mobile-nav a{font-family:'Cormorant Garamond',serif;font-size:1.9rem;font-weight:300;color:var(--blanco);text-decoration:none;transition:color .2s;}
+.mobile-nav a:hover{color:var(--amarillo);}
+.mn-close{position:absolute;top:1.5rem;right:5%;background:none;border:none;cursor:pointer;color:var(--amarillo);font-size:1.8rem;line-height:1;}
+
+@media(max-width:900px){
+  .nav-links,.nav-wa{display:none;} .menu-btn{display:block;}
+  .nosotros,.ubicacion{grid-template-columns:1fr;gap:2.5rem;}
+  .nos-vis{height:230px;order:-1;} .nos-badge{right:1rem;bottom:1rem;}
+  .srv-grid{grid-template-columns:1fr;} .srv-wrap{height:300px;}
+  .gal-grid{grid-template-columns:1fr 1fr;}
+  .gal-item:first-child{grid-column:span 2;} .gal-item:nth-child(4){grid-column:span 1;}
+  .dif-grid{grid-template-columns:repeat(2,1fr);}
+  .test-grid{grid-template-columns:1fr;}
+  section{padding:4rem 5%;} footer{flex-direction:column;align-items:flex-start;}
 }
-.test-stars{color:var(--amarillo);font-size:1.1rem;margin-bottom:1rem;letter-spacing:.15em;}
-.test-texto{font-size:.88rem;color:var(--texto-s);font-weight:300;line-height:1.8;font-style:italic;flex:1;margin-bottom:1.2rem;}
-.test-autor{display:flex;align-items:center;gap:.8rem;}
-.test-avatar{width:42px;height:42px;border-radius:50%;background:var(--verde);color:var(--blanco);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:400;}
-.test-nombre{font-size:.82rem;font-weight:500;color:var(--texto);}
-.test-evento{font-size:.72rem;color:var(--texto-s);font-weight:300;}
-
-/* Mapa */
-.ubicacion{max-width:1100px;margin:5rem auto;padding:0 5%;}
-.ubicacion-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;}
-.ubicacion-info{display:flex;flex-direction:column;gap:1.5rem;}
-.ubi-item{display:flex;gap:1rem;align-items:flex-start;}
-.ubi-ico{width:40px;height:40px;border-radius:50%;background:#e8f5e9;color:var(--verde-d);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
-.ubi-texto h4{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:400;color:var(--verde-d);margin-bottom:.2rem;}
-.ubi-texto p,.ubi-texto a{font-size:.82rem;color:var(--texto-s);font-weight:300;line-height:1.6;text-decoration:none;}
-.ubi-texto a:hover{color:var(--verde);}
-.mapa-wrap{border-radius:8px;overflow:hidden;border:1.5px solid var(--borde);aspect-ratio:4/3;}
-.mapa-wrap iframe{width:100%;height:100%;border:none;}
-
-/* Redes sociales */
-.social-links{display:flex;gap:1rem;align-items:center;}
-.social-links a{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);transition:background .2s;}
-.social-links a:hover{background:rgba(255,255,255,.18);}
-.social-links svg{width:18px;height:18px;fill:rgba(255,255,255,.6);transition:fill .2s;}
-.social-links a:hover svg{fill:var(--amarillo);}
-
 @media(max-width:600px){
-  .hero{padding:3.5rem 5% 3rem;}
-  .hero-cta{flex-direction:column;}
-  .hero-cta a{width:100%;}
-  .hero-foto-wrap{margin-top:-1.5rem;}
-  .caminos{margin:3.5rem auto;}
-  .servicios{padding:3.5rem 5%;}
-  .pasos{margin:3.5rem auto;}
-  .galeria-grid{grid-template-columns:1fr 1fr;}
-  .galeria-item:first-child{grid-column:span 2;aspect-ratio:16/9;}
-  .ubicacion-grid{grid-template-columns:1fr;}
-  .footer-inner{flex-direction:column;text-align:center;}
+  .hero h1{font-size:2.6rem;}
+  .gal-grid{grid-template-columns:1fr;}
+  .gal-item:first-child,.gal-item:nth-child(4){grid-column:span 1;}
+  .nos-datos{flex-direction:column;gap:1rem;}
+  .dif-grid{grid-template-columns:1fr;} .ub-map{height:230px;}
 }
 </style>
 </head>
 <body>
 
-<header class="header">
-  <a href="/" class="header-logo">Quinta <em>Ko'ox Tanil</em></a>
-  <nav class="header-nav">
-    <a href="{% url 'portal_acceso' %}">Mi evento</a>
-    <a href="https://quintakooxtanil.com" target="_blank" rel="noopener">quintakooxtanil.com</a>
-  </nav>
-</header>
+<nav id="nb">
+  <a href="#inicio" class="nav-logo">Quinta <em>Ko'ox Tanil</em></a>
+  <ul class="nav-links">
+    <li><a href="#nosotros">Nosotros</a></li>
+    <li><a href="#servicios">Servicios</a></li>
+    <li><a href="#galeria">Galeria</a></li>
+    <li><a href="#ubicacion">Ubicacion</a></li>
+  </ul>
+  <a href="https://wa.me/529994457178?text=Hola,%20me%20gustaría%20información." target="_blank" class="nav-wa">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    WhatsApp
+  </a>
+  <button class="menu-btn" id="mb" aria-label="Menu"><span></span><span></span><span></span></button>
+</nav>
 
-<section class="hero">
-  <div class="hero-inner">
-    <h1>Tu evento, <em>como lo imaginaste</em>.</h1>
-    <div class="hero-cta">
-      <a href="{% url 'cotizador_publico' %}" class="btn-primario">Cotizar mi evento</a>
-      <a href="{% url 'portal_acceso' %}" class="btn-secundario">Ver mi cotización</a>
+<div class="mobile-nav" id="mn">
+  <button class="mn-close" id="mc">&#10005;</button>
+  <a href="#nosotros">Nosotros</a>
+  <a href="#servicios">Servicios</a>
+  <a href="#galeria">Galeria</a>
+  <a href="#ubicacion">Ubicacion</a>
+  <a href="#contacto">Contacto</a>
+</div>
+
+<section class="hero" id="inicio" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}')"{% endif %}>
+  <div class="hero-grad"></div>
+  <div class="hero-orn"></div>
+  <div class="hero-c">
+    <span class="hero-tag">Uman, Yucatan · Mexico</span>
+    <h1>Quinta<br><em>Ko'ox Tanil</em></h1>
+    <p class="hero-sub">Donde los momentos se vuelven recuerdos</p>
+    <p class="hero-desc">Un espacio unico rodeado de naturaleza yucateca, diseñado para celebrar la vida con quienes mas importan.</p>
+    <div class="hero-ctas">
+      <a href="{% url 'cotizador_publico' %}" class="btn-am">Cotizar mi evento</a>
+      <a href="#servicios" class="btn-out">Ver servicios</a>
     </div>
   </div>
+  <div class="hero-scroll"><div class="hero-sl"></div>Descubrir</div>
 </section>
 
-{% if img.hero %}
-<div class="hero-foto-wrap">
-  <div class="foto foto-hero loaded">
-    <img src="{{ img.hero.imagen.url }}" alt="{{ img.hero.alt_text|default:'Quinta Koox Tanil' }}">
-  </div>
-</div>
-{% endif %}
-
-<!-- Elige tu camino -->
-<section class="caminos" id="caminos">
-  <div class="seccion-titulo">
-    <h2>¿Cómo quieres <em>continuar</em>?</h2>
-    <p>Elige la opción que mejor describe tu momento.</p>
+<section class="caminos">
+  <div style="text-align:center;margin-bottom:3rem;">
+    <span class="stag">Tu siguiente paso</span>
+    <h2 class="stitle">¿Como quieres <em>continuar</em>?</h2>
   </div>
   <div class="caminos-grid">
     <a href="{% url 'cotizador_publico' %}" class="camino-card nueva">
-      <div class="camino-ico">✨</div>
+      <div class="camino-ico">&#10024;</div>
       <div class="camino-nom">Quiero <em>cotizar</em></div>
-      <p class="camino-desc">Cuéntanos de tu evento, pasadía u hospedaje y recibe tu cotización personalizada al instante.</p>
-      <span class="camino-btn">Empezar cotización →</span>
+      <p class="camino-desc">Cuentanos de tu evento, pasadia u hospedaje y recibe tu cotizacion personalizada al instante.</p>
+      <span class="camino-btn">Empezar cotizacion →</span>
     </a>
     <a href="{% url 'portal_acceso' %}" class="camino-card existente">
-      <div class="camino-ico">🔑</div>
+      <div class="camino-ico">&#128273;</div>
       <div class="camino-nom">Ya tengo <em>evento</em></div>
-      <p class="camino-desc">Consulta tu cotización, plan de pagos, contrato y estado de tu evento en tu portal privado.</p>
+      <p class="camino-desc">Consulta tu cotizacion, plan de pagos, contrato y estado de tu evento en tu portal privado.</p>
       <span class="camino-btn">Entrar a mi evento →</span>
     </a>
   </div>
 </section>
 
-<!-- Servicios -->
-<section class="servicios">
-  <div class="servicios-inner">
-    <div class="seccion-titulo">
-      <h2>Nuestros <em>servicios</em></h2>
+<section class="nosotros" id="nosotros">
+  <div class="nos-vis">
+    <div class="nos-bg" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}')"{% endif %}>
+      <div class="nos-bg-grad"></div>
     </div>
-    <div class="srv-grid">
-      <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="srv-card">
-        {% if img.evento %}
-        <div class="foto srv-foto loaded">
-          <img src="{{ img.evento.imagen.url }}" alt="{{ img.evento.alt_text|default:'Eventos sociales' }}">
-        </div>
-        {% endif %}
-        <div class="srv-ico">🎉</div>
-        <div class="srv-nom"><em>Eventos sociales</em></div>
-        <p class="srv-desc">Bodas, XV años, graduaciones, cumpleaños, aniversarios y eventos corporativos.</p>
-        <span class="srv-link">Cotizar →</span>
-      </a>
-      <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="srv-card">
-        {% if img.pasadia %}
-        <div class="foto srv-foto loaded">
-          <img src="{{ img.pasadia.imagen.url }}" alt="{{ img.pasadia.alt_text|default:'Pasadía' }}">
-        </div>
-        {% endif %}
-        <div class="srv-ico">☀️</div>
-        <div class="srv-nom"><em>Pasadía</em></div>
-        <p class="srv-desc">Un día de descanso con alberca, jardines y todas las comodidades de la quinta.</p>
-        <span class="srv-link">Cotizar →</span>
-      </a>
-      <a href="{% url 'cotizador_publico' %}?servicio=HOSPEDAJE" class="srv-card">
-        {% if img.hospedaje %}
-        <div class="foto srv-foto loaded">
-          <img src="{{ img.hospedaje.imagen.url }}" alt="{{ img.hospedaje.alt_text|default:'Hospedaje' }}">
-        </div>
-        {% endif %}
-        <div class="srv-ico">🏠</div>
-        <div class="srv-nom"><em>Hospedaje</em></div>
-        <p class="srv-desc">Habitaciones o la casa completa, disponibles en Airbnb, con todas las comodidades.</p>
-        <span class="srv-link">Cotizar →</span>
-      </a>
+    <div class="nos-badge">
+      <span class="nos-bnum">+10</span>
+      <span class="nos-btxt">Años de experiencia</span>
+    </div>
+  </div>
+  <div class="nos-txt">
+    <span class="stag">Quienes somos</span>
+    <h2 class="stitle">Una familia con amor<br><em>por los grandes momentos</em></h2>
+    <div class="divider"></div>
+    <p>Quinta Ko'ox Tanil es un proyecto familiar nacido con la conviccion de que la vida merece celebrarse. Nuestro nombre, en maya "verde corazon de la tierra", refleja nuestra conexion con la naturaleza yucateca.</p>
+    <p>Trabajamos con dedicacion para que cada detalle este pensado en crear experiencias que permanezcan en la memoria de quienes nos visitan.</p>
+    <div class="nos-datos">
+      <div class="nos-dato"><span>+500</span><span>Eventos realizados</span></div>
+      <div class="nos-dato"><span>365</span><span>Dias al año</span></div>
+      <div class="nos-dato"><span>100%</span><span>Familia QKT</span></div>
     </div>
   </div>
 </section>
 
-<!-- Galería -->
-{% if img.galeria %}
-<section class="galeria">
-  <div class="seccion-titulo">
-    <h2>Conoce <em>nuestro espacio</em></h2>
-    <p>Momentos reales en Quinta Ko'ox Tanil.</p>
+<section class="servicios" id="servicios">
+  <div class="srv-hdr">
+    <span class="stag">Lo que ofrecemos</span>
+    <h2 class="stitle">Nuestros <em>servicios</em></h2>
+    <div class="divider"></div>
+    <p style="color:var(--texto-s);font-weight:300;line-height:1.8;font-size:.95rem;">Cada espacio diseñado para hacer de tu visita una experiencia memorable.</p>
   </div>
-  <div class="galeria-grid">
+  <div class="srv-grid">
+    <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="srv-card">
+      <div class="srv-wrap"><div class="srv-img" {% if img.evento %}style="background-image:url('{{ img.evento.imagen.url }}')"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+        <span class="srv-num">01 — Eventos</span>
+        <h3>Eventos Sociales<br>& Bodas</h3>
+        <p>Salon hasta 500 personas, jardin, pista de baile y area de bar. El escenario perfecto para tu boda, XV años o celebracion especial.</p>
+        <span class="srv-lnk">Consultar disponibilidad <svg viewBox="0 0 16 16" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></span>
+      </div></div></div>
+      <div class="srv-ov"></div>
+    </a>
+    <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="srv-card">
+      <div class="srv-wrap"><div class="srv-img" {% if img.pasadia %}style="background-image:url('{{ img.pasadia.imagen.url }}')"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+        <span class="srv-num">02 — Pasadia</span>
+        <h3>Pasadia en<br>la Quinta</h3>
+        <p>Disfruta un dia completo con alberca, areas verdes e instalaciones exclusivas. La escapada perfecta para toda la familia.</p>
+        <span class="srv-lnk">Ver paquetes <svg viewBox="0 0 16 16" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></span>
+      </div></div></div>
+      <div class="srv-ov"></div>
+    </a>
+    <a href="{% url 'cotizador_publico' %}?servicio=HOSPEDAJE" class="srv-card">
+      <div class="srv-wrap"><div class="srv-img" {% if img.hospedaje %}style="background-image:url('{{ img.hospedaje.imagen.url }}')"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+        <span class="srv-num">03 — Hospedaje</span>
+        <h3>Habitaciones &<br>Casa Completa</h3>
+        <p>Habitaciones y casa completa en Airbnb. Vive la experiencia de quedarte en plena naturaleza, a minutos de Merida.</p>
+        <span class="srv-lnk">Ver disponibilidad <svg viewBox="0 0 16 16" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></span>
+      </div></div></div>
+      <div class="srv-ov"></div>
+    </a>
+  </div>
+</section>
+
+<section class="galeria" id="galeria">
+  <div style="margin-bottom:3rem;">
+    <span class="stag">Nuestro espacio</span>
+    <h2 class="stitle">La <em>quinta</em></h2>
+    <div class="divider"></div>
+  </div>
+  {% if img.galeria %}
+  <div class="gal-grid">
     {% for foto in img.galeria %}
-    <div class="galeria-item" onclick="abrirLightbox({{ forloop.counter0 }})">
-      <img src="{{ foto.imagen.url }}" alt="{{ foto.alt_text|default:foto.titulo }}" loading="lazy">
+    <div class="gal-item" onclick="abrirLightbox({{ forloop.counter0 }})">
+      <div class="gal-box" style="background-image:url('{{ foto.imagen.url }}')"></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <p class="gal-cta" style="text-align:center;margin-top:2.5rem;color:var(--texto-s);font-size:.82rem;">¿Quieres ver mas? <a href="https://www.facebook.com/quintakooxtanil" target="_blank" style="color:var(--verde);font-weight:500;text-decoration:none;border-bottom:1px solid rgba(46,125,50,.28);">Visita nuestro Facebook</a> para fotos y videos de eventos recientes.</p>
+</section>
+
+{% if testimonios %}
+<section class="testimonios">
+  <div style="text-align:center;max-width:520px;margin:0 auto 3rem;">
+    <span class="stag">Opiniones</span>
+    <h2 class="stitle">Lo que dicen <em>nuestros clientes</em></h2>
+    <div class="divider" style="margin:1.5rem auto;"></div>
+  </div>
+  <div class="test-grid">
+    {% for t in testimonios %}
+    <div class="test-card">
+      <div class="test-stars">{% for i in "12345" %}{% if forloop.counter <= t.estrellas %}&#9733;{% else %}&#9734;{% endif %}{% endfor %}</div>
+      <p class="test-texto">"{{ t.texto }}"</p>
+      <div class="test-autor">
+        <div class="test-avatar">{{ t.nombre|first }}</div>
+        <div><div class="test-nombre">{{ t.nombre }}</div><div class="test-evento">{{ t.evento }}</div></div>
+      </div>
     </div>
     {% endfor %}
   </div>
 </section>
 {% endif %}
 
-<!-- Lightbox -->
+<section class="dif">
+  <span class="stag">Por que elegirnos</span>
+  <h2 class="stitle">Lo que nos hace <em>unicos</em></h2>
+  <div class="dif-grid">
+    <div class="dif-item">
+      <div class="dif-ico"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+      <h4>Atencion familiar</h4>
+      <p>Trato personalizado desde la primera consulta hasta el dia del evento.</p>
+    </div>
+    <div class="dif-item">
+      <div class="dif-ico"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg></div>
+      <h4>Espacio propio</h4>
+      <p>Instalaciones exclusivas rodeadas de naturaleza, sin ruido ni distracciones.</p>
+    </div>
+    <div class="dif-item">
+      <div class="dif-ico"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <h4>Experiencia probada</h4>
+      <p>Mas de 10 años y 500 eventos nos respaldan. Sabemos lo que funciona.</p>
+    </div>
+    <div class="dif-item">
+      <div class="dif-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div>
+      <h4>Disponibilidad 365</h4>
+      <p>Abiertos todo el año para que tu celebracion no tenga que esperar.</p>
+    </div>
+  </div>
+</section>
+
+<section class="ubicacion" id="ubicacion">
+  <div>
+    <span class="stag">Como llegar</span>
+    <h2 class="stitle">Nos encontramos en<br><em>Uman, Yucatan</em></h2>
+    <div class="divider"></div>
+    <p style="color:var(--texto-s);font-weight:300;line-height:1.9;font-size:.94rem;">A solo 20 minutos de Merida, en un entorno natural tranquilo y accesible.</p>
+    <div class="ub-datos">
+      <div class="ub-dato"><div class="ub-ico"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div><div class="ub-dat"><small>Direccion</small><span>Carretera Tanil - Ticimul Km 1.92, Uman, Yucatan</span></div></div>
+      <div class="ub-dato"><div class="ub-ico"><svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div><div class="ub-dat"><small>Telefono</small><a href="https://wa.me/529994457178">(999) 4 45 71 78</a></div></div>
+      <div class="ub-dato"><div class="ub-ico"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg></div><div class="ub-dat"><small>Correo</small><a href="mailto:quintakooxtanil@gmail.com">quintakooxtanil@gmail.com</a></div></div>
+    </div>
+  </div>
+  <div class="ub-map">
+    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3726.5!2d-89.7582!3d20.8219!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjDCsDQ5JzE5LjAiTiA4OcKwNDUnMjkuNSJX!5e0!3m2!1ses!2smx!4v1234567890" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ubicacion QKT"></iframe>
+  </div>
+</section>
+
+<section class="pasos">
+  <div style="text-align:center;margin-bottom:3rem;">
+    <span class="stag">Proceso</span>
+    <h2 class="stitle">Como <em>funciona</em></h2>
+    <div class="divider" style="margin:1.5rem auto;"></div>
+  </div>
+  <div class="pasos-grid">
+    <div class="paso">
+      <div class="paso-num">1</div>
+      <h3>Cotiza en linea</h3>
+      <p>Completa un formulario corto con los detalles de tu evento y obten tu cotizacion al instante.</p>
+    </div>
+    <div class="paso">
+      <div class="paso-num">2</div>
+      <h3>Recibe tu portal</h3>
+      <p>Te enviamos acceso a un portal privado donde ves tu cotizacion, plan de pagos y contrato.</p>
+    </div>
+    <div class="paso">
+      <div class="paso-num">3</div>
+      <h3>Confirma tu fecha</h3>
+      <p>Aparta tu fecha con tu anticipo y nuestro equipo te acompaña hasta el dia de tu evento.</p>
+    </div>
+  </div>
+</section>
+
+<section class="cta" id="contacto">
+  <span class="stag">¿Listo para celebrar?</span>
+  <h2 class="stitle">Hablemos de<br><em>tu evento</em></h2>
+  <p class="cta-p">Cuentanos que tienes en mente. Preparamos una cotizacion personalizada sin compromiso.</p>
+  <div class="cta-btns">
+    <a href="{% url 'cotizador_publico' %}" class="btn-am">Cotizar mi evento</a>
+    <a href="mailto:quintakooxtanil@gmail.com" class="btn-vd">Enviar un correo</a>
+  </div>
+</section>
+
+<footer>
+  <div class="ft-logo">Quinta Ko'ox Tanil<span>Uman, Yucatan · Mexico</span></div>
+  <div class="ft-links">
+    <a href="#nosotros">Nosotros</a><a href="#servicios">Servicios</a>
+    <a href="#galeria">Galeria</a><a href="#ubicacion">Ubicacion</a><a href="#contacto">Contacto</a>
+  </div>
+  <div class="ft-soc">
+    <a href="https://www.facebook.com/quintakooxtanil" target="_blank" class="soc-btn" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg></a>
+    <a href="https://www.instagram.com/quintakooxtanil" target="_blank" class="soc-btn" aria-label="Instagram"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" fill="none" stroke="rgba(255,255,255,.48)" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="none" stroke="rgba(255,255,255,.48)" stroke-width="1.5"/><circle cx="17.5" cy="6.5" r="1.2" fill="rgba(255,255,255,.48)"/></svg></a>
+    <a href="https://wa.me/529994457178" target="_blank" class="soc-btn" aria-label="WhatsApp"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></a>
+  </div>
+  <div class="ft-copy">© 2025 Quinta Ko'ox Tanil · Todos los derechos reservados</div>
+</footer>
+
+<a href="https://wa.me/529994457178?text=Hola,%20me%20gustaría%20información." target="_blank" class="wa-float" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+</a>
+
 <div class="lightbox" id="lightbox">
   <button class="lightbox-close" onclick="cerrarLightbox()">&times;</button>
   <button class="lightbox-nav lightbox-prev" onclick="navLightbox(-1)">&#8249;</button>
@@ -334,134 +488,26 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
   <button class="lightbox-nav lightbox-next" onclick="navLightbox(1)">&#8250;</button>
 </div>
 
-<!-- Testimonios -->
-{% if testimonios %}
-<section class="testimonios">
-  <div class="testimonios-inner">
-    <div class="seccion-titulo">
-      <h2>Lo que dicen <em>nuestros clientes</em></h2>
-    </div>
-    <div class="test-grid">
-      {% for t in testimonios %}
-      <div class="test-card">
-        <div class="test-stars">{% for i in "12345" %}{% if forloop.counter <= t.estrellas %}&#9733;{% else %}&#9734;{% endif %}{% endfor %}</div>
-        <p class="test-texto">"{{ t.texto }}"</p>
-        <div class="test-autor">
-          <div class="test-avatar">{{ t.nombre|first }}</div>
-          <div><div class="test-nombre">{{ t.nombre }}</div><div class="test-evento">{{ t.evento }}</div></div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-{% endif %}
-
-<!-- Ubicación -->
-<section class="ubicacion">
-  <div class="seccion-titulo">
-    <h2>Dónde <em>encontrarnos</em></h2>
-  </div>
-  <div class="ubicacion-grid">
-    <div class="ubicacion-info">
-      <div class="ubi-item">
-        <div class="ubi-ico">📍</div>
-        <div class="ubi-texto">
-          <h4>Dirección</h4>
-          <p>Umán, Yucatán, México</p>
-        </div>
-      </div>
-      <div class="ubi-item">
-        <div class="ubi-ico">📱</div>
-        <div class="ubi-texto">
-          <h4>WhatsApp</h4>
-          <a href="https://wa.me/529991699191">+52 999 169 9191</a>
-        </div>
-      </div>
-      <div class="ubi-item">
-        <div class="ubi-ico">🌐</div>
-        <div class="ubi-texto">
-          <h4>Sitio web</h4>
-          <a href="https://quintakooxtanil.com" target="_blank" rel="noopener">quintakooxtanil.com</a>
-        </div>
-      </div>
-      <div class="ubi-item">
-        <div class="ubi-ico">🕐</div>
-        <div class="ubi-texto">
-          <h4>Horario de atención</h4>
-          <p>Lunes a sábado · 9:00 am – 7:00 pm</p>
-        </div>
-      </div>
-    </div>
-    <div class="mapa-wrap">
-      <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d29776.59!2d-89.77!3d20.88!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8f567a8b2d0458a3%3A0x4e0f48e42d3e8a0!2sUm%C3%A1n%2C%20Yuc.!5e0!3m2!1ses!2smx!4v1" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-    </div>
-  </div>
-</section>
-
-<!-- Cómo funciona -->
-<section class="pasos">
-  <div class="seccion-titulo">
-    <h2>Cómo <em>funciona</em></h2>
-  </div>
-  <div class="pasos-grid">
-    <div class="paso">
-      <div class="paso-num">1</div>
-      <h3>Cotiza en línea</h3>
-      <p>Completa un formulario corto con los detalles de tu evento y obtén tu cotización al instante.</p>
-    </div>
-    <div class="paso">
-      <div class="paso-num">2</div>
-      <h3>Recibe tu portal</h3>
-      <p>Te enviamos acceso a un portal privado donde ves tu cotización, plan de pagos y contrato.</p>
-    </div>
-    <div class="paso">
-      <div class="paso-num">3</div>
-      <h3>Confirma tu fecha</h3>
-      <p>Aparta tu fecha con tu anticipo y nuestro equipo te acompaña hasta el día de tu evento.</p>
-    </div>
-  </div>
-</section>
-
-<!-- CTA final -->
-<section class="cta-final">
-  <h2>¿Listo para <em>empezar</em>?</h2>
-  <a href="{% url 'cotizador_publico' %}" class="btn-primario">Cotizar mi evento</a>
-</section>
-
-<!-- Footer -->
-<footer class="footer">
-  <div class="footer-inner">
-    <a href="/" class="footer-logo">Quinta <em>Ko'ox Tanil</em></a>
-    <div class="footer-links">
-      <a href="{% url 'cotizador_publico' %}">Cotizar</a>
-      <a href="{% url 'portal_acceso' %}">Mi evento</a>
-      <a href="https://wa.me/529991699191" target="_blank" rel="noopener">WhatsApp</a>
-      <a href="https://quintakooxtanil.com" target="_blank" rel="noopener">quintakooxtanil.com</a>
-    </div>
-    <div class="social-links">
-      <a href="https://www.facebook.com/QuintaKooxTanil" target="_blank" rel="noopener" aria-label="Facebook">
-        <svg viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-      </a>
-      <a href="https://www.instagram.com/quintakooxtanil" target="_blank" rel="noopener" aria-label="Instagram">
-        <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@quintakooxtanil" target="_blank" rel="noopener" aria-label="TikTok">
-        <svg viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
-      </a>
-    </div>
-  </div>
-  <div class="footer-copy">© 2025 Quinta Ko'ox Tanil · Umán, Yucatán</div>
-</footer>
-
 <script>
-const galeriaImgs=document.querySelectorAll('.galeria-item img');
+const nb=document.getElementById('nb');
+window.addEventListener('scroll',()=>nb.classList.toggle('scrolled',window.scrollY>60));
+const mb=document.getElementById('mb'),mn=document.getElementById('mn'),mc=document.getElementById('mc');
+mb.addEventListener('click',()=>mn.classList.add('open'));
+mc.addEventListener('click',()=>mn.classList.remove('open'));
+mn.querySelectorAll('a').forEach(l=>l.addEventListener('click',()=>mn.classList.remove('open')));
+const obs=new IntersectionObserver(e=>{e.forEach(i=>{if(i.isIntersecting){i.target.style.opacity='1';i.target.style.transform='translateY(0)';}});},{threshold:.1});
+document.querySelectorAll('.srv-card,.nos-txt,.nos-vis,.dif-item,.test-card').forEach(el=>{
+  el.style.opacity='0';el.style.transform='translateY(26px)';
+  el.style.transition='opacity .6s ease,transform .6s ease';obs.observe(el);
+});
+const galImgs=document.querySelectorAll('.gal-item .gal-box');
 const lb=document.getElementById('lightbox');
 const lbImg=document.getElementById('lightbox-img');
 let lbIdx=0;
-function abrirLightbox(i){lbIdx=i;lbImg.src=galeriaImgs[i].src;lbImg.alt=galeriaImgs[i].alt;lb.classList.add('active');document.body.style.overflow='hidden';}
+function getSrc(el){const s=getComputedStyle(el).backgroundImage;return s.replace(/url\(["']?/,'').replace(/["']?\)/,'');}
+function abrirLightbox(i){lbIdx=i;lbImg.src=getSrc(galImgs[i]);lb.classList.add('active');document.body.style.overflow='hidden';}
 function cerrarLightbox(){lb.classList.remove('active');document.body.style.overflow='';}
-function navLightbox(d){lbIdx=(lbIdx+d+galeriaImgs.length)%galeriaImgs.length;lbImg.src=galeriaImgs[lbIdx].src;lbImg.alt=galeriaImgs[lbIdx].alt;}
+function navLightbox(d){lbIdx=(lbIdx+d+galImgs.length)%galImgs.length;lbImg.src=getSrc(galImgs[lbIdx]);}
 lb.addEventListener('click',function(e){if(e.target===lb)cerrarLightbox();});
 document.addEventListener('keydown',function(e){if(!lb.classList.contains('active'))return;if(e.key==='Escape')cerrarLightbox();if(e.key==='ArrowLeft')navLightbox(-1);if(e.key==='ArrowRight')navLightbox(1);});
 </script>
