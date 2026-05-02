@@ -354,16 +354,18 @@ class ImportadorCSVPagosService:
     def __init__(self, archivo_nombre: str = None):
         self.archivo_nombre = archivo_nombre
 
-    def importar(self, contenido_csv: str, usuario=None) -> Tuple[int, int, List[str]]:
+    def importar(self, contenido_csv: str, usuario=None) -> Tuple[int, int, List[str], List[str], List[str]]:
         """
         Importa pagos desde contenido CSV.
 
         Returns:
-            Tuple (importados, duplicados, errores)
+            Tuple (importados, duplicados, errores, codigos_creados, codigos_duplicados)
         """
         importados = 0
         duplicados = 0
         errores = []
+        codigos_creados = []
+        codigos_duplicados = []
 
         # Limpiar BOM si existe
         if contenido_csv.startswith('﻿'):
@@ -374,22 +376,33 @@ class ImportadorCSVPagosService:
             filas = list(reader)
         except Exception as e:
             errores.append(f"Error al leer CSV: {str(e)}")
-            return importados, duplicados, errores
+            return importados, duplicados, errores, codigos_creados, codigos_duplicados
+
+        # Log de columnas detectadas para diagnóstico
+        if filas:
+            print(f"[CSV Import] Columnas detectadas: {list(filas[0].keys())}")
+            print(f"[CSV Import] Total filas: {len(filas)}")
 
         # Agrupar filas por código de confirmación + fecha de pago
         reservas_agrupadas = self._agrupar_por_codigo_y_fecha(filas)
+
+        print(f"[CSV Import] Grupos encontrados: {list(reservas_agrupadas.keys())}")
 
         for clave, datos in reservas_agrupadas.items():
             try:
                 resultado = self._procesar_reserva_agrupada(clave, datos, usuario)
                 if resultado == 'creado':
                     importados += 1
+                    codigos_creados.append(clave)
                 elif resultado == 'duplicado':
                     duplicados += 1
+                    codigos_duplicados.append(clave)
+                print(f"[CSV Import] {clave}: {resultado}")
             except Exception as e:
                 errores.append(f"{clave}: {str(e)}")
+                print(f"[CSV Import] {clave}: ERROR - {str(e)}")
 
-        return importados, duplicados, errores
+        return importados, duplicados, errores, codigos_creados, codigos_duplicados
 
     def _agrupar_por_codigo_y_fecha(self, filas: List[Dict]) -> Dict[str, Dict]:
         """
