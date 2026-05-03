@@ -306,15 +306,16 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
       </div></div></div>
       <div class="srv-ov"></div>
     </a>
-    <a href="{% url 'cotizador_publico' %}?servicio=HOSPEDAJE" class="srv-card">
+    <div class="srv-card">
       <div class="srv-wrap"><div class="srv-img" {% if img.hospedaje %}style="background-image:url('{{ img.hospedaje.imagen.url }}')"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
         <span class="srv-num">03 — Hospedaje</span>
-        <h3>Habitaciones &<br>Casa Completa</h3>
-        <p>Habitaciones y casa completa en Airbnb. Vive la experiencia de quedarte en plena naturaleza, a minutos de Merida.</p>
-        <span class="srv-lnk">Ver disponibilidad <svg viewBox="0 0 16 16" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></span>
+        <h3>Habitaciones en<br>la Quinta</h3>
+        <p>Dos habitaciones unicas en Airbnb rodeadas de naturaleza, a minutos de Merida.</p>
+        <a href="https://airbnb.mx/h/kaanroombyqkt" target="_blank" rel="noopener" class="srv-lnk" style="display:block;margin-bottom:.6rem;">Ka'an Room <svg viewBox="0 0 16 16" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></a>
+        <a href="https://airbnb.mx/h/otochroombyqkt" target="_blank" rel="noopener" class="srv-lnk">Otoch Room <svg viewBox="0 0 16 16" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><line x1="1" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></a>
       </div></div></div>
       <div class="srv-ov"></div>
-    </a>
+    </div>
   </div>
 </section>
 
