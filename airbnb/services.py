@@ -567,12 +567,21 @@ class ImportadorCSVPagosService:
         codigo = datos['codigo']
         fecha_pago = datos.get('fecha_pago')
 
-        # Verificar duplicado por código + fecha de pago
-        filtro = {'codigo_confirmacion': codigo}
+        # Verificar duplicado: si hay fecha_pago, comparar código+fecha exacta.
+        # Si no hay fecha, comparar solo contra registros que también tengan fecha_pago=None,
+        # para evitar falsos positivos contra pagos de otras fechas del mismo código.
         if fecha_pago:
-            filtro['fecha_pago'] = fecha_pago
+            existe = PagoAirbnb.objects.filter(
+                codigo_confirmacion=codigo,
+                fecha_pago=fecha_pago,
+            ).exists()
+        else:
+            existe = PagoAirbnb.objects.filter(
+                codigo_confirmacion=codigo,
+                fecha_pago__isnull=True,
+            ).exists()
 
-        if PagoAirbnb.objects.filter(**filtro).exists():
+        if existe:
             return 'duplicado'
 
         # Validar datos mínimos
