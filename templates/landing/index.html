@@ -255,31 +255,10 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
     <p class="hero-desc">Un espacio unico rodeado de naturaleza yucateca, diseñado para celebrar la vida con quienes mas importan.</p>
     <div class="hero-ctas">
       <a href="{% url 'cotizador_publico' %}" class="btn-am">Cotizar mi evento</a>
-      <a href="#servicios" class="btn-out">Ver servicios</a>
+      <a href="{% url 'portal_acceso' %}" class="btn-out">Entrar a mi evento</a>
     </div>
   </div>
   <div class="hero-scroll"><div class="hero-sl"></div>Descubrir</div>
-</section>
-
-<section class="caminos">
-  <div style="text-align:center;margin-bottom:3rem;">
-    <span class="stag">Tu siguiente paso</span>
-    <h2 class="stitle">¿Como quieres <em>continuar</em>?</h2>
-  </div>
-  <div class="caminos-grid">
-    <a href="{% url 'cotizador_publico' %}" class="camino-card nueva">
-      <div class="camino-ico">&#10024;</div>
-      <div class="camino-nom">Quiero <em>cotizar</em></div>
-      <p class="camino-desc">Cuentanos de tu evento, pasadia u hospedaje y recibe tu cotizacion personalizada al instante.</p>
-      <span class="camino-btn">Empezar cotizacion →</span>
-    </a>
-    <a href="{% url 'portal_acceso' %}" class="camino-card existente">
-      <div class="camino-ico">&#128273;</div>
-      <div class="camino-nom">Ya tengo <em>evento</em></div>
-      <p class="camino-desc">Consulta tu cotizacion, plan de pagos, contrato y estado de tu evento en tu portal privado.</p>
-      <span class="camino-btn">Entrar a mi evento →</span>
-    </a>
-  </div>
 </section>
 
 <section class="nosotros" id="nosotros">
