@@ -1007,7 +1007,7 @@ class ImagenLandingAdmin(admin.ModelAdmin):
     list_display_links = ('preview_mini', 'seccion')
     fieldsets = (
         (None, {
-            'fields': ('seccion', 'imagen', 'preview_grande'),
+            'fields': ('seccion', 'imagen', 'posicion_vertical', 'preview_grande'),
         }),
         ('Detalles', {
             'fields': ('titulo', 'alt_text', 'orden', 'activo'),
@@ -1027,9 +1027,13 @@ class ImagenLandingAdmin(admin.ModelAdmin):
     @admin.display(description="Vista previa")
     def preview_grande(self, obj):
         if obj.imagen:
+            pos = obj.posicion_vertical or 'center'
             return format_html(
-                '<img src="{}" style="max-width:400px;max-height:300px;border-radius:6px;">',
-                obj.imagen.url
+                '<div style="width:400px;height:200px;border-radius:6px;overflow:hidden;'
+                'background:url({}) center/{} no-repeat;background-position:center {};">'
+                '</div>'
+                '<p style="margin-top:4px;font-size:11px;color:#666;">Enfoque: {}</p>',
+                obj.imagen.url, 'cover', pos, obj.get_posicion_vertical_display()
             )
         return "Sin imagen"
 

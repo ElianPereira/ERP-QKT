@@ -245,7 +245,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   <a href="#contacto">Contacto</a>
 </div>
 
-<section class="hero" id="inicio" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}')"{% endif %}>
+<section class="hero" id="inicio" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
   <div class="hero-grad"></div>
   <div class="hero-orn"></div>
   <div class="hero-c">
@@ -263,7 +263,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
 
 <section class="nosotros" id="nosotros">
   <div class="nos-vis">
-    <div class="nos-bg" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}')"{% endif %}>
+    <div class="nos-bg" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
       <div class="nos-bg-grad"></div>
     </div>
     <div class="nos-badge">
@@ -289,7 +289,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   </div>
   <div class="srv-grid">
     <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="srv-card">
-      <div class="srv-wrap"><div class="srv-img" {% if img.evento %}style="background-image:url('{{ img.evento.imagen.url }}')"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+      <div class="srv-wrap"><div class="srv-img" {% if img.evento %}style="background-image:url('{{ img.evento.imagen.url }}');background-position:center {{ img.evento.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
         <span class="srv-num">01 — Eventos</span>
         <h3>Eventos Sociales<br>& Bodas</h3>
         <p>Salon hasta 500 personas, jardin, pista de baile y area de bar. El escenario perfecto para tu boda, XV años o celebracion especial.</p>
@@ -298,7 +298,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
       <div class="srv-ov"></div>
     </a>
     <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="srv-card">
-      <div class="srv-wrap"><div class="srv-img" {% if img.pasadia %}style="background-image:url('{{ img.pasadia.imagen.url }}')"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+      <div class="srv-wrap"><div class="srv-img" {% if img.pasadia %}style="background-image:url('{{ img.pasadia.imagen.url }}');background-position:center {{ img.pasadia.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
         <span class="srv-num">02 — Pasadia</span>
         <h3>Pasadia en<br>la Quinta</h3>
         <p>Disfruta un dia completo con alberca, areas verdes e instalaciones exclusivas. La escapada perfecta para toda la familia.</p>
@@ -307,7 +307,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
       <div class="srv-ov"></div>
     </a>
     <div class="srv-card">
-      <div class="srv-wrap"><div class="srv-img" {% if img.hospedaje %}style="background-image:url('{{ img.hospedaje.imagen.url }}')"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+      <div class="srv-wrap"><div class="srv-img" {% if img.hospedaje %}style="background-image:url('{{ img.hospedaje.imagen.url }}');background-position:center {{ img.hospedaje.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
         <span class="srv-num">03 — Hospedaje</span>
         <h3>Habitaciones en<br>la Quinta</h3>
         <p>Dos habitaciones unicas en Airbnb rodeadas de naturaleza, a minutos de Merida.</p>
@@ -329,7 +329,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   <div class="gal-grid">
     {% for foto in img.galeria %}
     <div class="gal-item" onclick="abrirLightbox({{ forloop.counter0 }})">
-      <div class="gal-box" style="background-image:url('{{ foto.imagen.url }}')"></div>
+      <div class="gal-box" style="background-image:url('{{ foto.imagen.url }}');background-position:center {{ foto.posicion_vertical|default:'center' }};"></div>
     </div>
     {% endfor %}
   </div>

@@ -1143,8 +1143,20 @@ class ImagenLanding(models.Model):
         ('HOSPEDAJE', 'Servicio — Hospedaje'),
         ('GALERIA', 'Galería de fotos'),
     ]
+    POSICION_CHOICES = [
+        ('top', 'Arriba'),
+        ('20%', 'Arriba-centro'),
+        ('center', 'Centro'),
+        ('80%', 'Abajo-centro'),
+        ('bottom', 'Abajo'),
+    ]
     seccion = models.CharField(max_length=20, choices=SECCION_CHOICES, verbose_name="Sección")
     imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
+    posicion_vertical = models.CharField(
+        max_length=10, choices=POSICION_CHOICES, default='center',
+        verbose_name="Enfoque vertical",
+        help_text="Qué parte de la imagen se muestra: arriba, centro o abajo",
+    )
     titulo = models.CharField(max_length=120, blank=True, verbose_name="Título / descripción interna")
     alt_text = models.CharField(max_length=200, blank=True, verbose_name="Texto alternativo",
                                 help_text="Describe la imagen para accesibilidad y SEO")
