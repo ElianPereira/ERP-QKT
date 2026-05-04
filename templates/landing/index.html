@@ -263,7 +263,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
 
 <section class="nosotros" id="nosotros">
   <div class="nos-vis">
-    <div class="nos-bg" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
+    <div class="nos-bg" {% if img.nosotros %}style="background-image:url('{{ img.nosotros.imagen.url }}');background-position:center {{ img.nosotros.posicion_vertical|default:'center' }};"{% elif img.hero %}style="background-image:url('{{ img.hero.imagen.url }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
       <div class="nos-bg-grad"></div>
     </div>
     <div class="nos-badge">

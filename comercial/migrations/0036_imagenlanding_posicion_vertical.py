@@ -25,4 +25,20 @@ class Migration(migrations.Migration):
                 verbose_name='Enfoque vertical',
             ),
         ),
+        migrations.AlterField(
+            model_name='imagenlanding',
+            name='seccion',
+            field=models.CharField(
+                choices=[
+                    ('HERO', 'Banner principal'),
+                    ('NOSOTROS', 'Quiénes Somos'),
+                    ('EVENTO', 'Servicio — Eventos'),
+                    ('PASADIA', 'Servicio — Pasadía'),
+                    ('HOSPEDAJE', 'Servicio — Hospedaje'),
+                    ('GALERIA', 'Galería de fotos'),
+                ],
+                max_length=20,
+                verbose_name='Sección',
+            ),
+        ),
     ]

@@ -35,7 +35,7 @@ def landing_publico(request):
 
     imagenes = ImagenLanding.objects.filter(activo=True)
     img = {}
-    for sec in ('HERO', 'EVENTO', 'PASADIA', 'HOSPEDAJE'):
+    for sec in ('HERO', 'NOSOTROS', 'EVENTO', 'PASADIA', 'HOSPEDAJE'):
         img[sec.lower()] = imagenes.filter(seccion=sec).first()
     img['galeria'] = imagenes.filter(seccion='GALERIA')
 

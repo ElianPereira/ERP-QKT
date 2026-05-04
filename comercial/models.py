@@ -1138,6 +1138,7 @@ class AsignacionPersonal(models.Model):
 class ImagenLanding(models.Model):
     SECCION_CHOICES = [
         ('HERO', 'Banner principal'),
+        ('NOSOTROS', 'Quiénes Somos'),
         ('EVENTO', 'Servicio — Eventos'),
         ('PASADIA', 'Servicio — Pasadía'),
         ('HOSPEDAJE', 'Servicio — Hospedaje'),
