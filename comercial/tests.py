@@ -15,10 +15,14 @@ from comercial.models import (
     ConstanteSistema, MovimientoInventario, PlanPago, ParcialidadPago,
     Espacio, AsignacionEspacio, AsignacionPersonal,
     GrupoBarra, CategoriaBarra, PlantillaBarra,
+    Producto, SubProducto, RecetaSubProducto, ComponenteProducto,
 )
 from nomina.models import Empleado
 from comercial.services import PlanPagosService, CalculadoraBarraService
-from comercial.views import generar_lista_compras_barra
+from comercial.views import (
+    generar_lista_compras_barra, generar_lista_compras_general,
+    generar_lista_compras_unificada,
+)
 
 
 class CotizacionTotalesTest(TestCase):
@@ -713,3 +717,195 @@ class ListaComprasBarraTest(BarraTestMixin, TestCase):
         # Tequila no debe aparecer, pero Ron sí
         self.assertFalse(any('Tequila' in item for item in items_alcohol))
         self.assertTrue(any('Ron' in item for item in items_alcohol))
+
+
+class ListaComprasGeneralTest(TestCase):
+    """Tests para generar_lista_compras_general (cadena Producto→SubProducto→Insumo)."""
+
+    def setUp(self):
+        self.cliente = Cliente.objects.create(nombre='Test General', tipo_persona='FISICA')
+
+        # Insumos base
+        self.insumo_filete = Insumo.objects.create(
+            nombre='Filete de Res', unidad_medida='Kg', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('280.00'), presentacion='Kg')
+        self.insumo_arroz = Insumo.objects.create(
+            nombre='Arroz', unidad_medida='Kg', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('25.00'), presentacion='Kg')
+        self.insumo_limon = Insumo.objects.create(
+            nombre='Limón', unidad_medida='Kg', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('40.00'), presentacion='Kg')
+
+        # SubProducto con receta
+        self.sub_plato = SubProducto.objects.create(nombre='Plato Fuerte')
+        RecetaSubProducto.objects.create(
+            subproducto=self.sub_plato, insumo=self.insumo_filete,
+            cantidad=Decimal('0.25'))
+        RecetaSubProducto.objects.create(
+            subproducto=self.sub_plato, insumo=self.insumo_arroz,
+            cantidad=Decimal('0.15'))
+
+        self.sub_guarnicion = SubProducto.objects.create(nombre='Guarnición')
+        RecetaSubProducto.objects.create(
+            subproducto=self.sub_guarnicion, insumo=self.insumo_arroz,
+            cantidad=Decimal('0.10'))
+
+        # Producto con componentes
+        self.producto = Producto.objects.create(nombre='Banquete Completo')
+        ComponenteProducto.objects.create(
+            producto=self.producto, subproducto=self.sub_plato,
+            cantidad=Decimal('1.00'))
+        ComponenteProducto.objects.create(
+            producto=self.producto, subproducto=self.sub_guarnicion,
+            cantidad=Decimal('1.00'))
+
+    def _crear_cotizacion(self, **kwargs):
+        defaults = {
+            'cliente': self.cliente,
+            'nombre_evento': 'Evento Test',
+            'fecha_evento': date.today() + timedelta(days=30),
+            'num_personas': 50,
+            'horas_servicio': 5,
+        }
+        defaults.update(kwargs)
+        return Cotizacion.objects.create(**defaults)
+
+    def test_lista_vacia_sin_items(self):
+        """Cotización sin items genera lista vacía."""
+        cot = self._crear_cotizacion()
+        lista = generar_lista_compras_general(cot)
+        self.assertEqual(lista, {})
+
+    def test_producto_descompone_a_insumos(self):
+        """ItemCotizacion con producto descompone toda la cadena."""
+        cot = self._crear_cotizacion()
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=self.producto,
+            cantidad=Decimal('80.00'), precio_unitario=Decimal('150.00'))
+
+        lista = generar_lista_compras_general(cot)
+        items = lista.get('Insumos del Evento', [])
+        nombres = {i['item'] for i in items}
+
+        # 80 platos × 0.25kg filete = 20kg
+        filete = next(i for i in items if 'Filete' in i['item'])
+        self.assertEqual(filete['cantidad'], 20)
+
+        # Arroz: 80×0.15 (plato) + 80×0.10 (guarnición) = 20kg
+        arroz = next(i for i in items if 'Arroz' in i['item'])
+        self.assertEqual(arroz['cantidad'], 20)
+
+    def test_insumo_directo(self):
+        """ItemCotizacion con insumo directo aparece en la lista."""
+        cot = self._crear_cotizacion()
+        ItemCotizacion.objects.create(
+            cotizacion=cot, insumo=self.insumo_limon,
+            cantidad=Decimal('5.00'), precio_unitario=Decimal('40.00'))
+
+        lista = generar_lista_compras_general(cot)
+        items = lista.get('Insumos del Evento', [])
+        self.assertTrue(any('Limón' in i['item'] for i in items))
+        limon = next(i for i in items if 'Limón' in i['item'])
+        self.assertEqual(limon['cantidad'], 5)
+
+    def test_item_manual_aparece(self):
+        """ItemCotizacion sin producto ni insumo aparece en Servicios y Extras."""
+        cot = self._crear_cotizacion()
+        ItemCotizacion.objects.create(
+            cotizacion=cot, descripcion='DJ 4 horas',
+            cantidad=Decimal('1.00'), precio_unitario=Decimal('3000.00'))
+
+        lista = generar_lista_compras_general(cot)
+        items = lista.get('Servicios y Extras', [])
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['item'], 'DJ 4 horas')
+
+    def test_insumos_duplicados_se_acumulan(self):
+        """Mismo insumo en múltiples productos se suma en una línea."""
+        cot = self._crear_cotizacion()
+        # Dos items que usan el mismo producto
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=self.producto,
+            cantidad=Decimal('50.00'), precio_unitario=Decimal('150.00'))
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=self.producto,
+            cantidad=Decimal('30.00'), precio_unitario=Decimal('150.00'))
+
+        lista = generar_lista_compras_general(cot)
+        items = lista.get('Insumos del Evento', [])
+        # Filete: (50+30) × 1 × 0.25 = 20kg
+        filete = next(i for i in items if 'Filete' in i['item'])
+        self.assertEqual(filete['cantidad'], 20)
+
+
+class ListaComprasUnificadaTest(BarraTestMixin, TestCase):
+    """Tests para generar_lista_compras_unificada (general + barra)."""
+
+    def setUp(self):
+        self._setup_catalogo_barra()
+
+        self.insumo_filete = Insumo.objects.create(
+            nombre='Filete de Res', unidad_medida='Kg', categoria='CONSUMIBLE',
+            costo_unitario=Decimal('280.00'), presentacion='Kg')
+
+        self.sub_plato = SubProducto.objects.create(nombre='Plato Fuerte')
+        RecetaSubProducto.objects.create(
+            subproducto=self.sub_plato, insumo=self.insumo_filete,
+            cantidad=Decimal('0.25'))
+
+        self.producto = Producto.objects.create(nombre='Banquete')
+        ComponenteProducto.objects.create(
+            producto=self.producto, subproducto=self.sub_plato,
+            cantidad=Decimal('1.00'))
+
+    def _crear_cotizacion_guardada(self, **kwargs):
+        """Crea y guarda una cotización (necesaria para queries de items)."""
+        defaults = {
+            'cliente': self.cliente,
+            'nombre_evento': 'Evento Test Unificado',
+            'fecha_evento': date.today() + timedelta(days=30),
+            'num_personas': 100,
+            'horas_servicio': 5,
+            'clima': 'calor',
+            'incluye_refrescos': False,
+            'incluye_cerveza': False,
+            'incluye_licor_nacional': False,
+            'incluye_licor_premium': False,
+            'incluye_cocteleria_basica': False,
+            'incluye_cocteleria_premium': False,
+        }
+        defaults.update(kwargs)
+        return Cotizacion.objects.create(**defaults)
+
+    def test_incluye_general_y_barra(self):
+        """Cotización con items + barra incluye ambas secciones."""
+        cot = self._crear_cotizacion_guardada(incluye_cerveza=True, incluye_refrescos=True)
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=self.producto,
+            cantidad=Decimal('50.00'), precio_unitario=Decimal('150.00'))
+
+        lista = generar_lista_compras_unificada(cot)
+        secciones = list(lista.keys())
+        self.assertTrue(any('Insumos del Evento' in s for s in secciones))
+        self.assertTrue(any('Barra:' in s for s in secciones))
+
+    def test_solo_general_sin_barra(self):
+        """Cotización sin barra solo muestra secciones generales."""
+        cot = self._crear_cotizacion_guardada()
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=self.producto,
+            cantidad=Decimal('50.00'), precio_unitario=Decimal('150.00'))
+
+        lista = generar_lista_compras_unificada(cot)
+        secciones = list(lista.keys())
+        self.assertTrue(any('Insumos del Evento' in s for s in secciones))
+        self.assertFalse(any('Barra:' in s for s in secciones))
+
+    def test_solo_barra_sin_items(self):
+        """Cotización con barra sin items generales solo muestra barra."""
+        cot = self._crear_cotizacion_guardada(incluye_cerveza=True, incluye_refrescos=True)
+
+        lista = generar_lista_compras_unificada(cot)
+        secciones = list(lista.keys())
+        self.assertFalse(any('Insumos del Evento' in s for s in secciones))
+        self.assertTrue(any('Barra:' in s for s in secciones))

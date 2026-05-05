@@ -253,6 +253,83 @@ def generar_lista_compras_barra(cotizacion):
     return lista_compras
 
 
+def generar_lista_compras_general(cotizacion):
+    """Genera lista de compras desde ItemCotizacion → Producto → SubProducto → Insumo."""
+    lista_compras = {}
+    insumos_acumulados = {}
+
+    items_qs = cotizacion.items.exclude(
+        descripcion__startswith='Servicio de Barra'
+    ).select_related('producto', 'insumo', 'insumo__proveedor')
+
+    for item in items_qs:
+        if item.producto:
+            componentes = item.producto.componentes.select_related('subproducto').all()
+            for comp in componentes:
+                recetas = comp.subproducto.receta.select_related(
+                    'insumo', 'insumo__proveedor'
+                ).all()
+                for receta in recetas:
+                    cantidad_total = float(item.cantidad * comp.cantidad * receta.cantidad)
+                    insumo = receta.insumo
+                    if insumo.id in insumos_acumulados:
+                        insumos_acumulados[insumo.id]['cantidad'] += cantidad_total
+                    else:
+                        insumos_acumulados[insumo.id] = {
+                            'insumo': insumo,
+                            'cantidad': cantidad_total,
+                        }
+        elif item.insumo:
+            insumo = item.insumo
+            cantidad_total = float(item.cantidad)
+            if insumo.id in insumos_acumulados:
+                insumos_acumulados[insumo.id]['cantidad'] += cantidad_total
+            else:
+                insumos_acumulados[insumo.id] = {
+                    'insumo': insumo,
+                    'cantidad': cantidad_total,
+                }
+        else:
+            if item.descripcion and item.cantidad > 0:
+                _agregar_a_lista(lista_compras, 'Servicios y Extras',
+                    item.descripcion, int(item.cantidad), 'Unidad')
+
+    for data in sorted(insumos_acumulados.values(), key=lambda x: x['insumo'].nombre):
+        insumo = data['insumo']
+        cant = math.ceil(data['cantidad'])
+        if cant <= 0:
+            continue
+        unidad = insumo.presentacion or 'Unidad'
+        _agregar_a_lista(
+            lista_compras, 'Insumos del Evento',
+            _nombre_insumo(insumo), cant, unidad,
+            proveedor=insumo.proveedor.nombre if insumo.proveedor else '',
+            costo_unitario=float(insumo.costo_unitario),
+        )
+
+    return lista_compras
+
+
+def generar_lista_compras_unificada(cotizacion):
+    """Genera lista de compras completa: items generales + servicio de barra."""
+    lista_general = generar_lista_compras_general(cotizacion)
+    lista_barra = generar_lista_compras_barra(cotizacion)
+
+    lista_unificada = {}
+
+    for seccion, items in lista_general.items():
+        lista_unificada[seccion] = items
+
+    for seccion, items in lista_barra.items():
+        seccion_barra = f"Barra: {seccion}"
+        if seccion_barra in lista_unificada:
+            lista_unificada[seccion_barra].extend(items)
+        else:
+            lista_unificada[seccion_barra] = items
+
+    return lista_unificada
+
+
 # ==========================================
 # 0.5 ASISTENTE DE CONFIGURACIÓN DE PLANTILLA DE BARRA (DATA-DRIVEN)
 # ==========================================
@@ -429,18 +506,18 @@ def generar_lista_compras(request):
 @staff_member_required
 def descargar_lista_compras_pdf(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    lista_insumos = generar_lista_compras_barra(cotizacion)
+    lista_insumos = generar_lista_compras_unificada(cotizacion)
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
 
     html_string = render_to_string('pdf_lista_compras.html', {
         'cotizacion': cotizacion, 'lista': lista_insumos, 'logo_url': logo_url, 'fecha_impresion': timezone.now()
     })
-    
+
     html = HTML(string=html_string, base_url=request.build_absolute_uri())
     result = html.write_pdf()
     response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename=Checklist_Barra_{cotizacion.id}.pdf'
+    response['Content-Disposition'] = f'inline; filename=Lista_Compras_{cotizacion.id}.pdf'
     response.write(result)
     return response
 
