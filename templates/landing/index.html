@@ -162,6 +162,16 @@ section{padding:6rem 5%;}
 .camino-desc{color:var(--texto-s);font-size:.86rem;font-weight:300;line-height:1.7;margin-bottom:1.6rem;}
 .camino-btn{margin-top:auto;color:var(--verde-d);font-size:.7rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;border-bottom:1.5px solid var(--amarillo);padding-bottom:.25rem;}
 
+.tipos{background:var(--verde-d);padding:3.5rem 5%;overflow:hidden;}
+.tipos-wrap{display:flex;justify-content:center;gap:3rem;flex-wrap:wrap;max-width:900px;margin:0 auto;}
+.tipo-item{display:flex;flex-direction:column;align-items:center;gap:.7rem;text-decoration:none;transition:transform .25s;padding:1rem;}
+.tipo-item:hover{transform:translateY(-4px);}
+.tipo-ico{width:56px;height:56px;border-radius:50%;border:1.5px solid rgba(245,197,24,.35);display:flex;align-items:center;justify-content:center;transition:border-color .25s,background .25s;}
+.tipo-item:hover .tipo-ico{border-color:var(--amarillo);background:rgba(245,197,24,.1);}
+.tipo-ico svg{width:22px;height:22px;stroke:var(--amarillo);fill:none;stroke-width:1.5;}
+.tipo-name{color:var(--blanco);font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:400;letter-spacing:.04em;}
+.tipo-cap{color:rgba(255,255,255,.4);font-size:.62rem;font-weight:300;letter-spacing:.1em;text-transform:uppercase;}
+
 /* Como funciona */
 .pasos{max-width:900px;margin:0 auto;padding:5rem 5%;}
 .pasos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:2rem;}
@@ -268,8 +278,10 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   <ul class="nav-links">
     <li><a href="#nosotros">Nosotros</a></li>
     <li><a href="#servicios">Servicios</a></li>
+    <li><a href="#espacios">Espacios</a></li>
     <li><a href="#galeria">Galeria</a></li>
     <li><a href="#ubicacion">Ubicacion</a></li>
+    <li><a href="#contacto">Contacto</a></li>
   </ul>
   <a href="https://wa.me/529994457178?text=Hola,%20me%20gustaría%20información." target="_blank" class="nav-wa">
     <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
@@ -282,6 +294,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   <button class="mn-close" id="mc">&#10005;</button>
   <a href="#nosotros">Nosotros</a>
   <a href="#servicios">Servicios</a>
+  <a href="#espacios">Espacios</a>
   <a href="#galeria">Galeria</a>
   <a href="#ubicacion">Ubicacion</a>
   <a href="#contacto">Contacto</a>
@@ -357,6 +370,31 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
       </div></div></div>
       <div class="srv-ov"></div>
     </div>
+  </div>
+</section>
+
+<section class="tipos">
+  <div class="tipos-wrap">
+    <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="tipo-item">
+      <div class="tipo-ico"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+      <span class="tipo-name">Bodas</span>
+    </a>
+    <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="tipo-item">
+      <div class="tipo-ico"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <span class="tipo-name">XV Años</span>
+    </a>
+    <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="tipo-item">
+      <div class="tipo-ico"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+      <span class="tipo-name">Eventos Sociales</span>
+    </a>
+    <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="tipo-item">
+      <div class="tipo-ico"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+      <span class="tipo-name">Corporativos</span>
+    </a>
+    <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="tipo-item">
+      <div class="tipo-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></div>
+      <span class="tipo-name">Pasadia</span>
+    </a>
   </div>
 </section>
 
@@ -465,6 +503,31 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   </div>
 </section>
 
+<section class="pasos">
+  <div style="text-align:center;margin-bottom:3rem;">
+    <span class="stag">Proceso</span>
+    <h2 class="stitle">Como <em>funciona</em></h2>
+    <div class="divider" style="margin:1.5rem auto;"></div>
+  </div>
+  <div class="pasos-grid">
+    <div class="paso">
+      <div class="paso-num">1</div>
+      <h3>Cotiza en linea</h3>
+      <p>Completa un formulario corto con los detalles de tu evento y obten tu cotizacion al instante.</p>
+    </div>
+    <div class="paso">
+      <div class="paso-num">2</div>
+      <h3>Recibe tu portal</h3>
+      <p>Te enviamos acceso a un portal privado donde ves tu cotizacion, plan de pagos y contrato.</p>
+    </div>
+    <div class="paso">
+      <div class="paso-num">3</div>
+      <h3>Confirma tu fecha</h3>
+      <p>Aparta tu fecha con tu anticipo y nuestro equipo te acompaña hasta el dia de tu evento.</p>
+    </div>
+  </div>
+</section>
+
 {% if preguntas %}
 <section class="faq">
   <div style="text-align:center;max-width:520px;margin:0 auto 3rem;">
@@ -503,31 +566,6 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   </div>
 </section>
 
-<section class="pasos">
-  <div style="text-align:center;margin-bottom:3rem;">
-    <span class="stag">Proceso</span>
-    <h2 class="stitle">Como <em>funciona</em></h2>
-    <div class="divider" style="margin:1.5rem auto;"></div>
-  </div>
-  <div class="pasos-grid">
-    <div class="paso">
-      <div class="paso-num">1</div>
-      <h3>Cotiza en linea</h3>
-      <p>Completa un formulario corto con los detalles de tu evento y obten tu cotizacion al instante.</p>
-    </div>
-    <div class="paso">
-      <div class="paso-num">2</div>
-      <h3>Recibe tu portal</h3>
-      <p>Te enviamos acceso a un portal privado donde ves tu cotizacion, plan de pagos y contrato.</p>
-    </div>
-    <div class="paso">
-      <div class="paso-num">3</div>
-      <h3>Confirma tu fecha</h3>
-      <p>Aparta tu fecha con tu anticipo y nuestro equipo te acompaña hasta el dia de tu evento.</p>
-    </div>
-  </div>
-</section>
-
 <section class="cta" id="contacto">
   <div class="cta-wrap" style="display:flex;gap:4rem;align-items:center;justify-content:center;flex-wrap:wrap;max-width:960px;margin:0 auto;">
     <div style="flex:1;min-width:280px;text-align:left;">
@@ -562,7 +600,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
 <footer>
   <div class="ft-logo">Quinta Ko'ox Tanil<span>Uman, Yucatan · Mexico</span></div>
   <div class="ft-links">
-    <a href="#nosotros">Nosotros</a><a href="#servicios">Servicios</a>
+    <a href="#nosotros">Nosotros</a><a href="#servicios">Servicios</a><a href="#espacios">Espacios</a>
     <a href="#galeria">Galeria</a><a href="#ubicacion">Ubicacion</a><a href="#contacto">Contacto</a>
   </div>
   <div class="ft-soc">
@@ -570,7 +608,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
     <a href="https://www.instagram.com/quintakooxtanil" target="_blank" class="soc-btn" aria-label="Instagram"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" fill="none" stroke="rgba(255,255,255,.48)" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="none" stroke="rgba(255,255,255,.48)" stroke-width="1.5"/><circle cx="17.5" cy="6.5" r="1.2" fill="rgba(255,255,255,.48)"/></svg></a>
     <a href="https://wa.me/529994457178" target="_blank" class="soc-btn" aria-label="WhatsApp"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></a>
   </div>
-  <div class="ft-copy">© 2025 Quinta Ko'ox Tanil · Todos los derechos reservados</div>
+  <div class="ft-copy">© 2026 Quinta Ko'ox Tanil · Todos los derechos reservados</div>
 </footer>
 
 <a href="https://wa.me/529994457178?text=Hola,%20me%20gustaría%20información." target="_blank" class="wa-float" aria-label="WhatsApp">
