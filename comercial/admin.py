@@ -14,7 +14,7 @@ from .models import (
     Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
     MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago,
     Espacio, AsignacionEspacio, AsignacionPersonal,
-    ImagenLanding, TestimonioLanding,
+    ImagenLanding, TestimonioLanding, EspacioLanding, PreguntaFrecuente,
 )
 from .services import CalculadoraBarraService
 
@@ -1001,13 +1001,13 @@ class AsignacionPersonalAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(ImagenLanding)
 class ImagenLandingAdmin(admin.ModelAdmin):
-    list_display = ('preview_mini', 'seccion', 'titulo', 'orden', 'activo')
-    list_filter = ('seccion', 'activo')
+    list_display = ('preview_mini', 'seccion', 'categoria_galeria', 'titulo', 'orden', 'activo')
+    list_filter = ('seccion', 'categoria_galeria', 'activo')
     list_editable = ('orden', 'activo')
     list_display_links = ('preview_mini', 'seccion')
     fieldsets = (
         (None, {
-            'fields': ('seccion', 'imagen', 'posicion_vertical', 'preview_grande'),
+            'fields': ('seccion', 'categoria_galeria', 'imagen', 'posicion_vertical', 'preview_grande'),
         }),
         ('Detalles', {
             'fields': ('titulo', 'alt_text', 'orden', 'activo'),
@@ -1054,3 +1054,33 @@ class TestimonioLandingAdmin(admin.ModelAdmin):
     @admin.display(description="Testimonio")
     def texto_corto(self, obj):
         return obj.texto[:80] + '…' if len(obj.texto) > 80 else obj.texto
+
+
+@admin.register(EspacioLanding)
+class EspacioLandingAdmin(admin.ModelAdmin):
+    list_display = ('preview_mini', 'nombre', 'capacidad', 'orden', 'activo')
+    list_editable = ('orden', 'activo')
+    list_display_links = ('preview_mini', 'nombre')
+    fieldsets = (
+        (None, {'fields': ('nombre', 'imagen', 'posicion_vertical', 'capacidad', 'descripcion')}),
+        ('Opciones', {'fields': ('orden', 'activo')}),
+    )
+
+    @admin.display(description="Preview")
+    def preview_mini(self, obj):
+        if obj.imagen:
+            return format_html(
+                '<img src="{}" style="width:80px;height:55px;object-fit:cover;border-radius:4px;">',
+                obj.imagen.url
+            )
+        return "—"
+
+
+@admin.register(PreguntaFrecuente)
+class PreguntaFrecuenteAdmin(admin.ModelAdmin):
+    list_display = ('pregunta', 'respuesta_corta', 'orden', 'activo')
+    list_editable = ('orden', 'activo')
+
+    @admin.display(description="Respuesta")
+    def respuesta_corta(self, obj):
+        return obj.respuesta[:100] + '…' if len(obj.respuesta) > 100 else obj.respuesta

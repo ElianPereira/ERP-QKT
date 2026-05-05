@@ -1151,12 +1151,24 @@ class ImagenLanding(models.Model):
         ('80%', 'Abajo-centro'),
         ('bottom', 'Abajo'),
     ]
+    CATEGORIA_GALERIA_CHOICES = [
+        ('BODAS', 'Bodas'),
+        ('EVENTOS', 'Eventos Sociales'),
+        ('PASADIA', 'Pasadía'),
+        ('ESPACIOS', 'Espacios'),
+        ('GENERAL', 'General'),
+    ]
     seccion = models.CharField(max_length=20, choices=SECCION_CHOICES, verbose_name="Sección")
     imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
     posicion_vertical = models.CharField(
         max_length=10, choices=POSICION_CHOICES, default='center',
         verbose_name="Enfoque vertical",
         help_text="Qué parte de la imagen se muestra: arriba, centro o abajo",
+    )
+    categoria_galeria = models.CharField(
+        max_length=20, choices=CATEGORIA_GALERIA_CHOICES, default='GENERAL',
+        blank=True, verbose_name="Categoría (galería)",
+        help_text="Solo aplica a imágenes de la sección Galería",
     )
     titulo = models.CharField(max_length=120, blank=True, verbose_name="Título / descripción interna")
     alt_text = models.CharField(max_length=200, blank=True, verbose_name="Texto alternativo",
@@ -1189,3 +1201,40 @@ class TestimonioLanding(models.Model):
 
     def __str__(self):
         return f"{self.nombre} — {self.evento}"
+
+
+class EspacioLanding(models.Model):
+    nombre = models.CharField(max_length=100, verbose_name="Nombre del espacio")
+    imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
+    capacidad = models.CharField(max_length=80, verbose_name="Capacidad",
+                                 help_text="Ej: Hasta 200 invitados")
+    descripcion = models.CharField(max_length=200, blank=True, verbose_name="Descripción corta")
+    posicion_vertical = models.CharField(
+        max_length=10, choices=ImagenLanding.POSICION_CHOICES, default='center',
+        verbose_name="Enfoque vertical",
+    )
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Espacio"
+        verbose_name_plural = "Página Web — Espacios"
+
+    def __str__(self):
+        return f"{self.nombre} ({self.capacidad})"
+
+
+class PreguntaFrecuente(models.Model):
+    pregunta = models.CharField(max_length=200, verbose_name="Pregunta")
+    respuesta = models.TextField(verbose_name="Respuesta")
+    orden = models.PositiveIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Pregunta frecuente"
+        verbose_name_plural = "Página Web — Preguntas Frecuentes"
+
+    def __str__(self):
+        return self.pregunta

@@ -193,6 +193,8 @@ JAZZMIN_SETTINGS = {
         "comercial.RecordatorioPago":       "fas fa-bell",
         "comercial.ImagenLanding":          "fas fa-images",
         "comercial.TestimonioLanding":      "fas fa-star",
+        "comercial.EspacioLanding":         "fas fa-door-open",
+        "comercial.PreguntaFrecuente":      "fas fa-question-circle",
 
         # AIRBNB
         "airbnb":                           "fas fa-bed",
@@ -272,6 +274,8 @@ JAZZMIN_SETTINGS = {
         "comercial.RecordatorioPago",
         "comercial.ImagenLanding",
         "comercial.TestimonioLanding",
+        "comercial.EspacioLanding",
+        "comercial.PreguntaFrecuente",
 
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",

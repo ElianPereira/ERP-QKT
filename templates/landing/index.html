@@ -91,13 +91,53 @@ section{padding:6rem 5%;}
 .srv-ov{position:absolute;inset:0;border:2px solid rgba(245,197,24,.42);border-radius:4px;opacity:0;transition:opacity .3s;pointer-events:none;}
 
 .galeria{background:var(--crema);}
-.gal-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:auto auto;gap:.5rem;}
-.gal-item{border-radius:3px;overflow:hidden;cursor:pointer;position:relative;}
-.gal-item:first-child{grid-column:span 2;grid-row:span 2;}
-.gal-item:nth-child(4){grid-column:span 2;}
-.gal-box{width:100%;height:100%;min-height:180px;transition:transform .4s ease;position:relative;background-size:cover;background-position:center;background-color:var(--verde-d);}
-.gal-item:first-child .gal-box{min-height:370px;}
-.gal-item:hover .gal-box{transform:scale(1.03);}
+.gal-tabs{display:flex;justify-content:center;gap:.6rem;margin-bottom:2.5rem;flex-wrap:wrap;}
+.gal-tab{background:none;border:1.5px solid #d8d8d0;color:var(--texto-s);padding:.45rem 1.4rem;border-radius:40px;font-size:.7rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .25s;font-family:inherit;}
+.gal-tab:hover{border-color:var(--verde);color:var(--verde);}
+.gal-tab.active{background:var(--verde-d);border-color:var(--verde-d);color:var(--blanco);}
+.gal-slider{position:relative;max-width:1000px;margin:0 auto;border-radius:6px;overflow:hidden;}
+.gal-viewport{position:relative;height:520px;overflow:hidden;background:var(--verde-d);}
+.gal-slide{position:absolute;inset:0;opacity:0;transition:opacity .7s ease;cursor:pointer;}
+.gal-slide.active{opacity:1;}
+.gal-slide-img{width:100%;height:100%;background-size:cover;background-position:center;}
+.gal-slide-cap{position:absolute;bottom:0;left:0;right:0;padding:1.5rem 2rem;background:linear-gradient(transparent,rgba(0,0,0,.55));color:#fff;font-size:.8rem;font-weight:300;letter-spacing:.04em;}
+.gal-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:5;background:rgba(255,255,255,.15);backdrop-filter:blur(4px);color:#fff;border:1px solid rgba(255,255,255,.2);width:46px;height:46px;border-radius:50%;font-size:1.4rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;}
+.gal-arrow:hover{background:rgba(255,255,255,.3);}
+.gal-prev{left:1rem;}
+.gal-next{right:1rem;}
+.gal-counter{text-align:center;margin-top:1.2rem;color:var(--texto-s);font-size:.78rem;font-weight:300;letter-spacing:.06em;}
+.gal-dots{display:flex;justify-content:center;gap:.4rem;margin-top:.8rem;}
+.gal-dot{width:7px;height:7px;border-radius:50%;background:var(--verde);opacity:.2;transition:all .3s;cursor:pointer;}
+.gal-dot.active{opacity:1;width:22px;border-radius:4px;}
+
+.espacios{background:var(--blanco);}
+.esp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:1080px;margin:0 auto;}
+.esp-card{border-radius:6px;overflow:hidden;border:1px solid #e8e8e2;transition:transform .3s,box-shadow .3s;}
+.esp-card:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,.08);}
+.esp-img{height:220px;background-size:cover;background-position:center;position:relative;}
+.esp-cap{position:absolute;bottom:.8rem;right:.8rem;background:var(--amarillo);color:var(--verde-d);padding:.35rem .9rem;border-radius:30px;font-size:.68rem;font-weight:600;letter-spacing:.06em;}
+.esp-body{padding:1.4rem 1.5rem;}
+.esp-body h3{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;color:var(--verde-d);margin-bottom:.4rem;}
+.esp-body p{font-size:.82rem;color:var(--texto-s);font-weight:300;line-height:1.7;}
+
+.faq{background:var(--crema);}
+.faq-list{max-width:740px;margin:0 auto;}
+.faq-item{border-bottom:1px solid #e0e0d8;}
+.faq-q{width:100%;background:none;border:none;padding:1.4rem 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:inherit;text-align:left;}
+.faq-q span{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:400;color:var(--verde-d);}
+.faq-q .faq-icon{width:24px;height:24px;border-radius:50%;border:1px solid var(--verde);display:flex;align-items:center;justify-content:center;transition:transform .3s;flex-shrink:0;margin-left:1rem;}
+.faq-q .faq-icon svg{width:12px;height:12px;stroke:var(--verde);fill:none;stroke-width:2;transition:transform .3s;}
+.faq-item.open .faq-q .faq-icon{transform:rotate(180deg);}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .35s ease;}
+.faq-item.open .faq-a{max-height:300px;}
+.faq-a p{padding:0 0 1.4rem;font-size:.88rem;color:var(--texto-s);font-weight:300;line-height:1.85;}
+
+.contacto-form{background:var(--blanco);border-radius:8px;padding:2.5rem;border:1px solid #e8e8e2;max-width:480px;width:100%;}
+.contacto-form input,.contacto-form select,.contacto-form textarea{width:100%;padding:.75rem 1rem;border:1.5px solid #e0e0d8;border-radius:6px;font-family:inherit;font-size:.85rem;color:var(--texto);margin-bottom:.8rem;transition:border-color .2s;background:var(--blanco);}
+.contacto-form input:focus,.contacto-form select:focus,.contacto-form textarea:focus{outline:none;border-color:var(--verde);}
+.contacto-form select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234A4A4A' stroke-width='2'%3E%3Cpolyline points='6,9 12,15 18,9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center;}
+.contacto-form textarea{resize:vertical;min-height:80px;}
+.contacto-form button{width:100%;padding:.85rem;border:none;border-radius:40px;cursor:pointer;}
 
 .testimonios{background:var(--blanco);padding:6rem 5%;}
 .test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:1000px;margin:0 auto;}
@@ -204,16 +244,18 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   .nosotros,.ubicacion{grid-template-columns:1fr;gap:2.5rem;}
   .nos-vis{height:230px;order:1;} .nos-badge{right:1rem;bottom:1rem;}
   .srv-grid{grid-template-columns:1fr;} .srv-wrap{height:300px;}
-  .gal-grid{grid-template-columns:1fr 1fr;}
-  .gal-item:first-child{grid-column:span 2;} .gal-item:nth-child(4){grid-column:span 1;}
+  .gal-viewport{height:350px;}
   .dif-grid{grid-template-columns:repeat(2,1fr);}
   .test-grid{grid-template-columns:1fr;}
+  .cta-wrap{flex-direction:column;}
+  .contacto-form{max-width:100%;}
   section{padding:4rem 5%;} footer{flex-direction:column;align-items:flex-start;}
 }
 @media(max-width:600px){
   .hero h1{font-size:2.6rem;}
-  .gal-grid{grid-template-columns:1fr;}
-  .gal-item:first-child,.gal-item:nth-child(4){grid-column:span 1;}
+  .gal-viewport{height:260px;}
+  .gal-arrow{width:36px;height:36px;font-size:1.1rem;}
+  .esp-grid{grid-template-columns:1fr;}
   .nos-datos{flex-direction:column;gap:1rem;}
   .dif-grid{grid-template-columns:1fr;} .ub-map{height:230px;}
 }
@@ -319,22 +361,60 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   </div>
 </section>
 
+{% if espacios %}
+<section class="espacios" id="espacios">
+  <div style="text-align:center;max-width:520px;margin:0 auto 3.5rem;">
+    <span class="stag">Conoce nuestros espacios</span>
+    <h2 class="stitle">Donde tu evento<br><em>cobra vida</em></h2>
+    <div class="divider" style="margin:1.5rem auto;"></div>
+  </div>
+  <div class="esp-grid">
+    {% for e in espacios %}
+    <div class="esp-card">
+      <div class="esp-img" style="background-image:url('{{ e.imagen.url }}');background-position:center {{ e.posicion_vertical|default:'center' }};">
+        <span class="esp-cap">{{ e.capacidad }}</span>
+      </div>
+      <div class="esp-body">
+        <h3>{{ e.nombre }}</h3>
+        {% if e.descripcion %}<p>{{ e.descripcion }}</p>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <section class="galeria" id="galeria">
-  <div style="margin-bottom:3rem;">
+  <div style="margin-bottom:2rem;">
     <span class="stag">Nuestro espacio</span>
     <h2 class="stitle">La <em>quinta</em></h2>
     <div class="divider"></div>
   </div>
   {% if img.galeria %}
-  <div class="gal-grid">
-    {% for foto in img.galeria %}
-    <div class="gal-item" onclick="abrirLightbox({{ forloop.counter0 }})">
-      <div class="gal-box" style="background-image:url('{{ foto.imagen.url }}');background-position:center {{ foto.posicion_vertical|default:'center' }};"></div>
-    </div>
+  {% if galeria_categorias|length > 1 %}
+  <div class="gal-tabs">
+    <button class="gal-tab active" data-cat="all">Todas</button>
+    {% for cat_code, cat_name in galeria_categorias %}
+    <button class="gal-tab" data-cat="{{ cat_code }}">{{ cat_name }}</button>
     {% endfor %}
   </div>
   {% endif %}
-  <p class="gal-cta" style="text-align:center;margin-top:2.5rem;color:var(--texto-s);font-size:.82rem;">¿Quieres ver mas? <a href="https://www.facebook.com/quintakooxtanil" target="_blank" style="color:var(--verde);font-weight:500;text-decoration:none;border-bottom:1px solid rgba(46,125,50,.28);">Visita nuestro Facebook</a> para fotos y videos de eventos recientes.</p>
+  <div class="gal-slider">
+    <button class="gal-arrow gal-prev" aria-label="Anterior">&#8249;</button>
+    <div class="gal-viewport">
+      {% for foto in img.galeria %}
+      <div class="gal-slide{% if forloop.first %} active{% endif %}" data-cat="{{ foto.categoria_galeria }}">
+        <div class="gal-slide-img" style="background-image:url('{{ foto.imagen.url }}');background-position:center {{ foto.posicion_vertical|default:'center' }};" onclick="abrirLightbox({{ forloop.counter0 }})"></div>
+        {% if foto.titulo %}<div class="gal-slide-cap">{{ foto.titulo }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <button class="gal-arrow gal-next" aria-label="Siguiente">&#8250;</button>
+  </div>
+  <div class="gal-counter"></div>
+  <div class="gal-dots"></div>
+  {% endif %}
+  <p style="text-align:center;margin-top:2rem;color:var(--texto-s);font-size:.82rem;">¿Quieres ver mas? <a href="https://www.facebook.com/quintakooxtanil" target="_blank" style="color:var(--verde);font-weight:500;text-decoration:none;border-bottom:1px solid rgba(46,125,50,.28);">Visita nuestro Facebook</a> para fotos y videos de eventos recientes.</p>
 </section>
 
 {% if testimonios %}
@@ -386,6 +466,27 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   </div>
 </section>
 
+{% if preguntas %}
+<section class="faq">
+  <div style="text-align:center;max-width:520px;margin:0 auto 3rem;">
+    <span class="stag">Resolvemos tus dudas</span>
+    <h2 class="stitle">Preguntas <em>frecuentes</em></h2>
+    <div class="divider" style="margin:1.5rem auto;"></div>
+  </div>
+  <div class="faq-list">
+    {% for p in preguntas %}
+    <div class="faq-item">
+      <button class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        <span>{{ p.pregunta }}</span>
+        <div class="faq-icon"><svg viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg></div>
+      </button>
+      <div class="faq-a"><p>{{ p.respuesta }}</p></div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <section class="ubicacion" id="ubicacion">
   <div>
     <span class="stag">Como llegar</span>
@@ -429,12 +530,33 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
 </section>
 
 <section class="cta" id="contacto">
-  <span class="stag">¿Listo para celebrar?</span>
-  <h2 class="stitle">Hablemos de<br><em>tu evento</em></h2>
-  <p class="cta-p">Cuentanos que tienes en mente. Preparamos una cotizacion personalizada sin compromiso.</p>
-  <div class="cta-btns">
-    <a href="{% url 'cotizador_publico' %}" class="btn-am">Cotizar mi evento</a>
-    <a href="mailto:quintakooxtanil@gmail.com" class="btn-vd">Enviar un correo</a>
+  <div class="cta-wrap" style="display:flex;gap:4rem;align-items:center;justify-content:center;flex-wrap:wrap;max-width:960px;margin:0 auto;">
+    <div style="flex:1;min-width:280px;text-align:left;">
+      <span class="stag">¿Listo para celebrar?</span>
+      <h2 class="stitle">Cuéntanos sobre<br><em>tu evento</em></h2>
+      <div class="divider"></div>
+      <p style="color:var(--texto-s);font-weight:300;line-height:1.9;font-size:.94rem;margin-bottom:1.5rem;">Completa el formulario y nos pondremos en contacto contigo. También puedes cotizar al instante con nuestro cotizador en línea.</p>
+      <a href="{% url 'cotizador_publico' %}" class="btn-am" style="display:inline-block;">Cotizar al instante</a>
+    </div>
+    <form class="contacto-form" id="contactForm">
+      <input type="text" name="nombre" placeholder="Tu nombre" required>
+      <input type="tel" name="telefono" placeholder="Tu teléfono" required>
+      <select name="tipo_evento">
+        <option value="">Tipo de evento</option>
+        <option value="Boda">Boda</option>
+        <option value="XV Años">XV Años</option>
+        <option value="Evento Social">Evento Social</option>
+        <option value="Evento Corporativo">Evento Corporativo</option>
+        <option value="Pasadía">Pasadía</option>
+        <option value="Otro">Otro</option>
+      </select>
+      <div style="display:flex;gap:.8rem;">
+        <input type="number" name="invitados" placeholder="No. de invitados" min="1" style="flex:1;">
+        <input type="date" name="fecha" style="flex:1;">
+      </div>
+      <textarea name="mensaje" placeholder="¿Algo más que quieras contarnos?" rows="3"></textarea>
+      <button type="submit" class="btn-am">Enviar consulta por WhatsApp</button>
+    </form>
   </div>
 </section>
 
@@ -471,20 +593,103 @@ mb.addEventListener('click',()=>mn.classList.add('open'));
 mc.addEventListener('click',()=>mn.classList.remove('open'));
 mn.querySelectorAll('a').forEach(l=>l.addEventListener('click',()=>mn.classList.remove('open')));
 const obs=new IntersectionObserver(e=>{e.forEach(i=>{if(i.isIntersecting){i.target.style.opacity='1';i.target.style.transform='translateY(0)';}});},{threshold:.1});
-document.querySelectorAll('.srv-card,.nos-txt,.nos-vis,.dif-item,.test-card').forEach(el=>{
+document.querySelectorAll('.srv-card,.nos-txt,.nos-vis,.dif-item,.test-card,.esp-card,.faq-item').forEach(el=>{
   el.style.opacity='0';el.style.transform='translateY(26px)';
   el.style.transition='opacity .6s ease,transform .6s ease';obs.observe(el);
 });
-const galImgs=document.querySelectorAll('.gal-item .gal-box');
+
+/* Gallery Slider */
+const allSlides=[...document.querySelectorAll('.gal-slide')];
+const galTabs=document.querySelectorAll('.gal-tab');
+const galCounter=document.querySelector('.gal-counter');
+const galDotsC=document.querySelector('.gal-dots');
+let curSlides=[...allSlides];
+let sIdx=0;
+let autoT;
+
+function buildDots(){
+  if(!galDotsC)return;
+  galDotsC.innerHTML='';
+  curSlides.forEach((_,i)=>{
+    const d=document.createElement('span');
+    d.className='gal-dot'+(i===sIdx?' active':'');
+    d.onclick=()=>{showSlide(i);resetAuto();};
+    galDotsC.appendChild(d);
+  });
+}
+function showSlide(i){
+  allSlides.forEach(s=>s.classList.remove('active'));
+  if(curSlides.length===0)return;
+  sIdx=((i%curSlides.length)+curSlides.length)%curSlides.length;
+  curSlides[sIdx].classList.add('active');
+  if(galCounter)galCounter.textContent=(sIdx+1)+' / '+curSlides.length;
+  if(galDotsC){
+    galDotsC.querySelectorAll('.gal-dot').forEach((d,j)=>d.classList.toggle('active',j===sIdx));
+  }
+}
+function filterGal(cat){
+  allSlides.forEach(s=>s.classList.remove('active'));
+  curSlides=cat==='all'?[...allSlides]:[...allSlides].filter(s=>s.dataset.cat===cat);
+  sIdx=0;
+  buildDots();
+  if(curSlides.length>0)showSlide(0);
+  resetAuto();
+}
+function resetAuto(){clearInterval(autoT);autoT=setInterval(()=>showSlide(sIdx+1),5000);}
+
+galTabs.forEach(t=>t.addEventListener('click',()=>{
+  galTabs.forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  filterGal(t.dataset.cat);
+}));
+document.querySelector('.gal-prev')?.addEventListener('click',()=>{showSlide(sIdx-1);resetAuto();});
+document.querySelector('.gal-next')?.addEventListener('click',()=>{showSlide(sIdx+1);resetAuto();});
+
+if(allSlides.length>0){buildDots();showSlide(0);autoT=setInterval(()=>showSlide(sIdx+1),5000);}
+
+/* Touch swipe */
+let touchX=0;
+const vp=document.querySelector('.gal-viewport');
+if(vp){
+  vp.addEventListener('touchstart',e=>{touchX=e.changedTouches[0].screenX;},{passive:true});
+  vp.addEventListener('touchend',e=>{const diff=e.changedTouches[0].screenX-touchX;if(Math.abs(diff)>50){showSlide(sIdx+(diff>0?-1:1));resetAuto();}},{passive:true});
+}
+
+/* Lightbox */
+const galImgs=document.querySelectorAll('.gal-slide-img');
 const lb=document.getElementById('lightbox');
 const lbImg=document.getElementById('lightbox-img');
 let lbIdx=0;
 function getSrc(el){const s=getComputedStyle(el).backgroundImage;return s.replace(/url\(["']?/,'').replace(/["']?\)/,'');}
-function abrirLightbox(i){lbIdx=i;lbImg.src=getSrc(galImgs[i]);lb.classList.add('active');document.body.style.overflow='hidden';}
+function abrirLightbox(i){
+  const activeImgs=curSlides.map(s=>s.querySelector('.gal-slide-img'));
+  lbIdx=0;
+  lbImg.src=getSrc(activeImgs[sIdx]);
+  lb.classList.add('active');document.body.style.overflow='hidden';
+}
 function cerrarLightbox(){lb.classList.remove('active');document.body.style.overflow='';}
-function navLightbox(d){lbIdx=(lbIdx+d+galImgs.length)%galImgs.length;lbImg.src=getSrc(galImgs[lbIdx]);}
+function navLightbox(d){
+  const activeImgs=curSlides.map(s=>s.querySelector('.gal-slide-img'));
+  lbIdx=(lbIdx+d+activeImgs.length)%activeImgs.length;
+  lbImg.src=getSrc(activeImgs[lbIdx]);
+}
 lb.addEventListener('click',function(e){if(e.target===lb)cerrarLightbox();});
 document.addEventListener('keydown',function(e){if(!lb.classList.contains('active'))return;if(e.key==='Escape')cerrarLightbox();if(e.key==='ArrowLeft')navLightbox(-1);if(e.key==='ArrowRight')navLightbox(1);});
+
+/* Contact form → WhatsApp */
+const cf=document.getElementById('contactForm');
+if(cf){cf.addEventListener('submit',function(e){
+  e.preventDefault();
+  const f=new FormData(this);
+  let m='Hola, me gustaría información sobre un evento.\n\n';
+  m+='*Nombre:* '+f.get('nombre')+'\n';
+  m+='*Teléfono:* '+f.get('telefono')+'\n';
+  if(f.get('tipo_evento'))m+='*Tipo de evento:* '+f.get('tipo_evento')+'\n';
+  if(f.get('invitados'))m+='*Invitados:* '+f.get('invitados')+'\n';
+  if(f.get('fecha'))m+='*Fecha tentativa:* '+f.get('fecha')+'\n';
+  if(f.get('mensaje'))m+='*Mensaje:* '+f.get('mensaje')+'\n';
+  window.open('https://wa.me/529994457178?text='+encodeURIComponent(m),'_blank');
+});}
 </script>
 
 </body>

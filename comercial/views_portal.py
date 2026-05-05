@@ -18,7 +18,10 @@ from django.utils import timezone
 from django.conf import settings
 from weasyprint import HTML
 
-from .models import Cotizacion, PortalCliente, PlanPago, ImagenLanding, TestimonioLanding
+from .models import (
+    Cotizacion, PortalCliente, PlanPago, ImagenLanding,
+    TestimonioLanding, EspacioLanding, PreguntaFrecuente,
+)
 
 
 from core_erp.ratelimit import rate_limit as _rate_limit
@@ -37,13 +40,25 @@ def landing_publico(request):
     img = {}
     for sec in ('HERO', 'NOSOTROS', 'EVENTO', 'PASADIA', 'HOSPEDAJE'):
         img[sec.lower()] = imagenes.filter(seccion=sec).first()
-    img['galeria'] = imagenes.filter(seccion='GALERIA')
+    galeria_imgs = imagenes.filter(seccion='GALERIA')
+    img['galeria'] = galeria_imgs
+
+    cats_con_fotos = set(galeria_imgs.values_list('categoria_galeria', flat=True))
+    galeria_categorias = [
+        (c, d) for c, d in ImagenLanding.CATEGORIA_GALERIA_CHOICES
+        if c in cats_con_fotos
+    ]
 
     testimonios = TestimonioLanding.objects.filter(activo=True)
+    espacios = EspacioLanding.objects.filter(activo=True)
+    preguntas = PreguntaFrecuente.objects.filter(activo=True)
 
     context = {
         'img': img,
+        'galeria_categorias': galeria_categorias,
         'testimonios': testimonios,
+        'espacios': espacios,
+        'preguntas': preguntas,
     }
     return render(request, 'landing/index.html', context)
 
