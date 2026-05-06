@@ -10,6 +10,7 @@ from django.db.models import Sum
 from .models import PortalCliente
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto,
+    ProductoComponente,
     Cliente, Cotizacion, ItemCotizacion, Pago,
     Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
     MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago,
@@ -210,14 +211,35 @@ class SubProductoAdmin(admin.ModelAdmin):
 class ComponenteInline(admin.TabularInline):
     model = ComponenteProducto; extra = 1; raw_id_fields = ['subproducto']; verbose_name = "SubProducto"
 
+
+class ProductoPaqueteInline(admin.TabularInline):
+    model = ProductoComponente
+    fk_name = 'producto_padre'
+    raw_id_fields = ['producto_hijo']
+    verbose_name = 'Producto Incluido'
+    verbose_name_plural = 'Productos Incluidos en este Paquete'
+    extra = 1
+    fields = ('producto_hijo', 'cantidad')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('producto_hijo')
+
+
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    inlines = [ComponenteInline]
-    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador')
-    list_filter = ('visible_cotizador', 'grupo_cotizador')
+    inlines = [ComponenteInline, ProductoPaqueteInline]
+    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete')
+    list_filter = ('visible_cotizador', 'grupo_cotizador', 'es_paquete')
     search_fields = ('nombre',)
     fieldsets = (
         (None, {'fields': ('nombre', 'descripcion', 'margen_ganancia', 'imagen_promocional')}),
+        ('Estructura del Producto', {
+            'fields': ('es_paquete',),
+            'description': (
+                '<strong>Producto Simple:</strong> Usa la sección "SubProductos" abajo.<br>'
+                '<strong>Paquete:</strong> Usa la sección "Productos Incluidos en este Paquete" abajo.'
+            ),
+        }),
         ('Cotizador Web', {
             'fields': (
                 'visible_cotizador',
@@ -249,6 +271,18 @@ class ProductoAdmin(admin.ModelAdmin):
             f'{obj.icono} {txt}</span>'
         )
     badge_cotizador.short_description = "Cotizador"
+
+    def badge_paquete(self, obj):
+        if obj.es_paquete:
+            return format_html(
+                '<span style="background:#9C27B0;color:white;padding:4px 12px;'
+                'border-radius:12px;font-size:11px;font-weight:600;">PAQUETE</span>'
+            )
+        return format_html(
+            '<span style="background:#607D8B;color:white;padding:4px 12px;'
+            'border-radius:12px;font-size:11px;font-weight:600;">SIMPLE</span>'
+        )
+    badge_paquete.short_description = 'Tipo'
 
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
