@@ -87,7 +87,7 @@
                         <td class="unit-col">{{ producto.unidad }}</td>
                         <td class="prov-col">
                             {% if producto.proveedor %}
-                                {% if '' in producto.proveedor %}
+                                {% if 'Configurar' in producto.proveedor %}
                                     <span class="sin-asignar">{{ producto.proveedor }}</span>
                                 {% else %}
                                     {{ producto.proveedor }}

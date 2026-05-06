@@ -244,12 +244,6 @@ def generar_lista_compras_barra(cotizacion):
         _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles',
             'Servilletas / Popotes', 1, 'Kit')
 
-    # Calcular costos totales
-    for seccion, items in lista_compras.items():
-        for item in items:
-            if 'costo_total' not in item and item.get('costo_unitario', 0) > 0:
-                item['costo_total'] = round(item['costo_unitario'] * item['cantidad'], 2)
-
     return lista_compras
 
 
