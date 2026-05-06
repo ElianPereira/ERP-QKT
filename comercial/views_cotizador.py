@@ -29,7 +29,7 @@ from django.utils import timezone
 from decouple import config
 
 from .models import (
-    Cliente, Cotizacion, ItemCotizacion, Producto, PortalCliente
+    Cliente, Cotizacion, ItemCotizacion, Producto, ProductoComponente, PortalCliente
 )
 
 logger = logging.getLogger(__name__)
@@ -131,6 +131,12 @@ def cotizador_enviar(request):
     # Extras dinámicos (IDs de Producto con visible_cotizador=True)
     extras_ids_raw = data.get('extras_ids', [])
 
+    # Datos fiscales (opcionales)
+    req_factura    = bool(data.get('requiere_factura', False))
+    rfc_raw        = str(data.get('rfc', '')).strip().upper()
+    razon_social   = str(data.get('razon_social', '')).strip()
+    cp_fiscal      = str(data.get('cp_fiscal', '')).strip()
+
     # Validaciones
     tel_d = ''.join(filter(str.isdigit, telefono))
     errores = []
@@ -206,6 +212,15 @@ def cotizador_enviar(request):
         email_raw=email,
     )
 
+    if req_factura and rfc_raw:
+        cliente.es_cliente_fiscal = True
+        cliente.rfc = rfc_raw[:13]
+        if razon_social:
+            cliente.razon_social = razon_social[:200]
+        if cp_fiscal:
+            cliente.codigo_postal_fiscal = cp_fiscal[:5]
+        cliente.save(update_fields=['es_cliente_fiscal', 'rfc', 'razon_social', 'codigo_postal_fiscal'])
+
     # ── Nombre del evento ──────────────────────────────────────
     nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pasadía', 'ARRENDAMIENTO': 'Arrendamiento de Mobiliario'}
     if servicio == 'EVENTO':
@@ -243,8 +258,42 @@ def cotizador_enviar(request):
 
     resumen_partes = []
 
+    # ── Paquete seleccionado (si aplica) ──────────────────────
+    paquete_id = data.get('paquete_id')
+    paquete_seleccionado = None
+    if paquete_id:
+        try:
+            paquete_seleccionado = Producto.objects.get(
+                id=int(paquete_id), es_paquete=True, visible_cotizador=True,
+            )
+        except (Producto.DoesNotExist, ValueError):
+            pass
+
     # ── Items según servicio ───────────────────────────────────
-    if servicio == 'EVENTO':
+    if paquete_seleccionado:
+        _agregar_item(cotizacion, paquete_seleccionado, 1,
+            f"{paquete_seleccionado.nombre} ({num_personas} Pax, {horas_evento}hrs)")
+        resumen_partes.append(paquete_seleccionado.nombre)
+
+        if servicio == 'EVENTO' and horas_evento > 6:
+            horas_extra = horas_evento - 6
+            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
+                    or _buscar_producto_por_nombre('Hora Extra'))
+            if prod:
+                _agregar_item(cotizacion, prod, horas_extra,
+                    f"Horas Extra de Arrendamiento ({horas_extra} hrs adicionales)")
+                resumen_partes.append(f"+{horas_extra}hrs")
+
+        barra = []
+        if inc_cerveza:    barra.append("Cerveza")
+        if inc_nacional:   barra.append("Nacional")
+        if inc_premium:    barra.append("Premium")
+        if inc_cocteleria: barra.append("Coctelería")
+        if inc_mixologia:  barra.append("Mixología")
+        if barra:
+            resumen_partes.append("Barra(" + "/".join(barra) + ")")
+
+    elif servicio == 'EVENTO':
         prod = _buscar_producto_por_nombre('Paquete Esencial')
         if prod:
             _agregar_item(cotizacion, prod, 1,
@@ -434,6 +483,47 @@ def api_productos_cotizador(request):
         })
 
     return JsonResponse({'ok': True, 'grupos': list(grupos_dict.values())})
+
+
+def api_paquetes_cotizador(request):
+    """GET /api/cotizador/paquetes/?servicio=EVENTO&personas=100
+    Devuelve paquetes (Producto con es_paquete=True) visibles en el cotizador,
+    filtrados por servicio y rango de personas."""
+    servicio = (request.GET.get('servicio') or '').upper()
+    try:
+        personas = int(request.GET.get('personas', '50'))
+    except ValueError:
+        personas = 50
+
+    filtro = {'visible_cotizador': True, 'es_paquete': True}
+    if servicio == 'EVENTO':
+        filtro['cotizador_evento'] = True
+    elif servicio == 'PASADIA':
+        filtro['cotizador_pasadia'] = True
+    elif servicio == 'ARRENDAMIENTO':
+        filtro['cotizador_arrendamiento'] = True
+
+    paquetes = Producto.objects.filter(**filtro).order_by('orden_cotizador', 'nombre')
+
+    resultado = []
+    for paq in paquetes:
+        componentes = ProductoComponente.objects.filter(
+            producto_padre=paq
+        ).select_related('producto_hijo')
+        incluye = [
+            {'nombre': c.producto_hijo.nombre, 'cantidad': float(c.cantidad)}
+            for c in componentes
+        ]
+        resultado.append({
+            'id': paq.id,
+            'nombre': paq.nombre,
+            'icono': paq.icono,
+            'descripcion': paq.descripcion_corta,
+            'precio': float(paq.sugerencia_precio()),
+            'incluye': incluye,
+        })
+
+    return JsonResponse({'ok': True, 'paquetes': resultado})
 
 
 def cotizador_gracias(request):

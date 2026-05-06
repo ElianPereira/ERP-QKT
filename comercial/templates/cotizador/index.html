@@ -13,6 +13,7 @@
   --oscuro:#2c2b28;--crema:#F7F7F4;
   --texto:#1A1A1A;--texto-s:#4A4A4A;--blanco:#FFFFFF;
   --borde:#e0e0d8;--error:#e74c3c;
+  --morado:#7B1FA2;--morado-bg:#F3E5F9;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 html{scroll-behavior:smooth;}
@@ -30,7 +31,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .cot-hero p{color:rgba(255,255,255,.68);font-size:.9rem;font-weight:300;max-width:420px;margin:0 auto;line-height:1.7;}
 
 /* Steps */
-.steps{display:flex;justify-content:center;align-items:center;padding:2rem 5% 0;max-width:600px;margin:0 auto;}
+.steps{display:flex;justify-content:center;align-items:center;padding:2rem 5% 0;max-width:650px;margin:0 auto;}
 .step{display:flex;flex-direction:column;align-items:center;gap:.4rem;flex:1;position:relative;}
 .step:not(:last-child)::after{content:'';position:absolute;top:15px;left:calc(50% + 15px);right:calc(-50% + 15px);height:1px;background:var(--borde);z-index:0;}
 .step.done:not(:last-child)::after{background:var(--verde);}
@@ -43,7 +44,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .step.active .step-label{color:var(--verde);font-weight:600;}
 
 /* Form */
-.cot-form{max-width:580px;margin:2rem auto 4rem;padding:0 5%;}
+.cot-form{max-width:620px;margin:2rem auto 4rem;padding:0 5%;}
 .step-panel{display:none;}
 .step-panel.active{display:block;animation:fadeIn .3s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
@@ -80,6 +81,41 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .srv-ico{font-size:1.8rem;display:block;margin-bottom:.5rem;}
 .srv-nom{font-size:.8rem;font-weight:600;color:var(--verde-d);}
 .srv-desc{font-size:.67rem;font-weight:300;color:var(--texto-s);margin-top:.25rem;line-height:1.4;}
+
+/* Bifurcación — tarjetas de camino */
+.path-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.5rem;}
+.path-card{
+  border:2px solid var(--borde);border-radius:8px;
+  padding:1.5rem 1.2rem;text-align:center;cursor:pointer;
+  transition:all .3s;background:var(--blanco);user-select:none;
+  position:relative;overflow:hidden;
+}
+.path-card:hover{border-color:var(--verde);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.08);}
+.path-card.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 3px rgba(46,125,50,.18);}
+.path-card.selected.path-custom{border-color:var(--morado);background:var(--morado-bg);box-shadow:0 0 0 3px rgba(123,31,162,.15);}
+.path-ico{font-size:2.2rem;display:block;margin-bottom:.7rem;}
+.path-nom{font-size:.95rem;font-weight:600;color:var(--verde-d);margin-bottom:.3rem;}
+.path-card.path-custom .path-nom{color:var(--morado);}
+.path-desc{font-size:.73rem;font-weight:300;color:var(--texto-s);line-height:1.5;}
+.path-badge{display:inline-block;margin-top:.7rem;font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .7rem;border-radius:20px;background:#e8f5e9;color:var(--verde);}
+.path-card.path-custom .path-badge{background:var(--morado-bg);color:var(--morado);}
+
+/* Paquetes */
+.paq-grid{display:grid;gap:1rem;margin-bottom:1.5rem;}
+.paq-card{
+  border:2px solid var(--borde);border-radius:8px;
+  padding:1.3rem;cursor:pointer;transition:all .25s;
+  background:var(--blanco);user-select:none;
+}
+.paq-card:hover{border-color:var(--verde);box-shadow:0 4px 14px rgba(0,0,0,.06);}
+.paq-card.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 3px rgba(46,125,50,.15);}
+.paq-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem;}
+.paq-nombre{font-size:1rem;font-weight:600;color:var(--verde-d);}
+.paq-precio{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;color:var(--verde);white-space:nowrap;}
+.paq-desc{font-size:.78rem;color:var(--texto-s);font-weight:300;line-height:1.5;margin-bottom:.7rem;}
+.paq-incluye{display:flex;flex-wrap:wrap;gap:.3rem;}
+.paq-tag{background:#f0f7f0;color:var(--verde-d);font-size:.62rem;font-weight:500;padding:.2rem .55rem;border-radius:12px;}
+.paq-empty{text-align:center;padding:2rem 1rem;color:var(--texto-s);font-size:.88rem;font-weight:300;}
 
 /* Checkboxes visuales */
 .extras-titulo{font-size:.68rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--verde-d);margin:1.5rem 0 .8rem;padding-top:1.2rem;border-top:1px solid var(--borde);}
@@ -139,8 +175,19 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .panel-condicional{display:none;}
 .panel-condicional.visible{display:block;}
 
+/* Factura toggle */
+.factura-toggle{display:flex;align-items:center;gap:.8rem;margin-bottom:1.4rem;cursor:pointer;user-select:none;}
+.factura-toggle .toggle-switch{width:40px;height:22px;border-radius:11px;background:var(--borde);position:relative;transition:background .2s;flex-shrink:0;}
+.factura-toggle .toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--blanco);transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+.factura-toggle.active .toggle-switch{background:var(--verde);}
+.factura-toggle.active .toggle-switch::after{transform:translateX(18px);}
+.factura-toggle .toggle-label{font-size:.82rem;color:var(--texto-s);font-weight:400;}
+.factura-fields{display:none;padding:1rem;background:#fafaf8;border:1px solid var(--borde);border-radius:6px;margin-bottom:1.4rem;}
+.factura-fields.visible{display:block;}
+
 @media(max-width:520px){
   .srv-grid{grid-template-columns:1fr;}
+  .path-grid{grid-template-columns:1fr;}
   .extras-grid{grid-template-columns:1fr;}
   .campo-fila{grid-template-columns:1fr;}
 }
@@ -162,9 +209,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 <div class="steps" id="stepsBar">
   <div class="step active" data-step="1"><div class="step-num"><span>1</span></div><div class="step-label">Servicio</div></div>
   <div class="step" data-step="2"><div class="step-num"><span>2</span></div><div class="step-label">Detalles</div></div>
-  <div class="step" data-step="3"><div class="step-num"><span>3</span></div><div class="step-label">Extras</div></div>
-  <div class="step" data-step="4"><div class="step-num"><span>4</span></div><div class="step-label">Contacto</div></div>
-  <div class="step" data-step="5"><div class="step-num"><span>5</span></div><div class="step-label">Confirmar</div></div>
+  <div class="step" data-step="3"><div class="step-num"><span>3</span></div><div class="step-label">Paquete</div></div>
+  <div class="step" data-step="4"><div class="step-num"><span>4</span></div><div class="step-label">Extras</div></div>
+  <div class="step" data-step="5"><div class="step-num"><span>5</span></div><div class="step-label">Contacto</div></div>
+  <div class="step" data-step="6"><div class="step-num"><span>6</span></div><div class="step-label">Confirmar</div></div>
 </div>
 
 <div class="cot-form">
@@ -202,7 +250,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <h2 class="panel-title">Cuéntanos los <em>detalles</em></h2>
     <p class="panel-sub" id="sub-detalles">Fecha y datos del evento.</p>
 
-    <!-- Tipo de evento (solo EVENTO) -->
     <div class="campo panel-condicional" id="blq-tipo-evento">
       <label for="tipo_evento">Tipo de evento</label>
       <select id="tipo_evento">
@@ -224,7 +271,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <div id="aviso-fecha" style="display:none; margin-top:8px; padding:10px 12px; background:#FFF3CD; border-left:4px solid #F5C518; color:#664d03; border-radius:6px; font-size:14px;"></div>
     </div>
 
-    <!-- Horario (solo EVENTO) -->
     <div class="panel-condicional campo-fila" id="blq-horario">
       <div class="campo">
         <label for="hora_inicio">Hora de inicio</label>
@@ -251,13 +297,85 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     </div>
   </div>
 
-  <!-- PASO 3: Extras según servicio -->
+  <!-- PASO 3: Bifurcación — Paquete o Personalizado -->
   <div class="step-panel" id="panel-3">
-    <h2 class="panel-title">¿Qué servicios <em>incluyes</em>?</h2>
-    <p class="panel-sub">Selecciona los servicios adicionales que necesitas. <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
+    <h2 class="panel-title">Elige cómo <em>cotizar</em></h2>
+    <p class="panel-sub">Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.</p>
 
-    <!-- Barra — solo EVENTO (hardcoded: alimenta CalculadoraBarraService) -->
-    <div class="panel-condicional" id="blq-extras-barra">
+    <div class="path-grid">
+      <div class="path-card" onclick="selCamino('paquete',this)">
+        <span class="path-ico">📦</span>
+        <span class="path-nom">Elegir paquete</span>
+        <span class="path-desc">Paquetes prediseñados con todo incluido. Rápido y sencillo.</span>
+        <span class="path-badge">Recomendado</span>
+      </div>
+      <div class="path-card path-custom" onclick="selCamino('personalizado',this)">
+        <span class="path-ico">✨</span>
+        <span class="path-nom">Personalizar</span>
+        <span class="path-desc">Arma tu cotización eligiendo cada servicio según tus necesidades.</span>
+        <span class="path-badge">Flexible</span>
+      </div>
+    </div>
+
+    <!-- Sub-panel: Paquetes -->
+    <div id="sub-paquetes" style="display:none;">
+      <div class="paq-grid" id="paq-grid">
+        <div class="paq-empty" id="paq-loading">Cargando paquetes...</div>
+      </div>
+    </div>
+
+    <!-- Sub-panel: Personalizado (extras) -->
+    <div id="sub-personalizado" style="display:none;">
+      <div class="panel-condicional visible" id="blq-extras-barra-p3" style="display:none;">
+        <div class="extras-titulo">🍺 Servicio de Barra</div>
+        <div class="extras-grid">
+          <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
+            <div class="extra-check">✓</div>
+            <div><div class="extra-nom">Cerveza</div><div class="extra-desc">Caguamas y cervezas</div></div>
+          </div>
+          <div class="extra-opt" onclick="toggleBarra(this,'inc_nacional')">
+            <div class="extra-check">✓</div>
+            <div><div class="extra-nom">Licor Nacional</div><div class="extra-desc">Tequila, ron, vodka</div></div>
+          </div>
+          <div class="extra-opt" onclick="toggleBarra(this,'inc_premium')">
+            <div class="extra-check">✓</div>
+            <div><div class="extra-nom">Licor Premium</div><div class="extra-desc">Marcas de importación</div></div>
+          </div>
+          <div class="extra-opt" onclick="toggleBarra(this,'inc_cocteleria')">
+            <div class="extra-check">✓</div>
+            <div><div class="extra-nom">Coctelería</div><div class="extra-desc">Cócteles preparados</div></div>
+          </div>
+          <div class="extra-opt" onclick="toggleBarra(this,'inc_mixologia')">
+            <div class="extra-check">✓</div>
+            <div><div class="extra-nom">Mixología</div><div class="extra-desc">Cócteles artesanales premium</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="extras-dinamicos"></div>
+
+      <div class="panel-condicional" id="blq-extras-arrendamiento">
+        <p style="color:var(--texto-s);font-size:.88rem;font-weight:300;line-height:1.8;padding:1rem 0;">
+          Cuéntanos en las notas qué mobiliario o equipo necesitas y las fechas de entrega y devolución.
+        </p>
+      </div>
+    </div>
+
+    <div id="err-camino" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona una opción para continuar.</div>
+
+    <div class="btn-nav">
+      <button class="btn-prev" onclick="irA(2)">← Atrás</button>
+      <button class="btn-next" onclick="irA(4)">Siguiente →</button>
+    </div>
+  </div>
+
+  <!-- PASO 4: Extras adicionales + notas -->
+  <div class="step-panel" id="panel-4">
+    <h2 class="panel-title">Servicios <em>adicionales</em></h2>
+    <p class="panel-sub" id="sub-extras">¿Necesitas algo más? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
+
+    <!-- Barra — solo si eligió paquete en EVENTO -->
+    <div id="blq-extras-barra-p4" style="display:none;">
       <div class="extras-titulo">🍺 Servicio de Barra</div>
       <div class="extras-grid">
         <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
@@ -283,15 +401,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       </div>
     </div>
 
-    <!-- Extras dinámicos (cargados por API según servicio) -->
-    <div id="extras-dinamicos"></div>
-
-    <!-- Arrendamiento — texto guía -->
-    <div class="panel-condicional" id="blq-extras-arrendamiento">
-      <p style="color:var(--texto-s);font-size:.88rem;font-weight:300;line-height:1.8;padding:1rem 0;">
-        Cuéntanos en las notas qué mobiliario o equipo necesitas y las fechas de entrega y devolución. Nos pondremos en contacto para confirmar disponibilidad y cotización.
-      </p>
-    </div>
+    <div id="extras-dinamicos-p4"></div>
 
     <div class="campo" style="margin-top:1.5rem;">
       <label for="notas">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
@@ -299,13 +409,13 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     </div>
 
     <div class="btn-nav">
-      <button class="btn-prev" onclick="irA(2)">← Atrás</button>
-      <button class="btn-next" onclick="irA(4)">Siguiente →</button>
+      <button class="btn-prev" onclick="irA(3)">← Atrás</button>
+      <button class="btn-next" onclick="irA(5)">Siguiente →</button>
     </div>
   </div>
 
-  <!-- PASO 4: Datos de contacto -->
-  <div class="step-panel" id="panel-4">
+  <!-- PASO 5: Datos de contacto -->
+  <div class="step-panel" id="panel-5">
     <h2 class="panel-title">Tus datos de <em>contacto</em></h2>
     <p class="panel-sub">Para enviarte acceso a tu cotización personalizada al instante.</p>
     <div class="campo">
@@ -319,24 +429,46 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <div class="campo-error" id="err-telefono">Ingresa un teléfono válido de 10 dígitos.</div>
     </div>
     <div class="campo">
-      <label for="email">Correo electrónico <span style="opacity:.6;font-weight:400;">(opcional)</span></label>
+      <label for="email">Correo electrónico</label>
       <input type="email" id="email" placeholder="Ej: tunombre@correo.com" autocomplete="email" maxlength="120">
-      <div class="campo-error" id="err-email">Ingresa un correo válido o déjalo vacío.</div>
+      <div class="campo-error" id="err-email">Ingresa un correo electrónico válido.</div>
     </div>
+
+    <!-- Factura toggle -->
+    <div class="factura-toggle" id="facturaToggle" onclick="toggleFactura()">
+      <div class="toggle-switch"></div>
+      <span class="toggle-label">Requiero factura</span>
+    </div>
+    <div class="factura-fields" id="facturaFields">
+      <div class="campo">
+        <label for="rfc">RFC</label>
+        <input type="text" id="rfc" placeholder="Ej: XAXX010101000" maxlength="13" style="text-transform:uppercase;">
+        <div class="campo-error" id="err-rfc">Ingresa un RFC válido (12 o 13 caracteres).</div>
+      </div>
+      <div class="campo">
+        <label for="razon_social">Razón social</label>
+        <input type="text" id="razon_social" placeholder="Nombre o razón social para facturación">
+      </div>
+      <div class="campo">
+        <label for="cp_fiscal">Código postal fiscal</label>
+        <input type="text" id="cp_fiscal" placeholder="Ej: 97000" maxlength="5">
+      </div>
+    </div>
+
     <div class="btn-nav">
-      <button class="btn-prev" onclick="irA(3)">← Atrás</button>
-      <button class="btn-next" onclick="irA(5)">Siguiente →</button>
+      <button class="btn-prev" onclick="irA(4)">← Atrás</button>
+      <button class="btn-next" onclick="irA(6)">Siguiente →</button>
     </div>
   </div>
 
-  <!-- PASO 5: Resumen y confirmar -->
-  <div class="step-panel" id="panel-5">
+  <!-- PASO 6: Resumen y confirmar -->
+  <div class="step-panel" id="panel-6">
     <h2 class="panel-title">Confirma tu <em>solicitud</em></h2>
     <p class="panel-sub">Verifica los detalles antes de enviar.</p>
     <div class="resumen-card" id="resumen"></div>
     <div class="alert-error" id="alert-global"></div>
     <div class="btn-nav">
-      <button class="btn-prev" onclick="irA(4)">← Atrás</button>
+      <button class="btn-prev" onclick="irA(5)">← Atrás</button>
       <button class="btn-submit" id="btnEnviar" onclick="enviarSolicitud()">Solicitar cotización</button>
     </div>
     <p class="nota">Al enviar aceptas que nos pongamos en contacto contigo para darte seguimiento a tu solicitud.</p>
@@ -344,15 +476,19 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
 </div>
 
-<footer class="cot-footer">© 2025 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com</footer>
+<footer class="cot-footer">© 2026 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com</footer>
 
 <script>
 let servicioSel = '';
+let caminoSel = '';
+let paqueteSel = null;
+let paquetesData = [];
 let barraExtras = {};
 let selectedExtras = new Set();
 let extrasInfo = {};
 let pasoActual = 1;
-const totalPasos = 5;
+const totalPasos = 6;
+let requiereFactura = false;
 
 const hoy = new Date();
 hoy.setDate(hoy.getDate() + 1);
@@ -366,7 +502,7 @@ async function chequearDisponibilidad() {
     const r = await fetch('/api/disponibilidad/?fecha=' + encodeURIComponent(f));
     const d = await r.json();
     if (d.ok && !d.disponible) {
-      aviso.textContent = '\u26a0\ufe0f ' + d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
+      aviso.textContent = '⚠️ ' + d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
       aviso.style.display = 'block';
     } else {
       aviso.style.display = 'none';
@@ -376,59 +512,136 @@ async function chequearDisponibilidad() {
 
 function selServicio(val, el) {
   servicioSel = val;
-  document.querySelectorAll('.srv-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.srv-card').forEach(function(c) { c.classList.remove('selected'); });
   el.classList.add('selected');
   document.getElementById('err-servicio').style.display = 'none';
   actualizarPanelSegunServicio();
-  cargarExtras(val);
 }
 
 function actualizarPanelSegunServicio() {
-  const esEvento  = servicioSel === 'EVENTO';
-  const esPasadia = servicioSel === 'PASADIA';
-  const esArr     = servicioSel === 'ARRENDAMIENTO';
+  var esEvento  = servicioSel === 'EVENTO';
+  var esPasadia = servicioSel === 'PASADIA';
+  var esArr     = servicioSel === 'ARRENDAMIENTO';
 
   toggle('blq-tipo-evento', esEvento);
   toggle('blq-horario', esEvento);
-  toggle('blq-extras-barra', esEvento);
-  toggle('blq-extras-arrendamiento', esArr);
 
-  const lblFecha = document.getElementById('lbl-fecha');
+  var lblFecha = document.getElementById('lbl-fecha');
   if (esPasadia) lblFecha.textContent = 'Fecha de la visita';
   else if (esArr) lblFecha.textContent = 'Fecha de entrega';
   else lblFecha.textContent = 'Fecha del evento';
 
-  const subDet = document.getElementById('sub-detalles');
+  var subDet = document.getElementById('sub-detalles');
   if (esPasadia) subDet.textContent = 'Selecciona la fecha de tu visita y el número de personas.';
   else if (esArr) subDet.textContent = 'Selecciona la fecha de entrega del mobiliario.';
   else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
 
-  const slider = document.getElementById('personas');
+  var slider = document.getElementById('personas');
   if (esPasadia) { slider.max = 20; if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); } }
   else { slider.max = 600; }
 }
 
-async function cargarExtras(servicio) {
-  const container = document.getElementById('extras-dinamicos');
+function selCamino(camino, el) {
+  caminoSel = camino;
+  paqueteSel = null;
+  document.querySelectorAll('.path-card').forEach(function(c) { c.classList.remove('selected'); });
+  el.classList.add('selected');
+  document.getElementById('err-camino').style.display = 'none';
+
+  var subPaq = document.getElementById('sub-paquetes');
+  var subPer = document.getElementById('sub-personalizado');
+
+  if (camino === 'paquete') {
+    subPaq.style.display = 'block';
+    subPer.style.display = 'none';
+    cargarPaquetes();
+  } else {
+    subPaq.style.display = 'none';
+    subPer.style.display = 'block';
+    cargarExtrasPersonalizado();
+  }
+}
+
+async function cargarPaquetes() {
+  var grid = document.getElementById('paq-grid');
+  grid.innerHTML = '<div class="paq-empty" id="paq-loading">Cargando paquetes...</div>';
+  var personas = document.getElementById('personas').value;
+  try {
+    var resp = await fetch('/api/cotizador/paquetes/?servicio=' + encodeURIComponent(servicioSel) + '&personas=' + personas);
+    var data = await resp.json();
+    if (data.ok && data.paquetes.length) {
+      paquetesData = data.paquetes;
+      renderPaquetes(data.paquetes);
+    } else {
+      paquetesData = [];
+      grid.innerHTML = '<div class="paq-empty">No hay paquetes disponibles para este servicio. Puedes armar tu cotización personalizada.</div>';
+    }
+  } catch(e) {
+    grid.innerHTML = '<div class="paq-empty">Error al cargar paquetes. Intenta de nuevo.</div>';
+  }
+}
+
+function renderPaquetes(paquetes) {
+  var grid = document.getElementById('paq-grid');
+  var html = '';
+  for (var i = 0; i < paquetes.length; i++) {
+    var p = paquetes[i];
+    var precioFmt = '$' + p.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+    html += '<div class="paq-card" data-paq-id="' + p.id + '" onclick="selPaquete(' + p.id + ',this)">';
+    html += '<div class="paq-header"><div class="paq-nombre">' + (p.icono ? esc(p.icono) + ' ' : '') + esc(p.nombre) + '</div>';
+    html += '<div class="paq-precio">' + precioFmt + '</div></div>';
+    if (p.descripcion) html += '<div class="paq-desc">' + esc(p.descripcion) + '</div>';
+    if (p.incluye && p.incluye.length) {
+      html += '<div class="paq-incluye">';
+      for (var j = 0; j < p.incluye.length; j++) {
+        var c = p.incluye[j];
+        var label = c.cantidad > 1 ? c.cantidad + 'x ' + c.nombre : c.nombre;
+        html += '<span class="paq-tag">' + esc(label) + '</span>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function selPaquete(id, el) {
+  paqueteSel = id;
+  document.querySelectorAll('.paq-card').forEach(function(c) { c.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+function cargarExtrasPersonalizado() {
+  var esEvento = servicioSel === 'EVENTO';
+  var esArr = servicioSel === 'ARRENDAMIENTO';
+  document.getElementById('blq-extras-barra-p3').style.display = esEvento ? 'block' : 'none';
+  toggle('blq-extras-arrendamiento', esArr);
+  cargarExtras(servicioSel, 'extras-dinamicos');
+}
+
+async function cargarExtras(servicio, targetId) {
+  var container = document.getElementById(targetId);
   selectedExtras.clear();
   extrasInfo = {};
   container.innerHTML = '';
   try {
-    const resp = await fetch('/api/cotizador/productos/?servicio=' + encodeURIComponent(servicio));
-    const data = await resp.json();
-    if (data.ok && data.grupos.length) renderizarExtras(data.grupos);
+    var resp = await fetch('/api/cotizador/productos/?servicio=' + encodeURIComponent(servicio));
+    var data = await resp.json();
+    if (data.ok && data.grupos.length) renderizarExtras(data.grupos, targetId);
   } catch(e) { /* silencioso */ }
 }
 
-function renderizarExtras(grupos) {
-  const container = document.getElementById('extras-dinamicos');
-  let html = '';
-  for (const g of grupos) {
+function renderizarExtras(grupos, targetId) {
+  var container = document.getElementById(targetId);
+  var html = '';
+  for (var i = 0; i < grupos.length; i++) {
+    var g = grupos[i];
     html += '<div class="extras-titulo">' + esc(g.icono) + ' ' + esc(g.nombre) + '</div><div class="extras-grid">';
-    for (const p of g.productos) {
+    for (var j = 0; j < g.productos.length; j++) {
+      var p = g.productos[j];
       extrasInfo[p.id] = { nombre: p.nombre, icono: p.icono };
       html += '<div class="extra-opt" data-prod-id="' + p.id + '" data-exclusion="' + esc(p.grupo_exclusion || '') + '" onclick="toggleExtraDinamico(this)">'
-        + '<div class="extra-check">\u2713</div>'
+        + '<div class="extra-check">✓</div>'
         + '<div><div class="extra-nom">' + (p.icono ? esc(p.icono) + ' ' : '') + esc(p.nombre) + '</div>'
         + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '')
         + '</div></div>';
@@ -439,19 +652,20 @@ function renderizarExtras(grupos) {
 }
 
 function esc(s) {
-  const d = document.createElement('div');
+  var d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
 }
 
 function toggleExtraDinamico(el) {
-  const id = parseInt(el.dataset.prodId);
-  const exclusion = el.dataset.exclusion;
+  var id = parseInt(el.dataset.prodId);
+  var exclusion = el.dataset.exclusion;
   el.classList.toggle('selected');
   if (el.classList.contains('selected')) {
     selectedExtras.add(id);
     if (exclusion) {
-      document.querySelectorAll('#extras-dinamicos [data-exclusion="' + exclusion + '"]').forEach(other => {
+      var parent = el.closest('.extras-grid') || el.parentElement;
+      parent.querySelectorAll('[data-exclusion="' + exclusion + '"]').forEach(function(other) {
         if (other !== el && other.classList.contains('selected')) {
           other.classList.remove('selected');
           selectedExtras.delete(parseInt(other.dataset.prodId));
@@ -464,7 +678,7 @@ function toggleExtraDinamico(el) {
 }
 
 function toggle(id, visible) {
-  const el = document.getElementById(id);
+  var el = document.getElementById(id);
   if (!el) return;
   if (visible) el.classList.add('visible');
   else el.classList.remove('visible');
@@ -475,21 +689,39 @@ function toggleBarra(el, key) {
   barraExtras[key] = el.classList.contains('selected');
 }
 
+function toggleFactura() {
+  requiereFactura = !requiereFactura;
+  var toggle = document.getElementById('facturaToggle');
+  var fields = document.getElementById('facturaFields');
+  if (requiereFactura) {
+    toggle.classList.add('active');
+    fields.classList.add('visible');
+  } else {
+    toggle.classList.remove('active');
+    fields.classList.remove('visible');
+  }
+}
+
 function actualizarPersonas(val) {
   val = parseInt(val);
   document.getElementById('personas-label').textContent = val;
   document.getElementById('personas-val').textContent = val;
-  const input = document.getElementById('personas');
-  const pct = ((val - input.min) / (input.max - input.min)) * 100;
+  var input = document.getElementById('personas');
+  var pct = ((val - input.min) / (input.max - input.min)) * 100;
   input.style.background = 'linear-gradient(to right, var(--verde) ' + pct + '%, var(--borde) ' + pct + '%)';
 }
 
 function irA(paso) {
   if (paso > pasoActual && !validarPaso(pasoActual)) return;
+
+  if (paso === 4 && pasoActual === 3) {
+    prepararPaso4();
+  }
+
   document.getElementById('panel-' + pasoActual).classList.remove('active');
   document.getElementById('panel-' + paso).classList.add('active');
-  document.querySelectorAll('.step').forEach(s => {
-    const n = parseInt(s.dataset.step);
+  document.querySelectorAll('.step').forEach(function(s) {
+    var n = parseInt(s.dataset.step);
     s.classList.remove('active','done');
     if (n < paso) s.classList.add('done');
     if (n === paso) s.classList.add('active');
@@ -497,6 +729,22 @@ function irA(paso) {
   if (paso === totalPasos) construirResumen();
   pasoActual = paso;
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function prepararPaso4() {
+  if (caminoSel === 'paquete' && servicioSel === 'EVENTO') {
+    document.getElementById('blq-extras-barra-p4').style.display = 'block';
+    cargarExtras(servicioSel, 'extras-dinamicos-p4');
+    document.getElementById('sub-extras').innerHTML = '¿Necesitas algo más además del paquete? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span>';
+  } else if (caminoSel === 'paquete') {
+    document.getElementById('blq-extras-barra-p4').style.display = 'none';
+    cargarExtras(servicioSel, 'extras-dinamicos-p4');
+    document.getElementById('sub-extras').innerHTML = '¿Necesitas algo más además del paquete? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span>';
+  } else {
+    document.getElementById('blq-extras-barra-p4').style.display = 'none';
+    document.getElementById('extras-dinamicos-p4').innerHTML = '';
+    document.getElementById('sub-extras').innerHTML = 'Agrega notas o detalles adicionales.';
+  }
 }
 
 function validarPaso(paso) {
@@ -508,14 +756,33 @@ function validarPaso(paso) {
       mostrarErr('err-fecha','fecha'); return false;
     }
   }
-  if (paso === 4) {
-    let ok = true;
+  if (paso === 3) {
+    if (!caminoSel) {
+      document.getElementById('err-camino').style.display = 'block'; return false;
+    }
+    if (caminoSel === 'paquete' && !paqueteSel && paquetesData.length > 0) {
+      document.getElementById('err-camino').style.display = 'block';
+      document.getElementById('err-camino').textContent = 'Selecciona un paquete para continuar.';
+      return false;
+    }
+    if (caminoSel === 'personalizado' && servicioSel !== 'ARRENDAMIENTO' && selectedExtras.size === 0 && !Object.values(barraExtras).some(function(v){return v;})) {
+      // Allow empty — it's optional
+    }
+  }
+  if (paso === 5) {
+    var ok = true;
     if (!document.getElementById('nombre').value.trim()) { mostrarErr('err-nombre','nombre'); ok=false; }
-    const tel = document.getElementById('telefono').value.replace(/\D/g,'');
+    var tel = document.getElementById('telefono').value.replace(/\D/g,'');
     if (tel.length < 10) { mostrarErr('err-telefono','telefono'); ok=false; }
-    const email = document.getElementById('email').value.trim();
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    var email = document.getElementById('email').value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       mostrarErr('err-email','email'); ok=false;
+    }
+    if (requiereFactura) {
+      var rfc = document.getElementById('rfc').value.trim();
+      if (rfc.length < 12 || rfc.length > 13) {
+        mostrarErr('err-rfc','rfc'); ok=false;
+      }
     }
     if (!ok) return false;
   }
@@ -532,21 +799,27 @@ function mostrarErr(errId, inputId) {
 }
 
 function construirResumen() {
-  const nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','ARRENDAMIENTO':'Arrendamiento de Mobiliario'};
-  const fecha = document.getElementById('fecha').value;
-  const fechaFmt = fecha
+  var nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','ARRENDAMIENTO':'Arrendamiento de Mobiliario'};
+  var fecha = document.getElementById('fecha').value;
+  var fechaFmt = fecha
     ? new Date(fecha+'T00:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})
-    : '\u2014';
-  const personas  = document.getElementById('personas').value;
-  const nombre    = document.getElementById('nombre').value.trim();
-  const tel       = document.getElementById('telefono').value.trim();
-  const email     = document.getElementById('email').value.trim();
-  const notas     = document.getElementById('notas').value.trim();
-  const tipoEv    = document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : '';
-  const hi        = document.getElementById('hora_inicio') ? document.getElementById('hora_inicio').value : '';
-  const hf        = document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '';
+    : '—';
+  var personas  = document.getElementById('personas').value;
+  var nombre    = document.getElementById('nombre').value.trim();
+  var tel       = document.getElementById('telefono').value.trim();
+  var email     = document.getElementById('email').value.trim();
+  var notas     = document.getElementById('notas').value.trim();
+  var tipoEv    = document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : '';
+  var hi        = document.getElementById('hora_inicio') ? document.getElementById('hora_inicio').value : '';
+  var hf        = document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '';
 
   var tags = [];
+
+  if (caminoSel === 'paquete' && paqueteSel) {
+    var paqInfo = paquetesData.find(function(p) { return p.id === paqueteSel; });
+    if (paqInfo) tags.push('📦 ' + paqInfo.nombre);
+  }
+
   var barraLabels = {
     inc_cerveza:'Cerveza', inc_nacional:'Licor Nacional', inc_premium:'Licor Premium',
     inc_cocteleria:'Coctelería', inc_mixologia:'Mixología',
@@ -561,17 +834,34 @@ function construirResumen() {
   var tagsHtml = tags.map(function(t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('');
 
   var html = '<div class="resumen-titulo">Resumen de tu solicitud</div>'
-    + '<div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">' + esc(nombres[servicioSel]||servicioSel) + (tipoEv && servicioSel==='EVENTO' ? ' \u2014 '+esc(tipoEv) : '') + '</span></div>'
+    + '<div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">' + esc(nombres[servicioSel]||servicioSel) + (tipoEv && servicioSel==='EVENTO' ? ' — '+esc(tipoEv) : '') + '</span></div>'
     + '<div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">' + fechaFmt + '</span></div>';
   if (servicioSel === 'EVENTO') {
-    html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">' + esc(hi) + ' \u2014 ' + esc(hf) + '</span></div>';
+    html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">' + esc(hi) + ' — ' + esc(hf) + '</span></div>';
   }
   html += '<div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">' + esc(personas) + '</span></div>'
+    + '<div class="resumen-item"><span class="resumen-key">Modalidad</span><span class="resumen-val">' + (caminoSel === 'paquete' ? 'Paquete' : 'Personalizado') + '</span></div>'
     + '<div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">' + esc(nombre) + '</span></div>'
     + '<div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">' + esc(tel) + '</span></div>';
   if (email) html += '<div class="resumen-item"><span class="resumen-key">Correo</span><span class="resumen-val">' + esc(email) + '</span></div>';
+  if (requiereFactura) {
+    var rfc = document.getElementById('rfc').value.trim();
+    if (rfc) html += '<div class="resumen-item"><span class="resumen-key">RFC</span><span class="resumen-val">' + esc(rfc.toUpperCase()) + '</span></div>';
+  }
   if (notas) html += '<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">' + esc(notas) + '</span></div>';
   if (tagsHtml) html += '<div class="resumen-tags">' + tagsHtml + '</div>';
+
+  if (caminoSel === 'paquete' && paqueteSel) {
+    var paqInfo = paquetesData.find(function(p) { return p.id === paqueteSel; });
+    if (paqInfo) {
+      var precioFmt = '$' + paqInfo.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+      html += '<div style="margin-top:1rem;padding-top:1rem;border-top:1.5px solid var(--borde);display:flex;justify-content:space-between;align-items:baseline;">';
+      html += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Precio estimado del paquete</span>';
+      html += '<span style="font-family:Cormorant Garamond,serif;font-size:1.6rem;color:var(--verde);font-weight:400;">' + precioFmt + '</span>';
+      html += '</div>';
+      html += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">Precio base del paquete. Los extras y ajustes se reflejarán en tu cotización final.</div>';
+    }
+  }
 
   document.getElementById('resumen').innerHTML = html;
 }
@@ -587,7 +877,7 @@ async function enviarSolicitud() {
     personas:   document.getElementById('personas').value,
     hora_inicio:document.getElementById('hora_inicio') ? document.getElementById('hora_inicio').value : '',
     hora_fin:   document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '',
-    tipo_evento:document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : 'Evento',
+    tipo_evento:document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : 'Evento General',
     nombre:     document.getElementById('nombre').value.trim(),
     telefono:   document.getElementById('telefono').value.trim(),
     email:      document.getElementById('email').value.trim(),
@@ -598,7 +888,15 @@ async function enviarSolicitud() {
     inc_cocteleria: !!barraExtras.inc_cocteleria,
     inc_mixologia:  !!barraExtras.inc_mixologia,
     extras_ids:     Array.from(selectedExtras),
+    paquete_id:     paqueteSel,
+    requiere_factura: requiereFactura,
   };
+
+  if (requiereFactura) {
+    payload.rfc = (document.getElementById('rfc').value || '').trim().toUpperCase();
+    payload.razon_social = (document.getElementById('razon_social').value || '').trim();
+    payload.cp_fiscal = (document.getElementById('cp_fiscal').value || '').trim();
+  }
 
   try {
     var resp = await fetch('/cotizar/enviar/', {
