@@ -300,8 +300,28 @@ class Producto(models.Model):
     cotizador_pasadia = models.BooleanField(default=False, verbose_name="Disponible para Pasadía")
     cotizador_arrendamiento = models.BooleanField(default=False, verbose_name="Disponible para Arrendamiento de Mobiliario")
 
-    def calcular_costo(self): return sum(c.subtotal_costo() for c in self.componentes.all())
+    es_paquete = models.BooleanField(
+        default=False,
+        verbose_name='¿Es un paquete?',
+        help_text='Marca esto si este producto está compuesto por otros PRODUCTOS (no subproductos)',
+    )
+
+    def calcular_costo(self):
+        if self.es_paquete:
+            return sum(pc.subtotal_costo() for pc in self.productos_incluidos.all())
+        return sum(c.subtotal_costo() for c in self.componentes.all())
+
     def sugerencia_precio(self): return round(self.calcular_costo() * (1 + self.margen_ganancia), 2)
+
+    def clean(self):
+        super().clean()
+        if self.pk and self.es_paquete and self.componentes.exists():
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                "Un paquete no puede tener subproductos directamente. "
+                "Usa 'Productos Incluidos' en la sección de paquetes."
+            )
+
     def __str__(self): return self.nombre
 
 class ComponenteProducto(models.Model):
@@ -309,6 +329,37 @@ class ComponenteProducto(models.Model):
     subproducto = models.ForeignKey(SubProducto, on_delete=models.PROTECT)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2)
     def subtotal_costo(self): return self.subproducto.costo_insumos() * self.cantidad
+
+
+class ProductoComponente(models.Model):
+    producto_padre = models.ForeignKey(
+        Producto, on_delete=models.CASCADE,
+        related_name='productos_incluidos',
+        limit_choices_to={'es_paquete': True},
+        verbose_name='Paquete',
+    )
+    producto_hijo = models.ForeignKey(
+        Producto, on_delete=models.PROTECT,
+        related_name='incluido_en_paquetes',
+        verbose_name='Producto Incluido',
+    )
+    cantidad = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        verbose_name='Cantidad',
+        help_text='Cuántas unidades de este producto se incluyen en el paquete',
+    )
+
+    class Meta:
+        unique_together = ('producto_padre', 'producto_hijo')
+        verbose_name = 'Componente de Paquete'
+        verbose_name_plural = 'Componentes de Paquete'
+
+    def subtotal_costo(self):
+        return self.producto_hijo.sugerencia_precio() * self.cantidad
+
+    def __str__(self):
+        return f"{self.producto_padre.nombre} incluye {self.cantidad} x {self.producto_hijo.nombre}"
+
 
 # ==========================================
 # 3. CLIENTES
