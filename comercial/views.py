@@ -801,7 +801,7 @@ def descargar_ficha_producto(request, producto_id):
 
 def _verificar_token_webhook(request):
     """Valida el token secreto del webhook. Retorna True si es válido."""
-    token_esperado = config('MANYCHAT_WEBHOOK_TOKEN', default='')
+    token_esperado = getattr(settings, 'MANYCHAT_WEBHOOK_TOKEN', config('MANYCHAT_WEBHOOK_TOKEN', default=''))
     if not token_esperado:
         return False
     token_recibido = request.headers.get('X-Webhook-Token', '')
