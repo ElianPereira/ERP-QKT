@@ -274,11 +274,11 @@ class ProductoAdmin(admin.ModelAdmin):
 
     def badge_paquete(self, obj):
         if obj.es_paquete:
-            return format_html(
+            return mark_safe(
                 '<span style="background:#9C27B0;color:white;padding:4px 12px;'
                 'border-radius:12px;font-size:11px;font-weight:600;">PAQUETE</span>'
             )
-        return format_html(
+        return mark_safe(
             '<span style="background:#607D8B;color:white;padding:4px 12px;'
             'border-radius:12px;font-size:11px;font-weight:600;">SIMPLE</span>'
         )
