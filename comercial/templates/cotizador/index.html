@@ -223,17 +223,14 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <p class="panel-sub">Selecciona el servicio que mejor describe tu necesidad.</p>
     <div class="srv-grid">
       <div class="srv-card" onclick="selServicio('EVENTO',this)">
-        <span class="srv-ico">🎉</span>
         <span class="srv-nom">Evento Social</span>
         <span class="srv-desc">Bodas, XV años, graduaciones, cumpleaños y más</span>
       </div>
       <div class="srv-card" onclick="selServicio('PASADIA',this)">
-        <span class="srv-ico">☀️</span>
         <span class="srv-nom">Pasadía</span>
         <span class="srv-desc">Día de descanso con alberca y áreas verdes</span>
       </div>
       <div class="srv-card" onclick="selServicio('ARRENDAMIENTO',this)">
-        <span class="srv-ico">🪑</span>
         <span class="srv-nom">Arrendamiento de Mobiliario</span>
         <span class="srv-desc">Renta de mobiliario y equipo para uso externo</span>
       </div>
@@ -304,13 +301,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <div class="path-grid">
       <div class="path-card" onclick="selCamino('paquete',this)">
-        <span class="path-ico">📦</span>
         <span class="path-nom">Elegir paquete</span>
         <span class="path-desc">Paquetes prediseñados con todo incluido. Rápido y sencillo.</span>
         <span class="path-badge">Recomendado</span>
       </div>
       <div class="path-card path-custom" onclick="selCamino('personalizado',this)">
-        <span class="path-ico">✨</span>
         <span class="path-nom">Personalizar</span>
         <span class="path-desc">Arma tu cotización eligiendo cada servicio según tus necesidades.</span>
         <span class="path-badge">Flexible</span>
@@ -327,7 +322,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <!-- Sub-panel: Personalizado (extras) -->
     <div id="sub-personalizado" style="display:none;">
       <div class="panel-condicional visible" id="blq-extras-barra-p3" style="display:none;">
-        <div class="extras-titulo">🍺 Servicio de Barra</div>
+        <div class="extras-titulo">Servicio de Barra</div>
         <div class="extras-grid">
           <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
             <div class="extra-check">✓</div>
@@ -376,7 +371,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <!-- Barra — solo si eligió paquete en EVENTO -->
     <div id="blq-extras-barra-p4" style="display:none;">
-      <div class="extras-titulo">🍺 Servicio de Barra</div>
+      <div class="extras-titulo">Servicio de Barra</div>
       <div class="extras-grid">
         <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
           <div class="extra-check">✓</div>
@@ -502,7 +497,7 @@ async function chequearDisponibilidad() {
     const r = await fetch('/api/disponibilidad/?fecha=' + encodeURIComponent(f));
     const d = await r.json();
     if (d.ok && !d.disponible) {
-      aviso.textContent = '⚠️ ' + d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
+      aviso.textContent = d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
       aviso.style.display = 'block';
     } else {
       aviso.style.display = 'none';
@@ -588,7 +583,7 @@ function renderPaquetes(paquetes) {
     var p = paquetes[i];
     var precioFmt = '$' + p.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
     html += '<div class="paq-card" data-paq-id="' + p.id + '" onclick="selPaquete(' + p.id + ',this)">';
-    html += '<div class="paq-header"><div class="paq-nombre">' + (p.icono ? esc(p.icono) + ' ' : '') + esc(p.nombre) + '</div>';
+    html += '<div class="paq-header"><div class="paq-nombre">' + esc(p.nombre) + '</div>';
     html += '<div class="paq-precio">' + precioFmt + '</div></div>';
     if (p.descripcion) html += '<div class="paq-desc">' + esc(p.descripcion) + '</div>';
     if (p.incluye && p.incluye.length) {
@@ -636,13 +631,13 @@ function renderizarExtras(grupos, targetId) {
   var html = '';
   for (var i = 0; i < grupos.length; i++) {
     var g = grupos[i];
-    html += '<div class="extras-titulo">' + esc(g.icono) + ' ' + esc(g.nombre) + '</div><div class="extras-grid">';
+    html += '<div class="extras-titulo">' + esc(g.nombre) + '</div><div class="extras-grid">';
     for (var j = 0; j < g.productos.length; j++) {
       var p = g.productos[j];
-      extrasInfo[p.id] = { nombre: p.nombre, icono: p.icono };
+      extrasInfo[p.id] = { nombre: p.nombre };
       html += '<div class="extra-opt" data-prod-id="' + p.id + '" data-exclusion="' + esc(p.grupo_exclusion || '') + '" onclick="toggleExtraDinamico(this)">'
         + '<div class="extra-check">✓</div>'
-        + '<div><div class="extra-nom">' + (p.icono ? esc(p.icono) + ' ' : '') + esc(p.nombre) + '</div>'
+        + '<div><div class="extra-nom">' + esc(p.nombre) + '</div>'
         + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '')
         + '</div></div>';
     }
@@ -817,7 +812,7 @@ function construirResumen() {
 
   if (caminoSel === 'paquete' && paqueteSel) {
     var paqInfo = paquetesData.find(function(p) { return p.id === paqueteSel; });
-    if (paqInfo) tags.push('📦 ' + paqInfo.nombre);
+    if (paqInfo) tags.push(paqInfo.nombre);
   }
 
   var barraLabels = {
