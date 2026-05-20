@@ -6,6 +6,7 @@
 <title>Cotiza tu evento — Quinta Ko'ox Tanil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <style>
 :root{
   --verde:#2E7D32;--verde-d:#1B5E20;--verde-h:#388E3C;
@@ -191,6 +192,22 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
   .extras-grid{grid-template-columns:1fr;}
   .campo-fila{grid-template-columns:1fr;}
 }
+
+/* Flatpickr */
+.flatpickr-calendar{font-family:'IBM Plex Sans',sans-serif;border:1px solid var(--borde);box-shadow:0 8px 30px rgba(0,0,0,.1);border-radius:6px;}
+.flatpickr-months .flatpickr-month,.flatpickr-weekdays{background:var(--verde-d);}
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year{color:var(--blanco);}
+.flatpickr-current-month .flatpickr-monthDropdown-months:hover,
+.flatpickr-month .flatpickr-prev-month,.flatpickr-month .flatpickr-next-month{fill:var(--blanco);}
+.flatpickr-weekday{color:rgba(255,255,255,.75);font-weight:500;}
+.flatpickr-day.selected,.flatpickr-day.selected:hover{background:var(--verde);border-color:var(--verde);color:var(--blanco);}
+.flatpickr-day:hover:not(.flatpickr-disabled):not(.selected){background:#e8f5e9;border-color:var(--verde);}
+.flatpickr-day.flatpickr-disabled,.flatpickr-day.flatpickr-disabled:hover{
+  background:#fdf2f2;color:#c0777777;text-decoration:line-through;
+  cursor:not-allowed;opacity:.7;
+}
+.flatpickr-input[readonly]{cursor:pointer;background:var(--blanco);}
 </style>
 </head>
 <body>
@@ -263,7 +280,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <div class="campo">
       <label for="fecha" id="lbl-fecha">Fecha del evento</label>
-      <input type="date" id="fecha" min="" onchange="chequearDisponibilidad()">
+      <input type="text" id="fecha" readonly placeholder="Selecciona una fecha">
       <div class="campo-error" id="err-fecha">Selecciona una fecha.</div>
       <div id="aviso-fecha" style="display:none; margin-top:8px; padding:10px 12px; background:#FFF3CD; border-left:4px solid #F5C518; color:#664d03; border-radius:6px; font-size:14px;"></div>
     </div>
@@ -471,6 +488,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <footer class="cot-footer">© 2026 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com</footer>
 
 <script>
@@ -485,25 +504,40 @@ let pasoActual = 1;
 const totalPasos = 6;
 let requiereFactura = false;
 
-const hoy = new Date();
-hoy.setDate(hoy.getDate() + 1);
-document.getElementById('fecha').min = hoy.toISOString().split('T')[0];
+let fpInstance = null;
 
-async function chequearDisponibilidad() {
-  const f = document.getElementById('fecha').value;
-  const aviso = document.getElementById('aviso-fecha');
-  if (!f) { aviso.style.display='none'; return; }
+async function inicializarCalendario() {
+  const mañana = new Date();
+  mañana.setDate(mañana.getDate() + 1);
+  let fechasBloqueadas = [];
   try {
-    const r = await fetch('/api/disponibilidad/?fecha=' + encodeURIComponent(f));
+    const r = await fetch('/api/fechas-ocupadas/?dias=730');
     const d = await r.json();
-    if (d.ok && !d.disponible) {
-      aviso.textContent = d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
-      aviso.style.display = 'block';
-    } else {
-      aviso.style.display = 'none';
-    }
-  } catch(e) { aviso.style.display='none'; }
+    if (d.ok) fechasBloqueadas = d.fechas_ocupadas || [];
+  } catch(e) { /* continuar sin fechas bloqueadas */ }
+
+  fpInstance = flatpickr(document.getElementById('fecha'), {
+    locale: 'es',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'j \\de F \\de Y',
+    minDate: mañana,
+    disable: fechasBloqueadas,
+    disableMobile: true,
+    onChange: function(selectedDates, dateStr) {
+      document.getElementById('err-fecha').style.display = 'none';
+      document.getElementById('fecha').classList.remove('error');
+      document.getElementById('aviso-fecha').style.display = 'none';
+    },
+    onDayCreate: function(dObj, dStr, fp, dayElem) {
+      if (dayElem.classList.contains('flatpickr-disabled')) {
+        dayElem.title = 'Fecha no disponible';
+      }
+    },
+  });
 }
+
+function chequearDisponibilidad() { /* handled by Flatpickr */ }
 
 function selServicio(val, el) {
   servicioSel = val;
@@ -919,6 +953,7 @@ async function enviarSolicitud() {
 }
 
 actualizarPersonas(50);
+inicializarCalendario();
 
 (function preseleccionarDesdeURL(){
   try {
