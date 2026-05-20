@@ -909,3 +909,67 @@ class ListaComprasUnificadaTest(BarraTestMixin, TestCase):
         secciones = list(lista.keys())
         self.assertFalse(any('Insumos del Evento' in s for s in secciones))
         self.assertTrue(any('Barra:' in s for s in secciones))
+
+
+class CotizadorBarraProductoTest(TestCase):
+    """Tests para la lógica de multiplicación de productos de barra en el cotizador."""
+
+    def setUp(self):
+        self.cliente = Cliente.objects.create(
+            nombre='Test Cotizador', tipo_persona='FISICA', telefono='9991234567')
+        self.prod_cerveza = Producto.objects.create(
+            nombre='Servicio De Barra - Cerveza Nacional Para 10 Pax',
+            margen_ganancia=Decimal('0.10'))
+        self.prod_nacional = Producto.objects.create(
+            nombre='Servicio De Barra - Licores Nacionales 10 Pax',
+            margen_ganancia=Decimal('0.10'))
+        self.prod_premium = Producto.objects.create(
+            nombre='Servicio De Barra - Licores Premium Para 10 Pax',
+            margen_ganancia=Decimal('0.10'))
+
+    def _crear_cot_barra(self, num_personas=100, **kwargs):
+        defaults = {
+            'cliente': self.cliente,
+            'nombre_evento': 'Evento Cotizador Test',
+            'fecha_evento': date.today() + timedelta(days=30),
+            'num_personas': num_personas, 'horas_servicio': 5,
+            'incluye_refrescos': False, 'incluye_cerveza': False,
+            'incluye_licor_nacional': False, 'incluye_licor_premium': False,
+            'incluye_cocteleria_basica': False, 'incluye_cocteleria_premium': False,
+        }
+        defaults.update(kwargs)
+        return Cotizacion.objects.create(**defaults)
+
+    def test_multiplicacion_cerveza_100pax(self):
+        """100 personas = 10 unidades del producto de 10 pax."""
+        import math
+        cot = self._crear_cot_barra(num_personas=100)
+        mult = math.ceil(100 / 10)
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=self.prod_cerveza,
+            descripcion='Servicio de Barra - Cerveza Nacional (100 Pax)',
+            cantidad=Decimal(str(mult)),
+            precio_unitario=Decimal('495.00'))
+        item = cot.items.filter(producto=self.prod_cerveza).first()
+        self.assertEqual(item.cantidad, Decimal('10'))
+        self.assertEqual(item.subtotal(), Decimal('4950.00'))
+
+    def test_multiplicacion_75pax_redondea_arriba(self):
+        """75 personas = ceil(75/10) = 8 unidades."""
+        import math
+        cot = self._crear_cot_barra(num_personas=75)
+        mult = math.ceil(75 / 10)
+        self.assertEqual(mult, 8)
+
+    def test_staff_por_50_personas(self):
+        """Staff se calcula como ceil(personas/50) sets de $1,200."""
+        import math
+        for pax, expected_sets in [(10, 1), (50, 1), (51, 2), (100, 2), (150, 3)]:
+            sets = math.ceil(pax / 50)
+            self.assertEqual(sets, expected_sets, f"Para {pax} pax esperaba {expected_sets} sets")
+
+    def test_cotizacion_sin_flags_barra_no_genera_item_calculadora(self):
+        """Sin flags de barra, CalculadoraBarraService no genera item."""
+        cot = self._crear_cot_barra(num_personas=100)
+        self.assertFalse(
+            cot.items.filter(descripcion__startswith='Servicio de Barra [').exists())

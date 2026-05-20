@@ -222,7 +222,6 @@ def cotizador_enviar(request):
         nombre_evento += f" | {notas[:60]}"
 
     # ── Crear Cotización ───────────────────────────────────────
-    inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
     clima = _detectar_clima(fecha_evento)
 
     cotizacion = Cotizacion(
@@ -236,12 +235,12 @@ def cotizador_enviar(request):
         estado='BORRADOR',
         clima=clima,
         requiere_factura=True,
-        incluye_refrescos=inc_refrescos,
-        incluye_cerveza=inc_cerveza,
-        incluye_licor_nacional=inc_nacional,
-        incluye_licor_premium=inc_premium,
-        incluye_cocteleria_basica=inc_cocteleria,
-        incluye_cocteleria_premium=inc_mixologia,
+        incluye_refrescos=False,
+        incluye_cerveza=False,
+        incluye_licor_nacional=False,
+        incluye_licor_premium=False,
+        incluye_cocteleria_basica=False,
+        incluye_cocteleria_premium=False,
     )
     cotizacion.save()
 
@@ -294,12 +293,44 @@ def cotizador_enviar(request):
                 resumen_partes.append("Taquiza")
 
         barra = []
-        if inc_cerveza:    barra.append("Cerveza")
-        if inc_nacional:   barra.append("Nacional")
-        if inc_premium:    barra.append("Premium")
-        if inc_cocteleria: barra.append("Coctelería")
-        if inc_mixologia:  barra.append("Mixología")
+        mult_barra = math.ceil(num_personas / 10)
+
+        if inc_cerveza:
+            prod = (_buscar_producto_por_nombre('Cerveza Nacional Para 10')
+                    or _buscar_producto_por_nombre('Cerveza Nacional'))
+            if prod:
+                _agregar_item(cotizacion, prod, mult_barra,
+                    f"Servicio de Barra - Cerveza Nacional ({num_personas} Pax)")
+            barra.append("Cerveza")
+
+        if inc_nacional:
+            prod = (_buscar_producto_por_nombre('Licores Nacionales 10')
+                    or _buscar_producto_por_nombre('Licores Nacionales'))
+            if prod:
+                _agregar_item(cotizacion, prod, mult_barra,
+                    f"Servicio de Barra - Licores Nacionales ({num_personas} Pax)")
+            barra.append("Nacional")
+
+        if inc_premium:
+            prod = (_buscar_producto_por_nombre('Licores Premium Para 10')
+                    or _buscar_producto_por_nombre('Licores Premium'))
+            if prod:
+                _agregar_item(cotizacion, prod, mult_barra,
+                    f"Servicio de Barra - Licores Premium ({num_personas} Pax)")
+            barra.append("Premium")
+
+        if inc_cocteleria: barra.append("Cocteleria")
+        if inc_mixologia:  barra.append("Mixologia")
+
         if barra:
+            staff_sets = math.ceil(num_personas / 50)
+            costo_staff_set = Decimal('1200.00')
+            ItemCotizacion.objects.create(
+                cotizacion=cotizacion,
+                descripcion=f"Personal de Barra ({staff_sets} barman + {staff_sets} aux)",
+                cantidad=Decimal(str(staff_sets)),
+                precio_unitario=costo_staff_set,
+            )
             resumen_partes.append("Barra(" + "/".join(barra) + ")")
 
     elif servicio == 'PASADIA':
