@@ -299,7 +299,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="campo" id="blq-personas">
       <label>Número de personas: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
-        <input type="range" id="personas" min="5" max="600" step="5" value="50"
+        <input type="range" id="personas" min="1" max="600" step="5" value="50"
           oninput="actualizarPersonas(this.value)">
         <div class="personas-val" id="personas-val">50</div>
       </div>
@@ -566,8 +566,15 @@ function actualizarPanelSegunServicio() {
   else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
 
   var slider = document.getElementById('personas');
-  if (esPasadia) { slider.max = 20; if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); } }
-  else { slider.max = 600; }
+  if (esEvento) {
+    slider.min = 50; slider.max = 600;
+    if (parseInt(slider.value) < 50) { slider.value = 50; actualizarPersonas(50); }
+  } else if (esPasadia) {
+    slider.min = 1; slider.max = 20;
+    if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); }
+  } else {
+    slider.min = 1; slider.max = 600;
+  }
 }
 
 function selCamino(camino, el) {
