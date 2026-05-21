@@ -26,6 +26,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.conf import settings
 from decouple import config
 
 from .models import (
@@ -348,7 +349,8 @@ def cotizador_enviar(request):
         cotizacion=cotizacion,
         defaults={'activo': True},
     )
-    portal_url = f"https://clientes.quintakooxtanil.com/mi-evento/{portal.token}/"
+    portal_base = getattr(settings, 'PORTAL_URL', 'https://clientes.quintakooxtanil.com')
+    portal_url = f"{portal_base}/mi-evento/{portal.token}/"
 
     # ── Notificación WA al negocio ─────────────────────────────
     emoji = {'EVENTO': '🎉', 'PASADIA': '☀️', 'ARRENDAMIENTO': '🪑'}.get(servicio, '📋')

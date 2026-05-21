@@ -15,7 +15,11 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.railway.app',
     'https://quintakooxtanil.com',
     'https://erp.quintakooxtanil.com',
+    'https://clientes.quintakooxtanil.com',
 ]
+
+# URL base del portal del cliente (usada en links, emails y notificaciones)
+PORTAL_URL = config('PORTAL_URL', default='https://erp.quintakooxtanil.com')
 
 # --- URL canónica del sitio (para links en emails, portales, etc.) ---
 SITE_URL = config('SITE_URL', default='https://erp-qkt.up.railway.app')
