@@ -6,6 +6,7 @@
 <title>Cotiza tu evento — Quinta Ko'ox Tanil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <style>
 :root{
   --verde:#2E7D32;--verde-d:#1B5E20;--verde-h:#388E3C;
@@ -191,6 +192,22 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
   .extras-grid{grid-template-columns:1fr;}
   .campo-fila{grid-template-columns:1fr;}
 }
+
+/* Flatpickr */
+.flatpickr-calendar{font-family:'IBM Plex Sans',sans-serif;border:1px solid var(--borde);box-shadow:0 8px 30px rgba(0,0,0,.1);border-radius:6px;}
+.flatpickr-months .flatpickr-month,.flatpickr-weekdays{background:var(--verde-d);}
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year{color:var(--blanco);}
+.flatpickr-current-month .flatpickr-monthDropdown-months:hover,
+.flatpickr-month .flatpickr-prev-month,.flatpickr-month .flatpickr-next-month{fill:var(--blanco);}
+.flatpickr-weekday{color:rgba(255,255,255,.75);font-weight:500;}
+.flatpickr-day.selected,.flatpickr-day.selected:hover{background:var(--verde);border-color:var(--verde);color:var(--blanco);}
+.flatpickr-day:hover:not(.flatpickr-disabled):not(.selected){background:#e8f5e9;border-color:var(--verde);}
+.flatpickr-day.flatpickr-disabled,.flatpickr-day.flatpickr-disabled:hover{
+  background:#fdf2f2;color:#c0777777;text-decoration:line-through;
+  cursor:not-allowed;opacity:.7;
+}
+.flatpickr-input[readonly]{cursor:pointer;background:var(--blanco);}
 </style>
 </head>
 <body>
@@ -223,17 +240,14 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <p class="panel-sub">Selecciona el servicio que mejor describe tu necesidad.</p>
     <div class="srv-grid">
       <div class="srv-card" onclick="selServicio('EVENTO',this)">
-        <span class="srv-ico">🎉</span>
         <span class="srv-nom">Evento Social</span>
         <span class="srv-desc">Bodas, XV años, graduaciones, cumpleaños y más</span>
       </div>
       <div class="srv-card" onclick="selServicio('PASADIA',this)">
-        <span class="srv-ico">☀️</span>
         <span class="srv-nom">Pasadía</span>
         <span class="srv-desc">Día de descanso con alberca y áreas verdes</span>
       </div>
       <div class="srv-card" onclick="selServicio('ARRENDAMIENTO',this)">
-        <span class="srv-ico">🪑</span>
         <span class="srv-nom">Arrendamiento de Mobiliario</span>
         <span class="srv-desc">Renta de mobiliario y equipo para uso externo</span>
       </div>
@@ -266,7 +280,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <div class="campo">
       <label for="fecha" id="lbl-fecha">Fecha del evento</label>
-      <input type="date" id="fecha" min="" onchange="chequearDisponibilidad()">
+      <input type="text" id="fecha" readonly placeholder="Selecciona una fecha">
       <div class="campo-error" id="err-fecha">Selecciona una fecha.</div>
       <div id="aviso-fecha" style="display:none; margin-top:8px; padding:10px 12px; background:#FFF3CD; border-left:4px solid #F5C518; color:#664d03; border-radius:6px; font-size:14px;"></div>
     </div>
@@ -285,7 +299,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="campo" id="blq-personas">
       <label>Número de personas: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
-        <input type="range" id="personas" min="5" max="600" step="5" value="50"
+        <input type="range" id="personas" min="1" max="600" step="5" value="50"
           oninput="actualizarPersonas(this.value)">
         <div class="personas-val" id="personas-val">50</div>
       </div>
@@ -304,13 +318,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <div class="path-grid">
       <div class="path-card" onclick="selCamino('paquete',this)">
-        <span class="path-ico">📦</span>
         <span class="path-nom">Elegir paquete</span>
         <span class="path-desc">Paquetes prediseñados con todo incluido. Rápido y sencillo.</span>
         <span class="path-badge">Recomendado</span>
       </div>
       <div class="path-card path-custom" onclick="selCamino('personalizado',this)">
-        <span class="path-ico">✨</span>
         <span class="path-nom">Personalizar</span>
         <span class="path-desc">Arma tu cotización eligiendo cada servicio según tus necesidades.</span>
         <span class="path-badge">Flexible</span>
@@ -326,32 +338,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <!-- Sub-panel: Personalizado (extras) -->
     <div id="sub-personalizado" style="display:none;">
-      <div class="panel-condicional visible" id="blq-extras-barra-p3" style="display:none;">
-        <div class="extras-titulo">🍺 Servicio de Barra</div>
-        <div class="extras-grid">
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Cerveza</div><div class="extra-desc">Caguamas y cervezas</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_nacional')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Licor Nacional</div><div class="extra-desc">Tequila, ron, vodka</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_premium')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Licor Premium</div><div class="extra-desc">Marcas de importación</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_cocteleria')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Coctelería</div><div class="extra-desc">Cócteles preparados</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_mixologia')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Mixología</div><div class="extra-desc">Cócteles artesanales premium</div></div>
-          </div>
-        </div>
-      </div>
-
       <div id="extras-dinamicos"></div>
 
       <div class="panel-condicional" id="blq-extras-arrendamiento">
@@ -374,32 +360,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <h2 class="panel-title">Servicios <em>adicionales</em></h2>
     <p class="panel-sub" id="sub-extras">¿Necesitas algo más? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
 
-    <!-- Barra — solo si eligió paquete en EVENTO -->
-    <div id="blq-extras-barra-p4" style="display:none;">
-      <div class="extras-titulo">🍺 Servicio de Barra</div>
-      <div class="extras-grid">
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Cerveza</div><div class="extra-desc">Caguamas y cervezas</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_nacional')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Licor Nacional</div><div class="extra-desc">Tequila, ron, vodka</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_premium')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Licor Premium</div><div class="extra-desc">Marcas de importación</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_cocteleria')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Coctelería</div><div class="extra-desc">Cócteles preparados</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_mixologia')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Mixología</div><div class="extra-desc">Cócteles artesanales premium</div></div>
-        </div>
-      </div>
-    </div>
 
     <div id="extras-dinamicos-p4"></div>
 
@@ -476,6 +436,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <footer class="cot-footer">© 2026 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com</footer>
 
 <script>
@@ -490,25 +452,40 @@ let pasoActual = 1;
 const totalPasos = 6;
 let requiereFactura = false;
 
-const hoy = new Date();
-hoy.setDate(hoy.getDate() + 1);
-document.getElementById('fecha').min = hoy.toISOString().split('T')[0];
+let fpInstance = null;
 
-async function chequearDisponibilidad() {
-  const f = document.getElementById('fecha').value;
-  const aviso = document.getElementById('aviso-fecha');
-  if (!f) { aviso.style.display='none'; return; }
+async function inicializarCalendario() {
+  const mañana = new Date();
+  mañana.setDate(mañana.getDate() + 1);
+  let fechasBloqueadas = [];
   try {
-    const r = await fetch('/api/disponibilidad/?fecha=' + encodeURIComponent(f));
+    const r = await fetch('/api/fechas-ocupadas/?dias=730');
     const d = await r.json();
-    if (d.ok && !d.disponible) {
-      aviso.textContent = '⚠️ ' + d.mensaje + ' Puedes continuar, pero confirmaremos contigo posibles alternativas.';
-      aviso.style.display = 'block';
-    } else {
-      aviso.style.display = 'none';
-    }
-  } catch(e) { aviso.style.display='none'; }
+    if (d.ok) fechasBloqueadas = d.fechas_ocupadas || [];
+  } catch(e) { /* continuar sin fechas bloqueadas */ }
+
+  fpInstance = flatpickr(document.getElementById('fecha'), {
+    locale: 'es',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'j \\de F \\de Y',
+    minDate: mañana,
+    disable: fechasBloqueadas,
+    disableMobile: true,
+    onChange: function(selectedDates, dateStr) {
+      document.getElementById('err-fecha').style.display = 'none';
+      document.getElementById('fecha').classList.remove('error');
+      document.getElementById('aviso-fecha').style.display = 'none';
+    },
+    onDayCreate: function(dObj, dStr, fp, dayElem) {
+      if (dayElem.classList.contains('flatpickr-disabled')) {
+        dayElem.title = 'Fecha no disponible';
+      }
+    },
+  });
 }
+
+function chequearDisponibilidad() { /* handled by Flatpickr */ }
 
 function selServicio(val, el) {
   servicioSel = val;
@@ -537,8 +514,15 @@ function actualizarPanelSegunServicio() {
   else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
 
   var slider = document.getElementById('personas');
-  if (esPasadia) { slider.max = 20; if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); } }
-  else { slider.max = 600; }
+  if (esEvento) {
+    slider.min = 50; slider.max = 600;
+    if (parseInt(slider.value) < 50) { slider.value = 50; actualizarPersonas(50); }
+  } else if (esPasadia) {
+    slider.min = 1; slider.max = 20;
+    if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); }
+  } else {
+    slider.min = 1; slider.max = 600;
+  }
 }
 
 function selCamino(camino, el) {
@@ -588,7 +572,7 @@ function renderPaquetes(paquetes) {
     var p = paquetes[i];
     var precioFmt = '$' + p.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
     html += '<div class="paq-card" data-paq-id="' + p.id + '" onclick="selPaquete(' + p.id + ',this)">';
-    html += '<div class="paq-header"><div class="paq-nombre">' + (p.icono ? esc(p.icono) + ' ' : '') + esc(p.nombre) + '</div>';
+    html += '<div class="paq-header"><div class="paq-nombre">' + esc(p.nombre) + '</div>';
     html += '<div class="paq-precio">' + precioFmt + '</div></div>';
     if (p.descripcion) html += '<div class="paq-desc">' + esc(p.descripcion) + '</div>';
     if (p.incluye && p.incluye.length) {
@@ -612,9 +596,7 @@ function selPaquete(id, el) {
 }
 
 function cargarExtrasPersonalizado() {
-  var esEvento = servicioSel === 'EVENTO';
   var esArr = servicioSel === 'ARRENDAMIENTO';
-  document.getElementById('blq-extras-barra-p3').style.display = esEvento ? 'block' : 'none';
   toggle('blq-extras-arrendamiento', esArr);
   cargarExtras(servicioSel, 'extras-dinamicos');
 }
@@ -636,13 +618,13 @@ function renderizarExtras(grupos, targetId) {
   var html = '';
   for (var i = 0; i < grupos.length; i++) {
     var g = grupos[i];
-    html += '<div class="extras-titulo">' + esc(g.icono) + ' ' + esc(g.nombre) + '</div><div class="extras-grid">';
+    html += '<div class="extras-titulo">' + esc(g.nombre) + '</div><div class="extras-grid">';
     for (var j = 0; j < g.productos.length; j++) {
       var p = g.productos[j];
-      extrasInfo[p.id] = { nombre: p.nombre, icono: p.icono };
+      extrasInfo[p.id] = { nombre: p.nombre };
       html += '<div class="extra-opt" data-prod-id="' + p.id + '" data-exclusion="' + esc(p.grupo_exclusion || '') + '" onclick="toggleExtraDinamico(this)">'
         + '<div class="extra-check">✓</div>'
-        + '<div><div class="extra-nom">' + (p.icono ? esc(p.icono) + ' ' : '') + esc(p.nombre) + '</div>'
+        + '<div><div class="extra-nom">' + esc(p.nombre) + '</div>'
         + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '')
         + '</div></div>';
     }
@@ -682,11 +664,6 @@ function toggle(id, visible) {
   if (!el) return;
   if (visible) el.classList.add('visible');
   else el.classList.remove('visible');
-}
-
-function toggleBarra(el, key) {
-  el.classList.toggle('selected');
-  barraExtras[key] = el.classList.contains('selected');
 }
 
 function toggleFactura() {
@@ -732,16 +709,10 @@ function irA(paso) {
 }
 
 function prepararPaso4() {
-  if (caminoSel === 'paquete' && servicioSel === 'EVENTO') {
-    document.getElementById('blq-extras-barra-p4').style.display = 'block';
-    cargarExtras(servicioSel, 'extras-dinamicos-p4');
-    document.getElementById('sub-extras').innerHTML = '¿Necesitas algo más además del paquete? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span>';
-  } else if (caminoSel === 'paquete') {
-    document.getElementById('blq-extras-barra-p4').style.display = 'none';
+  if (caminoSel === 'paquete') {
     cargarExtras(servicioSel, 'extras-dinamicos-p4');
     document.getElementById('sub-extras').innerHTML = '¿Necesitas algo más además del paquete? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span>';
   } else {
-    document.getElementById('blq-extras-barra-p4').style.display = 'none';
     document.getElementById('extras-dinamicos-p4').innerHTML = '';
     document.getElementById('sub-extras').innerHTML = 'Agrega notas o detalles adicionales.';
   }
@@ -817,16 +788,9 @@ function construirResumen() {
 
   if (caminoSel === 'paquete' && paqueteSel) {
     var paqInfo = paquetesData.find(function(p) { return p.id === paqueteSel; });
-    if (paqInfo) tags.push('📦 ' + paqInfo.nombre);
+    if (paqInfo) tags.push(paqInfo.nombre);
   }
 
-  var barraLabels = {
-    inc_cerveza:'Cerveza', inc_nacional:'Licor Nacional', inc_premium:'Licor Premium',
-    inc_cocteleria:'Coctelería', inc_mixologia:'Mixología',
-  };
-  for (var bk in barraExtras) {
-    if (barraExtras[bk] && barraLabels[bk]) tags.push(barraLabels[bk]);
-  }
   selectedExtras.forEach(function(id) {
     var info = extrasInfo[id];
     if (info) tags.push(info.nombre);
@@ -924,6 +888,7 @@ async function enviarSolicitud() {
 }
 
 actualizarPersonas(50);
+inicializarCalendario();
 
 (function preseleccionarDesdeURL(){
   try {
