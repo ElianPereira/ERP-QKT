@@ -338,32 +338,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <!-- Sub-panel: Personalizado (extras) -->
     <div id="sub-personalizado" style="display:none;">
-      <div class="panel-condicional visible" id="blq-extras-barra-p3" style="display:none;">
-        <div class="extras-titulo">Servicio de Barra</div>
-        <div class="extras-grid">
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Cerveza</div><div class="extra-desc">Caguamas y cervezas</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_nacional')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Licor Nacional</div><div class="extra-desc">Tequila, ron, vodka</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_premium')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Licor Premium</div><div class="extra-desc">Marcas de importación</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_cocteleria')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Coctelería</div><div class="extra-desc">Cócteles preparados</div></div>
-          </div>
-          <div class="extra-opt" onclick="toggleBarra(this,'inc_mixologia')">
-            <div class="extra-check">✓</div>
-            <div><div class="extra-nom">Mixología</div><div class="extra-desc">Cócteles artesanales premium</div></div>
-          </div>
-        </div>
-      </div>
-
       <div id="extras-dinamicos"></div>
 
       <div class="panel-condicional" id="blq-extras-arrendamiento">
@@ -386,32 +360,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <h2 class="panel-title">Servicios <em>adicionales</em></h2>
     <p class="panel-sub" id="sub-extras">¿Necesitas algo más? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
 
-    <!-- Barra — solo si eligió paquete en EVENTO -->
-    <div id="blq-extras-barra-p4" style="display:none;">
-      <div class="extras-titulo">Servicio de Barra</div>
-      <div class="extras-grid">
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_cerveza')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Cerveza</div><div class="extra-desc">Caguamas y cervezas</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_nacional')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Licor Nacional</div><div class="extra-desc">Tequila, ron, vodka</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_premium')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Licor Premium</div><div class="extra-desc">Marcas de importación</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_cocteleria')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Coctelería</div><div class="extra-desc">Cócteles preparados</div></div>
-        </div>
-        <div class="extra-opt" onclick="toggleBarra(this,'inc_mixologia')">
-          <div class="extra-check">✓</div>
-          <div><div class="extra-nom">Mixología</div><div class="extra-desc">Cócteles artesanales premium</div></div>
-        </div>
-      </div>
-    </div>
 
     <div id="extras-dinamicos-p4"></div>
 
@@ -648,9 +596,7 @@ function selPaquete(id, el) {
 }
 
 function cargarExtrasPersonalizado() {
-  var esEvento = servicioSel === 'EVENTO';
   var esArr = servicioSel === 'ARRENDAMIENTO';
-  document.getElementById('blq-extras-barra-p3').style.display = esEvento ? 'block' : 'none';
   toggle('blq-extras-arrendamiento', esArr);
   cargarExtras(servicioSel, 'extras-dinamicos');
 }
@@ -720,11 +666,6 @@ function toggle(id, visible) {
   else el.classList.remove('visible');
 }
 
-function toggleBarra(el, key) {
-  el.classList.toggle('selected');
-  barraExtras[key] = el.classList.contains('selected');
-}
-
 function toggleFactura() {
   requiereFactura = !requiereFactura;
   var toggle = document.getElementById('facturaToggle');
@@ -768,16 +709,10 @@ function irA(paso) {
 }
 
 function prepararPaso4() {
-  if (caminoSel === 'paquete' && servicioSel === 'EVENTO') {
-    document.getElementById('blq-extras-barra-p4').style.display = 'block';
-    cargarExtras(servicioSel, 'extras-dinamicos-p4');
-    document.getElementById('sub-extras').innerHTML = '¿Necesitas algo más además del paquete? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span>';
-  } else if (caminoSel === 'paquete') {
-    document.getElementById('blq-extras-barra-p4').style.display = 'none';
+  if (caminoSel === 'paquete') {
     cargarExtras(servicioSel, 'extras-dinamicos-p4');
     document.getElementById('sub-extras').innerHTML = '¿Necesitas algo más además del paquete? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span>';
   } else {
-    document.getElementById('blq-extras-barra-p4').style.display = 'none';
     document.getElementById('extras-dinamicos-p4').innerHTML = '';
     document.getElementById('sub-extras').innerHTML = 'Agrega notas o detalles adicionales.';
   }
@@ -856,13 +791,6 @@ function construirResumen() {
     if (paqInfo) tags.push(paqInfo.nombre);
   }
 
-  var barraLabels = {
-    inc_cerveza:'Cerveza', inc_nacional:'Licor Nacional', inc_premium:'Licor Premium',
-    inc_cocteleria:'Coctelería', inc_mixologia:'Mixología',
-  };
-  for (var bk in barraExtras) {
-    if (barraExtras[bk] && barraLabels[bk]) tags.push(barraLabels[bk]);
-  }
   selectedExtras.forEach(function(id) {
     var info = extrasInfo[id];
     if (info) tags.push(info.nombre);
