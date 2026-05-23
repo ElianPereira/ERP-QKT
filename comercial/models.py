@@ -1092,6 +1092,7 @@ class RecordatorioPago(models.Model):
 
 #PAGINA PARA CLIENTES
 
+
 class PortalCliente(models.Model):
     """
     Token de acceso público para que el cliente vea su cotización,
