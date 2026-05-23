@@ -306,19 +306,24 @@ class Producto(models.Model):
         help_text='Marca esto si este producto está compuesto por otros PRODUCTOS (no subproductos)',
     )
 
-    hereda_inventario_de = models.ForeignKey(
+    hereda_inventario_de = models.ManyToManyField(
         'self',
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
+        symmetrical=False,
+        blank=True,
         related_name='upgrades',
         verbose_name="Hereda inventario de",
-        help_text="Producto base cuyos subproductos NO se duplicarán al calcular inventario",
+        help_text="Productos base cuyos subproductos NO se duplicarán al calcular inventario",
         limit_choices_to={'es_upgrade': False},
     )
     es_upgrade = models.BooleanField(
         default=False,
         verbose_name="¿Es un upgrade?",
-        help_text="Marca si este producto amplía a otro (sus subproductos base no se duplican en inventario)",
+        help_text="Marca si este producto amplía a otros (sus subproductos base no se duplican en inventario)",
+    )
+    requiere_licor = models.BooleanField(
+        default=False,
+        verbose_name="¿Requiere licor base en la cotización?",
+        help_text="Si está activo, la cotización debe incluir 'Licores Nacionales' o 'Licores Premium'",
     )
 
     def calcular_costo(self):
@@ -336,11 +341,12 @@ class Producto(models.Model):
                 "Un paquete no puede tener subproductos directamente. "
                 "Usa 'Productos Incluidos' en la sección de paquetes."
             )
-        if self.hereda_inventario_de_id:
-            # Prevent inheritance cycles (A → B → A)
+        # Prevent inheritance cycles (A → B → A) across the M2M graph
+        if self.pk:
             visitados = set()
-            padre = self.hereda_inventario_de
-            while padre is not None:
+            stack = list(self.hereda_inventario_de.all())
+            while stack:
+                padre = stack.pop()
                 if padre.pk == self.pk:
                     raise ValidationError({
                         'hereda_inventario_de': (
@@ -349,9 +355,9 @@ class Producto(models.Model):
                         )
                     })
                 if padre.pk in visitados:
-                    break
+                    continue
                 visitados.add(padre.pk)
-                padre = padre.hereda_inventario_de
+                stack.extend(padre.hereda_inventario_de.all())
 
     def __str__(self): return self.nombre
 
@@ -579,13 +585,14 @@ class Cotizacion(models.Model):
     def calcular_inventario_inteligente(self):
         """
         Calcula el inventario consolidado de la cotización evitando duplicados de
-        subproductos heredados.
+        subproductos heredados de uno o varios productos base (herencia M2M).
 
         Retorna: {subproducto_id: {'subproducto': SubProducto, 'cantidad': Decimal}}
 
-        Regla: Si producto.hereda_inventario_de existe, los subproductos del producto
-        base se incluyen UNA SOLA VEZ aunque múltiples upgrades referencien el mismo base.
-        Los upgrades sólo contribuyen sus subproductos adicionales (no presentes en el base).
+        Regla: Para cada producto cuyo M2M `hereda_inventario_de` tenga registros,
+        los subproductos de cada base se incluyen UNA SOLA VEZ aunque múltiples
+        upgrades referencien los mismos padres. Los upgrades sólo contribuyen sus
+        subproductos adicionales (no presentes en sus bases).
         """
         inventario = {}
         bases_incluidas = set()
@@ -593,7 +600,7 @@ class Cotizacion(models.Model):
         items = (
             self.items
             .filter(producto__isnull=False)
-            .select_related('producto', 'producto__hereda_inventario_de')
+            .select_related('producto')
             .prefetch_related(
                 'producto__componentes__subproducto',
                 'producto__hereda_inventario_de__componentes__subproducto',
@@ -608,24 +615,27 @@ class Cotizacion(models.Model):
         for item in items:
             producto = item.producto
             item_qty = item.cantidad
+            bases = list(producto.hereda_inventario_de.all())
 
-            if producto.hereda_inventario_de:
-                base = producto.hereda_inventario_de
-                base_sub_ids = {comp.subproducto_id for comp in base.componentes.all()}
+            if bases:
+                # Collect sub_ids belonging to ANY base (to skip them on the upgrade)
+                base_sub_ids = set()
+                for base in bases:
+                    base_componentes = list(base.componentes.all())
+                    # Include each base's subproducts only once across the whole quote
+                    if base.pk not in bases_incluidas:
+                        bases_incluidas.add(base.pk)
+                        for comp in base_componentes:
+                            acumular(comp.subproducto_id, comp.subproducto, comp.cantidad * item_qty)
+                    base_sub_ids.update(c.subproducto_id for c in base_componentes)
 
-                # Include base subproducts only once across all upgrades
-                if base.pk not in bases_incluidas:
-                    bases_incluidas.add(base.pk)
-                    for comp in base.componentes.all():
-                        acumular(comp.subproducto_id, comp.subproducto, comp.cantidad * item_qty)
-
-                # Only add subproducts unique to this upgrade
+                # Only add subproducts unique to this upgrade (not present in any base)
                 for comp in producto.componentes.all():
                     if comp.subproducto_id not in base_sub_ids:
                         acumular(comp.subproducto_id, comp.subproducto, comp.cantidad * item_qty)
             else:
-                # Normal product: mark it as base-included so upgrades referencing it
-                # won't double-count, then include all its subproducts
+                # Normal/base product: mark as already-included so upgrades referencing
+                # it won't double-count, then include all its subproducts.
                 bases_incluidas.add(producto.pk)
                 for comp in producto.componentes.all():
                     acumular(comp.subproducto_id, comp.subproducto, comp.cantidad * item_qty)
@@ -663,17 +673,27 @@ class Cotizacion(models.Model):
             except Exception:
                 pass
 
-        # Validate mutually exclusive barra upgrades
+        # Validate mutually exclusive barra upgrades and licor requirement
         if self.pk:
-            nombres = set(
+            items_prod = list(
                 self.items
                 .filter(producto__isnull=False)
-                .values_list('producto__nombre', flat=True)
+                .select_related('producto')
             )
+            nombres = {it.producto.nombre for it in items_prod}
+            requiere_licor = any(getattr(it.producto, 'requiere_licor', False) for it in items_prod)
+
             if 'Licores Nacionales' in nombres and 'Licores Premium' in nombres:
                 raise ValidationError(
                     '"Licores Nacionales" y "Licores Premium" son mutuamente excluyentes '
                     'y no pueden coexistir en la misma cotización.'
+                )
+
+            if requiere_licor and not (nombres & {'Licores Nacionales', 'Licores Premium'}):
+                raise ValidationError(
+                    'La cotización incluye un producto que requiere licor base '
+                    '(p. ej. "Coctelería De Autor Y Clásicos Por 3 Horas"). '
+                    'Agrega "Licores Nacionales" o "Licores Premium".'
                 )
 
     def save(self, *args, **kwargs):

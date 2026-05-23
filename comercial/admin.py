@@ -228,8 +228,9 @@ class ProductoPaqueteInline(admin.TabularInline):
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline, ProductoPaqueteInline]
-    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_upgrade')
-    list_filter = ('visible_cotizador', 'grupo_cotizador', 'es_paquete', 'es_upgrade')
+    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_upgrade', 'badge_licor')
+    list_filter = ('visible_cotizador', 'grupo_cotizador', 'es_paquete', 'es_upgrade', 'requiere_licor')
+    filter_horizontal = ('hereda_inventario_de',)
     search_fields = ('nombre',)
     fieldsets = (
         (None, {'fields': ('nombre', 'descripcion', 'margen_ganancia', 'imagen_promocional')}),
@@ -241,12 +242,14 @@ class ProductoAdmin(admin.ModelAdmin):
             ),
         }),
         ('Herencia de Inventario', {
-            'fields': ('es_upgrade', 'hereda_inventario_de'),
+            'fields': ('es_upgrade', 'hereda_inventario_de', 'requiere_licor'),
             'description': (
-                'Configura si este producto es un upgrade de otro para evitar duplicar '
-                'subproductos al calcular el inventario de una cotización. '
+                'Configura si este producto es un upgrade de uno o varios productos base '
+                'para evitar duplicar subproductos al calcular el inventario de una cotización. '
                 '<strong>"Hereda inventario de"</strong> solo muestra productos base '
-                '(es_upgrade=False).'
+                '(es_upgrade=False) y permite seleccionar varios. '
+                '<strong>"Requiere licor"</strong> obliga a que la cotización incluya '
+                'Licores Nacionales o Licores Premium.'
             ),
             'classes': ('collapse',),
         }),
@@ -295,13 +298,18 @@ class ProductoAdmin(admin.ModelAdmin):
     badge_paquete.short_description = 'Tipo'
 
     def badge_upgrade(self, obj):
-        if obj.es_upgrade and obj.hereda_inventario_de:
+        if not obj.pk:
+            return mark_safe('<span style="color:#999;font-size:11px;">—</span>')
+        bases = list(obj.hereda_inventario_de.all()[:3])
+        if obj.es_upgrade and bases:
+            nombres_full = ', '.join(b.nombre for b in bases)
+            nombres_short = ' + '.join(b.nombre[:12] for b in bases)
             return format_html(
                 '<span style="background:#E65100;color:white;padding:3px 8px;'
                 'border-radius:12px;font-size:10px;font-weight:600;" title="Hereda de: {}">'
                 'UPGRADE → {}</span>',
-                obj.hereda_inventario_de.nombre,
-                obj.hereda_inventario_de.nombre[:18],
+                nombres_full,
+                nombres_short,
             )
         if obj.es_upgrade:
             return mark_safe(
@@ -311,10 +319,19 @@ class ProductoAdmin(admin.ModelAdmin):
         return mark_safe('<span style="color:#999;font-size:11px;">—</span>')
     badge_upgrade.short_description = 'Upgrade'
 
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+    def badge_licor(self, obj):
+        if obj.requiere_licor:
+            return mark_safe(
+                '<span style="background:#7B1FA2;color:white;padding:3px 8px;'
+                'border-radius:12px;font-size:10px;font-weight:600;">REQ LICOR</span>'
+            )
+        return mark_safe('<span style="color:#999;font-size:11px;">—</span>')
+    badge_licor.short_description = 'Licor'
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == 'hereda_inventario_de':
             kwargs['queryset'] = Producto.objects.filter(es_upgrade=False).order_by('nombre')
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
@@ -660,7 +677,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                 '<a href="{}" class="btn btn-info btn-sm" target="_blank" '
                 'style="background:#F5C518;color:#333;border:none;padding:3px 8px;font-size:11px;"'
                 'onclick="return confirm(\'¿Generar contrato con depósito $0? '
-                'Puedes cambiarlo en la pantalla del contrato.\')">&nbsp;Contrato</a>',
+                'Puedes cambiarlo en la pantalla del contrato.\')"> Contrato</a>',
                 url
             )
         return "—"
@@ -718,7 +735,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;margin-right:3px;">Portal</a>'
                     '<a href="{}" target="_blank" style="background:#25D366;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;margin-right:3px;">WA</a>'
                     '<span id="{}" style="display:none">{}</span>'
-                    '<button onclick="(function(){{var el=document.getElementById(\'{0}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;">Copiar</button>',
+                    '<button onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;">Copiar</button>',
                     url, wa_url, copy_id, url, copy_id
                 )
         except Exception:
@@ -1096,7 +1113,7 @@ class ImagenLandingAdmin(admin.ModelAdmin):
             pos = obj.posicion_vertical or 'center'
             return format_html(
                 '<div style="width:400px;height:200px;border-radius:6px;overflow:hidden;'
-                'background:url({}) center/{} no-repeat;background-position:center {}">'
+                'background:url({}) center/{} no-repeat;background-position:center {};">'
                 '</div>'
                 '<p style="margin-top:4px;font-size:11px;color:#666;">Enfoque: {}</p>',
                 obj.imagen.url, 'cover', pos, obj.get_posicion_vertical_display()
