@@ -756,10 +756,30 @@ class ItemCotizacion(models.Model):
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
+    def clean(self):
+        if not self.cotizacion_id or not self.producto_id:
+            return
+        excl = self.producto.grupo_exclusion if self.producto else ''
+        if not excl:
+            return
+        qs = ItemCotizacion.objects.filter(
+            cotizacion_id=self.cotizacion_id,
+            producto__grupo_exclusion=excl,
+        )
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        conflicto = qs.select_related('producto').first()
+        if conflicto:
+            raise ValidationError(
+                f'"{self.producto.nombre}" y "{conflicto.producto.nombre}" '
+                f'son mutuamente excluyentes y no pueden coexistir en la misma cotización.'
+            )
+
     def save(self, *args, **kwargs):
         if self.precio_unitario == 0:
             if self.producto: self.precio_unitario = self.producto.sugerencia_precio()
             elif self.insumo: self.precio_unitario = self.insumo.costo_unitario
+        self.full_clean()
         super().save(*args, **kwargs)
         if self.cotizacion.pk:
             self.cotizacion.calcular_totales()
