@@ -330,7 +330,7 @@ class ProductoAdmin(admin.ModelAdmin):
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == 'hereda_inventario_de':
-            kwargs['queryset'] = Producto.objects.filter(es_upgrade=False).order_by('nombre')
+            kwargs['queryset'] = Producto.objects.all().order_by('nombre')
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     class Media:
