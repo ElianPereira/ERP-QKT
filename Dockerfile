@@ -18,4 +18,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
-CMD python manage.py migrate --noinput && gunicorn core_erp.wsgi:application --bind 0.0.0.0:${PORT:-8080} --timeout 120
+CMD python manage.py migrate --noinput && \
+    gunicorn core_erp.wsgi:application \
+        --bind 0.0.0.0:${PORT:-8080} \
+        --workers 2 \
+        --timeout 120 \
+        --max-requests 1000 \
+        --max-requests-jitter 100 \
+        --preload \
+        --access-logfile -
