@@ -313,7 +313,6 @@ class Producto(models.Model):
         related_name='upgrades',
         verbose_name="Hereda inventario de",
         help_text="Productos base cuyos subproductos NO se duplicarán al calcular inventario",
-        limit_choices_to={'es_upgrade': False},
     )
     es_upgrade = models.BooleanField(
         default=False,
