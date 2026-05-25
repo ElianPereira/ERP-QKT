@@ -26,6 +26,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.conf import settings
 from decouple import config
 
 from .models import (
@@ -35,7 +36,7 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-# ─── Helpers (reutilizados del webhook) ───────────────────────────────────────
+# ─── Helpers (reutilizados del webhook) ─────────────────────────────────────────────────────
 
 def _buscar_producto_por_nombre(nombre_parcial):
     return Producto.objects.filter(nombre__icontains=nombre_parcial).first()
@@ -91,7 +92,7 @@ def _enviar_wa_negocio(mensaje: str) -> bool:
         return False
 
 
-# ─── Vistas ───────────────────────────────────────────────────────────────────
+# ─── Vistas ──────────────────────────────────────────────────────────────────────────────
 
 def cotizador_publico(request):
     return render(request, 'cotizador/index.html')
@@ -109,7 +110,7 @@ def cotizador_enviar(request):
     except Exception:
         data = request.POST.dict()
 
-    # ── Datos base ─────────────────────────────────────────────
+    # ── Datos base ────────────────────────────────────────────────────────────
     nombre    = str(data.get('nombre', '')).strip()
     telefono  = str(data.get('telefono', '')).strip()
     email     = str(data.get('email', '')).strip()
@@ -147,7 +148,7 @@ def cotizador_enviar(request):
     if errores:
         return JsonResponse({'ok': False, 'errores': errores}, status=400)
 
-    # ── Parsear fecha ──────────────────────────────────────────
+    # ── Parsear fecha ──────────────────────────────────────────────────────────
     fecha_evento = None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
         try:
@@ -158,7 +159,7 @@ def cotizador_enviar(request):
     if not fecha_evento:
         fecha_evento = timezone.now().date() + timedelta(days=30)
 
-    # ── Horas ──────────────────────────────────────────────────
+    # ── Horas ─────────────────────────────────────────────────────────────────────
     def _parsear_hora(s):
         if not s:
             return None
@@ -186,14 +187,14 @@ def cotizador_enviar(request):
     else:
         horas_evento = 6
 
-    # ── Número de personas ─────────────────────────────────────
+    # ── Número de personas ──────────────────────────────────────────────────────────────
     try:
         num_raw = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 2000))
     except ValueError:
         num_raw = 50
     num_personas = _redondear_personas(num_raw, servicio == 'PASADIA')
 
-    # ── Disponibilidad de fecha ────────────────────────────────
+    # ── Disponibilidad de fecha ────────────────────────────────────────────────────────────
     aviso_fecha = None
     try:
         from airbnb.validacion_fechas import verificar_disponibilidad_fecha
@@ -203,7 +204,7 @@ def cotizador_enviar(request):
     except Exception:
         pass
 
-    # ── Cliente ────────────────────────────────────────────────
+    # ── Cliente ────────────────────────────────────────────────────────────────────
     from .services import get_or_create_cliente_desde_canal
     cliente, _ = get_or_create_cliente_desde_canal(
         telefono_raw=tel_d,
@@ -221,18 +222,18 @@ def cotizador_enviar(request):
             cliente.codigo_postal_fiscal = cp_fiscal[:5]
         cliente.save(update_fields=['es_cliente_fiscal', 'rfc', 'razon_social', 'codigo_postal_fiscal'])
 
-    # ── Nombre del evento ──────────────────────────────────────
-    nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pasadía', 'ARRENDAMIENTO': 'Arrendamiento de Mobiliario'}
+    # ── Nombre del evento ──────────────────────────────────────────────────────────────
+    nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pastadía', 'ARRENDAMIENTO': 'Arrendamiento de Mobiliario'}
     if servicio == 'EVENTO':
         nombre_evento = f"{tipo_ev} — {nombre}"
     elif servicio == 'PASADIA':
-        nombre_evento = f"Pasadía — {nombre}"
+        nombre_evento = f"Pastadía — {nombre}"
     else:
         nombre_evento = f"Arrendamiento de Mobiliario — {nombre}"
     if notas:
         nombre_evento += f" | {notas[:60]}"
 
-    # ── Crear Cotización ───────────────────────────────────────
+    # ── Crear Cotización ──────────────────────────────────────────────────────────────
     inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
     clima = _detectar_clima(fecha_evento)
 
@@ -258,7 +259,7 @@ def cotizador_enviar(request):
 
     resumen_partes = []
 
-    # ── Paquete seleccionado (si aplica) ──────────────────────
+    # ── Paquete seleccionado (si aplica) ─────────────────────────────────────────────────────────
     paquete_id = data.get('paquete_id')
     paquete_seleccionado = None
     if paquete_id:
@@ -269,7 +270,7 @@ def cotizador_enviar(request):
         except (Producto.DoesNotExist, ValueError):
             pass
 
-    # ── Items según servicio ───────────────────────────────────
+    # ── Items según servicio ──────────────────────────────────────────────────────────────
     if paquete_seleccionado:
         _agregar_item(cotizacion, paquete_seleccionado, 1,
             f"{paquete_seleccionado.nombre} ({num_personas} Pax, {horas_evento}hrs)")
@@ -319,12 +320,12 @@ def cotizador_enviar(request):
             resumen_partes.append("Barra(" + "/".join(barra) + ")")
 
     elif servicio == 'PASADIA':
-        prod = (_buscar_producto_por_nombre('Pasadía')
+        prod = (_buscar_producto_por_nombre('Pastadía')
                 or _buscar_producto_por_nombre('Pasadia'))
         if prod:
             _agregar_item(cotizacion, prod, 1,
-                f"Paquete Pasadía QKT ({num_personas} Pax, 10am-7pm)")
-            resumen_partes.append("Pasadía")
+                f"Paquete Pastadía QKT ({num_personas} Pax, 10am-7pm)")
+            resumen_partes.append("Pastadía")
 
     elif servicio == 'ARRENDAMIENTO':
         resumen_partes.append("Arrendamiento de Mobiliario")
@@ -343,14 +344,15 @@ def cotizador_enviar(request):
             _agregar_item(cotizacion, prod, qty, desc)
             resumen_partes.append(prod.nombre)
 
-    # ── Portal del cliente ─────────────────────────────────────
+    # ── Portal del cliente ──────────────────────────────────────────────────────────────
     portal, _ = PortalCliente.objects.get_or_create(
         cotizacion=cotizacion,
         defaults={'activo': True},
     )
-    portal_url = f"https://clientes.quintakooxtanil.com/mi-evento/{portal.token}/"
+    portal_base = getattr(settings, 'PORTAL_URL', 'https://clientes.quintakooxtanil.com')
+    portal_url = f"{portal_base}/mi-evento/{portal.token}/"
 
-    # ── Notificación WA al negocio ─────────────────────────────
+    # ── Notificación WA al negocio ──────────────────────────────────────────────────────────
     emoji = {'EVENTO': '🎉', 'PASADIA': '☀️', 'ARRENDAMIENTO': '🪑'}.get(servicio, '📋')
     resumen_txt = ", ".join(resumen_partes) if resumen_partes else "Sin servicios adicionales"
     _enviar_wa_negocio(
@@ -480,6 +482,8 @@ def api_productos_cotizador(request):
             'grupo_exclusion': p.grupo_exclusion,
             'cantidad_por_persona': p.cantidad_por_persona,
             'factor_personas': p.factor_personas,
+            'requiere_licor': p.requiere_licor,
+            'es_base_licor': p.nombre in ('Licores Nacionales', 'Licores Premium'),
         })
 
     return JsonResponse({'ok': True, 'grupos': list(grupos_dict.values())})
