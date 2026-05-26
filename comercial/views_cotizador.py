@@ -190,7 +190,7 @@ def cotizador_enviar(request):
 
     # ── Número de personas ──────────────────────────────────────────────────────────────
     try:
-        num_raw = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 2000))
+        num_raw = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 200))
     except ValueError:
         num_raw = 50
     num_personas = _redondear_personas(num_raw, servicio == 'PASADIA')
