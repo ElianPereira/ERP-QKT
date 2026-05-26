@@ -147,10 +147,14 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .extra-opt.licor-requerido{animation:licorPulse 1.2s ease-in-out 3;}
 
 /* Personas slider */
-.personas-wrap{display:flex;align-items:center;gap:1rem;}
-.personas-wrap input[type="range"]{flex:1;height:4px;-webkit-appearance:none;background:linear-gradient(to right,var(--verde) 0%,var(--borde) 0%);border-radius:2px;outline:none;}
-.personas-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--verde);cursor:pointer;border:2px solid var(--blanco);box-shadow:0 2px 6px rgba(0,0,0,.15);}
-.personas-val{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;color:var(--verde-d);min-width:55px;text-align:right;}
+.personas-wrap{display:flex;align-items:center;gap:.6rem;}
+.personas-wrap input[type="range"]{flex:1;height:6px;-webkit-appearance:none;background:linear-gradient(to right,var(--verde) 0%,var(--borde) 0%);border-radius:3px;outline:none;cursor:pointer;}
+.personas-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--verde);cursor:pointer;border:3px solid var(--blanco);box-shadow:0 2px 8px rgba(46,125,50,.35);}
+.personas-wrap input[type="range"]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--verde);cursor:pointer;border:3px solid var(--blanco);box-shadow:0 2px 8px rgba(46,125,50,.35);border:none;}
+.personas-btn{width:34px;height:34px;border-radius:50%;border:2px solid var(--verde);background:var(--blanco);color:var(--verde);font-size:1.3rem;font-weight:400;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;padding:0;line-height:1;user-select:none;}
+.personas-btn:hover{background:var(--verde);color:var(--blanco);}
+.personas-btn:active{transform:scale(.9);}
+.personas-minmax{display:flex;justify-content:space-between;font-size:.62rem;color:var(--texto-s);margin-top:.3rem;padding:0 40px;}
 
 /* Nav botones */
 .btn-nav{display:flex;gap:1rem;justify-content:space-between;margin-top:2rem;}
@@ -306,9 +310,14 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="campo" id="blq-personas">
       <label>Número de personas: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
+        <button type="button" class="personas-btn" id="personas-minus" onclick="cambiarPersonas(-1)" aria-label="Restar persona">−</button>
         <input type="range" id="personas" min="1" max="600" step="5" value="50"
           oninput="actualizarPersonas(this.value)">
-        <div class="personas-val" id="personas-val">50</div>
+        <button type="button" class="personas-btn" id="personas-plus" onclick="cambiarPersonas(1)" aria-label="Agregar persona">+</button>
+      </div>
+      <div class="personas-minmax">
+        <span id="personas-min-lbl">1</span>
+        <span id="personas-max-lbl">600</span>
       </div>
     </div>
 
@@ -522,14 +531,21 @@ function actualizarPanelSegunServicio() {
 
   var slider = document.getElementById('personas');
   if (esEvento) {
-    slider.min = 50; slider.max = 600;
-    if (parseInt(slider.value) < 50) { slider.value = 50; actualizarPersonas(50); }
+    slider.min = 50; slider.max = 600; slider.step = 5;
+    var v = parseInt(slider.value);
+    if (v < 50) { slider.value = 50; actualizarPersonas(50); } else actualizarPersonas(v);
   } else if (esPasadia) {
-    slider.min = 1; slider.max = 20;
-    if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); }
+    slider.min = 1; slider.max = 20; slider.step = 1;
+    var v = parseInt(slider.value);
+    if (v > 20) { slider.value = 20; actualizarPersonas(20); }
+    else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
+    else actualizarPersonas(v);
   } else {
-    slider.min = 1; slider.max = 600;
+    slider.min = 1; slider.max = 600; slider.step = 1;
+    actualizarPersonas(parseInt(slider.value));
   }
+  document.getElementById('personas-min-lbl').textContent = slider.min;
+  document.getElementById('personas-max-lbl').textContent = slider.max;
 }
 
 function selCamino(camino, el) {
@@ -706,10 +722,17 @@ function toggleFactura() {
 function actualizarPersonas(val) {
   val = parseInt(val);
   document.getElementById('personas-label').textContent = val;
-  document.getElementById('personas-val').textContent = val;
   var input = document.getElementById('personas');
   var pct = ((val - input.min) / (input.max - input.min)) * 100;
   input.style.background = 'linear-gradient(to right, var(--verde) ' + pct + '%, var(--borde) ' + pct + '%)';
+}
+
+function cambiarPersonas(delta) {
+  var slider = document.getElementById('personas');
+  var step = parseInt(slider.step) || 1;
+  var newVal = Math.min(parseInt(slider.max), Math.max(parseInt(slider.min), parseInt(slider.value) + delta * step));
+  slider.value = newVal;
+  actualizarPersonas(newVal);
 }
 
 function irA(paso) {
@@ -912,6 +935,8 @@ async function enviarSolicitud() {
 }
 
 actualizarPersonas(50);
+document.getElementById('personas-min-lbl').textContent = document.getElementById('personas').min;
+document.getElementById('personas-max-lbl').textContent = document.getElementById('personas').max;
 inicializarCalendario();
 
 (function preseleccionarDesdeURL(){
