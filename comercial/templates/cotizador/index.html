@@ -145,6 +145,12 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .extra-opt.licor-requerido{border-color:#FFB300;background:#FFF8E1;}
 @keyframes licorPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,179,0,.4);}50%{box-shadow:0 0 0 5px rgba(255,179,0,0);}}
 .extra-opt.licor-requerido{animation:licorPulse 1.2s ease-in-out 3;}
+.extra-opt.refrescos-requerido{border-color:#1565C0;background:#E3F2FD;}
+@keyframes refrescosPulse{0%,100%{box-shadow:0 0 0 0 rgba(21,101,192,.4);}50%{box-shadow:0 0 0 5px rgba(21,101,192,0);}}
+.extra-opt.refrescos-requerido{animation:refrescosPulse 1.2s ease-in-out 3;}
+.extra-hint-refrescos{font-size:.62rem;color:#1565C0;font-weight:500;margin-top:.3rem;}
+.refrescos-warning{background:#E3F2FD;border:1.5px solid #1565C0;border-radius:4px;padding:.65rem .9rem;font-size:.76rem;color:#0D47A1;display:none;margin-bottom:.8rem;}
+.refrescos-warning.visible{display:flex;align-items:center;gap:.5rem;}
 
 /* Personas slider */
 .personas-wrap{display:flex;align-items:center;gap:.6rem;}
@@ -639,18 +645,56 @@ async function cargarExtras(servicio, targetId) {
 function renderizarExtras(grupos, targetId) {
   var container = document.getElementById(targetId);
   var html = '<div id="licor-warning-' + targetId + '" class="licor-warning">⚠️ <span>Selecciona también <strong>Licores Nacionales</strong> o <strong>Licores Premium</strong> para completar tu servicio de coctelería.</span></div>';
+  html += '<div id="refrescos-warning-' + targetId + '" class="refrescos-warning">🧃 <span>Selecciona también <strong>Refrescos y Mezcladores</strong> para acompañar tus licores.</span></div>';
   for (var i = 0; i < grupos.length; i++) {
     var g = grupos[i];
     html += '<div class="extras-titulo">' + esc(g.nombre) + '</div><div class="extras-grid">';
     for (var j = 0; j < g.productos.length; j++) {
       var p = g.productos[j];
-      extrasInfo[p.id] = { nombre: p.nombre, requiereLicor: !!p.requiere_licor, esBaseLicor: !!p.es_base_licor };
+      extrasInfo[p.id] = {
+        nombre: p.nombre,
+        requiereLicor: !!p.requiere_licor,
+        esBaseLicor: !!p.es_base_licor,
+        requiereRefrescos: !!p.requiere_refrescos,
+        esBaseRefrescos: !!p.es_base_refrescos,
+      };
       var clases = 'extra-opt' + (p.requiere_licor ? ' requiere-licor' : '');
-      html += '<div class="' + clases + '" data-prod-id="' + p.id + '" data-exclusion="' + esc(p.grupo_exclusion || '') + '" data-requiere-licor="' + (p.requiere_licor ? '1' : '0') + '" data-es-base-licor="' + (p.es_base_licor ? '1' : '0') + '" onclick="toggleExtraDinamico(this)">' + '<div class="extra-check">✓</div>' + '<div><div class="extra-nom">' + esc(p.nombre) + '</div>' + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '') + (p.requiere_licor ? '<div class="extra-hint-licor">🍸 Debe acompañarse con Licores Nacionales o Premium</div>' : '') + '</div></div>';
+      html += '<div class="' + clases + '" data-prod-id="' + p.id + '"'
+        + ' data-exclusion="' + esc(p.grupo_exclusion || '') + '"'
+        + ' data-requiere-licor="' + (p.requiere_licor ? '1' : '0') + '"'
+        + ' data-es-base-licor="' + (p.es_base_licor ? '1' : '0') + '"'
+        + ' data-requiere-refrescos="' + (p.requiere_refrescos ? '1' : '0') + '"'
+        + ' data-es-base-refrescos="' + (p.es_base_refrescos ? '1' : '0') + '"'
+        + ' onclick="toggleExtraDinamico(this)">'
+        + '<div class="extra-check">✓</div>'
+        + '<div><div class="extra-nom">' + esc(p.nombre) + '</div>'
+        + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '')
+        + (p.requiere_licor ? '<div class="extra-hint-licor">🍸 Debe acompañarse con Licores Nacionales o Premium</div>' : '')
+        + (p.requiere_refrescos && !p.requiere_licor ? '<div class="extra-hint-refrescos">🧃 Requiere Refrescos y Mezcladores</div>' : '')
+        + '</div></div>';
     }
     html += '</div>';
   }
   container.innerHTML = html;
+}
+
+function verificarRefrescos() {
+  var necesitaRefrescos = false;
+  var tieneRefrescos = false;
+  selectedExtras.forEach(function(id) {
+    var info = extrasInfo[id];
+    if (info) {
+      if (info.requiereRefrescos) necesitaRefrescos = true;
+      if (info.esBaseRefrescos) tieneRefrescos = true;
+    }
+  });
+  var mostrar = necesitaRefrescos && !tieneRefrescos;
+  document.querySelectorAll('[id^="refrescos-warning-"]').forEach(function(w) {
+    if (mostrar) w.classList.add('visible'); else w.classList.remove('visible');
+  });
+  document.querySelectorAll('[data-es-base-refrescos="1"]').forEach(function(el) {
+    if (mostrar) el.classList.add('refrescos-requerido'); else el.classList.remove('refrescos-requerido');
+  });
 }
 
 function verificarLicor() {
@@ -685,8 +729,7 @@ function toggleExtraDinamico(el) {
   if (el.classList.contains('selected')) {
     selectedExtras.add(id);
     if (exclusion) {
-      var parent = el.closest('.extras-grid') || el.parentElement;
-      parent.querySelectorAll('[data-exclusion="' + exclusion + '"]').forEach(function(other) {
+      document.querySelectorAll('[data-exclusion="' + exclusion + '"]').forEach(function(other) {
         if (other !== el && other.classList.contains('selected')) {
           other.classList.remove('selected');
           selectedExtras.delete(parseInt(other.dataset.prodId));
@@ -697,6 +740,7 @@ function toggleExtraDinamico(el) {
     selectedExtras.delete(id);
   }
   verificarLicor();
+  verificarRefrescos();
 }
 
 function toggle(id, visible) {

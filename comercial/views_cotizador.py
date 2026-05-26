@@ -479,11 +479,13 @@ def api_productos_cotizador(request):
             'nombre': p.nombre,
             'icono': p.icono,
             'descripcion': p.descripcion_corta,
-            'grupo_exclusion': p.grupo_exclusion,
+            'grupo_exclusion': p.grupo_exclusion or ('LICORES' if p.nombre in ('Licores Nacionales', 'Licores Premium') else ''),
             'cantidad_por_persona': p.cantidad_por_persona,
             'factor_personas': p.factor_personas,
             'requiere_licor': p.requiere_licor,
             'es_base_licor': p.nombre in ('Licores Nacionales', 'Licores Premium'),
+            'requiere_refrescos': p.nombre in ('Licores Nacionales', 'Licores Premium') or p.requiere_licor,
+            'es_base_refrescos': p.nombre in ('Refrescos y Mezcladores',),
         })
 
     return JsonResponse({'ok': True, 'grupos': list(grupos_dict.values())})
