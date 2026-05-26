@@ -329,13 +329,13 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <label>Número de personas: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
         <button type="button" class="personas-btn" id="personas-minus" onclick="cambiarPersonas(-1)" aria-label="Restar persona">−</button>
-        <input type="range" id="personas" min="1" max="600" step="10" value="50"
+        <input type="range" id="personas" min="1" max="200" step="10" value="50"
           oninput="actualizarPersonas(this.value)">
         <button type="button" class="personas-btn" id="personas-plus" onclick="cambiarPersonas(1)" aria-label="Agregar persona">+</button>
       </div>
       <div class="personas-minmax">
         <span id="personas-min-lbl">1</span>
-        <span id="personas-max-lbl">600</span>
+        <span id="personas-max-lbl">200</span>
       </div>
     </div>
 
@@ -564,7 +564,7 @@ function actualizarPanelSegunServicio() {
 
   var slider = document.getElementById('personas');
   if (esEvento) {
-    slider.min = 50; slider.max = 600; slider.step = 10;
+    slider.min = 50; slider.max = 200; slider.step = 10;
     var v = parseInt(slider.value);
     if (v < 50) { slider.value = 50; actualizarPersonas(50); } else actualizarPersonas(v);
   } else if (esPasadia) {
@@ -574,7 +574,7 @@ function actualizarPanelSegunServicio() {
     else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
     else actualizarPersonas(v);
   } else {
-    slider.min = 1; slider.max = 600; slider.step = 1;
+    slider.min = 1; slider.max = 200; slider.step = 1;
     actualizarPersonas(parseInt(slider.value));
   }
   document.getElementById('personas-min-lbl').textContent = slider.min;
