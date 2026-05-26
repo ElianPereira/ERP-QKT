@@ -190,7 +190,7 @@ def cotizador_enviar(request):
 
     # ── Número de personas ──────────────────────────────────────────────────────────────
     try:
-        num_raw = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 2000))
+        num_raw = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 200))
     except ValueError:
         num_raw = 50
     num_personas = _redondear_personas(num_raw, servicio == 'PASADIA')
@@ -234,7 +234,7 @@ def cotizador_enviar(request):
     if notas:
         nombre_evento += f" | {notas[:60]}"
     if como_nos_encontro:
-        nombre_evento += f" [📣 {como_nos_encontro}]"
+        nombre_evento += f" [{como_nos_encontro}]"
 
     # ── Crear Cotización ──────────────────────────────────────────────────────────────
     inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
@@ -368,7 +368,7 @@ def cotizador_enviar(request):
         f"🕐 *Horario:* {hora_ini or '—'} a {hora_fin or '—'}\n"
         f"📋 *Servicios:* {resumen_txt}\n"
         f"📝 *Notas:* {notas or 'Sin notas'}\n"
-        f"📣 *Nos encontró por:* {como_nos_encontro or 'No indicado'}\n\n"
+        f"*Nos encontró por:* {como_nos_encontro or 'No indicado'}\n\n"
         f"🔗 Ver cotización:\n{portal_url}\n\n"
         f"_COT-{cotizacion.id:03d} — ERP QKT_"
     )
