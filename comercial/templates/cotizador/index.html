@@ -212,8 +212,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 }
 .medio-chip:hover{border-color:var(--verde);background:#f0f7f0;}
 .medio-chip.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 2px rgba(46,125,50,.15);}
-.medio-ico{font-size:1.3rem;display:block;margin-bottom:.25rem;}
-.medio-nom{font-size:.65rem;font-weight:500;color:var(--verde-d);line-height:1.2;}
+.medio-nom{font-size:.75rem;font-weight:500;color:var(--verde-d);line-height:1.2;}
 @media(max-width:520px){
   .srv-grid{grid-template-columns:1fr;}
   .path-grid{grid-template-columns:1fr;}
@@ -431,14 +430,14 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="campo">
       <label>¿Cómo nos encontraste?</label>
       <div class="medio-grid">
-        <div class="medio-chip" onclick="selMedio('Facebook',this)"><span class="medio-ico">📘</span><span class="medio-nom">Facebook</span></div>
-        <div class="medio-chip" onclick="selMedio('Instagram',this)"><span class="medio-ico">📸</span><span class="medio-nom">Instagram</span></div>
-        <div class="medio-chip" onclick="selMedio('TikTok',this)"><span class="medio-ico">🎵</span><span class="medio-nom">TikTok</span></div>
-        <div class="medio-chip" onclick="selMedio('Google',this)"><span class="medio-ico">🔍</span><span class="medio-nom">Google</span></div>
-        <div class="medio-chip" onclick="selMedio('Recomendación',this)"><span class="medio-ico">👥</span><span class="medio-nom">Recomen&shy;dación</span></div>
-        <div class="medio-chip" onclick="selMedio('WhatsApp',this)"><span class="medio-ico">💬</span><span class="medio-nom">WhatsApp</span></div>
-        <div class="medio-chip" onclick="selMedio('Visité la quinta',this)"><span class="medio-ico">🏡</span><span class="medio-nom">Visité la quinta</span></div>
-        <div class="medio-chip" onclick="selMedio('Otro',this)"><span class="medio-ico">✨</span><span class="medio-nom">Otro</span></div>
+        <div class="medio-chip" onclick="selMedio('Facebook',this)"><span class="medio-nom">Facebook</span></div>
+        <div class="medio-chip" onclick="selMedio('Instagram',this)"><span class="medio-nom">Instagram</span></div>
+        <div class="medio-chip" onclick="selMedio('TikTok',this)"><span class="medio-nom">TikTok</span></div>
+        <div class="medio-chip" onclick="selMedio('Google',this)"><span class="medio-nom">Google</span></div>
+        <div class="medio-chip" onclick="selMedio('Recomendación',this)"><span class="medio-nom">Recomen&shy;dación</span></div>
+        <div class="medio-chip" onclick="selMedio('WhatsApp',this)"><span class="medio-nom">WhatsApp</span></div>
+        <div class="medio-chip" onclick="selMedio('Visité la quinta',this)"><span class="medio-nom">Visité la quinta</span></div>
+        <div class="medio-chip" onclick="selMedio('Otro',this)"><span class="medio-nom">Otro</span></div>
       </div>
     </div>
 
@@ -671,8 +670,8 @@ async function cargarExtras(servicio, targetId) {
 
 function renderizarExtras(grupos, targetId) {
   var container = document.getElementById(targetId);
-  var html = '<div id="licor-warning-' + targetId + '" class="licor-warning">⚠️ <span>Selecciona también <strong>Licores Nacionales</strong> o <strong>Licores Premium</strong> para completar tu servicio de coctelería.</span></div>';
-  html += '<div id="refrescos-warning-' + targetId + '" class="refrescos-warning">🧃 <span>Selecciona también <strong>Refrescos y Mezcladores</strong> para acompañar tus licores.</span></div>';
+  var html = '<div id="licor-warning-' + targetId + '" class="licor-warning"><span>Selecciona también <strong>Licores Nacionales</strong> o <strong>Licores Premium</strong> para completar tu servicio de coctelería.</span></div>';
+  html += '<div id="refrescos-warning-' + targetId + '" class="refrescos-warning"><span>Selecciona también <strong>Refrescos y Mezcladores</strong> para acompañar tus licores.</span></div>';
   for (var i = 0; i < grupos.length; i++) {
     var g = grupos[i];
     html += '<div class="extras-titulo">' + esc(g.nombre) + '</div><div class="extras-grid">';
@@ -696,8 +695,8 @@ function renderizarExtras(grupos, targetId) {
         + '<div class="extra-check">✓</div>'
         + '<div><div class="extra-nom">' + esc(p.nombre) + '</div>'
         + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '')
-        + (p.requiere_licor ? '<div class="extra-hint-licor">🍸 Debe acompañarse con Licores Nacionales o Premium</div>' : '')
-        + (p.requiere_refrescos && !p.requiere_licor ? '<div class="extra-hint-refrescos">🧃 Requiere Refrescos y Mezcladores</div>' : '')
+        + (p.requiere_licor ? '<div class="extra-hint-licor">Debe acompañarse con Licores Nacionales o Premium</div>' : '')
+        + (p.requiere_refrescos && !p.requiere_licor ? '<div class="extra-hint-refrescos">Requiere Refrescos y Mezcladores</div>' : '')
         + '</div></div>';
     }
     html += '</div>';
