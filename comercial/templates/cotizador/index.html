@@ -145,12 +145,22 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .extra-opt.licor-requerido{border-color:#FFB300;background:#FFF8E1;}
 @keyframes licorPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,179,0,.4);}50%{box-shadow:0 0 0 5px rgba(255,179,0,0);}}
 .extra-opt.licor-requerido{animation:licorPulse 1.2s ease-in-out 3;}
+.extra-opt.refrescos-requerido{border-color:#1565C0;background:#E3F2FD;}
+@keyframes refrescosPulse{0%,100%{box-shadow:0 0 0 0 rgba(21,101,192,.4);}50%{box-shadow:0 0 0 5px rgba(21,101,192,0);}}
+.extra-opt.refrescos-requerido{animation:refrescosPulse 1.2s ease-in-out 3;}
+.extra-hint-refrescos{font-size:.62rem;color:#1565C0;font-weight:500;margin-top:.3rem;}
+.refrescos-warning{background:#E3F2FD;border:1.5px solid #1565C0;border-radius:4px;padding:.65rem .9rem;font-size:.76rem;color:#0D47A1;display:none;margin-bottom:.8rem;}
+.refrescos-warning.visible{display:flex;align-items:center;gap:.5rem;}
 
 /* Personas slider */
-.personas-wrap{display:flex;align-items:center;gap:1rem;}
-.personas-wrap input[type="range"]{flex:1;height:4px;-webkit-appearance:none;background:linear-gradient(to right,var(--verde) 0%,var(--borde) 0%);border-radius:2px;outline:none;}
-.personas-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--verde);cursor:pointer;border:2px solid var(--blanco);box-shadow:0 2px 6px rgba(0,0,0,.15);}
-.personas-val{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;color:var(--verde-d);min-width:55px;text-align:right;}
+.personas-wrap{display:flex;align-items:center;gap:.6rem;}
+.personas-wrap input[type="range"]{flex:1;height:6px;-webkit-appearance:none;background:linear-gradient(to right,var(--verde) 0%,var(--borde) 0%);border-radius:3px;outline:none;cursor:pointer;}
+.personas-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--verde);cursor:pointer;border:3px solid var(--blanco);box-shadow:0 2px 8px rgba(46,125,50,.35);}
+.personas-wrap input[type="range"]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--verde);cursor:pointer;border:3px solid var(--blanco);box-shadow:0 2px 8px rgba(46,125,50,.35);border:none;}
+.personas-btn{width:34px;height:34px;border-radius:50%;border:2px solid var(--verde);background:var(--blanco);color:var(--verde);font-size:1.3rem;font-weight:400;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;padding:0;line-height:1;user-select:none;}
+.personas-btn:hover{background:var(--verde);color:var(--blanco);}
+.personas-btn:active{transform:scale(.9);}
+.personas-minmax{display:flex;justify-content:space-between;font-size:.62rem;color:var(--texto-s);margin-top:.3rem;padding:0 40px;}
 
 /* Nav botones */
 .btn-nav{display:flex;gap:1rem;justify-content:space-between;margin-top:2rem;}
@@ -193,11 +203,23 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .factura-fields{display:none;padding:1rem;background:#fafaf8;border:1px solid var(--borde);border-radius:6px;margin-bottom:1.4rem;}
 .factura-fields.visible{display:block;}
 
+/* Medio de captación */
+.medio-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.3rem;}
+.medio-chip{
+  border:1.5px solid var(--borde);border-radius:8px;
+  padding:.6rem .4rem;text-align:center;cursor:pointer;
+  background:var(--blanco);transition:all .2s;user-select:none;
+}
+.medio-chip:hover{border-color:var(--verde);background:#f0f7f0;}
+.medio-chip.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 2px rgba(46,125,50,.15);}
+.medio-ico{font-size:1.3rem;display:block;margin-bottom:.25rem;}
+.medio-nom{font-size:.65rem;font-weight:500;color:var(--verde-d);line-height:1.2;}
 @media(max-width:520px){
   .srv-grid{grid-template-columns:1fr;}
   .path-grid{grid-template-columns:1fr;}
   .extras-grid{grid-template-columns:1fr;}
   .campo-fila{grid-template-columns:1fr;}
+  .medio-grid{grid-template-columns:repeat(4,1fr);}
 }
 
 /* Flatpickr */
@@ -306,9 +328,14 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="campo" id="blq-personas">
       <label>Número de personas: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
-        <input type="range" id="personas" min="1" max="600" step="5" value="50"
+        <button type="button" class="personas-btn" id="personas-minus" onclick="cambiarPersonas(-1)" aria-label="Restar persona">−</button>
+        <input type="range" id="personas" min="1" max="600" step="10" value="50"
           oninput="actualizarPersonas(this.value)">
-        <div class="personas-val" id="personas-val">50</div>
+        <button type="button" class="personas-btn" id="personas-plus" onclick="cambiarPersonas(1)" aria-label="Agregar persona">+</button>
+      </div>
+      <div class="personas-minmax">
+        <span id="personas-min-lbl">1</span>
+        <span id="personas-max-lbl">600</span>
       </div>
     </div>
 
@@ -401,6 +428,20 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <div class="campo-error" id="err-email">Ingresa un correo electrónico válido.</div>
     </div>
 
+    <div class="campo">
+      <label>¿Cómo nos encontraste?</label>
+      <div class="medio-grid">
+        <div class="medio-chip" onclick="selMedio('Facebook',this)"><span class="medio-ico">📘</span><span class="medio-nom">Facebook</span></div>
+        <div class="medio-chip" onclick="selMedio('Instagram',this)"><span class="medio-ico">📸</span><span class="medio-nom">Instagram</span></div>
+        <div class="medio-chip" onclick="selMedio('TikTok',this)"><span class="medio-ico">🎵</span><span class="medio-nom">TikTok</span></div>
+        <div class="medio-chip" onclick="selMedio('Google',this)"><span class="medio-ico">🔍</span><span class="medio-nom">Google</span></div>
+        <div class="medio-chip" onclick="selMedio('Recomendación',this)"><span class="medio-ico">👥</span><span class="medio-nom">Recomen&shy;dación</span></div>
+        <div class="medio-chip" onclick="selMedio('WhatsApp',this)"><span class="medio-ico">💬</span><span class="medio-nom">WhatsApp</span></div>
+        <div class="medio-chip" onclick="selMedio('Visité la quinta',this)"><span class="medio-ico">🏡</span><span class="medio-nom">Visité la quinta</span></div>
+        <div class="medio-chip" onclick="selMedio('Otro',this)"><span class="medio-ico">✨</span><span class="medio-nom">Otro</span></div>
+      </div>
+    </div>
+
     <!-- Factura toggle -->
     <div class="factura-toggle" id="facturaToggle" onclick="toggleFactura()">
       <div class="toggle-switch"></div>
@@ -451,6 +492,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 let servicioSel = '';
 let caminoSel = '';
 let paqueteSel = null;
+let medioSel = '';
 let paquetesData = [];
 let barraExtras = {};
 let selectedExtras = new Set();
@@ -522,14 +564,21 @@ function actualizarPanelSegunServicio() {
 
   var slider = document.getElementById('personas');
   if (esEvento) {
-    slider.min = 50; slider.max = 600;
-    if (parseInt(slider.value) < 50) { slider.value = 50; actualizarPersonas(50); }
+    slider.min = 50; slider.max = 600; slider.step = 10;
+    var v = parseInt(slider.value);
+    if (v < 50) { slider.value = 50; actualizarPersonas(50); } else actualizarPersonas(v);
   } else if (esPasadia) {
-    slider.min = 1; slider.max = 20;
-    if (parseInt(slider.value) > 20) { slider.value = 20; actualizarPersonas(20); }
+    slider.min = 1; slider.max = 20; slider.step = 1;
+    var v = parseInt(slider.value);
+    if (v > 20) { slider.value = 20; actualizarPersonas(20); }
+    else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
+    else actualizarPersonas(v);
   } else {
-    slider.min = 1; slider.max = 600;
+    slider.min = 1; slider.max = 600; slider.step = 1;
+    actualizarPersonas(parseInt(slider.value));
   }
+  document.getElementById('personas-min-lbl').textContent = slider.min;
+  document.getElementById('personas-max-lbl').textContent = slider.max;
 }
 
 function selCamino(camino, el) {
@@ -623,18 +672,56 @@ async function cargarExtras(servicio, targetId) {
 function renderizarExtras(grupos, targetId) {
   var container = document.getElementById(targetId);
   var html = '<div id="licor-warning-' + targetId + '" class="licor-warning">⚠️ <span>Selecciona también <strong>Licores Nacionales</strong> o <strong>Licores Premium</strong> para completar tu servicio de coctelería.</span></div>';
+  html += '<div id="refrescos-warning-' + targetId + '" class="refrescos-warning">🧃 <span>Selecciona también <strong>Refrescos y Mezcladores</strong> para acompañar tus licores.</span></div>';
   for (var i = 0; i < grupos.length; i++) {
     var g = grupos[i];
     html += '<div class="extras-titulo">' + esc(g.nombre) + '</div><div class="extras-grid">';
     for (var j = 0; j < g.productos.length; j++) {
       var p = g.productos[j];
-      extrasInfo[p.id] = { nombre: p.nombre, requiereLicor: !!p.requiere_licor, esBaseLicor: !!p.es_base_licor };
+      extrasInfo[p.id] = {
+        nombre: p.nombre,
+        requiereLicor: !!p.requiere_licor,
+        esBaseLicor: !!p.es_base_licor,
+        requiereRefrescos: !!p.requiere_refrescos,
+        esBaseRefrescos: !!p.es_base_refrescos,
+      };
       var clases = 'extra-opt' + (p.requiere_licor ? ' requiere-licor' : '');
-      html += '<div class="' + clases + '" data-prod-id="' + p.id + '" data-exclusion="' + esc(p.grupo_exclusion || '') + '" data-requiere-licor="' + (p.requiere_licor ? '1' : '0') + '" data-es-base-licor="' + (p.es_base_licor ? '1' : '0') + '" onclick="toggleExtraDinamico(this)">' + '<div class="extra-check">✓</div>' + '<div><div class="extra-nom">' + esc(p.nombre) + '</div>' + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '') + (p.requiere_licor ? '<div class="extra-hint-licor">🍸 Debe acompañarse con Licores Nacionales o Premium</div>' : '') + '</div></div>';
+      html += '<div class="' + clases + '" data-prod-id="' + p.id + '"'
+        + ' data-exclusion="' + esc(p.grupo_exclusion || '') + '"'
+        + ' data-requiere-licor="' + (p.requiere_licor ? '1' : '0') + '"'
+        + ' data-es-base-licor="' + (p.es_base_licor ? '1' : '0') + '"'
+        + ' data-requiere-refrescos="' + (p.requiere_refrescos ? '1' : '0') + '"'
+        + ' data-es-base-refrescos="' + (p.es_base_refrescos ? '1' : '0') + '"'
+        + ' onclick="toggleExtraDinamico(this)">'
+        + '<div class="extra-check">✓</div>'
+        + '<div><div class="extra-nom">' + esc(p.nombre) + '</div>'
+        + (p.descripcion ? '<div class="extra-desc">' + esc(p.descripcion) + '</div>' : '')
+        + (p.requiere_licor ? '<div class="extra-hint-licor">🍸 Debe acompañarse con Licores Nacionales o Premium</div>' : '')
+        + (p.requiere_refrescos && !p.requiere_licor ? '<div class="extra-hint-refrescos">🧃 Requiere Refrescos y Mezcladores</div>' : '')
+        + '</div></div>';
     }
     html += '</div>';
   }
   container.innerHTML = html;
+}
+
+function verificarRefrescos() {
+  var necesitaRefrescos = false;
+  var tieneRefrescos = false;
+  selectedExtras.forEach(function(id) {
+    var info = extrasInfo[id];
+    if (info) {
+      if (info.requiereRefrescos) necesitaRefrescos = true;
+      if (info.esBaseRefrescos) tieneRefrescos = true;
+    }
+  });
+  var mostrar = necesitaRefrescos && !tieneRefrescos;
+  document.querySelectorAll('[id^="refrescos-warning-"]').forEach(function(w) {
+    if (mostrar) w.classList.add('visible'); else w.classList.remove('visible');
+  });
+  document.querySelectorAll('[data-es-base-refrescos="1"]').forEach(function(el) {
+    if (mostrar) el.classList.add('refrescos-requerido'); else el.classList.remove('refrescos-requerido');
+  });
 }
 
 function verificarLicor() {
@@ -669,8 +756,7 @@ function toggleExtraDinamico(el) {
   if (el.classList.contains('selected')) {
     selectedExtras.add(id);
     if (exclusion) {
-      var parent = el.closest('.extras-grid') || el.parentElement;
-      parent.querySelectorAll('[data-exclusion="' + exclusion + '"]').forEach(function(other) {
+      document.querySelectorAll('[data-exclusion="' + exclusion + '"]').forEach(function(other) {
         if (other !== el && other.classList.contains('selected')) {
           other.classList.remove('selected');
           selectedExtras.delete(parseInt(other.dataset.prodId));
@@ -681,6 +767,7 @@ function toggleExtraDinamico(el) {
     selectedExtras.delete(id);
   }
   verificarLicor();
+  verificarRefrescos();
 }
 
 function toggle(id, visible) {
@@ -688,6 +775,12 @@ function toggle(id, visible) {
   if (!el) return;
   if (visible) el.classList.add('visible');
   else el.classList.remove('visible');
+}
+
+function selMedio(val, el) {
+  medioSel = val;
+  document.querySelectorAll('.medio-chip').forEach(function(c) { c.classList.remove('selected'); });
+  el.classList.add('selected');
 }
 
 function toggleFactura() {
@@ -706,10 +799,17 @@ function toggleFactura() {
 function actualizarPersonas(val) {
   val = parseInt(val);
   document.getElementById('personas-label').textContent = val;
-  document.getElementById('personas-val').textContent = val;
   var input = document.getElementById('personas');
   var pct = ((val - input.min) / (input.max - input.min)) * 100;
   input.style.background = 'linear-gradient(to right, var(--verde) ' + pct + '%, var(--borde) ' + pct + '%)';
+}
+
+function cambiarPersonas(delta) {
+  var slider = document.getElementById('personas');
+  var step = parseInt(slider.step) || 1;
+  var newVal = Math.min(parseInt(slider.max), Math.max(parseInt(slider.min), parseInt(slider.value) + delta * step));
+  slider.value = newVal;
+  actualizarPersonas(newVal);
 }
 
 function irA(paso) {
@@ -836,6 +936,7 @@ function construirResumen() {
     var rfc = document.getElementById('rfc').value.trim();
     if (rfc) html += '<div class="resumen-item"><span class="resumen-key">RFC</span><span class="resumen-val">' + esc(rfc.toUpperCase()) + '</span></div>';
   }
+  if (medioSel) html += '<div class="resumen-item"><span class="resumen-key">¿Cómo nos encontró?</span><span class="resumen-val">' + esc(medioSel) + '</span></div>';
   if (notas) html += '<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">' + esc(notas) + '</span></div>';
   if (tagsHtml) html += '<div class="resumen-tags">' + tagsHtml + '</div>';
 
@@ -870,6 +971,7 @@ async function enviarSolicitud() {
     telefono:   document.getElementById('telefono').value.trim(),
     email:      document.getElementById('email').value.trim(),
     notas:      document.getElementById('notas').value.trim(),
+    como_nos_encontro: medioSel,
     inc_cerveza:    !!barraExtras.inc_cerveza,
     inc_nacional:   !!barraExtras.inc_nacional,
     inc_premium:    !!barraExtras.inc_premium,
@@ -912,6 +1014,8 @@ async function enviarSolicitud() {
 }
 
 actualizarPersonas(50);
+document.getElementById('personas-min-lbl').textContent = document.getElementById('personas').min;
+document.getElementById('personas-max-lbl').textContent = document.getElementById('personas').max;
 inicializarCalendario();
 
 (function preseleccionarDesdeURL(){
