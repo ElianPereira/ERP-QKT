@@ -120,7 +120,8 @@ def cotizador_enviar(request):
     hora_ini  = str(data.get('hora_inicio', '')).strip()
     hora_fin  = str(data.get('hora_fin', '')).strip()
     tipo_ev   = str(data.get('tipo_evento', 'Evento General')).strip()
-    notas     = str(data.get('notas', '')).strip()
+    notas              = str(data.get('notas', '')).strip()
+    como_nos_encontro  = str(data.get('como_nos_encontro', '')).strip()
 
     # Barra (siguen como booleanos — alimentan CalculadoraBarraService)
     inc_cerveza    = bool(data.get('inc_cerveza', False))
@@ -232,6 +233,8 @@ def cotizador_enviar(request):
         nombre_evento = f"Arrendamiento de Mobiliario — {nombre}"
     if notas:
         nombre_evento += f" | {notas[:60]}"
+    if como_nos_encontro:
+        nombre_evento += f" [📣 {como_nos_encontro}]"
 
     # ── Crear Cotización ──────────────────────────────────────────────────────────────
     inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
@@ -364,7 +367,8 @@ def cotizador_enviar(request):
         f"👥 *Personas:* {num_personas}\n"
         f"🕐 *Horario:* {hora_ini or '—'} a {hora_fin or '—'}\n"
         f"📋 *Servicios:* {resumen_txt}\n"
-        f"📝 *Notas:* {notas or 'Sin notas'}\n\n"
+        f"📝 *Notas:* {notas or 'Sin notas'}\n"
+        f"📣 *Nos encontró por:* {como_nos_encontro or 'No indicado'}\n\n"
         f"🔗 Ver cotización:\n{portal_url}\n\n"
         f"_COT-{cotizacion.id:03d} — ERP QKT_"
     )

@@ -203,11 +203,23 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .factura-fields{display:none;padding:1rem;background:#fafaf8;border:1px solid var(--borde);border-radius:6px;margin-bottom:1.4rem;}
 .factura-fields.visible{display:block;}
 
+/* Medio de captación */
+.medio-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.3rem;}
+.medio-chip{
+  border:1.5px solid var(--borde);border-radius:8px;
+  padding:.6rem .4rem;text-align:center;cursor:pointer;
+  background:var(--blanco);transition:all .2s;user-select:none;
+}
+.medio-chip:hover{border-color:var(--verde);background:#f0f7f0;}
+.medio-chip.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 2px rgba(46,125,50,.15);}
+.medio-ico{font-size:1.3rem;display:block;margin-bottom:.25rem;}
+.medio-nom{font-size:.65rem;font-weight:500;color:var(--verde-d);line-height:1.2;}
 @media(max-width:520px){
   .srv-grid{grid-template-columns:1fr;}
   .path-grid{grid-template-columns:1fr;}
   .extras-grid{grid-template-columns:1fr;}
   .campo-fila{grid-template-columns:1fr;}
+  .medio-grid{grid-template-columns:repeat(4,1fr);}
 }
 
 /* Flatpickr */
@@ -416,6 +428,20 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <div class="campo-error" id="err-email">Ingresa un correo electrónico válido.</div>
     </div>
 
+    <div class="campo">
+      <label>¿Cómo nos encontraste?</label>
+      <div class="medio-grid">
+        <div class="medio-chip" onclick="selMedio('Facebook',this)"><span class="medio-ico">📘</span><span class="medio-nom">Facebook</span></div>
+        <div class="medio-chip" onclick="selMedio('Instagram',this)"><span class="medio-ico">📸</span><span class="medio-nom">Instagram</span></div>
+        <div class="medio-chip" onclick="selMedio('TikTok',this)"><span class="medio-ico">🎵</span><span class="medio-nom">TikTok</span></div>
+        <div class="medio-chip" onclick="selMedio('Google',this)"><span class="medio-ico">🔍</span><span class="medio-nom">Google</span></div>
+        <div class="medio-chip" onclick="selMedio('Recomendación',this)"><span class="medio-ico">👥</span><span class="medio-nom">Recomen&shy;dación</span></div>
+        <div class="medio-chip" onclick="selMedio('WhatsApp',this)"><span class="medio-ico">💬</span><span class="medio-nom">WhatsApp</span></div>
+        <div class="medio-chip" onclick="selMedio('Visité la quinta',this)"><span class="medio-ico">🏡</span><span class="medio-nom">Visité la quinta</span></div>
+        <div class="medio-chip" onclick="selMedio('Otro',this)"><span class="medio-ico">✨</span><span class="medio-nom">Otro</span></div>
+      </div>
+    </div>
+
     <!-- Factura toggle -->
     <div class="factura-toggle" id="facturaToggle" onclick="toggleFactura()">
       <div class="toggle-switch"></div>
@@ -466,6 +492,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 let servicioSel = '';
 let caminoSel = '';
 let paqueteSel = null;
+let medioSel = '';
 let paquetesData = [];
 let barraExtras = {};
 let selectedExtras = new Set();
@@ -750,6 +777,12 @@ function toggle(id, visible) {
   else el.classList.remove('visible');
 }
 
+function selMedio(val, el) {
+  medioSel = val;
+  document.querySelectorAll('.medio-chip').forEach(function(c) { c.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
 function toggleFactura() {
   requiereFactura = !requiereFactura;
   var toggle = document.getElementById('facturaToggle');
@@ -903,6 +936,7 @@ function construirResumen() {
     var rfc = document.getElementById('rfc').value.trim();
     if (rfc) html += '<div class="resumen-item"><span class="resumen-key">RFC</span><span class="resumen-val">' + esc(rfc.toUpperCase()) + '</span></div>';
   }
+  if (medioSel) html += '<div class="resumen-item"><span class="resumen-key">¿Cómo nos encontró?</span><span class="resumen-val">' + esc(medioSel) + '</span></div>';
   if (notas) html += '<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">' + esc(notas) + '</span></div>';
   if (tagsHtml) html += '<div class="resumen-tags">' + tagsHtml + '</div>';
 
@@ -937,6 +971,7 @@ async function enviarSolicitud() {
     telefono:   document.getElementById('telefono').value.trim(),
     email:      document.getElementById('email').value.trim(),
     notas:      document.getElementById('notas').value.trim(),
+    como_nos_encontro: medioSel,
     inc_cerveza:    !!barraExtras.inc_cerveza,
     inc_nacional:   !!barraExtras.inc_nacional,
     inc_premium:    !!barraExtras.inc_premium,
