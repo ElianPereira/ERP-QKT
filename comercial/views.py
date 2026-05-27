@@ -5,7 +5,6 @@ import re
 import openpyxl 
 from .models import MovimientoInventario
 from datetime import datetime, timedelta
-from openpyxl.styles import Font, PatternFill
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
@@ -21,7 +20,6 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 from decimal import Decimal
 from weasyprint import HTML
-from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
 from core_erp.ratelimit import rate_limit as _rate_limit
 from decouple import config
@@ -761,14 +759,6 @@ def calculadora_insumos(request):
     else:
         form = CalculadoraForm()
     return render(request, 'admin/calculadora.html', {'form': form, 'resultado': resultado})
-
-@staff_member_required
-def forzar_migracion(request):
-    if not request.user.is_superuser: return HttpResponse(" Acceso denegado.")
-    try:
-        call_command('migrate', interactive=False)
-        return HttpResponse(" ¡MIGRACIÓN EXITOSA!")
-    except Exception as e: return HttpResponse(f" Error: {str(e)}")
 
 # ==========================================
 # 5. FICHA TÉCNICA

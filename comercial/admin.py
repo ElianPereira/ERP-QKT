@@ -1,4 +1,3 @@
-from django.core.exceptions import ValidationError
 from django.contrib import admin
 from django.utils.html import format_html, mark_safe
 from django.template.loader import render_to_string
@@ -6,7 +5,6 @@ from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.utils import timezone
-from django.db.models import Sum
 from .models import PortalCliente
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto,
