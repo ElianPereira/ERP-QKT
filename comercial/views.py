@@ -529,22 +529,8 @@ def enviar_cotizacion_email(request, cotizacion_id):
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
 # ==========================================
-# 4. CALENDARIO Y EXPORTS
+# 4. EXPORTS
 # ==========================================
-@staff_member_required
-def ver_calendario(request):
-    cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA')
-    eventos_lista = []
-    for c in cotizaciones:
-        color = '#28a745' if c.estado == 'CONFIRMADA' else '#6c757d'
-        eventos_lista.append({
-            'title': f"{c.cliente.nombre} - {c.nombre_evento}",
-            'start': c.fecha_evento.strftime("%Y-%m-%d"),
-            'color': color,
-            'url': f'/admin/comercial/cotizacion/{c.id}/change/'
-        })
-    return render(request, 'admin/calendario.html', {'eventos_json': json.dumps(eventos_lista, cls=DjangoJSONEncoder)})
-
 @staff_member_required
 def exportar_cierre_excel(request):
     if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()): return redirect('/admin/')
