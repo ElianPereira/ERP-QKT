@@ -247,15 +247,19 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
                     return redirect('admin:airbnb_pagoairbnb_changelist')
             
             importador = ImportadorCSVPagosService(archivo_nombre=archivo.name)
-            importados, duplicados, errores = importador.importar(contenido, usuario=request.user)
-            
+            importados, duplicados, errores, codigos_creados, codigos_duplicados = importador.importar(contenido, usuario=request.user)
+
             if importados > 0:
-                messages.success(request, f"{importados} pagos importados correctamente")
+                detalle = ', '.join(codigos_creados[:10])
+                messages.success(request, f"{importados} pago(s) importado(s): {detalle}")
+            else:
+                messages.warning(request, "No se importó ningún pago nuevo.")
             if duplicados > 0:
-                messages.warning(request, f"{duplicados} pagos ya existían (omitidos)")
+                detalle = ', '.join(codigos_duplicados[:10])
+                messages.warning(request, f"{duplicados} pago(s) ya existían (omitidos): {detalle}")
             if errores:
-                for error in errores[:5]:
-                    messages.error(request, f"{error}")
+                for error in errores[:10]:
+                    messages.error(request, f"Error: {error}")
             
             return redirect('admin:airbnb_pagoairbnb_changelist')
         
