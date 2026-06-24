@@ -231,7 +231,7 @@ class ProductoAdmin(admin.ModelAdmin):
     filter_horizontal = ('hereda_inventario_de',)
     search_fields = ('nombre',)
     fieldsets = (
-        (None, {'fields': ('nombre', 'descripcion', 'margen_ganancia', 'imagen_promocional')}),
+        (None, {'fields': ('nombre', 'descripcion', 'margen_ganancia', 'precio_venta_fijo', 'imagen_promocional')}),
         ('Estructura del Producto', {
             'fields': ('es_paquete',),
             'description': (

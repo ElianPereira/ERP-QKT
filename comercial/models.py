@@ -271,6 +271,11 @@ class Producto(models.Model):
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
     margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
+    precio_venta_fijo = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        verbose_name="Precio de venta fijo",
+        help_text="Si se define (>0), sobreescribe el cálculo costo×margen. Para rentas de precio fijo (mobiliario).",
+    )
     imagen_promocional = models.ImageField(upload_to='productos/', blank=True, null=True)
 
     visible_cotizador = models.BooleanField(default=False, verbose_name="Mostrar en cotizador web")
@@ -330,7 +335,10 @@ class Producto(models.Model):
             return sum(pc.subtotal_costo() for pc in self.productos_incluidos.all())
         return sum(c.subtotal_costo() for c in self.componentes.all())
 
-    def sugerencia_precio(self): return round(self.calcular_costo() * (1 + self.margen_ganancia), 2)
+    def sugerencia_precio(self):
+        if self.precio_venta_fijo is not None and self.precio_venta_fijo > 0:
+            return self.precio_venta_fijo
+        return round(self.calcular_costo() * (1 + self.margen_ganancia), 2)
 
     def clean(self):
         super().clean()
