@@ -792,7 +792,10 @@ class ItemCotizacion(models.Model):
         if self.cotizacion.pk:
             self.cotizacion.calcular_totales()
             Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
-                subtotal=self.cotizacion.subtotal, 
+                subtotal=self.cotizacion.subtotal,
+                iva=self.cotizacion.iva,
+                retencion_isr=self.cotizacion.retencion_isr,
+                retencion_iva=self.cotizacion.retencion_iva,
                 precio_final=self.cotizacion.precio_final
             )
 
