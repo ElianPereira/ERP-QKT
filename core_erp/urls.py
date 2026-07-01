@@ -32,9 +32,8 @@ def custom_logout(request):
 # Importamos las vistas de Comercial (Manejo de errores por si falta alguna)
 try:
     from comercial.views import (
-        generar_pdf_cotizacion, 
-        enviar_cotizacion_email, 
-        ver_calendario, 
+        generar_pdf_cotizacion,
+        enviar_cotizacion_email,
         ver_dashboard_kpis,
         calculadora_insumos,
         exportar_cierre_excel,
@@ -83,7 +82,7 @@ urlpatterns = [
     path('api/webhook-manychat/', webhook_manychat, name='webhook_manychat'),
 
     # Reportes y Herramientas                                  
-    path('admin/calendario/', ver_calendario, name='ver_calendario'),
+    path('admin/calendario/', calendario_unificado, name='ver_calendario'),
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
     path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),

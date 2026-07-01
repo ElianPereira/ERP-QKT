@@ -19,7 +19,7 @@ import math
 import requests
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -30,7 +30,7 @@ from django.conf import settings
 from decouple import config
 
 from .models import (
-    Cliente, Cotizacion, ItemCotizacion, Producto, ProductoComponente, PortalCliente
+    Cliente, Cotizacion, ItemCotizacion, Producto, PortalCliente
 )
 
 logger = logging.getLogger(__name__)
@@ -460,11 +460,12 @@ def api_productos_cotizador(request):
     elif servicio == 'ARRENDAMIENTO':
         filtro['cotizador_arrendamiento'] = True
 
-    productos = Producto.objects.filter(**filtro).order_by('grupo_cotizador', 'orden_cotizador', 'nombre')
+    # Los paquetes se eligen en su propio paso; no deben aparecer como extras.
+    productos = Producto.objects.filter(**filtro).exclude(es_paquete=True).order_by('grupo_cotizador', 'orden_cotizador', 'nombre')
 
     NOMBRES_GRUPO = dict(Producto.GRUPO_COTIZADOR_CHOICES)
     ICONOS_GRUPO = {
-        'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'MOBILIARIO': '🪑',
+        'PAQUETE': '📦', 'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'MOBILIARIO': '🪑',
         'DECORACION': '💐', 'INFANTIL': '🎪', 'OTRO': '✨',
     }
 
@@ -517,20 +518,19 @@ def api_paquetes_cotizador(request):
 
     resultado = []
     for paq in paquetes:
-        componentes = ProductoComponente.objects.filter(
-            producto_padre=paq
-        ).select_related('producto_hijo')
-        incluye = [
-            {'nombre': c.producto_hijo.nombre, 'cantidad': float(c.cantidad)}
-            for c in componentes
-        ]
+        # Precio mostrado en el portal CON IVA (16%) incluido, para que
+        # coincida con el total del PDF. El item real se crea con el precio
+        # sin IVA (sugerencia_precio) y calcular_totales() le suma el 16%.
+        precio_con_iva = (paq.sugerencia_precio() * Decimal('1.16')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
         resultado.append({
             'id': paq.id,
             'nombre': paq.nombre,
             'icono': paq.icono,
             'descripcion': paq.descripcion_corta,
-            'precio': float(paq.sugerencia_precio()),
-            'incluye': incluye,
+            'descripcion_larga': paq.descripcion,
+            'precio': float(precio_con_iva),
         })
 
     return JsonResponse({'ok': True, 'paquetes': resultado})

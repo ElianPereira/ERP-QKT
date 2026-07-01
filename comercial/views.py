@@ -5,7 +5,6 @@ import re
 import openpyxl 
 from .models import MovimientoInventario
 from datetime import datetime, timedelta
-from openpyxl.styles import Font, PatternFill
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
@@ -21,7 +20,6 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 from decimal import Decimal
 from weasyprint import HTML
-from django.core.management import call_command
 from django.views.decorators.csrf import csrf_exempt
 from core_erp.ratelimit import rate_limit as _rate_limit
 from decouple import config
@@ -531,22 +529,8 @@ def enviar_cotizacion_email(request, cotizacion_id):
     return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
 # ==========================================
-# 4. CALENDARIO Y EXPORTS
+# 4. EXPORTS
 # ==========================================
-@staff_member_required
-def ver_calendario(request):
-    cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA')
-    eventos_lista = []
-    for c in cotizaciones:
-        color = '#28a745' if c.estado == 'CONFIRMADA' else '#6c757d'
-        eventos_lista.append({
-            'title': f"{c.cliente.nombre} - {c.nombre_evento}",
-            'start': c.fecha_evento.strftime("%Y-%m-%d"),
-            'color': color,
-            'url': f'/admin/comercial/cotizacion/{c.id}/change/'
-        })
-    return render(request, 'admin/calendario.html', {'eventos_json': json.dumps(eventos_lista, cls=DjangoJSONEncoder)})
-
 @staff_member_required
 def exportar_cierre_excel(request):
     if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()): return redirect('/admin/')
@@ -761,14 +745,6 @@ def calculadora_insumos(request):
     else:
         form = CalculadoraForm()
     return render(request, 'admin/calculadora.html', {'form': form, 'resultado': resultado})
-
-@staff_member_required
-def forzar_migracion(request):
-    if not request.user.is_superuser: return HttpResponse(" Acceso denegado.")
-    try:
-        call_command('migrate', interactive=False)
-        return HttpResponse(" ¡MIGRACIÓN EXITOSA!")
-    except Exception as e: return HttpResponse(f" Error: {str(e)}")
 
 # ==========================================
 # 5. FICHA TÉCNICA

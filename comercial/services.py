@@ -394,7 +394,12 @@ def actualizar_item_cotizacion(cotizacion):
     item_barra = cotizacion.items.filter(descripcion__startswith=desc_clave).first()
 
     if datos:
-        precio = datos['precio_venta_sugerido_total']
+        # Redondeo a 2 decimales: precio_venta_sugerido_total puede traer más
+        # dígitos y ItemCotizacion.precio_unitario (DecimalField 2dp) rechaza
+        # el guardado con ValidationError si no se cuantiza.
+        precio = Decimal(str(datos['precio_venta_sugerido_total'])).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
         partes = []
         if cotizacion.incluye_cerveza: partes.append("Cerveza")
         if cotizacion.incluye_licor_nacional: partes.append("Nacional")
