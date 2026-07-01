@@ -628,7 +628,8 @@ function renderPaquetes(paquetes) {
     var precioFmt = '$' + p.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
     html += '<div class="paq-card" data-paq-id="' + p.id + '" onclick="selPaquete(' + p.id + ',this)">';
     html += '<div class="paq-header"><div class="paq-nombre">' + esc(p.nombre) + '</div>';
-    html += '<div class="paq-precio">' + precioFmt + '</div></div>';
+    html += '<div style="text-align:right;"><div class="paq-precio">' + precioFmt + '</div>';
+    html += '<div style="font-size:.6rem;color:var(--texto-s);font-weight:400;">IVA incluido</div></div></div>';
     if (p.descripcion) html += '<div class="paq-desc">' + esc(p.descripcion) + '</div>';
     if (p.incluye && p.incluye.length) {
       html += '<div class="paq-incluye">';
@@ -944,10 +945,10 @@ function construirResumen() {
     if (paqInfo) {
       var precioFmt = '$' + paqInfo.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
       html += '<div style="margin-top:1rem;padding-top:1rem;border-top:1.5px solid var(--borde);display:flex;justify-content:space-between;align-items:baseline;">';
-      html += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Precio estimado del paquete</span>';
+      html += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Precio estimado del paquete (IVA incluido)</span>';
       html += '<span style="font-family:Cormorant Garamond,serif;font-size:1.6rem;color:var(--verde);font-weight:400;">' + precioFmt + '</span>';
       html += '</div>';
-      html += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">Precio base del paquete. Los extras y ajustes se reflejarán en tu cotización final.</div>';
+      html += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">Precio base del paquete con IVA incluido. Los extras y ajustes se reflejarán en tu cotización final.</div>';
     }
   }
 

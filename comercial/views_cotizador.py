@@ -19,7 +19,7 @@ import math
 import requests
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -524,12 +524,18 @@ def api_paquetes_cotizador(request):
             {'nombre': c.producto_hijo.nombre, 'cantidad': float(c.cantidad)}
             for c in componentes
         ]
+        # Precio mostrado en el portal CON IVA (16%) incluido, para que
+        # coincida con el total del PDF. El item real se crea con el precio
+        # sin IVA (sugerencia_precio) y calcular_totales() le suma el 16%.
+        precio_con_iva = (paq.sugerencia_precio() * Decimal('1.16')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
         resultado.append({
             'id': paq.id,
             'nombre': paq.nombre,
             'icono': paq.icono,
             'descripcion': paq.descripcion_corta,
-            'precio': float(paq.sugerencia_precio()),
+            'precio': float(precio_con_iva),
             'incluye': incluye,
         })
 
