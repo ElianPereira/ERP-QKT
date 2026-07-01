@@ -114,8 +114,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .paq-nombre{font-size:1rem;font-weight:600;color:var(--verde-d);}
 .paq-precio{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;color:var(--verde);white-space:nowrap;}
 .paq-desc{font-size:.78rem;color:var(--texto-s);font-weight:300;line-height:1.5;margin-bottom:.7rem;}
-.paq-incluye{display:flex;flex-wrap:wrap;gap:.3rem;}
-.paq-tag{background:#f0f7f0;color:var(--verde-d);font-size:.62rem;font-weight:500;padding:.2rem .55rem;border-radius:12px;}
+.paq-detalle{font-size:.75rem;color:var(--texto-s);font-weight:300;line-height:1.6;white-space:pre-line;}
 .paq-empty{text-align:center;padding:2rem 1rem;color:var(--texto-s);font-size:.88rem;font-weight:300;}
 
 /* Checkboxes visuales */
@@ -631,14 +630,8 @@ function renderPaquetes(paquetes) {
     html += '<div style="text-align:right;"><div class="paq-precio">' + precioFmt + '</div>';
     html += '<div style="font-size:.6rem;color:var(--texto-s);font-weight:400;">IVA incluido</div></div></div>';
     if (p.descripcion) html += '<div class="paq-desc">' + esc(p.descripcion) + '</div>';
-    if (p.incluye && p.incluye.length) {
-      html += '<div class="paq-incluye">';
-      for (var j = 0; j < p.incluye.length; j++) {
-        var c = p.incluye[j];
-        var label = c.cantidad > 1 ? c.cantidad + 'x ' + c.nombre : c.nombre;
-        html += '<span class="paq-tag">' + esc(label) + '</span>';
-      }
-      html += '</div>';
+    if (p.descripcion_larga) {
+      html += '<div class="paq-detalle">' + esc(p.descripcion_larga).replace(/\n/g, '<br>') + '</div>';
     }
     html += '</div>';
   }

@@ -30,7 +30,7 @@ from django.conf import settings
 from decouple import config
 
 from .models import (
-    Cliente, Cotizacion, ItemCotizacion, Producto, ProductoComponente, PortalCliente
+    Cliente, Cotizacion, ItemCotizacion, Producto, PortalCliente
 )
 
 logger = logging.getLogger(__name__)
@@ -517,13 +517,6 @@ def api_paquetes_cotizador(request):
 
     resultado = []
     for paq in paquetes:
-        componentes = ProductoComponente.objects.filter(
-            producto_padre=paq
-        ).select_related('producto_hijo')
-        incluye = [
-            {'nombre': c.producto_hijo.nombre, 'cantidad': float(c.cantidad)}
-            for c in componentes
-        ]
         # Precio mostrado en el portal CON IVA (16%) incluido, para que
         # coincida con el total del PDF. El item real se crea con el precio
         # sin IVA (sugerencia_precio) y calcular_totales() le suma el 16%.
@@ -535,8 +528,8 @@ def api_paquetes_cotizador(request):
             'nombre': paq.nombre,
             'icono': paq.icono,
             'descripcion': paq.descripcion_corta,
+            'descripcion_larga': paq.descripcion,
             'precio': float(precio_con_iva),
-            'incluye': incluye,
         })
 
     return JsonResponse({'ok': True, 'paquetes': resultado})
