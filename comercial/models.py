@@ -260,6 +260,7 @@ class RecetaSubProducto(models.Model):
 
 class Producto(models.Model):
     GRUPO_COTIZADOR_CHOICES = [
+        ('PAQUETE', 'Paquetes'),
         ('ENTRETENIMIENTO', 'Entretenimiento'),
         ('COMIDA', 'Alimentos y Bebidas'),
         ('MOBILIARIO', 'Mobiliario'),

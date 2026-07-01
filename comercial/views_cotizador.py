@@ -460,11 +460,12 @@ def api_productos_cotizador(request):
     elif servicio == 'ARRENDAMIENTO':
         filtro['cotizador_arrendamiento'] = True
 
-    productos = Producto.objects.filter(**filtro).order_by('grupo_cotizador', 'orden_cotizador', 'nombre')
+    # Los paquetes se eligen en su propio paso; no deben aparecer como extras.
+    productos = Producto.objects.filter(**filtro).exclude(es_paquete=True).order_by('grupo_cotizador', 'orden_cotizador', 'nombre')
 
     NOMBRES_GRUPO = dict(Producto.GRUPO_COTIZADOR_CHOICES)
     ICONOS_GRUPO = {
-        'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'MOBILIARIO': '🪑',
+        'PAQUETE': '📦', 'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'MOBILIARIO': '🪑',
         'DECORACION': '💐', 'INFANTIL': '🎪', 'OTRO': '✨',
     }
 
