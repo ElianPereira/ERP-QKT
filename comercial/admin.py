@@ -14,6 +14,7 @@ from .models import (
     MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago,
     Espacio, AsignacionEspacio, AsignacionPersonal,
     ImagenLanding, TestimonioLanding, EspacioLanding, PreguntaFrecuente,
+    TipoEvento, Temporada, Descuento, DescuentoAplicado,
 )
 from .services import CalculadoraBarraService
 
@@ -469,7 +470,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
 
     fieldsets = (
-        ('Información del Evento', {'fields': ('cliente', 'tipo_servicio', 'nombre_evento', 'fecha_evento', 'hora_inicio', 'hora_fin', 'num_personas', 'estado')}),
+        ('Información del Evento', {'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'fecha_evento', 'hora_inicio', 'hora_fin', 'num_personas', 'estado')}),
         ('Configuración de Barra', {
             'fields': ('incluye_refrescos', 'incluye_cerveza', 'incluye_licor_nacional', 'incluye_licor_premium', 'incluye_cocteleria_basica', 'incluye_cocteleria_premium', 'clima', 'horas_servicio', 'factor_utilidad_barra', 'resumen_barra_html'),
             'description': 'Selecciona los componentes para armar el paquete.'
@@ -687,8 +688,77 @@ class CotizacionAdmin(admin.ModelAdmin):
             path('<int:cotizacion_id>/contrato/',
                 self.admin_site.admin_view(self.contrato_form_view),
                 name='cotizacion_contrato_form'),
+            path('<int:cotizacion_id>/descuentos/',
+                self.admin_site.admin_view(self.descuentos_view),
+                name='cotizacion_descuentos'),
         ]
         return custom_urls + urls
+
+    def descuentos_view(self, request, cotizacion_id):
+        """Página intermedia: muestra descuentos aplicables y ya aplicados,
+        y permite aplicar/revertir manualmente. Solo staff con permiso de
+        cambio de cotizaciones."""
+        from .models import Descuento, DescuentoAplicado
+        from .services_descuentos import DescuentoService
+
+        if not request.user.has_perm('comercial.change_cotizacion'):
+            messages.error(request, "No tienes permiso para aplicar descuentos.")
+            return redirect('admin:comercial_cotizacion_changelist')
+
+        cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+
+        if request.method == 'POST':
+            accion = request.POST.get('accion')
+            try:
+                if accion == 'aplicar':
+                    descuento = get_object_or_404(Descuento, id=request.POST.get('descuento_id'))
+                    DescuentoService.aplicar(cotizacion, descuento, usuario=request.user, modo='MANUAL')
+                    messages.success(request, f'Descuento "{descuento.nombre}" aplicado.')
+                elif accion == 'aplicar_automaticos':
+                    aplicados = DescuentoService.aplicar_automaticos(cotizacion, usuario=request.user)
+                    if aplicados:
+                        nombres = ", ".join(a.descuento.nombre for a in aplicados)
+                        messages.success(request, f'Aplicados automáticamente: {nombres}.')
+                    else:
+                        messages.info(request, 'No hay descuentos automáticos aplicables.')
+                elif accion == 'revertir':
+                    da = get_object_or_404(DescuentoAplicado, id=request.POST.get('aplicado_id'), cotizacion=cotizacion)
+                    DescuentoService.revertir(da)
+                    messages.success(request, f'Descuento "{da.descuento.nombre}" revertido.')
+            except Exception as e:
+                messages.error(request, f'Error: {e}')
+            return redirect(request.path)
+
+        candidatos = DescuentoService.evaluar_automaticos(cotizacion)
+        aplicados = cotizacion.descuentos_aplicados.select_related('descuento', 'aplicado_por').all()
+        ids_aplicados = set(cotizacion.descuentos_aplicados.filter(activo=True).values_list('descuento_id', flat=True))
+        manuales = Descuento.objects.filter(modo='MANUAL', activo=True).exclude(id__in=ids_aplicados)
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Descuentos — {cotizacion}',
+            'cotizacion': cotizacion,
+            'candidatos': candidatos,
+            'manuales': manuales,
+            'aplicados': aplicados,
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/comercial/cotizacion/descuentos.html', context)
+
+    actions = ['evaluar_descuentos_aplicables']
+
+    @admin.action(description="Evaluar descuentos aplicables")
+    def evaluar_descuentos_aplicables(self, request, queryset):
+        """Abre la página de descuentos para una cotización BORRADOR/COTIZADA."""
+        if queryset.count() != 1:
+            self.message_user(request, "Selecciona exactamente una cotización.", messages.WARNING)
+            return
+        cot = queryset.first()
+        if cot.estado not in ('BORRADOR', 'COTIZADA'):
+            self.message_user(request, "Solo BORRADOR o COTIZADA admiten evaluar descuentos.", messages.WARNING)
+            return
+        from django.urls import reverse as _reverse
+        return redirect(_reverse('admin:cotizacion_descuentos', args=[cot.id]))
 
     def contrato_form_view(self, request, cotizacion_id):
         """Formulario intermedio para seleccionar tipo y depósito antes de generar."""
@@ -1165,3 +1235,120 @@ class PreguntaFrecuenteAdmin(admin.ModelAdmin):
     @admin.display(description="Respuesta")
     def respuesta_corta(self, obj):
         return obj.respuesta[:100] + '…' if len(obj.respuesta) > 100 else obj.respuesta
+
+
+# ==========================================
+# DESCUENTOS
+# ==========================================
+@admin.register(TipoEvento)
+class TipoEventoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'orden', 'activo')
+    list_editable = ('orden', 'activo')
+    ordering = ('orden', 'nombre')
+
+
+@admin.register(Temporada)
+class TemporadaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'anio', 'fecha_inicio', 'fecha_fin', 'activo')
+    list_filter = ('anio', 'activo')
+    search_fields = ('nombre',)
+    ordering = ('-anio', 'fecha_inicio')
+
+    def save_model(self, request, obj, form, change):
+        obj.full_clean()
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(Descuento)
+class DescuentoAdmin(admin.ModelAdmin):
+    list_display = (
+        'nombre', 'tipo_valor_badge', 'valor_display', 'modo_badge',
+        'activo', 'vigencia', 'acumulable', 'prioridad', 'usos_display',
+    )
+    list_filter = ('activo', 'modo', 'acumulable', 'tipo_valor', 'temporada')
+    search_fields = ('nombre', 'descripcion')
+    filter_horizontal = ('tipos_evento',)
+    readonly_fields = ('usos', 'created_by', 'created_at', 'updated_by', 'updated_at')
+    fieldsets = (
+        (None, {'fields': ('nombre', 'descripcion', 'activo')}),
+        ('Valor', {'fields': ('tipo_valor', 'valor')}),
+        ('Aplicación', {'fields': ('modo', 'acumulable', 'prioridad', 'max_usos', 'usos')}),
+        ('Condiciones (opcionales, se evalúan con AND)', {
+            'fields': ('monto_minimo', 'fecha_inicio', 'fecha_fin', 'temporada',
+                       'tipos_evento', 'tipos_servicio'),
+            'description': 'Deja en blanco lo que no aplique. tipos_servicio: lista JSON con EVENTO, PASADIA y/o ARRENDAMIENTO.',
+        }),
+        ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_by', 'updated_at'), 'classes': ('collapse',)}),
+    )
+
+    class Media:
+        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+
+    def tipo_valor_badge(self, obj):
+        color = '#3498db' if obj.tipo_valor == 'PORCENTAJE' else '#9b59b6'
+        return format_html(
+            '<span style="background:{};color:white;padding:2px 8px;border-radius:4px;font-size:11px;">{}</span>',
+            color, obj.get_tipo_valor_display()
+        )
+    tipo_valor_badge.short_description = 'Tipo'
+    tipo_valor_badge.admin_order_field = 'tipo_valor'
+
+    def modo_badge(self, obj):
+        color = '#2E7D32' if obj.modo == 'AUTOMATICO' else '#95a5a6'
+        return format_html(
+            '<span style="background:{};color:white;padding:2px 8px;border-radius:4px;font-size:11px;">{}</span>',
+            color, obj.get_modo_display()
+        )
+    modo_badge.short_description = 'Modo'
+    modo_badge.admin_order_field = 'modo'
+
+    def valor_display(self, obj):
+        return f"{obj.valor}%" if obj.tipo_valor == 'PORCENTAJE' else f"${obj.valor:,.2f}"
+    valor_display.short_description = 'Valor'
+    valor_display.admin_order_field = 'valor'
+
+    def vigencia(self, obj):
+        if obj.temporada:
+            return f"Temporada: {obj.temporada.nombre}"
+        if obj.fecha_inicio or obj.fecha_fin:
+            ini = obj.fecha_inicio.strftime('%d/%m/%Y') if obj.fecha_inicio else '—'
+            fin = obj.fecha_fin.strftime('%d/%m/%Y') if obj.fecha_fin else '—'
+            return f"{ini} → {fin}"
+        return "Sin restricción"
+    vigencia.short_description = 'Vigencia'
+
+    def usos_display(self, obj):
+        return f"{obj.usos}/{obj.max_usos}" if obj.max_usos is not None else f"{obj.usos} (∞)"
+    usos_display.short_description = 'Usos'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        obj.full_clean()
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(DescuentoAplicado)
+class DescuentoAplicadoAdmin(admin.ModelAdmin):
+    """Auditoría inmutable: solo lectura, sin borrado."""
+    list_display = (
+        'fecha_aplicacion', 'cotizacion', 'descuento', 'monto_aplicado',
+        'porcentaje_equivalente', 'modo_aplicacion', 'aplicado_por', 'activo',
+    )
+    list_filter = ('activo', 'modo_aplicacion', 'descuento', 'fecha_aplicacion')
+    search_fields = ('cotizacion__id', 'cotizacion__nombre_evento', 'descuento__nombre')
+    date_hierarchy = 'fecha_aplicacion'
+    readonly_fields = (
+        'cotizacion', 'descuento', 'monto_aplicado', 'porcentaje_equivalente',
+        'modo_aplicacion', 'aplicado_por', 'fecha_aplicacion', 'activo', 'notas',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
