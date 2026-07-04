@@ -347,6 +347,20 @@ def cotizador_enviar(request):
             _agregar_item(cotizacion, prod, qty, desc)
             resumen_partes.append(prod.nombre)
 
+    # ── Descuentos automáticos ───────────────────────────────────────────────────────────
+    # Tras agregar los items (subtotal ya real), evalúa y aplica los descuentos
+    # AUTOMATICO: gana un solo no-acumulable + todos los acumulables.
+    descuentos_txt = ""
+    try:
+        from .services_descuentos import DescuentoService
+        aplicados = DescuentoService.aplicar_automaticos(cotizacion, usuario=None)
+        if aplicados:
+            partes_desc = [f"{a.descuento.nombre} (-${a.monto_aplicado:,.2f})" for a in aplicados]
+            descuentos_txt = "; ".join(partes_desc)
+            logger.info("Descuentos automáticos en COT-%s: %s", cotizacion.id, descuentos_txt)
+    except Exception:
+        logger.exception("Error aplicando descuentos automáticos en COT-%s", cotizacion.id)
+
     # ── Portal del cliente ──────────────────────────────────────────────────────────────
     portal, _ = PortalCliente.objects.get_or_create(
         cotizacion=cotizacion,
@@ -367,7 +381,8 @@ def cotizador_enviar(request):
         f"👥 *Personas:* {num_personas}\n"
         f"🕐 *Horario:* {hora_ini or '—'} a {hora_fin or '—'}\n"
         f"📋 *Servicios:* {resumen_txt}\n"
-        f"📝 *Notas:* {notas or 'Sin notas'}\n"
+        + (f"🏷️ *Descuentos:* {descuentos_txt}\n" if descuentos_txt else "")
+        + f"📝 *Notas:* {notas or 'Sin notas'}\n"
         f"*Nos encontró por:* {como_nos_encontro or 'No indicado'}\n\n"
         f"🔗 Ver cotización:\n{portal_url}\n\n"
         f"_COT-{cotizacion.id:03d} — ERP QKT_"
