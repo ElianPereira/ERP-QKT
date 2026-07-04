@@ -465,6 +465,10 @@ class Cotizacion(models.Model):
         verbose_name="Tipo de servicio"
     )
     nombre_evento = models.CharField(max_length=200, default="Evento General")
+    tipo_evento = models.ForeignKey(
+        'TipoEvento', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='cotizaciones', verbose_name="Tipo de evento",
+    )
     fecha_evento = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
@@ -1440,3 +1444,212 @@ class PreguntaFrecuente(models.Model):
 
     def __str__(self):
         return self.pregunta
+
+
+# ==========================================
+# 10. DESCUENTOS
+# ==========================================
+class TipoEvento(models.Model):
+    """Catálogo de tipos de evento (Boda, XV Años, etc.).
+    Usado como condición de descuentos y para clasificar cotizaciones."""
+    nombre = models.CharField(max_length=60, unique=True, verbose_name="Tipo de evento")
+    orden = models.PositiveIntegerField(default=0, verbose_name="Orden")
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+
+    class Meta:
+        verbose_name = "Tipo de Evento"
+        verbose_name_plural = "Catálogo — Tipos de Evento"
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class Temporada(models.Model):
+    """Rango de fechas etiquetado (ej. 'Temporada Alta Verano 2026').
+    Se usa como condición de vigencia de descuentos por fecha de evento."""
+    nombre = models.CharField(max_length=100, verbose_name="Nombre")
+    fecha_inicio = models.DateField(verbose_name="Fecha inicio")
+    fecha_fin = models.DateField(verbose_name="Fecha fin")
+    anio = models.IntegerField(db_index=True, verbose_name="Año")
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+
+    class Meta:
+        verbose_name = "Temporada"
+        verbose_name_plural = "Descuentos — Temporadas"
+        ordering = ['-anio', 'fecha_inicio']
+
+    def clean(self):
+        super().clean()
+        if self.fecha_inicio and self.fecha_fin and self.fecha_fin <= self.fecha_inicio:
+            raise ValidationError({'fecha_fin': 'La fecha fin debe ser posterior a la fecha inicio.'})
+
+    def contiene(self, fecha):
+        """True si la fecha cae dentro del rango de la temporada."""
+        return bool(fecha and self.fecha_inicio <= fecha <= self.fecha_fin)
+
+    def __str__(self):
+        return f"{self.nombre} ({self.anio})"
+
+
+class Descuento(models.Model):
+    """Regla de descuento configurable (manual o automática).
+
+    El monto real aplicado a cada cotización se registra de forma
+    inmutable en DescuentoAplicado; este modelo solo define la regla.
+    """
+    TIPO_VALOR_CHOICES = [
+        ('PORCENTAJE', 'Porcentaje (%)'),
+        ('MONTO_FIJO', 'Monto fijo (MXN)'),
+    ]
+    MODO_CHOICES = [
+        ('MANUAL', 'Manual'),
+        ('AUTOMATICO', 'Automático'),
+    ]
+
+    # Tipos de servicio válidos para la condición tipos_servicio.
+    # Reflejan Cotizacion.TIPO_SERVICIO_CHOICES.
+    TIPOS_SERVICIO_VALIDOS = {'EVENTO', 'PASADIA', 'ARRENDAMIENTO'}
+
+    nombre = models.CharField(max_length=120, verbose_name="Nombre")
+    descripcion = models.TextField(blank=True, verbose_name="Descripción")
+    tipo_valor = models.CharField(
+        max_length=12, choices=TIPO_VALOR_CHOICES, default='PORCENTAJE',
+        verbose_name="Tipo de valor",
+    )
+    valor = models.DecimalField(
+        max_digits=10, decimal_places=2, verbose_name="Valor",
+        help_text="Si es porcentaje, entre 0 y 100. Si es monto fijo, en MXN.",
+    )
+    modo = models.CharField(
+        max_length=12, choices=MODO_CHOICES, default='MANUAL',
+        verbose_name="Modo de aplicación",
+    )
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+
+    # ── Condiciones (todas opcionales, se evalúan con AND) ──────────────
+    monto_minimo = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        verbose_name="Monto mínimo (subtotal)",
+        help_text="El subtotal de la cotización debe ser mayor o igual a este monto.",
+    )
+    fecha_inicio = models.DateField(null=True, blank=True, verbose_name="Vigencia desde")
+    fecha_fin = models.DateField(null=True, blank=True, verbose_name="Vigencia hasta")
+    temporada = models.ForeignKey(
+        'Temporada', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='descuentos', verbose_name="Temporada",
+    )
+    tipos_evento = models.ManyToManyField(
+        'TipoEvento', blank=True, related_name='descuentos',
+        verbose_name="Tipos de evento",
+    )
+    tipos_servicio = models.JSONField(
+        default=list, blank=True, verbose_name="Tipos de servicio",
+        help_text="Lista de: EVENTO, PASADIA, ARRENDAMIENTO. Vacío = todos.",
+    )
+
+    acumulable = models.BooleanField(
+        default=False, verbose_name="¿Acumulable?",
+        help_text="Por default NO. Si es acumulable se suma aparte del ganador no-acumulable.",
+    )
+    prioridad = models.PositiveIntegerField(
+        default=0, verbose_name="Prioridad",
+        help_text="Mayor prioridad gana entre no-acumulables en competencia.",
+    )
+    max_usos = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Máximo de usos",
+        help_text="Tope de aplicaciones. Vacío = ilimitado.",
+    )
+    usos = models.PositiveIntegerField(default=0, verbose_name="Usos aplicados")
+
+    # ── Auditoría ───────────────────────────────────────────────────────
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='descuentos_creados', verbose_name="Creado por",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='descuentos_actualizados', verbose_name="Actualizado por",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Descuento"
+        verbose_name_plural = "Descuentos"
+        ordering = ['-prioridad', 'nombre']
+
+    def clean(self):
+        super().clean()
+        if self.tipo_valor == 'PORCENTAJE':
+            if self.valor is None or not (Decimal('0') < self.valor <= Decimal('100')):
+                raise ValidationError({'valor': 'Un porcentaje debe ser mayor que 0 y hasta 100.'})
+        else:
+            if self.valor is None or self.valor <= 0:
+                raise ValidationError({'valor': 'El monto fijo debe ser mayor que 0.'})
+
+        if self.fecha_inicio and self.fecha_fin and self.fecha_fin < self.fecha_inicio:
+            raise ValidationError({'fecha_fin': 'La vigencia hasta no puede ser anterior a la vigencia desde.'})
+
+        if self.tipos_servicio:
+            if not isinstance(self.tipos_servicio, list):
+                raise ValidationError({'tipos_servicio': 'Debe ser una lista de códigos de servicio.'})
+            invalidos = [t for t in self.tipos_servicio if t not in self.TIPOS_SERVICIO_VALIDOS]
+            if invalidos:
+                raise ValidationError({
+                    'tipos_servicio': f'Valores inválidos: {invalidos}. Usa EVENTO, PASADIA, ARRENDAMIENTO.'
+                })
+
+    def usos_disponibles(self):
+        """True si aún puede aplicarse (max_usos no alcanzado)."""
+        return self.max_usos is None or self.usos < self.max_usos
+
+    def __str__(self):
+        if self.tipo_valor == 'PORCENTAJE':
+            return f"{self.nombre} ({self.valor}%)"
+        return f"{self.nombre} (${self.valor})"
+
+
+class DescuentoAplicado(models.Model):
+    """Registro INMUTABLE de auditoría: un descuento aplicado a una cotización.
+
+    Nunca se edita ni se borra. Para anular su efecto se marca activo=False
+    vía DescuentoService.revertir(), que revierte el monto en la cotización.
+    """
+    MODO_CHOICES = Descuento.MODO_CHOICES
+
+    cotizacion = models.ForeignKey(
+        Cotizacion, on_delete=models.CASCADE,
+        related_name='descuentos_aplicados', verbose_name="Cotización",
+    )
+    descuento = models.ForeignKey(
+        Descuento, on_delete=models.PROTECT,
+        related_name='aplicaciones', verbose_name="Descuento",
+    )
+    monto_aplicado = models.DecimalField(
+        max_digits=10, decimal_places=2, verbose_name="Monto aplicado (MXN)",
+    )
+    porcentaje_equivalente = models.DecimalField(
+        max_digits=6, decimal_places=2, default=0,
+        verbose_name="% equivalente",
+        help_text="Porcentaje que representa el monto sobre el subtotal, para reporting.",
+    )
+    modo_aplicacion = models.CharField(
+        max_length=12, choices=MODO_CHOICES, verbose_name="Modo de aplicación",
+    )
+    aplicado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='descuentos_aplicados', verbose_name="Aplicado por",
+    )
+    fecha_aplicacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de aplicación")
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    notas = models.TextField(blank=True, verbose_name="Notas")
+
+    class Meta:
+        verbose_name = "Descuento Aplicado"
+        verbose_name_plural = "Descuentos — Aplicados (auditoría)"
+        ordering = ['-fecha_aplicacion']
+
+    def __str__(self):
+        estado = "activo" if self.activo else "revertido"
+        return f"{self.descuento.nombre} → COT-{self.cotizacion_id:03d} (${self.monto_aplicado}, {estado})"
