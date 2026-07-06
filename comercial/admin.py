@@ -1249,10 +1249,15 @@ class TipoEventoAdmin(admin.ModelAdmin):
 
 @admin.register(Temporada)
 class TemporadaAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'anio', 'fecha_inicio', 'fecha_fin', 'activo')
+    list_display = ('nombre', 'anio_display', 'fecha_inicio', 'fecha_fin', 'activo')
     list_filter = ('anio', 'activo')
     search_fields = ('nombre',)
     ordering = ('-anio', 'fecha_inicio')
+
+    def anio_display(self, obj):
+        return str(obj.anio)
+    anio_display.short_description = 'Año'
+    anio_display.admin_order_field = 'anio'
 
     def save_model(self, request, obj, form, change):
         obj.full_clean()
