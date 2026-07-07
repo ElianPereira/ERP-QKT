@@ -266,7 +266,19 @@ class ProductoAdmin(admin.ModelAdmin):
 
     def costo_display(self, obj): return f"${obj.calcular_costo():,.2f}"
     costo_display.short_description = "Costo"
-    def precio_display(self, obj): return f"${obj.sugerencia_precio():,.2f}"
+    def precio_display(self, obj):
+        precio = obj.sugerencia_precio()
+        if obj.precio_venta_fijo is not None and obj.precio_venta_fijo > 0:
+            return format_html(
+                '${} <span style="background:#1565C0;color:white;padding:2px 7px;'
+                'border-radius:10px;font-size:9px;font-weight:600;margin-left:4px;">FIJO</span>',
+                f'{precio:,.2f}'
+            )
+        return format_html(
+            '${} <span style="background:#607D8B;color:white;padding:2px 7px;'
+            'border-radius:10px;font-size:9px;font-weight:600;margin-left:4px;">CALC.</span>',
+            f'{precio:,.2f}'
+        )
     precio_display.short_description = "Precio sugerido"
 
     def badge_cotizador(self, obj):
