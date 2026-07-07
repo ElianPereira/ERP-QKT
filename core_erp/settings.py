@@ -201,6 +201,14 @@ JAZZMIN_SETTINGS = {
         "comercial.EspacioLanding":         "fas fa-door-open",
         "comercial.PreguntaFrecuente":      "fas fa-question-circle",
 
+        # CATÁLOGO
+        "catalogo":                          "fas fa-book-open",
+        "catalogo.ConfiguracionCatalogo":    "fas fa-cogs",
+        "catalogo.BadgeServicio":            "fas fa-tags",
+        "catalogo.SeccionCatalogo":          "fas fa-layer-group",
+        "catalogo.TarjetaCatalogo":          "fas fa-id-card",
+        "catalogo.PaqueteCatalogo":          "fas fa-gift",
+
         # AIRBNB
         "airbnb":                           "fas fa-bed",
         "airbnb.ReservaAirbnb":             "fas fa-calendar-check",
@@ -280,6 +288,14 @@ JAZZMIN_SETTINGS = {
         "comercial.TestimonioLanding",
         "comercial.EspacioLanding",
         "comercial.PreguntaFrecuente",
+
+        # === CATÁLOGO ===
+        "catalogo",
+        "catalogo.ConfiguracionCatalogo",
+        "catalogo.BadgeServicio",
+        "catalogo.SeccionCatalogo",
+        "catalogo.TarjetaCatalogo",
+        "catalogo.PaqueteCatalogo",
 
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",
