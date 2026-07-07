@@ -12,6 +12,7 @@ from django.test import Client, TestCase
 from comercial.models import Producto
 from catalogo.models import (
     ConfiguracionCatalogo, SeccionCatalogo, TarjetaCatalogo, DescuentoTarjeta,
+    PaqueteCatalogo,
 )
 
 
@@ -27,11 +28,12 @@ class CatalogoModelTests(TestCase):
         tarjeta = TarjetaCatalogo.objects.create(seccion=seccion, titulo='Sin producto')
         self.assertIsNone(tarjeta.get_precio())
 
-    def test_tarjeta_usa_precio_del_producto(self):
+    def test_tarjeta_usa_precio_del_producto_con_iva_incluido(self):
+        """El precio impreso incluye IVA (16%), igual que en el cotizador."""
         producto = Producto.objects.create(nombre='Test', precio_venta_fijo=Decimal('500.00'))
         seccion = SeccionCatalogo.objects.create(numero='01', slug='test2', titulo='Test')
         tarjeta = TarjetaCatalogo.objects.create(seccion=seccion, producto=producto)
-        self.assertEqual(tarjeta.get_precio(), Decimal('500.00'))
+        self.assertEqual(tarjeta.get_precio(), Decimal('580.00'))  # 500 * 1.16
 
     def test_tarjeta_get_titulo_usa_producto_si_no_hay_titulo_propio(self):
         producto = Producto.objects.create(nombre='Silla Tiffany', precio_venta_fijo=Decimal('600.00'))
@@ -82,6 +84,35 @@ class CatalogoModelTests(TestCase):
             precio_descuento=Decimal('80.00'), nota_vigencia='x', activo=False,
         )
         self.assertFalse(descuento.esta_vigente())
+
+    def test_paquete_ligado_a_producto_usa_precio_con_iva(self):
+        """Paquete propio de la Quinta: precio en vivo desde el Producto, con IVA."""
+        producto = Producto.objects.create(
+            nombre='Paquete Taquiza 50', es_paquete=True, precio_venta_fijo=Decimal('1000.00'),
+        )
+        paquete = PaqueteCatalogo.objects.create(nombre='Taquiza 50', producto=producto)
+        self.assertEqual(paquete.get_precio(), Decimal('1160.00'))  # 1000 * 1.16
+
+    def test_paquete_sin_producto_usa_precio_manual_sin_recalcular(self):
+        """Paquete de proveedor externo: precio manual, se muestra tal cual (sin IVA extra)."""
+        paquete = PaqueteCatalogo.objects.create(
+            nombre='Tiffany (David Vera)', precio_venta_fijo=Decimal('4400.00'),
+        )
+        self.assertEqual(paquete.get_precio(), Decimal('4400.00'))
+
+    def test_paquete_producto_gana_sobre_precio_manual(self):
+        """Si ambos están definidos, el Producto ligado es la fuente de verdad."""
+        producto = Producto.objects.create(
+            nombre='Paquete Gourmet 50', es_paquete=True, precio_venta_fijo=Decimal('2000.00'),
+        )
+        paquete = PaqueteCatalogo.objects.create(
+            nombre='Gourmet 50', producto=producto, precio_venta_fijo=Decimal('999.00'),
+        )
+        self.assertEqual(paquete.get_precio(), Decimal('2320.00'))  # 2000 * 1.16, no 999
+
+    def test_paquete_sin_precio_ni_producto_es_none(self):
+        paquete = PaqueteCatalogo.objects.create(nombre='Sin definir')
+        self.assertIsNone(paquete.get_precio())
 
 
 class CatalogoViewTests(TestCase):
