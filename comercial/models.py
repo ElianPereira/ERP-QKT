@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.db import models, transaction
 from django.db.models import F, Sum
 from django.utils.timezone import now
@@ -271,7 +271,7 @@ class Producto(models.Model):
 
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
-    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=0.30)
+    margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('0.30'))
     precio_venta_fijo = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
         verbose_name="Precio de venta fijo",
@@ -337,14 +337,17 @@ class Producto(models.Model):
         return sum(c.subtotal_costo() for c in self.componentes.all())
 
     def sugerencia_precio(self):
+        """Precio de venta: precio_venta_fijo (si > 0) o costo × (1 + margen).
+        Siempre Decimal, cuantizado a 2 decimales con ROUND_HALF_UP."""
         if self.precio_venta_fijo is not None and self.precio_venta_fijo > 0:
-            return self.precio_venta_fijo
-        return round(self.calcular_costo() * (1 + self.margen_ganancia), 2)
+            precio = self.precio_venta_fijo
+        else:
+            precio = self.calcular_costo() * (1 + self.margen_ganancia)
+        return Decimal(precio).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def clean(self):
         super().clean()
         if self.pk and self.es_paquete and self.componentes.exists():
-            from django.core.exceptions import ValidationError
             raise ValidationError(
                 "Un paquete no puede tener subproductos directamente. "
                 "Usa 'Productos Incluidos' en la sección de paquetes."
@@ -366,6 +369,20 @@ class Producto(models.Model):
                     continue
                 visitados.add(padre.pk)
                 stack.extend(padre.hereda_inventario_de.all())
+
+        # Un precio fijo por debajo del costo real (cuando lo hay) implica
+        # margen negativo. Productos sin receta (costo=0) quedan exentos:
+        # son justamente el caso que precio_venta_fijo existe para resolver.
+        if self.pk and self.precio_venta_fijo is not None:
+            costo_actual = self.calcular_costo()
+            if costo_actual > 0 and self.precio_venta_fijo < costo_actual:
+                raise ValidationError({
+                    'precio_venta_fijo': (
+                        f"El precio fijo (${self.precio_venta_fijo:,.2f}) es menor al "
+                        f"costo calculado (${costo_actual:,.2f}). Estarías vendiendo "
+                        f"con margen negativo. Corrige el precio o el costo antes de guardar."
+                    )
+                })
 
     def __str__(self): return self.nombre
 
