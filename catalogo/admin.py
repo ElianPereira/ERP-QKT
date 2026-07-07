@@ -81,6 +81,24 @@ class ItemPaqueteInline(admin.TabularInline):
 
 @admin.register(PaqueteCatalogo)
 class PaqueteCatalogoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'proveedor', 'precio_venta_fijo', 'orden', 'activo')
+    list_display = ('nombre', 'producto', 'proveedor', 'precio_badge', 'orden', 'activo')
     list_editable = ('orden', 'activo')
+    raw_id_fields = ['producto']
     inlines = [ItemPaqueteInline]
+
+    def precio_badge(self, obj):
+        precio = obj.get_precio()
+        if precio is None:
+            return format_html('<span style="color:#999;">Precio por confirmar</span>')
+        if obj.producto:
+            return format_html(
+                '${} <span style="background:#1565C0;color:white;padding:2px 7px;'
+                'border-radius:10px;font-size:9px;font-weight:600;margin-left:4px;">ERP</span>',
+                f'{precio:,.2f}'
+            )
+        return format_html(
+            '${} <span style="background:#607D8B;color:white;padding:2px 7px;'
+            'border-radius:10px;font-size:9px;font-weight:600;margin-left:4px;">MANUAL</span>',
+            f'{precio:,.2f}'
+        )
+    precio_badge.short_description = "Precio"
