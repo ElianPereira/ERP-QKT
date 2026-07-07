@@ -214,10 +214,11 @@ h2 em { color: #2E7D32; }
                   <span class="price-now">${{ tarjeta.descuento.precio_descuento|floatformat:2 }}
                     <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
                   <span class="price-badge">{{ tarjeta.descuento.etiqueta_badge }}</span>
-                  <div class="price-unit">{{ tarjeta.descuento.nota_vigencia }}</div>
+                  <div class="price-unit">IVA incluido · {{ tarjeta.descuento.nota_vigencia }}</div>
                 {% else %}
                   <span class="price-now">${{ precio|floatformat:2 }}
                     <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
+                  <div class="price-unit">IVA incluido</div>
                 {% endif %}
               </div>
             {% endif %}
@@ -232,9 +233,11 @@ h2 em { color: #2E7D32; }
     <hr class="rl">
     {% for paquete in paquetes %}
       <div class="paquete">
-        <div class="paquete-precio">
-          {% if paquete.precio_venta_fijo %}${{ paquete.precio_venta_fijo|floatformat:2 }}{% else %}Precio por confirmar{% endif %}
-        </div>
+        {% with paquete.get_precio as precio_paquete %}
+          <div class="paquete-precio">
+            {% if precio_paquete %}${{ precio_paquete|floatformat:2 }}<div class="price-unit" style="text-align:right;">IVA incluido</div>{% else %}Precio por confirmar{% endif %}
+          </div>
+        {% endwith %}
         <div class="paquete-nombre">{{ paquete.nombre }}</div>
         {% if paquete.proveedor %}<div class="paquete-proveedor">Cortesía de {{ paquete.proveedor }}</div>{% endif %}
         {% regroup paquete.items.all by get_grupo_display as grupos_items %}
