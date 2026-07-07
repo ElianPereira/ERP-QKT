@@ -1,7 +1,19 @@
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from comercial.models import Producto
+
+IVA = Decimal('0.16')
+
+
+def _con_iva(precio):
+    """Precio con IVA incluido, cuantizado a 2 decimales (ROUND_HALF_UP).
+    Consistente con cómo el portal del cotizador muestra sus precios."""
+    if precio is None:
+        return None
+    return (precio * (1 + IVA)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 
 class ConfiguracionCatalogo(models.Model):
@@ -137,7 +149,8 @@ class TarjetaCatalogo(models.Model):
     mostrar_precio = models.BooleanField(default=True)
     unidad_precio = models.CharField(
         max_length=30, blank=True,
-        help_text="Ej: +IVA, /noche — se muestra junto al precio"
+        help_text="Ej: /noche, /persona — se muestra junto al precio. "
+                   "El precio ya incluye IVA, no escribas '+IVA' aquí."
     )
     orden = models.PositiveIntegerField(default=0)
     activa = models.BooleanField(default=True)
@@ -157,18 +170,38 @@ class TarjetaCatalogo(models.Model):
     get_titulo.short_description = "Título"
 
     def get_precio(self):
-        """Devuelve el precio a mostrar, o None si no aplica."""
+        """Precio con IVA incluido a mostrar, o None si no aplica.
+        Consistente con el precio final que el cliente ve en el cotizador."""
         if not self.mostrar_precio or not self.producto:
             return None
-        return self.producto.sugerencia_precio()
+        return _con_iva(self.producto.sugerencia_precio())
 
     def __str__(self):
         return f"{self.seccion.slug} · {self.get_titulo()}"
 
 
 class PaqueteCatalogo(models.Model):
-    """Paquete completo (mobiliario + cristalería), ej: los 3 de David Vera."""
+    """
+    Paquete completo (mobiliario + cristalería). Dos casos de uso:
+
+    1. Paquete propio de la Quinta (ej. "Paquete Taquiza 50 Personas"): liga
+       `producto` a un Producto real (es_paquete=True) del ERP. El precio se
+       lee en vivo de producto.sugerencia_precio() — se actualiza solo si
+       cambias el precio en Productos.
+    2. Paquete de proveedor externo sin Producto propio (ej. los de David
+       Vera Banquetes): deja `producto` vacío y captura `precio_venta_fijo`
+       a mano.
+
+    Si ambos están definidos, gana `producto` (una sola fuente de verdad).
+    """
     nombre = models.CharField(max_length=100)
+    producto = models.ForeignKey(
+        Producto, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='paquetes_catalogo', limit_choices_to={'es_paquete': True},
+        help_text="Si ligas un Producto (paquete) del ERP, el precio se toma "
+                   "de ahí y se actualiza solo. Déjalo vacío para paquetes de "
+                   "proveedor externo con precio_venta_fijo manual.",
+    )
     imagen = models.ImageField(upload_to='catalogo/paquetes/', blank=True, null=True)
     proveedor = models.CharField(
         max_length=100, blank=True,
@@ -176,7 +209,7 @@ class PaqueteCatalogo(models.Model):
     )
     precio_venta_fijo = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
-        help_text="Precio de venta al cliente. Vacío = 'Precio por confirmar'."
+        help_text="Solo se usa si no hay Producto ligado. Vacío = 'Precio por confirmar'."
     )
     orden = models.PositiveIntegerField(default=0)
     activo = models.BooleanField(default=True)
@@ -186,6 +219,15 @@ class PaqueteCatalogo(models.Model):
         ordering = ['orden']
         verbose_name = "Paquete completo"
         verbose_name_plural = "Paquetes completos"
+
+    def get_precio(self):
+        """Precio con IVA incluido si viene de un Producto ligado (misma
+        regla que TarjetaCatalogo). Si es precio_venta_fijo manual (paquete
+        de proveedor externo), se muestra tal cual — se asume que ya es el
+        precio final que se cobra al cliente."""
+        if self.producto:
+            return _con_iva(self.producto.sugerencia_precio())
+        return self.precio_venta_fijo
 
     def __str__(self):
         return self.nombre

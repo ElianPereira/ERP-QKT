@@ -80,7 +80,6 @@ class Command(BaseCommand):
                 titulo='Renta del inmueble',
                 badge_texto='6 horas · acceso a todas las áreas',
                 mostrar_precio=True,
-                unidad_precio='+IVA',
             ),
         )
         if not producto_evento:
@@ -132,7 +131,7 @@ class Command(BaseCommand):
                 continue
             TarjetaCatalogo.objects.update_or_create(
                 seccion=mobiliario, producto=producto,
-                defaults=dict(orden=i, badge_texto='SET PARA 10 INVITADOS', unidad_precio='+IVA'),
+                defaults=dict(orden=i, badge_texto='SET PARA 10 INVITADOS'),
             )
 
         # --- Paquetes completos (David Vera) ---
