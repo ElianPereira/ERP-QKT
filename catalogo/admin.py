@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from .models import (
     ConfiguracionCatalogo, BadgeServicio, SeccionCatalogo,
     CaracteristicaSeccion, TarjetaCatalogo, PaqueteCatalogo,
@@ -59,7 +60,7 @@ class TarjetaCatalogoAdmin(admin.ModelAdmin):
     def precio_badge(self, obj):
         precio = obj.get_precio()
         if precio is None:
-            return format_html('<span style="color:#999;">—</span>')
+            return mark_safe('<span style="color:#999;">—</span>')
         vigente = hasattr(obj, 'descuento') and obj.descuento.esta_vigente()
         if vigente:
             return format_html(
@@ -89,7 +90,7 @@ class PaqueteCatalogoAdmin(admin.ModelAdmin):
     def precio_badge(self, obj):
         precio = obj.get_precio()
         if precio is None:
-            return format_html('<span style="color:#999;">Precio por confirmar</span>')
+            return mark_safe('<span style="color:#999;">Precio por confirmar</span>')
         if obj.producto:
             return format_html(
                 '${} <span style="background:#1565C0;color:white;padding:2px 7px;'
