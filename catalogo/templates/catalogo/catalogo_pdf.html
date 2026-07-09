@@ -138,6 +138,12 @@ h2 em { color: #2E7D32; }
   position: relative;
   padding: 0.55in 0.7in;
 }
+.portada-overlay {
+  position: absolute; inset: 0;
+  /* Oscurece la foto para que el texto blanco/dorado se lea bien,
+     sin importar qué tan clara o "ocupada" sea la imagen. */
+  background: linear-gradient(180deg, rgba(8,10,8,.45) 0%, rgba(12,14,10,.55) 45%, rgba(8,8,6,.88) 100%);
+}
 .portada-marca {
   font-family: 'Georgia', serif; font-size: 15pt; font-weight: 400;
 }
@@ -192,6 +198,7 @@ h2 em { color: #2E7D32; }
 <div class="pg" style="padding:0;">
   <div class="portada"
     {% if config.imagen_portada %}style="background-image:url('{{ config.imagen_portada.url }}'); background-size:cover; background-position:center;"{% endif %}>
+    {% if config.imagen_portada %}<div class="portada-overlay"></div>{% endif %}
     <div class="portada-marca">{{ config.nombre_empresa }} <em>{{ config.nombre_empresa_enfasis }}</em></div>
 
     <div class="portada-bloque">
