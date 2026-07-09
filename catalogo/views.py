@@ -64,4 +64,8 @@ def descargar_catalogo_pdf(request):
 
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = 'inline; filename="Catalogo_QKT.pdf"'
+    # El servidor ya cachea por 24h con invalidación automática (hash de
+    # actualizado_en); evita que el navegador guarde su propia copia y
+    # muestre una versión vieja tras un cambio en el admin.
+    response['Cache-Control'] = 'no-cache, must-revalidate'
     return response

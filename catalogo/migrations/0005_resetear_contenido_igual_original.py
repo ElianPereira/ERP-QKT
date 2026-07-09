@@ -52,6 +52,9 @@ def resetear(apps, schema_editor):
         BadgeServicio.objects.create(texto=texto, orden=i)
 
     # ── Categoría (encabezado corto) de cada sección ─────────────────────
+    # Nota: se usa .save() por instancia (no .filter().update()) a propósito:
+    # .update() en queryset NO dispara auto_now, y el caché del PDF depende
+    # de que actualizado_en cambie para invalidarse correctamente.
     CATEGORIAS = {
         'eventos': 'Eventos sociales y bodas',
         'pasadia': 'Pasadía en la Quinta',
@@ -59,14 +62,19 @@ def resetear(apps, schema_editor):
         'mobiliario': 'Mobiliario',
     }
     for slug, categoria in CATEGORIAS.items():
-        SeccionCatalogo.objects.filter(slug=slug).update(categoria=categoria)
+        seccion = SeccionCatalogo.objects.filter(slug=slug).first()
+        if seccion:
+            seccion.categoria = categoria
+            seccion.save()
 
     # La sección "servicios-adicionales" es una adición propia (no existía
     # como sección numerada en el PDF original) — se deja sin número para
     # que no aparezca como "05 —", más fiel al original.
-    SeccionCatalogo.objects.filter(slug='servicios-adicionales').update(
-        numero='', categoria='Servicios adicionales',
-    )
+    adicionales = SeccionCatalogo.objects.filter(slug='servicios-adicionales').first()
+    if adicionales:
+        adicionales.numero = ''
+        adicionales.categoria = 'Servicios adicionales'
+        adicionales.save()
 
 
 def revertir(apps, schema_editor):
