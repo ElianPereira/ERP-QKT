@@ -21,8 +21,22 @@ class ConfiguracionCatalogo(models.Model):
     Singleton: datos generales del catálogo (portada + contacto).
     Solo debe existir un registro. Se fuerza en save().
     """
-    nombre_empresa = models.CharField(max_length=100, default="Quinta Ko'ox Tanil")
+    nombre_empresa = models.CharField(
+        max_length=100, default="Quinta",
+        help_text="Parte NO destacada del nombre en la portada (ej. 'Quinta').",
+    )
+    nombre_empresa_enfasis = models.CharField(
+        max_length=100, default="Ko'ox Tanil",
+        help_text="Parte en cursiva/dorado del nombre en la portada (ej. \"Ko'ox Tanil\").",
+    )
     ubicacion = models.CharField(max_length=150, default="Umán, Yucatán · México")
+    titulo_catalogo = models.CharField(
+        max_length=60, default="Catálogo", verbose_name="Título del catálogo (portada)",
+    )
+    titulo_catalogo_enfasis = models.CharField(
+        max_length=60, default="de Servicios",
+        verbose_name="Título del catálogo — énfasis (portada)",
+    )
     subtitulo_portada = models.CharField(
         max_length=150, default="Donde los momentos se vuelven recuerdos"
     )
@@ -31,9 +45,21 @@ class ConfiguracionCatalogo(models.Model):
     sitio_web = models.CharField(max_length=100, default="quintakooxtanil.com")
     url_cotizador = models.CharField(max_length=150, blank=True)
     url_portal_clientes = models.CharField(max_length=150, blank=True)
+    url_kaan_room = models.CharField(max_length=150, blank=True, verbose_name="Link Ka'an Room (Airbnb)")
+    url_otoch_room = models.CharField(max_length=150, blank=True, verbose_name="Link Otoch Room (Airbnb)")
     direccion = models.CharField(max_length=200, blank=True)
     facebook = models.CharField(max_length=100, blank=True)
     instagram = models.CharField(max_length=100, blank=True)
+    eyebrow_contacto = models.CharField(max_length=60, default="Reserva tu fecha")
+    titulo_contacto = models.CharField(max_length=100, default="Hablemos de")
+    titulo_contacto_enfasis = models.CharField(max_length=100, default="tu evento")
+    subtitulo_contacto = models.CharField(
+        max_length=150, default="Estamos para acompañarte en cada detalle",
+    )
+    tagline_cierre = models.CharField(
+        max_length=200, default="A 20 minutos de Mérida · Abiertos 365 días al año",
+        help_text="Frase final de la última página, junto al nombre de la empresa.",
+    )
     imagen_portada = models.ImageField(upload_to='catalogo/portada/', blank=True, null=True)
     imagen_footer = models.ImageField(upload_to='catalogo/footer/', blank=True, null=True)
     actualizado_en = models.DateTimeField(auto_now=True)
@@ -74,8 +100,17 @@ class BadgeServicio(models.Model):
 
 class SeccionCatalogo(models.Model):
     """Una sección completa del catálogo: Eventos, Pasadía, Hospedaje, Mobiliario..."""
-    numero = models.CharField(max_length=4, help_text="Ej: 01, 02, 03")
+    numero = models.CharField(
+        max_length=4, blank=True,
+        help_text="Ej: 01, 02, 03. Vacío = sección sin numerar (ej. servicios adicionales).",
+    )
     slug = models.SlugField(unique=True, help_text="Identificador interno, ej: eventos")
+    categoria = models.CharField(
+        max_length=80, blank=True,
+        verbose_name="Categoría (encabezado corto)",
+        help_text="Texto corto junto al número, ej: 'Eventos sociales y bodas'. "
+                   "Si se deja vacío, se usa el título completo.",
+    )
     titulo = models.CharField(max_length=100, help_text="Ej: El espacio para")
     titulo_enfasis = models.CharField(
         max_length=100, blank=True,

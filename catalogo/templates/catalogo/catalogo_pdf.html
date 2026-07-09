@@ -133,49 +133,86 @@ h2 em { color: #2E7D32; }
 /* Portada */
 .portada {
   background: linear-gradient(160deg, #1B5E20 0%, #2E7D32 100%);
-  color: white; text-align: center;
-  display: flex; flex-direction: column; justify-content: center; align-items: center;
-  height: 11in;
+  color: white;
+  height: 11in; width: 8.5in;
+  position: relative;
+  padding: 0.55in 0.7in;
 }
-.portada-empresa {
-  font-family: 'Georgia', serif; font-size: 34pt; font-weight: 400; letter-spacing: .02em;
+.portada-marca {
+  font-family: 'Georgia', serif; font-size: 15pt; font-weight: 400;
 }
-.portada-empresa em { color: #F5C518; }
-.portada-ubicacion { font-size: 10pt; letter-spacing: .12em; text-transform: uppercase; opacity: .8; margin: 10px 0 6px; }
-.portada-subtitulo { font-size: 12pt; font-style: italic; opacity: .9; margin-bottom: 34px; }
-.portada-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 6in; }
+.portada-marca em { color: #F5C518; font-style: italic; }
+.portada-bloque { position: absolute; left: 0.7in; bottom: 2.6in; max-width: 6.2in; }
+.portada-ubicacion { font-size: 10pt; letter-spacing: .12em; text-transform: uppercase; opacity: .85; margin-bottom: 10px; }
+.portada-titulo {
+  font-family: 'Georgia', serif; font-size: 40pt; font-weight: 400; line-height: 1.05;
+  margin-bottom: 14px;
+}
+.portada-titulo em { font-style: italic; }
+.portada-subtitulo { font-size: 12pt; font-style: italic; opacity: .9; margin-bottom: 22px; }
+.portada-badges { display: flex; flex-wrap: wrap; gap: 10px; max-width: 6in; }
 .portada-badge {
   border: 1px solid rgba(255,255,255,.5); border-radius: 20px;
   padding: 6px 16px; font-size: 8.5pt; letter-spacing: .08em;
 }
+.portada-contacto {
+  position: absolute; left: 0.7in; bottom: 0.55in;
+  font-size: 8.5pt; letter-spacing: .06em; opacity: .8;
+}
 
 /* Contacto / footer */
-.contacto { text-align: center; padding-top: 2.5in; }
-.contacto h2 { text-align: center; }
-.contacto-linea { font-size: 10.5pt; margin-bottom: 8px; color: #333; }
-.contacto-linea strong { color: #1B5E20; }
+.pg-contacto {
+  background: #2c2b28; color: #eee;
+}
+.contacto { text-align: center; padding-top: 1.6in; }
+.contacto .ey, .contacto .rl { margin-left: auto; margin-right: auto; }
+.contacto h2 { text-align: center; color: white; }
+.contacto h2 em { color: #F5C518; }
+.contacto-subtitulo { text-align: center; font-style: italic; opacity: .75; font-size: 10pt; margin: 8px 0 30px; }
+.contacto-tabla { max-width: 5.5in; margin: 0 auto; }
+.contacto-fila {
+  display: flex; justify-content: space-between; gap: 20px;
+  border-bottom: 1px solid rgba(255,255,255,.15); padding: 10px 0;
+}
+.contacto-fila .lbl {
+  font-size: 8pt; letter-spacing: .1em; text-transform: uppercase; color: #F5C518;
+  font-weight: 600; white-space: nowrap;
+}
+.contacto-fila .val { font-size: 10pt; color: #eee; text-align: right; }
+.contacto-tagline {
+  text-align: center; font-family: 'Georgia', serif; font-size: 11pt;
+  color: #ccc; margin-top: 40px;
+}
+.contacto-tagline em { color: #F5C518; font-style: normal; }
 </style>
 </head>
 <body>
 
 <!-- ═══════════ PORTADA ═══════════ -->
 <div class="pg" style="padding:0;">
-  <div class="portada">
-    <div class="portada-empresa">{{ config.nombre_empresa }}</div>
-    <div class="portada-ubicacion">{{ config.ubicacion }}</div>
-    <div class="portada-subtitulo"><em>{{ config.subtitulo_portada }}</em></div>
-    <div class="portada-badges">
-      {% for b in badges %}
-        <span class="portada-badge">{{ b.texto }}</span>
-      {% endfor %}
+  <div class="portada"
+    {% if config.imagen_portada %}style="background-image:url('{{ config.imagen_portada.url }}'); background-size:cover; background-position:center;"{% endif %}>
+    <div class="portada-marca">{{ config.nombre_empresa }} <em>{{ config.nombre_empresa_enfasis }}</em></div>
+
+    <div class="portada-bloque">
+      <div class="portada-ubicacion">{{ config.ubicacion }}</div>
+      <div class="portada-titulo">{{ config.titulo_catalogo }}<br><em>{{ config.titulo_catalogo_enfasis }}</em></div>
+      <div class="portada-subtitulo">{{ config.subtitulo_portada }}</div>
+      <div class="portada-badges">
+        {% for b in badges %}
+          <span class="portada-badge">{{ b.texto }}</span>
+        {% endfor %}
+      </div>
     </div>
+
+    <div class="portada-contacto">{{ config.sitio_web }} · {{ config.telefono }}</div>
   </div>
 </div>
 
 <!-- ═══════════ SECCIONES ═══════════ -->
 {% for seccion in secciones %}
 <div class="pg">
-  <div class="ey">{{ seccion.numero }} — {{ seccion.titulo|upper }} {{ seccion.titulo_enfasis|upper }}</div>
+  <div class="ey">{% if seccion.numero %}{{ seccion.numero }} — {% endif %}{{ seccion.categoria|default:seccion.titulo|upper }}</div>
   <hr class="rl">
   <h2>{{ seccion.titulo }} <em>{{ seccion.titulo_enfasis }}</em></h2>
 
@@ -196,37 +233,66 @@ h2 em { color: #2E7D32; }
     </ul>
   {% endif %}
 
-  <div class="tarjetas-grid">
-    {% for tarjeta in seccion.tarjetas.all %}
+  {% with seccion.tarjetas.all|dictsort:"orden" as tarjetas_activas %}
+  {% if tarjetas_activas|length == 1 %}
+    {# Un solo "producto base" de la sección: precio integrado, sin tarjeta envolvente. #}
+    {% for tarjeta in tarjetas_activas %}
       {% if tarjeta.activa %}
-        <div class="tarjeta">
-          {% if tarjeta.imagen %}<img class="tarjeta-img" src="{{ tarjeta.imagen.url }}">{% endif %}
-          {% if tarjeta.badge_texto %}<div class="tarjeta-badge">{{ tarjeta.badge_texto }}</div>{% endif %}
-          <div class="tarjeta-titulo">{{ tarjeta.get_titulo }}</div>
-          {% if tarjeta.subtitulo %}<div class="tarjeta-sub">{{ tarjeta.subtitulo }}</div>{% endif %}
-          {% if tarjeta.descripcion %}<div class="tarjeta-desc">{{ tarjeta.descripcion }}</div>{% endif %}
-
-          {% with tarjeta.get_precio as precio %}
-            {% if precio is not None %}
-              <div class="price-box">
-                {% if tarjeta.descuento and tarjeta.descuento.esta_vigente %}
-                  <span class="price-old">${{ tarjeta.descuento.precio_regular|floatformat:2 }}</span>
-                  <span class="price-now">${{ tarjeta.descuento.precio_descuento|floatformat:2 }}
-                    <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
-                  <span class="price-badge">{{ tarjeta.descuento.etiqueta_badge }}</span>
-                  <div class="price-unit">IVA incluido · {{ tarjeta.descuento.nota_vigencia }}</div>
-                {% else %}
-                  <span class="price-now">${{ precio|floatformat:2 }}
-                    <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
-                  <div class="price-unit">IVA incluido</div>
-                {% endif %}
-              </div>
-            {% endif %}
-          {% endwith %}
-        </div>
+        {% with tarjeta.get_precio as precio %}
+          {% if precio is not None %}
+            <div class="price-box">
+              {% if tarjeta.descuento and tarjeta.descuento.esta_vigente %}
+                <span class="price-old">${{ tarjeta.descuento.precio_regular|floatformat:2 }}</span>
+                <span class="price-now">${{ tarjeta.descuento.precio_descuento|floatformat:2 }}
+                  <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
+                <span class="price-badge">{{ tarjeta.descuento.etiqueta_badge }}</span>
+                <div class="price-unit">{{ tarjeta.descripcion }}</div>
+                <div class="price-unit">IVA incluido · {{ tarjeta.descuento.nota_vigencia }}</div>
+              {% else %}
+                <span class="price-now">${{ precio|floatformat:2 }}
+                  <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
+                <div class="price-unit">{{ tarjeta.descripcion }}</div>
+                <div class="price-unit">IVA incluido</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endwith %}
       {% endif %}
     {% endfor %}
-  </div>
+  {% else %}
+    <div class="tarjetas-grid">
+      {% for tarjeta in tarjetas_activas %}
+        {% if tarjeta.activa %}
+          <div class="tarjeta">
+            {% if tarjeta.imagen %}<img class="tarjeta-img" src="{{ tarjeta.imagen.url }}">{% endif %}
+            {% if tarjeta.badge_texto %}<div class="tarjeta-badge">{{ tarjeta.badge_texto }}</div>{% endif %}
+            <div class="tarjeta-titulo">{{ tarjeta.get_titulo }}</div>
+            {% if tarjeta.subtitulo %}<div class="tarjeta-sub">{{ tarjeta.subtitulo }}</div>{% endif %}
+            {% if tarjeta.descripcion %}<div class="tarjeta-desc">{{ tarjeta.descripcion }}</div>{% endif %}
+
+            {% with tarjeta.get_precio as precio %}
+              {% if precio is not None %}
+                <div class="price-box">
+                  {% if tarjeta.descuento and tarjeta.descuento.esta_vigente %}
+                    <span class="price-old">${{ tarjeta.descuento.precio_regular|floatformat:2 }}</span>
+                    <span class="price-now">${{ tarjeta.descuento.precio_descuento|floatformat:2 }}
+                      <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
+                    <span class="price-badge">{{ tarjeta.descuento.etiqueta_badge }}</span>
+                    <div class="price-unit">IVA incluido · {{ tarjeta.descuento.nota_vigencia }}</div>
+                  {% else %}
+                    <span class="price-now">${{ precio|floatformat:2 }}
+                      <span class="price-iva">&nbsp;{{ tarjeta.unidad_precio }}</span></span>
+                    <div class="price-unit">IVA incluido</div>
+                  {% endif %}
+                </div>
+              {% endif %}
+            {% endwith %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
 
   {% if seccion.slug == 'mobiliario' and paquetes %}
     <div class="ey" style="margin-top:20px;">PAQUETES COMPLETOS</div>
@@ -256,19 +322,30 @@ h2 em { color: #2E7D32; }
 {% endfor %}
 
 <!-- ═══════════ CONTACTO ═══════════ -->
-<div class="pg">
+<div class="pg pg-contacto">
   <div class="contacto">
-    <div class="ey" style="text-align:center;">CONTACTO</div>
-    <hr class="rl" style="margin-left:auto;margin-right:auto;">
-    <h2>Hagamos realidad <em>tu evento</em></h2>
-    <div class="contacto-linea"><strong>Teléfono:</strong> {{ config.telefono }}</div>
-    {% if config.email_contacto %}<div class="contacto-linea"><strong>Email:</strong> {{ config.email_contacto }}</div>{% endif %}
-    <div class="contacto-linea"><strong>Sitio web:</strong> {{ config.sitio_web }}</div>
-    {% if config.direccion %}<div class="contacto-linea"><strong>Dirección:</strong> {{ config.direccion }}</div>{% endif %}
-    {% if config.instagram %}<div class="contacto-linea"><strong>Instagram:</strong> {{ config.instagram }}</div>{% endif %}
-    {% if config.facebook %}<div class="contacto-linea"><strong>Facebook:</strong> {{ config.facebook }}</div>{% endif %}
-    {% if config.url_cotizador %}<div class="contacto-linea"><strong>Cotiza en línea:</strong> {{ config.url_cotizador }}</div>{% endif %}
-    {% if config.url_portal_clientes %}<div class="contacto-linea"><strong>Portal de clientes:</strong> {{ config.url_portal_clientes }}</div>{% endif %}
+    <div class="ey">{{ config.eyebrow_contacto|upper }}</div>
+    <hr class="rl">
+    <h2>{{ config.titulo_contacto }} <em>{{ config.titulo_contacto_enfasis }}</em></h2>
+    <div class="contacto-subtitulo">{{ config.subtitulo_contacto }}</div>
+
+    <div class="contacto-tabla">
+      <div class="contacto-fila"><span class="lbl">WhatsApp</span><span class="val">{{ config.telefono }}</span></div>
+      <div class="contacto-fila"><span class="lbl">Sitio web</span><span class="val">{{ config.sitio_web }}</span></div>
+      {% if config.url_cotizador %}<div class="contacto-fila"><span class="lbl">Cotizador</span><span class="val">{{ config.url_cotizador }}</span></div>{% endif %}
+      {% if config.url_portal_clientes %}<div class="contacto-fila"><span class="lbl">Portal clientes</span><span class="val">{{ config.url_portal_clientes }}</span></div>{% endif %}
+      {% if config.url_kaan_room %}<div class="contacto-fila"><span class="lbl">Ka'an Room</span><span class="val">{{ config.url_kaan_room }}</span></div>{% endif %}
+      {% if config.url_otoch_room %}<div class="contacto-fila"><span class="lbl">Otoch Room</span><span class="val">{{ config.url_otoch_room }}</span></div>{% endif %}
+      {% if config.direccion %}<div class="contacto-fila"><span class="lbl">Dirección</span><span class="val">{{ config.direccion }}</span></div>{% endif %}
+      {% if config.facebook or config.instagram %}
+        <div class="contacto-fila">
+          <span class="lbl">Redes</span>
+          <span class="val">{% if config.facebook %}{{ config.facebook }}{% endif %}{% if config.facebook and config.instagram %} · {% endif %}{% if config.instagram %}{{ config.instagram }}{% endif %}</span>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="contacto-tagline">{{ config.nombre_empresa }} <em>{{ config.nombre_empresa_enfasis }}</em> — {{ config.tagline_cierre }}</div>
   </div>
 </div>
 
