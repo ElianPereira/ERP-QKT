@@ -166,6 +166,70 @@ h2 em { color: #2E7D32; }
   font-size: 8.5pt; letter-spacing: .06em; opacity: .8;
 }
 
+/* Quiénes somos */
+.qs-stats {
+  display: flex; border: 1px solid #e0e0d8; border-radius: 6px; margin: 18px 0 26px;
+}
+.qs-stats > div {
+  flex: 1; text-align: center; padding: 16px 8px;
+  border-right: 1px solid #e0e0d8;
+}
+.qs-stats > div:last-child { border-right: none; }
+.qs-stat-valor { font-family: 'Georgia', serif; font-size: 20pt; color: #1B5E20; font-weight: 600; }
+.qs-stat-etiqueta { font-size: 7.5pt; letter-spacing: .06em; text-transform: uppercase; color: #888; margin-top: 4px; }
+
+.qs-pasos { display: flex; gap: 0; align-items: stretch; }
+.qs-paso {
+  flex: 1; border: 1px solid #e0e0d8; border-radius: 6px; padding: 14px 16px;
+}
+.qs-paso-numero { font-family: 'Georgia', serif; font-style: italic; font-size: 13pt; color: #F5C518; margin-bottom: 6px; }
+.qs-paso-titulo { font-size: 10.5pt; font-weight: 600; color: #1A1A1A; margin-bottom: 6px; }
+.qs-paso-desc { font-size: 9pt; color: #666; }
+.qs-flecha { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 0 10px; color: #F5C518; font-size: 14pt; }
+
+/* Portada de capítulo (por sección) */
+.pg-cover {
+  background: linear-gradient(160deg, #1B5E20 0%, #2E7D32 100%);
+  color: white; padding: 0.65in 0.7in;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  position: relative;
+}
+.cover-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(8,10,8,.30) 0%, rgba(10,12,10,.55) 55%, rgba(8,8,6,.85) 100%);
+}
+.cover-numero { font-family: 'Georgia', serif; font-style: italic; font-size: 15pt; color: #F5C518; position: relative; }
+.cover-titulo { font-family: 'Georgia', serif; font-size: 38pt; font-weight: 400; margin: 4px 0 16px; position: relative; }
+.cover-rule { border: none; border-top: 1.5px solid #F5C518; width: 60px; margin: 0 0 16px; position: relative; }
+.cover-desc { font-size: 11pt; max-width: 5.5in; opacity: .95; margin-bottom: 20px; position: relative; }
+.cover-badges { display: flex; flex-wrap: wrap; gap: 10px; max-width: 6.2in; position: relative; }
+.cover-badge {
+  border: 1px solid #F5C518; color: #F5C518; border-radius: 20px;
+  padding: 6px 16px; font-size: 8.5pt; letter-spacing: .08em; font-weight: 600;
+}
+
+/* Para cada ocasión */
+.ocasiones-grid { display: block; column-count: 2; column-gap: 30px; }
+.ocasion-card { break-inside: avoid; margin-bottom: 22px; }
+.ocasion-icono {
+  width: 34px; height: 34px; border: 1.5px solid #F5C518; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15pt; margin-right: 10px; vertical-align: middle;
+  color: #1B5E20;
+}
+.ocasion-titulo {
+  font-family: 'Georgia', serif; font-size: 14pt; color: #1A1A1A;
+  display: inline-block; vertical-align: middle;
+}
+.ocasion-desc { font-size: 9pt; color: #666; margin-top: 6px; }
+
+/* Galería de sección (Ambientación / Instalaciones) */
+.galeria-fotos { display: flex; gap: 14px; margin-top: 16px; }
+.galeria-foto {
+  flex: 1; height: 2.6in; object-fit: cover; border-radius: 6px;
+  background-color: #eee;
+}
+
 /* Contacto / footer */
 .pg-contacto {
   background: #2c2b28; color: #eee;
@@ -216,8 +280,65 @@ h2 em { color: #2E7D32; }
   </div>
 </div>
 
+<!-- ═══════════ QUIÉNES SOMOS ═══════════ -->
+{% if quienes_somos and quienes_somos.activa %}
+<div class="pg">
+  <div class="ey">{{ quienes_somos.eyebrow|upper }}</div>
+  <hr class="rl">
+  <h2>{{ quienes_somos.titulo }} <em>{{ quienes_somos.titulo_enfasis }}</em></h2>
+  {% if quienes_somos.descripcion %}<p class="ds">{{ quienes_somos.descripcion }}</p>{% endif %}
+
+  {% if estadisticas %}
+    <div class="qs-stats">
+      {% for e in estadisticas %}
+        <div>
+          <div class="qs-stat-valor">{{ e.valor }}</div>
+          <div class="qs-stat-etiqueta">{{ e.etiqueta }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if pasos %}
+    <div class="ey">{{ quienes_somos.eyebrow_proceso|upper }}</div>
+    <hr class="rl">
+    <h2>{{ quienes_somos.titulo_proceso }} <em>{{ quienes_somos.titulo_proceso_enfasis }}</em></h2>
+    <div class="qs-pasos">
+      {% for p in pasos %}
+        <div class="qs-paso">
+          <div class="qs-paso-numero">{{ p.numero }}</div>
+          <div class="qs-paso-titulo">{{ p.titulo }}</div>
+          <div class="qs-paso-desc">{{ p.descripcion }}</div>
+        </div>
+        {% if not forloop.last %}<div class="qs-flecha">→</div>{% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <!-- ═══════════ SECCIONES ═══════════ -->
 {% for seccion in secciones %}
+
+{% if seccion.nombre_corto %}
+<!-- Portada de capítulo -->
+<div class="pg pg-cover"
+  {% if seccion.imagen_cover %}style="background-image:url('{{ seccion.imagen_cover.url }}'); background-size:cover; background-position:center;"{% endif %}>
+  {% if seccion.imagen_cover %}<div class="cover-overlay"></div>{% endif %}
+  {% if seccion.numero %}<div class="cover-numero">{{ seccion.numero }}</div>{% endif %}
+  <div class="cover-titulo">{{ seccion.nombre_corto }}</div>
+  <hr class="cover-rule">
+  {% if seccion.descripcion_cover %}<p class="cover-desc">{{ seccion.descripcion_cover }}</p>{% endif %}
+  {% if seccion.badges_cover.all %}
+    <div class="cover-badges">
+      {% for b in seccion.badges_cover.all %}
+        <span class="cover-badge">{{ b.texto }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="pg">
   <div class="ey">{% if seccion.numero %}{{ seccion.numero }} — {% endif %}{{ seccion.categoria|default:seccion.titulo|upper }}</div>
   <hr class="rl">
@@ -326,6 +447,46 @@ h2 em { color: #2E7D32; }
 
   {% if seccion.nota_pie %}<div class="note">{{ seccion.nota_pie }}</div>{% endif %}
 </div>
+
+{% if seccion.ocasiones.all %}
+<!-- Para cada ocasión -->
+<div class="pg">
+  <div class="ey">{{ seccion.nombre_corto|default:seccion.titulo|upper }}</div>
+  <hr class="rl">
+  <h2>Para cada <em>ocasión</em></h2>
+  <div class="ocasiones-grid">
+    {% for o in seccion.ocasiones.all %}
+      <div class="ocasion-card">
+        <span class="ocasion-icono">{{ o.icono }}</span><span class="ocasion-titulo">{{ o.titulo }}</span>
+        {% if o.descripcion %}<div class="ocasion-desc">{{ o.descripcion }}</div>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if seccion.galeria %}
+<!-- Galería (Ambientación / Instalaciones) -->
+<div class="pg">
+  <div class="ey">{{ seccion.galeria.eyebrow|upper }}</div>
+  <hr class="rl">
+  <h2>{{ seccion.galeria.titulo }} <em>{{ seccion.galeria.titulo_enfasis }}</em></h2>
+  {% if seccion.galeria.descripcion %}<p class="ds">{{ seccion.galeria.descripcion }}</p>{% endif %}
+  {% if seccion.galeria.bullets.all %}
+    <ul class="bl2">
+      {% for b in seccion.galeria.bullets.all %}<li>{{ b.texto }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  {% if seccion.galeria.fotos.all %}
+    <div class="galeria-fotos">
+      {% for f in seccion.galeria.fotos.all %}
+        {% if f.imagen %}<img class="galeria-foto" src="{{ f.imagen.url }}">{% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% endfor %}
 
 <!-- ═══════════ CONTACTO ═══════════ -->

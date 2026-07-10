@@ -12,8 +12,9 @@ from django.test import Client, TestCase
 from comercial.models import Producto
 from catalogo.models import (
     ConfiguracionCatalogo, SeccionCatalogo, TarjetaCatalogo, DescuentoTarjeta,
-    PaqueteCatalogo,
+    PaqueteCatalogo, QuienesSomos, OcasionCard, GaleriaSeccion, SeccionBadge,
 )
+from catalogo.views import _hash_estado_catalogo
 
 
 class CatalogoModelTests(TestCase):
@@ -113,6 +114,52 @@ class CatalogoModelTests(TestCase):
     def test_paquete_sin_precio_ni_producto_es_none(self):
         paquete = PaqueteCatalogo.objects.create(nombre='Sin definir')
         self.assertIsNone(paquete.get_precio())
+
+    def test_quienes_somos_es_singleton(self):
+        q1 = QuienesSomos.cargar()
+        q2 = QuienesSomos.cargar()
+        self.assertEqual(q1.pk, q2.pk)
+        self.assertEqual(QuienesSomos.objects.count(), 1)
+
+    def test_seccion_sin_nombre_corto_no_tiene_portada_de_capitulo(self):
+        """El template usa nombre_corto para decidir si genera la portada de
+        capítulo; una sección sin ese campo (ej. servicios adicionales) no
+        debe tenerla."""
+        seccion = SeccionCatalogo.objects.create(numero='', slug='sin-cover', titulo='Test')
+        self.assertEqual(seccion.nombre_corto, '')
+
+    def test_ocasion_card_ligada_a_seccion(self):
+        seccion = SeccionCatalogo.objects.create(numero='01', slug='ocasiones-test', titulo='Test')
+        o1 = OcasionCard.objects.create(seccion=seccion, titulo='Bodas', orden=1)
+        o2 = OcasionCard.objects.create(seccion=seccion, titulo='XV Años', orden=0)
+        # Respeta el orden, no el orden de creación.
+        self.assertEqual(list(seccion.ocasiones.all()), [o2, o1])
+
+    def test_galeria_seccion_es_uno_a_uno(self):
+        seccion = SeccionCatalogo.objects.create(numero='02', slug='galeria-test', titulo='Test')
+        GaleriaSeccion.objects.create(seccion=seccion, eyebrow='Ambientación', titulo='Cada detalle')
+        with self.assertRaises(Exception):
+            GaleriaSeccion.objects.create(seccion=seccion, eyebrow='Otra', titulo='Duplicada')
+
+
+class CacheInvalidacionTests(TestCase):
+    """El hash de invalidación debe cambiar ante cualquier cambio de
+    contenido, incluyendo modelos hijos sin timestamp propio (ver PR de fix
+    de caché: .filter().update() no dispara auto_now)."""
+
+    def test_hash_cambia_al_agregar_badge_de_seccion(self):
+        seccion = SeccionCatalogo.objects.create(numero='01', slug='hash-test', titulo='Test')
+        hash_antes = _hash_estado_catalogo()
+        SeccionBadge.objects.create(seccion=seccion, texto='BODAS')
+        hash_despues = _hash_estado_catalogo()
+        self.assertNotEqual(hash_antes, hash_despues)
+
+    def test_hash_cambia_al_agregar_ocasion(self):
+        seccion = SeccionCatalogo.objects.create(numero='01', slug='hash-test2', titulo='Test')
+        hash_antes = _hash_estado_catalogo()
+        OcasionCard.objects.create(seccion=seccion, titulo='Bodas')
+        hash_despues = _hash_estado_catalogo()
+        self.assertNotEqual(hash_antes, hash_despues)
 
 
 class CatalogoViewTests(TestCase):
