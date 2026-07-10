@@ -877,7 +877,17 @@ def webhook_manychat(request):
     Webhook V7: Procesa Evento y Pasadía.
     - Nombre de evento personalizado con fallback.
     - Crea PortalCliente y devuelve portal_url.
+
+    DESHABILITADO (2026-07): Elian ya no usa ManyChat, pero una automatización
+    externa seguía llamando este endpoint y creando cotizaciones con productos
+    no solicitados (Paquete Esencial + mobiliario/taquiza automáticos). Se
+    corta aquí, antes de cualquier lógica, en vez de borrar la vista o la URL
+    — así es trivial reactivarlo si algún día se vuelve a necesitar.
     """
+    return JsonResponse(
+        {'status': 'error', 'message': 'Este webhook está deshabilitado.'}, status=410
+    )
+
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
 
