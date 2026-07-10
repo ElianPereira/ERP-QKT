@@ -39,7 +39,7 @@ if not DEBUG:
 INSTALLED_APPS = [
     'jazzmin',
     'django.contrib.admin',
-    'django.contrib.auth',
+    'core_erp.apps.QktAuthConfig',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
