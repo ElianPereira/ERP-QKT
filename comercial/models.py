@@ -1402,7 +1402,7 @@ class ImagenLanding(models.Model):
     class Meta:
         ordering = ['seccion', 'orden']
         verbose_name = "Imagen de la página web"
-        verbose_name_plural = "Página Web — Imágenes"
+        verbose_name_plural = "Imágenes"
 
     def __str__(self):
         return f"{self.get_seccion_display()} — {self.titulo or 'Sin título'}"
@@ -1420,7 +1420,7 @@ class TestimonioLanding(models.Model):
     class Meta:
         ordering = ['orden']
         verbose_name = "Testimonio de cliente"
-        verbose_name_plural = "Página Web — Testimonios"
+        verbose_name_plural = "Testimonios"
 
     def __str__(self):
         return f"{self.nombre} — {self.evento}"
@@ -1442,7 +1442,7 @@ class EspacioLanding(models.Model):
     class Meta:
         ordering = ['orden']
         verbose_name = "Espacio"
-        verbose_name_plural = "Página Web — Espacios"
+        verbose_name_plural = "Espacios (Página Web)"
 
     def __str__(self):
         return f"{self.nombre} ({self.capacidad})"
@@ -1457,7 +1457,7 @@ class PreguntaFrecuente(models.Model):
     class Meta:
         ordering = ['orden']
         verbose_name = "Pregunta frecuente"
-        verbose_name_plural = "Página Web — Preguntas Frecuentes"
+        verbose_name_plural = "Preguntas Frecuentes"
 
     def __str__(self):
         return self.pregunta
@@ -1593,7 +1593,7 @@ class Descuento(models.Model):
 
     class Meta:
         verbose_name = "Descuento"
-        verbose_name_plural = "Descuentos"
+        verbose_name_plural = "Reglas de Descuento"
         ordering = ['-prioridad', 'nombre']
 
     def clean(self):
@@ -1664,7 +1664,7 @@ class DescuentoAplicado(models.Model):
 
     class Meta:
         verbose_name = "Descuento Aplicado"
-        verbose_name_plural = "Descuentos Aplicados"
+        verbose_name_plural = "Aplicados (auditoría)"
         ordering = ['-fecha_aplicacion']
 
     def __str__(self):
