@@ -341,6 +341,10 @@ JAZZMIN_SETTINGS = {
 
     "custom_css": "css/admin_fix.css",
     "custom_js": "js/tabs_fix.js",
+
+    # Los grupos del menú (Eventos & Servicios, etc.) inician colapsados;
+    # un clic en el título muestra/oculta sus submódulos.
+    "navigation_expanded": False,
 }
 
 JAZZMIN_UI_TWEAKS = {
