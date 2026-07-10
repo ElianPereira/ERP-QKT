@@ -38,7 +38,7 @@ def get_or_create_cliente_desde_canal(
 ):
     """
     Obtiene o crea un Cliente a partir de los datos crudos de un canal externo
-    (webhook ManyChat, cotizador web, etc).
+    (cotizador web, etc).
 
     Reglas:
     - Si el teléfono no tiene al menos 10 dígitos, NUNCA matchea por teléfono
