@@ -88,6 +88,7 @@ class BadgeServicio(models.Model):
     """Pills de la portada: EVENTOS Y BODAS, PASADÍA, etc."""
     texto = models.CharField(max_length=40)
     orden = models.PositiveIntegerField(default=0)
+    actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['orden']
@@ -96,6 +97,74 @@ class BadgeServicio(models.Model):
 
     def __str__(self):
         return self.texto
+
+
+class QuienesSomos(models.Model):
+    """
+    Singleton: página 'Quiénes somos' + 'Cómo funciona', justo después de
+    la portada. Solo debe existir un registro. Se fuerza en save().
+    """
+    activa = models.BooleanField(default=True, help_text="Desactiva para ocultar esta página del PDF.")
+    eyebrow = models.CharField(max_length=60, default='Quiénes somos')
+    titulo = models.CharField(max_length=150, default='Una familia con amor')
+    titulo_enfasis = models.CharField(max_length=150, default='por los grandes momentos')
+    descripcion = models.TextField(blank=True)
+    eyebrow_proceso = models.CharField(max_length=60, default='Proceso')
+    titulo_proceso = models.CharField(max_length=100, default='Cómo')
+    titulo_proceso_enfasis = models.CharField(max_length=100, default='funciona')
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Quiénes Somos"
+        verbose_name_plural = "Quiénes Somos"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        pass  # el singleton no se elimina
+
+    @classmethod
+    def cargar(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return "Quiénes Somos"
+
+
+class EstadisticaQuienesSomos(models.Model):
+    """Caja de estadística en 'Quiénes somos' (ej. '+50 EVENTOS REALIZADOS')."""
+    valor = models.CharField(max_length=20, help_text="Ej: +50, 365, 100%, 20 min")
+    etiqueta = models.CharField(max_length=60, help_text="Ej: EVENTOS REALIZADOS")
+    orden = models.PositiveIntegerField(default=0)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Estadística"
+        verbose_name_plural = "Quiénes Somos — Estadísticas"
+
+    def __str__(self):
+        return f"{self.valor} {self.etiqueta}"
+
+
+class PasoProceso(models.Model):
+    """Paso numerado del bloque 'Cómo funciona' (ej. '01 — Cotiza en línea')."""
+    numero = models.CharField(max_length=4, help_text="Ej: 01, 02, 03")
+    titulo = models.CharField(max_length=100)
+    descripcion = models.TextField(blank=True)
+    orden = models.PositiveIntegerField(default=0)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Paso del proceso"
+        verbose_name_plural = "Quiénes Somos — Cómo Funciona (pasos)"
+
+    def __str__(self):
+        return f"{self.numero} — {self.titulo}"
 
 
 class SeccionCatalogo(models.Model):
@@ -117,6 +186,23 @@ class SeccionCatalogo(models.Model):
         help_text="Parte en cursiva/verde del título, ej: tu celebración"
     )
     descripcion = models.TextField(blank=True)
+
+    # ── Portada de capítulo (página oscura antes del detalle) ────────────
+    nombre_corto = models.CharField(
+        max_length=40, blank=True,
+        verbose_name="Nombre corto (portada de capítulo)",
+        help_text="Título grande de la portada de capítulo, ej: 'Eventos'. "
+                   "Si se deja vacío, no se genera portada de capítulo para esta sección.",
+    )
+    descripcion_cover = models.TextField(
+        blank=True, verbose_name="Descripción (portada de capítulo)",
+        help_text="Texto corto de la portada de capítulo (distinto al de la página de detalle).",
+    )
+    imagen_cover = models.ImageField(
+        upload_to='catalogo/secciones_cover/', blank=True, null=True,
+        verbose_name="Imagen de portada de capítulo",
+    )
+
     imagen_hero = models.ImageField(upload_to='catalogo/secciones/', blank=True, null=True)
     imagen_hero_caption = models.CharField(max_length=150, blank=True)
     nota_pie = models.CharField(
@@ -151,6 +237,95 @@ class CaracteristicaSeccion(models.Model):
 
     def __str__(self):
         return self.texto
+
+
+class SeccionBadge(models.Model):
+    """Pills cortas en la portada de capítulo de una sección
+    (ej. dentro de Eventos: BODAS, XV AÑOS, GRADUACIONES...)."""
+    seccion = models.ForeignKey(
+        SeccionCatalogo, related_name='badges_cover', on_delete=models.CASCADE
+    )
+    texto = models.CharField(max_length=40)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Badge de portada de capítulo"
+        verbose_name_plural = "Badges de portada de capítulo"
+
+    def __str__(self):
+        return self.texto
+
+
+class OcasionCard(models.Model):
+    """Tarjeta con ícono para el bloque 'Para cada ocasión' (dentro de
+    una sección, típicamente Eventos): Bodas, XV Años, Graduaciones..."""
+    seccion = models.ForeignKey(
+        SeccionCatalogo, related_name='ocasiones', on_delete=models.CASCADE
+    )
+    icono = models.CharField(max_length=10, blank=True, help_text="Emoji, ej: 💍")
+    titulo = models.CharField(max_length=60)
+    descripcion = models.TextField(blank=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Tarjeta de ocasión"
+        verbose_name_plural = "Tarjetas de ocasión ('Para cada ocasión')"
+
+    def __str__(self):
+        return self.titulo
+
+
+class GaleriaSeccion(models.Model):
+    """
+    Sub-página de galería dentro de una sección (ej. 'Ambientación' en
+    Eventos, 'Instalaciones' en Pasadía): eyebrow + título + descripción +
+    fotos + bullets opcionales, en su propia página del PDF.
+    """
+    seccion = models.OneToOneField(
+        SeccionCatalogo, related_name='galeria', on_delete=models.CASCADE
+    )
+    eyebrow = models.CharField(max_length=60, help_text="Ej: Ambientación, Instalaciones")
+    titulo = models.CharField(max_length=100, help_text="Ej: Cada detalle,")
+    titulo_enfasis = models.CharField(max_length=100, blank=True, help_text="Ej: pensado para ti")
+    descripcion = models.TextField(blank=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Galería de sección"
+        verbose_name_plural = "Galerías de sección"
+
+    def __str__(self):
+        return f"{self.seccion.slug} · {self.titulo}"
+
+
+class GaleriaSeccionBullet(models.Model):
+    galeria = models.ForeignKey(GaleriaSeccion, related_name='bullets', on_delete=models.CASCADE)
+    texto = models.CharField(max_length=200)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Bullet de galería"
+        verbose_name_plural = "Bullets de galería"
+
+    def __str__(self):
+        return self.texto
+
+
+class GaleriaSeccionFoto(models.Model):
+    galeria = models.ForeignKey(GaleriaSeccion, related_name='fotos', on_delete=models.CASCADE)
+    imagen = models.ImageField(upload_to='catalogo/galerias/', blank=True, null=True)
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Foto de galería"
+        verbose_name_plural = "Fotos de galería"
+
+    def __str__(self):
+        return f"Foto {self.orden} — {self.galeria}"
 
 
 class TarjetaCatalogo(models.Model):
