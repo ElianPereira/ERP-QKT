@@ -343,7 +343,7 @@ class Poliza(models.Model):
 
     class Meta:
         verbose_name = "Póliza contable"
-        verbose_name_plural = "Pólizas contables"
+        verbose_name_plural = "Pólizas"
         ordering = ['-fecha', '-folio']
         indexes = [
             models.Index(fields=['fecha', 'tipo']),
@@ -451,7 +451,7 @@ class MovimientoContable(models.Model):
 
     class Meta:
         verbose_name = "Movimiento contable"
-        verbose_name_plural = "Movimientos contables"
+        verbose_name_plural = "Movimientos"
         ordering = ['id']
         indexes = [
             models.Index(fields=['cuenta', 'poliza']),
@@ -683,7 +683,7 @@ class ConfiguracionContable(models.Model):
 
     class Meta:
         verbose_name = "Configuración contable"
-        verbose_name_plural = "Configuración contable"
+        verbose_name_plural = "Configuración"
         ordering = ['operacion']
 
     def __str__(self):

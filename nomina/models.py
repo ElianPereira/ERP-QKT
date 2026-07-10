@@ -33,5 +33,9 @@ class ReciboNomina(models.Model):
     # El archivo PDF generado
     archivo_pdf = models.FileField(upload_to='nominas_pdf/', blank=True, null=True)
 
+    class Meta:
+        verbose_name = "Recibo"
+        verbose_name_plural = "Recibos"
+
     def __str__(self):
         return f"Pago {self.empleado} - ${self.total_pagado}"

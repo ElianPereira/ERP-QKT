@@ -65,8 +65,8 @@ class ConfiguracionCatalogo(models.Model):
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Configuración del Catálogo"
-        verbose_name_plural = "Configuración del Catálogo"
+        verbose_name = "Configuración"
+        verbose_name_plural = "Configuración"
 
     def save(self, *args, **kwargs):
         self.pk = 1
@@ -215,8 +215,8 @@ class SeccionCatalogo(models.Model):
 
     class Meta:
         ordering = ['orden']
-        verbose_name = "Sección del catálogo"
-        verbose_name_plural = "Secciones del catálogo"
+        verbose_name = "Sección"
+        verbose_name_plural = "Secciones"
 
     def __str__(self):
         return f"{self.numero} — {self.titulo}"
@@ -368,8 +368,8 @@ class TarjetaCatalogo(models.Model):
 
     class Meta:
         ordering = ['orden']
-        verbose_name = "Tarjeta del catálogo"
-        verbose_name_plural = "Tarjetas del catálogo"
+        verbose_name = "Tarjeta"
+        verbose_name_plural = "Tarjetas"
 
     def get_titulo(self):
         if self.titulo:
