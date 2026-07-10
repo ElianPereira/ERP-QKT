@@ -1475,7 +1475,7 @@ class TipoEvento(models.Model):
 
     class Meta:
         verbose_name = "Tipo de Evento"
-        verbose_name_plural = "Catálogo — Tipos de Evento"
+        verbose_name_plural = "Tipos de Evento"
         ordering = ['orden', 'nombre']
 
     def __str__(self):
@@ -1493,7 +1493,7 @@ class Temporada(models.Model):
 
     class Meta:
         verbose_name = "Temporada"
-        verbose_name_plural = "Descuentos — Temporadas"
+        verbose_name_plural = "Temporadas"
         ordering = ['-anio', 'fecha_inicio']
 
     def clean(self):
@@ -1664,7 +1664,7 @@ class DescuentoAplicado(models.Model):
 
     class Meta:
         verbose_name = "Descuento Aplicado"
-        verbose_name_plural = "Descuentos — Aplicados (auditoría)"
+        verbose_name_plural = "Descuentos Aplicados"
         ordering = ['-fecha_aplicacion']
 
     def __str__(self):

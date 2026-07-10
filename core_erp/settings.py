@@ -200,6 +200,10 @@ JAZZMIN_SETTINGS = {
         "comercial.TestimonioLanding":      "fas fa-star",
         "comercial.EspacioLanding":         "fas fa-door-open",
         "comercial.PreguntaFrecuente":      "fas fa-question-circle",
+        "comercial.TipoEvento":             "fas fa-list",
+        "comercial.Descuento":              "fas fa-percentage",
+        "comercial.DescuentoAplicado":      "fas fa-history",
+        "comercial.Temporada":              "fas fa-calendar-week",
 
         # CATÁLOGO
         "catalogo":                          "fas fa-book-open",
@@ -208,6 +212,10 @@ JAZZMIN_SETTINGS = {
         "catalogo.SeccionCatalogo":          "fas fa-layer-group",
         "catalogo.TarjetaCatalogo":          "fas fa-id-card",
         "catalogo.PaqueteCatalogo":          "fas fa-gift",
+        "catalogo.QuienesSomos":             "fas fa-info-circle",
+        "catalogo.EstadisticaQuienesSomos":  "fas fa-chart-line",
+        "catalogo.PasoProceso":              "fas fa-tasks",
+        "catalogo.GaleriaSeccion":           "fas fa-camera-retro",
 
         # AIRBNB
         "airbnb":                           "fas fa-bed",

@@ -144,7 +144,7 @@ class EstadisticaQuienesSomos(models.Model):
     class Meta:
         ordering = ['orden']
         verbose_name = "Estadística"
-        verbose_name_plural = "Quiénes Somos — Estadísticas"
+        verbose_name_plural = "Estadísticas"
 
     def __str__(self):
         return f"{self.valor} {self.etiqueta}"
@@ -161,7 +161,7 @@ class PasoProceso(models.Model):
     class Meta:
         ordering = ['orden']
         verbose_name = "Paso del proceso"
-        verbose_name_plural = "Quiénes Somos — Cómo Funciona (pasos)"
+        verbose_name_plural = "Cómo Funciona (pasos)"
 
     def __str__(self):
         return f"{self.numero} — {self.titulo}"
