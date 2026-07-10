@@ -1,7 +1,7 @@
 """
 Cotizador Público — comercial/views_cotizador.py
 =================================================
-Replica el flujo del webhook de ManyChat:
+Flujo:
 - Crea Cliente (reutiliza si ya existe por teléfono)
 - Crea Cotización BORRADOR con items reales del catálogo
 - Crea PortalCliente automáticamente
@@ -103,7 +103,6 @@ def cotizador_publico(request):
 def cotizador_enviar(request):
     """
     Procesa la solicitud del cotizador web.
-    Replica exactamente la lógica del webhook de ManyChat.
     """
     try:
         data = json.loads(request.body)

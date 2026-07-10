@@ -42,7 +42,6 @@ try:
         exportar_reporte_pagos,
         descargar_lista_compras_pdf,
         descargar_ficha_producto,
-        webhook_manychat,
         configurar_plantilla_barra,
     )
 except ImportError as e:
@@ -78,10 +77,7 @@ urlpatterns = [
     # ASISTENTE DE CONFIGURACIÓN DE PLANTILLA DE BARRA
     path('admin/comercial/configurar-plantilla-barra/', configurar_plantilla_barra, name='configurar_plantilla_barra'),
 
-    # INTEGRACIÓN MANYCHAT
-    path('api/webhook-manychat/', webhook_manychat, name='webhook_manychat'),
-
-    # Reportes y Herramientas                                  
+    # Reportes y Herramientas
     path('admin/calendario/', calendario_unificado, name='ver_calendario'),
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),

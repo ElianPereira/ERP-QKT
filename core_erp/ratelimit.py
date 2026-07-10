@@ -1,7 +1,7 @@
 """
 Rate limiting simple basado en cache de Django.
 Uso:
-    @rate_limit(key='webhook_manychat', limit=30, window=60)
+    @rate_limit(key='mi_vista', limit=30, window=60)
     def my_view(request): ...
 """
 from functools import wraps
