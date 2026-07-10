@@ -73,8 +73,8 @@ class AnuncioAirbnb(models.Model):
         return f"{self.nombre} ({self.get_tipo_display()})"
     
     class Meta:
-        verbose_name = "Anuncio Airbnb"
-        verbose_name_plural = "Anuncios Airbnb"
+        verbose_name = "Anuncio"
+        verbose_name_plural = "Anuncios"
         ordering = ['nombre']
 
 
@@ -143,8 +143,8 @@ class ReservaAirbnb(models.Model):
         return f"{self.anuncio.nombre}: {self.fecha_inicio} → {self.fecha_fin}"
     
     class Meta:
-        verbose_name = "Reserva Airbnb"
-        verbose_name_plural = "Reservas Airbnb"
+        verbose_name = "Reserva"
+        verbose_name_plural = "Reservas"
         ordering = ['-fecha_inicio']
         indexes = [
             models.Index(fields=['fecha_inicio', 'fecha_fin']),
@@ -300,8 +300,8 @@ class PagoAirbnb(models.Model):
         return f"{self.codigo_confirmacion or 'Sin código'} - {self.huesped} (${self.monto_neto})"
     
     class Meta:
-        verbose_name = "Pago Airbnb"
-        verbose_name_plural = "Pagos Airbnb"
+        verbose_name = "Pago"
+        verbose_name_plural = "Pagos"
         ordering = ['-fecha_checkin']
 
 

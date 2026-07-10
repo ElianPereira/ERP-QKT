@@ -50,8 +50,8 @@ class ReporteGenerado(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Generación")
 
     class Meta:
-        verbose_name = "Reporte Generado"
-        verbose_name_plural = "Reportes Generados"
+        verbose_name = "Generado"
+        verbose_name_plural = "Historial"
         ordering = ['-created_at']
 
     def __str__(self):
