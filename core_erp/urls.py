@@ -35,7 +35,6 @@ try:
         generar_pdf_cotizacion,
         enviar_cotizacion_email,
         ver_dashboard_kpis,
-        calculadora_insumos,
         exportar_cierre_excel,
         exportar_reporte_cotizaciones,
         generar_lista_compras,
@@ -82,7 +81,6 @@ urlpatterns = [
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
     path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),
-    path('admin/calculadora/', calculadora_insumos, name='admin_calculadora'),
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
     
     # --- 4. MÓDULOS EXTRA ---

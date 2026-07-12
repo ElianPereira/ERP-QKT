@@ -263,7 +263,6 @@ JAZZMIN_SETTINGS = {
     "topmenu_links": [
         {"name": "Inicio",             "url": "admin:index",            "permissions": ["auth.view_user"]},
         {"name": "Calendario",         "url": "ver_calendario"},
-        {"name": "Calculadora",        "url": "admin_calculadora"},
         {"name": "Compras",            "url": "generar_lista_compras"},
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},

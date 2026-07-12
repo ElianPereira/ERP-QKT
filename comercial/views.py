@@ -24,7 +24,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.files.base import ContentFile
 
 from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra, Insumo
-from .forms import CalculadoraForm
 from .services import CalculadoraBarraService, actualizar_item_cotizacion
 
 try:
@@ -707,40 +706,6 @@ def exportar_reporte_pagos(request):
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     HTML(string=html).write_pdf(response)
     return response
-
-@staff_member_required
-def calculadora_insumos(request):
-    resultado = None
-    if request.method == 'POST':
-        form = CalculadoraForm(request.POST)
-        if form.is_valid():
-            p = form.cleaned_data['invitados']
-            h = form.cleaned_data['horas']
-            tipo = form.cleaned_data['tipo_evento']
-            clima = form.cleaned_data['clima']
-            factor = 2.0 if tipo == 'boda' else 1.5
-            if tipo == 'empresarial': factor = 1.0
-            if clima == 'calor': factor *= 1.2 
-            total_tragos = p * h * factor
-            resultado = {'total_tragos_estimados': int(total_tragos), 'insumos': []}
-            kilos_hielo = p * 0.75 if clima == 'calor' else p * 0.5
-            if h > 5: kilos_hielo += (p * 0.1 * (h-5))
-            bolsas_hielo = math.ceil(kilos_hielo / 5)
-            resultado['insumos'].append({'nombre': 'Hielo (Bolsas 5kg)', 'cantidad': bolsas_hielo, 'nota': 'Aprox'})
-            if form.cleaned_data['calcular_destilados']:
-                vasos_con_refresco = total_tragos * 0.4 
-                botellas_refresco = math.ceil(vasos_con_refresco / 8)
-                resultado['insumos'].append({'nombre': 'Refrescos (2L)', 'cantidad': botellas_refresco, 'nota': 'Surtido'})
-            if form.cleaned_data['calcular_cerveza']:
-                porcentaje_cheve = 0.6 if form.cleaned_data['calcular_destilados'] else 1.0
-                litros_cheve = (total_tragos * porcentaje_cheve) * 0.355
-                cartones = math.ceil(litros_cheve / (24 * 0.355))
-                resultado['insumos'].append({'nombre': 'Cerveza (Cartones)', 'cantidad': cartones, 'nota': 'Medias'})
-            garrafones = math.ceil(p / 40)
-            resultado['insumos'].append({'nombre': 'Agua Purificada', 'cantidad': garrafones, 'nota': 'Servicio'})
-    else:
-        form = CalculadoraForm()
-    return render(request, 'admin/calculadora.html', {'form': form, 'resultado': resultado})
 
 # ==========================================
 # 5. FICHA TÉCNICA
