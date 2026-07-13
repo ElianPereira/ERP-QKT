@@ -126,9 +126,9 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
         return
 
     # ─── Obtener unidad de negocio ──────────────────────────────
-    unidad = get_unidad_negocio('EVENTOS')
+    unidad = get_unidad_negocio('QUINTA')
     if not unidad:
-        logger.warning("Póliza NO generada para Pago #%s: falta UnidadNegocio 'EVENTOS'", pago.pk)
+        logger.warning("Póliza NO generada para Pago #%s: falta UnidadNegocio 'QUINTA'", pago.pk)
         return
 
     # ─── Calcular desglose proporcional ─────────────────────────
@@ -240,7 +240,7 @@ def crear_poliza_reembolso_cliente(pago):
         )
         return
 
-    unidad = get_unidad_negocio('EVENTOS')
+    unidad = get_unidad_negocio('QUINTA')
     if not unidad:
         logger.warning("Póliza NO generada para Reembolso #%s: falta UnidadNegocio", pago.pk)
         return
@@ -551,51 +551,50 @@ def get_cuenta_por_categoria(categoria):
 @receiver(post_save, sender='comercial.Compra')
 def crear_poliza_compra(sender, instance, created, **kwargs):
     """
-    Genera póliza de egreso cuando se registra una compra.
-    
-    Mejoras:
-    - Mapea categoría de gasto a cuenta contable específica
-    - Soporta unidad de negocio asignada a la compra
-
-    Asiento:
-        DEBE: Cuenta de gasto según categoría (subtotal)
-        DEBE: IVA acreditable (si aplica)
-        HABER: Bancos (total)
+    Genera póliza de egreso al registrar una compra.
+    Si la compra no tiene cuenta_pago y/o unidad_negocio asignados, la póliza
+    se crea en estado BORRADOR (no aplicada) para que quede visible como
+    pendiente de completar, en vez de asumir una cuenta o unidad por defecto.
     """
     if not signals_enabled() or not created:
         return
 
     compra = instance
-
-    # Solo si tiene total > 0
     if compra.total <= 0:
         return
 
-    # Obtener cuentas
-    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
     cuenta_iva = get_cuenta('IVA_ACREDITABLE')
-    
-    # Obtener cuenta de gasto según categoría
     categoria = getattr(compra, 'categoria', None)
     cuenta_gasto = get_cuenta_por_categoria(categoria)
 
-    if not cuenta_banco or not cuenta_gasto:
-        logger.warning(
-            "Póliza NO generada para Compra #%s: falta configuración contable "
-            "(cuenta_banco=%s, cuenta_gasto=%s)", compra.pk, cuenta_banco, cuenta_gasto
-        )
+    if not cuenta_gasto:
+        logger.warning("Póliza NO generada para Compra #%s: falta cuenta de gasto", compra.pk)
         return
 
-    # Obtener unidad de negocio desde la compra o default EVENTOS
-    unidad = getattr(compra, 'unidad_negocio', None) or get_unidad_negocio('EVENTOS')
+    # Unidad de negocio: SOLO la explícita en la compra. Sin fallback a una
+    # unidad "por defecto" — eso fue exactamente el bug que mezcló Eventos con Airbnb.
+    unidad = compra.unidad_negocio
+    cuenta_banco = compra.cuenta_pago.cuenta_contable if (compra.cuenta_pago and compra.cuenta_pago.cuenta_contable) else None
+
+    faltantes = []
     if not unidad:
-        logger.warning("Póliza NO generada para Compra #%s: falta UnidadNegocio", compra.pk)
-        return
+        faltantes.append("unidad_negocio")
+    if not cuenta_banco:
+        faltantes.append("cuenta_pago")
 
-    # Crear póliza
+    estado_poliza = 'APLICADA' if not faltantes else 'BORRADOR'
+    if faltantes:
+        logger.warning(
+            "Compra #%s incompleta (%s): póliza creada en BORRADOR.",
+            compra.pk, ', '.join(faltantes)
+        )
+        # Se necesita una UnidadNegocio para crear la Poliza (campo no-nulo en el modelo).
+        # Si falta, se usa temporalmente 'QUINTA' solo para poder guardar el BORRADOR,
+        # pero el estado BORRADOR deja claro que debe revisarse y no se cuenta en reportes.
+        unidad = unidad or get_unidad_negocio('QUINTA')
+
     usuario = get_usuario_sistema()
     content_type = ContentType.objects.get_for_model(compra)
-
     fecha_poliza = compra.fecha_emision or compra.uploaded_at.date()
 
     poliza = Poliza.objects.create(
@@ -604,114 +603,32 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
         fecha=fecha_poliza,
         concepto=f"Compra: {compra.proveedor or 'Proveedor'}" + (f" [{categoria}]" if categoria else ""),
         unidad_negocio=unidad,
-        estado='APLICADA',
+        estado=estado_poliza,
         origen='COMPRA',
         content_type=content_type,
         object_id=compra.pk,
         created_by=usuario,
     )
 
-    # DEBE: Gasto (subtotal)
     MovimientoContable.objects.create(
-        poliza=poliza,
-        cuenta=cuenta_gasto,
-        debe=compra.subtotal,
-        haber=Decimal('0.00'),
+        poliza=poliza, cuenta=cuenta_gasto,
+        debe=compra.subtotal, haber=Decimal('0.00'),
         concepto=compra.proveedor[:100] if compra.proveedor else "Compra",
         referencia=compra.uuid[:20] if compra.uuid else '',
     )
 
-    # DEBE: IVA acreditable (si aplica)
     if cuenta_iva and compra.iva > 0:
         MovimientoContable.objects.create(
-            poliza=poliza,
-            cuenta=cuenta_iva,
-            debe=compra.iva,
-            haber=Decimal('0.00'),
+            poliza=poliza, cuenta=cuenta_iva,
+            debe=compra.iva, haber=Decimal('0.00'),
             concepto="IVA acreditable",
         )
 
-    # HABER: Banco (total)
-    MovimientoContable.objects.create(
-        poliza=poliza,
-        cuenta=cuenta_banco,
-        debe=Decimal('0.00'),
-        haber=compra.total,
-        concepto="Pago a proveedor",
-        referencia=compra.uuid[:20] if compra.uuid else '',
-    )
-
-
-# ==========================================
-# SIGNAL: NÓMINA (nomina.ReciboNomina)
-# ==========================================
-@receiver(post_save, sender='nomina.ReciboNomina')
-def crear_poliza_nomina(sender, instance, created, **kwargs):
-    """
-    Genera póliza de egreso cuando se registra un recibo de nómina.
-
-    Asiento:
-        DEBE: Sueldos y salarios
-        HABER: Bancos/Caja
-    """
-    if not signals_enabled() or not created:
-        return
-
-    recibo = instance
-
-    if recibo.total_pagado <= 0:
-        return
-
-    # Obtener cuentas
-    cuenta_sueldos = get_cuenta('SUELDOS_SALARIOS')
-    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
-
-    if not cuenta_sueldos or not cuenta_banco:
-        logger.warning(
-            "Póliza NO generada para ReciboNomina #%s: falta configuración contable "
-            "(cuenta_sueldos=%s, cuenta_banco=%s)", recibo.pk, cuenta_sueldos, cuenta_banco
+    if cuenta_banco:
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta_banco,
+            debe=Decimal('0.00'), haber=compra.total,
+            concepto="Pago a proveedor",
+            referencia=compra.uuid[:20] if compra.uuid else '',
         )
-        return
 
-    # Obtener unidad de negocio
-    unidad = get_unidad_negocio('EVENTOS')
-    if not unidad:
-        logger.warning("Póliza NO generada para ReciboNomina #%s: falta UnidadNegocio 'EVENTOS'", recibo.pk)
-        return
-
-    # Crear póliza
-    usuario = get_usuario_sistema()
-    content_type = ContentType.objects.get_for_model(recibo)
-
-    fecha_poliza = recibo.fecha_generacion.date()
-
-    poliza = Poliza.objects.create(
-        tipo='E',
-        folio=Poliza.siguiente_folio('E', fecha_poliza),
-        fecha=fecha_poliza,
-        concepto=f"Nómina: {recibo.empleado.nombre} - {recibo.periodo}",
-        unidad_negocio=unidad,
-        estado='APLICADA',
-        origen='NOMINA',
-        content_type=content_type,
-        object_id=recibo.pk,
-        created_by=usuario,
-    )
-
-    # DEBE: Sueldos y salarios
-    MovimientoContable.objects.create(
-        poliza=poliza,
-        cuenta=cuenta_sueldos,
-        debe=recibo.total_pagado,
-        haber=Decimal('0.00'),
-        concepto=f"{recibo.empleado.nombre} - {recibo.horas_trabajadas}h",
-    )
-
-    # HABER: Banco
-    MovimientoContable.objects.create(
-        poliza=poliza,
-        cuenta=cuenta_banco,
-        debe=Decimal('0.00'),
-        haber=recibo.total_pagado,
-        concepto="Pago nómina",
-    )

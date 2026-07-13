@@ -885,13 +885,17 @@ class GastoInline(admin.TabularInline):
 
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
-    change_list_template = "comercial/compra_change_list.html" 
-    list_display = ('fecha_emision', 'proveedor', 'total_format', 'uuid', 'ver_pdf')
-    list_filter = ('fecha_emision',); search_fields = ('proveedor', 'uuid'); date_hierarchy = 'fecha_emision'
+    change_list_template = "comercial/compra_change_list.html"
+    list_display = ('fecha_emision', 'proveedor', 'total_format', 'unidad_negocio', 'cuenta_pago', 'uuid', 'ver_pdf')
+    list_filter = ('fecha_emision', 'unidad_negocio', 'cuenta_pago'); search_fields = ('proveedor', 'uuid'); date_hierarchy = 'fecha_emision'
     inlines = [GastoInline]
     fieldsets = (
         ('Archivo Fuente (Opcional)', {'fields': ('archivo_xml', 'archivo_pdf')}),
         ('Datos Generales', {'fields': ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid')}),
+        ('Contabilidad', {
+            'fields': ('unidad_negocio', 'cuenta_pago'),
+            'description': 'Sin estos dos datos, la póliza generada queda en BORRADOR y no se aplica.',
+        }),
         ('Totales Globales', {'fields': ('subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')})
     )
     class Media:
@@ -908,8 +912,8 @@ class CompraAdmin(admin.ModelAdmin):
 
         # Mapeo de RFC receptor -> Unidad de negocio
         RFC_UNIDAD_MAP = {
-            'PECE010202IA0': 'EVENTOS',  # Elian - Quinta Ko'ox Tanil
-            'CERU580518QZ5': 'AIRBNB',   # Ruby - Hospedaje Airbnb
+            'PECE010202IA0': 'QUINTA',  # Elian - Quinta Ko'ox Tanil
+            'CERU580518QZ5': 'AIRBNB',  # Ruby - Hospedaje Airbnb
         }
         RFCS_VALIDOS = set(RFC_UNIDAD_MAP.keys())
 

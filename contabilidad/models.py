@@ -277,6 +277,7 @@ class Poliza(models.Model):
         ('COMPRA', 'Compra/Gasto'),
         ('NOMINA', 'Nómina'),
         ('AJUSTE', 'Ajuste contable'),
+        ('APERTURA', 'Saldo de apertura'),
     ]
 
     tipo = models.CharField(
@@ -661,6 +662,11 @@ class ConfiguracionContable(models.Model):
         ('BANCO_PRINCIPAL', 'Banco principal'),
         ('BANCO_SECUNDARIO', 'Banco secundario'),
         ('CAJA', 'Caja'),
+
+        # ═══════════════════════════════════════════
+        # REGULARIZACIÓN / APERTURA
+        # ═══════════════════════════════════════════
+        ('AJUSTE_APERTURA', 'Ajuste de apertura / resultados de ejercicios anteriores'),
     ]
 
     operacion = models.CharField(
@@ -697,3 +703,56 @@ class ConfiguracionContable(models.Model):
             return config.cuenta
         except cls.DoesNotExist:
             return None
+
+
+# ==========================================
+# 6. SALDO DE APERTURA (REGULARIZACIÓN)
+# ==========================================
+
+class SaldoApertura(models.Model):
+    """
+    Saldo certificado por el contador para una cuenta bancaria a una fecha
+    de corte. Se usa una sola vez por cuenta para cerrar el histórico y
+    arrancar la contabilidad regularizada.
+
+    No se debe editar después de generar la póliza de apertura
+    (aplicado=True). Si hay error, se cancela y se crea uno nuevo.
+    """
+    cuenta_bancaria = models.ForeignKey(
+        'CuentaBancaria',
+        on_delete=models.PROTECT,
+        related_name='saldos_apertura',
+        verbose_name="Cuenta"
+    )
+    fecha_corte = models.DateField(verbose_name="Fecha de corte")
+    saldo_certificado = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        verbose_name="Saldo certificado",
+        help_text="Saldo real según estado de cuenta bancario a la fecha de corte."
+    )
+    notas = models.TextField(blank=True, verbose_name="Notas / soporte")
+    certificado_por = models.ForeignKey(
+        User, on_delete=models.PROTECT,
+        related_name='saldos_certificados',
+        verbose_name="Certificado por"
+    )
+    aplicado = models.BooleanField(default=False, verbose_name="Póliza generada")
+    poliza = models.OneToOneField(
+        'Poliza', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='saldo_apertura', verbose_name="Póliza de apertura"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Saldo de apertura"
+        verbose_name_plural = "Saldos de apertura"
+        unique_together = ['cuenta_bancaria', 'fecha_corte']
+        ordering = ['-fecha_corte']
+
+    def __str__(self):
+        return f"{self.cuenta_bancaria} @ {self.fecha_corte} = ${self.saldo_certificado:,.2f}"
+
+    def clean(self):
+        if self.aplicado:
+            raise ValidationError("No se puede editar un saldo de apertura ya aplicado. Cancélalo desde la póliza asociada.")
