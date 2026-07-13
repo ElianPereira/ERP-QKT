@@ -931,12 +931,25 @@ class Compra(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
     unidad_negocio = models.ForeignKey(
         'contabilidad.UnidadNegocio',
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
-        verbose_name="Unidad de Negocio"
+        related_name='compras',
+        verbose_name="Unidad de negocio",
+        help_text="¿Este gasto es de Eventos (QUINTA) o de Hospedaje (AIRBNB)? "
+                   "Sin este dato la póliza queda en BORRADOR y no se aplica."
     )
-    
+    cuenta_pago = models.ForeignKey(
+        'contabilidad.CuentaBancaria',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='compras_pagadas',
+        verbose_name="Cuenta de pago",
+        help_text="De cuál de las cuentas débito salió este pago. "
+                  "Sin este dato la póliza queda en BORRADOR y no se aplica."
+    )
+
     def save(self, *args, **kwargs):
         if self.archivo_xml and not self.pk:
             try:

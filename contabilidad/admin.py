@@ -4,7 +4,7 @@ Admin del Módulo de Contabilidad
 Sistema de Diseño QKT v2.0
 """
 from decimal import Decimal
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.db.models import Sum
@@ -12,8 +12,9 @@ from django.db.models import Sum
 from .models import (
     CuentaContable, UnidadNegocio, CuentaBancaria,
     Poliza, MovimientoContable, ConciliacionBancaria,
-    ConfiguracionContable
+    ConfiguracionContable, SaldoApertura
 )
+from .services import aplicar_saldo_apertura
 
 
 class MovimientoContableInline(admin.TabularInline):
@@ -347,3 +348,29 @@ class MovimientoContableAdmin(admin.ModelAdmin):
     
     def has_change_permission(self, request, obj=None):
         return False
+
+@admin.register(SaldoApertura)
+class SaldoAperturaAdmin(admin.ModelAdmin):
+    list_display = ['cuenta_bancaria', 'fecha_corte', 'saldo_certificado', 'aplicado', 'certificado_por']
+    list_filter = ['aplicado', 'fecha_corte']
+    readonly_fields = ['aplicado', 'poliza']
+    actions = ['aplicar_saldo']
+
+    def aplicar_saldo(self, request, queryset):
+        aplicados, errores = 0, []
+        for saldo in queryset.filter(aplicado=False):
+            try:
+                aplicar_saldo_apertura(saldo, usuario=request.user)
+                aplicados += 1
+            except Exception as e:
+                errores.append(f"{saldo}: {e}")
+        if aplicados:
+            self.message_user(request, f"{aplicados} saldo(s) de apertura aplicado(s).", level=messages.SUCCESS)
+        for err in errores:
+            self.message_user(request, err, level=messages.ERROR)
+    aplicar_saldo.short_description = "Generar póliza de apertura"
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.certificado_por = request.user
+        super().save_model(request, obj, form, change)

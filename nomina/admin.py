@@ -1,7 +1,8 @@
 from datetime import date, timedelta
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.conf import settings
 from django.utils.html import format_html
+from django.utils.timezone import now
 from .models import Empleado, ReciboNomina
 
 try:
@@ -21,8 +22,22 @@ class EmpleadoAdmin(admin.ModelAdmin):
 class ReciboNominaAdmin(admin.ModelAdmin):
     change_list_template = 'admin/nomina/recibonomina/change_list.html'
 
-    list_display = ('folio_custom', 'empleado', 'periodo', 'total_pagado', 'ver_pdf')
-    list_filter = ('periodo', 'empleado')
+    list_display = ('folio_custom', 'empleado', 'periodo', 'total_pagado', 'estado', 'ver_pdf')
+    list_filter = ('periodo', 'empleado', 'estado')
+    actions = ['marcar_como_pagado']
+
+    def marcar_como_pagado(self, request, queryset):
+        from .services import marcar_recibo_como_pagado
+        pendientes = queryset.filter(estado='CALCULADO')
+        if not pendientes.exists():
+            self.message_user(request, "No hay recibos en estado CALCULADO en la selección.", level=messages.WARNING)
+            return
+        exitosos = 0
+        for recibo in pendientes:
+            marcar_recibo_como_pagado(recibo, fecha_pago=now().date(), usuario=request.user)
+            exitosos += 1
+        self.message_user(request, f"{exitosos} recibo(s) marcado(s) como pagados (administrativo, sin impacto contable).", level=messages.SUCCESS)
+    marcar_como_pagado.short_description = "Marcar como pagado en efectivo (solo administrativo)"
 
     def folio_custom(self, obj):
         return f"NOM-{obj.id:03d}"

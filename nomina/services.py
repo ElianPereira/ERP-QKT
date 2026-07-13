@@ -15,6 +15,8 @@ import logging
 import requests
 from datetime import datetime, timedelta
 from django.conf import settings
+from django.db import transaction
+from django.core.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -315,3 +317,24 @@ class JibbleService:
         except JibbleAPIError as e:
             resultado['errores'].append(f'People: {e}')
         return resultado
+
+# ==========================================
+# CONTROL ADMINISTRATIVO DE PAGO (SIN CONTABILIDAD)
+# ==========================================
+def marcar_recibo_como_pagado(recibo, fecha_pago, usuario=None):
+    """
+    Marca un recibo de nómina como pagado en efectivo. Puramente administrativo:
+    no genera ningún movimiento ni póliza contable. La nómina de Jibble está
+    excluida de la contabilidad por decisión de negocio confirmada con el contador.
+    """
+    if recibo.estado != 'CALCULADO':
+        raise ValidationError(f"El recibo #{recibo.pk} no está en estado CALCULADO (estado actual: {recibo.estado}).")
+
+    with transaction.atomic():
+        recibo.estado = 'PAGADO'
+        recibo.fecha_pago = fecha_pago
+        recibo.pagado_por = usuario
+        recibo.full_clean()
+        recibo.save()
+
+    return recibo
