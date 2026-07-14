@@ -1,10 +1,13 @@
 """
 Tests del módulo Contabilidad
 =============================
-Cubre signals de pago, reembolsos, reversión por cancelación, y la
+Cubre signals de pago, reembolsos, reversión por cancelación, la
 regularización contable (unidad de negocio/cuenta real en compras,
-exclusión de nómina, saldos de apertura).
+exclusión de nómina, saldos de apertura), y la carga de estados de
+cuenta BBVA con su conciliación preliminar.
 """
+import os
+import unittest
 from decimal import Decimal
 from datetime import date, timedelta
 from django.test import TestCase
@@ -12,9 +15,13 @@ from django.contrib.auth.models import User
 
 from contabilidad.models import (
     CuentaContable, ConfiguracionContable, UnidadNegocio, CuentaBancaria,
-    Poliza, SaldoApertura
+    Poliza, MovimientoContable, SaldoApertura,
+    EstadoCuentaBancario, MovimientoEstadoCuenta,
 )
 from contabilidad.services import aplicar_saldo_apertura
+from contabilidad.services_estados_cuenta import (
+    _emparejar_automaticamente, generar_conciliacion_preliminar,
+)
 from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago, Compra
 from nomina.models import Empleado, ReciboNomina
 from nomina.services import marcar_recibo_como_pagado
@@ -263,3 +270,195 @@ class SaldoAperturaTest(TestCase):
         haber = sum(m.haber for m in poliza.movimientos.all())
         self.assertEqual(debe, haber)
         self.assertEqual(debe, Decimal('15000.00'))
+
+
+# ==========================================
+# ESTADOS DE CUENTA BANCARIOS Y CONCILIACIÓN
+# ==========================================
+
+class EmparejamientoAutomaticoTest(TestCase):
+    """El emparejamiento debe respetar monto exacto, tolerancia de fecha, y no duplicar matches."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('contador_ec', password='x')
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal (test emparejamiento)', banco='BBVA',
+            clabe='012345678901234570', cuenta_contable=self.cuenta_contable_banco,
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+        )
+
+    def _crear_movimiento_contable(self, fecha, debe=Decimal('0.00'), haber=Decimal('0.00')):
+        tipo = 'I' if debe else 'E'
+        poliza = Poliza.objects.create(
+            tipo=tipo, folio=Poliza.siguiente_folio(tipo, fecha),
+            fecha=fecha, concepto='Movimiento de prueba',
+            unidad_negocio=self.unidad, estado='APLICADA',
+            origen='MANUAL', created_by=self.user,
+        )
+        return MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_contable_banco,
+            debe=debe, haber=haber, concepto='Prueba',
+        )
+
+    def test_emparejamiento_exacto_dentro_de_tolerancia(self):
+        mov_contable = self._crear_movimiento_contable(date(2026, 7, 1), debe=Decimal('1000.00'))
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 3),
+            descripcion='Depósito', abono=Decimal('1000.00'),
+        )
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertEqual(mov_banco.movimiento_contable, mov_contable)
+        self.assertTrue(mov_banco.match_automatico)
+        self.assertFalse(mov_banco.confirmado)
+
+    def test_no_empareja_dos_veces_el_mismo_movimiento_contable(self):
+        mov_contable = self._crear_movimiento_contable(date(2026, 7, 1), debe=Decimal('500.00'))
+        mov_banco_1 = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 2),
+            descripcion='Depósito 1', abono=Decimal('500.00'),
+        )
+        mov_banco_2 = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 2),
+            descripcion='Depósito 2', abono=Decimal('500.00'),
+        )
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco_1.refresh_from_db()
+        mov_banco_2.refresh_from_db()
+        emparejados = [m for m in (mov_banco_1, mov_banco_2) if m.movimiento_contable_id]
+        self.assertEqual(len(emparejados), 1)
+        self.assertEqual(emparejados[0].movimiento_contable, mov_contable)
+
+    def test_fuera_de_tolerancia_no_empareja(self):
+        self._crear_movimiento_contable(date(2026, 7, 1), debe=Decimal('750.00'))
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 20),
+            descripcion='Depósito tardío', abono=Decimal('750.00'),
+        )
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertIsNone(mov_banco.movimiento_contable)
+        self.assertFalse(mov_banco.match_automatico)
+
+
+class ConciliacionPreliminarTest(TestCase):
+    """generar_conciliacion_preliminar usa saldo_a_fecha, no saldo_actual corrido a hoy."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('contador_conc', password='x')
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal (test conciliación)', banco='BBVA',
+            clabe='012345678901234571', cuenta_contable=self.cuenta_contable_banco,
+        )
+
+    def _poliza(self, fecha, debe=Decimal('0.00'), haber=Decimal('0.00')):
+        tipo = 'I' if debe else 'E'
+        poliza = Poliza.objects.create(
+            tipo=tipo, folio=Poliza.siguiente_folio(tipo, fecha),
+            fecha=fecha, concepto='Movimiento', unidad_negocio=self.unidad,
+            estado='APLICADA', origen='MANUAL', created_by=self.user,
+        )
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_contable_banco, debe=debe, haber=haber, concepto='x',
+        )
+
+    def test_usa_saldo_a_fecha_no_saldo_actual(self):
+        self._poliza(date(2026, 6, 15), debe=Decimal('2000.00'))   # antes del corte: sí cuenta
+        self._poliza(date(2026, 8, 1), debe=Decimal('99999.00'))   # después del corte: NO debe contar
+
+        estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 7, 1), saldo_final_estado=Decimal('2000.00'),
+        )
+        conciliacion = generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
+        self.assertEqual(conciliacion.saldo_segun_libros, Decimal('2000.00'))
+
+
+class ParserBBVATest(TestCase):
+    """
+    Valida el parser contra los dos PDFs reales de muestra (Libretón Básico y
+    Maestra PYME). Coloca los archivos en contabilidad/tests_fixtures/ antes
+    de correr — ver nombres exactos abajo. Sin ellos, estos tests se saltan
+    (no fallan) para no romper la suite mientras no estén disponibles.
+
+    Las cifras esperadas son EXACTAMENTE las que imprime el propio estado de
+    cuenta en su sección "Total de Movimientos" — si algún día BBVA cambia su
+    formato y estos tests empiezan a fallar, es la señal de que el parser
+    necesita recalibrarse contra el nuevo formato, no de que el test esté mal.
+    """
+    FIXTURE_LIBRETON = os.path.join(os.path.dirname(__file__), 'tests_fixtures', 'estado_cuenta_bbva_libreton_ejemplo.pdf')
+    FIXTURE_MAESTRA_PYME = os.path.join(os.path.dirname(__file__), 'tests_fixtures', 'estado_cuenta_bbva_maestra_pyme_ejemplo.pdf')
+
+    @unittest.skipUnless(os.path.exists(FIXTURE_LIBRETON), "Falta el fixture real estado_cuenta_bbva_libreton_ejemplo.pdf")
+    def test_parser_libreton_basico_totales_exactos(self):
+        from contabilidad.services_estados_cuenta import _parsear_pdf_bbva
+        movs, saldo_inicial, saldo_final, numero_cuenta, fecha_corte_real = _parsear_pdf_bbva(self.FIXTURE_LIBRETON)
+
+        self.assertEqual(numero_cuenta, '1551774893')
+        self.assertEqual(saldo_inicial, Decimal('3546.19'))
+        self.assertEqual(saldo_final, Decimal('15658.90'))
+        self.assertEqual(fecha_corte_real, date(2026, 3, 14))  # corte a mitad de mes, no fin de mes
+        self.assertEqual(len(movs), 53)
+
+        total_cargo = sum((m['cargo'] for m in movs), Decimal('0.00'))
+        total_abono = sum((m['abono'] for m in movs), Decimal('0.00'))
+        n_cargo = sum(1 for m in movs if m['cargo'] > 0)
+        n_abono = sum(1 for m in movs if m['abono'] > 0)
+
+        self.assertEqual(total_cargo, Decimal('20366.38'))
+        self.assertEqual(n_cargo, 44)
+        self.assertEqual(total_abono, Decimal('32479.09'))
+        self.assertEqual(n_abono, 9)
+
+    @unittest.skipUnless(os.path.exists(FIXTURE_MAESTRA_PYME), "Falta el fixture real estado_cuenta_bbva_maestra_pyme_ejemplo.pdf")
+    def test_parser_maestra_pyme_totales_exactos(self):
+        from contabilidad.services_estados_cuenta import _parsear_pdf_bbva
+        movs, saldo_inicial, saldo_final, numero_cuenta, fecha_corte_real = _parsear_pdf_bbva(self.FIXTURE_MAESTRA_PYME)
+
+        self.assertEqual(numero_cuenta, '0489570314')
+        self.assertEqual(saldo_inicial, Decimal('6624.34'))
+        self.assertEqual(saldo_final, Decimal('0.21'))
+        self.assertEqual(fecha_corte_real, date(2026, 4, 30))  # corte fin de mes
+        self.assertEqual(len(movs), 39)
+
+        total_cargo = sum((m['cargo'] for m in movs), Decimal('0.00'))
+        total_abono = sum((m['abono'] for m in movs), Decimal('0.00'))
+        n_cargo = sum(1 for m in movs if m['cargo'] > 0)
+        n_abono = sum(1 for m in movs if m['abono'] > 0)
+
+        self.assertEqual(total_cargo, Decimal('18071.02'))
+        self.assertEqual(n_cargo, 34)
+        self.assertEqual(total_abono, Decimal('11446.89'))
+        self.assertEqual(n_abono, 5)
+
+    @unittest.skipUnless(os.path.exists(FIXTURE_LIBRETON), "Falta el fixture real estado_cuenta_bbva_libreton_ejemplo.pdf")
+    def test_numero_cuenta_no_coincide_rechaza_la_carga(self):
+        """
+        Regresión directa del requisito de Elián: nunca debe ser posible que un
+        estado de cuenta de una persona se procese contra la CuentaBancaria de otra.
+        """
+        from contabilidad.services_estados_cuenta import procesar_estado_cuenta
+        from django.core.files import File
+
+        cuenta_equivocada = CuentaBancaria.objects.create(
+            nombre="Cuenta equivocada de prueba", banco="BBVA",
+            numero_cuenta="0000000000", clabe="000000000000000000",
+        )
+        with open(self.FIXTURE_LIBRETON, 'rb') as f:
+            estado_cuenta = EstadoCuentaBancario.objects.create(
+                cuenta_bancaria=cuenta_equivocada, banco='BBVA',
+                periodo_mes=2, periodo_anio=2026, formato='PDF',
+                archivo=File(f, name='estado_cuenta_bbva_libreton_ejemplo.pdf'),
+            )
+        with self.assertRaises(ValueError):
+            procesar_estado_cuenta(estado_cuenta)
+        estado_cuenta.refresh_from_db()
+        self.assertEqual(estado_cuenta.estado, 'ERROR')

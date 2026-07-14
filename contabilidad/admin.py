@@ -12,9 +12,11 @@ from django.db.models import Sum
 from .models import (
     CuentaContable, UnidadNegocio, CuentaBancaria,
     Poliza, MovimientoContable, ConciliacionBancaria,
-    ConfiguracionContable, SaldoApertura
+    ConfiguracionContable, SaldoApertura,
+    EstadoCuentaBancario, MovimientoEstadoCuenta,
 )
 from .services import aplicar_saldo_apertura
+from .services_estados_cuenta import procesar_estado_cuenta, generar_conciliacion_preliminar
 
 
 class MovimientoContableInline(admin.TabularInline):
@@ -374,3 +376,52 @@ class SaldoAperturaAdmin(admin.ModelAdmin):
         if not obj.pk:
             obj.certificado_por = request.user
         super().save_model(request, obj, form, change)
+
+
+class MovimientoEstadoCuentaInline(admin.TabularInline):
+    model = MovimientoEstadoCuenta
+    extra = 0
+    fields = ['fecha', 'descripcion', 'cargo', 'abono', 'movimiento_contable', 'match_automatico', 'confirmado']
+    readonly_fields = ['match_automatico']
+    autocomplete_fields = ['movimiento_contable']
+
+
+@admin.register(EstadoCuentaBancario)
+class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
+    list_display = ['cuenta_bancaria', 'periodo_mes', 'periodo_anio', 'estado', 'saldo_final_estado', 'origen']
+    list_filter = ['estado', 'cuenta_bancaria', 'periodo_anio']
+    inlines = [MovimientoEstadoCuentaInline]
+    actions = ['procesar', 'generar_conciliacion']
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.cargado_por = request.user
+        super().save_model(request, obj, form, change)
+
+    def procesar(self, request, queryset):
+        ok, errores = 0, []
+        for ec in queryset:
+            try:
+                procesar_estado_cuenta(ec)
+                ok += 1
+            except Exception as e:
+                errores.append(f"{ec}: {e}")
+        if ok:
+            self.message_user(request, f"{ok} estado(s) de cuenta procesado(s).", level=messages.SUCCESS)
+        for err in errores:
+            self.message_user(request, err, level=messages.ERROR)
+    procesar.short_description = "Procesar (extraer movimientos y emparejar)"
+
+    def generar_conciliacion(self, request, queryset):
+        ok, errores = 0, []
+        for ec in queryset.filter(estado='PROCESADO'):
+            try:
+                generar_conciliacion_preliminar(ec, usuario=request.user)
+                ok += 1
+            except Exception as e:
+                errores.append(f"{ec}: {e}")
+        if ok:
+            self.message_user(request, f"{ok} conciliación(es) preliminar(es) generada(s). Revísalas en Conciliaciones bancarias.", level=messages.SUCCESS)
+        for err in errores:
+            self.message_user(request, err, level=messages.ERROR)
+    generar_conciliacion.short_description = "Generar conciliación preliminar"
