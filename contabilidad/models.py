@@ -248,6 +248,25 @@ class CuentaBancaria(models.Model):
             return self.saldo_inicial
         return self.saldo_inicial + self.cuenta_contable.saldo_actual
 
+    def saldo_a_fecha(self, fecha):
+        """
+        Saldo según libros considerando solo pólizas aplicadas con fecha <= fecha dada.
+        Necesario para conciliar un mes específico sin que movimientos posteriores
+        (ya capturados en el sistema pero de meses futuros) contaminen el cálculo.
+        """
+        if not self.cuenta_contable:
+            return self.saldo_inicial
+        movimientos = self.cuenta_contable.movimientos.filter(
+            poliza__estado='APLICADA',
+            poliza__fecha__lte=fecha,
+        ).aggregate(total_debe=Sum('debe'), total_haber=Sum('haber'))
+        debe = movimientos['total_debe'] or Decimal('0.00')
+        haber = movimientos['total_haber'] or Decimal('0.00')
+        if self.cuenta_contable.naturaleza == 'D':
+            return self.saldo_inicial + (debe - haber)
+        else:
+            return self.saldo_inicial + (haber - debe)
+
 
 # ==========================================
 # 4. PÓLIZAS CONTABLES
@@ -756,3 +775,108 @@ class SaldoApertura(models.Model):
     def clean(self):
         if self.aplicado:
             raise ValidationError("No se puede editar un saldo de apertura ya aplicado. Cancélalo desde la póliza asociada.")
+
+# ==========================================
+# 7. ESTADOS DE CUENTA BANCARIOS (CONCILIACIÓN)
+# ==========================================
+
+class EstadoCuentaBancario(models.Model):
+    """
+    Archivo de estado de cuenta bancario cargado. Es el documento fuente de una
+    conciliación: el parseo genera los MovimientoEstadoCuenta, y de ahí se arma
+    la ConciliacionBancaria preliminar.
+    """
+    ORIGEN_CHOICES = [
+        ('MANUAL', 'Carga manual'),
+        ('API', 'Descarga automática (futuro)'),
+    ]
+    FORMATO_CHOICES = [
+        ('PDF', 'PDF'),
+        ('XML', 'XML'),
+    ]
+    ESTADO_CHOICES = [
+        ('SUBIDO', 'Subido, sin procesar'),
+        ('PROCESADO', 'Procesado (movimientos extraídos)'),
+        ('ERROR', 'Error al procesar'),
+        ('CONCILIADO', 'Conciliación confirmada'),
+    ]
+
+    cuenta_bancaria = models.ForeignKey(
+        'CuentaBancaria', on_delete=models.PROTECT, related_name='estados_cuenta'
+    )
+    banco = models.CharField(max_length=20, default='BBVA', verbose_name="Banco")
+    periodo_mes = models.PositiveSmallIntegerField(verbose_name="Mes")
+    periodo_anio = models.PositiveSmallIntegerField(verbose_name="Año")
+    archivo = models.FileField(upload_to='estados_cuenta/%Y/%m/', verbose_name="Archivo")
+    formato = models.CharField(max_length=5, choices=FORMATO_CHOICES, verbose_name="Formato")
+    origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, default='MANUAL')
+
+    saldo_inicial_estado = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    saldo_final_estado = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    fecha_corte_real = models.DateField(
+        null=True, blank=True, verbose_name="Fecha de corte real",
+        help_text="La que imprime el propio banco en el PDF ('Fecha de Corte'). No asumir "
+                   "fin de mes calendario — algunas cuentas BBVA cortan a mitad de mes "
+                   "(ej. Libretón Básico corta el día 14). La conciliación usa esta fecha, "
+                   "no el fin del mes de periodo_mes/periodo_anio."
+    )
+
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='SUBIDO')
+    error_detalle = models.TextField(blank=True, verbose_name="Detalle del error de procesamiento")
+
+    cargado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    conciliacion = models.OneToOneField(
+        'ConciliacionBancaria', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='estado_cuenta_origen'
+    )
+
+    class Meta:
+        verbose_name = "Estado de cuenta bancario"
+        verbose_name_plural = "Estados de cuenta bancarios"
+        unique_together = ['cuenta_bancaria', 'periodo_mes', 'periodo_anio']
+        ordering = ['-periodo_anio', '-periodo_mes']
+
+    def __str__(self):
+        corte = self.fecha_corte_real.strftime('%d/%m/%Y') if self.fecha_corte_real else f"{self.periodo_mes:02d}/{self.periodo_anio}"
+        return f"{self.cuenta_bancaria} - corte {corte} [{self.estado}]"
+
+
+class MovimientoEstadoCuenta(models.Model):
+    """
+    Línea de movimiento extraída del estado de cuenta (cargo o abono, vista del banco).
+    Se intenta emparejar automáticamente contra un MovimientoContable existente del
+    sistema; el usuario confirma o corrige el emparejamiento manualmente antes de
+    dar por buena la conciliación.
+    """
+    estado_cuenta = models.ForeignKey(
+        EstadoCuentaBancario, on_delete=models.CASCADE, related_name='movimientos'
+    )
+    fecha = models.DateField()
+    descripcion = models.CharField(max_length=300, blank=True)
+    referencia = models.CharField(max_length=100, blank=True)
+    cargo = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    abono = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    saldo_parcial = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+
+    movimiento_contable = models.ForeignKey(
+        'MovimientoContable', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='movimientos_banco_emparejados'
+    )
+    match_automatico = models.BooleanField(default=False, verbose_name="Emparejado automáticamente")
+    confirmado = models.BooleanField(
+        default=False,
+        verbose_name="Confirmado",
+        help_text="El usuario revisó y confirmó (o corrigió) este emparejamiento."
+    )
+
+    class Meta:
+        verbose_name = "Movimiento de estado de cuenta"
+        verbose_name_plural = "Movimientos de estado de cuenta"
+        ordering = ['fecha', 'id']
+
+    def clean(self):
+        if self.cargo > 0 and self.abono > 0:
+            raise ValidationError("Un movimiento de estado de cuenta no puede tener cargo y abono simultáneamente.")
