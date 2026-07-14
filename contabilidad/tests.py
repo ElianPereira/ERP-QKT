@@ -445,20 +445,29 @@ class ParserBBVATest(TestCase):
         Regresión directa del requisito de Elián: nunca debe ser posible que un
         estado de cuenta de una persona se procese contra la CuentaBancaria de otra.
         """
+        import tempfile
+        from unittest import mock
         from contabilidad.services_estados_cuenta import procesar_estado_cuenta
         from django.core.files import File
+        from django.core.files.storage import FileSystemStorage
 
         cuenta_equivocada = CuentaBancaria.objects.create(
             nombre="Cuenta equivocada de prueba", banco="BBVA",
             numero_cuenta="0000000000", clabe="000000000000000000",
         )
-        with open(self.FIXTURE_LIBRETON, 'rb') as f:
-            estado_cuenta = EstadoCuentaBancario.objects.create(
-                cuenta_bancaria=cuenta_equivocada, banco='BBVA',
-                periodo_mes=2, periodo_anio=2026, formato='PDF',
-                archivo=File(f, name='estado_cuenta_bbva_libreton_ejemplo.pdf'),
-            )
-        with self.assertRaises(ValueError):
-            procesar_estado_cuenta(estado_cuenta)
+        # El storage por default del proyecto es Cloudinary (producción); en
+        # tests se usa un FileSystemStorage local para no depender de
+        # credenciales reales al guardar el archivo.
+        campo_archivo = EstadoCuentaBancario._meta.get_field('archivo')
+        with tempfile.TemporaryDirectory() as tmp_dir, \
+                mock.patch.object(campo_archivo, 'storage', FileSystemStorage(location=tmp_dir)):
+            with open(self.FIXTURE_LIBRETON, 'rb') as f:
+                estado_cuenta = EstadoCuentaBancario.objects.create(
+                    cuenta_bancaria=cuenta_equivocada, banco='BBVA',
+                    periodo_mes=2, periodo_anio=2026, formato='PDF',
+                    archivo=File(f, name='estado_cuenta_bbva_libreton_ejemplo.pdf'),
+                )
+            with self.assertRaises(ValueError):
+                procesar_estado_cuenta(estado_cuenta)
         estado_cuenta.refresh_from_db()
         self.assertEqual(estado_cuenta.estado, 'ERROR')
