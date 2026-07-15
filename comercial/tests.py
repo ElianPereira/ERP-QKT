@@ -154,6 +154,31 @@ class PagoValidacionTest(TestCase):
         pago2 = Pago(cotizacion=self.cot, monto=Decimal('0.50'), metodo='EFECTIVO')
         pago2.clean()  # Diferencia = 0.30, dentro de tolerancia
 
+    def test_ingreso_extra_no_cuenta_para_saldo(self):
+        """Un pago concepto=EXTRA no debe validarse contra el saldo de la venta."""
+        Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('20000.00'),
+            metodo='EFECTIVO', usuario=self.user,
+        )
+        # La venta ya está saldada; un ingreso EXTRA por encima no debe rechazarse.
+        extra = Pago(
+            cotizacion=self.cot, monto=Decimal('500.00'),
+            metodo='EFECTIVO', concepto='EXTRA',
+        )
+        extra.clean()
+
+    def test_ingreso_extra_no_se_suma_al_total_pagado(self):
+        Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('15000.00'),
+            metodo='EFECTIVO', usuario=self.user,
+        )
+        Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('500.00'),
+            metodo='EFECTIVO', usuario=self.user, concepto='EXTRA',
+        )
+        self.assertEqual(self.cot.total_pagado(), Decimal('15000.00'))
+        self.assertEqual(self.cot.saldo_pendiente(), Decimal('5000.00'))
+
 
 class TransicionEstadosTest(TestCase):
     """Verifica la máquina de estados de cotización."""
@@ -203,6 +228,23 @@ class TransicionEstadosTest(TestCase):
         self.assertFalse(ok)
         self.assertIn('saldo pendiente', msg.lower())
     
+    def test_ingreso_extra_no_bloquea_cierre(self):
+        """Reproduce el caso real: la suma de pagos VENTA cuadra exacto con el
+        total, y un ingreso EXTRA (propina) encima no debe impedir cerrar."""
+        self.cot.refresh_from_db()  # el item creado en setUp recalcula precio_final (con IVA)
+        Pago.objects.create(
+            cotizacion=self.cot, monto=self.cot.precio_final,
+            metodo='EFECTIVO', usuario=self.user,
+        )
+        Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('14.00'),
+            metodo='EFECTIVO', usuario=self.user, concepto='EXTRA',
+        )
+        self.cot.estado = 'EJECUTADA'
+        self.cot.save(update_fields=['estado'])
+        ok, msg = self.cot.cambiar_estado('CERRADA', self.user)
+        self.assertTrue(ok, msg)
+
     def test_anticipo_minimo_para_confirmar(self):
         ConstanteSistema.objects.create(
             clave='PORCENTAJE_ANTICIPO_MINIMO', valor=30, descripcion='Test'

@@ -96,6 +96,13 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
         crear_poliza_reembolso_cliente(pago)
         return
 
+    # Ingreso EXTRA (propina, comisión, etc.): no es parte del precio de la
+    # venta, así que se registra aparte contra "Otros ingresos" en vez de
+    # mezclarse con el desglose de IVA/anticipo de la cotización.
+    if getattr(pago, 'concepto', 'VENTA') == 'EXTRA':
+        crear_poliza_ingreso_extra(pago)
+        return
+
     # ─── Determinar cuenta de cargo según método de pago ────────
     if pago.metodo == 'EFECTIVO':
         cuenta_cargo = get_cuenta('CAJA')
@@ -207,6 +214,72 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
             concepto=f"COT-{cotizacion.pk:03d} (IVA incluido)",
             referencia=pago.referencia or '',
         )
+
+
+# ==========================================
+# INGRESO EXTRA LIGADO A CLIENTE/COTIZACIÓN
+# (propina, comisión, etc. — no es parte del precio de la venta)
+# ==========================================
+def crear_poliza_ingreso_extra(pago):
+    """
+    Genera póliza de ingreso simple para un Pago con concepto=EXTRA: no se
+    desglosa IVA/anticipo (no es parte del precio de la cotización), solo
+    se registra el monto completo contra "Otros ingresos", conservando la
+    referencia al cliente/cotización para saber de dónde provino.
+
+    Asiento:
+        DEBE: Bancos/Caja        (monto completo)
+        HABER: Otros ingresos    (monto completo)
+    """
+    cotizacion = pago.cotizacion
+    monto = Decimal(str(pago.monto))
+
+    if pago.metodo == 'EFECTIVO':
+        cuenta_cargo = get_cuenta('CAJA')
+    else:
+        cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
+    cuenta_abono = get_cuenta('OTROS_INGRESOS_CLIENTE')
+
+    if not cuenta_cargo or not cuenta_abono:
+        logger.warning(
+            "Póliza NO generada para Pago (EXTRA) #%s: falta configuración contable "
+            "(cuenta_cargo=%s, cuenta_abono=%s)", pago.pk, cuenta_cargo, cuenta_abono
+        )
+        return
+
+    unidad = get_unidad_negocio('QUINTA')
+    if not unidad:
+        logger.warning("Póliza NO generada para Pago (EXTRA) #%s: falta UnidadNegocio 'QUINTA'", pago.pk)
+        return
+
+    usuario = get_usuario_sistema()
+    content_type = ContentType.objects.get_for_model(pago)
+
+    poliza = Poliza.objects.create(
+        tipo='I',
+        folio=Poliza.siguiente_folio('I', pago.fecha_pago),
+        fecha=pago.fecha_pago,
+        concepto=f"Ingreso adicional: {cotizacion.cliente.nombre} - {cotizacion.nombre_evento} (COT-{cotizacion.pk:03d})",
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='PAGO_CLIENTE',
+        content_type=content_type,
+        object_id=pago.pk,
+        created_by=usuario,
+    )
+
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_cargo,
+        debe=monto, haber=Decimal('0.00'),
+        concepto=f"Ingreso adicional — {pago.get_metodo_display()}",
+        referencia=pago.referencia or '',
+    )
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_abono,
+        debe=Decimal('0.00'), haber=monto,
+        concepto=f"COT-{cotizacion.pk:03d} — ingreso adicional",
+        referencia=pago.referencia or '',
+    )
 
 
 # ==========================================

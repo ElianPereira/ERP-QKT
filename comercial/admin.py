@@ -465,7 +465,7 @@ class ItemCotizacionInline(admin.TabularInline):
 
 class PagoInline(admin.TabularInline):
     model = Pago; extra = 0
-    fields = ('fecha_pago', 'monto', 'metodo', 'referencia', 'notas', 'usuario', 'created_at')
+    fields = ('fecha_pago', 'monto', 'concepto', 'metodo', 'referencia', 'notas', 'usuario', 'created_at')
     readonly_fields = ('usuario', 'created_at')
 
 @admin.register(Cotizacion)
@@ -824,14 +824,14 @@ class CotizacionAdmin(admin.ModelAdmin):
     ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    list_display = ('cotizacion', 'tipo_badge', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
-    list_filter = ('tipo', 'metodo', 'fecha_pago')
+    list_display = ('cotizacion', 'tipo_badge', 'concepto', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
+    list_filter = ('tipo', 'concepto', 'metodo', 'fecha_pago')
     search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
     readonly_fields = ('usuario', 'created_at', 'updated_at')
     date_hierarchy = 'fecha_pago'
     actions = ['registrar_reembolso']
     fieldsets = (
-        ('Tipo', {'fields': ('tipo',)}),
+        ('Tipo', {'fields': ('tipo', 'concepto')}),
         ('Datos', {'fields': ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'notas')}),
         ('Facturación', {'fields': ('solicitar_factura',)}),
         ('Auditoría', {'fields': ('usuario', 'created_at', 'updated_at')}),

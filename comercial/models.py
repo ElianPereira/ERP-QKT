@@ -753,18 +753,29 @@ class Cotizacion(models.Model):
         qs = self.pagos.all()
         if excluir_pk:
             qs = qs.exclude(pk=excluir_pk)
-        ingresos = qs.filter(tipo='INGRESO').aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+        # Solo los pagos de concepto=VENTA cuentan para el saldo de la cotización;
+        # los ingresos EXTRA (propinas, comisiones, etc.) no forman parte del precio
+        # de la venta y no deben bloquear su saldo/cierre.
+        ingresos = qs.filter(tipo='INGRESO', concepto='VENTA').aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
         reembolsos = qs.filter(tipo='REEMBOLSO').aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
         return ingresos - reembolsos
 
     def total_cobrado_bruto(self, excluir_pk=None):
-        qs = self.pagos.filter(tipo='INGRESO')
+        qs = self.pagos.filter(tipo='INGRESO', concepto='VENTA')
         if excluir_pk:
             qs = qs.exclude(pk=excluir_pk)
         return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
 
     def total_reembolsado(self, excluir_pk=None):
         qs = self.pagos.filter(tipo='REEMBOLSO')
+        if excluir_pk:
+            qs = qs.exclude(pk=excluir_pk)
+        return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+
+    def total_ingresos_extra(self, excluir_pk=None):
+        """Ingresos ligados a la cotización que NO forman parte del precio de la
+        venta (propinas, comisiones, etc.) — informativo, no afecta el saldo."""
+        qs = self.pagos.filter(tipo='INGRESO', concepto='EXTRA')
         if excluir_pk:
             qs = qs.exclude(pk=excluir_pk)
         return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
@@ -826,7 +837,17 @@ class ItemCotizacion(models.Model):
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia Electrónica'), ('TARJETA_CREDITO', 'Tarjeta de Crédito'), ('TARJETA_DEBITO', 'Tarjeta de Débito'), ('CHEQUE', 'Cheque Nominativo'), ('DEPOSITO', 'Depósito Bancario'), ('PLATAFORMA', 'Plataforma'), ('CONDONACION', 'Condonación / Cortesía'), ('OTRO', 'Otro Método')]
     TIPOS = [('INGRESO', 'Ingreso'), ('REEMBOLSO', 'Reembolso')]
+    CONCEPTO_CHOICES = [
+        ('VENTA', 'Pago de la venta'),
+        ('EXTRA', 'Ingreso adicional (propina, comisión, etc.)'),
+    ]
     tipo = models.CharField(max_length=10, choices=TIPOS, default='INGRESO', verbose_name="Tipo")
+    concepto = models.CharField(
+        max_length=10, choices=CONCEPTO_CHOICES, default='VENTA', verbose_name="Concepto",
+        help_text="'Ingreso adicional' no cuenta para el saldo de la cotización ni bloquea "
+                   "su cierre — úsalo para propinas, comisiones u otros cobros ligados al "
+                   "cliente/evento pero ajenos al precio de la venta.",
+    )
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, 
                                  verbose_name="Registrado por")
@@ -848,8 +869,9 @@ class Pago(models.Model):
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas")
     
     def clean(self):
-        """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos)."""
-        if self.cotizacion_id and self.tipo == 'INGRESO':
+        """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos
+        ni a ingresos EXTRA, que no forman parte del precio de la venta)."""
+        if self.cotizacion_id and self.tipo == 'INGRESO' and self.concepto == 'VENTA':
             total_pagado = self.cotizacion.total_pagado_neto(excluir_pk=self.pk)
             saldo_disponible = self.cotizacion.precio_final - total_pagado
 
