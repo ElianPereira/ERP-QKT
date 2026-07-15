@@ -39,6 +39,7 @@ def setup_contabilidad_minima():
         'INGRESO_EVENTOS':       ('401.01', 'Ingreso eventos',    'INGRESO', 'A'),
         'IVA_TRASLADADO':        ('208.01', 'IVA trasladado',     'PASIVO',  'A'),
         'ISR_RETENIDO_CLIENTES': ('118.01', 'ISR ret. clientes',  'ACTIVO',  'D'),
+        'OTROS_INGRESOS_CLIENTE': ('402.02', 'Otros ingresos',    'INGRESO', 'A'),
     }
     for op, (codigo, nombre, tipo, naturaleza) in cuentas.items():
         cc, _ = CuentaContable.objects.get_or_create(
@@ -89,6 +90,24 @@ class PolizaPagoClienteTest(TestCase):
         haber = sum(m.haber for m in p.movimientos.all())
         self.assertEqual(debe, haber)
         self.assertEqual(debe, Decimal('11600.00'))
+
+    def test_pago_extra_va_a_otros_ingresos_sin_desglose_iva(self):
+        """Un Pago concepto=EXTRA se registra completo contra 'Otros ingresos',
+        sin desglosar IVA/anticipo — no es parte del precio de la venta."""
+        Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('500.00'),
+            metodo='EFECTIVO', usuario=self.user, concepto='EXTRA',
+        )
+        polizas = Poliza.objects.filter(origen='PAGO_CLIENTE')
+        self.assertEqual(polizas.count(), 1)
+        p = polizas.first()
+        cuenta_otros_ingresos = CuentaContable.objects.get(codigo_sat='402.02')
+        movimientos = list(p.movimientos.all())
+        self.assertEqual(len(movimientos), 2)
+        haber_otros_ingresos = sum(
+            m.haber for m in movimientos if m.cuenta_id == cuenta_otros_ingresos.pk
+        )
+        self.assertEqual(haber_otros_ingresos, Decimal('500.00'))
 
 
 class ReembolsoClienteTest(TestCase):

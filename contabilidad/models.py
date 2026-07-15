@@ -634,6 +634,7 @@ class ConfiguracionContable(models.Model):
         ('IVA_TRASLADADO', 'IVA trasladado'),
         ('ANTICIPO_CLIENTES', 'Anticipo de clientes'),
         ('ISR_RETENIDO_CLIENTES', 'ISR retenido por clientes'),
+        ('OTROS_INGRESOS_CLIENTE', 'Otros ingresos de cliente (propinas, comisiones, etc.)'),
 
         # ═══════════════════════════════════════════
         # AIRBNB
