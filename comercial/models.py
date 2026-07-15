@@ -1407,7 +1407,7 @@ class ImagenLanding(models.Model):
         help_text="Solo aplica a imágenes de la sección Galería",
     )
     mostrar_en_galeria = models.BooleanField(
-        default=False, verbose_name="Mostrar también en Galería general",
+        default=True, verbose_name="Mostrar también en Galería general",
         help_text="Además de su propia sección, muestra esta imagen en la Galería de fotos.",
     )
     titulo = models.CharField(max_length=120, blank=True, verbose_name="Título / descripción interna")
