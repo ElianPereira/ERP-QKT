@@ -13,6 +13,7 @@ import os
 from decimal import Decimal
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, Http404
+from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.conf import settings
@@ -40,7 +41,7 @@ def landing_publico(request):
     img = {}
     for sec in ('HERO', 'NOSOTROS', 'EVENTO', 'PASADIA', 'HOSPEDAJE'):
         img[sec.lower()] = imagenes.filter(seccion=sec).first()
-    galeria_imgs = imagenes.filter(seccion='GALERIA')
+    galeria_imgs = imagenes.filter(Q(seccion='GALERIA') | Q(mostrar_en_galeria=True))
     img['galeria'] = galeria_imgs
 
     cats_con_fotos = set(galeria_imgs.values_list('categoria_galeria', flat=True))

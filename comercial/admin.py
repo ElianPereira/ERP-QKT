@@ -1168,13 +1168,13 @@ class AsignacionPersonalAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(ImagenLanding)
 class ImagenLandingAdmin(admin.ModelAdmin):
-    list_display = ('preview_mini', 'seccion', 'categoria_galeria', 'titulo', 'orden', 'activo')
-    list_filter = ('seccion', 'categoria_galeria', 'activo')
+    list_display = ('preview_mini', 'seccion', 'categoria_galeria', 'mostrar_en_galeria', 'titulo', 'orden', 'activo')
+    list_filter = ('seccion', 'categoria_galeria', 'mostrar_en_galeria', 'activo')
     list_editable = ('orden', 'activo')
     list_display_links = ('preview_mini', 'seccion')
     fieldsets = (
         (None, {
-            'fields': ('seccion', 'categoria_galeria', 'imagen', 'posicion_vertical', 'preview_grande'),
+            'fields': ('seccion', 'categoria_galeria', 'mostrar_en_galeria', 'imagen', 'posicion_vertical', 'preview_grande'),
         }),
         ('Detalles', {
             'fields': ('titulo', 'alt_text', 'orden', 'activo'),
