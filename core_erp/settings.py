@@ -56,7 +56,6 @@ INSTALLED_APPS = [
     'contabilidad',
     'reportes',
     'comunicacion',
-    'catalogo',
 ]
 
 MIDDLEWARE = [
@@ -205,18 +204,6 @@ JAZZMIN_SETTINGS = {
         "comercial.DescuentoAplicado":      "fas fa-history",
         "comercial.Temporada":              "fas fa-calendar-week",
 
-        # CATÁLOGO
-        "catalogo":                          "fas fa-book-open",
-        "catalogo.ConfiguracionCatalogo":    "fas fa-cogs",
-        "catalogo.BadgeServicio":            "fas fa-tags",
-        "catalogo.SeccionCatalogo":          "fas fa-layer-group",
-        "catalogo.TarjetaCatalogo":          "fas fa-id-card",
-        "catalogo.PaqueteCatalogo":          "fas fa-gift",
-        "catalogo.QuienesSomos":             "fas fa-info-circle",
-        "catalogo.EstadisticaQuienesSomos":  "fas fa-chart-line",
-        "catalogo.PasoProceso":              "fas fa-tasks",
-        "catalogo.GaleriaSeccion":           "fas fa-camera-retro",
-
         # AIRBNB
         "airbnb":                           "fas fa-bed",
         "airbnb.ReservaAirbnb":             "fas fa-calendar-check",
@@ -295,14 +282,6 @@ JAZZMIN_SETTINGS = {
         "comercial.TestimonioLanding",
         "comercial.EspacioLanding",
         "comercial.PreguntaFrecuente",
-
-        # === CATÁLOGO ===
-        "catalogo",
-        "catalogo.ConfiguracionCatalogo",
-        "catalogo.BadgeServicio",
-        "catalogo.SeccionCatalogo",
-        "catalogo.TarjetaCatalogo",
-        "catalogo.PaqueteCatalogo",
 
         # === AIRBNB & HOSPEDAJE ===
         "airbnb",

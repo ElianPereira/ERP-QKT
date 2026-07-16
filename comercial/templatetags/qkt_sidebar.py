@@ -6,8 +6,8 @@ Jazzmin solo soporta un nivel (app -> modelos). Aquí se reutiliza su propio
 (`app['sub_apps']`) para que el template `templates/admin/base.html` las
 renderice con el mismo treeview de segundo nivel:
 
-1. Apps completas dentro de otra (ej. catalogo dentro de comercial) — ver
-   SUBMENU_PARENTS.
+1. Apps completas dentro de otra (ej. nomina/facturacion dentro de
+   contabilidad) — ver SUBMENU_PARENTS.
 2. Modelos sueltos de una misma app agrupados en un submenú propio (ej. los
    modelos de "Página Web" o de "Descuentos" dentro de comercial) — ver
    MODEL_SUBGROUPS. Estos no son apps reales, son grupos sintéticos con la
@@ -20,7 +20,6 @@ register = template.Library()
 
 # app_label (en minúsculas) -> app_label del padre bajo el que debe anidarse.
 SUBMENU_PARENTS = {
-    'catalogo': 'comercial',
     'nomina': 'contabilidad',
     'facturacion': 'contabilidad',
 }

@@ -135,9 +135,6 @@ urlpatterns = [
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
 
-    # --- CATÁLOGO DINÁMICO (PDF público) ---
-    path('', include('catalogo.urls')),
-
     # --- 7. RUTA RAÍZ — LANDING PÚBLICA ---
     path('', landing_publico, name='landing'),
 ]
