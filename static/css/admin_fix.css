@@ -610,6 +610,20 @@ small.text-muted {
     color: white !important;
 }
 
+/* ── SELECT2 EN CELDAS ANGOSTAS (inlines: Movimientos de póliza, etc.) ──
+   Select2 fija por JS el ancho del panel de resultados igual al del campo
+   que lo abre; dentro de un inline tabular esa celda es muy angosta y el
+   texto de cada opción (ej. "102.02.01 - BBVA Principal") queda partido
+   letra por letra. Se fuerza un ancho mínimo legible y se evita el salto
+   de línea, sin importar qué tan angosto sea el campo que lo dispara. */
+.select2-dropdown {
+    min-width: 320px !important;
+    width: auto !important;
+}
+.select2-results__option {
+    white-space: nowrap !important;
+}
+
 /* ── NUCLEAR: Fondo oscuro y bordes ──────────────────────── */
 /* ── FONDO OSCURO DEFINITIVO ─────────────────────────────── */
 html body .content-wrapper {
