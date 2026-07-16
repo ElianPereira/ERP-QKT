@@ -198,6 +198,31 @@ class ClaveUnidadNegocioTest(TestCase):
         self.assertFalse(UnidadNegocio.objects.filter(clave='EVENTOS').exists())
 
 
+class PolizaSinGuardarTest(TestCase):
+    """Regresión: crear una Póliza nueva en estado APLICADA desde el admin
+    (formulario + inline de Movimientos en un solo POST) no debe tronar.
+
+    Antes de la póliza guardarse, Poliza.clean() revisaba esta_cuadrada,
+    que agrega sobre self.movimientos — un related manager que no se puede
+    usar sin pk (ValueError, no ValidationError), tronando el admin con un
+    error 500 en vez de una validación normal."""
+
+    def test_full_clean_no_truena_sin_pk(self):
+        unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        user = User.objects.create_user('u3', password='x')
+        poliza = Poliza(
+            tipo='I', folio=1, fecha=date.today(), concepto='Test',
+            unidad_negocio=unidad, estado='APLICADA', created_by=user,
+        )
+        poliza.full_clean(exclude=['folio'])  # no debe lanzar ValueError
+
+    def test_total_debe_y_haber_cero_sin_pk(self):
+        unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        poliza = Poliza(tipo='I', fecha=date.today(), concepto='Test', unidad_negocio=unidad)
+        self.assertEqual(poliza.total_debe, Decimal('0.00'))
+        self.assertEqual(poliza.total_haber, Decimal('0.00'))
+
+
 class CompraSinDatosCompletosTest(TestCase):
     """Una Compra sin cuenta_pago y/o unidad_negocio debe generar póliza en BORRADOR."""
 

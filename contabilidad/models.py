@@ -376,10 +376,18 @@ class Poliza(models.Model):
 
     @property
     def total_debe(self):
+        if not self.pk:
+            # Una póliza sin guardar no puede tener movimientos todavía (el
+            # inline de Movimientos se guarda después, ya con FK a esta
+            # póliza) — acceder a self.movimientos antes de eso lanza
+            # ValueError, no hay nada que sumar.
+            return Decimal('0.00')
         return self.movimientos.aggregate(t=Sum('debe'))['t'] or Decimal('0.00')
 
     @property
     def total_haber(self):
+        if not self.pk:
+            return Decimal('0.00')
         return self.movimientos.aggregate(t=Sum('haber'))['t'] or Decimal('0.00')
 
     @property
