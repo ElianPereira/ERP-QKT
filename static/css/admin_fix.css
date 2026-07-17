@@ -629,13 +629,18 @@ small.text-muted {
    dentro de Contabilidad, etc. viven al mismo nivel de anidación HTML
    que los modelos directos de su app padre, así que sin esto se ven
    con el mismo margen izquierdo que las pestañas de primer nivel
-   (Airbnb, Contabilidad...) que vienen justo debajo en la lista. Se
-   fuerza un indent extra para que su jerarquía se note a simple vista. */
+   (Airbnb, Contabilidad...) que vienen justo debajo en la lista.
+
+   OJO: el padding-left base de CUALQUIER .nav-link (de primer nivel o
+   ya anidado dentro de un treeview) es 2rem (32px) — AdminLTE no
+   incrementa el indent por nivel de anidación. Un ajuste "sutil" de
+   +0.2rem es prácticamente invisible; aquí se fuerza un salto grande
+   y obvio en vez de uno apenas perceptible. */
 .qkt-sub-app > .nav-link {
-    padding-left: 2.2rem !important;
+    padding-left: 3.5rem !important;
 }
 .qkt-sub-app .nav-treeview .nav-link {
-    padding-left: 3.4rem !important;
+    padding-left: 5rem !important;
 }
 
 /* ── NUCLEAR: Fondo oscuro y bordes ──────────────────────── */
