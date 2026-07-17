@@ -101,14 +101,14 @@ plantilla en una actualización, este bloque puede quedar desactualizado.
                                         </li>
                                     {% endfor %}
                                     {% for sub_app in app.sub_apps %}
-                                        <li class="nav-item has-treeview">
+                                        <li class="nav-item has-treeview qkt-sub-app">
                                             <a href="#" class="nav-link">
                                                 <i class="nav-icon {{ sub_app.icon }}"></i>
                                                 <p>{{ sub_app.name|truncatechars:21 }} <i class="nav-arrow fas fa-chevron-right" aria-hidden="true"></i></p>
                                             </a>
                                             <ul class="nav nav-treeview">
                                                 {% for model in sub_app.models %}
-                                                    <li class="nav-item">
+                                                    <li class="nav-item qkt-sub-app-item">
                                                         <a href="{% if model.url %}{{ model.url }}{% else %}javascript:void(0){% endif %}" class="nav-link">
                                                             <i class="nav-icon {{ model.icon }}"></i>
                                                             <p>{{ model.name }}</p>

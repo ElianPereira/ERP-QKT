@@ -624,6 +624,20 @@ small.text-muted {
     white-space: nowrap !important;
 }
 
+/* ── JERARQUÍA VISUAL DE SUBMÓDULOS ANIDADOS (sidebar) ─────────────
+   "Página Web"/"Descuentos" dentro de Eventos, "Nómina"/"Facturación"
+   dentro de Contabilidad, etc. viven al mismo nivel de anidación HTML
+   que los modelos directos de su app padre, así que sin esto se ven
+   con el mismo margen izquierdo que las pestañas de primer nivel
+   (Airbnb, Contabilidad...) que vienen justo debajo en la lista. Se
+   fuerza un indent extra para que su jerarquía se note a simple vista. */
+.qkt-sub-app > .nav-link {
+    padding-left: 2.2rem !important;
+}
+.qkt-sub-app .nav-treeview .nav-link {
+    padding-left: 3.4rem !important;
+}
+
 /* ── NUCLEAR: Fondo oscuro y bordes ──────────────────────── */
 /* ── FONDO OSCURO DEFINITIVO ─────────────────────────────── */
 html body .content-wrapper {
