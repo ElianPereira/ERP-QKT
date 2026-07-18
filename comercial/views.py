@@ -29,7 +29,16 @@ from .services import CalculadoraBarraService, actualizar_item_cotizacion
 try:
     from facturacion.models import SolicitudFactura
 except ImportError:
-    SolicitudFactura = None 
+    SolicitudFactura = None
+
+# Estados que representan una venta ya concretada (no un simple borrador o
+# cotización enviada, y tampoco cancelada). El flujo normal de una venta
+# exitosa avanza CONFIRMADA -> EJECUTADA -> CERRADA; los tres deben contar
+# como "venta real" en KPIs y reportes financieros — de lo contrario, un
+# evento que ya se realizó y se cobró al 100% deja de contar en cuanto
+# avanza más allá de "Confirmada", penalizando justo a las ventas más
+# completas.
+ESTADOS_VENTA_REAL = ['CONFIRMADA', 'EJECUTADA', 'CERRADA']
 
 
 # ==========================================
@@ -410,7 +419,7 @@ def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
     hoy = timezone.now()
     
-    ventas_mes = Cotizacion.objects.filter(estado__in=['CONFIRMADA', 'ACEPTADA'], fecha_evento__year=hoy.year, fecha_evento__month=hoy.month).aggregate(total=Sum('precio_final'))['total'] or 0
+    ventas_mes = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year, fecha_evento__month=hoy.month).aggregate(total=Sum('precio_final'))['total'] or 0
     gastos_mes = Compra.objects.filter(fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
     utilidad_mes = ventas_mes - gastos_mes
 
@@ -421,7 +430,7 @@ def ver_dashboard_kpis(request):
     proximo_evento = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento').first()
     ultimos_eventos = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento')[:5]
 
-    ventas_data = Cotizacion.objects.filter(estado='CONFIRMADA').annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
+    ventas_data = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL).annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
     gastos_data = Compra.objects.annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
 
     grafica_final = {}

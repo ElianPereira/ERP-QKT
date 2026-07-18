@@ -486,3 +486,54 @@ class AsignacionPersonalTest(TestCase):
                 fecha=self.cot2.fecha_evento,
                 hora_inicio=time(18, 0), hora_fin=time(22, 0),
             )
+
+
+class VentasMesIncluyeEventosCerradosTest(TestCase):
+    """Regresión: un evento CERRADA y 100% pagado debe contar en Ventas Mes."""
+
+    def test_evento_cerrada_cuenta_en_ventas_mes(self):
+        from django.db.models import Sum
+        from comercial.views import ESTADOS_VENTA_REAL
+
+        cliente = Cliente.objects.create(nombre='Cliente Test')
+        cot = Cotizacion.objects.create(
+            cliente=cliente, nombre_evento='Evento Cerrado Test',
+            fecha_evento=date.today().replace(day=15),
+            estado='CERRADA',
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('4000.00'))
+
+        total = Cotizacion.objects.filter(
+            estado__in=ESTADOS_VENTA_REAL,
+            fecha_evento__year=date.today().year,
+            fecha_evento__month=date.today().month,
+        ).aggregate(total=Sum('precio_final'))['total']
+
+        self.assertEqual(total, Decimal('4000.00'))
+
+    def test_cancelada_borrador_cotizada_no_cuentan(self):
+        from django.db.models import Sum
+        from comercial.views import ESTADOS_VENTA_REAL
+
+        cliente = Cliente.objects.create(nombre='Cliente Test 2')
+        for estado in ('BORRADOR', 'COTIZADA', 'CANCELADA'):
+            cot = Cotizacion.objects.create(
+                cliente=cliente, nombre_evento=f'Evento {estado}',
+                fecha_evento=date.today().replace(day=15),
+                estado='BORRADOR',
+                incluye_refrescos=False, incluye_cerveza=False,
+                incluye_licor_nacional=False, incluye_licor_premium=False,
+                incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+            )
+            Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('9999.00'), estado=estado)
+
+        total = Cotizacion.objects.filter(
+            estado__in=ESTADOS_VENTA_REAL,
+            fecha_evento__year=date.today().year,
+            fecha_evento__month=date.today().month,
+        ).aggregate(total=Sum('precio_final'))['total']
+
+        self.assertIsNone(total)
