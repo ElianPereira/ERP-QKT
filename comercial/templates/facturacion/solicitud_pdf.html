@@ -93,19 +93,19 @@
                         <table style="width: 100%;">
                             <tr>
                                 <td class="card-label">Razón Social:</td>
-                                <td class="card-value" style="font-weight: bold;">{{ solicitud.cliente.razon_social }}</td>
+                                <td class="card-value" style="font-weight: bold;">{{ solicitud.razon_social }}</td>
                             </tr>
                             <tr>
                                 <td class="card-label">RFC:</td>
-                                <td class="card-value">{{ solicitud.cliente.rfc }}</td>
+                                <td class="card-value">{{ solicitud.rfc }}</td>
                             </tr>
                             <tr>
                                 <td class="card-label">Régimen:</td>
-                                <td class="card-value">{{ solicitud.cliente.get_regimen_fiscal_display }}</td>
+                                <td class="card-value">{{ solicitud.get_regimen_fiscal_display }}</td>
                             </tr>
                             <tr>
                                 <td class="card-label">CP Fiscal:</td>
-                                <td class="card-value">{{ solicitud.cliente.codigo_postal_fiscal }}</td>
+                                <td class="card-value">{{ solicitud.codigo_postal }}</td>
                             </tr>
                         </table>
                     </td>
@@ -129,7 +129,7 @@
 
                             <tr>
                                 <td class="card-label" style="text-align: right;">Uso CFDI:</td>
-                                <td class="card-value" style="text-align: right;">{{ solicitud.cliente.get_uso_cfdi_display }}</td>
+                                <td class="card-value" style="text-align: right;">{{ solicitud.get_uso_cfdi_display }}</td>
                             </tr>
                             <tr>
                                 <td class="card-label" style="text-align: right;">Método Pago:</td>
