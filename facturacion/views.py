@@ -27,22 +27,36 @@ def crear_solicitud(request):
                 cotizacion_obj = get_object_or_404(Cotizacion, id=cotizacion_id)
             
             # 1. Actualizamos datos fiscales del cliente
-            cliente.rfc = request.POST.get('rfc').upper().strip()
-            cliente.razon_social = request.POST.get('razon_social')
-            cliente.codigo_postal_fiscal = request.POST.get('cp')
-            cliente.regimen_fiscal = request.POST.get('regimen_fiscal')
-            cliente.uso_cfdi = request.POST.get('uso_cfdi')
-            cliente.es_cliente_fiscal = True 
+            rfc = request.POST.get('rfc').upper().strip()
+            razon_social = request.POST.get('razon_social')
+            codigo_postal = request.POST.get('cp')
+            regimen_fiscal = request.POST.get('regimen_fiscal')
+            uso_cfdi = request.POST.get('uso_cfdi')
+
+            cliente.rfc = rfc
+            cliente.razon_social = razon_social
+            cliente.codigo_postal_fiscal = codigo_postal
+            cliente.regimen_fiscal = regimen_fiscal
+            cliente.uso_cfdi = uso_cfdi
+            cliente.es_cliente_fiscal = True
             cliente.save()
-            
-            # 2. Creamos la solicitud en BD
+
+            # 2. Creamos la solicitud en BD (con su propia copia de los datos
+            # fiscales capturados arriba — el PDF y el resto del flujo de
+            # facturación siempre deben leer estos campos de la solicitud,
+            # nunca los del cliente en vivo, que pueden cambiar después).
             solicitud = SolicitudFactura.objects.create(
                 cliente=cliente,
-                cotizacion=cotizacion_obj, 
+                cotizacion=cotizacion_obj,
                 monto=request.POST.get('monto'),
                 concepto=request.POST.get('concepto'),
                 forma_pago=request.POST.get('forma_pago'),
-                metodo_pago=request.POST.get('metodo_pago')
+                metodo_pago=request.POST.get('metodo_pago'),
+                rfc=rfc,
+                razon_social=razon_social,
+                codigo_postal=codigo_postal,
+                regimen_fiscal=regimen_fiscal,
+                uso_cfdi=uso_cfdi,
             )
             
             # --- PREPARACIÓN DEL PDF ---
