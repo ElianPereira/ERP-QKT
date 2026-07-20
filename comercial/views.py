@@ -433,15 +433,20 @@ def ver_dashboard_kpis(request):
     ventas_data = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year).annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
     gastos_data = Compra.objects.filter(fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
 
-    grafica_final = {}
+    grafica_por_mes = {}
     for v in ventas_data:
-        if v['mes']: grafica_final[v['mes'].strftime('%B %Y')] = {'ventas': float(v['total']), 'gastos': 0}
-        
+        if v['mes']: grafica_por_mes[v['mes']] = {'ventas': float(v['total']), 'gastos': 0}
+
     for g in gastos_data:
         if g['mes']:
-            mes_str = g['mes'].strftime('%B %Y')
-            if mes_str not in grafica_final: grafica_final[mes_str] = {'ventas': 0, 'gastos': 0}
-            grafica_final[mes_str]['gastos'] = float(g['total'])
+            if g['mes'] not in grafica_por_mes: grafica_por_mes[g['mes']] = {'ventas': 0, 'gastos': 0}
+            grafica_por_mes[g['mes']]['gastos'] = float(g['total'])
+
+    # Se ordena por la fecha real del mes (no por orden de inserción) para que
+    # un mes que solo tuvo gastos, sin ventas, no se "cuele" al final fuera de
+    # su lugar cronológico.
+    meses_ordenados = sorted(grafica_por_mes.keys())
+    grafica_final = {mes.strftime('%B %Y'): grafica_por_mes[mes] for mes in meses_ordenados}
 
     context.update({
         'ventas_mes': ventas_mes, 'gastos_mes': gastos_mes, 'utilidad_mes': utilidad_mes,
