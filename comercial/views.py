@@ -416,25 +416,32 @@ def configurar_plantilla_barra(request):
     return render(request, 'admin/comercial/configurar_plantilla_barra.html', context)
 
 
-def _grafica_mensual_ordenada(ingresos_por_mes, gastos_por_mes):
-    """Combina dos querysets ya agrupados por mes (.values('mes').annotate(total=...))
-    en labels/ingresos/gastos alineados y ordenados por la fecha real del mes
-    (no por orden de inserción) — un mes que solo tuvo gastos, sin ingresos
-    (o viceversa), debe aparecer en su lugar cronológico y no al final."""
-    grafica_por_mes = {}
-    for v in ingresos_por_mes:
-        if v['mes']: grafica_por_mes[v['mes']] = {'ingresos': float(v['total']), 'gastos': 0}
+def _grafica_multi_series_ordenada(series):
+    """Alinea N series ya agrupadas por mes (.values('mes').annotate(total=...))
+    sobre un único eje de meses (la unión de los meses de todas las series),
+    ordenado por la fecha real (no por orden de inserción) — un mes que solo
+    aparece en una serie debe seguir en su lugar cronológico y valer 0 en las
+    demás, en vez de quedar fuera de orden o faltarle datos.
 
-    for g in gastos_por_mes:
-        if g['mes']:
-            if g['mes'] not in grafica_por_mes: grafica_por_mes[g['mes']] = {'ingresos': 0, 'gastos': 0}
-            grafica_por_mes[g['mes']]['gastos'] = float(g['total'])
+    `series` es una lista de tuplas (nombre, queryset). Devuelve
+    (labels_ordenados, {nombre: [valores alineados a labels_ordenados]})."""
+    valores_por_serie = {}
+    meses = set()
+    for nombre, queryset in series:
+        por_mes = {}
+        for fila in queryset:
+            if fila['mes']:
+                por_mes[fila['mes']] = float(fila['total'])
+                meses.add(fila['mes'])
+        valores_por_serie[nombre] = por_mes
 
-    meses_ordenados = sorted(grafica_por_mes.keys())
+    meses_ordenados = sorted(meses)
     labels = [mes.strftime('%B %Y') for mes in meses_ordenados]
-    ingresos = [grafica_por_mes[mes]['ingresos'] for mes in meses_ordenados]
-    gastos = [grafica_por_mes[mes]['gastos'] for mes in meses_ordenados]
-    return labels, ingresos, gastos
+    resultado = {
+        nombre: [por_mes.get(mes, 0) for mes in meses_ordenados]
+        for nombre, por_mes in valores_por_serie.items()
+    }
+    return labels, resultado
 
 
 # ==========================================
@@ -452,20 +459,26 @@ def ver_dashboard_kpis(request):
 
     ventas_data_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year).annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
     gastos_data_quinta = Compra.objects.filter(unidad_negocio__clave='QUINTA', fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
-    chart_labels_quinta, chart_ventas_quinta, chart_gastos_quinta = _grafica_mensual_ordenada(ventas_data_quinta, gastos_data_quinta)
 
     # --- Ruby · Hospedaje Airbnb ---
     ingresos_mes_ruby = 0
     gastos_mes_ruby = 0
-    chart_labels_ruby, chart_ingresos_ruby, chart_gastos_ruby = [], [], []
+    ingresos_data_ruby = []
     if PagoAirbnb:
         ingresos_mes_ruby = PagoAirbnb.objects.filter(estado='PAGADO', fecha_pago__year=hoy.year, fecha_pago__month=hoy.month).aggregate(total=Sum('monto_neto'))['total'] or 0
         gastos_mes_ruby = Compra.objects.filter(unidad_negocio__clave='AIRBNB', fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
-
         ingresos_data_ruby = PagoAirbnb.objects.filter(estado='PAGADO', fecha_pago__year=hoy.year).annotate(mes=TruncMonth('fecha_pago')).values('mes').annotate(total=Sum('monto_neto')).order_by('mes')
-        gastos_data_ruby = Compra.objects.filter(unidad_negocio__clave='AIRBNB', fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
-        chart_labels_ruby, chart_ingresos_ruby, chart_gastos_ruby = _grafica_mensual_ordenada(ingresos_data_ruby, gastos_data_ruby)
+    gastos_data_ruby = Compra.objects.filter(unidad_negocio__clave='AIRBNB', fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
     utilidad_mes_ruby = ingresos_mes_ruby - gastos_mes_ruby
+
+    # Un solo eje de meses para las 4 series (ambas líneas de negocio en la
+    # misma gráfica, con sus importes bien diferenciados por color/leyenda).
+    chart_labels, series_grafica = _grafica_multi_series_ordenada([
+        ('ventas_quinta', ventas_data_quinta),
+        ('gastos_quinta', gastos_data_quinta),
+        ('ingresos_ruby', ingresos_data_ruby),
+        ('gastos_ruby', gastos_data_ruby),
+    ])
 
     solicitudes_count = 0
     if SolicitudFactura:
@@ -476,13 +489,12 @@ def ver_dashboard_kpis(request):
 
     context.update({
         'ventas_mes_quinta': ventas_mes_quinta, 'gastos_mes_quinta': gastos_mes_quinta, 'utilidad_mes_quinta': utilidad_mes_quinta,
-        'chart_labels_quinta': json.dumps(chart_labels_quinta),
-        'chart_ventas_quinta': json.dumps(chart_ventas_quinta),
-        'chart_gastos_quinta': json.dumps(chart_gastos_quinta),
         'ingresos_mes_ruby': ingresos_mes_ruby, 'gastos_mes_ruby': gastos_mes_ruby, 'utilidad_mes_ruby': utilidad_mes_ruby,
-        'chart_labels_ruby': json.dumps(chart_labels_ruby),
-        'chart_ingresos_ruby': json.dumps(chart_ingresos_ruby),
-        'chart_gastos_ruby': json.dumps(chart_gastos_ruby),
+        'chart_labels': json.dumps(chart_labels),
+        'chart_ventas_quinta': json.dumps(series_grafica['ventas_quinta']),
+        'chart_gastos_quinta': json.dumps(series_grafica['gastos_quinta']),
+        'chart_ingresos_ruby': json.dumps(series_grafica['ingresos_ruby']),
+        'chart_gastos_ruby': json.dumps(series_grafica['gastos_ruby']),
         'solicitudes_count': solicitudes_count, 'proximo_evento': proximo_evento, 'ultimos_eventos': ultimos_eventos,
         'es_jefe': request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()
     })

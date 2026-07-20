@@ -572,8 +572,8 @@ class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
         self.assertEqual(response.status_code, 200)
         anio_pasado_str = anio_pasado.strftime('%B %Y')
         anio_actual_str = hoy.replace(day=1).strftime('%B %Y')
-        self.assertNotIn(anio_pasado_str, response.context['chart_labels_quinta'])
-        self.assertIn(anio_actual_str, response.context['chart_labels_quinta'])
+        self.assertNotIn(anio_pasado_str, response.context['chart_labels'])
+        self.assertIn(anio_actual_str, response.context['chart_labels'])
 
     def test_grafica_respeta_orden_cronologico_con_meses_solo_de_gastos(self):
         """Regresión: un mes que solo tuvo gastos (sin ventas) debe aparecer
@@ -596,7 +596,7 @@ class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
         response = self.client.get('/admin/')
 
         self.assertEqual(response.status_code, 200)
-        labels = json.loads(response.context['chart_labels_quinta'])
+        labels = json.loads(response.context['chart_labels'])
         esperado = [
             date(anio, 1, 1).strftime('%B %Y'),
             date(anio, 4, 1).strftime('%B %Y'),
@@ -679,3 +679,51 @@ class DashboardSeparacionElianRubyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['ingresos_mes_ruby'], 0)
+
+    def test_grafica_comparte_eje_de_meses_entre_quinta_y_ruby(self):
+        """Regresión: la gráfica combinada debe alinear las 4 series (ventas y
+        gastos de Elián, ingresos y gastos de Ruby) sobre el mismo eje de
+        meses. Un mes donde solo hubo actividad de una línea de negocio debe
+        seguir apareciendo en su lugar cronológico, con 0 en las series de la
+        otra línea (no debe faltarle el mes ni desalinearse con las demás)."""
+        from comercial.models import Compra
+        from airbnb.models import PagoAirbnb
+
+        hoy = date.today()
+        anio = hoy.year
+        # Enero: solo Quinta (ventas + gastos). Marzo: solo Ruby (ingresos + gastos).
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Evento Enero',
+            fecha_evento=date(anio, 1, 10), estado='BORRADOR',
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('1000.00'), estado='CONFIRMADA')
+        Compra.objects.create(fecha_emision=date(anio, 1, 12), total=Decimal('200.00'), unidad_negocio=self.unidad_quinta)
+
+        # monto_neto real tras retenciones (ISR 4% / IVA 8% sobre monto_bruto,
+        # aplicadas en PagoAirbnb.save()): 500 - 20 - 40 = 440.
+        PagoAirbnb.objects.create(
+            huesped='Huésped Marzo', fecha_checkin=date(anio, 3, 1),
+            fecha_checkout=date(anio, 3, 3), monto_bruto=Decimal('500.00'),
+            monto_neto=Decimal('500.00'), fecha_pago=date(anio, 3, 5), estado='PAGADO',
+        )
+        Compra.objects.create(fecha_emision=date(anio, 3, 8), total=Decimal('100.00'), unidad_negocio=self.unidad_airbnb)
+
+        response = self.client.get('/admin/')
+
+        self.assertEqual(response.status_code, 200)
+        labels = json.loads(response.context['chart_labels'])
+        esperado = [date(anio, 1, 1).strftime('%B %Y'), date(anio, 3, 1).strftime('%B %Y')]
+        self.assertEqual(labels, esperado)
+
+        ventas_quinta = json.loads(response.context['chart_ventas_quinta'])
+        gastos_quinta = json.loads(response.context['chart_gastos_quinta'])
+        ingresos_ruby = json.loads(response.context['chart_ingresos_ruby'])
+        gastos_ruby = json.loads(response.context['chart_gastos_ruby'])
+
+        self.assertEqual(ventas_quinta, [1000.0, 0])
+        self.assertEqual(gastos_quinta, [200.0, 0])
+        self.assertEqual(ingresos_ruby, [0, 440.0])
+        self.assertEqual(gastos_ruby, [0, 100.0])
