@@ -537,3 +537,39 @@ class VentasMesIncluyeEventosCerradosTest(TestCase):
         ).aggregate(total=Sum('precio_final'))['total']
 
         self.assertIsNone(total)
+
+
+class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
+    """Regresión: la gráfica 'Finanzas (ventas vs gastos)' debe mostrar solo
+    los meses del año en curso, no el historial completo de años anteriores."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user('staff_dash', password='test', is_staff=True)
+        self.client.force_login(self.staff)
+        self.cliente = Cliente.objects.create(nombre='Cliente Test')
+
+    def _crear_cotizacion(self, fecha_evento, estado='CONFIRMADA'):
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento=f'Evento {fecha_evento}',
+            fecha_evento=fecha_evento,
+            estado='BORRADOR',
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('1000.00'), estado=estado)
+        return cot
+
+    def test_grafica_excluye_meses_de_anios_anteriores(self):
+        hoy = date.today()
+        anio_pasado = hoy.replace(year=hoy.year - 1, day=1)
+        self._crear_cotizacion(anio_pasado)
+        self._crear_cotizacion(hoy.replace(day=1))
+
+        response = self.client.get('/admin/')
+
+        self.assertEqual(response.status_code, 200)
+        anio_pasado_str = anio_pasado.strftime('%B %Y')
+        anio_actual_str = hoy.replace(day=1).strftime('%B %Y')
+        self.assertNotIn(anio_pasado_str, response.context['chart_labels'])
+        self.assertIn(anio_actual_str, response.context['chart_labels'])
