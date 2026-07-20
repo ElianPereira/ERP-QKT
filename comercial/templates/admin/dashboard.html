@@ -10,29 +10,33 @@
 
     .actions-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 12px;
-        margin-bottom: 25px;
+        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
     }
     .action-btn {
-        background: #383632; border-radius: 8px; padding: 15px 10px; text-align: center;
+        background: #383632; border-radius: 8px; padding: 12px 10px; text-align: center;
         text-decoration: none; color: #d4d1c8; border: 1px solid #4a4845;
-        display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px;
         transition: transform 0.2s, border-color 0.2s;
     }
     .action-btn:hover { transform: translateY(-2px); border-color: #2E7D32; color: #e0ddd4; }
-    .action-icon { font-size: 24px; margin-bottom: 8px; color: #4CAF50; }
+    .action-icon { font-size: 22px; margin-bottom: 6px; color: #4CAF50; }
     .action-label { font-size: 11px; font-weight: 600; line-height: 1.2; }
 
-    .kpi-box { background: #383632; border-radius: 8px; padding: 6px 18px; border: 1px solid #4a4845; margin-bottom: 25px; }
-    .kpi-row { display: flex; align-items: center; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+    .kpi-box { background: #383632; border-radius: 8px; padding: 4px 20px; border: 1px solid #4a4845; margin-bottom: 18px; }
+    .kpi-row { display: grid; grid-template-columns: 84px repeat(3, 1fr); align-items: center; gap: 14px; padding: 16px 0; }
     .kpi-row + .kpi-row { border-top: 1px solid #4a4845; }
-    .kpi-row-label { width: 140px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: #d4d1c8; }
-    .kpi-mini { flex: 1; min-width: 90px; }
-    .kpi-mini-title { font-size: 10px; color: #8a8780; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .kpi-mini-value { font-size: 18px; font-weight: 700; margin-top: 2px; color: #e0ddd4; }
+    .kpi-row-label {
+        font-size: 13px; font-weight: 700; letter-spacing: 0.4px; text-align: center;
+        padding: 5px 8px; border-radius: 6px; white-space: nowrap;
+    }
+    .kpi-row-label.qkt { color: #4CAF50; background: rgba(76, 175, 80, 0.12); }
+    .kpi-row-label.airbnb { color: #F5C518; background: rgba(245, 197, 24, 0.14); }
+    .kpi-mini-title { font-size: 11px; color: #8a8780; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-mini-value { font-size: 21px; font-weight: 700; margin-top: 3px; color: #e0ddd4; }
 
-    .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 30px; }
+    .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
     .content-card { background: #383632; border-radius: 8px; padding: 18px; border: 1px solid #4a4845; }
     .card-title-text { font-weight: 600; margin-bottom: 12px; color: #d4d1c8; font-size: 13px; }
 
@@ -44,8 +48,8 @@
 
     @media (max-width: 900px) {
         .main-grid { grid-template-columns: 1fr; }
-        .kpi-row { flex-direction: column; align-items: flex-start; gap: 10px; }
-        .kpi-row-label { width: auto; }
+        .kpi-row { grid-template-columns: 1fr 1fr; row-gap: 12px; }
+        .kpi-row-label { grid-column: 1 / -1; text-align: left; }
     }
 </style>
 
@@ -89,40 +93,32 @@
 
     <div class="kpi-box">
         <div class="kpi-row">
-            <div class="kpi-row-label">Elián · Quinta</div>
+            <div class="kpi-row-label qkt">QKT</div>
             <div class="kpi-mini">
-                <div class="kpi-mini-title">Ventas mes</div>
+                <div class="kpi-mini-title">Ventas</div>
                 <div class="kpi-mini-value" style="color: #4CAF50;">${{ ventas_mes_quinta|floatformat:0|intcomma }}</div>
             </div>
             <div class="kpi-mini">
-                <div class="kpi-mini-title">Gastos mes</div>
+                <div class="kpi-mini-title">Gastos</div>
                 <div class="kpi-mini-value" style="color: #e74c3c;">${{ gastos_mes_quinta|floatformat:0|intcomma }}</div>
             </div>
             <div class="kpi-mini">
-                <div class="kpi-mini-title">Utilidad neta</div>
+                <div class="kpi-mini-title">Utilidad</div>
                 <div class="kpi-mini-value" style="color: #F5C518;">${{ utilidad_mes_quinta|floatformat:0|intcomma }}</div>
-            </div>
-            <div class="kpi-mini">
-                <div class="kpi-mini-title">Próximo evento</div>
-                {% if proximo_evento %}
-                    <div class="kpi-mini-value" style="font-size: 15px;">{{ proximo_evento.fecha_evento|date:"d M" }}</div>
-                {% else %}
-                    <div class="kpi-mini-value">—</div>
-                {% endif %}
             </div>
         </div>
         <div class="kpi-row">
-            <div class="kpi-row-label">Ruby · Airbnb</div>
+            <div class="kpi-row-label airbnb">AIRBNB</div>
             <div class="kpi-mini">
-                <div class="kpi-mini-title">Ingresos mes</div>
+                <div class="kpi-mini-title">Ingresos</div>
                 <div class="kpi-mini-value" style="color: #F5C518;">${{ ingresos_mes_ruby|floatformat:0|intcomma }}</div>
             </div>
             <div class="kpi-mini">
-                <div class="kpi-mini-title">Gastos mes</div>
+                <div class="kpi-mini-title">Gastos</div>
                 <div class="kpi-mini-value" style="color: #E67E22;">${{ gastos_mes_ruby|floatformat:0|intcomma }}</div>
             </div>
             <div class="kpi-mini">
-                <div class="kpi-mini-title">Utilidad neta</div>
+                <div class="kpi-mini-title">Utilidad</div>
                 <div class="kpi-mini-value" style="color: #F5C518;">${{ utilidad_mes_ruby|floatformat:0|intcomma }}</div>
             </div>
         </div>
@@ -130,7 +126,7 @@
 
     <div class="main-grid">
         <div class="content-card">
-            <div class="card-title-text">Finanzas — Elián (Quinta) y Ruby (Airbnb)</div>
+            <div class="card-title-text">Finanzas · QKT y AIRBNB</div>
             <canvas id="financeChart" height="120"></canvas>
         </div>
 
@@ -165,10 +161,10 @@
         data: {
             labels: {{ chart_labels|safe }},
             datasets: [
-                { label: 'Ventas Elián ($)', data: {{ chart_ventas_quinta|safe }}, backgroundColor: 'rgba(46, 125, 50, 0.85)', borderRadius: 4 },
-                { label: 'Gastos Elián ($)', data: {{ chart_gastos_quinta|safe }}, backgroundColor: 'rgba(231, 76, 60, 0.7)', borderRadius: 4 },
-                { label: 'Ingresos Ruby ($)', data: {{ chart_ingresos_ruby|safe }}, backgroundColor: 'rgba(245, 197, 24, 0.9)', borderRadius: 4 },
-                { label: 'Gastos Ruby ($)', data: {{ chart_gastos_ruby|safe }}, backgroundColor: 'rgba(230, 126, 34, 0.85)', borderRadius: 4 }
+                { label: 'Ventas QKT', data: {{ chart_ventas_quinta|safe }}, backgroundColor: 'rgba(46, 125, 50, 0.85)', borderRadius: 4 },
+                { label: 'Gastos QKT', data: {{ chart_gastos_quinta|safe }}, backgroundColor: 'rgba(231, 76, 60, 0.7)', borderRadius: 4 },
+                { label: 'Ingresos AIRBNB', data: {{ chart_ingresos_ruby|safe }}, backgroundColor: 'rgba(245, 197, 24, 0.9)', borderRadius: 4 },
+                { label: 'Gastos AIRBNB', data: {{ chart_gastos_ruby|safe }}, backgroundColor: 'rgba(230, 126, 34, 0.85)', borderRadius: 4 }
             ]
         },
         options: {
