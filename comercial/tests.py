@@ -3,6 +3,7 @@ Tests del módulo Comercial
 ==========================
 Ejecutar: python manage.py test comercial --verbosity=2
 """
+import json
 from decimal import Decimal
 from datetime import date, timedelta
 from django.test import TestCase
@@ -573,3 +574,28 @@ class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
         anio_actual_str = hoy.replace(day=1).strftime('%B %Y')
         self.assertNotIn(anio_pasado_str, response.context['chart_labels'])
         self.assertIn(anio_actual_str, response.context['chart_labels'])
+
+    def test_grafica_respeta_orden_cronologico_con_meses_solo_de_gastos(self):
+        """Regresión: un mes que solo tuvo gastos (sin ventas) debe aparecer
+        en su lugar cronológico, no al final de la lista."""
+        from comercial.models import Compra
+
+        hoy = date.today()
+        anio = hoy.year
+        # Ventas en enero y abril; gastos (sin ventas) en julio y noviembre.
+        self._crear_cotizacion(date(anio, 1, 5))
+        self._crear_cotizacion(date(anio, 4, 5))
+        Compra.objects.create(fecha_emision=date(anio, 7, 5), total=Decimal('100.00'))
+        Compra.objects.create(fecha_emision=date(anio, 11, 5), total=Decimal('200.00'))
+
+        response = self.client.get('/admin/')
+
+        self.assertEqual(response.status_code, 200)
+        labels = json.loads(response.context['chart_labels'])
+        esperado = [
+            date(anio, 1, 1).strftime('%B %Y'),
+            date(anio, 4, 1).strftime('%B %Y'),
+            date(anio, 7, 1).strftime('%B %Y'),
+            date(anio, 11, 1).strftime('%B %Y'),
+        ]
+        self.assertEqual(labels, esperado)
