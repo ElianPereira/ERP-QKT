@@ -484,7 +484,6 @@ def ver_dashboard_kpis(request):
     if SolicitudFactura:
         solicitudes_count = SolicitudFactura.objects.filter(fecha_solicitud__month=hoy.month).count()
 
-    proximo_evento = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento').first()
     ultimos_eventos = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento')[:5]
 
     context.update({
@@ -495,7 +494,7 @@ def ver_dashboard_kpis(request):
         'chart_gastos_quinta': json.dumps(series_grafica['gastos_quinta']),
         'chart_ingresos_ruby': json.dumps(series_grafica['ingresos_ruby']),
         'chart_gastos_ruby': json.dumps(series_grafica['gastos_ruby']),
-        'solicitudes_count': solicitudes_count, 'proximo_evento': proximo_evento, 'ultimos_eventos': ultimos_eventos,
+        'solicitudes_count': solicitudes_count, 'ultimos_eventos': ultimos_eventos,
         'es_jefe': request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()
     })
     return render(request, 'admin/dashboard.html', context)
