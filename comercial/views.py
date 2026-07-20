@@ -31,6 +31,11 @@ try:
 except ImportError:
     SolicitudFactura = None
 
+try:
+    from airbnb.models import PagoAirbnb
+except ImportError:
+    PagoAirbnb = None
+
 # Estados que representan una venta ya concretada (no un simple borrador o
 # cotización enviada, y tampoco cancelada). El flujo normal de una venta
 # exitosa avanza CONFIRMADA -> EJECUTADA -> CERRADA; los tres deben contar
@@ -411,17 +416,56 @@ def configurar_plantilla_barra(request):
     return render(request, 'admin/comercial/configurar_plantilla_barra.html', context)
 
 
+def _grafica_mensual_ordenada(ingresos_por_mes, gastos_por_mes):
+    """Combina dos querysets ya agrupados por mes (.values('mes').annotate(total=...))
+    en labels/ingresos/gastos alineados y ordenados por la fecha real del mes
+    (no por orden de inserción) — un mes que solo tuvo gastos, sin ingresos
+    (o viceversa), debe aparecer en su lugar cronológico y no al final."""
+    grafica_por_mes = {}
+    for v in ingresos_por_mes:
+        if v['mes']: grafica_por_mes[v['mes']] = {'ingresos': float(v['total']), 'gastos': 0}
+
+    for g in gastos_por_mes:
+        if g['mes']:
+            if g['mes'] not in grafica_por_mes: grafica_por_mes[g['mes']] = {'ingresos': 0, 'gastos': 0}
+            grafica_por_mes[g['mes']]['gastos'] = float(g['total'])
+
+    meses_ordenados = sorted(grafica_por_mes.keys())
+    labels = [mes.strftime('%B %Y') for mes in meses_ordenados]
+    ingresos = [grafica_por_mes[mes]['ingresos'] for mes in meses_ordenados]
+    gastos = [grafica_por_mes[mes]['gastos'] for mes in meses_ordenados]
+    return labels, ingresos, gastos
+
+
 # ==========================================
 # 1. DASHBOARD
 # ==========================================
-@staff_member_required 
+@staff_member_required
 def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
     hoy = timezone.now()
-    
-    ventas_mes = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year, fecha_evento__month=hoy.month).aggregate(total=Sum('precio_final'))['total'] or 0
-    gastos_mes = Compra.objects.filter(fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
-    utilidad_mes = ventas_mes - gastos_mes
+
+    # --- Elián · Quinta Ko'ox Tanil (Eventos) ---
+    ventas_mes_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year, fecha_evento__month=hoy.month).aggregate(total=Sum('precio_final'))['total'] or 0
+    gastos_mes_quinta = Compra.objects.filter(unidad_negocio__clave='QUINTA', fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
+    utilidad_mes_quinta = ventas_mes_quinta - gastos_mes_quinta
+
+    ventas_data_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year).annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
+    gastos_data_quinta = Compra.objects.filter(unidad_negocio__clave='QUINTA', fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
+    chart_labels_quinta, chart_ventas_quinta, chart_gastos_quinta = _grafica_mensual_ordenada(ventas_data_quinta, gastos_data_quinta)
+
+    # --- Ruby · Hospedaje Airbnb ---
+    ingresos_mes_ruby = 0
+    gastos_mes_ruby = 0
+    chart_labels_ruby, chart_ingresos_ruby, chart_gastos_ruby = [], [], []
+    if PagoAirbnb:
+        ingresos_mes_ruby = PagoAirbnb.objects.filter(estado='PAGADO', fecha_pago__year=hoy.year, fecha_pago__month=hoy.month).aggregate(total=Sum('monto_neto'))['total'] or 0
+        gastos_mes_ruby = Compra.objects.filter(unidad_negocio__clave='AIRBNB', fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
+
+        ingresos_data_ruby = PagoAirbnb.objects.filter(estado='PAGADO', fecha_pago__year=hoy.year).annotate(mes=TruncMonth('fecha_pago')).values('mes').annotate(total=Sum('monto_neto')).order_by('mes')
+        gastos_data_ruby = Compra.objects.filter(unidad_negocio__clave='AIRBNB', fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
+        chart_labels_ruby, chart_ingresos_ruby, chart_gastos_ruby = _grafica_mensual_ordenada(ingresos_data_ruby, gastos_data_ruby)
+    utilidad_mes_ruby = ingresos_mes_ruby - gastos_mes_ruby
 
     solicitudes_count = 0
     if SolicitudFactura:
@@ -430,30 +474,16 @@ def ver_dashboard_kpis(request):
     proximo_evento = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento').first()
     ultimos_eventos = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento')[:5]
 
-    ventas_data = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year).annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
-    gastos_data = Compra.objects.filter(fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
-
-    grafica_por_mes = {}
-    for v in ventas_data:
-        if v['mes']: grafica_por_mes[v['mes']] = {'ventas': float(v['total']), 'gastos': 0}
-
-    for g in gastos_data:
-        if g['mes']:
-            if g['mes'] not in grafica_por_mes: grafica_por_mes[g['mes']] = {'ventas': 0, 'gastos': 0}
-            grafica_por_mes[g['mes']]['gastos'] = float(g['total'])
-
-    # Se ordena por la fecha real del mes (no por orden de inserción) para que
-    # un mes que solo tuvo gastos, sin ventas, no se "cuele" al final fuera de
-    # su lugar cronológico.
-    meses_ordenados = sorted(grafica_por_mes.keys())
-    grafica_final = {mes.strftime('%B %Y'): grafica_por_mes[mes] for mes in meses_ordenados}
-
     context.update({
-        'ventas_mes': ventas_mes, 'gastos_mes': gastos_mes, 'utilidad_mes': utilidad_mes,
+        'ventas_mes_quinta': ventas_mes_quinta, 'gastos_mes_quinta': gastos_mes_quinta, 'utilidad_mes_quinta': utilidad_mes_quinta,
+        'chart_labels_quinta': json.dumps(chart_labels_quinta),
+        'chart_ventas_quinta': json.dumps(chart_ventas_quinta),
+        'chart_gastos_quinta': json.dumps(chart_gastos_quinta),
+        'ingresos_mes_ruby': ingresos_mes_ruby, 'gastos_mes_ruby': gastos_mes_ruby, 'utilidad_mes_ruby': utilidad_mes_ruby,
+        'chart_labels_ruby': json.dumps(chart_labels_ruby),
+        'chart_ingresos_ruby': json.dumps(chart_ingresos_ruby),
+        'chart_gastos_ruby': json.dumps(chart_gastos_ruby),
         'solicitudes_count': solicitudes_count, 'proximo_evento': proximo_evento, 'ultimos_eventos': ultimos_eventos,
-        'chart_labels': json.dumps(list(grafica_final.keys())),
-        'chart_ventas': json.dumps([v['ventas'] for v in grafica_final.values()]),
-        'chart_gastos': json.dumps([v['gastos'] for v in grafica_final.values()]),
         'es_jefe': request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()
     })
     return render(request, 'admin/dashboard.html', context)

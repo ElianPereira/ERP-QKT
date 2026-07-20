@@ -572,26 +572,31 @@ class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
         self.assertEqual(response.status_code, 200)
         anio_pasado_str = anio_pasado.strftime('%B %Y')
         anio_actual_str = hoy.replace(day=1).strftime('%B %Y')
-        self.assertNotIn(anio_pasado_str, response.context['chart_labels'])
-        self.assertIn(anio_actual_str, response.context['chart_labels'])
+        self.assertNotIn(anio_pasado_str, response.context['chart_labels_quinta'])
+        self.assertIn(anio_actual_str, response.context['chart_labels_quinta'])
 
     def test_grafica_respeta_orden_cronologico_con_meses_solo_de_gastos(self):
         """Regresión: un mes que solo tuvo gastos (sin ventas) debe aparecer
         en su lugar cronológico, no al final de la lista."""
         from comercial.models import Compra
+        from contabilidad.models import UnidadNegocio
+
+        unidad_quinta, _ = UnidadNegocio.objects.get_or_create(
+            clave='QUINTA', defaults={'nombre': "Quinta Ko'ox Tanil - Eventos"}
+        )
 
         hoy = date.today()
         anio = hoy.year
         # Ventas en enero y abril; gastos (sin ventas) en julio y noviembre.
         self._crear_cotizacion(date(anio, 1, 5))
         self._crear_cotizacion(date(anio, 4, 5))
-        Compra.objects.create(fecha_emision=date(anio, 7, 5), total=Decimal('100.00'))
-        Compra.objects.create(fecha_emision=date(anio, 11, 5), total=Decimal('200.00'))
+        Compra.objects.create(fecha_emision=date(anio, 7, 5), total=Decimal('100.00'), unidad_negocio=unidad_quinta)
+        Compra.objects.create(fecha_emision=date(anio, 11, 5), total=Decimal('200.00'), unidad_negocio=unidad_quinta)
 
         response = self.client.get('/admin/')
 
         self.assertEqual(response.status_code, 200)
-        labels = json.loads(response.context['chart_labels'])
+        labels = json.loads(response.context['chart_labels_quinta'])
         esperado = [
             date(anio, 1, 1).strftime('%B %Y'),
             date(anio, 4, 1).strftime('%B %Y'),
@@ -599,3 +604,78 @@ class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
             date(anio, 11, 1).strftime('%B %Y'),
         ]
         self.assertEqual(labels, esperado)
+
+
+class DashboardSeparacionElianRubyTest(TestCase):
+    """Regresión: el dashboard debe separar ingresos/gastos/utilidad de
+    Elián (Quinta, eventos) y Ruby (Airbnb, hospedaje) sin mezclarlos."""
+
+    def setUp(self):
+        from contabilidad.models import UnidadNegocio
+        self.staff = User.objects.create_user('staff_split', password='test', is_staff=True)
+        self.client.force_login(self.staff)
+        self.cliente = Cliente.objects.create(nombre='Cliente Test')
+        self.unidad_quinta, _ = UnidadNegocio.objects.get_or_create(
+            clave='QUINTA', defaults={'nombre': "Quinta Ko'ox Tanil - Eventos"}
+        )
+        self.unidad_airbnb, _ = UnidadNegocio.objects.get_or_create(
+            clave='AIRBNB', defaults={'nombre': 'Hospedaje Airbnb'}
+        )
+
+    def test_venta_quinta_no_afecta_kpis_de_ruby(self):
+        from comercial.models import Compra
+        from airbnb.models import PagoAirbnb
+
+        hoy = date.today()
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Evento Quinta',
+            fecha_evento=hoy.replace(day=15),
+            estado='BORRADOR',
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('4000.00'), estado='CONFIRMADA')
+        Compra.objects.create(
+            fecha_emision=hoy.replace(day=10), total=Decimal('500.00'),
+            unidad_negocio=self.unidad_quinta,
+        )
+
+        pago = PagoAirbnb.objects.create(
+            huesped='Huésped Test', fecha_checkin=hoy.replace(day=1),
+            fecha_checkout=hoy.replace(day=3), monto_bruto=Decimal('2000.00'),
+            monto_neto=Decimal('1800.00'), fecha_pago=hoy.replace(day=5),
+            estado='PAGADO',
+        )
+        Compra.objects.create(
+            fecha_emision=hoy.replace(day=12), total=Decimal('300.00'),
+            unidad_negocio=self.unidad_airbnb,
+        )
+
+        response = self.client.get('/admin/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['ventas_mes_quinta'], Decimal('4000.00'))
+        self.assertEqual(response.context['gastos_mes_quinta'], Decimal('500.00'))
+        # monto_neto real: save() recalcula retenciones (ISR 4% / IVA 8% sobre
+        # monto_bruto) ya que no se pasaron explícitas, así que el neto real
+        # difiere del valor pasado a create().
+        pago.refresh_from_db()
+        self.assertEqual(response.context['ingresos_mes_ruby'], pago.monto_neto)
+        self.assertEqual(response.context['gastos_mes_ruby'], Decimal('300.00'))
+
+    def test_pago_airbnb_pendiente_no_cuenta_como_ingreso(self):
+        from airbnb.models import PagoAirbnb
+
+        hoy = date.today()
+        PagoAirbnb.objects.create(
+            huesped='Huésped Pendiente', fecha_checkin=hoy.replace(day=1),
+            fecha_checkout=hoy.replace(day=3), monto_bruto=Decimal('2000.00'),
+            monto_neto=Decimal('1800.00'), fecha_pago=hoy.replace(day=5),
+            estado='PENDIENTE',
+        )
+
+        response = self.client.get('/admin/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['ingresos_mes_ruby'], 0)
