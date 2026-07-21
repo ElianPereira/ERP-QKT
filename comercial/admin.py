@@ -886,15 +886,21 @@ class GastoInline(admin.TabularInline):
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
     change_list_template = "comercial/compra_change_list.html"
-    list_display = ('fecha_emision', 'proveedor', 'total_format', 'unidad_negocio', 'cuenta_pago', 'uuid', 'ver_pdf')
-    list_filter = ('fecha_emision', 'unidad_negocio', 'cuenta_pago'); search_fields = ('proveedor', 'uuid'); date_hierarchy = 'fecha_emision'
+    list_display = ('fecha_emision', 'proveedor', 'total_format', 'unidad_negocio', 'cuenta_pago', 'es_deducible', 'uuid', 'ver_pdf')
+    list_filter = ('fecha_emision', 'unidad_negocio', 'cuenta_pago', 'es_deducible'); search_fields = ('proveedor', 'uuid'); date_hierarchy = 'fecha_emision'
     inlines = [GastoInline]
     fieldsets = (
-        ('Archivo Fuente (Opcional)', {'fields': ('archivo_xml', 'archivo_pdf')}),
+        ('Archivo Fuente (Opcional)', {
+            'fields': ('archivo_xml', 'archivo_pdf'),
+            'description': 'Si no hay factura (ej. compra en el extranjero), deja este bloque vacío y '
+                            'captura los datos a mano abajo — el gasto se registrará como no deducible.',
+        }),
         ('Datos Generales', {'fields': ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid')}),
         ('Contabilidad', {
-            'fields': ('unidad_negocio', 'cuenta_pago'),
-            'description': 'Sin estos dos datos, la póliza generada queda en BORRADOR y no se aplica.',
+            'fields': ('unidad_negocio', 'cuenta_pago', 'es_deducible'),
+            'description': 'Sin unidad de negocio y cuenta de pago, la póliza generada queda en BORRADOR '
+                            'y no se aplica. "Deducible" se fuerza a No automáticamente si no hay UUID '
+                            '(factura sin timbrar / sin CFDI).',
         }),
         ('Totales Globales', {'fields': ('subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')})
     )
