@@ -160,3 +160,56 @@ def aplicar_saldo_apertura(saldo_apertura, usuario=None):
         saldo_apertura.save(update_fields=['aplicado', 'poliza'])
 
     return poliza
+
+
+def generar_compra_retroactiva(poliza):
+    """
+    Genera el registro Compra que debió existir detrás de una póliza de
+    egreso capturada a mano (ej. "FACEBOOK ADS", "SUSCRIPCIÓN RAILWAY") —
+    gastos reales sin factura/CFDI que se registraron directo como póliza
+    en vez de pasar por Compra, y por eso no aparecen en los reportes/KPIs
+    que dependen de Compra.
+
+    No genera una nueva póliza: la Compra se crea con las señales de
+    contabilidad desactivadas (para no duplicar el asiento ya existente) y
+    luego se re-vincula la póliza recibida a esa Compra vía content_type/
+    object_id, dejando origen='COMPRA'. Se marca es_deducible=False porque,
+    por definición, estas pólizas no tienen CFDI detrás.
+
+    Lanza ValueError si la póliza no es elegible (no es egreso, ya está
+    vinculada a un documento origen, o no tiene movimientos).
+    """
+    from django.conf import settings
+    from django.contrib.contenttypes.models import ContentType
+    from comercial.models import Compra
+
+    if poliza.tipo != 'E':
+        raise ValueError(f"{poliza} no es una póliza de egreso.")
+    if poliza.content_type_id:
+        raise ValueError(f"{poliza} ya está vinculada a un documento origen.")
+
+    total = poliza.total_debe
+    if total <= 0:
+        raise ValueError(f"{poliza} no tiene movimientos.")
+
+    with transaction.atomic():
+        signals_habilitados_antes = getattr(settings, 'CONTABILIDAD_SIGNALS_ENABLED', True)
+        settings.CONTABILIDAD_SIGNALS_ENABLED = False
+        try:
+            compra = Compra.objects.create(
+                proveedor=poliza.concepto[:200],
+                fecha_emision=poliza.fecha,
+                subtotal=total,
+                total=total,
+                unidad_negocio=poliza.unidad_negocio,
+                es_deducible=False,
+            )
+        finally:
+            settings.CONTABILIDAD_SIGNALS_ENABLED = signals_habilitados_antes
+
+        poliza.content_type = ContentType.objects.get_for_model(Compra)
+        poliza.object_id = compra.pk
+        poliza.origen = 'COMPRA'
+        poliza.save(update_fields=['content_type', 'object_id', 'origen'])
+
+    return compra
