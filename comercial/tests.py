@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 from comercial.models import (
     Cliente, Cotizacion, ItemCotizacion, Pago, Insumo,
     ConstanteSistema, MovimientoInventario, PlanPago, ParcialidadPago,
-    Espacio, AsignacionEspacio, AsignacionPersonal,
+    Espacio, AsignacionEspacio, AsignacionPersonal, Compra,
 )
 from nomina.models import Empleado
 from comercial.services import PlanPagosService
@@ -727,3 +727,87 @@ class DashboardSeparacionElianRubyTest(TestCase):
         self.assertEqual(gastos_quinta, [200.0, 0])
         self.assertEqual(ingresos_ruby, [0, 440.0])
         self.assertEqual(gastos_ruby, [0, 100.0])
+
+
+def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid=''):
+    """CFDI 4.0 mínimo (solo lo que analizar_xml_compra necesita leer)."""
+    complemento = ''
+    if uuid:
+        complemento = (
+            '<cfdi:Complemento>'
+            '<tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" '
+            f'UUID="{uuid}"/>'
+            '</cfdi:Complemento>'
+        )
+    return (
+        '<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" '
+        f'Version="4.0" TipoDeComprobante="{tipo}" Total="1160.00" SubTotal="1000.00">'
+        '<cfdi:Emisor Rfc="PRV010101ABC" Nombre="Proveedor Test"/>'
+        f'<cfdi:Receptor Rfc="{rfc_receptor}" UsoCFDI="{uso_cfdi}"/>'
+        f'{complemento}'
+        '</cfdi:Comprobante>'
+    ).encode('utf-8')
+
+
+class AnalizarXmlCompraTest(TestCase):
+    """La carga masiva de XML debe distinguir qué CFDIs son compras válidas
+    del negocio, y por qué se excluye o se omite cada uno que no lo es."""
+
+    def test_cfdi_valido_del_negocio(self):
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, rfc_r, tipo, uso, es_duplicado = analizar_xml_compra(
+            _construir_cfdi(rfc_receptor='PECE010202IA0', uso_cfdi='G03')
+        )
+        self.assertTrue(valido)
+        self.assertIsNone(motivo)
+        self.assertEqual(unidad_clave, 'QUINTA')
+        self.assertFalse(es_duplicado)
+
+    def test_cfdi_de_venta_propia_se_excluye_por_rfc_receptor(self):
+        """Si el RFC receptor no es el del negocio (ej. es una factura que
+        ELLOS emitieron a un cliente), no debe colarse como compra."""
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, rfc_r, tipo, uso, es_duplicado = analizar_xml_compra(
+            _construir_cfdi(rfc_receptor='XAXX010101000')
+        )
+        self.assertFalse(valido)
+        self.assertFalse(es_duplicado)
+        self.assertIn('no pertenece al negocio', motivo)
+
+    def test_nota_de_credito_se_excluye_por_tipo(self):
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, rfc_r, tipo, uso, es_duplicado = analizar_xml_compra(
+            _construir_cfdi(tipo='E')  # Egreso = nota de crédito
+        )
+        self.assertFalse(valido)
+        self.assertIn('no es de Ingreso', motivo)
+
+    def test_uso_cfdi_personal_se_excluye(self):
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, rfc_r, tipo, uso, es_duplicado = analizar_xml_compra(
+            _construir_cfdi(uso_cfdi='D01')  # honorarios médicos, deducción personal
+        )
+        self.assertFalse(valido)
+        self.assertIn('deducción personal', motivo)
+
+    def test_factura_duplicada_se_detecta_por_uuid(self):
+        from comercial.services import analizar_xml_compra
+        from contabilidad.models import UnidadNegocio
+
+        unidad, _ = UnidadNegocio.objects.get_or_create(clave='QUINTA', defaults={'nombre': 'Quinta Test'})
+        Compra.objects.create(unidad_negocio=unidad, uuid='AAAA-1111-BBBB-2222')
+
+        valido, motivo, unidad_clave, rfc_r, tipo, uso, es_duplicado = analizar_xml_compra(
+            _construir_cfdi(uuid='AAAA-1111-BBBB-2222')
+        )
+        self.assertFalse(valido)
+        self.assertTrue(es_duplicado)
+        self.assertIn('duplicada', motivo)
+
+    def test_factura_nueva_con_uuid_no_es_duplicada(self):
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, rfc_r, tipo, uso, es_duplicado = analizar_xml_compra(
+            _construir_cfdi(uuid='CCCC-3333-DDDD-4444')
+        )
+        self.assertTrue(valido)
+        self.assertFalse(es_duplicado)

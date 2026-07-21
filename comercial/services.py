@@ -679,3 +679,88 @@ class ContratoService:
         pdf_bytes   = HTML(string=html_string).write_pdf()
 
         return pdf_bytes, numero
+
+
+# ==========================================
+# CARGA MASIVA DE XML (Compras)
+# ==========================================
+
+# Mapeo de RFC receptor -> clave de UnidadNegocio
+RFC_UNIDAD_MAP = {
+    'PECE010202IA0': 'QUINTA',  # Elian - Quinta Ko'ox Tanil
+    'CERU580518QZ5': 'AIRBNB',  # Ruby - Hospedaje Airbnb
+}
+RFCS_VALIDOS = set(RFC_UNIDAD_MAP.keys())
+
+# Usos CFDI personales (deducciones personales — NO son del negocio)
+USOS_CFDI_PERSONALES = {
+    'D01',  # Honorarios médicos, dentales y gastos hospitalarios
+    'D02',  # Gastos médicos por incapacidad o discapacidad
+    'D03',  # Gastos funerales
+    'D04',  # Donativos
+    'D05',  # Intereses reales por créditos hipotecarios
+    'D06',  # Aportaciones voluntarias al SAR
+    'D07',  # Primas por seguros de gastos médicos
+    'D08',  # Gastos de transportación escolar obligatoria
+    'D09',  # Depósitos en cuentas para el ahorro
+    'D10',  # Pagos por servicios educativos (colegiaturas)
+    'CP01', # Pagos
+    'S01',  # Sin efectos fiscales
+}
+
+# Tipos de comprobante aceptados (solo Ingreso = gasto deducible para nosotros)
+TIPOS_VALIDOS_CARGA_MASIVA = {'I'}
+
+
+def analizar_xml_compra(xml_content):
+    """
+    Analiza un XML de CFDI para decidir si es elegible como Compra del
+    negocio en la carga masiva. Devuelve:
+        (valido: bool, motivo: str|None, unidad_clave: str|None,
+         rfc_receptor: str, tipo: str, uso_cfdi: str, es_duplicado: bool)
+
+    `unidad_clave` es la clave de UnidadNegocio detectada (o None) — se
+    resuelve a instancia en el caller para no acoplar este servicio a la
+    app `contabilidad` en el import de nivel de módulo.
+    """
+    import xml.etree.ElementTree as ET
+    from .models import Compra
+
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError as e:
+        return False, f"XML inválido: {e}", None, '', '', '', False
+
+    ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
+    if 'http://www.sat.gob.mx/cfd/3' in root.tag:
+        ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+
+    tipo = root.attrib.get('TipoDeComprobante', '')
+    if tipo not in TIPOS_VALIDOS_CARGA_MASIVA:
+        return False, f"Tipo de comprobante '{tipo}' no es de Ingreso (excluido)", None, '', tipo, '', False
+
+    receptor = root.find('cfdi:Receptor', ns)
+    if receptor is None:
+        return False, "Sin nodo Receptor", None, '', tipo, '', False
+
+    rfc_receptor = receptor.attrib.get('Rfc', '')
+    uso_cfdi = receptor.attrib.get('UsoCFDI', '')
+
+    if rfc_receptor not in RFCS_VALIDOS:
+        return False, f"RFC receptor '{rfc_receptor}' no pertenece al negocio", None, rfc_receptor, tipo, uso_cfdi, False
+
+    if uso_cfdi in USOS_CFDI_PERSONALES:
+        return False, f"Uso CFDI '{uso_cfdi}' es deducción personal (no del negocio)", None, rfc_receptor, tipo, uso_cfdi, False
+
+    uuid = ''
+    complemento = root.find('cfdi:Complemento', ns)
+    if complemento is not None:
+        ns_tfd = {'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'}
+        timbre = complemento.find('tfd:TimbreFiscalDigital', ns_tfd)
+        if timbre is not None:
+            uuid = timbre.attrib.get('UUID', '')
+
+    if uuid and Compra.objects.filter(uuid=uuid).exists():
+        return False, f"Ya existe una Compra con este folio fiscal (factura duplicada, UUID {uuid})", None, rfc_receptor, tipo, uso_cfdi, True
+
+    return True, None, RFC_UNIDAD_MAP[rfc_receptor], rfc_receptor, tipo, uso_cfdi, False
