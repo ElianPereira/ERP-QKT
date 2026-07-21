@@ -971,6 +971,14 @@ class Compra(models.Model):
         help_text="De cuál de las cuentas débito salió este pago. "
                   "Sin este dato la póliza queda en BORRADOR y no se aplica."
     )
+    es_deducible = models.BooleanField(
+        default=True,
+        verbose_name="Deducible (con CFDI)",
+        help_text="Se desactiva automáticamente si no hay factura/XML cargado "
+                  "(ej. compras en el extranjero, sin CFDI mexicano). Un gasto "
+                  "sin comprobante fiscal no es deducible de impuestos, pero sí "
+                  "se registra en la contabilidad."
+    )
 
     def save(self, *args, **kwargs):
         if self.archivo_xml and not self.pk:
@@ -1011,6 +1019,11 @@ class Compra(models.Model):
             except Exception as e: print(f"Error procesando XML cabecera: {e}")
             finally:
                 if self.archivo_xml: self.archivo_xml.seek(0)
+        # Sin CFDI timbrado (uuid) no hay nada que acreditar ante el SAT —
+        # esto no es una preferencia, es la regla fiscal, así que se fuerza
+        # independientemente de lo que se haya capturado a mano en el admin.
+        if not self.uuid:
+            self.es_deducible = False
         super().save(*args, **kwargs)
         if self.archivo_xml and self.pk:
             try:

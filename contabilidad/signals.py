@@ -670,11 +670,15 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     content_type = ContentType.objects.get_for_model(compra)
     fecha_poliza = compra.fecha_emision or compra.uploaded_at.date()
 
+    concepto_poliza = f"Compra: {compra.proveedor or 'Proveedor'}" + (f" [{categoria}]" if categoria else "")
+    if not compra.es_deducible:
+        concepto_poliza += " [SIN CFDI - NO DEDUCIBLE]"
+
     poliza = Poliza.objects.create(
         tipo='E',
         folio=Poliza.siguiente_folio('E', fecha_poliza),
         fecha=fecha_poliza,
-        concepto=f"Compra: {compra.proveedor or 'Proveedor'}" + (f" [{categoria}]" if categoria else ""),
+        concepto=concepto_poliza,
         unidad_negocio=unidad,
         estado=estado_poliza,
         origen='COMPRA',
@@ -683,14 +687,19 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
         created_by=usuario,
     )
 
+    # Sin CFDI no hay IVA acreditable ante el SAT: el total completo (incluido
+    # lo que hubiera sido IVA) se carga como gasto no deducible, en vez de
+    # separar una porción como "acreditable" que en realidad no se puede acreditar.
+    monto_gasto = compra.subtotal if (compra.es_deducible and cuenta_iva and compra.iva > 0) else compra.total
+
     MovimientoContable.objects.create(
         poliza=poliza, cuenta=cuenta_gasto,
-        debe=compra.subtotal, haber=Decimal('0.00'),
+        debe=monto_gasto, haber=Decimal('0.00'),
         concepto=compra.proveedor[:100] if compra.proveedor else "Compra",
         referencia=compra.uuid[:20] if compra.uuid else '',
     )
 
-    if cuenta_iva and compra.iva > 0:
+    if compra.es_deducible and cuenta_iva and compra.iva > 0:
         MovimientoContable.objects.create(
             poliza=poliza, cuenta=cuenta_iva,
             debe=compra.iva, haber=Decimal('0.00'),

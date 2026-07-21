@@ -254,6 +254,66 @@ class CompraSinDatosCompletosTest(TestCase):
         self.assertEqual(poliza.unidad_negocio.clave, 'AIRBNB')  # no debe caer en QUINTA por default
 
 
+class CompraSinCFDINoDeducibleTest(TestCase):
+    """Un gasto sin factura timbrada (uuid) se registra igual, pero como no
+    deducible: no se acredita IVA y el total completo va al gasto."""
+
+    def setUp(self):
+        cuenta_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal', banco='BBVA',
+            clabe='012345678901234569', cuenta_contable=cuenta_banco,
+        )
+        self.unidad_quinta = UnidadNegocio.objects.get(clave='QUINTA')
+
+    def test_compra_sin_uuid_se_marca_no_deducible_aunque_se_capture_true(self):
+        compra = Compra.objects.create(
+            proveedor="Proveedor Extranjero", subtotal=Decimal('1000.00'),
+            iva=Decimal('160.00'), total=Decimal('1160.00'),
+            cuenta_pago=self.cuenta_bancaria, unidad_negocio=self.unidad_quinta,
+            es_deducible=True,  # intento de captura manual, debe forzarse a False
+        )
+        compra.refresh_from_db()
+        self.assertFalse(compra.es_deducible)
+
+    def test_poliza_sin_cfdi_carga_total_completo_sin_iva_acreditable(self):
+        compra = Compra.objects.create(
+            proveedor="Proveedor Extranjero", subtotal=Decimal('1000.00'),
+            iva=Decimal('160.00'), total=Decimal('1160.00'),
+            cuenta_pago=self.cuenta_bancaria, unidad_negocio=self.unidad_quinta,
+        )
+        poliza = Poliza.objects.filter(origen='COMPRA', object_id=compra.pk).first()
+        self.assertEqual(poliza.estado, 'APLICADA')
+        self.assertIn('SIN CFDI - NO DEDUCIBLE', poliza.concepto)
+
+        cuenta_iva = CuentaContable.objects.get(codigo_sat='108.01')  # IVA_ACREDITABLE
+        self.assertFalse(poliza.movimientos.filter(cuenta=cuenta_iva).exists())
+
+        movimiento_gasto = poliza.movimientos.exclude(cuenta=cuenta_iva).exclude(cuenta=self.cuenta_bancaria.cuenta_contable).first()
+        self.assertEqual(movimiento_gasto.debe, Decimal('1160.00'))  # total completo, no solo subtotal
+
+    def test_compra_con_uuid_mantiene_deducible_y_acredita_iva(self):
+        compra = Compra.objects.create(
+            proveedor="Proveedor Nacional", subtotal=Decimal('1000.00'),
+            iva=Decimal('160.00'), total=Decimal('1160.00'),
+            cuenta_pago=self.cuenta_bancaria, unidad_negocio=self.unidad_quinta,
+            uuid='11111111-1111-1111-1111-111111111111',
+        )
+        compra.refresh_from_db()
+        self.assertTrue(compra.es_deducible)
+
+        poliza = Poliza.objects.filter(origen='COMPRA', object_id=compra.pk).first()
+        self.assertNotIn('SIN CFDI', poliza.concepto)
+
+        cuenta_iva = CuentaContable.objects.get(codigo_sat='108.01')
+        mov_iva = poliza.movimientos.filter(cuenta=cuenta_iva).first()
+        self.assertIsNotNone(mov_iva)
+        self.assertEqual(mov_iva.debe, Decimal('160.00'))
+
+        movimiento_gasto = poliza.movimientos.exclude(cuenta=cuenta_iva).exclude(cuenta=self.cuenta_bancaria.cuenta_contable).first()
+        self.assertEqual(movimiento_gasto.debe, Decimal('1000.00'))  # solo subtotal, IVA aparte
+
+
 class NominaNuncaGeneraPolizaTest(TestCase):
     """Nómina está excluida de contabilidad: ni calculada ni pagada debe generar póliza."""
 
