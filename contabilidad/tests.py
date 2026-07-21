@@ -198,6 +198,58 @@ class ClaveUnidadNegocioTest(TestCase):
         self.assertFalse(UnidadNegocio.objects.filter(clave='EVENTOS').exists())
 
 
+class RenombrarUnidadNegocioEventosAQuintaMigrationTest(TestCase):
+    """Regresión: producción arrastraba una UnidadNegocio con clave='EVENTOS'
+    (creada a mano, con datos fiscales reales) porque la migración 0002 ya
+    se había aplicado antes de que el código usara clave='QUINTA' — nunca se
+    creó ni se fusionó una fila 'QUINTA' ahí. La migración 0012 debe
+    renombrar esa fila (preservando su PK, y con ella, todo lo que ya la
+    referencia) en vez de dejar los gastos/pólizas huérfanos de un
+    unidad_negocio__clave='QUINTA' que nunca existió."""
+
+    def _cargar_funcion_migracion(self):
+        import importlib
+        modulo = importlib.import_module(
+            'contabilidad.migrations.0012_renombrar_unidad_negocio_eventos_a_quinta'
+        )
+        return modulo.renombrar_eventos_a_quinta
+
+    class _AppsFalso:
+        """Sustituto mínimo del `apps` histórico que recibe un RunPython:
+        el modelo real sirve porque la migración solo toca el campo `clave`,
+        que no ha cambiado de forma entre el estado histórico y el actual."""
+        def get_model(self, app_label, nombre_modelo):
+            return UnidadNegocio
+
+    def test_renombra_eventos_a_quinta_preservando_pk(self):
+        UnidadNegocio.objects.filter(clave='QUINTA').delete()
+        eventos = UnidadNegocio.objects.create(
+            clave='EVENTOS', nombre="Quinta Ko'ox Tanil - Eventos", regimen_fiscal='626',
+        )
+        pk_original = eventos.pk
+
+        renombrar = self._cargar_funcion_migracion()
+        renombrar(self._AppsFalso(), None)
+
+        eventos.refresh_from_db()
+        self.assertEqual(eventos.pk, pk_original)  # mismo registro, FKs intactas
+        self.assertEqual(eventos.clave, 'QUINTA')
+        self.assertFalse(UnidadNegocio.objects.filter(clave='EVENTOS').exists())
+
+    def test_no_hace_nada_si_ya_existe_quinta(self):
+        """Instalación fresca (como los tests locales): 0002 ya sembró
+        'QUINTA' directamente, nunca existió 'EVENTOS' — la migración debe
+        ser un no-op, no crear ni tocar nada."""
+        self.assertFalse(UnidadNegocio.objects.filter(clave='EVENTOS').exists())
+        quinta_antes = UnidadNegocio.objects.get(clave='QUINTA')
+
+        renombrar = self._cargar_funcion_migracion()
+        renombrar(self._AppsFalso(), None)
+
+        quinta_despues = UnidadNegocio.objects.get(clave='QUINTA')
+        self.assertEqual(quinta_antes.pk, quinta_despues.pk)
+
+
 class PolizaSinGuardarTest(TestCase):
     """Regresión: crear una Póliza nueva en estado APLICADA desde el admin
     (formulario + inline de Movimientos en un solo POST) no debe tronar.
