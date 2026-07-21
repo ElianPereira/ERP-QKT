@@ -208,8 +208,30 @@ class PolizaAdmin(admin.ModelAdmin):
             obj.folio = Poliza.siguiente_folio(obj.tipo, obj.fecha)
         super().save_model(request, obj, form, change)
     
-    actions = ['aplicar_polizas', 'cancelar_polizas']
-    
+    actions = ['aplicar_polizas', 'cancelar_polizas', 'generar_compra_retroactiva_action']
+
+    @admin.action(description="Generar Compra retroactiva (sin factura) para pólizas manuales")
+    def generar_compra_retroactiva_action(self, request, queryset):
+        from .services import generar_compra_retroactiva
+
+        generadas = 0
+        omitidas = []
+        for poliza in queryset:
+            try:
+                generar_compra_retroactiva(poliza)
+                generadas += 1
+            except ValueError as e:
+                omitidas.append(str(e))
+
+        if generadas:
+            self.message_user(
+                request,
+                f"{generadas} Compra(s) retroactiva(s) generada(s) (marcadas como no deducibles) "
+                "y vinculada(s) a su póliza existente."
+            )
+        if omitidas:
+            self.message_user(request, "Omitidas: " + '; '.join(omitidas), level=messages.WARNING)
+
     @admin.action(description="Aplicar pólizas seleccionadas")
     def aplicar_polizas(self, request, queryset):
         aplicadas = 0

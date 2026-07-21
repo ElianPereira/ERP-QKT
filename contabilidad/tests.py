@@ -376,6 +376,78 @@ class SaldoAperturaTest(TestCase):
         self.assertEqual(debe, Decimal('15000.00'))
 
 
+class GenerarCompraRetroactivaTest(TestCase):
+    """Backfill: una póliza de egreso capturada a mano (sin Compra detrás,
+    ej. 'FACEBOOK ADS' sin factura) debe poder generar retroactivamente su
+    Compra correspondiente, sin duplicar el asiento contable ya existente."""
+
+    def setUp(self):
+        from contabilidad.services import generar_compra_retroactiva
+        self.generar_compra_retroactiva = generar_compra_retroactiva
+
+        self.user = User.objects.create_user('contador2', password='x')
+        self.unidad_quinta = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_gasto = CuentaContable.objects.get(codigo_sat='601.02.05')
+        cuenta_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal', banco='BBVA',
+            clabe='012345678901234570', cuenta_contable=cuenta_banco,
+        )
+
+    def _crear_poliza_manual(self, concepto, monto, tipo='E', unidad=None):
+        poliza = Poliza.objects.create(
+            tipo=tipo, folio=Poliza.siguiente_folio(tipo, date.today()),
+            fecha=date.today(), concepto=concepto,
+            unidad_negocio=unidad or self.unidad_quinta,
+            estado='APLICADA', origen='MANUAL', created_by=self.user,
+        )
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_gasto,
+            debe=monto, haber=Decimal('0.00'), concepto=concepto,
+        )
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_bancaria.cuenta_contable,
+            debe=Decimal('0.00'), haber=monto, concepto=concepto,
+        )
+        return poliza
+
+    def test_genera_compra_no_deducible_y_vincula_la_poliza_existente(self):
+        poliza = self._crear_poliza_manual('FACEBOOK ADS', Decimal('387.20'))
+
+        compra = self.generar_compra_retroactiva(poliza)
+
+        self.assertEqual(compra.proveedor, 'FACEBOOK ADS')
+        self.assertEqual(compra.total, Decimal('387.20'))
+        self.assertFalse(compra.es_deducible)
+        self.assertEqual(compra.unidad_negocio, self.unidad_quinta)
+
+        poliza.refresh_from_db()
+        self.assertEqual(poliza.origen, 'COMPRA')
+        self.assertEqual(poliza.object_id, compra.pk)
+
+    def test_no_duplica_poliza_al_generar_la_compra(self):
+        """El punto entero del backfill: la Compra creada NO debe disparar
+        una segunda póliza — solo debe existir la póliza manual original."""
+        poliza = self._crear_poliza_manual('SUSCRIPCIÓN DE RAILWAY', Decimal('153.15'))
+        polizas_antes = Poliza.objects.count()
+
+        self.generar_compra_retroactiva(poliza)
+
+        self.assertEqual(Poliza.objects.count(), polizas_antes)
+
+    def test_poliza_ya_vinculada_no_es_elegible(self):
+        poliza = self._crear_poliza_manual('YA VINCULADA', Decimal('100.00'))
+        self.generar_compra_retroactiva(poliza)  # la vincula la primera vez
+
+        with self.assertRaises(ValueError):
+            self.generar_compra_retroactiva(poliza)
+
+    def test_poliza_de_ingreso_no_es_elegible(self):
+        poliza = self._crear_poliza_manual('INGRESO MANUAL', Decimal('100.00'), tipo='I')
+        with self.assertRaises(ValueError):
+            self.generar_compra_retroactiva(poliza)
+
+
 # ==========================================
 # ESTADOS DE CUENTA BANCARIOS Y CONCILIACIÓN
 # ==========================================
