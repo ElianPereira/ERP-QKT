@@ -494,7 +494,7 @@ class Cotizacion(models.Model):
     hora_fin = models.TimeField(null=True, blank=True)
     
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
-    incluye_refrescos = models.BooleanField(default=True, verbose_name="Refrescos y Mezcladores")
+    incluye_refrescos = models.BooleanField(default=False, verbose_name="Refrescos y Mezcladores")
     incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza (Caguama)")
     incluye_licor_nacional = models.BooleanField(default=False, verbose_name="Licores Nacionales")
     incluye_licor_premium = models.BooleanField(default=False, verbose_name="Licores Premium")
