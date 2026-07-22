@@ -15,4 +15,7 @@ staticfiles/
 media/
 
 # Respaldos
-cementerio/graphify-out/cache/
+cementerio/
+
+# Caché local de graphify (no versionar)
+graphify-out/cache/
