@@ -670,7 +670,7 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     content_type = ContentType.objects.get_for_model(compra)
     fecha_poliza = compra.fecha_emision or compra.uploaded_at.date()
 
-    concepto_poliza = f"Compra: {compra.proveedor or 'Proveedor'}" + (f" [{categoria}]" if categoria else "")
+    concepto_poliza = f"Compra: {compra.proveedor_display or 'Proveedor'}" + (f" [{categoria}]" if categoria else "")
     if not compra.es_deducible:
         concepto_poliza += " [SIN CFDI - NO DEDUCIBLE]"
 
@@ -695,7 +695,7 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     MovimientoContable.objects.create(
         poliza=poliza, cuenta=cuenta_gasto,
         debe=monto_gasto, haber=Decimal('0.00'),
-        concepto=compra.proveedor[:100] if compra.proveedor else "Compra",
+        concepto=compra.proveedor_display[:100] if compra.proveedor_display else "Compra",
         referencia=compra.uuid[:20] if compra.uuid else '',
     )
 

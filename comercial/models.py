@@ -26,6 +26,8 @@ class ConstanteSistema(models.Model):
 # ==========================================
 class Proveedor(models.Model):
     nombre = models.CharField(max_length=200, unique=True, verbose_name="Nombre / Razón Social")
+    rfc = models.CharField(max_length=13, blank=True, db_index=True, verbose_name="RFC",
+                            help_text="Se usa para emparejar automáticamente las facturas (XML) de Compras con este proveedor.")
     contacto = models.CharField(max_length=200, blank=True, verbose_name="Persona de Contacto")
     telefono = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
@@ -937,8 +939,63 @@ class ContratoServicio(models.Model):
         ordering = ['-generado_en']
 
 # --- COMPRA Y GASTO ---
+
+def _detectar_unidad_negocio_por_rfc(rfc_receptor):
+    """Detecta la UnidadNegocio (QUINTA/AIRBNB) a partir del RFC receptor de
+    un CFDI, usando el mismo mapeo que la carga masiva de XML — así una
+    Compra creada desde 'Compras > Añadir' con un XML adjunto también se
+    clasifica sola, sin depender de esa herramienta en específico."""
+    from contabilidad.models import UnidadNegocio
+    from .services import RFC_UNIDAD_MAP
+
+    clave = RFC_UNIDAD_MAP.get(rfc_receptor)
+    if not clave:
+        return None
+    return UnidadNegocio.objects.filter(clave=clave).first()
+
+
+def _resolver_o_crear_proveedor(nombre, rfc):
+    """Busca un Proveedor existente por RFC o por nombre; si no hay match,
+    lo crea. El RFC es más confiable que el nombre (que puede variar
+    ligeramente entre facturas del mismo proveedor), así que se prioriza."""
+    nombre = (nombre or '').strip()
+    rfc = (rfc or '').strip().upper()
+
+    if rfc:
+        proveedor = Proveedor.objects.filter(rfc=rfc).first()
+        if proveedor:
+            return proveedor
+
+    if not nombre:
+        return None
+
+    proveedor = Proveedor.objects.filter(nombre__iexact=nombre).first()
+    if proveedor:
+        if rfc and not proveedor.rfc:
+            proveedor.rfc = rfc
+            proveedor.save(update_fields=['rfc'])
+        return proveedor
+
+    return Proveedor.objects.create(nombre=nombre, rfc=rfc)
+
+
 class Compra(models.Model):
-    proveedor = models.CharField(max_length=200, blank=True)
+    proveedor_nombre = models.CharField(
+        max_length=200, blank=True, verbose_name="Proveedor (texto de la factura)",
+        help_text="Se autocompleta con el nombre del Emisor al subir el XML. "
+                  "No se edita directamente: usa el campo 'Proveedor' de abajo."
+    )
+    proveedor = models.ForeignKey(
+        Proveedor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='compras',
+        verbose_name="Proveedor",
+        help_text="Se busca/crea automáticamente en el catálogo de Proveedores "
+                  "por RFC o nombre al guardar. Puedes corregirlo a mano si el "
+                  "emparejamiento automático no fue el correcto."
+    )
     rfc_emisor = models.CharField(max_length=13, blank=True)
     fecha_emision = models.DateField(blank=True, null=True)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -997,9 +1054,13 @@ class Compra(models.Model):
                     from datetime import datetime
                     self.fecha_emision = datetime.strptime(fecha_str.split('T')[0], '%Y-%m-%d').date() 
                 emisor = root.find('cfdi:Emisor', ns)
-                if emisor is not None: 
-                    self.proveedor = emisor.attrib.get('Nombre', '')
+                if emisor is not None:
+                    self.proveedor_nombre = emisor.attrib.get('Nombre', '')
                     self.rfc_emisor = emisor.attrib.get('Rfc', '')
+                if not self.unidad_negocio_id:
+                    receptor = root.find('cfdi:Receptor', ns)
+                    if receptor is not None:
+                        self.unidad_negocio = _detectar_unidad_negocio_por_rfc(receptor.attrib.get('Rfc', ''))
                 complemento = root.find('cfdi:Complemento', ns)
                 if complemento is not None:
                     ns_tfd = {'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'}
@@ -1024,6 +1085,12 @@ class Compra(models.Model):
         # independientemente de lo que se haya capturado a mano en el admin.
         if not self.uuid:
             self.es_deducible = False
+        # El proveedor del catálogo se resuelve (o se crea) tanto si el
+        # nombre vino del XML como si se capturó a mano — así Compra y
+        # Proveedor siempre quedan vinculados, sin importar el flujo de
+        # captura usado.
+        if not self.proveedor_id and self.proveedor_nombre:
+            self.proveedor = _resolver_o_crear_proveedor(self.proveedor_nombre, self.rfc_emisor)
         super().save(*args, **kwargs)
         if self.archivo_xml and self.pk:
             try:
@@ -1050,9 +1117,17 @@ class Compra(models.Model):
                                     if t.attrib.get('Impuesto') == '002':
                                         try: iva_linea += Decimal(t.attrib.get('Importe', 0))
                                         except: iva_linea = importe * Decimal('0.16')
-                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor, categoria='SIN_CLASIFICAR')
+                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor_nombre, categoria='SIN_CLASIFICAR')
             except Exception as e: print(f"Error procesando conceptos: {e}")
-    def __str__(self): return f"{self.proveedor} - ${self.total}"
+
+    @property
+    def proveedor_display(self):
+        """Nombre del proveedor para mostrar/concatenar en reportes y pólizas:
+        prioriza el del catálogo (normalizado) y cae al texto crudo de la
+        factura si por alguna razón no quedó vinculado."""
+        return self.proveedor.nombre if self.proveedor_id else self.proveedor_nombre
+
+    def __str__(self): return f"{self.proveedor_display} - ${self.total}"
 
 class Gasto(models.Model):
     CATEGORIAS = [('SIN_CLASIFICAR', 'Sin Clasificar'), ('SERVICIO_EXTERNO', 'Servicio Externo'), ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'), ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'), ('LIMPIEZA', 'Limpieza Y Desechables'), ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'), ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'), ('NOMINA_EXT', 'Servicios Staff Externo'), ('IMPUESTOS', 'Pago De Impuestos'), ('PUBLICIDAD', 'Publicidad Y Marketing'), ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'), ('OTRO', 'Otros Gastos')]

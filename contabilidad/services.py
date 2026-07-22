@@ -197,7 +197,7 @@ def generar_compra_retroactiva(poliza):
         settings.CONTABILIDAD_SIGNALS_ENABLED = False
         try:
             compra = Compra.objects.create(
-                proveedor=poliza.concepto[:200],
+                proveedor_nombre=poliza.concepto[:200],
                 fecha_emision=poliza.fecha,
                 subtotal=total,
                 total=total,

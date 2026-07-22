@@ -596,7 +596,7 @@ def exportar_cierre_excel(request):
     ws_gastos = wb.create_sheet(title="Gastos")
     ws_gastos.append(['Fecha', 'Proveedor', 'Total Factura', 'RFC Emisor'])
     for c in Compra.objects.filter(fecha_emision__month=hoy.month):
-        ws_gastos.append([c.fecha_emision, c.proveedor, c.total, c.rfc_emisor])
+        ws_gastos.append([c.fecha_emision, c.proveedor_display, c.total, c.rfc_emisor])
     wb.save(response)
     return response
 

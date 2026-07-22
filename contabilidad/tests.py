@@ -288,7 +288,7 @@ class CompraSinDatosCompletosTest(TestCase):
         )
 
     def test_poliza_queda_en_borrador_sin_datos(self):
-        compra = Compra.objects.create(proveedor="Proveedor X", subtotal=Decimal('1000.00'),
+        compra = Compra.objects.create(proveedor_nombre="Proveedor X", subtotal=Decimal('1000.00'),
                                         iva=Decimal('160.00'), total=Decimal('1160.00'))
         poliza = Poliza.objects.filter(origen='COMPRA', object_id=compra.pk).first()
         self.assertIsNotNone(poliza)
@@ -297,7 +297,7 @@ class CompraSinDatosCompletosTest(TestCase):
     def test_poliza_aplicada_con_datos_completos(self):
         unidad_airbnb = UnidadNegocio.objects.get(clave='AIRBNB')
         compra = Compra.objects.create(
-            proveedor="Proveedor Airbnb", subtotal=Decimal('500.00'),
+            proveedor_nombre="Proveedor Airbnb", subtotal=Decimal('500.00'),
             iva=Decimal('80.00'), total=Decimal('580.00'),
             cuenta_pago=self.cuenta_bancaria, unidad_negocio=unidad_airbnb,
         )
@@ -320,7 +320,7 @@ class CompraSinCFDINoDeducibleTest(TestCase):
 
     def test_compra_sin_uuid_se_marca_no_deducible_aunque_se_capture_true(self):
         compra = Compra.objects.create(
-            proveedor="Proveedor Extranjero", subtotal=Decimal('1000.00'),
+            proveedor_nombre="Proveedor Extranjero", subtotal=Decimal('1000.00'),
             iva=Decimal('160.00'), total=Decimal('1160.00'),
             cuenta_pago=self.cuenta_bancaria, unidad_negocio=self.unidad_quinta,
             es_deducible=True,  # intento de captura manual, debe forzarse a False
@@ -330,7 +330,7 @@ class CompraSinCFDINoDeducibleTest(TestCase):
 
     def test_poliza_sin_cfdi_carga_total_completo_sin_iva_acreditable(self):
         compra = Compra.objects.create(
-            proveedor="Proveedor Extranjero", subtotal=Decimal('1000.00'),
+            proveedor_nombre="Proveedor Extranjero", subtotal=Decimal('1000.00'),
             iva=Decimal('160.00'), total=Decimal('1160.00'),
             cuenta_pago=self.cuenta_bancaria, unidad_negocio=self.unidad_quinta,
         )
@@ -346,7 +346,7 @@ class CompraSinCFDINoDeducibleTest(TestCase):
 
     def test_compra_con_uuid_mantiene_deducible_y_acredita_iva(self):
         compra = Compra.objects.create(
-            proveedor="Proveedor Nacional", subtotal=Decimal('1000.00'),
+            proveedor_nombre="Proveedor Nacional", subtotal=Decimal('1000.00'),
             iva=Decimal('160.00'), total=Decimal('1160.00'),
             cuenta_pago=self.cuenta_bancaria, unidad_negocio=self.unidad_quinta,
             uuid='11111111-1111-1111-1111-111111111111',
@@ -468,7 +468,8 @@ class GenerarCompraRetroactivaTest(TestCase):
 
         compra = self.generar_compra_retroactiva(poliza)
 
-        self.assertEqual(compra.proveedor, 'FACEBOOK ADS')
+        self.assertEqual(compra.proveedor_nombre, 'FACEBOOK ADS')
+        self.assertEqual(compra.proveedor.nombre, 'FACEBOOK ADS')  # vinculado al catálogo
         self.assertEqual(compra.total, Decimal('387.20'))
         self.assertFalse(compra.es_deducible)
         self.assertEqual(compra.unidad_negocio, self.unidad_quinta)
