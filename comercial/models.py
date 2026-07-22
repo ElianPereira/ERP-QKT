@@ -6,6 +6,7 @@ from django.utils.timezone import now
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from facturacion.choices import RegimenFiscal, UsoCFDI
+from comercial.choices import PosicionLanding
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
 import secrets
 
@@ -1490,13 +1491,6 @@ class ImagenLanding(models.Model):
         ('HOSPEDAJE', 'Servicio — Hospedaje'),
         ('GALERIA', 'Galería de fotos'),
     ]
-    POSICION_CHOICES = [
-        ('top', 'Arriba'),
-        ('20%', 'Arriba-centro'),
-        ('center', 'Centro'),
-        ('80%', 'Abajo-centro'),
-        ('bottom', 'Abajo'),
-    ]
     CATEGORIA_GALERIA_CHOICES = [
         ('BODAS', 'Bodas'),
         ('EVENTOS', 'Eventos Sociales'),
@@ -1507,7 +1501,7 @@ class ImagenLanding(models.Model):
     seccion = models.CharField(max_length=20, choices=SECCION_CHOICES, verbose_name="Sección")
     imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
     posicion_vertical = models.CharField(
-        max_length=10, choices=POSICION_CHOICES, default='center',
+        max_length=10, choices=PosicionLanding.choices, default=PosicionLanding.CENTER,
         verbose_name="Enfoque vertical",
         help_text="Qué parte de la imagen se muestra: arriba, centro o abajo",
     )
@@ -1560,7 +1554,7 @@ class EspacioLanding(models.Model):
                                  help_text="Ej: Hasta 200 invitados")
     descripcion = models.CharField(max_length=200, blank=True, verbose_name="Descripción corta")
     posicion_vertical = models.CharField(
-        max_length=10, choices=ImagenLanding.POSICION_CHOICES, default='center',
+        max_length=10, choices=PosicionLanding.choices, default=PosicionLanding.CENTER,
         verbose_name="Enfoque vertical",
     )
     orden = models.PositiveIntegerField(default=0)

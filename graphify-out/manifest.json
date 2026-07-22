@@ -465,9 +465,9 @@
     "semantic_hash": "76d8ca6af843554e15c34765d5fa7ea9"
   },
   "comercial/models.py": {
-    "mtime": 1784741371.7709415,
-    "ast_hash": "44f467768e0f79173e49ad2fa2010df6",
-    "semantic_hash": "44f467768e0f79173e49ad2fa2010df6"
+    "mtime": 1784743355.2860336,
+    "ast_hash": "f597e3dddb75532607d3901eb152fb15",
+    "semantic_hash": ""
   },
   "comercial/services.py": {
     "mtime": 1784741371.7709415,
@@ -988,5 +988,375 @@
     "mtime": 1784741371.8380089,
     "ast_hash": "edac4bbb9eabe5ebdc8ff85803355eb2",
     "semantic_hash": "edac4bbb9eabe5ebdc8ff85803355eb2"
+  },
+  "comercial/choices.py": {
+    "mtime": 1784743341.7580328,
+    "ast_hash": "e75f68546903b259926761ec0c4d37c0",
+    "semantic_hash": ""
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "b267c01ade845eea1021923340e448fe",
+    "semantic_hash": ""
+  },
+  ".pre-commit-config.yaml": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "a135fe0c576775634e29c1d69d115a77",
+    "semantic_hash": ""
+  },
+  "INTEGRACION.md": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "f9aff5cf4735cb9b55418aacfc4aadbe",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "b23d0fdf332480168aee2ce91e92b1cf",
+    "semantic_hash": ""
+  },
+  "airbnb/README.md": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "920fd9002fe41977c0fb2ebe7466b3a5",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/anuncioairbnb/change_list.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "0040261bb93b9dcda6bba64a8bc07b44",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/bloquear_manual.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "62f3655dcf42ae13a6fc27d6bbbd16a0",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/calendario_unificado.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "02007b035df4a731438d3b4c09c6cc3e",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/dashboard.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "25b6f8a1408314a6a1ba3854c5020b9a",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/importar_csv.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "2940972f91769c7397977dff4632bb75",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/pagoairbnb/change_list.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "45169b8a87dee8ee8b3dd0cc32146253",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/reporte_pagos.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "20876ebbd590647852795d885de8e2b1",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/airbnb/reporte_fiscal_airbnb.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "b28737155432183f121dfdaea50ca42b",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/calendario.html": {
+    "mtime": 1784741371.7739286,
+    "ast_hash": "784e4fbf58cf797302599b422e2d69d8",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cartera_cxc.html": {
+    "mtime": 1784741371.7743995,
+    "ast_hash": "e7061eec5b0e95a52757490d27931ea9",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/change_form.html": {
+    "mtime": 1784741371.7750912,
+    "ast_hash": "df87df700b3d21223d0902115d34f32b",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/change_list.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "6c038d3079942672a1c6b34eb5b7ddb8",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/contrato_form.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "70f988b2fb13360a8d4c0b8a0a5f1c30",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/descuentos.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "e44a58b7f434c027767d9c7b2672bf66",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/resumen_barra_partial.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "b90ce26827aa28bb52bd13a89fb737b0",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/dashboard.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "e9189a34373133ea6305d2c474a28d81",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/dashboard_kpi.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "1d735850277958eccd6acee6227321d4",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/nomina/recibonomina/change_list.html": {
+    "mtime": 1784741371.777285,
+    "ast_hash": "6c1ad2fea6bfff292d0a38b406bc8987",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/carga_masiva_xml.html": {
+    "mtime": 1784741371.777285,
+    "ast_hash": "dad054162bdc46781ed134cca28b2bd6",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/compra_change_list.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "69227af70a266f5e6b55279ff8670a51",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/gasto_change_list.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "204df167e314b567338369a96e72cc13",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/pdf_ficha_producto.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "37508b80481ac71f4a8467300b2ef5ed",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/pdf_lista_compras.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "4ca228e966df5c19d83f5196d37de26f",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/pdf_reporte_pagos.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "73b88f5ce7f6c64c38e3e513422881e9",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/reporte_form.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "667205884c7cf1855c8c918f71aea2f6",
+    "semantic_hash": ""
+  },
+  "comercial/templates/contratos/contrato_pdf.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "43826973e9912eb2e724f6001c60da81",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizaciones/pdf_plan_pagos.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "b0bd3d8adb610d2c832616b92a63b576",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizaciones/pdf_recibo.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "a1d7579e20efc236c2a5289504022f14",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizaciones/pdf_reporte_ventas.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "954a326d5ed33e493ead9a8216ab9283",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizador/gracias.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "d22b4da2c9174515c0f393177c5e2ebb",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizador/index.html": {
+    "mtime": 1784741371.7821238,
+    "ast_hash": "03802e3ca46fec2f94d100a951d31e14",
+    "semantic_hash": ""
+  },
+  "comercial/templates/emails/contrato.html": {
+    "mtime": 1784741371.7821238,
+    "ast_hash": "5345cac1b784ef50b8fce9dcee69116f",
+    "semantic_hash": ""
+  },
+  "comercial/templates/emails/cotizacion.html": {
+    "mtime": 1784741371.783669,
+    "ast_hash": "d3411eb6cfe65ccf714772d65efcf021",
+    "semantic_hash": ""
+  },
+  "comercial/templates/facturacion/formulario_solicitud.html": {
+    "mtime": 1784741371.783669,
+    "ast_hash": "1f7d299d3c22e40ec32a29fd665f0e9b",
+    "semantic_hash": ""
+  },
+  "comercial/templates/facturacion/solicitud_pdf.html": {
+    "mtime": 1784741371.784271,
+    "ast_hash": "42e35c3e9c605c9ca258e6ebce16f867",
+    "semantic_hash": ""
+  },
+  "comercial/templates/nomina/formulario_carga.html": {
+    "mtime": 1784741371.784271,
+    "ast_hash": "13470272bcd4ab935255ed507e26fde5",
+    "semantic_hash": ""
+  },
+  "comercial/templates/nomina/recibo_nomina.html": {
+    "mtime": 1784741371.7849958,
+    "ast_hash": "c55c4856563de16c9e4955968a9cbdaf",
+    "semantic_hash": ""
+  },
+  "comercial/templates/pdf_lista_compras.html": {
+    "mtime": 1784741371.7849958,
+    "ast_hash": "e98b6d31ed170cdb2be1b88a4128b3fe",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/base.html": {
+    "mtime": 1784741371.7936668,
+    "ast_hash": "ff41aa6fe3ab17e4066b34ce4655b53c",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/confirmacion_pago.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "af9f1652225a10a1478c2987670c10a4",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/cotizacion.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "2489136a37417e7d94d037a3e1961b3f",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/recordatorio.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "1f9257520427e1f1f421aeca333b7118",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/reembolso.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "2b1699950371c801bf55565a106082f7",
+    "semantic_hash": ""
+  },
+  "contabilidad/templates/contabilidad/balanza.html": {
+    "mtime": 1784741371.8042502,
+    "ast_hash": "5c35e24fc0629e70d6208fbb1d90c68a",
+    "semantic_hash": ""
+  },
+  "contabilidad/templates/contabilidad/estado_resultados.html": {
+    "mtime": 1784741371.8047795,
+    "ast_hash": "5923db8e16c07a7a5878facb050ce510",
+    "semantic_hash": ""
+  },
+  "reportes/templates/admin/reportes/reportegenerado/change_list.html": {
+    "mtime": 1784741371.831476,
+    "ast_hash": "5c9e8316ec1622e9dc75d47135be5730",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_auxiliar.html": {
+    "mtime": 1784741371.831476,
+    "ast_hash": "803ebd7ab48ab6126fa4fe3a37fb72f4",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_balance_general.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "70b038e30a08a70855c0c42f5e811f6c",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_balanza.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "175f05a262ca242fab07862463e24039",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_base.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "b7d2ff9f16c5319eed6d9d5cb2a5cc16",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_comparativo_airbnb.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "00d2872ca3e99d509868ff123dd12b87",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_cotizaciones.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "f50ac45c9ad46f36042acb74cd0638bd",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_cxc.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "567fafb9a07329d6bf71e5ff2e928cd5",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_estado_resultados.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "c949189fd3496dbd2d8726eff82c2a94",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_facturas.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "d29d25c6856b47e1038e37983dc74d8e",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_libro_mayor.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "4af881f7a34311552822953d24a2c945",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_ocupacion.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "f51a45ed4a89596d476c4af1b90415a1",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/selector.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "5c05ea81d4af151a62f0426b1f2a5c4b",
+    "semantic_hash": ""
+  },
+  "requirements.txt": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "58fede5c94a3a3da49e3406e6444d42d",
+    "semantic_hash": ""
+  },
+  "templates/admin/base.html": {
+    "mtime": 1784741371.839439,
+    "ast_hash": "5ffab0c53e07f9be827096db9f3edd33",
+    "semantic_hash": ""
+  },
+  "templates/admin/importar_historico.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "923329127d2d75f14da4efc1ef5eb903",
+    "semantic_hash": ""
+  },
+  "templates/admin/pagination.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "8d53b7d73dd1d14da806c9540d451c1d",
+    "semantic_hash": ""
+  },
+  "templates/landing/index.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "e3d953f35194b77cb5080528b34611f0",
+    "semantic_hash": ""
+  },
+  "templates/portal/acceso.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "6b8f3158df8c5d588280c938b23855a2",
+    "semantic_hash": ""
+  },
+  "templates/portal/evento.html": {
+    "mtime": 1784741371.8414733,
+    "ast_hash": "2507ce4e7822d02702c6a6b987d66b72",
+    "semantic_hash": ""
+  },
+  "contabilidad/tests_fixtures/estado_cuenta_bbva_libreton_ejemplo.pdf": {
+    "mtime": 1784741371.8062499,
+    "ast_hash": "8e09e37f311fa5de97d5ea82974dd642",
+    "semantic_hash": ""
+  },
+  "contabilidad/tests_fixtures/estado_cuenta_bbva_maestra_pyme_ejemplo.pdf": {
+    "mtime": 1784741371.8142498,
+    "ast_hash": "8f9f4f2d540ed83374f3d976135f487d",
+    "semantic_hash": ""
+  },
+  "static/img/logo.png": {
+    "mtime": 1784741371.8380089,
+    "ast_hash": "069dd406acb14238aa395f1655ac5784",
+    "semantic_hash": ""
   }
 }
