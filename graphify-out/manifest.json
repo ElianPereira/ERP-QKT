@@ -1,0 +1,1372 @@
+{
+  "airbnb/__init__.py": {
+    "mtime": 1784741371.7426558,
+    "ast_hash": "a13e5332057d666cdeb20aa812552955",
+    "semantic_hash": "a13e5332057d666cdeb20aa812552955"
+  },
+  "airbnb/admin.py": {
+    "mtime": 1784741371.7426558,
+    "ast_hash": "37883056d1bef12884a1aa2b84b36467",
+    "semantic_hash": "37883056d1bef12884a1aa2b84b36467"
+  },
+  "airbnb/apps.py": {
+    "mtime": 1784741371.7426558,
+    "ast_hash": "e038aa6a1cab34478ace1d39a74be5d3",
+    "semantic_hash": "e038aa6a1cab34478ace1d39a74be5d3"
+  },
+  "airbnb/management/__init__.py": {
+    "mtime": 1784741371.7426558,
+    "ast_hash": "3125a627bdd2e1584f99fa386c271b2f",
+    "semantic_hash": "3125a627bdd2e1584f99fa386c271b2f"
+  },
+  "airbnb/management/commands/__init__.py": {
+    "mtime": 1784741371.7439177,
+    "ast_hash": "46d97caf685b73a62824ae68f2afffab",
+    "semantic_hash": "46d97caf685b73a62824ae68f2afffab"
+  },
+  "airbnb/management/commands/setup_airbnb.py": {
+    "mtime": 1784741371.7441587,
+    "ast_hash": "94661a014bc63daf9eefbaa156895774",
+    "semantic_hash": "94661a014bc63daf9eefbaa156895774"
+  },
+  "airbnb/management/commands/sincronizar_airbnb.py": {
+    "mtime": 1784741371.7441587,
+    "ast_hash": "ec30dfea29fa5a7a9b9a63b1192b67a4",
+    "semantic_hash": "ec30dfea29fa5a7a9b9a63b1192b67a4"
+  },
+  "airbnb/migrations/0001_initial.py": {
+    "mtime": 1784741371.7441587,
+    "ast_hash": "1865ed791b22ea1cc50915032db29d71",
+    "semantic_hash": "1865ed791b22ea1cc50915032db29d71"
+  },
+  "airbnb/migrations/0002_alter_reservaairbnb_estado.py": {
+    "mtime": 1784741371.7455313,
+    "ast_hash": "a5866ab23f5c37d5d00813ead37e2816",
+    "semantic_hash": "a5866ab23f5c37d5d00813ead37e2816"
+  },
+  "airbnb/migrations/0003_alter_anuncioairbnb_options_alter_pagoairbnb_options_and_more.py": {
+    "mtime": 1784741371.7455313,
+    "ast_hash": "b97cd92172cd4585705c564a79a4eb8f",
+    "semantic_hash": "b97cd92172cd4585705c564a79a4eb8f"
+  },
+  "airbnb/migrations/__init__.py": {
+    "mtime": 1784741371.7455313,
+    "ast_hash": "328d5e46f912185f3a52850e4c85cfe2",
+    "semantic_hash": "328d5e46f912185f3a52850e4c85cfe2"
+  },
+  "airbnb/models.py": {
+    "mtime": 1784741371.7455313,
+    "ast_hash": "494d6efc67a9f500da5066b3f028beb4",
+    "semantic_hash": "494d6efc67a9f500da5066b3f028beb4"
+  },
+  "airbnb/services.py": {
+    "mtime": 1784741371.7455313,
+    "ast_hash": "44874043f66b7dfec94a57098b2d7f43",
+    "semantic_hash": "44874043f66b7dfec94a57098b2d7f43"
+  },
+  "airbnb/test_disponibilidad.py": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "50806e09065b847a016c4853e3c95ad8",
+    "semantic_hash": "50806e09065b847a016c4853e3c95ad8"
+  },
+  "airbnb/tests.py": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "b1c0759b3d2c5c0933db011f6f942dcb",
+    "semantic_hash": "b1c0759b3d2c5c0933db011f6f942dcb"
+  },
+  "airbnb/urls.py": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "d10c8b67e5ac0669df1aaaf05e86536b",
+    "semantic_hash": "d10c8b67e5ac0669df1aaaf05e86536b"
+  },
+  "airbnb/validacion_fechas.py": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "b58c5a0e4ebd6f5b413ac9cd57897249",
+    "semantic_hash": "b58c5a0e4ebd6f5b413ac9cd57897249"
+  },
+  "airbnb/views.py": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "7acaacdd567238e7b8bca2a4aa37017f",
+    "semantic_hash": "7acaacdd567238e7b8bca2a4aa37017f"
+  },
+  "comercial/admin.py": {
+    "mtime": 1784741371.7502499,
+    "ast_hash": "47cf13674cea78545ea5fe3352c38839",
+    "semantic_hash": "47cf13674cea78545ea5fe3352c38839"
+  },
+  "comercial/apps.py": {
+    "mtime": 1784741371.7502499,
+    "ast_hash": "9207d0df278dda00ab475660db0e019f",
+    "semantic_hash": "9207d0df278dda00ab475660db0e019f"
+  },
+  "comercial/management/__init__.py": {
+    "mtime": 1784741371.7502499,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comercial/management/commands/__init__.py": {
+    "mtime": 1784741371.7540133,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comercial/management/commands/cargar_precios_mobiliario.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "30060144789bff85c129e16056d8aaa6",
+    "semantic_hash": "30060144789bff85c129e16056d8aaa6"
+  },
+  "comercial/management/commands/cerrar_cotizaciones.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "e20d37e9008b13eb598c1f506a7443d4",
+    "semantic_hash": "e20d37e9008b13eb598c1f506a7443d4"
+  },
+  "comercial/management/commands/enviar_recordatorios_pagos.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "20f53da4fa805c4ff90f53e641826ae1",
+    "semantic_hash": "20f53da4fa805c4ff90f53e641826ae1"
+  },
+  "comercial/management/commands/importar_historico.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "a9f030686ea9d0ce4a9fb7cb48932b68",
+    "semantic_hash": "a9f030686ea9d0ce4a9fb7cb48932b68"
+  },
+  "comercial/management/commands/limpiar_cliente_fantasma.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "8de08fcd16a65c3a8b1950c364568513",
+    "semantic_hash": "8de08fcd16a65c3a8b1950c364568513"
+  },
+  "comercial/management/commands/limpiar_datos_fiscales_genericos.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "8cfed1a50b254da1d601181f3f9341b5",
+    "semantic_hash": "8cfed1a50b254da1d601181f3f9341b5"
+  },
+  "comercial/management/commands/migrar_proveedores.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "239c6de903114da81bfc438e88d089f1",
+    "semantic_hash": "239c6de903114da81bfc438e88d089f1"
+  },
+  "comercial/management/commands/recalcular_iva.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "531aedbc4099bf85e225c9d95f05bf3f",
+    "semantic_hash": "531aedbc4099bf85e225c9d95f05bf3f"
+  },
+  "comercial/migrations/0001_initial.py": {
+    "mtime": 1784741371.7544117,
+    "ast_hash": "719cbece0812b3f4a1e5e95a75e5581a",
+    "semantic_hash": "719cbece0812b3f4a1e5e95a75e5581a"
+  },
+  "comercial/migrations/0002_compra_remove_gasto_archivo_pdf_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "7f15fe6b4698e41b1853d724015ad06b",
+    "semantic_hash": "7f15fe6b4698e41b1853d724015ad06b"
+  },
+  "comercial/migrations/0003_gasto_archivo_pdf_gasto_archivo_xml_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "49b61d47aa639432bb52f95b8f1a9673",
+    "semantic_hash": "49b61d47aa639432bb52f95b8f1a9673"
+  },
+  "comercial/migrations/0004_alter_gasto_categoria.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "995358a4ee1ad6e2ef725779e2b8afb8",
+    "semantic_hash": "995358a4ee1ad6e2ef725779e2b8afb8"
+  },
+  "comercial/migrations/0005_alter_pago_fecha_pago.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "092888a1c2784688b9a6a2a390e35345",
+    "semantic_hash": "092888a1c2784688b9a6a2a390e35345"
+  },
+  "comercial/migrations/0006_insumo_crear_como_subproducto.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "1d6fffd0849f09bf2fb718de8e381f0d",
+    "semantic_hash": "1d6fffd0849f09bf2fb718de8e381f0d"
+  },
+  "comercial/migrations/0007_cotizacion_horas_servicio_cotizacion_num_personas_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "8710206e020df323147046745dcd8794",
+    "semantic_hash": "8710206e020df323147046745dcd8794"
+  },
+  "comercial/migrations/0008_cotizacion_factor_utilidad_barra_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "0d2b2b97a563a6e0abdce1e1747b3a8d",
+    "semantic_hash": "0d2b2b97a563a6e0abdce1e1747b3a8d"
+  },
+  "comercial/migrations/0009_cotizacion_insumo_agua_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "6acf491b1c3e02ff3ac357851abbd693",
+    "semantic_hash": "6acf491b1c3e02ff3ac357851abbd693"
+  },
+  "comercial/migrations/0010_alter_insumo_categoria.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "443b23d1fd1ccd060ce8c5faf7260edc",
+    "semantic_hash": "443b23d1fd1ccd060ce8c5faf7260edc"
+  },
+  "comercial/migrations/0011_alter_compra_archivo_xml.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "d3b346c2e4f1bdea51655661cc83af2c",
+    "semantic_hash": "d3b346c2e4f1bdea51655661cc83af2c"
+  },
+  "comercial/migrations/0012_cotizacion_clima_alter_cotizacion_insumo_agua_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "b56c7401b81c14ffda31f439490844f8",
+    "semantic_hash": "b56c7401b81c14ffda31f439490844f8"
+  },
+  "comercial/migrations/0013_remove_cotizacion_tipo_barra_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "596999576d35f58164025a06bac1ef57",
+    "semantic_hash": "596999576d35f58164025a06bac1ef57"
+  },
+  "comercial/migrations/0014_remove_cotizacion_incluye_cocteleria_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "023d3c2e981d07e045b50577575c93e2",
+    "semantic_hash": "023d3c2e981d07e045b50577575c93e2"
+  },
+  "comercial/migrations/0015_alter_cotizacion_clima_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "114bb57a85ff1214133e0f63854e87fb",
+    "semantic_hash": "114bb57a85ff1214133e0f63854e87fb"
+  },
+  "comercial/migrations/0016_constantesistema_alter_cotizacion_clima_and_more.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "8dc41ac0c316b41f5a2fd7fed5775377",
+    "semantic_hash": "8dc41ac0c316b41f5a2fd7fed5775377"
+  },
+  "comercial/migrations/0017_insumo_presentacion_insumo_proveedor_plantillabarra.py": {
+    "mtime": 1784741371.7572854,
+    "ast_hash": "49218e20900ce13a306ffcce38394372",
+    "semantic_hash": "49218e20900ce13a306ffcce38394372"
+  },
+  "comercial/migrations/0018_proveedor_insumo_proveedor_legacy_and_more.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "8f156ac137ce88d24ab0a45e4c5053d4",
+    "semantic_hash": "8f156ac137ce88d24ab0a45e4c5053d4"
+  },
+  "comercial/migrations/0019_factor_utilidad_barra_130.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "77376de0033ba5e2a720aeb80829794d",
+    "semantic_hash": "77376de0033ba5e2a720aeb80829794d"
+  },
+  "comercial/migrations/0020_movimientoinventario_cotizacion_cancelada_por_and_more.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "80bc6992469668917a77452fbd5f1899",
+    "semantic_hash": "80bc6992469668917a77452fbd5f1899"
+  },
+  "comercial/migrations/0021_planpago_parcialidadpago.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "73320a8d0a71e835494c88212488925a",
+    "semantic_hash": "73320a8d0a71e835494c88212488925a"
+  },
+  "comercial/migrations/0022_alter_movimientoinventario_options.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "ad265dfeaf2fffd7772e710fef08cc4e",
+    "semantic_hash": "ad265dfeaf2fffd7772e710fef08cc4e"
+  },
+  "comercial/migrations/0023_cotizacion_archivo_contrato_contratoservicio.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "17d62775ecdd2b75c869419d675355ba",
+    "semantic_hash": "17d62775ecdd2b75c869419d675355ba"
+  },
+  "comercial/migrations/0024_alter_contratoservicio_archivo_and_more.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "9e9eb1213e865dcd4d6985c9e49d8bfc",
+    "semantic_hash": "9e9eb1213e865dcd4d6985c9e49d8bfc"
+  },
+  "comercial/migrations/0025_recordatorio_pago.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "e5472deb4a1aedb4a56dcefe426d0eec",
+    "semantic_hash": "e5472deb4a1aedb4a56dcefe426d0eec"
+  },
+  "comercial/migrations/0026_add_solicitar_factura.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "36ee204b8db931b747f2152a59d041f9",
+    "semantic_hash": "36ee204b8db931b747f2152a59d041f9"
+  },
+  "comercial/migrations/0027_portalcliente.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "4253f7231066d422702c93f37de148f6",
+    "semantic_hash": "4253f7231066d422702c93f37de148f6"
+  },
+  "comercial/migrations/0028_add_unidad_negocio_compra.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "e875f05f91df7cdfcc23b0b5ee48b021",
+    "semantic_hash": "e875f05f91df7cdfcc23b0b5ee48b021"
+  },
+  "comercial/migrations/0029_alter_cotizacion_cliente.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "25082ff556bfa9e6781db93b20b572f0",
+    "semantic_hash": "25082ff556bfa9e6781db93b20b572f0"
+  },
+  "comercial/migrations/0030_pago_tipo.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "45f4f8025a26056cf76c553416f5927a",
+    "semantic_hash": "45f4f8025a26056cf76c553416f5927a"
+  },
+  "comercial/migrations/0031_espacio_cotizacion_tipo_servicio_asignacionpersonal_and_more.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "2a8c17674e812069f0e1277ee0ffe94d",
+    "semantic_hash": "2a8c17674e812069f0e1277ee0ffe94d"
+  },
+  "comercial/migrations/0032_producto_cotizador_fields.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "fb374ecdf90c003ae3e7e3f3e3f3c5c3",
+    "semantic_hash": "fb374ecdf90c003ae3e7e3f3e3f3c5c3"
+  },
+  "comercial/migrations/0033_cotizacion_tipo_arrendamiento.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "3538c71cbdff401a4fd67553bb0ce793",
+    "semantic_hash": "3538c71cbdff401a4fd67553bb0ce793"
+  },
+  "comercial/migrations/0034_simplify_estados.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "75a304630a0534a752c199633f9e5eb3",
+    "semantic_hash": "75a304630a0534a752c199633f9e5eb3"
+  },
+  "comercial/migrations/0035_landing_imagenes_testimonios.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "94ee2336fe7adc541a357c2118cd5905",
+    "semantic_hash": "94ee2336fe7adc541a357c2118cd5905"
+  },
+  "comercial/migrations/0036_imagenlanding_posicion_vertical.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "48412513a494a15986271b3171cd1285",
+    "semantic_hash": "48412513a494a15986271b3171cd1285"
+  },
+  "comercial/migrations/0037_espacios_faq_galeria_categorias.py": {
+    "mtime": 1784741371.7582498,
+    "ast_hash": "0b0020b2df6e0c4bf2dc670a192c45e7",
+    "semantic_hash": "0b0020b2df6e0c4bf2dc670a192c45e7"
+  },
+  "comercial/migrations/0038_producto_es_paquete_productocomponente.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "9644cc43b7da1476701c73be6383dfa7",
+    "semantic_hash": "9644cc43b7da1476701c73be6383dfa7"
+  },
+  "comercial/migrations/0039_producto_herencia_inventario.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "590fa7fa9f9eecda7260b30f65bb6bb3",
+    "semantic_hash": "590fa7fa9f9eecda7260b30f65bb6bb3"
+  },
+  "comercial/migrations/0040_producto_herencia_m2m_requiere_licor.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "8ff21a4cc8a8cdece9681ce833cbb5e4",
+    "semantic_hash": "8ff21a4cc8a8cdece9681ce833cbb5e4"
+  },
+  "comercial/migrations/0041_rename_platillo_botanas.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "45157d049a6905ddda32354b94c592b8",
+    "semantic_hash": "45157d049a6905ddda32354b94c592b8"
+  },
+  "comercial/migrations/0042_alter_imagenlanding_options_and_more.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "52ab56894d6e230585058323daf26c7b",
+    "semantic_hash": "52ab56894d6e230585058323daf26c7b"
+  },
+  "comercial/migrations/0043_seed_mobiliario_cotizador.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "4065442287810c534febddab79d3a596",
+    "semantic_hash": "4065442287810c534febddab79d3a596"
+  },
+  "comercial/migrations/0044_recalcular_totales_iva.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "508d76a5e01d1b0b3fc1822bf40e3f1b",
+    "semantic_hash": "508d76a5e01d1b0b3fc1822bf40e3f1b"
+  },
+  "comercial/migrations/0045_alter_producto_grupo_cotizador.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "a9867b545450e2a11156e18555df70fe",
+    "semantic_hash": "a9867b545450e2a11156e18555df70fe"
+  },
+  "comercial/migrations/0046_temporada_tipoevento_descuento_descuentoaplicado_and_more.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "f0971286ccd0891ec0a6f3147bafe791",
+    "semantic_hash": "f0971286ccd0891ec0a6f3147bafe791"
+  },
+  "comercial/migrations/0047_seed_tipos_evento.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "f7ec5324c370e2e06b4cf8cd005fa87c",
+    "semantic_hash": "f7ec5324c370e2e06b4cf8cd005fa87c"
+  },
+  "comercial/migrations/0048_cargar_precios_mobiliario.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "2a8f2c8dea1a03dd1994c0d16025de4d",
+    "semantic_hash": "2a8f2c8dea1a03dd1994c0d16025de4d"
+  },
+  "comercial/migrations/0049_alter_producto_margen_ganancia.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "64243ec493900ed060f508b430809ed7",
+    "semantic_hash": "64243ec493900ed060f508b430809ed7"
+  },
+  "comercial/migrations/0050_eliminar_montaje_de_lujo.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "3776878420e8dad5a0f67bc645552347",
+    "semantic_hash": "3776878420e8dad5a0f67bc645552347"
+  },
+  "comercial/migrations/0051_alter_descuentoaplicado_options_and_more.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "5b4a57b8564395127b23c890bb784e9e",
+    "semantic_hash": "5b4a57b8564395127b23c890bb784e9e"
+  },
+  "comercial/migrations/0052_alter_descuento_options_and_more.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "ad3111afd39ed8143280e43207cedae1",
+    "semantic_hash": "ad3111afd39ed8143280e43207cedae1"
+  },
+  "comercial/migrations/0053_compra_cuenta_pago_alter_compra_unidad_negocio.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "f17847535e00a7b6df40e272120e765c",
+    "semantic_hash": "f17847535e00a7b6df40e272120e765c"
+  },
+  "comercial/migrations/0054_imagenlanding_mostrar_en_galeria.py": {
+    "mtime": 1784741371.7622497,
+    "ast_hash": "20961338a2efa329abd0bf71b9b22167",
+    "semantic_hash": "20961338a2efa329abd0bf71b9b22167"
+  },
+  "comercial/migrations/0055_alter_imagenlanding_mostrar_en_galeria.py": {
+    "mtime": 1784741371.7662497,
+    "ast_hash": "ce011133a8957ceecff70c437e46e72d",
+    "semantic_hash": "ce011133a8957ceecff70c437e46e72d"
+  },
+  "comercial/migrations/0056_pago_concepto.py": {
+    "mtime": 1784741371.7662497,
+    "ast_hash": "5c4bac95c5506b695d9b7457f63f56f0",
+    "semantic_hash": "5c4bac95c5506b695d9b7457f63f56f0"
+  },
+  "comercial/migrations/0057_compra_es_deducible.py": {
+    "mtime": 1784741371.7662497,
+    "ast_hash": "68f1ae7f8d3577e2f17492a3b6a1b2e3",
+    "semantic_hash": "68f1ae7f8d3577e2f17492a3b6a1b2e3"
+  },
+  "comercial/migrations/0058_compra_proveedor_catalogo.py": {
+    "mtime": 1784741371.7662497,
+    "ast_hash": "65d9d27bd1d82a02b6cb46aeace2d605",
+    "semantic_hash": "65d9d27bd1d82a02b6cb46aeace2d605"
+  },
+  "comercial/migrations/__init__.py": {
+    "mtime": 1784741371.7662497,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comercial/migrations/management/__init__.py": {
+    "mtime": 1784741371.7662497,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comercial/migrations/management/commands/__init__.py": {
+    "mtime": 1784741371.7703474,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comercial/migrations/management/commands/cargar_plantilla_barra.py": {
+    "mtime": 1784741371.7709415,
+    "ast_hash": "c48afecf9fd213ba6bfb96478da5ab4e",
+    "semantic_hash": "c48afecf9fd213ba6bfb96478da5ab4e"
+  },
+  "comercial/migrations/management/commands/verificar_plantilla_barra.py": {
+    "mtime": 1784741371.7709415,
+    "ast_hash": "76d8ca6af843554e15c34765d5fa7ea9",
+    "semantic_hash": "76d8ca6af843554e15c34765d5fa7ea9"
+  },
+  "comercial/models.py": {
+    "mtime": 1784744835.2479858,
+    "ast_hash": "a1c7b2bd5f051211bd72f5008747b106",
+    "semantic_hash": ""
+  },
+  "comercial/services.py": {
+    "mtime": 1784741371.7709415,
+    "ast_hash": "04c05251b51e8b4f9689a27b0780c318",
+    "semantic_hash": "04c05251b51e8b4f9689a27b0780c318"
+  },
+  "comercial/services_descuentos.py": {
+    "mtime": 1784741371.7709415,
+    "ast_hash": "03d528e01580c9179cb9cd0ad1970cbf",
+    "semantic_hash": "03d528e01580c9179cb9cd0ad1970cbf"
+  },
+  "comercial/templatetags/__init__.py": {
+    "mtime": 1784741371.7849958,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comercial/templatetags/mis_kpis.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "bccfcb2d9567522dbc786eefefdddb10",
+    "semantic_hash": "bccfcb2d9567522dbc786eefefdddb10"
+  },
+  "comercial/templatetags/qkt_sidebar.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "f44ad9c6cbb33023cfd776926f5632f2",
+    "semantic_hash": "f44ad9c6cbb33023cfd776926f5632f2"
+  },
+  "comercial/test_cliente_canal.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "c829cdc846c8a9e30dbe3399da5fc811",
+    "semantic_hash": "c829cdc846c8a9e30dbe3399da5fc811"
+  },
+  "comercial/test_descuentos.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "918466be152422b6328561db01c3a472",
+    "semantic_hash": "918466be152422b6328561db01c3a472"
+  },
+  "comercial/test_limpiar_datos_fiscales_genericos.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "57a69b92873e45f630bdd63e847d9de5",
+    "semantic_hash": "57a69b92873e45f630bdd63e847d9de5"
+  },
+  "comercial/test_producto_precio.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "f1fafdd2809ebab33a9777aab01e0f32",
+    "semantic_hash": "f1fafdd2809ebab33a9777aab01e0f32"
+  },
+  "comercial/tests.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "64e4ff7ba2fd8f9e394ab8c4c75f058b",
+    "semantic_hash": "64e4ff7ba2fd8f9e394ab8c4c75f058b"
+  },
+  "comercial/views.py": {
+    "mtime": 1784741371.7860906,
+    "ast_hash": "0c783ff33bc0cb0baf2cfc54bfa3683b",
+    "semantic_hash": "0c783ff33bc0cb0baf2cfc54bfa3683b"
+  },
+  "comercial/views_cotizador.py": {
+    "mtime": 1784741371.7862496,
+    "ast_hash": "aae0e90e986425f16065adb109bf1a28",
+    "semantic_hash": "aae0e90e986425f16065adb109bf1a28"
+  },
+  "comercial/views_portal.py": {
+    "mtime": 1784741371.7862496,
+    "ast_hash": "176af61b313992b800536ce690e2c294",
+    "semantic_hash": "176af61b313992b800536ce690e2c294"
+  },
+  "comunicacion/__init__.py": {
+    "mtime": 1784741371.7862496,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comunicacion/admin.py": {
+    "mtime": 1784741371.7903173,
+    "ast_hash": "5c7f4ddb3c282350d9d5183a75ef345b",
+    "semantic_hash": "5c7f4ddb3c282350d9d5183a75ef345b"
+  },
+  "comunicacion/apps.py": {
+    "mtime": 1784741371.7903173,
+    "ast_hash": "6f536b3032311a3229d136021198572c",
+    "semantic_hash": "6f536b3032311a3229d136021198572c"
+  },
+  "comunicacion/management/__init__.py": {
+    "mtime": 1784741371.7903173,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comunicacion/management/commands/__init__.py": {
+    "mtime": 1784741371.79119,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comunicacion/management/commands/enviar_recordatorios.py": {
+    "mtime": 1784741371.7915761,
+    "ast_hash": "c2be30845d0a08d605e9f8279c1bf874",
+    "semantic_hash": "c2be30845d0a08d605e9f8279c1bf874"
+  },
+  "comunicacion/migrations/0001_initial.py": {
+    "mtime": 1784741371.7915761,
+    "ast_hash": "658051e27a7458f5d224f5eec74694f5",
+    "semantic_hash": "658051e27a7458f5d224f5eec74694f5"
+  },
+  "comunicacion/migrations/__init__.py": {
+    "mtime": 1784741371.7915761,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "comunicacion/models.py": {
+    "mtime": 1784741371.7926345,
+    "ast_hash": "e6bfccc5a639398dedc1d5fa7c033f7c",
+    "semantic_hash": "e6bfccc5a639398dedc1d5fa7c033f7c"
+  },
+  "comunicacion/services.py": {
+    "mtime": 1784741371.7926345,
+    "ast_hash": "a4fb8fd4cf12f745487ae86a8b9a5e99",
+    "semantic_hash": "a4fb8fd4cf12f745487ae86a8b9a5e99"
+  },
+  "comunicacion/signals.py": {
+    "mtime": 1784741371.7926345,
+    "ast_hash": "7183b449b78f794659cb767821dda3bb",
+    "semantic_hash": "7183b449b78f794659cb767821dda3bb"
+  },
+  "comunicacion/tests.py": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "ca14243f79c7938a810f5aea877b2b45",
+    "semantic_hash": "ca14243f79c7938a810f5aea877b2b45"
+  },
+  "contabilidad/__init__.py": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "4dc45902a9de3acc8a1d2976479ce1f4",
+    "semantic_hash": "4dc45902a9de3acc8a1d2976479ce1f4"
+  },
+  "contabilidad/admin.py": {
+    "mtime": 1784741371.7966442,
+    "ast_hash": "ad7144e80370197827fa14c2a7eef927",
+    "semantic_hash": "ad7144e80370197827fa14c2a7eef927"
+  },
+  "contabilidad/apps.py": {
+    "mtime": 1784741371.7966442,
+    "ast_hash": "e25bd24a42d7d62ac2f3d7ac2d94148d",
+    "semantic_hash": "e25bd24a42d7d62ac2f3d7ac2d94148d"
+  },
+  "contabilidad/management/__init__.py": {
+    "mtime": 1784741371.7966442,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "contabilidad/management/commands/__init__.py": {
+    "mtime": 1784741371.7979255,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "contabilidad/management/commands/cargar_catalogo_sat.py": {
+    "mtime": 1784741371.7985709,
+    "ast_hash": "c1bfcaa8d42db2d934f9d67b3769ef11",
+    "semantic_hash": "c1bfcaa8d42db2d934f9d67b3769ef11"
+  },
+  "contabilidad/migrations/0001_initial.py": {
+    "mtime": 1784741371.7985709,
+    "ast_hash": "083788c2cec8b088e3ae67e5aaf80728",
+    "semantic_hash": "083788c2cec8b088e3ae67e5aaf80728"
+  },
+  "contabilidad/migrations/0002_cargar_catalogo_sat.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "0cab667562d6773ce8966c5510dcc112",
+    "semantic_hash": "0cab667562d6773ce8966c5510dcc112"
+  },
+  "contabilidad/migrations/0003_actualizar_regimenes_sat.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "1ea10fa858b26ad929c87028b2dde232",
+    "semantic_hash": "1ea10fa858b26ad929c87028b2dde232"
+  },
+  "contabilidad/migrations/0005_cargar_configuracion_contable.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "aeebbd23724cfe8641415059e311095e",
+    "semantic_hash": "aeebbd23724cfe8641415059e311095e"
+  },
+  "contabilidad/migrations/0006_add_rfc_razon_social_unidad.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "3f6998aa2a9c96c49f5d044444f81341",
+    "semantic_hash": "3f6998aa2a9c96c49f5d044444f81341"
+  },
+  "contabilidad/migrations/0007_alter_configuracioncontable_options_and_more.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "eb3c1956b3d02f3b3dc8966fb88acc02",
+    "semantic_hash": "eb3c1956b3d02f3b3dc8966fb88acc02"
+  },
+  "contabilidad/migrations/0008_cuenta_ajuste_apertura.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "90edc3ab55c7ef13df0981e722719558",
+    "semantic_hash": "90edc3ab55c7ef13df0981e722719558"
+  },
+  "contabilidad/migrations/0009_saldoapertura_and_more.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "385d40254a9cbb78d3eefe2f023a6f34",
+    "semantic_hash": "385d40254a9cbb78d3eefe2f023a6f34"
+  },
+  "contabilidad/migrations/0010_estadocuentabancario_movimientoestadocuenta_and_more.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "0611a71500092c88f300b25bb3231983",
+    "semantic_hash": "0611a71500092c88f300b25bb3231983"
+  },
+  "contabilidad/migrations/0011_rename_contabilida_codigo__a1b2c3_idx_contabilida_codigo__b58027_idx_and_more.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "35a2f925c2540ff09f9cc53a5ec75fb2",
+    "semantic_hash": "35a2f925c2540ff09f9cc53a5ec75fb2"
+  },
+  "contabilidad/migrations/0012_renombrar_unidad_negocio_eventos_a_quinta.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "f6910796e3d5f397d379124151896f69",
+    "semantic_hash": "f6910796e3d5f397d379124151896f69"
+  },
+  "contabilidad/migrations/__init__.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "contabilidad/models.py": {
+    "mtime": 1784744665.7075148,
+    "ast_hash": "02cece18dd3d0cba6871b042e0e28e0a",
+    "semantic_hash": ""
+  },
+  "contabilidad/services.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "78565d0f5f1f1727b039adc2b363fe20",
+    "semantic_hash": "78565d0f5f1f1727b039adc2b363fe20"
+  },
+  "contabilidad/services_estados_cuenta.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "f6b61cdb77f633dfd46ad35b55b15214",
+    "semantic_hash": "f6b61cdb77f633dfd46ad35b55b15214"
+  },
+  "contabilidad/signals.py": {
+    "mtime": 1784741371.7995,
+    "ast_hash": "ccbf58531c548f8d316776202e90d03b",
+    "semantic_hash": "ccbf58531c548f8d316776202e90d03b"
+  },
+  "contabilidad/templatetags/__init__.py": {
+    "mtime": 1784741371.8047795,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "contabilidad/tests.py": {
+    "mtime": 1784741371.8047795,
+    "ast_hash": "b879752cd61a83500de97d1ddc5d91b4",
+    "semantic_hash": "b879752cd61a83500de97d1ddc5d91b4"
+  },
+  "contabilidad/urls.py": {
+    "mtime": 1784741371.8142498,
+    "ast_hash": "235ff1c95fbdbfef2d7062e1829aeb7a",
+    "semantic_hash": "235ff1c95fbdbfef2d7062e1829aeb7a"
+  },
+  "contabilidad/views.py": {
+    "mtime": 1784741371.8142498,
+    "ast_hash": "6383c185935c58dbde0fe0f7ff310377",
+    "semantic_hash": "6383c185935c58dbde0fe0f7ff310377"
+  },
+  "core_erp/__init__.py": {
+    "mtime": 1784741371.8142498,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "core_erp/apps.py": {
+    "mtime": 1784741371.818679,
+    "ast_hash": "69cdb1c5f84929bb7a37f1e8b67402bc",
+    "semantic_hash": "69cdb1c5f84929bb7a37f1e8b67402bc"
+  },
+  "core_erp/asgi.py": {
+    "mtime": 1784741371.818679,
+    "ast_hash": "8a94aebdaf83cd8c14dcdaabf9c531c9",
+    "semantic_hash": "8a94aebdaf83cd8c14dcdaabf9c531c9"
+  },
+  "core_erp/ratelimit.py": {
+    "mtime": 1784741371.818679,
+    "ast_hash": "5cb2cb79a858a485a7cb58480dcaac5e",
+    "semantic_hash": "5cb2cb79a858a485a7cb58480dcaac5e"
+  },
+  "core_erp/settings.py": {
+    "mtime": 1784741371.818679,
+    "ast_hash": "7a6151edc1f27a371ed053df28ecc017",
+    "semantic_hash": "7a6151edc1f27a371ed053df28ecc017"
+  },
+  "core_erp/urls.py": {
+    "mtime": 1784741371.818679,
+    "ast_hash": "3f59a0f6f419531b16c5314080410415",
+    "semantic_hash": "3f59a0f6f419531b16c5314080410415"
+  },
+  "core_erp/wsgi.py": {
+    "mtime": 1784741371.818679,
+    "ast_hash": "1e1800c4b9b7cb153019998bce1a6671",
+    "semantic_hash": "1e1800c4b9b7cb153019998bce1a6671"
+  },
+  "facturacion/__init__.py": {
+    "mtime": 1784741371.818679,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "facturacion/admin.py": {
+    "mtime": 1784741371.8206797,
+    "ast_hash": "6cb856317273f36da15619503e4813d5",
+    "semantic_hash": "6cb856317273f36da15619503e4813d5"
+  },
+  "facturacion/apps.py": {
+    "mtime": 1784741371.8206797,
+    "ast_hash": "c43d4d0fd8b9738dfd6393a63cd5ce75",
+    "semantic_hash": "c43d4d0fd8b9738dfd6393a63cd5ce75"
+  },
+  "facturacion/choices.py": {
+    "mtime": 1784744735.5839798,
+    "ast_hash": "a656ccb6c39bd61f23212dcb4417ba63",
+    "semantic_hash": ""
+  },
+  "facturacion/migrations/0001_initial.py": {
+    "mtime": 1784741371.8206797,
+    "ast_hash": "963bae4f3b63f47d7048823c03a2eead",
+    "semantic_hash": "963bae4f3b63f47d7048823c03a2eead"
+  },
+  "facturacion/migrations/0002_update_solicitud.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "d6f60e42f6c3589d354c0b17fdb9e58a",
+    "semantic_hash": "d6f60e42f6c3589d354c0b17fdb9e58a"
+  },
+  "facturacion/migrations/0003_add_desglose_fiscal.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "443b90095bdeae932a6447c8b094d7af",
+    "semantic_hash": "443b90095bdeae932a6447c8b094d7af"
+  },
+  "facturacion/migrations/__init__.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "facturacion/models.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "613349113a0bd7edd8231fec41d7dc19",
+    "semantic_hash": "613349113a0bd7edd8231fec41d7dc19"
+  },
+  "facturacion/signals.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "261e01b193f2aa2b6944fba0a32aa60b",
+    "semantic_hash": "261e01b193f2aa2b6944fba0a32aa60b"
+  },
+  "facturacion/tests.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "81593173e2fd3d71d0f676c8cffdc896",
+    "semantic_hash": "81593173e2fd3d71d0f676c8cffdc896"
+  },
+  "facturacion/views.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "0019081f0b2b560cce5466d83f418588",
+    "semantic_hash": "0019081f0b2b560cce5466d83f418588"
+  },
+  "manage.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "c64b92c268903e24e1750cb77d9a3cda",
+    "semantic_hash": "c64b92c268903e24e1750cb77d9a3cda"
+  },
+  "nomina/__init__.py": {
+    "mtime": 1784741371.8220017,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "nomina/admin.py": {
+    "mtime": 1784741371.824355,
+    "ast_hash": "1cf252a134889848cc77cbceb563813d",
+    "semantic_hash": "1cf252a134889848cc77cbceb563813d"
+  },
+  "nomina/apps.py": {
+    "mtime": 1784741371.824355,
+    "ast_hash": "07fbb8284a8424137ec066a75cdaea31",
+    "semantic_hash": "07fbb8284a8424137ec066a75cdaea31"
+  },
+  "nomina/management/__init__.py": {
+    "mtime": 1784741371.824355,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "nomina/management/commands/__init__.py": {
+    "mtime": 1784741371.825434,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "nomina/management/commands/sync_jibble.py": {
+    "mtime": 1784741371.82595,
+    "ast_hash": "e1672e6fb4f9ad1b803c6fa1d6aac83c",
+    "semantic_hash": "e1672e6fb4f9ad1b803c6fa1d6aac83c"
+  },
+  "nomina/migrations/0001_initial.py": {
+    "mtime": 1784741371.82595,
+    "ast_hash": "d041e0466fba96bb04ffd7b8789f7840",
+    "semantic_hash": "d041e0466fba96bb04ffd7b8789f7840"
+  },
+  "nomina/migrations/0002_alter_recibonomina_options.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "1630ce16725e4679b06f59a5dd090715",
+    "semantic_hash": "1630ce16725e4679b06f59a5dd090715"
+  },
+  "nomina/migrations/0003_recibonomina_estado_recibonomina_fecha_pago_and_more.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "efa47ab0e84a2cb78c245457a5e51a3e",
+    "semantic_hash": "efa47ab0e84a2cb78c245457a5e51a3e"
+  },
+  "nomina/migrations/__init__.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "nomina/models.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "c9c47470c553d76f5758e0da0b26b1b6",
+    "semantic_hash": "c9c47470c553d76f5758e0da0b26b1b6"
+  },
+  "nomina/services.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "829e8b02be50a63c310deaf1763e6090",
+    "semantic_hash": "829e8b02be50a63c310deaf1763e6090"
+  },
+  "nomina/tests.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "465b7e9f69bfd158c850cdfbc7306818",
+    "semantic_hash": "465b7e9f69bfd158c850cdfbc7306818"
+  },
+  "nomina/views.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "933e9e117d87b73a9b2943a545652507",
+    "semantic_hash": "933e9e117d87b73a9b2943a545652507"
+  },
+  "pyproject.toml": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "e57a7d897a6d98f5ffe1ae077d4e890d",
+    "semantic_hash": "e57a7d897a6d98f5ffe1ae077d4e890d"
+  },
+  "railway.json": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "425bd9d03df2c245a5707f5d97b848af",
+    "semantic_hash": "425bd9d03df2c245a5707f5d97b848af"
+  },
+  "reportes/__init__.py": {
+    "mtime": 1784741371.8267372,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "reportes/admin.py": {
+    "mtime": 1784741371.8284323,
+    "ast_hash": "f2e1a3da9f58f0b9f259530a1e9441fb",
+    "semantic_hash": "f2e1a3da9f58f0b9f259530a1e9441fb"
+  },
+  "reportes/apps.py": {
+    "mtime": 1784741371.8284323,
+    "ast_hash": "a433e4697222abedd729b2191ba9076b",
+    "semantic_hash": "a433e4697222abedd729b2191ba9076b"
+  },
+  "reportes/migrations/0001_initial.py": {
+    "mtime": 1784741371.8284323,
+    "ast_hash": "ff6f4bb95bcfd62510540eb19ba666ca",
+    "semantic_hash": "ff6f4bb95bcfd62510540eb19ba666ca"
+  },
+  "reportes/migrations/0002_alter_reportegenerado_options.py": {
+    "mtime": 1784741371.8293757,
+    "ast_hash": "3d54900fab8083d54ec7502d8a1c6f8d",
+    "semantic_hash": "3d54900fab8083d54ec7502d8a1c6f8d"
+  },
+  "reportes/migrations/__init__.py": {
+    "mtime": 1784741371.8293757,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "reportes/models.py": {
+    "mtime": 1784741371.8293757,
+    "ast_hash": "3494e7e9afa8c74d1b1c86101881f338",
+    "semantic_hash": "3494e7e9afa8c74d1b1c86101881f338"
+  },
+  "reportes/services/__init__.py": {
+    "mtime": 1784741371.8293757,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "reportes/services/airbnb.py": {
+    "mtime": 1784741371.8300443,
+    "ast_hash": "33cfded1b11913e801ab35b676dfa5b4",
+    "semantic_hash": "33cfded1b11913e801ab35b676dfa5b4"
+  },
+  "reportes/services/comercial.py": {
+    "mtime": 1784741371.8300443,
+    "ast_hash": "20d9c4e5c2c2f3a6f785e80663b4370d",
+    "semantic_hash": "20d9c4e5c2c2f3a6f785e80663b4370d"
+  },
+  "reportes/services/contabilidad.py": {
+    "mtime": 1784741371.8300443,
+    "ast_hash": "f1c4a430dd534f2636b5b41df581d647",
+    "semantic_hash": "f1c4a430dd534f2636b5b41df581d647"
+  },
+  "reportes/services/facturacion.py": {
+    "mtime": 1784741371.8300443,
+    "ast_hash": "cbcff6fa32688603a0313e2d02721ac3",
+    "semantic_hash": "cbcff6fa32688603a0313e2d02721ac3"
+  },
+  "reportes/templatetags/__init__.py": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "reportes/urls.py": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "5f8e8f766633b12e11f2dda9a60325ea",
+    "semantic_hash": "5f8e8f766633b12e11f2dda9a60325ea"
+  },
+  "reportes/views.py": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "35c7b95ffe805c1f46a1fe93622df1de",
+    "semantic_hash": "35c7b95ffe805c1f46a1fe93622df1de"
+  },
+  "static/admin/js/solicitud_factura.js": {
+    "mtime": 1784741371.836226,
+    "ast_hash": "704ccc300a44d71ebdea5e3473256a51",
+    "semantic_hash": "704ccc300a44d71ebdea5e3473256a51"
+  },
+  "static/js/tabs_fix.js": {
+    "mtime": 1784741371.8380089,
+    "ast_hash": "edac4bbb9eabe5ebdc8ff85803355eb2",
+    "semantic_hash": "edac4bbb9eabe5ebdc8ff85803355eb2"
+  },
+  "comercial/choices.py": {
+    "mtime": 1784744665.7075148,
+    "ast_hash": "3d89a789a5864212433c1f0becb9ae28",
+    "semantic_hash": ""
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "b267c01ade845eea1021923340e448fe",
+    "semantic_hash": ""
+  },
+  ".pre-commit-config.yaml": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "a135fe0c576775634e29c1d69d115a77",
+    "semantic_hash": ""
+  },
+  "INTEGRACION.md": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "f9aff5cf4735cb9b55418aacfc4aadbe",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "b23d0fdf332480168aee2ce91e92b1cf",
+    "semantic_hash": ""
+  },
+  "airbnb/README.md": {
+    "mtime": 1784741371.7402873,
+    "ast_hash": "920fd9002fe41977c0fb2ebe7466b3a5",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/anuncioairbnb/change_list.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "0040261bb93b9dcda6bba64a8bc07b44",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/bloquear_manual.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "62f3655dcf42ae13a6fc27d6bbbd16a0",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/calendario_unificado.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "02007b035df4a731438d3b4c09c6cc3e",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/dashboard.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "25b6f8a1408314a6a1ba3854c5020b9a",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/importar_csv.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "2940972f91769c7397977dff4632bb75",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/pagoairbnb/change_list.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "45169b8a87dee8ee8b3dd0cc32146253",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/admin/airbnb/reporte_pagos.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "20876ebbd590647852795d885de8e2b1",
+    "semantic_hash": ""
+  },
+  "airbnb/templates/airbnb/reporte_fiscal_airbnb.html": {
+    "mtime": 1784741371.747006,
+    "ast_hash": "b28737155432183f121dfdaea50ca42b",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/calendario.html": {
+    "mtime": 1784741371.7739286,
+    "ast_hash": "784e4fbf58cf797302599b422e2d69d8",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cartera_cxc.html": {
+    "mtime": 1784741371.7743995,
+    "ast_hash": "e7061eec5b0e95a52757490d27931ea9",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/change_form.html": {
+    "mtime": 1784741371.7750912,
+    "ast_hash": "df87df700b3d21223d0902115d34f32b",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/change_list.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "6c038d3079942672a1c6b34eb5b7ddb8",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/contrato_form.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "70f988b2fb13360a8d4c0b8a0a5f1c30",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/cotizacion/descuentos.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "e44a58b7f434c027767d9c7b2672bf66",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/comercial/resumen_barra_partial.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "b90ce26827aa28bb52bd13a89fb737b0",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/dashboard.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "e9189a34373133ea6305d2c474a28d81",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/dashboard_kpi.html": {
+    "mtime": 1784741371.7758114,
+    "ast_hash": "1d735850277958eccd6acee6227321d4",
+    "semantic_hash": ""
+  },
+  "comercial/templates/admin/nomina/recibonomina/change_list.html": {
+    "mtime": 1784741371.777285,
+    "ast_hash": "6c1ad2fea6bfff292d0a38b406bc8987",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/carga_masiva_xml.html": {
+    "mtime": 1784741371.777285,
+    "ast_hash": "dad054162bdc46781ed134cca28b2bd6",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/compra_change_list.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "69227af70a266f5e6b55279ff8670a51",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/gasto_change_list.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "204df167e314b567338369a96e72cc13",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/pdf_ficha_producto.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "37508b80481ac71f4a8467300b2ef5ed",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/pdf_lista_compras.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "4ca228e966df5c19d83f5196d37de26f",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/pdf_reporte_pagos.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "73b88f5ce7f6c64c38e3e513422881e9",
+    "semantic_hash": ""
+  },
+  "comercial/templates/comercial/reporte_form.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "667205884c7cf1855c8c918f71aea2f6",
+    "semantic_hash": ""
+  },
+  "comercial/templates/contratos/contrato_pdf.html": {
+    "mtime": 1784741371.7781339,
+    "ast_hash": "43826973e9912eb2e724f6001c60da81",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizaciones/pdf_plan_pagos.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "b0bd3d8adb610d2c832616b92a63b576",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizaciones/pdf_recibo.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "a1d7579e20efc236c2a5289504022f14",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizaciones/pdf_reporte_ventas.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "954a326d5ed33e493ead9a8216ab9283",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizador/gracias.html": {
+    "mtime": 1784741371.7782497,
+    "ast_hash": "d22b4da2c9174515c0f393177c5e2ebb",
+    "semantic_hash": ""
+  },
+  "comercial/templates/cotizador/index.html": {
+    "mtime": 1784741371.7821238,
+    "ast_hash": "03802e3ca46fec2f94d100a951d31e14",
+    "semantic_hash": ""
+  },
+  "comercial/templates/emails/contrato.html": {
+    "mtime": 1784741371.7821238,
+    "ast_hash": "5345cac1b784ef50b8fce9dcee69116f",
+    "semantic_hash": ""
+  },
+  "comercial/templates/emails/cotizacion.html": {
+    "mtime": 1784741371.783669,
+    "ast_hash": "d3411eb6cfe65ccf714772d65efcf021",
+    "semantic_hash": ""
+  },
+  "comercial/templates/facturacion/formulario_solicitud.html": {
+    "mtime": 1784741371.783669,
+    "ast_hash": "1f7d299d3c22e40ec32a29fd665f0e9b",
+    "semantic_hash": ""
+  },
+  "comercial/templates/facturacion/solicitud_pdf.html": {
+    "mtime": 1784741371.784271,
+    "ast_hash": "42e35c3e9c605c9ca258e6ebce16f867",
+    "semantic_hash": ""
+  },
+  "comercial/templates/nomina/formulario_carga.html": {
+    "mtime": 1784741371.784271,
+    "ast_hash": "13470272bcd4ab935255ed507e26fde5",
+    "semantic_hash": ""
+  },
+  "comercial/templates/nomina/recibo_nomina.html": {
+    "mtime": 1784741371.7849958,
+    "ast_hash": "c55c4856563de16c9e4955968a9cbdaf",
+    "semantic_hash": ""
+  },
+  "comercial/templates/pdf_lista_compras.html": {
+    "mtime": 1784741371.7849958,
+    "ast_hash": "e98b6d31ed170cdb2be1b88a4128b3fe",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/base.html": {
+    "mtime": 1784741371.7936668,
+    "ast_hash": "ff41aa6fe3ab17e4066b34ce4655b53c",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/confirmacion_pago.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "af9f1652225a10a1478c2987670c10a4",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/cotizacion.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "2489136a37417e7d94d037a3e1961b3f",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/recordatorio.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "1f9257520427e1f1f421aeca333b7118",
+    "semantic_hash": ""
+  },
+  "comunicacion/templates/comunicacion/email/reembolso.html": {
+    "mtime": 1784741371.7943232,
+    "ast_hash": "2b1699950371c801bf55565a106082f7",
+    "semantic_hash": ""
+  },
+  "contabilidad/templates/contabilidad/balanza.html": {
+    "mtime": 1784741371.8042502,
+    "ast_hash": "5c35e24fc0629e70d6208fbb1d90c68a",
+    "semantic_hash": ""
+  },
+  "contabilidad/templates/contabilidad/estado_resultados.html": {
+    "mtime": 1784741371.8047795,
+    "ast_hash": "5923db8e16c07a7a5878facb050ce510",
+    "semantic_hash": ""
+  },
+  "reportes/templates/admin/reportes/reportegenerado/change_list.html": {
+    "mtime": 1784741371.831476,
+    "ast_hash": "5c9e8316ec1622e9dc75d47135be5730",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_auxiliar.html": {
+    "mtime": 1784741371.831476,
+    "ast_hash": "803ebd7ab48ab6126fa4fe3a37fb72f4",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_balance_general.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "70b038e30a08a70855c0c42f5e811f6c",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_balanza.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "175f05a262ca242fab07862463e24039",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_base.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "b7d2ff9f16c5319eed6d9d5cb2a5cc16",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_comparativo_airbnb.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "00d2872ca3e99d509868ff123dd12b87",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_cotizaciones.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "f50ac45c9ad46f36042acb74cd0638bd",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_cxc.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "567fafb9a07329d6bf71e5ff2e928cd5",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_estado_resultados.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "c949189fd3496dbd2d8726eff82c2a94",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_facturas.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "d29d25c6856b47e1038e37983dc74d8e",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_libro_mayor.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "4af881f7a34311552822953d24a2c945",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/pdf_ocupacion.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "f51a45ed4a89596d476c4af1b90415a1",
+    "semantic_hash": ""
+  },
+  "reportes/templates/reportes/selector.html": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "5c05ea81d4af151a62f0426b1f2a5c4b",
+    "semantic_hash": ""
+  },
+  "requirements.txt": {
+    "mtime": 1784741371.8324368,
+    "ast_hash": "58fede5c94a3a3da49e3406e6444d42d",
+    "semantic_hash": ""
+  },
+  "templates/admin/base.html": {
+    "mtime": 1784741371.839439,
+    "ast_hash": "5ffab0c53e07f9be827096db9f3edd33",
+    "semantic_hash": ""
+  },
+  "templates/admin/importar_historico.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "923329127d2d75f14da4efc1ef5eb903",
+    "semantic_hash": ""
+  },
+  "templates/admin/pagination.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "8d53b7d73dd1d14da806c9540d451c1d",
+    "semantic_hash": ""
+  },
+  "templates/landing/index.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "e3d953f35194b77cb5080528b34611f0",
+    "semantic_hash": ""
+  },
+  "templates/portal/acceso.html": {
+    "mtime": 1784741371.8399782,
+    "ast_hash": "6b8f3158df8c5d588280c938b23855a2",
+    "semantic_hash": ""
+  },
+  "templates/portal/evento.html": {
+    "mtime": 1784741371.8414733,
+    "ast_hash": "2507ce4e7822d02702c6a6b987d66b72",
+    "semantic_hash": ""
+  },
+  "contabilidad/tests_fixtures/estado_cuenta_bbva_libreton_ejemplo.pdf": {
+    "mtime": 1784741371.8062499,
+    "ast_hash": "8e09e37f311fa5de97d5ea82974dd642",
+    "semantic_hash": ""
+  },
+  "contabilidad/tests_fixtures/estado_cuenta_bbva_maestra_pyme_ejemplo.pdf": {
+    "mtime": 1784741371.8142498,
+    "ast_hash": "8f9f4f2d540ed83374f3d976135f487d",
+    "semantic_hash": ""
+  },
+  "static/img/logo.png": {
+    "mtime": 1784741371.8380089,
+    "ast_hash": "069dd406acb14238aa395f1655ac5784",
+    "semantic_hash": ""
+  },
+  "comercial/migrations/0059_alter_cliente_regimen_fiscal.py": {
+    "mtime": 1784744865.1639876,
+    "ast_hash": "479bc07f405f4b2edde4365b989c202e",
+    "semantic_hash": ""
+  },
+  "facturacion/migrations/0004_alter_solicitudfactura_regimen_fiscal.py": {
+    "mtime": 1784744767.6559818,
+    "ast_hash": "d34319d6364d5fbc93987a699883fdb6",
+    "semantic_hash": ""
+  }
+}

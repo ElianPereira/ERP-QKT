@@ -1,0 +1,2355 @@
+{
+  "communities": {
+    "0": [
+      "comercial_admin",
+      "comercial_admin_asignacionespacioadmin",
+      "comercial_admin_asignacionespacioinline",
+      "comercial_admin_asignacionpersonaladmin",
+      "comercial_admin_asignacionpersonalinline",
+      "comercial_admin_clienteadmin",
+      "comercial_admin_componenteinline",
+      "comercial_admin_compraadmin",
+      "comercial_admin_compraadmin_get_urls",
+      "comercial_admin_compraadmin_total_format",
+      "comercial_admin_compraadmin_ver_pdf",
+      "comercial_admin_constantesistemaadmin",
+      "comercial_admin_contratoservicioadmin",
+      "comercial_admin_contratoservicioadmin_descargar_btn",
+      "comercial_admin_contratoservicioadmin_enviar_btn",
+      "comercial_admin_cotizacionadmin",
+      "comercial_admin_cotizacionadmin_contrato_form_view",
+      "comercial_admin_cotizacionadmin_enviar_email_btn",
+      "comercial_admin_cotizacionadmin_estado_badge",
+      "comercial_admin_cotizacionadmin_folio_cotizacion",
+      "comercial_admin_cotizacionadmin_get_nivel_paquete",
+      "comercial_admin_cotizacionadmin_get_urls",
+      "comercial_admin_cotizacionadmin_pago_badge",
+      "comercial_admin_cotizacionadmin_resumen_barra_html",
+      "comercial_admin_cotizacionadmin_save_formset",
+      "comercial_admin_cotizacionadmin_ver_contrato",
+      "comercial_admin_cotizacionadmin_ver_lista_compras",
+      "comercial_admin_cotizacionadmin_ver_pdf",
+      "comercial_admin_cotizacionadmin_ver_portal",
+      "comercial_admin_descuentoadmin",
+      "comercial_admin_descuentoadmin_modo_badge",
+      "comercial_admin_descuentoadmin_tipo_valor_badge",
+      "comercial_admin_descuentoadmin_usos_display",
+      "comercial_admin_descuentoadmin_valor_display",
+      "comercial_admin_descuentoadmin_vigencia",
+      "comercial_admin_descuentoaplicadoadmin",
+      "comercial_admin_descuentoaplicadoadmin_has_add_permission",
+      "comercial_admin_descuentoaplicadoadmin_has_change_permission",
+      "comercial_admin_descuentoaplicadoadmin_has_delete_permission",
+      "comercial_admin_espacioadmin",
+      "comercial_admin_espaciolandingadmin",
+      "comercial_admin_espaciolandingadmin_preview_mini",
+      "comercial_admin_gastoinline",
+      "comercial_admin_gastoinline_get_readonly_fields",
+      "comercial_admin_imagenlandingadmin",
+      "comercial_admin_imagenlandingadmin_preview_grande",
+      "comercial_admin_imagenlandingadmin_preview_mini",
+      "comercial_admin_insumoadmin",
+      "comercial_admin_insumoadmin_badge_stock",
+      "comercial_admin_itemcotizacioninline",
+      "comercial_admin_media",
+      "comercial_admin_movimientoinventarioadmin",
+      "comercial_admin_movimientoinventarioadmin_has_change_permission",
+      "comercial_admin_movimientoinventarioadmin_has_delete_permission",
+      "comercial_admin_movimientoinventarioadmin_nota_corta",
+      "comercial_admin_movimientoinventarioadmin_tipo_badge",
+      "comercial_admin_pagoadmin",
+      "comercial_admin_pagoadmin_tipo_badge",
+      "comercial_admin_pagoinline",
+      "comercial_admin_parcialidadinline",
+      "comercial_admin_parcialidadinline_has_add_permission",
+      "comercial_admin_planpagoadmin",
+      "comercial_admin_planpagoadmin_cliente",
+      "comercial_admin_planpagoadmin_cotizacion_folio",
+      "comercial_admin_planpagoadmin_monto_total",
+      "comercial_admin_planpagoadmin_num_parcialidades",
+      "comercial_admin_planpagoadmin_progreso_badge",
+      "comercial_admin_planpagoadmin_siguiente_pago_info",
+      "comercial_admin_planpagoresumeninline",
+      "comercial_admin_plantillabarraadmin",
+      "comercial_admin_plantillabarraadmin_categoria_display",
+      "comercial_admin_plantillabarraadmin_costo_insumo",
+      "comercial_admin_plantillabarraadmin_grupo_display",
+      "comercial_admin_plantillabarraadmin_insumo_nombre",
+      "comercial_admin_plantillabarraadmin_insumo_presentacion",
+      "comercial_admin_plantillabarraadmin_proveedor_insumo",
+      "comercial_admin_portalclienteadmin",
+      "comercial_admin_portalclienteadmin_cliente",
+      "comercial_admin_portalclienteadmin_cotizacion_folio",
+      "comercial_admin_portalclienteadmin_link_portal",
+      "comercial_admin_preguntafrecuenteadmin",
+      "comercial_admin_preguntafrecuenteadmin_respuesta_corta",
+      "comercial_admin_productoadmin",
+      "comercial_admin_productoadmin_badge_cotizador",
+      "comercial_admin_productoadmin_badge_licor",
+      "comercial_admin_productoadmin_badge_paquete",
+      "comercial_admin_productoadmin_badge_upgrade",
+      "comercial_admin_productoadmin_costo_display",
+      "comercial_admin_productoadmin_formfield_for_manytomany",
+      "comercial_admin_productoadmin_precio_display",
+      "comercial_admin_productopaqueteinline",
+      "comercial_admin_productopaqueteinline_get_queryset",
+      "comercial_admin_proveedoradmin",
+      "comercial_admin_proveedoradmin_total_insumos",
+      "comercial_admin_rationale_1328",
+      "comercial_admin_rationale_776",
+      "comercial_admin_recetainline",
+      "comercial_admin_recordatoriopagoadmin",
+      "comercial_admin_recordatoriopagoadmin_cliente",
+      "comercial_admin_recordatoriopagoadmin_estado_badge",
+      "comercial_admin_recordatoriopagoadmin_has_add_permission",
+      "comercial_admin_recordatoriopagoadmin_has_delete_permission",
+      "comercial_admin_recordatoriopagoadmin_monto_parcialidad",
+      "comercial_admin_recordatoriopagoadmin_parcialidad_info",
+      "comercial_admin_subproductoadmin",
+      "comercial_admin_subproductoadmin_costo_display",
+      "comercial_admin_temporadaadmin",
+      "comercial_admin_temporadaadmin_anio_display",
+      "comercial_admin_testimoniolandingadmin",
+      "comercial_admin_testimoniolandingadmin_estrellas_display",
+      "comercial_admin_testimoniolandingadmin_texto_corto",
+      "comercial_admin_tipoeventoadmin",
+      "comercial_management_commands_importar_historico",
+      "comercial_management_commands_importar_historico_rationale_1",
+      "comercial_management_commands_migrar_proveedores",
+      "comercial_management_commands_migrar_proveedores_rationale_1",
+      "comercial_migrations_management_commands_cargar_plantilla_barra",
+      "comercial_migrations_management_commands_verificar_plantilla_barra",
+      "comercial_migrations_management_commands_verificar_plantilla_barra_rationale_1",
+      "comercial_models",
+      "comercial_models_asignacionespacio",
+      "comercial_models_asignacionespacio_str",
+      "comercial_models_asignacionpersonal",
+      "comercial_models_asignacionpersonal_str",
+      "comercial_models_cliente",
+      "comercial_models_cliente_str",
+      "comercial_models_componenteproducto",
+      "comercial_models_compra",
+      "comercial_models_compra_str",
+      "comercial_models_constantesistema",
+      "comercial_models_constantesistema_str",
+      "comercial_models_contratoservicio",
+      "comercial_models_contratoservicio_str",
+      "comercial_models_cotizacion",
+      "comercial_models_cotizacion_str",
+      "comercial_models_descuento",
+      "comercial_models_descuento_str",
+      "comercial_models_descuentoaplicado",
+      "comercial_models_descuentoaplicado_str",
+      "comercial_models_espacio",
+      "comercial_models_espacio_str",
+      "comercial_models_espaciolanding",
+      "comercial_models_espaciolanding_str",
+      "comercial_models_gasto",
+      "comercial_models_gasto_str",
+      "comercial_models_imagenlanding",
+      "comercial_models_imagenlanding_str",
+      "comercial_models_insumo",
+      "comercial_models_insumo_str",
+      "comercial_models_itemcotizacion",
+      "comercial_models_itemcotizacion_clean",
+      "comercial_models_meta",
+      "comercial_models_movimientoinventario",
+      "comercial_models_movimientoinventario_str",
+      "comercial_models_pago",
+      "comercial_models_pago_str",
+      "comercial_models_parcialidadpago",
+      "comercial_models_parcialidadpago_estado",
+      "comercial_models_parcialidadpago_str",
+      "comercial_models_planpago",
+      "comercial_models_planpago_parcialidades_pagadas",
+      "comercial_models_planpago_parcialidades_pendientes",
+      "comercial_models_planpago_str",
+      "comercial_models_plantillabarra",
+      "comercial_models_plantillabarra_str",
+      "comercial_models_portalcliente",
+      "comercial_models_portalcliente_str",
+      "comercial_models_preguntafrecuente",
+      "comercial_models_preguntafrecuente_str",
+      "comercial_models_producto",
+      "comercial_models_producto_str",
+      "comercial_models_productocomponente",
+      "comercial_models_productocomponente_str",
+      "comercial_models_proveedor",
+      "comercial_models_proveedor_str",
+      "comercial_models_rationale_102",
+      "comercial_models_rationale_1272",
+      "comercial_models_rationale_1336",
+      "comercial_models_rationale_1366",
+      "comercial_models_rationale_1420",
+      "comercial_models_rationale_1597",
+      "comercial_models_rationale_1613",
+      "comercial_models_rationale_1640",
+      "comercial_models_rationale_1758",
+      "comercial_models_rationale_912",
+      "comercial_models_recetasubproducto",
+      "comercial_models_recetasubproducto_str",
+      "comercial_models_recetasubproducto_subtotal_costo",
+      "comercial_models_recordatoriopago",
+      "comercial_models_recordatoriopago_str",
+      "comercial_models_subproducto",
+      "comercial_models_subproducto_str",
+      "comercial_models_temporada",
+      "comercial_models_temporada_str",
+      "comercial_models_testimoniolanding",
+      "comercial_models_testimoniolanding_str",
+      "comercial_models_tipoevento",
+      "comercial_models_tipoevento_str",
+      "comercial_services_calculadorabarraservice",
+      "comercial_services_calculadorabarraservice_init",
+      "comercial_services_descuentos_descuentoservice",
+      "comercial_services_rationale_166",
+      "comercial_test_producto_precio",
+      "comercial_test_producto_precio_rationale_1",
+      "facturacion_choices_regimenfiscal",
+      "facturacion_choices_usocfdi"
+    ],
+    "1": [
+      "contabilidad_admin",
+      "contabilidad_admin_conciliacionbancariaadmin",
+      "contabilidad_admin_conciliacionbancariaadmin_estado_display",
+      "contabilidad_admin_conciliacionbancariaadmin_periodo_display",
+      "contabilidad_admin_configuracioncontableadmin",
+      "contabilidad_admin_configuracioncontableadmin_cuenta_display",
+      "contabilidad_admin_configuracioncontableadmin_operacion_display",
+      "contabilidad_admin_cuentabancariaadmin",
+      "contabilidad_admin_cuentabancariaadmin_clabe_display",
+      "contabilidad_admin_cuentabancariaadmin_saldo_display",
+      "contabilidad_admin_cuentacontableadmin",
+      "contabilidad_admin_cuentacontableadmin_naturaleza_display",
+      "contabilidad_admin_cuentacontableadmin_tipo_display",
+      "contabilidad_admin_estadocuentabancarioadmin",
+      "contabilidad_admin_estadocuentabancarioadmin_save_model",
+      "contabilidad_admin_movimientocontableinline",
+      "contabilidad_admin_movimientoestadocuentainline",
+      "contabilidad_admin_polizaadmin_save_model",
+      "contabilidad_admin_rationale_1",
+      "contabilidad_admin_saldoaperturaadmin",
+      "contabilidad_admin_saldoaperturaadmin_aplicar_saldo",
+      "contabilidad_admin_saldoaperturaadmin_save_model",
+      "contabilidad_admin_subcuentainline",
+      "contabilidad_admin_subcuentainline_has_add_permission",
+      "contabilidad_admin_unidadnegocioadmin",
+      "contabilidad_admin_unidadnegocioadmin_regimen_display",
+      "contabilidad_management_commands_cargar_catalogo_sat",
+      "contabilidad_management_commands_cargar_catalogo_sat_rationale_1",
+      "contabilidad_models",
+      "contabilidad_models_conciliacionbancaria",
+      "contabilidad_models_conciliacionbancaria_str",
+      "contabilidad_models_configuracioncontable",
+      "contabilidad_models_configuracioncontable_str",
+      "contabilidad_models_cuentabancaria",
+      "contabilidad_models_cuentabancaria_saldo_actual",
+      "contabilidad_models_cuentabancaria_str",
+      "contabilidad_models_cuentacontable",
+      "contabilidad_models_cuentacontable_clean",
+      "contabilidad_models_cuentacontable_str",
+      "contabilidad_models_estadocuentabancario",
+      "contabilidad_models_estadocuentabancario_str",
+      "contabilidad_models_meta",
+      "contabilidad_models_movimientocontable",
+      "contabilidad_models_movimientocontable_clean",
+      "contabilidad_models_movimientocontable_str",
+      "contabilidad_models_movimientoestadocuenta",
+      "contabilidad_models_movimientoestadocuenta_clean",
+      "contabilidad_models_rationale_1",
+      "contabilidad_models_rationale_149",
+      "contabilidad_models_rationale_185",
+      "contabilidad_models_rationale_246",
+      "contabilidad_models_rationale_439",
+      "contabilidad_models_rationale_507",
+      "contabilidad_models_rationale_53",
+      "contabilidad_models_rationale_630",
+      "contabilidad_models_rationale_741",
+      "contabilidad_models_rationale_793",
+      "contabilidad_models_rationale_857",
+      "contabilidad_models_saldoapertura",
+      "contabilidad_models_saldoapertura_clean",
+      "contabilidad_models_saldoapertura_str",
+      "contabilidad_models_unidadnegocio",
+      "contabilidad_models_unidadnegocio_str",
+      "contabilidad_tests_appsfalso_get_model",
+      "reportes_services_contabilidad",
+      "reportes_services_contabilidad_rationale_1"
+    ],
+    "2": [
+      "comercial_admin_cotizacionadmin_descuentos_view",
+      "comercial_admin_rationale_710",
+      "comercial_services_descuentos",
+      "comercial_services_descuentos_descuentoservice_aplicar",
+      "comercial_services_descuentos_descuentoservice_aplicar_automaticos",
+      "comercial_services_descuentos_descuentoservice_cumple_condiciones",
+      "comercial_services_descuentos_descuentoservice_evaluar_automaticos",
+      "comercial_services_descuentos_descuentoservice_mejor_descuento",
+      "comercial_services_descuentos_descuentoservice_recalcular_y_guardar",
+      "comercial_services_descuentos_descuentoservice_revertir",
+      "comercial_services_descuentos_monto_descuento",
+      "comercial_services_descuentos_q",
+      "comercial_services_descuentos_rationale_1",
+      "comercial_services_descuentos_rationale_110",
+      "comercial_services_descuentos_rationale_147",
+      "comercial_services_descuentos_rationale_168",
+      "comercial_services_descuentos_rationale_185",
+      "comercial_services_descuentos_rationale_30",
+      "comercial_services_descuentos_rationale_39",
+      "comercial_services_descuentos_rationale_50",
+      "comercial_services_descuentos_rationale_66",
+      "comercial_services_descuentos_rationale_97",
+      "comercial_services_descuentos_subtotal_items",
+      "comercial_test_descuentos",
+      "comercial_test_descuentos_acumulabletest",
+      "comercial_test_descuentos_acumulabletest_test_acumulable_mas_no_acumulable_conviven",
+      "comercial_test_descuentos_acumulabletest_test_dos_acumulables_se_suman",
+      "comercial_test_descuentos_descuentobasetest",
+      "comercial_test_descuentos_descuentobasetest_cotizacion",
+      "comercial_test_descuentos_descuentobasetest_setup",
+      "comercial_test_descuentos_maxusostest",
+      "comercial_test_descuentos_maxusostest_test_max_usos_agotado_no_sugiere",
+      "comercial_test_descuentos_montominimotest",
+      "comercial_test_descuentos_montominimotest_descuento_min_20k",
+      "comercial_test_descuentos_montominimotest_test_limite_exacto_aplica",
+      "comercial_test_descuentos_montominimotest_test_limite_inferior_no_aplica",
+      "comercial_test_descuentos_noacumulableprioridadtest",
+      "comercial_test_descuentos_noacumulableprioridadtest_test_empate_prioridad_gana_mayor_monto_no_primero_por_id",
+      "comercial_test_descuentos_noacumulableprioridadtest_test_gana_mayor_prioridad",
+      "comercial_test_descuentos_py_testcase",
+      "comercial_test_descuentos_rationale_1",
+      "comercial_test_descuentos_rationale_20",
+      "comercial_test_descuentos_rationale_99",
+      "comercial_test_descuentos_redondeodecimaltest",
+      "comercial_test_descuentos_redondeodecimaltest_test_porcentaje_redondea_half_up_con_decimal",
+      "comercial_test_descuentos_revertirtest",
+      "comercial_test_descuentos_revertirtest_test_revertir_recalcula_descuento_y_total",
+      "comercial_test_descuentos_tiposcondiciontest",
+      "comercial_test_descuentos_tiposcondiciontest_test_tipo_evento_condiciona",
+      "comercial_test_descuentos_tiposcondiciontest_test_tipo_servicio_condiciona",
+      "comercial_test_descuentos_vigenciatest",
+      "comercial_test_descuentos_vigenciatest_test_fecha_dentro_de_rango_aplica",
+      "comercial_test_descuentos_vigenciatest_test_fecha_fuera_de_rango_no_aplica",
+      "comercial_test_descuentos_vigenciatest_test_temporada_como_condicion"
+    ],
+    "3": [
+      "airbnb_migrations_0001_initial",
+      "airbnb_migrations_0001_initial_migration",
+      "airbnb_models_pagoairbnb_tarifa_por_noche",
+      "comercial_migrations_0048_cargar_precios_mobiliario",
+      "comercial_migrations_0048_cargar_precios_mobiliario_cargar_precios",
+      "comercial_migrations_0048_cargar_precios_mobiliario_migration",
+      "comercial_migrations_0048_cargar_precios_mobiliario_revertir",
+      "comercial_migrations_0049_alter_producto_margen_ganancia",
+      "comercial_migrations_0049_alter_producto_margen_ganancia_migration",
+      "comercial_models_cotizacion_total_cobrado_bruto",
+      "comercial_models_cotizacion_total_ingresos_extra",
+      "comercial_models_cotizacion_total_pagado_neto",
+      "comercial_models_cotizacion_total_reembolsado",
+      "comercial_models_pago_clean",
+      "comercial_models_planpago_total_plan",
+      "comercial_models_rationale_778",
+      "comercial_models_rationale_874",
+      "comercial_templatetags_mis_kpis",
+      "comercial_templatetags_mis_kpis_calcular_metricas",
+      "comercial_test_producto_precio_py_testcase",
+      "comercial_test_producto_precio_rationale_60",
+      "comercial_test_producto_precio_sugerenciapreciotests",
+      "comercial_test_producto_precio_sugerenciapreciotests_test_precio_fijo_en_cero_no_sobreescribe",
+      "comercial_test_producto_precio_sugerenciapreciotests_test_precio_fijo_menor_a_costo_bloquea_guardado",
+      "comercial_test_producto_precio_sugerenciapreciotests_test_precio_fijo_sin_costo_no_bloquea",
+      "comercial_test_producto_precio_sugerenciapreciotests_test_precio_fijo_tiene_prioridad",
+      "comercial_test_producto_precio_sugerenciapreciotests_test_redondeo_half_up",
+      "comercial_test_producto_precio_sugerenciapreciotests_test_sin_precio_fijo_usa_costo_por_margen",
+      "contabilidad_admin_conciliacionbancariaadmin_diferencia_display",
+      "contabilidad_migrations_0001_initial",
+      "contabilidad_migrations_0001_initial_migration",
+      "contabilidad_migrations_0010_estadocuentabancario_movimientoestadocuenta_and_more",
+      "contabilidad_migrations_0010_estadocuentabancario_movimientoestadocuenta_and_more_migration",
+      "contabilidad_models_cuentabancaria_saldo_a_fecha",
+      "contabilidad_models_cuentacontable_saldo_actual",
+      "contabilidad_models_poliza_esta_cuadrada",
+      "contabilidad_models_poliza_total_debe",
+      "contabilidad_models_poliza_total_haber",
+      "contabilidad_models_rationale_128",
+      "contabilidad_models_rationale_252",
+      "contabilidad_models_rationale_395",
+      "contabilidad_services_balanzacomprobacionservice_generar",
+      "contabilidad_services_py_date",
+      "decimal",
+      "facturacion_migrations_0002_update_solicitud",
+      "facturacion_migrations_0002_update_solicitud_migration"
+    ],
+    "4": [
+      "airbnb_admin",
+      "airbnb_admin_anuncioairbnbadmin",
+      "airbnb_admin_anuncioairbnbadmin_changelist_view",
+      "airbnb_admin_anuncioairbnbadmin_get_urls",
+      "airbnb_admin_conflictocalendarioadmin",
+      "airbnb_admin_conflictocalendarioadmin_marcar_ignorado",
+      "airbnb_admin_conflictocalendarioadmin_marcar_resuelto",
+      "airbnb_admin_conflictocalendarioadmin_save_model",
+      "airbnb_admin_media",
+      "airbnb_admin_pagoairbnbadmin",
+      "airbnb_admin_pagoairbnbadmin_changelist_view",
+      "airbnb_admin_pagoairbnbadmin_get_urls",
+      "airbnb_admin_pagoairbnbadmin_importar_csv_view",
+      "airbnb_admin_rationale_1",
+      "airbnb_admin_reservaairbnbadmin",
+      "airbnb_models",
+      "airbnb_models_anuncioairbnb",
+      "airbnb_models_anuncioairbnb_str",
+      "airbnb_models_conflictocalendario",
+      "airbnb_models_conflictocalendario_str",
+      "airbnb_models_meta",
+      "airbnb_models_pagoairbnb",
+      "airbnb_models_pagoairbnb_noches",
+      "airbnb_models_pagoairbnb_str",
+      "airbnb_models_rationale_1",
+      "airbnb_models_rationale_15",
+      "airbnb_models_rationale_156",
+      "airbnb_models_rationale_309",
+      "airbnb_models_rationale_82",
+      "airbnb_models_reservaairbnb",
+      "airbnb_models_reservaairbnb_str",
+      "airbnb_services",
+      "airbnb_services_importadorcsvpagosservice",
+      "airbnb_services_importadorcsvpagosservice_init",
+      "airbnb_services_rationale_1",
+      "airbnb_services_rationale_326",
+      "airbnb_tests",
+      "airbnb_tests_rationale_1",
+      "airbnb_views",
+      "airbnb_views_rationale_1",
+      "reportes_services_airbnb",
+      "reportes_services_airbnb_comparativomensualservice",
+      "reportes_services_airbnb_rationale_1",
+      "reportes_services_airbnb_rationale_128"
+    ],
+    "5": [
+      "reportes_init",
+      "reportes_services_airbnb_comparativomensualservice_generar",
+      "reportes_services_airbnb_ocupacionservice",
+      "reportes_services_airbnb_ocupacionservice_generar",
+      "reportes_services_airbnb_ocupacionservice_generar_meses",
+      "reportes_services_airbnb_py_date",
+      "reportes_services_airbnb_rationale_17",
+      "reportes_urls",
+      "reportes_urls_rationale_1",
+      "reportes_views",
+      "reportes_views_logo_url",
+      "reportes_views_parse_fecha",
+      "reportes_views_rationale_1",
+      "reportes_views_rationale_156",
+      "reportes_views_rationale_190",
+      "reportes_views_rationale_222",
+      "reportes_views_rationale_262",
+      "reportes_views_rationale_28",
+      "reportes_views_rationale_302",
+      "reportes_views_rationale_321",
+      "reportes_views_rationale_34",
+      "reportes_views_rationale_349",
+      "reportes_views_rationale_377",
+      "reportes_views_rationale_405",
+      "reportes_views_rationale_45",
+      "reportes_views_rationale_57",
+      "reportes_views_rationale_73",
+      "reportes_views_rationale_99",
+      "reportes_views_registrar_reporte",
+      "reportes_views_render_pdf",
+      "reportes_views_reporte_auxiliar",
+      "reportes_views_reporte_balance_general",
+      "reportes_views_reporte_balanza",
+      "reportes_views_reporte_comparativo_airbnb",
+      "reportes_views_reporte_cotizaciones",
+      "reportes_views_reporte_cxc",
+      "reportes_views_reporte_estado_resultados",
+      "reportes_views_reporte_facturas",
+      "reportes_views_reporte_libro_mayor",
+      "reportes_views_reporte_ocupacion",
+      "reportes_views_selector_reportes"
+    ],
+    "6": [
+      "comercial_models_asignacionespacio_save",
+      "comercial_models_asignacionpersonal_save",
+      "comercial_models_componenteproducto_subtotal_costo",
+      "comercial_models_compra_save",
+      "comercial_models_cotizacion_cambiar_estado",
+      "comercial_models_cotizacion_clean",
+      "comercial_models_cotizacion_get_porcentaje_anticipo_minimo",
+      "comercial_models_cotizacion_porcentaje_pagado",
+      "comercial_models_cotizacion_saldo_pendiente",
+      "comercial_models_cotizacion_total_pagado",
+      "comercial_models_descuento_clean",
+      "comercial_models_detectar_unidad_negocio_por_rfc",
+      "comercial_models_insumo_save",
+      "comercial_models_movimientoinventario_save",
+      "comercial_models_pago_save",
+      "comercial_models_portalcliente_registrar_visita",
+      "comercial_models_portalcliente_save",
+      "comercial_models_producto_calcular_costo",
+      "comercial_models_producto_clean",
+      "comercial_models_producto_sugerencia_precio",
+      "comercial_models_productocomponente_subtotal_costo",
+      "comercial_models_rationale_1319",
+      "comercial_models_rationale_159",
+      "comercial_models_rationale_342",
+      "comercial_models_rationale_539",
+      "comercial_models_rationale_596",
+      "comercial_models_rationale_604",
+      "comercial_models_rationale_691",
+      "comercial_models_rationale_751",
+      "comercial_models_rationale_944",
+      "comercial_models_rationale_958",
+      "comercial_models_resolver_o_crear_proveedor",
+      "comercial_models_subproducto_costo_insumos",
+      "comercial_models_temporada_clean"
+    ],
+    "7": [
+      "airbnb_views_bloquear_en_airbnb",
+      "airbnb_views_calendario_unificado",
+      "airbnb_views_rationale_24",
+      "airbnb_views_rationale_365",
+      "airbnb_views_rationale_491",
+      "airbnb_views_reporte_fiscal_airbnb",
+      "comercial_views",
+      "comercial_views_configurar_plantilla_barra",
+      "comercial_views_descargar_ficha_producto",
+      "comercial_views_descargar_lista_compras_pdf",
+      "comercial_views_descargar_plan_pagos_pdf",
+      "comercial_views_enviar_contrato_email",
+      "comercial_views_enviar_cotizacion_email",
+      "comercial_views_exportar_cierre_excel",
+      "comercial_views_exportar_reporte_cotizaciones",
+      "comercial_views_exportar_reporte_pagos",
+      "comercial_views_generar_contrato",
+      "comercial_views_generar_lista_compras",
+      "comercial_views_generar_pdf_cotizacion",
+      "comercial_views_generar_plan_pagos",
+      "comercial_views_grafica_multi_series_ordenada",
+      "comercial_views_obtener_contexto_cotizacion",
+      "comercial_views_rationale_1005",
+      "comercial_views_rationale_293",
+      "comercial_views_rationale_420",
+      "comercial_views_rationale_796",
+      "comercial_views_rationale_885",
+      "comercial_views_rationale_921",
+      "comercial_views_ver_cartera_cxc",
+      "comercial_views_ver_dashboard_kpis",
+      "core_erp_urls",
+      "core_erp_urls_custom_logout",
+      "core_erp_urls_rationale_25"
+    ],
+    "8": [
+      "comercial_services_calcular_desglose_proporcional",
+      "comercial_services_rationale_105",
+      "contabilidad_models_poliza_siguiente_folio",
+      "contabilidad_models_rationale_425",
+      "contabilidad_services",
+      "contabilidad_services_aplicar_saldo_apertura",
+      "contabilidad_services_rationale_1",
+      "contabilidad_services_rationale_91",
+      "contabilidad_signals",
+      "contabilidad_signals_crear_poliza_compra",
+      "contabilidad_signals_crear_poliza_ingreso_extra",
+      "contabilidad_signals_crear_poliza_pago_airbnb",
+      "contabilidad_signals_crear_poliza_pago_cliente",
+      "contabilidad_signals_crear_poliza_reembolso_cliente",
+      "contabilidad_signals_crear_polizas_reversion_cancelacion",
+      "contabilidad_signals_get_cuenta",
+      "contabilidad_signals_get_cuenta_por_categoria",
+      "contabilidad_signals_get_unidad_negocio",
+      "contabilidad_signals_get_usuario_sistema",
+      "contabilidad_signals_rationale_1",
+      "contabilidad_signals_rationale_224",
+      "contabilidad_signals_rationale_289",
+      "contabilidad_signals_rationale_30",
+      "contabilidad_signals_rationale_35",
+      "contabilidad_signals_rationale_374",
+      "contabilidad_signals_rationale_48",
+      "contabilidad_signals_rationale_57",
+      "contabilidad_signals_rationale_590",
+      "contabilidad_signals_rationale_626",
+      "contabilidad_signals_rationale_73",
+      "contabilidad_signals_signals_enabled",
+      "facturacion_signals_crear_solicitud_factura_desde_pago",
+      "facturacion_signals_rationale_20"
+    ],
+    "9": [
+      "contabilidad_admin_estadocuentabancarioadmin_procesar",
+      "contabilidad_services_estados_cuenta",
+      "contabilidad_services_estados_cuenta_agrupar_por_fila",
+      "contabilidad_services_estados_cuenta_clasificar_monto",
+      "contabilidad_services_estados_cuenta_emparejar_automaticamente",
+      "contabilidad_services_estados_cuenta_es_pie_de_pagina",
+      "contabilidad_services_estados_cuenta_localizar_columnas",
+      "contabilidad_services_estados_cuenta_parsear_pdf_bbva",
+      "contabilidad_services_estados_cuenta_parsear_xml_bbva",
+      "contabilidad_services_estados_cuenta_procesar_estado_cuenta",
+      "contabilidad_services_estados_cuenta_rationale_1",
+      "contabilidad_services_estados_cuenta_rationale_109",
+      "contabilidad_services_estados_cuenta_rationale_125",
+      "contabilidad_services_estados_cuenta_rationale_175",
+      "contabilidad_services_estados_cuenta_rationale_295",
+      "contabilidad_services_estados_cuenta_rationale_309",
+      "contabilidad_services_estados_cuenta_rationale_48",
+      "contabilidad_services_estados_cuenta_to_decimal",
+      "contabilidad_tests",
+      "contabilidad_tests_emparejamientoautomaticotest",
+      "contabilidad_tests_emparejamientoautomaticotest_crear_movimiento_contable",
+      "contabilidad_tests_emparejamientoautomaticotest_setup",
+      "contabilidad_tests_emparejamientoautomaticotest_test_emparejamiento_exacto_dentro_de_tolerancia",
+      "contabilidad_tests_emparejamientoautomaticotest_test_fuera_de_tolerancia_no_empareja",
+      "contabilidad_tests_emparejamientoautomaticotest_test_no_empareja_dos_veces_el_mismo_movimiento_contable",
+      "contabilidad_tests_parserbbvatest",
+      "contabilidad_tests_parserbbvatest_test_numero_cuenta_no_coincide_rechaza_la_carga",
+      "contabilidad_tests_parserbbvatest_test_parser_libreton_basico_totales_exactos",
+      "contabilidad_tests_parserbbvatest_test_parser_maestra_pyme_totales_exactos",
+      "contabilidad_tests_rationale_1",
+      "contabilidad_tests_rationale_509",
+      "contabilidad_tests_rationale_615",
+      "contabilidad_tests_rationale_673"
+    ],
+    "10": [
+      "comunicacion_admin",
+      "comunicacion_admin_comunicacionclienteadmin",
+      "comunicacion_apps",
+      "comunicacion_apps_comunicacionconfig",
+      "comunicacion_apps_comunicacionconfig_ready",
+      "comunicacion_apps_py_appconfig",
+      "comunicacion_management_commands_enviar_recordatorios",
+      "comunicacion_management_commands_enviar_recordatorios_command",
+      "comunicacion_management_commands_enviar_recordatorios_command_handle",
+      "comunicacion_management_commands_enviar_recordatorios_py_basecommand",
+      "comunicacion_management_commands_enviar_recordatorios_rationale_1",
+      "comunicacion_models",
+      "comunicacion_models_comunicacioncliente",
+      "comunicacion_models_comunicacioncliente_str",
+      "comunicacion_models_meta",
+      "comunicacion_models_rationale_1",
+      "comunicacion_services",
+      "comunicacion_services_enviar_email",
+      "comunicacion_services_enviar_whatsapp",
+      "comunicacion_services_rationale_1",
+      "comunicacion_services_rationale_123",
+      "comunicacion_services_rationale_33",
+      "comunicacion_signals",
+      "comunicacion_signals_notificar_cotizacion_enviada",
+      "comunicacion_signals_notificar_pago_cliente",
+      "comunicacion_signals_portal_url",
+      "comunicacion_signals_rationale_1",
+      "comunicacion_signals_rationale_30",
+      "comunicacion_signals_rationale_68",
+      "comunicacion_signals_signals_enabled",
+      "comunicacion_tests",
+      "comunicacion_tests_rationale_1"
+    ],
+    "11": [
+      "comercial_management_commands_limpiar_cliente_fantasma",
+      "comercial_management_commands_limpiar_cliente_fantasma_command",
+      "comercial_management_commands_limpiar_cliente_fantasma_command_add_arguments",
+      "comercial_management_commands_limpiar_cliente_fantasma_command_handle",
+      "comercial_management_commands_limpiar_cliente_fantasma_py_basecommand",
+      "comercial_management_commands_limpiar_cliente_fantasma_rationale_1",
+      "comercial_services",
+      "comercial_services_email_valido",
+      "comercial_services_es_nombre_generico",
+      "comercial_services_get_or_create_cliente_desde_canal",
+      "comercial_services_rationale_20",
+      "comercial_services_rationale_39",
+      "comercial_test_cliente_canal",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_email_completa_si_cliente_existente_estaba_vacio",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_email_invalido_se_ignora",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_email_no_sobrescribe_si_cliente_ya_tiene",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_email_vacio_no_falla",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_email_valido_se_guarda_en_cliente_nuevo",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_normalizacion_telefono_quita_caracteres",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_segundo_request_mismo_telefono_no_duplica",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_telefono_invalido_corto_crea_nuevo",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_telefono_vacio_crea_nuevo_y_no_matchea_fantasma",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_telefono_valido_existente_con_nombre_generico_publico_sobrescribe",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_telefono_valido_existente_con_nombre_prospecto_sobrescribe",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_telefono_valido_existente_con_nombre_real_no_sobrescribe",
+      "comercial_test_cliente_canal_getorcreateclientedesdecanaltest_test_telefono_valido_nuevo_crea_cliente",
+      "comercial_test_cliente_canal_py_testcase",
+      "comercial_test_cliente_canal_rationale_1",
+      "comercial_test_cliente_canal_rationale_10",
+      "comercial_test_cliente_canal_rationale_23"
+    ],
+    "12": [
+      "comercial_services_planpagosservice",
+      "comercial_services_planpagosservice_calcular_fechas",
+      "comercial_services_planpagosservice_generar",
+      "comercial_services_planpagosservice_generar_esquema_personalizado",
+      "comercial_services_planpagosservice_get_esquema",
+      "comercial_services_planpagosservice_init",
+      "comercial_services_rationale_439",
+      "comercial_tests_dashboardgraficafinanzassoloanioactualtest",
+      "comercial_tests_dashboardgraficafinanzassoloanioactualtest_crear_cotizacion",
+      "comercial_tests_dashboardgraficafinanzassoloanioactualtest_setup",
+      "comercial_tests_dashboardgraficafinanzassoloanioactualtest_test_grafica_excluye_meses_de_anios_anteriores",
+      "comercial_tests_dashboardgraficafinanzassoloanioactualtest_test_grafica_respeta_orden_cronologico_con_meses_solo_de_gastos",
+      "comercial_tests_planpagostest",
+      "comercial_tests_planpagostest_crear_cotizacion",
+      "comercial_tests_planpagostest_setup",
+      "comercial_tests_planpagostest_test_parcialidades_personalizadas",
+      "comercial_tests_planpagostest_test_plan_corto_2_parcialidades",
+      "comercial_tests_planpagostest_test_plan_largo_4_parcialidades",
+      "comercial_tests_planpagostest_test_plan_medio_3_parcialidades",
+      "comercial_tests_planpagostest_test_plan_urgente_2_parcialidades",
+      "comercial_tests_planpagostest_test_regenerar_desactiva_anterior",
+      "comercial_tests_planpagostest_test_suma_parcialidades_igual_precio_final",
+      "comercial_tests_planpagostest_test_suma_personalizada_exacta",
+      "comercial_tests_planpagostest_test_ultimo_pago_antes_del_evento",
+      "comercial_tests_rationale_261",
+      "comercial_tests_rationale_318",
+      "comercial_tests_rationale_544",
+      "comercial_tests_rationale_579"
+    ],
+    "13": [
+      "contabilidad_tests_claveunidadnegociotest",
+      "contabilidad_tests_claveunidadnegociotest_test_quinta_existe_y_eventos_no",
+      "contabilidad_tests_comprasincfdinodeducibletest",
+      "contabilidad_tests_comprasincfdinodeducibletest_setup",
+      "contabilidad_tests_comprasincfdinodeducibletest_test_compra_con_uuid_mantiene_deducible_y_acredita_iva",
+      "contabilidad_tests_comprasincfdinodeducibletest_test_compra_sin_uuid_se_marca_no_deducible_aunque_se_capture_true",
+      "contabilidad_tests_comprasincfdinodeducibletest_test_poliza_sin_cfdi_carga_total_completo_sin_iva_acreditable",
+      "contabilidad_tests_comprasindatoscompletostest",
+      "contabilidad_tests_comprasindatoscompletostest_setup",
+      "contabilidad_tests_comprasindatoscompletostest_test_poliza_aplicada_con_datos_completos",
+      "contabilidad_tests_comprasindatoscompletostest_test_poliza_queda_en_borrador_sin_datos",
+      "contabilidad_tests_nominanuncagenerapolizatest",
+      "contabilidad_tests_nominanuncagenerapolizatest_test_sin_poliza_al_marcar_como_pagado",
+      "contabilidad_tests_nominanuncagenerapolizatest_test_sin_poliza_en_creacion",
+      "contabilidad_tests_py_testcase",
+      "contabilidad_tests_rationale_194",
+      "contabilidad_tests_rationale_279",
+      "contabilidad_tests_rationale_310",
+      "contabilidad_tests_rationale_370",
+      "contabilidad_tests_rationale_394",
+      "contabilidad_tests_saldoaperturatest",
+      "contabilidad_tests_saldoaperturatest_setup",
+      "contabilidad_tests_saldoaperturatest_test_diferencia_cero_no_genera_movimientos",
+      "contabilidad_tests_saldoaperturatest_test_diferencia_genera_ajuste_balanceado"
+    ],
+    "14": [
+      "contabilidad_admin_movimientocontableadmin",
+      "contabilidad_admin_movimientocontableadmin_debe_display",
+      "contabilidad_admin_movimientocontableadmin_haber_display",
+      "contabilidad_admin_movimientocontableadmin_has_add_permission",
+      "contabilidad_admin_movimientocontableadmin_has_change_permission",
+      "contabilidad_admin_movimientocontableadmin_poliza_display",
+      "contabilidad_models_conciliacionbancaria_calcular_diferencia",
+      "contabilidad_models_conciliacionbancaria_save",
+      "contabilidad_models_poliza",
+      "contabilidad_models_poliza_aplicar",
+      "contabilidad_models_poliza_cancelar",
+      "contabilidad_models_poliza_clean",
+      "contabilidad_models_poliza_str",
+      "contabilidad_models_rationale_276",
+      "contabilidad_models_rationale_405",
+      "contabilidad_models_rationale_414",
+      "contabilidad_models_rationale_603",
+      "contabilidad_services_balanzacomprobacionservice",
+      "contabilidad_services_rationale_15",
+      "contabilidad_tests_polizasinguardartest",
+      "contabilidad_tests_polizasinguardartest_test_full_clean_no_truena_sin_pk",
+      "contabilidad_tests_polizasinguardartest_test_total_debe_y_haber_cero_sin_pk",
+      "contabilidad_tests_rationale_254"
+    ],
+    "15": [
+      "airbnb_admin_anuncioairbnbadmin_sincronizar_seleccionados",
+      "airbnb_admin_anuncioairbnbadmin_sincronizar_todos",
+      "airbnb_management_commands_sincronizar_airbnb",
+      "airbnb_management_commands_sincronizar_airbnb_command",
+      "airbnb_management_commands_sincronizar_airbnb_command_add_arguments",
+      "airbnb_management_commands_sincronizar_airbnb_command_handle",
+      "airbnb_management_commands_sincronizar_airbnb_py_basecommand",
+      "airbnb_management_commands_sincronizar_airbnb_rationale_1",
+      "airbnb_services_detectorconflictosservice",
+      "airbnb_services_detectorconflictosservice_detectar_conflictos",
+      "airbnb_services_detectorconflictosservice_generar_descripcion",
+      "airbnb_services_detectorconflictosservice_hay_conflicto_fechas",
+      "airbnb_services_rationale_105",
+      "airbnb_services_rationale_196",
+      "airbnb_services_rationale_224",
+      "airbnb_services_rationale_267",
+      "airbnb_services_rationale_270",
+      "airbnb_services_sincronizadorairbnbservice",
+      "airbnb_services_sincronizadorairbnbservice_detectar_estado_y_origen",
+      "airbnb_services_sincronizadorairbnbservice_procesar_evento",
+      "airbnb_tests_conflictofechastest_setup"
+    ],
+    "16": [
+      "comercial_views_cotizador",
+      "comercial_views_cotizador_agregar_item",
+      "comercial_views_cotizador_api_disponibilidad_fecha",
+      "comercial_views_cotizador_api_fechas_ocupadas",
+      "comercial_views_cotizador_api_paquetes_cotizador",
+      "comercial_views_cotizador_api_productos_cotizador",
+      "comercial_views_cotizador_buscar_producto_por_nombre",
+      "comercial_views_cotizador_cotizador_enviar",
+      "comercial_views_cotizador_cotizador_gracias",
+      "comercial_views_cotizador_cotizador_publico",
+      "comercial_views_cotizador_detectar_clima",
+      "comercial_views_cotizador_enviar_wa_negocio",
+      "comercial_views_cotizador_rationale_1",
+      "comercial_views_cotizador_rationale_104",
+      "comercial_views_cotizador_rationale_407",
+      "comercial_views_cotizador_rationale_433",
+      "comercial_views_cotizador_rationale_465",
+      "comercial_views_cotizador_rationale_514",
+      "comercial_views_cotizador_redondear_personas",
+      "comunicacion_services_alertar_equipo_fecha_chocada",
+      "comunicacion_services_rationale_79"
+    ],
+    "17": [
+      "airbnb_services_icalparserservice",
+      "airbnb_services_icalparserservice_parsear",
+      "airbnb_services_icalparserservice_parsear_fecha",
+      "airbnb_services_importadorcsvpagosservice_agrupar_por_codigo",
+      "airbnb_services_importadorcsvpagosservice_parsear_fecha",
+      "airbnb_services_importadorcsvpagosservice_parsear_monto",
+      "airbnb_services_py_date",
+      "airbnb_services_rationale_118",
+      "airbnb_services_rationale_140",
+      "airbnb_services_rationale_25",
+      "airbnb_services_rationale_28",
+      "airbnb_services_rationale_380",
+      "airbnb_services_rationale_592",
+      "airbnb_services_rationale_615",
+      "airbnb_services_rationale_76",
+      "airbnb_services_sincronizadorairbnbservice_init",
+      "airbnb_services_sincronizadorairbnbservice_sincronizar_anuncio",
+      "airbnb_services_sincronizadorairbnbservice_sincronizar_todos",
+      "any"
+    ],
+    "18": [
+      "airbnb_test_disponibilidad",
+      "airbnb_test_disponibilidad_disponibilidadfechatest",
+      "airbnb_test_disponibilidad_disponibilidadfechatest_crear_cot",
+      "airbnb_test_disponibilidad_disponibilidadfechatest_setup",
+      "airbnb_test_disponibilidad_disponibilidadfechatest_test_excluir_cotizacion_actual",
+      "airbnb_test_disponibilidad_disponibilidadfechatest_test_fecha_con_confirmada_bloquea",
+      "airbnb_test_disponibilidad_disponibilidadfechatest_test_fecha_con_cotizacion_borrador_no_bloquea",
+      "airbnb_test_disponibilidad_disponibilidadfechatest_test_fecha_con_cotizacion_cotizada_no_bloquea",
+      "airbnb_test_disponibilidad_disponibilidadfechatest_test_fecha_libre",
+      "airbnb_test_disponibilidad_py_testcase",
+      "airbnb_test_disponibilidad_rationale_1",
+      "airbnb_validacion_fechas",
+      "airbnb_validacion_fechas_obtener_fechas_bloqueadas",
+      "airbnb_validacion_fechas_py_date",
+      "airbnb_validacion_fechas_rationale_1",
+      "airbnb_validacion_fechas_rationale_12",
+      "airbnb_validacion_fechas_rationale_70",
+      "airbnb_validacion_fechas_verificar_disponibilidad_fecha"
+    ],
+    "19": [
+      "comercial_views_portal",
+      "comercial_views_portal_landing_publico",
+      "comercial_views_portal_portal_acceso",
+      "comercial_views_portal_portal_descargar_contrato",
+      "comercial_views_portal_portal_descargar_cotizacion",
+      "comercial_views_portal_portal_descargar_plan",
+      "comercial_views_portal_portal_evento",
+      "comercial_views_portal_rationale_115",
+      "comercial_views_portal_rationale_186",
+      "comercial_views_portal_rationale_200",
+      "comercial_views_portal_rationale_228",
+      "comercial_views_portal_rationale_32",
+      "comercial_views_portal_rationale_69",
+      "core_erp_ratelimit",
+      "core_erp_ratelimit_client_ip",
+      "core_erp_ratelimit_rate_limit",
+      "core_erp_ratelimit_rationale_1",
+      "core_erp_ratelimit_rationale_20"
+    ],
+    "20": [
+      "exception",
+      "nomina_services",
+      "nomina_services_jibbleapierror",
+      "nomina_services_jibbleservice",
+      "nomina_services_jibbleservice_autenticar",
+      "nomina_services_jibbleservice_diagnostico",
+      "nomina_services_jibbleservice_esta_configurado",
+      "nomina_services_jibbleservice_formatear_hora",
+      "nomina_services_jibbleservice_init",
+      "nomina_services_jibbleservice_obtener_personas",
+      "nomina_services_jibbleservice_obtener_timesheets_semana",
+      "nomina_services_jibbleservice_parsear_iso_duration",
+      "nomina_services_jibbleservice_verificar_token",
+      "nomina_services_rationale_1",
+      "nomina_services_rationale_109",
+      "nomina_services_rationale_258",
+      "nomina_services_rationale_276",
+      "nomina_services_rationale_85"
+    ],
+    "21": [
+      "comercial_admin_compraadmin_carga_masiva_view",
+      "comercial_services_analizar_xml_compra",
+      "comercial_services_rationale_716",
+      "comercial_tests",
+      "comercial_tests_analizarxmlcompratest",
+      "comercial_tests_analizarxmlcompratest_test_cfdi_de_venta_propia_se_excluye_por_rfc_receptor",
+      "comercial_tests_analizarxmlcompratest_test_cfdi_valido_del_negocio",
+      "comercial_tests_analizarxmlcompratest_test_factura_duplicada_se_detecta_por_uuid",
+      "comercial_tests_analizarxmlcompratest_test_factura_nueva_con_uuid_no_es_duplicada",
+      "comercial_tests_analizarxmlcompratest_test_nota_de_credito_se_excluye_por_tipo",
+      "comercial_tests_analizarxmlcompratest_test_uso_cfdi_personal_se_excluye",
+      "comercial_tests_compradeteccionautomaticatest_test_no_sobreescribe_unidad_negocio_ya_asignada",
+      "comercial_tests_construir_cfdi",
+      "comercial_tests_rationale_1",
+      "comercial_tests_rationale_734",
+      "comercial_tests_rationale_754",
+      "comercial_tests_rationale_768"
+    ],
+    "22": [
+      "contabilidad_tests_crear_cotizacion",
+      "contabilidad_tests_polizapagoclientetest",
+      "contabilidad_tests_polizapagoclientetest_setup",
+      "contabilidad_tests_polizapagoclientetest_test_pago_extra_va_a_otros_ingresos_sin_desglose_iva",
+      "contabilidad_tests_polizapagoclientetest_test_pago_genera_poliza_ingreso_balanceada",
+      "contabilidad_tests_rationale_31",
+      "contabilidad_tests_rationale_95",
+      "contabilidad_tests_reembolsoclientetest",
+      "contabilidad_tests_reembolsoclientetest_setup",
+      "contabilidad_tests_reembolsoclientetest_test_reembolso_excedente_rechazado",
+      "contabilidad_tests_reembolsoclientetest_test_reembolso_genera_poliza_egreso_inversa",
+      "contabilidad_tests_reembolsoclientetest_test_total_pagado_neto_descuenta_reembolso",
+      "contabilidad_tests_reversioncancelaciontest",
+      "contabilidad_tests_reversioncancelaciontest_setup",
+      "contabilidad_tests_reversioncancelaciontest_test_cancelacion_crea_poliza_reversion",
+      "contabilidad_tests_reversioncancelaciontest_test_cancelacion_idempotente",
+      "contabilidad_tests_setup_contabilidad_minima"
+    ],
+    "23": [
+      "nomina_admin",
+      "nomina_admin_empleadoadmin",
+      "nomina_admin_recibonominaadmin",
+      "nomina_admin_recibonominaadmin_changelist_view",
+      "nomina_admin_recibonominaadmin_folio_custom",
+      "nomina_admin_recibonominaadmin_marcar_como_pagado",
+      "nomina_admin_recibonominaadmin_ver_pdf",
+      "nomina_management_commands_sync_jibble",
+      "nomina_management_commands_sync_jibble_rationale_1",
+      "nomina_models",
+      "nomina_models_empleado",
+      "nomina_models_empleado_str",
+      "nomina_models_meta",
+      "nomina_models_recibonomina",
+      "nomina_models_recibonomina_str",
+      "nomina_services_marcar_recibo_como_pagado",
+      "nomina_services_rationale_325"
+    ],
+    "24": [
+      "reportes_admin",
+      "reportes_admin_media",
+      "reportes_admin_rationale_1",
+      "reportes_admin_rationale_72",
+      "reportes_admin_reportegeneradoadmin",
+      "reportes_admin_reportegeneradoadmin_formato_badge",
+      "reportes_admin_reportegeneradoadmin_get_urls",
+      "reportes_admin_reportegeneradoadmin_has_add_permission",
+      "reportes_admin_reportegeneradoadmin_has_delete_permission",
+      "reportes_admin_reportegeneradoadmin_selector_view",
+      "reportes_admin_reportegeneradoadmin_tipo_badge",
+      "reportes_models",
+      "reportes_models_meta",
+      "reportes_models_rationale_1",
+      "reportes_models_rationale_12",
+      "reportes_models_reportegenerado",
+      "reportes_models_reportegenerado_str"
+    ],
+    "25": [
+      "comercial_tests_asignacionpersonaltest",
+      "comercial_tests_asignacionpersonaltest_setup",
+      "comercial_tests_asignacionpersonaltest_test_doble_asignacion_rechazada",
+      "comercial_tests_movimientoinventariotest",
+      "comercial_tests_movimientoinventariotest_setup",
+      "comercial_tests_movimientoinventariotest_test_auditoria_stock_anterior_posterior",
+      "comercial_tests_movimientoinventariotest_test_entrada_suma_stock",
+      "comercial_tests_movimientoinventariotest_test_salida_excesiva_rechazada",
+      "comercial_tests_movimientoinventariotest_test_salida_resta_stock",
+      "comercial_tests_py_testcase",
+      "comercial_tests_rationale_338",
+      "comercial_tests_rationale_493",
+      "comercial_tests_ventasmesincluyeeventoscerradostest",
+      "comercial_tests_ventasmesincluyeeventoscerradostest_test_cancelada_borrador_cotizada_no_cuentan",
+      "comercial_tests_ventasmesincluyeeventoscerradostest_test_evento_cerrada_cuenta_en_ventas_mes"
+    ],
+    "26": [
+      "nomina_views",
+      "nomina_views_calcular_hora_salida",
+      "nomina_views_cargar_nomina",
+      "nomina_views_generar_recibos_desde_datos",
+      "nomina_views_jibble_diagnostico_view",
+      "nomina_views_parsear_hms",
+      "nomina_views_parsear_horario_trabajo",
+      "nomina_views_parsear_horas_complejas",
+      "nomina_views_rationale_124",
+      "nomina_views_rationale_394",
+      "nomina_views_rationale_63",
+      "nomina_views_redondear_horas_90",
+      "nomina_views_sync_jibble_view",
+      "nomina_views_transformar_datos_jibble",
+      "nomina_views_webhook_sync_jibble"
+    ],
+    "27": [
+      "reportes_services_contabilidad_auxiliarcuentasservice",
+      "reportes_services_contabilidad_auxiliarcuentasservice_generar",
+      "reportes_services_contabilidad_balancegeneralservice",
+      "reportes_services_contabilidad_balancegeneralservice_calcular_resultado_ejercicio",
+      "reportes_services_contabilidad_balancegeneralservice_generar",
+      "reportes_services_contabilidad_estadoresultadosservice",
+      "reportes_services_contabilidad_estadoresultadosservice_generar",
+      "reportes_services_contabilidad_libromayorservice",
+      "reportes_services_contabilidad_libromayorservice_generar",
+      "reportes_services_contabilidad_py_date",
+      "reportes_services_contabilidad_rationale_127",
+      "reportes_services_contabilidad_rationale_16",
+      "reportes_services_contabilidad_rationale_212",
+      "reportes_services_contabilidad_rationale_235",
+      "reportes_services_contabilidad_rationale_309"
+    ],
+    "28": [
+      "comercial_management_commands_enviar_recordatorios_pagos",
+      "comercial_management_commands_enviar_recordatorios_pagos_command",
+      "comercial_management_commands_enviar_recordatorios_pagos_command_add_arguments",
+      "comercial_management_commands_enviar_recordatorios_pagos_command_handle",
+      "comercial_management_commands_enviar_recordatorios_pagos_construir_mensaje",
+      "comercial_management_commands_enviar_recordatorios_pagos_enviar_whatsapp",
+      "comercial_management_commands_enviar_recordatorios_pagos_get_constante_texto",
+      "comercial_management_commands_enviar_recordatorios_pagos_limpiar_telefono",
+      "comercial_management_commands_enviar_recordatorios_pagos_py_basecommand",
+      "comercial_management_commands_enviar_recordatorios_pagos_rationale_1",
+      "comercial_management_commands_enviar_recordatorios_pagos_rationale_160",
+      "comercial_management_commands_enviar_recordatorios_pagos_rationale_192",
+      "comercial_management_commands_enviar_recordatorios_pagos_rationale_238",
+      "comercial_management_commands_enviar_recordatorios_pagos_rationale_252"
+    ],
+    "29": [
+      "facturacion_admin",
+      "facturacion_admin_configuracioncontadoradmin",
+      "facturacion_admin_configuracioncontadoradmin_has_add_permission",
+      "facturacion_admin_enviar_pdf_whatsapp",
+      "facturacion_admin_generar_pdf_solicitud",
+      "facturacion_admin_rationale_1",
+      "facturacion_admin_rationale_282",
+      "facturacion_admin_rationale_29",
+      "facturacion_admin_rationale_290",
+      "facturacion_admin_rationale_324",
+      "facturacion_admin_rationale_60",
+      "facturacion_admin_solicitudfacturaadmin_enviar_email_view",
+      "facturacion_admin_solicitudfacturaadmin_enviar_whatsapp_view",
+      "facturacion_admin_solicitudfacturaadmin_generar_pdf_view"
+    ],
+    "30": [
+      "facturacion_models_rationale_223",
+      "facturacion_models_rationale_227",
+      "facturacion_models_rationale_235",
+      "facturacion_models_rationale_50",
+      "facturacion_models_solicitudfactura",
+      "facturacion_models_solicitudfactura_marcar_enviada",
+      "facturacion_models_solicitudfactura_marcar_facturada",
+      "facturacion_models_solicitudfactura_save",
+      "facturacion_models_solicitudfactura_str",
+      "facturacion_models_solicitudfactura_tiene_factura",
+      "facturacion_signals",
+      "facturacion_signals_rationale_1",
+      "facturacion_tests",
+      "facturacion_tests_rationale_1"
+    ],
+    "31": [
+      "comercial_services_contratoservice",
+      "comercial_services_contratoservice_clausulas_tipo",
+      "comercial_services_contratoservice_fmt_fecha",
+      "comercial_services_contratoservice_fmt_hora",
+      "comercial_services_contratoservice_fmt_money",
+      "comercial_services_contratoservice_generar",
+      "comercial_services_contratoservice_init",
+      "comercial_services_contratoservice_numero_contrato",
+      "comercial_services_contratoservice_servicios_incluidos",
+      "comercial_services_contratoservice_tipo_display",
+      "comercial_services_rationale_545",
+      "comercial_services_rationale_619"
+    ],
+    "32": [
+      "comercial_tests_cotizaciontotalestest",
+      "comercial_tests_cotizaciontotalestest_crear_cotizacion_limpia",
+      "comercial_tests_cotizaciontotalestest_setup",
+      "comercial_tests_cotizaciontotalestest_test_cotizacion_con_descuento",
+      "comercial_tests_cotizaciontotalestest_test_cotizacion_con_factura_persona_fisica",
+      "comercial_tests_cotizaciontotalestest_test_cotizacion_con_factura_persona_moral",
+      "comercial_tests_cotizaciontotalestest_test_cotizacion_con_items_calcula_subtotal",
+      "comercial_tests_cotizaciontotalestest_test_cotizacion_siempre_tiene_iva",
+      "comercial_tests_cotizaciontotalestest_test_cotizacion_sin_items_precio_cero",
+      "comercial_tests_rationale_24",
+      "comercial_tests_rationale_31",
+      "comercial_tests_rationale_66"
+    ],
+    "33": [
+      "contabilidad_admin_polizaadmin",
+      "contabilidad_admin_polizaadmin_aplicar_polizas",
+      "contabilidad_admin_polizaadmin_cancelar_polizas",
+      "contabilidad_admin_polizaadmin_concepto_display",
+      "contabilidad_admin_polizaadmin_estado_display",
+      "contabilidad_admin_polizaadmin_folio_display",
+      "contabilidad_admin_polizaadmin_generar_compra_retroactiva_action",
+      "contabilidad_admin_polizaadmin_tipo_display",
+      "contabilidad_admin_polizaadmin_total_display",
+      "contabilidad_services_generar_compra_retroactiva",
+      "contabilidad_services_rationale_166",
+      "contabilidad_tests_generarcompraretroactivatest_setup"
+    ],
+    "34": [
+      "facturacion_admin_media",
+      "facturacion_choices",
+      "facturacion_choices_formapago",
+      "facturacion_choices_metodopago",
+      "facturacion_models",
+      "facturacion_models_configuracioncontador",
+      "facturacion_models_configuracioncontador_str",
+      "facturacion_models_meta",
+      "facturacion_models_rationale_1",
+      "facturacion_models_rationale_16",
+      "facturacion_views",
+      "facturacion_views_crear_solicitud"
+    ],
+    "35": [
+      "facturacion_admin_solicitudfacturaadmin",
+      "facturacion_admin_solicitudfacturaadmin_acciones_display",
+      "facturacion_admin_solicitudfacturaadmin_cliente_display",
+      "facturacion_admin_solicitudfacturaadmin_estado_display",
+      "facturacion_admin_solicitudfacturaadmin_fecha_display",
+      "facturacion_admin_solicitudfacturaadmin_folio_display",
+      "facturacion_admin_solicitudfacturaadmin_get_urls",
+      "facturacion_admin_solicitudfacturaadmin_marcar_canceladas",
+      "facturacion_admin_solicitudfacturaadmin_marcar_enviada_view",
+      "facturacion_admin_solicitudfacturaadmin_marcar_enviadas",
+      "facturacion_admin_solicitudfacturaadmin_monto_display",
+      "facturacion_admin_solicitudfacturaadmin_save_model"
+    ],
+    "36": [
+      "comercial_management_commands_importar_historico_command",
+      "comercial_management_commands_importar_historico_command_add_arguments",
+      "comercial_management_commands_importar_historico_command_get_usuario",
+      "comercial_management_commands_importar_historico_command_handle",
+      "comercial_management_commands_importar_historico_command_importar_clientes",
+      "comercial_management_commands_importar_historico_command_importar_cotizaciones",
+      "comercial_management_commands_importar_historico_nombre_evento",
+      "comercial_management_commands_importar_historico_py_basecommand",
+      "comercial_management_commands_importar_historico_rationale_185",
+      "comercial_views_importar_historico_view",
+      "comercial_views_rationale_1054"
+    ],
+    "37": [
+      "comercial_tests_rationale_185",
+      "comercial_tests_rationale_233",
+      "comercial_tests_transicionestadostest",
+      "comercial_tests_transicionestadostest_setup",
+      "comercial_tests_transicionestadostest_test_anticipo_minimo_para_confirmar",
+      "comercial_tests_transicionestadostest_test_borrador_a_confirmada_directo_bloqueado",
+      "comercial_tests_transicionestadostest_test_borrador_a_cotizada",
+      "comercial_tests_transicionestadostest_test_cancelacion_con_motivo",
+      "comercial_tests_transicionestadostest_test_cancelacion_requiere_motivo",
+      "comercial_tests_transicionestadostest_test_cerrada_requiere_pago_completo",
+      "comercial_tests_transicionestadostest_test_ingreso_extra_no_bloquea_cierre"
+    ],
+    "38": [
+      "airbnb_tests_conflictofechastest",
+      "airbnb_tests_conflictofechastest_cot",
+      "airbnb_tests_conflictofechastest_reserva",
+      "airbnb_tests_conflictofechastest_test_checkout_mismo_dia_no_conflicta",
+      "airbnb_tests_conflictofechastest_test_evento_mismo_dia_conflicta",
+      "airbnb_tests_conflictofechastest_test_evento_no_solapado_no_conflicta",
+      "airbnb_tests_conflictofechastest_test_evento_overnight_invade_dia_siguiente",
+      "airbnb_tests_py_testcase",
+      "airbnb_tests_rationale_54",
+      "airbnb_tests_rationale_60"
+    ],
+    "39": [
+      "comercial_tests_compradeteccionautomaticatest",
+      "comercial_tests_compradeteccionautomaticatest_crear_compra_con_xml",
+      "comercial_tests_compradeteccionautomaticatest_setup",
+      "comercial_tests_compradeteccionautomaticatest_test_compra_manual_sin_xml_tambien_vincula_proveedor_por_nombre_capturado",
+      "comercial_tests_compradeteccionautomaticatest_test_crea_proveedor_en_catalogo_si_no_existe",
+      "comercial_tests_compradeteccionautomaticatest_test_detecta_unidad_negocio_por_rfc_receptor_sin_carga_masiva",
+      "comercial_tests_compradeteccionautomaticatest_test_vincula_a_proveedor_existente_por_nombre_si_no_hay_rfc_match",
+      "comercial_tests_compradeteccionautomaticatest_test_vincula_a_proveedor_existente_por_rfc",
+      "comercial_tests_rationale_818",
+      "comercial_tests_rationale_894"
+    ],
+    "40": [
+      "comercial_tests_pagovalidaciontest",
+      "comercial_tests_pagovalidaciontest_setup",
+      "comercial_tests_pagovalidaciontest_test_ingreso_extra_no_cuenta_para_saldo",
+      "comercial_tests_pagovalidaciontest_test_ingreso_extra_no_se_suma_al_total_pagado",
+      "comercial_tests_pagovalidaciontest_test_pago_dentro_del_saldo",
+      "comercial_tests_pagovalidaciontest_test_pago_exacto_al_saldo",
+      "comercial_tests_pagovalidaciontest_test_sobrepago_rechazado",
+      "comercial_tests_pagovalidaciontest_test_tolerancia_50_centavos",
+      "comercial_tests_rationale_115",
+      "comercial_tests_rationale_159"
+    ],
+    "41": [
+      "contabilidad_init",
+      "contabilidad_urls",
+      "contabilidad_views",
+      "contabilidad_views_balanza_comprobacion",
+      "contabilidad_views_estado_resultados",
+      "contabilidad_views_parse_periodo",
+      "contabilidad_views_rationale_1",
+      "contabilidad_views_rationale_29",
+      "contabilidad_views_rationale_86"
+    ],
+    "42": [
+      "facturacion_tests_crear_cotizacion",
+      "facturacion_tests_py_testcase",
+      "facturacion_tests_rationale_30",
+      "facturacion_tests_rationale_70",
+      "facturacion_tests_solicitudfacturaclientenofiscaltest",
+      "facturacion_tests_solicitudfacturaclientenofiscaltest_setup",
+      "facturacion_tests_solicitudfacturaclientenofiscaltest_test_cliente_fiscal_conserva_sus_propios_datos",
+      "facturacion_tests_solicitudfacturaclientenofiscaltest_test_pdf_no_muestra_none_y_usa_datos_de_la_solicitud",
+      "facturacion_tests_solicitudfacturaclientenofiscaltest_test_solicitud_usa_snapshot_publico_en_general"
+    ],
+    "43": [
+      "reportes_services_comercial",
+      "reportes_services_comercial_cotizacionesperiodoservice",
+      "reportes_services_comercial_cotizacionesperiodoservice_generar",
+      "reportes_services_comercial_cxccarteraservice",
+      "reportes_services_comercial_cxccarteraservice_generar",
+      "reportes_services_comercial_py_date",
+      "reportes_services_comercial_rationale_1",
+      "reportes_services_comercial_rationale_15",
+      "reportes_services_comercial_rationale_88"
+    ],
+    "44": [
+      "comercial_test_limpiar_datos_fiscales_genericos",
+      "comercial_test_limpiar_datos_fiscales_genericos_limpiardatosfiscalesgenericostest",
+      "comercial_test_limpiar_datos_fiscales_genericos_limpiardatosfiscalesgenericostest_setup",
+      "comercial_test_limpiar_datos_fiscales_genericos_limpiardatosfiscalesgenericostest_test_apply_limpia_solo_genericos",
+      "comercial_test_limpiar_datos_fiscales_genericos_limpiardatosfiscalesgenericostest_test_dry_run_no_modifica_nada",
+      "comercial_test_limpiar_datos_fiscales_genericos_limpiardatosfiscalesgenericostest_test_sin_genericos_no_hace_nada",
+      "comercial_test_limpiar_datos_fiscales_genericos_py_testcase",
+      "comercial_test_limpiar_datos_fiscales_genericos_rationale_1"
+    ],
+    "45": [
+      "comercial_views_agregar_a_lista",
+      "comercial_views_buscar_insumo_palabra_completa",
+      "comercial_views_fallback_item",
+      "comercial_views_generar_lista_compras_barra",
+      "comercial_views_obtener_item_plantilla",
+      "comercial_views_rationale_149",
+      "comercial_views_rationale_160",
+      "comercial_views_rationale_54"
+    ],
+    "46": [
+      "contabilidad_admin_estadocuentabancarioadmin_generar_conciliacion",
+      "contabilidad_services_estados_cuenta_generar_conciliacion_preliminar",
+      "contabilidad_services_estados_cuenta_rationale_364",
+      "contabilidad_tests_conciliacionpreliminartest",
+      "contabilidad_tests_conciliacionpreliminartest_poliza",
+      "contabilidad_tests_conciliacionpreliminartest_setup",
+      "contabilidad_tests_conciliacionpreliminartest_test_usa_saldo_a_fecha_no_saldo_actual",
+      "contabilidad_tests_rationale_579"
+    ],
+    "47": [
+      "contabilidad_tests_appsfalso",
+      "contabilidad_tests_rationale_202",
+      "contabilidad_tests_rationale_218",
+      "contabilidad_tests_rationale_240",
+      "contabilidad_tests_renombrarunidadnegocioeventosaquintamigrationtest",
+      "contabilidad_tests_renombrarunidadnegocioeventosaquintamigrationtest_cargar_funcion_migracion",
+      "contabilidad_tests_renombrarunidadnegocioeventosaquintamigrationtest_test_no_hace_nada_si_ya_existe_quinta",
+      "contabilidad_tests_renombrarunidadnegocioeventosaquintamigrationtest_test_renombra_eventos_a_quinta_preservando_pk"
+    ],
+    "48": [
+      "contabilidad_tests_generarcompraretroactivatest",
+      "contabilidad_tests_generarcompraretroactivatest_crear_poliza_manual",
+      "contabilidad_tests_generarcompraretroactivatest_test_genera_compra_no_deducible_y_vincula_la_poliza_existente",
+      "contabilidad_tests_generarcompraretroactivatest_test_no_duplica_poliza_al_generar_la_compra",
+      "contabilidad_tests_generarcompraretroactivatest_test_poliza_de_ingreso_no_es_elegible",
+      "contabilidad_tests_generarcompraretroactivatest_test_poliza_ya_vinculada_no_es_elegible",
+      "contabilidad_tests_rationale_432",
+      "contabilidad_tests_rationale_482"
+    ],
+    "49": [
+      "comercial_models_cotizacion_calcular_totales",
+      "comercial_models_cotizacion_save",
+      "comercial_models_itemcotizacion_save",
+      "comercial_models_itemcotizacion_subtotal",
+      "comercial_services_actualizar_item_cotizacion",
+      "comercial_services_calculadorabarraservice_calcular",
+      "comercial_services_calculadorabarraservice_get_costo"
+    ],
+    "50": [
+      "comercial_tests_asignacionespaciotest",
+      "comercial_tests_asignacionespaciotest_setup",
+      "comercial_tests_asignacionespaciotest_test_asignacion_simple_ok",
+      "comercial_tests_asignacionespaciotest_test_conflicto_solapamiento_rechazado",
+      "comercial_tests_asignacionespaciotest_test_overnight_no_solapado_ok",
+      "comercial_tests_asignacionespaciotest_test_overnight_si_solapado_rechazado",
+      "comercial_tests_rationale_383"
+    ],
+    "51": [
+      "comercial_tests_dashboardseparacionelianrubytest",
+      "comercial_tests_dashboardseparacionelianrubytest_setup",
+      "comercial_tests_dashboardseparacionelianrubytest_test_grafica_comparte_eje_de_meses_entre_quinta_y_ruby",
+      "comercial_tests_dashboardseparacionelianrubytest_test_pago_airbnb_pendiente_no_cuenta_como_ingreso",
+      "comercial_tests_dashboardseparacionelianrubytest_test_venta_quinta_no_afecta_kpis_de_ruby",
+      "comercial_tests_rationale_610",
+      "comercial_tests_rationale_684"
+    ],
+    "52": [
+      "comunicacion_tests_comunicacionsignalstest",
+      "comunicacion_tests_comunicacionsignalstest_setup",
+      "comunicacion_tests_comunicacionsignalstest_test_cliente_sin_email_no_crea_comunicacion",
+      "comunicacion_tests_comunicacionsignalstest_test_cotizacion_enviada_es_idempotente",
+      "comunicacion_tests_comunicacionsignalstest_test_pago_ingreso_envia_confirmacion",
+      "comunicacion_tests_comunicacionsignalstest_test_pago_reembolso_envia_notificacion_reembolso",
+      "comunicacion_tests_py_testcase"
+    ],
+    "53": [
+      "airbnb_services_importadorcsvpagosservice_buscar_anuncio",
+      "airbnb_services_importadorcsvpagosservice_importar",
+      "airbnb_services_importadorcsvpagosservice_procesar_reserva_agrupada",
+      "airbnb_services_rationale_343",
+      "airbnb_services_rationale_524",
+      "airbnb_services_rationale_660"
+    ],
+    "54": [
+      "comercial_admin_cotizacionadmin_save_model",
+      "comercial_admin_descuentoadmin_save_model",
+      "comercial_admin_movimientoinventarioadmin_save_model",
+      "comercial_admin_pagoadmin_save_model",
+      "comercial_admin_portalclienteadmin_save_model",
+      "comercial_admin_temporadaadmin_save_model"
+    ],
+    "55": [
+      "comercial_management_commands_limpiar_datos_fiscales_genericos",
+      "comercial_management_commands_limpiar_datos_fiscales_genericos_command",
+      "comercial_management_commands_limpiar_datos_fiscales_genericos_command_add_arguments",
+      "comercial_management_commands_limpiar_datos_fiscales_genericos_command_handle",
+      "comercial_management_commands_limpiar_datos_fiscales_genericos_py_basecommand",
+      "comercial_management_commands_limpiar_datos_fiscales_genericos_rationale_1"
+    ],
+    "56": [
+      "comercial_migrations_0044_recalcular_totales_iva",
+      "comercial_migrations_0044_recalcular_totales_iva_migration",
+      "comercial_migrations_0044_recalcular_totales_iva_q",
+      "comercial_migrations_0044_recalcular_totales_iva_rationale_12",
+      "comercial_migrations_0044_recalcular_totales_iva_recalcular_totales",
+      "comercial_migrations_0044_recalcular_totales_iva_revertir"
+    ],
+    "57": [
+      "contabilidad_migrations_0002_cargar_catalogo_sat",
+      "contabilidad_migrations_0002_cargar_catalogo_sat_cargar_catalogo_sat",
+      "contabilidad_migrations_0002_cargar_catalogo_sat_migration",
+      "contabilidad_migrations_0002_cargar_catalogo_sat_rationale_179",
+      "contabilidad_migrations_0002_cargar_catalogo_sat_rationale_7",
+      "contabilidad_migrations_0002_cargar_catalogo_sat_reverse_catalogo"
+    ],
+    "58": [
+      "contabilidad_migrations_0003_actualizar_regimenes_sat",
+      "contabilidad_migrations_0003_actualizar_regimenes_sat_convertir_regimenes",
+      "contabilidad_migrations_0003_actualizar_regimenes_sat_migration",
+      "contabilidad_migrations_0003_actualizar_regimenes_sat_rationale_27",
+      "contabilidad_migrations_0003_actualizar_regimenes_sat_rationale_6",
+      "contabilidad_migrations_0003_actualizar_regimenes_sat_revertir_regimenes"
+    ],
+    "59": [
+      "contabilidad_migrations_0005_cargar_configuracion_contable",
+      "contabilidad_migrations_0005_cargar_configuracion_contable_cargar_configuracion_contable",
+      "contabilidad_migrations_0005_cargar_configuracion_contable_migration",
+      "contabilidad_migrations_0005_cargar_configuracion_contable_rationale_63",
+      "contabilidad_migrations_0005_cargar_configuracion_contable_rationale_7",
+      "contabilidad_migrations_0005_cargar_configuracion_contable_revertir_configuracion"
+    ],
+    "60": [
+      "facturacion_models_configuracioncontador_get_activo",
+      "facturacion_models_rationale_248",
+      "facturacion_models_rationale_295",
+      "facturacion_models_rationale_42",
+      "facturacion_models_solicitudfactura_get_datos_para_contador",
+      "facturacion_models_solicitudfactura_get_whatsapp_url"
+    ],
+    "61": [
+      "reportes_services_facturacion",
+      "reportes_services_facturacion_facturasemitidasservice",
+      "reportes_services_facturacion_facturasemitidasservice_generar",
+      "reportes_services_facturacion_py_date",
+      "reportes_services_facturacion_rationale_1",
+      "reportes_services_facturacion_rationale_15"
+    ],
+    "62": [
+      "airbnb_management_commands_setup_airbnb",
+      "airbnb_management_commands_setup_airbnb_command",
+      "airbnb_management_commands_setup_airbnb_command_handle",
+      "airbnb_management_commands_setup_airbnb_py_basecommand",
+      "airbnb_management_commands_setup_airbnb_rationale_1"
+    ],
+    "63": [
+      "comercial_management_commands_cargar_precios_mobiliario",
+      "comercial_management_commands_cargar_precios_mobiliario_command",
+      "comercial_management_commands_cargar_precios_mobiliario_command_handle",
+      "comercial_management_commands_cargar_precios_mobiliario_py_basecommand",
+      "comercial_management_commands_cargar_precios_mobiliario_rationale_1"
+    ],
+    "64": [
+      "comercial_management_commands_cerrar_cotizaciones",
+      "comercial_management_commands_cerrar_cotizaciones_command",
+      "comercial_management_commands_cerrar_cotizaciones_command_handle",
+      "comercial_management_commands_cerrar_cotizaciones_py_basecommand",
+      "comercial_management_commands_cerrar_cotizaciones_rationale_1"
+    ],
+    "65": [
+      "comercial_migrations_0058_compra_proveedor_catalogo",
+      "comercial_migrations_0058_compra_proveedor_catalogo_migration",
+      "comercial_migrations_0058_compra_proveedor_catalogo_rationale_6",
+      "comercial_migrations_0058_compra_proveedor_catalogo_revertir",
+      "comercial_migrations_0058_compra_proveedor_catalogo_vincular_proveedores_existentes"
+    ],
+    "66": [
+      "comercial_models_asignacionespacio_clean",
+      "comercial_models_asignacionpersonal_clean",
+      "comercial_models_asignacionpersonal_intervalos",
+      "comercial_models_rangos_solapados",
+      "comercial_models_rationale_1361"
+    ],
+    "67": [
+      "contabilidad_management_commands_cargar_catalogo_sat_command",
+      "contabilidad_management_commands_cargar_catalogo_sat_command_cargar_catalogo",
+      "contabilidad_management_commands_cargar_catalogo_sat_command_cargar_unidades_negocio",
+      "contabilidad_management_commands_cargar_catalogo_sat_command_handle",
+      "contabilidad_management_commands_cargar_catalogo_sat_py_basecommand"
+    ],
+    "68": [
+      "contabilidad_migrations_0008_cuenta_ajuste_apertura",
+      "contabilidad_migrations_0008_cuenta_ajuste_apertura_agregar_cuenta_ajuste_apertura",
+      "contabilidad_migrations_0008_cuenta_ajuste_apertura_migration",
+      "contabilidad_migrations_0008_cuenta_ajuste_apertura_rationale_7",
+      "contabilidad_migrations_0008_cuenta_ajuste_apertura_reverse_cuenta_ajuste_apertura"
+    ],
+    "69": [
+      "contabilidad_migrations_0011_rename_contabilida_codigo_a1b2c3_idx_contabilida_codigo_b58027_idx_and_more",
+      "contabilidad_migrations_0011_rename_contabilida_codigo_a1b2c3_idx_contabilida_codigo_b58027_idx_and_more_cargar_configuracion_otros_ingresos",
+      "contabilidad_migrations_0011_rename_contabilida_codigo_a1b2c3_idx_contabilida_codigo_b58027_idx_and_more_migration",
+      "contabilidad_migrations_0011_rename_contabilida_codigo_a1b2c3_idx_contabilida_codigo_b58027_idx_and_more_rationale_7",
+      "contabilidad_migrations_0011_rename_contabilida_codigo_a1b2c3_idx_contabilida_codigo_b58027_idx_and_more_revertir_configuracion_otros_ingresos"
+    ],
+    "70": [
+      "contabilidad_migrations_0012_renombrar_unidad_negocio_eventos_a_quinta",
+      "contabilidad_migrations_0012_renombrar_unidad_negocio_eventos_a_quinta_migration",
+      "contabilidad_migrations_0012_renombrar_unidad_negocio_eventos_a_quinta_rationale_5",
+      "contabilidad_migrations_0012_renombrar_unidad_negocio_eventos_a_quinta_renombrar_eventos_a_quinta",
+      "contabilidad_migrations_0012_renombrar_unidad_negocio_eventos_a_quinta_revertir"
+    ],
+    "71": [
+      "airbnb_models_anuncioairbnb_save",
+      "airbnb_models_pagoairbnb_calcular_retenciones",
+      "airbnb_models_pagoairbnb_save",
+      "airbnb_models_rationale_279"
+    ],
+    "72": [
+      "airbnb_views_exportar_reporte_excel",
+      "airbnb_views_rationale_125",
+      "airbnb_views_rationale_197",
+      "airbnb_views_reporte_pagos_airbnb"
+    ],
+    "73": [
+      "authconfig",
+      "core_erp_apps",
+      "core_erp_apps_qktauthconfig",
+      "core_erp_apps_rationale_5"
+    ],
+    "74": [
+      "comercial_management_commands_recalcular_iva",
+      "comercial_management_commands_recalcular_iva_command",
+      "comercial_management_commands_recalcular_iva_command_handle",
+      "comercial_management_commands_recalcular_iva_py_basecommand"
+    ],
+    "75": [
+      "comercial_migrations_0018_proveedor_insumo_proveedor_legacy_and_more",
+      "comercial_migrations_0018_proveedor_insumo_proveedor_legacy_and_more_migrar_proveedores_texto_a_fk",
+      "comercial_migrations_0018_proveedor_insumo_proveedor_legacy_and_more_migration",
+      "comercial_migrations_0018_proveedor_insumo_proveedor_legacy_and_more_rationale_6"
+    ],
+    "76": [
+      "comercial_migrations_0034_simplify_estados",
+      "comercial_migrations_0034_simplify_estados_migrar_estados",
+      "comercial_migrations_0034_simplify_estados_migration",
+      "comercial_migrations_0034_simplify_estados_revertir_estados"
+    ],
+    "77": [
+      "comercial_migrations_0043_seed_mobiliario_cotizador",
+      "comercial_migrations_0043_seed_mobiliario_cotizador_migration",
+      "comercial_migrations_0043_seed_mobiliario_cotizador_revertir",
+      "comercial_migrations_0043_seed_mobiliario_cotizador_upsert_productos"
+    ],
+    "78": [
+      "comercial_migrations_0047_seed_tipos_evento",
+      "comercial_migrations_0047_seed_tipos_evento_migration",
+      "comercial_migrations_0047_seed_tipos_evento_revertir",
+      "comercial_migrations_0047_seed_tipos_evento_seed_tipos_evento"
+    ],
+    "79": [
+      "comercial_migrations_0050_eliminar_montaje_de_lujo",
+      "comercial_migrations_0050_eliminar_montaje_de_lujo_eliminar",
+      "comercial_migrations_0050_eliminar_montaje_de_lujo_migration",
+      "comercial_migrations_0050_eliminar_montaje_de_lujo_revertir"
+    ],
+    "80": [
+      "comercial_migrations_0055_alter_imagenlanding_mostrar_en_galeria",
+      "comercial_migrations_0055_alter_imagenlanding_mostrar_en_galeria_marcar_existentes_como_visibles_en_galeria",
+      "comercial_migrations_0055_alter_imagenlanding_mostrar_en_galeria_migration",
+      "comercial_migrations_0055_alter_imagenlanding_mostrar_en_galeria_rationale_7"
+    ],
+    "81": [
+      "comercial_migrations_management_commands_cargar_plantilla_barra_command",
+      "comercial_migrations_management_commands_cargar_plantilla_barra_command_add_arguments",
+      "comercial_migrations_management_commands_cargar_plantilla_barra_command_handle",
+      "comercial_migrations_management_commands_cargar_plantilla_barra_py_basecommand"
+    ],
+    "82": [
+      "comercial_models_portalcliente_get_full_url",
+      "comercial_models_portalcliente_get_url",
+      "comercial_models_rationale_1305",
+      "comercial_models_rationale_1309"
+    ],
+    "83": [
+      "comercial_templatetags_qkt_sidebar",
+      "comercial_templatetags_qkt_sidebar_extract_model_subgroups",
+      "comercial_templatetags_qkt_sidebar_get_side_menu_grouped",
+      "comercial_templatetags_qkt_sidebar_rationale_1"
+    ],
+    "84": [
+      "contabilidad_apps",
+      "contabilidad_apps_contabilidadconfig",
+      "contabilidad_apps_contabilidadconfig_ready",
+      "contabilidad_apps_py_appconfig"
+    ],
+    "85": [
+      "facturacion_apps",
+      "facturacion_apps_facturacionconfig",
+      "facturacion_apps_facturacionconfig_ready",
+      "facturacion_apps_py_appconfig"
+    ],
+    "86": [
+      "nomina_management_commands_sync_jibble_command",
+      "nomina_management_commands_sync_jibble_command_add_arguments",
+      "nomina_management_commands_sync_jibble_command_handle",
+      "nomina_management_commands_sync_jibble_py_basecommand"
+    ],
+    "87": [
+      "airbnb_apps",
+      "airbnb_apps_airbnbconfig",
+      "airbnb_apps_py_appconfig"
+    ],
+    "88": [
+      "airbnb_init",
+      "airbnb_urls",
+      "airbnb_urls_rationale_1"
+    ],
+    "89": [
+      "comercial_apps",
+      "comercial_apps_comercialconfig",
+      "comercial_apps_py_appconfig"
+    ],
+    "90": [
+      "comercial_management_commands_migrar_proveedores_command",
+      "comercial_management_commands_migrar_proveedores_command_handle",
+      "comercial_management_commands_migrar_proveedores_py_basecommand"
+    ],
+    "91": [
+      "comercial_migrations_0041_rename_platillo_botanas",
+      "comercial_migrations_0041_rename_platillo_botanas_migration",
+      "comercial_migrations_0041_rename_platillo_botanas_rename_platillo"
+    ],
+    "92": [
+      "comercial_migrations_management_commands_verificar_plantilla_barra_command",
+      "comercial_migrations_management_commands_verificar_plantilla_barra_command_handle",
+      "comercial_migrations_management_commands_verificar_plantilla_barra_py_basecommand"
+    ],
+    "93": [
+      "manage",
+      "manage_main",
+      "manage_rationale_8"
+    ],
+    "94": [
+      "nomina_apps",
+      "nomina_apps_nominaconfig",
+      "nomina_apps_py_appconfig"
+    ],
+    "95": [
+      "reportes_apps",
+      "reportes_apps_py_appconfig",
+      "reportes_apps_reportesconfig"
+    ],
+    "96": [
+      "airbnb_migrations_0002_alter_reservaairbnb_estado",
+      "airbnb_migrations_0002_alter_reservaairbnb_estado_migration"
+    ],
+    "97": [
+      "airbnb_migrations_0003_alter_anuncioairbnb_options_alter_pagoairbnb_options_and_more",
+      "airbnb_migrations_0003_alter_anuncioairbnb_options_alter_pagoairbnb_options_and_more_migration"
+    ],
+    "98": [
+      "airbnb_models_rationale_139",
+      "airbnb_models_reservaairbnb_noches"
+    ],
+    "99": [
+      "airbnb_views_dashboard_airbnb",
+      "airbnb_views_rationale_421"
+    ],
+    "100": [
+      "airbnb_views_generar_ical_eventos",
+      "airbnb_views_rationale_282"
+    ],
+    "101": [
+      "comercial_admin_cotizacionadmin_evaluar_descuentos_aplicables",
+      "comercial_admin_rationale_764"
+    ],
+    "102": [
+      "comercial_admin_cotizacionadmin_ver_plan_pagos",
+      "comercial_admin_rationale_538"
+    ],
+    "103": [
+      "comercial_admin_pagoadmin_registrar_reembolso",
+      "comercial_admin_rationale_856"
+    ],
+    "104": [
+      "comercial_migrations_0001_initial",
+      "comercial_migrations_0001_initial_migration"
+    ],
+    "105": [
+      "comercial_migrations_0002_compra_remove_gasto_archivo_pdf_and_more",
+      "comercial_migrations_0002_compra_remove_gasto_archivo_pdf_and_more_migration"
+    ],
+    "106": [
+      "comercial_migrations_0003_gasto_archivo_pdf_gasto_archivo_xml_and_more",
+      "comercial_migrations_0003_gasto_archivo_pdf_gasto_archivo_xml_and_more_migration"
+    ],
+    "107": [
+      "comercial_migrations_0004_alter_gasto_categoria",
+      "comercial_migrations_0004_alter_gasto_categoria_migration"
+    ],
+    "108": [
+      "comercial_migrations_0005_alter_pago_fecha_pago",
+      "comercial_migrations_0005_alter_pago_fecha_pago_migration"
+    ],
+    "109": [
+      "comercial_migrations_0006_insumo_crear_como_subproducto",
+      "comercial_migrations_0006_insumo_crear_como_subproducto_migration"
+    ],
+    "110": [
+      "comercial_migrations_0007_cotizacion_horas_servicio_cotizacion_num_personas_and_more",
+      "comercial_migrations_0007_cotizacion_horas_servicio_cotizacion_num_personas_and_more_migration"
+    ],
+    "111": [
+      "comercial_migrations_0008_cotizacion_factor_utilidad_barra_and_more",
+      "comercial_migrations_0008_cotizacion_factor_utilidad_barra_and_more_migration"
+    ],
+    "112": [
+      "comercial_migrations_0009_cotizacion_insumo_agua_and_more",
+      "comercial_migrations_0009_cotizacion_insumo_agua_and_more_migration"
+    ],
+    "113": [
+      "comercial_migrations_0010_alter_insumo_categoria",
+      "comercial_migrations_0010_alter_insumo_categoria_migration"
+    ],
+    "114": [
+      "comercial_migrations_0011_alter_compra_archivo_xml",
+      "comercial_migrations_0011_alter_compra_archivo_xml_migration"
+    ],
+    "115": [
+      "comercial_migrations_0012_cotizacion_clima_alter_cotizacion_insumo_agua_and_more",
+      "comercial_migrations_0012_cotizacion_clima_alter_cotizacion_insumo_agua_and_more_migration"
+    ],
+    "116": [
+      "comercial_migrations_0013_remove_cotizacion_tipo_barra_and_more",
+      "comercial_migrations_0013_remove_cotizacion_tipo_barra_and_more_migration"
+    ],
+    "117": [
+      "comercial_migrations_0014_remove_cotizacion_incluye_cocteleria_and_more",
+      "comercial_migrations_0014_remove_cotizacion_incluye_cocteleria_and_more_migration"
+    ],
+    "118": [
+      "comercial_migrations_0015_alter_cotizacion_clima_and_more",
+      "comercial_migrations_0015_alter_cotizacion_clima_and_more_migration"
+    ],
+    "119": [
+      "comercial_migrations_0016_constantesistema_alter_cotizacion_clima_and_more",
+      "comercial_migrations_0016_constantesistema_alter_cotizacion_clima_and_more_migration"
+    ],
+    "120": [
+      "comercial_migrations_0017_insumo_presentacion_insumo_proveedor_plantillabarra",
+      "comercial_migrations_0017_insumo_presentacion_insumo_proveedor_plantillabarra_migration"
+    ],
+    "121": [
+      "comercial_migrations_0019_factor_utilidad_barra_130",
+      "comercial_migrations_0019_factor_utilidad_barra_130_migration"
+    ],
+    "122": [
+      "comercial_migrations_0020_movimientoinventario_cotizacion_cancelada_por_and_more",
+      "comercial_migrations_0020_movimientoinventario_cotizacion_cancelada_por_and_more_migration"
+    ],
+    "123": [
+      "comercial_migrations_0021_planpago_parcialidadpago",
+      "comercial_migrations_0021_planpago_parcialidadpago_migration"
+    ],
+    "124": [
+      "comercial_migrations_0022_alter_movimientoinventario_options",
+      "comercial_migrations_0022_alter_movimientoinventario_options_migration"
+    ],
+    "125": [
+      "comercial_migrations_0023_cotizacion_archivo_contrato_contratoservicio",
+      "comercial_migrations_0023_cotizacion_archivo_contrato_contratoservicio_migration"
+    ],
+    "126": [
+      "comercial_migrations_0024_alter_contratoservicio_archivo_and_more",
+      "comercial_migrations_0024_alter_contratoservicio_archivo_and_more_migration"
+    ],
+    "127": [
+      "comercial_migrations_0025_recordatorio_pago",
+      "comercial_migrations_0025_recordatorio_pago_migration"
+    ],
+    "128": [
+      "comercial_migrations_0026_add_solicitar_factura",
+      "comercial_migrations_0026_add_solicitar_factura_migration"
+    ],
+    "129": [
+      "comercial_migrations_0027_portalcliente",
+      "comercial_migrations_0027_portalcliente_migration"
+    ],
+    "130": [
+      "comercial_migrations_0028_add_unidad_negocio_compra",
+      "comercial_migrations_0028_add_unidad_negocio_compra_migration"
+    ],
+    "131": [
+      "comercial_migrations_0029_alter_cotizacion_cliente",
+      "comercial_migrations_0029_alter_cotizacion_cliente_migration"
+    ],
+    "132": [
+      "comercial_migrations_0030_pago_tipo",
+      "comercial_migrations_0030_pago_tipo_migration"
+    ],
+    "133": [
+      "comercial_migrations_0031_espacio_cotizacion_tipo_servicio_asignacionpersonal_and_more",
+      "comercial_migrations_0031_espacio_cotizacion_tipo_servicio_asignacionpersonal_and_more_migration"
+    ],
+    "134": [
+      "comercial_migrations_0032_producto_cotizador_fields",
+      "comercial_migrations_0032_producto_cotizador_fields_migration"
+    ],
+    "135": [
+      "comercial_migrations_0033_cotizacion_tipo_arrendamiento",
+      "comercial_migrations_0033_cotizacion_tipo_arrendamiento_migration"
+    ],
+    "136": [
+      "comercial_migrations_0035_landing_imagenes_testimonios",
+      "comercial_migrations_0035_landing_imagenes_testimonios_migration"
+    ],
+    "137": [
+      "comercial_migrations_0036_imagenlanding_posicion_vertical",
+      "comercial_migrations_0036_imagenlanding_posicion_vertical_migration"
+    ],
+    "138": [
+      "comercial_migrations_0037_espacios_faq_galeria_categorias",
+      "comercial_migrations_0037_espacios_faq_galeria_categorias_migration"
+    ],
+    "139": [
+      "comercial_migrations_0038_producto_es_paquete_productocomponente",
+      "comercial_migrations_0038_producto_es_paquete_productocomponente_migration"
+    ],
+    "140": [
+      "comercial_migrations_0039_producto_herencia_inventario",
+      "comercial_migrations_0039_producto_herencia_inventario_migration"
+    ],
+    "141": [
+      "comercial_migrations_0040_producto_herencia_m2m_requiere_licor",
+      "comercial_migrations_0040_producto_herencia_m2m_requiere_licor_migration"
+    ],
+    "142": [
+      "comercial_migrations_0042_alter_imagenlanding_options_and_more",
+      "comercial_migrations_0042_alter_imagenlanding_options_and_more_migration"
+    ],
+    "143": [
+      "comercial_migrations_0045_alter_producto_grupo_cotizador",
+      "comercial_migrations_0045_alter_producto_grupo_cotizador_migration"
+    ],
+    "144": [
+      "comercial_migrations_0046_temporada_tipoevento_descuento_descuentoaplicado_and_more",
+      "comercial_migrations_0046_temporada_tipoevento_descuento_descuentoaplicado_and_more_migration"
+    ],
+    "145": [
+      "comercial_migrations_0051_alter_descuentoaplicado_options_and_more",
+      "comercial_migrations_0051_alter_descuentoaplicado_options_and_more_migration"
+    ],
+    "146": [
+      "comercial_migrations_0052_alter_descuento_options_and_more",
+      "comercial_migrations_0052_alter_descuento_options_and_more_migration"
+    ],
+    "147": [
+      "comercial_migrations_0053_compra_cuenta_pago_alter_compra_unidad_negocio",
+      "comercial_migrations_0053_compra_cuenta_pago_alter_compra_unidad_negocio_migration"
+    ],
+    "148": [
+      "comercial_migrations_0054_imagenlanding_mostrar_en_galeria",
+      "comercial_migrations_0054_imagenlanding_mostrar_en_galeria_migration"
+    ],
+    "149": [
+      "comercial_migrations_0056_pago_concepto",
+      "comercial_migrations_0056_pago_concepto_migration"
+    ],
+    "150": [
+      "comercial_migrations_0057_compra_es_deducible",
+      "comercial_migrations_0057_compra_es_deducible_migration"
+    ],
+    "151": [
+      "comercial_models_asignacionespacio_intervalos",
+      "comercial_models_rationale_1385"
+    ],
+    "152": [
+      "comercial_models_compra_proveedor_display",
+      "comercial_models_rationale_1125"
+    ],
+    "153": [
+      "comercial_models_cotizacion_calcular_inventario_inteligente",
+      "comercial_models_rationale_617"
+    ],
+    "154": [
+      "comercial_models_cotizacion_dias_para_evento",
+      "comercial_models_rationale_611"
+    ],
+    "155": [
+      "comercial_models_descuento_usos_disponibles",
+      "comercial_models_rationale_1748"
+    ],
+    "156": [
+      "comercial_models_insumo_stock_bajo",
+      "comercial_models_rationale_85"
+    ],
+    "157": [
+      "comercial_models_movimientoinventario_clean",
+      "comercial_models_rationale_148"
+    ],
+    "158": [
+      "comercial_models_parcialidadpago_dias_restantes",
+      "comercial_models_rationale_1214"
+    ],
+    "159": [
+      "comercial_models_planpago_siguiente_pago",
+      "comercial_models_rationale_1179"
+    ],
+    "160": [
+      "comercial_models_rationale_1632",
+      "comercial_models_temporada_contiene"
+    ],
+    "161": [
+      "comunicacion_migrations_0001_initial",
+      "comunicacion_migrations_0001_initial_migration"
+    ],
+    "162": [
+      "contabilidad_migrations_0006_add_rfc_razon_social_unidad",
+      "contabilidad_migrations_0006_add_rfc_razon_social_unidad_migration"
+    ],
+    "163": [
+      "contabilidad_migrations_0007_alter_configuracioncontable_options_and_more",
+      "contabilidad_migrations_0007_alter_configuracioncontable_options_and_more_migration"
+    ],
+    "164": [
+      "contabilidad_migrations_0009_saldoapertura_and_more",
+      "contabilidad_migrations_0009_saldoapertura_and_more_migration"
+    ],
+    "165": [
+      "contabilidad_models_configuracioncontable_obtener_cuenta",
+      "contabilidad_models_rationale_728"
+    ],
+    "166": [
+      "core_erp_asgi",
+      "core_erp_asgi_rationale_1"
+    ],
+    "167": [
+      "core_erp_wsgi",
+      "core_erp_wsgi_rationale_1"
+    ],
+    "168": [
+      "facturacion_migrations_0001_initial",
+      "facturacion_migrations_0001_initial_migration"
+    ],
+    "169": [
+      "facturacion_migrations_0003_add_desglose_fiscal",
+      "facturacion_migrations_0003_add_desglose_fiscal_migration"
+    ],
+    "170": [
+      "nomina_migrations_0001_initial",
+      "nomina_migrations_0001_initial_migration"
+    ],
+    "171": [
+      "nomina_migrations_0002_alter_recibonomina_options",
+      "nomina_migrations_0002_alter_recibonomina_options_migration"
+    ],
+    "172": [
+      "nomina_migrations_0003_recibonomina_estado_recibonomina_fecha_pago_and_more",
+      "nomina_migrations_0003_recibonomina_estado_recibonomina_fecha_pago_and_more_migration"
+    ],
+    "173": [
+      "reportes_migrations_0001_initial",
+      "reportes_migrations_0001_initial_migration"
+    ],
+    "174": [
+      "reportes_migrations_0002_alter_reportegenerado_options",
+      "reportes_migrations_0002_alter_reportegenerado_options_migration"
+    ],
+    "175": [
+      "static_admin_js_solicitud_factura",
+      "static_admin_js_solicitud_factura_marcarenviada"
+    ],
+    "176": [
+      "airbnb_management_commands_init"
+    ],
+    "177": [
+      "airbnb_management_init"
+    ],
+    "178": [
+      "airbnb_migrations_init"
+    ],
+    "179": [
+      "comercial_management_commands_init"
+    ],
+    "180": [
+      "comercial_management_init"
+    ],
+    "181": [
+      "comercial_migrations_init"
+    ],
+    "182": [
+      "comercial_migrations_management_commands_init"
+    ],
+    "183": [
+      "comercial_migrations_management_init"
+    ],
+    "184": [
+      "comercial_templatetags_init"
+    ],
+    "185": [
+      "comunicacion_init"
+    ],
+    "186": [
+      "comunicacion_management_commands_init"
+    ],
+    "187": [
+      "comunicacion_management_init"
+    ],
+    "188": [
+      "comunicacion_migrations_init"
+    ],
+    "189": [
+      "contabilidad_management_commands_init"
+    ],
+    "190": [
+      "contabilidad_management_init"
+    ],
+    "191": [
+      "contabilidad_migrations_init"
+    ],
+    "192": [
+      "contabilidad_templatetags_init"
+    ],
+    "193": [
+      "core_erp_init"
+    ],
+    "194": [
+      "core_erp_settings"
+    ],
+    "195": [
+      "facturacion_init"
+    ],
+    "196": [
+      "facturacion_migrations_init"
+    ],
+    "197": [
+      "nomina_init"
+    ],
+    "198": [
+      "nomina_management_commands_init"
+    ],
+    "199": [
+      "nomina_management_init"
+    ],
+    "200": [
+      "nomina_migrations_init"
+    ],
+    "201": [
+      "nomina_tests"
+    ],
+    "202": [
+      "reportes_migrations_init"
+    ],
+    "203": [
+      "reportes_services_init"
+    ],
+    "204": [
+      "reportes_templatetags_init"
+    ],
+    "205": [
+      "static_js_tabs_fix"
+    ]
+  },
+  "cohesion": {
+    "0": 0.0784276580629884,
+    "1": 0.08251748251748252,
+    "2": 0.0726764500349406,
+    "3": 0.05314009661835749,
+    "4": 0.10887949260042283,
+    "5": 0.09146341463414634,
+    "6": 0.06417112299465241,
+    "7": 0.0946969696969697,
+    "8": 0.13257575757575757,
+    "9": 0.09848484848484848,
+    "10": 0.1028225806451613,
+    "11": 0.1032258064516129,
+    "12": 0.12698412698412698,
+    "13": 0.08333333333333333,
+    "14": 0.09486166007905138,
+    "15": 0.1380952380952381,
+    "16": 0.12380952380952381,
+    "17": 0.11695906432748537,
+    "18": 0.1830065359477124,
+    "19": 0.11764705882352941,
+    "20": 0.19607843137254902,
+    "21": 0.20588235294117646,
+    "22": 0.1323529411764706,
+    "23": 0.18382352941176472,
+    "24": 0.13970588235294118,
+    "25": 0.13333333333333333,
+    "26": 0.23809523809523808,
+    "27": 0.1523809523809524,
+    "28": 0.18681318681318682,
+    "29": 0.15384615384615385,
+    "30": 0.16483516483516483,
+    "31": 0.2878787878787879,
+    "32": 0.25757575757575757,
+    "33": 0.16666666666666666,
+    "34": 0.25757575757575757,
+    "35": 0.16666666666666666,
+    "36": 0.23636363636363636,
+    "37": 0.18181818181818182,
+    "38": 0.37777777777777777,
+    "39": 0.28888888888888886,
+    "40": 0.2,
+    "41": 0.2777777777777778,
+    "42": 0.25,
+    "43": 0.25,
+    "44": 0.25,
+    "45": 0.25,
+    "46": 0.2857142857142857,
+    "47": 0.39285714285714285,
+    "48": 0.39285714285714285,
+    "49": 0.2857142857142857,
+    "50": 0.2857142857142857,
+    "51": 0.2857142857142857,
+    "52": 0.2857142857142857,
+    "53": 0.3333333333333333,
+    "54": 0.3333333333333333,
+    "55": 0.3333333333333333,
+    "56": 0.4,
+    "57": 0.3333333333333333,
+    "58": 0.3333333333333333,
+    "59": 0.3333333333333333,
+    "60": 0.3333333333333333,
+    "61": 0.3333333333333333,
+    "62": 0.4,
+    "63": 0.4,
+    "64": 0.4,
+    "65": 0.4,
+    "66": 0.5,
+    "67": 0.6,
+    "68": 0.4,
+    "69": 0.4,
+    "70": 0.4,
+    "71": 0.5,
+    "72": 0.5,
+    "73": 0.5,
+    "74": 0.5,
+    "75": 0.5,
+    "76": 0.5,
+    "77": 0.5,
+    "78": 0.5,
+    "79": 0.5,
+    "80": 0.5,
+    "81": 0.5,
+    "82": 0.5,
+    "83": 0.6666666666666666,
+    "84": 0.5,
+    "85": 0.5,
+    "86": 0.5,
+    "87": 0.6666666666666666,
+    "88": 0.6666666666666666,
+    "89": 0.6666666666666666,
+    "90": 0.6666666666666666,
+    "91": 0.6666666666666666,
+    "92": 0.6666666666666666,
+    "93": 0.6666666666666666,
+    "94": 0.6666666666666666,
+    "95": 0.6666666666666666,
+    "96": 1.0,
+    "97": 1.0,
+    "98": 1.0,
+    "99": 1.0,
+    "100": 1.0,
+    "101": 1.0,
+    "102": 1.0,
+    "103": 1.0,
+    "104": 1.0,
+    "105": 1.0,
+    "106": 1.0,
+    "107": 1.0,
+    "108": 1.0,
+    "109": 1.0,
+    "110": 1.0,
+    "111": 1.0,
+    "112": 1.0,
+    "113": 1.0,
+    "114": 1.0,
+    "115": 1.0,
+    "116": 1.0,
+    "117": 1.0,
+    "118": 1.0,
+    "119": 1.0,
+    "120": 1.0,
+    "121": 1.0,
+    "122": 1.0,
+    "123": 1.0,
+    "124": 1.0,
+    "125": 1.0,
+    "126": 1.0,
+    "127": 1.0,
+    "128": 1.0,
+    "129": 1.0,
+    "130": 1.0,
+    "131": 1.0,
+    "132": 1.0,
+    "133": 1.0,
+    "134": 1.0,
+    "135": 1.0,
+    "136": 1.0,
+    "137": 1.0,
+    "138": 1.0,
+    "139": 1.0,
+    "140": 1.0,
+    "141": 1.0,
+    "142": 1.0,
+    "143": 1.0,
+    "144": 1.0,
+    "145": 1.0,
+    "146": 1.0,
+    "147": 1.0,
+    "148": 1.0,
+    "149": 1.0,
+    "150": 1.0,
+    "151": 1.0,
+    "152": 1.0,
+    "153": 1.0,
+    "154": 1.0,
+    "155": 1.0,
+    "156": 1.0,
+    "157": 1.0,
+    "158": 1.0,
+    "159": 1.0,
+    "160": 1.0,
+    "161": 1.0,
+    "162": 1.0,
+    "163": 1.0,
+    "164": 1.0,
+    "165": 1.0,
+    "166": 1.0,
+    "167": 1.0,
+    "168": 1.0,
+    "169": 1.0,
+    "170": 1.0,
+    "171": 1.0,
+    "172": 1.0,
+    "173": 1.0,
+    "174": 1.0,
+    "175": 1.0,
+    "176": 1.0,
+    "177": 1.0,
+    "178": 1.0,
+    "179": 1.0,
+    "180": 1.0,
+    "181": 1.0,
+    "182": 1.0,
+    "183": 1.0,
+    "184": 1.0,
+    "185": 1.0,
+    "186": 1.0,
+    "187": 1.0,
+    "188": 1.0,
+    "189": 1.0,
+    "190": 1.0,
+    "191": 1.0,
+    "192": 1.0,
+    "193": 1.0,
+    "194": 1.0,
+    "195": 1.0,
+    "196": 1.0,
+    "197": 1.0,
+    "198": 1.0,
+    "199": 1.0,
+    "200": 1.0,
+    "201": 1.0,
+    "202": 1.0,
+    "203": 1.0,
+    "204": 1.0,
+    "205": 1.0
+  },
+  "gods": [
+    {
+      "id": "comercial_models_cotizacion",
+      "label": "Cotizacion",
+      "degree": 94
+    },
+    {
+      "id": "comercial_models_portalcliente",
+      "label": "PortalCliente",
+      "degree": 87
+    },
+    {
+      "id": "comercial_models_cliente",
+      "label": "Cliente",
+      "degree": 64
+    },
+    {
+      "id": "comercial_models_pago",
+      "label": "Pago",
+      "degree": 63
+    },
+    {
+      "id": "comercial_services_descuentos_descuentoservice",
+      "label": "DescuentoService",
+      "degree": 60
+    },
+    {
+      "id": "comercial_models_planpago",
+      "label": "PlanPago",
+      "degree": 55
+    },
+    {
+      "id": "comercial_services_calculadorabarraservice",
+      "label": "CalculadoraBarraService",
+      "degree": 55
+    },
+    {
+      "id": "comercial_models_itemcotizacion",
+      "label": "ItemCotizacion",
+      "degree": 54
+    },
+    {
+      "id": "comercial_models_compra",
+      "label": "Compra",
+      "degree": 54
+    },
+    {
+      "id": "comercial_admin_cotizacionadmin",
+      "label": "CotizacionAdmin",
+      "degree": 53
+    }
+  ],
+  "surprises": [
+    {
+      "source": "OcupacionService",
+      "target": "AnuncioAirbnb",
+      "source_files": [
+        "reportes/services/airbnb.py",
+        "airbnb/models.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "OcupacionService",
+      "target": "ReservaAirbnb",
+      "source_files": [
+        "reportes/services/airbnb.py",
+        "airbnb/models.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "AnalizarXmlCompraTest",
+      "target": "PagoAirbnb",
+      "source_files": [
+        "comercial/tests.py",
+        "airbnb/models.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "AsignacionEspacioTest",
+      "target": "PagoAirbnb",
+      "source_files": [
+        "comercial/tests.py",
+        "airbnb/models.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "AsignacionPersonalTest",
+      "target": "PagoAirbnb",
+      "source_files": [
+        "comercial/tests.py",
+        "airbnb/models.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `Cotizacion` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 9`, `Community 10`, `Community 11`, `Community 16`, `Community 18`, `Community 19`, `Community 21`, `Community 153`, `Community 154`, `Community 30`, `Community 34`, `Community 36`, `Community 43`, `Community 49`, `Community 64`, `Community 74`?",
+      "why": "High betweenness centrality (0.056) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `PagoAirbnb` connect `Community 4` to `Community 32`, `Community 3`, `Community 37`, `Community 5`, `Community 71`, `Community 39`, `Community 40`, `Community 7`, `Community 12`, `Community 15`, `Community 17`, `Community 50`, `Community 51`, `Community 21`, `Community 25`?",
+      "why": "High betweenness centrality (0.039) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `UnidadNegocio` connect `Community 1` to `Community 0`, `Community 33`, `Community 5`, `Community 8`, `Community 9`, `Community 41`, `Community 14`, `Community 21`?",
+      "why": "High betweenness centrality (0.036) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 163 inferred relationships involving `Decimal` (e.g. with `.calcular_retenciones()` and `.tarifa_por_noche()`) actually correct?",
+      "why": "`Decimal` has 163 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 52 inferred relationships involving `Cotizacion` (e.g. with `bloquear_en_airbnb()` and `AsignacionEspacioAdmin`) actually correct?",
+      "why": "`Cotizacion` has 52 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 74 inferred relationships involving `PortalCliente` (e.g. with `AsignacionEspacioAdmin` and `AsignacionEspacioInline`) actually correct?",
+      "why": "`PortalCliente` has 74 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 44 inferred relationships involving `Cliente` (e.g. with `AsignacionEspacioAdmin` and `AsignacionEspacioInline`) actually correct?",
+      "why": "`Cliente` has 44 INFERRED edges - model-reasoned connections that need verification."
+    }
+  ]
+}

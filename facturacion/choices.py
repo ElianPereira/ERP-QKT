@@ -1,28 +1,32 @@
 from django.db import models
 
 class RegimenFiscal(models.TextChoices):
-    # --- PERSONAS MORALES ---
+    # Catálogo oficial SAT c_RegimenFiscal (única fuente de verdad;
+    # también usado por contabilidad.UnidadNegocio.regimen_fiscal).
+    # Orden ascendente por código para no generar diffs de migración espurios.
     GRAL_LEY_PERSONAS_MORALES = '601', '601 - General de Ley Personas Morales'
     PERSONAS_MORALES_CON_FINES_NO_LUCRATIVOS = '603', '603 - Personas Morales con Fines no Lucrativos'
-    OPCIONAL_PARA_GRUPOS_DE_SOCIEDADES = '623', '623 - Opcional para Grupos de Sociedades'
-    COORDINADOS = '624', '624 - Coordinados'
-    RESICO_MORALES = '626', '626 - Régimen Simplificado de Confianza (RESICO)'
-    
-    # --- PERSONAS FÍSICAS ---
     SUELDOS_Y_SALARIOS = '605', '605 - Sueldos y Salarios e Ingresos Asimilados a Salarios'
     ARRENDAMIENTO = '606', '606 - Arrendamiento'
     REGIMEN_DE_ENAJENACION_O_ADQUISICION_DE_BIENES = '607', '607 - Régimen de Enajenación o Adquisición de Bienes'
     DEMAS_INGRESOS = '608', '608 - Demás ingresos'
+    CONSOLIDACION = '609', '609 - Consolidación'
     RESIDENTES_EN_EL_EXTRANJERO = '610', '610 - Residentes en el Extranjero sin Establecimiento Permanente en México'
     INGRESOS_POR_DIVIDENDOS = '611', '611 - Ingresos por Dividendos (socios y accionistas)'
     PERSONAS_FISICAS_ACTIVIDADES_EMPRESARIALES = '612', '612 - Personas Físicas con Actividades Empresariales y Profesionales'
     INGRESOS_POR_INTERESES = '614', '614 - Ingresos por intereses'
     OBTENCION_DE_PREMIOS = '615', '615 - Régimen de los ingresos por obtención de premios'
     SIN_OBLIGACIONES_FISCALES = '616', '616 - Sin obligaciones fiscales'
-    SOCIEDADES_COOPERATIVAS = '620', '620 - Sociedades Cooperativas de Producción'
-    INCORPORACION_FISCAL = '621', '621 - Incorporación Fiscal (RIF)'
+    SOCIEDADES_COOPERATIVAS = '620', '620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos'
+    INCORPORACION_FISCAL = '621', '621 - Incorporación Fiscal'
     ACTIVIDADES_AGRICOLAS_GANADERAS = '622', '622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras'
-    PLATAFORMAS_TECNOLOGICAS = '625', '625 - Plataformas Tecnológicas'
+    OPCIONAL_PARA_GRUPOS_DE_SOCIEDADES = '623', '623 - Opcional para Grupos de Sociedades'
+    COORDINADOS = '624', '624 - Coordinados'
+    PLATAFORMAS_TECNOLOGICAS = '625', '625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas'
+    RESICO_MORALES = '626', '626 - Régimen Simplificado de Confianza'
+    HIDROCARBUROS = '628', '628 - Hidrocarburos'
+    REGIMENES_FISCALES_PREFERENTES_MULTINACIONALES = '629', '629 - De los Regímenes Fiscales Preferentes y de las Empresas Multinacionales'
+    ENAJENACION_ACCIONES_BOLSA = '630', '630 - Enajenación de acciones en bolsa de valores'
 
 class UsoCFDI(models.TextChoices):
     # --- GASTOS ---

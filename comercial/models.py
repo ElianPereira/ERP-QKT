@@ -6,6 +6,7 @@ from django.utils.timezone import now
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from facturacion.choices import RegimenFiscal, UsoCFDI
+from comercial.choices import PosicionLanding, ModoDescuento
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
 import secrets
 
@@ -913,11 +914,7 @@ class ContratoServicio(models.Model):
     Registro de contratos generados por cotización.
     Guarda historial: versión, quién lo generó y cuándo.
     """
-    TIPO_CHOICES = [
-        ('EVENTO',         'Evento'),
-        ('PASADIA',        'Pasadía'),
-        ('ARRENDAMIENTO',  'Arrendamiento de Mobiliario'),
-    ]
+    TIPO_CHOICES = Cotizacion.TIPO_SERVICIO_CHOICES
 
     cotizacion   = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='contratos')
     numero       = models.CharField(max_length=30, unique=True, verbose_name="Número de Contrato")
@@ -1490,13 +1487,6 @@ class ImagenLanding(models.Model):
         ('HOSPEDAJE', 'Servicio — Hospedaje'),
         ('GALERIA', 'Galería de fotos'),
     ]
-    POSICION_CHOICES = [
-        ('top', 'Arriba'),
-        ('20%', 'Arriba-centro'),
-        ('center', 'Centro'),
-        ('80%', 'Abajo-centro'),
-        ('bottom', 'Abajo'),
-    ]
     CATEGORIA_GALERIA_CHOICES = [
         ('BODAS', 'Bodas'),
         ('EVENTOS', 'Eventos Sociales'),
@@ -1507,7 +1497,7 @@ class ImagenLanding(models.Model):
     seccion = models.CharField(max_length=20, choices=SECCION_CHOICES, verbose_name="Sección")
     imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
     posicion_vertical = models.CharField(
-        max_length=10, choices=POSICION_CHOICES, default='center',
+        max_length=10, choices=PosicionLanding.choices, default=PosicionLanding.CENTER,
         verbose_name="Enfoque vertical",
         help_text="Qué parte de la imagen se muestra: arriba, centro o abajo",
     )
@@ -1560,7 +1550,7 @@ class EspacioLanding(models.Model):
                                  help_text="Ej: Hasta 200 invitados")
     descripcion = models.CharField(max_length=200, blank=True, verbose_name="Descripción corta")
     posicion_vertical = models.CharField(
-        max_length=10, choices=ImagenLanding.POSICION_CHOICES, default='center',
+        max_length=10, choices=PosicionLanding.choices, default=PosicionLanding.CENTER,
         verbose_name="Enfoque vertical",
     )
     orden = models.PositiveIntegerField(default=0)
@@ -1646,14 +1636,11 @@ class Descuento(models.Model):
         ('PORCENTAJE', 'Porcentaje (%)'),
         ('MONTO_FIJO', 'Monto fijo (MXN)'),
     ]
-    MODO_CHOICES = [
-        ('MANUAL', 'Manual'),
-        ('AUTOMATICO', 'Automático'),
-    ]
+    MODO_CHOICES = ModoDescuento.choices
 
     # Tipos de servicio válidos para la condición tipos_servicio.
-    # Reflejan Cotizacion.TIPO_SERVICIO_CHOICES.
-    TIPOS_SERVICIO_VALIDOS = {'EVENTO', 'PASADIA', 'ARRENDAMIENTO'}
+    # Derivados de Cotizacion.TIPO_SERVICIO_CHOICES para no duplicar los códigos.
+    TIPOS_SERVICIO_VALIDOS = {codigo for codigo, _ in Cotizacion.TIPO_SERVICIO_CHOICES}
 
     nombre = models.CharField(max_length=120, verbose_name="Nombre")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
@@ -1760,7 +1747,7 @@ class DescuentoAplicado(models.Model):
     Nunca se edita ni se borra. Para anular su efecto se marca activo=False
     vía DescuentoService.revertir(), que revierte el monto en la cotización.
     """
-    MODO_CHOICES = Descuento.MODO_CHOICES
+    MODO_CHOICES = ModoDescuento.choices
 
     cotizacion = models.ForeignKey(
         Cotizacion, on_delete=models.CASCADE,
