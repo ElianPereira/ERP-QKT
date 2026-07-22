@@ -120,7 +120,7 @@
     </div>
 
     <div class="doc-title">
-        <h1>Cotización de Evento</h1>
+        <h1>Cotización</h1>
         <p>Folio: COT-{{ cotizacion.id|stringformat:"03d" }}</p>
     </div>
 
@@ -132,6 +132,10 @@
                         <tr>
                             <td class="card-label">Cliente:</td>
                             <td class="card-value" style="text-transform: uppercase;">{{ cotizacion.cliente.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <td class="card-label">Tipo:</td>
+                            <td class="card-value">{{ cotizacion.get_tipo_servicio_display }}</td>
                         </tr>
                         <tr>
                             <td class="card-label">Evento:</td>
