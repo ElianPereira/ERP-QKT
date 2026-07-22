@@ -22,6 +22,10 @@ from .services import CalculadoraBarraService
 
 BTN = '<a href="{url}" {target} class="btn btn-sm" style="background:{bg}; color:{fg}; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none; display:inline-block; font-family:IBM Plex Sans,sans-serif;" {extra}>{label}</a>'
 
+# Variante compacta de BTN: misma estructura, para columnas con muchos
+# botones en una sola fila (ver CotizacionAdmin.acciones_display).
+BTN_SM = '<a href="{url}" {target} class="btn btn-sm" style="background:{bg}; color:{fg}; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:600; text-decoration:none; display:inline-block; white-space:nowrap; font-family:IBM Plex Sans,sans-serif;" {extra}>{label}</a>'
+
 # Colores estándar para usar con BTN:
 # Verde primario (acciones principales): bg='#2E7D32', fg='white'
 # Amarillo marca (documentos especiales): bg='#F5C518', fg='#333'
@@ -534,8 +538,9 @@ class CotizacionAdmin(admin.ModelAdmin):
     get_nivel_paquete.short_description = "Paquete"
 
     # --- BOTONES ESTANDARIZADOS (Punto 4, sin emojis) ---
-    def ver_plan_pagos(self, obj):
+    def ver_plan_pagos(self, obj, compact=False):
         """Botón Plan con opciones de parcialidades."""
+        btn_tpl = BTN_SM if compact else BTN
         # Si ya tiene plan activo → botón morado que abre PDF
         try:
             plan = obj.plan_pago
@@ -543,18 +548,20 @@ class CotizacionAdmin(admin.ModelAdmin):
                 url_pdf = reverse('plan_pagos_pdf', args=[obj.id])
                 pagadas = plan.parcialidades_pagadas()
                 total = plan.parcialidades.count()
-                return format_html(BTN, url=url_pdf, target='target="_blank"', bg='#2E7D32', fg='white', label=f'{pagadas}/{total}', extra='')
+                return format_html(btn_tpl, url=url_pdf, target='target="_blank"', bg='#2E7D32', fg='white', label=f'{pagadas}/{total}', extra='')
         except PlanPago.DoesNotExist:
             pass
-        
+
         # Si no tiene plan → dropdown con opciones
         if obj.precio_final > 0:
             url_auto = reverse('generar_plan_pagos', args=[obj.id])
             uid = f'pp-{obj.id}'
+            btn_padding = '2px 6px' if compact else '4px 10px'
+            btn_font = '10px' if compact else '11px'
             return format_html(
                 '<div style="position:relative; display:inline-block;">'
                   '<button type="button" onclick="document.getElementById(\'{uid}\').style.display = document.getElementById(\'{uid}\').style.display === \'block\' ? \'none\' : \'block\'" '
-                  'style="background:#2E7D32; color:white; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; border:none; cursor:pointer;">'
+                  'style="background:#2E7D32; color:white; padding:' + btn_padding + '; border-radius:3px; font-size:' + btn_font + '; font-weight:600; border:none; cursor:pointer; white-space:nowrap;">'
                   '+ Plan</button>'
                   '<div id="{uid}" style="display:none; position:absolute; top:28px; left:0; z-index:999; background:#383632; border:1px solid #4a4845; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.3); min-width:130px; padding:4px 0;">'
                     '<a href="{url_auto}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none; font-weight:600;" '
@@ -582,25 +589,25 @@ class CotizacionAdmin(admin.ModelAdmin):
         return '-'
     ver_plan_pagos.short_description = "Plan"
 
-    def ver_pdf(self, obj):
+    def ver_pdf(self, obj, compact=False):
         try:
             url = reverse('cotizacion_pdf', args=[obj.id])
-            return format_html(BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='PDF', extra='')
+            return format_html(BTN_SM if compact else BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='PDF', extra='')
         except NoReverseMatch: return "-"
     ver_pdf.short_description = "PDF"
 
-    def ver_lista_compras(self, obj):
+    def ver_lista_compras(self, obj, compact=False):
         try:
             url = reverse('cotizacion_lista_compras', args=[obj.id])
-            return format_html(BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='Lista', extra='')
+            return format_html(BTN_SM if compact else BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='Lista', extra='')
         except NoReverseMatch: return "-"
     ver_lista_compras.short_description = "Compras"
 
-    def enviar_email_btn(self, obj):
+    def enviar_email_btn(self, obj, compact=False):
         if obj.pk:
             try:
                 url = reverse('cotizacion_email', args=[obj.id])
-                return format_html(BTN, url=url, target='', bg='#2E7D32', fg='white', label='Email', extra='onclick="return confirm(\'¿Enviar cotización por email?\')"')
+                return format_html(BTN_SM if compact else BTN, url=url, target='', bg='#2E7D32', fg='white', label='Email', extra='onclick="return confirm(\'¿Enviar cotización por email?\')"')
             except NoReverseMatch: return "-"
         return "-"
     enviar_email_btn.short_description = "Email"
@@ -681,35 +688,39 @@ class CotizacionAdmin(admin.ModelAdmin):
                 precio_final=cot.precio_final
             )
 
-    def ver_contrato(self, obj):
+    def ver_contrato(self, obj, compact=False):
         if obj.id and obj.estado == 'CONFIRMADA':
             url = reverse('cotizacion_contrato', args=[obj.id])
+            padding = '2px 6px' if compact else '4px 10px'
+            font_size = '10px' if compact else '11px'
             return format_html(
                 '<a href="{}" class="btn btn-info btn-sm" target="_blank" '
-                'style="background:#F5C518;color:#333;border:none;padding:4px 10px;border-radius:4px;'
-                'font-size:11px;font-weight:600;text-decoration:none;display:inline-block;"'
+                'style="background:#F5C518;color:#333;border:none;padding:' + padding + ';border-radius:3px;'
+                'font-size:' + font_size + ';font-weight:600;text-decoration:none;display:inline-block;white-space:nowrap;"'
                 'onclick="return confirm(\'¿Generar contrato con depósito $0? '
                 'Puedes cambiarlo en la pantalla del contrato.\')">Contrato</a>',
                 url
             )
-        return mark_safe('<span style="color:#95a5a6;font-size:11px;">—</span>')
+        return mark_safe(f'<span style="color:#95a5a6;font-size:{"10px" if compact else "11px"};">—</span>')
     ver_contrato.short_description = "Contrato"
 
     @admin.display(description="Acciones")
     def acciones_display(self, obj):
         """Agrupa Plan/PDF/Compras/Email/Contrato/Portal en una sola columna,
-        en fila y con separación uniforme (antes cada botón tenía su propia
-        columna, lo que se veía apretado y desalineado)."""
+        en una sola fila (antes cada botón tenía su propia columna, lo que se
+        veía apretado y desalineado). Botones en tamaño compacto para que
+        quepan todos sin partirse a una segunda línea."""
         partes = ''.join(str(parte) for parte in [
-            self.ver_plan_pagos(obj),
-            self.ver_pdf(obj),
-            self.ver_lista_compras(obj),
-            self.enviar_email_btn(obj),
-            self.ver_contrato(obj),
-            self.ver_portal(obj),
+            self.ver_plan_pagos(obj, compact=True),
+            self.ver_pdf(obj, compact=True),
+            self.ver_lista_compras(obj, compact=True),
+            self.enviar_email_btn(obj, compact=True),
+            self.ver_contrato(obj, compact=True),
+            self.ver_portal(obj, compact=True),
         ])
         return mark_safe(
-            f'<div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px;">{partes}</div>'
+            '<div style="display:flex; flex-wrap:nowrap; align-items:center; gap:3px; '
+            'overflow-x:auto; max-width:100%;">' + partes + '</div>'
         )
 
     def get_urls(self):
@@ -816,8 +827,12 @@ class CotizacionAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/comercial/cotizacion/contrato_form.html', context)
 
-    def ver_portal(self, obj):
+    def ver_portal(self, obj, compact=False):
         from .models import PortalCliente
+        padding = '2px 6px' if compact else '4px 8px'
+        font_size = '10px' if compact else '11px'
+        gap = '2px' if compact else '3px'
+        btn_style = f'padding:{padding};border-radius:3px;font-size:{font_size};font-weight:600;text-decoration:none;white-space:nowrap;'
         try:
             portal = obj.portal
             if portal and portal.activo:
@@ -830,17 +845,17 @@ class CotizacionAdmin(admin.ModelAdmin):
                 )
                 copy_id = f"portal-url-{obj.pk}"
                 return format_html(
-                    '<span style="display:inline-flex; align-items:center; gap:3px;">'
-                    '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Portal</a>'
-                    '<a href="{}" target="_blank" style="background:#25D366;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">WA</a>'
+                    '<span style="display:inline-flex; align-items:center; gap:' + gap + ';">'
+                    '<a href="{}" target="_blank" style="background:#2E7D32;color:white;' + btn_style + '">Portal</a>'
+                    '<a href="{}" target="_blank" style="background:#25D366;color:white;' + btn_style + '">WA</a>'
                     '<span id="{}" style="display:none">{}</span>'
-                    '<button onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;">Copiar</button>'
+                    '<button onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;border:none;cursor:pointer;' + btn_style + '">Copiar</button>'
                     '</span>',
                     url, wa_url, copy_id, url, copy_id
                 )
         except Exception:
             pass
-        return mark_safe('<span style="color:#95a5a6;font-size:11px;">Sin portal</span>')
+        return mark_safe(f'<span style="color:#95a5a6;font-size:{font_size};">Sin portal</span>')
     ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
