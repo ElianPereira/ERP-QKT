@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db import models as db_models
 from django.utils.html import format_html, mark_safe
 from django.template.loader import render_to_string
 from django.urls import reverse, NoReverseMatch, path
@@ -17,6 +18,7 @@ from .models import (
     TipoEvento, Temporada, Descuento, DescuentoAplicado,
 )
 from .services import CalculadoraBarraService
+from .widgets import TimeSlotWidget
 
 # Estilo estandarizado para botones
 
@@ -481,7 +483,10 @@ class CotizacionAdmin(admin.ModelAdmin):
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
     ordering = ['-fecha_evento', '-id']
-    
+    formfield_overrides = {
+        db_models.TimeField: {'widget': TimeSlotWidget},
+    }
+
     class Media:
         css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
 

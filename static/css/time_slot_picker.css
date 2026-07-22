@@ -1,0 +1,105 @@
+/* static/css/time_slot_picker.css
+   Selector de hora con lista de franjas buscable.
+   Reutiliza la paleta de --qkt-* definida en admin_fix.css. */
+
+.time-slot-field {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+}
+
+.time-slot-field input.time-slot-input {
+    padding-right: 40px !important;
+    width: 140px;
+    max-width: 100%;
+    /* >=16px evita que iOS Safari haga zoom automático al enfocar el campo */
+    font-size: 16px !important;
+}
+
+.time-slot-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 38px;
+    border: none;
+    background: transparent;
+    color: var(--qkt-text-dim, #8a8780);
+    font-size: 16px;
+    cursor: pointer;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-slot-toggle:hover,
+.time-slot-toggle:focus-visible {
+    color: var(--qkt-green, #2E7D32);
+}
+
+.time-slot-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    width: 220px;
+    max-width: 80vw;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--qkt-bg-card, #383632);
+    border: 1px solid var(--qkt-border, #4a4845);
+    border-radius: 8px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    z-index: 1000;
+    padding: 4px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.time-slot-dropdown.open {
+    display: block;
+}
+
+/* Si no hay espacio debajo (móvil con teclado abierto, campo al fondo
+   del formulario), la lista se abre hacia arriba en vez de recortarse. */
+.time-slot-field.is-upward .time-slot-dropdown {
+    top: auto;
+    bottom: calc(100% + 6px);
+}
+
+.time-slot-row {
+    padding: 9px 12px;
+    border-radius: 5px;
+    font-size: 14.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--qkt-text, #d4d1c8);
+    cursor: pointer;
+    /* alto de toque cómodo en pantallas táctiles */
+    min-height: 20px;
+}
+
+.time-slot-row.is-active,
+.time-slot-row:hover {
+    background: rgba(46, 125, 50, 0.25);
+    color: var(--qkt-text-bright, #e0ddd4);
+}
+
+.time-slot-row.is-current {
+    color: var(--qkt-green-text, #4CAF50);
+    font-weight: 600;
+}
+
+.time-slot-empty {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--qkt-text-dim, #8a8780);
+}
+
+@media screen and (max-width: 480px) {
+    .time-slot-field input.time-slot-input {
+        width: 120px;
+    }
+    .time-slot-dropdown {
+        width: 200px;
+    }
+}

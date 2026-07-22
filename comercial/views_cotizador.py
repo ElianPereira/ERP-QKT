@@ -123,6 +123,7 @@ def cotizador_enviar(request):
     como_nos_encontro  = str(data.get('como_nos_encontro', '')).strip()
 
     # Barra (siguen como booleanos — alimentan CalculadoraBarraService)
+    inc_refrescos  = bool(data.get('inc_refrescos', False))
     inc_cerveza    = bool(data.get('inc_cerveza', False))
     inc_nacional   = bool(data.get('inc_nacional', False))
     inc_premium    = bool(data.get('inc_premium', False))
@@ -236,7 +237,6 @@ def cotizador_enviar(request):
         nombre_evento += f" [{como_nos_encontro}]"
 
     # ── Crear Cotización ──────────────────────────────────────────────────────────────
-    inc_refrescos = any([inc_cerveza, inc_nacional, inc_premium, inc_cocteleria, inc_mixologia])
     clima = _detectar_clima(fecha_evento)
 
     cotizacion = Cotizacion(
