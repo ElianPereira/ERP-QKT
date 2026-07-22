@@ -472,7 +472,7 @@ class PagoInline(admin.TabularInline):
 class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
     inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'ver_plan_pagos', 'ver_pdf', 'ver_lista_compras', 'enviar_email_btn','ver_contrato', 'ver_portal')
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'acciones_display')
     list_filter = ('estado', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
@@ -686,13 +686,31 @@ class CotizacionAdmin(admin.ModelAdmin):
             url = reverse('cotizacion_contrato', args=[obj.id])
             return format_html(
                 '<a href="{}" class="btn btn-info btn-sm" target="_blank" '
-                'style="background:#F5C518;color:#333;border:none;padding:3px 8px;font-size:11px;"'
+                'style="background:#F5C518;color:#333;border:none;padding:4px 10px;border-radius:4px;'
+                'font-size:11px;font-weight:600;text-decoration:none;display:inline-block;"'
                 'onclick="return confirm(\'¿Generar contrato con depósito $0? '
-                'Puedes cambiarlo en la pantalla del contrato.\')"> Contrato</a>',
+                'Puedes cambiarlo en la pantalla del contrato.\')">Contrato</a>',
                 url
             )
-        return "—"
+        return mark_safe('<span style="color:#95a5a6;font-size:11px;">—</span>')
     ver_contrato.short_description = "Contrato"
+
+    @admin.display(description="Acciones")
+    def acciones_display(self, obj):
+        """Agrupa Plan/PDF/Compras/Email/Contrato/Portal en una sola columna,
+        en fila y con separación uniforme (antes cada botón tenía su propia
+        columna, lo que se veía apretado y desalineado)."""
+        partes = ''.join(str(parte) for parte in [
+            self.ver_plan_pagos(obj),
+            self.ver_pdf(obj),
+            self.ver_lista_compras(obj),
+            self.enviar_email_btn(obj),
+            self.ver_contrato(obj),
+            self.ver_portal(obj),
+        ])
+        return mark_safe(
+            f'<div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px;">{partes}</div>'
+        )
 
     def get_urls(self):
         urls = super().get_urls()
@@ -812,10 +830,12 @@ class CotizacionAdmin(admin.ModelAdmin):
                 )
                 copy_id = f"portal-url-{obj.pk}"
                 return format_html(
-                    '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;margin-right:3px;">Portal</a>'
-                    '<a href="{}" target="_blank" style="background:#25D366;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;margin-right:3px;">WA</a>'
+                    '<span style="display:inline-flex; align-items:center; gap:3px;">'
+                    '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Portal</a>'
+                    '<a href="{}" target="_blank" style="background:#25D366;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">WA</a>'
                     '<span id="{}" style="display:none">{}</span>'
-                    '<button onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;">Copiar</button>',
+                    '<button onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;">Copiar</button>'
+                    '</span>',
                     url, wa_url, copy_id, url, copy_id
                 )
         except Exception:
