@@ -7,3 +7,8 @@ class PosicionLanding(models.TextChoices):
     CENTER = 'center', 'Centro'
     ABAJO_CENTRO = '80%', 'Abajo-centro'
     BOTTOM = 'bottom', 'Abajo'
+
+
+class ModoDescuento(models.TextChoices):
+    MANUAL = 'MANUAL', 'Manual'
+    AUTOMATICO = 'AUTOMATICO', 'Automático'

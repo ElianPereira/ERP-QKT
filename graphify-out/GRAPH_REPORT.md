@@ -1,16 +1,16 @@
 # Graph Report - ERP-QKT  (2026-07-22)
 
 ## Corpus Check
-- 202 files · ~108,744 words
+- 204 files · ~109,169 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1666 nodes · 4280 edges · 214 communities (106 shown, 108 thin omitted)
-- Extraction: 59% EXTRACTED · 41% INFERRED · 0% AMBIGUOUS · INFERRED: 1761 edges (avg confidence: 0.53)
+- 1673 nodes · 4321 edges · 208 communities (104 shown, 104 thin omitted)
+- Extraction: 58% EXTRACTED · 42% INFERRED · 0% AMBIGUOUS · INFERRED: 1794 edges (avg confidence: 0.53)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `42358139`
+- Built from commit: `afd206a4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -102,7 +102,6 @@
 - FacturacionConfig
 - Command
 - AirbnbConfig
-- airbnb/urls.py
 - ComercialConfig
 - Command
 - 0041_rename_platillo_botanas.py
@@ -113,8 +112,6 @@
 - 0002_alter_reservaairbnb_estado.py
 - 0003_alter_anuncioairbnb_options_alter_pagoairbnb_options_and_more.py
 - .noches
-- dashboard_airbnb
-- generar_ical_eventos
 - .evaluar_descuentos_aplicables
 - .ver_plan_pagos
 - .registrar_reembolso
@@ -179,7 +176,6 @@
 - 0006_add_rfc_razon_social_unidad.py
 - 0007_alter_configuracioncontable_options_and_more.py
 - 0009_saldoapertura_and_more.py
-- MovimientoContable
 - asgi.py
 - wsgi.py
 - facturacion/migrations/0001_initial.py
@@ -191,113 +187,111 @@
 - 0002_alter_reportegenerado_options.py
 - SugerenciaPrecioTests
 - facturacion/admin.py
-- ParserBBVATest
 - facturacion/signals.py
 - README.md
 - bloquear_en_airbnb
 - calendario_unificado
-- custom_logout
 
 ## God Nodes (most connected - your core abstractions)
-1. `Cotizacion` - 93 edges
-2. `PortalCliente` - 88 edges
-3. `Cliente` - 63 edges
-4. `Pago` - 62 edges
+1. `Cotizacion` - 94 edges
+2. `PortalCliente` - 89 edges
+3. `Cliente` - 64 edges
+4. `Pago` - 63 edges
 5. `DescuentoService` - 60 edges
-6. `CalculadoraBarraService` - 55 edges
-7. `PlanPago` - 54 edges
-8. `CotizacionAdmin` - 53 edges
-9. `ItemCotizacion` - 53 edges
-10. `Compra` - 53 edges
+6. `PlanPago` - 55 edges
+7. `CalculadoraBarraService` - 55 edges
+8. `ItemCotizacion` - 54 edges
+9. `Compra` - 54 edges
+10. `CotizacionAdmin` - 53 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `ComparativoMensualService` --uses--> `AnuncioAirbnb`  [INFERRED]
+  reportes/services/airbnb.py → airbnb/models.py
 - `OcupacionService` --uses--> `AnuncioAirbnb`  [INFERRED]
+  reportes/services/airbnb.py → airbnb/models.py
+- `ComparativoMensualService` --uses--> `ReservaAirbnb`  [INFERRED]
   reportes/services/airbnb.py → airbnb/models.py
 - `OcupacionService` --uses--> `ReservaAirbnb`  [INFERRED]
   reportes/services/airbnb.py → airbnb/models.py
 - `AnalizarXmlCompraTest` --uses--> `PagoAirbnb`  [INFERRED]
   comercial/tests.py → airbnb/models.py
-- `AsignacionEspacioTest` --uses--> `PagoAirbnb`  [INFERRED]
-  comercial/tests.py → airbnb/models.py
-- `AsignacionPersonalTest` --uses--> `PagoAirbnb`  [INFERRED]
-  comercial/tests.py → airbnb/models.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (214 total, 108 thin omitted)
+## Communities (208 total, 104 thin omitted)
 
 ### Community 0 - "Cotizacion"
 Cohesion: 0.08
-Nodes (90): AsignacionEspacioAdmin, AsignacionEspacioInline, AsignacionPersonalAdmin, AsignacionPersonalInline, ClienteAdmin, ComponenteInline, CompraAdmin, ConstanteSistemaAdmin (+82 more)
+Nodes (92): AsignacionEspacioAdmin, AsignacionEspacioInline, AsignacionPersonalAdmin, AsignacionPersonalInline, ClienteAdmin, ComponenteInline, CompraAdmin, ConstanteSistemaAdmin (+84 more)
 
 ### Community 1 - "contabilidad/admin.py"
 Cohesion: 0.09
-Nodes (34): ConciliacionBancariaAdmin, ConfiguracionContableAdmin, CuentaBancariaAdmin, CuentaContableAdmin, EstadoCuentaBancarioAdmin, MovimientoContableInline, MovimientoEstadoCuentaInline, Admin del Módulo de Contabilidad ================================ Sistema de Dis (+26 more)
+Nodes (33): ConciliacionBancariaAdmin, ConfiguracionContableAdmin, CuentaBancariaAdmin, CuentaContableAdmin, EstadoCuentaBancarioAdmin, MovimientoContableAdmin, MovimientoContableInline, MovimientoEstadoCuentaInline (+25 more)
 
 ### Community 2 - "test_descuentos.py"
 Cohesion: 0.07
 Nodes (27): Página intermedia: muestra descuentos aplicables y ya aplicados,         y permi, _monto_descuento(), _q(), Servicio de Descuentos — comercial/services_descuentos.py ======================, Calcula el monto con Decimal, crea el DescuentoAplicado (auditoría),         sum, Marca activo=False, resta el monto de Cotizacion.descuento y         recalcula t, Recalcula con la lógica canónica de Cotizacion.calcular_totales()         y pers, Evalúa y aplica automáticamente: gana UN solo no-acumulable         (mayor prior (+19 more)
 
 ### Community 3 - "Decimal"
-Cohesion: 0.06
+Cohesion: 0.05
 Nodes (17): Migration, Migration, upsert_productos(), Migration, revertir(), Migration, Ingresos ligados a la cotización que NO forman parte del precio de la         ve, Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos (+9 more)
 
 ### Community 4 - "PagoAirbnb"
-Cohesion: 0.11
-Nodes (24): AnuncioAirbnbAdmin, ConflictoCalendarioAdmin, Media, PagoAirbnbAdmin, Admin del módulo Airbnb ======================= Panel de administración para ges, ReservaAirbnbAdmin, AnuncioAirbnb, ConflictoCalendario (+16 more)
+Cohesion: 0.21
+Nodes (10): ConflictoCalendarioAdmin, Media, PagoAirbnbAdmin, Admin del módulo Airbnb ======================= Panel de administración para ges, ReservaAirbnbAdmin, ConflictoCalendario, Meta, Registro de conflictos detectados entre reservas de Airbnb      y eventos de la (+2 more)
 
 ### Community 5 - "reportes/views.py"
-Cohesion: 0.09
-Nodes (35): OcupacionService, date, Calcula tasa de ocupación por listing y mes.     Ocupación = noches reservadas /, URLs del Módulo de Reportes ============================ ERP Quinta Ko'ox Tanil, _logo_url(), _parse_fecha(), Vistas del Módulo de Reportes ============================== Selector centraliza, Genera Estado de Resultados en PDF. (+27 more)
+Cohesion: 0.07
+Nodes (43): AuxiliarCuentasService, BalanceGeneralService, EstadoResultadosService, LibroMayorService, date, Servicios de Reportes Contables ================================ Estado de Resul, Genera el Balance General (Estado de Situación Financiera).     Estructura:, Genera el Estado de Resultados (P&L) para un período.     Estructura:         In (+35 more)
 
 ### Community 6 - ".save"
 Cohesion: 0.06
 Nodes (12): _detectar_unidad_negocio_por_rfc(), Incrementa contador de visitas., Guarda el movimiento y actualiza el stock del insumo atómicamente., Precio de venta: precio_venta_fijo (si > 0) o costo × (1 + margen).         Siem, Cambia el estado de la cotización validando transiciones permitidas.         Ret, Obtiene el porcentaje mínimo de anticipo desde ConstanteSistema., Retorna el porcentaje de pago como número., Si la cotización está apartando una fecha (anticipo o superior),         valida (+4 more)
 
 ### Community 7 - "comercial/views.py"
-Cohesion: 0.13
-Nodes (25): Reporte fiscal mensual de ingresos Airbnb.     Incluye: detalle por reserva, res, reporte_fiscal_airbnb(), configurar_plantilla_barra(), descargar_ficha_producto(), descargar_lista_compras_pdf(), descargar_plan_pagos_pdf(), enviar_contrato_email(), enviar_cotizacion_email() (+17 more)
+Cohesion: 0.12
+Nodes (27): configurar_plantilla_barra(), descargar_ficha_producto(), descargar_lista_compras_pdf(), descargar_plan_pagos_pdf(), enviar_contrato_email(), enviar_cotizacion_email(), exportar_cierre_excel(), exportar_reporte_cotizaciones() (+19 more)
 
 ### Community 8 - "contabilidad/signals.py"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (29): calcular_desglose_proporcional(), Calcula el desglose fiscal proporcional de un pago basado en la cotización., Obtiene el siguiente folio disponible para el tipo y mes., aplicar_saldo_apertura(), Servicios del Módulo de Contabilidad ==================================== Lógica, Genera la póliza de apertura para una cuenta a su fecha de corte,     comparando, crear_poliza_compra(), crear_poliza_ingreso_extra() (+21 more)
 
 ### Community 9 - "contabilidad/tests.py"
-Cohesion: 0.12
-Nodes (19): _agrupar_por_fila(), _clasificar_monto(), _emparejar_automaticamente(), _es_pie_de_pagina(), _localizar_columnas(), _parsear_pdf_bbva(), _parsear_xml_bbva(), procesar_estado_cuenta() (+11 more)
+Cohesion: 0.09
+Nodes (24): _agrupar_por_fila(), _clasificar_monto(), _emparejar_automaticamente(), _es_pie_de_pagina(), generar_conciliacion_preliminar(), _localizar_columnas(), _parsear_pdf_bbva(), _parsear_xml_bbva() (+16 more)
 
 ### Community 10 - "ComunicacionCliente"
 Cohesion: 0.10
 Nodes (22): ComunicacionClienteAdmin, ComunicacionConfig, AppConfig, Command, BaseCommand, Cron diario: envía recordatorios de parcialidades próximas a vencer (3 días ante, ComunicacionCliente, Meta (+14 more)
 
 ### Community 11 - "comercial/services.py"
-Cohesion: 0.08
-Nodes (16): Command, BaseCommand, Aísla clientes fantasma (PUBLICO EN GENERAL, PROSPECTO sin teléfono real) para q, ContratoService, _email_valido(), _es_nombre_generico(), get_or_create_cliente_desde_canal(), Validación liviana de formato de email (sin tocar BD). (+8 more)
+Cohesion: 0.11
+Nodes (12): Command, BaseCommand, _email_valido(), _es_nombre_generico(), get_or_create_cliente_desde_canal(), Validación liviana de formato de email (sin tocar BD)., Obtiene o crea un Cliente a partir de los datos crudos de un canal externo     (, GetOrCreateClienteDesdeCanalTest (+4 more)
 
 ### Community 12 - "PlanPagosService"
 Cohesion: 0.13
 Nodes (8): PlanPagosService, Genera planes de pago calendarizados según la anticipación del evento., DashboardGraficaFinanzasSoloAnioActualTest, PlanPagosTest, Verifica la generación de planes de pago., Generar un nuevo plan elimina el anterior (OneToOne)., Regresión: la gráfica 'Finanzas (ventas vs gastos)' debe mostrar solo     los me, Regresión: un mes que solo tuvo gastos (sin ventas) debe aparecer         en su
 
 ### Community 13 - "TestCase"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (11): ClaveUnidadNegocioTest, CompraSinCFDINoDeducibleTest, CompraSinDatosCompletosTest, NominaNuncaGeneraPolizaTest, TestCase, Regresión del bug: 'EVENTOS' no debe usarse en ningún lado; 'QUINTA' sí debe exi, Una Compra sin cuenta_pago y/o unidad_negocio debe generar póliza en BORRADOR., Un gasto sin factura timbrada (uuid) se registra igual, pero como no     deducib (+3 more)
 
 ### Community 14 - "Poliza"
-Cohesion: 0.13
-Nodes (9): Poliza, Encabezado de póliza contable.     Agrupa movimientos que deben cuadrar (suma de, Aplica la póliza (la hace definitiva)., Cancela la póliza con motivo y usuario., Calcula la diferencia entre saldo banco y saldo libros ajustado.         Si es 0, BalanzaComprobacionService, Genera la balanza de comprobación para un período., PolizaSinGuardarTest (+1 more)
+Cohesion: 0.12
+Nodes (10): Poliza, Encabezado de póliza contable.     Agrupa movimientos que deben cuadrar (suma de, Aplica la póliza (la hace definitiva)., Cancela la póliza con motivo y usuario., Calcula la diferencia entre saldo banco y saldo libros ajustado.         Si es 0, BalanzaComprobacionService, date, Genera la balanza de comprobación para un período. (+2 more)
 
 ### Community 15 - "DetectorConflictosService"
-Cohesion: 0.14
-Nodes (10): Command, BaseCommand, Management command: sincronizar_airbnb Sincroniza todos los calendarios de Airbn, DetectorConflictosService, Sincroniza reservas desde calendarios iCal de Airbnb.          FIX de duplicados, Procesa un evento del iCal y crea/actualiza la reserva.         Usa uid_ical com, Detecta el estado y origen de una reserva basado en el título del iCal., Detecta conflictos entre reservas de Airbnb y eventos de la quinta. (+2 more)
+Cohesion: 0.18
+Nodes (8): AnuncioAirbnbAdmin, Command, BaseCommand, Management command: sincronizar_airbnb Sincroniza todos los calendarios de Airbn, DetectorConflictosService, Sincroniza reservas desde calendarios iCal de Airbnb.          FIX de duplicados, Detecta conflictos entre reservas de Airbnb y eventos de la quinta., SincronizadorAirbnbService
 
 ### Community 16 - "views_cotizador.py"
 Cohesion: 0.12
 Nodes (20): _agregar_item(), api_disponibilidad_fecha(), api_fechas_ocupadas(), api_paquetes_cotizador(), api_productos_cotizador(), _buscar_producto_por_nombre(), cotizador_enviar(), cotizador_gracias() (+12 more)
 
 ### Community 17 - "ICalParserService"
-Cohesion: 0.12
-Nodes (11): ICalParserService, date, Sincroniza todos los anuncios activos., Sincroniza un anuncio específico., Parsea archivos iCal de Airbnb., Parsea contenido iCal y retorna lista de eventos.         Maneja líneas multi-lí, Agrupa las filas del CSV por código de confirmación.                  Estructura, Parsea fecha desde string. (+3 more)
+Cohesion: 0.20
+Nodes (6): Sincroniza todos los anuncios activos., Sincroniza un anuncio específico., Procesa un evento del iCal y crea/actualiza la reserva.         Usa uid_ical com, Detecta el estado y origen de una reserva basado en el título del iCal., Parsea contenido iCal y retorna lista de eventos.         Maneja líneas multi-lí, Any
 
 ### Community 18 - "verificar_disponibilidad_fecha"
 Cohesion: 0.18
@@ -308,20 +302,20 @@ Cohesion: 0.12
 Nodes (15): landing_publico(), portal_acceso(), portal_descargar_contrato(), portal_descargar_cotizacion(), portal_descargar_plan(), portal_evento(), Vista principal del portal — muestra toda la info del evento., Descarga PDF de cotización desde el portal. (+7 more)
 
 ### Community 20 - "JibbleService"
-Cohesion: 0.23
-Nodes (7): Exception, JibbleAPIError, JibbleService, Obtiene horas por dia por empleado usando el endpoint Timesheets.         Incluy, Parsea ISO 8601 duration a segundos: PT6H6M52.753408S -> 22012, Formatea hora de Jibble a HH:MM., GET /v1/People -> {person_id: nombre_upper}. Excluye owners/admins.
+Cohesion: 0.29
+Nodes (3): ContratoService, Genera el contrato como PDF usando WeasyPrint + template HTML.     Mismo patrón, Genera el PDF del contrato y retorna (pdf_bytes, numero_contrato).
 
 ### Community 21 - "comercial/tests.py"
-Cohesion: 0.21
-Nodes (8): analizar_xml_compra(), Analiza un XML de CFDI para decidir si es elegible como Compra del     negocio e, AnalizarXmlCompraTest, _construir_cfdi(), Tests del módulo Comercial ========================== Ejecutar: python manage.py, CFDI 4.0 mínimo (solo lo que analizar_xml_compra/Compra.save() necesitan leer)., La carga masiva de XML debe distinguir qué CFDIs son compras válidas     del neg, Si el RFC receptor no es el del negocio (ej. es una factura que         ELLOS em
+Cohesion: 0.13
+Nodes (10): analizar_xml_compra(), Analiza un XML de CFDI para decidir si es elegible como Compra del     negocio e, AnalizarXmlCompraTest, CompraDeteccionAutomaticaTest, _construir_cfdi(), CFDI 4.0 mínimo (solo lo que analizar_xml_compra/Compra.save() necesitan leer)., La carga masiva de XML debe distinguir qué CFDIs son compras válidas     del neg, Si el RFC receptor no es el del negocio (ej. es una factura que         ELLOS em (+2 more)
 
 ### Community 22 - "ReembolsoClienteTest"
 Cohesion: 0.13
 Nodes (7): _crear_cotizacion(), PolizaPagoClienteTest, Crea catálogo mínimo y configuración para signals., Un Pago concepto=EXTRA se registra completo contra 'Otros ingresos',         sin, ReembolsoClienteTest, ReversionCancelacionTest, setup_contabilidad_minima()
 
 ### Community 23 - "sync_jibble.py"
-Cohesion: 0.15
-Nodes (9): EmpleadoAdmin, ReciboNominaAdmin, Management command: sync_jibble ================================ Sincroniza time, Empleado, Meta, ReciboNomina, marcar_recibo_como_pagado(), Servicio de integración con Jibble API ======================================= E (+1 more)
+Cohesion: 0.07
+Nodes (32): Exception, EmpleadoAdmin, ReciboNominaAdmin, Command, BaseCommand, Management command: sync_jibble ================================ Sincroniza time, Empleado, Meta (+24 more)
 
 ### Community 24 - "ReporteGeneradoAdmin"
 Cohesion: 0.14
@@ -332,12 +326,8 @@ Cohesion: 0.13
 Nodes (6): AsignacionPersonalTest, MovimientoInventarioTest, TestCase, Verifica movimientos de inventario., Regresión: un evento CERRADA y 100% pagado debe contar en Ventas Mes., VentasMesIncluyeEventosCerradosTest
 
 ### Community 26 - "nomina/views.py"
-Cohesion: 0.24
-Nodes (14): calcular_hora_salida(), cargar_nomina(), _generar_recibos_desde_datos(), jibble_diagnostico_view(), parsear_hms(), parsear_horario_trabajo(), parsear_horas_complejas(), Genera recibos PDF.     fecha_emision_por_empleado: {nombre: 'YYYY-MM-DD HH:MM'} (+6 more)
-
-### Community 27 - "BalanceGeneralService"
-Cohesion: 0.15
-Nodes (10): AuxiliarCuentasService, BalanceGeneralService, EstadoResultadosService, LibroMayorService, date, Genera el Balance General (Estado de Situación Financiera).     Estructura:, Genera el Estado de Resultados (P&L) para un período.     Estructura:         In, Calcula resultado del ejercicio: Ingresos - Costos - Gastos. (+2 more)
+Cohesion: 0.33
+Nodes (4): ICalParserService, date, Parsea archivos iCal de Airbnb., Extrae fecha de una línea DTSTART o DTEND. Maneja múltiples formatos.
 
 ### Community 28 - "enviar_recordatorios_pagos.py"
 Cohesion: 0.19
@@ -360,7 +350,7 @@ Cohesion: 0.26
 Nodes (4): CotizacionTotalesTest, Verifica que los totales se calculen correctamente., Crea cotización sin disparar auto-cálculo de barra., Todo ingreso aplica IVA 16% sin excepción.
 
 ### Community 33 - "PolizaAdmin"
-Cohesion: 0.17
+Cohesion: 0.13
 Nodes (3): PolizaAdmin, generar_compra_retroactiva(), Genera el registro Compra que debió existir detrás de una póliza de     egreso c
 
 ### Community 34 - "facturacion/models.py"
@@ -368,20 +358,16 @@ Cohesion: 0.33
 Nodes (6): FormaPago, MetodoPago, RegimenFiscal, UsoCFDI, Modelos del Módulo de Facturación ================================= Gestión de s, crear_solicitud()
 
 ### Community 36 - "Command"
-Cohesion: 0.24
-Nodes (6): Command, _nombre_evento(), BaseCommand, Devuelve el primer superusuario disponible para asignar como creador., importar_historico_view(), Página de administración para importar el historial del sistema anterior.     GE
+Cohesion: 0.25
+Nodes (5): Command, _nombre_evento(), BaseCommand, Importa el historial de cotizaciones, clientes y pagos del sistema anterior al E, Devuelve el primer superusuario disponible para asignar como creador.
 
 ### Community 37 - "TransicionEstadosTest"
 Cohesion: 0.18
 Nodes (3): Verifica la máquina de estados de cotización., Reproduce el caso real: la suma de pagos VENTA cuadra exacto con el         tota, TransicionEstadosTest
 
 ### Community 38 - "ConflictoFechasTest"
-Cohesion: 0.38
+Cohesion: 0.33
 Nodes (4): ConflictoFechasTest, TestCase, Evento 9am-5am del día siguiente debe detectar reserva del día sig., Reserva que termina el día del evento (checkout AM) no conflicta.
-
-### Community 39 - "CompraDeteccionAutomaticaTest"
-Cohesion: 0.29
-Nodes (3): CompraDeteccionAutomaticaTest, Regresión: subir un XML directo en 'Compras > Añadir' (sin pasar por     la carg, Aunque no haya XML, si se captura proveedor_nombre a mano, debe         buscar/c
 
 ### Community 40 - "PagoValidacionTest"
 Cohesion: 0.20
@@ -408,8 +394,8 @@ Cohesion: 0.25
 Nodes (8): _agregar_a_lista(), _buscar_insumo_palabra_completa(), _fallback_item(), generar_lista_compras_barra(), _obtener_item_plantilla(), Devuelve un item con datos genéricos cuando no hay plantilla configurada., Helper para agregar un ítem a la lista de compras con formato consistente., Busca un insumo donde el keyword sea una PALABRA COMPLETA,     no parte de otra
 
 ### Community 47 - "RenombrarUnidadNegocioEventosAQuintaMigrationTest"
-Cohesion: 0.33
-Nodes (5): _AppsFalso, Regresión: producción arrastraba una UnidadNegocio con clave='EVENTOS'     (crea, Sustituto mínimo del `apps` histórico que recibe un RunPython:         el modelo, Instalación fresca (como los tests locales): 0002 ya sembró         'QUINTA' dir, RenombrarUnidadNegocioEventosAQuintaMigrationTest
+Cohesion: 0.19
+Nodes (7): _AppsFalso, ConciliacionPreliminarTest, Regresión: producción arrastraba una UnidadNegocio con clave='EVENTOS'     (crea, Sustituto mínimo del `apps` histórico que recibe un RunPython:         el modelo, Instalación fresca (como los tests locales): 0002 ya sembró         'QUINTA' dir, generar_conciliacion_preliminar usa saldo_a_fecha, no saldo_actual corrido a hoy, RenombrarUnidadNegocioEventosAQuintaMigrationTest
 
 ### Community 48 - "GenerarCompraRetroactivaTest"
 Cohesion: 0.39
@@ -420,8 +406,8 @@ Cohesion: 0.29
 Nodes (3): DashboardSeparacionElianRubyTest, Regresión: el dashboard debe separar ingresos/gastos/utilidad de     Elián (Quin, Regresión: la gráfica combinada debe alinear las 4 series (ventas y         gast
 
 ### Community 53 - "._buscar_anuncio"
-Cohesion: 0.33
-Nodes (3): Importa pagos desde contenido CSV.                  Returns:             Tuple (, Procesa una reserva agrupada y crea el pago.                  Returns:, Busca anuncio por nombre parcial.
+Cohesion: 0.17
+Nodes (6): Importa pagos desde contenido CSV.                  Returns:             Tuple (, Agrupa las filas del CSV por código de confirmación.                  Estructura, Procesa una reserva agrupada y crea el pago.                  Returns:, Parsea fecha desde string., Parsea monto desde string., Busca anuncio por nombre parcial.
 
 ### Community 55 - "limpiar_datos_fiscales_genericos.py"
 Cohesion: 0.33
@@ -452,8 +438,8 @@ Cohesion: 0.33
 Nodes (4): FacturasEmitidasService, date, Servicios de Reportes de Facturación ===================================== Factu, Genera reporte de solicitudes de factura emitidas en un período.
 
 ### Community 62 - "setup_airbnb.py"
-Cohesion: 0.40
-Nodes (3): Command, BaseCommand, Management command: setup_airbnb Configura los anuncios iniciales de Airbnb con
+Cohesion: 0.20
+Nodes (8): Command, BaseCommand, Management command: setup_airbnb Configura los anuncios iniciales de Airbnb con, AnuncioAirbnb, Modelos del módulo Airbnb ========================= Gestión de anuncios, reserva, Representa un listing/anuncio en Airbnb.     Puede ser una casa completa o una h, Servicios del módulo Airbnb =========================== Lógica de negocio para s, Tests del módulo Airbnb =======================
 
 ### Community 63 - "cargar_precios_mobiliario.py"
 Cohesion: 0.40
@@ -479,9 +465,13 @@ Nodes (3): cargar_configuracion_otros_ingresos(), Migration, Mapea OTROS_INGRESO
 Cohesion: 0.40
 Nodes (3): Migration, Producción arrastra una UnidadNegocio con clave 'EVENTOS' (creada a mano,     co, renombrar_eventos_a_quinta()
 
+### Community 71 - ".calcular_retenciones"
+Cohesion: 0.15
+Nodes (9): PagoAirbnb, Pagos recibidos de Airbnb.     Régimen fiscal: Actividad Empresarial - Plataform, Calcula las retenciones según régimen de plataformas tecnológicas.         ISR:, ComparativoMensualService, OcupacionService, date, Servicios de Reportes Airbnb ============================== Ocupación por listin, Genera comparativo mensual de ingresos Airbnb: bruto, comisiones,      retencion (+1 more)
+
 ### Community 72 - "reporte_pagos_airbnb"
-Cohesion: 0.50
-Nodes (4): exportar_reporte_excel(), Reporte de pagos de Airbnb para el contador., Genera archivo Excel con el reporte de pagos., reporte_pagos_airbnb()
+Cohesion: 0.17
+Nodes (10): URLs del módulo Airbnb ======================, dashboard_airbnb(), exportar_reporte_excel(), generar_ical_eventos(), Vistas del módulo Airbnb ======================== Vistas para calendario unifica, Reporte de pagos de Airbnb para el contador., Genera archivo Excel con el reporte de pagos., Genera un archivo iCal con los eventos confirmados del ERP.     Esta URL se impo (+2 more)
 
 ### Community 73 - "QktAuthConfig"
 Cohesion: 0.50
@@ -503,9 +493,9 @@ Nodes (3): marcar_existentes_como_visibles_en_galeria(), Migration, Los registro
 Cohesion: 0.67
 Nodes (3): _extract_model_subgroups(), get_side_menu_grouped(), Agrupa apps y modelos del sidebar de Jazzmin como submenú de otra app.  Jazzmin
 
-### Community 165 - "MovimientoContable"
-Cohesion: 0.17
-Nodes (4): MovimientoContableAdmin, MovimientoContable, Línea individual de una póliza.     Cada movimiento afecta una cuenta con cargo, Servicios de Reportes Contables ================================ Estado de Resul
+### Community 98 - ".noches"
+Cohesion: 0.25
+Nodes (4): Calcula el número de noches de la reserva, Reservación sincronizada desde Airbnb vía iCal.     Se usa para detectar conflic, ReservaAirbnb, Detecta nuevos conflictos entre reservas Airbnb y cotizaciones.
 
 ### Community 206 - "SugerenciaPrecioTests"
 Cohesion: 0.22
@@ -515,10 +505,6 @@ Nodes (3): TestCase, Guardrail: precio_venta_fijo=0.00 (placeholder pendiente) n
 Cohesion: 0.25
 Nodes (6): ConfiguracionContadorAdmin, Media, Admin del Módulo de Facturación =============================== Sistema de Diseñ, ConfiguracionContador, Meta, Datos del contador para envío de solicitudes de factura.     Solo debe existir u
 
-### Community 208 - "ParserBBVATest"
-Cohesion: 0.33
-Nodes (3): ParserBBVATest, Valida el parser contra los dos PDFs reales de muestra (Libretón Básico y     Ma, Regresión directa del requisito de Elián: nunca debe ser posible que un
-
 ### Community 209 - "facturacion/signals.py"
 Cohesion: 0.50
 Nodes (3): crear_solicitud_factura_desde_pago(), Signals del Módulo de Facturación ================================= Genera solic, Crea una SolicitudFactura automáticamente cuando se registra un Pago.     Todos
@@ -526,22 +512,22 @@ Nodes (3): crear_solicitud_factura_desde_pago(), Signals del Módulo de Facturac
 ## Knowledge Gaps
 - **156 isolated node(s):** `Migration`, `Migration`, `Migration`, `Migration`, `Migration` (+151 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **108 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **104 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Cotizacion` connect `Cotizacion` to `test_descuentos.py`, `Decimal`, `PagoAirbnb`, `.save`, `comercial/views.py`, `contabilidad/tests.py`, `ComunicacionCliente`, `comercial/services.py`, `views_cotizador.py`, `verificar_disponibilidad_fecha`, `views_portal.py`, `comercial/tests.py`, `.calcular_inventario_inteligente`, `.dias_para_evento`, `facturacion/models.py`, `Command`, `facturacion/tests.py`, `comercial.py`, `actualizar_item_cotizacion`, `cerrar_cotizaciones.py`, `recalcular_iva.py`, `bloquear_en_airbnb`?**
-  _High betweenness centrality (0.057) - this node is a cross-community bridge._
-- **Why does `PagoAirbnb` connect `PagoAirbnb` to `CotizacionTotalesTest`, `Decimal`, `TransicionEstadosTest`, `reportes/views.py`, `.calcular_retenciones`, `CompraDeteccionAutomaticaTest`, `PagoValidacionTest`, `comercial/views.py`, `PlanPagosService`, `DetectorConflictosService`, `ICalParserService`, `AsignacionEspacioTest`, `DashboardSeparacionElianRubyTest`, `comercial/tests.py`, `TestCase`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
-- **Why does `UnidadNegocio` connect `contabilidad/admin.py` to `Cotizacion`, `PolizaAdmin`, `MovimientoContable`, `reportes/views.py`, `contabilidad/signals.py`, `contabilidad/tests.py`, `contabilidad/views.py`, `RenombrarUnidadNegocioEventosAQuintaMigrationTest`, `comercial/tests.py`?**
-  _High betweenness centrality (0.035) - this node is a cross-community bridge._
+- **Why does `Cotizacion` connect `Cotizacion` to `test_descuentos.py`, `Decimal`, `.save`, `comercial/views.py`, `contabilidad/tests.py`, `ComunicacionCliente`, `views_cotizador.py`, `verificar_disponibilidad_fecha`, `views_portal.py`, `.calcular_inventario_inteligente`, `.dias_para_evento`, `facturacion/models.py`, `Command`, `facturacion/tests.py`, `comercial.py`, `setup_airbnb.py`, `cerrar_cotizaciones.py`, `reporte_pagos_airbnb`, `recalcular_iva.py`, `bloquear_en_airbnb`?**
+  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+- **Why does `UnidadNegocio` connect `contabilidad/admin.py` to `Cotizacion`, `PolizaAdmin`, `reportes/views.py`, `contabilidad/signals.py`, `contabilidad/tests.py`, `contabilidad/views.py`, `RenombrarUnidadNegocioEventosAQuintaMigrationTest`?**
+  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `PagoAirbnb` connect `.calcular_retenciones` to `Cotizacion`, `CotizacionTotalesTest`, `Decimal`, `PagoAirbnb`, `TransicionEstadosTest`, `comercial/views.py`, `reporte_pagos_airbnb`, `PagoValidacionTest`, `PlanPagosService`, `DetectorConflictosService`, `AsignacionEspacioTest`, `DashboardSeparacionElianRubyTest`, `comercial/tests.py`, `TestCase`, `nomina/views.py`, `setup_airbnb.py`?**
+  _High betweenness centrality (0.040) - this node is a cross-community bridge._
 - **Are the 163 inferred relationships involving `Decimal` (e.g. with `.calcular_retenciones()` and `.tarifa_por_noche()`) actually correct?**
   _`Decimal` has 163 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 51 inferred relationships involving `Cotizacion` (e.g. with `bloquear_en_airbnb()` and `AsignacionEspacioAdmin`) actually correct?**
-  _`Cotizacion` has 51 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 74 inferred relationships involving `PortalCliente` (e.g. with `AsignacionEspacioAdmin` and `AsignacionEspacioInline`) actually correct?**
-  _`PortalCliente` has 74 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 43 inferred relationships involving `Cliente` (e.g. with `AsignacionEspacioAdmin` and `AsignacionEspacioInline`) actually correct?**
-  _`Cliente` has 43 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 52 inferred relationships involving `Cotizacion` (e.g. with `bloquear_en_airbnb()` and `AsignacionEspacioAdmin`) actually correct?**
+  _`Cotizacion` has 52 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 75 inferred relationships involving `PortalCliente` (e.g. with `AsignacionEspacioAdmin` and `AsignacionEspacioInline`) actually correct?**
+  _`PortalCliente` has 75 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 44 inferred relationships involving `Cliente` (e.g. with `AsignacionEspacioAdmin` and `AsignacionEspacioInline`) actually correct?**
+  _`Cliente` has 44 INFERRED edges - model-reasoned connections that need verification._

@@ -87,7 +87,6 @@
   "85": "FacturacionConfig",
   "86": "Command",
   "87": "AirbnbConfig",
-  "88": "airbnb/urls.py",
   "89": "ComercialConfig",
   "90": "Command",
   "91": "0041_rename_platillo_botanas.py",
@@ -98,8 +97,6 @@
   "96": "0002_alter_reservaairbnb_estado.py",
   "97": "0003_alter_anuncioairbnb_options_alter_pagoairbnb_options_and_more.py",
   "98": ".noches",
-  "99": "dashboard_airbnb",
-  "100": "generar_ical_eventos",
   "101": ".evaluar_descuentos_aplicables",
   "102": ".ver_plan_pagos",
   "103": ".registrar_reembolso",
@@ -164,7 +161,6 @@
   "162": "0006_add_rfc_razon_social_unidad.py",
   "163": "0007_alter_configuracioncontable_options_and_more.py",
   "164": "0009_saldoapertura_and_more.py",
-  "165": "MovimientoContable",
   "166": "asgi.py",
   "167": "wsgi.py",
   "168": "facturacion/migrations/0001_initial.py",
@@ -207,10 +203,8 @@
   "205": "tabs_fix.js",
   "206": "SugerenciaPrecioTests",
   "207": "facturacion/admin.py",
-  "208": "ParserBBVATest",
   "209": "facturacion/signals.py",
   "210": "README.md",
   "211": "bloquear_en_airbnb",
-  "212": "calendario_unificado",
-  "213": "custom_logout"
+  "212": "calendario_unificado"
 }

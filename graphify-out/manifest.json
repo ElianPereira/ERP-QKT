@@ -465,8 +465,8 @@
     "semantic_hash": "76d8ca6af843554e15c34765d5fa7ea9"
   },
   "comercial/models.py": {
-    "mtime": 1784743355.2860336,
-    "ast_hash": "f597e3dddb75532607d3901eb152fb15",
+    "mtime": 1784744835.2479858,
+    "ast_hash": "a1c7b2bd5f051211bd72f5008747b106",
     "semantic_hash": ""
   },
   "comercial/services.py": {
@@ -685,9 +685,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "contabilidad/models.py": {
-    "mtime": 1784741371.7995,
-    "ast_hash": "204c751a8073f659d421cc33ee2b07e6",
-    "semantic_hash": "204c751a8073f659d421cc33ee2b07e6"
+    "mtime": 1784744665.7075148,
+    "ast_hash": "02cece18dd3d0cba6871b042e0e28e0a",
+    "semantic_hash": ""
   },
   "contabilidad/services.py": {
     "mtime": 1784741371.7995,
@@ -775,9 +775,9 @@
     "semantic_hash": "c43d4d0fd8b9738dfd6393a63cd5ce75"
   },
   "facturacion/choices.py": {
-    "mtime": 1784741371.8206797,
-    "ast_hash": "43b56281799036db18fa2131dfa3175c",
-    "semantic_hash": "43b56281799036db18fa2131dfa3175c"
+    "mtime": 1784744735.5839798,
+    "ast_hash": "a656ccb6c39bd61f23212dcb4417ba63",
+    "semantic_hash": ""
   },
   "facturacion/migrations/0001_initial.py": {
     "mtime": 1784741371.8206797,
@@ -990,8 +990,8 @@
     "semantic_hash": "edac4bbb9eabe5ebdc8ff85803355eb2"
   },
   "comercial/choices.py": {
-    "mtime": 1784743341.7580328,
-    "ast_hash": "e75f68546903b259926761ec0c4d37c0",
+    "mtime": 1784744665.7075148,
+    "ast_hash": "3d89a789a5864212433c1f0becb9ae28",
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
@@ -1357,6 +1357,16 @@
   "static/img/logo.png": {
     "mtime": 1784741371.8380089,
     "ast_hash": "069dd406acb14238aa395f1655ac5784",
+    "semantic_hash": ""
+  },
+  "comercial/migrations/0059_alter_cliente_regimen_fiscal.py": {
+    "mtime": 1784744865.1639876,
+    "ast_hash": "479bc07f405f4b2edde4365b989c202e",
+    "semantic_hash": ""
+  },
+  "facturacion/migrations/0004_alter_solicitudfactura_regimen_fiscal.py": {
+    "mtime": 1784744767.6559818,
+    "ast_hash": "d34319d6364d5fbc93987a699883fdb6",
     "semantic_hash": ""
   }
 }
