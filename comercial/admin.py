@@ -44,13 +44,13 @@ class ConstanteSistemaAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(Proveedor)
 class ProveedorAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'contacto', 'telefono', 'email', 'total_insumos', 'activo')
+    list_display = ('nombre', 'rfc', 'contacto', 'telefono', 'email', 'total_insumos', 'activo')
     list_filter = ('activo',)
     list_editable = ('activo',)
-    search_fields = ('nombre', 'contacto', 'telefono', 'email')
+    search_fields = ('nombre', 'rfc', 'contacto', 'telefono', 'email')
     list_per_page = 25
     fieldsets = (
-        (None, {'fields': ('nombre', 'contacto', 'telefono', 'email')}),
+        (None, {'fields': ('nombre', 'rfc', 'contacto', 'telefono', 'email')}),
         ('Información Adicional', {'fields': ('notas', 'activo')}),
     )
 
@@ -887,7 +887,11 @@ class GastoInline(admin.TabularInline):
 class CompraAdmin(admin.ModelAdmin):
     change_list_template = "comercial/compra_change_list.html"
     list_display = ('fecha_emision', 'proveedor', 'total_format', 'unidad_negocio', 'cuenta_pago', 'es_deducible', 'uuid', 'ver_pdf')
-    list_filter = ('fecha_emision', 'unidad_negocio', 'cuenta_pago', 'es_deducible'); search_fields = ('proveedor', 'uuid'); date_hierarchy = 'fecha_emision'
+    list_filter = ('fecha_emision', 'unidad_negocio', 'cuenta_pago', 'es_deducible')
+    search_fields = ('proveedor__nombre', 'proveedor_nombre', 'uuid', 'rfc_emisor')
+    date_hierarchy = 'fecha_emision'
+    autocomplete_fields = ['proveedor']
+    readonly_fields = ('proveedor_nombre',)
     inlines = [GastoInline]
     fieldsets = (
         ('Archivo Fuente (Opcional)', {
@@ -895,7 +899,12 @@ class CompraAdmin(admin.ModelAdmin):
             'description': 'Si no hay factura (ej. compra en el extranjero), deja este bloque vacío y '
                             'captura los datos a mano abajo — el gasto se registrará como no deducible.',
         }),
-        ('Datos Generales', {'fields': ('fecha_emision', 'proveedor', 'rfc_emisor', 'uuid')}),
+        ('Datos Generales', {
+            'fields': ('fecha_emision', 'proveedor', 'proveedor_nombre', 'rfc_emisor', 'uuid'),
+            'description': 'El campo "Proveedor" se busca/crea automáticamente en el catálogo por RFC o '
+                            'nombre al guardar (desde el XML o desde el nombre que captures). Puedes '
+                            'corregirlo con el buscador, o dar de alta uno nuevo con el botón "+".',
+        }),
         ('Contabilidad', {
             'fields': ('unidad_negocio', 'cuenta_pago', 'es_deducible'),
             'description': 'Sin unidad de negocio y cuenta de pago, la póliza generada queda en BORRADOR '
@@ -951,9 +960,9 @@ class CompraAdmin(admin.ModelAdmin):
                             motivos_excluidas.append(f"{f.name}: {motivo}")
                         continue
 
-                    unidad_detectada = UnidadNegocio.objects.filter(clave=unidad_clave).first() if unidad_clave else None
-                    unidad = unidad_fija or unidad_detectada
-
+                    # Si no se forzó una unidad manual, Compra.save() la
+                    # detecta sola a partir del RFC receptor del propio XML
+                    # (misma lógica que analizar_xml_compra, sin duplicarla aquí).
                     file_io = BytesIO(file_content)
                     new_file = InMemoryUploadedFile(
                         file=file_io,
@@ -963,7 +972,7 @@ class CompraAdmin(admin.ModelAdmin):
                         size=len(file_content),
                         charset=None
                     )
-                    Compra.objects.create(archivo_xml=new_file, unidad_negocio=unidad)
+                    Compra.objects.create(archivo_xml=new_file, unidad_negocio=unidad_fija)
                     exitos += 1
                 except Exception as e:
                     errores += 1

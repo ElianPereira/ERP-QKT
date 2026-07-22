@@ -729,8 +729,9 @@ class DashboardSeparacionElianRubyTest(TestCase):
         self.assertEqual(gastos_ruby, [0, 100.0])
 
 
-def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid=''):
-    """CFDI 4.0 mínimo (solo lo que analizar_xml_compra necesita leer)."""
+def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid='',
+                     rfc_emisor='PRV010101ABC', nombre_emisor='Proveedor Test'):
+    """CFDI 4.0 mínimo (solo lo que analizar_xml_compra/Compra.save() necesitan leer)."""
     complemento = ''
     if uuid:
         complemento = (
@@ -742,7 +743,7 @@ def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid
     return (
         '<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" '
         f'Version="4.0" TipoDeComprobante="{tipo}" Total="1160.00" SubTotal="1000.00">'
-        '<cfdi:Emisor Rfc="PRV010101ABC" Nombre="Proveedor Test"/>'
+        f'<cfdi:Emisor Rfc="{rfc_emisor}" Nombre="{nombre_emisor}"/>'
         f'<cfdi:Receptor Rfc="{rfc_receptor}" UsoCFDI="{uso_cfdi}"/>'
         f'{complemento}'
         '</cfdi:Comprobante>'
@@ -811,3 +812,88 @@ class AnalizarXmlCompraTest(TestCase):
         )
         self.assertTrue(valido)
         self.assertFalse(es_duplicado)
+
+
+class CompraDeteccionAutomaticaTest(TestCase):
+    """Regresión: subir un XML directo en 'Compras > Añadir' (sin pasar por
+    la carga masiva) también debe detectar la unidad de negocio por el RFC
+    receptor, y vincular/crear el Proveedor del catálogo — no solo la
+    herramienta de carga masiva."""
+
+    def setUp(self):
+        from unittest.mock import patch
+        # Compra.archivo_xml usa RawMediaCloudinaryStorage, que intentaría
+        # subir de verdad a Cloudinary (requiere credenciales reales) —
+        # se simula el guardado para poder probar el parseo del XML.
+        parcheador = patch(
+            'cloudinary_storage.storage.RawMediaCloudinaryStorage._save',
+            side_effect=lambda name, content: name,
+        )
+        parcheador.start()
+        self.addCleanup(parcheador.stop)
+
+    def _crear_compra_con_xml(self, **kwargs_cfdi):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        xml = SimpleUploadedFile('factura.xml', _construir_cfdi(**kwargs_cfdi), content_type='application/xml')
+        return Compra.objects.create(archivo_xml=xml)
+
+    def test_detecta_unidad_negocio_por_rfc_receptor_sin_carga_masiva(self):
+        from contabilidad.models import UnidadNegocio
+        UnidadNegocio.objects.get_or_create(clave='QUINTA', defaults={'nombre': "Quinta Test"})
+
+        compra = self._crear_compra_con_xml(rfc_receptor='PECE010202IA0')
+
+        self.assertIsNotNone(compra.unidad_negocio)
+        self.assertEqual(compra.unidad_negocio.clave, 'QUINTA')
+
+    def test_no_sobreescribe_unidad_negocio_ya_asignada(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from contabilidad.models import UnidadNegocio
+
+        UnidadNegocio.objects.get_or_create(clave='QUINTA', defaults={'nombre': "Quinta Test"})
+        airbnb, _ = UnidadNegocio.objects.get_or_create(clave='AIRBNB', defaults={'nombre': 'Airbnb Test'})
+
+        xml = SimpleUploadedFile(
+            'factura.xml', _construir_cfdi(rfc_receptor='PECE010202IA0'), content_type='application/xml'
+        )
+        compra = Compra.objects.create(archivo_xml=xml, unidad_negocio=airbnb)
+
+        self.assertEqual(compra.unidad_negocio.clave, 'AIRBNB')  # se respeta lo forzado manualmente
+
+    def test_crea_proveedor_en_catalogo_si_no_existe(self):
+        from comercial.models import Proveedor
+
+        compra = self._crear_compra_con_xml(rfc_emisor='NUE010101XYZ', nombre_emisor='Proveedor Nuevo SA')
+
+        self.assertIsNotNone(compra.proveedor)
+        self.assertEqual(compra.proveedor.nombre, 'Proveedor Nuevo SA')
+        self.assertEqual(compra.proveedor.rfc, 'NUE010101XYZ')
+        self.assertTrue(Proveedor.objects.filter(nombre='Proveedor Nuevo SA').exists())
+
+    def test_vincula_a_proveedor_existente_por_rfc(self):
+        from comercial.models import Proveedor
+
+        existente = Proveedor.objects.create(nombre='Nombre Distinto En Catálogo', rfc='EXI010101AAA')
+        compra = self._crear_compra_con_xml(rfc_emisor='EXI010101AAA', nombre_emisor='Nombre Como Viene En El XML')
+
+        self.assertEqual(compra.proveedor_id, existente.pk)
+        # no debe crear un segundo Proveedor solo porque el nombre no coincide
+        self.assertEqual(Proveedor.objects.filter(rfc='EXI010101AAA').count(), 1)
+
+    def test_vincula_a_proveedor_existente_por_nombre_si_no_hay_rfc_match(self):
+        from comercial.models import Proveedor
+
+        existente = Proveedor.objects.create(nombre='Proveedor Sin Rfc Antes')
+        compra = self._crear_compra_con_xml(rfc_emisor='NVO020202BBB', nombre_emisor='Proveedor Sin Rfc Antes')
+
+        self.assertEqual(compra.proveedor_id, existente.pk)
+        existente.refresh_from_db()
+        self.assertEqual(existente.rfc, 'NVO020202BBB')  # se completa el RFC que faltaba
+
+    def test_compra_manual_sin_xml_tambien_vincula_proveedor_por_nombre_capturado(self):
+        """Aunque no haya XML, si se captura proveedor_nombre a mano, debe
+        buscar/crear igual en el catálogo — no solo cuando viene de un CFDI."""
+        compra = Compra.objects.create(proveedor_nombre='Ferretería Local')
+
+        self.assertIsNotNone(compra.proveedor)
+        self.assertEqual(compra.proveedor.nombre, 'Ferretería Local')
