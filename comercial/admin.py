@@ -4,7 +4,7 @@ from django.utils.html import format_html, mark_safe
 from django.template.loader import render_to_string
 from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from .models import PortalCliente
 from .models import (
@@ -820,7 +820,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         if request.method == 'POST':
             from django.urls import reverse as _reverse
             return redirect(f"/cotizacion/{cotizacion_id}/contrato/generar/?"
-                        f"tipo={request.POST.get('tipo_servicio','EVENTO')}"
+                        f"tipo_servicio={request.POST.get('tipo_servicio','EVENTO')}"
                         f"&deposito={request.POST.get('deposito_garantia','0')}")
 
         context = {
