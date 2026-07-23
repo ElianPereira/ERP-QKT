@@ -351,3 +351,67 @@ class ReembolsoOpenpayTest(TestCase):
         resultado = reembolsar_cargo_openpay(pago)
         self.assertTrue(resultado['ok'])
         self.assertIn('/charges/tx006/refund', mock_post.call_args[0][0])
+
+
+class ComisionOpenpayTest(TestCase):
+    """La comisión que Openpay reporta en `fee` genera su póliza automática
+    (Comisión + IVA acreditable vs. Banco, igual que la comisión de terminal)."""
+
+    def _webhook_con_fee(self, cotizacion, openpay_id='txfee01', amount=1000.00, fee=None):
+        return {
+            'type': 'charge.succeeded',
+            'transaction': {
+                'id': openpay_id, 'status': 'completed', 'amount': amount,
+                'method': 'store', 'order_id': f'COT-{cotizacion.id}-1',
+                'fee': fee if fee is not None else {'amount': 31.5, 'tax': 5.04, 'currency': 'MXN'},
+            }
+        }
+
+    def test_webhook_con_fee_genera_poliza_de_comision(self):
+        from contabilidad.models import Poliza
+        cotizacion = _crear_cotizacion()
+        registro = procesar_webhook_openpay(self._webhook_con_fee(cotizacion))
+        self.assertTrue(registro.procesado)
+
+        poliza = Poliza.objects.filter(origen='COMISION_OPENPAY', object_id=registro.pk).first()
+        self.assertIsNotNone(poliza)
+        self.assertEqual(poliza.tipo, 'E')
+        movimientos = list(poliza.movimientos.all())
+        total_debe = sum(m.debe for m in movimientos)
+        total_haber = sum(m.haber for m in movimientos)
+        self.assertEqual(total_debe, Decimal('36.54'))  # 31.50 comisión + 5.04 IVA
+        self.assertEqual(total_haber, Decimal('36.54'))
+
+    def test_webhook_repetido_no_duplica_poliza_de_comision(self):
+        from contabilidad.models import Poliza
+        cotizacion = _crear_cotizacion()
+        payload = self._webhook_con_fee(cotizacion, openpay_id='txfee02')
+        procesar_webhook_openpay(payload)
+        procesar_webhook_openpay(payload)  # reintento de Openpay
+        registro = OpenpayTransaccion.objects.get(openpay_id='txfee02')
+        self.assertEqual(Poliza.objects.filter(origen='COMISION_OPENPAY', object_id=registro.pk).count(), 1)
+
+    def test_webhook_sin_fee_no_genera_poliza_pero_si_pago(self):
+        from contabilidad.models import Poliza
+        cotizacion = _crear_cotizacion()
+        payload = self._webhook_con_fee(cotizacion, openpay_id='txsinfee')
+        del payload['transaction']['fee']
+        registro = procesar_webhook_openpay(payload)
+        self.assertTrue(registro.procesado)
+        self.assertTrue(Pago.objects.filter(referencia='txsinfee').exists())
+        self.assertFalse(Poliza.objects.filter(origen='COMISION_OPENPAY', object_id=registro.pk).exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_cargo_tarjeta_con_fee_genera_poliza_de_comision(self, mock_post):
+        from contabilidad.models import Poliza
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'txfeecard', 'status': 'completed', 'amount': 500.00,
+            'fee': {'amount': 17.0, 'tax': 2.72, 'currency': 'MXN'},
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok123', 'dev123')
+        self.assertTrue(resultado['ok'])
+        registro = OpenpayTransaccion.objects.get(openpay_id='txfeecard')
+        poliza = Poliza.objects.filter(origen='COMISION_OPENPAY', object_id=registro.pk).first()
+        self.assertIsNotNone(poliza)
+        self.assertEqual(sum(m.haber for m in poliza.movimientos.all()), Decimal('19.72'))

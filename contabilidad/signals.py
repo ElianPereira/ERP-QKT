@@ -283,6 +283,114 @@ def crear_poliza_ingreso_extra(pago):
 
 
 # ==========================================
+# COMISIÓN OPENPAY (automática, con el fee que reporta Openpay)
+# ==========================================
+def crear_poliza_comision_openpay(transaccion, fee):
+    """
+    Genera la póliza de la comisión que Openpay cobra por un cargo, con el
+    desglose exacto que Openpay reporta en el campo `fee` de la transacción.
+    Mismo asiento que la comisión de terminal (manual de contabilidad 7.2):
+
+        DEBE: Comisiones bancarias    fee.amount
+        DEBE: IVA acreditable         fee.tax
+        HABER: Banco principal        fee.amount + fee.tax
+
+    Idempotente: una sola póliza por OpenpayTransaccion aunque el webhook
+    llegue repetido. Si faltan cuentas configuradas se omite con warning,
+    sin afectar el registro del Pago.
+    """
+    if not signals_enabled():
+        return None
+
+    fee = fee or {}
+    try:
+        comision = Decimal(str(fee.get('amount') or 0))
+        iva = Decimal(str(fee.get('tax') or 0))
+    except Exception:
+        logger.warning("Comisión Openpay no registrada para %s: fee ilegible %r", transaccion.openpay_id, fee)
+        return None
+
+    if comision <= 0:
+        return None
+
+    content_type = ContentType.objects.get_for_model(transaccion)
+    if Poliza.objects.filter(
+        content_type=content_type, object_id=transaccion.pk, origen='COMISION_OPENPAY'
+    ).exists():
+        return None  # ya registrada (idempotencia ante reintentos del webhook)
+
+    cuenta_gasto = get_cuenta('GASTO_BANCARIOS')
+    cuenta_iva = get_cuenta('IVA_ACREDITABLE')
+    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+    if not cuenta_gasto or not cuenta_banco:
+        logger.warning(
+            "Comisión Openpay no registrada para %s: falta configuración contable "
+            "(GASTO_BANCARIOS=%s, BANCO_PRINCIPAL=%s)",
+            transaccion.openpay_id, cuenta_gasto, cuenta_banco,
+        )
+        return None
+
+    unidad = get_unidad_negocio('QUINTA')
+    if not unidad:
+        logger.warning("Comisión Openpay no registrada para %s: falta UnidadNegocio 'QUINTA'", transaccion.openpay_id)
+        return None
+
+    fecha = transaccion.pago.fecha_pago if transaccion.pago else transaccion.created_at.date()
+
+    poliza = Poliza.objects.create(
+        tipo='E',
+        folio=Poliza.siguiente_folio('E', fecha),
+        fecha=fecha,
+        concepto=f"Comisión Openpay {transaccion.metodo or ''} — {transaccion.openpay_id}".strip(),
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='COMISION_OPENPAY',
+        content_type=content_type,
+        object_id=transaccion.pk,
+        created_by=get_usuario_sistema(),
+    )
+
+    MovimientoContable.objects.create(
+        poliza=poliza,
+        cuenta=cuenta_gasto,
+        debe=comision,
+        haber=Decimal('0.00'),
+        concepto="Comisión Openpay",
+        referencia=transaccion.openpay_id,
+    )
+    if cuenta_iva and iva > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_iva,
+            debe=iva,
+            haber=Decimal('0.00'),
+            concepto="IVA acreditable comisión Openpay",
+            referencia=transaccion.openpay_id,
+        )
+    elif iva > 0:
+        # Sin cuenta de IVA acreditable configurada: se incluye en el gasto
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_gasto,
+            debe=iva,
+            haber=Decimal('0.00'),
+            concepto="IVA comisión Openpay (incluido en gasto)",
+            referencia=transaccion.openpay_id,
+        )
+
+    MovimientoContable.objects.create(
+        poliza=poliza,
+        cuenta=cuenta_banco,
+        debe=Decimal('0.00'),
+        haber=comision + iva,
+        concepto="Comisión Openpay descontada del depósito",
+        referencia=transaccion.openpay_id,
+    )
+
+    return poliza
+
+
+# ==========================================
 # REEMBOLSO A CLIENTE (póliza inversa)
 # ==========================================
 def crear_poliza_reembolso_cliente(pago):
