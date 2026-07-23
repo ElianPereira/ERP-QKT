@@ -11,11 +11,14 @@ procesamiento del webhook de notificaciones.
 El `Pago` creado aquí dispara la póliza automática existente — este módulo
 no toca la lógica de contabilidad.
 """
+import logging
 import requests
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.db import transaction
 from .models import Cotizacion, Pago, OpenpayTransaccion
+
+logger = logging.getLogger(__name__)
 
 OPENPAY_BASE_URL = (
     "https://sandbox-api.openpay.mx/v1"
@@ -78,6 +81,18 @@ def _crear_pago_desde_cargo(cotizacion, monto, openpay_id, metodo):
     )
 
 
+def _registrar_comision_openpay(registro, fee):
+    """Póliza automática de la comisión de Openpay (fee.amount + fee.tax).
+    Nunca debe tumbar el registro del pago: cualquier falla solo se loggea."""
+    if not fee:
+        return
+    try:
+        from contabilidad.signals import crear_poliza_comision_openpay
+        crear_poliza_comision_openpay(registro, fee)
+    except Exception:
+        logger.exception("No se pudo registrar la póliza de comisión Openpay para %s.", registro.openpay_id)
+
+
 # --- TARJETA (síncrono: se sabe el resultado de inmediato) ---
 
 def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str, device_session_id: str):
@@ -108,6 +123,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
                 pago = _crear_pago_desde_cargo(cotizacion, monto, data['id'], 'card')
                 registro.pago = pago
                 registro.save(update_fields=['pago'])
+            _registrar_comision_openpay(registro, data.get('fee'))
         except Exception as e:
             # El cargo YA se hizo en Openpay; si el registro interno del Pago
             # falla, queda el error en la transacción para regularizarlo a mano.
@@ -260,6 +276,7 @@ def procesar_webhook_openpay(payload: dict):
             registro.estado_openpay = 'completed'
             registro.error_detalle = ''
             registro.save(update_fields=['event_type', 'cotizacion', 'pago', 'monto', 'procesado', 'estado_openpay', 'error_detalle'])
+        _registrar_comision_openpay(registro, transaction_data.get('fee'))
     except Exception as e:
         registro.error_detalle = f"Error al crear Pago: {e}"
         registro.save(update_fields=['event_type', 'cotizacion', 'error_detalle'])

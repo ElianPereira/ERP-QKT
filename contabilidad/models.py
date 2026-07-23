@@ -270,6 +270,7 @@ class Poliza(models.Model):
         ('PAGO_AIRBNB', 'Pago Airbnb'),
         ('COMPRA', 'Compra/Gasto'),
         ('NOMINA', 'Nómina'),
+        ('COMISION_OPENPAY', 'Comisión Openpay'),
         ('AJUSTE', 'Ajuste contable'),
         ('APERTURA', 'Saldo de apertura'),
     ]
