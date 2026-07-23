@@ -42,6 +42,21 @@ def _decimal_o_none(valor):
         return None
 
 
+def _datos_customer(cliente):
+    """Openpay exige un objeto customer en cada cargo ('Attribute customer is
+    required'). requires_account=False evita que Openpay cree una cuenta de
+    usuario para el cliente — solo usa los datos para el cargo."""
+    nombre_completo = (cliente.nombre or '').strip()
+    nombre, _, apellidos = nombre_completo.partition(' ')
+    return {
+        "name": nombre or 'Cliente',
+        "last_name": apellidos.strip(),
+        "email": cliente.email or settings.DEFAULT_FROM_EMAIL,
+        "phone_number": cliente.telefono or '',
+        "requires_account": False,
+    }
+
+
 def _payload_cargo_base(cotizacion: Cotizacion, monto: Decimal, metodo: str):
     return {
         "method": metodo,
@@ -49,6 +64,7 @@ def _payload_cargo_base(cotizacion: Cotizacion, monto: Decimal, metodo: str):
         "currency": "MXN",
         "description": f"COT-{cotizacion.id:03d} - {cotizacion.nombre_evento}",
         "order_id": f"COT-{cotizacion.id}-{cotizacion.transacciones_openpay.count() + 1}",
+        "customer": _datos_customer(cotizacion.cliente),
     }
 
 
