@@ -116,10 +116,13 @@ def openpay_webhook_view(request):
         return HttpResponse(status=200)
 
     # Openpay manda un evento especial de verificación al registrar el webhook.
-    # Hay que regresar 200 y loggear el código — Openpay lo pide para confirmar el alta.
-    if payload.get('type') == 'verification_code' or 'verification_code' in payload:
-        codigo = payload.get('verification_code')
-        logger.info("Webhook Openpay: código de verificación recibido: %s", codigo)
+    # Forma real confirmada contra producción (difiere de la documentación
+    # genérica): {'type': 'VERIFICATION', 'verificationCode': 'XXXXXXXX'}.
+    # Se aceptan también las variantes en snake_case por si cambia de versión.
+    codigo = payload.get('verificationCode') or payload.get('verification_code')
+    if str(payload.get('type', '')).upper() == 'VERIFICATION' or codigo:
+        # warning para que el código siempre sea visible en los Deploy Logs
+        logger.warning("Webhook Openpay: código de verificación recibido: %s", codigo)
         return HttpResponse(status=200)
 
     try:

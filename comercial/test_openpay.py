@@ -86,6 +86,17 @@ class WebhookOpenpayAuthTest(TestCase):
         )
         self.assertEqual(response.status_code, 401)
 
+    def test_verification_payload_real_de_openpay_regresa_200(self):
+        """Forma real capturada en producción: type=VERIFICATION + verificationCode."""
+        payload = {'type': 'VERIFICATION', 'eventDate': 'Jul 23, 2026, 7:46:32 PM', 'verificationCode': 'hvW90eV0'}
+        response = self.client.post(
+            self.url, secure=True, data=json.dumps(payload),
+            content_type='application/json',
+            HTTP_AUTHORIZATION=_basic_auth_header(WEBHOOK_USER, WEBHOOK_PASSWORD),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(OpenpayTransaccion.objects.exists())
+
     def test_verification_code_regresa_200(self):
         response = self.client.post(
             self.url, secure=True, data=json.dumps({'type': 'verification_code', 'verification_code': 'abc123'}),
