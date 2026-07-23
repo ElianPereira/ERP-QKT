@@ -93,7 +93,13 @@
     </div>
     
     <div class="container">
-        
+
+        <!-- Confirmación de pago tras la recarga (?pago=exitoso) -->
+        <div id="banner-pago-exitoso" style="display:none; background:#E8F5E9; color:#2E7D32; border:2px solid #2E7D32; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
+            <i class="fas fa-check-circle" style="font-size:22px;"></i>
+            ¡Tu pago se realizó con éxito! Ya aparece abajo en "Pagos realizados".
+        </div>
+
         <!-- Estado -->
         {% with estado=cotizacion.estado %}
         <div class="estado-banner estado-{% if estado == 'CONFIRMADA' %}confirmada{% elif estado == 'COTIZADA' %}cotizada{% elif estado == 'ANTICIPO' %}anticipo{% elif estado == 'EN_PREPARACION' %}preparacion{% elif estado == 'EJECUTADA' %}ejecutada{% elif estado == 'CERRADA' %}cerrada{% else %}borrador{% endif %}">
@@ -286,6 +292,15 @@
             <div id="resultado-pago" style="display:none; margin-top:14px; padding:14px; border-radius:8px; font-weight:600; font-size:14px;"></div>
             <div id="referencia-pago" style="display:none; margin-top:14px; padding:14px; border-radius:8px; background:#f8f8f6; font-size:14px;"></div>
         </div>
+
+        <!-- Overlay de pago exitoso (pantalla completa, imposible de perderse) -->
+        <div id="overlay-pago-exitoso" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:center; justify-content:center;">
+            <div style="background:white; border-radius:16px; padding:40px 32px; max-width:360px; width:90%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+                <i class="fas fa-check-circle" style="font-size:64px; color:#2E7D32;"></i>
+                <h2 style="margin:16px 0 8px; color:#2E7D32; font-size:20px;">¡Pago exitoso!</h2>
+                <p style="color:#555; font-size:14px;">Tu pago fue procesado correctamente.<br>Actualizando tu estado de cuenta…</p>
+            </div>
+        </div>
         {% endif %}
 
         <!-- Documentos y acciones -->
@@ -407,8 +422,14 @@
             if (data.ok && data.referencia) {
                 mostrarReferencia(data);
             } else if (data.ok) {
-                mostrarResultado('exito', data.mensaje);
-                setTimeout(function() { window.location.reload(); }, 2500);
+                // Overlay a pantalla completa y recarga con ?pago=exitoso para
+                // que la confirmación siga visible después de recargar.
+                document.getElementById('overlay-pago-exitoso').style.display = 'flex';
+                setTimeout(function() {
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('pago', 'exitoso');
+                    window.location.href = url.toString();
+                }, 2000);
             } else {
                 mostrarResultado('error', data.mensaje);
             }
@@ -427,6 +448,7 @@
             div.style.background = '#FFEBEE'; div.style.color = '#e74c3c';
         }
         div.textContent = mensaje;
+        div.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     function mostrarReferencia(data) {
@@ -438,8 +460,26 @@
         if (data.reference) html += '<p><strong>Referencia:</strong> ' + data.reference + '</p>';
         if (data.barcode_url) html += '<img src="' + data.barcode_url + '" alt="Código de barras" style="max-width:100%; margin-top:8px;">';
         div.innerHTML = html;
+        div.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     </script>
     {% endif %}
+
+    <script>
+    // Tras la recarga con ?pago=exitoso: banner persistente arriba de la página.
+    // Va FUERA del bloque del checkout: si el cliente pagó el saldo completo,
+    // el checkout ya no se renderiza pero la confirmación sí debe verse.
+    // Se limpia el parámetro de la URL para que un refresh no lo repita.
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('pago') === 'exitoso') {
+            var banner = document.getElementById('banner-pago-exitoso');
+            if (banner) banner.style.display = 'flex';
+            params.delete('pago');
+            var limpia = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState(null, '', limpia);
+        }
+    })();
+    </script>
 </body>
 </html>
