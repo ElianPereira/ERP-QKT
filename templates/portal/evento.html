@@ -237,6 +237,57 @@
         </div>
         {% endif %}
         
+        <!-- Pagar en línea (Openpay) -->
+        {% if openpay_habilitado and saldo_pendiente > 0 %}
+        <div class="card" id="card-pago-linea">
+            <div class="card-title"><i class="fas fa-credit-card"></i> Pagar en línea</div>
+            <p style="font-size:13px; color:#8a8780; margin-bottom:14px;">
+                Paga con tarjeta, en efectivo (tiendas de conveniencia) o por transferencia SPEI.
+                Tu pago se refleja automáticamente en este portal.
+            </p>
+
+            <div class="btn-grid" id="metodo-selector" style="margin-bottom:14px;">
+                <button type="button" class="btn btn-outline" onclick="mostrarMetodo('card')"><i class="fas fa-credit-card"></i> Tarjeta</button>
+                <button type="button" class="btn btn-outline" onclick="mostrarMetodo('store')"><i class="fas fa-store"></i> Efectivo</button>
+                <button type="button" class="btn btn-outline" onclick="mostrarMetodo('bank_account')"><i class="fas fa-university"></i> Transferencia / SPEI</button>
+            </div>
+
+            <form id="payment-form" style="display:none;">
+                {% csrf_token %}
+                <input type="hidden" id="deviceIdHiddenFieldName" name="device_session_id">
+
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:12px; font-weight:600; color:#555;">Monto a pagar (MXN)</label>
+                    <input type="number" id="monto-pago" name="monto" min="1" step="0.01"
+                           value="{{ saldo_pendiente|floatformat:2 }}" max="{{ saldo_pendiente|floatformat:2 }}"
+                           style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
+                </div>
+
+                <div id="campos-tarjeta" style="display:none;">
+                    <input type="text" data-openpay-card="card_number" autocomplete="cc-number" placeholder="Número de tarjeta" maxlength="16"
+                           style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
+                    <input type="text" data-openpay-card="holder_name" autocomplete="cc-name" placeholder="Nombre en la tarjeta"
+                           style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" data-openpay-card="expiration_month" placeholder="MM" maxlength="2"
+                               style="flex:1; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
+                        <input type="text" data-openpay-card="expiration_year" placeholder="AA" maxlength="2"
+                               style="flex:1; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
+                        <input type="text" data-openpay-card="cvv2" placeholder="CVV" maxlength="4"
+                               style="flex:1; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-pagar" class="btn btn-green" style="border:none; cursor:pointer; width:100%; justify-content:center; font-size:15px;">
+                    <i class="fas fa-lock"></i> Pagar
+                </button>
+            </form>
+
+            <div id="resultado-pago" style="display:none; margin-top:14px; padding:14px; border-radius:8px; font-weight:600; font-size:14px;"></div>
+            <div id="referencia-pago" style="display:none; margin-top:14px; padding:14px; border-radius:8px; background:#f8f8f6; font-size:14px;"></div>
+        </div>
+        {% endif %}
+
         <!-- Documentos y acciones -->
         <div class="card">
             <div class="card-title"><i class="fas fa-file-download"></i> Documentos</div>
@@ -298,5 +349,97 @@
         <strong>Quinta Ko'ox Tanil</strong> — Mérida, Yucatán<br>
         Haciendo tus eventos inolvidables
     </div>
+
+    {% if openpay_habilitado and saldo_pendiente > 0 %}
+    <script src="https://openpay.s3.amazonaws.com/openpay.v1.min.js"></script>
+    <script src="https://openpay.s3.amazonaws.com/openpay-data.v1.min.js"></script>
+    <script>
+    OpenPay.setId("{{ openpay_merchant_id }}");
+    OpenPay.setApiKey("{{ openpay_public_key }}");
+    OpenPay.setSandboxMode({{ openpay_sandbox|yesno:"true,false" }});
+
+    var deviceSessionId = OpenPay.deviceData.setup("payment-form", "deviceIdHiddenFieldName");
+    var metodoActual = null;
+
+    function mostrarMetodo(metodo) {
+        metodoActual = metodo;
+        document.getElementById('payment-form').style.display = 'block';
+        document.getElementById('campos-tarjeta').style.display = (metodo === 'card') ? 'block' : 'none';
+        document.getElementById('resultado-pago').style.display = 'none';
+        document.getElementById('referencia-pago').style.display = 'none';
+    }
+
+    document.getElementById('payment-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        document.getElementById('btn-pagar').disabled = true;
+
+        if (metodoActual === 'card') {
+            OpenPay.token.extractFormAndCreate('payment-form', onTokenSuccess, onTokenError);
+        } else {
+            // efectivo/SPEI no necesitan tokenizar, se manda directo al backend
+            enviarCargoAlBackend(metodoActual, null, null);
+        }
+    });
+
+    function onTokenSuccess(response) {
+        enviarCargoAlBackend('card', response.data.id, deviceSessionId);
+    }
+
+    function onTokenError(response) {
+        document.getElementById('btn-pagar').disabled = false;
+        mostrarResultado('error', (response.data && response.data.description) || 'No se pudo procesar la tarjeta. Verifica los datos.');
+    }
+
+    function enviarCargoAlBackend(metodo, tokenId, devSessionId) {
+        var form = document.getElementById('payment-form');
+        var body = new URLSearchParams({
+            metodo: metodo,
+            token_id: tokenId || '',
+            device_session_id: devSessionId || '',
+            monto: document.getElementById('monto-pago').value,
+            csrfmiddlewaretoken: form.querySelector('[name=csrfmiddlewaretoken]').value,
+        });
+
+        fetch("{% url 'portal_procesar_pago_openpay' portal.token %}", {
+            method: 'POST', body: body,
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            document.getElementById('btn-pagar').disabled = false;
+            if (data.ok && data.referencia) {
+                mostrarReferencia(data);
+            } else if (data.ok) {
+                mostrarResultado('exito', data.mensaje);
+                setTimeout(function() { window.location.reload(); }, 2500);
+            } else {
+                mostrarResultado('error', data.mensaje);
+            }
+        }).catch(function() {
+            document.getElementById('btn-pagar').disabled = false;
+            mostrarResultado('error', 'No se pudo contactar al servidor. Intenta de nuevo.');
+        });
+    }
+
+    function mostrarResultado(tipo, mensaje) {
+        var div = document.getElementById('resultado-pago');
+        div.style.display = 'block';
+        if (tipo === 'exito') {
+            div.style.background = '#E8F5E9'; div.style.color = '#2E7D32';
+        } else {
+            div.style.background = '#FFEBEE'; div.style.color = '#e74c3c';
+        }
+        div.textContent = mensaje;
+    }
+
+    function mostrarReferencia(data) {
+        var div = document.getElementById('referencia-pago');
+        div.style.display = 'block';
+        var html = '<p style="font-weight:600; margin-bottom:8px;">Realiza tu pago con estos datos. Se confirmará automáticamente en este portal cuando se reciba.</p>';
+        if (data.bank) html += '<p><strong>Banco:</strong> ' + data.bank + '</p>';
+        if (data.clabe) html += '<p><strong>CLABE:</strong> ' + data.clabe + '</p>';
+        if (data.reference) html += '<p><strong>Referencia:</strong> ' + data.reference + '</p>';
+        if (data.barcode_url) html += '<img src="' + data.barcode_url + '" alt="Código de barras" style="max-width:100%; margin-top:8px;">';
+        div.innerHTML = html;
+    }
+    </script>
+    {% endif %}
 </body>
 </html>
