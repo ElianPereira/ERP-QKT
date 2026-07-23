@@ -105,6 +105,12 @@ def openpay_webhook_view(request):
         logger.error("Webhook Openpay: payload no es JSON válido.")
         return HttpResponse(status=200)  # 200 igual, para que Openpay no reintente algo irrecuperable
 
+    # TEMPORAL (depuración): loggear SIEMPRE el payload crudo, coincida o no
+    # con un tipo de evento conocido — la forma real del payload de
+    # verificación de Openpay no coincide con la documentación genérica.
+    # Se usa warning para que salga en consola sin depender de config de logging.
+    logger.warning(f"Webhook Openpay - payload crudo recibido: {payload}")
+
     if not isinstance(payload, dict):
         logger.error("Webhook Openpay: payload JSON no es un objeto: %r", payload)
         return HttpResponse(status=200)
