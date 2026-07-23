@@ -96,6 +96,9 @@ LOGGING = {
     'loggers': {
         'django': {'handlers': ['console'], 'level': 'INFO'},
         'weasyprint': {'handlers': ['console'], 'level': 'WARNING'},
+        # Los logger.info del webhook Openpay (ej. el código de verificación al
+        # registrar el webhook) deben verse en los Deploy Logs de Railway.
+        'comercial.views_openpay': {'handlers': ['console'], 'level': 'INFO'},
     },
 }
 
