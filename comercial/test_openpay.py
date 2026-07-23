@@ -196,6 +196,26 @@ class CargoTarjetaTest(TestCase):
         self.assertEqual(registro.metodo, 'card')
 
     @patch('comercial.services_openpay.requests.post')
+    def test_cargo_incluye_datos_del_customer(self, mock_post):
+        """Openpay rechaza cargos sin objeto customer ('Attribute customer is required')."""
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx010', 'status': 'completed', 'amount': 500.00
+        })
+        cotizacion = _crear_cotizacion()
+        cotizacion.cliente.nombre = 'Elian Pereira Ceh'
+        cotizacion.cliente.email = 'cliente@ejemplo.com'
+        cotizacion.cliente.telefono = '9991234567'
+        cotizacion.cliente.save()
+        procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok123', 'dev123')
+
+        payload_enviado = mock_post.call_args.kwargs['json']
+        self.assertEqual(payload_enviado['customer']['name'], 'Elian')
+        self.assertEqual(payload_enviado['customer']['last_name'], 'Pereira Ceh')
+        self.assertEqual(payload_enviado['customer']['email'], 'cliente@ejemplo.com')
+        self.assertEqual(payload_enviado['customer']['phone_number'], '9991234567')
+        self.assertFalse(payload_enviado['customer']['requires_account'])
+
+    @patch('comercial.services_openpay.requests.post')
     def test_tarjeta_declinada_no_crea_pago(self, mock_post):
         mock_post.return_value = MagicMock(status_code=402, json=lambda: {
             'error_code': 3001, 'description': 'La tarjeta fue declinada'
