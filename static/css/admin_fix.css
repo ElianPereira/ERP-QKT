@@ -792,3 +792,15 @@ section.content-header,
     background-color: #2c2b28 !important;
     background: #2c2b28 !important;
 }
+
+/* Botones de la columna "Acciones" de Cotizacion (admin): mismo ancho y
+   alto para todos, sin importar si el texto es "PDF" o "Contrato". */
+.qkt-accion-btn {
+    min-width: 56px;
+    height: 22px;
+    line-height: 22px;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    text-align: center;
+    box-sizing: border-box;
+}
