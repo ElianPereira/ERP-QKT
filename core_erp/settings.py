@@ -160,6 +160,14 @@ JIBBLE_CLIENT_ID = config('JIBBLE_CLIENT_ID', default='')
 JIBBLE_CLIENT_SECRET = config('JIBBLE_CLIENT_SECRET', default='')
 NOMINA_CRON_TOKEN = config('NOMINA_CRON_TOKEN', default='')
 
+# --- OPENPAY (link de pago + webhook) ---
+OPENPAY_MODE = config('OPENPAY_MODE', default='sandbox')
+OPENPAY_MERCHANT_ID = config('OPENPAY_MERCHANT_ID', default='')
+OPENPAY_PRIVATE_KEY = config('OPENPAY_PRIVATE_KEY', default='')
+OPENPAY_PUBLIC_KEY = config('OPENPAY_PUBLIC_KEY', default='')
+OPENPAY_WEBHOOK_USER = config('OPENPAY_WEBHOOK_USER', default='')
+OPENPAY_WEBHOOK_PASSWORD = config('OPENPAY_WEBHOOK_PASSWORD', default='')
+
 # ==============================================================
 # SECCIÓN JAZZMIN
 # ==============================================================

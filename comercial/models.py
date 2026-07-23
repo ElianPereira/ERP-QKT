@@ -1784,3 +1784,44 @@ class DescuentoAplicado(models.Model):
     def __str__(self):
         estado = "activo" if self.activo else "revertido"
         return f"{self.descuento.nombre} → COT-{self.cotizacion_id:03d} (${self.monto_aplicado}, {estado})"
+
+
+# ==========================================
+# INTEGRACIÓN OPENPAY (LINK DE PAGO + WEBHOOK)
+# ==========================================
+class OpenpayTransaccion(models.Model):
+    """
+    Registro de cada notificación recibida del webhook de Openpay.
+    Sirve para dos cosas:
+    1. Evitar procesar el mismo evento dos veces — Openpay reintenta el envío
+       del webhook indefinidamente si no recibe 200 OK a tiempo, así que puede
+       llegar el mismo evento repetido.
+    2. Tener un historial crudo de lo que Openpay mandó, para depurar sin
+       tener que entrar a su panel.
+    """
+    openpay_id = models.CharField(max_length=100, unique=True, db_index=True, verbose_name="ID de transacción en Openpay")
+    event_type = models.CharField(max_length=50, verbose_name="Tipo de evento", help_text="ej. charge.succeeded, charge.failed")
+    estado_openpay = models.CharField(max_length=30, blank=True, verbose_name="Estado reportado por Openpay")
+    monto = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    cotizacion = models.ForeignKey(
+        'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='transacciones_openpay'
+    )
+    pago = models.OneToOneField(
+        'Pago', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='transaccion_openpay'
+    )
+
+    payload_crudo = models.JSONField(verbose_name="JSON recibido de Openpay")
+    procesado = models.BooleanField(default=False)
+    error_detalle = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Transacción Openpay"
+        verbose_name_plural = "Transacciones Openpay"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.openpay_id} - {self.event_type} [{'procesado' if self.procesado else 'pendiente'}]"

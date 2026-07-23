@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc, importar_historico_view
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
+from comercial.views_openpay import openpay_webhook_view
 from airbnb.views import reporte_fiscal_airbnb
 
 from comercial.views_portal import (
@@ -131,6 +132,9 @@ urlpatterns = [
     path('api/fechas-ocupadas/', api_fechas_ocupadas, name='api_fechas_ocupadas'),
     path('api/cotizador/productos/', api_productos_cotizador, name='api_productos_cotizador'),
     path('api/cotizador/paquetes/', api_paquetes_cotizador, name='api_paquetes_cotizador'),
+
+    # --- WEBHOOK OPENPAY (público, protegido con Basic Auth) ---
+    path('pagos/openpay/webhook/', openpay_webhook_view, name='openpay_webhook'),
 
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
