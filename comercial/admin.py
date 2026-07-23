@@ -26,7 +26,7 @@ BTN = '<a href="{url}" {target} class="btn btn-sm" style="background:{bg}; color
 
 # Variante compacta de BTN: misma estructura, para columnas con muchos
 # botones en una sola fila (ver CotizacionAdmin.acciones_display).
-BTN_SM = '<a href="{url}" {target} class="btn btn-sm" style="background:{bg}; color:{fg}; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:600; text-decoration:none; display:inline-block; white-space:nowrap; font-family:IBM Plex Sans,sans-serif;" {extra}>{label}</a>'
+BTN_SM = '<a href="{url}" {target} class="btn btn-sm qkt-accion-btn" style="background:{bg}; color:{fg}; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:600; text-decoration:none; display:inline-block; white-space:nowrap; font-family:IBM Plex Sans,sans-serif;" {extra}>{label}</a>'
 
 # Colores estándar para usar con BTN:
 # Verde primario (acciones principales): bg='#2E7D32', fg='white'
@@ -563,9 +563,10 @@ class CotizacionAdmin(admin.ModelAdmin):
             uid = f'pp-{obj.id}'
             btn_padding = '2px 6px' if compact else '4px 10px'
             btn_font = '10px' if compact else '11px'
+            btn_clase = 'qkt-accion-btn' if compact else ''
             return format_html(
                 '<div style="position:relative; display:inline-block;">'
-                  '<button type="button" onclick="document.getElementById(\'{uid}\').style.display = document.getElementById(\'{uid}\').style.display === \'block\' ? \'none\' : \'block\'" '
+                  '<button type="button" class="' + btn_clase + '" onclick="document.getElementById(\'{uid}\').style.display = document.getElementById(\'{uid}\').style.display === \'block\' ? \'none\' : \'block\'" '
                   'style="background:#2E7D32; color:white; padding:' + btn_padding + '; border-radius:3px; font-size:' + btn_font + '; font-weight:600; border:none; cursor:pointer; white-space:nowrap;">'
                   '+ Plan</button>'
                   '<div id="{uid}" style="display:none; position:absolute; top:28px; left:0; z-index:999; background:#383632; border:1px solid #4a4845; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.3); min-width:130px; padding:4px 0;">'
@@ -698,8 +699,9 @@ class CotizacionAdmin(admin.ModelAdmin):
             url = reverse('cotizacion_contrato', args=[obj.id])
             padding = '2px 6px' if compact else '4px 10px'
             font_size = '10px' if compact else '11px'
+            clase = 'btn btn-info btn-sm qkt-accion-btn' if compact else 'btn btn-info btn-sm'
             return format_html(
-                '<a href="{}" class="btn btn-info btn-sm" target="_blank" '
+                '<a href="{}" class="' + clase + '" target="_blank" '
                 'style="background:#F5C518;color:#333;border:none;padding:' + padding + ';border-radius:3px;'
                 'font-size:' + font_size + ';font-weight:600;text-decoration:none;display:inline-block;white-space:nowrap;"'
                 'onclick="return confirm(\'¿Generar contrato con depósito $0? '
@@ -838,6 +840,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         font_size = '10px' if compact else '11px'
         gap = '2px' if compact else '3px'
         btn_style = f'padding:{padding};border-radius:3px;font-size:{font_size};font-weight:600;text-decoration:none;white-space:nowrap;'
+        clase = 'qkt-accion-btn' if compact else ''
         try:
             portal = obj.portal
             if portal and portal.activo:
@@ -851,10 +854,10 @@ class CotizacionAdmin(admin.ModelAdmin):
                 copy_id = f"portal-url-{obj.pk}"
                 return format_html(
                     '<span style="display:inline-flex; align-items:center; gap:' + gap + ';">'
-                    '<a href="{}" target="_blank" style="background:#2E7D32;color:white;' + btn_style + '">Portal</a>'
-                    '<a href="{}" target="_blank" style="background:#25D366;color:white;' + btn_style + '">WA</a>'
+                    '<a href="{}" target="_blank" class="' + clase + '" style="background:#2E7D32;color:white;' + btn_style + '">Portal</a>'
+                    '<a href="{}" target="_blank" class="' + clase + '" style="background:#25D366;color:white;' + btn_style + '">WA</a>'
                     '<span id="{}" style="display:none">{}</span>'
-                    '<button onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;border:none;cursor:pointer;' + btn_style + '">Copiar</button>'
+                    '<button class="' + clase + '" onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;border:none;cursor:pointer;' + btn_style + '">Copiar</button>'
                     '</span>',
                     url, wa_url, copy_id, url, copy_id
                 )
