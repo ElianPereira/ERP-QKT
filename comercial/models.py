@@ -1791,16 +1791,21 @@ class DescuentoAplicado(models.Model):
 # ==========================================
 class OpenpayTransaccion(models.Model):
     """
-    Registro de cada notificación recibida del webhook de Openpay.
-    Sirve para dos cosas:
-    1. Evitar procesar el mismo evento dos veces — Openpay reintenta el envío
-       del webhook indefinidamente si no recibe 200 OK a tiempo, así que puede
-       llegar el mismo evento repetido.
-    2. Tener un historial crudo de lo que Openpay mandó, para depurar sin
-       tener que entrar a su panel.
+    Registro de cada cargo creado en Openpay y cada notificación de webhook.
+
+    Para tarjeta: se crea al momento del cargo (síncrono) y ya viene con
+    procesado=True/False según la respuesta inmediata.
+    Para efectivo/SPEI: se crea al momento del cargo con procesado=False
+    (status='in_progress'), y el webhook lo actualiza cuando el cliente
+    efectivamente paga.
+
+    El openpay_id único también da idempotencia: Openpay reintenta el envío
+    del webhook si no recibe 200 OK a tiempo, así que el mismo evento puede
+    llegar repetido sin que se duplique el Pago.
     """
     openpay_id = models.CharField(max_length=100, unique=True, db_index=True, verbose_name="ID de transacción en Openpay")
-    event_type = models.CharField(max_length=50, verbose_name="Tipo de evento", help_text="ej. charge.succeeded, charge.failed")
+    event_type = models.CharField(max_length=50, blank=True, verbose_name="Tipo de evento", help_text="ej. charge.succeeded, charge.failed")
+    metodo = models.CharField(max_length=20, blank=True, verbose_name="Método", help_text="card, store o bank_account")
     estado_openpay = models.CharField(max_length=30, blank=True, verbose_name="Estado reportado por Openpay")
     monto = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
@@ -1811,6 +1816,12 @@ class OpenpayTransaccion(models.Model):
     pago = models.OneToOneField(
         'Pago', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='transaccion_openpay'
+    )
+
+    referencia_pago = models.CharField(
+        max_length=100, blank=True,
+        verbose_name="Referencia/CLABE mostrada al cliente",
+        help_text="Solo aplica a efectivo/SPEI",
     )
 
     payload_crudo = models.JSONField(verbose_name="JSON recibido de Openpay")
@@ -1824,4 +1835,4 @@ class OpenpayTransaccion(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.openpay_id} - {self.event_type} [{'procesado' if self.procesado else 'pendiente'}]"
+        return f"{self.openpay_id} - {self.metodo or self.event_type} [{'procesado' if self.procesado else 'pendiente'}]"

@@ -873,7 +873,7 @@ class PagoAdmin(admin.ModelAdmin):
     search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
     readonly_fields = ('usuario', 'created_at', 'updated_at')
     date_hierarchy = 'fecha_pago'
-    actions = ['registrar_reembolso']
+    actions = ['registrar_reembolso', 'reembolsar_en_openpay']
     fieldsets = (
         ('Tipo', {'fields': ('tipo', 'concepto')}),
         ('Datos', {'fields': ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'notas')}),
@@ -920,6 +920,23 @@ class PagoAdmin(admin.ModelAdmin):
         for err in errores:
             self.message_user(request, err, messages.ERROR)
     registrar_reembolso.short_description = "Registrar reembolso (espejo del pago)"
+
+    def reembolsar_en_openpay(self, request, queryset):
+        """Dispara el refund real en Openpay para pagos que vinieron de ahí.
+        Es adicional a 'registrar_reembolso' (que solo crea el registro interno)."""
+        from .services_openpay import reembolsar_cargo_openpay
+        ok, errores = 0, []
+        for pago in queryset:
+            resultado = reembolsar_cargo_openpay(pago)
+            if resultado['ok']:
+                ok += 1
+            else:
+                errores.append(f"Pago #{pago.pk}: {resultado['mensaje']}")
+        if ok:
+            self.message_user(request, f"{ok} reembolso(s) procesado(s) en Openpay.", messages.SUCCESS)
+        for err in errores:
+            self.message_user(request, err, messages.ERROR)
+    reembolsar_en_openpay.short_description = "Reembolsar en Openpay (además de registrar reembolso)"
 
 class GastoInline(admin.TabularInline):
     model = Gasto; extra = 0; can_delete = True
@@ -1394,10 +1411,10 @@ class DescuentoAplicadoAdmin(admin.ModelAdmin):
 
 @admin.register(OpenpayTransaccion)
 class OpenpayTransaccionAdmin(admin.ModelAdmin):
-    list_display = ('openpay_id', 'event_type', 'estado_openpay', 'monto', 'cotizacion', 'pago', 'procesado', 'created_at')
-    list_filter = ('procesado', 'event_type', 'created_at')
-    search_fields = ('openpay_id', 'cotizacion__nombre_evento')
-    readonly_fields = ('openpay_id', 'event_type', 'estado_openpay', 'monto', 'cotizacion', 'pago', 'payload_crudo', 'procesado', 'error_detalle', 'created_at')
+    list_display = ('openpay_id', 'metodo', 'event_type', 'estado_openpay', 'monto', 'cotizacion', 'pago', 'procesado', 'created_at')
+    list_filter = ('procesado', 'metodo', 'event_type', 'created_at')
+    search_fields = ('openpay_id', 'referencia_pago', 'cotizacion__nombre_evento')
+    readonly_fields = ('openpay_id', 'event_type', 'metodo', 'estado_openpay', 'monto', 'cotizacion', 'pago', 'referencia_pago', 'payload_crudo', 'procesado', 'error_detalle', 'created_at')
 
     def has_add_permission(self, request):
         return False  # solo se crean desde el webhook, nunca manual

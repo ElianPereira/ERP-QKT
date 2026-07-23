@@ -8,7 +8,7 @@ from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc, importar_historico_view
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
-from comercial.views_openpay import openpay_webhook_view
+from comercial.views_openpay import openpay_webhook_view, portal_procesar_pago_openpay
 from airbnb.views import reporte_fiscal_airbnb
 
 from comercial.views_portal import (
@@ -124,6 +124,7 @@ urlpatterns = [
     path('mi-evento/<str:token>/cotizacion.pdf', portal_descargar_cotizacion, name='portal_descargar_cotizacion'),
     path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
     path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),
+    path('mi-evento/<str:token>/pagar-openpay/', portal_procesar_pago_openpay, name='portal_procesar_pago_openpay'),
 
     path('cotizar/', cotizador_publico, name='cotizador_publico'),
     path('cotizar/enviar/', cotizador_enviar, name='cotizador_enviar'),

@@ -7,12 +7,18 @@ import base64
 import json
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import patch, MagicMock
 
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
-from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago, OpenpayTransaccion
-from comercial.services_openpay import procesar_webhook_openpay
+from comercial.models import (
+    Cliente, Cotizacion, ItemCotizacion, Pago, OpenpayTransaccion, PortalCliente,
+)
+from comercial.services_openpay import (
+    procesar_webhook_openpay, procesar_cargo_tarjeta, procesar_cargo_efectivo,
+    procesar_cargo_spei, reembolsar_cargo_openpay,
+)
 
 WEBHOOK_USER = 'openpay-test-user'
 WEBHOOK_PASSWORD = 'openpay-test-password'
@@ -111,7 +117,7 @@ class WebhookOpenpayAuthTest(TestCase):
         self.assertEqual(pago.monto, Decimal('500.00'))
         self.assertEqual(pago.metodo, 'PLATAFORMA')
         self.assertEqual(pago.cotizacion, cotizacion)
-        self.assertEqual(pago.fecha_pago, date(2026, 7, 20))
+        self.assertEqual(pago.fecha_pago, date.today())  # fecha de confirmación del webhook
 
         registro = OpenpayTransaccion.objects.get(openpay_id='txabc123')
         self.assertTrue(registro.procesado)
@@ -139,7 +145,7 @@ class ProcesarWebhookIdempotenciaTest(TestCase):
         registro = procesar_webhook_openpay(payload)
         self.assertFalse(Pago.objects.filter(referencia='txfail001').exists())
         self.assertFalse(registro.procesado)
-        self.assertIn('no genera Pago', registro.error_detalle)
+        self.assertEqual(registro.estado_openpay, 'failed')
 
     def test_order_id_desconocido_no_genera_pago(self):
         payload = {
@@ -149,7 +155,7 @@ class ProcesarWebhookIdempotenciaTest(TestCase):
         registro = procesar_webhook_openpay(payload)
         self.assertFalse(Pago.objects.filter(referencia='txsinorden').exists())
         self.assertFalse(registro.procesado)
-        self.assertIn('No se pudo identificar la cotización', registro.error_detalle)
+        self.assertIn('no hay cotización ligada', registro.error_detalle)
 
     def test_monto_excede_saldo_no_genera_pago_pero_queda_registrado(self):
         cotizacion = _crear_cotizacion(monto_items=Decimal('100.00'))
@@ -162,3 +168,155 @@ class ProcesarWebhookIdempotenciaTest(TestCase):
     def test_notificacion_sin_id_se_ignora(self):
         self.assertIsNone(procesar_webhook_openpay({'type': 'charge.succeeded', 'transaction': {}}))
         self.assertFalse(OpenpayTransaccion.objects.exists())
+
+
+class CargoTarjetaTest(TestCase):
+    @patch('comercial.services_openpay.requests.post')
+    def test_cargo_exitoso_crea_pago(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx001', 'status': 'completed', 'amount': 500.00
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok123', 'dev123')
+        self.assertTrue(resultado['ok'])
+        self.assertTrue(Pago.objects.filter(referencia='tx001', metodo='PLATAFORMA').exists())
+        registro = OpenpayTransaccion.objects.get(openpay_id='tx001')
+        self.assertTrue(registro.procesado)
+        self.assertEqual(registro.metodo, 'card')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_tarjeta_declinada_no_crea_pago(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=402, json=lambda: {
+            'error_code': 3001, 'description': 'La tarjeta fue declinada'
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok999', 'dev999')
+        self.assertFalse(resultado['ok'])
+        self.assertIn('declinada', resultado['mensaje'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+        # El intento fallido queda registrado para auditoría
+        self.assertEqual(OpenpayTransaccion.objects.filter(cotizacion=cotizacion, procesado=False).count(), 1)
+
+
+class CargoEfectivoSpeiTest(TestCase):
+    @patch('comercial.services_openpay.requests.post')
+    def test_cargo_efectivo_no_crea_pago_hasta_webhook(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx002', 'status': 'in_progress',
+            'payment_method': {'reference': 'OPENPAY02ABC', 'barcode_url': 'https://ejemplo/barcode.png'}
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        self.assertTrue(resultado['ok'])
+        self.assertEqual(resultado['reference'], 'OPENPAY02ABC')
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())  # aún no se paga
+        registro = OpenpayTransaccion.objects.get(openpay_id='tx002')
+        self.assertFalse(registro.procesado)
+        self.assertEqual(registro.referencia_pago, 'OPENPAY02ABC')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_webhook_confirma_cargo_efectivo_pendiente(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx003', 'status': 'in_progress',
+            'payment_method': {'reference': 'OPENPAY03XYZ'}
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+
+        webhook_payload = {
+            'type': 'charge.succeeded',
+            'transaction': {'id': 'tx003', 'status': 'completed', 'amount': 500.00, 'method': 'store'}
+        }
+        registro = procesar_webhook_openpay(webhook_payload)
+        self.assertTrue(registro.procesado)
+        self.assertTrue(Pago.objects.filter(referencia='tx003').exists())
+
+        # Reintento del webhook: no duplica el Pago
+        procesar_webhook_openpay(webhook_payload)
+        self.assertEqual(Pago.objects.filter(referencia='tx003').count(), 1)
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_cargo_spei_regresa_clabe(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx004', 'status': 'in_progress',
+            'payment_method': {'bank': 'STP', 'clabe': '646180111812345678', 'name': 'REF004'}
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_spei(cotizacion, Decimal('500.00'))
+        self.assertTrue(resultado['ok'])
+        self.assertEqual(resultado['clabe'], '646180111812345678')
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+        self.assertEqual(OpenpayTransaccion.objects.get(openpay_id='tx004').referencia_pago, '646180111812345678')
+
+
+class PortalCheckoutViewTest(TestCase):
+    """La vista del checkout usa la misma autenticación del portal (token)."""
+
+    def setUp(self):
+        self.cotizacion = _crear_cotizacion()
+        # Cotizacion.save() ya crea el PortalCliente automáticamente
+        self.portal = PortalCliente.objects.get(cotizacion=self.cotizacion)
+        self.url = reverse('portal_procesar_pago_openpay', args=[self.portal.token])
+
+    def test_token_invalido_regresa_404(self):
+        url = reverse('portal_procesar_pago_openpay', args=['token-inexistente'])
+        response = self.client.post(url, secure=True, data={'metodo': 'store', 'monto': '500.00'})
+        self.assertEqual(response.status_code, 404)
+
+    def test_monto_invalido_rechazado(self):
+        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': 'abc'})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['ok'])
+
+    def test_monto_mayor_al_saldo_rechazado(self):
+        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '999999.00'})
+        self.assertFalse(response.json()['ok'])
+        self.assertIn('saldo pendiente', response.json()['mensaje'])
+
+    def test_metodo_desconocido_rechazado(self):
+        response = self.client.post(self.url, secure=True, data={'metodo': 'bitcoin', 'monto': '500.00'})
+        self.assertFalse(response.json()['ok'])
+
+    def test_tarjeta_sin_token_rechazada_sin_llamar_openpay(self):
+        response = self.client.post(self.url, secure=True, data={'metodo': 'card', 'monto': '500.00'})
+        self.assertFalse(response.json()['ok'])
+        self.assertFalse(OpenpayTransaccion.objects.exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_flujo_completo_efectivo(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx005', 'status': 'in_progress',
+            'payment_method': {'reference': 'OPENPAY05REF'}
+        })
+        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '500.00'})
+        data = response.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['reference'], 'OPENPAY05REF')
+
+
+class ReembolsoOpenpayTest(TestCase):
+    def test_pago_sin_transaccion_openpay_no_reembolsable(self):
+        cotizacion = _crear_cotizacion()
+        pago = Pago.objects.create(
+            cotizacion=cotizacion, tipo='INGRESO', concepto='VENTA',
+            monto=Decimal('500.00'), metodo='EFECTIVO',
+        )
+        resultado = reembolsar_cargo_openpay(pago)
+        self.assertFalse(resultado['ok'])
+        self.assertIn('no viene de Openpay', resultado['mensaje'])
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_reembolso_exitoso(self, mock_post):
+        cotizacion = _crear_cotizacion()
+        pago = Pago.objects.create(
+            cotizacion=cotizacion, tipo='INGRESO', concepto='VENTA',
+            monto=Decimal('500.00'), metodo='PLATAFORMA', referencia='tx006',
+        )
+        OpenpayTransaccion.objects.create(
+            openpay_id='tx006', metodo='card', monto=Decimal('500.00'),
+            cotizacion=cotizacion, pago=pago, payload_crudo={}, procesado=True,
+        )
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {'id': 'tx006', 'status': 'completed'})
+        resultado = reembolsar_cargo_openpay(pago)
+        self.assertTrue(resultado['ok'])
+        self.assertIn('/charges/tx006/refund', mock_post.call_args[0][0])

@@ -177,8 +177,13 @@ def portal_evento(request, token):
         'porcentaje': porcentaje,
         'wa_numero': wa_numero,
         'comunicaciones': comunicaciones,
+        # Checkout Openpay (solo si hay credenciales configuradas)
+        'openpay_habilitado': bool(settings.OPENPAY_MERCHANT_ID and settings.OPENPAY_PUBLIC_KEY),
+        'openpay_merchant_id': settings.OPENPAY_MERCHANT_ID,
+        'openpay_public_key': settings.OPENPAY_PUBLIC_KEY,
+        'openpay_sandbox': settings.OPENPAY_MODE == 'sandbox',
     }
-    
+
     return render(request, 'portal/evento.html', context)
 
 

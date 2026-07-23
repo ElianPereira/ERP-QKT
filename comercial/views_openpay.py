@@ -2,13 +2,71 @@ import base64
 import hmac
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from .services_openpay import procesar_webhook_openpay
+from core_erp.ratelimit import rate_limit
+from .models import PortalCliente
+from .services_openpay import (
+    procesar_cargo_tarjeta, procesar_cargo_efectivo, procesar_cargo_spei,
+    procesar_webhook_openpay,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# ==========================================
+# CHECKOUT DEL PORTAL DE CLIENTE
+# ==========================================
+# Usa la misma autenticación que el resto del portal: el token de
+# PortalCliente en la URL (/mi-evento/<token>/...), que el cliente obtuvo
+# con su código de cotización + últimos 4 dígitos de su teléfono.
+
+@rate_limit(key='portal_pago_openpay', limit=10, window=60)
+@require_POST
+def portal_procesar_pago_openpay(request, token):
+    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    cotizacion = portal.cotizacion
+
+    metodo = request.POST.get('metodo')
+    try:
+        monto = Decimal(request.POST.get('monto', '0'))
+    except InvalidOperation:
+        return JsonResponse({'ok': False, 'mensaje': 'Monto inválido.'})
+
+    if monto <= 0:
+        return JsonResponse({'ok': False, 'mensaje': 'Monto inválido.'})
+
+    saldo = cotizacion.saldo_pendiente()
+    if monto > saldo + Decimal('0.50'):
+        return JsonResponse({'ok': False, 'mensaje': f'El monto excede el saldo pendiente (${saldo:,.2f}).'})
+
+    try:
+        if metodo == 'card':
+            token_id = request.POST.get('token_id', '')
+            device_session_id = request.POST.get('device_session_id', '')
+            if not token_id:
+                return JsonResponse({'ok': False, 'mensaje': 'No se recibió el token de la tarjeta. Intenta de nuevo.'})
+            resultado = procesar_cargo_tarjeta(cotizacion, monto, token_id, device_session_id)
+        elif metodo == 'store':
+            resultado = procesar_cargo_efectivo(cotizacion, monto)
+        elif metodo == 'bank_account':
+            resultado = procesar_cargo_spei(cotizacion, monto)
+        else:
+            resultado = {'ok': False, 'mensaje': 'Método de pago no reconocido.'}
+    except Exception:
+        logger.exception("Checkout Openpay: error inesperado procesando cargo (COT-%s, método %s).", cotizacion.id, metodo)
+        resultado = {'ok': False, 'mensaje': 'Ocurrió un error al procesar el pago. Intenta de nuevo o contáctanos.'}
+
+    return JsonResponse(resultado)
+
+
+# ==========================================
+# WEBHOOK
+# ==========================================
 
 
 def _validar_basic_auth(request):
