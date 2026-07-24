@@ -278,7 +278,7 @@
                 <div style="margin-bottom:12px;">
                     <label style="font-size:12px; font-weight:600; color:#555;">Monto a pagar (MXN)</label>
                     <input type="text" inputmode="decimal" id="monto-pago" name="monto" placeholder="Importe"
-                           data-max="{{ saldo_pendiente|floatformat:2 }}"
+                           data-max="{{ saldo_pendiente|stringformat:'0.2f' }}"
                            style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
                     <div style="font-size:11px; color:#8a8780; margin-top:4px;">Máximo ${{ saldo_pendiente|floatformat:2 }} (tu saldo pendiente)</div>
                 </div>
