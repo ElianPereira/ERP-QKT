@@ -277,9 +277,10 @@
 
                 <div style="margin-bottom:12px;">
                     <label style="font-size:12px; font-weight:600; color:#555;">Monto a pagar (MXN)</label>
-                    <input type="number" id="monto-pago" name="monto" min="1" step="0.01"
-                           value="{{ saldo_pendiente|floatformat:2 }}" max="{{ saldo_pendiente|floatformat:2 }}"
+                    <input type="text" inputmode="decimal" id="monto-pago" name="monto" placeholder="Importe"
+                           data-max="{{ saldo_pendiente|floatformat:2 }}"
                            style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
+                    <div style="font-size:11px; color:#8a8780; margin-top:4px;">Máximo ${{ saldo_pendiente|floatformat:2 }} (tu saldo pendiente)</div>
                 </div>
 
                 <div id="campos-tarjeta" style="display:none;">
@@ -288,17 +289,26 @@
                     <input type="text" data-openpay-card="holder_name" autocomplete="cc-name" placeholder="Nombre en la tarjeta"
                            style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
                     <div style="display:flex; gap:8px;">
-                        <input type="text" data-openpay-card="expiration_month" placeholder="MM" maxlength="2"
-                               style="flex:1; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
-                        <input type="text" data-openpay-card="expiration_year" placeholder="AA" maxlength="2"
-                               style="flex:1; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
-                        <input type="text" data-openpay-card="cvv2" placeholder="CVV" maxlength="4"
-                               style="flex:1; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
+                        <div style="flex:1;">
+                            <input type="text" data-openpay-card="expiration_month" placeholder="MM" maxlength="2"
+                                   style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
+                            <div style="font-size:11px; color:#8a8780; margin-top:2px;">Mes</div>
+                        </div>
+                        <div style="flex:1;">
+                            <input type="text" data-openpay-card="expiration_year" placeholder="AA" maxlength="2"
+                                   style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
+                            <div style="font-size:11px; color:#8a8780; margin-top:2px;">Año</div>
+                        </div>
+                        <div style="flex:1;">
+                            <input type="text" data-openpay-card="cvv2" placeholder="CVV" maxlength="4"
+                                   style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
+                            <div style="font-size:11px; color:#8a8780; margin-top:2px;">Código de seguridad</div>
+                        </div>
                     </div>
                 </div>
 
-                <button type="submit" id="btn-pagar" class="btn btn-green" style="border:none; cursor:pointer; width:100%; justify-content:center; font-size:15px;">
-                    <i class="fas fa-lock"></i> Pagar
+                <button type="submit" id="btn-pagar" class="btn btn-green" style="border:none; cursor:pointer; width:100%; justify-content:center; font-size:15px; margin-top:8px;">
+                    <i class="fas fa-lock" id="icono-btn-pagar"></i> <span id="texto-btn-pagar">Pagar</span>
                 </button>
             </form>
 
@@ -389,6 +399,36 @@
     var deviceSessionId = OpenPay.deviceData.setup("payment-form", "deviceIdHiddenFieldName");
     var metodoActual = null;
 
+    // --- Monto: formato de moneda MXN mientras se escribe, sin exceder el saldo pendiente ---
+    var montoInput = document.getElementById('monto-pago');
+    var montoMax = parseFloat(montoInput.dataset.max) || 0;
+
+    function parsearMonto(texto) {
+        var limpio = (texto || '').replace(/[^0-9.]/g, '');
+        var partes = limpio.split('.');
+        if (partes.length > 2) limpio = partes[0] + '.' + partes.slice(1).join('');
+        var valor = parseFloat(limpio);
+        return isNaN(valor) ? 0 : valor;
+    }
+
+    function formatearMoneda(valor) {
+        if (!valor) return '';
+        return '$' + valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    montoInput.addEventListener('input', function() {
+        var valor = parsearMonto(montoInput.value);
+        if (valor > montoMax) valor = montoMax;
+        montoInput.value = valor ? formatearMoneda(valor) : '';
+    });
+    montoInput.value = formatearMoneda(montoMax);  // prellenado con el saldo pendiente completo
+
+    var TEXTO_BOTON = {
+        card: { icono: 'fa-lock', texto: 'Pagar' },
+        store: { icono: 'fa-receipt', texto: 'Generar referencia de pago' },
+        bank_account: { icono: 'fa-receipt', texto: 'Generar referencia de pago' },
+    };
+
     function mostrarMetodo(metodo) {
         metodoActual = metodo;
         document.getElementById('payment-form').style.display = 'block';
@@ -400,6 +440,10 @@
             btn.classList.remove('metodo-activo');
         });
         document.getElementById('btn-metodo-' + metodo).classList.add('metodo-activo');
+
+        var boton = TEXTO_BOTON[metodo] || TEXTO_BOTON.card;
+        document.getElementById('icono-btn-pagar').className = 'fas ' + boton.icono;
+        document.getElementById('texto-btn-pagar').textContent = boton.texto;
     }
 
     document.getElementById('payment-form').addEventListener('submit', function(e) {
@@ -442,7 +486,7 @@
             metodo: metodo,
             token_id: tokenId || '',
             device_session_id: devSessionId || '',
-            monto: document.getElementById('monto-pago').value,
+            monto: parsearMonto(document.getElementById('monto-pago').value).toFixed(2),
             csrfmiddlewaretoken: form.querySelector('[name=csrfmiddlewaretoken]').value,
         });
 
