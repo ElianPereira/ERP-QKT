@@ -142,6 +142,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
             openpay_id=data.get('id') or f"error-{cotizacion.id}-{data.get('request_id', monto)}",
             metodo='card', estado_openpay=str(data.get('error_code', 'error')),
             monto=monto, cotizacion=cotizacion, payload_crudo=data,
+            autorizacion=data.get('authorization', ''),
             error_detalle=data.get('description', 'Error desconocido de Openpay'),
         )
         return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}
@@ -149,6 +150,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
     registro = OpenpayTransaccion.objects.create(
         openpay_id=data['id'], metodo='card', estado_openpay=data.get('status', ''),
         monto=monto, cotizacion=cotizacion, payload_crudo=data,
+        autorizacion=data.get('authorization', ''),
         procesado=(data.get('status') == 'completed'),
     )
     if data.get('status') == 'completed':
@@ -184,6 +186,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
         openpay_id=data['id'], metodo='store', estado_openpay=data.get('status', ''),
         monto=monto, cotizacion=cotizacion, payload_crudo=data,
         referencia_pago=store.get('reference', ''),
+        autorizacion=data.get('authorization', ''),
     )
     return {
         'ok': True, 'referencia': True,
@@ -207,6 +210,7 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
         openpay_id=data['id'], metodo='bank_account', estado_openpay=data.get('status', ''),
         monto=monto, cotizacion=cotizacion, payload_crudo=data,
         referencia_pago=pm.get('clabe', ''),
+        autorizacion=data.get('authorization', ''),
     )
     return {
         'ok': True, 'referencia': True,
@@ -271,6 +275,7 @@ def procesar_webhook_openpay(payload: dict):
             'estado_openpay': transaction_data.get('status', ''),
             'monto': _decimal_o_none(transaction_data.get('amount')),
             'payload_crudo': payload,
+            'autorizacion': transaction_data.get('authorization', ''),
         }
     )
 
@@ -309,7 +314,8 @@ def procesar_webhook_openpay(payload: dict):
             registro.procesado = True
             registro.estado_openpay = 'completed'
             registro.error_detalle = ''
-            registro.save(update_fields=['event_type', 'cotizacion', 'pago', 'monto', 'procesado', 'estado_openpay', 'error_detalle'])
+            registro.autorizacion = transaction_data.get('authorization', '') or registro.autorizacion
+            registro.save(update_fields=['event_type', 'cotizacion', 'pago', 'monto', 'procesado', 'estado_openpay', 'error_detalle', 'autorizacion'])
         _registrar_comision_openpay(registro, transaction_data.get('fee'))
     except Exception as e:
         registro.error_detalle = f"Error al crear Pago: {e}"
