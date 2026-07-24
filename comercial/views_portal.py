@@ -121,7 +121,7 @@ def portal_evento(request, token):
     cotizacion = portal.cotizacion
     cliente = cotizacion.cliente
     items = cotizacion.items.all()
-    pagos = cotizacion.pagos.all().order_by('fecha_pago')
+    pagos = cotizacion.pagos.all().order_by('fecha_pago').select_related('transaccion_openpay')
     
     # Plan de pagos
     plan = None

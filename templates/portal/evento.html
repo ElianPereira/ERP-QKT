@@ -168,15 +168,27 @@
                     </tbody>
                 </table>
             </div>
+            <div style="text-align:right; padding:4px 12px; font-size:13px; color:#555;">
+                Subtotal: ${{ cotizacion.subtotal|floatformat:2 }}
+            </div>
             {% if cotizacion.descuento > 0 %}
-            <div style="text-align:right; padding:10px 12px; color:#e67e22; font-weight:600;">
+            <div style="text-align:right; padding:4px 12px; color:#e67e22; font-weight:600; font-size:13px;">
                 Descuento: -${{ cotizacion.descuento|floatformat:2 }}
             </div>
             {% endif %}
-            {% if cotizacion.requiere_factura %}
-            <div style="text-align:right; padding:4px 12px; font-size:12px; color:#555;">
+            {% if cotizacion.iva > 0 %}
+            <div style="text-align:right; padding:4px 12px; font-size:13px; color:#555;">
                 IVA (16%): ${{ cotizacion.iva|floatformat:2 }}
-                {% if cotizacion.retencion_isr > 0 %} | Ret. ISR: -${{ cotizacion.retencion_isr|floatformat:2 }}{% endif %}
+            </div>
+            {% endif %}
+            {% if cotizacion.retencion_isr > 0 %}
+            <div style="text-align:right; padding:4px 12px; font-size:13px; color:#555;">
+                Ret. ISR: -${{ cotizacion.retencion_isr|floatformat:2 }}
+            </div>
+            {% endif %}
+            {% if cotizacion.retencion_iva > 0 %}
+            <div style="text-align:right; padding:4px 12px; font-size:13px; color:#555;">
+                Ret. IVA: -${{ cotizacion.retencion_iva|floatformat:2 }}
             </div>
             {% endif %}
             <div style="text-align:right; padding:10px 12px; font-size:18px; font-weight:700; color:#2E7D32; border-top:2px solid #E8F5E9;">
@@ -234,7 +246,7 @@
                             <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
                             <td>{{ pago.get_metodo_display }}</td>
                             <td style="text-align:right; font-weight:600; color:#2E7D32;">${{ pago.monto|floatformat:2 }}</td>
-                            <td style="color:#8a8780;">{{ pago.referencia|default:"—" }}</td>
+                            <td style="color:#8a8780;">{% if pago.transaccion_openpay.autorizacion %}{{ pago.transaccion_openpay.autorizacion }}{% else %}{{ pago.referencia|default:"—" }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
