@@ -1823,6 +1823,11 @@ class OpenpayTransaccion(models.Model):
         verbose_name="Referencia/CLABE mostrada al cliente",
         help_text="Solo aplica a efectivo/SPEI",
     )
+    autorizacion = models.CharField(
+        max_length=30, blank=True,
+        verbose_name="Autorización",
+        help_text="Número de autorización bancaria reportado por Openpay",
+    )
 
     payload_crudo = models.JSONField(verbose_name="JSON recibido de Openpay")
     procesado = models.BooleanField(default=False)

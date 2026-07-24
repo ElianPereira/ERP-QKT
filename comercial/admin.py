@@ -1411,10 +1411,10 @@ class DescuentoAplicadoAdmin(admin.ModelAdmin):
 
 @admin.register(OpenpayTransaccion)
 class OpenpayTransaccionAdmin(admin.ModelAdmin):
-    list_display = ('openpay_id', 'metodo', 'event_type', 'estado_openpay', 'monto', 'cotizacion', 'pago', 'procesado', 'created_at')
+    list_display = ('openpay_id', 'metodo', 'event_type', 'estado_openpay', 'monto', 'cotizacion', 'autorizacion', 'pago', 'procesado', 'created_at')
     list_filter = ('procesado', 'metodo', 'event_type', 'created_at')
-    search_fields = ('openpay_id', 'referencia_pago', 'cotizacion__nombre_evento')
-    readonly_fields = ('openpay_id', 'event_type', 'metodo', 'estado_openpay', 'monto', 'cotizacion', 'pago', 'referencia_pago', 'payload_crudo', 'procesado', 'error_detalle', 'created_at')
+    search_fields = ('openpay_id', 'referencia_pago', 'autorizacion', 'cotizacion__nombre_evento')
+    readonly_fields = ('openpay_id', 'event_type', 'metodo', 'estado_openpay', 'monto', 'cotizacion', 'autorizacion', 'pago', 'referencia_pago', 'payload_crudo', 'procesado', 'error_detalle', 'created_at')
 
     def has_add_permission(self, request):
         return False  # solo se crean desde el webhook, nunca manual
