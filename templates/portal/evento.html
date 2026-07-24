@@ -58,6 +58,7 @@
         .btn-green { background: #2E7D32; color: white; }
         .btn-yellow { background: #F5C518; color: #333; }
         .btn-outline { background: white; color: #2E7D32; border: 2px solid #2E7D32; }
+        .btn-outline.metodo-activo { background: #2E7D32; color: white; }
         .btn-wa { background: #25D366; color: white; }
         
         .btn-grid { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -265,9 +266,9 @@
             </p>
 
             <div class="btn-grid" id="metodo-selector" style="margin-bottom:14px;">
-                <button type="button" class="btn btn-outline" onclick="mostrarMetodo('card')"><i class="fas fa-credit-card"></i> Tarjeta</button>
-                <button type="button" class="btn btn-outline" onclick="mostrarMetodo('store')"><i class="fas fa-store"></i> Efectivo</button>
-                <button type="button" class="btn btn-outline" onclick="mostrarMetodo('bank_account')"><i class="fas fa-university"></i> Transferencia / SPEI</button>
+                <button type="button" class="btn btn-outline" id="btn-metodo-card" onclick="mostrarMetodo('card')"><i class="fas fa-credit-card"></i> Tarjeta Bancaria</button>
+                <button type="button" class="btn btn-outline" id="btn-metodo-store" onclick="mostrarMetodo('store')"><i class="fas fa-store"></i> Depósito en Efectivo</button>
+                <button type="button" class="btn btn-outline" id="btn-metodo-bank_account" onclick="mostrarMetodo('bank_account')"><i class="fas fa-university"></i> Transferencia Electrónica / SPEI</button>
             </div>
 
             <form id="payment-form" style="display:none;">
@@ -394,6 +395,11 @@
         document.getElementById('campos-tarjeta').style.display = (metodo === 'card') ? 'block' : 'none';
         document.getElementById('resultado-pago').style.display = 'none';
         document.getElementById('referencia-pago').style.display = 'none';
+
+        document.querySelectorAll('#metodo-selector .btn').forEach(function(btn) {
+            btn.classList.remove('metodo-activo');
+        });
+        document.getElementById('btn-metodo-' + metodo).classList.add('metodo-activo');
     }
 
     document.getElementById('payment-form').addEventListener('submit', function(e) {
