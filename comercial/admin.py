@@ -1421,6 +1421,28 @@ class OpenpayTransaccionAdmin(admin.ModelAdmin):
     list_filter = ('procesado', 'metodo', 'event_type', 'created_at')
     search_fields = ('openpay_id', 'referencia_pago', 'autorizacion', 'cotizacion__nombre_evento')
     readonly_fields = ('openpay_id', 'event_type', 'metodo', 'estado_openpay', 'monto', 'cotizacion', 'autorizacion', 'pago', 'referencia_pago', 'payload_crudo', 'procesado', 'error_detalle', 'created_at')
+    actions = ['borrar_transacciones_de_prueba']
 
     def has_add_permission(self, request):
         return False  # solo se crean desde el webhook, nunca manual
+
+    def borrar_transacciones_de_prueba(self, request, queryset):
+        """
+        Borra las transacciones seleccionadas junto con su Pago y las pólizas
+        contables que generaron (pago + comisión). Deja la Cotizacion intacta
+        con su saldo pendiente restaurado. Se niega si OPENPAY_MODE ya es
+        'production' (ver comercial.services_openpay.borrar_transacciones_openpay_prueba).
+        """
+        from .services_openpay import borrar_transacciones_openpay_prueba
+        try:
+            n_transacciones, n_pagos = borrar_transacciones_openpay_prueba(queryset)
+        except ValueError as e:
+            self.message_user(request, str(e), level=messages.ERROR)
+            return
+        self.message_user(
+            request,
+            f"Borradas {n_transacciones} transacciones y {n_pagos} pagos (con sus pólizas). "
+            f"Las cotizaciones quedaron intactas con su saldo pendiente restaurado.",
+            level=messages.SUCCESS,
+        )
+    borrar_transacciones_de_prueba.short_description = "Borrar transacción de prueba (y su Pago/póliza)"
