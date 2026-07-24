@@ -244,6 +244,48 @@ def reembolsar_cargo_openpay(pago: Pago):
     return {'ok': True, 'mensaje': 'Reembolso procesado en Openpay.'}
 
 
+# --- LIMPIEZA DE TRANSACCIONES DE PRUEBA (sandbox) ---
+
+def borrar_transacciones_openpay_prueba(registros):
+    """
+    Borra cada OpenpayTransaccion junto con su Pago y las pólizas contables
+    que generó (pago + comisión, con sus movimientos vía CASCADE). NO toca
+    la Cotizacion/Cliente — el saldo pendiente vuelve a su valor original,
+    como si el pago nunca se hubiera hecho.
+
+    Se niega si OPENPAY_MODE ya es 'production', para no borrar transacciones
+    reales por error después de salir en vivo. Usado tanto por el comando
+    `limpiar_transacciones_openpay_prueba` como por la acción del admin.
+
+    Devuelve (n_transacciones, n_pagos) borrados.
+    """
+    if settings.OPENPAY_MODE == 'production':
+        raise ValueError(
+            "OPENPAY_MODE es 'production' — esta limpieza es solo para datos de "
+            "sandbox y se niega a correr para no borrar transacciones reales."
+        )
+
+    from django.contrib.contenttypes.models import ContentType
+    from contabilidad.models import Poliza
+
+    registros = list(registros)
+    ct_pago = ContentType.objects.get_for_model(Pago)
+    ct_transaccion = ContentType.objects.get_for_model(OpenpayTransaccion)
+
+    borrados_pagos = 0
+    with transaction.atomic():
+        for r in registros:
+            Poliza.objects.filter(content_type=ct_transaccion, object_id=r.pk).delete()
+            if r.pago_id:
+                Poliza.objects.filter(content_type=ct_pago, object_id=r.pago_id).delete()
+                Pago.objects.filter(pk=r.pago_id).delete()
+                borrados_pagos += 1
+        ids = [r.pk for r in registros]
+        OpenpayTransaccion.objects.filter(pk__in=ids).delete()
+
+    return len(registros), borrados_pagos
+
+
 # --- WEBHOOK (confirma cargos asíncronos: efectivo y SPEI) ---
 
 def procesar_webhook_openpay(payload: dict):

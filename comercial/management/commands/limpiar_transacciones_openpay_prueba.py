@@ -11,12 +11,10 @@ que alguien lo vuelva a correr por error después de salir en vivo y borre
 transacciones reales.
 """
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
 
-from comercial.models import OpenpayTransaccion, Pago
-from contabilidad.models import Poliza
+from comercial.models import OpenpayTransaccion
+from comercial.services_openpay import borrar_transacciones_openpay_prueba
 
 
 class Command(BaseCommand):
@@ -30,7 +28,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if settings.OPENPAY_MODE == 'production':
+        if options['apply'] and settings.OPENPAY_MODE == 'production':
             raise CommandError(
                 "OPENPAY_MODE es 'production' — este comando es solo para limpiar datos "
                 "de sandbox y se niega a correr para no borrar transacciones reales."
@@ -42,9 +40,6 @@ class Command(BaseCommand):
         if not registros:
             self.stdout.write(self.style.SUCCESS("No hay transacciones Openpay. Nada que hacer."))
             return
-
-        ct_pago = ContentType.objects.get_for_model(Pago)
-        ct_transaccion = ContentType.objects.get_for_model(OpenpayTransaccion)
 
         self.stdout.write(self.style.WARNING(f"Encontradas {len(registros)} transacciones Openpay:\n"))
         for r in registros:
@@ -60,21 +55,13 @@ class Command(BaseCommand):
             ))
             return
 
-        borrados_polizas = 0
-        borrados_pagos = 0
-        with transaction.atomic():
-            for r in registros:
-                Poliza.objects.filter(content_type=ct_transaccion, object_id=r.pk).delete()
-                borrados_polizas += 1
-                if r.pago_id:
-                    Poliza.objects.filter(content_type=ct_pago, object_id=r.pago_id).delete()
-                    borrados_polizas += 1
-                    Pago.objects.filter(pk=r.pago_id).delete()
-                    borrados_pagos += 1
-            OpenpayTransaccion.objects.all().delete()
+        try:
+            n_transacciones, n_pagos = borrar_transacciones_openpay_prueba(registros)
+        except ValueError as e:
+            raise CommandError(str(e))
 
         self.stdout.write(self.style.SUCCESS(
-            f"\nBorrados: {len(registros)} transacciones Openpay, {borrados_pagos} pagos, "
+            f"\nBorrados: {n_transacciones} transacciones Openpay, {n_pagos} pagos, "
             f"pólizas/movimientos asociados. Las cotizaciones quedaron intactas con su saldo "
             f"pendiente restaurado."
         ))

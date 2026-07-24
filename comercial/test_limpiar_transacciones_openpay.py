@@ -64,3 +64,45 @@ class LimpiarTransaccionesOpenpayTest(TestCase):
     def test_se_niega_a_correr_en_produccion(self):
         with self.assertRaises(CommandError):
             call_command('limpiar_transacciones_openpay_prueba', '--apply')
+
+
+class AdminActionBorrarTransaccionesTest(TestCase):
+    """La acción del admin usa la misma lógica que el comando — para usuarios
+    sin acceso a shell/CLI en Railway."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser('admin_tpv', 'admin@test.com', 'pass1234')
+        self.client.force_login(self.admin_user)
+
+    def test_accion_borra_seleccionadas(self):
+        cotizacion = _crear_cotizacion()
+        procesar_webhook_openpay(_webhook_con_fee(cotizacion))
+        registro = OpenpayTransaccion.objects.get()
+
+        from django.urls import reverse
+        url = reverse('admin:comercial_openpaytransaccion_changelist')
+        response = self.client.post(url, {
+            'action': 'borrar_transacciones_de_prueba',
+            '_selected_action': [str(registro.pk)],
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(OpenpayTransaccion.objects.count(), 0)
+        self.assertEqual(Pago.objects.count(), 0)
+        self.assertFalse(Poliza.objects.filter(origen='COMISION_OPENPAY').exists())
+
+    @override_settings(OPENPAY_MODE='production')
+    def test_accion_no_borra_en_produccion(self):
+        cotizacion = _crear_cotizacion()
+        procesar_webhook_openpay(_webhook_con_fee(cotizacion))
+        registro = OpenpayTransaccion.objects.get()
+
+        from django.urls import reverse
+        url = reverse('admin:comercial_openpaytransaccion_changelist')
+        self.client.post(url, {
+            'action': 'borrar_transacciones_de_prueba',
+            '_selected_action': [str(registro.pk)],
+        }, follow=True)
+
+        self.assertEqual(OpenpayTransaccion.objects.count(), 1)
