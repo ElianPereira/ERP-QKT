@@ -868,7 +868,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
-    list_display = ('cotizacion', 'tipo_badge', 'concepto', 'fecha_pago', 'monto', 'metodo', 'referencia', 'usuario', 'created_at')
+    list_display = ('cotizacion', 'tipo_badge', 'concepto', 'fecha_pago', 'monto', 'metodo', 'comision_tpv', 'referencia', 'usuario', 'created_at')
     list_filter = ('tipo', 'concepto', 'metodo', 'fecha_pago')
     search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
     readonly_fields = ('usuario', 'created_at', 'updated_at')
@@ -877,6 +877,12 @@ class PagoAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Tipo', {'fields': ('tipo', 'concepto')}),
         ('Datos', {'fields': ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'notas')}),
+        ('Comisión de terminal', {
+            'fields': ('comision_tpv',),
+            'description': 'Solo aplica a pagos cobrados con la terminal física (tarjeta de crédito/débito). '
+                            'Captura el monto exacto que descontó el banco (IVA incluido) — genera automáticamente '
+                            'la póliza del gasto financiero al guardar.',
+        }),
         ('Facturación', {'fields': ('solicitar_factura',)}),
         ('Auditoría', {'fields': ('usuario', 'created_at', 'updated_at')}),
     )

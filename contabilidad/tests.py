@@ -700,3 +700,71 @@ class ParserBBVATest(TestCase):
                 procesar_estado_cuenta(estado_cuenta)
         estado_cuenta.refresh_from_db()
         self.assertEqual(estado_cuenta.estado, 'ERROR')
+
+
+class PeriodoDevengoComisionDiferidaTest(TestCase):
+    """
+    Comisión de banca por internet (SPEI/CECOBAN a bancos externos): BBVA la
+    cobra a mes vencido (Contrato de Banca en Línea, Cláusula Cuarta), así que
+    lo que aparece en el estado de cuenta de un mes corresponde al servicio
+    del mes anterior — periodo_devengo debe reflejar eso, no 'fecha'.
+    """
+
+    def test_detecta_concepto_serv_banca_internet(self):
+        from contabilidad.services_estados_cuenta import _es_comision_diferida
+        self.assertTrue(_es_comision_diferida('SERV BANCA INTERNET SPEI ENVIADO'))
+        self.assertTrue(_es_comision_diferida('IVA COM SERV BCA INTERNET'))
+        self.assertFalse(_es_comision_diferida('SPEI ENVIADO A OTRO BANCO'))
+        self.assertFalse(_es_comision_diferida(''))
+
+    def test_periodo_devengo_mes_anterior(self):
+        from contabilidad.services_estados_cuenta import _periodo_devengo_mes_anterior
+        self.assertEqual(_periodo_devengo_mes_anterior(date(2025, 11, 30)), date(2025, 10, 1))
+
+    def test_periodo_devengo_cambio_de_ano(self):
+        from contabilidad.services_estados_cuenta import _periodo_devengo_mes_anterior
+        self.assertEqual(_periodo_devengo_mes_anterior(date(2026, 1, 15)), date(2025, 12, 1))
+
+    def test_procesar_estado_cuenta_asigna_periodo_devengo_a_comision(self):
+        import tempfile
+        from unittest import mock
+        from contabilidad.services_estados_cuenta import procesar_estado_cuenta
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import FileSystemStorage
+
+        cuenta = CuentaBancaria.objects.create(
+            nombre="Cuenta de prueba", banco="BBVA",
+            numero_cuenta="1234567890", clabe="000000000000000000",
+        )
+        movimientos_falsos = [
+            {'fecha': date(2025, 11, 30), 'descripcion': 'SERV BANCA INTERNET', 'referencia': '',
+             'cargo': Decimal('6.50'), 'abono': Decimal('0.00'), 'saldo_parcial': Decimal('1000.00')},
+            {'fecha': date(2025, 11, 30), 'descripcion': 'IVA COM SERV BCA INTERNET', 'referencia': '',
+             'cargo': Decimal('1.04'), 'abono': Decimal('0.00'), 'saldo_parcial': Decimal('998.96')},
+            {'fecha': date(2025, 11, 15), 'descripcion': 'DEPOSITO TRANSFERENCIA CLIENTE', 'referencia': '',
+             'cargo': Decimal('0.00'), 'abono': Decimal('500.00'), 'saldo_parcial': Decimal('1005.50')},
+        ]
+
+        campo_archivo = EstadoCuentaBancario._meta.get_field('archivo')
+        with tempfile.TemporaryDirectory() as tmp_dir, \
+                mock.patch.object(campo_archivo, 'storage', FileSystemStorage(location=tmp_dir)), \
+                mock.patch(
+                    'contabilidad.services_estados_cuenta._parsear_pdf_bbva',
+                    return_value=(movimientos_falsos, Decimal('994.96'), Decimal('998.96'), '1234567890', date(2025, 11, 30)),
+                ):
+            estado_cuenta = EstadoCuentaBancario.objects.create(
+                cuenta_bancaria=cuenta, banco='BBVA',
+                periodo_mes=11, periodo_anio=2025, formato='PDF',
+                archivo=ContentFile(b'%PDF-1.4 fake', name='falso.pdf'),
+            )
+            procesar_estado_cuenta(estado_cuenta)
+
+        comision = MovimientoEstadoCuenta.objects.get(descripcion='SERV BANCA INTERNET')
+        iva_comision = MovimientoEstadoCuenta.objects.get(descripcion='IVA COM SERV BCA INTERNET')
+        deposito = MovimientoEstadoCuenta.objects.get(descripcion='DEPOSITO TRANSFERENCIA CLIENTE')
+
+        self.assertEqual(comision.periodo_devengo, date(2025, 10, 1))
+        self.assertEqual(iva_comision.periodo_devengo, date(2025, 10, 1))
+        self.assertIsNone(deposito.periodo_devengo)
+        self.assertEqual(deposito.periodo_contable, date(2025, 11, 1))
+        self.assertEqual(comision.periodo_contable, date(2025, 10, 1))
