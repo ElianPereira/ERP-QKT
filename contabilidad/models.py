@@ -271,6 +271,7 @@ class Poliza(models.Model):
         ('COMPRA', 'Compra/Gasto'),
         ('NOMINA', 'Nómina'),
         ('COMISION_OPENPAY', 'Comisión Openpay'),
+        ('COMISION_TPV', 'Comisión terminal (TPV)'),
         ('AJUSTE', 'Ajuste contable'),
         ('APERTURA', 'Saldo de apertura'),
     ]
@@ -850,6 +851,15 @@ class MovimientoEstadoCuenta(models.Model):
         'MovimientoContable', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='movimientos_banco_emparejados'
     )
+    periodo_devengo = models.DateField(
+        null=True, blank=True,
+        verbose_name="Periodo de devengo",
+        help_text="Mes contable real del gasto (primer día del mes). Distinto de "
+                   "'fecha' cuando el banco cobra a mes vencido — ej. comisión SPEI de "
+                   "banca por internet (Contrato de Banca en Línea BBVA, Cláusula Cuarta: "
+                   "'a mes vencido'). 'fecha' sigue siendo la fecha real del cargo, para "
+                   "conciliar contra el estado de cuenta.",
+    )
     match_automatico = models.BooleanField(default=False, verbose_name="Emparejado automáticamente")
     confirmado = models.BooleanField(
         default=False,
@@ -861,6 +871,13 @@ class MovimientoEstadoCuenta(models.Model):
         verbose_name = "Movimiento de estado de cuenta"
         verbose_name_plural = "Movimientos de estado de cuenta"
         ordering = ['fecha', 'id']
+
+    @property
+    def periodo_contable(self):
+        """Mes que debe usar cualquier reporte que agrupe este movimiento por
+        periodo: periodo_devengo si se reclasificó (cobro a mes vencido), o
+        el mes de 'fecha' en el caso normal."""
+        return self.periodo_devengo or self.fecha.replace(day=1)
 
     def clean(self):
         if self.cargo > 0 and self.abono > 0:

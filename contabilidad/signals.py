@@ -215,6 +215,116 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
             referencia=pago.referencia or '',
         )
 
+    # ─── Comisión de terminal (TPV), si se capturó ──────────────
+    if pago.metodo in ('TARJETA_CREDITO', 'TARJETA_DEBITO') and pago.comision_tpv:
+        crear_poliza_comision_tpv(pago)
+
+
+# ==========================================
+# COMISIÓN DE TERMINAL (TPV) — pago con tarjeta física, BBVA/Netpay
+# ==========================================
+def crear_poliza_comision_tpv(pago):
+    """
+    Póliza del descuento que BBVA/Netpay aplica a cada venta cobrada con la
+    terminal física. El banco nunca lo desglosa en el estado de cuenta —
+    solo deposita el neto — así que se captura a mano en Pago.comision_tpv
+    y de ahí se genera este gasto financiero, con la misma unidad_negocio de
+    la venta que lo originó (mismo criterio que la comisión de Openpay).
+
+    El monto capturado se asume con IVA incluido (así lo descuenta el banco
+    del depósito), igual que en el manual de contabilidad 7.2:
+        DEBE: Comisiones bancarias    comisión neta
+        DEBE: IVA acreditable         IVA de la comisión
+        HABER: Banco principal        comisión total (neto + IVA)
+
+    Idempotente: una sola póliza por Pago aunque el signal se dispare de más.
+    """
+    if not signals_enabled():
+        return None
+
+    comision_total = pago.comision_tpv
+    if not comision_total or comision_total <= 0:
+        return None
+
+    content_type = ContentType.objects.get_for_model(pago)
+    if Poliza.objects.filter(content_type=content_type, object_id=pago.pk, origen='COMISION_TPV').exists():
+        return None  # idempotencia
+
+    cuenta_gasto = get_cuenta('GASTO_BANCARIOS')
+    cuenta_iva = get_cuenta('IVA_ACREDITABLE')
+    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+    if not cuenta_gasto or not cuenta_banco:
+        logger.warning(
+            "Comisión TPV no registrada para Pago #%s: falta configuración contable "
+            "(GASTO_BANCARIOS=%s, BANCO_PRINCIPAL=%s)",
+            pago.pk, cuenta_gasto, cuenta_banco,
+        )
+        return None
+
+    unidad = get_unidad_negocio('QUINTA')
+    if not unidad:
+        logger.warning("Comisión TPV no registrada para Pago #%s: falta UnidadNegocio 'QUINTA'", pago.pk)
+        return None
+
+    comision_total = Decimal(str(comision_total)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    if cuenta_iva:
+        comision_neta = (comision_total / Decimal('1.16')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        iva = comision_total - comision_neta
+    else:
+        comision_neta = comision_total
+        iva = Decimal('0.00')
+
+    poliza = Poliza.objects.create(
+        tipo='E',
+        folio=Poliza.siguiente_folio('E', pago.fecha_pago),
+        fecha=pago.fecha_pago,
+        concepto=f"Comisión terminal BBVA — COT-{pago.cotizacion_id:03d} ({pago.cotizacion.cliente.nombre})",
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='COMISION_TPV',
+        content_type=content_type,
+        object_id=pago.pk,
+        created_by=get_usuario_sistema(),
+    )
+
+    MovimientoContable.objects.create(
+        poliza=poliza,
+        cuenta=cuenta_gasto,
+        debe=comision_neta,
+        haber=Decimal('0.00'),
+        concepto="Comisión terminal TPV",
+        referencia=f"COT-{pago.cotizacion_id:03d}",
+    )
+    if cuenta_iva and iva > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_iva,
+            debe=iva,
+            haber=Decimal('0.00'),
+            concepto="IVA acreditable comisión TPV",
+            referencia=f"COT-{pago.cotizacion_id:03d}",
+        )
+    elif iva > 0:
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_gasto,
+            debe=iva,
+            haber=Decimal('0.00'),
+            concepto="IVA comisión TPV (incluido en gasto)",
+            referencia=f"COT-{pago.cotizacion_id:03d}",
+        )
+
+    MovimientoContable.objects.create(
+        poliza=poliza,
+        cuenta=cuenta_banco,
+        debe=Decimal('0.00'),
+        haber=comision_total,
+        concepto="Comisión TPV descontada del depósito",
+        referencia=f"COT-{pago.cotizacion_id:03d}",
+    )
+
+    return poliza
+
 
 # ==========================================
 # INGRESO EXTRA LIGADO A CLIENTE/COTIZACIÓN

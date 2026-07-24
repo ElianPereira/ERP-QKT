@@ -455,6 +455,12 @@ def ver_dashboard_kpis(request):
     # --- Elián · Quinta Ko'ox Tanil (Eventos) ---
     ventas_mes_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year, fecha_evento__month=hoy.month).aggregate(total=Sum('precio_final'))['total'] or 0
     gastos_mes_quinta = Compra.objects.filter(unidad_negocio__clave='QUINTA', fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
+    # Comisión de terminal (TPV): el banco la descuenta antes de depositar, así
+    # que es un gasto financiero real aunque no venga de una Compra — se resta
+    # del ingreso bruto igual que cualquier otro gasto para que la utilidad
+    # refleje el margen neto real.
+    comisiones_tpv_mes_quinta = Pago.objects.filter(fecha_pago__year=hoy.year, fecha_pago__month=hoy.month).aggregate(total=Sum('comision_tpv'))['total'] or 0
+    gastos_mes_quinta += comisiones_tpv_mes_quinta
     utilidad_mes_quinta = ventas_mes_quinta - gastos_mes_quinta
 
     ventas_data_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year).annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')

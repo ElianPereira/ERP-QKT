@@ -858,7 +858,14 @@ class Pago(models.Model):
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo = models.CharField(max_length=20, choices=METODOS)
     referencia = models.CharField(max_length=100, blank=True)
-    
+    comision_tpv = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, default=Decimal('0.00'),
+        verbose_name="Comisión de terminal (TPV)",
+        help_text="Comisión que el banco descuenta antes de depositar (IVA incluido). "
+                   "El estado de cuenta nunca la muestra por separado — se captura a mano "
+                   "del recibo de la terminal o del reporte de Netpay.",
+    )
+
     # Facturación
     solicitar_factura = models.BooleanField(
         default=False,
@@ -903,7 +910,13 @@ class Pago(models.Model):
             super().save(*args, **kwargs)
 
     def __str__(self): return f"${self.monto}"
-    
+
+    @property
+    def monto_neto(self):
+        """Lo que realmente entra al banco después de la comisión de terminal."""
+        comision = self.comision_tpv or Decimal('0.00')
+        return (self.monto - comision).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
     class Meta:
         indexes = [
             models.Index(fields=['fecha_pago']),

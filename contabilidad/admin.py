@@ -403,7 +403,7 @@ class SaldoAperturaAdmin(admin.ModelAdmin):
 class MovimientoEstadoCuentaInline(admin.TabularInline):
     model = MovimientoEstadoCuenta
     extra = 0
-    fields = ['fecha', 'descripcion', 'cargo', 'abono', 'movimiento_contable', 'match_automatico', 'confirmado']
+    fields = ['fecha', 'descripcion', 'cargo', 'abono', 'periodo_devengo', 'movimiento_contable', 'match_automatico', 'confirmado']
     readonly_fields = ['match_automatico']
     autocomplete_fields = ['movimiento_contable']
 

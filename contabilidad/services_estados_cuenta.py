@@ -43,6 +43,23 @@ FOOTER_MARCADORES = (
     'LA GAT REAL ES EL RENDIMIENTO',
 )
 
+# Conceptos de comisión de banca por internet (SPEI/CECOBAN a bancos externos)
+# que, según el Contrato de Banca en Línea BBVA (Cláusula Cuarta, "Comisiones
+# y Gastos"), se cargan "a mes vencido": lo que aparece cobrado en el estado
+# de cuenta de un mes corresponde al servicio prestado el mes anterior.
+CONCEPTOS_COMISION_DIFERIDA = ('SERV BANCA INTERNET', 'COM SERV BCA INTERNET')
+
+
+def _es_comision_diferida(descripcion: str) -> bool:
+    d = (descripcion or '').upper()
+    return any(concepto in d for concepto in CONCEPTOS_COMISION_DIFERIDA)
+
+
+def _periodo_devengo_mes_anterior(fecha_corte: date) -> date:
+    """Primer día del mes anterior al de fecha_corte (maneja cambio de año)."""
+    primer_dia_mes_corte = fecha_corte.replace(day=1)
+    return (primer_dia_mes_corte - timedelta(days=1)).replace(day=1)
+
 
 def procesar_estado_cuenta(estado_cuenta: EstadoCuentaBancario):
     """
@@ -80,7 +97,10 @@ def procesar_estado_cuenta(estado_cuenta: EstadoCuentaBancario):
     with transaction.atomic():
         MovimientoEstadoCuenta.objects.filter(estado_cuenta=estado_cuenta).delete()
         for mov in movimientos:
-            MovimientoEstadoCuenta.objects.create(estado_cuenta=estado_cuenta, **mov)
+            periodo_devengo = None
+            if fecha_corte_real and _es_comision_diferida(mov.get('descripcion', '')):
+                periodo_devengo = _periodo_devengo_mes_anterior(fecha_corte_real)
+            MovimientoEstadoCuenta.objects.create(estado_cuenta=estado_cuenta, periodo_devengo=periodo_devengo, **mov)
         estado_cuenta.saldo_inicial_estado = saldo_inicial
         estado_cuenta.saldo_final_estado = saldo_final
         estado_cuenta.fecha_corte_real = fecha_corte_real
