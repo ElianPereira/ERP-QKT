@@ -153,6 +153,7 @@ def portal_evento(request, token):
     total_pagado = cotizacion.total_pagado()
     saldo_pendiente = cotizacion.saldo_pendiente()
     porcentaje = cotizacion.porcentaje_pagado
+    monto_minimo, monto_minimo_motivo = cotizacion.monto_minimo_pago_detalle()
     
     # WhatsApp URL
     wa_numero = '529991699191'
@@ -182,6 +183,8 @@ def portal_evento(request, token):
         'openpay_merchant_id': settings.OPENPAY_MERCHANT_ID,
         'openpay_public_key': settings.OPENPAY_PUBLIC_KEY,
         'openpay_sandbox': settings.OPENPAY_MODE == 'sandbox',
+        'monto_minimo_pago': monto_minimo,
+        'monto_minimo_pago_motivo': monto_minimo_motivo,
     }
 
     return render(request, 'portal/evento.html', context)
