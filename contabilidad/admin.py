@@ -208,7 +208,35 @@ class PolizaAdmin(admin.ModelAdmin):
             obj.folio = Poliza.siguiente_folio(obj.tipo, obj.fecha)
         super().save_model(request, obj, form, change)
     
-    actions = ['aplicar_polizas', 'cancelar_polizas', 'generar_compra_retroactiva_action']
+    actions = ['aplicar_polizas', 'cancelar_polizas', 'generar_compra_retroactiva_action', 'completar_polizas_compra_action']
+
+    @admin.action(description="Completar con la cuenta de pago de la Compra (pólizas BORRADOR incompletas)")
+    def completar_polizas_compra_action(self, request, queryset):
+        """
+        Para pólizas de Compra que quedaron en BORRADOR sin el movimiento de
+        banco (porque a la Compra le faltaba unidad_negocio/cuenta_pago al
+        crearse): edita primero la Compra para agregar esos datos, luego
+        selecciona aquí su póliza y corre esta acción — agrega el movimiento
+        que falta y la deja lista para "Aplicar pólizas seleccionadas".
+        """
+        from .services import completar_poliza_compra
+
+        completadas = 0
+        omitidas = []
+        for poliza in queryset:
+            try:
+                completar_poliza_compra(poliza)
+                completadas += 1
+            except ValueError as e:
+                omitidas.append(str(e))
+
+        if completadas:
+            self.message_user(
+                request,
+                f"{completadas} póliza(s) completada(s) — ya puedes aplicarlas.",
+            )
+        if omitidas:
+            self.message_user(request, "Omitidas: " + '; '.join(omitidas), level=messages.WARNING)
 
     @admin.action(description="Generar Compra retroactiva (sin factura) para pólizas manuales")
     def generar_compra_retroactiva_action(self, request, queryset):

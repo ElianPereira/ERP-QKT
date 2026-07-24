@@ -213,3 +213,51 @@ def generar_compra_retroactiva(poliza):
         poliza.save(update_fields=['content_type', 'object_id', 'origen'])
 
     return compra
+
+
+def completar_poliza_compra(poliza):
+    """
+    Completa una póliza de Compra que quedó en BORRADOR sin la contrapartida
+    de banco (crear_poliza_compra no la crea si a la Compra le faltaba
+    unidad_negocio y/o cuenta_pago en el momento de guardarla — ver
+    contabilidad.signals.crear_poliza_compra). Se usa después de editar la
+    Compra para completar esos datos: agrega el movimiento HABER que falta
+    y sincroniza unidad_negocio, dejando la póliza lista para aplicarse
+    (no la aplica — eso sigue siendo la acción "Aplicar pólizas" existente).
+
+    Lanza ValueError si la póliza no es elegible: no está en BORRADOR, no
+    viene de una Compra, ya está balanceada, o a la Compra le sigue
+    faltando la cuenta de pago.
+    """
+    from comercial.models import Compra
+    from .models import MovimientoContable
+
+    if poliza.estado != 'BORRADOR':
+        raise ValueError(f"{poliza} no está en BORRADOR.")
+    if poliza.origen != 'COMPRA' or not poliza.content_type_id:
+        raise ValueError(f"{poliza} no viene de una Compra.")
+    if poliza.esta_cuadrada:
+        raise ValueError(f"{poliza} ya está balanceada — no le falta nada.")
+
+    try:
+        compra = Compra.objects.get(pk=poliza.object_id)
+    except Compra.DoesNotExist:
+        raise ValueError(f"{poliza} apunta a una Compra que ya no existe.")
+
+    if not compra.cuenta_pago or not compra.cuenta_pago.cuenta_contable:
+        raise ValueError(f"La Compra de {poliza} sigue sin cuenta_pago — complétala primero.")
+
+    with transaction.atomic():
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=compra.cuenta_pago.cuenta_contable,
+            debe=Decimal('0.00'),
+            haber=poliza.total_debe,
+            concepto="Pago a proveedor",
+            referencia=compra.uuid[:20] if compra.uuid else '',
+        )
+        if compra.unidad_negocio and compra.unidad_negocio_id != poliza.unidad_negocio_id:
+            poliza.unidad_negocio = compra.unidad_negocio
+            poliza.save(update_fields=['unidad_negocio'])
+
+    return poliza

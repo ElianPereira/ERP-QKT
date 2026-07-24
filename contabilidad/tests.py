@@ -306,6 +306,78 @@ class CompraSinDatosCompletosTest(TestCase):
         self.assertEqual(poliza.unidad_negocio.clave, 'AIRBNB')  # no debe caer en QUINTA por default
 
 
+class CompletarPolizaCompraTest(TestCase):
+    """
+    Una póliza de Compra en BORRADOR por falta de cuenta_pago/unidad_negocio
+    debe poder completarse después de corregir la Compra, sin duplicar el
+    movimiento de banco ni requerir recapturar el gasto a mano.
+    """
+
+    def setUp(self):
+        from contabilidad.services import completar_poliza_compra
+        self.completar_poliza_compra = completar_poliza_compra
+
+        cuenta_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal', banco='BBVA',
+            clabe='012345678901234580', cuenta_contable=cuenta_banco,
+        )
+        self.unidad_airbnb = UnidadNegocio.objects.get(clave='AIRBNB')
+
+    def test_completa_poliza_y_queda_balanceada(self):
+        compra = Compra.objects.create(
+            proveedor_nombre="AUTOZONE DE MEXICO", subtotal=Decimal('139.00'), total=Decimal('139.00'),
+        )
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=compra.pk)
+        self.assertEqual(poliza.estado, 'BORRADOR')
+        self.assertFalse(poliza.esta_cuadrada)
+
+        # El usuario corrige la Compra con los datos que faltaban
+        compra.cuenta_pago = self.cuenta_bancaria
+        compra.unidad_negocio = self.unidad_airbnb
+        compra.save()
+
+        self.completar_poliza_compra(poliza)
+        poliza.refresh_from_db()
+
+        self.assertTrue(poliza.esta_cuadrada)
+        self.assertEqual(poliza.total_debe, Decimal('139.00'))
+        self.assertEqual(poliza.total_haber, Decimal('139.00'))
+        self.assertEqual(poliza.unidad_negocio.clave, 'AIRBNB')
+        self.assertEqual(poliza.estado, 'BORRADOR')  # completar no aplica, solo balancea
+
+    def test_no_duplica_movimiento_si_se_corre_dos_veces(self):
+        compra = Compra.objects.create(
+            proveedor_nombre="AUTOZONE DE MEXICO", subtotal=Decimal('139.00'), total=Decimal('139.00'),
+        )
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=compra.pk)
+        compra.cuenta_pago = self.cuenta_bancaria
+        compra.save()
+
+        self.completar_poliza_compra(poliza)
+        poliza.refresh_from_db()
+        with self.assertRaises(ValueError):
+            self.completar_poliza_compra(poliza)  # ya está cuadrada
+
+    def test_rechaza_si_la_compra_sigue_sin_cuenta_pago(self):
+        compra = Compra.objects.create(
+            proveedor_nombre="AUTOZONE DE MEXICO", subtotal=Decimal('139.00'), total=Decimal('139.00'),
+        )
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=compra.pk)
+        with self.assertRaises(ValueError):
+            self.completar_poliza_compra(poliza)
+
+    def test_rechaza_poliza_aplicada(self):
+        compra = Compra.objects.create(
+            proveedor_nombre="Proveedor Y", subtotal=Decimal('500.00'), total=Decimal('500.00'),
+            cuenta_pago=self.cuenta_bancaria, unidad_negocio=self.unidad_airbnb,
+        )
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=compra.pk)
+        self.assertEqual(poliza.estado, 'APLICADA')
+        with self.assertRaises(ValueError):
+            self.completar_poliza_compra(poliza)
+
+
 class CompraSinCFDINoDeducibleTest(TestCase):
     """Un gasto sin factura timbrada (uuid) se registra igual, pero como no
     deducible: no se acredita IVA y el total completo va al gasto."""
