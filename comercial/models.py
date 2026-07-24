@@ -783,6 +783,59 @@ class Cotizacion(models.Model):
             qs = qs.exclude(pk=excluir_pk)
         return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
     def saldo_pendiente(self): return self.precio_final - self.total_pagado()
+
+    def monto_minimo_pago_detalle(self):
+        """
+        Mínimo que el cliente debe abonar en su siguiente pago, con el motivo:
+
+        - Con plan de pagos: la suma de las parcialidades cuya fecha_limite ya
+          llegó (vencidas + la que toca hoy) menos lo ya pagado. Si está al
+          corriente (nada vencido todavía), no hay mínimo — puede abonar lo
+          que quiera a cuenta del saldo.
+        - Sin plan de pagos: el primer pago debe ser al menos 50% del total.
+          Una vez hecho ese primer pago, sin mínimo — abonos libres.
+
+        Se basa en total_pagado() (dinero realmente recibido), no en el
+        campo ParcialidadPago.pagada (que el staff marca a mano y puede no
+        estar al día) — así el mínimo siempre refleja la realidad aunque el
+        pago haya entrado automático por Openpay y nadie lo haya marcado aún.
+
+        Nunca excede el saldo pendiente. Devuelve (monto, motivo) — motivo es
+        '' cuando no hay mínimo (puede abonar libremente).
+        """
+        saldo = self.saldo_pendiente()
+        if saldo <= 0:
+            return Decimal('0.00'), ''
+
+        total_pagado = self.total_pagado()
+        try:
+            plan = self.plan_pago
+        except PlanPago.DoesNotExist:
+            plan = None
+
+        if plan and plan.activo:
+            from django.utils import timezone
+            hoy = timezone.now().date()
+            programado_a_hoy = plan.parcialidades.filter(fecha_limite__lte=hoy).aggregate(
+                Sum('monto'))['monto__sum'] or Decimal('0.00')
+            minimo = programado_a_hoy - total_pagado
+            motivo = 'Tienes pagos vencidos o próximos según tu plan de pagos.'
+        elif total_pagado <= 0:
+            minimo = self.precio_final * Decimal('0.50')
+            motivo = 'El primer pago debe ser al menos el 50% del total.'
+        else:
+            minimo = Decimal('0.00')
+            motivo = ''
+
+        minimo = max(minimo, Decimal('0.00'))
+        minimo = min(minimo, saldo)
+        if minimo <= 0:
+            motivo = ''
+        return minimo, motivo
+
+    def monto_minimo_pago(self):
+        return self.monto_minimo_pago_detalle()[0]
+
     def __str__(self): return f"{self.cliente} - {self.nombre_evento}"
     class Meta: 
         verbose_name = "Cotización"

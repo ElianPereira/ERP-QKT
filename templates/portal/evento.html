@@ -279,8 +279,15 @@
                     <label style="font-size:12px; font-weight:600; color:#555;">Monto a pagar (MXN)</label>
                     <input type="text" inputmode="decimal" id="monto-pago" name="monto" placeholder="Importe"
                            data-max="{{ saldo_pendiente|stringformat:'0.2f' }}"
+                           data-min="{{ monto_minimo_pago|stringformat:'0.2f' }}"
                            style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
-                    <div style="font-size:11px; color:#8a8780; margin-top:4px;">Máximo ${{ saldo_pendiente|floatformat:2 }} (tu saldo pendiente)</div>
+                    {% if monto_minimo_pago > 0 %}
+                    <div style="font-size:11px; color:#e67e22; margin-top:4px;">
+                        {{ monto_minimo_pago_motivo }} Mínimo a pagar: ${{ monto_minimo_pago|floatformat:2 }} · Máximo ${{ saldo_pendiente|floatformat:2 }}
+                    </div>
+                    {% else %}
+                    <div style="font-size:11px; color:#8a8780; margin-top:4px;">Máximo ${{ saldo_pendiente|floatformat:2 }} (tu saldo pendiente) — puedes abonar el monto que prefieras</div>
+                    {% endif %}
                 </div>
 
                 <div id="campos-tarjeta" style="display:none;">
@@ -402,6 +409,7 @@
     // --- Monto: formato de moneda MXN mientras se escribe, sin exceder el saldo pendiente ---
     var montoInput = document.getElementById('monto-pago');
     var montoMax = parseFloat(montoInput.dataset.max) || 0;
+    var montoMin = parseFloat(montoInput.dataset.min) || 0;
 
     function parsearMonto(texto) {
         var limpio = (texto || '').replace(/[^0-9.]/g, '');
@@ -421,7 +429,10 @@
         if (valor > montoMax) valor = montoMax;
         montoInput.value = valor ? formatearMoneda(valor) : '';
     });
-    montoInput.value = formatearMoneda(montoMax);  // prellenado con el saldo pendiente completo
+    // Prellenado: el mínimo requerido (plan vencido / 50% inicial) si aplica,
+    // si no, el saldo completo — el cliente puede editarlo hacia abajo hasta
+    // el mínimo, o dejarlo para pagar de más (abono) si no hay mínimo.
+    montoInput.value = formatearMoneda(montoMin > 0 ? montoMin : montoMax);
 
     var TEXTO_BOTON = {
         card: { icono: 'fa-lock', texto: 'Pagar' },
@@ -448,6 +459,13 @@
 
     document.getElementById('payment-form').addEventListener('submit', function(e) {
         e.preventDefault();
+
+        var montoIngresado = parsearMonto(montoInput.value);
+        if (montoMin > 0 && montoIngresado < montoMin - 0.005) {
+            mostrarResultado('error', 'El monto mínimo para este pago es ' + formatearMoneda(montoMin) + '.');
+            return;
+        }
+
         document.getElementById('btn-pagar').disabled = true;
 
         if (metodoActual === 'card') {

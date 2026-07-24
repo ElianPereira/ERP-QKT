@@ -319,7 +319,9 @@ class PortalCheckoutViewTest(TestCase):
             'id': 'tx005', 'status': 'in_progress',
             'payment_method': {'reference': 'OPENPAY05REF'}
         })
-        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '500.00'})
+        # 600 >= 50% de 1160 (precio_final con IVA de _crear_cotizacion) — cumple
+        # el mínimo del primer pago.
+        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00'})
         data = response.json()
         self.assertTrue(data['ok'])
         self.assertEqual(data['reference'], 'OPENPAY05REF')

@@ -44,6 +44,10 @@ def portal_procesar_pago_openpay(request, token):
     if monto > saldo + Decimal('0.50'):
         return JsonResponse({'ok': False, 'mensaje': f'El monto excede el saldo pendiente (${saldo:,.2f}).'})
 
+    minimo = cotizacion.monto_minimo_pago()
+    if monto < minimo - Decimal('0.50'):
+        return JsonResponse({'ok': False, 'mensaje': f'El monto mínimo para este pago es ${minimo:,.2f}.'})
+
     try:
         if metodo == 'card':
             token_id = request.POST.get('token_id', '')
