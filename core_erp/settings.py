@@ -163,7 +163,13 @@ JIBBLE_CLIENT_ID = config('JIBBLE_CLIENT_ID', default='')
 JIBBLE_CLIENT_SECRET = config('JIBBLE_CLIENT_SECRET', default='')
 NOMINA_CRON_TOKEN = config('NOMINA_CRON_TOKEN', default='')
 
-# --- OPENPAY (link de pago + webhook) ---
+# --- OPENPAY (checkout propio: tarjeta/efectivo/SPEI + webhook) ---
+# OPENPAY_MODE controla el ambiente (sandbox/production) y con eso la URL
+# base de la API (ver comercial/services_openpay.py) y el modo de Openpay.js
+# (ver templates/portal/evento.html). Para pasar a producción tras la
+# certificación: cambiar OPENPAY_MODE=production y las 5 variables de abajo
+# por las credenciales reales en las variables de entorno de Railway — no
+# requiere cambios de código.
 OPENPAY_MODE = config('OPENPAY_MODE', default='sandbox')
 OPENPAY_MERCHANT_ID = config('OPENPAY_MERCHANT_ID', default='')
 OPENPAY_PRIVATE_KEY = config('OPENPAY_PRIVATE_KEY', default='')

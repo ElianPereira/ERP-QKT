@@ -400,9 +400,22 @@
         enviarCargoAlBackend('card', response.data.id, deviceSessionId);
     }
 
+    // Traducción de errores de tokenización de Openpay.js (validación de
+    // formato antes de llegar al servidor). Los códigos de cargo rechazado
+    // (2001, 2002, etc.) ya se traducen en el backend; estos son errores de
+    // captura del formulario.
+    var MENSAJES_ERROR_TOKEN = {
+        2001: 'El número de tarjeta es inválido.',
+        2003: 'La fecha de expiración es inválida.',
+        2004: 'El código de seguridad (CVV) es inválido.',
+        2005: 'El nombre del titular es requerido.'
+    };
+
     function onTokenError(response) {
         document.getElementById('btn-pagar').disabled = false;
-        mostrarResultado('error', (response.data && response.data.description) || 'No se pudo procesar la tarjeta. Verifica los datos.');
+        var codigo = response.data && response.data.error_code;
+        var mensaje = MENSAJES_ERROR_TOKEN[codigo] || 'No se pudo procesar la tarjeta. Verifica los datos.';
+        mostrarResultado('error', mensaje);
     }
 
     function enviarCargoAlBackend(metodo, tokenId, devSessionId) {

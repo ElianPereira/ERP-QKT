@@ -223,7 +223,7 @@ class CargoTarjetaTest(TestCase):
         cotizacion = _crear_cotizacion()
         resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok999', 'dev999')
         self.assertFalse(resultado['ok'])
-        self.assertIn('declinada', resultado['mensaje'])
+        self.assertIn('no autorizó', resultado['mensaje'])
         self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
         # El intento fallido queda registrado para auditoría
         self.assertEqual(OpenpayTransaccion.objects.filter(cotizacion=cotizacion, procesado=False).count(), 1)

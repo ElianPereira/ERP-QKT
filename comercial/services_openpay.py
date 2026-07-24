@@ -20,6 +20,40 @@ from .models import Cotizacion, Pago, OpenpayTransaccion
 
 logger = logging.getLogger(__name__)
 
+# Mensajes de error de Openpay traducidos al español. Openpay siempre regresa
+# `description` en inglés; `error_code` es estable entre idiomas, así que se
+# traduce por código (ver https://www.openpay.mx/docs/api/#errores). Códigos
+# no listados aquí caen al mensaje genérico.
+MENSAJES_ERROR_TARJETA = {
+    2001: "Tu tarjeta fue rechazada por el banco emisor.",
+    2002: "Tu tarjeta ha expirado.",
+    2003: "Tu tarjeta no tiene fondos suficientes.",
+    2004: "Tu tarjeta fue reportada como robada.",
+    2005: "Esta operación no está permitida para tu tarjeta.",
+    2006: "Tu tarjeta no es válida para pagos en línea.",
+    2007: "El banco emisor rechazó la transacción por riesgo alto.",
+    2008: "Tu tarjeta fue reportada como extraviada.",
+    2009: "El banco emisor rechazó la transacción.",
+    2010: "El código de seguridad (CVV) es inválido.",
+    2022: "No se pudo verificar tu tarjeta.",
+    2023: "La autenticación de tu tarjeta falló.",
+    2026: "No es posible procesar el pago con esta tarjeta.",
+    3001: "El banco emisor no autorizó la operación.",
+}
+
+
+def _mensaje_error_tarjeta(data: dict) -> str:
+    codigo = data.get('error_code')
+    try:
+        codigo = int(codigo)
+    except (TypeError, ValueError):
+        codigo = None
+    return MENSAJES_ERROR_TARJETA.get(
+        codigo,
+        'La tarjeta fue rechazada. Verifica los datos e intenta de nuevo.',
+    )
+
+
 OPENPAY_BASE_URL = (
     "https://sandbox-api.openpay.mx/v1"
     if settings.OPENPAY_MODE == 'sandbox'
@@ -110,7 +144,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
             monto=monto, cotizacion=cotizacion, payload_crudo=data,
             error_detalle=data.get('description', 'Error desconocido de Openpay'),
         )
-        return {'ok': False, 'mensaje': data.get('description', 'La tarjeta fue rechazada. Verifica los datos e intenta de nuevo.')}
+        return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}
 
     registro = OpenpayTransaccion.objects.create(
         openpay_id=data['id'], metodo='card', estado_openpay=data.get('status', ''),
