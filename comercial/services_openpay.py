@@ -44,15 +44,22 @@ MENSAJES_ERROR_TARJETA = {
 
 
 def _mensaje_error_tarjeta(data: dict) -> str:
+    return _mensaje_error_openpay(data, 'La tarjeta fue rechazada. Verifica los datos e intenta de nuevo.')
+
+
+def _mensaje_error_openpay(data: dict, default: str) -> str:
+    """
+    Nunca regresa el `description` crudo de Openpay al cliente: siempre viene
+    en inglés (ver nota arriba), así que solo se traduce por `error_code`
+    conocido o se usa `default` en español — jamás el texto de Openpay tal
+    cual, para no mostrarle inglés al cliente en un segundo intento.
+    """
     codigo = data.get('error_code')
     try:
         codigo = int(codigo)
     except (TypeError, ValueError):
         codigo = None
-    return MENSAJES_ERROR_TARJETA.get(
-        codigo,
-        'La tarjeta fue rechazada. Verifica los datos e intenta de nuevo.',
-    )
+    return MENSAJES_ERROR_TARJETA.get(codigo, default)
 
 
 OPENPAY_BASE_URL = (
@@ -184,7 +191,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
     data = response.json()
 
     if response.status_code >= 400:
-        return {'ok': False, 'mensaje': data.get('description', 'No se pudo generar la referencia de pago.')}
+        return {'ok': False, 'mensaje': _mensaje_error_openpay(data, 'No se pudo generar la referencia de pago. Intenta de nuevo o contáctanos.')}
 
     store = data.get('payment_method', {}) or data.get('store', {})
     # update_or_create en vez de create: el sandbox de Openpay reutiliza el
@@ -215,7 +222,7 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
     data = response.json()
 
     if response.status_code >= 400:
-        return {'ok': False, 'mensaje': data.get('description', 'No se pudieron generar los datos de transferencia.')}
+        return {'ok': False, 'mensaje': _mensaje_error_openpay(data, 'No se pudieron generar los datos de transferencia. Intenta de nuevo o contáctanos.')}
 
     pm = data.get('payment_method', {})
     # update_or_create por la misma razón que en procesar_cargo_efectivo: el

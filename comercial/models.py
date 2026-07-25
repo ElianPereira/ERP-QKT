@@ -971,6 +971,8 @@ class Pago(models.Model):
         return (self.monto - comision).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     class Meta:
+        verbose_name = "Pago Aprobado"
+        verbose_name_plural = "Pagos Aprobados"
         indexes = [
             models.Index(fields=['fecha_pago']),
             models.Index(fields=['cotizacion', 'fecha_pago']),

@@ -279,6 +279,28 @@ class CargoEfectivoSpeiTest(TestCase):
         self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
         self.assertEqual(OpenpayTransaccion.objects.get(openpay_id='tx004').referencia_pago, '646180111812345678')
 
+    @patch('comercial.services_openpay.requests.post')
+    def test_error_efectivo_no_muestra_description_cruda_en_ingles(self, mock_post):
+        # Openpay siempre regresa 'description' en inglés; el mensaje al
+        # cliente nunca debe mostrar ese texto crudo, sin importar el intento.
+        mock_post.return_value = MagicMock(status_code=400, json=lambda: {
+            'error_code': 1001, 'description': 'The order_id has already been processed'
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        self.assertFalse(resultado['ok'])
+        self.assertNotIn('already been processed', resultado['mensaje'])
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_error_spei_no_muestra_description_cruda_en_ingles(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=400, json=lambda: {
+            'error_code': 1001, 'description': 'The order_id has already been processed'
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_spei(cotizacion, Decimal('500.00'))
+        self.assertFalse(resultado['ok'])
+        self.assertNotIn('already been processed', resultado['mensaje'])
+
 
 class PortalCheckoutViewTest(TestCase):
     """La vista del checkout usa la misma autenticación del portal (token)."""
