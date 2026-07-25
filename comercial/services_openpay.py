@@ -12,6 +12,7 @@ El `Pago` creado aquí dispara la póliza automática existente — este módulo
 no toca la lógica de contabilidad.
 """
 import logging
+import uuid
 import requests
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
@@ -100,7 +101,11 @@ def _payload_cargo_base(cotizacion: Cotizacion, monto: Decimal, metodo: str):
         "amount": float(monto),
         "currency": "MXN",
         "description": f"COT-{cotizacion.id:03d} - {cotizacion.nombre_evento}",
-        "order_id": f"COT-{cotizacion.id}-{cotizacion.transacciones_openpay.count() + 1}",
+        # uuid4 en vez de un contador basado en OpenpayTransaccion: los cargos
+        # de efectivo/SPEI que Openpay rechaza (400) no dejan registro local,
+        # así que un contador reintenta el mismo order_id ya usado y Openpay
+        # responde "the order_id has already been processed".
+        "order_id": f"COT-{cotizacion.id}-{uuid.uuid4().hex[:12]}",
         "customer": _datos_customer(cotizacion.cliente),
     }
 

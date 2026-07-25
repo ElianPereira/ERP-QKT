@@ -325,10 +325,14 @@
 
         <!-- Overlay de pago exitoso (pantalla completa, imposible de perderse) -->
         <div id="overlay-pago-exitoso" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:center; justify-content:center;">
-            <div style="background:white; border-radius:16px; padding:40px 32px; max-width:360px; width:90%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+            <div style="background:white; border-radius:16px; padding:40px 32px; max-width:360px; width:90%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.25); position:relative;">
+                <button type="button" id="btn-cerrar-overlay-pago" aria-label="Cerrar" style="position:absolute; top:10px; right:10px; background:none; border:none; font-size:20px; color:#8a8780; cursor:pointer; line-height:1; padding:4px;">
+                    <i class="fas fa-times"></i>
+                </button>
                 <i class="fas fa-check-circle" style="font-size:64px; color:#2E7D32;"></i>
                 <h2 style="margin:16px 0 8px; color:#2E7D32; font-size:20px;">¡Pago exitoso!</h2>
-                <p style="color:#555; font-size:14px;">Tu pago fue procesado correctamente.<br>Actualizando tu estado de cuenta…</p>
+                <p style="color:#555; font-size:14px;">Tu pago fue procesado correctamente.</p>
+                <button type="button" id="btn-cerrar-overlay-pago-texto" class="btn btn-green" style="border:none; cursor:pointer; margin-top:16px; padding:10px 24px;">Cerrar</button>
             </div>
         </div>
         {% endif %}
@@ -515,14 +519,10 @@
             if (data.ok && data.referencia) {
                 mostrarReferencia(data);
             } else if (data.ok) {
-                // Overlay a pantalla completa y recarga con ?pago=exitoso para
-                // que la confirmación siga visible después de recargar.
+                // Overlay a pantalla completa, se queda abierto hasta que el
+                // usuario lo cierra; al cerrarlo recarga con ?pago=exitoso
+                // para que la confirmación siga visible después de recargar.
                 document.getElementById('overlay-pago-exitoso').style.display = 'flex';
-                setTimeout(function() {
-                    var url = new URL(window.location.href);
-                    url.searchParams.set('pago', 'exitoso');
-                    window.location.href = url.toString();
-                }, 2000);
             } else {
                 mostrarResultado('error', data.mensaje);
             }
@@ -531,6 +531,14 @@
             mostrarResultado('error', 'No se pudo contactar al servidor. Intenta de nuevo.');
         });
     }
+
+    function cerrarOverlayPagoExitoso() {
+        var url = new URL(window.location.href);
+        url.searchParams.set('pago', 'exitoso');
+        window.location.href = url.toString();
+    }
+    document.getElementById('btn-cerrar-overlay-pago').addEventListener('click', cerrarOverlayPagoExitoso);
+    document.getElementById('btn-cerrar-overlay-pago-texto').addEventListener('click', cerrarOverlayPagoExitoso);
 
     function mostrarResultado(tipo, mensaje) {
         var div = document.getElementById('resultado-pago');
