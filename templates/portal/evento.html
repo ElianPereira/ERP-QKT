@@ -429,9 +429,24 @@
     }
 
     montoInput.addEventListener('input', function() {
+        // Reformatear en cada tecla mueve el cursor al final si no se
+        // reposiciona a mano — sin esto, escribir o borrar en cualquier
+        // punto que no sea justo antes del decimal "no hacía nada" visible
+        // porque el cursor saltaba al final en cada input.
+        var cursorPos = montoInput.selectionStart;
+        var digitosAntes = (montoInput.value.slice(0, cursorPos).match(/[0-9]/g) || []).length;
+
         var valor = parsearMonto(montoInput.value);
         if (valor > montoMax) valor = montoMax;
-        montoInput.value = valor ? formatearMoneda(valor) : '';
+        var nuevoValor = valor ? formatearMoneda(valor) : '';
+        montoInput.value = nuevoValor;
+
+        var pos = 0, digitosVistos = 0;
+        while (pos < nuevoValor.length && digitosVistos < digitosAntes) {
+            if (/[0-9]/.test(nuevoValor[pos])) digitosVistos++;
+            pos++;
+        }
+        montoInput.setSelectionRange(pos, pos);
     });
     // Prellenado: el mínimo requerido (plan vencido / 50% inicial) si aplica,
     // si no, el saldo completo — el cliente puede editarlo hacia abajo hasta
