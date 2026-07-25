@@ -54,19 +54,6 @@ plantilla en una actualización, este bloque puede quedar desactualizado.
                     {% if jazzmin_settings.navigation_expanded %}
                         {% for app in side_menu_list %}
                             <li class="nav-header">{{ app.name }}</li>
-                            {% for model in app.models %}
-                                <li class="nav-item">
-                                    {% if model.url %}
-                                    <a href="{{ model.url }}" class="nav-link">
-                                        <i class="nav-icon {{ model.icon }}"></i> <p>{{ model.name }}</p>
-                                    </a>
-                                {% else %}
-                                    <span class="nav-link disabled">
-                                        <i class="nav-icon {{ model.icon }}"></i> <p>{{ model.name }}</p>
-                                    </span>
-                                {% endif %}
-                                </li>
-                            {% endfor %}
                             {% for sub_app in app.sub_apps %}
                                 <li class="nav-header">{{ sub_app.name }}</li>
                                 {% for model in sub_app.models %}
@@ -99,6 +86,19 @@ plantilla en una actualización, este bloque puede quedar desactualizado.
                                     {% endfor %}
                                 {% endfor %}
                             {% endfor %}
+                            {% for model in app.models %}
+                                <li class="nav-item">
+                                    {% if model.url %}
+                                    <a href="{{ model.url }}" class="nav-link">
+                                        <i class="nav-icon {{ model.icon }}"></i> <p>{{ model.name }}</p>
+                                    </a>
+                                {% else %}
+                                    <span class="nav-link disabled">
+                                        <i class="nav-icon {{ model.icon }}"></i> <p>{{ model.name }}</p>
+                                    </span>
+                                {% endif %}
+                                </li>
+                            {% endfor %}
                         {% endfor %}
                     {% else %}
                         {% for app in side_menu_list %}
@@ -108,14 +108,6 @@ plantilla en una actualización, este bloque puede quedar desactualizado.
                                     <p>{{ app.name|truncatechars:21 }} <i class="nav-arrow fas fa-chevron-right" aria-hidden="true"></i></p>
                                 </a>
                                 <ul class="nav nav-treeview">
-                                    {% for model in app.models %}
-                                        <li class="nav-item">
-                                            <a href="{% if model.url %}{{ model.url }}{% else %}javascript:void(0){% endif %}" class="nav-link">
-                                                <i class="nav-icon {{ model.icon }}"></i>
-                                                <p>{{ model.name }}</p>
-                                            </a>
-                                        </li>
-                                    {% endfor %}
                                     {% for sub_app in app.sub_apps %}
                                         <li class="nav-item has-treeview qkt-sub-app">
                                             <a href="#" class="nav-link">
@@ -150,6 +142,14 @@ plantilla en una actualización, este bloque puede quedar desactualizado.
                                                     </li>
                                                 {% endfor %}
                                             </ul>
+                                        </li>
+                                    {% endfor %}
+                                    {% for model in app.models %}
+                                        <li class="nav-item">
+                                            <a href="{% if model.url %}{{ model.url }}{% else %}javascript:void(0){% endif %}" class="nav-link">
+                                                <i class="nav-icon {{ model.icon }}"></i>
+                                                <p>{{ model.name }}</p>
+                                            </a>
                                         </li>
                                     {% endfor %}
                                 </ul>
