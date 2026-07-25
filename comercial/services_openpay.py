@@ -187,11 +187,18 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
         return {'ok': False, 'mensaje': data.get('description', 'No se pudo generar la referencia de pago.')}
 
     store = data.get('payment_method', {}) or data.get('store', {})
-    OpenpayTransaccion.objects.create(
-        openpay_id=data['id'], metodo='store', estado_openpay=data.get('status', ''),
-        monto=monto, cotizacion=cotizacion, payload_crudo=data,
-        referencia_pago=store.get('reference', ''),
-        autorizacion=data.get('authorization', ''),
+    # update_or_create en vez de create: el sandbox de Openpay reutiliza el
+    # mismo id de cargo fijo para 'store' (no simula estados reales como
+    # tarjeta), así que un segundo cargo de prueba pisaría el unique de
+    # openpay_id y tumbaría el pago con un IntegrityError.
+    OpenpayTransaccion.objects.update_or_create(
+        openpay_id=data['id'],
+        defaults=dict(
+            metodo='store', estado_openpay=data.get('status', ''),
+            monto=monto, cotizacion=cotizacion, payload_crudo=data,
+            referencia_pago=store.get('reference', ''),
+            autorizacion=data.get('authorization', ''),
+        ),
     )
     return {
         'ok': True, 'referencia': True,
@@ -211,11 +218,16 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
         return {'ok': False, 'mensaje': data.get('description', 'No se pudieron generar los datos de transferencia.')}
 
     pm = data.get('payment_method', {})
-    OpenpayTransaccion.objects.create(
-        openpay_id=data['id'], metodo='bank_account', estado_openpay=data.get('status', ''),
-        monto=monto, cotizacion=cotizacion, payload_crudo=data,
-        referencia_pago=pm.get('clabe', ''),
-        autorizacion=data.get('authorization', ''),
+    # update_or_create por la misma razón que en procesar_cargo_efectivo: el
+    # sandbox de Openpay reutiliza un id de cargo fijo para 'bank_account'.
+    OpenpayTransaccion.objects.update_or_create(
+        openpay_id=data['id'],
+        defaults=dict(
+            metodo='bank_account', estado_openpay=data.get('status', ''),
+            monto=monto, cotizacion=cotizacion, payload_crudo=data,
+            referencia_pago=pm.get('clabe', ''),
+            autorizacion=data.get('authorization', ''),
+        ),
     )
     return {
         'ok': True, 'referencia': True,
