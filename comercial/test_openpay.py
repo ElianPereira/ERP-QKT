@@ -326,6 +326,30 @@ class PortalCheckoutViewTest(TestCase):
         self.assertTrue(data['ok'])
         self.assertEqual(data['reference'], 'OPENPAY05REF')
 
+    def test_segundo_envio_simultaneo_queda_bloqueado_por_candado(self):
+        from django.core.cache import cache
+        candado = f'pago_openpay_en_curso:{self.cotizacion.id}'
+        cache.set(candado, '1', timeout=12)
+        try:
+            response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00'})
+            data = response.json()
+            self.assertFalse(data['ok'])
+            self.assertTrue(data['candado'])
+            self.assertIn('procesando', data['mensaje'])
+        finally:
+            cache.delete(candado)
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_candado_se_libera_despues_de_procesar_el_pago(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-candado', 'status': 'in_progress',
+            'payment_method': {'reference': 'OPENPAYCANDADOREF'}
+        })
+        self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00'})
+        from django.core.cache import cache
+        candado = f'pago_openpay_en_curso:{self.cotizacion.id}'
+        self.assertIsNone(cache.get(candado))
+
 
 class ReembolsoOpenpayTest(TestCase):
     def test_pago_sin_transaccion_openpay_no_reembolsable(self):
