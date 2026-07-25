@@ -1,0 +1,71 @@
+# Entornos virtuales / dependencias
+venv/
+.venv/
+env/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Control de versiones
+.git/
+
+# Build / artefactos generados
+dist/
+build/
+staticfiles/
+media/
+cementerio/
+
+# Bases de datos locales
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+
+# Reportes generados por graphify (grandes, regenerables)
+graphify-out/
+
+# Historial de migraciones Django (voluminoso, poco valor de arquitectura;
+# leer el models.py de la app en vez de reconstruir el esquema desde aquí)
+*/migrations/
+
+# Archivos de lock / manifiestos de paquetes
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+uv.lock
+
+# Logs y temporales
+*.log
+*.tmp
+.DS_Store
+
+# Imágenes, audio y video
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+*.bmp
+*.mp3
+*.mp4
+*.mov
+*.avi
+*.wav
+
+# Documentos binarios pesados
+*.pdf
+*.zip
+*.tar
+*.tar.gz
+*.gz
+
+# Secretos / entorno local
+.env
