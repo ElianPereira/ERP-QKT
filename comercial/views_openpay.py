@@ -4,6 +4,7 @@ import json
 import logging
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
+from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
@@ -16,6 +17,12 @@ from .services_openpay import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Candado corto para que dos envíos casi simultáneos del mismo checkout (doble
+# clic, doble pestaña, red lenta con reintento) no generen dos cargos en
+# Openpay. El botón ya se deshabilita en el JS al enviar, pero eso no cubre
+# dos pestañas ni una petición que ya salió antes de que el JS reaccionara.
+CANDADO_PAGO_SEGUNDOS = 12
 
 
 # ==========================================
@@ -48,6 +55,15 @@ def portal_procesar_pago_openpay(request, token):
     if monto < minimo - Decimal('0.50'):
         return JsonResponse({'ok': False, 'mensaje': f'El monto mínimo para este pago es ${minimo:,.2f}.'})
 
+    candado = f'pago_openpay_en_curso:{cotizacion.id}'
+    if not cache.add(candado, '1', timeout=CANDADO_PAGO_SEGUNDOS):
+        return JsonResponse({
+            'ok': False,
+            'candado': True,
+            'mensaje': 'Ya estamos procesando un pago para esta cotización. '
+                       'Espera unos segundos — no es necesario que vuelvas a intentarlo.',
+        })
+
     try:
         if metodo == 'card':
             token_id = request.POST.get('token_id', '')
@@ -64,6 +80,8 @@ def portal_procesar_pago_openpay(request, token):
     except Exception:
         logger.exception("Checkout Openpay: error inesperado procesando cargo (COT-%s, método %s).", cotizacion.id, metodo)
         resultado = {'ok': False, 'mensaje': 'Ocurrió un error al procesar el pago. Intenta de nuevo o contáctanos.'}
+    finally:
+        cache.delete(candado)
 
     return JsonResponse(resultado)
 

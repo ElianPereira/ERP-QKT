@@ -524,7 +524,7 @@
                 // para que la confirmación siga visible después de recargar.
                 document.getElementById('overlay-pago-exitoso').style.display = 'flex';
             } else {
-                mostrarResultado('error', data.mensaje);
+                mostrarResultado(data.candado ? 'info' : 'error', data.mensaje);
             }
         }).catch(function() {
             document.getElementById('btn-pagar').disabled = false;
@@ -545,6 +545,8 @@
         div.style.display = 'block';
         if (tipo === 'exito') {
             div.style.background = '#E8F5E9'; div.style.color = '#2E7D32';
+        } else if (tipo === 'info') {
+            div.style.background = '#FFF8E1'; div.style.color = '#8a6d3b';
         } else {
             div.style.background = '#FFEBEE'; div.style.color = '#e74c3c';
         }
