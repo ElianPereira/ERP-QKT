@@ -82,6 +82,22 @@ plantilla en una actualización, este bloque puede quedar desactualizado.
                                     {% endif %}
                                     </li>
                                 {% endfor %}
+                                {% for sub_sub_app in sub_app.sub_apps %}
+                                    <li class="nav-header">{{ sub_sub_app.name }}</li>
+                                    {% for model in sub_sub_app.models %}
+                                        <li class="nav-item">
+                                            {% if model.url %}
+                                            <a href="{{ model.url }}" class="nav-link">
+                                                <i class="nav-icon {{ model.icon }}"></i> <p>{{ model.name }}</p>
+                                            </a>
+                                        {% else %}
+                                            <span class="nav-link disabled">
+                                                <i class="nav-icon {{ model.icon }}"></i> <p>{{ model.name }}</p>
+                                            </span>
+                                        {% endif %}
+                                        </li>
+                                    {% endfor %}
+                                {% endfor %}
                             {% endfor %}
                         {% endfor %}
                     {% else %}
@@ -113,6 +129,24 @@ plantilla en una actualización, este bloque puede quedar desactualizado.
                                                             <i class="nav-icon {{ model.icon }}"></i>
                                                             <p>{{ model.name }}</p>
                                                         </a>
+                                                    </li>
+                                                {% endfor %}
+                                                {% for sub_sub_app in sub_app.sub_apps %}
+                                                    <li class="nav-item has-treeview qkt-sub-app">
+                                                        <a href="#" class="nav-link">
+                                                            <i class="nav-icon {{ sub_sub_app.icon }}"></i>
+                                                            <p>{{ sub_sub_app.name|truncatechars:21 }} <i class="nav-arrow fas fa-chevron-right" aria-hidden="true"></i></p>
+                                                        </a>
+                                                        <ul class="nav nav-treeview">
+                                                            {% for model in sub_sub_app.models %}
+                                                                <li class="nav-item qkt-sub-app-item">
+                                                                    <a href="{% if model.url %}{{ model.url }}{% else %}javascript:void(0){% endif %}" class="nav-link">
+                                                                        <i class="nav-icon {{ model.icon }}"></i>
+                                                                        <p>{{ model.name }}</p>
+                                                                    </a>
+                                                                </li>
+                                                            {% endfor %}
+                                                        </ul>
                                                     </li>
                                                 {% endfor %}
                                             </ul>

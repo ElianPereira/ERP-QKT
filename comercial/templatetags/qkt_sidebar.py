@@ -12,6 +12,10 @@ renderice con el mismo treeview de segundo nivel:
    modelos de "Página Web" o de "Descuentos" dentro de comercial) — ver
    MODEL_SUBGROUPS. Estos no son apps reales, son grupos sintéticos con la
    misma forma ({'name', 'icon', 'models'}) que espera el template.
+
+Un grupo de MODEL_SUBGROUPS puede además traer 'children': una lista de
+grupos anidados con la misma forma (ej. "Clientes" dentro de "Ventas"). El
+template soporta un tercer nivel de treeview para esto.
 """
 from django import template
 from jazzmin.templatetags.jazzmin import get_side_menu as _jazzmin_get_side_menu
@@ -40,6 +44,28 @@ MODEL_SUBGROUPS = {
             },
         },
         {
+            'name': 'Ventas',
+            'icon': 'fas fa-shopping-bag',
+            'model_strs': {
+                'comercial.cotizacion',
+                'comercial.producto',
+                'comercial.subproducto',
+                'comercial.insumo',
+                'comercial.plantillabarra',
+            },
+            'children': [
+                {
+                    'name': 'Clientes',
+                    'icon': 'fas fa-user-friends',
+                    'model_strs': {
+                        'comercial.cliente',
+                        'comercial.portalcliente',
+                        'comercial.contratoservicio',
+                    },
+                },
+            ],
+        },
+        {
             'name': 'Página Web',
             'icon': 'fas fa-globe',
             'model_strs': {
@@ -63,27 +89,40 @@ MODEL_SUBGROUPS = {
 }
 
 
+def _extract_group(models_pool, group):
+    """
+    Separa de `models_pool` los modelos de `group` (y recursivamente los de
+    sus 'children'). Devuelve (grupo_armado, modelos_que_sobraron).
+    """
+    pool = models_pool
+    child_groups = []
+    for child in group.get('children', []):
+        child_result, pool = _extract_group(pool, child)
+        if child_result['models'] or child_result.get('sub_apps'):
+            child_groups.append(child_result)
+
+    own_model_strs = group.get('model_strs', set())
+    own_matched, remaining = [], []
+    for model in pool:
+        (own_matched if model.get('model_str') in own_model_strs else remaining).append(model)
+
+    result = {'name': group['name'], 'icon': group['icon'], 'models': own_matched}
+    if child_groups:
+        result['sub_apps'] = child_groups
+    return result, remaining
+
+
 def _extract_model_subgroups(app):
     subgroups = MODEL_SUBGROUPS.get(app['app_label'])
     if not subgroups:
         return
 
-    remaining = []
-    matched = [[] for _ in subgroups]
-    for model in app['models']:
-        for i, group in enumerate(subgroups):
-            if model.get('model_str') in group['model_strs']:
-                matched[i].append(model)
-                break
-        else:
-            remaining.append(model)
-
-    app['models'] = remaining
-    for group, models in zip(subgroups, matched):
-        if models:
-            app.setdefault('sub_apps', []).append(
-                {'name': group['name'], 'icon': group['icon'], 'models': models}
-            )
+    pool = app['models']
+    for group in subgroups:
+        result, pool = _extract_group(pool, group)
+        if result['models'] or result.get('sub_apps'):
+            app.setdefault('sub_apps', []).append(result)
+    app['models'] = pool
 
 
 @register.simple_tag(takes_context=True)
