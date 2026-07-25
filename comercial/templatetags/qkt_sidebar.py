@@ -34,16 +34,6 @@ SUBMENU_PARENTS = {
 MODEL_SUBGROUPS = {
     'comercial': [
         {
-            'name': 'Pagos',
-            'icon': 'fas fa-credit-card',
-            'model_strs': {
-                'comercial.pago',
-                'comercial.planpago',
-                'comercial.recordatoriopago',
-                'comercial.openpaytransaccion',
-            },
-        },
-        {
             'name': 'Ventas',
             'icon': 'fas fa-shopping-bag',
             'model_strs': {
@@ -64,6 +54,16 @@ MODEL_SUBGROUPS = {
                     },
                 },
             ],
+        },
+        {
+            'name': 'Pagos',
+            'icon': 'fas fa-credit-card',
+            'model_strs': {
+                'comercial.pago',
+                'comercial.planpago',
+                'comercial.recordatoriopago',
+                'comercial.openpaytransaccion',
+            },
         },
         {
             'name': 'Página Web',
