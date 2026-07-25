@@ -147,7 +147,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
             openpay_id=data.get('id') or f"error-{cotizacion.id}-{data.get('request_id', monto)}",
             metodo='card', estado_openpay=str(data.get('error_code', 'error')),
             monto=monto, cotizacion=cotizacion, payload_crudo=data,
-            autorizacion=data.get('authorization', ''),
+            autorizacion=data.get('authorization') or '',
             error_detalle=data.get('description', 'Error desconocido de Openpay'),
         )
         return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}
@@ -155,7 +155,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
     registro = OpenpayTransaccion.objects.create(
         openpay_id=data['id'], metodo='card', estado_openpay=data.get('status', ''),
         monto=monto, cotizacion=cotizacion, payload_crudo=data,
-        autorizacion=data.get('authorization', ''),
+        autorizacion=data.get('authorization') or '',
         procesado=(data.get('status') == 'completed'),
     )
     if data.get('status') == 'completed':
@@ -197,7 +197,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
             metodo='store', estado_openpay=data.get('status', ''),
             monto=monto, cotizacion=cotizacion, payload_crudo=data,
             referencia_pago=store.get('reference', ''),
-            autorizacion=data.get('authorization', ''),
+            autorizacion=data.get('authorization') or '',
         ),
     )
     return {
@@ -226,7 +226,7 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
             metodo='bank_account', estado_openpay=data.get('status', ''),
             monto=monto, cotizacion=cotizacion, payload_crudo=data,
             referencia_pago=pm.get('clabe', ''),
-            autorizacion=data.get('authorization', ''),
+            autorizacion=data.get('authorization') or '',
         ),
     )
     return {
@@ -334,7 +334,7 @@ def procesar_webhook_openpay(payload: dict):
             'estado_openpay': transaction_data.get('status', ''),
             'monto': _decimal_o_none(transaction_data.get('amount')),
             'payload_crudo': payload,
-            'autorizacion': transaction_data.get('authorization', ''),
+            'autorizacion': transaction_data.get('authorization') or '',
         }
     )
 
