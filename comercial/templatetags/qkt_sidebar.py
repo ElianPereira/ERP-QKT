@@ -30,6 +30,16 @@ SUBMENU_PARENTS = {
 MODEL_SUBGROUPS = {
     'comercial': [
         {
+            'name': 'Pagos',
+            'icon': 'fas fa-credit-card',
+            'model_strs': {
+                'comercial.pago',
+                'comercial.planpago',
+                'comercial.recordatoriopago',
+                'comercial.openpaytransaccion',
+            },
+        },
+        {
             'name': 'Página Web',
             'icon': 'fas fa-globe',
             'model_strs': {
