@@ -1,0 +1,63 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Checking for .env edits...",
+            "command": "jq -r '.tool_input.file_path' | { read -r f; base=$(basename \"$f\"); case \"$base\" in .env.example) ;; .env|.env.*) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"Editing an env file that likely holds live secrets (SECRET_KEY, Openpay keys, Cloudinary, Brevo). Confirm this edit is intentional.\"}}' ;; esac; }",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Checking for Openpay payment-code edits...",
+            "command": "jq -r '.tool_input.file_path' | { read -r f; case \"$f\" in comercial/views_openpay.py|*/comercial/views_openpay.py|comercial/services_openpay.py|*/comercial/services_openpay.py) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"This file handles live Openpay payments/webhooks (checkout, charge confirmation, idempotency). Confirm this change before it ships.\"}}' ;; esac; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Running ruff --fix...",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.py) ruff check --fix \"$f\" >/dev/null 2>&1 ;; esac; } || true",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Running the touched app's Django tests...",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in comercial/migrations/*|*/comercial/migrations/*|contabilidad/migrations/*|*/contabilidad/migrations/*|airbnb/migrations/*|*/airbnb/migrations/*|facturacion/migrations/*|*/facturacion/migrations/*|nomina/migrations/*|*/nomina/migrations/*) app=\"\" ;; comercial/*.py|*/comercial/*.py) app=\"comercial\" ;; contabilidad/*.py|*/contabilidad/*.py) app=\"contabilidad\" ;; airbnb/*.py|*/airbnb/*.py) app=\"airbnb\" ;; facturacion/*.py|*/facturacion/*.py) app=\"facturacion\" ;; nomina/*.py|*/nomina/*.py) app=\"nomina\" ;; *) app=\"\" ;; esac; if [ -n \"$app\" ]; then cd \"${CLAUDE_PROJECT_DIR:-.}\" && python manage.py test \"$app\" --failfast 2>&1 | tail -30; fi; } || true",
+            "timeout": 180
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Checking for missing migrations...",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; base=$(basename \"$f\"); case \"$base\" in models.py) cd \"${CLAUDE_PROJECT_DIR:-.}\"; out=$(python manage.py makemigrations --check --dry-run 2>&1); code=$?; if [ $code -ne 0 ]; then msg=$(printf '%s' \"$out\" | tail -10 | tr '\\n' ' ' | sed 's/\"/\\\\\"/g'); printf '{\"systemMessage\":\"makemigrations --check found unmigrated model changes: %s\"}' \"$msg\"; fi ;; esac; } || true",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
