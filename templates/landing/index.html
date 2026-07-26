@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load cloudinary_opt %}<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -300,7 +300,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   <a href="#contacto">Contacto</a>
 </div>
 
-<section class="hero" id="inicio" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
+<section class="hero" id="inicio" {% if img.hero %}style="background-image:url('{{ img.hero.imagen.url|cldn:1920 }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
   <div class="hero-grad"></div>
   <div class="hero-orn"></div>
   <div class="hero-c">
@@ -317,7 +317,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
 
 <section class="nosotros" id="nosotros">
   <div class="nos-vis">
-    <div class="nos-bg" {% if img.nosotros %}style="background-image:url('{{ img.nosotros.imagen.url }}');background-position:center {{ img.nosotros.posicion_vertical|default:'center' }};"{% elif img.hero %}style="background-image:url('{{ img.hero.imagen.url }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
+    <div class="nos-bg" {% if img.nosotros %}style="background-image:url('{{ img.nosotros.imagen.url|cldn:1600 }}');background-position:center {{ img.nosotros.posicion_vertical|default:'center' }};"{% elif img.hero %}style="background-image:url('{{ img.hero.imagen.url|cldn:1920 }}');background-position:center {{ img.hero.posicion_vertical|default:'center' }};"{% endif %}>
       <div class="nos-bg-grad"></div>
     </div>
     <div class="nos-badge">
@@ -343,7 +343,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   </div>
   <div class="srv-grid">
     <a href="{% url 'cotizador_publico' %}?servicio=EVENTO" class="srv-card">
-      <div class="srv-wrap"><div class="srv-img" {% if img.evento %}style="background-image:url('{{ img.evento.imagen.url }}');background-position:center {{ img.evento.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+      <div class="srv-wrap"><div class="srv-img" {% if img.evento %}style="background-image:url('{{ img.evento.imagen.url|cldn:1000 }}');background-position:center {{ img.evento.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
         <span class="srv-num">01 — Eventos</span>
         <h3>Eventos Sociales<br>& Bodas</h3>
         <p>Salón hasta 500 personas, jardín, pista de baile y área de bar. El escenario perfecto para tu boda, XV años o celebración especial.</p>
@@ -352,7 +352,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
       <div class="srv-ov"></div>
     </a>
     <a href="{% url 'cotizador_publico' %}?servicio=PASADIA" class="srv-card">
-      <div class="srv-wrap"><div class="srv-img" {% if img.pasadia %}style="background-image:url('{{ img.pasadia.imagen.url }}');background-position:center {{ img.pasadia.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+      <div class="srv-wrap"><div class="srv-img" {% if img.pasadia %}style="background-image:url('{{ img.pasadia.imagen.url|cldn:1000 }}');background-position:center {{ img.pasadia.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
         <span class="srv-num">02 — Pasadía</span>
         <h3>Pasadía en<br>la Quinta</h3>
         <p>Disfruta un día completo con alberca, áreas verdes e instalaciones exclusivas. La escapada perfecta para toda la familia.</p>
@@ -361,7 +361,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
       <div class="srv-ov"></div>
     </a>
     <div class="srv-card">
-      <div class="srv-wrap"><div class="srv-img" {% if img.hospedaje %}style="background-image:url('{{ img.hospedaje.imagen.url }}');background-position:center {{ img.hospedaje.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
+      <div class="srv-wrap"><div class="srv-img" {% if img.hospedaje %}style="background-image:url('{{ img.hospedaje.imagen.url|cldn:1000 }}');background-position:center {{ img.hospedaje.posicion_vertical|default:'center' }};"{% endif %}><div class="srv-img-grad"></div><div class="srv-pat"></div><div class="srv-body">
         <span class="srv-num">03 — Hospedaje</span>
         <h3>Habitaciones en<br>la Quinta</h3>
         <p>Dos habitaciones únicas en Airbnb rodeadas de naturaleza, a minutos de Mérida.</p>
@@ -408,7 +408,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
   <div class="esp-grid">
     {% for e in espacios %}
     <div class="esp-card">
-      <div class="esp-img" style="background-image:url('{{ e.imagen.url }}');background-position:center {{ e.posicion_vertical|default:'center' }};">
+      <div class="esp-img" style="background-image:url('{{ e.imagen.url|cldn:1000 }}');background-position:center {{ e.posicion_vertical|default:'center' }};">
         <span class="esp-cap">{{ e.capacidad }}</span>
       </div>
       <div class="esp-body">
@@ -441,7 +441,7 @@ footer{background:var(--oscuro);color:rgba(255,255,255,.52);padding:3rem 5%;disp
     <div class="gal-viewport">
       {% for foto in img.galeria %}
       <div class="gal-slide{% if forloop.first %} active{% endif %}" data-cat="{{ foto.categoria_galeria }}">
-        <div class="gal-slide-img" style="background-image:url('{{ foto.imagen.url }}');background-position:center {{ foto.posicion_vertical|default:'center' }};" onclick="abrirLightbox({{ forloop.counter0 }})"></div>
+        <div class="gal-slide-img" style="background-image:url('{{ foto.imagen.url|cldn:1400 }}');background-position:center {{ foto.posicion_vertical|default:'center' }};" onclick="abrirLightbox({{ forloop.counter0 }})"></div>
         {% if foto.titulo %}<div class="gal-slide-cap">{{ foto.titulo }}</div>{% endif %}
       </div>
       {% endfor %}

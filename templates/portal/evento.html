@@ -599,5 +599,36 @@
         }
     })();
     </script>
+
+    <script>
+    // Cierre por INACTIVIDAD del portal del cliente.
+    // El portal se accede por token en la URL (no hay sesión de servidor), así
+    // que este temporizador es una medida de higiene: si la pestaña queda
+    // desatendida (p. ej. en una computadora compartida), redirige a la página
+    // de acceso para no dejar a la vista datos del evento/pagos. Usa el mismo
+    // tiempo de inactividad que el admin ({{ session_idle_minutes|default:30 }} min).
+    (function () {
+        var IDLE_MIN = parseInt("{{ session_idle_minutes|default:30 }}", 10) || 30;
+        var IDLE_MS = IDLE_MIN * 60 * 1000;
+        var destino = "{% url 'portal_acceso' %}?motivo=inactividad";
+        var t = null;
+        function reiniciar() {
+            if (t) { clearTimeout(t); }
+            t = setTimeout(function () { window.location.href = destino; }, IDLE_MS);
+        }
+        var eventos = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
+        var pendiente = false;
+        function onActividad() {
+            if (pendiente) { return; }
+            pendiente = true;
+            setTimeout(function () { pendiente = false; }, 1000);
+            reiniciar();
+        }
+        for (var i = 0; i < eventos.length; i++) {
+            window.addEventListener(eventos[i], onActividad, { passive: true });
+        }
+        reiniciar();
+    })();
+    </script>
 </body>
 </html>

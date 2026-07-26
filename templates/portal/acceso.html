@@ -46,7 +46,11 @@
             {% if error %}
             <div class="error-msg">{{ error }}</div>
             {% endif %}
-            
+
+            <div id="msg-inactividad" class="error-msg" style="display:none; background:#fff8e1; color:#8a6d00; border-left-color:#f5c518;">
+                Cerramos tu sesión por inactividad para proteger tu información. Vuelve a ingresar.
+            </div>
+
             <form method="post">
                 {% csrf_token %}
                 <div class="field">
@@ -67,5 +71,14 @@
             <a href="https://wa.me/529991699191">¿Necesitas ayuda? Escríbenos</a>
         </div>
     </div>
+    <script>
+        // Muestra el aviso si llegamos aquí por cierre de sesión por inactividad.
+        (function () {
+            if (new URLSearchParams(window.location.search).get('motivo') === 'inactividad') {
+                var el = document.getElementById('msg-inactividad');
+                if (el) { el.style.display = 'block'; }
+            }
+        })();
+    </script>
 </body>
 </html>

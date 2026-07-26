@@ -10,6 +10,11 @@ SECRET_KEY = config('SECRET_KEY')  # SIN default — fuerza a que exista en .env
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
+# Nº de proxies de confianza delante de la app (el edge de Railway = 1). Se usa
+# para leer la IP real del cliente en el rate limiting sin que sea spoofeable
+# vía X-Forwarded-For. Ajustar solo si se añaden más proxies (CDN, etc.).
+RATELIMIT_TRUSTED_PROXY_COUNT = config('RATELIMIT_TRUSTED_PROXY_COUNT', default=1, cast=int)
+
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
     'https://*.railway.app',
@@ -36,6 +41,20 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
 
+# --- Expiración de sesión por INACTIVIDAD (admin/ERP) ---
+# Estándar de industria (OWASP) para apps de negocio: 15–30 min de inactividad.
+# Con SESSION_SAVE_EVERY_REQUEST=True el "reloj" se reinicia en cada petición,
+# así la sesión caduca solo tras SESSION_IDLE_TIMEOUT segundos SIN actividad
+# (idle timeout), no de forma absoluta. Ajustable por variable de entorno; para
+# datos financieros se puede endurecer a 900 (15 min).
+SESSION_IDLE_TIMEOUT = config('SESSION_IDLE_TIMEOUT', default=1800, cast=int)  # 30 min
+SESSION_COOKIE_AGE = SESSION_IDLE_TIMEOUT
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
 INSTALLED_APPS = [
     'jazzmin',
     'django.contrib.admin',
@@ -58,8 +77,16 @@ INSTALLED_APPS = [
     'comunicacion',
 ]
 
+# --- Cabeceras de seguridad por ruta. Ver core_erp/middleware.py ---
+PUBLIC_CSP_ENABLED = config('PUBLIC_CSP_ENABLED', default=True, cast=bool)
+PUBLIC_CSP_REPORT_ONLY = config('PUBLIC_CSP_REPORT_ONLY', default=False, cast=bool)
+# CSP Report-Only del portal de pago (no bloquea): activar solo para probar qué
+# recursos usa Openpay/3-D Secure antes de plantear una CSP bloqueante ahí.
+PORTAL_CSP_REPORT_ONLY = config('PORTAL_CSP_REPORT_ONLY', default=False, cast=bool)
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'core_erp.middleware.PublicSecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -82,6 +109,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core_erp.context_processors.session_idle',
             ],
         },
     },
