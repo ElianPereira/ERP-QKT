@@ -41,6 +41,20 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
 
+# --- Expiración de sesión por INACTIVIDAD (admin/ERP) ---
+# Estándar de industria (OWASP) para apps de negocio: 15–30 min de inactividad.
+# Con SESSION_SAVE_EVERY_REQUEST=True el "reloj" se reinicia en cada petición,
+# así la sesión caduca solo tras SESSION_IDLE_TIMEOUT segundos SIN actividad
+# (idle timeout), no de forma absoluta. Ajustable por variable de entorno; para
+# datos financieros se puede endurecer a 900 (15 min).
+SESSION_IDLE_TIMEOUT = config('SESSION_IDLE_TIMEOUT', default=1800, cast=int)  # 30 min
+SESSION_COOKIE_AGE = SESSION_IDLE_TIMEOUT
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
 INSTALLED_APPS = [
     'jazzmin',
     'django.contrib.admin',
@@ -87,6 +101,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core_erp.context_processors.session_idle',
             ],
         },
     },

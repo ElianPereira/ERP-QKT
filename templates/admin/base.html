@@ -2,6 +2,17 @@
 {% load i18n static jazzmin qkt_sidebar %}
 
 {% comment %}
+Auto-cierre de sesión por inactividad. El tiempo lo dicta el backend
+(SESSION_IDLE_TIMEOUT) y se pasa al JS vía context processor para no
+desincronizar. El control de seguridad real es la caducidad de sesión en
+servidor; este script solo redirige la pestaña desatendida al logout.
+{% endcomment %}
+{% block extrahead %}{{ block.super }}
+    <script>window.QKT_IDLE_MINUTES = {{ session_idle_minutes|default:30 }};</script>
+    <script src="{% static 'js/idle_logout.js' %}"></script>
+{% endblock %}
+
+{% comment %}
 Sidebar de Jazzmin con un nivel extra de anidación: ciertas apps (ver
 comercial/templatetags/qkt_sidebar.py) se muestran como submenú desplegable
 dentro de otra en vez de como pestaña propia de primer nivel
