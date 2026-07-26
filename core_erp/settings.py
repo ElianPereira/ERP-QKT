@@ -77,9 +77,12 @@ INSTALLED_APPS = [
     'comunicacion',
 ]
 
-# --- CSP de páginas públicas (landing/cotizador). Ver core_erp/middleware.py ---
+# --- Cabeceras de seguridad por ruta. Ver core_erp/middleware.py ---
 PUBLIC_CSP_ENABLED = config('PUBLIC_CSP_ENABLED', default=True, cast=bool)
 PUBLIC_CSP_REPORT_ONLY = config('PUBLIC_CSP_REPORT_ONLY', default=False, cast=bool)
+# CSP Report-Only del portal de pago (no bloquea): activar solo para probar qué
+# recursos usa Openpay/3-D Secure antes de plantear una CSP bloqueante ahí.
+PORTAL_CSP_REPORT_ONLY = config('PORTAL_CSP_REPORT_ONLY', default=False, cast=bool)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

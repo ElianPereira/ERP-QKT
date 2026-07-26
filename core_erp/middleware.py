@@ -1,27 +1,38 @@
 """
-Cabeceras de seguridad para las páginas PÚBLICAS del sitio (landing y cotizador).
+Cabeceras de seguridad para el sitio.
 
-Por qué un middleware con allowlist y no una CSP global:
-  - El admin (Jazzmin/AdminLTE) usa scripts/estilos propios y una CSP estricta
-    lo rompería → se excluye.
-  - El portal de pago (/mi-evento/) carga Openpay.js, su antifraude y, en cargos
-    con tarjeta, 3-D Secure que redirige/enmarca páginas del banco (dominios
-    arbitrarios). Una CSP ahí rompería pagos reales → se excluye.
+Se aplican en tres niveles según la ruta, para maximizar protección sin romper
+el admin (Jazzmin) ni los pagos (Openpay/3-D Secure):
 
-Se aplica solo a la landing ("/"), al cotizador ("/cotizar…") y a sus APIs
-("/api/…"). Configurable por entorno:
-  - PUBLIC_CSP_ENABLED (default True): apaga la CSP sin tocar código si algo
-    se rompiera en producción.
-  - PUBLIC_CSP_REPORT_ONLY (default False): la envía como Report-Only para
-    probar sin bloquear.
+  1. Permissions-Policy: en TODAS las respuestas (es seguro; solo desactiva
+     cámara/micrófono/geolocalización, que ninguna página usa). Cubre también
+     admin y portal.
+
+  2. Content-Security-Policy (bloqueante): solo en páginas públicas — landing
+     ("/"), cotizador ("/cotizar…") y sus APIs ("/api/…").
+
+  3. CSP en modo Report-Only (NO bloquea, solo reporta) para el portal de pago
+     ("/mi-evento/…"): opt-in vía PORTAL_CSP_REPORT_ONLY=True. Sirve para
+     observar qué recursos carga Openpay/3-D Secure y poder diseñar después una
+     CSP a medida sin arriesgar cobros reales.
+
+El admin ("/admin/…") queda fuera de cualquier CSP porque Jazzmin/AdminLTE usan
+recursos propios que una CSP estricta rompería.
+
+Toggles de entorno:
+  - PUBLIC_CSP_ENABLED (default True): apaga la CSP pública sin tocar código.
+  - PUBLIC_CSP_REPORT_ONLY (default False): la CSP pública en modo prueba.
+  - PORTAL_CSP_REPORT_ONLY (default False): activa la CSP Report-Only del portal.
 """
 from django.conf import settings
 
-# CSP = unión de lo que cargan landing y cotizador:
-#   fonts.googleapis/gstatic (Google Fonts), res.cloudinary.com (imágenes de la
-#   landing), cdn.jsdelivr.net (flatpickr), www.google.com (mapa embebido).
-# 'unsafe-inline' es necesario por los <style> y <script> inline de esas
-# plantillas; el resto queda restringido a 'self' + orígenes conocidos.
+# --- Permissions-Policy: seguro en todo el sitio (no incluye 'payment' para no
+# interferir con Openpay/3-D Secure en el portal de pago). ---
+PERMISSIONS_POLICY = "geolocation=(), microphone=(), camera=()"
+
+# --- CSP bloqueante de páginas públicas (unión de lo que cargan landing y
+# cotizador): Google Fonts, Cloudinary (imágenes), jsDelivr (flatpickr) y el
+# mapa de Google. 'unsafe-inline' es necesario por sus <style>/<script> inline. ---
 PUBLIC_CSP = (
     "default-src 'self'; "
     "base-uri 'self'; "
@@ -37,34 +48,67 @@ PUBLIC_CSP = (
     "upgrade-insecure-requests"
 )
 
-PERMISSIONS_POLICY = "geolocation=(), microphone=(), camera=(), payment=()"
+# --- CSP objetivo del portal de pago, SOLO Report-Only (no bloquea). Refleja
+# los orígenes conocidos de Openpay para que, al probar un cobro real, las
+# violaciones en consola revelen qué más hay que permitir (antifraude, ACS del
+# banco en 3-D Secure, etc.) antes de activar una CSP bloqueante. ---
+PORTAL_CSP_REPORT_ONLY_POLICY = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'; "
+    "frame-ancestors 'self'; "
+    "img-src 'self' data: https://res.cloudinary.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; "
+    "script-src 'self' 'unsafe-inline' https://openpay.s3.amazonaws.com; "
+    "connect-src 'self' https://api.openpay.mx https://sandbox-api.openpay.mx; "
+    "frame-src https://www.google.com"
+)
 
 
 def _es_pagina_publica(path):
     return path == '/' or path.startswith('/cotizar') or path.startswith('/api/')
 
 
+def _tiene_csp(response):
+    return (
+        'Content-Security-Policy' in response
+        or 'Content-Security-Policy-Report-Only' in response
+    )
+
+
 class PublicSecurityHeadersMiddleware:
-    """Añade CSP + Permissions-Policy a las páginas públicas (no admin, no portal)."""
+    """CSP + Permissions-Policy escalonadas por ruta (ver docstring del módulo)."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
+        path = request.path
 
-        if not getattr(settings, 'PUBLIC_CSP_ENABLED', True):
-            return response
-        if not _es_pagina_publica(request.path):
-            return response
-
-        cabecera = (
-            'Content-Security-Policy-Report-Only'
-            if getattr(settings, 'PUBLIC_CSP_REPORT_ONLY', False)
-            else 'Content-Security-Policy'
-        )
-        # No pisar una CSP que una vista haya fijado explícitamente.
-        if 'Content-Security-Policy' not in response and 'Content-Security-Policy-Report-Only' not in response:
-            response[cabecera] = PUBLIC_CSP
+        # 1) Permissions-Policy en todas las respuestas (seguro).
         response.setdefault('Permissions-Policy', PERMISSIONS_POLICY)
+
+        # 2) CSP bloqueante en páginas públicas.
+        if (
+            getattr(settings, 'PUBLIC_CSP_ENABLED', True)
+            and _es_pagina_publica(path)
+            and not _tiene_csp(response)
+        ):
+            cabecera = (
+                'Content-Security-Policy-Report-Only'
+                if getattr(settings, 'PUBLIC_CSP_REPORT_ONLY', False)
+                else 'Content-Security-Policy'
+            )
+            response[cabecera] = PUBLIC_CSP
+
+        # 3) CSP Report-Only (no bloquea) en el portal de pago, opt-in.
+        elif (
+            getattr(settings, 'PORTAL_CSP_REPORT_ONLY', False)
+            and path.startswith('/mi-evento/')
+            and not _tiene_csp(response)
+        ):
+            response['Content-Security-Policy-Report-Only'] = PORTAL_CSP_REPORT_ONLY_POLICY
+
         return response
