@@ -77,8 +77,13 @@ INSTALLED_APPS = [
     'comunicacion',
 ]
 
+# --- CSP de páginas públicas (landing/cotizador). Ver core_erp/middleware.py ---
+PUBLIC_CSP_ENABLED = config('PUBLIC_CSP_ENABLED', default=True, cast=bool)
+PUBLIC_CSP_REPORT_ONLY = config('PUBLIC_CSP_REPORT_ONLY', default=False, cast=bool)
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'core_erp.middleware.PublicSecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
