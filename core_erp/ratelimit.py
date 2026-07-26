@@ -5,14 +5,34 @@ Uso:
     def my_view(request): ...
 """
 from functools import wraps
+from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse
 
 
 def _client_ip(request):
+    """
+    Devuelve la IP del cliente de forma resistente a spoofing.
+
+    X-Forwarded-For lo puede fijar el propio cliente, así que tomar el primer
+    valor permitiría a un atacante rotar IPs falsas y saltarse el rate limit.
+    Cada proxy de confianza (el edge de Railway) *añade* la IP real al final de
+    la cabecera, por lo que la entrada fiable es la que agregó nuestro proxy:
+    contando desde la derecha tantos saltos como proxies de confianza haya.
+
+    Se controla con RATELIMIT_TRUSTED_PROXY_COUNT (por defecto 1, el edge de
+    Railway). Si no hay XFF, cae a REMOTE_ADDR.
+    """
+    trusted = getattr(settings, 'RATELIMIT_TRUSTED_PROXY_COUNT', 1)
     xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
     if xff:
-        return xff.split(',')[0].strip()
+        partes = [p.strip() for p in xff.split(',') if p.strip()]
+        if partes:
+            # Índice contando desde la derecha: la IP que añadió nuestro proxy
+            # de confianza. Se acota para no salirnos de la lista si un atacante
+            # manda menos entradas de las esperadas.
+            idx = max(0, len(partes) - max(1, trusted))
+            return partes[idx]
     return request.META.get('REMOTE_ADDR', 'unknown')
 
 

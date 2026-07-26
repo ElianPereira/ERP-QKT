@@ -36,3 +36,37 @@ jobs:
         run: |
           coverage run --source='.' manage.py test comercial contabilidad airbnb facturacion nomina
           coverage report --skip-covered
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
+
+      # Chequeo de seguridad de despliegue de Django (DEBUG, cookies seguras,
+      # HSTS, SSL redirect, etc.). Se ejecuta con DEBUG=False para validar la
+      # configuración real de producción.
+      - name: Django deployment security check
+        env:
+          SECRET_KEY: 'ci-security-check-secret-key-only-not-for-production-use-0123456789'
+          DEBUG: 'False'
+          ALLOWED_HOSTS: 'erp.quintakooxtanil.com'
+        run: python manage.py check --deploy --fail-level WARNING
+
+      # Auditoría de dependencias con vulnerabilidades conocidas (CVE/PYSEC).
+      # Informativo: no bloquea el pipeline para no frenar merges por avisos
+      # transitivos, pero deja el reporte visible en los logs de CI.
+      - name: Audit dependencies (pip-audit)
+        run: pip-audit -r requirements.txt --desc
+        continue-on-error: true

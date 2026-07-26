@@ -10,6 +10,11 @@ SECRET_KEY = config('SECRET_KEY')  # SIN default — fuerza a que exista en .env
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
+# Nº de proxies de confianza delante de la app (el edge de Railway = 1). Se usa
+# para leer la IP real del cliente en el rate limiting sin que sea spoofeable
+# vía X-Forwarded-For. Ajustar solo si se añaden más proxies (CDN, etc.).
+RATELIMIT_TRUSTED_PROXY_COUNT = config('RATELIMIT_TRUSTED_PROXY_COUNT', default=1, cast=int)
+
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
     'https://*.railway.app',

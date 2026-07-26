@@ -333,8 +333,10 @@ def webhook_sync_jibble(request):
     cron_token = getattr(settings, 'NOMINA_CRON_TOKEN', '')
     if not cron_token:
         return JsonResponse({'error': 'NOMINA_CRON_TOKEN no configurado'}, status=500)
+    import hmac
     auth_header = request.headers.get('Authorization', '')
-    if auth_header != f'Bearer {cron_token}':
+    # Comparación en tiempo constante para no filtrar el token vía timing.
+    if not hmac.compare_digest(auth_header, f'Bearer {cron_token}'):
         return JsonResponse({'error': 'No autorizado'}, status=401)
 
     import json

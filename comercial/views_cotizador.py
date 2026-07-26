@@ -29,6 +29,8 @@ from django.utils import timezone
 from django.conf import settings
 from decouple import config
 
+from core_erp.ratelimit import rate_limit
+
 from .models import (
     Cliente, Cotizacion, ItemCotizacion, Producto, PortalCliente
 )
@@ -98,6 +100,9 @@ def cotizador_publico(request):
     return render(request, 'cotizador/index.html')
 
 
+# Endpoint público sin login: se limita por IP para frenar spam/abuso, ya que
+# cada envío crea Cliente + Cotización y dispara una notificación de WhatsApp.
+@rate_limit(key='cotizador_enviar', limit=10, window=60)
 @csrf_exempt
 @require_http_methods(["POST"])
 def cotizador_enviar(request):
