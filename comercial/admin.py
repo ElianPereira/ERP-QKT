@@ -4,7 +4,7 @@ from django.utils.html import format_html, mark_safe
 from django.template.loader import render_to_string
 from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from .models import PortalCliente
 from .models import (
@@ -696,16 +696,22 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def ver_contrato(self, obj, compact=False):
         if obj.id and obj.estado == 'CONFIRMADA':
-            url = reverse('cotizacion_contrato', args=[obj.id])
+            # Va al formulario intermedio (no genera nada todavía) — ahí se
+            # ven los contratos ya generados (con su PDF) para solo
+            # consultarlos, y solo se sube un PDF nuevo a Cloudinary si el
+            # usuario decide explícitamente generar uno. Antes este botón
+            # apuntaba directo a generar_contrato, que creaba y subía un
+            # ContratoServicio + PDF nuevos en CADA clic —incluida cada vez
+            # que alguien solo quería volver a ver el contrato— sin borrar
+            # nunca los anteriores, inflando el uso de Cloudinary.
+            url = reverse('admin:cotizacion_contrato_form', args=[obj.id])
             padding = '2px 6px' if compact else '4px 10px'
             font_size = '10px' if compact else '11px'
             clase = 'btn btn-info btn-sm qkt-accion-btn' if compact else 'btn btn-info btn-sm'
             return format_html(
-                '<a href="{}" class="' + clase + '" target="_blank" '
+                '<a href="{}" class="' + clase + '" '
                 'style="background:#F5C518;color:#333;border:none;padding:' + padding + ';border-radius:3px;'
-                'font-size:' + font_size + ';font-weight:600;text-decoration:none;display:inline-block;white-space:nowrap;"'
-                'onclick="return confirm(\'¿Generar contrato con depósito $0? '
-                'Puedes cambiarlo en la pantalla del contrato.\')">Contrato</a>',
+                'font-size:' + font_size + ';font-weight:600;text-decoration:none;display:inline-block;white-space:nowrap;">Contrato</a>',
                 url
             )
         return mark_safe(f'<span style="color:#95a5a6;font-size:{"10px" if compact else "11px"};">—</span>')
