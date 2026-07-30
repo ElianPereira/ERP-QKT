@@ -40,11 +40,63 @@ MENSAJES_ERROR_TARJETA = {
     2023: "La autenticación de tu tarjeta falló.",
     2026: "No es posible procesar el pago con esta tarjeta.",
     3001: "El banco emisor no autorizó la operación.",
+    3002: "Tu tarjeta ha expirado.",
+    3003: "Tu tarjeta no tiene fondos suficientes.",
+    3004: "Tu tarjeta fue retenida por el banco emisor.",
+    3005: "La transacción fue rechazada por el sistema antifraude.",
+    3006: "Esta operación no está permitida para tu comercio o tarjeta.",
+    3008: "Tu tarjeta no está autorizada para pagos en línea.",
+    3009: "Tu tarjeta fue reportada como extraviada.",
+    3010: "El banco emisor bloqueó tu tarjeta para pagos en línea.",
+    3011: "El banco emisor solicitó retener la tarjeta.",
+    3012: "Se requiere autorización del banco emisor para este monto.",
+}
+
+# Motivo explícito por código para el log del servidor. NO se le muestra al
+# cliente (ver _mensaje_error_openpay): el cliente sigue viendo un mensaje
+# genérico por seguridad, mientras que el log guarda la causa real para poder
+# diagnosticar y para la certificación de Openpay.
+MOTIVOS_LOG_OPENPAY = {
+    2004: "Tarjeta reportada como ROBADA por el emisor",
+    2008: "Tarjeta reportada como EXTRAVIADA por el emisor",
+    3004: "Tarjeta RETENIDA (reportada como robada) por el emisor",
+    3005: "Rechazada por el sistema ANTIFRAUDE de Openpay",
+    3009: "Tarjeta reportada como EXTRAVIADA por el emisor",
 }
 
 
 def _mensaje_error_tarjeta(data: dict) -> str:
     return _mensaje_error_openpay(data, 'La tarjeta fue rechazada. Verifica los datos e intenta de nuevo.')
+
+
+def _codigo_error(data: dict):
+    try:
+        return int(data.get('error_code'))
+    except (TypeError, ValueError):
+        return None
+
+
+def _loggear_rechazo_openpay(data: dict, cotizacion, monto, metodo: str, http_status: int):
+    """
+    Deja en los logs del servidor el motivo EXPLÍCITO del rechazo (código,
+    descripción cruda de Openpay, request_id). Requisito de la certificación
+    de Openpay: al cliente se le muestra un error genérico por seguridad,
+    pero el motivo real debe quedar registrado del lado del servidor.
+    """
+    codigo = _codigo_error(data)
+    logger.warning(
+        "Openpay RECHAZO [%s] COT-%s monto=%s http=%s error_code=%s motivo=%s "
+        "description=%r category=%s request_id=%s",
+        metodo,
+        getattr(cotizacion, 'id', '?'),
+        monto,
+        http_status,
+        codigo,
+        MOTIVOS_LOG_OPENPAY.get(codigo, 'Ver description de Openpay'),
+        data.get('description', ''),
+        data.get('category', ''),
+        data.get('request_id', ''),
+    )
 
 
 def _mensaje_error_openpay(data: dict, default: str) -> str:
@@ -150,12 +202,18 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
     data = response.json()
 
     if response.status_code >= 400:
+        _loggear_rechazo_openpay(data, cotizacion, monto, 'card', response.status_code)
+        codigo = _codigo_error(data)
         OpenpayTransaccion.objects.create(
             openpay_id=data.get('id') or f"error-{cotizacion.id}-{data.get('request_id', monto)}",
             metodo='card', estado_openpay=str(data.get('error_code', 'error')),
             monto=monto, cotizacion=cotizacion, payload_crudo=data,
             autorizacion=data.get('authorization') or '',
-            error_detalle=data.get('description', 'Error desconocido de Openpay'),
+            error_detalle="[{}] {} | {}".format(
+                codigo,
+                MOTIVOS_LOG_OPENPAY.get(codigo, 'Rechazo de Openpay'),
+                data.get('description', 'Error desconocido de Openpay'),
+            ),
         )
         return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}
 
@@ -180,7 +238,21 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
             return {'ok': True, 'mensaje': 'Pago recibido. El registro interno quedó pendiente; el equipo lo verá reflejado en breve.'}
         return {'ok': True, 'mensaje': 'Pago realizado con éxito.'}
 
-    return {'ok': False, 'mensaje': f"El pago quedó en estado '{data.get('status')}', no se completó."}
+    # Openpay puede rechazar con HTTP 200 y status 'failed' (ej. rechazo del
+    # emisor tras autorizar el token). El motivo explícito va al log; al
+    # cliente se le da el mensaje genérico, sin filtrar el estado interno.
+    logger.warning(
+        "Openpay NO COMPLETADO [card] COT-%s monto=%s openpay_id=%s status=%s "
+        "error_code=%s description=%r authorization=%s",
+        cotizacion.id, monto, data.get('id'), data.get('status'),
+        data.get('error_code'), data.get('description', ''),
+        data.get('authorization', ''),
+    )
+    registro.error_detalle = "Cargo no completado. status={} error_code={} description={}".format(
+        data.get('status'), data.get('error_code'), data.get('description', ''),
+    )
+    registro.save(update_fields=['error_detalle'])
+    return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}
 
 
 # --- EFECTIVO (asíncrono: se muestra referencia, se confirma por webhook) ---
@@ -191,6 +263,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
     data = response.json()
 
     if response.status_code >= 400:
+        _loggear_rechazo_openpay(data, cotizacion, monto, 'store', response.status_code)
         return {'ok': False, 'mensaje': _mensaje_error_openpay(data, 'No se pudo generar la referencia de pago. Intenta de nuevo o contáctanos.')}
 
     store = data.get('payment_method', {}) or data.get('store', {})
@@ -222,6 +295,7 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
     data = response.json()
 
     if response.status_code >= 400:
+        _loggear_rechazo_openpay(data, cotizacion, monto, 'bank_account', response.status_code)
         return {'ok': False, 'mensaje': _mensaje_error_openpay(data, 'No se pudieron generar los datos de transferencia. Intenta de nuevo o contáctanos.')}
 
     pm = data.get('payment_method', {})

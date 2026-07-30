@@ -228,6 +228,89 @@ class CargoTarjetaTest(TestCase):
         # El intento fallido queda registrado para auditoría
         self.assertEqual(OpenpayTransaccion.objects.filter(cotizacion=cotizacion, procesado=False).count(), 1)
 
+    @patch('comercial.services_openpay.requests.post')
+    def test_tarjeta_robada_loggea_motivo_explicito_pero_no_lo_muestra(self, mock_post):
+        """Certificación Openpay: el log debe traer el motivo real del rechazo;
+        el cliente sigue viendo un mensaje genérico por seguridad."""
+        mock_post.return_value = MagicMock(status_code=402, json=lambda: {
+            'error_code': 3004, 'description': 'The card was declined - stolen card',
+            'request_id': 'req-robada-001', 'category': 'gateway',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok119', 'dev119')
+        salida = '\n'.join(logs.output)
+
+        # El log trae el motivo explícito, el código, la descripción y el request_id
+        self.assertIn('3004', salida)
+        self.assertIn('ROBADA', salida)
+        self.assertIn('stolen card', salida)
+        self.assertIn('req-robada-001', salida)
+
+        # Pero al cliente NO se le filtra la descripción cruda de Openpay
+        self.assertFalse(resultado['ok'])
+        self.assertNotIn('stolen', resultado['mensaje'].lower())
+        self.assertNotIn('request_id', resultado['mensaje'].lower())
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_antifraude_loggea_motivo_explicito_pero_no_lo_muestra(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=402, json=lambda: {
+            'error_code': 3005, 'description': 'The card was declined by the fraud system',
+            'request_id': 'req-fraude-001', 'category': 'gateway',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok044', 'dev044')
+        salida = '\n'.join(logs.output)
+
+        self.assertIn('3005', salida)
+        self.assertIn('ANTIFRAUDE', salida)
+        self.assertIn('fraud system', salida)
+
+        self.assertFalse(resultado['ok'])
+        self.assertNotIn('fraud', resultado['mensaje'].lower())
+        # El motivo explícito también queda persistido para auditoría
+        registro = OpenpayTransaccion.objects.get(cotizacion=cotizacion)
+        self.assertIn('ANTIFRAUDE', registro.error_detalle)
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_cargo_failed_con_http_200_tambien_se_loggea(self, mock_post):
+        """Openpay puede rechazar con HTTP 200 y status 'failed'."""
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-failed-001', 'status': 'failed', 'error_code': 3001,
+            'description': 'The issuing bank declined the operation',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tokf', 'devf')
+        salida = '\n'.join(logs.output)
+
+        self.assertIn('NO COMPLETADO', salida)
+        self.assertIn('failed', salida)
+        self.assertIn('declined', salida)
+
+        self.assertFalse(resultado['ok'])
+        # No se filtra el estado interno de Openpay al cliente
+        self.assertNotIn('failed', resultado['mensaje'].lower())
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_rechazo_de_efectivo_tambien_se_loggea(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=400, json=lambda: {
+            'error_code': 1001, 'description': 'The order_id has already been processed',
+            'request_id': 'req-store-001',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        salida = '\n'.join(logs.output)
+
+        self.assertIn('store', salida)
+        self.assertIn('already been processed', salida)
+        self.assertFalse(resultado['ok'])
+        self.assertNotIn('already been processed', resultado['mensaje'])
+
 
 class CargoEfectivoSpeiTest(TestCase):
     @patch('comercial.services_openpay.requests.post')

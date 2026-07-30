@@ -99,6 +99,10 @@ LOGGING = {
         # Los logger.info del webhook Openpay (ej. el código de verificación al
         # registrar el webhook) deben verse en los Deploy Logs de Railway.
         'comercial.views_openpay': {'handlers': ['console'], 'level': 'INFO'},
+        # Motivos explícitos de rechazo de cargos (código de error, description
+        # cruda de Openpay, request_id). Requisito de la certificación: el
+        # cliente ve un error genérico, pero el log debe traer la causa real.
+        'comercial.services_openpay': {'handlers': ['console'], 'level': 'INFO'},
     },
 }
 
