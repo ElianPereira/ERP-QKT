@@ -14,10 +14,11 @@ no toca la lógica de contabilidad.
 import logging
 import uuid
 import requests
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.db import transaction
-from .models import Cotizacion, Pago, OpenpayTransaccion
+from .models import Cotizacion, Pago, OpenpayTransaccion, ParcialidadPago
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,60 @@ def _datos_customer(cliente):
         "phone_number": cliente.telefono or '',
         "requires_account": False,
     }
+
+
+# Vigencia por defecto de una referencia de efectivo/SPEI cuando la cotización
+# no tiene un plan de pagos que marque la fecha límite. Openpay documenta
+# `due_date` como opcional y no fija un máximo, así que el criterio es de
+# negocio: dar margen suficiente para ir a la tienda, sin que la referencia
+# siga viva después del evento.
+VIGENCIA_REFERENCIA_HORAS = 72
+
+
+def _due_date_referencia(cotizacion: Cotizacion):
+    """
+    Fecha de vencimiento de una referencia de efectivo/SPEI, en el formato
+    ISO 8601 que espera Openpay ('2014-05-28T13:45:00').
+
+    Criterio, en orden:
+    1. La fecha límite de la parcialidad pendiente más próxima, si hay plan
+       de pagos activo (así la referencia muere cuando vence el compromiso).
+    2. Si no, VIGENCIA_REFERENCIA_HORAS a partir de ahora.
+    En ambos casos se topa a la fecha del evento: una referencia que vence
+    después del evento no tiene sentido para el negocio.
+    """
+    from django.utils import timezone
+
+    ahora = timezone.localtime()
+    vence = ahora + timedelta(hours=VIGENCIA_REFERENCIA_HORAS)
+
+    parcialidad = (
+        ParcialidadPago.objects
+        .filter(plan__cotizacion=cotizacion, plan__activo=True, pagada=False)
+        .order_by('fecha_limite')
+        .first()
+    )
+    if parcialidad and parcialidad.fecha_limite:
+        limite_plan = ahora.replace(
+            year=parcialidad.fecha_limite.year,
+            month=parcialidad.fecha_limite.month,
+            day=parcialidad.fecha_limite.day,
+            hour=23, minute=59, second=0, microsecond=0,
+        )
+        if limite_plan > ahora:
+            vence = limite_plan
+
+    if cotizacion.fecha_evento:
+        fin_evento = ahora.replace(
+            year=cotizacion.fecha_evento.year,
+            month=cotizacion.fecha_evento.month,
+            day=cotizacion.fecha_evento.day,
+            hour=23, minute=59, second=0, microsecond=0,
+        )
+        if fin_evento > ahora:
+            vence = min(vence, fin_evento)
+
+    return vence.strftime('%Y-%m-%dT%H:%M:%S')
 
 
 def _payload_cargo_base(cotizacion: Cotizacion, monto: Decimal, metodo: str):
@@ -382,6 +437,7 @@ def consultar_y_confirmar_cargo(cotizacion: Cotizacion, openpay_id: str):
 
 def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
     payload = _payload_cargo_base(cotizacion, monto, 'store')
+    payload["due_date"] = _due_date_referencia(cotizacion)
     response = requests.post(_charges_url(), json=payload, auth=_auth(), timeout=20)
     data = response.json()
 
@@ -404,9 +460,13 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
         ),
     )
     return {
-        'ok': True, 'referencia': True,
+        'ok': True, 'referencia': True, 'metodo': 'store',
         'reference': store.get('reference', ''),
         'barcode_url': store.get('barcode_url', ''),
+        'monto': f"{monto:,.2f}",
+        'due_date': store.get('due_date') or data.get('due_date') or payload.get('due_date', ''),
+        'order_id': data.get('order_id', ''),
+        'comercio': 'Quinta Ko\'ox Tanil',
     }
 
 
@@ -414,6 +474,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
 
 def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
     payload = _payload_cargo_base(cotizacion, monto, 'bank_account')
+    payload["due_date"] = _due_date_referencia(cotizacion)
     response = requests.post(_charges_url(), json=payload, auth=_auth(), timeout=20)
     data = response.json()
 
@@ -434,9 +495,14 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
         ),
     )
     return {
-        'ok': True, 'referencia': True,
+        'ok': True, 'referencia': True, 'metodo': 'bank_account',
         'bank': pm.get('bank', ''), 'clabe': pm.get('clabe', ''),
         'reference': pm.get('name', ''),
+        'agreement': pm.get('agreement', ''),
+        'monto': f"{monto:,.2f}",
+        'due_date': pm.get('due_date') or data.get('due_date') or payload.get('due_date', ''),
+        'order_id': data.get('order_id', ''),
+        'comercio': 'Quinta Ko\'ox Tanil',
     }
 
 
