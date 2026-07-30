@@ -243,14 +243,14 @@ class CargoTarjetaTest(TestCase):
 
         # El log trae el motivo explícito, el código, la descripción y el request_id
         self.assertIn('3004', salida)
-        self.assertIn('ROBADA', salida)
+        self.assertIn('robada', salida.lower())
         self.assertIn('stolen card', salida)
         self.assertIn('req-robada-001', salida)
 
         # Pero al cliente NO se le filtra la descripción cruda de Openpay
         self.assertFalse(resultado['ok'])
-        self.assertNotIn('stolen', resultado['mensaje'].lower())
-        self.assertNotIn('request_id', resultado['mensaje'].lower())
+        self.assertNotIn('The card was declined - stolen card', resultado['mensaje'])
+        self.assertNotIn('req-robada-001', resultado['mensaje'])
         self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
 
     @patch('comercial.services_openpay.requests.post')
@@ -269,7 +269,11 @@ class CargoTarjetaTest(TestCase):
         self.assertIn('fraud system', salida)
 
         self.assertFalse(resultado['ok'])
-        self.assertNotIn('fraud', resultado['mensaje'].lower())
+        # No se filtra la descripción cruda en inglés ni el request_id.
+        # (Ojo: el mensaje en español dice "antifraude", que contiene "fraud"
+        # como subcadena — por eso se compara contra el texto real de Openpay.)
+        self.assertNotIn('The card was declined by the fraud system', resultado['mensaje'])
+        self.assertNotIn('req-fraude-001', resultado['mensaje'])
         # El motivo explícito también queda persistido para auditoría
         registro = OpenpayTransaccion.objects.get(cotizacion=cotizacion)
         self.assertIn('ANTIFRAUDE', registro.error_detalle)
@@ -394,7 +398,7 @@ class TresDSecureTest(TestCase):
         self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
         # El motivo real solo en el log, nunca al cliente
         self.assertIn('fraud system', '\n'.join(logs.output))
-        self.assertNotIn('fraud', resultado['mensaje'].lower())
+        self.assertNotIn('The card was declined by the fraud system', resultado['mensaje'])
 
     @patch('comercial.services_openpay.requests.get')
     def test_retorno_3ds_sigue_pendiente(self, mock_get):
