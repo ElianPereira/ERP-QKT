@@ -17,7 +17,7 @@ from comercial.models import (
 )
 from comercial.services_openpay import (
     procesar_webhook_openpay, procesar_cargo_tarjeta, procesar_cargo_efectivo,
-    procesar_cargo_spei, reembolsar_cargo_openpay,
+    procesar_cargo_spei, reembolsar_cargo_openpay, consultar_y_confirmar_cargo,
 )
 
 WEBHOOK_USER = 'openpay-test-user'
@@ -310,6 +310,116 @@ class CargoTarjetaTest(TestCase):
         self.assertIn('already been processed', salida)
         self.assertFalse(resultado['ok'])
         self.assertNotIn('already been processed', resultado['mensaje'])
+
+
+class TresDSecureTest(TestCase):
+    """Certificación Openpay: el cargo con tarjeta debe pasar por 3D Secure
+    y solo autorizarse DESPUÉS de que el cliente se autentique con su banco."""
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_manda_use_3d_secure_y_redirect_url(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds001', 'status': 'charge_pending',
+            'payment_method': {'type': 'redirect', 'url': 'https://sandbox-api.openpay.mx/3ds/tx3ds001'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_tarjeta(
+            cotizacion, Decimal('500.00'), 'tok3ds', 'dev3ds',
+            redirect_url='https://erp.quintakooxtanil.com/mi-evento/abc/pago-3ds/',
+        )
+        payload = mock_post.call_args.kwargs['json']
+        self.assertTrue(payload['use_3d_secure'])
+        self.assertEqual(payload['redirect_url'], 'https://erp.quintakooxtanil.com/mi-evento/abc/pago-3ds/')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_charge_pending_no_crea_pago_y_devuelve_url_de_redireccion(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds002', 'status': 'charge_pending',
+            'payment_method': {'type': 'redirect', 'url': 'https://sandbox-api.openpay.mx/3ds/tx3ds002'},
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_tarjeta(
+            cotizacion, Decimal('500.00'), 'tok3ds', 'dev3ds', redirect_url='https://x/retorno/',
+        )
+        self.assertTrue(resultado['ok'])
+        self.assertEqual(resultado['redirect_3ds'], 'https://sandbox-api.openpay.mx/3ds/tx3ds002')
+        # Clave: el cargo AÚN NO se cobró, así que no debe existir el Pago
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+        self.assertFalse(OpenpayTransaccion.objects.get(openpay_id='tx3ds002').procesado)
+
+    @patch('comercial.services_openpay.requests.get')
+    @patch('comercial.services_openpay.requests.post')
+    def test_retorno_3ds_completado_crea_el_pago(self, mock_post, mock_get):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds003', 'status': 'charge_pending',
+            'payment_method': {'type': 'redirect', 'url': 'https://op/3ds'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok', 'dev', redirect_url='https://x/r/')
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+        # El cliente vuelve del banco: ahora el cargo sí está autorizado
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds003', 'status': 'completed', 'amount': 500.00,
+            'authorization': '801585',
+        })
+        resultado = consultar_y_confirmar_cargo(cotizacion, 'tx3ds003')
+        self.assertTrue(resultado['ok'])
+        self.assertTrue(Pago.objects.filter(cotizacion=cotizacion, referencia='tx3ds003').exists())
+        registro = OpenpayTransaccion.objects.get(openpay_id='tx3ds003')
+        self.assertTrue(registro.procesado)
+        self.assertEqual(registro.estado_openpay, 'completed')
+
+    @patch('comercial.services_openpay.requests.get')
+    def test_retorno_3ds_es_idempotente(self, mock_get):
+        """Recargar la página de retorno no debe duplicar el Pago."""
+        cotizacion = _crear_cotizacion()
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds004', 'status': 'completed', 'amount': 500.00,
+        })
+        consultar_y_confirmar_cargo(cotizacion, 'tx3ds004')
+        consultar_y_confirmar_cargo(cotizacion, 'tx3ds004')
+        self.assertEqual(Pago.objects.filter(cotizacion=cotizacion, referencia='tx3ds004').count(), 1)
+
+    @patch('comercial.services_openpay.requests.get')
+    def test_retorno_3ds_rechazado_no_crea_pago_ni_filtra_el_motivo(self, mock_get):
+        cotizacion = _crear_cotizacion()
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds005', 'status': 'failed', 'amount': 500.00,
+            'error_code': 3005, 'description': 'The card was declined by the fraud system',
+        })
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = consultar_y_confirmar_cargo(cotizacion, 'tx3ds005')
+        self.assertFalse(resultado['ok'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+        # El motivo real solo en el log, nunca al cliente
+        self.assertIn('fraud system', '\n'.join(logs.output))
+        self.assertNotIn('fraud', resultado['mensaje'].lower())
+
+    @patch('comercial.services_openpay.requests.get')
+    def test_retorno_3ds_sigue_pendiente(self, mock_get):
+        cotizacion = _crear_cotizacion()
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds006', 'status': 'charge_pending', 'amount': 500.00,
+        })
+        with self.assertLogs('comercial.services_openpay', level='WARNING'):
+            resultado = consultar_y_confirmar_cargo(cotizacion, 'tx3ds006')
+        self.assertFalse(resultado['ok'])
+        self.assertTrue(resultado['pendiente'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_charge_pending_sin_url_es_error_controlado(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds007', 'status': 'charge_pending', 'payment_method': {},
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='ERROR'):
+            resultado = procesar_cargo_tarjeta(
+                cotizacion, Decimal('500.00'), 'tok', 'dev', redirect_url='https://x/r/',
+            )
+        self.assertFalse(resultado['ok'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
 
 
 class CargoEfectivoSpeiTest(TestCase):

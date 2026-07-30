@@ -6,14 +6,15 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from core_erp.ratelimit import rate_limit
 from .models import PortalCliente
 from .services_openpay import (
     procesar_cargo_tarjeta, procesar_cargo_efectivo, procesar_cargo_spei,
-    procesar_webhook_openpay,
+    procesar_webhook_openpay, consultar_y_confirmar_cargo,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,14 @@ def portal_procesar_pago_openpay(request, token):
             device_session_id = request.POST.get('device_session_id', '')
             if not token_id:
                 return JsonResponse({'ok': False, 'mensaje': 'No se recibió el token de la tarjeta. Intenta de nuevo.'})
-            resultado = procesar_cargo_tarjeta(cotizacion, monto, token_id, device_session_id)
+            # URL absoluta a la que Openpay regresa al cliente después de que
+            # se autentique con su banco emisor (3D Secure).
+            redirect_url = request.build_absolute_uri(
+                reverse('portal_retorno_3ds', args=[token])
+            )
+            resultado = procesar_cargo_tarjeta(
+                cotizacion, monto, token_id, device_session_id, redirect_url=redirect_url,
+            )
         elif metodo == 'store':
             resultado = procesar_cargo_efectivo(cotizacion, monto)
         elif metodo == 'bank_account':
@@ -84,6 +92,51 @@ def portal_procesar_pago_openpay(request, token):
         cache.delete(candado)
 
     return JsonResponse(resultado)
+
+
+@rate_limit(key='portal_retorno_3ds', limit=20, window=60)
+def portal_retorno_3ds(request, token):
+    """
+    Openpay regresa aquí al cliente después de la autenticación 3D Secure.
+
+    Hasta este punto el cargo estaba en 'charge_pending': solo consultándolo
+    se sabe si el banco emisor lo autorizó. Es un GET disparado por la
+    redirección del banco, así que no lleva CSRF ni se puede exigir POST.
+    """
+    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    cotizacion = portal.cotizacion
+
+    # Openpay manda el id del cargo de vuelta; el nombre del parámetro puede
+    # variar, así que se aceptan las variantes documentadas.
+    openpay_id = (
+        request.GET.get('id')
+        or request.GET.get('transaction_id')
+        or request.GET.get('charge_id')
+        or ''
+    ).strip()
+
+    destino = reverse('portal_evento', args=[token])
+    if not openpay_id:
+        logger.warning(
+            "Retorno 3DS sin id de cargo (COT-%s). Query: %s",
+            cotizacion.id, dict(request.GET),
+        )
+        return redirect(f"{destino}?pago=error")
+
+    try:
+        resultado = consultar_y_confirmar_cargo(cotizacion, openpay_id)
+    except Exception:
+        logger.exception(
+            "Retorno 3DS: error inesperado confirmando el cargo %s (COT-%s).",
+            openpay_id, cotizacion.id,
+        )
+        return redirect(f"{destino}?pago=error")
+
+    if resultado.get('ok'):
+        return redirect(f"{destino}?pago=exitoso")
+    if resultado.get('pendiente'):
+        return redirect(f"{destino}?pago=pendiente")
+    return redirect(f"{destino}?pago=rechazado")
 
 
 # ==========================================

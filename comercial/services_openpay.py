@@ -191,12 +191,57 @@ def _registrar_comision_openpay(registro, fee):
         logger.exception("No se pudo registrar la póliza de comisión Openpay para %s.", registro.openpay_id)
 
 
-# --- TARJETA (síncrono: se sabe el resultado de inmediato) ---
+def _confirmar_cargo_completado(registro, cotizacion, monto, data, metodo):
+    """
+    Marca un cargo ya autorizado como pagado: crea el Pago (que dispara la
+    póliza contable) y registra la comisión. Compartido por el flujo síncrono
+    de tarjeta y por el retorno de 3D Secure, para que ambos terminen igual.
+    Idempotente: si el registro ya venía procesado, no duplica el Pago.
+    """
+    if registro.procesado and registro.pago_id:
+        return {'ok': True, 'mensaje': 'Pago realizado con éxito.'}
+    try:
+        with transaction.atomic():
+            pago = _crear_pago_desde_cargo(cotizacion, monto, registro.openpay_id, metodo)
+            registro.pago = pago
+            registro.procesado = True
+            registro.estado_openpay = 'completed'
+            registro.error_detalle = ''
+            registro.save(update_fields=['pago', 'procesado', 'estado_openpay', 'error_detalle'])
+        _registrar_comision_openpay(registro, data.get('fee'))
+    except Exception as e:
+        # El cargo YA se cobró en Openpay; si el registro interno falla, queda
+        # el detalle en la transacción para regularizarlo a mano.
+        logger.exception(
+            "Openpay: cargo %s cobrado pero falló el registro del Pago (COT-%s).",
+            registro.openpay_id, getattr(cotizacion, 'id', '?'),
+        )
+        registro.error_detalle = f"Cargo cobrado en Openpay pero falló el registro del Pago: {e}"
+        registro.save(update_fields=['error_detalle'])
+        return {'ok': True, 'mensaje': 'Pago recibido. El registro interno quedó pendiente; el equipo lo verá reflejado en breve.'}
+    return {'ok': True, 'mensaje': 'Pago realizado con éxito.'}
 
-def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str, device_session_id: str):
+
+# --- TARJETA (con 3D Secure: el resultado final llega tras la autenticación) ---
+
+def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str,
+                           device_session_id: str, redirect_url: str = ''):
+    """
+    Crea el cargo con tarjeta usando 3D Secure.
+
+    Con `use_3d_secure` el cargo NO se cobra de inmediato: Openpay responde
+    status='charge_pending' y un `payment_method.url` al que hay que redirigir
+    al cliente para que se autentique con su banco emisor. Terminada la
+    autenticación, Openpay regresa al cliente a `redirect_url` y ahí se
+    consulta el cargo para conocer el resultado final (ver
+    `consultar_y_confirmar_cargo`).
+    """
     payload = _payload_cargo_base(cotizacion, monto, 'card')
     payload["source_id"] = token_id
     payload["device_session_id"] = device_session_id
+    if redirect_url:
+        payload["use_3d_secure"] = True
+        payload["redirect_url"] = redirect_url
 
     response = requests.post(_charges_url(), json=payload, auth=_auth(), timeout=20)
     data = response.json()
@@ -217,26 +262,34 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
         )
         return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}
 
+    estado = data.get('status')
     registro = OpenpayTransaccion.objects.create(
-        openpay_id=data['id'], metodo='card', estado_openpay=data.get('status', ''),
+        openpay_id=data['id'], metodo='card', estado_openpay=estado or '',
         monto=monto, cotizacion=cotizacion, payload_crudo=data,
         autorizacion=data.get('authorization') or '',
-        procesado=(data.get('status') == 'completed'),
+        procesado=(estado == 'completed'),
     )
-    if data.get('status') == 'completed':
-        try:
-            with transaction.atomic():
-                pago = _crear_pago_desde_cargo(cotizacion, monto, data['id'], 'card')
-                registro.pago = pago
-                registro.save(update_fields=['pago'])
-            _registrar_comision_openpay(registro, data.get('fee'))
-        except Exception as e:
-            # El cargo YA se hizo en Openpay; si el registro interno del Pago
-            # falla, queda el error en la transacción para regularizarlo a mano.
-            registro.error_detalle = f"Cargo cobrado en Openpay pero falló el registro del Pago: {e}"
+
+    # 3D Secure: el cargo queda pendiente hasta que el cliente se autentique
+    # con su banco. Se le manda al portal la URL de redirección de Openpay.
+    if estado == 'charge_pending':
+        url_3ds = (data.get('payment_method') or {}).get('url', '')
+        if not url_3ds:
+            logger.error(
+                "Openpay 3DS: cargo %s quedó en charge_pending pero sin payment_method.url (COT-%s).",
+                data['id'], cotizacion.id,
+            )
+            registro.error_detalle = "3D Secure sin URL de redirección en la respuesta de Openpay."
             registro.save(update_fields=['error_detalle'])
-            return {'ok': True, 'mensaje': 'Pago recibido. El registro interno quedó pendiente; el equipo lo verá reflejado en breve.'}
-        return {'ok': True, 'mensaje': 'Pago realizado con éxito.'}
+            return {'ok': False, 'mensaje': 'No se pudo iniciar la validación de tu banco. Intenta de nuevo o contáctanos.'}
+        logger.info(
+            "Openpay 3DS: redirigiendo COT-%s (cargo %s, monto %s) a autenticación del emisor.",
+            cotizacion.id, data['id'], monto,
+        )
+        return {'ok': True, 'redirect_3ds': url_3ds, 'openpay_id': data['id']}
+
+    if estado == 'completed':
+        return _confirmar_cargo_completado(registro, cotizacion, monto, data, 'card')
 
     # Openpay puede rechazar con HTTP 200 y status 'failed' (ej. rechazo del
     # emisor tras autorizar el token). El motivo explícito va al log; al
@@ -250,6 +303,76 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
     )
     registro.error_detalle = "Cargo no completado. status={} error_code={} description={}".format(
         data.get('status'), data.get('error_code'), data.get('description', ''),
+    )
+    registro.save(update_fields=['error_detalle'])
+    return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}
+
+
+def consultar_y_confirmar_cargo(cotizacion: Cotizacion, openpay_id: str):
+    """
+    Consulta el estado final de un cargo en Openpay y, si quedó autorizado,
+    registra el Pago. Se llama cuando el cliente regresa de la autenticación
+    3D Secure: hasta ese momento el cargo estaba en 'charge_pending' y solo
+    Openpay sabe si el banco emisor autorizó.
+
+    Idempotente: si el cargo ya se había confirmado (por webhook o por una
+    recarga de la página de retorno), no duplica el Pago.
+    """
+    registro = OpenpayTransaccion.objects.filter(openpay_id=openpay_id).first()
+    if registro and registro.procesado and registro.pago_id:
+        return {'ok': True, 'mensaje': 'Pago realizado con éxito.'}
+
+    url = f"{_charges_url()}/{openpay_id}"
+    response = requests.get(url, auth=_auth(), timeout=20)
+    data = response.json()
+
+    if response.status_code >= 400:
+        _loggear_rechazo_openpay(data, cotizacion, getattr(registro, 'monto', None), 'card-3ds', response.status_code)
+        return {'ok': False, 'mensaje': 'No pudimos confirmar tu pago. Intenta de nuevo o contáctanos.'}
+
+    estado = data.get('status')
+    monto = _decimal_o_none(data.get('amount'))
+    if monto is None:
+        monto = getattr(registro, 'monto', None)
+
+    if registro is None:
+        # El cargo existe en Openpay pero no localmente (ej. se perdió el
+        # registro): se reconstruye para no dejar el pago sin rastro.
+        registro = OpenpayTransaccion.objects.create(
+            openpay_id=openpay_id, metodo='card', estado_openpay=estado or '',
+            monto=monto, cotizacion=cotizacion, payload_crudo=data,
+            autorizacion=data.get('authorization') or '',
+        )
+    else:
+        registro.estado_openpay = estado or registro.estado_openpay
+        registro.payload_crudo = data
+        registro.autorizacion = data.get('authorization') or registro.autorizacion
+        registro.save(update_fields=['estado_openpay', 'payload_crudo', 'autorizacion'])
+
+    if estado == 'completed':
+        logger.info(
+            "Openpay 3DS: autenticación exitosa, cargo %s COMPLETADO (COT-%s, monto %s).",
+            openpay_id, getattr(cotizacion, 'id', '?'), monto,
+        )
+        return _confirmar_cargo_completado(registro, cotizacion, monto, data, 'card (3D Secure)')
+
+    if estado == 'charge_pending':
+        logger.warning(
+            "Openpay 3DS: el cliente regresó pero el cargo %s sigue en charge_pending (COT-%s).",
+            openpay_id, getattr(cotizacion, 'id', '?'),
+        )
+        return {'ok': False, 'pendiente': True,
+                'mensaje': 'Tu pago sigue en validación con tu banco. Si ya lo autorizaste, '
+                           'se reflejará en unos minutos en este portal.'}
+
+    # Rechazado tras la autenticación 3DS: el motivo explícito va solo al log.
+    logger.warning(
+        "Openpay 3DS RECHAZO: cargo %s COT-%s status=%s error_code=%s description=%r",
+        openpay_id, getattr(cotizacion, 'id', '?'), estado,
+        data.get('error_code'), data.get('description', ''),
+    )
+    registro.error_detalle = "3D Secure no autorizado. status={} error_code={} description={}".format(
+        estado, data.get('error_code'), data.get('description', ''),
     )
     registro.save(update_fields=['error_detalle'])
     return {'ok': False, 'mensaje': _mensaje_error_tarjeta(data)}

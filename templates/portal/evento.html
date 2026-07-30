@@ -101,6 +101,20 @@
             ¡Tu pago se realizó con éxito! Ya aparece abajo en "Pagos realizados".
         </div>
 
+        <!-- Resultado del retorno de 3D Secure (?pago=pendiente|rechazado|error) -->
+        <div id="banner-pago-pendiente" style="display:none; background:#FFF8E1; color:#8a6d3b; border:2px solid #e0b64d; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
+            <i class="fas fa-clock" style="font-size:22px;"></i>
+            Tu pago sigue en validación con tu banco. Si ya lo autorizaste, se reflejará aquí en unos minutos.
+        </div>
+        <div id="banner-pago-rechazado" style="display:none; background:#FFEBEE; color:#e74c3c; border:2px solid #e74c3c; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
+            <i class="fas fa-times-circle" style="font-size:22px;"></i>
+            Tu banco no autorizó el pago. Puedes intentarlo de nuevo con otra tarjeta u otro método.
+        </div>
+        <div id="banner-pago-error" style="display:none; background:#FFEBEE; color:#e74c3c; border:2px solid #e74c3c; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
+            <i class="fas fa-exclamation-circle" style="font-size:22px;"></i>
+            No pudimos confirmar tu pago. Si el cargo aparece en tu banco, contáctanos antes de volver a intentar.
+        </div>
+
         <!-- Estado -->
         {% with estado=cotizacion.estado %}
         <div class="estado-banner estado-{% if estado == 'CONFIRMADA' %}confirmada{% elif estado == 'COTIZADA' %}cotizada{% elif estado == 'ANTICIPO' %}anticipo{% elif estado == 'EN_PREPARACION' %}preparacion{% elif estado == 'EJECUTADA' %}ejecutada{% elif estado == 'CERRADA' %}cerrada{% else %}borrador{% endif %}">
@@ -530,6 +544,14 @@
         fetch("{% url 'portal_procesar_pago_openpay' portal.token %}", {
             method: 'POST', body: body,
         }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.ok && data.redirect_3ds) {
+                // 3D Secure: el cargo aún NO se cobró. Se manda al cliente a
+                // autenticarse con su banco; Openpay lo regresa a /pago-3ds/,
+                // que consulta el resultado final y crea el Pago.
+                mostrarResultado('info', 'Te estamos llevando con tu banco para validar el pago. No cierres esta ventana…');
+                window.location.href = data.redirect_3ds;
+                return;
+            }
             document.getElementById('btn-pagar').disabled = false;
             if (data.ok && data.referencia) {
                 mostrarReferencia(data);
@@ -590,9 +612,19 @@
     // Se limpia el parámetro de la URL para que un refresh no lo repita.
     (function() {
         var params = new URLSearchParams(window.location.search);
-        if (params.get('pago') === 'exitoso') {
-            var banner = document.getElementById('banner-pago-exitoso');
-            if (banner) banner.style.display = 'flex';
+        var BANNERS = {
+            exitoso: 'banner-pago-exitoso',
+            pendiente: 'banner-pago-pendiente',
+            rechazado: 'banner-pago-rechazado',
+            error: 'banner-pago-error',
+        };
+        var idBanner = BANNERS[params.get('pago')];
+        if (idBanner) {
+            var banner = document.getElementById(idBanner);
+            if (banner) {
+                banner.style.display = 'flex';
+                banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
             params.delete('pago');
             var limpia = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
             window.history.replaceState(null, '', limpia);
