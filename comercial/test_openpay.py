@@ -5,7 +5,7 @@ Ejecutar: python manage.py test comercial.test_openpay --verbosity=2
 """
 import base64
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
@@ -656,3 +656,61 @@ class ComisionOpenpayTest(TestCase):
         poliza = Poliza.objects.filter(origen='COMISION_OPENPAY', object_id=registro.pk).first()
         self.assertIsNotNone(poliza)
         self.assertEqual(sum(m.haber for m in poliza.movimientos.all()), Decimal('19.72'))
+
+
+class PaginasLegalesTest(TestCase):
+    """Certificación Openpay: el sitio y el portal deben publicar Aviso de
+    Privacidad y Términos y Condiciones, con mención expresa de Openpay."""
+
+    def test_aviso_privacidad_publico(self):
+        response = self.client.get(reverse('aviso_privacidad'), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Aviso de Privacidad')
+        self.assertContains(response, 'Openpay')
+
+    def test_terminos_mencionan_openpay_con_el_texto_requerido(self):
+        response = self.client.get(reverse('terminos_condiciones'), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Las transacciones ser')
+        self.assertContains(response, 'pasarela de Openpay')
+
+    def test_portal_enlaza_las_paginas_legales(self):
+        cotizacion = _crear_cotizacion()
+        portal = PortalCliente.objects.get(cotizacion=cotizacion)
+        response = self.client.get(reverse('portal_evento', args=[portal.token]), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('aviso_privacidad'))
+        self.assertContains(response, reverse('terminos_condiciones'))
+
+
+class DueDateReferenciaTest(TestCase):
+    """La referencia de efectivo/SPEI debe llevar fecha de vencimiento."""
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_efectivo_manda_due_date(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'txdd001', 'status': 'in_progress',
+            'payment_method': {'reference': 'REF001'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        payload = mock_post.call_args.kwargs['json']
+        self.assertIn('due_date', payload)
+        # Formato ISO 8601 que espera Openpay
+        datetime.strptime(payload['due_date'], '%Y-%m-%dT%H:%M:%S')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_spei_manda_due_date_y_no_excede_la_fecha_del_evento(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'txdd002', 'status': 'in_progress',
+            'payment_method': {'clabe': '646180111812345678'},
+        })
+        # Evento mañana: la referencia no puede vencer después del evento
+        cotizacion = _crear_cotizacion()
+        cotizacion.fecha_evento = date.today() + timedelta(days=1)
+        cotizacion.save()
+
+        procesar_cargo_spei(cotizacion, Decimal('500.00'))
+        payload = mock_post.call_args.kwargs['json']
+        vence = datetime.strptime(payload['due_date'], '%Y-%m-%dT%H:%M:%S').date()
+        self.assertLessEqual(vence, cotizacion.fecha_evento)

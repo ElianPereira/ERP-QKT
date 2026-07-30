@@ -1,0 +1,150 @@
+{% extends "legal/base_legal.html" %}
+
+{% block titulo %}Términos y Condiciones{% endblock %}
+
+{% block contenido %}
+<h1>Términos y Condiciones</h1>
+<div class="actualizado">Última actualización: {{ ultima_actualizacion }}</div>
+
+<h2>1. Identidad del prestador</h2>
+<div class="datos">
+    <strong>Prestador del servicio:</strong> {{ responsable }}<br>
+    <strong>Nombre comercial:</strong> {{ nombre_comercial }}<br>
+    <strong>Domicilio:</strong> {{ domicilio }}<br>
+    <strong>Correo electrónico:</strong> <a href="mailto:{{ correo }}">{{ correo }}</a>
+</div>
+<p>
+    El uso de este sitio web y del portal de clientes implica la aceptación plena de los
+    presentes Términos y Condiciones. Si no está de acuerdo con ellos, le solicitamos
+    abstenerse de utilizar estos servicios.
+</p>
+
+<h2>2. Objeto</h2>
+<p>
+    {{ nombre_comercial }} presta servicios de renta de espacio y organización de eventos
+    sociales, pasadías y arrendamiento de mobiliario, así como servicios de hospedaje, en los
+    términos que se detallen en la cotización y, en su caso, en el contrato de prestación de
+    servicios que se celebre con cada cliente.
+</p>
+
+<h2>3. Cotizaciones</h2>
+<ul>
+    <li>Las cotizaciones se emiten con base en la información proporcionada por el cliente
+        (fecha, número de personas y servicios seleccionados).</li>
+    <li>Los precios están expresados en <strong>pesos mexicanos (MXN)</strong>.</li>
+    <li>Toda cotización tiene una vigencia determinada; transcurrida ésta, los precios y la
+        disponibilidad de la fecha quedan sujetos a revisión.</li>
+    <li>La reserva de una fecha se confirma únicamente con el pago correspondiente en los
+        términos pactados, no con la sola emisión de la cotización.</li>
+</ul>
+
+<h2>4. Pagos y medios de pago</h2>
+<div class="destacado">
+    Las transacciones serán efectuadas mediante la pasarela de Openpay.
+</div>
+<p>A través del portal de clientes es posible realizar pagos por los siguientes medios:</p>
+<ul>
+    <li><strong>Tarjeta de crédito o débito</strong> (Visa, Mastercard y American Express), con
+        autenticación 3D Secure ante el banco emisor.</li>
+    <li><strong>Pago en efectivo</strong> en tiendas afiliadas a la red Paynet, mediante
+        referencia con código de barras.</li>
+    <li><strong>Transferencia electrónica SPEI</strong>, mediante una CLABE de un solo uso
+        generada para cada operación.</li>
+</ul>
+<p>Condiciones aplicables a los pagos:</p>
+<ul>
+    <li>Los datos de tarjeta se capturan en un formulario cifrado y son transmitidos
+        directamente a la pasarela de pago. <strong>{{ nombre_comercial }} no almacena ni tiene
+        acceso a los datos completos de su tarjeta.</strong></li>
+    <li>Las referencias de pago en efectivo y las CLABE para transferencia tienen una
+        <strong>vigencia limitada</strong> que se indica al generarlas. Una vez vencidas es
+        necesario generar una nueva referencia.</li>
+    <li>Los pagos en efectivo y por transferencia se confirman de forma automática una vez que
+        la pasarela notifica la recepción de los fondos. Los tiempos de acreditación dependen
+        de la tienda o institución bancaria correspondiente.</li>
+    <li>Las tiendas de la red Paynet pueden cobrar una comisión adicional por el servicio de
+        recepción del pago, ajena a {{ nombre_comercial }}.</li>
+    <li>Cuando exista un plan de pagos, el cliente se obliga a cubrir las parcialidades en las
+        fechas límite establecidas en dicho plan.</li>
+</ul>
+
+<h2>5. Facturación</h2>
+<p>
+    La solicitud de comprobante fiscal digital (CFDI) debe realizarse proporcionando los datos
+    fiscales completos y correctos dentro del mes calendario en que se efectuó el pago. Los
+    comprobantes se emiten conforme a la normativa fiscal vigente y con los datos exactamente
+    como fueron proporcionados por el cliente.
+</p>
+
+<h2>6. Cancelaciones y reembolsos</h2>
+<p>
+    Las condiciones de cancelación, las penalizaciones aplicables y los supuestos de reembolso
+    son los que se establezcan en el contrato de prestación de servicios firmado entre las
+    partes, el cual prevalece sobre lo aquí señalado.
+</p>
+<ul>
+    <li>Los reembolsos que procedan se realizarán por el mismo medio de pago utilizado en la
+        operación original.</li>
+    <li>El tiempo de acreditación de un reembolso depende de la institución bancaria emisora y
+        no es imputable a {{ nombre_comercial }}.</li>
+    <li>Los depósitos en garantía se devuelven conforme a lo pactado en el contrato,
+        descontando en su caso los daños o cargos que resulten procedentes.</li>
+</ul>
+
+<h2>7. Obligaciones del cliente</h2>
+<ul>
+    <li>Proporcionar información veraz, completa y actualizada.</li>
+    <li>Resguardar el enlace de acceso a su portal de cliente y no compartirlo con terceros
+        ajenos a la contratación.</li>
+    <li>Realizar los pagos en los montos y plazos convenidos.</li>
+    <li>Respetar el reglamento interno del inmueble y los horarios acordados durante el evento.</li>
+    <li>Responder por los daños ocasionados a las instalaciones o al mobiliario durante el
+        evento, ya sea por sí, por sus invitados o por sus proveedores.</li>
+</ul>
+
+<h2>8. Portal de clientes</h2>
+<p>
+    El portal de clientes se proporciona como una herramienta de consulta y pago. El acceso se
+    realiza mediante un enlace personalizado. El cliente es responsable del uso que se dé a
+    dicho enlace. Nos reservamos el derecho de suspender el acceso ante un uso indebido o por
+    razones de seguridad.
+</p>
+
+<h2>9. Propiedad intelectual</h2>
+<p>
+    Los contenidos de este sitio —textos, fotografías, logotipos, diseño y demás elementos—
+    son propiedad de {{ nombre_comercial }} o se utilizan con la autorización correspondiente, y
+    están protegidos por la legislación en materia de propiedad intelectual. Queda prohibida su
+    reproducción o uso sin autorización previa por escrito.
+</p>
+
+<h2>10. Limitación de responsabilidad</h2>
+<p>
+    {{ nombre_comercial }} no será responsable por interrupciones en el servicio derivadas de
+    fallas en la red, en la pasarela de pago o en servicios de terceros, ni por casos fortuitos
+    o de fuerza mayor. Realizaremos nuestros mejores esfuerzos para mantener el portal
+    disponible y la información actualizada.
+</p>
+
+<h2>11. Protección de datos personales</h2>
+<p>
+    El tratamiento de los datos personales que nos proporcione se rige por nuestro
+    <a href="{% url 'aviso_privacidad' %}">Aviso de Privacidad</a>, el cual forma parte
+    integrante de los presentes Términos y Condiciones.
+</p>
+
+<h2>12. Modificaciones</h2>
+<p>
+    Nos reservamos el derecho de modificar en cualquier momento los presentes Términos y
+    Condiciones. Las modificaciones entrarán en vigor a partir de su publicación en esta página.
+    Las condiciones aplicables a una contratación serán las vigentes al momento de celebrarse.
+</p>
+
+<h2>13. Legislación aplicable y jurisdicción</h2>
+<p>
+    Los presentes Términos y Condiciones se rigen por la legislación aplicable en los Estados
+    Unidos Mexicanos. Para la interpretación y cumplimiento de los mismos, las partes se someten
+    a la jurisdicción de los tribunales competentes del Estado de Yucatán, renunciando a
+    cualquier otro fuero que pudiera corresponderles.
+</p>
+{% endblock %}
