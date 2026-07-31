@@ -107,12 +107,22 @@ class Command(BaseCommand):
                     f'      {len(pendientes)} marcador(es) [CONFIRMAR:]/[PENDIENTE:] '
                     'sin resolver — NO se publica'
                 ))
-            elif publicar and not doc.vigente:
-                doc.vigente = True
-                doc.save()
-                self.stdout.write(self.style.SUCCESS('      publicado como vigente'))
             elif doc.vigente:
                 self.stdout.write('      ya vigente')
+            elif publicar:
+                # Solo se publica si NO hay ninguna versión vigente de ese tipo.
+                # El comando corre en cada deploy, y sin esta condición una
+                # versión más nueva publicada desde el admin (v3.0) quedaría
+                # degradada al volver a marcar vigente la v2.0 del repositorio.
+                otra = DocumentoLegal.objects.filter(tipo=tipo, vigente=True).first()
+                if otra:
+                    self.stdout.write(
+                        f'      no se publica: ya está vigente la v{otra.version}'
+                    )
+                else:
+                    doc.vigente = True
+                    doc.save()
+                    self.stdout.write(self.style.SUCCESS('      publicado como vigente'))
 
     @staticmethod
     def _version_desde_nombre(archivo: str) -> str:

@@ -238,3 +238,56 @@ class VistasPublicasTest(TestCase):
         DocumentoLegal.objects.filter(pk=doc.pk).update(vigente=False)
         self.assertEqual(
             self.client.get(reverse('legal:terminos'), secure=True).status_code, 404)
+
+
+class SeedTest(TestCase):
+    """El seed corre en cada arranque del contenedor: debe ser idempotente y
+    no puede degradar una versión publicada desde el admin."""
+
+    def _seed(self, publicar=True):
+        from io import StringIO
+        from django.core.management import call_command
+        salida = StringIO()
+        args = ['seed_documentos_legales']
+        if publicar:
+            args.append('--publicar')
+        call_command(*args, stdout=salida)
+        return salida.getvalue()
+
+    def test_publica_los_tres_documentos(self):
+        self._seed()
+        for tipo in (TipoDocumento.AVISO_PRIVACIDAD, TipoDocumento.TERMINOS,
+                     TipoDocumento.POLITICA_CANCELACION):
+            self.assertTrue(
+                DocumentoLegal.objects.filter(tipo=tipo, vigente=True).exists(),
+                f'no quedó vigente {tipo}',
+            )
+
+    def test_es_idempotente(self):
+        self._seed()
+        antes = DocumentoLegal.objects.count()
+        salida = self._seed()
+        self.assertEqual(DocumentoLegal.objects.count(), antes)
+        self.assertIn('ya vigente', salida)
+
+    def test_no_degrada_una_version_publicada_desde_el_admin(self):
+        """Regresión: al correr en cada deploy, republicar la v2.0 del repo
+        habría desmarcado una v3.0 publicada a mano."""
+        self._seed()
+        v3 = _doc(TipoDocumento.TERMINOS, version='3.0', contenido='Terminos v3')
+        self.assertTrue(v3.vigente)
+
+        self._seed()
+
+        v3.refresh_from_db()
+        self.assertTrue(v3.vigente, 'el seed degradó la versión más nueva')
+        self.assertEqual(
+            DocumentoLegal.objects.filter(tipo=TipoDocumento.TERMINOS,
+                                          vigente=True).count(), 1)
+
+    def test_crea_el_catalogo_de_finalidades(self):
+        self._seed(publicar=False)
+        self.assertTrue(Finalidad.objects.filter(
+            clave='MARKETING', requiere_consentimiento=True).exists())
+        self.assertTrue(Finalidad.objects.filter(
+            clave='OPERACION', requiere_consentimiento=False).exists())
