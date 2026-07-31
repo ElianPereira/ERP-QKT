@@ -664,27 +664,58 @@ class ComisionOpenpayTest(TestCase):
 
 class PaginasLegalesTest(TestCase):
     """Certificación Openpay: el sitio y el portal deben publicar Aviso de
-    Privacidad y Términos y Condiciones, con mención expresa de Openpay."""
+    Privacidad y Términos y Condiciones, con mención expresa de Openpay.
+
+    Desde el módulo `legal`, el contenido vive en base de datos y las rutas
+    públicas se conservaron para no romper los enlaces ya difundidos."""
+
+    def _publicar(self, tipo, contenido):
+        from datetime import date as _date
+        from legal.models import DocumentoLegal
+        return DocumentoLegal.objects.create(
+            tipo=tipo, version='1.0', titulo=str(tipo),
+            contenido_md=contenido, vigente_desde=_date.today(), vigente=True,
+        )
 
     def test_aviso_privacidad_publico(self):
-        response = self.client.get(reverse('aviso_privacidad'), secure=True)
+        from legal.models import TipoDocumento
+        self._publicar(TipoDocumento.AVISO_PRIVACIDAD,
+                       'Aviso de Privacidad. Transferencias a Openpay, S.A. de C.V.')
+        response = self.client.get(reverse('legal:aviso_privacidad'), secure=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Aviso de Privacidad')
         self.assertContains(response, 'Openpay')
 
-    def test_terminos_mencionan_openpay_con_el_texto_requerido(self):
-        response = self.client.get(reverse('terminos_condiciones'), secure=True)
+    def test_terminos_publicados_mencionan_openpay(self):
+        from legal.models import TipoDocumento
+        self._publicar(TipoDocumento.TERMINOS,
+                       'Las transacciones serán efectuadas mediante la pasarela de Openpay.')
+        response = self.client.get(reverse('legal:terminos'), secure=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Las transacciones ser')
         self.assertContains(response, 'pasarela de Openpay')
+
+    def test_el_documento_v2_incluye_la_mencion_exigida_por_openpay(self):
+        """El texto que pidió Openpay debe estar en el archivo que se siembra,
+        no solo en un fixture de prueba."""
+        from pathlib import Path
+        import legal
+        ruta = (Path(legal.__file__).parent / 'documentos_iniciales'
+                / 'terminos_v2.0.md')
+        self.assertTrue(ruta.exists(), 'falta el documento de términos v2.0')
+        contenido = ruta.read_text(encoding='utf-8')
+        self.assertIn(
+            'Las transacciones serán efectuadas mediante la pasarela de Openpay.',
+            contenido,
+            'Openpay exigió este texto literal en la validación técnica.',
+        )
 
     def test_portal_enlaza_las_paginas_legales(self):
         cotizacion = _crear_cotizacion()
         portal = PortalCliente.objects.get(cotizacion=cotizacion)
         response = self.client.get(reverse('portal_evento', args=[portal.token]), secure=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse('aviso_privacidad'))
-        self.assertContains(response, reverse('terminos_condiciones'))
+        self.assertContains(response, reverse('legal:aviso_privacidad'))
+        self.assertContains(response, reverse('legal:terminos'))
 
 
 class DueDateReferenciaTest(TestCase):
