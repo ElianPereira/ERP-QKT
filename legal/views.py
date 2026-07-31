@@ -32,7 +32,10 @@ def documento_publico(request, tipo):
     clave = f'legal:doc:{tipo}:{documento.hash_contenido}'
     html = cache.get(clave)
     if html is None:
-        html = render_to_string('legal/documento.html', {'documento': documento},
-                                request=request)
+        html = render_to_string(
+            'legal/documento.html',
+            {'documento': documento, 'cuerpo': documento.render_html()},
+            request=request,
+        )
         cache.set(clave, html, CACHE_SEGUNDOS)
     return HttpResponse(html)

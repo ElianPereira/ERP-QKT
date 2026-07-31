@@ -14,6 +14,8 @@ import hashlib
 import re
 from datetime import timedelta
 
+import markdown
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -80,6 +82,32 @@ class DocumentoLegal(models.Model):
     @property
     def hash_corto(self) -> str:
         return self.hash_contenido[:12]
+
+    # El encabezado del archivo (título H1, línea de versión y el separador que
+    # los sigue) se muestra en la portada de la página, no dentro del cuerpo.
+    _ENCABEZADO_DUPLICADO = re.compile(
+        r'\A\s*#\s+[^\n]+\n'          # título H1
+        r'(?:\s*\*\*[^\n]*\*\*\n)*'    # líneas en negritas (versión, razón social)
+        r'\s*(?:-{3,}\s*\n)?',          # separador horizontal
+    )
+
+    def cuerpo_markdown(self) -> str:
+        """Markdown sin el encabezado que ya presenta la portada de la página."""
+        return self._ENCABEZADO_DUPLICADO.sub('', self.contenido_md or '', count=1)
+
+    def render_html(self) -> str:
+        """
+        Contenido en HTML con tipografía real.
+
+        El documento se redacta en Markdown, pero al cliente hay que
+        entregárselo formateado: encabezados, tablas y listas, no los
+        asteriscos y pipes del código fuente.
+        """
+        return markdown.markdown(
+            self.cuerpo_markdown(),
+            extensions=['tables', 'sane_lists', 'attr_list'],
+            output_format='html',
+        )
 
     def marcadores_pendientes(self) -> list:
         """Marcadores [CONFIRMAR:] / [PENDIENTE:] que quedan en el contenido."""
