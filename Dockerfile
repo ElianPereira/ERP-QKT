@@ -18,7 +18,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
+# El seed es idempotente y no degrada una versión publicada desde el admin,
+# así que es seguro correrlo en cada arranque. Nunca debe tumbar el deploy.
 CMD python manage.py migrate --noinput && \
+    (python manage.py seed_documentos_legales --publicar || true) && \
     gunicorn core_erp.wsgi:application \
         --bind 0.0.0.0:${PORT:-8080} \
         --workers 2 \
