@@ -1,6 +1,6 @@
 # AVISO DE PRIVACIDAD INTEGRAL
 
-**Versión 2.0 — Vigente a partir del `[CONFIRMAR: DD]` de agosto de 2026**
+**Versión 2.0 — Vigente a partir del 31 de julio de 2026**
 *Sustituye a la versión de julio de 2026.*
 
 ---
@@ -15,11 +15,11 @@ En cumplimiento de la **Ley Federal de Protección de Datos Personales en Posesi
 | **RFC** | PECE010202IA0 |
 | **Nombre comercial** | Quinta Ko'ox Tanil |
 | **Domicilio del responsable** | Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán, México |
-| **Domicilio donde se presta el servicio de eventos** | `[CONFIRMAR: dirección completa de la quinta en Umán, Yucatán]` |
-| **Domicilio del inmueble de hospedaje externo** | `[CONFIRMAR: dirección de Honey Sea House]` |
-| **Correo electrónico** | `[CONFIRMAR: legal@quintakooxtanil.com]` |
-| **Teléfono / WhatsApp** | `[CONFIRMAR: +52 999 XXX XXXX]` |
-| **Horario de atención** | `[CONFIRMAR: Lunes a sábado, 9:00 a 19:00 h (Tiempo del Centro)]` |
+| **Domicilio donde se presta el servicio de eventos** | Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390 |
+| **Domicilio del inmueble de hospedaje externo** | Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán |
+| **Correo electrónico** | quintakooxtanil@gmail.com |
+| **Teléfono / WhatsApp** | +52 999 445 7178 |
+| **Horario de atención** | Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro) |
 
 **Responsable del tratamiento de datos personales:** la atención de solicitudes de derechos ARCO, revocación de consentimiento y dudas sobre este aviso está a cargo del titular del negocio, a través del correo electrónico y teléfono señalados.
 
@@ -44,7 +44,7 @@ Monto, método de pago, referencia de la operación y estatus de la transacción
 **e) Datos de imagen y voz** *(finalidad secundaria, sujeta a su consentimiento)*
 Fotografías y videograbaciones tomadas durante el evento o estancia.
 
-**f) Imágenes de videovigilancia** `[CONFIRMAR: eliminar esta sección si NO hay cámaras en el inmueble]`
+**f) Imágenes de videovigilancia**
 Imágenes captadas por el sistema de circuito cerrado de televisión instalado en accesos y áreas comunes, con fines exclusivos de seguridad de las personas y del inmueble.
 
 **g) Datos de hospedaje** *(solo para reservas de hospedaje contratadas directamente con nosotros)*
@@ -81,7 +81,7 @@ No son necesarias para la relación jurídica. Usted puede negarse a ellas o rev
 
 Para cada una de estas finalidades se le solicitará consentimiento por separado mediante casillas independientes y no premarcadas. Su negativa no será motivo para negarle los servicios contratados.
 
-**Para oponerse o revocar el consentimiento** a cualquiera de las finalidades de esta sección, envíe un correo a `[CONFIRMAR: legal@quintakooxtanil.com]` indicando su nombre completo y la finalidad respecto de la cual desea manifestar su oposición.
+**Para oponerse o revocar el consentimiento** a cualquiera de las finalidades de esta sección, envíe un correo a quintakooxtanil@gmail.com indicando su nombre completo y la finalidad respecto de la cual desea manifestar su oposición.
 
 ---
 
@@ -126,7 +126,7 @@ Usted tiene derecho a:
 - **Cancelación:** solicitar que la eliminemos de nuestros registros cuando considere que no está siendo tratada conforme a los principios y deberes que impone la Ley.
 - **Oposición:** oponerse al uso de sus datos personales para finalidades específicas, incluyendo el tratamiento automatizado que le afecte significativamente.
 
-**Procedimiento.** Envíe su solicitud a `[CONFIRMAR: legal@quintakooxtanil.com]` con la siguiente información:
+**Procedimiento.** Envíe su solicitud a quintakooxtanil@gmail.com con la siguiente información:
 
 1. Nombre completo y un medio para comunicarle la respuesta.
 2. Copia de una identificación oficial vigente que acredite su identidad (o del representante legal, acompañada del documento que acredite la representación).
@@ -225,7 +225,7 @@ Si considera que su derecho a la protección de datos personales ha sido vulnera
 >
 > **Finalidades adicionales** (requieren su consentimiento y puede negarse sin afectar su contratación): envío de promociones, uso de su imagen con fines publicitarios y encuestas de satisfacción.
 >
-> Puede ejercer sus derechos ARCO, limitar el uso de sus datos o revocar su consentimiento escribiendo a `[CONFIRMAR: legal@quintakooxtanil.com]`.
+> Puede ejercer sus derechos ARCO, limitar el uso de sus datos o revocar su consentimiento escribiendo a quintakooxtanil@gmail.com.
 >
 > Consulte el **[Aviso de Privacidad integral](https://quintakooxtanil.com/aviso-de-privacidad)** para conocer las transferencias, los plazos de conservación y el uso de cookies.
 

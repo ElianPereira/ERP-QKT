@@ -1,7 +1,7 @@
 # POLÍTICA DE CANCELACIÓN Y REEMBOLSO
 
 **Quinta Ko'ox Tanil — Elian de Jesús Pereira Ceh**
-**Versión 2.0 — Vigente a partir del `[CONFIRMAR: DD]` de agosto de 2026**
+**Versión 2.0 — Vigente a partir del 31 de julio de 2026**
 
 > Esta política forma parte integrante de los [Términos y Condiciones](https://quintakooxtanil.com/terminos-y-condiciones). En caso de discrepancia con el contrato de prestación de servicios firmado, prevalecerá **la disposición más favorable al consumidor**.
 
@@ -33,7 +33,7 @@ Transcurrido el plazo del punto anterior, aplica la siguiente tabla, calculada s
 
 - La penalización se calcula sobre el **valor total del servicio**, no sobre lo pagado. Si lo pagado a la fecha es menor que la penalización aplicable, el cliente no tendrá derecho a reembolso y no se le exigirá el diferencial.
 - Si lo pagado excede la penalización aplicable, se reembolsará la diferencia conforme a la Sección 6.
-- La cancelación debe solicitarse **por escrito**, al correo `[CONFIRMAR: legal@quintakooxtanil.com]` o al WhatsApp `[CONFIRMAR: +52 999 XXX XXXX]`, tomando como fecha de cancelación **la de recepción de la solicitud**.
+- La cancelación debe solicitarse **por escrito**, al correo quintakooxtanil@gmail.com o al WhatsApp +52 999 445 7178, tomando como fecha de cancelación **la de recepción de la solicitud**.
 - Toda solicitud de cancelación será confirmada por escrito dentro de las 48 horas hábiles siguientes.
 
 ---
@@ -87,7 +87,7 @@ Ante un fenómeno meteorológico, incendio, sismo, inundación, disposición de 
 
 ## 7. Depósito en garantía
 
-El depósito en garantía, cuando aplique, se devuelve dentro de los **`[CONFIRMAR: 5]` días hábiles** posteriores al evento, descontando únicamente los daños documentados y los cargos por tiempo excedente previamente notificados, acompañados de desglose por escrito, evidencia fotográfica y valuación.
+El depósito en garantía, cuando aplique, se devuelve dentro de los **5 (cinco) días hábiles** posteriores al evento, descontando únicamente los daños documentados y los cargos por tiempo excedente previamente notificados, acompañados de desglose por escrito, evidencia fotográfica y valuación.
 
 ---
 
@@ -110,9 +110,9 @@ Esta sección aplica **únicamente a reservas contratadas directamente** con Qui
 
 Ante cualquier inconformidad con un cargo, contáctenos **antes** de iniciar un procedimiento de contracargo ante su banco. Atenderemos su aclaración en un plazo no mayor a **48 horas hábiles**.
 
-- Correo: `[CONFIRMAR: legal@quintakooxtanil.com]`
-- WhatsApp: `[CONFIRMAR: +52 999 XXX XXXX]`
-- Horario: `[CONFIRMAR: Lunes a sábado, 9:00 a 19:00 h]`
+- Correo: quintakooxtanil@gmail.com
+- WhatsApp: +52 999 445 7178
+- Horario: Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro)
 
 ---
 

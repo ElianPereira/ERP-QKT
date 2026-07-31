@@ -1,6 +1,6 @@
 # TÉRMINOS Y CONDICIONES
 
-**Versión 2.0 — Vigente a partir del `[CONFIRMAR: DD]` de agosto de 2026**
+**Versión 2.0 — Vigente a partir del 31 de julio de 2026**
 
 ---
 
@@ -12,16 +12,16 @@
 | **RFC** | PECE010202IA0 |
 | **Nombre comercial** | Quinta Ko'ox Tanil |
 | **Domicilio** | Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán, México |
-| **Correo electrónico** | `[CONFIRMAR: legal@quintakooxtanil.com]` |
-| **Teléfono / WhatsApp** | `[CONFIRMAR: +52 999 XXX XXXX]` |
-| **Horario de atención** | `[CONFIRMAR: Lunes a sábado, 9:00 a 19:00 h]` |
-| **Registro Público de Contratos de Adhesión (PROFECO)** | `[PENDIENTE: número de registro — ver nota 1]` |
+| **Correo electrónico** | quintakooxtanil@gmail.com |
+| **Teléfono / WhatsApp** | +52 999 445 7178 |
+| **Horario de atención** | Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro) |
+| **Registro Público de Contratos de Adhesión (PROFECO)** | 9341-2023 de fecha 31 de octubre de 2023 (Expediente PFC.B.E.7/009991-2023) para eventos y pasadías; 9339-2023 de fecha 31 de octubre de 2023 (Expediente PFC.B.E.7/009990-2023) para arrendamiento de mobiliario |
 
 > **Nota 1 (interna, eliminar antes de publicar):** conforme al numeral 5.1 de la **NOM-174-SCFI-2007**, el contrato de adhesión para servicios de eventos sociales debe registrarse ante PROFECO. Una vez obtenido el número, debe hacerse constar en el contrato y en esta página.
 
 **Domicilios de prestación del servicio:**
-- **Eventos, pasadías y arrendamiento de mobiliario:** `[CONFIRMAR: dirección completa de la quinta en Umán, Yucatán]`
-- **Hospedaje:** habitaciones dentro de Quinta Ko'ox Tanil y el inmueble denominado Honey Sea House, ubicado en `[CONFIRMAR: dirección]`.
+- **Eventos, pasadías y arrendamiento de mobiliario:** Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390
+- **Hospedaje:** habitaciones dentro de Quinta Ko'ox Tanil y el inmueble denominado Honey Sea House, ubicado en Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán.
 
 El uso de este sitio web y del portal de clientes implica la aceptación plena de los presentes Términos y Condiciones. Si no está de acuerdo con ellos, le solicitamos abstenerse de utilizar estos servicios.
 
@@ -77,7 +77,7 @@ Los alcances específicos de cada servicio se detallan en la cotización y en el
 
 1. Cuando exista un plan de pagos, el cliente se obliga a cubrir las parcialidades en las fechas límite establecidas en dicho plan.
 2. **El pago total debe completarse a más tardar 15 (quince) días naturales antes de la fecha del evento.**
-3. Los pagos realizados después de la fecha límite de cada parcialidad generarán una **pena convencional del `[CONFIRMAR: 3]`% mensual** sobre el monto vencido, calculada por días transcurridos. **Esta pena no podrá exceder, en su conjunto, el monto de la parcialidad vencida** que le dio origen.
+3. Los pagos realizados después de la fecha límite de cada parcialidad generarán una **pena convencional del 5% mensual** sobre el monto vencido, calculada por días transcurridos. **Esta pena no podrá exceder, en su conjunto, el monto de la parcialidad vencida** que le dio origen.
 4. El incumplimiento en el pago de dos parcialidades consecutivas faculta a Quinta Ko'ox Tanil a dar por cancelada la reserva, aplicando la política de cancelación vigente.
 
 ### 4.4 Contracargos y aclaraciones
@@ -113,7 +113,7 @@ En caso de discrepancia entre dicha política y el contrato de prestación de se
 5. **Confirmar el número final de personas con al menos 10 (diez) días naturales de anticipación.** Los incrementos superiores al 10% quedan sujetos a disponibilidad y pueden generar cargos adicionales previamente autorizados.
 6. Respetar el reglamento interno del inmueble y los horarios de ingreso y terminación contratados. Concluido el evento, el sonido debe apagarse puntualmente; se otorgan **30 minutos de margen** para el desmontaje y desalojo.
 7. Responder por los daños ocasionados a las instalaciones, mobiliario o equipo durante el evento, ya sea por sí, por sus invitados, por sus proveedores o por su organizador de eventos.
-8. Supervisar en todo momento a los menores de edad que asistan al evento, particularmente en el área de juegos, alberca y áreas exteriores. `[CONFIRMAR: incluir alberca solo si aplica]`
+8. Supervisar en todo momento a los menores de edad que asistan al evento, particularmente en el área de juegos, alberca y áreas exteriores.
 9. Obtener y exhibir los permisos correspondientes ante Protección Civil o SEDENA para el uso de pirotecnia, siendo el cliente, su organizador o sus proveedores los responsables legales de dicho uso.
 10. Verificar que sus proveedores cumplan con sus obligaciones obrero-patronales. Quinta Ko'ox Tanil no es responsable de las relaciones laborales del personal contratado por el cliente.
 
@@ -133,7 +133,7 @@ En caso de discrepancia entre dicha política y el contrato de prestación de se
 
 Cuando el contrato prevea un depósito en garantía:
 
-1. Se devolverá dentro de los **`[CONFIRMAR: 5]` días hábiles** posteriores a la conclusión del evento, por el mismo medio de pago utilizado.
+1. Se devolverá dentro de los **5 (cinco) días hábiles** posteriores a la conclusión del evento, por el mismo medio de pago utilizado.
 2. De dicho importe se descontarán únicamente los daños documentados a instalaciones, mobiliario o equipo, y los cargos por tiempo excedente previamente notificados al cliente.
 3. Los descuentos se acompañarán de un desglose por escrito con evidencia fotográfica y la valuación correspondiente, considerando el valor actual del bien y su depreciación por uso habitual.
 
@@ -144,7 +144,7 @@ Cuando el contrato prevea un depósito en garantía:
 Esta sección aplica exclusivamente a las reservas de hospedaje **contratadas directamente con Quinta Ko'ox Tanil** a través de este sitio o del portal de clientes.
 
 1. **Reservas por plataformas de terceros.** Las reservas realizadas a través de plataformas de hospedaje de terceros se rigen **íntegramente por los términos, condiciones y políticas de cancelación de dicha plataforma**, los cuales prevalecen sobre los presentes Términos y Condiciones.
-2. **Horarios.** Entrada a partir de las `[CONFIRMAR: 15:00]` h; salida a más tardar a las `[CONFIRMAR: 12:00]` h. Las salidas tardías no autorizadas generan un cargo equivalente a `[CONFIRMAR: una noche adicional]`.
+2. **Horarios.** Entrada a partir de las 14:00 h; salida a más tardar a las 10:00 h. Las salidas tardías no autorizadas generan un cargo equivalente a `[CONFIRMAR: una noche adicional]`.
 3. **Ocupación máxima.** La reserva ampara únicamente el número de huéspedes declarado. El ingreso de personas no declaradas puede generar cargos adicionales o la terminación de la estancia sin reembolso.
 4. **Registro de huéspedes.** Podrá solicitarse identificación oficial del huésped titular al momento del ingreso.
 5. **Política de cancelación de hospedaje.** Se rige por la sección específica de la [Política de Cancelación y Reembolso](https://quintakooxtanil.com/politica-de-cancelacion), distinta de la aplicable a eventos.
