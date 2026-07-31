@@ -859,7 +859,10 @@ class ItemCotizacion(models.Model):
     insumo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True)
     descripcion = models.CharField(max_length=255, blank=True)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
-    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
+                                          verbose_name="Precio unitario (sin IVA)",
+                                          help_text="Base gravable. El IVA se calcula sobre el subtotal "
+                                                    "en calcular_totales(), nunca por línea.")
     
     def clean(self):
         if not self.cotizacion_id or not self.producto_id:
