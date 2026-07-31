@@ -16,6 +16,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from .models import SolicitudFactura, ConfiguracionContador
 from decimal import Decimal
+from core_erp import impuestos
 from django.template.loader import render_to_string
 from django.core.files.base import ContentFile
 from weasyprint import HTML
@@ -35,12 +36,11 @@ def _generar_pdf_solicitud(solicitud):
     else:
         logo_url = f"file://{ruta_logo}"
 
-    total    = Decimal(str(solicitud.monto))
-    subtotal = (total / Decimal('1.16')).quantize(Decimal('0.01'))
-    iva      = (total - subtotal).quantize(Decimal('0.01'))
-    ret_isr  = Decimal('0.00')
-    if getattr(cliente, 'tipo_persona', None) == 'MORAL':
-        ret_isr = (subtotal * Decimal('0.0125')).quantize(Decimal('0.01'))
+    total = Decimal(str(solicitud.monto))
+    _d = impuestos.desglosar(
+        total, con_retencion_isr=(getattr(cliente, 'tipo_persona', None) == 'MORAL'),
+    )
+    subtotal, iva, ret_isr = _d['base'], _d['iva'], _d['ret_isr']
 
     context = {
         'solicitud':    solicitud,

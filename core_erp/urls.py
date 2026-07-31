@@ -1,4 +1,4 @@
-from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias, api_disponibilidad_fecha, api_fechas_ocupadas, api_productos_cotizador, api_paquetes_cotizador
+from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias, api_disponibilidad_fecha, api_fechas_ocupadas, api_productos_cotizador, api_paquetes_cotizador, api_total_cotizador
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -8,12 +8,13 @@ from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc, importar_historico_view
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
-from comercial.views_openpay import openpay_webhook_view, portal_procesar_pago_openpay
+from comercial.views_openpay import openpay_webhook_view, portal_procesar_pago_openpay, portal_retorno_3ds
 from airbnb.views import reporte_fiscal_airbnb
 
 from comercial.views_portal import (
 landing_publico, portal_acceso, portal_evento,
-portal_descargar_cotizacion, portal_descargar_plan, portal_descargar_contrato
+portal_descargar_cotizacion, portal_descargar_plan, portal_descargar_contrato,
+aviso_privacidad, terminos_condiciones
 )
 
 try:
@@ -125,6 +126,7 @@ urlpatterns = [
     path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
     path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),
     path('mi-evento/<str:token>/pagar-openpay/', portal_procesar_pago_openpay, name='portal_procesar_pago_openpay'),
+    path('mi-evento/<str:token>/pago-3ds/', portal_retorno_3ds, name='portal_retorno_3ds'),
 
     path('cotizar/', cotizador_publico, name='cotizador_publico'),
     path('cotizar/enviar/', cotizador_enviar, name='cotizador_enviar'),
@@ -133,12 +135,17 @@ urlpatterns = [
     path('api/fechas-ocupadas/', api_fechas_ocupadas, name='api_fechas_ocupadas'),
     path('api/cotizador/productos/', api_productos_cotizador, name='api_productos_cotizador'),
     path('api/cotizador/paquetes/', api_paquetes_cotizador, name='api_paquetes_cotizador'),
+    path('api/cotizador/total/', api_total_cotizador, name='api_total_cotizador'),
 
     # --- WEBHOOK OPENPAY (público, protegido con Basic Auth) ---
     path('pagos/openpay/webhook/', openpay_webhook_view, name='openpay_webhook'),
 
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),
+
+    # --- PÁGINAS LEGALES (públicas) ---
+    path('aviso-de-privacidad/', aviso_privacidad, name='aviso_privacidad'),
+    path('terminos-y-condiciones/', terminos_condiciones, name='terminos_condiciones'),
 
     # --- 7. RUTA RAÍZ — LANDING PÚBLICA ---
     path('', landing_publico, name='landing'),

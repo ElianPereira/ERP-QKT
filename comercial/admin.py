@@ -272,7 +272,7 @@ class ProductoAdmin(admin.ModelAdmin):
     )
 
     def costo_display(self, obj): return f"${obj.calcular_costo():,.2f}"
-    costo_display.short_description = "Costo"
+    costo_display.short_description = "Costo (sin IVA)"
     def precio_display(self, obj):
         precio = obj.sugerencia_precio()
         if obj.precio_venta_fijo is not None and obj.precio_venta_fijo > 0:
@@ -286,7 +286,7 @@ class ProductoAdmin(admin.ModelAdmin):
             'border-radius:10px;font-size:9px;font-weight:600;margin-left:4px;">CALC.</span>',
             f'{precio:,.2f}'
         )
-    precio_display.short_description = "Precio sugerido"
+    precio_display.short_description = "Precio sugerido (sin IVA)"
 
     def badge_cotizador(self, obj):
         if not obj.visible_cotizador:
@@ -501,7 +501,12 @@ class CotizacionAdmin(admin.ModelAdmin):
             'fields': ('insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_barman', 'insumo_auxiliar', 'insumo_alcohol_basico', 'insumo_alcohol_premium'),
             'classes': ('collapse',),
         }),
-        ('Finanzas', {'fields': ('subtotal', 'descuento', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final')}),
+        ('Finanzas', {
+            'fields': ('subtotal', 'descuento', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final'),
+            'description': 'Subtotal y descuento son BASE, sin IVA. '
+                           '<strong>Precio final es el total con IVA incluido</strong>: '
+                           'es el importe que se le exhibe y se le cobra al cliente.',
+        }),
         ('Cancelación', {'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'), 'classes': ('collapse',)}),
         ('Documentos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
     )

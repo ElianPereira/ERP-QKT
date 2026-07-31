@@ -13,6 +13,7 @@ Mejoras v2.0:
 """
 import logging
 from decimal import Decimal, ROUND_HALF_UP
+from core_erp import impuestos
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -268,7 +269,7 @@ def crear_poliza_comision_tpv(pago):
 
     comision_total = Decimal(str(comision_total)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     if cuenta_iva:
-        comision_neta = (comision_total / Decimal('1.16')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        comision_neta = impuestos.sin_iva(comision_total)
         iva = comision_total - comision_neta
     else:
         comision_neta = comision_total

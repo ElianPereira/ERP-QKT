@@ -101,6 +101,20 @@
             ¡Tu pago se realizó con éxito! Ya aparece abajo en "Pagos realizados".
         </div>
 
+        <!-- Resultado del retorno de 3D Secure (?pago=pendiente|rechazado|error) -->
+        <div id="banner-pago-pendiente" style="display:none; background:#FFF8E1; color:#8a6d3b; border:2px solid #e0b64d; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
+            <i class="fas fa-clock" style="font-size:22px;"></i>
+            Tu pago sigue en validación con tu banco. Si ya lo autorizaste, se reflejará aquí en unos minutos.
+        </div>
+        <div id="banner-pago-rechazado" style="display:none; background:#FFEBEE; color:#e74c3c; border:2px solid #e74c3c; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
+            <i class="fas fa-times-circle" style="font-size:22px;"></i>
+            Tu banco no autorizó el pago. Puedes intentarlo de nuevo con otra tarjeta u otro método.
+        </div>
+        <div id="banner-pago-error" style="display:none; background:#FFEBEE; color:#e74c3c; border:2px solid #e74c3c; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
+            <i class="fas fa-exclamation-circle" style="font-size:22px;"></i>
+            No pudimos confirmar tu pago. Si el cargo aparece en tu banco, contáctanos antes de volver a intentar.
+        </div>
+
         <!-- Estado -->
         {% with estado=cotizacion.estado %}
         <div class="estado-banner estado-{% if estado == 'CONFIRMADA' %}confirmada{% elif estado == 'COTIZADA' %}cotizada{% elif estado == 'ANTICIPO' %}anticipo{% elif estado == 'EN_PREPARACION' %}preparacion{% elif estado == 'EJECUTADA' %}ejecutada{% elif estado == 'CERRADA' %}cerrada{% else %}borrador{% endif %}">
@@ -124,6 +138,9 @@
                     <div class="valor">${{ saldo_pendiente|floatformat:2 }}</div>
                     <div class="label">Saldo pendiente</div>
                 </div>
+            </div>
+            <div style="font-size:11px; color:#8a8780; margin-top:8px; text-align:center;">
+                Precios en MXN, IVA incluido
             </div>
             
             <!-- Barra de progreso -->
@@ -201,6 +218,7 @@
         {% if parcialidades %}
         <div class="card">
             <div class="card-title"><i class="fas fa-calendar-check"></i> Plan de pagos</div>
+            <div style="font-size:11px; color:#8a8780; margin:-8px 0 12px;">Importes en MXN, IVA incluido</div>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -263,6 +281,7 @@
             <p style="font-size:13px; color:#8a8780; margin-bottom:14px;">
                 Paga con tarjeta, en efectivo (tiendas de conveniencia) o por transferencia SPEI.
                 Tu pago se refleja automáticamente en este portal.
+                <br><strong>Precios en MXN, IVA incluido.</strong>
             </p>
 
             <div class="btn-grid" id="metodo-selector" style="margin-bottom:14px;">
@@ -291,6 +310,38 @@
                 </div>
 
                 <div id="campos-tarjeta" style="display:none;">
+                    <!-- Marcas aceptadas + procesador (requisito de certificación Openpay) -->
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; background:#f8f8f6; border:1px solid #ece9e2; border-radius:8px; margin-bottom:10px;">
+                        <span style="font-size:11px; color:#8a8780; font-weight:600;">Aceptamos</span>
+                        <!-- Visa -->
+                        <svg viewBox="0 0 48 32" width="42" height="28" role="img" aria-label="Visa">
+                            <rect width="48" height="32" rx="4" fill="#fff" stroke="#e0ddd3"/>
+                            <path d="M20.6 21.2h-2.5l1.6-9.6h2.5l-1.6 9.6zM16 11.6l-2.4 6.6-.3-1.4-.8-4.3s-.1-.9-1.2-.9H7.4l-.1.2s1.2.2 2.7 1.1l2.2 8.3h2.6l4-9.6H16zM38.2 21.2h2.3l-2-9.6h-2c-.9 0-1.2.7-1.2.7l-3.8 8.9h2.6l.5-1.4h3.2l.4 1.4zm-2.8-3.4l1.3-3.6.7 3.6h-2zM31.4 13.9l.4-2.1s-1.1-.4-2.3-.4c-1.3 0-4.3.6-4.3 3.2 0 2.5 3.5 2.5 3.5 3.8 0 1.3-3.1 1.1-4.2.3l-.4 2.2s1.1.5 2.9.5c1.7 0 4.3-.9 4.3-3.3 0-2.5-3.5-2.7-3.5-3.8 0-1.1 2.4-1 3.6-.4z" fill="#1434CB"/>
+                        </svg>
+                        <!-- Mastercard -->
+                        <svg viewBox="0 0 48 32" width="42" height="28" role="img" aria-label="Mastercard">
+                            <rect width="48" height="32" rx="4" fill="#fff" stroke="#e0ddd3"/>
+                            <circle cx="19" cy="16" r="8" fill="#EB001B"/>
+                            <circle cx="29" cy="16" r="8" fill="#F79E1B"/>
+                            <path d="M24 9.8a8 8 0 000 12.4 8 8 0 000-12.4z" fill="#FF5F00"/>
+                        </svg>
+                        <!-- American Express -->
+                        <svg viewBox="0 0 48 32" width="42" height="28" role="img" aria-label="American Express">
+                            <rect width="48" height="32" rx="4" fill="#006FCF"/>
+                            <path d="M9.9 13.2l-3 6.8h2l.6-1.4h3l.6 1.4h2l-3-6.8H9.9zm.3 4l.9-2.1.9 2.1h-1.8zM16.3 20v-6.8h3.2l1.7 4.4 1.7-4.4h3.2V20h-1.9v-4.7L22.4 20h-1.6l-1.8-4.7V20h-2.7zM28 20v-6.8h5.9v1.6h-4v1h3.9v1.5h-3.9v1.1h4V20H28zM35.4 20v-6.8h4c1.5 0 2.4.8 2.4 2 0 .9-.5 1.6-1.3 1.8l1.6 3h-2.2l-1.4-2.7h-1.2V20h-1.9zm1.9-4.2h1.9c.5 0 .8-.3.8-.7s-.3-.7-.8-.7h-1.9v1.4z" fill="#fff"/>
+                        </svg>
+                        <span style="flex:1"></span>
+                        <span style="display:flex; align-items:center; gap:5px; font-size:11px; color:#8a8780;">
+                            <i class="fas fa-lock" style="color:#2E7D32;"></i> Procesado por
+                            <!-- Openpay -->
+                            <svg viewBox="0 0 92 20" width="78" height="17" role="img" aria-label="Openpay">
+                                <circle cx="9" cy="9.5" r="7" fill="none" stroke="#1B3D6D" stroke-width="3.2"/>
+                                <circle cx="9" cy="9.5" r="3.1" fill="#00B0A5"/>
+                                <text x="19" y="14.5" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#1B3D6D">pen</text>
+                                <text x="47" y="14.5" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#00B0A5">pay</text>
+                            </svg>
+                        </span>
+                    </div>
                     <input type="text" data-openpay-card="card_number" autocomplete="cc-number" placeholder="Número de tarjeta" maxlength="16"
                            style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; margin-bottom:8px; font-family:inherit; font-size:14px;">
                     <input type="text" data-openpay-card="holder_name" autocomplete="cc-name" placeholder="Nombre en la tarjeta"
@@ -397,6 +448,11 @@
     <div class="footer">
         <strong>Quinta Ko'ox Tanil</strong> — Mérida, Yucatán<br>
         Haciendo tus eventos inolvidables
+        <div style="margin-top:10px; font-size:12.5px;">
+            <a href="{% url 'aviso_privacidad' %}" target="_blank" style="color:#2E7D32; text-decoration:none; font-weight:600;">Aviso de Privacidad</a>
+            <span style="opacity:.5; margin:0 6px;">·</span>
+            <a href="{% url 'terminos_condiciones' %}" target="_blank" style="color:#2E7D32; text-decoration:none; font-weight:600;">Términos y Condiciones</a>
+        </div>
     </div>
 
     {% if openpay_habilitado and saldo_pendiente > 0 %}
@@ -530,6 +586,14 @@
         fetch("{% url 'portal_procesar_pago_openpay' portal.token %}", {
             method: 'POST', body: body,
         }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.ok && data.redirect_3ds) {
+                // 3D Secure: el cargo aún NO se cobró. Se manda al cliente a
+                // autenticarse con su banco; Openpay lo regresa a /pago-3ds/,
+                // que consulta el resultado final y crea el Pago.
+                mostrarResultado('info', 'Te estamos llevando con tu banco para validar el pago. No cierres esta ventana…');
+                window.location.href = data.redirect_3ds;
+                return;
+            }
             document.getElementById('btn-pagar').disabled = false;
             if (data.ok && data.referencia) {
                 mostrarReferencia(data);
@@ -569,15 +633,101 @@
         div.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
+    function formatearVencimiento(iso) {
+        if (!iso) return '';
+        var d = new Date(iso.replace(' ', 'T'));
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString('es-MX', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        }) + ' a las ' + d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function filaCopiable(etiqueta, valor) {
+        var id = 'cp-' + etiqueta.replace(/[^a-z]/gi, '').toLowerCase();
+        return '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #ece9e2;">' +
+               '<div><div style="font-size:11px; color:#8a8780;">' + etiqueta + '</div>' +
+               '<div id="' + id + '" style="font-weight:700; font-size:15px; letter-spacing:.5px;">' + valor + '</div></div>' +
+               '<button type="button" class="btn-copiar" data-target="' + id + '" ' +
+               'style="background:#f0efe9; border:1px solid #e0ddd3; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:12px; font-family:inherit; white-space:nowrap;">' +
+               '<i class="fas fa-copy"></i> Copiar</button></div>';
+    }
+
     function mostrarReferencia(data) {
         var div = document.getElementById('referencia-pago');
         div.style.display = 'block';
-        var html = '<p style="font-weight:600; margin-bottom:8px;">Realiza tu pago con estos datos. Se confirmará automáticamente en este portal cuando se reciba.</p>';
-        if (data.bank) html += '<p><strong>Banco:</strong> ' + data.bank + '</p>';
-        if (data.clabe) html += '<p><strong>CLABE:</strong> ' + data.clabe + '</p>';
-        if (data.reference) html += '<p><strong>Referencia:</strong> ' + data.reference + '</p>';
-        if (data.barcode_url) html += '<img src="' + data.barcode_url + '" alt="Código de barras" style="max-width:100%; margin-top:8px;">';
+        var esEfectivo = data.metodo === 'store';
+
+        var html = '<div style="border-bottom:2px solid #2E7D32; padding-bottom:8px; margin-bottom:10px;">' +
+                   '<span style="font-weight:700; font-size:15px; color:#2E7D32;">' +
+                   '<i class="fas ' + (esEfectivo ? 'fa-store' : 'fa-university') + '"></i> ' +
+                   (esEfectivo ? 'Ficha para pago en efectivo' : 'Datos para transferencia SPEI') +
+                   '</span></div>';
+
+        html += '<div style="background:#fff; border-radius:8px; padding:10px 12px; margin-bottom:10px;">';
+        html += filaCopiable('Monto exacto a pagar', '$' + data.monto + ' MXN');
+        if (data.bank) html += filaCopiable('Banco', data.bank);
+        if (data.clabe) html += filaCopiable('CLABE interbancaria', data.clabe);
+        if (data.agreement) html += filaCopiable('Convenio CIE', data.agreement);
+        if (data.reference) html += filaCopiable(esEfectivo ? 'Referencia' : 'Concepto / Referencia', data.reference);
+        html += '<div style="padding:8px 0;"><div style="font-size:11px; color:#8a8780;">Beneficiario</div>' +
+                '<div style="font-weight:700; font-size:15px;">' + (data.comercio || '') + '</div></div>';
+        html += '</div>';
+
+        if (data.due_date) {
+            html += '<div style="background:#FFF8E1; color:#8a6d3b; border:1px solid #e0b64d; border-radius:8px; padding:10px 12px; margin-bottom:10px; font-size:13px;">' +
+                    '<i class="fas fa-clock"></i> <strong>Vigencia:</strong> paga antes del ' +
+                    formatearVencimiento(data.due_date) + '. Después de esa fecha la referencia deja de ser válida ' +
+                    'y tendrás que generar una nueva.</div>';
+        }
+
+        if (data.barcode_url) {
+            html += '<div style="text-align:center; background:#fff; border-radius:8px; padding:12px; margin-bottom:10px;">' +
+                    '<img src="' + data.barcode_url + '" alt="Código de barras para pago en efectivo" style="max-width:100%;">' +
+                    '<div style="font-size:11px; color:#8a8780; margin-top:6px;">Muestra este código en la caja</div></div>';
+        }
+
+        html += '<div style="font-size:13px; line-height:1.7;">';
+        if (esEfectivo) {
+            html += '<p style="font-weight:600; margin-bottom:4px;">¿Cómo pagar?</p><ol style="margin:0 0 8px 18px; padding:0;">' +
+                    '<li>Acude a una tienda afiliada a la red <strong>Paynet</strong>.</li>' +
+                    '<li>Indica en caja que harás un <strong>pago de servicio Paynet</strong>.</li>' +
+                    '<li>Muestra el código de barras o dicta la referencia.</li>' +
+                    '<li>Paga el monto exacto y <strong>conserva tu comprobante</strong>.</li></ol>' +
+                    '<p style="font-size:12px; color:#8a8780;">Disponible en OXXO, 7-Eleven, Farmacias Guadalajara, Farmacias Benavides, ' +
+                    'Circle K, Extra, Waldo\'s, Soriana y demás tiendas de la red Paynet. ' +
+                    'La tienda puede cobrar una comisión adicional por el servicio.</p>';
+        } else {
+            html += '<p style="font-weight:600; margin-bottom:4px;">¿Cómo pagar?</p><ol style="margin:0 0 8px 18px; padding:0;">' +
+                    '<li>Entra a tu banca en línea o app bancaria.</li>' +
+                    '<li>Registra la CLABE de arriba como nueva cuenta destino.</li>' +
+                    '<li>Haz una transferencia <strong>SPEI</strong> por el monto exacto.</li>' +
+                    '<li>Guarda tu comprobante de transferencia.</li></ol>' +
+                    '<p style="font-size:12px; color:#8a8780;">Esta CLABE es de un solo uso y corresponde únicamente a este pago. ' +
+                    'No la reutilices para pagos futuros.</p>';
+        }
+        html += '<p style="margin-top:8px; padding-top:8px; border-top:1px solid #ece9e2; font-size:12px; color:#8a8780;">' +
+                '<i class="fas fa-info-circle"></i> Tu pago se confirmará automáticamente en este portal. ' +
+                (esEfectivo ? 'Los pagos en efectivo suelen reflejarse en pocos minutos.'
+                            : 'Las transferencias SPEI suelen reflejarse en menos de una hora, según tu banco.') +
+                '</p></div>';
+
+        html += '<button type="button" onclick="window.print()" class="btn btn-outline" ' +
+                'style="border:1px solid #e0ddd3; cursor:pointer; margin-top:10px; padding:8px 16px; font-size:13px;">' +
+                '<i class="fas fa-print"></i> Imprimir o guardar como PDF</button>';
+
         div.innerHTML = html;
+
+        div.querySelectorAll('.btn-copiar').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var texto = document.getElementById(btn.dataset.target).textContent.trim();
+                navigator.clipboard.writeText(texto.replace(/^\$|\sMXN$/g, '')).then(function() {
+                    var original = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+                    setTimeout(function() { btn.innerHTML = original; }, 1500);
+                });
+            });
+        });
+
         div.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     </script>
@@ -590,9 +740,19 @@
     // Se limpia el parámetro de la URL para que un refresh no lo repita.
     (function() {
         var params = new URLSearchParams(window.location.search);
-        if (params.get('pago') === 'exitoso') {
-            var banner = document.getElementById('banner-pago-exitoso');
-            if (banner) banner.style.display = 'flex';
+        var BANNERS = {
+            exitoso: 'banner-pago-exitoso',
+            pendiente: 'banner-pago-pendiente',
+            rechazado: 'banner-pago-rechazado',
+            error: 'banner-pago-error',
+        };
+        var idBanner = BANNERS[params.get('pago')];
+        if (idBanner) {
+            var banner = document.getElementById(idBanner);
+            if (banner) {
+                banner.style.display = 'flex';
+                banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
             params.delete('pago');
             var limpia = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
             window.history.replaceState(null, '', limpia);

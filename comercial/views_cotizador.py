@@ -20,6 +20,7 @@ import requests
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from core_erp import impuestos
 
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -515,6 +516,54 @@ def api_productos_cotizador(request):
     return JsonResponse({'ok': True, 'grupos': list(grupos_dict.values())})
 
 
+def api_total_cotizador(request):
+    """GET /api/cotizador/total/?paquete=<id>&extras=<id,id>&personas=<n>
+
+    Total con IVA de la selección, calculado EN EL SERVIDOR.
+
+    El navegador nunca suma importes: si convirtiera cada línea a IVA incluido y
+    las sumara, el resultado diferiría en centavos del que produce
+    `Cotizacion.calcular_totales()`, que convierte una sola vez sobre el
+    subtotal. Aquí se replica exactamente esa aritmética —y las mismas
+    cantidades que usa `cotizador_enviar`— para que el número exhibido sea el
+    que se va a cobrar.
+    """
+    try:
+        num_personas = int(request.GET.get('personas', '50'))
+    except ValueError:
+        num_personas = 50
+    if num_personas < 1:
+        num_personas = 1
+
+    bases = []
+
+    paquete_id = request.GET.get('paquete', '')
+    if str(paquete_id).isdigit():
+        paq = Producto.objects.filter(id=int(paquete_id), visible_cotizador=True,
+                                      es_paquete=True).first()
+        if paq:
+            bases.append(Decimal(str(paq.sugerencia_precio())))
+
+    extras_raw = request.GET.get('extras', '')
+    extras_ids = [int(x) for x in extras_raw.split(',') if x.strip().isdigit()]
+    if extras_ids:
+        for prod in Producto.objects.filter(id__in=extras_ids, visible_cotizador=True,
+                                            es_paquete=False):
+            qty = 1
+            if prod.cantidad_por_persona and prod.factor_personas > 0:
+                qty = math.ceil(num_personas / prod.factor_personas)
+            bases.append(Decimal(str(prod.sugerencia_precio())) * Decimal(qty))
+
+    # Una sola conversión, sobre la suma de las bases (nunca por línea).
+    total = impuestos.total_desde_bases(bases)
+    return JsonResponse({
+        'ok': True,
+        'total': str(total),
+        'total_formateado': f"${total:,.2f}",
+        'leyenda': 'Precios en MXN, IVA incluido',
+    })
+
+
 def api_paquetes_cotizador(request):
     """GET /api/cotizador/paquetes/?servicio=EVENTO&personas=100
     Devuelve paquetes (Producto con es_paquete=True) visibles en el cotizador,
@@ -540,16 +589,14 @@ def api_paquetes_cotizador(request):
         # Precio mostrado en el portal CON IVA (16%) incluido, para que
         # coincida con el total del PDF. El item real se crea con el precio
         # sin IVA (sugerencia_precio) y calcular_totales() le suma el 16%.
-        precio_con_iva = (paq.sugerencia_precio() * Decimal('1.16')).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
+        precio_con_iva = impuestos.con_iva(Decimal(str(paq.sugerencia_precio())))
         resultado.append({
             'id': paq.id,
             'nombre': paq.nombre,
             'icono': paq.icono,
             'descripcion': paq.descripcion_corta,
             'descripcion_larga': paq.descripcion,
-            'precio': float(precio_con_iva),
+            'precio': str(precio_con_iva),
         })
 
     return JsonResponse({'ok': True, 'paquetes': resultado})

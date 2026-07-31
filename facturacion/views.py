@@ -1,5 +1,6 @@
 import os
 from decimal import Decimal
+from core_erp import impuestos
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -71,19 +72,17 @@ def crear_solicitud(request):
             subtotal = total
             iva = Decimal('0.00')
             ret_isr = Decimal('0.00')
-            
+
             if cliente.es_cliente_fiscal:
-                factor_divisor = Decimal('1.16')
-                if cliente.tipo_persona == 'MORAL':
-                    # Si es Moral: Total = Subtotal * (1 + 0.16 - 0.0125) = 1.1475
-                    factor_divisor = Decimal('1.1475') 
-                    subtotal = total / factor_divisor
-                    iva = subtotal * Decimal('0.16')
-                    ret_isr = subtotal * Decimal('0.0125')
-                else:
-                    # Si es Física: Total = Subtotal * 1.16
-                    subtotal = total / factor_divisor
-                    iva = subtotal * Decimal('0.16')
+                # El desglose lo hace el módulo central: antes se calculaba aquí
+                # con factores propios y SIN redondear, así que llegaban valores
+                # de precisión arbitraria al contexto del PDF.
+                d = impuestos.desglosar(
+                    total, con_retencion_isr=(cliente.tipo_persona == 'MORAL'),
+                )
+                subtotal = d['base']
+                iva = d['iva']
+                ret_isr = d['ret_isr']
 
             context = {
                 'solicitud': solicitud,

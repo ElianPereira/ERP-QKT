@@ -5,7 +5,7 @@ Ejecutar: python manage.py test comercial.test_openpay --verbosity=2
 """
 import base64
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
@@ -17,7 +17,7 @@ from comercial.models import (
 )
 from comercial.services_openpay import (
     procesar_webhook_openpay, procesar_cargo_tarjeta, procesar_cargo_efectivo,
-    procesar_cargo_spei, reembolsar_cargo_openpay,
+    procesar_cargo_spei, reembolsar_cargo_openpay, consultar_y_confirmar_cargo,
 )
 
 WEBHOOK_USER = 'openpay-test-user'
@@ -227,6 +227,203 @@ class CargoTarjetaTest(TestCase):
         self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
         # El intento fallido queda registrado para auditoría
         self.assertEqual(OpenpayTransaccion.objects.filter(cotizacion=cotizacion, procesado=False).count(), 1)
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_tarjeta_robada_loggea_motivo_explicito_pero_no_lo_muestra(self, mock_post):
+        """Certificación Openpay: el log debe traer el motivo real del rechazo;
+        el cliente sigue viendo un mensaje genérico por seguridad."""
+        mock_post.return_value = MagicMock(status_code=402, json=lambda: {
+            'error_code': 3004, 'description': 'The card was declined - stolen card',
+            'request_id': 'req-robada-001', 'category': 'gateway',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok119', 'dev119')
+        salida = '\n'.join(logs.output)
+
+        # El log trae el motivo explícito, el código, la descripción y el request_id
+        self.assertIn('3004', salida)
+        self.assertIn('robada', salida.lower())
+        self.assertIn('stolen card', salida)
+        self.assertIn('req-robada-001', salida)
+
+        # Pero al cliente NO se le filtra la descripción cruda de Openpay
+        self.assertFalse(resultado['ok'])
+        self.assertNotIn('The card was declined - stolen card', resultado['mensaje'])
+        self.assertNotIn('req-robada-001', resultado['mensaje'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_antifraude_loggea_motivo_explicito_pero_no_lo_muestra(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=402, json=lambda: {
+            'error_code': 3005, 'description': 'The card was declined by the fraud system',
+            'request_id': 'req-fraude-001', 'category': 'gateway',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok044', 'dev044')
+        salida = '\n'.join(logs.output)
+
+        self.assertIn('3005', salida)
+        self.assertIn('ANTIFRAUDE', salida)
+        self.assertIn('fraud system', salida)
+
+        self.assertFalse(resultado['ok'])
+        # No se filtra la descripción cruda en inglés ni el request_id.
+        # (Ojo: el mensaje en español dice "antifraude", que contiene "fraud"
+        # como subcadena — por eso se compara contra el texto real de Openpay.)
+        self.assertNotIn('The card was declined by the fraud system', resultado['mensaje'])
+        self.assertNotIn('req-fraude-001', resultado['mensaje'])
+        # El motivo explícito también queda persistido para auditoría
+        registro = OpenpayTransaccion.objects.get(cotizacion=cotizacion)
+        self.assertIn('ANTIFRAUDE', registro.error_detalle)
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_cargo_failed_con_http_200_tambien_se_loggea(self, mock_post):
+        """Openpay puede rechazar con HTTP 200 y status 'failed'."""
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-failed-001', 'status': 'failed', 'error_code': 3001,
+            'description': 'The issuing bank declined the operation',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tokf', 'devf')
+        salida = '\n'.join(logs.output)
+
+        self.assertIn('NO COMPLETADO', salida)
+        self.assertIn('failed', salida)
+        self.assertIn('declined', salida)
+
+        self.assertFalse(resultado['ok'])
+        # No se filtra el estado interno de Openpay al cliente
+        self.assertNotIn('failed', resultado['mensaje'].lower())
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_rechazo_de_efectivo_tambien_se_loggea(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=400, json=lambda: {
+            'error_code': 1001, 'description': 'The order_id has already been processed',
+            'request_id': 'req-store-001',
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        salida = '\n'.join(logs.output)
+
+        self.assertIn('store', salida)
+        self.assertIn('already been processed', salida)
+        self.assertFalse(resultado['ok'])
+        self.assertNotIn('already been processed', resultado['mensaje'])
+
+
+class TresDSecureTest(TestCase):
+    """Certificación Openpay: el cargo con tarjeta debe pasar por 3D Secure
+    y solo autorizarse DESPUÉS de que el cliente se autentique con su banco."""
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_manda_use_3d_secure_y_redirect_url(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds001', 'status': 'charge_pending',
+            'payment_method': {'type': 'redirect', 'url': 'https://sandbox-api.openpay.mx/3ds/tx3ds001'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_tarjeta(
+            cotizacion, Decimal('500.00'), 'tok3ds', 'dev3ds',
+            redirect_url='https://erp.quintakooxtanil.com/mi-evento/abc/pago-3ds/',
+        )
+        payload = mock_post.call_args.kwargs['json']
+        self.assertTrue(payload['use_3d_secure'])
+        self.assertEqual(payload['redirect_url'], 'https://erp.quintakooxtanil.com/mi-evento/abc/pago-3ds/')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_charge_pending_no_crea_pago_y_devuelve_url_de_redireccion(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds002', 'status': 'charge_pending',
+            'payment_method': {'type': 'redirect', 'url': 'https://sandbox-api.openpay.mx/3ds/tx3ds002'},
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_tarjeta(
+            cotizacion, Decimal('500.00'), 'tok3ds', 'dev3ds', redirect_url='https://x/retorno/',
+        )
+        self.assertTrue(resultado['ok'])
+        self.assertEqual(resultado['redirect_3ds'], 'https://sandbox-api.openpay.mx/3ds/tx3ds002')
+        # Clave: el cargo AÚN NO se cobró, así que no debe existir el Pago
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+        self.assertFalse(OpenpayTransaccion.objects.get(openpay_id='tx3ds002').procesado)
+
+    @patch('comercial.services_openpay.requests.get')
+    @patch('comercial.services_openpay.requests.post')
+    def test_retorno_3ds_completado_crea_el_pago(self, mock_post, mock_get):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds003', 'status': 'charge_pending',
+            'payment_method': {'type': 'redirect', 'url': 'https://op/3ds'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok', 'dev', redirect_url='https://x/r/')
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+        # El cliente vuelve del banco: ahora el cargo sí está autorizado
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds003', 'status': 'completed', 'amount': 500.00,
+            'authorization': '801585',
+        })
+        resultado = consultar_y_confirmar_cargo(cotizacion, 'tx3ds003')
+        self.assertTrue(resultado['ok'])
+        self.assertTrue(Pago.objects.filter(cotizacion=cotizacion, referencia='tx3ds003').exists())
+        registro = OpenpayTransaccion.objects.get(openpay_id='tx3ds003')
+        self.assertTrue(registro.procesado)
+        self.assertEqual(registro.estado_openpay, 'completed')
+
+    @patch('comercial.services_openpay.requests.get')
+    def test_retorno_3ds_es_idempotente(self, mock_get):
+        """Recargar la página de retorno no debe duplicar el Pago."""
+        cotizacion = _crear_cotizacion()
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds004', 'status': 'completed', 'amount': 500.00,
+        })
+        consultar_y_confirmar_cargo(cotizacion, 'tx3ds004')
+        consultar_y_confirmar_cargo(cotizacion, 'tx3ds004')
+        self.assertEqual(Pago.objects.filter(cotizacion=cotizacion, referencia='tx3ds004').count(), 1)
+
+    @patch('comercial.services_openpay.requests.get')
+    def test_retorno_3ds_rechazado_no_crea_pago_ni_filtra_el_motivo(self, mock_get):
+        cotizacion = _crear_cotizacion()
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds005', 'status': 'failed', 'amount': 500.00,
+            'error_code': 3005, 'description': 'The card was declined by the fraud system',
+        })
+        with self.assertLogs('comercial.services_openpay', level='WARNING') as logs:
+            resultado = consultar_y_confirmar_cargo(cotizacion, 'tx3ds005')
+        self.assertFalse(resultado['ok'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+        # El motivo real solo en el log, nunca al cliente
+        self.assertIn('fraud system', '\n'.join(logs.output))
+        self.assertNotIn('The card was declined by the fraud system', resultado['mensaje'])
+
+    @patch('comercial.services_openpay.requests.get')
+    def test_retorno_3ds_sigue_pendiente(self, mock_get):
+        cotizacion = _crear_cotizacion()
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds006', 'status': 'charge_pending', 'amount': 500.00,
+        })
+        with self.assertLogs('comercial.services_openpay', level='WARNING'):
+            resultado = consultar_y_confirmar_cargo(cotizacion, 'tx3ds006')
+        self.assertFalse(resultado['ok'])
+        self.assertTrue(resultado['pendiente'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_charge_pending_sin_url_es_error_controlado(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds007', 'status': 'charge_pending', 'payment_method': {},
+        })
+        cotizacion = _crear_cotizacion()
+        with self.assertLogs('comercial.services_openpay', level='ERROR'):
+            resultado = procesar_cargo_tarjeta(
+                cotizacion, Decimal('500.00'), 'tok', 'dev', redirect_url='https://x/r/',
+            )
+        self.assertFalse(resultado['ok'])
+        self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
 
 
 class CargoEfectivoSpeiTest(TestCase):
@@ -463,3 +660,103 @@ class ComisionOpenpayTest(TestCase):
         poliza = Poliza.objects.filter(origen='COMISION_OPENPAY', object_id=registro.pk).first()
         self.assertIsNotNone(poliza)
         self.assertEqual(sum(m.haber for m in poliza.movimientos.all()), Decimal('19.72'))
+
+
+class PaginasLegalesTest(TestCase):
+    """Certificación Openpay: el sitio y el portal deben publicar Aviso de
+    Privacidad y Términos y Condiciones, con mención expresa de Openpay."""
+
+    def test_aviso_privacidad_publico(self):
+        response = self.client.get(reverse('aviso_privacidad'), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Aviso de Privacidad')
+        self.assertContains(response, 'Openpay')
+
+    def test_terminos_mencionan_openpay_con_el_texto_requerido(self):
+        response = self.client.get(reverse('terminos_condiciones'), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Las transacciones ser')
+        self.assertContains(response, 'pasarela de Openpay')
+
+    def test_portal_enlaza_las_paginas_legales(self):
+        cotizacion = _crear_cotizacion()
+        portal = PortalCliente.objects.get(cotizacion=cotizacion)
+        response = self.client.get(reverse('portal_evento', args=[portal.token]), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('aviso_privacidad'))
+        self.assertContains(response, reverse('terminos_condiciones'))
+
+
+class DueDateReferenciaTest(TestCase):
+    """La referencia de efectivo/SPEI debe llevar fecha de vencimiento."""
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_efectivo_manda_due_date(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'txdd001', 'status': 'in_progress',
+            'payment_method': {'reference': 'REF001'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        payload = mock_post.call_args.kwargs['json']
+        self.assertIn('due_date', payload)
+        # Formato ISO 8601 que espera Openpay
+        datetime.strptime(payload['due_date'], '%Y-%m-%dT%H:%M:%S')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_spei_manda_due_date_y_no_excede_la_fecha_del_evento(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'txdd002', 'status': 'in_progress',
+            'payment_method': {'clabe': '646180111812345678'},
+        })
+        # Evento mañana: la referencia no puede vencer después del evento
+        cotizacion = _crear_cotizacion()
+        cotizacion.fecha_evento = date.today() + timedelta(days=1)
+        cotizacion.save()
+
+        procesar_cargo_spei(cotizacion, Decimal('500.00'))
+        payload = mock_post.call_args.kwargs['json']
+        vence = datetime.strptime(payload['due_date'], '%Y-%m-%dT%H:%M:%S').date()
+        self.assertLessEqual(vence, cotizacion.fecha_evento)
+
+
+class ConsistenciaPreciosTest(TestCase):
+    """I1: el precio exhibido es exactamente el que se cobra."""
+
+    def test_total_del_cotizador_coincide_con_precio_final(self):
+        from core_erp import impuestos
+        cotizacion = _crear_cotizacion(monto_items=Decimal('100.05'))
+        # El total que el endpoint del cotizador exhibiría para esa misma base
+        base = Decimal(cotizacion.subtotal) - Decimal(cotizacion.descuento)
+        exhibido = impuestos.total_desde_bases([base])
+        self.assertEqual(exhibido, cotizacion.precio_final)
+
+    def test_tres_items_de_100_05_sin_desviacion_visible(self):
+        from core_erp import impuestos
+        cliente = Cliente.objects.create(nombre='Cliente 3x', tipo_persona='FISICA')
+        cot = Cotizacion.objects.create(
+            cliente=cliente, nombre_evento='Tres lineas',
+            fecha_evento=date.today() + timedelta(days=30), incluye_refrescos=False,
+        )
+        for i in range(3):
+            ItemCotizacion.objects.create(
+                cotizacion=cot, descripcion=f'Linea {i}',
+                cantidad=1, precio_unitario=Decimal('100.05'),
+            )
+        cot.save(); cot.refresh_from_db()
+        base = Decimal(cot.subtotal) - Decimal(cot.descuento)
+        self.assertEqual(impuestos.total_desde_bases([base]), cot.precio_final)
+        # Y difiere de sumar linea por linea, que es justo lo que se evita
+        por_linea = sum(impuestos.con_iva(Decimal('100.05')) for _ in range(3))
+        self.assertNotEqual(por_linea, cot.precio_final)
+
+    def test_monto_enviado_a_openpay_es_el_saldo_exhibido(self):
+        cotizacion = _crear_cotizacion()
+        portal = PortalCliente.objects.get(cotizacion=cotizacion)
+        response = self.client.get(reverse('portal_evento', args=[portal.token]), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['saldo_pendiente'], cotizacion.saldo_pendiente()
+        )
+        # Es el mismo valor que alimenta el data-max del campo de monto
+        self.assertContains(response, 'IVA incluido')
