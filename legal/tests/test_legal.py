@@ -291,3 +291,71 @@ class SeedTest(TestCase):
             clave='MARKETING', requiere_consentimiento=True).exists())
         self.assertTrue(Finalidad.objects.filter(
             clave='OPERACION', requiere_consentimiento=False).exists())
+
+
+class RenderMarkdownTest(TestCase):
+    """El cliente debe ver el documento formateado, no el Markdown crudo."""
+
+    def test_convierte_encabezados_tablas_y_listas(self):
+        doc = _doc(TipoDocumento.TERMINOS, contenido=(
+            "# TÍTULO\n\n**Versión 2.0**\n\n---\n\n"
+            "## 1. Sección\n\nUn párrafo con **negritas**.\n\n"
+            "| Concepto | Dato |\n|---|---|\n| RFC | PECE010202IA0 |\n\n"
+            "- primer punto\n- segundo punto\n"
+        ))
+        html = doc.render_html()
+        self.assertIn('<h2>', html)
+        self.assertIn('<table>', html)
+        self.assertIn('<td>PECE010202IA0</td>', html)
+        self.assertIn('<li>primer punto</li>', html)
+        self.assertIn('<strong>negritas</strong>', html)
+        # Nada de sintaxis cruda a la vista
+        self.assertNotIn('## 1.', html)
+        self.assertNotIn('|---|', html)
+        self.assertNotIn('**negritas**', html)
+
+    def test_omite_el_encabezado_que_ya_muestra_la_portada(self):
+        doc = _doc(TipoDocumento.TERMINOS, contenido=(
+            "# TÉRMINOS Y CONDICIONES\n\n**Versión 2.0 — Vigente desde hoy**\n\n"
+            "---\n\n## 1. Objeto\n\nTexto.\n"
+        ))
+        html = doc.render_html()
+        self.assertNotIn('TÉRMINOS Y CONDICIONES', html)
+        self.assertNotIn('Vigente desde hoy', html)
+        self.assertIn('1. Objeto', html)
+
+    def test_la_pagina_publica_entrega_html_formateado(self):
+        _doc(TipoDocumento.AVISO_PRIVACIDAD, contenido=(
+            "# AVISO\n\n## 1. Responsable\n\n| Concepto | Dato |\n|---|---|\n"
+            "| RFC | PECE010202IA0 |\n"
+        ))
+        r = self.client.get(reverse('legal:aviso_privacidad'), secure=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, '<table>')
+        self.assertContains(r, 'PECE010202IA0')
+        self.assertNotContains(r, '|---|')
+
+
+class DocumentosSinNotasInternasTest(TestCase):
+    """Los archivos que se publican no deben traer instrucciones de redacción."""
+
+    FRASES_INTERNAS = (
+        'eliminar antes de publicar',
+        'Eliminar si no hay',
+        'deben acompañar al formulario',
+        'Para señalización física',
+        'Para mostrar en formularios',
+        'ajustar estos porcentajes',
+    )
+
+    def test_ningun_documento_publicable_trae_notas_internas(self):
+        from pathlib import Path
+        import legal
+        directorio = Path(legal.__file__).parent / 'documentos_iniciales'
+        for ruta in sorted(directorio.glob('*.md')):
+            contenido = ruta.read_text(encoding='utf-8')
+            for frase in self.FRASES_INTERNAS:
+                self.assertNotIn(
+                    frase, contenido,
+                    f"{ruta.name} contiene la instrucción interna {frase!r}",
+                )
