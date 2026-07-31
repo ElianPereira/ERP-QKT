@@ -950,11 +950,30 @@ function construirResumen() {
 // El total SIEMPRE lo calcula el servidor. El navegador no suma importes: si
 // convirtiera cada línea a IVA incluido y las sumara, el resultado diferiría en
 // centavos del que produce calcular_totales() al crear la cotización.
+// Duracion del evento en horas, replicando el calculo del backend para que el
+// total exhibido incluya las horas extra que se van a cobrar.
+function horasEvento() {
+  if (servicioSel === 'PASADIA') return 9;
+  var hi = document.getElementById('hora_inicio');
+  var hf = document.getElementById('hora_fin');
+  if (!hi || !hf || !hi.value || !hf.value) return 6;
+  var a = hi.value.split(':'), b = hf.value.split(':');
+  var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
+  var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
+  if (fin <= ini) fin += 24 * 60;
+  return Math.max(6, Math.floor((fin - ini) / 60));
+}
+
 async function cargarTotal() {
   var cont = document.getElementById('resumen-total');
   if (!cont) return;
   var el = document.getElementById('personas');
-  var params = new URLSearchParams({ personas: (el && el.value) || '50' });
+  var params = new URLSearchParams({
+    personas: (el && el.value) || '50',
+    servicio: servicioSel || '',
+    // Mismo criterio que el backend: minimo 6h, y Pasadia son 9h fijas.
+    horas: String(horasEvento()),
+  });
   if (paqueteSel) params.set('paquete', paqueteSel);
   if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
   try {
