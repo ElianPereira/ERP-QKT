@@ -54,6 +54,20 @@ Detalle de modelos/rutas/convenciones completo → `PROJECT_CONTEXT.md`.
 Hooks automáticos (ruff autofix, tests por app, confirmación en `.env` y
 código de pagos) → `.claude/settings.json`.
 
+## Planificación mediante GitHub Issues
+
+Durante la fase de planificación, Claude debe limitarse a analizar el problema,
+identificar dependencias, riesgos y archivos relevantes, y diseñar un plan
+ejecutable. Debe publicar ese plan en un GitHub Issue usando la plantilla de
+implementación, con alcance incluido y excluido, pasos concretos, criterios de
+aceptación verificables y comandos de validación disponibles en el repositorio.
+
+Claude no debe implementar código ni modificar archivos del producto durante
+esta fase. La implementación comienza únicamente después de que el Issue tenga
+un plan suficientemente preciso para que Codex pueda ejecutarlo; cualquier
+incertidumbre o decisión que requiera intervención humana debe quedar explícita
+en el Issue.
+
 ## Memoria
 
 Registro de decisiones técnicas y errores resueltos. Formato:
