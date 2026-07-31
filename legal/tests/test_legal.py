@@ -214,3 +214,27 @@ class VistasPublicasTest(TestCase):
         """No deben romperse los enlaces ya publicados."""
         self.assertEqual(reverse('legal:aviso_privacidad'), '/aviso-de-privacidad/')
         self.assertEqual(reverse('legal:terminos'), '/terminos-y-condiciones/')
+
+    def test_publicar_version_nueva_se_ve_de_inmediato(self):
+        """El cache no debe tapar una corrección legal.
+
+        Con `cache_page` la clave es la URL, así que la versión anterior
+        seguiría sirviéndose hasta una hora después de publicar la corrección.
+        La clave incluye el hash del contenido justamente para evitarlo."""
+        _doc(TipoDocumento.AVISO_PRIVACIDAD, version='1.0', contenido='Texto viejo')
+        r1 = self.client.get(reverse('legal:aviso_privacidad'), secure=True)
+        self.assertContains(r1, 'Texto viejo')
+
+        _doc(TipoDocumento.AVISO_PRIVACIDAD, version='2.0', contenido='Texto corregido')
+        r2 = self.client.get(reverse('legal:aviso_privacidad'), secure=True)
+        self.assertContains(r2, 'Texto corregido')
+        self.assertNotContains(r2, 'Texto viejo')
+
+    def test_despublicar_da_404_aunque_estuviera_cacheado(self):
+        doc = _doc(TipoDocumento.TERMINOS, contenido='Terminos vigentes')
+        self.assertEqual(
+            self.client.get(reverse('legal:terminos'), secure=True).status_code, 200)
+
+        DocumentoLegal.objects.filter(pk=doc.pk).update(vigente=False)
+        self.assertEqual(
+            self.client.get(reverse('legal:terminos'), secure=True).status_code, 404)
