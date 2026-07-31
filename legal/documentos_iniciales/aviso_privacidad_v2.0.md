@@ -160,7 +160,7 @@ Conservamos sus datos personales durante la vigencia de la relación contractual
 | Registros contables, fiscales y CFDI | **5 años**, conforme al artículo 30 del Código Fiscal de la Federación |
 | Datos relativos al incumplimiento de obligaciones contractuales | **72 meses** a partir de la fecha del incumplimiento, conforme al artículo 10 de la Ley |
 | Contratos y expedientes de servicio | 5 años posteriores a la conclusión del servicio |
-| Imágenes de videovigilancia | `[CONFIRMAR: 30 días naturales]`, salvo que se requieran para una investigación o procedimiento |
+| Imágenes de videovigilancia | 14 días naturales, salvo que se requieran para una investigación o procedimiento |
 | Datos de contacto para fines promocionales | Hasta que usted revoque su consentimiento |
 
 Concluidos dichos plazos, los datos son bloqueados y posteriormente suprimidos conforme a la normativa vigente.
@@ -242,5 +242,5 @@ Si considera que su derecho a la protección de datos personales ha sido vulnera
 *(Para señalización física en accesos. Eliminar si no hay cámaras.)*
 
 > **AVISO DE PRIVACIDAD**
-> Este inmueble cuenta con circuito cerrado de televisión. Las imágenes son captadas por **Elian de Jesús Pereira Ceh (Quinta Ko'ox Tanil)** con la única finalidad de garantizar la seguridad de las personas, las instalaciones y los bienes, y se conservan por `[CONFIRMAR: 30]` días naturales.
+> Este inmueble cuenta con circuito cerrado de televisión. Las imágenes son captadas por **Elian de Jesús Pereira Ceh (Quinta Ko'ox Tanil)** con la única finalidad de garantizar la seguridad de las personas, las instalaciones y los bienes, y se conservan por 14 días naturales.
 > Aviso de Privacidad integral: **quintakooxtanil.com/aviso-de-privacidad**

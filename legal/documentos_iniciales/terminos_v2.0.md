@@ -17,8 +17,6 @@
 | **Horario de atención** | Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro) |
 | **Registro Público de Contratos de Adhesión (PROFECO)** | 9341-2023 de fecha 31 de octubre de 2023 (Expediente PFC.B.E.7/009991-2023) para eventos y pasadías; 9339-2023 de fecha 31 de octubre de 2023 (Expediente PFC.B.E.7/009990-2023) para arrendamiento de mobiliario |
 
-> **Nota 1 (interna, eliminar antes de publicar):** conforme al numeral 5.1 de la **NOM-174-SCFI-2007**, el contrato de adhesión para servicios de eventos sociales debe registrarse ante PROFECO. Una vez obtenido el número, debe hacerse constar en el contrato y en esta página.
-
 **Domicilios de prestación del servicio:**
 - **Eventos, pasadías y arrendamiento de mobiliario:** Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390
 - **Hospedaje:** habitaciones dentro de Quinta Ko'ox Tanil y el inmueble denominado Honey Sea House, ubicado en Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán.
@@ -144,7 +142,7 @@ Cuando el contrato prevea un depósito en garantía:
 Esta sección aplica exclusivamente a las reservas de hospedaje **contratadas directamente con Quinta Ko'ox Tanil** a través de este sitio o del portal de clientes.
 
 1. **Reservas por plataformas de terceros.** Las reservas realizadas a través de plataformas de hospedaje de terceros se rigen **íntegramente por los términos, condiciones y políticas de cancelación de dicha plataforma**, los cuales prevalecen sobre los presentes Términos y Condiciones.
-2. **Horarios.** Entrada a partir de las 14:00 h; salida a más tardar a las 10:00 h. Las salidas tardías no autorizadas generan un cargo equivalente a `[CONFIRMAR: una noche adicional]`.
+2. **Horarios.** Entrada a partir de las 14:00 h; salida a más tardar a las 10:00 h. Las salidas tardías no autorizadas generan un cargo equivalente a una noche adicional.
 3. **Ocupación máxima.** La reserva ampara únicamente el número de huéspedes declarado. El ingreso de personas no declaradas puede generar cargos adicionales o la terminación de la estancia sin reembolso.
 4. **Registro de huéspedes.** Podrá solicitarse identificación oficial del huésped titular al momento del ingreso.
 5. **Política de cancelación de hospedaje.** Se rige por la sección específica de la [Política de Cancelación y Reembolso](https://quintakooxtanil.com/politica-de-cancelacion), distinta de la aplicable a eventos.

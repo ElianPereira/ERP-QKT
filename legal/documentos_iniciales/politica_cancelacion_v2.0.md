@@ -102,8 +102,6 @@ Esta sección aplica **únicamente a reservas contratadas directamente** con Qui
 | **Menos de 7 días naturales o no presentación** | **0%** |
 | **Caso fortuito o fuerza mayor documentado** | **100%** |
 
-`[CONFIRMAR: ajustar estos porcentajes si manejas otra política de hospedaje]`
-
 ---
 
 ## 9. Aclaraciones y contracargos
