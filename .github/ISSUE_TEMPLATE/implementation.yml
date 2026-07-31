@@ -1,0 +1,94 @@
+name: Plan de implementación
+description: Define un plan ejecutable para que Codex implemente y valide el cambio.
+title: "[Implementación]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Esta plantilla corresponde a la fase de análisis y planificación.
+        Claude debe completarla sin implementar código; Codex implementará
+        únicamente cuando el plan sea ejecutable.
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo
+      description: Describe el resultado que debe conseguirse.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto y problema actual
+      description: Explica la situación actual, el problema y su impacto.
+    validations:
+      required: true
+  - type: textarea
+    id: included_scope
+    attributes:
+      label: Alcance incluido
+      description: Enumera exactamente qué debe cambiar.
+    validations:
+      required: true
+  - type: textarea
+    id: excluded_scope
+    attributes:
+      label: Alcance excluido
+      description: Enumera lo que no debe modificarse en esta implementación.
+    validations:
+      required: true
+  - type: textarea
+    id: relevant_files
+    attributes:
+      label: Archivos o componentes relevantes
+      description: Identifica rutas, módulos, modelos, vistas, servicios o integraciones afectados.
+    validations:
+      required: true
+  - type: textarea
+    id: implementation_plan
+    attributes:
+      label: Plan de implementación
+      description: Detalla pasos ordenados, concretos y ejecutables por Codex.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Criterios de aceptación verificables
+      description: Incluye una lista comprobable de resultados esperados.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: required_validations
+    attributes:
+      label: Validaciones requeridas
+      description: Indica los comandos existentes que deben ejecutarse y cualquier revisión manual.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Riesgos y restricciones
+      description: Documenta seguridad, compatibilidad, datos, migraciones y límites de alcance.
+    validations:
+      required: true
+  - type: textarea
+    id: codex_notes
+    attributes:
+      label: Notas para Codex
+      description: Añade decisiones, supuestos o instrucciones necesarias para implementar el plan.
+    validations:
+      required: true
+  - type: checkboxes
+    id: planning_confirmation
+    attributes:
+      label: Confirmación de planificación
+      options:
+        - label: El Issue contiene un plan ejecutable y Claude no implementó código durante esta fase.
+          required: true

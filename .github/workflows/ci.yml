@@ -28,6 +28,13 @@ jobs:
         run: ruff check .
         continue-on-error: true
 
+      - name: Run Django checks
+        env:
+          SECRET_KEY: ci-test-secret-key-not-for-production
+          DEBUG: 'True'
+          ALLOWED_HOSTS: '*'
+        run: python manage.py check
+
       - name: Run tests with coverage
         env:
           SECRET_KEY: ci-test-secret-key-not-for-production
