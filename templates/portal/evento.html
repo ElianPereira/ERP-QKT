@@ -172,7 +172,7 @@
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:right;">P. Unit.</th><th style="text-align:right;">Subtotal</th></tr>
+                        <tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:right;">P. Unit.<br><span style="font-weight:400; text-transform:none; letter-spacing:0;">(sin IVA)</span></th><th style="text-align:right;">Subtotal<br><span style="font-weight:400; text-transform:none; letter-spacing:0;">(sin IVA)</span></th></tr>
                     </thead>
                     <tbody>
                         {% for item in items %}
@@ -211,6 +211,9 @@
             {% endif %}
             <div style="text-align:right; padding:10px 12px; font-size:18px; font-weight:700; color:#2E7D32; border-top:2px solid #E8F5E9;">
                 Total: ${{ cotizacion.precio_final|floatformat:2 }}
+            </div>
+            <div style="text-align:right; padding:0 12px 4px; font-size:11px; color:#8a8780;">
+                Total en MXN, IVA incluido. Es el importe a pagar.
             </div>
         </div>
         
