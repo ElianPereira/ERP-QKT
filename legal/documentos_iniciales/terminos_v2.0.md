@@ -54,7 +54,7 @@ Los alcances específicos de cada servicio se detallan en la cotización y en el
 
 ## 4. Pagos y medios de pago
 
-Las transacciones se procesan a través de la pasarela de pagos de **OPENPAY, S.A.P.I. de C.V.**
+**Las transacciones serán efectuadas mediante la pasarela de Openpay.** Las transacciones se procesan a través de la pasarela de pagos de **OPENPAY, S.A.P.I. de C.V.**
 
 ### 4.1 Medios de pago disponibles en el portal de clientes
 
