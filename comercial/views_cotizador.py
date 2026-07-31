@@ -279,77 +279,45 @@ def cotizador_enviar(request):
             pass
 
     # ── Items según servicio ──────────────────────────────────────────────────────────────
+    # La composición de las líneas vive en _lineas_cotizador(), compartida con
+    # api_total_cotizador(): así el total que se le exhibió al cliente antes de
+    # enviar es exactamente el de la cotización que se crea aquí.
+    extras_ids = [int(x) for x in extras_ids_raw if str(x).isdigit()]
+    lineas = _lineas_cotizador(
+        servicio=servicio,
+        paquete_id=paquete_id,
+        extras_ids=extras_ids,
+        num_personas=num_personas,
+        horas_evento=horas_evento,
+        tipo_ev=tipo_ev,
+    )
+    for prod, qty, desc in lineas:
+        _agregar_item(cotizacion, prod, qty, desc)
+
+    # Resumen legible para el aviso interno
     if paquete_seleccionado:
-        _agregar_item(cotizacion, paquete_seleccionado, 1,
-            f"{paquete_seleccionado.nombre} ({num_personas} Pax, {horas_evento}hrs)")
         resumen_partes.append(paquete_seleccionado.nombre)
-
-        if servicio == 'EVENTO' and horas_evento > 6:
-            horas_extra = horas_evento - 6
-            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
-                    or _buscar_producto_por_nombre('Hora Extra'))
-            if prod:
-                _agregar_item(cotizacion, prod, horas_extra,
-                    f"Horas Extra de Arrendamiento ({horas_extra} hrs adicionales)")
-                resumen_partes.append(f"+{horas_extra}hrs")
-
-        barra = []
-        if inc_cerveza:    barra.append("Cerveza")
-        if inc_nacional:   barra.append("Nacional")
-        if inc_premium:    barra.append("Premium")
-        if inc_cocteleria: barra.append("Coctelería")
-        if inc_mixologia:  barra.append("Mixología")
-        if barra:
-            resumen_partes.append("Barra(" + "/".join(barra) + ")")
-
     elif servicio == 'EVENTO':
-        prod = _buscar_producto_por_nombre('Paquete Esencial')
-        if prod:
-            _agregar_item(cotizacion, prod, 1,
-                f"Paquete Esencial QKT — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)")
-            resumen_partes.append("Paquete Esencial")
-
-        if horas_evento > 6:
-            horas_extra = horas_evento - 6
-            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
-                    or _buscar_producto_por_nombre('Hora Extra'))
-            if prod:
-                _agregar_item(cotizacion, prod, horas_extra,
-                    f"Horas Extra de Arrendamiento ({horas_extra} hrs adicionales)")
-                resumen_partes.append(f"+{horas_extra}hrs")
-
-        barra = []
-        if inc_cerveza:    barra.append("Cerveza")
-        if inc_nacional:   barra.append("Nacional")
-        if inc_premium:    barra.append("Premium")
-        if inc_cocteleria: barra.append("Coctelería")
-        if inc_mixologia:  barra.append("Mixología")
-        if barra:
-            resumen_partes.append("Barra(" + "/".join(barra) + ")")
-
+        resumen_partes.append("Paquete Esencial")
     elif servicio == 'PASADIA':
-        prod = (_buscar_producto_por_nombre('Pastadía')
-                or _buscar_producto_por_nombre('Pasadia'))
-        if prod:
-            _agregar_item(cotizacion, prod, 1,
-                f"Paquete Pastadía QKT ({num_personas} Pax, 10am-7pm)")
-            resumen_partes.append("Pastadía")
-
+        resumen_partes.append("Pastadía")
     elif servicio == 'ARRENDAMIENTO':
         resumen_partes.append("Arrendamiento de Mobiliario")
 
-    # ── Extras dinámicos (productos marcados visible_cotizador) ───
-    extras_ids = [int(x) for x in extras_ids_raw if str(x).isdigit()]
-    if extras_ids:
-        productos_extra = Producto.objects.filter(
-            id__in=extras_ids, visible_cotizador=True,
-        )
-        for prod in productos_extra:
-            qty = 1
-            if prod.cantidad_por_persona and prod.factor_personas > 0:
-                qty = math.ceil(num_personas / prod.factor_personas)
-            desc = f"{prod.nombre} ({num_personas} Pax)" if prod.cantidad_por_persona else None
-            _agregar_item(cotizacion, prod, qty, desc)
+    if servicio in ('EVENTO',) and horas_evento > 6:
+        resumen_partes.append(f"+{horas_evento - 6}hrs")
+
+    barra = []
+    if inc_cerveza:    barra.append("Cerveza")
+    if inc_nacional:   barra.append("Nacional")
+    if inc_premium:    barra.append("Premium")
+    if inc_cocteleria: barra.append("Coctelería")
+    if inc_mixologia:  barra.append("Mixología")
+    if barra and servicio == 'EVENTO':
+        resumen_partes.append("Barra(" + "/".join(barra) + ")")
+
+    for prod, _qty, _desc in lineas:
+        if prod.id in extras_ids:
             resumen_partes.append(prod.nombre)
 
     # ── Descuentos automáticos ───────────────────────────────────────────────────────────
@@ -516,43 +484,100 @@ def api_productos_cotizador(request):
     return JsonResponse({'ok': True, 'grupos': list(grupos_dict.values())})
 
 
-def api_total_cotizador(request):
-    """GET /api/cotizador/total/?paquete=<id>&extras=<id,id>&personas=<n>
-
-    Total con IVA de la selección, calculado EN EL SERVIDOR.
-
-    El navegador nunca suma importes: si convirtiera cada línea a IVA incluido y
-    las sumara, el resultado diferiría en centavos del que produce
-    `Cotizacion.calcular_totales()`, que convierte una sola vez sobre el
-    subtotal. Aquí se replica exactamente esa aritmética —y las mismas
-    cantidades que usa `cotizador_enviar`— para que el número exhibido sea el
-    que se va a cobrar.
+def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_evento,
+                      tipo_ev='Evento General'):
     """
-    try:
-        num_personas = int(request.GET.get('personas', '50'))
-    except ValueError:
-        num_personas = 50
-    if num_personas < 1:
-        num_personas = 1
+    Lista de (producto, cantidad, descripcion) que compone una cotización del
+    cotizador público.
 
-    bases = []
+    Es la ÚNICA definición de qué se cobra: la usan tanto `cotizador_enviar`
+    (que crea los ItemCotizacion reales) como `api_total_cotizador` (que
+    exhibe el total al cliente antes de enviar). Si las dos calcularan la
+    lista por separado, el total exhibido podría quedar por debajo del
+    cobrado, que es justo lo que prohíbe el art. 7 BIS de la LFPC.
+    """
+    lineas = []
 
-    paquete_id = request.GET.get('paquete', '')
-    if str(paquete_id).isdigit():
-        paq = Producto.objects.filter(id=int(paquete_id), visible_cotizador=True,
-                                      es_paquete=True).first()
-        if paq:
-            bases.append(Decimal(str(paq.sugerencia_precio())))
+    paquete = None
+    if paquete_id and str(paquete_id).isdigit():
+        paquete = Producto.objects.filter(
+            id=int(paquete_id), es_paquete=True, visible_cotizador=True,
+        ).first()
 
-    extras_raw = request.GET.get('extras', '')
-    extras_ids = [int(x) for x in extras_raw.split(',') if x.strip().isdigit()]
+    if paquete:
+        lineas.append((paquete, 1,
+                       f"{paquete.nombre} ({num_personas} Pax, {horas_evento}hrs)"))
+        if servicio == 'EVENTO' and horas_evento > 6:
+            extra = horas_evento - 6
+            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
+                    or _buscar_producto_por_nombre('Hora Extra'))
+            if prod:
+                lineas.append((prod, extra,
+                               f"Horas Extra de Arrendamiento ({extra} hrs adicionales)"))
+
+    elif servicio == 'EVENTO':
+        prod = _buscar_producto_por_nombre('Paquete Esencial')
+        if prod:
+            lineas.append((prod, 1,
+                           f"Paquete Esencial QKT — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)"))
+        if horas_evento > 6:
+            extra = horas_evento - 6
+            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
+                    or _buscar_producto_por_nombre('Hora Extra'))
+            if prod:
+                lineas.append((prod, extra,
+                               f"Horas Extra de Arrendamiento ({extra} hrs adicionales)"))
+
+    elif servicio == 'PASADIA':
+        prod = (_buscar_producto_por_nombre('Pastadía')
+                or _buscar_producto_por_nombre('Pasadia'))
+        if prod:
+            lineas.append((prod, 1,
+                           f"Paquete Pastadía QKT ({num_personas} Pax, 10am-7pm)"))
+
     if extras_ids:
-        for prod in Producto.objects.filter(id__in=extras_ids, visible_cotizador=True,
-                                            es_paquete=False):
+        for prod in Producto.objects.filter(id__in=extras_ids, visible_cotizador=True):
             qty = 1
             if prod.cantidad_por_persona and prod.factor_personas > 0:
                 qty = math.ceil(num_personas / prod.factor_personas)
-            bases.append(Decimal(str(prod.sugerencia_precio())) * Decimal(qty))
+            desc = f"{prod.nombre} ({num_personas} Pax)" if prod.cantidad_por_persona else None
+            lineas.append((prod, qty, desc))
+
+    return lineas
+
+
+def api_total_cotizador(request):
+    """GET /api/cotizador/total/?servicio=&paquete=&extras=&personas=&horas=
+
+    Total con IVA de la selección, calculado EN EL SERVIDOR con exactamente las
+    mismas líneas que creará `cotizador_enviar` (ver `_lineas_cotizador`).
+
+    El navegador nunca suma importes: si convirtiera cada línea a IVA incluido
+    y las sumara, el resultado diferiría en centavos del que produce
+    `Cotizacion.calcular_totales()`, que convierte una sola vez sobre el
+    subtotal.
+    """
+    def _entero(clave, defecto):
+        try:
+            return int(request.GET.get(clave, defecto))
+        except (TypeError, ValueError):
+            return defecto
+
+    num_personas = max(1, _entero('personas', 50))
+    horas_evento = max(1, _entero('horas', 6))
+    servicio = (request.GET.get('servicio') or '').upper()
+    extras_ids = [int(x) for x in (request.GET.get('extras') or '').split(',')
+                  if x.strip().isdigit()]
+
+    lineas = _lineas_cotizador(
+        servicio=servicio,
+        paquete_id=request.GET.get('paquete'),
+        extras_ids=extras_ids,
+        num_personas=num_personas,
+        horas_evento=horas_evento,
+    )
+    bases = [Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
+             for prod, qty, _ in lineas]
 
     # Una sola conversión, sobre la suma de las bases (nunca por línea).
     total = impuestos.total_desde_bases(bases)
@@ -561,6 +586,7 @@ def api_total_cotizador(request):
         'total': str(total),
         'total_formateado': f"${total:,.2f}",
         'leyenda': 'Precios en MXN, IVA incluido',
+        'lineas': len(lineas),
     })
 
 

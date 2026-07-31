@@ -760,3 +760,85 @@ class ConsistenciaPreciosTest(TestCase):
         )
         # Es el mismo valor que alimenta el data-max del campo de monto
         self.assertContains(response, 'IVA incluido')
+
+
+class TotalCotizadorCoincideTest(TestCase):
+    """El total exhibido en el cotizador debe ser EXACTAMENTE el de la
+    cotización que se crea al enviar (art. 7 BIS LFPC: el precio exhibido es
+    el precio cobrado)."""
+
+    def _crear_producto(self, nombre, precio, **kw):
+        from comercial.models import Producto
+        return Producto.objects.create(
+            nombre=nombre, precio_venta_fijo=Decimal(precio),
+            visible_cotizador=True, cotizador_evento=True, **kw
+        )
+
+    def test_endpoint_incluye_las_horas_extra(self):
+        """Regresion: el endpoint solo sumaba paquete + extras, y omitia las
+        horas extra que si se cobran, exhibiendo un total MENOR al cobrado."""
+        from comercial.views_cotizador import _lineas_cotizador
+        paquete = self._crear_producto('Paquete Test', '10000.00', es_paquete=True)
+        self._crear_producto('Hora Extra De Arrendamiento', '1000.00')
+
+        sin_extra = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[],
+            num_personas=50, horas_evento=6,
+        )
+        con_extra = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[],
+            num_personas=50, horas_evento=9,
+        )
+        self.assertEqual(len(sin_extra), 1)
+        self.assertEqual(len(con_extra), 2, 'faltan las horas extra en el total')
+        self.assertEqual(con_extra[1][1], 3, 'deben ser 3 horas extra')
+
+    def test_ruta_personalizar_incluye_el_paquete_esencial(self):
+        """Sin paquete elegido, EVENTO agrega Paquete Esencial automaticamente:
+        el total exhibido debe contemplarlo."""
+        from comercial.views_cotizador import _lineas_cotizador
+        self._crear_producto('Paquete Esencial', '5000.00')
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=None, extras_ids=[],
+            num_personas=50, horas_evento=6,
+        )
+        self.assertEqual(len(lineas), 1)
+        self.assertEqual(lineas[0][0].nombre, 'Paquete Esencial')
+
+    def test_pasadia_incluye_su_paquete(self):
+        from comercial.views_cotizador import _lineas_cotizador
+        p = self._crear_producto('Pasadia', '3000.00')
+        p.cotizador_pasadia = True; p.save()
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=50, horas_evento=9,
+        )
+        self.assertEqual(len(lineas), 1)
+
+    def test_total_exhibido_igual_al_precio_final(self):
+        """La prueba de fuego: el total del endpoint == precio_final real."""
+        from core_erp import impuestos
+        from comercial.views_cotizador import _lineas_cotizador
+        paquete = self._crear_producto('Paquete Bodas', '104681.04', es_paquete=True)
+        extra = self._crear_producto('Mobiliario', '1045.00')
+
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[extra.id],
+            num_personas=50, horas_evento=6,
+        )
+        bases = [Decimal(str(pr.sugerencia_precio())) * Decimal(q) for pr, q, _ in lineas]
+        exhibido = impuestos.total_desde_bases(bases)
+
+        # Se crea la cotizacion con esas mismas lineas
+        cliente = Cliente.objects.create(nombre='Cliente 7BIS', tipo_persona='FISICA')
+        cot = Cotizacion.objects.create(
+            cliente=cliente, nombre_evento='Bodas',
+            fecha_evento=date.today() + timedelta(days=60), incluye_refrescos=False,
+        )
+        for prod, qty, _desc in lineas:
+            ItemCotizacion.objects.create(
+                cotizacion=cot, producto=prod, descripcion=prod.nombre,
+                cantidad=Decimal(qty), precio_unitario=Decimal(str(prod.sugerencia_precio())),
+            )
+        cot.save(); cot.refresh_from_db()
+        self.assertEqual(exhibido, cot.precio_final)
