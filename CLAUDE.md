@@ -31,20 +31,24 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad airbnb facturacion nomina` |
+| Test completo (= CI) | `python manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 
-**Estructura clave** (8 apps Django):
+**Estructura clave** (9 apps Django):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
   desde `comercial`), conciliación bancaria.
 - `airbnb/`, `nomina/`, `facturacion/`, `comunicacion/`, `reportes/` — un
   dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
-- `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting.
+- `legal/` — versionado de documentos legales (SHA-256, una sola versión
+  vigente por tipo), evidencia de consentimiento y bitácora ARCO.
+- `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
+  (fuente única del IVA y las retenciones: fuera de ahí no debe existir
+  ningún `0.16` / `1.16` / `0.0125`).
 
 Detalle de modelos/rutas/convenciones completo → `PROJECT_CONTEXT.md`.
 Hooks automáticos (ruff autofix, tests por app, confirmación en `.env` y
@@ -56,6 +60,22 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-07-31 — Módulo `legal`: los documentos se sirven desde BD con
+  versionado e integridad SHA-256. Las rutas `/aviso-de-privacidad/` y
+  `/terminos-y-condiciones/` se conservaron para no romper enlaces ya
+  publicados. Un documento con marcadores `[CONFIRMAR:]`/`[PENDIENTE:]` no
+  se puede publicar (candado en `save()`, en `clean()` y en el seed).
+- 2026-07-31 — Precios con IVA incluido (art. 7 BIS LFPC). `core_erp/
+  impuestos.py` es la fuente única; había **siete** implementaciones del 16%,
+  no cuatro. Hallazgos: `calcular_totales()` no redondeaba (lo hacía Django
+  con ROUND_HALF_EVEN al guardar); el empate `.005` es **inalcanzable** para
+  el IVA con base de 2 decimales (`1.6N` siempre par) pero **sí alcanzable**
+  para la retención de ISR de personas morales. Correr
+  `manage.py auditar_precios_iva` en producción para medir el impacto.
+- 2026-07-31 — `desglosar()` no puede cumplir `iva == round(base*tasa)` exacto
+  para ~14% de los importes (la función base→total salta valores). Se permite
+  1 centavo de holgura en el IVA, que es la tolerancia real del SAT.
 
 - 2026-07-26 — Se evaluó instalar `claude-mem` (memoria de terceros vía
   hooks) → descartado: guarda datos en `~/.claude-mem` (no en el repo, no

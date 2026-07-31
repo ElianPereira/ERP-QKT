@@ -13,8 +13,7 @@ from airbnb.views import reporte_fiscal_airbnb
 
 from comercial.views_portal import (
 landing_publico, portal_acceso, portal_evento,
-portal_descargar_cotizacion, portal_descargar_plan, portal_descargar_contrato,
-aviso_privacidad, terminos_condiciones
+portal_descargar_cotizacion, portal_descargar_plan, portal_descargar_contrato
 )
 
 try:
@@ -144,8 +143,10 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # --- PÁGINAS LEGALES (públicas) ---
-    path('aviso-de-privacidad/', aviso_privacidad, name='aviso_privacidad'),
-    path('terminos-y-condiciones/', terminos_condiciones, name='terminos_condiciones'),
+    # Sirven desde el módulo `legal`, que versiona el contenido en base de datos
+    # y guarda el SHA-256 de cada versión. Las rutas se conservan para no romper
+    # los enlaces ya publicados (footers, correos, BBVA/Openpay).
+    path('', include('legal.urls')),
 
     # --- 7. RUTA RAÍZ — LANDING PÚBLICA ---
     path('', landing_publico, name='landing'),

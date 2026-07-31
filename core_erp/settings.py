@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'contabilidad',
     'reportes',
     'comunicacion',
+    'legal',
 ]
 
 # --- Cabeceras de seguridad por ruta. Ver core_erp/middleware.py ---

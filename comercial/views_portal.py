@@ -242,27 +242,3 @@ def portal_descargar_contrato(request, token):
         raise Http404("No hay contrato disponible.")
     
     return redirect(contrato.archivo.url)
-
-# ==========================================
-# PÁGINAS LEGALES (públicas)
-# ==========================================
-# Requisito de la certificación de Openpay: el sitio y el portal deben
-# publicar Aviso de Privacidad y Términos y Condiciones, y estos últimos
-# deben mencionar expresamente a Openpay como pasarela de pago.
-
-DATOS_LEGALES = {
-    'responsable': 'Elian de Jesús Pereira Ceh',
-    'nombre_comercial': "Quinta Ko'ox Tanil",
-    'domicilio': 'Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, '
-                 'C.P. 97238, Mérida, Yucatán, México',
-    'correo': 'quintakooxtanil@gmail.com',
-    'ultima_actualizacion': 'julio de 2026',
-}
-
-
-def aviso_privacidad(request):
-    return render(request, 'legal/aviso_privacidad.html', DATOS_LEGALES)
-
-
-def terminos_condiciones(request):
-    return render(request, 'legal/terminos_condiciones.html', DATOS_LEGALES)
