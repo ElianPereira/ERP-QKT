@@ -497,6 +497,13 @@ let selectedExtras = new Set();
 let extrasInfo = {};
 let pasoActual = 1;
 const totalPasos = 6;
+
+// Formatea un importe decimal que llega como string desde el servidor, sin
+// convertirlo a float (perdería el centavo en importes grandes).
+function fmtMXN(v) {
+  var n = typeof v === 'string' ? Number(v) : v;
+  return '$' + n.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
 let requiereFactura = false;
 
 let fpInstance = null;
@@ -624,7 +631,7 @@ function renderPaquetes(paquetes) {
   var html = '';
   for (var i = 0; i < paquetes.length; i++) {
     var p = paquetes[i];
-    var precioFmt = '$' + p.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+    var precioFmt = fmtMXN(p.precio);
     html += '<div class="paq-card" data-paq-id="' + p.id + '" onclick="selPaquete(' + p.id + ',this)">';
     html += '<div class="paq-header"><div class="paq-nombre">' + esc(p.nombre) + '</div>';
     html += '<div style="text-align:right;"><div class="paq-precio">' + precioFmt + '</div>';
@@ -933,19 +940,36 @@ function construirResumen() {
   if (notas) html += '<div class="resumen-item"><span class="resumen-key">Notas</span><span class="resumen-val">' + esc(notas) + '</span></div>';
   if (tagsHtml) html += '<div class="resumen-tags">' + tagsHtml + '</div>';
 
-  if (caminoSel === 'paquete' && paqueteSel) {
-    var paqInfo = paquetesData.find(function(p) { return p.id === paqueteSel; });
-    if (paqInfo) {
-      var precioFmt = '$' + paqInfo.precio.toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0});
-      html += '<div style="margin-top:1rem;padding-top:1rem;border-top:1.5px solid var(--borde);display:flex;justify-content:space-between;align-items:baseline;">';
-      html += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Precio estimado del paquete (IVA incluido)</span>';
-      html += '<span style="font-family:Cormorant Garamond,serif;font-size:1.6rem;color:var(--verde);font-weight:400;">' + precioFmt + '</span>';
-      html += '</div>';
-      html += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">Precio base del paquete con IVA incluido. Los extras y ajustes se reflejarán en tu cotización final.</div>';
-    }
-  }
+  html += '<div id="resumen-total" style="margin-top:1rem;padding-top:1rem;border-top:1.5px solid var(--borde);">';
+  html += '<div style="font-size:.8rem;color:var(--texto-s);">Calculando total…</div></div>';
 
   document.getElementById('resumen').innerHTML = html;
+  cargarTotal();
+}
+
+// El total SIEMPRE lo calcula el servidor. El navegador no suma importes: si
+// convirtiera cada línea a IVA incluido y las sumara, el resultado diferiría en
+// centavos del que produce calcular_totales() al crear la cotización.
+async function cargarTotal() {
+  var cont = document.getElementById('resumen-total');
+  if (!cont) return;
+  var el = document.getElementById('personas');
+  var params = new URLSearchParams({ personas: (el && el.value) || '50' });
+  if (paqueteSel) params.set('paquete', paqueteSel);
+  if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
+  try {
+    var r = await fetch('/api/cotizador/total/?' + params.toString());
+    var d = await r.json();
+    if (!d.ok) throw new Error('sin total');
+    var h = '<div style="display:flex;justify-content:space-between;align-items:baseline;">';
+    h += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Total estimado</span>';
+    h += '<span style="font-family:Cormorant Garamond,serif;font-size:1.6rem;color:var(--verde);font-weight:400;">' + d.total_formateado + '</span>';
+    h += '</div>';
+    h += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">' + d.leyenda + '. Incluye el paquete y los extras seleccionados.</div>';
+    cont.innerHTML = h;
+  } catch (e) {
+    cont.innerHTML = '<div style="font-size:.72rem;color:var(--texto-s);">El total se confirmará en tu cotización.</div>';
+  }
 }
 
 async function enviarSolicitud() {

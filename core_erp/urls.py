@@ -1,4 +1,4 @@
-from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias, api_disponibilidad_fecha, api_fechas_ocupadas, api_productos_cotizador, api_paquetes_cotizador
+from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias, api_disponibilidad_fecha, api_fechas_ocupadas, api_productos_cotizador, api_paquetes_cotizador, api_total_cotizador
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -135,6 +135,7 @@ urlpatterns = [
     path('api/fechas-ocupadas/', api_fechas_ocupadas, name='api_fechas_ocupadas'),
     path('api/cotizador/productos/', api_productos_cotizador, name='api_productos_cotizador'),
     path('api/cotizador/paquetes/', api_paquetes_cotizador, name='api_paquetes_cotizador'),
+    path('api/cotizador/total/', api_total_cotizador, name='api_total_cotizador'),
 
     # --- WEBHOOK OPENPAY (público, protegido con Basic Auth) ---
     path('pagos/openpay/webhook/', openpay_webhook_view, name='openpay_webhook'),

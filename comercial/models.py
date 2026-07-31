@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from facturacion.choices import RegimenFiscal, UsoCFDI
 from comercial.choices import PosicionLanding, ModoDescuento
+from core_erp import impuestos
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
 import secrets
 
@@ -680,14 +681,21 @@ class Cotizacion(models.Model):
         self.subtotal = suma_items
         base = Decimal(self.subtotal) - Decimal(self.descuento)
         if base < 0: base = Decimal('0.00')
-        self.iva = base * Decimal('0.16')
+        # El redondeo se hace aquí de forma explícita con ROUND_HALF_UP. Antes
+        # se guardaba el producto sin redondear y era Django quien lo ajustaba
+        # al DecimalField, aplicando ROUND_HALF_EVEN (el default del módulo
+        # decimal). Para el IVA ambos coinciden siempre: con una base de dos
+        # decimales, base*0.16 nunca cae en un empate .005.
+        self.iva = impuestos.iva_de(base)
         if self.cliente.tipo_persona == 'MORAL':
-            self.retencion_isr = base * Decimal('0.0125')
+            self.retencion_isr = impuestos.ret_isr_de(base)
             self.retencion_iva = Decimal('0.00')
         else:
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
-        self.precio_final = base + self.iva - self.retencion_isr - self.retencion_iva
+        self.precio_final = impuestos.centavos(
+            base + self.iva - self.retencion_isr - self.retencion_iva
+        )
     def clean(self):
         """Si la cotización está apartando una fecha (anticipo o superior),
         valida que no choque con Airbnb u otra cotización ya apartada."""
@@ -1181,7 +1189,7 @@ class Compra(models.Model):
                                 for t in traslados_c.findall('cfdi:Traslado', ns):
                                     if t.attrib.get('Impuesto') == '002':
                                         try: iva_linea += Decimal(t.attrib.get('Importe', 0))
-                                        except: iva_linea = importe * Decimal('0.16')
+                                        except: iva_linea = impuestos.iva_de(importe)
                             Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor_nombre, categoria='SIN_CLASIFICAR')
             except Exception as e: print(f"Error procesando conceptos: {e}")
 

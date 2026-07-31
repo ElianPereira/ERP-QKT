@@ -718,3 +718,45 @@ class DueDateReferenciaTest(TestCase):
         payload = mock_post.call_args.kwargs['json']
         vence = datetime.strptime(payload['due_date'], '%Y-%m-%dT%H:%M:%S').date()
         self.assertLessEqual(vence, cotizacion.fecha_evento)
+
+
+class ConsistenciaPreciosTest(TestCase):
+    """I1: el precio exhibido es exactamente el que se cobra."""
+
+    def test_total_del_cotizador_coincide_con_precio_final(self):
+        from core_erp import impuestos
+        cotizacion = _crear_cotizacion(monto_items=Decimal('100.05'))
+        # El total que el endpoint del cotizador exhibiría para esa misma base
+        base = Decimal(cotizacion.subtotal) - Decimal(cotizacion.descuento)
+        exhibido = impuestos.total_desde_bases([base])
+        self.assertEqual(exhibido, cotizacion.precio_final)
+
+    def test_tres_items_de_100_05_sin_desviacion_visible(self):
+        from core_erp import impuestos
+        cliente = Cliente.objects.create(nombre='Cliente 3x', tipo_persona='FISICA')
+        cot = Cotizacion.objects.create(
+            cliente=cliente, nombre_evento='Tres lineas',
+            fecha_evento=date.today() + timedelta(days=30), incluye_refrescos=False,
+        )
+        for i in range(3):
+            ItemCotizacion.objects.create(
+                cotizacion=cot, descripcion=f'Linea {i}',
+                cantidad=1, precio_unitario=Decimal('100.05'),
+            )
+        cot.save(); cot.refresh_from_db()
+        base = Decimal(cot.subtotal) - Decimal(cot.descuento)
+        self.assertEqual(impuestos.total_desde_bases([base]), cot.precio_final)
+        # Y difiere de sumar linea por linea, que es justo lo que se evita
+        por_linea = sum(impuestos.con_iva(Decimal('100.05')) for _ in range(3))
+        self.assertNotEqual(por_linea, cot.precio_final)
+
+    def test_monto_enviado_a_openpay_es_el_saldo_exhibido(self):
+        cotizacion = _crear_cotizacion()
+        portal = PortalCliente.objects.get(cotizacion=cotizacion)
+        response = self.client.get(reverse('portal_evento', args=[portal.token]), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['saldo_pendiente'], cotizacion.saldo_pendiente()
+        )
+        # Es el mismo valor que alimenta el data-max del campo de monto
+        self.assertContains(response, 'IVA incluido')

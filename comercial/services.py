@@ -1,4 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
+from core_erp import impuestos
 import math
 from django.conf import settings
 from .models import ItemCotizacion, ConstanteSistema
@@ -117,12 +118,10 @@ def calcular_desglose_proporcional(monto_pago, cotizacion):
     precio_final = Decimal(str(cotizacion.precio_final))
 
     if precio_final <= 0:
-        subtotal = (monto_pago / Decimal('1.16')).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_UP
-        )
+        d = impuestos.desglosar(monto_pago)
         return {
-            'subtotal': subtotal,
-            'iva': monto_pago - subtotal,
+            'subtotal': d['base'],
+            'iva': d['iva'],
             'retencion_isr': Decimal('0.00'),
             'retencion_iva': Decimal('0.00'),
         }
@@ -150,10 +149,18 @@ def calcular_desglose_proporcional(monto_pago, cotizacion):
         Decimal('0.01'), rounding=ROUND_HALF_UP
     )
 
+    # El prorrateo por separado no cuadra exactamente. Antes se absorbía hasta
+    # 0.05 en el subtotal, lo que rompía la relación iva == base * tasa más allá
+    # de la tolerancia de 0.01 que admite el SAT y provocaba timbrados
+    # rechazados. Ahora, si el prorrateo no cuadra al centavo, se delega en el
+    # desglose central, que garantiza ambas invariantes.
     calculado = subtotal + iva - retencion_isr - retencion_iva
-    diferencia = monto_pago - calculado
-    if abs(diferencia) <= Decimal('0.05'):
-        subtotal = subtotal + diferencia
+    if calculado != monto_pago:
+        d = impuestos.desglosar(monto_pago, con_retencion_isr=cot_ret_isr > 0)
+        subtotal = d['base']
+        iva = d['iva']
+        retencion_isr = d['ret_isr']
+        retencion_iva = Decimal('0.00')
 
     return {
         'subtotal': subtotal,
