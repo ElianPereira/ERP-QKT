@@ -21,7 +21,7 @@ cliente, ambos servidos con templates Django normales.
 - **Storage de archivos**: Cloudinary (`django-cloudinary-storage`).
 - **Email**: `django-anymail`.
 - **Pagos en línea**: integración directa con la API REST de Openpay
-  (tarjeta, efectivo/OXXO, SPEI) — sin SDK, requests HTTP directas
+  (tarjeta, efectivo/Paynet, SPEI) — sin SDK, requests HTTP directas
   (`comercial/services_openpay.py`).
 - **Deploy**: Railway (`railway.json`, `Dockerfile`, `gunicorn`).
 - **CI**: GitHub Actions (`.github/workflows/ci.yml`) — corre la suite de

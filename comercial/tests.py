@@ -680,6 +680,36 @@ class DashboardSeparacionElianRubyTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['ingresos_mes_ruby'], 0)
 
+    def test_mes_actual_se_calcula_en_hora_local_no_utc(self):
+        """Regresión: el KPI del "mes actual" debe usar la fecha de Mérida.
+
+        Con `timezone.now()` (UTC) el dashboard cambiaba de mes a las 18:00
+        del último día del mes: a las 00:30 UTC del 1 de agosto ya reportaba
+        agosto, cuando en Mérida (UTC-6) seguían siendo las 18:30 del 31 de
+        julio y el mes en curso era julio.
+        """
+        from datetime import datetime, timezone as tz_utc
+        from unittest.mock import patch
+
+        # 2026-08-01 00:30 UTC == 2026-07-31 18:30 en America/Merida.
+        instante = datetime(2026, 8, 1, 0, 30, tzinfo=tz_utc.utc)
+
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Evento de julio',
+            fecha_evento=date(2026, 7, 20), estado='BORRADOR',
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        Cotizacion.objects.filter(pk=cot.pk).update(
+            precio_final=Decimal('4000.00'), estado='CONFIRMADA')
+
+        with patch('django.utils.timezone.now', return_value=instante):
+            response = self.client.get('/admin/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['ventas_mes_quinta'], Decimal('4000.00'))
+
     def test_grafica_comparte_eje_de_meses_entre_quinta_y_ruby(self):
         """Regresión: la gráfica combinada debe alinear las 4 series (ventas y
         gastos de Elián, ingresos y gastos de Ruby) sobre el mismo eje de
