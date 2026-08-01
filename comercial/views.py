@@ -450,7 +450,9 @@ def _grafica_multi_series_ordenada(series):
 @staff_member_required
 def ver_dashboard_kpis(request):
     context = admin.site.each_context(request)
-    hoy = timezone.now()
+    # Fecha local (America/Merida), no UTC: con timezone.now() el "mes actual"
+    # saltaba al mes siguiente a partir de las 18:00 del último día del mes.
+    hoy = timezone.localdate()
 
     # --- Elián · Quinta Ko'ox Tanil (Eventos) ---
     ventas_mes_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year, fecha_evento__month=hoy.month).aggregate(total=Sum('precio_final'))['total'] or 0
@@ -490,7 +492,7 @@ def ver_dashboard_kpis(request):
     if SolicitudFactura:
         solicitudes_count = SolicitudFactura.objects.filter(fecha_solicitud__month=hoy.month).count()
 
-    ultimos_eventos = Cotizacion.objects.filter(fecha_evento__gte=hoy.date(), estado='CONFIRMADA').order_by('fecha_evento')[:5]
+    ultimos_eventos = Cotizacion.objects.filter(fecha_evento__gte=hoy, estado='CONFIRMADA').order_by('fecha_evento')[:5]
 
     context.update({
         'ventas_mes_quinta': ventas_mes_quinta, 'gastos_mes_quinta': gastos_mes_quinta, 'utilidad_mes_quinta': utilidad_mes_quinta,
@@ -591,7 +593,7 @@ def enviar_cotizacion_email(request, cotizacion_id):
 def exportar_cierre_excel(request):
     if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()): return redirect('/admin/')
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    hoy = timezone.now()
+    hoy = timezone.localdate()
     response['Content-Disposition'] = f'attachment; filename="Contabilidad_{hoy.strftime("%B_%Y")}.xlsx"'
     wb = openpyxl.Workbook()
     ws_ingresos = wb.active
