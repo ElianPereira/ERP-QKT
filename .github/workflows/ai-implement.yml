@@ -30,7 +30,30 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Validate request and select mode
+        id: request
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          mode_label=$(awk '
+            /^### Modo$/ { found=1; next }
+            found && NF { print; exit }
+          ' <<<"$ISSUE_BODY")
+          case "$mode_label" in
+            "Combinado") mode="combined" ;;
+            "Solo Codex") mode="codex" ;;
+            "Solo Claude") mode="claude" ;;
+            *) echo "Modo ausente o inválido: $mode_label" >&2; exit 1 ;;
+          esac
+          grep -Eq '^- \[[xX]\] Autorizo ejecutar el modo seleccionado y consumir las APIs necesarias\.' <<<"$ISSUE_BODY" || {
+            echo "La solicitud no contiene la autorización obligatoria." >&2
+            exit 1
+          }
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "mode-label=$mode_label" >> "$GITHUB_OUTPUT"
+
       - name: Plan with Claude
+        if: steps.request.outputs.mode == 'combined'
         id: plan
         uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
         with:
@@ -57,6 +80,7 @@ jobs:
             --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
 
       - name: Publish Claude plan
+        if: steps.request.outputs.mode == 'combined'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -78,7 +102,9 @@ jobs:
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file /tmp/claude-plan.md
 
       - name: Stop on planning blocker
-        if: fromJSON(steps.plan.outputs.structured_output).blocked == true
+        if: >-
+          steps.request.outputs.mode == 'combined' &&
+          fromJSON(steps.plan.outputs.structured_output).blocked == true
         env:
           BLOCKER: ${{ fromJSON(steps.plan.outputs.structured_output).blocker }}
         run: |
@@ -97,8 +123,9 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install ruff coverage
 
-      - name: Implement with Codex
-        id: codex
+      - name: Implement combined request with Codex
+        if: steps.request.outputs.mode == 'combined'
+        id: codex-combined
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -107,8 +134,7 @@ jobs:
           effort: medium
           prompt: |
             Implementa el Issue #${{ github.event.issue.number }} en
-            ${{ github.repository }} siguiendo AGENTS.md, CLAUDE.md y
-            PROJECT_CONTEXT.md.
+            ${{ github.repository }} siguiendo AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md.
 
             SOLICITUD ORIGINAL:
             ${{ github.event.issue.body }}
@@ -116,20 +142,67 @@ jobs:
             PLAN VERIFICADO POR CLAUDE:
             ${{ fromJSON(steps.plan.outputs.structured_output).plan }}
 
+            Respeta la arquitectura Django, la lógica de negocio y las áreas sensibles.
             Modifica solo los archivos necesarios. No cambies workflows,
-            instrucciones de agentes, credenciales ni configuración de la propia
-            automatización. Ejecuta las validaciones aplicables. No hagas push ni
-            merge; el workflow publicará el resultado.
+            instrucciones de agentes, credenciales ni la propia automatización.
+            Ejecuta las validaciones aplicables. No hagas push ni merge.
+
+      - name: Implement Codex-only request
+        if: steps.request.outputs.mode == 'codex'
+        id: codex-only
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          safety-strategy: drop-sudo
+          effort: medium
+          prompt: |
+            Analiza e implementa directamente el Issue
+            #${{ github.event.issue.number }} en ${{ github.repository }} siguiendo
+            AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md.
+
+            SOLICITUD:
+            ${{ github.event.issue.body }}
+
+            Respeta la arquitectura Django, la lógica de negocio y las áreas sensibles.
+            Define internamente un plan breve antes de editar. Modifica solo los
+            archivos necesarios. No cambies workflows, instrucciones de agentes,
+            credenciales ni la propia automatización. Ejecuta las validaciones
+            aplicables. No hagas push ni merge. Este modo tendrá revisión y merge
+            manuales.
+
+      - name: Implement Claude-only request
+        if: steps.request.outputs.mode == 'claude'
+        id: claude-only
+        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Analiza e implementa directamente el Issue
+            #${{ github.event.issue.number }} en ${{ github.repository }} siguiendo
+            AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md.
+
+            SOLICITUD:
+            ${{ github.event.issue.body }}
+
+            Respeta la arquitectura Django, la lógica de negocio y las áreas sensibles.
+            Define un plan breve, modifica solo los archivos necesarios y ejecuta
+            las validaciones aplicables. No cambies workflows, instrucciones de
+            agentes, credenciales ni la propia automatización. No hagas push ni
+            merge. Este modo tendrá revisión y merge manuales.
+          claude_args: >-
+            --max-turns 18
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(git status:*),Bash(git diff:*),Bash(python:*),Bash(ruff:*)"
 
       - name: Enforce automation boundaries
         run: |
-          test -n "$(git status --short)" || { echo "Codex no produjo cambios" >&2; exit 1; }
+          test -n "$(git status --short)" || { echo "El agente no produjo cambios" >&2; exit 1; }
           changed=$( { git diff --name-only; git ls-files --others --exclude-standard; } | sort -u )
           protected=$(printf '%s\n' "$changed" | grep -E \
-            '^(\.github/(workflows|actions)/|\.gitmodules$|\.gitattributes$|AGENTS\.md$|CLAUDE\.md$)' || true)
-          test -z "$protected" || { echo "Codex modificó archivos protegidos:" >&2; echo "$protected" >&2; exit 1; }
+            '^(\.github/(workflows|actions|ISSUE_TEMPLATE)/|\.claude/|\.gitmodules$|\.gitattributes$|AGENTS\.md$|CLAUDE\.md$|PROJECT_CONTEXT\.md$)' || true)
+          test -z "$protected" || { echo "El agente modificó archivos protegidos:" >&2; echo "$protected" >&2; exit 1; }
           if printf '%s\n' "$changed" | grep -Eq '(^|/)\.env($|\.local$|\.production$|\.development$)'; then
-            echo "Codex intentó confirmar un archivo de entorno real" >&2
+            echo "El agente intentó confirmar un archivo de entorno real" >&2
             exit 1
           fi
           git diff --check
@@ -161,9 +234,10 @@ jobs:
         env:
           APP_TOKEN: ${{ steps.app-token.outputs.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
         run: |
           test -n "$APP_TOKEN" || { echo "La GitHub App no entregó un token temporal" >&2; exit 1; }
-          branch="ai/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          branch="ai/${MODE}/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
           git config user.name "Codex Automation"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config core.hooksPath /dev/null
@@ -179,16 +253,25 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           BRANCH: ${{ steps.publish.outputs.branch }}
+          MODE: ${{ steps.request.outputs.mode }}
+          MODE_LABEL: ${{ steps.request.outputs.mode-label }}
         run: |
+          if [ "$MODE" = "combined" ]; then
+            result="Claude planificó, Codex implementó y Claude revisará. El merge será automático únicamente con CI verde y aprobación."
+          elif [ "$MODE" = "codex" ]; then
+            result="Codex analizó e implementó. La revisión y el merge son manuales."
+          else
+            result="Claude analizó e implementó. La revisión y el merge son manuales."
+          fi
           cat > /tmp/pr-body.md <<EOF
           Closes #${ISSUE_NUMBER}
 
-          Implementación generada por Codex a partir del plan automático de Claude.
+          **Modo:** ${MODE_LABEL}
 
-          El merge se realizará únicamente cuando CI finalice correctamente y la
-          revisión automática de Claude apruebe el cambio.
+          ${result}
           EOF
           pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
             --title "AI: implementa #${ISSUE_NUMBER}" --body-file /tmp/pr-body.md)
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --body "Codex completó la implementación: $pr_url"
+            --body "La implementación en modo ${MODE_LABEL} quedó lista: $pr_url"
+
