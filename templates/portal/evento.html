@@ -349,6 +349,15 @@
                     </div>
                 </div>
 
+                <label id="fila-acepta-legales" style="display:flex; gap:8px; align-items:flex-start; margin:12px 0 4px; font-size:12.5px; line-height:1.55; color:#5a5852; cursor:pointer;">
+                    <input type="checkbox" id="acepta-legales" style="margin-top:2px; width:15px; height:15px; accent-color:#2E7D32; flex-shrink:0; cursor:pointer;">
+                    <span>Acepto los
+                        <a href="{% url 'legal:terminos' %}" target="_blank" rel="noopener" style="color:#2E7D32; font-weight:600;">Términos y Condiciones</a>
+                        y la
+                        <a href="{% url 'legal:politica_cancelacion' %}" target="_blank" rel="noopener" style="color:#2E7D32; font-weight:600;">Política de Cancelación</a>,
+                        y autorizo este cargo por el monto indicado.</span>
+                </label>
+
                 <button type="submit" id="btn-pagar" class="btn btn-green" style="border:none; cursor:pointer; width:100%; justify-content:center; font-size:15px; margin-top:8px;">
                     <i class="fas fa-lock" id="icono-btn-pagar"></i> <span id="texto-btn-pagar">Pagar</span>
                 </button>
@@ -525,6 +534,13 @@
             return;
         }
 
+        var aceptaLegales = document.getElementById('acepta-legales');
+        if (!aceptaLegales.checked) {
+            mostrarResultado('error', 'Debes aceptar los Términos y Condiciones y la Política de Cancelación para continuar.');
+            aceptaLegales.focus();
+            return;
+        }
+
         document.getElementById('btn-pagar').disabled = true;
 
         if (metodoActual === 'card') {
@@ -564,6 +580,7 @@
             token_id: tokenId || '',
             device_session_id: devSessionId || '',
             monto: parsearMonto(document.getElementById('monto-pago').value).toFixed(2),
+            acepta_legales: document.getElementById('acepta-legales').checked ? '1' : '',
             csrfmiddlewaretoken: form.querySelector('[name=csrfmiddlewaretoken]').value,
         });
 

@@ -191,6 +191,13 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .cot-footer-legal a{color:rgba(255,255,255,.55);text-decoration:none;letter-spacing:.06em;text-transform:uppercase;}
 .cot-footer-legal a:hover{color:var(--amarillo);text-decoration:underline;}
 .nota a{color:var(--verde-d);font-weight:500;}
+.consentimiento{background:var(--crema);border:1px solid #e2e2da;border-radius:8px;padding:1rem 1.1rem;margin-top:1.2rem;display:flex;flex-direction:column;gap:.7rem;}
+.cons-item{display:flex;gap:.65rem;align-items:flex-start;font-size:.78rem;font-weight:300;line-height:1.6;color:var(--texto-s);cursor:pointer;}
+.cons-item input{margin-top:.22rem;width:15px;height:15px;accent-color:var(--verde);flex-shrink:0;cursor:pointer;}
+.cons-item a{color:var(--verde-d);font-weight:500;}
+.cons-item em{font-style:normal;font-size:.7rem;color:#8a8780;}
+.cons-item.falta{color:#b3261e;}
+.cons-item.falta input{outline:2px solid #b3261e;outline-offset:2px;}
 
 /* Panel condicional */
 .panel-condicional{display:none;}
@@ -476,14 +483,30 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <h2 class="panel-title">Confirma tu <em>solicitud</em></h2>
     <p class="panel-sub">Verifica los detalles antes de enviar.</p>
     <div class="resumen-card" id="resumen"></div>
+    <div class="consentimiento">
+      <label class="cons-item">
+        <input type="checkbox" id="acepta_legales">
+        <span>He leído y acepto el
+          <a href="{% url 'legal:aviso_privacidad' %}" target="_blank" rel="noopener">Aviso de Privacidad</a>,
+          los <a href="{% url 'legal:terminos' %}" target="_blank" rel="noopener">Términos y Condiciones</a>
+          y la <a href="{% url 'legal:politica_cancelacion' %}" target="_blank" rel="noopener">Política de Cancelación</a>.
+          <em>(obligatorio)</em></span>
+      </label>
+      <label class="cons-item">
+        <input type="checkbox" id="fin_marketing" value="MARKETING">
+        <span>Quiero recibir promociones y avisos de disponibilidad de fechas. <em>(opcional)</em></span>
+      </label>
+      <label class="cons-item">
+        <input type="checkbox" id="fin_uso_imagen" value="USO_IMAGEN">
+        <span>Autorizo el uso de fotografías y videos de mi evento con fines promocionales. <em>(opcional)</em></span>
+      </label>
+    </div>
     <div class="alert-error" id="alert-global"></div>
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(5)">← Atrás</button>
       <button class="btn-submit" id="btnEnviar" onclick="enviarSolicitud()">Solicitar cotización</button>
     </div>
-    <p class="nota">Al enviar aceptas que nos pongamos en contacto contigo para darte seguimiento a tu solicitud, y que
-      tratemos tus datos conforme al <a href="{% url 'legal:aviso_privacidad' %}" target="_blank" rel="noopener">Aviso de Privacidad</a>
-      y a los <a href="{% url 'legal:terminos' %}" target="_blank" rel="noopener">Términos y Condiciones</a>.</p>
+    <p class="nota">Las casillas opcionales puedes cambiarlas después escribiéndonos; no condicionan tu cotización.</p>
   </div>
 
 </div>
@@ -1006,6 +1029,26 @@ async function cargarTotal() {
 
 async function enviarSolicitud() {
   var btn = document.getElementById('btnEnviar');
+
+  // El consentimiento del aviso y los términos es obligatorio: sin él no se
+  // envía nada al servidor (que de todos modos lo vuelve a validar).
+  var chkLegales = document.getElementById('acepta_legales');
+  var filaLegales = chkLegales.closest('.cons-item');
+  if (!chkLegales.checked) {
+    filaLegales.classList.add('falta');
+    var alertaLegal = document.getElementById('alert-global');
+    alertaLegal.style.display = 'block';
+    alertaLegal.textContent = 'Debes aceptar el Aviso de Privacidad y los Términos y Condiciones.';
+    chkLegales.focus();
+    return;
+  }
+  filaLegales.classList.remove('falta');
+
+  var finalidades = ['fin_marketing', 'fin_uso_imagen']
+    .map(function (id) { return document.getElementById(id); })
+    .filter(function (el) { return el && el.checked; })
+    .map(function (el) { return el.value; });
+
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Enviando...';
 
@@ -1029,6 +1072,8 @@ async function enviarSolicitud() {
     extras_ids:     Array.from(selectedExtras),
     paquete_id:     paqueteSel,
     requiere_factura: requiereFactura,
+    acepta_legales: true,
+    finalidades:    finalidades,
   };
 
   if (requiereFactura) {
