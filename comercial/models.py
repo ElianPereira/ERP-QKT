@@ -1,15 +1,18 @@
+import secrets
 import xml.etree.ElementTree as ET
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
+
+from cloudinary_storage.storage import RawMediaCloudinaryStorage
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import F, Sum
 from django.utils.timezone import now
-from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
-from facturacion.choices import RegimenFiscal, UsoCFDI
-from comercial.choices import PosicionLanding, ModoDescuento
+
+from comercial.choices import ModoDescuento, PosicionLanding
 from core_erp import impuestos
-from cloudinary_storage.storage import RawMediaCloudinaryStorage
-import secrets
+from facturacion.choices import RegimenFiscal, UsoCFDI
+
 
 # ==========================================
 # 0. CONFIGURACIÓN DEL SISTEMA
@@ -54,8 +57,8 @@ class Insumo(models.Model):
         ('SERVICIO', 'Personal (Bartender, Staff, Seguridad)')
     ]
     nombre = models.CharField(max_length=200)
-    unidad_medida = models.CharField(max_length=50) 
-    costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo de Compra") 
+    unidad_medida = models.CharField(max_length=50)
+    costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo de Compra")
     factor_rendimiento = models.DecimalField(max_digits=10, decimal_places=2, default=1.00, verbose_name="Rendimiento (Divisor)")
     cantidad_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
@@ -63,16 +66,16 @@ class Insumo(models.Model):
                                         help_text="Alerta cuando el stock baje de este nivel")
     categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
     crear_como_subproducto = models.BooleanField(default=False, verbose_name="¿Crear también como Subproducto?")
-    
+
     # CAMPO LEGACY — se eliminará después de migrar datos
     proveedor_legacy = models.CharField(max_length=200, blank=True, verbose_name="Proveedor (texto antiguo)",
                                          editable=False)
-    
+
     # FK a Proveedor
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True,
                                    verbose_name="Proveedor",
                                    help_text="Selecciona el proveedor de este insumo")
-    
+
     presentacion = models.CharField(max_length=100, blank=True, verbose_name="Presentación",
                                      help_text="Ej: 940ml, Botella 750ml, Bolsa 20kg, Garrafón 20L")
 
@@ -87,7 +90,7 @@ class Insumo(models.Model):
         """Retorna True si el stock está por debajo del mínimo."""
         return self.cantidad_stock < self.stock_minimo
 
-    def __str__(self): 
+    def __str__(self):
         partes = [self.nombre]
         if self.presentacion:
             partes.append(f"({self.presentacion})")
@@ -113,13 +116,13 @@ class MovimientoInventario(models.Model):
         ('AJUSTE_NEG', 'Ajuste Negativo (Merma / Daño)'),
         ('DEVOLUCION', 'Devolución a Proveedor'),
     ]
-    
+
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT, related_name='movimientos',
                                 verbose_name="Insumo")
     tipo = models.CharField(max_length=20, choices=TIPOS_MOVIMIENTO, verbose_name="Tipo de Movimiento")
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Cantidad",
                                     help_text="Siempre positiva. El tipo determina si suma o resta.")
-    
+
     # Referencias opcionales
     compra = models.ForeignKey('Compra', on_delete=models.SET_NULL, null=True, blank=True,
                                 related_name='movimientos_inventario',
@@ -127,16 +130,16 @@ class MovimientoInventario(models.Model):
     cotizacion = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='movimientos_inventario',
                                     verbose_name="Evento Relacionado")
-    
+
     # Auditoría
     nota = models.CharField(max_length=255, blank=True, verbose_name="Nota / Motivo")
     stock_anterior = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Stock Anterior")
     stock_posterior = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Stock Posterior")
-    
+
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                     verbose_name="Registrado por")
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         verbose_name = "Inventario"
         verbose_name_plural = "Inventarios"
@@ -145,18 +148,18 @@ class MovimientoInventario(models.Model):
             models.Index(fields=['insumo', '-created_at']),
             models.Index(fields=['tipo', '-created_at']),
         ]
-    
+
     def clean(self):
         """Valida que la cantidad sea positiva y que haya stock suficiente para salidas."""
         if self.cantidad <= 0:
             raise ValidationError({'cantidad': 'La cantidad debe ser mayor a cero.'})
-        
+
         if self.tipo in ('SALIDA', 'AJUSTE_NEG', 'DEVOLUCION'):
             if self.cantidad > self.insumo.cantidad_stock:
                 raise ValidationError({
                     'cantidad': f'Stock insuficiente. Disponible: {self.insumo.cantidad_stock} {self.insumo.unidad_medida}'
                 })
-    
+
     def save(self, *args, **kwargs):
         """Guarda el movimiento y actualiza el stock del insumo atómicamente."""
         with transaction.atomic():
@@ -183,7 +186,7 @@ class MovimientoInventario(models.Model):
             self.insumo = insumo
             self.stock_posterior = insumo.cantidad_stock
             super().save(*args, **kwargs)
-    
+
     def __str__(self):
         signo = '+' if self.tipo in ('ENTRADA', 'AJUSTE_POS') else '-'
         return f"{signo}{self.cantidad} {self.insumo.nombre} ({self.get_tipo_display()})"
@@ -214,7 +217,7 @@ class PlantillaBarra(models.Model):
         ('CAFE', 'Café Espresso'),
         ('SERVILLETAS', 'Servilletas / Popotes'),
     ]
-    
+
     GRUPOS = [
         ('ALCOHOL_NACIONAL', 'Licores Nacionales'),
         ('ALCOHOL_PREMIUM', 'Licores Premium'),
@@ -224,24 +227,24 @@ class PlantillaBarra(models.Model):
         ('COCTELERIA', 'Frutas y Verduras'),
         ('CONSUMIBLE', 'Abarrotes y Consumibles'),
     ]
-    
+
     categoria = models.CharField(max_length=30, choices=CATEGORIAS_BARRA, verbose_name="Concepto de Barra")
     grupo = models.CharField(max_length=30, choices=GRUPOS, verbose_name="Grupo en Lista de Compras",
                              help_text="Sección donde aparece en la lista de compras")
     insumo = models.ForeignKey(Insumo, on_delete=models.CASCADE, verbose_name="Insumo del Catálogo",
                                help_text="Selecciona el insumo real del catálogo")
-    proporcion = models.DecimalField(max_digits=4, decimal_places=2, default=1.00, 
-                                      verbose_name="Proporción", 
+    proporcion = models.DecimalField(max_digits=4, decimal_places=2, default=1.00,
+                                      verbose_name="Proporción",
                                       help_text="Ej: 0.40 = 40% del total de su grupo de alcohol")
     activo = models.BooleanField(default=True)
     orden = models.PositiveIntegerField(default=0, help_text="Orden de aparición en la lista")
-    
+
     class Meta:
         verbose_name = "Plantilla de Barra"
         verbose_name_plural = "Plantilla de Barra"
         ordering = ['grupo', 'orden', 'categoria']
         unique_together = ['categoria', 'insumo']
-    
+
     def __str__(self):
         return f"{self.get_categoria_display()} → {self.insumo.nombre} ({self.proporcion*100:.0f}%)"
 
@@ -467,13 +470,13 @@ class Cotizacion(models.Model):
         'CERRADA': [],  # Estado final
         'CANCELADA': ['BORRADOR'],  # Permite reactivar
     }
-    
+
     CLIMA_CHOICES = [
         ('normal', 'Interior / Aire Acondicionado'),
         ('calor', 'Exterior / Calor Mérida (+30% Hielo)'),
         ('extremo', 'Ola de Calor / Mayo (+60% Hielo)'),
     ]
-    
+
     TIPO_SERVICIO_CHOICES = [
         ('EVENTO', 'Evento'),
         ('PASADIA', 'Pasadía'),
@@ -493,7 +496,7 @@ class Cotizacion(models.Model):
     fecha_evento = models.DateField()
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
-    
+
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     incluye_refrescos = models.BooleanField(default=False, verbose_name="Refrescos y Mezcladores")
     incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza (Caguama)")
@@ -516,21 +519,21 @@ class Cotizacion(models.Model):
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     requiere_factura = models.BooleanField(default=False)
-    
+
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     precio_final = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    
+
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
-    
+
     # Campos de cancelación
     motivo_cancelacion = models.TextField(blank=True, verbose_name="Motivo de Cancelación")
     cancelada_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='cotizaciones_canceladas', verbose_name="Cancelada por")
     fecha_cancelacion = models.DateTimeField(null=True, blank=True)
-    
+
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -544,15 +547,15 @@ class Cotizacion(models.Model):
         """
         estado_actual = self.estado
         permitidos = self.TRANSICIONES_PERMITIDAS.get(estado_actual, [])
-        
+
         if nuevo_estado not in permitidos:
             return False, f"No se puede cambiar de '{self.get_estado_display()}' a '{dict(self.ESTADOS).get(nuevo_estado, nuevo_estado)}'. Transiciones permitidas: {', '.join(permitidos) or 'Ninguna (estado final)'}"
-        
+
         # Validación: necesita items para avanzar de BORRADOR
         if estado_actual == 'BORRADOR' and nuevo_estado != 'CANCELADA':
             if not self.items.exists():
                 return False, "La cotización debe tener al menos un item antes de avanzar."
-        
+
         # Validación: anticipo mínimo para CONFIRMAR
         if nuevo_estado == 'CONFIRMADA':
             porcentaje_minimo = self._get_porcentaje_anticipo_minimo()
@@ -561,13 +564,13 @@ class Cotizacion(models.Model):
                 porcentaje_pagado = (pagado / self.precio_final) * 100
                 if porcentaje_pagado < porcentaje_minimo:
                     return False, f"Se requiere al menos {porcentaje_minimo}% de anticipo para confirmar. Pagado: {porcentaje_pagado:.1f}% (${pagado:,.2f} de ${self.precio_final:,.2f})"
-        
+
         # Validación: pagos completos para CERRAR
         if nuevo_estado == 'CERRADA':
             saldo = self.saldo_pendiente()
             if saldo > Decimal('0.50'):  # Tolerancia de 50 centavos
                 return False, f"No se puede cerrar con saldo pendiente de ${saldo:,.2f}"
-        
+
         # Aplicar cancelación
         if nuevo_estado == 'CANCELADA':
             if not motivo:
@@ -583,31 +586,31 @@ class Cotizacion(models.Model):
                 logging.getLogger(__name__).exception(
                     "Error generando póliza de reversión para Cotización #%s: %s", self.pk, e
                 )
-        
+
         # Si reactiva desde CANCELADA, limpiar campos de cancelación
         if estado_actual == 'CANCELADA' and nuevo_estado == 'BORRADOR':
             self.motivo_cancelacion = ''
             self.cancelada_por = None
             self.fecha_cancelacion = None
-        
+
         self.estado = nuevo_estado
         self.save(update_fields=['estado', 'motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion', 'updated_at'])
         return True, f"Estado cambiado a '{dict(self.ESTADOS).get(nuevo_estado)}'"
-    
+
     def _get_porcentaje_anticipo_minimo(self):
         """Obtiene el porcentaje mínimo de anticipo desde ConstanteSistema."""
         try:
             return float(ConstanteSistema.objects.get(clave='PORCENTAJE_ANTICIPO_MINIMO').valor)
         except ConstanteSistema.DoesNotExist:
             return 0  # Si no está configurado, no aplica restricción
-    
+
     @property
     def porcentaje_pagado(self):
         """Retorna el porcentaje de pago como número."""
         if self.precio_final > 0:
             return round((self.total_pagado() / self.precio_final) * 100, 1)
         return Decimal('0.0')
-    
+
     @property
     def dias_para_evento(self):
         """Días restantes para el evento. Negativo = ya pasó."""
@@ -845,7 +848,7 @@ class Cotizacion(models.Model):
         return self.monto_minimo_pago_detalle()[0]
 
     def __str__(self): return f"{self.cliente} - {self.nombre_evento}"
-    class Meta: 
+    class Meta:
         verbose_name = "Cotización"
         verbose_name_plural = "Cotizaciones"
         indexes = [
@@ -863,7 +866,7 @@ class ItemCotizacion(models.Model):
                                           verbose_name="Precio unitario (sin IVA)",
                                           help_text="Base gravable. El IVA se calcula sobre el subtotal "
                                                     "en calcular_totales(), nunca por línea.")
-    
+
     def clean(self):
         if not self.cotizacion_id or not self.producto_id:
             return
@@ -916,7 +919,7 @@ class Pago(models.Model):
                    "cliente/evento pero ajenos al precio de la venta.",
     )
     cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, 
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                  verbose_name="Registrado por")
     fecha_pago = models.DateField(default=now, verbose_name="Fecha de Pago")
     monto = models.DecimalField(max_digits=10, decimal_places=2)
@@ -936,12 +939,12 @@ class Pago(models.Model):
         verbose_name="¿Solicitar factura?",
         help_text="Genera automáticamente una solicitud de factura al guardar"
     )
-    
+
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
     updated_at = models.DateTimeField(auto_now=True)
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas")
-    
+
     def clean(self):
         """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos
         ni a ingresos EXTRA, que no forman parte del precio de la venta)."""
@@ -1022,6 +1025,7 @@ def _detectar_unidad_negocio_por_rfc(rfc_receptor):
     Compra creada desde 'Compras > Añadir' con un XML adjunto también se
     clasifica sola, sin depender de esa herramienta en específico."""
     from contabilidad.models import UnidadNegocio
+
     from .services import RFC_UNIDAD_MAP
 
     clave = RFC_UNIDAD_MAP.get(rfc_receptor)
@@ -1128,7 +1132,7 @@ class Compra(models.Model):
                 fecha_str = root.attrib.get('Fecha', '')
                 if fecha_str:
                     from datetime import datetime
-                    self.fecha_emision = datetime.strptime(fecha_str.split('T')[0], '%Y-%m-%d').date() 
+                    self.fecha_emision = datetime.strptime(fecha_str.split('T')[0], '%Y-%m-%d').date()
                 emisor = root.find('cfdi:Emisor', ns)
                 if emisor is not None:
                     self.proveedor_nombre = emisor.attrib.get('Nombre', '')
@@ -1180,7 +1184,7 @@ class Compra(models.Model):
                     conceptos = root.find('cfdi:Conceptos', ns)
                     if conceptos is not None:
                         for c in conceptos.findall('cfdi:Concepto', ns):
-                            descripcion = c.attrib.get('Descripcion', '')
+                            descripcion = c.attrib.get('Descripcion', '')[:255]
                             cantidad = Decimal(c.attrib.get('Cantidad', 1))
                             valor_unitario = Decimal(c.attrib.get('ValorUnitario', 0))
                             importe = Decimal(c.attrib.get('Importe', 0))
@@ -1211,7 +1215,7 @@ class Gasto(models.Model):
     descripcion = models.CharField(max_length=255)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    total_linea = models.DecimalField(max_digits=10, decimal_places=2, default=0) 
+    total_linea = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='SIN_CLASIFICAR')
     evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
     clave_sat = models.CharField(max_length=20, blank=True)
@@ -1229,11 +1233,11 @@ class Gasto(models.Model):
 class PlanPago(models.Model):
 
     cotizacion = models.OneToOneField(
-        Cotizacion, on_delete=models.CASCADE, 
+        Cotizacion, on_delete=models.CASCADE,
         related_name='plan_pago',
         verbose_name="Cotización"
     )
-    
+
     fecha_generacion = models.DateTimeField(auto_now_add=True)
     generado_por = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
@@ -1241,23 +1245,23 @@ class PlanPago(models.Model):
     )
     notas = models.TextField(blank=True, verbose_name="Notas / Condiciones especiales")
     activo = models.BooleanField(default=True)
-    
+
     def total_plan(self):
         return self.parcialidades.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
-    
+
     def parcialidades_pagadas(self):
         return self.parcialidades.filter(pagada=True).count()
-    
+
     def parcialidades_pendientes(self):
         return self.parcialidades.filter(pagada=False).count()
-    
+
     def siguiente_pago(self):
         """Retorna la próxima parcialidad pendiente."""
         return self.parcialidades.filter(pagada=False).order_by('fecha_limite').first()
-    
+
     def __str__(self):
         return f"Plan de pagos COT-{self.cotizacion.id:03d} ({self.parcialidades.count()} parcialidades)"
-    
+
     class Meta:
         verbose_name = "Plan de Pago"
         verbose_name_plural = "Planes de Pago"
@@ -1266,7 +1270,7 @@ class PlanPago(models.Model):
 class ParcialidadPago(models.Model):
 
     plan = models.ForeignKey(
-        PlanPago, on_delete=models.CASCADE, 
+        PlanPago, on_delete=models.CASCADE,
         related_name='parcialidades',
         verbose_name="Plan"
     )
@@ -1276,7 +1280,7 @@ class ParcialidadPago(models.Model):
     monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto")
     porcentaje = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% del Total")
     fecha_limite = models.DateField(verbose_name="Fecha Límite de Pago")
-    
+
     pagada = models.BooleanField(default=False, verbose_name="¿Pagada?")
     fecha_pago_real = models.DateField(null=True, blank=True, verbose_name="Fecha de Pago Real")
     pago_vinculado = models.ForeignKey(
@@ -1284,13 +1288,13 @@ class ParcialidadPago(models.Model):
         verbose_name="Pago Registrado",
         help_text="Vincular con el pago real cuando se reciba"
     )
-    
+
     @property
     def dias_restantes(self):
         """Días que faltan para la fecha límite. Negativo = vencido."""
         from django.utils import timezone
         return (self.fecha_limite - timezone.now().date()).days
-    
+
     @property
     def estado(self):
         if self.pagada:
@@ -1300,11 +1304,11 @@ class ParcialidadPago(models.Model):
         if self.dias_restantes <= 7:
             return 'URGENTE'
         return 'PENDIENTE'
-    
+
     def __str__(self):
         estado = "" if self.pagada else "⏳"
         return f"{estado} #{self.numero} - ${self.monto:,.2f} - {self.fecha_limite}"
-    
+
     class Meta:
         verbose_name = "Parcialidad"
         verbose_name_plural = "Parcialidades"
@@ -1364,23 +1368,23 @@ class PortalCliente(models.Model):
     activo = models.BooleanField(default=True, verbose_name="Portal Activo")
     visitas = models.PositiveIntegerField(default=0, verbose_name="Visitas")
     ultima_visita = models.DateTimeField(null=True, blank=True)
-    
+
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name="Creado por"
     )
-    
+
     def save(self, *args, **kwargs):
         if not self.token:
             self.token = secrets.token_urlsafe(32)
         super().save(*args, **kwargs)
-    
+
     def get_url(self):
         """Retorna la URL pública del portal."""
         return f"/mi-evento/{self.token}/"
-    
+
     def get_full_url(self, request=None):
         """Retorna la URL completa con dominio.
         Usa PORTAL_URL para el subdominio dedicado a clientes.
@@ -1390,17 +1394,17 @@ class PortalCliente(models.Model):
         if request:
             base = request.build_absolute_uri('/')[:-1]
         return f"{base}{self.get_url()}"
-    
+
     def registrar_visita(self):
         """Incrementa contador de visitas."""
         from django.utils import timezone
         self.visitas += 1
         self.ultima_visita = timezone.now()
         self.save(update_fields=['visitas', 'ultima_visita'])
-    
+
     def __str__(self):
         return f"Portal COT-{self.cotizacion.id:03d} ({self.visitas} visitas)"
-    
+
     class Meta:
         verbose_name = "Portal del Cliente"
         verbose_name_plural = "Portales de Clientes"
