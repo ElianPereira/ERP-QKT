@@ -20,13 +20,8 @@ RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
 # El seed es idempotente y no degrada una versión publicada desde el admin,
 # así que es seguro correrlo en cada arranque. Nunca debe tumbar el deploy.
-# TEMPORAL — quitar después de leer el resultado en los logs del deploy.
-# auditar_precios_iva es de solo lectura: mide el impacto del refactor de IVA
-# sobre el histórico y arma la lista de precios con IVA. Se corre aquí porque
-# no hay acceso a una terminal en Railway.
 CMD python manage.py migrate --noinput && \
     (python manage.py seed_documentos_legales --publicar || true) && \
-    (python manage.py auditar_precios_iva || true) && \
     gunicorn core_erp.wsgi:application \
         --bind 0.0.0.0:${PORT:-8080} \
         --workers 2 \

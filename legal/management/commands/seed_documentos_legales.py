@@ -23,7 +23,7 @@ DIRECTORIO = Path(__file__).resolve().parent.parent.parent / 'documentos_inicial
 
 # archivo -> (tipo, título)
 DOCUMENTOS = {
-    'aviso_privacidad_v2.0.md': (TipoDocumento.AVISO_PRIVACIDAD, 'Aviso de Privacidad'),
+    'aviso_privacidad_v2.1.md': (TipoDocumento.AVISO_PRIVACIDAD, 'Aviso de Privacidad'),
     'aviso_simplificado_v2.0.md': (TipoDocumento.AVISO_SIMPLIFICADO,
                                    'Aviso de Privacidad Simplificado'),
     'terminos_v2.0.md': (TipoDocumento.TERMINOS, 'Términos y Condiciones'),
@@ -112,21 +112,40 @@ class Command(BaseCommand):
             elif doc.vigente:
                 self.stdout.write('      ya vigente')
             elif publicar:
-                # Solo se publica si NO hay ninguna versión vigente de ese tipo.
-                # El comando corre en cada deploy, y sin esta condición una
-                # versión más nueva publicada desde el admin (v3.0) quedaría
-                # degradada al volver a marcar vigente la v2.0 del repositorio.
+                # El comando corre en cada deploy, así que solo puede avanzar,
+                # nunca retroceder: publica si no hay versión vigente de ese
+                # tipo, o si la del repositorio es MÁS NUEVA que la vigente.
+                # Sin la comparación, una versión publicada desde el admin
+                # (v3.0) quedaría degradada al volver a marcar vigente la del
+                # repositorio; y sin la parte de "más nueva", una corrección
+                # publicada en el repo nunca llegaría a producción.
                 otra = DocumentoLegal.objects.filter(tipo=tipo, vigente=True).first()
-                if otra:
+                if otra and self._orden(otra.version) >= self._orden(version):
                     self.stdout.write(
                         f'      no se publica: ya está vigente la v{otra.version}'
                     )
                 else:
                     doc.vigente = True
                     doc.save()
-                    self.stdout.write(self.style.SUCCESS('      publicado como vigente'))
+                    if otra:
+                        self.stdout.write(self.style.SUCCESS(
+                            f'      publicado como vigente (sustituye a la v{otra.version})'
+                        ))
+                    else:
+                        self.stdout.write(self.style.SUCCESS('      publicado como vigente'))
 
     @staticmethod
     def _version_desde_nombre(archivo: str) -> str:
         m = re.search(r'_v([\d.]+)\.md$', archivo)
         return m.group(1) if m else '1.0'
+
+    @staticmethod
+    def _orden(version: str) -> tuple:
+        """
+        Versión comparable numéricamente: '2.10' es posterior a '2.9', que es
+        lo contrario de lo que diría una comparación de cadenas.
+        """
+        partes = []
+        for trozo in str(version).split('.'):
+            partes.append(int(trozo) if trozo.isdigit() else 0)
+        return tuple(partes)

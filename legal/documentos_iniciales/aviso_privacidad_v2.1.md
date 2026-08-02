@@ -1,7 +1,7 @@
 # AVISO DE PRIVACIDAD INTEGRAL
 
-**Versión 2.0 — Vigente a partir del 31 de julio de 2026**
-*Sustituye a la versión de julio de 2026.*
+**Versión 2.1 — Vigente a partir del 2 de agosto de 2026**
+*Sustituye a la versión 2.0 del 31 de julio de 2026.*
 
 ---
 
