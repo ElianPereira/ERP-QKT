@@ -1,0 +1,41 @@
+name: Solicitud automática de IA
+description: Describe una necesidad para que Claude la planifique y Codex la implemente.
+title: "[AI]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Este Issue inicia automáticamente el flujo Claude → Codex → CI → revisión → merge.
+        No incluyas secretos, credenciales, datos personales ni instrucciones de producción.
+  - type: textarea
+    id: need
+    attributes:
+      label: Necesidad
+      description: Explica qué quieres construir, corregir o cambiar y por qué.
+      placeholder: Quiero que...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+      description: Describe el comportamiento observable al finalizar.
+    validations:
+      required: true
+  - type: textarea
+    id: exclusions
+    attributes:
+      label: Límites o exclusiones
+      description: Indica qué no debe cambiar. Escribe “Ninguno adicional” si no aplica.
+    validations:
+      required: true
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Autorización
+      options:
+        - label: Autorizo que Claude planifique, Codex implemente y el PR se fusione automáticamente solo si CI y la revisión terminan correctamente.
+          required: true
+
