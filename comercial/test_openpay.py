@@ -873,3 +873,127 @@ class TotalCotizadorCoincideTest(TestCase):
             )
         cot.save(); cot.refresh_from_db()
         self.assertEqual(exhibido, cot.precio_final)
+
+
+class Retorno3DSExtremoAExtremoTest(TestCase):
+    """
+    Simula el viaje completo de 3D Secure sin tocar Openpay: el cliente paga,
+    Openpay deja el cargo en 'charge_pending', el banco lo autentica y lo
+    regresa a /pago-3ds/, y ahí el ERP consulta el cargo y crea el Pago.
+
+    Openpay no documenta con qué nombre devuelve el id del cargo en el query
+    string, así que se prueba con cada variante Y sin ninguna: en ese último
+    caso la vista debe resolverlo con el cargo pendiente que ella misma
+    registró antes de mandar al cliente al banco.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+        # El bucket del rate limiting vive en el mismo cache de proceso y no se
+        # reinicia entre tests: sin esto, esta clase acumularía las peticiones
+        # de las anteriores y acabaría recibiendo 429 en vez del flujo real.
+        for llave in ('portal_pago_openpay', 'portal_retorno_3ds'):
+            cache.delete(f'rl:{llave}:127.0.0.1')
+
+        self.cotizacion = _crear_cotizacion()
+        self.portal = PortalCliente.objects.get(cotizacion=self.cotizacion)
+        self.url_pago = reverse('portal_procesar_pago_openpay', args=[self.portal.token])
+        self.url_retorno = reverse('portal_retorno_3ds', args=[self.portal.token])
+
+    def _iniciar_cargo(self, mock_post, openpay_id):
+        """Paso 1: el cliente envía la tarjeta y Openpay pide autenticación."""
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': openpay_id, 'status': 'charge_pending',
+            'payment_method': {'type': 'redirect',
+                               'url': f'https://sandbox-api.openpay.mx/3ds/{openpay_id}'},
+        })
+        response = self.client.post(self.url_pago, secure=True, data={
+            'metodo': 'card', 'monto': '600.00', 'token_id': 'tok_3ds',
+            'device_session_id': 'dev_3ds', 'acepta_legales': '1',
+        })
+        datos = response.json()
+        self.assertTrue(datos['ok'])
+        self.assertIn('/3ds/', datos['redirect_3ds'])
+        # Todavía no hay Pago: el dinero no se ha cobrado.
+        self.assertFalse(Pago.objects.filter(cotizacion=self.cotizacion).exists())
+
+    def _cargo_autorizado(self, openpay_id):
+        return MagicMock(status_code=200, json=lambda: {
+            'id': openpay_id, 'status': 'completed', 'amount': 600.00,
+            'authorization': '801585', 'card': {'brand': 'visa'},
+        })
+
+    @patch('comercial.services_openpay.requests.get')
+    @patch('comercial.services_openpay.requests.post')
+    def test_el_pago_se_registra_venga_como_venga_el_id(self, mock_post, mock_get):
+        for i, parametro in enumerate(('id', 'transaction_id', 'charge_id')):
+            with self.subTest(parametro=parametro):
+                Pago.objects.all().delete()
+                OpenpayTransaccion.objects.all().delete()
+                openpay_id = f'tx3ds_param_{i}'
+
+                self._iniciar_cargo(mock_post, openpay_id)
+                mock_get.return_value = self._cargo_autorizado(openpay_id)
+
+                response = self.client.get(
+                    self.url_retorno, {parametro: openpay_id}, secure=True)
+
+                self.assertEqual(response.status_code, 302)
+                self.assertIn('pago=exitoso', response.url)
+                self.assertTrue(
+                    Pago.objects.filter(cotizacion=self.cotizacion,
+                                        referencia=openpay_id).exists())
+
+    @patch('comercial.services_openpay.requests.get')
+    @patch('comercial.services_openpay.requests.post')
+    def test_el_pago_se_registra_aunque_openpay_no_devuelva_el_id(self, mock_post, mock_get):
+        """El caso que no se puede predecir sin el sandbox: parámetro con otro
+        nombre, o sin parámetros. Se resuelve con el cargo pendiente."""
+        self._iniciar_cargo(mock_post, 'tx3ds_sin_param')
+        mock_get.return_value = self._cargo_autorizado('tx3ds_sin_param')
+
+        response = self.client.get(
+            self.url_retorno, {'nombre_inesperado': 'tx3ds_sin_param'}, secure=True)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('pago=exitoso', response.url)
+        self.assertTrue(
+            Pago.objects.filter(cotizacion=self.cotizacion,
+                                referencia='tx3ds_sin_param').exists())
+
+    @patch('comercial.services_openpay.requests.get')
+    @patch('comercial.services_openpay.requests.post')
+    def test_recargar_la_pagina_de_retorno_no_duplica_el_pago(self, mock_post, mock_get):
+        self._iniciar_cargo(mock_post, 'tx3ds_recarga')
+        mock_get.return_value = self._cargo_autorizado('tx3ds_recarga')
+
+        self.client.get(self.url_retorno, {'id': 'tx3ds_recarga'}, secure=True)
+        self.client.get(self.url_retorno, {'id': 'tx3ds_recarga'}, secure=True)
+
+        self.assertEqual(
+            Pago.objects.filter(cotizacion=self.cotizacion,
+                                referencia='tx3ds_recarga').count(), 1)
+
+    @patch('comercial.services_openpay.requests.get')
+    @patch('comercial.services_openpay.requests.post')
+    def test_autenticacion_fallida_no_cobra_y_avisa_al_cliente(self, mock_post, mock_get):
+        self._iniciar_cargo(mock_post, 'tx3ds_rechazo')
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx3ds_rechazo', 'status': 'failed', 'amount': 600.00,
+            'error_code': 3005,
+            'description': 'The card was declined by the fraud system',
+        })
+
+        response = self.client.get(
+            self.url_retorno, {'id': 'tx3ds_rechazo'}, secure=True)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('pago=rechazado', response.url)
+        self.assertFalse(Pago.objects.filter(cotizacion=self.cotizacion).exists())
+
+    def test_retorno_sin_cargo_pendiente_no_inventa_un_pago(self):
+        response = self.client.get(self.url_retorno, secure=True)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('pago=error', response.url)
+        self.assertFalse(Pago.objects.filter(cotizacion=self.cotizacion).exists())
