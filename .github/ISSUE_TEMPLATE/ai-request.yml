@@ -1,5 +1,5 @@
-name: Solicitud automática de IA
-description: Describe una necesidad para que Claude la planifique y Codex la implemente.
+name: Solicitud de IA
+description: Elige un modo y describe brevemente lo que necesitas.
 title: "[AI]: "
 labels: []
 assignees: []
@@ -7,13 +7,23 @@ body:
   - type: markdown
     attributes:
       value: |
-        Este Issue inicia automáticamente el flujo Claude → Codex → CI → revisión → merge.
-        No incluyas secretos, credenciales, datos personales ni instrucciones de producción.
-  - type: textarea
-    id: need
+        El modo combinado puede fusionar automáticamente. Los modos individuales crean un PR para revisión manual.
+        No incluyas secretos, datos personales ni instrucciones de producción.
+  - type: dropdown
+    id: mode
     attributes:
-      label: Necesidad
-      description: Explica qué quieres construir, corregir o cambiar y por qué.
+      label: Modo
+      options:
+        - Combinado
+        - Solo Codex
+        - Solo Claude
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo
+      description: ¿Qué quieres lograr?
       placeholder: Quiero que...
     validations:
       required: true
@@ -21,21 +31,21 @@ body:
     id: expected
     attributes:
       label: Resultado esperado
-      description: Describe el comportamiento observable al finalizar.
+      description: ¿Cómo sabremos que quedó bien?
     validations:
       required: true
   - type: textarea
-    id: exclusions
+    id: details
     attributes:
-      label: Límites o exclusiones
-      description: Indica qué no debe cambiar. Escribe “Ninguno adicional” si no aplica.
+      label: Detalles o límites
+      description: Opcional. Indica restricciones o información útil.
     validations:
-      required: true
+      required: false
   - type: checkboxes
     id: authorization
     attributes:
       label: Autorización
       options:
-        - label: Autorizo que Claude planifique, Codex implemente y el PR se fusione automáticamente solo si CI y la revisión terminan correctamente.
+        - label: Autorizo ejecutar el modo seleccionado y consumir las APIs necesarias. Entiendo que solo el modo combinado puede fusionarse automáticamente.
           required: true
 
