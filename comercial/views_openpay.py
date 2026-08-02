@@ -56,6 +56,31 @@ def portal_procesar_pago_openpay(request, token):
     if monto < minimo - Decimal('0.50'):
         return JsonResponse({'ok': False, 'mensaje': f'El monto mínimo para este pago es ${minimo:,.2f}.'})
 
+    if request.POST.get('acepta_legales') not in ('1', 'true', 'True', 'on'):
+        return JsonResponse({
+            'ok': False,
+            'mensaje': 'Debes aceptar los Términos y Condiciones y la Política de '
+                       'Cancelación para continuar con el pago.',
+        })
+
+    # Evidencia del consentimiento con el que se autorizó ESTE cobro: es lo que
+    # se exhibe ante un contracargo. Si el registro falla no se detiene el pago,
+    # pero queda el error en el log.
+    try:
+        from legal.models import OrigenAceptacion
+        from legal.services import LegalService
+        LegalService.registrar_aceptacion(
+            request=request,
+            correo=(cotizacion.cliente.email or ''),
+            origen=OrigenAceptacion.CHECKOUT,
+            cliente=cotizacion.cliente,
+        )
+    except Exception:
+        logger.exception(
+            "No se pudo registrar la aceptación legal del checkout (COT-%s).",
+            cotizacion.id,
+        )
+
     candado = f'pago_openpay_en_curso:{cotizacion.id}'
     if not cache.add(candado, '1', timeout=CANDADO_PAGO_SEGUNDOS):
         return JsonResponse({

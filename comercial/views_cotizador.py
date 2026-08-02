@@ -139,6 +139,15 @@ def cotizador_enviar(request):
     # Extras dinámicos (IDs de Producto con visible_cotizador=True)
     extras_ids_raw = data.get('extras_ids', [])
 
+    # Consentimiento (art. 8 LFPDPPP): el aviso y los términos son obligatorios;
+    # las finalidades secundarias son opcionales y se registran por separado.
+    acepta_legales = bool(data.get('acepta_legales', False))
+    finalidades_opt = [
+        str(c).strip().upper()
+        for c in (data.get('finalidades') or [])
+        if str(c).strip()
+    ]
+
     # Datos fiscales (opcionales)
     req_factura    = bool(data.get('requiere_factura', False))
     rfc_raw        = str(data.get('rfc', '')).strip().upper()
@@ -152,6 +161,10 @@ def cotizador_enviar(request):
     if len(tel_d) < 10: errores.append("El teléfono debe tener al menos 10 dígitos.")
     if not servicio:    errores.append("Selecciona un tipo de servicio.")
     if not fecha_str:   errores.append("La fecha es requerida.")
+    if not acepta_legales:
+        errores.append(
+            "Debes aceptar el Aviso de Privacidad y los Términos y Condiciones."
+        )
     if errores:
         return JsonResponse({'ok': False, 'errores': errores}, status=400)
 
@@ -219,6 +232,25 @@ def cotizador_enviar(request):
         origen='Web',
         email_raw=email,
     )
+
+    # ── Evidencia de consentimiento ────────────────────────────────────────────────
+    # Se registra en cuanto existe el cliente. Si el registro falla (por ejemplo,
+    # porque falta sembrar algún documento vigente) NO se pierde la solicitud: se
+    # deja el error en el log y el lead sigue su curso.
+    try:
+        from legal.models import OrigenAceptacion
+        from legal.services import LegalService
+        LegalService.registrar_aceptacion(
+            request=request,
+            correo=email,
+            origen=OrigenAceptacion.FORM_COTIZACION,
+            cliente=cliente,
+            finalidades_aceptadas=finalidades_opt,
+        )
+    except Exception:
+        logger.exception(
+            "No se pudo registrar la aceptación legal del cliente %s.", cliente.pk
+        )
 
     if req_factura and rfc_raw:
         cliente.es_cliente_fiscal = True

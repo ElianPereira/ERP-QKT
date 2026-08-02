@@ -510,25 +510,25 @@ class PortalCheckoutViewTest(TestCase):
 
     def test_token_invalido_regresa_404(self):
         url = reverse('portal_procesar_pago_openpay', args=['token-inexistente'])
-        response = self.client.post(url, secure=True, data={'metodo': 'store', 'monto': '500.00'})
+        response = self.client.post(url, secure=True, data={'metodo': 'store', 'monto': '500.00', 'acepta_legales': '1'})
         self.assertEqual(response.status_code, 404)
 
     def test_monto_invalido_rechazado(self):
-        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': 'abc'})
+        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': 'abc', 'acepta_legales': '1'})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()['ok'])
 
     def test_monto_mayor_al_saldo_rechazado(self):
-        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '999999.00'})
+        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '999999.00', 'acepta_legales': '1'})
         self.assertFalse(response.json()['ok'])
         self.assertIn('saldo pendiente', response.json()['mensaje'])
 
     def test_metodo_desconocido_rechazado(self):
-        response = self.client.post(self.url, secure=True, data={'metodo': 'bitcoin', 'monto': '500.00'})
+        response = self.client.post(self.url, secure=True, data={'metodo': 'bitcoin', 'monto': '500.00', 'acepta_legales': '1'})
         self.assertFalse(response.json()['ok'])
 
     def test_tarjeta_sin_token_rechazada_sin_llamar_openpay(self):
-        response = self.client.post(self.url, secure=True, data={'metodo': 'card', 'monto': '500.00'})
+        response = self.client.post(self.url, secure=True, data={'metodo': 'card', 'monto': '500.00', 'acepta_legales': '1'})
         self.assertFalse(response.json()['ok'])
         self.assertFalse(OpenpayTransaccion.objects.exists())
 
@@ -540,7 +540,7 @@ class PortalCheckoutViewTest(TestCase):
         })
         # 600 >= 50% de 1160 (precio_final con IVA de _crear_cotizacion) — cumple
         # el mínimo del primer pago.
-        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00'})
+        response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00', 'acepta_legales': '1'})
         data = response.json()
         self.assertTrue(data['ok'])
         self.assertEqual(data['reference'], 'OPENPAY05REF')
@@ -550,7 +550,7 @@ class PortalCheckoutViewTest(TestCase):
         candado = f'pago_openpay_en_curso:{self.cotizacion.id}'
         cache.set(candado, '1', timeout=12)
         try:
-            response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00'})
+            response = self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00', 'acepta_legales': '1'})
             data = response.json()
             self.assertFalse(data['ok'])
             self.assertTrue(data['candado'])
@@ -564,7 +564,7 @@ class PortalCheckoutViewTest(TestCase):
             'id': 'tx-candado', 'status': 'in_progress',
             'payment_method': {'reference': 'OPENPAYCANDADOREF'}
         })
-        self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00'})
+        self.client.post(self.url, secure=True, data={'metodo': 'store', 'monto': '600.00', 'acepta_legales': '1'})
         from django.core.cache import cache
         candado = f'pago_openpay_en_curso:{self.cotizacion.id}'
         self.assertIsNone(cache.get(candado))
