@@ -1,87 +1,41 @@
-name: Solicitud para Claude + Codex
-description: Solicita a Claude un plan ejecutable y a Codex su implementación.
+name: Solicitud automática de IA
+description: Describe una necesidad para que Claude la planifique y Codex la implemente.
 title: "[AI]: "
-labels:
-  - ai-request
+labels: []
+assignees: []
 body:
   - type: markdown
     attributes:
       value: |
-        Claude analizará esta solicitud. Cuando el plan quede aprobado y el
-        Issue reciba la etiqueta `codex-ready`, Codex podrá implementarlo en
-        un Pull Request en borrador.
-
+        Este Issue inicia automáticamente el flujo Claude → Codex → CI → revisión → merge.
+        No incluyas secretos, credenciales, datos personales ni instrucciones de producción.
   - type: textarea
-    id: objective
+    id: need
     attributes:
-      label: Objetivo
-      description: Describe el resultado esperado y el problema que resuelve.
+      label: Necesidad
+      description: Explica qué quieres construir, corregir o cambiar y por qué.
+      placeholder: Quiero que...
     validations:
       required: true
-
   - type: textarea
-    id: context
+    id: expected
     attributes:
-      label: Contexto
-      description: Incluye antecedentes, comportamiento actual y referencias útiles.
+      label: Resultado esperado
+      description: Describe el comportamiento observable al finalizar.
     validations:
       required: true
-
   - type: textarea
-    id: included_scope
+    id: exclusions
     attributes:
-      label: Alcance incluido
-      description: Enumera exactamente lo que puede modificarse.
-      placeholder: |
-        - ...
+      label: Límites o exclusiones
+      description: Indica qué no debe cambiar. Escribe “Ninguno adicional” si no aplica.
     validations:
       required: true
-
-  - type: textarea
-    id: excluded_scope
-    attributes:
-      label: Alcance excluido
-      description: Indica explícitamente qué no debe cambiar.
-      placeholder: |
-        - ...
-    validations:
-      required: true
-
-  - type: textarea
-    id: acceptance_criteria
-    attributes:
-      label: Criterios de aceptación
-      description: Define resultados verificables.
-      placeholder: |
-        - [ ] ...
-    validations:
-      required: true
-
-  - type: textarea
-    id: validations
-    attributes:
-      label: Validaciones esperadas
-      description: Indica pruebas, comprobaciones y revisiones manuales necesarias.
-      placeholder: |
-        - `ruff check .`
-        - `python manage.py test <app>`
-    validations:
-      required: true
-
-  - type: textarea
-    id: risks
-    attributes:
-      label: Riesgos y áreas sensibles
-      description: Señala impactos en seguridad, datos, pagos, contabilidad, migraciones o despliegue.
-    validations:
-      required: true
-
   - type: checkboxes
-    id: confirmation
+    id: authorization
     attributes:
-      label: Confirmación
+      label: Autorización
       options:
-        - label: La solicitud no contiene secretos, credenciales, tokens ni datos personales.
+        - label: Autorizo que Claude planifique, Codex implemente y el PR se fusione automáticamente solo si CI y la revisión terminan correctamente.
           required: true
-        - label: Entiendo que el plan debe aprobarse antes de añadir la etiqueta `codex-ready`.
-          required: true
+
