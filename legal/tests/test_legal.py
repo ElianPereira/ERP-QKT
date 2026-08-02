@@ -285,6 +285,31 @@ class SeedTest(TestCase):
             DocumentoLegal.objects.filter(tipo=TipoDocumento.TERMINOS,
                                           vigente=True).count(), 1)
 
+    def test_publica_una_version_mas_nueva_del_repositorio(self):
+        """
+        Regresión: el candado anterior solo publicaba cuando NO había versión
+        vigente, así que una corrección publicada en el repositorio (v2.1)
+        nunca llegaba a producción — se quedaba viva la v2.0 anterior. Fue
+        exactamente lo que pasó con el aviso de privacidad.
+        """
+        vieja = _doc(TipoDocumento.AVISO_PRIVACIDAD, version='1.0',
+                     contenido='Aviso viejo con notas internas')
+        self.assertTrue(vieja.vigente)
+
+        self._seed()
+
+        vieja.refresh_from_db()
+        self.assertFalse(vieja.vigente, 'la versión vieja siguió vigente')
+        vigente = DocumentoLegal.objects.get(tipo=TipoDocumento.AVISO_PRIVACIDAD,
+                                             vigente=True)
+        self.assertEqual(vigente.version, '2.1')
+
+    def test_ordena_las_versiones_numericamente(self):
+        """'2.10' es posterior a '2.9'; comparadas como cadenas, no."""
+        from legal.management.commands.seed_documentos_legales import Command
+        self.assertGreater(Command._orden('2.10'), Command._orden('2.9'))
+        self.assertGreater(Command._orden('3.0'), Command._orden('2.1'))
+
     def test_crea_el_catalogo_de_finalidades(self):
         self._seed(publicar=False)
         self.assertTrue(Finalidad.objects.filter(
