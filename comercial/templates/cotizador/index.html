@@ -187,6 +187,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .nota{font-size:.72rem;color:var(--texto-s);font-weight:300;text-align:center;margin-top:1rem;line-height:1.6;}
 
 .cot-footer{background:var(--oscuro);text-align:center;padding:1.5rem;color:rgba(255,255,255,.38);font-size:.68rem;}
+.cot-footer-legal{display:flex;justify-content:center;gap:1.3rem;flex-wrap:wrap;margin-bottom:.9rem;}
+.cot-footer-legal a{color:rgba(255,255,255,.55);text-decoration:none;letter-spacing:.06em;text-transform:uppercase;}
+.cot-footer-legal a:hover{color:var(--amarillo);text-decoration:underline;}
+.nota a{color:var(--verde-d);font-weight:500;}
 
 /* Panel condicional */
 .panel-condicional{display:none;}
@@ -477,14 +481,23 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <button class="btn-prev" onclick="irA(5)">← Atrás</button>
       <button class="btn-submit" id="btnEnviar" onclick="enviarSolicitud()">Solicitar cotización</button>
     </div>
-    <p class="nota">Al enviar aceptas que nos pongamos en contacto contigo para darte seguimiento a tu solicitud.</p>
+    <p class="nota">Al enviar aceptas que nos pongamos en contacto contigo para darte seguimiento a tu solicitud, y que
+      tratemos tus datos conforme al <a href="{% url 'legal:aviso_privacidad' %}" target="_blank" rel="noopener">Aviso de Privacidad</a>
+      y a los <a href="{% url 'legal:terminos' %}" target="_blank" rel="noopener">Términos y Condiciones</a>.</p>
   </div>
 
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
-<footer class="cot-footer">© 2026 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com</footer>
+<footer class="cot-footer">
+  <div class="cot-footer-legal">
+    <a href="{% url 'legal:aviso_privacidad' %}" target="_blank" rel="noopener">Aviso de Privacidad</a>
+    <a href="{% url 'legal:terminos' %}" target="_blank" rel="noopener">Términos y Condiciones</a>
+    <a href="{% url 'legal:politica_cancelacion' %}" target="_blank" rel="noopener">Política de Cancelación</a>
+  </div>
+  © 2026 Quinta Ko'ox Tanil · Umán, Yucatán · quintakooxtanil@gmail.com
+</footer>
 
 <script>
 let servicioSel = '';
