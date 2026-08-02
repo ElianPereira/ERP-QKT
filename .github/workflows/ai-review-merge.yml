@@ -1,48 +1,236 @@
-name: AI - Revisar y habilitar merge
+name: AI Review and Merge
 
 on:
   pull_request:
-    types: [labeled]
+    types: [opened, synchronize, reopened]
     branches: [main]
 
-concurrency:
-  group: ai-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+permissions: {}
 
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+concurrency:
+  group: ai-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:
-    if: >-
-      github.event.label.name == 'ai-review' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    name: Review, correct and merge
+    permissions:
+      actions: read # wait for the CI workflow on the reviewed SHA
+      contents: read # checkout and diff inspection
+      issues: write # publish review comments on the PR
+      pull-requests: read # inspect PR state before using the Claude App token
+    if: startsWith(github.event.pull_request.head.ref, 'ai/issue-')
     runs-on: ubuntu-latest
-
+    timeout-minutes: 60
     steps:
-      - name: Descargar el Pull Request
-        uses: actions/checkout@v4
+      - name: Create read-only GitHub App identity token
+        id: identity-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
+          permission-pull-requests: read
+
+      - name: Verify automation pull request identity
+        env:
+          EXPECTED_AUTHOR: ${{ steps.identity-token.outputs.app-slug }}[bot]
+          ACTUAL_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          test "$ACTUAL_AUTHOR" = "$EXPECTED_AUTHOR" || { echo "El PR no fue creado por la GitHub App autorizada" >&2; exit 1; }
+          test "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" || { echo "No se permiten ramas de forks" >&2; exit 1; }
+
+      - name: Check out pull request branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Revisar con Claude
-        uses: anthropics/claude-code-action@v1
+      - name: Fetch main
+        run: git fetch --no-tags origin main
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          direct_prompt: |
-            Revisa el Pull Request #${{ github.event.pull_request.number }} contra main.
-            Lee AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md. Verifica el alcance del
-            Issue relacionado, corre las validaciones aplicables y busca regresiones,
-            vulnerabilidades y ausencia de pruebas. Publica una revisión de GitHub con
-            hallazgos concretos y accionables. No modifiques archivos, no hagas commits,
-            push, merge ni despliegues. Aprueba únicamente si no hay hallazgos bloqueantes.
+          python-version: '3.12'
+          cache: pip
 
-      - name: Habilitar auto-merge cuando se solicite
-        if: contains(github.event.pull_request.labels.*.name, 'ai-automerge')
+      - name: Install project validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install ruff coverage
+
+      - name: Review with Claude
+        id: review
+        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: ${{ steps.identity-token.outputs.app-slug }}[bot]
+          prompt: |
+            Revisa el PR #${{ github.event.pull_request.number }} de
+            ${{ github.repository }} contra su Issue vinculado, CLAUDE.md,
+            AGENTS.md y PROJECT_CONTEXT.md. Analiza únicamente el diff
+            origin/main...HEAD. No modifiques archivos.
+
+            Aprueba solo si cumple el alcance y criterios, conserva seguridad y
+            lógica de negocio, incluye pruebas suficientes y no contiene cambios
+            innecesarios. Devuelve approved=true únicamente cuando no exista
+            ninguna observación bloqueante. En findings entrega observaciones
+            concretas y accionables.
+          claude_args: >-
+            --max-turns 10
+            --allowedTools "Read,Grep,Glob,Bash(git status:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
+            --json-schema '{"type":"object","properties":{"approved":{"type":"boolean"},"findings":{"type":"string"}},"required":["approved","findings"],"additionalProperties":false}'
+
+      - name: Publish review result
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --squash
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_JSON: ${{ steps.review.outputs.structured_output }}
+        run: |
+          approved=$(jq -r '.approved' <<<"$REVIEW_JSON")
+          findings=$(jq -r '.findings' <<<"$REVIEW_JSON")
+          {
+            echo "## Revisión automática de Claude"
+            echo
+            echo "**Resultado:** $([ "$approved" = true ] && echo 'Aprobado' || echo 'Requiere cambios')"
+            echo
+            echo "$findings"
+          } > /tmp/ai-review.md
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file /tmp/ai-review.md
+
+      - name: Count automated correction rounds
+        if: fromJSON(steps.review.outputs.structured_output).approved != true
+        id: rounds
+        run: |
+          count=$(git rev-list --count origin/main..HEAD)
+          if [ "$count" -lt 3 ]; then echo "can_fix=true" >> "$GITHUB_OUTPUT"; else echo "can_fix=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Stop after two correction rounds
+        if: >-
+          fromJSON(steps.review.outputs.structured_output).approved != true &&
+          steps.rounds.outputs.can_fix != 'true'
+        run: |
+          echo "Se alcanzó el máximo de dos correcciones automáticas" >&2
+          exit 1
+
+      - name: Correct findings with Codex
+        if: >-
+          fromJSON(steps.review.outputs.structured_output).approved != true &&
+          steps.rounds.outputs.can_fix == 'true'
+        id: fix
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          safety-strategy: drop-sudo
+          allow-bot-users: ${{ steps.identity-token.outputs.app-slug }}[bot]
+          effort: medium
+          prompt: |
+            Corrige exclusivamente las observaciones bloqueantes de Claude en el
+            PR #${{ github.event.pull_request.number }}. Conserva el alcance del
+            Issue y sigue AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md.
+
+            OBSERVACIONES:
+            ${{ fromJSON(steps.review.outputs.structured_output).findings }}
+
+            No modifiques workflows ni instrucciones de agentes. Ejecuta las
+            validaciones afectadas. No hagas push ni merge.
+
+      - name: Enforce correction boundaries
+        if: steps.rounds.outputs.can_fix == 'true'
+        run: |
+          test -n "$(git status --short)" || { echo "Codex no pudo producir una corrección" >&2; exit 1; }
+          changed=$( { git diff --name-only; git ls-files --others --exclude-standard; } | sort -u )
+          protected=$(printf '%s\n' "$changed" | grep -E \
+            '^(\.github/(workflows|actions)/|\.gitmodules$|\.gitattributes$|AGENTS\.md$|CLAUDE\.md$)' || true)
+          test -z "$protected" || { echo "Codex modificó archivos protegidos:" >&2; echo "$protected" >&2; exit 1; }
+          if printf '%s\n' "$changed" | grep -Eq '(^|/)\.env($|\.local$|\.production$|\.development$)'; then
+            echo "Codex intentó confirmar un archivo de entorno real" >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Validate correction
+        if: steps.rounds.outputs.can_fix == 'true'
+        env:
+          SECRET_KEY: local-ai-validation-key
+          DEBUG: 'True'
+          ALLOWED_HOSTS: '*'
+        run: |
+          ruff check . || echo "::warning::Ruff reportó deuda previa; el CI actual trata lint como informativo."
+          python manage.py check
+          python manage.py makemigrations --check --dry-run || echo "::warning::main ya contiene migraciones pendientes en facturacion/legal."
+          coverage run --source='.' manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp
+          coverage report --skip-covered
+
+      - name: Create correction token
+        if: steps.rounds.outputs.can_fix == 'true'
+        id: correction-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Push correction
+        if: steps.rounds.outputs.can_fix == 'true'
+        env:
+          APP_TOKEN: ${{ steps.correction-token.outputs.token }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          test -n "$APP_TOKEN" || { echo "La GitHub App no entregó un token temporal" >&2; exit 1; }
+          git config user.name "Codex Automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config core.hooksPath /dev/null
+          git add --all
+          git commit -m "ai: address review for PR #${PR_NUMBER}"
+          git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:refs/heads/$PR_BRANCH"
+
+      - name: Wait for CI
+        if: fromJSON(steps.review.outputs.structured_output).approved == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for attempt in $(seq 1 80); do
+            result=$(gh api --method GET \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+              -f head_sha="$HEAD_SHA" -f event=pull_request -f per_page=10 \
+              --jq '.workflow_runs[0] | [.status, (.conclusion // "")] | @tsv')
+            status=$(cut -f1 <<<"$result")
+            conclusion=$(cut -f2 <<<"$result")
+            if [ "$status" = completed ]; then
+              test "$conclusion" = success
+              exit
+            fi
+            sleep 15
+          done
+          echo "CI no terminó dentro de 20 minutos" >&2
+          exit 1
+
+      - name: Create merge token
+        if: fromJSON(steps.review.outputs.structured_output).approved == true
+        id: merge-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Merge approved pull request
+        if: fromJSON(steps.review.outputs.structured_output).approved == true
+        env:
+          GH_TOKEN: ${{ steps.merge-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          current_sha=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
+          test "$current_sha" = "$EXPECTED_SHA" || { echo "El PR cambió durante la revisión" >&2; exit 1; }
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
