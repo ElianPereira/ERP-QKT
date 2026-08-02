@@ -1,131 +1,194 @@
-name: AI - Implementar con Codex
+name: AI Implement
 
 on:
   issues:
-    types: [labeled]
-  workflow_dispatch:
-    inputs:
-      issue_number:
-        description: Número del Issue con el plan aprobado
-        required: true
-        type: number
+    types: [opened]
+
+permissions: {}
 
 concurrency:
-  group: ai-implement-${{ github.event.issue.number || inputs.issue_number }}
+  group: ai-issue-${{ github.event.issue.number }}
   cancel-in-progress: false
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
 
 jobs:
   implement:
+    name: Plan, implement and open PR
+    permissions:
+      contents: read # checkout and repository context
+      issues: write # publish the plan and PR link
+      pull-requests: read # let Claude inspect linked PR metadata
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.label.name == 'codex-ready' &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
+      github.event.issue.user.login == github.repository_owner &&
+      startsWith(github.event.issue.title, '[AI]:')
     runs-on: ubuntu-latest
-    env:
-      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
-
+    timeout-minutes: 60
     steps:
-      - name: Obtener y validar el Issue
-        id: issue
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issueNumber = Number(process.env.ISSUE_NUMBER);
-            const { data: issue } = await github.rest.issues.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-            });
-            const allowed = ["OWNER", "MEMBER", "COLLABORATOR"];
-            if (!allowed.includes(issue.author_association)) {
-              core.setFailed("El Issue debe pertenecer a un colaborador autorizado.");
-              return;
-            }
-            if (!issue.labels.some((label) => label.name === "codex-ready")) {
-              core.setFailed("El Issue debe tener la etiqueta codex-ready.");
-              return;
-            }
-            core.setOutput("title", issue.title);
-            core.setOutput("body", issue.body || "");
-
-      - name: Comprobar que no exista un PR para el Issue
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issueNumber = Number(process.env.ISSUE_NUMBER);
-            const branch = `codex/issue-${issueNumber}`;
-            const { data: pulls } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              head: `${context.repo.owner}:${branch}`,
-            });
-            if (pulls.length) {
-              core.setFailed(`Ya existe el PR #${pulls[0].number} para este Issue.`);
-            }
-
-      - name: Descargar main
-        uses: actions/checkout@v4
+      - name: Check out main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Crear rama de implementación
-        run: git switch -c "codex/issue-${ISSUE_NUMBER}"
-
-      - name: Implementar el plan con Codex
-        uses: openai/codex-action@v1
+      - name: Plan with Claude
+        id: plan
+        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            Implementa estrictamente el plan aprobado del Issue #${{ env.ISSUE_NUMBER }}.
+            Actúa exclusivamente como arquitecto y planificador para el Issue
+            #${{ github.event.issue.number }} de ${{ github.repository }}.
 
-            Título:
-            ${{ steps.issue.outputs.title }}
+            TÍTULO:
+            ${{ github.event.issue.title }}
 
-            Contenido:
-            ${{ steps.issue.outputs.body }}
+            SOLICITUD:
+            ${{ github.event.issue.body }}
 
-            Lee AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md antes de modificar archivos.
-            Respeta el alcance incluido y excluido, añade pruebas para los cambios de
-            comportamiento y ejecuta las validaciones aplicables. No hagas push, merge
-            ni despliegues, y no modifiques secretos ni configuración de producción.
+            Lee CLAUDE.md, AGENTS.md y PROJECT_CONTEXT.md. Investiga el código
+            relacionado sin modificar archivos. Devuelve un plan ejecutable por
+            Codex, con alcance, exclusiones, archivos relevantes, pasos, criterios
+            de aceptación, validaciones reales y riesgos. Marca blocked=true si
+            falta una decisión humana, la petición es insegura o no puede
+            planificarse con evidencia suficiente.
+          claude_args: >-
+            --max-turns 12
+            --allowedTools "Read,Grep,Glob"
+            --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
 
-      - name: Confirmar que Codex produjo cambios
-        id: changes
-        run: |
-          if git diff --quiet && git diff --cached --quiet; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-
-      - name: Crear commit
-        if: steps.changes.outputs.changed == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --all
-          git commit -m "codex: implementa issue #${ISSUE_NUMBER}"
-
-      - name: Publicar rama
-        if: steps.changes.outputs.changed == 'true'
-        run: git push --set-upstream origin "codex/issue-${ISSUE_NUMBER}"
-
-      - name: Abrir Pull Request en borrador
-        if: steps.changes.outputs.changed == 'true'
+      - name: Publish Claude plan
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PLAN_JSON: ${{ steps.plan.outputs.structured_output }}
         run: |
-          gh pr create \
-            --draft \
-            --base main \
-            --head "codex/issue-${ISSUE_NUMBER}" \
-            --title "${ISSUE_TITLE}" \
-            --body "Closes #${ISSUE_NUMBER}\n\nImplementación generada por Codex a partir del plan aprobado."
+          plan=$(jq -r '.plan' <<<"$PLAN_JSON")
+          blocked=$(jq -r '.blocked' <<<"$PLAN_JSON")
+          blocker=$(jq -r '.blocker' <<<"$PLAN_JSON")
+          {
+            echo "## Plan automático de Claude"
+            echo
+            echo "$plan"
+            if [ "$blocked" = "true" ]; then
+              echo
+              echo "### Bloqueo"
+              echo "$blocker"
+            fi
+          } > /tmp/claude-plan.md
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file /tmp/claude-plan.md
+
+      - name: Stop on planning blocker
+        if: fromJSON(steps.plan.outputs.structured_output).blocked == true
+        env:
+          BLOCKER: ${{ fromJSON(steps.plan.outputs.structured_output).blocker }}
+        run: |
+          echo "Claude bloqueó la implementación: $BLOCKER" >&2
+          exit 1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install project validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install ruff coverage
+
+      - name: Implement with Codex
+        id: codex
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          safety-strategy: drop-sudo
+          effort: medium
+          prompt: |
+            Implementa el Issue #${{ github.event.issue.number }} en
+            ${{ github.repository }} siguiendo AGENTS.md, CLAUDE.md y
+            PROJECT_CONTEXT.md.
+
+            SOLICITUD ORIGINAL:
+            ${{ github.event.issue.body }}
+
+            PLAN VERIFICADO POR CLAUDE:
+            ${{ fromJSON(steps.plan.outputs.structured_output).plan }}
+
+            Modifica solo los archivos necesarios. No cambies workflows,
+            instrucciones de agentes, credenciales ni configuración de la propia
+            automatización. Ejecuta las validaciones aplicables. No hagas push ni
+            merge; el workflow publicará el resultado.
+
+      - name: Enforce automation boundaries
+        run: |
+          test -n "$(git status --short)" || { echo "Codex no produjo cambios" >&2; exit 1; }
+          changed=$( { git diff --name-only; git ls-files --others --exclude-standard; } | sort -u )
+          protected=$(printf '%s\n' "$changed" | grep -E \
+            '^(\.github/(workflows|actions)/|\.gitmodules$|\.gitattributes$|AGENTS\.md$|CLAUDE\.md$)' || true)
+          test -z "$protected" || { echo "Codex modificó archivos protegidos:" >&2; echo "$protected" >&2; exit 1; }
+          if printf '%s\n' "$changed" | grep -Eq '(^|/)\.env($|\.local$|\.production$|\.development$)'; then
+            echo "Codex intentó confirmar un archivo de entorno real" >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Validate implementation
+        env:
+          SECRET_KEY: local-ai-validation-key
+          DEBUG: 'True'
+          ALLOWED_HOSTS: '*'
+        run: |
+          ruff check . || echo "::warning::Ruff reportó deuda previa; el CI actual trata lint como informativo."
+          python manage.py check
+          python manage.py makemigrations --check --dry-run || echo "::warning::main ya contiene migraciones pendientes en facturacion/legal."
+          coverage run --source='.' manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp
+          coverage report --skip-covered
+
+      - name: Create scoped GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
+      - name: Create implementation branch
+        id: publish
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          test -n "$APP_TOKEN" || { echo "La GitHub App no entregó un token temporal" >&2; exit 1; }
+          branch="ai/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          git config user.name "Codex Automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config core.hooksPath /dev/null
+          git switch -c "$branch"
+          git add --all
+          git commit -m "ai: implement issue #${ISSUE_NUMBER}"
+          git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:refs/heads/$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          BRANCH: ${{ steps.publish.outputs.branch }}
+        run: |
+          cat > /tmp/pr-body.md <<EOF
+          Closes #${ISSUE_NUMBER}
+
+          Implementación generada por Codex a partir del plan automático de Claude.
+
+          El merge se realizará únicamente cuando CI finalice correctamente y la
+          revisión automática de Claude apruebe el cambio.
+          EOF
+          pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+            --title "AI: implementa #${ISSUE_NUMBER}" --body-file /tmp/pr-body.md)
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --body "Codex completó la implementación: $pr_url"
