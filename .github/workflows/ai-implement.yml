@@ -1,0 +1,131 @@
+name: AI - Implementar con Codex
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Número del Issue con el plan aprobado
+        required: true
+        type: number
+
+concurrency:
+  group: ai-implement-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  implement:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'codex-ready' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+
+    steps:
+      - name: Obtener y validar el Issue
+        id: issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = Number(process.env.ISSUE_NUMBER);
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            const allowed = ["OWNER", "MEMBER", "COLLABORATOR"];
+            if (!allowed.includes(issue.author_association)) {
+              core.setFailed("El Issue debe pertenecer a un colaborador autorizado.");
+              return;
+            }
+            if (!issue.labels.some((label) => label.name === "codex-ready")) {
+              core.setFailed("El Issue debe tener la etiqueta codex-ready.");
+              return;
+            }
+            core.setOutput("title", issue.title);
+            core.setOutput("body", issue.body || "");
+
+      - name: Comprobar que no exista un PR para el Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = Number(process.env.ISSUE_NUMBER);
+            const branch = `codex/issue-${issueNumber}`;
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              head: `${context.repo.owner}:${branch}`,
+            });
+            if (pulls.length) {
+              core.setFailed(`Ya existe el PR #${pulls[0].number} para este Issue.`);
+            }
+
+      - name: Descargar main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Crear rama de implementación
+        run: git switch -c "codex/issue-${ISSUE_NUMBER}"
+
+      - name: Implementar el plan con Codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            Implementa estrictamente el plan aprobado del Issue #${{ env.ISSUE_NUMBER }}.
+
+            Título:
+            ${{ steps.issue.outputs.title }}
+
+            Contenido:
+            ${{ steps.issue.outputs.body }}
+
+            Lee AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md antes de modificar archivos.
+            Respeta el alcance incluido y excluido, añade pruebas para los cambios de
+            comportamiento y ejecuta las validaciones aplicables. No hagas push, merge
+            ni despliegues, y no modifiques secretos ni configuración de producción.
+
+      - name: Confirmar que Codex produjo cambios
+        id: changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Crear commit
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "codex: implementa issue #${ISSUE_NUMBER}"
+
+      - name: Publicar rama
+        if: steps.changes.outputs.changed == 'true'
+        run: git push --set-upstream origin "codex/issue-${ISSUE_NUMBER}"
+
+      - name: Abrir Pull Request en borrador
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+        run: |
+          gh pr create \
+            --draft \
+            --base main \
+            --head "codex/issue-${ISSUE_NUMBER}" \
+            --title "${ISSUE_TITLE}" \
+            --body "Closes #${ISSUE_NUMBER}\n\nImplementación generada por Codex a partir del plan aprobado."

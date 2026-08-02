@@ -1,0 +1,48 @@
+name: AI - Revisar y habilitar merge
+
+on:
+  pull_request:
+    types: [labeled]
+    branches: [main]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    if: >-
+      github.event.label.name == 'ai-review' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el Pull Request
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Revisar con Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          direct_prompt: |
+            Revisa el Pull Request #${{ github.event.pull_request.number }} contra main.
+            Lee AGENTS.md, CLAUDE.md y PROJECT_CONTEXT.md. Verifica el alcance del
+            Issue relacionado, corre las validaciones aplicables y busca regresiones,
+            vulnerabilidades y ausencia de pruebas. Publica una revisión de GitHub con
+            hallazgos concretos y accionables. No modifiques archivos, no hagas commits,
+            push, merge ni despliegues. Aprueba únicamente si no hay hallazgos bloqueantes.
+
+      - name: Habilitar auto-merge cuando se solicite
+        if: contains(github.event.pull_request.labels.*.name, 'ai-automerge')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --squash

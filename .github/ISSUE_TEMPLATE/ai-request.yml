@@ -1,0 +1,87 @@
+name: Solicitud para Claude + Codex
+description: Solicita a Claude un plan ejecutable y a Codex su implementación.
+title: "[AI]: "
+labels:
+  - ai-request
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Claude analizará esta solicitud. Cuando el plan quede aprobado y el
+        Issue reciba la etiqueta `codex-ready`, Codex podrá implementarlo en
+        un Pull Request en borrador.
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo
+      description: Describe el resultado esperado y el problema que resuelve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto
+      description: Incluye antecedentes, comportamiento actual y referencias útiles.
+    validations:
+      required: true
+
+  - type: textarea
+    id: included_scope
+    attributes:
+      label: Alcance incluido
+      description: Enumera exactamente lo que puede modificarse.
+      placeholder: |
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: excluded_scope
+    attributes:
+      label: Alcance excluido
+      description: Indica explícitamente qué no debe cambiar.
+      placeholder: |
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Criterios de aceptación
+      description: Define resultados verificables.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: validations
+    attributes:
+      label: Validaciones esperadas
+      description: Indica pruebas, comprobaciones y revisiones manuales necesarias.
+      placeholder: |
+        - `ruff check .`
+        - `python manage.py test <app>`
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Riesgos y áreas sensibles
+      description: Señala impactos en seguridad, datos, pagos, contabilidad, migraciones o despliegue.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmación
+      options:
+        - label: La solicitud no contiene secretos, credenciales, tokens ni datos personales.
+          required: true
+        - label: Entiendo que el plan debe aprobarse antes de añadir la etiqueta `codex-ready`.
+          required: true
