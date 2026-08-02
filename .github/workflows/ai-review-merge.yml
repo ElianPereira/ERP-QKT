@@ -19,7 +19,7 @@ jobs:
       contents: read # checkout and diff inspection
       issues: write # publish review comments on the PR
       pull-requests: read # inspect PR state before using the Claude App token
-    if: startsWith(github.event.pull_request.head.ref, 'ai/issue-')
+    if: startsWith(github.event.pull_request.head.ref, 'ai/combined/issue-')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -234,3 +234,5 @@ jobs:
           current_sha=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
           test "$current_sha" = "$EXPECTED_SHA" || { echo "El PR cambió durante la revisión" >&2; exit 1; }
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
+
+
