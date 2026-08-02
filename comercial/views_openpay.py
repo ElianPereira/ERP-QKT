@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from core_erp.ratelimit import rate_limit
-from .models import PortalCliente
+from .models import OpenpayTransaccion, PortalCliente
 from .services_openpay import (
     procesar_cargo_tarjeta, procesar_cargo_efectivo, procesar_cargo_spei,
     procesar_webhook_openpay, consultar_y_confirmar_cargo,
@@ -131,8 +131,13 @@ def portal_retorno_3ds(request, token):
     portal = get_object_or_404(PortalCliente, token=token, activo=True)
     cotizacion = portal.cotizacion
 
-    # Openpay manda el id del cargo de vuelta; el nombre del parámetro puede
-    # variar, así que se aceptan las variantes documentadas.
+    # Openpay manda el id del cargo de vuelta, pero el nombre del parámetro no
+    # está garantizado. En vez de depender de acertarlo, se resuelve así:
+    #   1. Las variantes documentadas del query string.
+    #   2. Si ninguna viene, el propio cargo que quedó en 'charge_pending' para
+    #      esta cotización — el ERP lo registró antes de mandar al cliente al
+    #      banco, así que no hace falta que Openpay lo devuelva.
+    # De este modo un nombre de parámetro distinto no rompe el cobro.
     openpay_id = (
         request.GET.get('id')
         or request.GET.get('transaction_id')
@@ -142,8 +147,24 @@ def portal_retorno_3ds(request, token):
 
     destino = reverse('portal_evento', args=[token])
     if not openpay_id:
+        pendiente = (
+            OpenpayTransaccion.objects
+            .filter(cotizacion=cotizacion, metodo='card',
+                    estado_openpay='charge_pending', procesado=False)
+            .order_by('-created_at')
+            .first()
+        )
+        if pendiente:
+            openpay_id = pendiente.openpay_id
+            logger.warning(
+                "Retorno 3DS sin id en el query string (COT-%s). Se resuelve con "
+                "el cargo pendiente %s. Parámetros recibidos: %s",
+                cotizacion.id, openpay_id, list(request.GET.keys()),
+            )
+
+    if not openpay_id:
         logger.warning(
-            "Retorno 3DS sin id de cargo (COT-%s). Query: %s",
+            "Retorno 3DS sin id de cargo y sin cargo pendiente (COT-%s). Query: %s",
             cotizacion.id, dict(request.GET),
         )
         return redirect(f"{destino}?pago=error")
