@@ -254,14 +254,43 @@ class SeedTest(TestCase):
         call_command(*args, stdout=salida)
         return salida.getvalue()
 
-    def test_publica_los_tres_documentos(self):
+    def test_publica_los_documentos(self):
         self._seed()
         for tipo in (TipoDocumento.AVISO_PRIVACIDAD, TipoDocumento.TERMINOS,
-                     TipoDocumento.POLITICA_CANCELACION):
+                     TipoDocumento.POLITICA_CANCELACION, TipoDocumento.REGLAMENTO):
             self.assertTrue(
                 DocumentoLegal.objects.filter(tipo=tipo, vigente=True).exists(),
                 f'no quedó vigente {tipo}',
             )
+
+    def test_existen_los_archivos_que_el_seed_declara(self):
+        """
+        Regresión: `reglamento_v1.0.md` estaba declarado en el seed pero nunca
+        se escribió. El seed lo saltaba con un discreto '(no existe, se omite)'
+        y la ruta /reglamento/ —enlazada desde los Términos como documento
+        integrante— respondía 404 en producción.
+        """
+        from legal.management.commands.seed_documentos_legales import (
+            DIRECTORIO, DOCUMENTOS,
+        )
+        faltantes = [a for a in DOCUMENTOS if not (DIRECTORIO / a).exists()]
+        self.assertEqual(faltantes, [], f'archivos declarados sin escribir: {faltantes}')
+
+    def test_toda_ruta_publica_responde_despues_del_seed(self):
+        """
+        Candado de extremo a extremo: cada URL de `legal/urls.py` debe servir
+        un documento tras el seed. Agregar una ruta sin su documento —o al
+        revés— rompe aquí y no en el sitio en vivo.
+        """
+        from django.urls import reverse
+
+        from legal.urls import urlpatterns
+
+        self._seed()
+        for patron in urlpatterns:
+            url = reverse(f'legal:{patron.name}')
+            with self.subTest(ruta=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_es_idempotente(self):
         self._seed()
