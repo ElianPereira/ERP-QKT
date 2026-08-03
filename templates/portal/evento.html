@@ -363,7 +363,7 @@
                 </button>
             </form>
 
-            <div id="resultado-pago" style="display:none; margin-top:14px; padding:14px; border-radius:8px; font-weight:600; font-size:14px;"></div>
+            <div id="resultado-pago" role="status" aria-live="polite" style="display:none; margin-top:14px; padding:14px; border-radius:8px; font-weight:600; font-size:14px;"></div>
             <div id="referencia-pago" style="display:none; margin-top:14px; padding:14px; border-radius:8px; background:#f8f8f6; font-size:14px;"></div>
         </div>
 
@@ -541,7 +541,7 @@
             return;
         }
 
-        document.getElementById('btn-pagar').disabled = true;
+        iniciarProcesando();
 
         if (metodoActual === 'card') {
             OpenPay.token.extractFormAndCreate('payment-form', onTokenSuccess, onTokenError);
@@ -550,6 +550,40 @@
             enviarCargoAlBackend(metodoActual, null, null);
         }
     });
+
+    // Estado "procesando" del botón. Sin esto, un segundo intento tras un
+    // rechazo se ve idéntico al primero: el mensaje de error anterior sigue
+    // abajo y el botón no cambia, así que el cliente no sabe si su clic
+    // registró y vuelve a picarle (o se va creyendo que no funciona).
+    var btnPagar = document.getElementById('btn-pagar');
+    var iconoBtn = document.getElementById('icono-btn-pagar');
+    var textoBtn = document.getElementById('texto-btn-pagar');
+
+    function iniciarProcesando() {
+        // El resultado anterior se borra ANTES de empezar: que el error viejo
+        // conviva con el spinner del intento nuevo es justo la confusión que
+        // se quiere evitar.
+        var div = document.getElementById('resultado-pago');
+        div.style.display = 'none';
+        div.textContent = '';
+
+        btnPagar.disabled = true;
+        btnPagar.setAttribute('aria-busy', 'true');
+        btnPagar.style.opacity = '0.75';
+        btnPagar.style.cursor = 'progress';
+        iconoBtn.className = 'fas fa-circle-notch fa-spin';
+        textoBtn.textContent = 'Procesando…';
+    }
+
+    function terminarProcesando() {
+        var boton = TEXTO_BOTON[metodoActual] || TEXTO_BOTON.card;
+        btnPagar.disabled = false;
+        btnPagar.removeAttribute('aria-busy');
+        btnPagar.style.opacity = '';
+        btnPagar.style.cursor = 'pointer';
+        iconoBtn.className = 'fas ' + boton.icono;
+        textoBtn.textContent = boton.texto;
+    }
 
     function onTokenSuccess(response) {
         enviarCargoAlBackend('card', response.data.id, deviceSessionId);
@@ -567,7 +601,7 @@
     };
 
     function onTokenError(response) {
-        document.getElementById('btn-pagar').disabled = false;
+        terminarProcesando();
         var codigo = response.data && response.data.error_code;
         var mensaje = MENSAJES_ERROR_TOKEN[codigo] || 'No se pudo procesar la tarjeta. Verifica los datos.';
         mostrarResultado('error', mensaje);
@@ -595,7 +629,7 @@
                 window.location.href = data.redirect_3ds;
                 return;
             }
-            document.getElementById('btn-pagar').disabled = false;
+            terminarProcesando();
             if (data.ok && data.referencia) {
                 mostrarReferencia(data);
             } else if (data.ok) {
@@ -607,7 +641,7 @@
                 mostrarResultado(data.candado ? 'info' : 'error', data.mensaje);
             }
         }).catch(function() {
-            document.getElementById('btn-pagar').disabled = false;
+            terminarProcesando();
             mostrarResultado('error', 'No se pudo contactar al servidor. Intenta de nuevo.');
         });
     }
