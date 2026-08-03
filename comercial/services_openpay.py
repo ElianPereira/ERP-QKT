@@ -558,6 +558,9 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
         'order_id': data.get('order_id', ''),
         'comercio': 'Quinta Ko\'ox Tanil',
         'recibo_url': _recibo_pdf_url('paynet', store.get('reference', '')),
+        # Para armar el enlace a nuestra propia ficha, que sí lleva la marca
+        # del negocio y los datos del evento.
+        'openpay_id': data.get('id', ''),
     }
 
 

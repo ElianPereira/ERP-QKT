@@ -586,6 +586,38 @@ class CargoEfectivoSpeiTest(TestCase):
         procesar_cargo_tarjeta(cotizacion, Decimal('100.00'), 'tok-n', 'dev-n')
         self.assertNotIn('use_card_points', mock_post.call_args.kwargs['json'])
 
+    @patch('comercial.services_openpay.requests.post')
+    def test_ficha_paynet_propia_se_genera_y_no_se_filtra_entre_clientes(self, mock_post):
+        """
+        La ficha con marca propia (paso 3.1 de la guía) se sirve con el token
+        del portal. Sin filtrar además por cotización, el token de un cliente
+        serviría para leer la ficha de cualquier otro cambiando el id.
+        """
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-ficha-01', 'status': 'in_progress',
+            'description': 'COT-001 - Boda',
+            'payment_method': {'reference': '1010102410925001',
+                               'barcode_url': '', 'due_date': '2026-08-10T23:59:00'},
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_efectivo(cotizacion, Decimal('1000.00'))
+        self.assertEqual(resultado['openpay_id'], 'tx-ficha-01')
+
+        portal = PortalCliente.objects.get(cotizacion=cotizacion)
+        url = reverse('portal_ficha_paynet', args=[portal.token, 'tx-ficha-01'])
+        respuesta = Client().get(url)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta['Content-Type'], 'application/pdf')
+        self.assertTrue(respuesta.content.startswith(b'%PDF'))
+
+        # El token de otro cliente no alcanza la ficha ajena.
+        otra = _crear_cotizacion()
+        ajeno = PortalCliente.objects.get(cotizacion=otra)
+        self.assertEqual(
+            Client().get(reverse('portal_ficha_paynet', args=[ajeno.token, 'tx-ficha-01'])).status_code,
+            404,
+        )
+
     def test_las_librerias_de_openpay_vienen_del_origen_documentado(self):
         """
         El bucket de S3 sirve los mismos archivos pero no está documentado: si
@@ -640,25 +672,18 @@ class CargoEfectivoSpeiTest(TestCase):
         Ahora sale del kit oficial y cada logo debe existir en static/.
         """
         from pathlib import Path
-        import re
 
         from django.conf import settings
 
-        plantilla = Path(settings.BASE_DIR) / 'templates' / 'portal' / 'evento.html'
-        contenido = plantilla.read_text(encoding='utf-8')
+        from comercial.paynet import TIENDAS_PAYNET
 
-        bloque = re.search(r'var TIENDAS_PAYNET = \[(.*?)\];', contenido, re.S)
-        self.assertIsNotNone(bloque, 'falta el catálogo TIENDAS_PAYNET')
-        slugs = re.findall(r"\['([\w-]+)',", bloque.group(1))
-        self.assertGreaterEqual(len(slugs), 19)
+        self.assertGreaterEqual(len(TIENDAS_PAYNET), 19)
 
-        # Se revisa el catálogo, no el archivo entero: el comentario que
-        # explica el error viejo también nombra esas tiendas.
-        catalogo = bloque.group(1).upper()
+        nombres = ' '.join(n for _, n in TIENDAS_PAYNET).upper()
         for ajena in ('OXXO', 'BENAVIDES'):
-            self.assertNotIn(ajena, catalogo, f'{ajena} no pertenece a la red Paynet')
+            self.assertNotIn(ajena, nombres, f'{ajena} no pertenece a la red Paynet')
 
-        for slug in slugs:
+        for slug, _ in TIENDAS_PAYNET:
             logo = Path(settings.BASE_DIR) / 'static' / 'img' / 'pagos' / 'paynet' / f'{slug}.png'
             self.assertTrue(logo.exists(), f'falta el logo {slug}.png')
 

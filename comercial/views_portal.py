@@ -9,6 +9,7 @@ y estado de pagos sin necesidad de login al admin.
 
 Acceso: código de cotización + últimos 4 dígitos del teléfono.
 """
+import json
 import os
 from decimal import Decimal
 from django.shortcuts import render, get_object_or_404, redirect
@@ -23,6 +24,7 @@ from .models import (
     Cotizacion, PortalCliente, PlanPago, ImagenLanding,
     TestimonioLanding, EspacioLanding, PreguntaFrecuente,
 )
+from .paynet import TIENDAS_PAYNET
 
 
 from core_erp.ratelimit import rate_limit as _rate_limit
@@ -185,6 +187,9 @@ def portal_evento(request, token):
         'openpay_sandbox': settings.OPENPAY_MODE == 'sandbox',
         'monto_minimo_pago': monto_minimo,
         'monto_minimo_pago_motivo': monto_minimo_motivo,
+        # Catálogo de cadenas Paynet como JSON: el portal y la ficha PDF leen
+        # la misma lista, así no se desincronizan.
+        'tiendas_paynet': json.dumps([list(t) for t in TIENDAS_PAYNET]),
     }
 
     return render(request, 'portal/evento.html', context)
