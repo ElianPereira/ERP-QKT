@@ -511,6 +511,69 @@ class CargoEfectivoSpeiTest(TestCase):
         self.assertEqual(OpenpayTransaccion.objects.get(openpay_id='tx004').referencia_pago, '646180111812345678')
 
     @patch('comercial.services_openpay.requests.post')
+    def test_efectivo_regresa_url_del_recibo_paynet(self, mock_post):
+        """
+        Openpay exige que el cliente pueda descargar la ficha oficial. La URL
+        no viene en la respuesta del cargo: se arma contra el dashboard con el
+        merchant y el id de la transacción.
+        """
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-paynet-01', 'status': 'in_progress',
+            'payment_method': {'reference': '9876543210', 'barcode_url': 'http://x/b.png'},
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        self.assertTrue(resultado['ok'])
+        self.assertIn('/paynet-pdf/', resultado['recibo_url'])
+        self.assertTrue(resultado['recibo_url'].endswith('/tx-paynet-01'))
+        self.assertIn('dashboard.openpay.mx', resultado['recibo_url'])
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_spei_regresa_url_del_recibo(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-spei-01', 'status': 'in_progress',
+            'payment_method': {'bank': 'BBVA Bancomer', 'clabe': '012180001234567890',
+                               'agreement': '1411217', 'name': '11094690394055678934'},
+        })
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_spei(cotizacion, Decimal('500.00'))
+        self.assertTrue(resultado['ok'])
+        self.assertIn('/spei-pdf/', resultado['recibo_url'])
+        self.assertTrue(resultado['recibo_url'].endswith('/tx-spei-01'))
+        # El convenio CIE es lo que pide la banca de BBVA; sin él, un cliente
+        # de ese banco no puede completar el pago.
+        self.assertEqual(resultado['agreement'], '1411217')
+
+    def test_el_portal_lista_las_tiendas_reales_de_paynet(self):
+        """
+        El listado anterior era de memoria: nombraba OXXO y Farmacias
+        Benavides, que no están afiliadas, y omitía la mitad de las que sí.
+        Ahora sale del kit oficial y cada logo debe existir en static/.
+        """
+        from pathlib import Path
+        import re
+
+        from django.conf import settings
+
+        plantilla = Path(settings.BASE_DIR) / 'templates' / 'portal' / 'evento.html'
+        contenido = plantilla.read_text(encoding='utf-8')
+
+        bloque = re.search(r'var TIENDAS_PAYNET = \[(.*?)\];', contenido, re.S)
+        self.assertIsNotNone(bloque, 'falta el catálogo TIENDAS_PAYNET')
+        slugs = re.findall(r"\['([\w-]+)',", bloque.group(1))
+        self.assertGreaterEqual(len(slugs), 19)
+
+        # Se revisa el catálogo, no el archivo entero: el comentario que
+        # explica el error viejo también nombra esas tiendas.
+        catalogo = bloque.group(1).upper()
+        for ajena in ('OXXO', 'BENAVIDES'):
+            self.assertNotIn(ajena, catalogo, f'{ajena} no pertenece a la red Paynet')
+
+        for slug in slugs:
+            logo = Path(settings.BASE_DIR) / 'static' / 'img' / 'pagos' / 'paynet' / f'{slug}.png'
+            self.assertTrue(logo.exists(), f'falta el logo {slug}.png')
+
+    @patch('comercial.services_openpay.requests.post')
     def test_error_efectivo_no_muestra_description_cruda_en_ingles(self, mock_post):
         # Openpay siempre regresa 'description' en inglés; el mensaje al
         # cliente nunca debe mostrar ese texto crudo, sin importar el intento.

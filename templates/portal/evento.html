@@ -687,6 +687,48 @@
                '<i class="fas fa-copy"></i> Copiar</button></div>';
     }
 
+    // Cadenas de la red Paynet, del kit oficial de marca. El listado anterior
+    // era de memoria y nombraba tiendas que no están afiliadas (OXXO, Farmacias
+    // Benavides) mientras omitía la mitad de las que sí lo están.
+    var TIENDAS_PAYNET = [
+        ['walmart', 'Walmart'],
+        ['walmart-express', 'Walmart Express'],
+        ['bodega-aurrera', 'Bodega Aurrera'],
+        ['mas-bodega', 'Mi Bodega Aurrera'],
+        ['sams-club', "Sam's Club"],
+        ['soriana', 'Soriana'],
+        ['7-eleven', '7-Eleven'],
+        ['circle-k', 'Circle K'],
+        ['extra', 'Extra'],
+        ['kiosko', 'Kiosko'],
+        ['farmacia-guadalajara', 'Farmacias Guadalajara'],
+        ['farmacia-ahorro', 'Farmacias del Ahorro'],
+        ['waldos', "Waldo's"],
+        ['tiendas-k', 'Tiendas K'],
+        ['mercadia', 'Mercadía'],
+        ['systienda', 'Systienda'],
+        ['pagaqui', 'PagaQui'],
+        ['eleczion', 'Eleczion'],
+        ['via-servicios', 'VIA Servicios']
+    ];
+
+    function tiendasPaynetHTML() {
+        var html = '<div style="background:#fff; border:1px solid #ece9e2; border-radius:8px; padding:12px;">' +
+                   '<div style="font-size:12px; font-weight:700; color:#2E7D32; margin-bottom:10px;">' +
+                   'Puedes pagar en cualquiera de estas tiendas</div>' +
+                   '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:12px 10px;">';
+        TIENDAS_PAYNET.forEach(function(t) {
+            html += '<div style="text-align:center;">' +
+                    '<div style="height:26px; display:flex; align-items:center; justify-content:center;">' +
+                    '<img src="/static/img/pagos/paynet/' + t[0] + '.png" alt="' + t[1] + '" ' +
+                    'style="max-height:22px; max-width:100%; width:auto;" loading="lazy">' +
+                    '</div>' +
+                    '<div style="font-size:10px; color:#8a8780; margin-top:3px; line-height:1.2;">' + t[1] + '</div>' +
+                    '</div>';
+        });
+        return html + '</div></div>';
+    }
+
     function mostrarReferencia(data) {
         var div = document.getElementById('referencia-pago');
         div.style.display = 'block';
@@ -729,19 +771,25 @@
         html += '<div style="font-size:13px; line-height:1.7;">';
         if (esEfectivo) {
             html += '<p style="font-weight:600; margin-bottom:4px;">¿Cómo pagar?</p><ol style="margin:0 0 8px 18px; padding:0;">' +
-                    '<li>Acude a una tienda afiliada a la red <strong>Paynet</strong>.</li>' +
+                    '<li>Acude a cualquiera de las tiendas de la red <strong>Paynet</strong> que aparecen abajo.</li>' +
                     '<li>Indica en caja que harás un <strong>pago de servicio Paynet</strong>.</li>' +
                     '<li>Muestra el código de barras o dicta la referencia.</li>' +
                     '<li>Paga el monto exacto y <strong>conserva tu comprobante</strong>.</li></ol>' +
-                    '<p style="font-size:12px; color:#8a8780;">Disponible en Walmart, Bodega Aurrera, Sam\'s Club, Soriana, ' +
-                    '7-Eleven, Circle K, Extra, Kiosko, Farmacias Guadalajara, Farmacias del Ahorro, Waldo\'s ' +
-                    'y demás tiendas de la red Paynet. ' +
-                    'La tienda puede cobrar una comisión adicional por el servicio.</p>';
+                    tiendasPaynetHTML() +
+                    '<p style="font-size:12px; color:#8a8780; margin-top:8px;">La tienda puede cobrar una comisión adicional por el servicio.</p>';
         } else {
-            html += '<p style="font-weight:600; margin-bottom:4px;">¿Cómo pagar?</p><ol style="margin:0 0 8px 18px; padding:0;">' +
-                    '<li>Entra a tu banca en línea o app bancaria.</li>' +
-                    '<li>Registra la CLABE de arriba como nueva cuenta destino.</li>' +
+            // Instrucciones separadas por banco: Bancomer cobra por convenio CIE
+            // (menú "Pagar → De servicios") y el resto por SPEI contra la CLABE.
+            // Mezclarlas hacía que un cliente de Bancomer buscara una CLABE que
+            // su banca no le pide.
+            html += '<p style="font-weight:600; margin-bottom:4px;">Si tu banco es BBVA</p><ol style="margin:0 0 10px 18px; padding:0;">' +
+                    '<li>Entra a tu banca en línea y elige <strong>Pagar → De servicios</strong>.</li>' +
+                    '<li>Captura el <strong>número de convenio CIE</strong> que aparece arriba.</li>' +
+                    '<li>Captura la <strong>referencia</strong> y el monto exacto.</li></ol>' +
+                    '<p style="font-weight:600; margin-bottom:4px;">Si tu banco es otro</p><ol style="margin:0 0 8px 18px; padding:0;">' +
+                    '<li>Registra la <strong>CLABE</strong> de arriba como cuenta destino, a nombre del beneficiario indicado.</li>' +
                     '<li>Haz una transferencia <strong>SPEI</strong> por el monto exacto.</li>' +
+                    '<li>En el <strong>concepto</strong> escribe la referencia numérica.</li>' +
                     '<li>Guarda tu comprobante de transferencia.</li></ol>' +
                     '<p style="font-size:12px; color:#8a8780;">Esta CLABE es de un solo uso y corresponde únicamente a este pago. ' +
                     'No la reutilices para pagos futuros.</p>';
@@ -752,9 +800,18 @@
                             : 'Las transferencias SPEI suelen reflejarse en menos de una hora, según tu banco.') +
                 '</p></div>';
 
+        html += '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">';
+        if (data.recibo_url) {
+            // Recibo oficial de Openpay: trae los datos con el formato que
+            // exige el procesador. Solo existe mientras el cargo sigue
+            // pendiente, así que se abre en pestaña nueva y no se incrusta.
+            html += '<a href="' + data.recibo_url + '" target="_blank" rel="noopener" class="btn btn-green" ' +
+                    'style="border:none; cursor:pointer; padding:8px 16px; font-size:13px; text-decoration:none;">' +
+                    '<i class="fas fa-file-pdf"></i> Descargar ficha en PDF</a>';
+        }
         html += '<button type="button" onclick="window.print()" class="btn btn-outline" ' +
-                'style="border:1px solid #e0ddd3; cursor:pointer; margin-top:10px; padding:8px 16px; font-size:13px;">' +
-                '<i class="fas fa-print"></i> Imprimir o guardar como PDF</button>';
+                'style="border:1px solid #e0ddd3; cursor:pointer; padding:8px 16px; font-size:13px;">' +
+                '<i class="fas fa-print"></i> Imprimir esta página</button></div>';
 
         div.innerHTML = html;
 

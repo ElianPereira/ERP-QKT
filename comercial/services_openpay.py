@@ -151,6 +151,25 @@ def _charges_url():
     return f"{OPENPAY_BASE_URL}/{settings.OPENPAY_MERCHANT_ID}/charges"
 
 
+# El recibo genérico de Openpay vive en el dashboard, no en la API: es una
+# ruta armada a mano ({DASHBOARD}/{tipo}-pdf/{merchant}/{transaccion}), no un
+# campo que venga en la respuesta del cargo. Solo responde mientras la
+# transacción está pendiente; una vez pagada o cancelada deja de mostrarse.
+OPENPAY_DASHBOARD_URL = (
+    "https://sandbox-dashboard.openpay.mx"
+    if settings.OPENPAY_MODE == 'sandbox'
+    else "https://dashboard.openpay.mx"
+)
+
+
+def _recibo_pdf_url(tipo: str, transaccion_id: str) -> str:
+    """`tipo` es 'spei' o 'paynet' según el método del cargo."""
+    if not transaccion_id:
+        return ''
+    return (f"{OPENPAY_DASHBOARD_URL}/{tipo}-pdf/"
+            f"{settings.OPENPAY_MERCHANT_ID}/{transaccion_id}")
+
+
 def _decimal_o_none(valor):
     if valor in (None, ''):
         return None
@@ -487,6 +506,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
         'due_date': store.get('due_date') or data.get('due_date') or payload.get('due_date', ''),
         'order_id': data.get('order_id', ''),
         'comercio': 'Quinta Ko\'ox Tanil',
+        'recibo_url': _recibo_pdf_url('paynet', data.get('id', '')),
     }
 
 
@@ -523,6 +543,7 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
         'due_date': pm.get('due_date') or data.get('due_date') or payload.get('due_date', ''),
         'order_id': data.get('order_id', ''),
         'comercio': 'Quinta Ko\'ox Tanil',
+        'recibo_url': _recibo_pdf_url('spei', data.get('id', '')),
     }
 
 
