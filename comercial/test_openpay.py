@@ -728,14 +728,22 @@ class PaginasLegalesTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'pasarela de Openpay')
 
-    def test_el_documento_v2_incluye_la_mencion_exigida_por_openpay(self):
-        """El texto que pidió Openpay debe estar en el archivo que se siembra,
-        no solo en un fixture de prueba."""
-        from pathlib import Path
-        import legal
-        ruta = (Path(legal.__file__).parent / 'documentos_iniciales'
-                / 'terminos_v2.0.md')
-        self.assertTrue(ruta.exists(), 'falta el documento de términos v2.0')
+    def test_el_documento_vigente_incluye_la_mencion_exigida_por_openpay(self):
+        """
+        El texto que pidió Openpay debe estar en el archivo que se siembra, no
+        solo en un fixture de prueba. Se resuelve el archivo desde el propio
+        seed en vez de nombrarlo: fijar 'terminos_v2.0.md' hacía que la prueba
+        siguiera validando una versión retirada al publicar la siguiente.
+        """
+        from legal.management.commands.seed_documentos_legales import (
+            DIRECTORIO, DOCUMENTOS,
+        )
+        from legal.models import TipoDocumento
+
+        archivo = next(a for a, (tipo, _) in DOCUMENTOS.items()
+                       if tipo == TipoDocumento.TERMINOS)
+        ruta = DIRECTORIO / archivo
+        self.assertTrue(ruta.exists(), f'falta el documento de términos {archivo}')
         contenido = ruta.read_text(encoding='utf-8')
         self.assertIn(
             'Las transacciones serán efectuadas mediante la pasarela de Openpay.',

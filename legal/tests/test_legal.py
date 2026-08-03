@@ -331,7 +331,18 @@ class SeedTest(TestCase):
         self.assertFalse(vieja.vigente, 'la versión vieja siguió vigente')
         vigente = DocumentoLegal.objects.get(tipo=TipoDocumento.AVISO_PRIVACIDAD,
                                              vigente=True)
-        self.assertEqual(vigente.version, '2.1')
+        # La versión esperada se deduce del seed, no se escribe a mano: fijarla
+        # obligaba a tocar esta prueba cada vez que se publica una corrección.
+        self.assertEqual(vigente.version, self._version_del_seed(
+            TipoDocumento.AVISO_PRIVACIDAD))
+
+    @staticmethod
+    def _version_del_seed(tipo):
+        from legal.management.commands.seed_documentos_legales import (
+            DOCUMENTOS, Command,
+        )
+        archivo = next(a for a, (t, _) in DOCUMENTOS.items() if t == tipo)
+        return Command._version_desde_nombre(archivo)
 
     def test_ordena_las_versiones_numericamente(self):
         """'2.10' es posterior a '2.9'; comparadas como cadenas, no."""
