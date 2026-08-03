@@ -4,6 +4,62 @@ import cloudinary_storage.storage
 import django.utils.timezone
 from django.db import migrations, models
 
+TABLA = 'facturacion_solicitudfactura'
+COLUMNAS = {
+    'estado': ['"estado"', '"fecha_solicitud" DESC'],
+    'cliente': ['"cliente_id"', '"fecha_solicitud" DESC'],
+}
+
+
+def _sincronizar_indice(schema_editor, viejo, nuevo, columnas):
+    """
+    Deja la base con el índice `nuevo`, venga del estado en que venga.
+
+    `RenameIndex` a secas da por hecho que el índice viejo existe con ese
+    nombre exacto. En producción no existía —`relation
+    "facturacion_estado_fecha_idx" does not exist`— y como el arranque es
+    `migrate && gunicorn`, la migración tumbó el deploy entero.
+
+    Aquí se consulta el estado real antes de tocar nada: si ya está el nuevo
+    no se hace nada, si está el viejo se renombra, y si no hay ninguno se
+    crea. Así la base converge al nombre correcto sin depender de que el
+    histórico de migraciones coincida con lo que realmente se aplicó.
+    """
+    conexion = schema_editor.connection
+    with conexion.cursor() as cursor:
+        existentes = conexion.introspection.get_constraints(cursor, TABLA)
+
+    if nuevo in existentes:
+        return
+
+    citar = schema_editor.quote_name
+    crear = 'CREATE INDEX {} ON {} ({})'.format(
+        citar(nuevo), citar(TABLA), ', '.join(columnas))
+
+    if viejo not in existentes:
+        schema_editor.execute(crear)
+    elif conexion.vendor == 'postgresql':
+        schema_editor.execute(
+            'ALTER INDEX {} RENAME TO {}'.format(citar(viejo), citar(nuevo)))
+    else:
+        # SQLite no soporta ALTER INDEX ... RENAME.
+        schema_editor.execute('DROP INDEX {}'.format(citar(viejo)))
+        schema_editor.execute(crear)
+
+
+def sincronizar_indices(apps, schema_editor):
+    _sincronizar_indice(schema_editor, 'facturacion_estado_fecha_idx',
+                        'facturacion_estado_5293c7_idx', COLUMNAS['estado'])
+    _sincronizar_indice(schema_editor, 'facturacion_cliente_fecha_idx',
+                        'facturacion_cliente_4f70e2_idx', COLUMNAS['cliente'])
+
+
+def revertir_indices(apps, schema_editor):
+    _sincronizar_indice(schema_editor, 'facturacion_estado_5293c7_idx',
+                        'facturacion_estado_fecha_idx', COLUMNAS['estado'])
+    _sincronizar_indice(schema_editor, 'facturacion_cliente_4f70e2_idx',
+                        'facturacion_cliente_fecha_idx', COLUMNAS['cliente'])
+
 
 class Migration(migrations.Migration):
 
@@ -20,15 +76,22 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "Solicitudes de Factura",
             },
         ),
-        migrations.RenameIndex(
-            model_name="solicitudfactura",
-            new_name="facturacion_estado_5293c7_idx",
-            old_name="facturacion_estado_fecha_idx",
-        ),
-        migrations.RenameIndex(
-            model_name="solicitudfactura",
-            new_name="facturacion_cliente_4f70e2_idx",
-            old_name="facturacion_cliente_fecha_idx",
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.RenameIndex(
+                    model_name="solicitudfactura",
+                    new_name="facturacion_estado_5293c7_idx",
+                    old_name="facturacion_estado_fecha_idx",
+                ),
+                migrations.RenameIndex(
+                    model_name="solicitudfactura",
+                    new_name="facturacion_cliente_4f70e2_idx",
+                    old_name="facturacion_cliente_fecha_idx",
+                ),
+            ],
+            database_operations=[
+                migrations.RunPython(sincronizar_indices, revertir_indices),
+            ],
         ),
         migrations.AlterField(
             model_name="solicitudfactura",
