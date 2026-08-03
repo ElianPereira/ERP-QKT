@@ -367,6 +367,23 @@
             <div id="referencia-pago" style="display:none; margin-top:14px; padding:14px; border-radius:8px; background:#f8f8f6; font-size:14px;"></div>
         </div>
 
+        <!-- Puntos de tarjeta: solo se muestra si el token dice que la tarjeta
+             los admite. Sin botón de cerrar a propósito — el cargo ya está
+             tokenizado y esperando, así que hay que elegir una de las dos. -->
+        <div id="overlay-puntos" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:center; justify-content:center;">
+            <div style="background:white; border-radius:16px; padding:32px 28px; max-width:340px; width:90%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+                <i class="fas fa-star" style="font-size:48px; color:#e0b64d;"></i>
+                <h2 style="margin:14px 0 8px; color:#2E7D32; font-size:18px;">Pagar con puntos</h2>
+                <p style="color:#555; font-size:14px; margin-bottom:18px;">
+                    Tu tarjeta permite usar puntos para este pago. ¿Deseas usarlos?
+                </p>
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button type="button" id="btn-puntos-no" class="btn btn-outline" style="border:1px solid #e0ddd3; cursor:pointer; padding:9px 20px; font-size:14px;">No, pagar normal</button>
+                    <button type="button" id="btn-puntos-si" class="btn btn-green" style="border:none; cursor:pointer; padding:9px 20px; font-size:14px;">Sí, usar puntos</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Overlay de pago exitoso (pantalla completa, imposible de perderse) -->
         <div id="overlay-pago-exitoso" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:center; justify-content:center;">
             <div style="background:white; border-radius:16px; padding:40px 32px; max-width:360px; width:90%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.25); position:relative;">
@@ -376,6 +393,7 @@
                 <i class="fas fa-check-circle" style="font-size:64px; color:#2E7D32;"></i>
                 <h2 style="margin:16px 0 8px; color:#2E7D32; font-size:20px;">¡Pago exitoso!</h2>
                 <p style="color:#555; font-size:14px;">Tu pago fue procesado correctamente.</p>
+                <p id="mensaje-puntos" style="display:none; margin-top:10px; padding:10px 12px; background:#FFF8E1; color:#8a6d3b; border-radius:8px; font-size:13px;"></p>
                 <button type="button" id="btn-cerrar-overlay-pago-texto" class="btn btn-green" style="border:none; cursor:pointer; margin-top:16px; padding:10px 24px;">Cerrar</button>
             </div>
         </div>
@@ -449,8 +467,11 @@
     </div>
 
     {% if openpay_habilitado and saldo_pendiente > 0 %}
-    <script src="https://openpay.s3.amazonaws.com/openpay.v1.min.js"></script>
-    <script src="https://openpay.s3.amazonaws.com/openpay-data.v1.min.js"></script>
+    {# Origen documentado por Openpay. El bucket de S3 que se usaba antes
+       sirve los mismos archivos pero no aparece en la documentación: si lo
+       retiran, el checkout deja de tokenizar y no se cobra nada. #}
+    <script src="https://js.openpay.mx/openpay.v1.min.js"></script>
+    <script src="https://js.openpay.mx/openpay-data.v1.min.js"></script>
     <script>
     OpenPay.setId("{{ openpay_merchant_id }}");
     OpenPay.setApiKey("{{ openpay_public_key }}");
@@ -586,7 +607,36 @@
     }
 
     function onTokenSuccess(response) {
-        enviarCargoAlBackend('card', response.data.id, deviceSessionId);
+        var tokenId = response.data.id;
+        var tarjeta = response.data.card || {};
+
+        // Openpay avisa en el token si la tarjeta admite pago con puntos. Solo
+        // entonces tiene sentido preguntar; ofrecérselo a todos sería un paso
+        // extra inútil para la mayoría.
+        if (tarjeta.points_card) {
+            preguntarPuntos(function(usarPuntos) {
+                enviarCargoAlBackend('card', tokenId, deviceSessionId, usarPuntos);
+            });
+            return;
+        }
+        enviarCargoAlBackend('card', tokenId, deviceSessionId, false);
+    }
+
+    function preguntarPuntos(continuar) {
+        var overlay = document.getElementById('overlay-puntos');
+        overlay.style.display = 'flex';
+
+        function responder(usarPuntos) {
+            overlay.style.display = 'none';
+            document.getElementById('btn-puntos-si').removeEventListener('click', si);
+            document.getElementById('btn-puntos-no').removeEventListener('click', no);
+            continuar(usarPuntos);
+        }
+        function si() { responder(true); }
+        function no() { responder(false); }
+
+        document.getElementById('btn-puntos-si').addEventListener('click', si);
+        document.getElementById('btn-puntos-no').addEventListener('click', no);
     }
 
     // Traducción de errores de tokenización de Openpay.js (validación de
@@ -607,7 +657,7 @@
         mostrarResultado('error', mensaje);
     }
 
-    function enviarCargoAlBackend(metodo, tokenId, devSessionId) {
+    function enviarCargoAlBackend(metodo, tokenId, devSessionId, usarPuntos) {
         var form = document.getElementById('payment-form');
         var body = new URLSearchParams({
             metodo: metodo,
@@ -615,6 +665,7 @@
             device_session_id: devSessionId || '',
             monto: parsearMonto(document.getElementById('monto-pago').value).toFixed(2),
             acepta_legales: document.getElementById('acepta-legales').checked ? '1' : '',
+            use_card_points: usarPuntos ? '1' : '',
             csrfmiddlewaretoken: form.querySelector('[name=csrfmiddlewaretoken]').value,
         });
 
@@ -636,6 +687,13 @@
                 // Overlay a pantalla completa, se queda abierto hasta que el
                 // usuario lo cierra; al cerrarlo recarga con ?pago=exitoso
                 // para que la confirmación siga visible después de recargar.
+                // La leyenda de puntos, si viene, es requisito de Openpay:
+                // debe quedar a la vista en el comprobante del cliente.
+                if (data.mensaje_puntos) {
+                    var avisoPuntos = document.getElementById('mensaje-puntos');
+                    avisoPuntos.textContent = data.mensaje_puntos;
+                    avisoPuntos.style.display = 'block';
+                }
                 document.getElementById('overlay-pago-exitoso').style.display = 'flex';
             } else {
                 mostrarResultado(data.candado ? 'info' : 'error', data.mensaje);
@@ -790,6 +848,13 @@
                     '<li>Registra la <strong>CLABE</strong> de arriba como cuenta destino, a nombre del beneficiario indicado.</li>' +
                     '<li>Haz una transferencia <strong>SPEI</strong> por el monto exacto.</li>' +
                     '<li>En el <strong>concepto</strong> escribe la referencia numérica.</li>' +
+                    // Openpay pide los dos campos, no solo el concepto: sin el
+                    // convenio CIE en el campo "referencia" el pago puede no
+                    // conciliar del lado del banco.
+                    (data.agreement
+                        ? '<li>En el campo <strong>referencia</strong> escribe el convenio CIE <strong>' +
+                          data.agreement + '</strong>.</li>'
+                        : '') +
                     '<li>Guarda tu comprobante de transferencia.</li></ol>' +
                     '<p style="font-size:12px; color:#8a8780;">Esta CLABE es de un solo uso y corresponde únicamente a este pago. ' +
                     'No la reutilices para pagos futuros.</p>';

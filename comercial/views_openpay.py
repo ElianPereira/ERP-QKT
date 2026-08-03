@@ -103,6 +103,7 @@ def portal_procesar_pago_openpay(request, token):
             )
             resultado = procesar_cargo_tarjeta(
                 cotizacion, monto, token_id, device_session_id, redirect_url=redirect_url,
+                use_card_points=bool(request.POST.get('use_card_points')),
             )
         elif metodo == 'store':
             resultado = procesar_cargo_efectivo(cotizacion, monto)

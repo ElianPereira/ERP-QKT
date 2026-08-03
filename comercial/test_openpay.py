@@ -533,6 +533,75 @@ class CargoEfectivoSpeiTest(TestCase):
         self.assertNotIn('tx-paynet-01', resultado['recibo_url'])
 
     @patch('comercial.services_openpay.requests.post')
+    def test_due_date_no_pasa_de_los_30_dias_que_admite_openpay(self, mock_post):
+        """
+        La fecha límite puede venir del plan de pagos, y una parcialidad a 45
+        días empujaba el `due_date` fuera del máximo documentado por Openpay.
+        """
+        from datetime import date, datetime, timedelta as td
+
+        from comercial.models import PlanPago
+
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-vigencia', 'status': 'in_progress',
+            'payment_method': {'reference': 'REF-V', 'barcode_url': ''},
+        })
+        cotizacion = _crear_cotizacion()
+        # Evento lejano para que el tope por negocio no aplique y quede a la
+        # vista únicamente el límite de Openpay.
+        cotizacion.fecha_evento = date.today() + td(days=60)
+        cotizacion.save()
+
+        plan = PlanPago.objects.create(cotizacion=cotizacion, activo=True)
+        plan.parcialidades.create(
+            numero=1, monto=Decimal('500.00'), porcentaje=Decimal('100.00'),
+            fecha_limite=date.today() + td(days=45), pagada=False,
+        )
+
+        procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+
+        enviado = mock_post.call_args.kwargs['json']['due_date']
+        vence = datetime.strptime(enviado, '%Y-%m-%dT%H:%M:%S').date()
+        self.assertLessEqual((vence - date.today()).days, 30)
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_puntos_de_tarjeta_se_mandan_solo_si_el_cliente_los_acepta(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-puntos', 'status': 'completed', 'authorization': '999',
+            'card_points': {'caption': 'Usaste 500 puntos. Saldo restante: 1,200.'},
+        })
+        cotizacion = _crear_cotizacion()
+
+        resultado = procesar_cargo_tarjeta(
+            cotizacion, Decimal('500.00'), 'tok-p', 'dev-p', use_card_points=True)
+        self.assertTrue(mock_post.call_args.kwargs['json']['use_card_points'])
+        # La leyenda del emisor debe llegar al cliente: mostrarla en el
+        # comprobante es requisito de la guía de Openpay, no un extra.
+        self.assertIn('500 puntos', resultado['mensaje_puntos'])
+
+        mock_post.reset_mock()
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-sin-puntos', 'status': 'completed', 'authorization': '998',
+        })
+        procesar_cargo_tarjeta(cotizacion, Decimal('100.00'), 'tok-n', 'dev-n')
+        self.assertNotIn('use_card_points', mock_post.call_args.kwargs['json'])
+
+    def test_las_librerias_de_openpay_vienen_del_origen_documentado(self):
+        """
+        El bucket de S3 sirve los mismos archivos pero no está documentado: si
+        Openpay lo retira, el checkout deja de tokenizar y no se cobra nada.
+        """
+        from pathlib import Path
+
+        from django.conf import settings
+
+        plantilla = (Path(settings.BASE_DIR) / 'templates' / 'portal' / 'evento.html')
+        contenido = plantilla.read_text(encoding='utf-8')
+        self.assertIn('https://js.openpay.mx/openpay.v1.min.js', contenido)
+        self.assertIn('https://js.openpay.mx/openpay-data.v1.min.js', contenido)
+        self.assertNotIn('openpay.s3.amazonaws.com', contenido)
+
+    @patch('comercial.services_openpay.requests.post')
     def test_efectivo_rechaza_montos_arriba_del_tope_de_openpay(self, mock_post):
         """Openpay tope los cargos en tienda a $29,999.99; se avisa antes de
         salir a la red en vez de dejar que la API responda con un error."""
