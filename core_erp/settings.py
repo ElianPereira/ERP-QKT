@@ -248,7 +248,7 @@ JAZZMIN_SETTINGS = {
         "comercial.OpenpayTransaccion":     "fas fa-exchange-alt",
         "comercial.ImagenLanding":          "fas fa-images",
         "comercial.TestimonioLanding":      "fas fa-star",
-        "comercial.EspacioLanding":         "fas fa-door-open",
+        "comercial.EspacioLanding":         "fas fa-vector-square",
         "comercial.PreguntaFrecuente":      "fas fa-question-circle",
         "comercial.TipoEvento":             "fas fa-list",
         "comercial.Descuento":              "fas fa-percentage",
@@ -266,11 +266,20 @@ JAZZMIN_SETTINGS = {
         "contabilidad":                     "fas fa-calculator",
         "contabilidad.poliza":              "fas fa-file-invoice",
         "contabilidad.cuentacontable":      "fas fa-sitemap",
-        "contabilidad.movimientocontable":  "fas fa-exchange-alt",
+        "contabilidad.movimientocontable":  "fas fa-arrows-alt-h",
         "contabilidad.conciliacionbancaria":    "fas fa-balance-scale",
         "contabilidad.cuentabancaria":      "fas fa-university",
         "contabilidad.unidadnegocio":       "fas fa-building",
         "contabilidad.configuracioncontable":   "fas fa-cogs",
+        "contabilidad.saldoapertura":       "fas fa-hourglass-start",
+        "contabilidad.estadocuentabancario":    "fas fa-file-alt",
+
+        # LEGAL
+        "legal":                            "fas fa-gavel",
+        "legal.DocumentoLegal":             "fas fa-scroll",
+        "legal.AceptacionLegal":            "fas fa-signature",
+        "legal.Finalidad":                  "fas fa-bullseye",
+        "legal.SolicitudARCO":              "fas fa-user-shield",
 
         # NÓMINA
         "nomina":                           "fas fa-money-check-alt",
