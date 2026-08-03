@@ -152,22 +152,36 @@ def _charges_url():
 
 
 # El recibo genérico de Openpay vive en el dashboard, no en la API: es una
-# ruta armada a mano ({DASHBOARD}/{tipo}-pdf/{merchant}/{transaccion}), no un
-# campo que venga en la respuesta del cargo. Solo responde mientras la
-# transacción está pendiente; una vez pagada o cancelada deja de mostrarse.
+# ruta armada a mano, no un campo que venga en la respuesta del cargo. Solo
+# responde mientras la transacción está pendiente; una vez pagada o cancelada
+# deja de mostrarse.
+#
+# OJO con el último segmento, que NO es el mismo en los dos métodos:
+#   /spei-pdf/{merchant}/{id de la transacción}
+#   /paynet-pdf/{merchant}/{payment_method.reference}
+# Usar el id de la transacción en la ruta de paynet devuelve un error; es
+# exactamente lo que rompía la ficha de pago en tiendas.
 OPENPAY_DASHBOARD_URL = (
     "https://sandbox-dashboard.openpay.mx"
     if settings.OPENPAY_MODE == 'sandbox'
     else "https://dashboard.openpay.mx"
 )
 
+# Tope de Openpay para cargos en tienda. Rebasarlo hace que la API rechace el
+# cargo, así que conviene avisarlo antes de salir a la red.
+MONTO_MAXIMO_EFECTIVO = Decimal('29999.99')
 
-def _recibo_pdf_url(tipo: str, transaccion_id: str) -> str:
-    """`tipo` es 'spei' o 'paynet' según el método del cargo."""
-    if not transaccion_id:
+
+def _recibo_pdf_url(tipo: str, identificador: str) -> str:
+    """
+    `tipo` es 'spei' o 'paynet'. El identificador que espera cada ruta es
+    distinto (ver nota de arriba): la transacción para SPEI, la referencia
+    para Paynet.
+    """
+    if not identificador:
         return ''
     return (f"{OPENPAY_DASHBOARD_URL}/{tipo}-pdf/"
-            f"{settings.OPENPAY_MERCHANT_ID}/{transaccion_id}")
+            f"{settings.OPENPAY_MERCHANT_ID}/{identificador}")
 
 
 def _decimal_o_none(valor):
@@ -475,6 +489,16 @@ def consultar_y_confirmar_cargo(cotizacion: Cotizacion, openpay_id: str):
 # --- EFECTIVO (asíncrono: se muestra referencia, se confirma por webhook) ---
 
 def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
+    if monto > MONTO_MAXIMO_EFECTIVO:
+        return {
+            'ok': False,
+            'mensaje': (
+                f'El pago en efectivo admite como máximo ${MONTO_MAXIMO_EFECTIVO:,.2f} MXN '
+                'por operación. Puedes abonar un monto menor y generar otra '
+                'referencia después, o pagar con tarjeta o transferencia SPEI.'
+            ),
+        }
+
     payload = _payload_cargo_base(cotizacion, monto, 'store')
     payload["due_date"] = _due_date_referencia(cotizacion)
     response = requests.post(_charges_url(), json=payload, auth=_auth(), timeout=20)
@@ -506,7 +530,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
         'due_date': store.get('due_date') or data.get('due_date') or payload.get('due_date', ''),
         'order_id': data.get('order_id', ''),
         'comercio': 'Quinta Ko\'ox Tanil',
-        'recibo_url': _recibo_pdf_url('paynet', data.get('id', '')),
+        'recibo_url': _recibo_pdf_url('paynet', store.get('reference', '')),
     }
 
 

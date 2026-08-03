@@ -519,14 +519,34 @@ class CargoEfectivoSpeiTest(TestCase):
         """
         mock_post.return_value = MagicMock(status_code=200, json=lambda: {
             'id': 'tx-paynet-01', 'status': 'in_progress',
-            'payment_method': {'reference': '9876543210', 'barcode_url': 'http://x/b.png'},
+            'payment_method': {'reference': '000020TRT3PGJAWHQHPERTJOQJ0005006',
+                               'barcode_url': 'http://x/b.png'},
         })
         cotizacion = _crear_cotizacion()
         resultado = procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
         self.assertTrue(resultado['ok'])
         self.assertIn('/paynet-pdf/', resultado['recibo_url'])
-        self.assertTrue(resultado['recibo_url'].endswith('/tx-paynet-01'))
         self.assertIn('dashboard.openpay.mx', resultado['recibo_url'])
+        # La ruta de paynet lleva `payment_method.reference`, NO el id de la
+        # transacción: usar el id devolvía error y rompía la ficha.
+        self.assertTrue(resultado['recibo_url'].endswith('/000020TRT3PGJAWHQHPERTJOQJ0005006'))
+        self.assertNotIn('tx-paynet-01', resultado['recibo_url'])
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_efectivo_rechaza_montos_arriba_del_tope_de_openpay(self, mock_post):
+        """Openpay tope los cargos en tienda a $29,999.99; se avisa antes de
+        salir a la red en vez de dejar que la API responda con un error."""
+        cotizacion = _crear_cotizacion()
+        resultado = procesar_cargo_efectivo(cotizacion, Decimal('30000.00'))
+        self.assertFalse(resultado['ok'])
+        self.assertIn('29,999.99', resultado['mensaje'])
+        mock_post.assert_not_called()
+
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-tope', 'status': 'in_progress',
+            'payment_method': {'reference': 'REF-TOPE', 'barcode_url': ''},
+        })
+        self.assertTrue(procesar_cargo_efectivo(cotizacion, Decimal('29999.99'))['ok'])
 
     @patch('comercial.services_openpay.requests.post')
     def test_spei_regresa_url_del_recibo(self, mock_post):
