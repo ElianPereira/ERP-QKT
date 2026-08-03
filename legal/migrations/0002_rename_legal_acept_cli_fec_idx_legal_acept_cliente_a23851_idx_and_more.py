@@ -2,6 +2,59 @@
 
 from django.db import migrations
 
+# (tabla, nombre viejo, nombre nuevo, columnas del índice)
+INDICES = [
+    ('legal_aceptacionlegal', 'legal_acept_cli_fec_idx',
+     'legal_acept_cliente_a23851_idx', ['"cliente_id"', '"aceptado_en" DESC']),
+    ('legal_aceptacionlegal', 'legal_acept_cor_fec_idx',
+     'legal_acept_correo_f1798b_idx', ['"correo"', '"aceptado_en" DESC']),
+    ('legal_documentolegal', 'legal_docum_tipo_vig_idx',
+     'legal_docum_tipo_1f4ac6_idx', ['"tipo"', '"vigente"']),
+    ('legal_solicitudarco', 'legal_solic_est_lim_idx',
+     'legal_solic_estado_172611_idx', ['"estado"', '"fecha_limite"']),
+]
+
+
+def _sincronizar_indice(schema_editor, tabla, viejo, nuevo, columnas):
+    """
+    Deja la base con el índice `nuevo`, venga del estado en que venga.
+
+    Mismo blindaje que en `facturacion/0005`: allí un `RenameIndex` directo
+    tumbó el deploy porque el índice viejo no existía en producción con el
+    nombre que decía el histórico de migraciones. Renombrar índices es
+    cosmético; no vale la pena que pueda tirar el servidor.
+    """
+    conexion = schema_editor.connection
+    with conexion.cursor() as cursor:
+        existentes = conexion.introspection.get_constraints(cursor, tabla)
+
+    if nuevo in existentes:
+        return
+
+    citar = schema_editor.quote_name
+    crear = 'CREATE INDEX {} ON {} ({})'.format(
+        citar(nuevo), citar(tabla), ', '.join(columnas))
+
+    if viejo not in existentes:
+        schema_editor.execute(crear)
+    elif conexion.vendor == 'postgresql':
+        schema_editor.execute(
+            'ALTER INDEX {} RENAME TO {}'.format(citar(viejo), citar(nuevo)))
+    else:
+        # SQLite no soporta ALTER INDEX ... RENAME.
+        schema_editor.execute('DROP INDEX {}'.format(citar(viejo)))
+        schema_editor.execute(crear)
+
+
+def sincronizar_indices(apps, schema_editor):
+    for tabla, viejo, nuevo, columnas in INDICES:
+        _sincronizar_indice(schema_editor, tabla, viejo, nuevo, columnas)
+
+
+def revertir_indices(apps, schema_editor):
+    for tabla, viejo, nuevo, columnas in INDICES:
+        _sincronizar_indice(schema_editor, tabla, nuevo, viejo, columnas)
+
 
 class Migration(migrations.Migration):
 
@@ -10,24 +63,31 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name="aceptacionlegal",
-            new_name="legal_acept_cliente_a23851_idx",
-            old_name="legal_acept_cli_fec_idx",
-        ),
-        migrations.RenameIndex(
-            model_name="aceptacionlegal",
-            new_name="legal_acept_correo_f1798b_idx",
-            old_name="legal_acept_cor_fec_idx",
-        ),
-        migrations.RenameIndex(
-            model_name="documentolegal",
-            new_name="legal_docum_tipo_1f4ac6_idx",
-            old_name="legal_docum_tipo_vig_idx",
-        ),
-        migrations.RenameIndex(
-            model_name="solicitudarco",
-            new_name="legal_solic_estado_172611_idx",
-            old_name="legal_solic_est_lim_idx",
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.RenameIndex(
+                    model_name="aceptacionlegal",
+                    new_name="legal_acept_cliente_a23851_idx",
+                    old_name="legal_acept_cli_fec_idx",
+                ),
+                migrations.RenameIndex(
+                    model_name="aceptacionlegal",
+                    new_name="legal_acept_correo_f1798b_idx",
+                    old_name="legal_acept_cor_fec_idx",
+                ),
+                migrations.RenameIndex(
+                    model_name="documentolegal",
+                    new_name="legal_docum_tipo_1f4ac6_idx",
+                    old_name="legal_docum_tipo_vig_idx",
+                ),
+                migrations.RenameIndex(
+                    model_name="solicitudarco",
+                    new_name="legal_solic_estado_172611_idx",
+                    old_name="legal_solic_est_lim_idx",
+                ),
+            ],
+            database_operations=[
+                migrations.RunPython(sincronizar_indices, revertir_indices),
+            ],
         ),
     ]
