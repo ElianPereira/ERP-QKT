@@ -618,6 +618,36 @@ class CargoEfectivoSpeiTest(TestCase):
             404,
         )
 
+    def test_la_ficha_no_imprime_comentarios_de_plantilla(self):
+        """
+        Regresión: `{# … #}` solo comenta UNA línea. El bloque de varias
+        líneas que documentaba la plantilla se imprimía tal cual encima de la
+        ficha, a la vista del cliente.
+        """
+        from pathlib import Path
+        import re
+
+        from django.conf import settings
+        from django.template.loader import render_to_string
+
+        plantilla = Path(settings.BASE_DIR) / 'templates' / 'portal' / 'ficha_paynet.html'
+        fuente = plantilla.read_text(encoding='utf-8')
+        # Un `{#` cuyo `#}` no está en el mismo renglón sale impreso.
+        for linea in fuente.splitlines():
+            if '{#' in linea:
+                self.assertIn('#}', linea, f'comentario multilínea sin cerrar: {linea[:60]}')
+
+        cotizacion = _crear_cotizacion()
+        html = render_to_string('portal/ficha_paynet.html', {
+            'cotizacion': cotizacion, 'cliente': cotizacion.cliente,
+            'monto': Decimal('100.00'), 'referencia': 'REF', 'barcode_url': '',
+            'due_date': '', 'descripcion': '', 'emitida': None,
+            'logo': '', 'logo_paynet': '', 'tiendas': [],
+        })
+        cuerpo = re.sub(r'<style.*?</style>', '', html, flags=re.S)
+        self.assertNotIn('paso 3.1', cuerpo)
+        self.assertNotIn('{%', cuerpo)
+
     def test_las_librerias_de_openpay_vienen_del_origen_documentado(self):
         """
         El bucket de S3 sirve los mismos archivos pero no está documentado: si

@@ -1,11 +1,17 @@
 <!DOCTYPE html>
-{# Ficha de pago en tienda. Estructura tomada del ejemplo que publica Openpay
-   en su guía (paso 3.1): franja superior con la marca del comercio y el
-   servicio a pagar, fecha límite y código de barras junto al monto, detalles
-   de la compra, instrucciones separadas para el cliente y para el cajero, y
-   los logotipos de las cadenas al pie. Los cinco elementos que Openpay exige
-   —PAYNET, logotipos, referencia, código de barras y monto— están marcados
-   con un comentario donde aparecen. #}
+{% comment %}
+Ficha de pago en tienda. Estructura tomada del ejemplo que publica Openpay en
+su guía (paso 3.1): franja superior con la marca del comercio y el servicio a
+pagar, fecha límite y código de barras junto al monto, detalles de la compra,
+instrucciones separadas para el cliente y para el cajero, y los logotipos de
+las cadenas al pie. Los cinco elementos que Openpay exige —PAYNET, logotipos,
+referencia, código de barras y monto— están marcados donde aparecen.
+
+Va en {% templatetag openblock %} comment {% templatetag closeblock %} y no en
+{% templatetag openbrace %}# … #{% templatetag closebrace %}: la sintaxis corta
+solo comenta UNA línea, así que un bloque como este se imprimía tal cual
+encima de la ficha.
+{% endcomment %}
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -20,11 +26,16 @@
         display: flex; align-items: center; justify-content: space-between;
         padding-bottom: 10px; border-bottom: 3px solid #2E7D32;
     }
-    .marca { display: flex; align-items: center; gap: 10px; }
-    .marca img { height: 42px; }
-    .marca .nombre { font-size: 15pt; font-weight: 700; color: #2E7D32; line-height: 1.1; }
-    .marca .giro { font-size: 8pt; color: #8a8780; }
-    .servicio { text-align: right; }
+    /* El nombre no debe partirse: con el ancho justo, "Quinta Ko'ox Tanil"
+       caía en dos renglones y descuadraba el encabezado. */
+    .marca { display: flex; align-items: center; gap: 10px; flex: 1 0 auto; }
+    .marca img { height: 42px; flex: 0 0 auto; }
+    .marca .nombre {
+        font-size: 15pt; font-weight: 700; color: #2E7D32;
+        line-height: 1.15; white-space: nowrap;
+    }
+    .marca .giro { font-size: 8pt; color: #8a8780; white-space: nowrap; }
+    .servicio { text-align: right; flex: 0 0 auto; }
     .servicio .etiqueta { font-size: 8pt; color: #8a8780; margin-bottom: 3px; }
     /* Requisito Openpay: nombre del servicio a pagar = PAYNET */
     .servicio img { height: 26px; }
