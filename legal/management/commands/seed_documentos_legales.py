@@ -29,7 +29,7 @@ DOCUMENTOS = {
     'terminos_v2.0.md': (TipoDocumento.TERMINOS, 'Términos y Condiciones'),
     'politica_cancelacion_v2.0.md': (TipoDocumento.POLITICA_CANCELACION,
                                      'Política de Cancelación y Reembolso'),
-    'reglamento_v1.0.md': (TipoDocumento.REGLAMENTO, 'Reglamento Interno'),
+    'reglamento_v1.1.md': (TipoDocumento.REGLAMENTO, 'Reglamento Interno'),
 }
 
 FINALIDADES = [
