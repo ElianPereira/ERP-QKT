@@ -223,7 +223,8 @@ class CargoTarjetaTest(TestCase):
         cotizacion = _crear_cotizacion()
         resultado = procesar_cargo_tarjeta(cotizacion, Decimal('500.00'), 'tok999', 'dev999')
         self.assertFalse(resultado['ok'])
-        self.assertIn('no autorizó', resultado['mensaje'])
+        # 3001 es un rechazo del emisor: el cliente ve el mensaje genérico.
+        self.assertIn('No pudimos procesar el pago', resultado['mensaje'])
         self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
         # El intento fallido queda registrado para auditoría
         self.assertEqual(OpenpayTransaccion.objects.filter(cotizacion=cotizacion, procesado=False).count(), 1)
@@ -247,10 +248,17 @@ class CargoTarjetaTest(TestCase):
         self.assertIn('stolen card', salida)
         self.assertIn('req-robada-001', salida)
 
-        # Pero al cliente NO se le filtra la descripción cruda de Openpay
+        # Al cliente NO se le filtra la descripción cruda de Openpay...
         self.assertFalse(resultado['ok'])
         self.assertNotIn('The card was declined - stolen card', resultado['mensaje'])
         self.assertNotIn('req-robada-001', resultado['mensaje'])
+        # ...ni la traducción: confirmarle "robada"/"retenida" a quien captura
+        # la tarjeta le dice qué esquivar en el siguiente intento.
+        self.assertEqual(
+            resultado['mensaje'],
+            'No pudimos procesar el pago con esta tarjeta. Verifica los datos, '
+            'intenta con otra tarjeta o comunícate con tu banco.',
+        )
         self.assertFalse(Pago.objects.filter(cotizacion=cotizacion).exists())
 
     @patch('comercial.services_openpay.requests.post')
@@ -269,14 +277,40 @@ class CargoTarjetaTest(TestCase):
         self.assertIn('fraud system', salida)
 
         self.assertFalse(resultado['ok'])
-        # No se filtra la descripción cruda en inglés ni el request_id.
-        # (Ojo: el mensaje en español dice "antifraude", que contiene "fraud"
-        # como subcadena — por eso se compara contra el texto real de Openpay.)
+        # No se filtra la descripción cruda en inglés, ni el request_id, ni el
+        # hecho de que fue el antifraude quien rechazó: el cliente ve el mismo
+        # mensaje genérico que en cualquier otro rechazo.
         self.assertNotIn('The card was declined by the fraud system', resultado['mensaje'])
         self.assertNotIn('req-fraude-001', resultado['mensaje'])
+        self.assertNotIn('fraude', resultado['mensaje'].lower())
+        self.assertEqual(
+            resultado['mensaje'],
+            'No pudimos procesar el pago con esta tarjeta. Verifica los datos, '
+            'intenta con otra tarjeta o comunícate con tu banco.',
+        )
         # El motivo explícito también queda persistido para auditoría
         registro = OpenpayTransaccion.objects.get(cotizacion=cotizacion)
         self.assertIn('ANTIFRAUDE', registro.error_detalle)
+
+    def test_ningun_mensaje_al_cliente_revela_robo_extravio_o_antifraude(self):
+        """
+        Candado de la regla: el detalle del rechazo vive en el log y en el
+        panel de Openpay, nunca en el portal. Solo se le traduce al cliente lo
+        que él mismo puede corregir (vencimiento, fondos, CVV).
+        """
+        from comercial.services_openpay import (
+            MENSAJES_ERROR_TARJETA,
+            MOTIVOS_LOG_OPENPAY,
+            _mensaje_error_tarjeta,
+        )
+
+        self.assertEqual(set(MENSAJES_ERROR_TARJETA), {2002, 2003, 2010, 3002, 3003})
+
+        prohibidas = ('robad', 'extravi', 'fraude', 'retenid', 'bloque', 'riesgo')
+        for codigo in MOTIVOS_LOG_OPENPAY:
+            mensaje = _mensaje_error_tarjeta({'error_code': codigo}).lower()
+            for palabra in prohibidas:
+                self.assertNotIn(palabra, mensaje, f'error_code {codigo} filtra "{palabra}"')
 
     @patch('comercial.services_openpay.requests.post')
     def test_cargo_failed_con_http_200_tambien_se_loggea(self, mock_post):

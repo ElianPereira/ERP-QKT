@@ -24,33 +24,25 @@ logger = logging.getLogger(__name__)
 
 # Mensajes de error de Openpay traducidos al español. Openpay siempre regresa
 # `description` en inglés; `error_code` es estable entre idiomas, así que se
-# traduce por código (ver https://www.openpay.mx/docs/api/#errores). Códigos
-# no listados aquí caen al mensaje genérico.
+# traduce por código (ver https://www.openpay.mx/docs/api/#errores).
+#
+# Aquí SOLO viven los códigos que el titular puede corregir por sí mismo
+# (tarjeta vencida, sin fondos, CVV mal capturado): decírselo le ahorra un
+# intento a ciegas y no revela nada que no tenga ya en la mano.
+#
+# Todo lo demás —robo, extravío, retención, antifraude, bloqueos del emisor—
+# cae al mensaje genérico a propósito. Confirmarle a quien está capturando la
+# tarjeta que "fue reportada como robada" o que "la rechazó el antifraude" le
+# dice exactamente qué esquivar en el siguiente intento, y con tarjeta ajena
+# ese aviso es para el defraudador, no para el cliente. El motivo real queda
+# completo en los logs del servidor y en el panel de Openpay
+# (ver MOTIVOS_LOG_OPENPAY y _loggear_rechazo_openpay).
 MENSAJES_ERROR_TARJETA = {
-    2001: "Tu tarjeta fue rechazada por el banco emisor.",
     2002: "Tu tarjeta ha expirado.",
     2003: "Tu tarjeta no tiene fondos suficientes.",
-    2004: "Tu tarjeta fue reportada como robada.",
-    2005: "Esta operación no está permitida para tu tarjeta.",
-    2006: "Tu tarjeta no es válida para pagos en línea.",
-    2007: "El banco emisor rechazó la transacción por riesgo alto.",
-    2008: "Tu tarjeta fue reportada como extraviada.",
-    2009: "El banco emisor rechazó la transacción.",
     2010: "El código de seguridad (CVV) es inválido.",
-    2022: "No se pudo verificar tu tarjeta.",
-    2023: "La autenticación de tu tarjeta falló.",
-    2026: "No es posible procesar el pago con esta tarjeta.",
-    3001: "El banco emisor no autorizó la operación.",
     3002: "Tu tarjeta ha expirado.",
     3003: "Tu tarjeta no tiene fondos suficientes.",
-    3004: "Tu tarjeta fue retenida por el banco emisor.",
-    3005: "La transacción fue rechazada por el sistema antifraude.",
-    3006: "Esta operación no está permitida para tu comercio o tarjeta.",
-    3008: "Tu tarjeta no está autorizada para pagos en línea.",
-    3009: "Tu tarjeta fue reportada como extraviada.",
-    3010: "El banco emisor bloqueó tu tarjeta para pagos en línea.",
-    3011: "El banco emisor solicitó retener la tarjeta.",
-    3012: "Se requiere autorización del banco emisor para este monto.",
 }
 
 # Motivo explícito por código para el log del servidor. NO se le muestra al
@@ -58,16 +50,40 @@ MENSAJES_ERROR_TARJETA = {
 # genérico por seguridad, mientras que el log guarda la causa real para poder
 # diagnosticar y para la certificación de Openpay.
 MOTIVOS_LOG_OPENPAY = {
+    2001: "Rechazada por el banco emisor",
+    2002: "Tarjeta VENCIDA",
+    2003: "Fondos insuficientes",
     2004: "Tarjeta reportada como ROBADA por el emisor",
+    2005: "Operación no permitida para esta tarjeta",
+    2006: "Tarjeta no válida para pagos en línea (CVV requerido)",
+    2007: "Rechazada por RIESGO ALTO (tarjeta de prueba en producción)",
     2008: "Tarjeta reportada como EXTRAVIADA por el emisor",
+    2009: "CVV inválido según el emisor",
+    2010: "CVV inválido",
+    2011: "Tipo de tarjeta no soportado",
+    2022: "Tarjeta en lista negra del emisor",
+    2023: "Tarjeta requiere autenticación 3D Secure",
+    2026: "Tarjeta no procesable (emisor no permite la operación)",
+    3001: "El emisor NO AUTORIZÓ la operación",
+    3002: "Tarjeta VENCIDA",
+    3003: "Fondos insuficientes",
     3004: "Tarjeta RETENIDA (reportada como robada) por el emisor",
     3005: "Rechazada por el sistema ANTIFRAUDE de Openpay",
+    3006: "Operación no permitida para el comercio o la tarjeta",
+    3008: "Tarjeta no autorizada para pagos en línea",
     3009: "Tarjeta reportada como EXTRAVIADA por el emisor",
+    3010: "El emisor BLOQUEÓ la tarjeta para pagos en línea",
+    3011: "El emisor solicitó RETENER la tarjeta",
+    3012: "Se requiere autorización del emisor para este monto",
 }
 
 
 def _mensaje_error_tarjeta(data: dict) -> str:
-    return _mensaje_error_openpay(data, 'La tarjeta fue rechazada. Verifica los datos e intenta de nuevo.')
+    return _mensaje_error_openpay(
+        data,
+        'No pudimos procesar el pago con esta tarjeta. Verifica los datos, '
+        'intenta con otra tarjeta o comunícate con tu banco.',
+    )
 
 
 def _codigo_error(data: dict):
@@ -106,6 +122,10 @@ def _mensaje_error_openpay(data: dict, default: str) -> str:
     en inglés (ver nota arriba), así que solo se traduce por `error_code`
     conocido o se usa `default` en español — jamás el texto de Openpay tal
     cual, para no mostrarle inglés al cliente en un segundo intento.
+
+    `MENSAJES_ERROR_TARJETA` solo cubre los rechazos que el titular puede
+    corregir; cualquier otro código (robo, extravío, antifraude, bloqueos)
+    cae a `default` a propósito.
     """
     codigo = data.get('error_code')
     try:
