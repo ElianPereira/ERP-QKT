@@ -209,11 +209,15 @@ def _datos_customer(cliente):
 
 
 # Vigencia por defecto de una referencia de efectivo/SPEI cuando la cotización
-# no tiene un plan de pagos que marque la fecha límite. Openpay documenta
-# `due_date` como opcional y no fija un máximo, así que el criterio es de
+# no tiene un plan de pagos que marque la fecha límite. El criterio es de
 # negocio: dar margen suficiente para ir a la tienda, sin que la referencia
 # siga viva después del evento.
 VIGENCIA_REFERENCIA_HORAS = 72
+
+# Tope duro de Openpay: "El tiempo máximo permitido por Openpay es de 30 días"
+# (guía de pagos en banco). Importa porque la fecha límite puede venir del plan
+# de pagos, y una parcialidad a 45 días empujaba el `due_date` fuera de rango.
+VIGENCIA_REFERENCIA_MAXIMA_DIAS = 30
 
 
 def _due_date_referencia(cotizacion: Cotizacion):
@@ -225,8 +229,9 @@ def _due_date_referencia(cotizacion: Cotizacion):
     1. La fecha límite de la parcialidad pendiente más próxima, si hay plan
        de pagos activo (así la referencia muere cuando vence el compromiso).
     2. Si no, VIGENCIA_REFERENCIA_HORAS a partir de ahora.
-    En ambos casos se topa a la fecha del evento: una referencia que vence
-    después del evento no tiene sentido para el negocio.
+    En ambos casos se topa a la fecha del evento —una referencia que vence
+    después del evento no tiene sentido para el negocio— y a los 30 días que
+    Openpay admite como máximo.
     """
     from django.utils import timezone
 
@@ -258,6 +263,11 @@ def _due_date_referencia(cotizacion: Cotizacion):
         )
         if fin_evento > ahora:
             vence = min(vence, fin_evento)
+
+    # El tope de Openpay se aplica al final, sobre el resultado de las reglas
+    # de negocio: es un límite del procesador, no una preferencia nuestra.
+    tope = ahora + timedelta(days=VIGENCIA_REFERENCIA_MAXIMA_DIAS)
+    vence = min(vence, tope)
 
     return vence.strftime('%Y-%m-%dT%H:%M:%S')
 
@@ -333,7 +343,8 @@ def _confirmar_cargo_completado(registro, cotizacion, monto, data, metodo):
 # --- TARJETA (con 3D Secure: el resultado final llega tras la autenticación) ---
 
 def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str,
-                           device_session_id: str, redirect_url: str = ''):
+                           device_session_id: str, redirect_url: str = '',
+                           use_card_points: bool = False):
     """
     Crea el cargo con tarjeta usando 3D Secure.
 
@@ -343,10 +354,15 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
     autenticación, Openpay regresa al cliente a `redirect_url` y ahí se
     consulta el cargo para conocer el resultado final (ver
     `consultar_y_confirmar_cargo`).
+
+    `use_card_points` solo llega en true si el token indicó que la tarjeta
+    admite puntos y el cliente los aceptó en el portal.
     """
     payload = _payload_cargo_base(cotizacion, monto, 'card')
     payload["source_id"] = token_id
     payload["device_session_id"] = device_session_id
+    if use_card_points:
+        payload["use_card_points"] = True
     if redirect_url:
         payload["use_3d_secure"] = True
         payload["redirect_url"] = redirect_url
@@ -397,7 +413,14 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
         return {'ok': True, 'redirect_3ds': url_3ds, 'openpay_id': data['id']}
 
     if estado == 'completed':
-        return _confirmar_cargo_completado(registro, cotizacion, monto, data, 'card')
+        resultado = _confirmar_cargo_completado(registro, cotizacion, monto, data, 'card')
+        # Openpay puede devolver una leyenda sobre los puntos usados y el saldo
+        # restante. Mostrarla en el comprobante es requisito de su guía, no un
+        # adorno, así que se propaga al portal tal como la manda el emisor.
+        leyenda = (data.get('card_points') or {}).get('caption', '')
+        if leyenda:
+            resultado['mensaje_puntos'] = leyenda
+        return resultado
 
     # Openpay puede rechazar con HTTP 200 y status 'failed' (ej. rechazo del
     # emisor tras autorizar el token). El motivo explícito va al log; al
@@ -462,7 +485,11 @@ def consultar_y_confirmar_cargo(cotizacion: Cotizacion, openpay_id: str):
             "Openpay 3DS: autenticación exitosa, cargo %s COMPLETADO (COT-%s, monto %s).",
             openpay_id, getattr(cotizacion, 'id', '?'), monto,
         )
-        return _confirmar_cargo_completado(registro, cotizacion, monto, data, 'card (3D Secure)')
+        resultado = _confirmar_cargo_completado(registro, cotizacion, monto, data, 'card (3D Secure)')
+        leyenda = (data.get('card_points') or {}).get('caption', '')
+        if leyenda:
+            resultado['mensaje_puntos'] = leyenda
+        return resultado
 
     if estado == 'charge_pending':
         logger.warning(
