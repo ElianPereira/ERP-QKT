@@ -8,10 +8,12 @@ from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from core_erp.ratelimit import rate_limit
 from .models import OpenpayTransaccion, PortalCliente
+from .paynet import TIENDAS_PAYNET
 from .services_openpay import (
     procesar_cargo_tarjeta, procesar_cargo_efectivo, procesar_cargo_spei,
     procesar_webhook_openpay, consultar_y_confirmar_cargo,
@@ -32,6 +34,85 @@ CANDADO_PAGO_SEGUNDOS = 12
 # Usa la misma autenticación que el resto del portal: el token de
 # PortalCliente en la URL (/mi-evento/<token>/...), que el cliente obtuvo
 # con su código de cotización + últimos 4 dígitos de su teléfono.
+
+def _estatico_local(ruta: str) -> str:
+    """
+    Ruta `file://` de un estático, para que WeasyPrint lo lea del disco en vez
+    de pedirlo por HTTP. En producción los estáticos ya están recolectados en
+    STATIC_ROOT; en desarrollo hay que buscarlos con los finders. Si no se
+    encuentra se devuelve cadena vacía y la plantilla omite la imagen: una
+    ficha sin un logotipo se sigue pudiendo pagar.
+    """
+    from pathlib import Path
+
+    from django.contrib.staticfiles import finders
+
+    encontrado = finders.find(ruta)
+    if not encontrado and settings.STATIC_ROOT:
+        candidato = Path(settings.STATIC_ROOT) / ruta
+        encontrado = str(candidato) if candidato.exists() else None
+    return Path(encontrado).as_uri() if encontrado else ''
+
+
+@rate_limit(key='portal_ficha_paynet', limit=20, window=60)
+def portal_ficha_paynet(request, token, openpay_id):
+    """
+    Ficha de pago en tienda con la marca de Quinta Ko'ox Tanil.
+
+    Openpay ofrece un recibo genérico en su dashboard, pero permite generar
+    uno propio (guía de pagos en tienda, paso 3.1) siempre que incluya el
+    servicio PAYNET, los logotipos de las cadenas, la referencia, el código de
+    barras y el monto. Esta ficha cumple los cinco y además lleva el logo del
+    negocio, los datos del evento y las instrucciones para el cajero, que es
+    lo que el genérico no puede saber.
+
+    Se sirve desde el token del portal, igual que el resto de las vistas de
+    cliente, y solo para cargos de efectivo de ESA cotización: sin el filtro
+    por cotización, el token de un cliente serviría para leer la ficha de
+    cualquier otro con solo cambiar el id en la URL.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    del request  # solo se usa para el rate limit; el PDF no depende de él
+    transaccion = get_object_or_404(
+        OpenpayTransaccion, openpay_id=openpay_id,
+        cotizacion=portal.cotizacion, metodo='store',
+    )
+
+    datos = transaccion.payload_crudo or {}
+    metodo_pago = datos.get('payment_method') or {}
+
+    contexto = {
+        'cotizacion': portal.cotizacion,
+        'cliente': portal.cotizacion.cliente,
+        'monto': transaccion.monto,
+        'referencia': metodo_pago.get('reference', '') or transaccion.referencia_pago,
+        'barcode_url': metodo_pago.get('barcode_url', ''),
+        'due_date': metodo_pago.get('due_date') or datos.get('due_date', ''),
+        'descripcion': datos.get('description', ''),
+        'emitida': timezone.localtime(),
+        # Los logotipos se resuelven a rutas de disco (ver _estatico_local):
+        # son 21 imágenes y bajarlas por HTTP haría 21 peticiones de red para
+        # armar cada ficha.
+        'logo': _estatico_local('img/logo.png'),
+        'logo_paynet': _estatico_local('img/pagos/paynet.png'),
+        'tiendas': [
+            (_estatico_local(f'img/pagos/paynet/{slug}.png'), nombre)
+            for slug, nombre in TIENDAS_PAYNET
+        ],
+    }
+
+    html = render_to_string('portal/ficha_paynet.html', contexto)
+    pdf = HTML(string=html).write_pdf()
+
+    respuesta = HttpResponse(pdf, content_type='application/pdf')
+    respuesta['Content-Disposition'] = (
+        f'inline; filename="Ficha-Paynet-COT-{portal.cotizacion.id:03d}.pdf"'
+    )
+    return respuesta
+
 
 @rate_limit(key='portal_pago_openpay', limit=10, window=60)
 @require_POST

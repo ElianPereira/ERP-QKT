@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+{% comment %}
+Ficha de pago en tienda. Estructura tomada del ejemplo que publica Openpay en
+su guía (paso 3.1): franja superior con la marca del comercio y el servicio a
+pagar, fecha límite y código de barras junto al monto, detalles de la compra,
+instrucciones separadas para el cliente y para el cajero, y los logotipos de
+las cadenas al pie. Los cinco elementos que Openpay exige —PAYNET, logotipos,
+referencia, código de barras y monto— están marcados donde aparecen.
+
+Va en {% templatetag openblock %} comment {% templatetag closeblock %} y no en
+{% templatetag openbrace %}# … #{% templatetag closebrace %}: la sintaxis corta
+solo comenta UNA línea, así que un bloque como este se imprimía tal cual
+encima de la ficha.
+{% endcomment %}
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+    @page { size: letter; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #2b2b2b; font-size: 10pt; margin: 0;
+    }
+    .encabezado {
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 10px; border-bottom: 3px solid #2E7D32;
+    }
+    /* El nombre no debe partirse: con el ancho justo, "Quinta Ko'ox Tanil"
+       caía en dos renglones y descuadraba el encabezado. */
+    .marca { display: flex; align-items: center; gap: 10px; flex: 1 0 auto; }
+    .marca img { height: 42px; flex: 0 0 auto; }
+    .marca .nombre {
+        font-size: 15pt; font-weight: 700; color: #2E7D32;
+        line-height: 1.15; white-space: nowrap;
+    }
+    .marca .giro { font-size: 8pt; color: #8a8780; white-space: nowrap; }
+    .servicio { text-align: right; flex: 0 0 auto; }
+    .servicio .etiqueta { font-size: 8pt; color: #8a8780; margin-bottom: 3px; }
+    /* Requisito Openpay: nombre del servicio a pagar = PAYNET */
+    .servicio img { height: 26px; }
+
+    .franja { display: flex; gap: 12px; margin-top: 14px; }
+    .bloque-barras {
+        flex: 1.6; border: 1px solid #dcd9d1; border-radius: 6px; padding: 12px;
+    }
+    .bloque-monto {
+        flex: 1; background: #14406b; color: #fff; border-radius: 6px;
+        padding: 14px 12px; text-align: center;
+    }
+    .titulo-bloque {
+        font-size: 9pt; font-weight: 700; color: #14406b;
+        text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px;
+    }
+    .limite { font-size: 12pt; font-weight: 700; margin-bottom: 10px; }
+    /* Requisito Openpay: código de barras (payment_method.barcode_url) */
+    .barras { text-align: center; }
+    .barras img { max-width: 100%; height: 46px; }
+    .referencia {
+        font-family: "Courier New", monospace; font-size: 12pt; font-weight: 700;
+        letter-spacing: .08em; text-align: center; margin-top: 6px; word-break: break-all;
+    }
+    .nota-barras { font-size: 7.5pt; color: #8a8780; text-align: center; margin-top: 5px; }
+    .bloque-monto .etiqueta { font-size: 9pt; opacity: .85; }
+    /* Requisito Openpay: monto a pagar (amount) */
+    .bloque-monto .cifra { font-size: 24pt; font-weight: 700; margin: 4px 0; }
+    .bloque-monto .cifra span { font-size: 11pt; font-weight: 400; }
+    .bloque-monto .aviso { font-size: 7.5pt; opacity: .85; line-height: 1.35; }
+
+    .seccion { margin-top: 16px; }
+    .seccion h2 {
+        font-size: 11pt; color: #14406b; margin: 0 0 8px;
+        border-left: 4px solid #2E7D32; padding-left: 8px;
+    }
+    table.detalle { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    table.detalle td { padding: 6px 8px; border-bottom: 1px solid #ece9e2; }
+    table.detalle td.campo { width: 34%; color: #8a8780; background: #faf9f6; }
+
+    .columnas { display: flex; gap: 16px; margin-top: 16px; }
+    .columnas > div { flex: 1; }
+    ol { margin: 0; padding-left: 16px; font-size: 9pt; line-height: 1.55; }
+    ol li { margin-bottom: 3px; }
+
+    .contacto {
+        margin-top: 14px; padding: 9px 11px; background: #faf9f6;
+        border-radius: 6px; font-size: 8.5pt; color: #5a5852;
+    }
+
+    .cadenas { margin-top: 16px; padding-top: 10px; border-top: 1px solid #ece9e2; }
+    .cadenas .titulo { font-size: 8.5pt; font-weight: 700; color: #14406b; margin-bottom: 8px; }
+    /* Requisito Openpay: logotipos de las cadenas soportadas */
+    .rejilla { display: flex; flex-wrap: wrap; gap: 9px 12px; align-items: center; }
+    .rejilla img { height: 19px; width: auto; }
+
+    .pie {
+        margin-top: 12px; display: flex; justify-content: space-between;
+        align-items: center; font-size: 7.5pt; color: #8a8780;
+    }
+</style>
+</head>
+<body>
+
+<div class="encabezado">
+    <div class="marca">
+        {% if logo %}<img src="{{ logo }}" alt="Quinta Ko'ox Tanil">{% endif %}
+        <div>
+            <div class="nombre">Quinta Ko'ox Tanil</div>
+            <div class="giro">Ficha para pago en efectivo</div>
+        </div>
+    </div>
+    <div class="servicio">
+        <div class="etiqueta">Servicio a pagar</div>
+        {% if logo_paynet %}<img src="{{ logo_paynet }}" alt="Paynet by Openpay">{% else %}<div style="font-size:14pt;font-weight:700;color:#e2231a;">PAYNET</div>{% endif %}
+    </div>
+</div>
+
+<div class="franja">
+    <div class="bloque-barras">
+        <div class="titulo-bloque">Fecha límite de pago</div>
+        <div class="limite">{{ due_date|default:"—" }}</div>
+        {% if barcode_url %}
+        <div class="barras"><img src="{{ barcode_url }}" alt="Código de barras"></div>
+        {% endif %}
+        <div class="referencia">{{ referencia }}</div>
+        <div class="nota-barras">
+            Si la caja no puede leer el código de barras, dicta la referencia tal como aparece.
+        </div>
+    </div>
+    <div class="bloque-monto">
+        <div class="etiqueta">Total a pagar</div>
+        <div class="cifra">${{ monto|floatformat:2 }}<span> MXN</span></div>
+        <div class="aviso">
+            La comisión por recepción del pago varía de acuerdo con los términos
+            que cada cadena comercial establece.
+        </div>
+    </div>
+</div>
+
+<div class="seccion">
+    <h2>Detalles de la compra</h2>
+    <table class="detalle">
+        <tr><td class="campo">Concepto</td><td>{{ descripcion|default:cotizacion.nombre_evento }}</td></tr>
+        <tr><td class="campo">Cotización</td><td>COT-{{ cotizacion.id|stringformat:"03d" }}</td></tr>
+        <tr><td class="campo">Cliente</td><td>{{ cliente.nombre }}</td></tr>
+        {% if cliente.email %}
+        <tr><td class="campo">Correo del cliente</td><td>{{ cliente.email }}</td></tr>
+        {% endif %}
+        <tr><td class="campo">Ficha emitida</td><td>{{ emitida|date:"d \d\e F \d\e Y, H:i" }}</td></tr>
+    </table>
+</div>
+
+<div class="columnas">
+    <div>
+        <h2>Cómo realizar el pago</h2>
+        <ol>
+            <li>Acude a cualquiera de las tiendas afiliadas que aparecen abajo.</li>
+            <li>Indica en caja que harás un <strong>pago de servicio Paynet</strong>.</li>
+            <li>Muestra el código de barras o dicta la referencia.</li>
+            <li>Paga <strong>${{ monto|floatformat:2 }} MXN</strong> en efectivo. El monto debe ser exacto.</li>
+            <li>Conserva tu ticket: es tu comprobante ante cualquier aclaración.</li>
+        </ol>
+    </div>
+    <div>
+        <h2>Instrucciones para el cajero</h2>
+        <ol>
+            <li>Ingresar al menú de <strong>Pago de Servicios</strong>.</li>
+            <li>Seleccionar <strong>Paynet</strong>.</li>
+            <li>Escanear el código de barras o capturar el número de referencia.</li>
+            <li>Ingresar el monto total a pagar.</li>
+            <li>Cobrar al cliente el monto total más la comisión.</li>
+            <li>Confirmar la transacción y entregar el ticket al cliente.</li>
+        </ol>
+    </div>
+</div>
+
+<div class="contacto">
+    <strong>¿Dudas?</strong> Escríbenos a quintakooxtanil@gmail.com o al
+    +52 999 445 7178, de lunes a viernes de 8:00 a 14:00 h.
+    Tu pago se refleja automáticamente en tu portal de cliente minutos después de pagarlo.
+</div>
+
+<div class="cadenas">
+    <div class="titulo">Puedes pagar en cualquiera de estas tiendas</div>
+    <div class="rejilla">
+        {% for logo_tienda, nombre in tiendas %}{% if logo_tienda %}
+        <img src="{{ logo_tienda }}" alt="{{ nombre }}">
+        {% endif %}{% endfor %}
+    </div>
+</div>
+
+<div class="pie">
+    <span>Quinta Ko'ox Tanil · Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán</span>
+    <span>Procesado por Openpay</span>
+</div>
+
+</body>
+</html>
