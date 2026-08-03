@@ -927,3 +927,48 @@ class CompraDeteccionAutomaticaTest(TestCase):
 
         self.assertIsNotNone(compra.proveedor)
         self.assertEqual(compra.proveedor.nombre, 'Ferretería Local')
+
+
+class BotonContratoNoGeneraDeInmediatoTest(TestCase):
+    """Regresión: el botón 'Contrato' del listado de Cotizacion NO debe
+    disparar la generación/subida de un PDF nuevo con solo hacer clic —
+    antes apuntaba directo a generar_contrato, que crea un ContratoServicio
+    y sube un PDF a Cloudinary en cada clic (sin verificar si ya existía
+    uno, y sin borrar el anterior), inflando el consumo de storage."""
+
+    def setUp(self):
+        from django.contrib import admin
+        from comercial.admin import CotizacionAdmin
+
+        self.admin = CotizacionAdmin(Cotizacion, admin.site)
+        self.cliente = Cliente.objects.create(nombre='Cliente Test')
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Evento Test',
+            fecha_evento=date.today() + timedelta(days=30),
+            estado='BORRADOR',
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        Cotizacion.objects.filter(pk=self.cot.pk).update(estado='CONFIRMADA')
+        self.cot.refresh_from_db()
+
+    def test_boton_apunta_al_formulario_no_a_generar_directo(self):
+        html = str(self.admin.ver_contrato(self.cot))
+
+        self.assertIn(f'/cotizacion/{self.cot.id}/contrato/"', html)
+        self.assertNotIn('/contrato/generar/', html)
+
+    def test_formulario_no_crea_contrato_en_un_get(self):
+        """Visitar la pantalla intermedia (lo que hace el botón) no debe
+        crear ningún ContratoServicio ni subir nada — solo lo hace un POST
+        explícito desde ahí."""
+        from comercial.models import ContratoServicio
+
+        staff = User.objects.create_superuser('admin_test', password='x')
+        self.client.force_login(staff)
+
+        response = self.client.get(f'/admin/comercial/cotizacion/{self.cot.id}/contrato/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ContratoServicio.objects.filter(cotizacion=self.cot).count(), 0)

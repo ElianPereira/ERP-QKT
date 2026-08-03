@@ -794,13 +794,30 @@ section.content-header,
 }
 
 /* Botones de la columna "Acciones" de Cotizacion (admin): mismo ancho y
-   alto para todos, sin importar si el texto es "PDF" o "Contrato". */
+   alto para todos, sin importar si el texto es "PDF" o "Contrato", y sin
+   importar si es un <a> o un <button> — los <button> nativos traen su
+   propio tamaño intrínseco (appearance) que no respeta height/line-height
+   igual que un <a>, así que se resetean explícitamente y se centra el
+   contenido con flexbox en vez de depender de line-height. */
 .qkt-accion-btn {
-    min-width: 56px;
-    height: 22px;
-    line-height: 22px;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 56px !important;
+    /* Un <a>/<button> dentro de un flex row recibe por defecto un
+       "automatic minimum size" = tamaño de su contenido sin envolver,
+       que puede ganarle a min-height/height explícitos — hay que fijar
+       min-height igual que height para que no se infle solo. */
+    height: 22px !important;
+    min-height: 22px !important;
+    max-height: 22px !important;
+    line-height: 22px !important;
+    padding: 0 8px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+    vertical-align: middle;
     text-align: center;
-    box-sizing: border-box;
 }
