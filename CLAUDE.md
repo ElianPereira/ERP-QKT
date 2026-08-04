@@ -75,6 +75,17 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-03 — Certificación de Openpay cerrada: las cinco observaciones del
+  técnico quedaron atendidas (documentos legales enlazados, logotipos
+  oficiales, motivo explícito de rechazo en los logs del servidor, 3D Secure
+  probado, ficha de efectivo/SPEI completa). **Se esperan las llaves de
+  producción en 24-48 h**; hasta entonces `OPENPAY_MODE` sigue en `sandbox`.
+  Soporte Openpay: **(55) 97 55 35 59** · **soporte@openpay.mx**.
+- 2026-08-03 — Rutas de los recibos PDF de Openpay: `/spei-pdf/{merchant}/
+  {id de la transacción}` pero `/paynet-pdf/{merchant}/{payment_method.
+  reference}`. No llevan el mismo identificador y nada en el nombre del
+  parámetro lo delata; mandar el id en la de paynet devuelve error. Además el
+  cargo `store` tope a $29,999.99 y el `due_date` a 30 días.
 - 2026-07-31 — Módulo `legal`: los documentos se sirven desde BD con
   versionado e integridad SHA-256. Las rutas `/aviso-de-privacidad/` y
   `/terminos-y-condiciones/` se conservaron para no romper enlaces ya
