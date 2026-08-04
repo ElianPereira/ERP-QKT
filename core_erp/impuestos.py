@@ -27,9 +27,11 @@ tributa en RESICO y el receptor es persona moral. Corresponde al RFC
 PECE010202IA0.
 
 El RFC CERU580518QZ5 tributa bajo actividades empresariales a través de
-plataformas tecnológicas, cuyo esquema de retención es distinto y NO está
-implementado aquí. Si llegara a facturarse con ese RFC, la retención debe
-revisarse antes de emitir el CFDI.
+plataformas tecnológicas. Ese esquema —el de los ingresos de Airbnb— sí está
+implementado, en `retenciones_plataforma()`, pero solo como referencia para
+detectar descuadres: las retenciones que valen fiscalmente son las que la
+plataforma efectivamente aplicó y reporta en su constancia, no las que
+calculemos aquí.
 
 El factor 1.1475 que se usaba en `facturacion` era `1 + 0.16 - 0.0125`, es
 decir el divisor para obtener la base a partir de un total que ya trae IVA
@@ -45,6 +47,24 @@ TASA_IVA = Decimal('0.16')
 
 # Art. 113-J LISR (RESICO). Solo aplica cuando el receptor es persona moral.
 TASA_RET_ISR_RESICO = Decimal('0.0125')
+
+# --- Plataformas tecnológicas (Airbnb) -------------------------------------
+#
+# Art. 113-A LISR: la plataforma retiene ISR sobre el ingreso efectivamente
+# cobrado. La tasa depende de si el anfitrión le dio su RFC:
+#   con RFC  -> 4%   (servicios de hospedaje)
+#   sin RFC  -> 20%
+#
+# Art. 18-J LIVA: la plataforma retiene el 50% del IVA trasladado si hay RFC,
+# y el 100% si no. El 50% de la tasa del 16% es el "8%" con el que se suele
+# resumir la regla, pero es 8% de la BASE, no del monto que Airbnb cobra al
+# huésped —que ya trae IVA incluido—. Aplicarlo sobre el bruto sobrestima la
+# retención en un 16%, que es exactamente lo que hacía `airbnb` antes de
+# centralizar el cálculo aquí.
+TASA_RET_ISR_PLATAFORMA_CON_RFC = Decimal('0.04')
+TASA_RET_ISR_PLATAFORMA_SIN_RFC = Decimal('0.20')
+PROPORCION_IVA_RETENIDO_CON_RFC = Decimal('0.50')
+PROPORCION_IVA_RETENIDO_SIN_RFC = Decimal('1.00')
 
 CENTAVO = Decimal('0.01')
 
@@ -196,3 +216,39 @@ def desglosar(total, *, con_retencion_isr: bool = False) -> dict:
         f"ninguna base cercana cuadra el total con un IVA dentro de la "
         f"tolerancia de {CENTAVO} que admite el SAT."
     )
+
+
+def retenciones_plataforma(monto_bruto, *, con_rfc: bool = True) -> dict:
+    """
+    Retenciones que una plataforma tecnológica (Airbnb) *debería* aplicar
+    sobre un ingreso por hospedaje, según arts. 113-A LISR y 18-J LIVA.
+
+    IMPORTANTE — esto es una referencia, no la verdad fiscal. Lo que se
+    declara son las retenciones que la plataforma efectivamente aplicó y que
+    constan en su constancia; este cálculo sirve para *detectar descuadres*
+    contra ese dato, no para sustituirlo. Airbnb puede no retener en una
+    reserva (huésped exento, ajuste, reserva cancelada y reexpedida), y en
+    ese caso inventarle una retención al registro produce una declaración
+    que no cuadra con la constancia.
+
+    `monto_bruto` es el ingreso con IVA incluido, tal como Airbnb lo cobra al
+    huésped. El IVA se obtiene desglosándolo, no aplicando 16% encima.
+    """
+    bruto = centavos(_exigir_decimal(monto_bruto, 'monto_bruto'))
+
+    tasa_isr = (TASA_RET_ISR_PLATAFORMA_CON_RFC if con_rfc
+                else TASA_RET_ISR_PLATAFORMA_SIN_RFC)
+    proporcion_iva = (PROPORCION_IVA_RETENIDO_CON_RFC if con_rfc
+                      else PROPORCION_IVA_RETENIDO_SIN_RFC)
+
+    # El ISR se calcula sobre el ingreso, que es la base sin IVA: retenerlo
+    # sobre el total incluiría impuesto sobre impuesto.
+    base = sin_iva(bruto)
+    iva_trasladado = centavos(bruto - base)
+
+    return {
+        'base': base,
+        'iva_trasladado': iva_trasladado,
+        'ret_isr': centavos(base * tasa_isr),
+        'ret_iva': centavos(iva_trasladado * proporcion_iva),
+    }

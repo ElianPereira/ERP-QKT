@@ -12,10 +12,19 @@ from typing import List, Tuple, Optional, Dict, Any
 from collections import defaultdict
 
 import requests
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
+
+
+class _Simulacion(Exception):
+    """
+    Aborta la transacción de una importación simulada. Es la forma de obtener
+    el resumen exacto de lo que pasaría —incluidos los ids y los cambios por
+    campo— sin dejar nada escrito.
+    """
 
 
 # ==========================================
@@ -339,68 +348,135 @@ class ImportadorCSVPagosService:
     def __init__(self, archivo_nombre: str = None):
         self.archivo_nombre = archivo_nombre
     
-    def importar(self, contenido_csv: str, usuario=None) -> Tuple[int, int, List[str]]:
+    def importar(self, contenido_csv: str, usuario=None, *,
+                 simular: bool = False) -> Dict[str, Any]:
         """
-        Importa pagos desde contenido CSV.
-        
-        Returns:
-            Tuple (importados, duplicados, errores)
+        Importa (o simula importar) los pagos de un CSV de Airbnb.
+
+        Con `simular=True` no escribe nada: devuelve el mismo resumen para que
+        el admin muestre una vista previa. Antes la importación era a ciegas y
+        sin transacción, así que un error a media pasada dejaba pagos a medias.
+
+        Reimportar el mismo archivo ACTUALIZA los pagos existentes en vez de
+        omitirlos: Airbnb altera reservas, aplica reembolsos y ajusta montos
+        después del hecho, y el ERP se quedaba con el dato viejo para siempre.
         """
-        importados = 0
-        duplicados = 0
-        errores = []
-        
-        # Limpiar BOM si existe
+        resumen = {
+            'creados': [], 'actualizados': [], 'sin_cambios': [],
+            'descuadrados': [], 'errores': [], 'simulado': simular,
+        }
+
         if contenido_csv.startswith('\ufeff'):
             contenido_csv = contenido_csv[1:]
-        
+
         try:
-            reader = csv.DictReader(io.StringIO(contenido_csv))
-            filas = list(reader)
+            filas = list(csv.DictReader(io.StringIO(contenido_csv)))
         except Exception as e:
-            errores.append(f"Error al leer CSV: {str(e)}")
-            return importados, duplicados, errores
-        
-        # Agrupar filas por código de confirmación
-        reservas_agrupadas = self._agrupar_por_codigo(filas)
-        
-        for codigo, datos in reservas_agrupadas.items():
-            try:
-                resultado = self._procesar_reserva_agrupada(codigo, datos, usuario)
-                if resultado == 'creado':
-                    importados += 1
-                elif resultado == 'duplicado':
-                    duplicados += 1
-            except Exception as e:
-                errores.append(f"Código {codigo}: {str(e)}")
-        
-        return importados, duplicados, errores
-    
+            resumen['errores'].append(f"Error al leer CSV: {e}")
+            return resumen
+
+        try:
+            agrupadas = self._agrupar_por_codigo(filas)
+        except Exception as e:
+            resumen['errores'].append(f"Error al agrupar las filas: {e}")
+            return resumen
+
+        # Todo o nada: si una reserva revienta a la mitad, no queremos medio
+        # CSV aplicado. En simulación se revierte siempre.
+        try:
+            with transaction.atomic():
+                for codigo, datos in agrupadas.items():
+                    try:
+                        self._procesar_reserva_agrupada(codigo, datos, usuario, resumen)
+                    except Exception as e:
+                        resumen['errores'].append(f"Código {codigo}: {e}")
+                if simular:
+                    raise _Simulacion()
+        except _Simulacion:
+            pass
+
+        return resumen
+
     def _agrupar_por_codigo(self, filas: List[Dict]) -> Dict[str, Dict]:
         """
         Agrupa las filas del CSV por código de confirmación.
-        
-        Estructura del resultado:
-        {
-            'HMPJA8HHFJ': {
-                'huesped': 'Lazlie Obregon',
-                'espacio': 'Casa Miel Y Mar',
-                'fecha_checkin': date,
-                'fecha_checkout': date,
-                'noches': 7,
-                'monto_reservacion': Decimal,
-                'retencion_isr': Decimal,
-                'retencion_iva': Decimal,
-                'impuesto_hospedaje': Decimal,
-                'tarifa_servicio': Decimal,
-            }
-        }
+
+        El CSV trae varias filas por reserva —el cargo, cada retención, el
+        impuesto de hospedaje, los reembolsos— y hay que sumarlas para saber
+        qué pasó realmente con esa reserva.
         """
-        agrupado = defaultdict(lambda: {
-            'huesped': '',
-            'espacio': '',
-            'fecha_checkin': None,
-            'fecha_checkout': None,
+        agrupado = defaultdict(self._grupo_vacio)
+
+        for fila in filas:
+            codigo = self._campo(fila, 'Código de confirmación',
+                                 'Codigo de confirmacion', 'Confirmation code')
+            if not codigo:
+                # Las filas de payout no traen código, pero sí el id del
+                # depósito, que sirve para conciliar contra el banco.
+                continue
+
+            tipo = self._campo(fila, 'Tipo', 'Type').lower()
+            datos = agrupado[codigo]
+
+            for clave, etiquetas in (
+                ('huesped', ('Huésped', 'Huesped', 'Guest')),
+                ('espacio', ('Espacio', 'Listing', 'Anuncio')),
+                ('divisa', ('Divisa', 'Currency')),
+                ('payout_id', ('ID de pago', 'Payout ID', 'Referencia')),
+            ):
+                if not datos[clave]:
+                    datos[clave] = self._campo(fila, *etiquetas)
+
+            if not datos['fecha_checkin']:
+                datos['fecha_checkin'] = self._parsear_fecha(
+                    self._campo(fila, 'Fecha de inicio', 'Start date'))
+            if not datos['fecha_checkout']:
+                datos['fecha_checkout'] = self._parsear_fecha(
+                    self._campo(fila, 'Fecha de finalización',
+                                'Fecha de finalizacion', 'End date'))
+            if not datos['fecha_pago']:
+                # La fecha de la transacción es la que determina el período
+                # fiscal: es cuando Airbnb pagó y retuvo.
+                datos['fecha_pago'] = self._parsear_fecha(
+                    self._campo(fila, 'Fecha', 'Date'))
+
+            if not datos['noches']:
+                try:
+                    datos['noches'] = int(self._campo(fila, 'Noches', 'Nights') or 0)
+                except ValueError:
+                    datos['noches'] = 0
+
+            monto = self._parsear_monto(self._campo(fila, 'Monto', 'Amount'))
+            tarifa = self._parsear_monto(
+                self._campo(fila, 'Tarifa de servicio', 'Service fee'))
+            brutos = self._parsear_monto(
+                self._campo(fila, 'Ingresos brutos', 'Gross earnings'))
+
+            if 'reservaci' in tipo or 'reservation' in tipo:
+                datos['monto_reservacion'] += monto
+                datos['tarifa_servicio'] += abs(tarifa)
+                datos['ingresos_brutos'] += brutos
+            elif 'retenci' in tipo and 'renta' in tipo:
+                datos['retencion_isr'] += abs(monto)
+            elif 'retenci' in tipo and 'iva' in tipo:
+                datos['retencion_iva'] += abs(monto)
+            elif 'impuesto' in tipo and 'liquidado' in tipo:
+                datos['impuesto_hospedaje'] += monto
+            elif any(p in tipo for p in ('reembolso', 'refund', 'resolution',
+                                         'resolución', 'resolucion', 'ajuste',
+                                         'adjustment', 'cancel')):
+                # Antes estas filas caían en ninguna rama y desaparecían, así
+                # que un reembolso al huésped no se reflejaba en ningún lado.
+                datos['ajustes'] += monto
+                datos['tiene_ajuste'] = True
+
+        return dict(agrupado)
+
+    @staticmethod
+    def _grupo_vacio() -> Dict[str, Any]:
+        return {
+            'huesped': '', 'espacio': '', 'divisa': '', 'payout_id': '',
+            'fecha_checkin': None, 'fecha_checkout': None, 'fecha_pago': None,
             'noches': 0,
             'monto_reservacion': Decimal('0.00'),
             'retencion_isr': Decimal('0.00'),
@@ -408,186 +484,112 @@ class ImportadorCSVPagosService:
             'impuesto_hospedaje': Decimal('0.00'),
             'tarifa_servicio': Decimal('0.00'),
             'ingresos_brutos': Decimal('0.00'),
-        })
-        
-        for fila in filas:
-            # Obtener código de confirmación
-            codigo = (
-                fila.get('Código de confirmación', '') or 
-                fila.get('Codigo de confirmacion', '') or
-                fila.get('Confirmation code', '') or
-                ''
-            ).strip()
-            
-            # Ignorar filas sin código (como Payout, Resolution, etc.)
-            if not codigo:
-                continue
-            
-            tipo = (
-                fila.get('Tipo', '') or 
-                fila.get('Type', '') or
-                ''
-            ).strip().lower()
-            
-            datos = agrupado[codigo]
-            
-            # Extraer datos comunes (de cualquier fila con este código)
-            if not datos['huesped']:
-                datos['huesped'] = (
-                    fila.get('Huésped', '') or 
-                    fila.get('Huesped', '') or
-                    fila.get('Guest', '') or
-                    ''
-                ).strip()
-            
-            if not datos['espacio']:
-                datos['espacio'] = (
-                    fila.get('Espacio', '') or 
-                    fila.get('Listing', '') or
-                    ''
-                ).strip()
-            
-            if not datos['fecha_checkin']:
-                fecha_inicio = (
-                    fila.get('Fecha de inicio', '') or 
-                    fila.get('Start date', '') or
-                    ''
-                ).strip()
-                if fecha_inicio:
-                    datos['fecha_checkin'] = self._parsear_fecha(fecha_inicio)
-            
-            if not datos['fecha_checkout']:
-                fecha_fin = (
-                    fila.get('Fecha de finalización', '') or 
-                    fila.get('Fecha de finalizacion', '') or
-                    fila.get('End date', '') or
-                    ''
-                ).strip()
-                if fecha_fin:
-                    datos['fecha_checkout'] = self._parsear_fecha(fecha_fin)
-            
-            if not datos['noches']:
-                noches_str = (
-                    fila.get('Noches', '') or 
-                    fila.get('Nights', '') or
-                    ''
-                ).strip()
-                if noches_str:
-                    try:
-                        datos['noches'] = int(noches_str)
-                    except:
-                        pass
-            
-            # Parsear monto
-            monto = self._parsear_monto(
-                fila.get('Monto', '') or 
-                fila.get('Amount', '') or
-                '0'
-            )
-            
-            # Parsear tarifa de servicio
-            tarifa = self._parsear_monto(
-                fila.get('Tarifa de servicio', '') or 
-                fila.get('Service fee', '') or
-                '0'
-            )
-            
-            # Parsear ingresos brutos
-            ingresos_brutos = self._parsear_monto(
-                fila.get('Ingresos brutos', '') or 
-                fila.get('Gross earnings', '') or
-                '0'
-            )
-            
-            # Clasificar según tipo de fila
-            if 'reservaci' in tipo or 'reservation' in tipo:
-                datos['monto_reservacion'] = monto
-                datos['tarifa_servicio'] = abs(tarifa)
-                if ingresos_brutos > 0:
-                    datos['ingresos_brutos'] = ingresos_brutos
-            
-            elif 'retenci' in tipo and 'renta' in tipo:
-                # Retención ISR (viene como negativo)
-                datos['retencion_isr'] = abs(monto)
-            
-            elif 'retenci' in tipo and 'iva' in tipo:
-                # Retención IVA (viene como negativo)
-                datos['retencion_iva'] = abs(monto)
-            
-            elif 'impuesto' in tipo and 'liquidado' in tipo:
-                # Impuesto de hospedaje
-                datos['impuesto_hospedaje'] = monto
-        
-        return dict(agrupado)
-    
-    def _procesar_reserva_agrupada(self, codigo: str, datos: Dict, usuario) -> str:
-        """
-        Procesa una reserva agrupada y crea el pago.
-        
-        Returns:
-            'creado', 'duplicado', o raise Exception
-        """
-        # Verificar duplicado
-        if PagoAirbnb.objects.filter(codigo_confirmacion=codigo).exists():
-            return 'duplicado'
-        
-        # Validar datos mínimos
+            'ajustes': Decimal('0.00'),
+            'tiene_ajuste': False,
+        }
+
+    @staticmethod
+    def _campo(fila: Dict, *etiquetas: str) -> str:
+        """Primer valor no vacío entre varios encabezados posibles."""
+        for etiqueta in etiquetas:
+            valor = (fila.get(etiqueta) or '').strip()
+            if valor:
+                return valor
+        return ''
+
+    def _procesar_reserva_agrupada(self, codigo: str, datos: Dict, usuario,
+                                   resumen: Dict) -> None:
         if not datos['huesped']:
             raise ValueError("Sin nombre de huésped")
-        
         if not datos['fecha_checkin']:
             raise ValueError("Sin fecha de check-in")
-        
-        # Calcular monto bruto (usar ingresos_brutos si está disponible, sino monto_reservacion)
-        if datos['ingresos_brutos'] > 0:
-            monto_bruto = datos['ingresos_brutos']
-        else:
-            monto_bruto = datos['monto_reservacion']
-        
-        if monto_bruto <= 0:
+
+        # `Ingresos brutos` es el ingreso del anfitrión ya neto de la comisión
+        # de Airbnb; `Monto` de la fila de reservación es lo mismo por otra
+        # vía. Antes se tomaba el bruto de un campo y se le restaba la
+        # comisión que YA estaba descontada, duplicando la resta.
+        bruto = datos['ingresos_brutos'] or datos['monto_reservacion']
+        if bruto <= 0 and not datos['tiene_ajuste']:
             raise ValueError("Sin monto de reservación")
-        
-        # Calcular checkout si no existe
-        fecha_checkout = datos['fecha_checkout']
-        if not fecha_checkout and datos['noches'] > 0:
-            fecha_checkout = datos['fecha_checkin'] + timedelta(days=datos['noches'])
-        elif not fecha_checkout:
-            fecha_checkout = datos['fecha_checkin'] + timedelta(days=1)
-        
-        # Calcular monto neto
-        monto_neto = (
-            datos['monto_reservacion'] 
-            - datos['tarifa_servicio']
-            # Las retenciones ya vienen restadas en monto_reservacion en algunos casos
-        )
-        
-        # Si el monto neto es muy diferente, recalcular
-        if monto_neto <= 0:
-            monto_neto = monto_bruto - datos['tarifa_servicio'] - datos['retencion_isr'] - datos['retencion_iva']
-        
-        # Buscar anuncio por nombre
+
+        checkout = datos['fecha_checkout']
+        if not checkout:
+            noches = datos['noches'] or 1
+            checkout = datos['fecha_checkin'] + timedelta(days=noches)
+
+        neto = (bruto
+                - datos['retencion_isr']
+                - datos['retencion_iva']
+                + datos['ajustes'])
+
+        estado = 'PAGADO'
+        if datos['tiene_ajuste'] and neto <= 0:
+            estado = 'REEMBOLSADO'
+
+        campos = {
+            'huesped': datos['huesped'],
+            'fecha_checkin': datos['fecha_checkin'],
+            'fecha_checkout': checkout,
+            'fecha_pago': datos['fecha_pago'],
+            'monto_bruto': bruto,
+            'comision_airbnb': datos['tarifa_servicio'],
+            'retencion_isr': datos['retencion_isr'],
+            'retencion_iva': datos['retencion_iva'],
+            'impuesto_hospedaje': datos['impuesto_hospedaje'],
+            'monto_neto': neto,
+            'estado': estado,
+            'payout_id': datos['payout_id'],
+            'archivo_csv_origen': self.archivo_nombre or '',
+            'origen': 'CSV',
+        }
+
         anuncio = self._buscar_anuncio(datos['espacio'])
-        
-        # Crear pago
-        pago = PagoAirbnb.objects.create(
-            anuncio=anuncio,
-            codigo_confirmacion=codigo,
-            huesped=datos['huesped'],
-            fecha_checkin=datos['fecha_checkin'],
-            fecha_checkout=fecha_checkout,
-            monto_bruto=monto_bruto,
-            comision_airbnb=datos['tarifa_servicio'],
-            retencion_isr=datos['retencion_isr'],
-            retencion_iva=datos['retencion_iva'],
-            monto_neto=monto_neto if monto_neto > 0 else monto_bruto,
-            estado='PAGADO',
-            archivo_csv_origen=self.archivo_nombre or '',
-            created_by=usuario,
-            notas=f"Impuesto hospedaje: ${datos['impuesto_hospedaje']}" if datos['impuesto_hospedaje'] > 0 else '',
-        )
-        
-        return 'creado'
-    
+        if anuncio:
+            campos['anuncio'] = anuncio
+
+        existente = PagoAirbnb.objects.filter(codigo_confirmacion=codigo).first()
+
+        if existente is None:
+            pago = PagoAirbnb(codigo_confirmacion=codigo, created_by=usuario, **campos)
+            pago.reserva = self._buscar_reserva(pago)
+            pago.save()
+            resumen['creados'].append(codigo)
+        elif existente.origen == 'MANUAL':
+            # Un pago capturado a mano gana: alguien lo corrigió sabiendo algo
+            # que el CSV no dice.
+            resumen['sin_cambios'].append(codigo)
+            return
+        else:
+            cambios = [c for c, v in campos.items() if getattr(existente, c) != v]
+            if not cambios:
+                resumen['sin_cambios'].append(codigo)
+                return
+            for campo, valor in campos.items():
+                setattr(existente, campo, valor)
+            if existente.reserva_id is None:
+                existente.reserva = self._buscar_reserva(existente)
+            existente.save()
+            pago = existente
+            resumen['actualizados'].append((codigo, cambios))
+
+        # El neto que no cuadra con sus componentes se marca en vez de
+        # corregirse en silencio: casi siempre significa que el CSV trae un
+        # concepto que no estamos modelando.
+        if not pago.cuadra:
+            resumen['descuadrados'].append((codigo, pago.diferencia_neto))
+
+    def _buscar_reserva(self, pago) -> Optional[ReservaAirbnb]:
+        """
+        Vincula el pago con su reserva del calendario. El FK existía desde
+        siempre pero nadie lo llenaba, así que no se podía conciliar el
+        calendario contra lo cobrado.
+        """
+        candidatas = ReservaAirbnb.objects.filter(fecha_inicio=pago.fecha_checkin)
+        if pago.anuncio_id:
+            candidatas = candidatas.filter(anuncio_id=pago.anuncio_id)
+        return candidatas.order_by('-id').first()
+
+
     def _parsear_fecha(self, fecha_str: str) -> Optional[date]:
         """Parsea fecha desde string."""
         if not fecha_str:

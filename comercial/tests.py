@@ -732,12 +732,13 @@ class DashboardSeparacionElianRubyTest(TestCase):
         Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('1000.00'), estado='CONFIRMADA')
         Compra.objects.create(fecha_emision=date(anio, 1, 12), total=Decimal('200.00'), unidad_negocio=self.unidad_quinta)
 
-        # monto_neto real tras retenciones (ISR 4% / IVA 8% sobre monto_bruto,
-        # aplicadas en PagoAirbnb.save()): 500 - 20 - 40 = 440.
+        # Las retenciones se declaran, no se calculan: son las que Airbnb
+        # aplicó y reporta en su constancia. 500 - 20 - 40 = 440.
         PagoAirbnb.objects.create(
             huesped='Huésped Marzo', fecha_checkin=date(anio, 3, 1),
             fecha_checkout=date(anio, 3, 3), monto_bruto=Decimal('500.00'),
-            monto_neto=Decimal('500.00'), fecha_pago=date(anio, 3, 5), estado='PAGADO',
+            retencion_isr=Decimal('20.00'), retencion_iva=Decimal('40.00'),
+            monto_neto=Decimal('440.00'), fecha_pago=date(anio, 3, 5), estado='PAGADO',
         )
         Compra.objects.create(fecha_emision=date(anio, 3, 8), total=Decimal('100.00'), unidad_negocio=self.unidad_airbnb)
 
