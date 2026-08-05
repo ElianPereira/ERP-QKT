@@ -169,16 +169,21 @@ class ImportadorCSVPagosTest(TestCase):
         self.assertEqual(pago.monto_neto, Decimal('0.00'))
         self.assertEqual(pago.estado, 'REEMBOLSADO')
 
-    def test_guarda_el_impuesto_de_hospedaje_como_campo(self):
-        """Antes se escribía como texto dentro de `notas` y no se podía sumar."""
+    def test_el_iva_trasladado_suma_al_deposito(self):
+        """
+        "Impuestos liquidados como anfitrión" es el IVA que Airbnb cobra al
+        huésped y transfiere para que lo entere el anfitrión: suma al neto.
+        Antes se guardaba como texto dentro de `notas` y no se podía sumar.
+        """
         filas = [
-            self._fila_reserva(),
+            self._fila_reserva(monto='5000.00', brutos='5000.00', tarifa='0.00'),
             '09/02/2026,Impuestos liquidados como anfitrión,HM001,Ana López,'
-            'Casa Miel,09/05/2026,09/08/2026,3,250.00,0.00,0.00\n',
+            'Casa Miel,09/05/2026,09/08/2026,3,800.00,0.00,0.00\n',
         ]
         self._importar(filas)
         pago = PagoAirbnb.objects.get(codigo_confirmacion='HM001')
-        self.assertEqual(pago.impuesto_hospedaje, Decimal('250.00'))
+        self.assertEqual(pago.iva_trasladado, Decimal('800.00'))
+        self.assertEqual(pago.monto_neto, Decimal('5800.00'))
 
     def test_la_simulacion_no_escribe_nada(self):
         resumen = self._importar([self._fila_reserva()], simular=True)
@@ -211,23 +216,125 @@ class ImportadorCSVPagosTest(TestCase):
 
 
 class RetencionesPlataformaTest(TestCase):
-    """El 8% del que habla la regla es de la BASE, no del monto con IVA."""
+    """
+    Las tasas se aplican sobre la BASE. La columna "Ingresos brutos" del CSV
+    de Airbnb ya es esa base: pese al nombre, no trae IVA.
+    """
 
     def test_el_iva_retenido_es_la_mitad_del_trasladado(self):
         from core_erp.impuestos import retenciones_plataforma
 
-        r = retenciones_plataforma(Decimal('1160.00'))
+        r = retenciones_plataforma(Decimal('1000.00'))
         self.assertEqual(r['base'], Decimal('1000.00'))
         self.assertEqual(r['iva_trasladado'], Decimal('160.00'))
         self.assertEqual(r['ret_isr'], Decimal('40.00'))
         self.assertEqual(r['ret_iva'], Decimal('80.00'))
-        # Aplicar 8% sobre el bruto daría 92.80: un 16% de más, que es
-        # exactamente lo que calculaba el código anterior.
-        self.assertNotEqual(r['ret_iva'], Decimal('92.80'))
+
+    def test_coincide_con_una_reserva_real_del_reporte_de_marzo(self):
+        """Base 640.00 -> IVA 102.40, ISR 25.60, IVA retenido 51.20."""
+        from core_erp.impuestos import retenciones_plataforma
+
+        r = retenciones_plataforma(Decimal('640.00'))
+        self.assertEqual(r['iva_trasladado'], Decimal('102.40'))
+        self.assertEqual(r['ret_isr'], Decimal('25.60'))
+        self.assertEqual(r['ret_iva'], Decimal('51.20'))
 
     def test_sin_rfc_las_tasas_suben(self):
         from core_erp.impuestos import retenciones_plataforma
 
-        r = retenciones_plataforma(Decimal('1160.00'), con_rfc=False)
+        r = retenciones_plataforma(Decimal('1000.00'), con_rfc=False)
         self.assertEqual(r['ret_isr'], Decimal('200.00'))   # 20%
         self.assertEqual(r['ret_iva'], Decimal('160.00'))   # 100% del IVA
+
+
+class CSVRealDeAirbnbTest(TestCase):
+    """
+    Contraste contra el reporte real de marzo de 2026 (huéspedes anonimizados).
+
+    Es la única prueba que no usa datos que yo inventé, y por eso es la que
+    manda: los tres payouts del archivo deben reconstruirse al centavo.
+    """
+
+    PAYOUTS_REALES = {
+        'HMRPZQNE4S': Decimal('643.36'),
+        'HMZQ99HWB8': Decimal('643.33'),
+        'HMFRS8DQ8Z': Decimal('15234.36'),
+    }
+
+    def setUp(self):
+        from pathlib import Path
+
+        from airbnb.services import ImportadorCSVPagosService
+
+        ruta = (Path(__file__).parent / 'tests_fixtures' / 'airbnb_marzo_2026.csv')
+        self.resumen = ImportadorCSVPagosService(
+            archivo_nombre='airbnb_marzo_2026.csv'
+        ).importar(ruta.read_text(encoding='utf-8'))
+
+    def test_importa_las_tres_reservas_del_mes(self):
+        self.assertEqual(self.resumen['errores'], [])
+        self.assertEqual(sorted(self.resumen['creados']),
+                         sorted(self.PAYOUTS_REALES))
+
+    def test_el_neto_reconstruye_el_deposito_real_al_centavo(self):
+        """
+        La prueba de fuego: si el neto no coincide con lo que Airbnb depositó,
+        la conciliación bancaria no cuadra y la declaración tampoco.
+        """
+        for codigo, payout in self.PAYOUTS_REALES.items():
+            with self.subTest(codigo=codigo):
+                pago = PagoAirbnb.objects.get(codigo_confirmacion=codigo)
+                self.assertEqual(pago.monto_neto, payout)
+
+    def test_ningun_pago_queda_descuadrado(self):
+        self.assertEqual(self.resumen['descuadrados'], [])
+        for pago in PagoAirbnb.objects.all():
+            self.assertTrue(pago.cuadra, f'{pago.codigo_confirmacion} descuadra')
+
+    def test_las_retenciones_reales_coinciden_con_las_que_marca_la_ley(self):
+        """
+        Con el RFC registrado en Airbnb: ISR 4% de la base e IVA retenido la
+        mitad del trasladado. Se admite un centavo de holgura por redondeo.
+        """
+        for codigo in self.PAYOUTS_REALES:
+            with self.subTest(codigo=codigo):
+                pago = PagoAirbnb.objects.get(codigo_confirmacion=codigo)
+                esperado = pago.retenciones_esperadas(con_rfc=True)
+                self.assertEqual(pago.retencion_isr, esperado['ret_isr'])
+                self.assertLessEqual(
+                    abs(pago.retencion_iva - esperado['ret_iva']), Decimal('0.01'))
+                self.assertEqual(pago.iva_trasladado, esperado['iva_trasladado'])
+
+    def test_distingue_el_iva_trasladado_del_impuesto_al_hospedaje(self):
+        """
+        Dos columnas distintas que es fácil confundir: el IVA lo transfiere
+        Airbnb para que lo entere el anfitrión (suma al depósito), y el ISH lo
+        retiene y entera la propia plataforma (no llega).
+        """
+        pago = PagoAirbnb.objects.get(codigo_confirmacion='HMRPZQNE4S')
+        self.assertEqual(pago.iva_trasladado, Decimal('102.40'))
+        self.assertEqual(pago.impuesto_hospedaje, Decimal('28.82'))
+
+    def test_agrupa_los_pagos_por_deposito(self):
+        """El payout permite cuadrar contra el movimiento bancario."""
+        pago = PagoAirbnb.objects.get(codigo_confirmacion='HMFRS8DQ8Z')
+        self.assertEqual(pago.payout_id, '0MS1RHz4c8515YKnnfW89NcM0tS')
+
+    def test_la_fecha_de_pago_es_la_del_movimiento_no_la_del_checkin(self):
+        """
+        HMFRS8DQ8Z tiene check-in el 11 de marzo y check-out el 25 de ABRIL,
+        pero Airbnb la liquidó el 12 de marzo: el ingreso es de marzo.
+        """
+        pago = PagoAirbnb.objects.get(codigo_confirmacion='HMFRS8DQ8Z')
+        self.assertEqual(pago.fecha_pago, date(2026, 3, 12))
+        self.assertEqual(pago.fecha_checkout, date(2026, 4, 25))
+
+    def test_no_contiene_datos_personales_de_huespedes(self):
+        """El fixture va al repositorio: los nombres reales no."""
+        from pathlib import Path
+
+        ruta = (Path(__file__).parent / 'tests_fixtures' / 'airbnb_marzo_2026.csv')
+        contenido = ruta.read_text(encoding='utf-8')
+        for pago in PagoAirbnb.objects.all():
+            self.assertIn('Demo', pago.huesped)
+        self.assertNotIn('Checking 8931', contenido)

@@ -536,7 +536,8 @@ def reporte_fiscal_airbnb(request):
     agregado = pagos.aggregate(
         bruto=Sum('monto_bruto'), comision=Sum('comision_airbnb'),
         isr=Sum('retencion_isr'), iva=Sum('retencion_iva'),
-        ish=Sum('impuesto_hospedaje'), neto=Sum('monto_neto'),
+        ish=Sum('impuesto_hospedaje'), iva_trasladado=Sum('iva_trasladado'),
+        neto=Sum('monto_neto'),
     )
 
     def _d(valor):
@@ -552,6 +553,7 @@ def reporte_fiscal_airbnb(request):
         'isr': _d(agregado['isr']),
         'iva': _d(agregado['iva']),
         'ish': _d(agregado['ish']),
+        'iva_trasladado': _d(agregado['iva_trasladado']),
         'neto': _d(agregado['neto']),
         'num_reservas': len(lista),
         'noches': noches_vendidas,

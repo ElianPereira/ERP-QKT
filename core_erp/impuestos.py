@@ -57,10 +57,12 @@ TASA_RET_ISR_RESICO = Decimal('0.0125')
 #
 # Art. 18-J LIVA: la plataforma retiene el 50% del IVA trasladado si hay RFC,
 # y el 100% si no. El 50% de la tasa del 16% es el "8%" con el que se suele
-# resumir la regla, pero es 8% de la BASE, no del monto que Airbnb cobra al
-# huésped —que ya trae IVA incluido—. Aplicarlo sobre el bruto sobrestima la
-# retención en un 16%, que es exactamente lo que hacía `airbnb` antes de
-# centralizar el cálculo aquí.
+# resumir la regla, y se aplica sobre la BASE.
+#
+# Cuidado con la columna "Ingresos brutos" del CSV de Airbnb: pese al nombre,
+# NO incluye el IVA — es la base. El IVA viaja aparte, en las filas
+# "Impuestos liquidados como anfitrión", y Airbnb lo transfiere al anfitrión
+# para que sea él quien lo entere.
 TASA_RET_ISR_PLATAFORMA_CON_RFC = Decimal('0.04')
 TASA_RET_ISR_PLATAFORMA_SIN_RFC = Decimal('0.20')
 PROPORCION_IVA_RETENIDO_CON_RFC = Decimal('0.50')
@@ -218,7 +220,7 @@ def desglosar(total, *, con_retencion_isr: bool = False) -> dict:
     )
 
 
-def retenciones_plataforma(monto_bruto, *, con_rfc: bool = True) -> dict:
+def retenciones_plataforma(base, *, con_rfc: bool = True) -> dict:
     """
     Retenciones que una plataforma tecnológica (Airbnb) *debería* aplicar
     sobre un ingreso por hospedaje, según arts. 113-A LISR y 18-J LIVA.
@@ -231,20 +233,20 @@ def retenciones_plataforma(monto_bruto, *, con_rfc: bool = True) -> dict:
     ese caso inventarle una retención al registro produce una declaración
     que no cuadra con la constancia.
 
-    `monto_bruto` es el ingreso con IVA incluido, tal como Airbnb lo cobra al
-    huésped. El IVA se obtiene desglosándolo, no aplicando 16% encima.
+    `base` es el ingreso SIN IVA — la columna "Ingresos brutos" del CSV de
+    Airbnb, que pese al nombre no incluye el impuesto. Verificado contra el
+    reporte real de marzo de 2026: en las tres reservas el IVA trasladado es
+    exactamente el 16% de esa columna, el ISR el 4% y el IVA retenido la
+    mitad del trasladado, al centavo.
     """
-    bruto = centavos(_exigir_decimal(monto_bruto, 'monto_bruto'))
+    base = centavos(_exigir_decimal(base, 'base'))
 
     tasa_isr = (TASA_RET_ISR_PLATAFORMA_CON_RFC if con_rfc
                 else TASA_RET_ISR_PLATAFORMA_SIN_RFC)
     proporcion_iva = (PROPORCION_IVA_RETENIDO_CON_RFC if con_rfc
                       else PROPORCION_IVA_RETENIDO_SIN_RFC)
 
-    # El ISR se calcula sobre el ingreso, que es la base sin IVA: retenerlo
-    # sobre el total incluiría impuesto sobre impuesto.
-    base = sin_iva(bruto)
-    iva_trasladado = centavos(bruto - base)
+    iva_trasladado = iva_de(base)
 
     return {
         'base': base,

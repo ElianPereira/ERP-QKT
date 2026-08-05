@@ -235,15 +235,28 @@ class PagoAirbnb(models.Model):
         help_text="IVA retenido por la plataforma, tal como viene en el CSV (art. 18-J LIVA)."
     )
     
-    # Impuesto al hospedaje (ISH). Lo cobra Airbnb al huésped y se entera al
-    # estado; no es ingreso del anfitrión. Antes se guardaba como texto dentro
-    # de `notas`, así que no se podía sumar ni reportar.
+    # IVA que Airbnb cobra al huésped y TRANSFIERE al anfitrión para que sea
+    # él quien lo entere. En el CSV son las filas "Impuestos liquidados como
+    # anfitrión" y suman al depósito, por eso no es un gasto.
+    iva_trasladado = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="IVA trasladado",
+        help_text=("IVA que Airbnb cobró al huésped y te transfiere. Lo enteras tú, "
+                   "no la plataforma."),
+    )
+
+    # Impuesto al hospedaje. A diferencia del IVA, este lo retiene y entera
+    # Airbnb: aparece en la columna "Impuesto liquidado por Airbnb" y NO llega
+    # al depósito, así que es informativo para el anfitrión.
     impuesto_hospedaje = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=Decimal('0.00'),
         verbose_name="Impuesto al hospedaje (ISH)",
-        help_text="Impuesto estatal liquidado por la plataforma, tal como viene en el CSV."
+        help_text=("Impuesto estatal que Airbnb retiene y entera por su cuenta. "
+                   "Informativo: no pasa por tus manos."),
     )
 
     # Pago neto
@@ -317,14 +330,24 @@ class PagoAirbnb(models.Model):
     @property
     def diferencia_neto(self) -> Decimal:
         """
-        Cuánto se aparta el neto declarado de sus componentes. Distinto de
-        cero significa que el CSV trae un concepto que no estamos modelando
-        (un ajuste, un reembolso parcial), y que conviene revisar el pago
-        antes de declararlo.
+        Cuánto se aparta el neto declarado de sus componentes.
+
+        La fórmula sale de reconstruir el payout real del CSV de Airbnb:
+
+            neto = base - comisión + IVA trasladado - ISR - IVA retenido
+
+        El IVA trasladado SUMA porque Airbnb lo cobra al huésped y lo
+        transfiere para que el anfitrión lo entere. El impuesto al hospedaje
+        no entra: ese lo retiene y entera la propia plataforma.
+
+        Distinto de cero significa que el CSV trae un concepto que no estamos
+        modelando (un ajuste, un reembolso parcial), y que conviene revisar el
+        pago antes de declararlo.
         """
         calculado = (
             self.monto_bruto
             - self.comision_airbnb
+            + self.iva_trasladado
             - self.retencion_isr
             - self.retencion_iva
         )

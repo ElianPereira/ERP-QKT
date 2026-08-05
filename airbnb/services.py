@@ -406,16 +406,25 @@ class ImportadorCSVPagosService:
         qué pasó realmente con esa reserva.
         """
         agrupado = defaultdict(self._grupo_vacio)
+        payouts: Dict[date, str] = {}
 
         for fila in filas:
             codigo = self._campo(fila, 'Código de confirmación',
                                  'Codigo de confirmacion', 'Confirmation code')
-            if not codigo:
-                # Las filas de payout no traen código, pero sí el id del
-                # depósito, que sirve para conciliar contra el banco.
-                continue
-
             tipo = self._campo(fila, 'Tipo', 'Type').lower()
+            fecha = self._parsear_fecha(self._campo(fila, 'Fecha', 'Date'))
+
+            if not codigo:
+                # Las filas de Payout no traen código de reserva, pero sí el id
+                # del depósito. Se indexan por fecha para pegárselo después a
+                # las reservas que Airbnb liquidó ese día: es lo que permite
+                # cuadrar contra el movimiento bancario.
+                if 'payout' in tipo or 'transferencia' in tipo:
+                    referencia = self._campo(fila, 'Código de referencia',
+                                             'Payout ID', 'Reference code')
+                    if fecha and referencia:
+                        payouts[fecha] = referencia
+                continue
             datos = agrupado[codigo]
 
             for clave, etiquetas in (
@@ -451,17 +460,26 @@ class ImportadorCSVPagosService:
                 self._campo(fila, 'Tarifa de servicio', 'Service fee'))
             brutos = self._parsear_monto(
                 self._campo(fila, 'Ingresos brutos', 'Gross earnings'))
+            # Columna aparte: el impuesto al hospedaje que Airbnb retiene y
+            # entera por su cuenta. No llega al depósito.
+            ish = self._parsear_monto(
+                self._campo(fila, 'Impuesto liquidado por Airbnb',
+                            'Taxes withheld by Airbnb'))
 
             if 'reservaci' in tipo or 'reservation' in tipo:
                 datos['monto_reservacion'] += monto
                 datos['tarifa_servicio'] += abs(tarifa)
                 datos['ingresos_brutos'] += brutos
+                datos['impuesto_hospedaje'] += ish
             elif 'retenci' in tipo and 'renta' in tipo:
                 datos['retencion_isr'] += abs(monto)
             elif 'retenci' in tipo and 'iva' in tipo:
                 datos['retencion_iva'] += abs(monto)
             elif 'impuesto' in tipo and 'liquidado' in tipo:
-                datos['impuesto_hospedaje'] += monto
+                # "Impuestos liquidados como anfitrión" es el IVA trasladado
+                # que Airbnb cobra al huésped y transfiere al anfitrión: suma
+                # al depósito y lo entera él. No confundir con el ISH.
+                datos['iva_trasladado'] += monto
             elif any(p in tipo for p in ('reembolso', 'refund', 'resolution',
                                          'resolución', 'resolucion', 'ajuste',
                                          'adjustment', 'cancel')):
@@ -469,6 +487,10 @@ class ImportadorCSVPagosService:
                 # que un reembolso al huésped no se reflejaba en ningún lado.
                 datos['ajustes'] += monto
                 datos['tiene_ajuste'] = True
+
+        for datos in agrupado.values():
+            if not datos['payout_id'] and datos['fecha_pago'] in payouts:
+                datos['payout_id'] = payouts[datos['fecha_pago']]
 
         return dict(agrupado)
 
@@ -481,6 +503,7 @@ class ImportadorCSVPagosService:
             'monto_reservacion': Decimal('0.00'),
             'retencion_isr': Decimal('0.00'),
             'retencion_iva': Decimal('0.00'),
+            'iva_trasladado': Decimal('0.00'),
             'impuesto_hospedaje': Decimal('0.00'),
             'tarifa_servicio': Decimal('0.00'),
             'ingresos_brutos': Decimal('0.00'),
@@ -504,20 +527,32 @@ class ImportadorCSVPagosService:
         if not datos['fecha_checkin']:
             raise ValueError("Sin fecha de check-in")
 
-        # `Ingresos brutos` es el ingreso del anfitrión ya neto de la comisión
-        # de Airbnb; `Monto` de la fila de reservación es lo mismo por otra
-        # vía. Antes se tomaba el bruto de un campo y se le restaba la
-        # comisión que YA estaba descontada, duplicando la resta.
+        # `Ingresos brutos` es la BASE del ingreso, sin IVA —pese al nombre— y
+        # antes de descontar la comisión. `Monto` de la fila de reservación es
+        # lo que queda tras la comisión. La diferencia entre ambos ES la
+        # comisión efectiva (incluye su propio IVA), así que no hace falta
+        # confiar en la columna "Tarifa de servicio", que la reporta sin IVA.
         bruto = datos['ingresos_brutos'] or datos['monto_reservacion']
         if bruto <= 0 and not datos['tiene_ajuste']:
             raise ValueError("Sin monto de reservación")
+
+        comision = datos['tarifa_servicio']
+        if datos['ingresos_brutos'] and datos['monto_reservacion']:
+            comision = datos['ingresos_brutos'] - datos['monto_reservacion']
 
         checkout = datos['fecha_checkout']
         if not checkout:
             noches = datos['noches'] or 1
             checkout = datos['fecha_checkin'] + timedelta(days=noches)
 
+        # Reconstrucción del depósito real de Airbnb, verificada al centavo
+        # contra el reporte de marzo de 2026. El IVA trasladado SUMA: Airbnb
+        # se lo cobra al huésped y lo transfiere para que lo entere el
+        # anfitrión. El impuesto al hospedaje NO entra: ese lo retiene y
+        # entera la propia plataforma.
         neto = (bruto
+                - comision
+                + datos['iva_trasladado']
                 - datos['retencion_isr']
                 - datos['retencion_iva']
                 + datos['ajustes'])
@@ -532,9 +567,10 @@ class ImportadorCSVPagosService:
             'fecha_checkout': checkout,
             'fecha_pago': datos['fecha_pago'],
             'monto_bruto': bruto,
-            'comision_airbnb': datos['tarifa_servicio'],
+            'comision_airbnb': comision,
             'retencion_isr': datos['retencion_isr'],
             'retencion_iva': datos['retencion_iva'],
+            'iva_trasladado': datos['iva_trasladado'],
             'impuesto_hospedaje': datos['impuesto_hospedaje'],
             'monto_neto': neto,
             'estado': estado,
