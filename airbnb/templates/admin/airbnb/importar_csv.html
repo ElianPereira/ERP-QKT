@@ -28,6 +28,55 @@
         </p>
     </div>
     
+    {% if resumen %}
+    <div style="margin-bottom: 24px; padding: 16px; border: 1px solid #d6d3cb; border-radius: 8px; background: #fbfaf7;">
+        <h3 style="margin: 0 0 12px; color: #14406b;">Vista previa de <em>{{ archivo_nombre }}</em></h3>
+        <p style="margin: 0 0 12px; color: #666; font-size: 13px;">
+            Nada se ha guardado todavía. Esto es exactamente lo que ocurriría al importar.
+        </p>
+        <ul style="margin: 0 0 12px 18px; padding: 0; line-height: 1.7;">
+            <li><strong>{{ resumen.creados|length }}</strong> pagos nuevos</li>
+            <li><strong>{{ resumen.actualizados|length }}</strong> pagos que cambian</li>
+            <li><strong>{{ resumen.sin_cambios|length }}</strong> ya estaban al día</li>
+        </ul>
+
+        {% if resumen.actualizados %}
+        <details style="margin-bottom: 10px;">
+            <summary style="cursor: pointer; font-weight: 600;">Qué cambia en cada uno</summary>
+            <ul style="margin: 8px 0 0 18px; font-size: 13px; color: #555;">
+                {% for codigo, campos in resumen.actualizados %}
+                <li><code>{{ codigo }}</code>: {{ campos|join:", " }}</li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+
+        {% if resumen.descuadrados %}
+        <div style="padding: 10px 12px; background: #FFF8E1; border: 1px solid #e0b64d; border-radius: 6px; margin-bottom: 10px;">
+            <strong style="color: #8a6d3b;">Netos que no cuadran con sus componentes</strong>
+            <ul style="margin: 6px 0 0 18px; font-size: 13px; color: #8a6d3b;">
+                {% for codigo, diferencia in resumen.descuadrados %}
+                <li><code>{{ codigo }}</code>: difiere ${{ diferencia }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if resumen.errores %}
+        <div style="padding: 10px 12px; background: #FFEBEE; border: 1px solid #e74c3c; border-radius: 6px;">
+            <strong style="color: #c62828;">{{ resumen.errores|length }} errores</strong>
+            <ul style="margin: 6px 0 0 18px; font-size: 13px; color: #c62828;">
+                {% for error in resumen.errores %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <p style="margin: 12px 0 0; font-size: 13px; color: #666;">
+            Vuelve a seleccionar el archivo y usa <strong>Importar pagos</strong> para aplicarlo.
+        </p>
+    </div>
+    {% endif %}
+
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         
@@ -46,6 +95,11 @@
         </div>
         
         <div style="display: flex; gap: 10px;">
+            {# La vista previa corre la importación completa y la revierte, así
+               que el resumen es exacto y no una estimación. #}
+            <button type="submit" name="previsualizar" value="1" style="flex: 1; padding: 12px 24px; background: #fff; color: #27ae60; border: 2px solid #27ae60; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold;">
+                Ver qué va a pasar
+            </button>
             <button type="submit" style="flex: 1; padding: 12px 24px; background: #27ae60; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold;">
                 Importar pagos
             </button>

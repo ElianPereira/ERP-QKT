@@ -3,7 +3,9 @@ Vistas del módulo Airbnb
 ========================
 Vistas para calendario unificado, reportes, iCal inverso y bloqueo manual.
 """
+import calendar
 import json
+from collections import defaultdict
 from datetime import timedelta, datetime
 from decimal import Decimal
 
@@ -125,25 +127,26 @@ def reporte_pagos_airbnb(request):
     """
     Reporte de pagos de Airbnb para el contador.
     """
-    hoy = timezone.now()
-    
-    año = request.GET.get('año', hoy.year)
-    mes = request.GET.get('mes', '')
-    
+    hoy = timezone.localdate()
+
     try:
-        año = int(año)
-    except:
+        año = int(str(request.GET.get('año', hoy.year)).replace(',', '').strip())
+    except (TypeError, ValueError):
         año = hoy.year
-    
+
     pagos = PagoAirbnb.objects.filter(estado='PAGADO')
-    
+
     if año:
-        pagos = pagos.filter(fecha_checkin__year=año)
+        pagos = pagos.filter(fecha_pago__year=año)
+
+    mes = request.GET.get('mes', '')
     if mes:
         try:
-            pagos = pagos.filter(fecha_checkin__month=int(mes))
-        except:
-            pass
+            numero_mes = int(mes)
+        except (TypeError, ValueError):
+            numero_mes = None
+        if numero_mes and 1 <= numero_mes <= 12:
+            pagos = pagos.filter(fecha_pago__month=numero_mes)
     
     totales = pagos.aggregate(
         total_bruto=Sum('monto_bruto'),
@@ -490,117 +493,147 @@ def dashboard_airbnb(request):
 def reporte_fiscal_airbnb(request):
     """
     Reporte fiscal mensual de ingresos Airbnb.
-    Incluye: detalle por reserva, resumen por propiedad y caja de declaración.
+
+    El período se determina por FECHA DE PAGO, no por check-in: para el
+    régimen de plataformas tecnológicas lo que fija el mes es cuándo la
+    plataforma pagó y retuvo. Agrupar por check-in metía en agosto una reserva
+    que Airbnb liquidó en septiembre, y el reporte no cuadraba con la
+    declaración ni con la constancia de retenciones.
     """
     from django.template.loader import render_to_string
     from weasyprint import HTML
     from .models import PagoAirbnb, AnuncioAirbnb
-    from django.db.models import Sum, Count
-    from decimal import Decimal
-    import calendar
-
-    # ── Parámetros de filtro ──────────────────────────────────
-    hoy   = timezone.now().date()
-    mes   = int(request.GET.get('mes', hoy.month))
-    anio = int(str(request.GET.get('anio', hoy.year)).replace(',', '').strip())
 
     MESES = {
-        1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril',
-        5:'Mayo', 6:'Junio', 7:'Julio', 8:'Agosto',
-        9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'
+        1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+        5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+        9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
     }
 
-    # ── Pagos del período ─────────────────────────────────────
-    pagos = PagoAirbnb.objects.filter(
-        fecha_checkin__month=mes,
-        fecha_checkin__year=anio,
-    ).exclude(estado='CANCELADO').select_related('anuncio').order_by('anuncio', 'fecha_checkin')
+    # `localdate()` y no `now().date()`: con TIME_ZONE='America/Merida' el mes
+    # cambiaba seis horas antes de tiempo (mismo bug ya corregido en comercial).
+    hoy = timezone.localdate()
 
-    # ── Totales globales ──────────────────────────────────────
-    agg = pagos.aggregate(
-        bruto    = Sum('monto_bruto'),
-        comision = Sum('comision_airbnb'),
-        isr      = Sum('retencion_isr'),
-        iva      = Sum('retencion_iva'),
-        neto     = Sum('monto_neto'),
+    # Parámetros defensivos: antes un `?mes=abc` o `?mes=13` reventaba con un
+    # ValueError o un KeyError y devolvía un 500 desde la URL.
+    def _entero(nombre, defecto, minimo, maximo):
+        crudo = str(request.GET.get(nombre, defecto)).replace(',', '').strip()
+        try:
+            valor = int(crudo)
+        except (TypeError, ValueError):
+            return defecto
+        return valor if minimo <= valor <= maximo else defecto
+
+    mes = _entero('mes', hoy.month, 1, 12)
+    anio = _entero('anio', hoy.year, 2000, 2100)
+
+    pagos = (PagoAirbnb.objects
+             .filter(fecha_pago__month=mes, fecha_pago__year=anio)
+             .exclude(estado__in=('CANCELADO', 'REEMBOLSADO'))
+             .select_related('anuncio')
+             .order_by('anuncio', 'fecha_pago'))
+
+    agregado = pagos.aggregate(
+        bruto=Sum('monto_bruto'), comision=Sum('comision_airbnb'),
+        isr=Sum('retencion_isr'), iva=Sum('retencion_iva'),
+        ish=Sum('impuesto_hospedaje'), iva_trasladado=Sum('iva_trasladado'),
+        neto=Sum('monto_neto'),
     )
 
-    def _d(v):
-        return v or Decimal('0.00')
+    def _d(valor):
+        return valor or Decimal('0.00')
 
-    bruto    = _d(agg['bruto'])
-    comision = _d(agg['comision'])
-    isr      = _d(agg['isr'])
-    iva      = _d(agg['iva'])
-    neto     = _d(agg['neto'])
-
-    noches_total = sum(p.noches for p in pagos)
-    ingreso_actividad  = bruto - comision
-    total_retenciones  = isr + iva
-    tarifa_promedio    = (bruto / noches_total).quantize(Decimal('0.01')) if noches_total > 0 else Decimal('0.00')
+    bruto = _d(agregado['bruto'])
+    lista = list(pagos)
+    noches_vendidas = sum(p.noches for p in lista)
 
     totales = {
-        'bruto':              bruto,
-        'comision':           comision,
-        'isr':                isr,
-        'iva':                iva,
-        'neto':               neto,
-        'num_reservas':       pagos.count(),
-        'noches':             noches_total,
-        'ingreso_actividad':  ingreso_actividad,
-        'total_retenciones':  total_retenciones,
-        'tarifa_promedio':    tarifa_promedio,
+        'bruto': bruto,
+        'comision': _d(agregado['comision']),
+        'isr': _d(agregado['isr']),
+        'iva': _d(agregado['iva']),
+        'ish': _d(agregado['ish']),
+        'iva_trasladado': _d(agregado['iva_trasladado']),
+        'neto': _d(agregado['neto']),
+        'num_reservas': len(lista),
+        'noches': noches_vendidas,
+        'ingreso_actividad': bruto - _d(agregado['comision']),
+        'total_retenciones': _d(agregado['isr']) + _d(agregado['iva']),
+        'tarifa_promedio': _promedio(bruto, noches_vendidas),
     }
 
-    # ── Resumen por propiedad ─────────────────────────────────
+    # Los pagos cuyo neto no cuadra se listan aparte: declarar sobre un
+    # registro descuadrado es justo lo que no debe pasar inadvertido.
+    totales['descuadrados'] = [p for p in lista if not p.cuadra]
+
+    dias_del_mes = calendar.monthrange(anio, mes)[1]
+    anuncios = list(AnuncioAirbnb.objects.filter(activo=True))
+
+    # Un solo recorrido en memoria en vez de dos consultas por anuncio.
+    por_anuncio = defaultdict(list)
+    for pago in lista:
+        por_anuncio[pago.anuncio_id].append(pago)
+
     resumen_propiedades = []
-    anuncios = AnuncioAirbnb.objects.filter(activo=True)
-
     for anuncio in anuncios:
-        p_prop = pagos.filter(anuncio=anuncio)
-        if not p_prop.exists():
+        propios = por_anuncio.get(anuncio.id)
+        if not propios:
             continue
-        agg_p = p_prop.aggregate(
-            bruto    = Sum('monto_bruto'),
-            comision = Sum('comision_airbnb'),
-            isr      = Sum('retencion_isr'),
-            iva      = Sum('retencion_iva'),
-            neto     = Sum('monto_neto'),
-        )
-        noches_prop = sum(pp.noches for pp in p_prop)
-        bruto_prop  = _d(agg_p['bruto'])
-        tarifa_prom = (bruto_prop / noches_prop).quantize(Decimal('0.01')) if noches_prop > 0 else Decimal('0.00')
-        porcentaje  = (bruto_prop / bruto * 100).quantize(Decimal('0.1')) if bruto > 0 else Decimal('0.0')
-
+        bruto_prop = sum((p.monto_bruto for p in propios), Decimal('0.00'))
+        noches_prop = sum(p.noches for p in propios)
         resumen_propiedades.append({
-            'nombre':          anuncio.nombre,
-            'num_reservas':    p_prop.count(),
-            'noches':          noches_prop,
-            'tarifa_promedio': tarifa_prom,
-            'bruto':           bruto_prop,
-            'comision':        _d(agg_p['comision']),
-            'isr':             _d(agg_p['isr']),
-            'iva':             _d(agg_p['iva']),
-            'neto':            _d(agg_p['neto']),
-            'porcentaje':      porcentaje,
+            'nombre': anuncio.nombre,
+            'num_reservas': len(propios),
+            'noches': noches_prop,
+            'tarifa_promedio': _promedio(bruto_prop, noches_prop),
+            'bruto': bruto_prop,
+            'comision': sum((p.comision_airbnb for p in propios), Decimal('0.00')),
+            'isr': sum((p.retencion_isr for p in propios), Decimal('0.00')),
+            'iva': sum((p.retencion_iva for p in propios), Decimal('0.00')),
+            'neto': sum((p.monto_neto for p in propios), Decimal('0.00')),
+            'porcentaje': _porcentaje(bruto_prop, bruto),
+            # Métricas estándar de hospedaje. La ocupación necesita las noches
+            # DISPONIBLES (días del mes por anuncio), que es lo que faltaba
+            # para poder interpretar la tarifa promedio.
+            'ocupacion': _porcentaje(Decimal(noches_prop), Decimal(dias_del_mes)),
+            'adr': _promedio(bruto_prop, noches_prop),
+            'revpar': _promedio(bruto_prop, dias_del_mes),
         })
 
-    # ── Contexto ──────────────────────────────────────────────
+    noches_disponibles = dias_del_mes * len(anuncios)
+    totales['ocupacion'] = _porcentaje(Decimal(noches_vendidas),
+                                       Decimal(noches_disponibles))
+    totales['adr'] = _promedio(bruto, noches_vendidas)
+    totales['revpar'] = _promedio(bruto, noches_disponibles)
+
     context = {
-        'pagos':                pagos,
-        'totales':              totales,
-        'resumen_propiedades':  resumen_propiedades,
-        'mes':                  mes,
-        'anio':                 anio,
-        'mes_nombre':           MESES[mes],
-        'total_propiedades':    anuncios.count(),
-        'fecha_generacion':     hoy.strftime('%d/%m/%Y'),
+        'pagos': lista,
+        'totales': totales,
+        'resumen_propiedades': resumen_propiedades,
+        'mes': mes,
+        'anio': anio,
+        'mes_nombre': MESES[mes],
+        'total_propiedades': len(anuncios),
+        'dias_del_mes': dias_del_mes,
+        'fecha_generacion': hoy.strftime('%d/%m/%Y'),
     }
 
     html_string = render_to_string('airbnb/reporte_fiscal_airbnb.html', context)
-    pdf_bytes   = HTML(string=html_string).write_pdf()
+    pdf_bytes = HTML(string=html_string).write_pdf()
 
     filename = f"Reporte_Fiscal_Airbnb_{MESES[mes]}_{anio}.pdf"
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
+
+
+def _promedio(total: Decimal, divisor) -> Decimal:
+    if not divisor:
+        return Decimal('0.00')
+    return (Decimal(total) / Decimal(divisor)).quantize(Decimal('0.01'))
+
+
+def _porcentaje(parte: Decimal, total: Decimal) -> Decimal:
+    if not total:
+        return Decimal('0.0')
+    return (Decimal(parte) / Decimal(total) * 100).quantize(Decimal('0.1'))

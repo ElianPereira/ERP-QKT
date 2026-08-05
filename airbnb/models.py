@@ -4,6 +4,7 @@ Modelos del módulo Airbnb
 Gestión de anuncios, reservaciones y pagos de Airbnb.
 Separado contablemente del resto del ERP (régimen fiscal diferente).
 """
+import re
 from decimal import Decimal
 from django.db import models
 from django.db.models import Sum
@@ -58,15 +59,14 @@ class AnuncioAirbnb(models.Model):
     
     def save(self, *args, **kwargs):
         # Extraer listing ID de la URL de iCal
+        # (https://www.airbnb.mx/calendar/ical/XXXXXX.ics?...). Que no coincida
+        # es normal —una URL de otro formato— y no debe impedir guardar el
+        # anuncio; el `except:` desnudo que había aquí además se habría tragado
+        # un KeyboardInterrupt.
         if self.url_ical and not self.airbnb_listing_id:
-            # URL formato: https://www.airbnb.mx/calendar/ical/XXXXXX.ics?...
-            try:
-                import re
-                match = re.search(r'/ical/(\d+)\.ics', self.url_ical)
-                if match:
-                    self.airbnb_listing_id = match.group(1)
-            except:
-                pass
+            encontrado = re.search(r'/ical/(\d+)\.ics', self.url_ical)
+            if encontrado:
+                self.airbnb_listing_id = encontrado.group(1)
         super().save(*args, **kwargs)
     
     def __str__(self):
@@ -155,22 +155,29 @@ class ReservaAirbnb(models.Model):
 class PagoAirbnb(models.Model):
     """
     Pagos recibidos de Airbnb.
-    Régimen fiscal: Actividad Empresarial - Plataformas Tecnológicas
-    Retenciones: ISR 4%, IVA 8%
-    
-    Se importan desde CSV de Airbnb o se registran manualmente.
+    Régimen fiscal: Actividad Empresarial - Plataformas Tecnológicas.
+
+    Las retenciones se guardan TAL COMO VIENEN del CSV de Airbnb; las
+    tasas de referencia viven en `core_erp.impuestos`. Ver
+    `retenciones_esperadas()` y `cuadra` para el contraste entre ambas.
     """
     ESTADO_CHOICES = [
         ('PENDIENTE', 'Pendiente de Pago'),
         ('PAGADO', 'Pagado por Airbnb'),
         ('CANCELADO', 'Cancelado'),
+        ('REEMBOLSADO', 'Reembolsado al huésped'),
     ]
-    
+
+    ORIGEN_CHOICES = [
+        ('CSV', 'Importado del CSV de Airbnb'),
+        ('MANUAL', 'Capturado a mano'),
+    ]
+
     anuncio = models.ForeignKey(
-        AnuncioAirbnb, 
-        on_delete=models.CASCADE, 
+        AnuncioAirbnb,
+        on_delete=models.CASCADE,
         related_name='pagos',
-        null=True, 
+        null=True,
         blank=True
     )
     reserva = models.ForeignKey(
@@ -183,8 +190,10 @@ class PagoAirbnb(models.Model):
     
     # Datos del pago
     codigo_confirmacion = models.CharField(
-        max_length=20, 
+        max_length=20,
         blank=True,
+        null=True,
+        unique=True,
         verbose_name="Código de Confirmación",
         help_text="Código de reserva de Airbnb (ej: HMXXXXXXXX)"
     )
@@ -215,20 +224,44 @@ class PagoAirbnb(models.Model):
         max_digits=12, 
         decimal_places=2, 
         default=Decimal('0.00'),
-        verbose_name="Retención ISR (4%)",
-        help_text="ISR retenido por plataforma tecnológica"
+        verbose_name="Retención ISR",
+        help_text="ISR retenido por la plataforma, tal como viene en el CSV. La tasa depende de si Airbnb tiene el RFC del anfitrión (art. 113-A LISR)."
     )
     retencion_iva = models.DecimalField(
         max_digits=12, 
         decimal_places=2, 
         default=Decimal('0.00'),
-        verbose_name="Retención IVA (8%)",
-        help_text="IVA retenido por plataforma tecnológica"
+        verbose_name="Retención IVA",
+        help_text="IVA retenido por la plataforma, tal como viene en el CSV (art. 18-J LIVA)."
     )
     
+    # IVA que Airbnb cobra al huésped y TRANSFIERE al anfitrión para que sea
+    # él quien lo entere. En el CSV son las filas "Impuestos liquidados como
+    # anfitrión" y suman al depósito, por eso no es un gasto.
+    iva_trasladado = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="IVA trasladado",
+        help_text=("IVA que Airbnb cobró al huésped y te transfiere. Lo enteras tú, "
+                   "no la plataforma."),
+    )
+
+    # Impuesto al hospedaje. A diferencia del IVA, este lo retiene y entera
+    # Airbnb: aparece en la columna "Impuesto liquidado por Airbnb" y NO llega
+    # al depósito, así que es informativo para el anfitrión.
+    impuesto_hospedaje = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Impuesto al hospedaje (ISH)",
+        help_text=("Impuesto estatal que Airbnb retiene y entera por su cuenta. "
+                   "Informativo: no pasa por tus manos."),
+    )
+
     # Pago neto
     monto_neto = models.DecimalField(
-        max_digits=12, 
+        max_digits=12,
         decimal_places=2,
         verbose_name="Monto Neto Recibido",
         help_text="Lo que realmente deposita Airbnb"
@@ -249,11 +282,20 @@ class PagoAirbnb(models.Model):
     
     # Auditoría
     notas = models.TextField(blank=True)
+    origen = models.CharField(
+        max_length=10, choices=ORIGEN_CHOICES, default='CSV',
+        help_text="Un pago capturado a mano no se sobrescribe al reimportar el CSV.",
+    )
     archivo_csv_origen = models.CharField(
-        max_length=255, 
+        max_length=255,
         blank=True,
         verbose_name="Archivo CSV Origen",
         help_text="Nombre del archivo CSV de donde se importó"
+    )
+    payout_id = models.CharField(
+        max_length=100, blank=True, db_index=True,
+        verbose_name="Depósito de Airbnb",
+        help_text="Agrupa los pagos que Airbnb depositó juntos, para conciliar contra el banco.",
     )
     created_by = models.ForeignKey(
         User, 
@@ -275,34 +317,69 @@ class PagoAirbnb(models.Model):
             return self.monto_bruto / self.noches
         return Decimal('0.00')
     
-    def calcular_retenciones(self):
+    def retenciones_esperadas(self, *, con_rfc: bool = True) -> dict:
         """
-        Calcula las retenciones según régimen de plataformas tecnológicas.
-        ISR: 4% sobre monto bruto
-        IVA: 8% sobre monto bruto
+        Lo que la plataforma DEBERÍA haber retenido, según arts. 113-A LISR y
+        18-J LIVA. Es una referencia para detectar descuadres, no un
+        sustituto: fiscalmente valen las retenciones que Airbnb aplicó y que
+        constan en su constancia.
         """
-        self.retencion_isr = (self.monto_bruto * Decimal('0.04')).quantize(Decimal('0.01'))
-        self.retencion_iva = (self.monto_bruto * Decimal('0.08')).quantize(Decimal('0.01'))
-        self.monto_neto = (
-            self.monto_bruto 
-            - self.comision_airbnb 
-            - self.retencion_isr 
+        from core_erp.impuestos import retenciones_plataforma
+        return retenciones_plataforma(self.monto_bruto, con_rfc=con_rfc)
+
+    @property
+    def diferencia_neto(self) -> Decimal:
+        """
+        Cuánto se aparta el neto declarado de sus componentes.
+
+        La fórmula sale de reconstruir el payout real del CSV de Airbnb:
+
+            neto = base - comisión + IVA trasladado - ISR - IVA retenido
+
+        El IVA trasladado SUMA porque Airbnb lo cobra al huésped y lo
+        transfiere para que el anfitrión lo entere. El impuesto al hospedaje
+        no entra: ese lo retiene y entera la propia plataforma.
+
+        Distinto de cero significa que el CSV trae un concepto que no estamos
+        modelando (un ajuste, un reembolso parcial), y que conviene revisar el
+        pago antes de declararlo.
+        """
+        calculado = (
+            self.monto_bruto
+            - self.comision_airbnb
+            + self.iva_trasladado
+            - self.retencion_isr
             - self.retencion_iva
-        ).quantize(Decimal('0.01'))
-    
+        )
+        return (self.monto_neto - calculado).quantize(Decimal('0.01'))
+
+    @property
+    def cuadra(self) -> bool:
+        # Un centavo de holgura por el redondeo de cada componente.
+        return abs(self.diferencia_neto) <= Decimal('0.01')
+
     def save(self, *args, **kwargs):
-        # Auto-calcular retenciones si no están definidas
-        if self.monto_bruto and (self.retencion_isr == 0 or self.retencion_iva == 0):
-            self.calcular_retenciones()
+        # A diferencia de la versión anterior, aquí NO se recalculan las
+        # retenciones. Aquella condición ("si alguna viene en cero") pisaba los
+        # valores reales del CSV: cuando Airbnb no retenía IVA en una reserva,
+        # el sistema le inventaba un 8% que nunca ocurrió y recalculaba el
+        # neto, con lo que el ERP dejaba de cuadrar contra la constancia de
+        # retenciones y contra el depósito bancario.
         super().save(*args, **kwargs)
-    
+
     def __str__(self):
         return f"{self.codigo_confirmacion or 'Sin código'} - {self.huesped} (${self.monto_neto})"
-    
+
     class Meta:
         verbose_name = "Pago"
         verbose_name_plural = "Pagos"
         ordering = ['-fecha_checkin']
+        indexes = [
+            # El reporte fiscal agrupa por fecha de pago, no por check-in.
+            models.Index(fields=['fecha_pago']),
+            models.Index(fields=['estado', '-fecha_pago']),
+            models.Index(fields=['anuncio', '-fecha_checkin']),
+        ]
 
 
 class ConflictoCalendario(models.Model):

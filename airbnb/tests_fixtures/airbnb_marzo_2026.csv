@@ -1,0 +1,16 @@
+﻿Fecha,Fecha de llegada estimada,Tipo,Código de confirmación,Fecha de la reservación,Fecha de inicio,Fecha de finalización,Noches,Huésped,Espacio,Detalles,Código de referencia,Moneda,Monto,Ingresos recibidos,Tarifa de servicio,Tarifa por Pago rápido,Tarifa de limpieza,Ingresos brutos,Impuesto liquidado por Airbnb,Año de ingresos
+03/29/2026,04/03/2026,Payout,,,,,,,,"Transferir a Titular Demo, Checking 0000 (MXN)",0MS1RPPtymADBICstK1HBQJJs71,MXN,,643.36,,,,,,
+03/29/2026,,Retención del impuesto sobre la renta para México,HMRPZQNE4S,03/21/2026,03/28/2026,03/29/2026,1,Huésped Demo 1,Quinta Ko’ox Tanil | Kaan Room,,,MXN,-25.60,,0.00,,0.00,,0.00,2026
+03/29/2026,,Impuestos liquidados como anfitrión,HMRPZQNE4S,03/21/2026,03/28/2026,03/29/2026,1,Huésped Demo 1,Quinta Ko’ox Tanil | Kaan Room,,,MXN,102.40,,0.00,,0.00,102.40,0.00,2026
+03/29/2026,,Reservación,HMRPZQNE4S,03/21/2026,03/28/2026,03/29/2026,1,Huésped Demo 1,Quinta Ko’ox Tanil | Kaan Room,,,MXN,617.76,,19.09,,0.00,640.00,28.82,2026
+03/29/2026,,Retención del IVA en México,HMRPZQNE4S,03/21/2026,03/28/2026,03/29/2026,1,Huésped Demo 1,Quinta Ko’ox Tanil | Kaan Room,,,MXN,-51.20,,0.00,,0.00,,0.00,2026
+03/20/2026,03/27/2026,Payout,,,,,,,,"Transferir a Titular Demo, Checking 0000 (MXN)",0MS1ROD8rGBDYazdsvovTgeNMgV,MXN,,643.33,,,,,,
+03/20/2026,,Reservación,HMZQ99HWB8,03/18/2026,03/19/2026,03/20/2026,1,Huésped Demo 2,Quinta Ko’ox Tanil | Otoch Room,,,MXN,617.73,,19.10,,0.00,640.00,28.80,2026
+03/20/2026,,Retención del IVA en México,HMZQ99HWB8,03/18/2026,03/19/2026,03/20/2026,1,Huésped Demo 2,Quinta Ko’ox Tanil | Otoch Room,,,MXN,-51.20,,0.00,,0.00,,0.00,2026
+03/20/2026,,Impuestos liquidados como anfitrión,HMZQ99HWB8,03/18/2026,03/19/2026,03/20/2026,1,Huésped Demo 2,Quinta Ko’ox Tanil | Otoch Room,,,MXN,102.40,,0.00,,0.00,102.40,0.00,2026
+03/20/2026,,Retención del impuesto sobre la renta para México,HMZQ99HWB8,03/18/2026,03/19/2026,03/20/2026,1,Huésped Demo 2,Quinta Ko’ox Tanil | Otoch Room,,,MXN,-25.60,,0.00,,0.00,,0.00,2026
+03/12/2026,03/19/2026,Payout,,,,,,,,"Transferir a Titular Demo, Checking 0000 (MXN)",0MS1RHz4c8515YKnnfW89NcM0tS,MXN,,15234.36,,,,,,
+03/12/2026,,Impuestos liquidados como anfitrión,HMFRS8DQ8Z,03/10/2026,03/11/2026,04/25/2026,45,Huésped Demo 3,Casa Miel Y Mar Yucalpetén,,,MXN,2424.89,,0.00,,0.00,2424.89,0.00,2026
+03/12/2026,,Retención del IVA en México,HMFRS8DQ8Z,03/10/2026,03/11/2026,04/25/2026,45,Huésped Demo 3,Casa Miel Y Mar Yucalpetén,,,MXN,-1212.45,,0.00,,0.00,,0.00,2026
+03/12/2026,,Retención del impuesto sobre la renta para México,HMFRS8DQ8Z,03/10/2026,03/11/2026,04/25/2026,45,Huésped Demo 3,Casa Miel Y Mar Yucalpetén,,,MXN,-606.22,,0.00,,0.00,,0.00,2026
+03/12/2026,,Reservación,HMFRS8DQ8Z,03/10/2026,03/11/2026,04/25/2026,45,Huésped Demo 3,Casa Miel Y Mar Yucalpetén,,,MXN,14628.14,,452.42,,0.00,15155.56,682.00,2026

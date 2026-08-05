@@ -462,9 +462,50 @@
             <td class="value-col">{{ totales.noches }} noches</td>
           </tr>
           <tr>
-            <td class="label-col">Tarifa promedio por noche</td>
-            <td class="value-col">${{ totales.tarifa_promedio|floatformat:2 }}</td>
+            <td class="label-col">Ocupación</td>
+            <td class="value-col">{{ totales.ocupacion|floatformat:1 }}%
+              <span style="font-weight:400;font-size:11px;color:#888;">
+                ({{ totales.noches }} de {{ dias_del_mes }} &times; {{ total_propiedades }} noches disponibles)
+              </span>
+            </td>
           </tr>
+          <tr>
+            <td class="label-col">ADR &mdash; tarifa diaria promedio</td>
+            <td class="value-col">${{ totales.adr|floatformat:2|intcomma }}
+              <span style="font-weight:400;font-size:11px;color:#888;">por noche vendida</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="label-col">RevPAR &mdash; ingreso por noche disponible</td>
+            <td class="value-col">${{ totales.revpar|floatformat:2|intcomma }}
+              <span style="font-weight:400;font-size:11px;color:#888;">ocupación y tarifa juntas</span>
+            </td>
+          </tr>
+          {% if totales.iva_trasladado %}
+          <tr>
+            <td class="label-col">IVA trasladado que debes enterar</td>
+            <td class="value-col">${{ totales.iva_trasladado|floatformat:2|intcomma }}
+              <span style="font-weight:400;font-size:11px;color:#888;">Airbnb lo cobró al huésped y te lo transfirió</span>
+            </td>
+          </tr>
+          {% endif %}
+          {% if totales.ish %}
+          <tr>
+            <td class="label-col">Impuesto al hospedaje</td>
+            <td class="value-col">${{ totales.ish|floatformat:2|intcomma }}
+              <span style="font-weight:400;font-size:11px;color:#888;">lo retiene y entera Airbnb &mdash; informativo</span>
+            </td>
+          </tr>
+          {% endif %}
+          {% if totales.descuadrados %}
+          <tr>
+            <td colspan="2" style="padding:8px 10px;background:#FFF8E1;color:#8a6d3b;font-size:11px;">
+              <strong>{{ totales.descuadrados|length }} pago(s) con el neto descuadrado.</strong>
+              Revísalos antes de declarar:
+              {% for p in totales.descuadrados %}{{ p.codigo_confirmacion }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+            </td>
+          </tr>
+          {% endif %}
 
           <tr class="final-total-row">
             <td class="label-col">⚠ Reportar al SAT: ingreso BRUTO</td>
