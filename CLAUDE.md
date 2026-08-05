@@ -75,11 +75,21 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-05 — **Openpay está EN PRODUCCIÓN.** Primer cobro real verificado
+  ($1.00, autorización 186823). `OPENPAY_MODE=production` y las cuatro
+  variables de Railway con las llaves de producción; el resto lo conmuta ese
+  flag solo (URL de la API, `setSandboxMode` del JS, dominio de las fichas
+  PDF). Webhook dado de alta y verificado en el dashboard de producción —que
+  es distinto al de sandbox y no hereda nada— en
+  `/pagos/openpay/webhook/` con "Todos los eventos" y autenticación básica.
+  Al registrarlo, el dashboard devolvió `undefined : undefined` sin llegar a
+  llamar al servidor; se resolvió recargando la página, no era problema de la
+  contraseña. El código de verificación se lee de los Deploy Logs, donde
+  `openpay_webhook_view` lo emite como `warning` a propósito.
 - 2026-08-03 — Certificación de Openpay cerrada: las cinco observaciones del
   técnico quedaron atendidas (documentos legales enlazados, logotipos
   oficiales, motivo explícito de rechazo en los logs del servidor, 3D Secure
-  probado, ficha de efectivo/SPEI completa). **Se esperan las llaves de
-  producción en 24-48 h**; hasta entonces `OPENPAY_MODE` sigue en `sandbox`.
+  probado, ficha de efectivo/SPEI completa).
   Soporte Openpay: **(55) 97 55 35 59** · **soporte@openpay.mx**.
 - 2026-08-03 — Rutas de los recibos PDF de Openpay: `/spei-pdf/{merchant}/
   {id de la transacción}` pero `/paynet-pdf/{merchant}/{payment_method.
