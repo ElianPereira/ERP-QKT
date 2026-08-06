@@ -7,11 +7,14 @@ múltiples unidades de negocio y conciliación bancaria.
 ERP Quinta Ko'ox Tanil
 """
 from decimal import Decimal
-from django.db import models
-from django.db.models import Sum, Q
+
+from cloudinary_storage.storage import RawMediaCloudinaryStorage
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db import models
+from django.db.models import Q, Sum
 from django.utils import timezone
+
 from facturacion.choices import RegimenFiscal
 
 # Catálogo de régimenes fiscales SAT: fuente única en facturacion.choices.RegimenFiscal
@@ -793,7 +796,14 @@ class EstadoCuentaBancario(models.Model):
     banco = models.CharField(max_length=20, default='BBVA', verbose_name="Banco")
     periodo_mes = models.PositiveSmallIntegerField(verbose_name="Mes")
     periodo_anio = models.PositiveSmallIntegerField(verbose_name="Año")
-    archivo = models.FileField(upload_to='estados_cuenta/%Y/%m/', verbose_name="Archivo")
+    # RawMediaCloudinaryStorage explícito: el storage por default del proyecto
+    # es MediaCloudinaryStorage (resource_type='image'), que rechaza PDF/XML.
+    # Igual que el resto de FileFields de documentos del repo.
+    archivo = models.FileField(
+        upload_to='estados_cuenta/%Y/%m/',
+        storage=RawMediaCloudinaryStorage(),
+        verbose_name="Archivo",
+    )
     formato = models.CharField(max_length=5, choices=FORMATO_CHOICES, verbose_name="Formato")
     origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, default='MANUAL')
 
