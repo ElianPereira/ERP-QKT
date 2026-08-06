@@ -57,3 +57,39 @@ window.addEventListener('pageshow', function(event) {
         window.location.reload();
     }
 });
+
+
+/* ============================================================
+   FIX CALENDARIO/RELOJ DEL ADMIN — se abre fuera de la pantalla
+
+   Django siempre despliega el calendarbox/clockbox hacia abajo del
+   campo sin comprobar si hay espacio. En formularios donde el campo
+   de fecha/hora queda cerca del final de la página (ej. Estados de
+   cuenta bancarios: "Fecha de corte real"), la caja se corta contra
+   el borde de la ventana y no hay manera de alcanzar el resto de los
+   días/horas ni los botones de abajo (Hoy/Cancelar).
+
+   Tras el clic que la abre (DateTimeShortcuts.js de Django, sin
+   tocar ese archivo) se reposiciona la caja hacia arriba lo justo
+   para que quede completa dentro de la ventana visible.
+
+   El propio DateTimeShortcuts.js hace e.stopPropagation() al abrir
+   (para no disparar su listener de "clic afuera cierra"), así que
+   este listener se registra en fase de CAPTURA (tercer argumento
+   true) — se ejecuta antes de que Django corte la propagación.
+   ============================================================ */
+document.addEventListener('click', function (e) {
+    var link = e.target.closest && e.target.closest('a[id^="calendarlink"], a[id^="clocklink"]');
+    if (!link) return;
+    setTimeout(function () {
+        var num = link.id.replace(/^\D+/, '');
+        var boxId = (link.id.indexOf('calendarlink') === 0 ? 'calendarbox' : 'clockbox') + num;
+        var box = document.getElementById(boxId);
+        if (!box) return;
+        var overflow = box.getBoundingClientRect().bottom - window.innerHeight;
+        if (overflow > 0) {
+            var actual = parseInt(box.style.top, 10) || 0;
+            box.style.top = Math.max(10, actual - overflow - 10) + 'px';
+        }
+    }, 0);
+}, true);
