@@ -86,10 +86,16 @@ document.addEventListener('click', function (e) {
         var boxId = (link.id.indexOf('calendarlink') === 0 ? 'calendarbox' : 'clockbox') + num;
         var box = document.getElementById(boxId);
         if (!box) return;
+        var viewportMargin = 10;
+        var availableHeight = window.innerHeight - (viewportMargin * 2);
+        if (box.getBoundingClientRect().height > availableHeight) {
+            box.style.maxHeight = availableHeight + 'px';
+            box.style.overflowY = 'auto';
+        }
         var overflow = box.getBoundingClientRect().bottom - window.innerHeight;
         if (overflow > 0) {
             var actual = parseInt(box.style.top, 10) || 0;
-            box.style.top = Math.max(10, actual - overflow - 10) + 'px';
+            box.style.top = Math.max(viewportMargin, actual - overflow - viewportMargin) + 'px';
         }
     }, 0);
 }, true);
