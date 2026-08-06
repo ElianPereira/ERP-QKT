@@ -6,7 +6,6 @@ Gestión de solicitudes de factura y comunicación con contador.
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.timezone import now
-from cloudinary_storage.storage import RawMediaCloudinaryStorage
 
 from comercial.models import Cliente, Cotizacion, Pago
 from facturacion.choices import FormaPago, MetodoPago, RegimenFiscal, UsoCFDI
@@ -155,7 +154,6 @@ class SolicitudFactura(models.Model):
         upload_to='facturas_zip/',
         blank=True,
         null=True,
-        storage=RawMediaCloudinaryStorage(),
         verbose_name="ZIP con PDF y XML",
         help_text="Archivo ZIP con la factura (PDF + XML)"
     )
@@ -163,14 +161,12 @@ class SolicitudFactura(models.Model):
         upload_to='facturas_pdf/',
         blank=True,
         null=True,
-        storage=RawMediaCloudinaryStorage(),
         verbose_name="Factura PDF"
     )
     archivo_xml = models.FileField(
         upload_to='facturas_xml/',
         blank=True,
         null=True,
-        storage=RawMediaCloudinaryStorage(),
         verbose_name="Factura XML"
     )
     uuid_factura = models.CharField(
