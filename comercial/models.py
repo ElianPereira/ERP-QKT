@@ -2,7 +2,6 @@ import secrets
 import xml.etree.ElementTree as ET
 from decimal import ROUND_HALF_UP, Decimal
 
-from cloudinary_storage.storage import RawMediaCloudinaryStorage
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -537,8 +536,8 @@ class Cotizacion(models.Model):
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
-    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, storage=RawMediaCloudinaryStorage(), verbose_name="Contrato PDF")
+    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
+    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF")
 
     def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
         """
@@ -1003,7 +1002,7 @@ class ContratoServicio(models.Model):
     tipo_servicio = models.CharField(max_length=20, choices=TIPO_CHOICES, default='EVENTO')
     deposito_garantia = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
                                             verbose_name="Depósito en Garantía (MXN)")
-    archivo = models.FileField(upload_to='contratos_pdf/', storage=RawMediaCloudinaryStorage(), verbose_name="Archivo PDF")
+    archivo = models.FileField(upload_to='contratos_pdf/', verbose_name="Archivo PDF")
     generado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     generado_en  = models.DateTimeField(auto_now_add=True)
     enviado_email = models.BooleanField(default=False)
@@ -1084,8 +1083,8 @@ class Compra(models.Model):
     ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    archivo_xml = models.FileField(upload_to='xml_compras/', storage=RawMediaCloudinaryStorage(), blank=True, null=True)
-    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
+    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True)
+    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True)
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     unidad_negocio = models.ForeignKey(
@@ -1222,8 +1221,8 @@ class Gasto(models.Model):
     unidad_medida = models.CharField(max_length=20, blank=True)
     fecha_gasto = models.DateField(blank=True, null=True, db_index=True)
     proveedor = models.CharField(max_length=200, blank=True)
-    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
-    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, storage=RawMediaCloudinaryStorage())
+    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True)
+    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True)
     def __str__(self): return f"{self.descripcion} (${self.total_linea})"
 
 # ==========================================

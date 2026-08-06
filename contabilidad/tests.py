@@ -8,21 +8,29 @@ cuenta BBVA con su conciliación preliminar.
 """
 import os
 import unittest
-from decimal import Decimal
 from datetime import date, timedelta
-from django.test import TestCase
-from django.contrib.auth.models import User
+from decimal import Decimal
 
+from django.contrib.auth.models import User
+from django.test import TestCase
+
+from comercial.models import Cliente, Compra, Cotizacion, ItemCotizacion, Pago
 from contabilidad.models import (
-    CuentaContable, ConfiguracionContable, UnidadNegocio, CuentaBancaria,
-    Poliza, MovimientoContable, SaldoApertura,
-    EstadoCuentaBancario, MovimientoEstadoCuenta,
+    ConfiguracionContable,
+    CuentaBancaria,
+    CuentaContable,
+    EstadoCuentaBancario,
+    MovimientoContable,
+    MovimientoEstadoCuenta,
+    Poliza,
+    SaldoApertura,
+    UnidadNegocio,
 )
 from contabilidad.services import aplicar_saldo_apertura
 from contabilidad.services_estados_cuenta import (
-    _emparejar_automaticamente, generar_conciliacion_preliminar,
+    _emparejar_automaticamente,
+    generar_conciliacion_preliminar,
 )
-from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago, Compra
 from nomina.models import Empleado, ReciboNomina
 from nomina.services import marcar_recibo_como_pagado
 
@@ -748,16 +756,18 @@ class ParserBBVATest(TestCase):
         """
         import tempfile
         from unittest import mock
-        from contabilidad.services_estados_cuenta import procesar_estado_cuenta
+
         from django.core.files import File
         from django.core.files.storage import FileSystemStorage
+
+        from contabilidad.services_estados_cuenta import procesar_estado_cuenta
 
         cuenta_equivocada = CuentaBancaria.objects.create(
             nombre="Cuenta equivocada de prueba", banco="BBVA",
             numero_cuenta="0000000000", clabe="000000000000000000",
         )
-        # El storage por default del proyecto es Cloudinary (producción); en
-        # tests se usa un FileSystemStorage local para no depender de
+        # El storage por default del proyecto es Cloudflare R2 (producción);
+        # en tests se usa un FileSystemStorage local para no depender de
         # credenciales reales al guardar el archivo.
         campo_archivo = EstadoCuentaBancario._meta.get_field('archivo')
         with tempfile.TemporaryDirectory() as tmp_dir, \
@@ -800,9 +810,11 @@ class PeriodoDevengoComisionDiferidaTest(TestCase):
     def test_procesar_estado_cuenta_asigna_periodo_devengo_a_comision(self):
         import tempfile
         from unittest import mock
-        from contabilidad.services_estados_cuenta import procesar_estado_cuenta
+
         from django.core.files.base import ContentFile
         from django.core.files.storage import FileSystemStorage
+
+        from contabilidad.services_estados_cuenta import procesar_estado_cuenta
 
         cuenta = CuentaBancaria.objects.create(
             nombre="Cuenta de prueba", banco="BBVA",

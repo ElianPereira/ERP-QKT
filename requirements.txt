@@ -9,6 +9,13 @@ pandas
 openpyxl
 weasyprint
 django-anymail
+django-storages
+boto3
+# django-cloudinary-storage y cloudinary ya no son el storage activo (ver
+# STORAGES en core_erp/settings.py), pero deben permanecer instalados:
+# varias migraciones históricas de comercial/facturacion importan
+# cloudinary_storage.storage a nivel de módulo y Django necesita poder
+# cargarlas para construir el grafo de migraciones.
 django-cloudinary-storage
 cloudinary
 requests

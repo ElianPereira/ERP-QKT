@@ -4,29 +4,40 @@ Tests del módulo Comercial
 Ejecutar: python manage.py test comercial --verbosity=2
 """
 import json
-from decimal import Decimal
 from datetime import date, timedelta
+from decimal import Decimal
+
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
-from django.core.exceptions import ValidationError
-from django.contrib.auth.models import User
 
 from comercial.models import (
-    Cliente, Cotizacion, ItemCotizacion, Pago, Insumo,
-    ConstanteSistema, MovimientoInventario, PlanPago, ParcialidadPago,
-    Espacio, AsignacionEspacio, AsignacionPersonal, Compra,
+    AsignacionEspacio,
+    AsignacionPersonal,
+    Cliente,
+    Compra,
+    ConstanteSistema,
+    Cotizacion,
+    Espacio,
+    Insumo,
+    ItemCotizacion,
+    MovimientoInventario,
+    Pago,
+    ParcialidadPago,
+    PlanPago,
 )
-from nomina.models import Empleado
 from comercial.services import PlanPagosService
+from nomina.models import Empleado
 
 
 class CotizacionTotalesTest(TestCase):
     """Verifica que los totales se calculen correctamente."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('test', password='test')
         self.cliente = Cliente.objects.create(nombre='Cliente Test', tipo_persona='FISICA')
-    
+
     def _crear_cotizacion_limpia(self, **kwargs):
         """Crea cotización sin disparar auto-cálculo de barra."""
         defaults = {
@@ -43,12 +54,12 @@ class CotizacionTotalesTest(TestCase):
         }
         defaults.update(kwargs)
         return Cotizacion.objects.create(**defaults)
-    
+
     def test_cotizacion_sin_items_precio_cero(self):
         cot = self._crear_cotizacion_limpia()
         cot.calcular_totales()
         self.assertEqual(cot.precio_final, Decimal('0.00'))
-    
+
     def test_cotizacion_con_items_calcula_subtotal(self):
         cot = self._crear_cotizacion_limpia()
         ItemCotizacion.objects.create(
@@ -61,7 +72,7 @@ class CotizacionTotalesTest(TestCase):
         )
         cot.calcular_totales()
         self.assertEqual(cot.subtotal, Decimal('23000.00'))
-    
+
     def test_cotizacion_siempre_tiene_iva(self):
         """Todo ingreso aplica IVA 16% sin excepción."""
         cot = self._crear_cotizacion_limpia(requiere_factura=False)
@@ -72,7 +83,7 @@ class CotizacionTotalesTest(TestCase):
         cot.calcular_totales()
         self.assertEqual(cot.iva, Decimal('1600.00'))
         self.assertEqual(cot.precio_final, Decimal('11600.00'))
-    
+
     def test_cotizacion_con_factura_persona_fisica(self):
         self.cliente.tipo_persona = 'FISICA'
         self.cliente.save()
@@ -85,7 +96,7 @@ class CotizacionTotalesTest(TestCase):
         self.assertEqual(cot.iva, Decimal('1600.00'))
         self.assertEqual(cot.retencion_isr, Decimal('0.00'))
         self.assertEqual(cot.precio_final, Decimal('11600.00'))
-    
+
     def test_cotizacion_con_factura_persona_moral(self):
         self.cliente.tipo_persona = 'MORAL'
         self.cliente.save()
@@ -98,7 +109,7 @@ class CotizacionTotalesTest(TestCase):
         self.assertEqual(cot.iva, Decimal('1600.00'))
         self.assertEqual(cot.retencion_isr, Decimal('125.00'))
         self.assertEqual(cot.precio_final, Decimal('11475.00'))
-    
+
     def test_cotizacion_con_descuento(self):
         cot = self._crear_cotizacion_limpia(requiere_factura=True, descuento=Decimal('2000.00'))
         ItemCotizacion.objects.create(
@@ -113,7 +124,7 @@ class CotizacionTotalesTest(TestCase):
 
 class PagoValidacionTest(TestCase):
     """Verifica la validación de sobrepago."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('test', password='test')
         self.cliente = Cliente.objects.create(nombre='Cliente Test')
@@ -129,15 +140,15 @@ class PagoValidacionTest(TestCase):
         # Forzar precio_final directo en DB
         Cotizacion.objects.filter(pk=self.cot.pk).update(precio_final=Decimal('20000.00'))
         self.cot.refresh_from_db()
-    
+
     def test_pago_dentro_del_saldo(self):
         pago = Pago(cotizacion=self.cot, monto=Decimal('5000.00'), metodo='EFECTIVO')
         pago.clean()
-    
+
     def test_pago_exacto_al_saldo(self):
         pago = Pago(cotizacion=self.cot, monto=Decimal('20000.00'), metodo='EFECTIVO')
         pago.clean()
-    
+
     def test_sobrepago_rechazado(self):
         Pago.objects.create(
             cotizacion=self.cot, monto=Decimal('15000.00'),
@@ -146,7 +157,7 @@ class PagoValidacionTest(TestCase):
         pago2 = Pago(cotizacion=self.cot, monto=Decimal('6000.00'), metodo='EFECTIVO')
         with self.assertRaises(ValidationError):
             pago2.clean()
-    
+
     def test_tolerancia_50_centavos(self):
         Pago.objects.create(
             cotizacion=self.cot, monto=Decimal('19999.80'),
@@ -183,7 +194,7 @@ class PagoValidacionTest(TestCase):
 
 class TransicionEstadosTest(TestCase):
     """Verifica la máquina de estados de cotización."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('test', password='test')
         self.cliente = Cliente.objects.create(nombre='Cliente Test')
@@ -202,33 +213,33 @@ class TransicionEstadosTest(TestCase):
             cotizacion=self.cot, descripcion='Item',
             cantidad=1, precio_unitario=Decimal('10000.00')
         )
-    
+
     def test_borrador_a_cotizada(self):
         ok, msg = self.cot.cambiar_estado('COTIZADA', self.user)
         self.assertTrue(ok)
         self.assertEqual(self.cot.estado, 'COTIZADA')
-    
+
     def test_borrador_a_confirmada_directo_bloqueado(self):
         ok, msg = self.cot.cambiar_estado('CONFIRMADA', self.user)
         self.assertFalse(ok)
         self.assertEqual(self.cot.estado, 'BORRADOR')
-    
+
     def test_cancelacion_requiere_motivo(self):
         ok, msg = self.cot.cambiar_estado('CANCELADA', self.user, motivo='')
         self.assertFalse(ok)
-    
+
     def test_cancelacion_con_motivo(self):
         ok, msg = self.cot.cambiar_estado('CANCELADA', self.user, motivo='Cliente desistió')
         self.assertTrue(ok)
         self.assertEqual(self.cot.motivo_cancelacion, 'Cliente desistió')
-    
+
     def test_cerrada_requiere_pago_completo(self):
         self.cot.estado = 'EJECUTADA'
         self.cot.save(update_fields=['estado'])
         ok, msg = self.cot.cambiar_estado('CERRADA', self.user)
         self.assertFalse(ok)
         self.assertIn('saldo pendiente', msg.lower())
-    
+
     def test_ingreso_extra_no_bloquea_cierre(self):
         """Reproduce el caso real: la suma de pagos VENTA cuadra exacto con el
         total, y un ingreso EXTRA (propina) encima no debe impedir cerrar."""
@@ -259,11 +270,11 @@ class TransicionEstadosTest(TestCase):
 
 class PlanPagosTest(TestCase):
     """Verifica la generación de planes de pago."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('test', password='test')
         self.cliente = Cliente.objects.create(nombre='Cliente Test')
-    
+
     def _crear_cotizacion(self, dias_anticipacion, precio=Decimal('20000.00')):
         cot = Cotizacion.objects.create(
             cliente=self.cliente,
@@ -276,44 +287,44 @@ class PlanPagosTest(TestCase):
         Cotizacion.objects.filter(pk=cot.pk).update(precio_final=precio)
         cot.refresh_from_db()
         return cot
-    
+
     def test_plan_largo_4_parcialidades(self):
         cot = self._crear_cotizacion(150)
         plan = PlanPagosService(cot).generar(usuario=self.user)
         self.assertEqual(plan.parcialidades.count(), 4)
-    
+
     def test_plan_medio_3_parcialidades(self):
         cot = self._crear_cotizacion(90)
         plan = PlanPagosService(cot).generar(usuario=self.user)
         self.assertEqual(plan.parcialidades.count(), 3)
-    
+
     def test_plan_corto_2_parcialidades(self):
         cot = self._crear_cotizacion(45)
         plan = PlanPagosService(cot).generar(usuario=self.user)
         self.assertEqual(plan.parcialidades.count(), 2)
-    
+
     def test_plan_urgente_2_parcialidades(self):
         cot = self._crear_cotizacion(20)
         plan = PlanPagosService(cot).generar(usuario=self.user)
         self.assertEqual(plan.parcialidades.count(), 2)
-    
+
     def test_suma_parcialidades_igual_precio_final(self):
         cot = self._crear_cotizacion(150, Decimal('25208.63'))
         plan = PlanPagosService(cot).generar(usuario=self.user)
         total = sum(p.monto for p in plan.parcialidades.all())
         self.assertEqual(total, cot.precio_final)
-    
+
     def test_parcialidades_personalizadas(self):
         cot = self._crear_cotizacion(150)
         plan = PlanPagosService(cot).generar(usuario=self.user, num_parcialidades=6)
         self.assertEqual(plan.parcialidades.count(), 6)
-    
+
     def test_suma_personalizada_exacta(self):
         cot = self._crear_cotizacion(150, Decimal('19042.25'))
         plan = PlanPagosService(cot).generar(usuario=self.user, num_parcialidades=5)
         total = sum(p.monto for p in plan.parcialidades.all())
         self.assertEqual(total, cot.precio_final)
-    
+
     def test_regenerar_desactiva_anterior(self):
         """Generar un nuevo plan elimina el anterior (OneToOne)."""
         cot = self._crear_cotizacion(90)
@@ -321,11 +332,11 @@ class PlanPagosTest(TestCase):
         plan1 = servicio.generar(usuario=self.user)
         plan1_id = plan1.id
         plan2 = servicio.generar(usuario=self.user, num_parcialidades=4)
-        
+
         # plan1 ya no debe existir (fue eliminado por el OneToOne)
         self.assertFalse(PlanPago.objects.filter(id=plan1_id, activo=True).exists())
         self.assertTrue(plan2.activo)
-    
+
     def test_ultimo_pago_antes_del_evento(self):
         cot = self._crear_cotizacion(90)
         plan = PlanPagosService(cot).generar(usuario=self.user)
@@ -336,14 +347,14 @@ class PlanPagosTest(TestCase):
 
 class MovimientoInventarioTest(TestCase):
     """Verifica movimientos de inventario."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('test', password='test')
         self.insumo = Insumo.objects.create(
             nombre='Hielo 20kg', unidad_medida='Bolsa',
             costo_unitario=Decimal('90.00'), cantidad_stock=Decimal('10.00')
         )
-    
+
     def test_entrada_suma_stock(self):
         mov = MovimientoInventario(
             insumo=self.insumo, tipo='ENTRADA', cantidad=Decimal('5.00'),
@@ -352,7 +363,7 @@ class MovimientoInventarioTest(TestCase):
         mov.save()
         self.insumo.refresh_from_db()
         self.assertEqual(self.insumo.cantidad_stock, Decimal('15.00'))
-    
+
     def test_salida_resta_stock(self):
         mov = MovimientoInventario(
             insumo=self.insumo, tipo='SALIDA', cantidad=Decimal('3.00'),
@@ -361,7 +372,7 @@ class MovimientoInventarioTest(TestCase):
         mov.save()
         self.insumo.refresh_from_db()
         self.assertEqual(self.insumo.cantidad_stock, Decimal('7.00'))
-    
+
     def test_salida_excesiva_rechazada(self):
         mov = MovimientoInventario(
             insumo=self.insumo, tipo='SALIDA', cantidad=Decimal('50.00'),
@@ -369,7 +380,7 @@ class MovimientoInventarioTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             mov.clean()
-    
+
     def test_auditoria_stock_anterior_posterior(self):
         mov = MovimientoInventario(
             insumo=self.insumo, tipo='ENTRADA', cantidad=Decimal('5.00'),
@@ -494,6 +505,7 @@ class VentasMesIncluyeEventosCerradosTest(TestCase):
 
     def test_evento_cerrada_cuenta_en_ventas_mes(self):
         from django.db.models import Sum
+
         from comercial.views import ESTADOS_VENTA_REAL
 
         cliente = Cliente.objects.create(nombre='Cliente Test')
@@ -517,6 +529,7 @@ class VentasMesIncluyeEventosCerradosTest(TestCase):
 
     def test_cancelada_borrador_cotizada_no_cuentan(self):
         from django.db.models import Sum
+
         from comercial.views import ESTADOS_VENTA_REAL
 
         cliente = Cliente.objects.create(nombre='Cliente Test 2')
@@ -623,8 +636,8 @@ class DashboardSeparacionElianRubyTest(TestCase):
         )
 
     def test_venta_quinta_no_afecta_kpis_de_ruby(self):
-        from comercial.models import Compra
         from airbnb.models import PagoAirbnb
+        from comercial.models import Compra
 
         hoy = date.today()
         cot = Cotizacion.objects.create(
@@ -688,7 +701,8 @@ class DashboardSeparacionElianRubyTest(TestCase):
         agosto, cuando en Mérida (UTC-6) seguían siendo las 18:30 del 31 de
         julio y el mes en curso era julio.
         """
-        from datetime import datetime, timezone as tz_utc
+        from datetime import datetime
+        from datetime import timezone as tz_utc
         from unittest.mock import patch
 
         # 2026-08-01 00:30 UTC == 2026-07-31 18:30 en America/Merida.
@@ -716,8 +730,8 @@ class DashboardSeparacionElianRubyTest(TestCase):
         meses. Un mes donde solo hubo actividad de una línea de negocio debe
         seguir apareciendo en su lugar cronológico, con 0 en las series de la
         otra línea (no debe faltarle el mes ni desalinearse con las demás)."""
-        from comercial.models import Compra
         from airbnb.models import PagoAirbnb
+        from comercial.models import Compra
 
         hoy = date.today()
         anio = hoy.year
@@ -853,15 +867,24 @@ class CompraDeteccionAutomaticaTest(TestCase):
 
     def setUp(self):
         from unittest.mock import patch
-        # Compra.archivo_xml usa RawMediaCloudinaryStorage, que intentaría
-        # subir de verdad a Cloudinary (requiere credenciales reales) —
-        # se simula el guardado para poder probar el parseo del XML.
-        parcheador = patch(
-            'cloudinary_storage.storage.RawMediaCloudinaryStorage._save',
+        # Compra.archivo_xml usa el storage default (Cloudflare R2 vía
+        # django-storages), que intentaría subir de verdad al bucket
+        # (requiere credenciales reales) — se simula el guardado para poder
+        # probar el parseo del XML. exists() también se mockea: a diferencia
+        # de RawMediaCloudinaryStorage, S3Storage.get_available_name() sí
+        # llama exists() antes de guardar para evitar colisiones de nombre.
+        parcheador_save = patch(
+            'storages.backends.s3.S3Storage._save',
             side_effect=lambda name, content: name,
         )
-        parcheador.start()
-        self.addCleanup(parcheador.stop)
+        parcheador_save.start()
+        self.addCleanup(parcheador_save.stop)
+        parcheador_exists = patch(
+            'storages.backends.s3.S3Storage.exists',
+            return_value=False,
+        )
+        parcheador_exists.start()
+        self.addCleanup(parcheador_exists.stop)
 
     def _crear_compra_con_xml(self, **kwargs_cfdi):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -879,6 +902,7 @@ class CompraDeteccionAutomaticaTest(TestCase):
 
     def test_no_sobreescribe_unidad_negocio_ya_asignada(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
+
         from contabilidad.models import UnidadNegocio
 
         UnidadNegocio.objects.get_or_create(clave='QUINTA', defaults={'nombre': "Quinta Test"})
@@ -939,6 +963,7 @@ class BotonContratoNoGeneraDeInmediatoTest(TestCase):
 
     def setUp(self):
         from django.contrib import admin
+
         from comercial.admin import CotizacionAdmin
 
         self.admin = CotizacionAdmin(Cotizacion, admin.site)

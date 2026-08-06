@@ -1,7 +1,8 @@
-from decouple import config, Csv
-from pathlib import Path
 import os
+from pathlib import Path
+
 import dj_database_url
+from decouple import Csv, config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -64,8 +65,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
-    'cloudinary_storage',
-    'cloudinary',
     'comercial',
     'nomina',
     'facturacion',
@@ -171,16 +170,36 @@ ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 SERVER_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 
-# --- STORAGES ---
+# --- STORAGES (Cloudflare R2, S3-compatible) ---
 STORAGES = {
     "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": config('CLOUDFLARE_R2_ACCESS_KEY_ID', default=''),
+            "secret_key": config('CLOUDFLARE_R2_SECRET_ACCESS_KEY', default=''),
+            "bucket_name": config('CLOUDFLARE_R2_BUCKET_NAME', default='qkt-media'),
+            "endpoint_url": f"https://{config('CLOUDFLARE_R2_ACCOUNT_ID', default='')}.r2.cloudflarestorage.com",
+            "custom_domain": config('CLOUDFLARE_R2_CUSTOM_DOMAIN', default='media.quintakooxtanil.com'),
+            "region_name": "auto",
+            "signature_version": "s3v4",
+            "querystring_auth": False,
+            # False es intencional: el default histórico de django-storages
+            # (True) pisa un archivo existente con el mismo nombre en vez de
+            # generar uno nuevo con sufijo, a diferencia de FileSystemStorage.
+            "file_overwrite": False,
+        },
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
 
+# django-cloudinary-storage/cloudinary siguen instalados (ver requirements.txt)
+# únicamente porque varias migraciones históricas de comercial/facturacion
+# importan cloudinary_storage.storage a nivel de módulo — Django necesita
+# poder cargarlas para construir el grafo de migraciones (makemigrations,
+# migrate, test), aunque ya no se use como storage activo. Ese módulo exige
+# que este dict exista con estas 3 claves para poder importarse sin error.
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
     'API_KEY': config('CLOUDINARY_API_KEY', default=''),
