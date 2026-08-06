@@ -122,7 +122,8 @@ def enviar_whatsapp(
 ) -> ComunicacionCliente:
     """
     Envía un WhatsApp vía la API de WhatsApp Cloud (Meta).
-    Requiere WA_PHONE_ID y WA_TOKEN en settings/.env.
+    Requiere WA_CLOUD_API_TOKEN y WA_PHONE_NUMBER_ID en settings/.env
+    (mismas variables que usan comercial/views_cotizador.py y facturacion/admin.py).
     Si no están configurados, registra como FALLIDO sin reventar.
     """
     comm = ComunicacionCliente.objects.create(
@@ -136,8 +137,8 @@ def enviar_whatsapp(
         cuerpo=mensaje[:5000],
         estado='PENDIENTE',
     )
-    phone_id = config('WA_PHONE_ID', default='')
-    token = config('WA_TOKEN', default='')
+    phone_id = config('WA_PHONE_NUMBER_ID', default='')
+    token = config('WA_CLOUD_API_TOKEN', default='')
     if not phone_id or not token or not telefono:
         comm.estado = 'FALLIDO'
         comm.error = 'WhatsApp no configurado o teléfono vacío'
