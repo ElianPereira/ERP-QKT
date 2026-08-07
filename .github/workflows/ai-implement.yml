@@ -17,6 +17,7 @@ jobs:
       contents: read # checkout and repository context
       issues: write # publish the plan and PR link
       pull-requests: read # let Claude inspect linked PR metadata
+      id-token: write # required by anthropics/claude-code-action to fetch its OIDC token
     if: >-
       github.event.issue.user.login == github.repository_owner &&
       startsWith(github.event.issue.title, '[AI]:')

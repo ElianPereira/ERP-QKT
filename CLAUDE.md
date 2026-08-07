@@ -75,6 +75,15 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-07 — Póliza de `PagoAirbnb`: el signal ahora **sincroniza** en vez
+  de solo crear. Al actualizar un pago (reimportar el CSV corrige montos) la
+  póliza se regenera en sitio —mismo folio y misma auditoría, movimientos
+  reescritos—; un pago que deja de estar PAGADO recibe póliza de reversión
+  con `origen='AJUSTE'` (nunca se borra nada) y si vuelve a PAGADO se emite
+  la reactivación que la compensa. De paso se corrigió un asiento que no
+  cuadraba: faltaba el **IVA trasladado al HABER** —el depósito de Airbnb lo
+  incluye—, y un pago cuyo neto no cuadra con la fórmula ya no se aplica: se
+  queda en BORRADOR con aviso en el log.
 - 2026-08-05 — **Openpay está EN PRODUCCIÓN.** Primer cobro real verificado
   ($1.00, autorización 186823). `OPENPAY_MODE=production` y las cuatro
   variables de Railway con las llaves de producción; el resto lo conmuta ese
