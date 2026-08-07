@@ -103,6 +103,19 @@ window.addEventListener('pageshow', function(event) {
         if (!icono) return;
 
         box.style.position = 'fixed';
+
+        // Si la caja no cabe a lo alto en la ventana, se limita su altura
+        // y se le permite scroll interno (aportación del PR #151), para no
+        // perder los últimos días ni el pie Hoy/Cancelar. Se resetea antes
+        // de medir para que al agrandar la ventana recupere su tamaño.
+        var disponible = window.innerHeight - MARGEN * 2;
+        box.style.maxHeight = '';
+        box.style.overflowY = '';
+        if (box.offsetHeight > disponible) {
+            box.style.maxHeight = disponible + 'px';
+            box.style.overflowY = 'auto';
+        }
+
         var r = icono.getBoundingClientRect();
         var ancho = box.offsetWidth;
         var alto = box.offsetHeight;
