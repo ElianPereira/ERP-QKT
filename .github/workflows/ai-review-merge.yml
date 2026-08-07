@@ -19,6 +19,7 @@ jobs:
       contents: read # checkout and diff inspection
       issues: write # publish review comments on the PR
       pull-requests: read # inspect PR state before using the Claude App token
+      id-token: write # required by anthropics/claude-code-action to fetch its OIDC token
     if: startsWith(github.event.pull_request.head.ref, 'ai/combined/issue-')
     runs-on: ubuntu-latest
     timeout-minutes: 60
