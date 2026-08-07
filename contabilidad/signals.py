@@ -653,114 +653,298 @@ def crear_polizas_reversion_cancelacion(cotizacion, usuario=None, motivo=''):
 # ==========================================
 # SIGNAL: PAGO AIRBNB (airbnb.PagoAirbnb)
 # ==========================================
-@receiver(post_save, sender='airbnb.PagoAirbnb')
-def crear_poliza_pago_airbnb(sender, instance, created, **kwargs):
+def _cuenta_si_hay_importe(operacion, importe, faltantes):
     """
-    Genera póliza de ingreso cuando se registra un pago de Airbnb.
+    Cuenta configurada para `operacion`, solo si el importe la necesita.
 
-    Asiento (ejemplo pago $10,000 bruto):
-        DEBE: Bancos                    $8,500 (neto recibido)
-        DEBE: Retención ISR (4%)          $400 (impuesto a favor)
-        DEBE: Retención IVA (8%)          $800 (impuesto a favor)
-        DEBE: Comisión Airbnb             $300 (gasto)
-        HABER: Ingreso Airbnb          $10,000 (bruto)
+    Si el importe es cero la línea no se asienta y la cuenta no hace falta.
+    Si no lo es y la cuenta no está configurada, se anota en `faltantes`:
+    omitir la línea descuadraría el asiento.
     """
-    if not signals_enabled() or not created:
+    if importe <= 0:
+        return None
+    cuenta = get_cuenta(operacion)
+    if cuenta is None:
+        faltantes.append(operacion)
+    return cuenta
+
+
+def _asiento_pago_airbnb(pago):
+    """
+    Líneas del asiento de un pago de Airbnb, como tuplas
+    `(cuenta, debe, haber, concepto, referencia)`.
+
+    Ejemplo (base $10,000, IVA trasladado $1,600, comisión $420):
+
+        DEBE : Bancos                   $10,780   (lo que Airbnb deposita)
+        DEBE : Retención ISR               $400
+        DEBE : Retención IVA               $800
+        DEBE : Comisión Airbnb             $420
+        HABER: Ingreso Airbnb           $10,000
+        HABER: IVA trasladado            $1,600
+
+    El IVA trasladado va al HABER porque Airbnb lo cobra al huésped y lo
+    transfiere al anfitrión para que sea él quien lo entere: es un pasivo,
+    no un ingreso. Sin esa línea el asiento no cuadra —el depósito sí la
+    incluye—, que es como se venía generando antes de que el modelo
+    distinguiera el IVA trasladado de las retenciones.
+
+    El impuesto al hospedaje no aparece: lo retiene y entera Airbnb por su
+    cuenta, nunca pasa por la cuenta bancaria.
+
+    Devuelve `None` si falta alguna cuenta indispensable.
+    """
+    faltantes = []
+
+    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+    if cuenta_banco is None:
+        faltantes.append('BANCO_PRINCIPAL')
+    cuenta_ingreso = get_cuenta('INGRESO_AIRBNB')
+    if cuenta_ingreso is None:
+        faltantes.append('INGRESO_AIRBNB')
+
+    cuenta_ret_isr = _cuenta_si_hay_importe(
+        'RETENCION_ISR_AIRBNB', pago.retencion_isr, faltantes)
+    cuenta_ret_iva = _cuenta_si_hay_importe(
+        'RETENCION_IVA_AIRBNB', pago.retencion_iva, faltantes)
+    cuenta_comision = _cuenta_si_hay_importe(
+        'COMISION_AIRBNB', pago.comision_airbnb, faltantes)
+    cuenta_iva_trasladado = _cuenta_si_hay_importe(
+        'IVA_TRASLADADO', pago.iva_trasladado, faltantes)
+
+    if faltantes:
+        logger.warning(
+            "Póliza NO generada para PagoAirbnb #%s: falta configuración "
+            "contable (%s)", pago.pk, ', '.join(faltantes)
+        )
+        return None
+
+    referencia = pago.codigo_confirmacion or ''
+    lineas = []
+
+    if pago.monto_neto != 0:
+        lineas.append((cuenta_banco, pago.monto_neto, Decimal('0.00'),
+                       "Depósito Airbnb", referencia))
+    if cuenta_ret_isr:
+        lineas.append((cuenta_ret_isr, pago.retencion_isr, Decimal('0.00'),
+                       "ISR retenido por la plataforma", referencia))
+    if cuenta_ret_iva:
+        lineas.append((cuenta_ret_iva, pago.retencion_iva, Decimal('0.00'),
+                       "IVA retenido por la plataforma", referencia))
+    if cuenta_comision:
+        lineas.append((cuenta_comision, pago.comision_airbnb, Decimal('0.00'),
+                       "Comisión plataforma", referencia))
+
+    lineas.append((cuenta_ingreso, Decimal('0.00'), pago.monto_bruto,
+                   f"{pago.noches} noches hospedaje", referencia))
+    if cuenta_iva_trasladado:
+        lineas.append((cuenta_iva_trasladado, Decimal('0.00'),
+                       pago.iva_trasladado, "IVA trasladado a enterar",
+                       referencia))
+
+    return lineas
+
+
+def _estado_segun_cuadre(lineas, pago):
+    """
+    'APLICADA' si el asiento cuadra; 'BORRADOR' si no, con aviso en el log.
+
+    Un pago cuyo neto no coincide con la fórmula (`diferencia_neto`) produce
+    un asiento descuadrado. Dejarlo en borrador lo saca de los reportes y lo
+    pone a la vista para revisión, en vez de aplicar cifras que no cuadran.
+    """
+    diferencia = (sum(linea[1] for linea in lineas)
+                  - sum(linea[2] for linea in lineas))
+    if diferencia == 0:
+        return 'APLICADA'
+    logger.warning(
+        "Póliza de PagoAirbnb #%s queda en BORRADOR: el asiento descuadra "
+        "por %s (revisa monto_neto contra la fórmula)", pago.pk, diferencia
+    )
+    return 'BORRADOR'
+
+
+def _escribir_movimientos(poliza, lineas):
+    """Reescribe los movimientos de una póliza a partir de `lineas`."""
+    poliza.movimientos.all().delete()
+    for cuenta, debe, haber, concepto, referencia in lineas:
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta, debe=debe, haber=haber,
+            concepto=concepto, referencia=referencia,
+        )
+
+
+def _movimientos_actuales(poliza):
+    return [
+        (mov.cuenta_id, mov.debe, mov.haber, mov.concepto, mov.referencia)
+        for mov in poliza.movimientos.all()
+    ]
+
+
+def _marcador_reversion(pago):
+    return f"Airbnb #{pago.pk}: reversión"
+
+
+def _marcador_reactivacion(pago):
+    return f"Airbnb #{pago.pk}: reactivación"
+
+
+def _polizas_de_ajuste(pago, marcador):
+    ct = ContentType.objects.get_for_model(pago)
+    return Poliza.objects.filter(
+        origen='AJUSTE', content_type=ct, object_id=pago.pk,
+        concepto__startswith=marcador,
+    )
+
+
+def _esta_revertido(pago):
+    """
+    True si la última operación sobre el pago fue una reversión.
+
+    Un pago puede ir y volver de PAGADO (se cancela, se reexpide). Cada
+    reversión se compensa con su reactivación, así que basta comparar
+    cuántas hay de cada una.
+    """
+    return (_polizas_de_ajuste(pago, _marcador_reversion(pago)).count()
+            > _polizas_de_ajuste(pago, _marcador_reactivacion(pago)).count())
+
+
+def _poliza_espejo(origen, pago, concepto, fecha):
+    """Crea una póliza de diario que invierte los movimientos de `origen`."""
+    espejo = Poliza.objects.create(
+        tipo='D',
+        folio=Poliza.siguiente_folio('D', fecha),
+        fecha=fecha,
+        concepto=concepto[:500],
+        unidad_negocio=origen.unidad_negocio,
+        estado='APLICADA',
+        origen='AJUSTE',
+        content_type=origen.content_type,
+        object_id=origen.object_id,
+        created_by=get_usuario_sistema(),
+    )
+    for mov in origen.movimientos.all():
+        MovimientoContable.objects.create(
+            poliza=espejo,
+            cuenta=mov.cuenta,
+            debe=mov.haber,
+            haber=mov.debe,
+            concepto=f"Reversión: {mov.concepto}"[:255],
+            referencia=mov.referencia,
+        )
+    return espejo
+
+
+@receiver(post_save, sender='airbnb.PagoAirbnb')
+def sincronizar_poliza_pago_airbnb(sender, instance, created, **kwargs):
+    """
+    Mantiene la póliza de un pago de Airbnb alineada con el pago.
+
+    Al crear el pago genera la póliza. Al actualizarlo la **regenera en
+    sitio**: misma póliza, mismo folio y mismos datos de auditoría, con los
+    movimientos reescritos. Reimportar el CSV corrige montos, y antes de
+    esto la póliza se quedaba con las cifras viejas —la contabilidad
+    declaraba un importe que el pago ya no tenía—.
+
+    También cubre el caso de un pago capturado como PENDIENTE y marcado
+    PAGADO después: antes nunca llegaba a generar póliza.
+
+    Si el pago deja de estar PAGADO (cancelado o reembolsado) no se borra ni
+    se modifica nada: se emite una póliza de reversión con origen='AJUSTE',
+    igual que en la cancelación de cotizaciones. Si vuelve a PAGADO se emite
+    la reactivación que compensa esa reversión.
+    """
+    if not signals_enabled():
         return
 
     pago = instance
-
-    # Solo generar póliza si está marcado como PAGADO
-    if pago.estado != 'PAGADO':
-        return
-
-    # Obtener cuentas
-    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
-    cuenta_ingreso = get_cuenta('INGRESO_AIRBNB')
-    cuenta_ret_isr = get_cuenta('RETENCION_ISR_AIRBNB')
-    cuenta_ret_iva = get_cuenta('RETENCION_IVA_AIRBNB')
-    cuenta_comision = get_cuenta('COMISION_AIRBNB')
-
-    # Validar cuentas mínimas
-    if not cuenta_banco or not cuenta_ingreso:
-        logger.warning(
-            "Póliza NO generada para PagoAirbnb #%s: falta configuración contable "
-            "(cuenta_banco=%s, cuenta_ingreso=%s)", pago.pk, cuenta_banco, cuenta_ingreso
-        )
-        return
-
-    # Obtener unidad de negocio
-    unidad = get_unidad_negocio('AIRBNB')
-    if not unidad:
-        logger.warning("Póliza NO generada para PagoAirbnb #%s: falta UnidadNegocio 'AIRBNB'", pago.pk)
-        return
-
-    # Crear póliza
-    usuario = get_usuario_sistema()
     content_type = ContentType.objects.get_for_model(pago)
+    poliza = (
+        Poliza.objects
+        .filter(content_type=content_type, object_id=pago.pk,
+                origen='PAGO_AIRBNB')
+        .exclude(estado='CANCELADA')
+        .order_by('-pk')
+        .first()
+    )
+
+    if pago.estado != 'PAGADO':
+        if poliza is not None and not _esta_revertido(pago):
+            _poliza_espejo(
+                poliza, pago,
+                f"{_marcador_reversion(pago)} por "
+                f"{pago.get_estado_display().lower()}",
+                pago.fecha_pago or poliza.fecha,
+            )
+        return
+
+    lineas = _asiento_pago_airbnb(pago)
+    if lineas is None:
+        return
 
     fecha_poliza = pago.fecha_pago or pago.fecha_checkin
+    concepto = (f"Airbnb: {pago.huesped} "
+                f"({pago.codigo_confirmacion or 'Sin código'})")
+    estado = _estado_segun_cuadre(lineas, pago)
 
-    poliza = Poliza.objects.create(
-        tipo='I',
-        folio=Poliza.siguiente_folio('I', fecha_poliza),
-        fecha=fecha_poliza,
-        concepto=f"Airbnb: {pago.huesped} ({pago.codigo_confirmacion or 'Sin código'})",
-        unidad_negocio=unidad,
-        estado='APLICADA',
-        origen='PAGO_AIRBNB',
-        content_type=content_type,
-        object_id=pago.pk,
-        created_by=usuario,
+    if poliza is None:
+        unidad = get_unidad_negocio('AIRBNB')
+        if not unidad:
+            logger.warning(
+                "Póliza NO generada para PagoAirbnb #%s: falta UnidadNegocio "
+                "'AIRBNB'", pago.pk
+            )
+            return
+        poliza = Poliza.objects.create(
+            tipo='I',
+            folio=Poliza.siguiente_folio('I', fecha_poliza),
+            fecha=fecha_poliza,
+            concepto=concepto[:500],
+            unidad_negocio=unidad,
+            estado=estado,
+            origen='PAGO_AIRBNB',
+            content_type=content_type,
+            object_id=pago.pk,
+            created_by=get_usuario_sistema(),
+        )
+        _escribir_movimientos(poliza, lineas)
+        return
+
+    # El pago volvió a PAGADO tras una reversión: se compensa antes de
+    # regenerar, para que la reversión no siga restando el ingreso.
+    if _esta_revertido(pago):
+        reversion = _polizas_de_ajuste(
+            pago, _marcador_reversion(pago)).order_by('-pk').first()
+        _poliza_espejo(
+            reversion, pago,
+            f"{_marcador_reactivacion(pago)} tras "
+            f"{reversion.concepto.split('por ')[-1]}",
+            pago.fecha_pago or reversion.fecha,
+        )
+
+    deseados = [(cuenta.pk, debe, haber, concepto_mov, referencia)
+                for cuenta, debe, haber, concepto_mov, referencia in lineas]
+    sin_cambios = (
+        poliza.fecha == fecha_poliza
+        and poliza.concepto == concepto[:500]
+        and poliza.estado == estado
+        and _movimientos_actuales(poliza) == deseados
     )
+    if sin_cambios:
+        return
 
-    # DEBE: Banco (monto neto)
-    MovimientoContable.objects.create(
-        poliza=poliza,
-        cuenta=cuenta_banco,
-        debe=pago.monto_neto,
-        haber=Decimal('0.00'),
-        concepto="Depósito Airbnb",
-        referencia=pago.codigo_confirmacion or '',
-    )
-
-    # DEBE: Retención ISR (si existe cuenta configurada)
-    if cuenta_ret_isr and pago.retencion_isr > 0:
-        MovimientoContable.objects.create(
-            poliza=poliza,
-            cuenta=cuenta_ret_isr,
-            debe=pago.retencion_isr,
-            haber=Decimal('0.00'),
-            concepto="ISR retenido 4%",
-        )
-
-    # DEBE: Retención IVA (si existe cuenta configurada)
-    if cuenta_ret_iva and pago.retencion_iva > 0:
-        MovimientoContable.objects.create(
-            poliza=poliza,
-            cuenta=cuenta_ret_iva,
-            debe=pago.retencion_iva,
-            haber=Decimal('0.00'),
-            concepto="IVA retenido 8%",
-        )
-
-    # DEBE: Comisión Airbnb (si existe cuenta configurada)
-    if cuenta_comision and pago.comision_airbnb > 0:
-        MovimientoContable.objects.create(
-            poliza=poliza,
-            cuenta=cuenta_comision,
-            debe=pago.comision_airbnb,
-            haber=Decimal('0.00'),
-            concepto="Comisión plataforma",
-        )
-
-    # HABER: Ingreso bruto
-    MovimientoContable.objects.create(
-        poliza=poliza,
-        cuenta=cuenta_ingreso,
-        debe=Decimal('0.00'),
-        haber=pago.monto_bruto,
-        concepto=f"{pago.noches} noches hospedaje",
+    if (poliza.fecha.year, poliza.fecha.month) != (fecha_poliza.year,
+                                                   fecha_poliza.month):
+        poliza.folio = Poliza.siguiente_folio('I', fecha_poliza)
+    poliza.fecha = fecha_poliza
+    poliza.concepto = concepto[:500]
+    poliza.estado = estado
+    poliza.save(update_fields=['fecha', 'folio', 'concepto', 'estado',
+                               'updated_at'])
+    _escribir_movimientos(poliza, lineas)
+    logger.info(
+        "Póliza %s regenerada por actualización de PagoAirbnb #%s",
+        poliza.pk, pago.pk
     )
 
 
