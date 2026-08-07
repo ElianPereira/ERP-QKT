@@ -83,6 +83,7 @@
     }
     .deposito.CONCILIADO { border-left-color: #27ae60; }
     .deposito.DIFERENCIA { border-left-color: #e67e22; }
+    .deposito.AMBIGUO { border-left-color: #f1c40f; }
     .deposito.SIN_MOVIMIENTO { border-left-color: #7f8c8d; }
     .deposito.SIN_PAYOUT { border-left-color: #c62828; }
 
@@ -115,8 +116,41 @@
     }
     .etiqueta.CONCILIADO { background: #1b5e20; color: #c8e6c9; }
     .etiqueta.DIFERENCIA { background: #7a3e00; color: #ffe0b2; }
+    .etiqueta.AMBIGUO { background: #6b5900; color: #fff3c4; }
     .etiqueta.SIN_MOVIMIENTO { background: #4a4845; color: #d4d1c8; }
     .etiqueta.SIN_PAYOUT { background: #8e1f1f; color: #ffcdd2; }
+
+    .resolver {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+    .resolver select {
+        padding: 6px 10px;
+        border: 1px solid #4a4845;
+        background: #33312e;
+        color: #d4d1c8;
+        border-radius: 4px;
+        font-size: 13px;
+        max-width: 100%;
+    }
+    .resolver button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        background: #2E7D32;
+        color: white;
+    }
+    .resolver button.deshacer { background: #4a4845; color: #d4d1c8; }
+    .confirmado-por {
+        font-size: 12px;
+        color: #a5a29a;
+    }
 
     .banco {
         font-size: 13px;
@@ -189,7 +223,9 @@
         Airbnb no deposita reserva por reserva: junta en un solo payout las que
         liquida el mismo día. Aquí se suma el neto de cada payout y se busca el
         abono correspondiente en los estados de cuenta cargados en contabilidad,
-        por referencia o por importe dentro de los días siguientes.
+        por referencia o por importe dentro de los días siguientes. Cuando dos
+        abonos encajan igual de bien, el depósito queda marcado para que lo
+        resuelvas tú: lo que confirmes a mano queda guardado.
     </p>
 
     <div class="cards-row">
@@ -209,6 +245,10 @@
             <div class="valor">${{ totales.conciliado|floatformat:2|intcomma }}</div>
             <div class="label">Confirmado en banco</div>
         </div>
+        <div class="card-stat {% if totales.num_ambiguos %}alerta{% endif %}">
+            <div class="valor">{{ totales.num_ambiguos }}</div>
+            <div class="label">Requieren decisión</div>
+        </div>
         <div class="card-stat {% if totales.diferencia %}alerta{% endif %}">
             <div class="valor">${{ totales.diferencia|floatformat:2|intcomma }}</div>
             <div class="label">Diferencia</div>
@@ -223,9 +263,13 @@
                 <span class="etiqueta {{ deposito.estado }}">
                     {% if deposito.estado == 'CONCILIADO' %}Cuadra
                     {% elif deposito.estado == 'DIFERENCIA' %}Diferencia
+                    {% elif deposito.estado == 'AMBIGUO' %}Requiere decisión
                     {% elif deposito.estado == 'SIN_MOVIMIENTO' %}Sin movimiento bancario
                     {% else %}Sin payout en el CSV{% endif %}
                 </span>
+                {% if deposito.confirmado %}
+                <span class="confirmado-por">· conciliado a mano</span>
+                {% endif %}
                 <div class="payout">{{ deposito.payout_id|default:"—" }}</div>
             </div>
             <div class="total">${{ deposito.total|floatformat:2|intcomma }}</div>
@@ -242,6 +286,10 @@
                         (difiere ${{ deposito.diferencia|floatformat:2|intcomma }})
                     </span>
                 {% endif %}
+            {% elif deposito.estado == 'AMBIGUO' %}
+                Hay {{ deposito.candidatos|length }} abonos del mismo importe en
+                la ventana de fechas y el banco no conservó el id del payout.
+                El sistema no elige por ti: indica cuál corresponde.
             {% elif deposito.estado == 'SIN_PAYOUT' %}
                 Estos pagos no traen payout en el CSV, así que no hay depósito
                 contra el cual cuadrarlos. Reimporta el archivo completo de
@@ -253,6 +301,32 @@
                 abonó el depósito.
             {% endif %}
         </div>
+
+        {% if deposito.estado == 'AMBIGUO' %}
+        <form method="post" class="resolver">
+            {% csrf_token %}
+            <input type="hidden" name="payout_id" value="{{ deposito.payout_id }}">
+            <select name="movimiento_id">
+                {% for candidato in deposito.candidatos %}
+                <option value="{{ candidato.pk }}">
+                    {{ candidato.fecha|date:"d/m/Y" }} —
+                    ${{ candidato.abono|floatformat:2|intcomma }} —
+                    {{ candidato.estado_cuenta.cuenta_bancaria }}
+                    {% if candidato.descripcion %}— {{ candidato.descripcion }}{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit">Es este</button>
+        </form>
+        {% elif deposito.confirmado %}
+        <form method="post" class="resolver">
+            {% csrf_token %}
+            <input type="hidden" name="payout_id" value="{{ deposito.payout_id }}">
+            <button type="submit" name="deshacer" value="1" class="deshacer">
+                Soltar emparejamiento
+            </button>
+        </form>
+        {% endif %}
 
         <table class="tabla-pagos">
             <thead>

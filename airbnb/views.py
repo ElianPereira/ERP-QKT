@@ -10,6 +10,7 @@ from datetime import timedelta, datetime
 from decimal import Decimal
 
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import Sum, Count
@@ -507,6 +508,10 @@ def conciliacion_depositos_airbnb(request):
     que la conciliación es por depósito y no por reserva: el estado de cuenta
     trae un abono por payout, no uno por huésped. Antes esto se cuadraba a
     mano contra el PDF del banco.
+
+    El POST resuelve los depósitos ambiguos: cuando el banco no conservó el id
+    del payout y dos abonos encajan igual de bien, el sistema no elige —quien
+    concilia dice cuál es cuál y la decisión queda guardada—.
     """
     from .services import ConciliacionDepositosService
 
@@ -523,6 +528,9 @@ def conciliacion_depositos_airbnb(request):
     mes = _entero('mes', hoy.month, 1, 12)
     anio = _entero('anio', hoy.year, 2000, 2100)
 
+    if request.method == 'POST':
+        return _resolver_deposito_airbnb(request, mes, anio)
+
     servicio = ConciliacionDepositosService(mes=mes, anio=anio)
     depositos = servicio.conciliar()
 
@@ -537,6 +545,40 @@ def conciliacion_depositos_airbnb(request):
         'anios': list(range(hoy.year - 2, hoy.year + 1)),
     }
     return render(request, 'admin/airbnb/conciliacion_depositos.html', context)
+
+
+def _resolver_deposito_airbnb(request, mes, anio):
+    """Confirma o suelta el abono de un payout, y vuelve al mismo mes."""
+    from contabilidad.models import MovimientoEstadoCuenta
+
+    from .services import ConciliacionDepositosService
+
+    destino = (f"{reverse('conciliacion_depositos_airbnb')}"
+               f"?mes={mes}&anio={anio}")
+    payout_id = (request.POST.get('payout_id') or '').strip()
+    if not payout_id:
+        messages.error(request, "Falta el depósito a conciliar.")
+        return redirect(destino)
+
+    if request.POST.get('deshacer'):
+        if ConciliacionDepositosService.deshacer(payout_id):
+            messages.success(
+                request, f"Se soltó el emparejamiento del depósito {payout_id}.")
+        return redirect(destino)
+
+    try:
+        movimiento = MovimientoEstadoCuenta.objects.get(
+            pk=int(request.POST.get('movimiento_id', '')), abono__gt=0)
+    except (ValueError, TypeError, MovimientoEstadoCuenta.DoesNotExist):
+        messages.error(request, "El movimiento bancario seleccionado no existe.")
+        return redirect(destino)
+
+    ConciliacionDepositosService.confirmar(payout_id, movimiento, request.user)
+    messages.success(
+        request,
+        f"Depósito {payout_id} conciliado con el abono del "
+        f"{movimiento.fecha:%d/%m/%Y} por ${movimiento.abono}.")
+    return redirect(destino)
 
 
 @staff_member_required

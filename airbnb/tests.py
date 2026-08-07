@@ -507,6 +507,108 @@ class ConciliacionDepositosTest(TestCase):
         estados = sorted(d['estado'] for d in depositos)
         self.assertEqual(estados, ['CONCILIADO', 'SIN_MOVIMIENTO'])
 
+    def test_no_adivina_cuando_dos_abonos_encajan_igual(self):
+        """
+        Dos habitaciones con la misma tarifa liquidadas la misma semana: el
+        importe no distingue nada y la fecha tampoco. Asignar por proximidad
+        daría algo que parece conciliado sin serlo, así que no se asigna.
+        """
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        self._abono('643.36', date(2026, 3, 14))
+        self._abono('643.36', date(2026, 3, 16))
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(depositos[0]['estado'], 'AMBIGUO')
+        self.assertIsNone(depositos[0]['movimiento'])
+        self.assertEqual(len(depositos[0]['candidatos']), 2)
+
+    def test_resolver_un_ambiguo_desambigua_al_otro(self):
+        """
+        Cada asignación inequívoca descarta ese abono, y eso puede volver
+        inequívoco a un depósito que antes tenía dos candidatos: por eso el
+        emparejamiento por importe se hace en varias pasadas.
+        """
+        # PAYOUT-2 solo alcanza al abono del 22 (el del 14 le queda fuera de
+        # ventana), así que ese se asigna primero y libera al del 14.
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        self._pago('HM2', Decimal('643.36'), date(2026, 3, 21),
+                   payout_id='PAYOUT-2')
+        self._abono('643.36', date(2026, 3, 14))
+        self._abono('643.36', date(2026, 3, 22))
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual([d['estado'] for d in depositos],
+                         ['CONCILIADO', 'CONCILIADO'])
+        self.assertNotEqual(depositos[0]['movimiento'],
+                            depositos[1]['movimiento'])
+
+    def test_lo_confirmado_a_mano_manda_sobre_el_automatico(self):
+        from airbnb.services import ConciliacionDepositosService
+
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        automatico = self._abono('643.36', date(2026, 3, 14))
+        real = self._abono('643.36', date(2026, 3, 16))
+        ConciliacionDepositosService.confirmar('PAYOUT-1', real)
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(depositos[0]['movimiento'], real)
+        self.assertNotEqual(depositos[0]['movimiento'], automatico)
+        self.assertTrue(depositos[0]['confirmado'])
+        self.assertEqual(depositos[0]['estado'], 'CONCILIADO')
+
+    def test_confirmar_no_deja_un_abono_en_dos_depositos(self):
+        from airbnb.models import DepositoConciliado
+        from airbnb.services import ConciliacionDepositosService
+
+        movimiento = self._abono('643.36', date(2026, 3, 14))
+        ConciliacionDepositosService.confirmar('PAYOUT-1', movimiento)
+        ConciliacionDepositosService.confirmar('PAYOUT-2', movimiento)
+
+        self.assertEqual(
+            list(DepositoConciliado.objects.values_list('payout_id', flat=True)),
+            ['PAYOUT-2'])
+
+    def test_deshacer_devuelve_el_deposito_al_emparejamiento_automatico(self):
+        from airbnb.services import ConciliacionDepositosService
+
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        automatico = self._abono('643.36', date(2026, 3, 14))
+        ConciliacionDepositosService.confirmar(
+            'PAYOUT-1', self._abono('643.36', date(2026, 3, 16)))
+
+        ConciliacionDepositosService.deshacer('PAYOUT-1')
+        _, depositos = self._conciliar()
+
+        self.assertFalse(depositos[0]['confirmado'])
+        self.assertEqual(depositos[0]['estado'], 'AMBIGUO')
+        self.assertIn(automatico, depositos[0]['candidatos'])
+
+    def test_la_vista_confirma_el_deposito_ambiguo(self):
+        from django.contrib.auth.models import User
+
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        self._abono('643.36', date(2026, 3, 14))
+        elegido = self._abono('643.36', date(2026, 3, 16))
+        User.objects.create_superuser('staff_amb', 'amb@demo.mx', 'x' * 12)
+        self.client.force_login(User.objects.get(username='staff_amb'))
+
+        respuesta = self.client.post(
+            '/admin/airbnb/conciliacion-depositos/?mes=3&anio=2026',
+            {'payout_id': 'PAYOUT-1', 'movimiento_id': elegido.pk})
+
+        self.assertEqual(respuesta.status_code, 302)
+        _, depositos = self._conciliar()
+        self.assertEqual(depositos[0]['movimiento'], elegido)
+        self.assertTrue(depositos[0]['confirmado'])
+
     def test_los_pagos_sin_payout_se_agrupan_aparte(self):
         """No se pueden cuadrar contra el banco, pero tienen que verse."""
         self._pago('HM1', Decimal('500.00'), date(2026, 3, 12), payout_id='')

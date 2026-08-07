@@ -14,7 +14,10 @@ from django.utils import timezone
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html
 
-from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
+from .models import (
+    AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario,
+    DepositoConciliado,
+)
 from .services import SincronizadorAirbnbService, DetectorConflictosService, ImportadorCSVPagosService
 
 
@@ -421,3 +424,22 @@ class ConflictoCalendarioAdmin(admin.ModelAdmin):
             obj.resuelto_por = request.user
             obj.fecha_resolucion = timezone.now()
         super().save_model(request, obj, form, change)
+
+
+# ==========================================
+# DEPÓSITOS CONCILIADOS A MANO
+# ==========================================
+@admin.register(DepositoConciliado)
+class DepositoConciliadoAdmin(admin.ModelAdmin):
+    """
+    Bitácora de los depósitos que alguien emparejó a mano con el banco.
+
+    Se listan aquí para poder auditar quién decidió qué cuando el
+    emparejamiento automático no podía distinguir entre dos abonos. La
+    conciliación se hace desde /admin/airbnb/conciliacion-depositos/.
+    """
+    list_display = ('payout_id', 'movimiento', 'confirmado_por', 'confirmado_at')
+    search_fields = ('payout_id', 'notas')
+    readonly_fields = ('confirmado_at',)
+    raw_id_fields = ('movimiento',)
+    list_select_related = ('movimiento', 'confirmado_por')
