@@ -852,3 +852,148 @@ class PeriodoDevengoComisionDiferidaTest(TestCase):
         self.assertIsNone(deposito.periodo_devengo)
         self.assertEqual(deposito.periodo_contable, date(2025, 11, 1))
         self.assertEqual(comision.periodo_contable, date(2025, 10, 1))
+
+
+class PolizaPagoAirbnbTest(TestCase):
+    """
+    Póliza de un pago de Airbnb: cuadre con el IVA trasladado, regeneración
+    al corregir el pago (reimportar el CSV) y reversión si deja de estar
+    pagado.
+    """
+
+    # base 10,000 · IVA trasladado 1,600 · comisión 420 · ret. ISR 400 ·
+    # ret. IVA 800  ->  depósito 9,980 y asiento de 11,600 por lado.
+    MONTOS = {
+        'monto_bruto': Decimal('10000.00'),
+        'iva_trasladado': Decimal('1600.00'),
+        'comision_airbnb': Decimal('420.00'),
+        'retencion_isr': Decimal('400.00'),
+        'retencion_iva': Decimal('800.00'),
+        'monto_neto': Decimal('9980.00'),
+    }
+
+    def setUp(self):
+        # Las cuentas de Airbnb ya vienen sembradas por las migraciones de
+        # contabilidad; aquí solo hace falta el resto del catálogo mínimo.
+        setup_contabilidad_minima()
+
+    @staticmethod
+    def _cuenta(operacion):
+        return ConfiguracionContable.objects.get(operacion=operacion).cuenta
+
+    def _crear_pago(self, **extra):
+        from airbnb.models import PagoAirbnb
+        datos = dict(
+            huesped='Huésped Test',
+            fecha_checkin=date(2026, 3, 10),
+            fecha_checkout=date(2026, 3, 13),
+            fecha_pago=date(2026, 3, 11),
+            estado='PAGADO',
+            **self.MONTOS,
+        )
+        datos.update(extra)
+        return PagoAirbnb.objects.create(**datos)
+
+    def _poliza_de(self, pago):
+        return Poliza.objects.filter(origen='PAGO_AIRBNB', object_id=pago.pk).first()
+
+    def test_poliza_cuadra_con_el_iva_trasladado_al_haber(self):
+        """
+        El depósito trae el IVA que Airbnb cobró al huésped, así que sin la
+        línea de IVA trasladado el asiento no cuadraría por esos $1,600.
+        """
+        pago = self._crear_pago()
+        poliza = self._poliza_de(pago)
+        self.assertIsNotNone(poliza)
+        self.assertEqual(poliza.estado, 'APLICADA')
+        self.assertEqual(poliza.total_debe, Decimal('11600.00'))
+        self.assertEqual(poliza.total_haber, Decimal('11600.00'))
+
+        cuenta_iva = self._cuenta('IVA_TRASLADADO')
+        haber_iva = sum(m.haber for m in poliza.movimientos.filter(cuenta=cuenta_iva))
+        self.assertEqual(haber_iva, Decimal('1600.00'))
+
+    def test_corregir_el_pago_regenera_la_poliza_en_sitio(self):
+        """Reimportar el CSV corrige montos: la póliza los sigue, sin duplicarse."""
+        pago = self._crear_pago()
+        poliza = self._poliza_de(pago)
+        pk_original, folio_original = poliza.pk, poliza.folio
+
+        # 12,000 - 420 + 1,920 - 400 - 800 = 12,300 de depósito.
+        pago.monto_bruto = Decimal('12000.00')
+        pago.iva_trasladado = Decimal('1920.00')
+        pago.monto_neto = Decimal('12300.00')
+        pago.save()
+
+        self.assertEqual(Poliza.objects.filter(origen='PAGO_AIRBNB').count(), 1)
+        poliza.refresh_from_db()
+        self.assertEqual((poliza.pk, poliza.folio), (pk_original, folio_original))
+        self.assertEqual(poliza.total_debe, poliza.total_haber)
+        self.assertEqual(poliza.total_haber, Decimal('13920.00'))
+
+    def test_pago_pendiente_genera_poliza_al_marcarse_pagado(self):
+        pago = self._crear_pago(estado='PENDIENTE')
+        self.assertIsNone(self._poliza_de(pago))
+
+        pago.estado = 'PAGADO'
+        pago.save()
+        self.assertIsNotNone(self._poliza_de(pago))
+
+    def test_neto_que_no_cuadra_deja_la_poliza_en_borrador(self):
+        """
+        Un descuadre entre el neto y la fórmula no se aplica a los libros:
+        queda en borrador para revisión.
+        """
+        pago = self._crear_pago(monto_neto=Decimal('9000.00'))
+        self.assertEqual(self._poliza_de(pago).estado, 'BORRADOR')
+
+    def test_reembolso_emite_reversion_sin_tocar_la_original(self):
+        pago = self._crear_pago()
+        poliza = self._poliza_de(pago)
+
+        pago.estado = 'REEMBOLSADO'
+        pago.save()
+
+        poliza.refresh_from_db()
+        self.assertEqual(poliza.estado, 'APLICADA')
+        reversiones = Poliza.objects.filter(origen='AJUSTE', object_id=pago.pk)
+        self.assertEqual(reversiones.count(), 1)
+        reversion = reversiones.first()
+        self.assertEqual(reversion.total_debe, Decimal('11600.00'))
+        self.assertEqual(reversion.total_haber, Decimal('11600.00'))
+
+        cuenta_ingreso = self._cuenta('INGRESO_AIRBNB')
+        debe_ingreso = sum(
+            m.debe for m in reversion.movimientos.filter(cuenta=cuenta_ingreso)
+        )
+        self.assertEqual(debe_ingreso, Decimal('10000.00'))
+
+    def test_reversion_no_se_duplica_al_volver_a_guardar(self):
+        pago = self._crear_pago()
+        pago.estado = 'CANCELADO'
+        pago.save()
+        pago.save()
+        self.assertEqual(Poliza.objects.filter(origen='AJUSTE', object_id=pago.pk).count(), 1)
+
+    def test_volver_a_pagado_compensa_la_reversion(self):
+        """
+        Una reserva cancelada y reexpedida no puede quedar con el ingreso
+        restado dos veces: la reactivación anula la reversión.
+        """
+        pago = self._crear_pago()
+        pago.estado = 'CANCELADO'
+        pago.save()
+        pago.estado = 'PAGADO'
+        pago.save()
+
+        ajustes = Poliza.objects.filter(origen='AJUSTE', object_id=pago.pk)
+        self.assertEqual(ajustes.count(), 2)
+        neto_ajustes = sum(a.total_debe - a.total_haber for a in ajustes)
+        self.assertEqual(neto_ajustes, Decimal('0.00'))
+
+        cuenta_ingreso = self._cuenta('INGRESO_AIRBNB')
+        movimientos = MovimientoContable.objects.filter(
+            cuenta=cuenta_ingreso, poliza__estado='APLICADA'
+        )
+        saldo_ingreso = sum(m.haber - m.debe for m in movimientos)
+        self.assertEqual(saldo_ingreso, Decimal('10000.00'))
