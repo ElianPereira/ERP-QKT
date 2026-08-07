@@ -60,36 +60,94 @@ window.addEventListener('pageshow', function(event) {
 
 
 /* ============================================================
-   FIX CALENDARIO/RELOJ DEL ADMIN — se abre fuera de la pantalla
+   FIX CALENDARIO/RELOJ DEL ADMIN — se abre descolocado o cortado
 
-   Django siempre despliega el calendarbox/clockbox hacia abajo del
-   campo sin comprobar si hay espacio. En formularios donde el campo
-   de fecha/hora queda cerca del final de la página (ej. Estados de
-   cuenta bancarios: "Fecha de corte real"), la caja se corta contra
-   el borde de la ventana y no hay manera de alcanzar el resto de los
-   días/horas ni los botones de abajo (Hoy/Cancelar).
+   Django (DateTimeShortcuts.js) coloca el calendarbox/clockbox con
+   findPosX/findPosY, que suman offsetLeft/offsetTop recorriendo la
+   cadena de padres. Ese cálculo:
 
-   Tras el clic que la abre (DateTimeShortcuts.js de Django, sin
-   tocar ese archivo) se reposiciona la caja hacia arriba lo justo
-   para que quede completa dentro de la ventana visible.
+     - ignora los `transform` CSS (AdminLTE/Jazzmin desplaza así el
+       contenido al colapsar la barra lateral),
+     - se descuadra cuando hay scroll horizontal o zoom del navegador,
+     - y nunca comprueba si la caja cabe en la ventana.
 
-   El propio DateTimeShortcuts.js hace e.stopPropagation() al abrir
-   (para no disparar su listener de "clic afuera cierra"), así que
-   este listener se registra en fase de CAPTURA (tercer argumento
-   true) — se ejecuta antes de que Django corte la propagación.
+   Resultado reportado en Contabilidad > Estados de cuenta bancarios
+   ("Fecha de corte real"): el calendario aparece lejos del campo y
+   cortado contra el borde, sin poder elegir la mayoría de los días
+   ni alcanzar Hoy/Cancelar.
+
+   En vez de corregir la aritmética de Django, se reposiciona la caja
+   con getBoundingClientRect() del propio icono —que sí refleja la
+   posición real en pantalla, con transform, scroll y zoom incluidos—
+   y se pasa a `position: fixed` para anclarla a la ventana visible.
+   No se toca DateTimeShortcuts.js.
    ============================================================ */
-document.addEventListener('click', function (e) {
-    var link = e.target.closest && e.target.closest('a[id^="calendarlink"], a[id^="clocklink"]');
-    if (!link) return;
-    setTimeout(function () {
-        var num = link.id.replace(/^\D+/, '');
-        var boxId = (link.id.indexOf('calendarlink') === 0 ? 'calendarbox' : 'clockbox') + num;
-        var box = document.getElementById(boxId);
-        if (!box) return;
-        var overflow = box.getBoundingClientRect().bottom - window.innerHeight;
-        if (overflow > 0) {
-            var actual = parseInt(box.style.top, 10) || 0;
-            box.style.top = Math.max(10, actual - overflow - 10) + 'px';
+(function () {
+    var MARGEN = 8;   // separación mínima respecto al borde de la ventana
+    var HUECO = 6;    // separación entre el icono y la caja
+
+    function idIcono(box) {
+        var num = box.id.replace(/^\D+/, '');
+        return (box.id.indexOf('calendarbox') === 0 ? 'calendarlink' : 'clocklink') + num;
+    }
+
+    // Ojo: NO usar offsetParent aquí. Una vez que la caja pasa a
+    // position:fixed su offsetParent es null, así que ese chequeo la
+    // daría por oculta para siempre y no se volvería a reposicionar.
+    function visible(box) {
+        return box && box.isConnected && getComputedStyle(box).display !== 'none';
+    }
+
+    function reposicionar(box) {
+        var icono = document.getElementById(idIcono(box));
+        if (!icono) return;
+
+        box.style.position = 'fixed';
+        var r = icono.getBoundingClientRect();
+        var ancho = box.offsetWidth;
+        var alto = box.offsetHeight;
+        var maxX = Math.max(MARGEN, window.innerWidth - ancho - MARGEN);
+        var maxY = Math.max(MARGEN, window.innerHeight - alto - MARGEN);
+
+        // Horizontal: a la derecha del icono; si no cabe, a su izquierda.
+        var x = r.right + HUECO;
+        if (x > maxX) {
+            x = r.left - ancho - HUECO;
         }
-    }, 0);
-}, true);
+
+        // Vertical: alineada con el icono; si se sale por abajo, se sube.
+        var y = r.top - 4;
+
+        box.style.left = Math.min(Math.max(MARGEN, x), maxX) + 'px';
+        box.style.top = Math.min(Math.max(MARGEN, y), maxY) + 'px';
+    }
+
+    function reposicionarAbiertos() {
+        var cajas = document.querySelectorAll('.calendarbox, .clockbox');
+        for (var i = 0; i < cajas.length; i++) {
+            if (visible(cajas[i])) {
+                reposicionar(cajas[i]);
+            }
+        }
+    }
+
+    // DateTimeShortcuts.js hace e.stopPropagation() al abrir (para no
+    // disparar su propio listener de "clic afuera cierra"), así que hay
+    // que escuchar en fase de CAPTURA para llegar antes que ese corte.
+    document.addEventListener('click', function (e) {
+        var icono = e.target.closest && e.target.closest('a[id^="calendarlink"], a[id^="clocklink"]');
+        if (!icono) return;
+        // setTimeout(0): deja que Django cree/posicione la caja primero.
+        setTimeout(function () {
+            reposicionarAbiertos();
+            // Pasar de absolute a fixed puede encoger el documento y
+            // desplazar el scroll; se recalcula ya con el layout estable.
+            requestAnimationFrame(reposicionarAbiertos);
+        }, 0);
+    }, true);
+
+    // Al estar anclada a la ventana, hay que reseguir el campo cuando
+    // la página se desplaza o cambia de tamaño.
+    window.addEventListener('scroll', reposicionarAbiertos, true);
+    window.addEventListener('resize', reposicionarAbiertos);
+})();
