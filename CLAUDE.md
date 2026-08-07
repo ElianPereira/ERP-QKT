@@ -75,6 +75,15 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-07 — Conciliación de depósitos de Airbnb (`ConciliacionDepositosService`,
+  `/admin/airbnb/conciliacion-depositos/`): Airbnb junta en un solo payout las
+  reservas que liquida el mismo día, así que el banco trae **un abono por
+  payout**, no uno por reserva —por eso la conciliación suma primero por
+  `payout_id`—. El abono cae días después de la fecha del payout (en el CSV
+  real de marzo, cinco): se empareja por referencia si el banco conservó el id
+  y, si no, por importe exacto dentro de una ventana de −1/+10 días, sin
+  reutilizar un movimiento ya asignado. Es solo reporte, no escribe nada: con
+  cargar el estado de cuenta que faltaba vuelve a cuadrar. Cierra el Issue #134.
 - 2026-08-07 — Póliza de `PagoAirbnb`: el signal ahora **sincroniza** en vez
   de solo crear. Al actualizar un pago (reimportar el CSV corrige montos) la
   póliza se regenera en sitio —mismo folio y misma auditoría, movimientos

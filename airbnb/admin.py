@@ -354,14 +354,15 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
         extra_context['show_import_button'] = True
         extra_context['title'] = 'Pagos Airbnb'
         extra_context['reporte_fiscal_url'] = '/admin/airbnb/reporte-fiscal/'
-        extra_context['mes_actual'] = timezone.now().month
-        extra_context['anio_actual'] = timezone.now().year
+        hoy = timezone.localdate()
+        extra_context['mes_actual'] = hoy.month
+        extra_context['anio_actual'] = hoy.year
         extra_context['meses'] = [
             (1,'Enero'),(2,'Febrero'),(3,'Marzo'),(4,'Abril'),
             (5,'Mayo'),(6,'Junio'),(7,'Julio'),(8,'Agosto'),
             (9,'Septiembre'),(10,'Octubre'),(11,'Noviembre'),(12,'Diciembre')
         ]
-        extra_context['anios'] = list(range(timezone.now().year - 2, timezone.now().year + 1))
+        extra_context['anios'] = list(range(hoy.year - 2, hoy.year + 1))
         return super().changelist_view(request, extra_context=extra_context)
 
 

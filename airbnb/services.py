@@ -706,3 +706,144 @@ class ImportadorCSVPagosService:
         ).first()
         
         return anuncio
+
+# ==========================================
+# CONCILIACIÓN DE DEPÓSITOS
+# ==========================================
+class ConciliacionDepositosService:
+    """
+    Cuadra lo que Airbnb dice haber depositado contra lo que el banco registró.
+
+    Airbnb no deposita reserva por reserva: junta las que liquida el mismo día
+    en un solo payout, y ese payout es el que aparece en el estado de cuenta.
+    Por eso la conciliación no puede ser pago contra movimiento —hay que sumar
+    primero por `payout_id` y comparar el total—, que es justo lo que se venía
+    haciendo a mano contra el PDF del banco.
+
+    No escribe nada: es un reporte. El emparejamiento se recalcula cada vez,
+    así que cargar el estado de cuenta que faltaba basta para que cuadre.
+    """
+
+    # Airbnb libera el pago y el banco lo abona días después (en el CSV real de
+    # marzo, la "fecha de llegada estimada" va cinco días después del payout).
+    # Se busca en esa ventana en vez de exigir la misma fecha.
+    DIAS_ANTES = 1
+    DIAS_DESPUES = 10
+
+    def __init__(self, mes: int, anio: int):
+        self.mes = mes
+        self.anio = anio
+
+    def conciliar(self) -> List[Dict[str, Any]]:
+        """
+        Un renglón por depósito del mes, ordenado por fecha.
+
+        Los pagos que Airbnb no liquidó en ningún payout (o cuyo CSV no traía
+        la fila de transferencia) se agrupan aparte al final: son los que
+        todavía no se pueden cuadrar contra el banco.
+        """
+        pagos = (PagoAirbnb.objects
+                 .filter(fecha_pago__month=self.mes, fecha_pago__year=self.anio)
+                 .exclude(estado__in=('CANCELADO', 'REEMBOLSADO'))
+                 .select_related('anuncio')
+                 .order_by('fecha_pago', 'codigo_confirmacion'))
+
+        grupos: Dict[str, List[PagoAirbnb]] = defaultdict(list)
+        for pago in pagos:
+            grupos[pago.payout_id or ''].append(pago)
+
+        depositos = []
+        emparejados: set = set()
+
+        identificados = [(pid, ps) for pid, ps in grupos.items() if pid]
+        identificados.sort(key=lambda par: min(p.fecha_pago for p in par[1]))
+
+        for payout_id, pagos_del_payout in identificados:
+            depositos.append(self._armar(payout_id, pagos_del_payout, emparejados))
+
+        sueltos = grupos.get('')
+        if sueltos:
+            depositos.append({
+                'payout_id': '',
+                'fecha': min(p.fecha_pago for p in sueltos),
+                'pagos': sueltos,
+                'total': self._suma(sueltos),
+                'movimiento': None,
+                'diferencia': Decimal('0.00'),
+                'estado': 'SIN_PAYOUT',
+            })
+
+        return depositos
+
+    def totales(self, depositos: List[Dict[str, Any]]) -> Dict[str, Any]:
+        conciliados = [d for d in depositos if d['estado'] == 'CONCILIADO']
+        return {
+            'num_depositos': len(depositos),
+            'num_conciliados': len(conciliados),
+            'esperado': sum((d['total'] for d in depositos), Decimal('0.00')),
+            'conciliado': sum((d['total'] for d in conciliados), Decimal('0.00')),
+            'diferencia': sum((d['diferencia'] for d in depositos), Decimal('0.00')),
+        }
+
+    def _armar(self, payout_id, pagos_del_payout, emparejados) -> Dict[str, Any]:
+        fecha = min(p.fecha_pago for p in pagos_del_payout)
+        total = self._suma(pagos_del_payout)
+        movimiento = self._buscar_movimiento(payout_id, fecha, total, emparejados)
+
+        if movimiento is None:
+            diferencia = Decimal('0.00')
+            estado = 'SIN_MOVIMIENTO'
+        else:
+            emparejados.add(movimiento.pk)
+            diferencia = movimiento.abono - total
+            estado = 'CONCILIADO' if diferencia == 0 else 'DIFERENCIA'
+
+        return {
+            'payout_id': payout_id,
+            'fecha': fecha,
+            'pagos': pagos_del_payout,
+            'total': total,
+            'movimiento': movimiento,
+            'diferencia': diferencia,
+            'estado': estado,
+        }
+
+    @staticmethod
+    def _suma(pagos_del_payout) -> Decimal:
+        return sum((p.monto_neto for p in pagos_del_payout), Decimal('0.00'))
+
+    def _buscar_movimiento(self, payout_id, fecha, total, emparejados):
+        """
+        El abono del banco que corresponde a este payout.
+
+        Primero por referencia —si el banco conservó el id del payout no hay
+        ambigüedad posible, aunque el importe difiera— y si no, por importe
+        exacto dentro de la ventana de días, tomando el más cercano a la fecha
+        del payout. Un movimiento ya asignado a otro depósito no se reutiliza:
+        dos payouts del mismo importe son perfectamente posibles.
+        """
+        from contabilidad.models import MovimientoEstadoCuenta
+
+        abonos = (MovimientoEstadoCuenta.objects
+                  .filter(abono__gt=0)
+                  .exclude(pk__in=emparejados)
+                  .select_related('estado_cuenta__cuenta_bancaria'))
+
+        if payout_id:
+            por_referencia = abonos.filter(
+                Q(referencia__icontains=payout_id) |
+                Q(descripcion__icontains=payout_id)
+            ).order_by('fecha').first()
+            if por_referencia:
+                return por_referencia
+
+        candidatos = abonos.filter(
+            abono=total,
+            fecha__gte=fecha - timedelta(days=self.DIAS_ANTES),
+            fecha__lte=fecha + timedelta(days=self.DIAS_DESPUES),
+        )
+        return min(
+            candidatos,
+            key=lambda mov: (abs((mov.fecha - fecha).days), mov.pk),
+            default=None,
+        )

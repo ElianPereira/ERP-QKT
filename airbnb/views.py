@@ -20,6 +20,14 @@ from django.contrib import messages
 
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
 
+# Nombres de los meses, compartidos por el reporte fiscal y la conciliación de
+# depósitos.
+MESES = {
+    1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+    5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+    9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
+}
+
 
 @staff_member_required
 def calendario_unificado(request):
@@ -489,6 +497,48 @@ def dashboard_airbnb(request):
     
     return render(request, 'admin/airbnb/dashboard.html', context)
 
+
+@staff_member_required
+def conciliacion_depositos_airbnb(request):
+    """
+    Cuadra los depósitos de Airbnb del mes contra los abonos del banco.
+
+    Airbnb junta en un solo payout las reservas que liquida el mismo día, así
+    que la conciliación es por depósito y no por reserva: el estado de cuenta
+    trae un abono por payout, no uno por huésped. Antes esto se cuadraba a
+    mano contra el PDF del banco.
+    """
+    from .services import ConciliacionDepositosService
+
+    hoy = timezone.localdate()
+
+    def _entero(nombre, defecto, minimo, maximo):
+        crudo = str(request.GET.get(nombre, defecto)).replace(',', '').strip()
+        try:
+            valor = int(crudo)
+        except (TypeError, ValueError):
+            return defecto
+        return valor if minimo <= valor <= maximo else defecto
+
+    mes = _entero('mes', hoy.month, 1, 12)
+    anio = _entero('anio', hoy.year, 2000, 2100)
+
+    servicio = ConciliacionDepositosService(mes=mes, anio=anio)
+    depositos = servicio.conciliar()
+
+    context = {
+        'title': 'Conciliación de depósitos Airbnb',
+        'depositos': depositos,
+        'totales': servicio.totales(depositos),
+        'mes': mes,
+        'anio': anio,
+        'mes_nombre': MESES[mes],
+        'meses': sorted(MESES.items()),
+        'anios': list(range(hoy.year - 2, hoy.year + 1)),
+    }
+    return render(request, 'admin/airbnb/conciliacion_depositos.html', context)
+
+
 @staff_member_required
 def reporte_fiscal_airbnb(request):
     """
@@ -503,12 +553,6 @@ def reporte_fiscal_airbnb(request):
     from django.template.loader import render_to_string
     from weasyprint import HTML
     from .models import PagoAirbnb, AnuncioAirbnb
-
-    MESES = {
-        1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
-        5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
-        9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
-    }
 
     # `localdate()` y no `now().date()`: con TIME_ZONE='America/Merida' el mes
     # cambiaba seis horas antes de tiempo (mismo bug ya corregido en comercial).

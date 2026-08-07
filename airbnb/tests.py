@@ -384,3 +384,229 @@ class CSVRealDeAirbnbTest(TestCase):
         for pago in PagoAirbnb.objects.all():
             self.assertIn('Demo', pago.huesped)
         self.assertNotIn('Checking 8931', contenido)
+
+
+class ConciliacionDepositosTest(TestCase):
+    """
+    C2: cuadrar lo que Airbnb dice haber depositado contra el estado de cuenta.
+
+    Airbnb junta en un payout las reservas que liquida el mismo día, así que
+    el banco trae un abono por depósito y no uno por reserva: la conciliación
+    solo cuadra si se suma primero por `payout_id`.
+    """
+
+    def setUp(self):
+        from contabilidad.models import CuentaBancaria, EstadoCuentaBancario
+
+        self.anuncio = AnuncioAirbnb.objects.create(
+            nombre='Kaan Room', url_ical='https://airbnb.com/ical/1'
+        )
+        self.cuenta = CuentaBancaria.objects.create(
+            nombre='BBVA Principal', banco='BBVA',
+            clabe='012345678901234567',
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta, periodo_mes=3, periodo_anio=2026,
+            archivo='estados_cuenta/2026/03/demo.pdf', formato='PDF',
+        )
+
+    def _pago(self, codigo, neto, fecha_pago, payout_id='PAYOUT-1', **extra):
+        campos = {
+            'anuncio': self.anuncio,
+            'codigo_confirmacion': codigo,
+            'huesped': 'Huésped Demo',
+            'fecha_checkin': fecha_pago,
+            'fecha_checkout': fecha_pago + timedelta(days=1),
+            'monto_bruto': neto,
+            'monto_neto': neto,
+            'fecha_pago': fecha_pago,
+            'payout_id': payout_id,
+            'estado': 'PAGADO',
+        }
+        campos.update(extra)
+        return PagoAirbnb.objects.create(**campos)
+
+    def _abono(self, monto, fecha, **extra):
+        from contabilidad.models import MovimientoEstadoCuenta
+
+        return MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=fecha,
+            abono=Decimal(monto), **extra
+        )
+
+    @staticmethod
+    def _conciliar(mes=3, anio=2026):
+        from airbnb.services import ConciliacionDepositosService
+
+        servicio = ConciliacionDepositosService(mes=mes, anio=anio)
+        return servicio, servicio.conciliar()
+
+    def test_suma_los_pagos_de_un_payout_y_cuadra_contra_el_abono(self):
+        self._pago('HM1', Decimal('600.00'), date(2026, 3, 12))
+        self._pago('HM2', Decimal('400.00'), date(2026, 3, 12))
+        self._abono('1000.00', date(2026, 3, 17))
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(len(depositos), 1)
+        deposito = depositos[0]
+        self.assertEqual(deposito['total'], Decimal('1000.00'))
+        self.assertEqual(len(deposito['pagos']), 2)
+        self.assertEqual(deposito['estado'], 'CONCILIADO')
+        self.assertEqual(deposito['diferencia'], Decimal('0.00'))
+
+    def test_el_abono_llega_dias_despues_del_payout(self):
+        """
+        Airbnb libera el pago y el banco lo abona después —en el CSV real la
+        llegada estimada va cinco días más tarde—, así que exigir la misma
+        fecha dejaría todo sin conciliar.
+        """
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 29))
+        self._abono('643.36', date(2026, 4, 3))
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(depositos[0]['estado'], 'CONCILIADO')
+
+    def test_un_abono_fuera_de_la_ventana_no_se_empareja(self):
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 1))
+        self._abono('643.36', date(2026, 3, 30))
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(depositos[0]['estado'], 'SIN_MOVIMIENTO')
+        self.assertIsNone(depositos[0]['movimiento'])
+
+    def test_la_referencia_manda_sobre_el_importe(self):
+        """
+        Si el banco conservó el id del payout no hay ambigüedad posible: ese
+        es el depósito aunque el importe no coincida, y la diferencia es
+        justamente lo que hay que revisar.
+        """
+        self._pago('HM1', Decimal('1000.00'), date(2026, 3, 12),
+                   payout_id='0MS1RHz4c8515YKnnfW89NcM0tS')
+        movimiento = self._abono('950.00', date(2026, 3, 15),
+                                 referencia='0MS1RHz4c8515YKnnfW89NcM0tS')
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(depositos[0]['movimiento'], movimiento)
+        self.assertEqual(depositos[0]['estado'], 'DIFERENCIA')
+        self.assertEqual(depositos[0]['diferencia'], Decimal('-50.00'))
+
+    def test_dos_depositos_del_mismo_importe_no_comparten_abono(self):
+        """Dos payouts iguales son posibles; un abono solo cuadra con uno."""
+        self._pago('HM1', Decimal('643.36'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        self._pago('HM2', Decimal('643.36'), date(2026, 3, 20),
+                   payout_id='PAYOUT-2')
+        self._abono('643.36', date(2026, 3, 14))
+
+        _, depositos = self._conciliar()
+
+        estados = sorted(d['estado'] for d in depositos)
+        self.assertEqual(estados, ['CONCILIADO', 'SIN_MOVIMIENTO'])
+
+    def test_los_pagos_sin_payout_se_agrupan_aparte(self):
+        """No se pueden cuadrar contra el banco, pero tienen que verse."""
+        self._pago('HM1', Decimal('500.00'), date(2026, 3, 12), payout_id='')
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(len(depositos), 1)
+        self.assertEqual(depositos[0]['estado'], 'SIN_PAYOUT')
+        self.assertEqual(depositos[0]['payout_id'], '')
+
+    def test_los_cancelados_no_entran_en_el_deposito(self):
+        self._pago('HM1', Decimal('600.00'), date(2026, 3, 12))
+        self._pago('HM2', Decimal('400.00'), date(2026, 3, 12),
+                   estado='REEMBOLSADO')
+
+        _, depositos = self._conciliar()
+
+        self.assertEqual(depositos[0]['total'], Decimal('600.00'))
+        self.assertEqual(len(depositos[0]['pagos']), 1)
+
+    def test_solo_toma_los_pagos_del_mes_consultado(self):
+        self._pago('HM1', Decimal('600.00'), date(2026, 3, 12))
+        self._pago('HM2', Decimal('400.00'), date(2026, 4, 12),
+                   payout_id='PAYOUT-ABRIL')
+
+        _, depositos = self._conciliar(mes=3, anio=2026)
+
+        self.assertEqual(len(depositos), 1)
+        self.assertEqual(depositos[0]['total'], Decimal('600.00'))
+
+    def test_los_totales_resumen_lo_conciliado_y_lo_pendiente(self):
+        self._pago('HM1', Decimal('600.00'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        self._pago('HM2', Decimal('400.00'), date(2026, 3, 20),
+                   payout_id='PAYOUT-2')
+        self._abono('600.00', date(2026, 3, 14))
+
+        servicio, depositos = self._conciliar()
+        totales = servicio.totales(depositos)
+
+        self.assertEqual(totales['num_depositos'], 2)
+        self.assertEqual(totales['num_conciliados'], 1)
+        self.assertEqual(totales['esperado'], Decimal('1000.00'))
+        self.assertEqual(totales['conciliado'], Decimal('600.00'))
+
+    def test_los_tres_depositos_del_csv_real_cuadran_contra_el_banco(self):
+        """
+        Contra el archivo real de marzo: los tres payouts del CSV se
+        emparejan con sus abonos sin intervención manual.
+        """
+        from pathlib import Path
+
+        from airbnb.services import ImportadorCSVPagosService
+
+        ruta = Path(__file__).parent / 'tests_fixtures' / 'airbnb_marzo_2026.csv'
+        ImportadorCSVPagosService(archivo_nombre='airbnb_marzo_2026.csv').importar(
+            ruta.read_text(encoding='utf-8'))
+
+        # Las fechas de llegada estimada que trae el propio CSV.
+        self._abono('15234.36', date(2026, 3, 19))
+        self._abono('643.33', date(2026, 3, 27))
+        self._abono('643.36', date(2026, 4, 3))
+
+        servicio, depositos = self._conciliar()
+        totales = servicio.totales(depositos)
+
+        self.assertEqual(totales['num_depositos'], 3)
+        self.assertEqual(totales['num_conciliados'], 3)
+        self.assertEqual(totales['esperado'], Decimal('16521.05'))
+        self.assertEqual(totales['diferencia'], Decimal('0.00'))
+
+    def test_la_vista_del_admin_muestra_el_deposito(self):
+        from django.contrib.auth.models import User
+
+        self._pago('HM1', Decimal('600.00'), date(2026, 3, 12),
+                   payout_id='PAYOUT-1')
+        self._abono('600.00', date(2026, 3, 14))
+        User.objects.create_superuser('staff_demo', 'staff@demo.mx', 'x' * 12)
+        self.client.force_login(User.objects.get(username='staff_demo'))
+
+        respuesta = self.client.get(
+            '/admin/airbnb/conciliacion-depositos/?mes=3&anio=2026')
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'PAYOUT-1')
+
+    def test_la_vista_no_revienta_con_parametros_basura(self):
+        """Un `?mes=abc` en la URL devolvía 500 en el reporte fiscal viejo."""
+        from django.contrib.auth.models import User
+
+        User.objects.create_superuser('staff_demo2', 'staff2@demo.mx', 'x' * 12)
+        self.client.force_login(User.objects.get(username='staff_demo2'))
+
+        respuesta = self.client.get(
+            '/admin/airbnb/conciliacion-depositos/?mes=abc&anio=13')
+
+        self.assertEqual(respuesta.status_code, 200)
+
+    def test_la_vista_exige_sesion_de_staff(self):
+        respuesta = self.client.get('/admin/airbnb/conciliacion-depositos/')
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn('/admin/login/', respuesta['Location'])
