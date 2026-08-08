@@ -75,6 +75,16 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-08 — `.github/workflows/ai-review-merge.yml`: el job "Review,
+  correct and merge" fallaba en el paso de `claude-code-action` con
+  `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable`, pese a que el
+  job ya declaraba `id-token: write`. La causa: sin `github_token`
+  explícito, la acción intenta autenticarse por OIDC contra la GitHub App
+  "Claude" (`github.com/apps/claude`), y ese intercambio fallaba en el
+  runner. Se evitó el flujo OIDC por completo pasándole el token que ya
+  emite `identity-token` (la GitHub App propia del repo, `AI_APP_CLIENT_ID`)
+  ampliado con `permission-contents: read` y `permission-issues: read`
+  además del `pull-requests: read` que ya tenía.
 - 2026-08-07 — Póliza de `PagoAirbnb`: el signal ahora **sincroniza** en vez
   de solo crear. Al actualizar un pago (reimportar el CSV corrige montos) la
   póliza se regenera en sitio —mismo folio y misma auditoría, movimientos
