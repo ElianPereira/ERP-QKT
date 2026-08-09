@@ -75,6 +75,25 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-08 — `.github/workflows/ai-review-merge.yml`: el job "Review,
+  correct and merge" fallaba en el paso de `claude-code-action` con
+  `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable`, pese a que el
+  job ya declaraba `id-token: write`. La causa: sin `github_token`
+  explícito, la acción intenta autenticarse por OIDC contra la GitHub App
+  "Claude" (`github.com/apps/claude`), y ese intercambio fallaba en el
+  runner. Se evitó el flujo OIDC por completo pasándole el token que ya
+  emite `identity-token` (la GitHub App propia del repo, `AI_APP_CLIENT_ID`)
+  ampliado con `permission-contents: read` y `permission-issues: read`
+  además del `pull-requests: read` que ya tenía.
+- 2026-08-08 — `manage.py corregir_polizas_airbnb_iva`: el signal
+  `sincronizar_poliza_pago_airbnb` se degrada en silencio (cuenta contable
+  faltante/inactiva, unidad de negocio inactiva) en vez de lanzar. El
+  comando cancelaba la póliza original y confiaba en que el signal siempre
+  reexpidiera una nueva — si el signal se degradaba, el pago quedaba sin
+  ninguna póliza `APLICADA` (peor que el descuadre que el comando arregla)
+  y aun así se reportaba como éxito. Ahora verifica que exista una póliza
+  vigente con el IVA trasladado registrado tras el signal; si no, lanza
+  `CommandError` y la transacción completa revierte.
 - 2026-08-07 — Conciliación de depósitos de Airbnb (`ConciliacionDepositosService`,
   `/admin/airbnb/conciliacion-depositos/`): Airbnb junta en un solo payout las
   reservas que liquida el mismo día, así que el banco trae **un abono por

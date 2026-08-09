@@ -30,6 +30,8 @@ jobs:
         with:
           client-id: ${{ vars.AI_APP_CLIENT_ID }}
           private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-issues: read
           permission-pull-requests: read
 
       - name: Verify automation pull request identity
@@ -68,6 +70,7 @@ jobs:
         uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ steps.identity-token.outputs.token }}
           allowed_bots: ${{ steps.identity-token.outputs.app-slug }}[bot]
           prompt: |
             Revisa el PR #${{ github.event.pull_request.number }} de
