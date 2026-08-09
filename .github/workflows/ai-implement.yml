@@ -75,9 +75,15 @@ jobs:
             de aceptación, validaciones reales y riesgos. Marca blocked=true si
             falta una decisión humana, la petición es insegura o no puede
             planificarse con evidencia suficiente.
+          # 25 turnos y TodoWrite permitido: con 12 turnos y solo Read/Grep/Glob,
+          # el Issue #165 agotó el límite sin devolver plan (error_max_turns con
+          # 13 turnos y 5 denegaciones de permiso). Cada herramienta denegada
+          # consume un turno sin producir nada, así que investigar un repo de
+          # este tamaño quedaba en ~7 turnos útiles. TodoWrite no escribe en el
+          # repositorio — solo lleva la lista de pasos del propio agente.
           claude_args: >-
-            --max-turns 12
-            --allowedTools "Read,Grep,Glob"
+            --max-turns 25
+            --allowedTools "Read,Grep,Glob,TodoWrite"
             --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
 
       - name: Publish Claude plan
