@@ -749,6 +749,66 @@ class ParserBBVATest(TestCase):
         self.assertEqual(n_abono, 5)
 
     @unittest.skipUnless(os.path.exists(FIXTURE_LIBRETON), "Falta el fixture real estado_cuenta_bbva_libreton_ejemplo.pdf")
+    def test_procesa_con_storage_sin_soporte_de_rutas_absolutas(self):
+        """
+        Regresión del Issue #158: con Cloudflare R2 (S3Storage) el archivo no
+        existe en el disco del contenedor y FieldFile.path no está soportado.
+        """
+        from unittest import mock
+
+        from django.core.files import File
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import Storage
+
+        from contabilidad.services_estados_cuenta import procesar_estado_cuenta
+
+        class StorageSinRutas(Storage):
+            def __init__(self):
+                self.archivos = {}
+
+            def _open(self, name, mode='rb'):
+                return ContentFile(self.archivos[name], name=name)
+
+            def _save(self, name, content):
+                self.archivos[name] = b''.join(content.chunks())
+                return name
+
+            def exists(self, name):
+                return name in self.archivos
+
+            def path(self, name):
+                raise NotImplementedError("This backend doesn't support absolute paths.")
+
+        cuenta = CuentaBancaria.objects.create(
+            nombre="Cuenta libretón de prueba", banco="BBVA",
+            numero_cuenta="1551774893", clabe="111111111111111111",
+        )
+        campo_archivo = EstadoCuentaBancario._meta.get_field('archivo')
+        with mock.patch.object(campo_archivo, 'storage', StorageSinRutas()):
+            with open(self.FIXTURE_LIBRETON, 'rb') as f:
+                estado_cuenta = EstadoCuentaBancario.objects.create(
+                    cuenta_bancaria=cuenta, banco='BBVA',
+                    periodo_mes=3, periodo_anio=2026, formato='PDF',
+                    archivo=File(f, name='estado_cuenta_bbva_libreton_ejemplo.pdf'),
+                )
+            estado_cuenta.refresh_from_db()
+
+            procesar_estado_cuenta(estado_cuenta)
+            estado_cuenta.refresh_from_db()
+            self.assertEqual(estado_cuenta.estado, 'PROCESADO')
+            self.assertEqual(estado_cuenta.error_detalle, '')
+            self.assertEqual(estado_cuenta.saldo_inicial_estado, Decimal('3546.19'))
+            self.assertEqual(estado_cuenta.saldo_final_estado, Decimal('15658.90'))
+            self.assertEqual(estado_cuenta.fecha_corte_real, date(2026, 3, 14))
+            self.assertEqual(estado_cuenta.movimientos.count(), 53)
+
+            # Reprocesable: reemplaza los movimientos anteriores, no los duplica.
+            procesar_estado_cuenta(estado_cuenta)
+            estado_cuenta.refresh_from_db()
+            self.assertEqual(estado_cuenta.estado, 'PROCESADO')
+            self.assertEqual(estado_cuenta.movimientos.count(), 53)
+
+    @unittest.skipUnless(os.path.exists(FIXTURE_LIBRETON), "Falta el fixture real estado_cuenta_bbva_libreton_ejemplo.pdf")
     def test_numero_cuenta_no_coincide_rechaza_la_carga(self):
         """
         Regresión directa del requisito de Elián: nunca debe ser posible que un
@@ -778,10 +838,12 @@ class ParserBBVATest(TestCase):
                     periodo_mes=2, periodo_anio=2026, formato='PDF',
                     archivo=File(f, name='estado_cuenta_bbva_libreton_ejemplo.pdf'),
                 )
-            with self.assertRaises(ValueError):
+            estado_cuenta.refresh_from_db()
+            with self.assertRaisesMessage(ValueError, 'no coincide con'):
                 procesar_estado_cuenta(estado_cuenta)
         estado_cuenta.refresh_from_db()
         self.assertEqual(estado_cuenta.estado, 'ERROR')
+        self.assertIn('no coincide con', estado_cuenta.error_detalle)
 
 
 class PeriodoDevengoComisionDiferidaTest(TestCase):

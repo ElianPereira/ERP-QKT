@@ -23,12 +23,15 @@ usar page.extract_tables(). La estrategia real que funciona:
    la lista, porque cargo y abono son mutuamente excluyentes y su presencia
    o ausencia desplaza cuál "número de la fila" es cuál.
 """
+import io
 import re
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
+
 from django.db import transaction
 from django.db.models import Sum
-from .models import EstadoCuentaBancario, MovimientoEstadoCuenta, MovimientoContable, ConciliacionBancaria
+
+from .models import ConciliacionBancaria, EstadoCuentaBancario, MovimientoContable, MovimientoEstadoCuenta
 
 FECHA_RE = re.compile(r'^\d{2}/[A-Z]{3}$')  # ej. 15/FEB
 MESES = {
@@ -73,10 +76,16 @@ def procesar_estado_cuenta(estado_cuenta: EstadoCuentaBancario):
     error que este módulo existe para prevenir.
     """
     try:
+        # El storage por defecto es Cloudflare R2 (S3): no implementa path(),
+        # el archivo nunca existe en el disco del contenedor. Se lee por el
+        # FieldFile y se pasa un buffer en memoria a los parsers.
+        with estado_cuenta.archivo.open('rb') as fh:
+            contenido = io.BytesIO(fh.read())
+
         if estado_cuenta.formato == 'PDF':
-            movimientos, saldo_inicial, saldo_final, numero_cuenta_pdf, fecha_corte_real = _parsear_pdf_bbva(estado_cuenta.archivo.path)
+            movimientos, saldo_inicial, saldo_final, numero_cuenta_pdf, fecha_corte_real = _parsear_pdf_bbva(contenido)
         elif estado_cuenta.formato == 'XML':
-            movimientos, saldo_inicial, saldo_final, numero_cuenta_pdf, fecha_corte_real = _parsear_xml_bbva(estado_cuenta.archivo.path)
+            movimientos, saldo_inicial, saldo_final, numero_cuenta_pdf, fecha_corte_real = _parsear_xml_bbva(contenido)
         else:
             raise ValueError(f"Formato no soportado: {estado_cuenta.formato}")
 
@@ -191,10 +200,12 @@ def _clasificar_monto(x0, columnas):
     return None
 
 
-def _parsear_pdf_bbva(ruta_archivo):
+def _parsear_pdf_bbva(archivo):
     """
     Extrae movimientos de un estado de cuenta BBVA en PDF (Libretón Básico o
     Maestra PYME — mismo layout de columnas en ambos, se generaliza sin cambios).
+    `archivo` puede ser una ruta o un objeto file-like abierto en binario;
+    los tests con fixtures locales pasan rutas.
 
     Devuelve: (lista_de_dicts, saldo_inicial: Decimal, saldo_final: Decimal, numero_cuenta: str, fecha_corte_real: date)
     Cada dict trae las claves que espera MovimientoEstadoCuenta: fecha, descripcion,
@@ -208,7 +219,7 @@ def _parsear_pdf_bbva(ruta_archivo):
     fecha_corte_real = None
     anio_referencia = None
 
-    with pdfplumber.open(ruta_archivo) as pdf:
+    with pdfplumber.open(archivo) as pdf:
         texto_p1 = pdf.pages[0].extract_text()
         m_periodo = re.search(r'AL (\d{2})/(\d{2})/(\d{4})', texto_p1)
         if m_periodo:
@@ -311,7 +322,7 @@ def _parsear_pdf_bbva(ruta_archivo):
     return resultado, saldo_inicial, saldo_final, numero_cuenta, fecha_corte_real
 
 
-def _parsear_xml_bbva(ruta_archivo):
+def _parsear_xml_bbva(archivo):
     """
     BBVA no ofreció exportación XML de movimientos al momento de este brief —
     solo PDF. Si más adelante aparece esa opción en banca en línea, calibrar
