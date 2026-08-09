@@ -2,16 +2,28 @@
 
 from datetime import date, timedelta
 
+from django.contrib.admin.sites import AdminSite
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import Cliente
+from legal.admin import SolicitudARCOAdmin
 from legal.models import (
-    AceptacionLegal, DocumentoLegal, EstadoARCO, Finalidad, OrigenAceptacion,
-    SolicitudARCO, TipoARCO, TipoDocumento,
+    AccesoIdentificacionARCO,
+    AceptacionLegal,
+    DocumentoLegal,
+    EstadoARCO,
+    Finalidad,
+    OrigenAceptacion,
+    SolicitudARCO,
+    TipoARCO,
+    TipoDocumento,
 )
 from legal.services import LegalService
 
@@ -198,6 +210,93 @@ class ARCOTest(TestCase):
         self.assertEqual(self._solicitud().estado, EstadoARCO.RECIBIDA)
 
 
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class AccesoIdentificacionARCOTest(TestCase):
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.admin = SolicitudARCOAdmin(SolicitudARCO, AdminSite())
+        self.usuario = get_user_model().objects.create_user(
+            username='gestor_arco', password='clave-prueba', is_staff=True,
+        )
+        permisos_base = Permission.objects.filter(
+            content_type__app_label='legal',
+            codename__in=('view_solicitudarco', 'change_solicitudarco'),
+        )
+        self.usuario.user_permissions.add(*permisos_base)
+        self.permiso_identificacion = Permission.objects.get(
+            content_type__app_label='legal', codename='ver_identificacion_arco',
+        )
+        self.solicitud = SolicitudARCO.objects.create(
+            tipo=TipoARCO.ACCESO,
+            titular_nombre='Persona de prueba',
+            correo='persona@example.com',
+            descripcion='Solicitud ficticia',
+            identificacion=SimpleUploadedFile(
+                'identificacion-prueba.txt', b'contenido-identificacion',
+                content_type='text/plain',
+            ),
+        )
+
+    def _admin_request(self):
+        request = self.factory.get('/admin/legal/solicitudarco/')
+        request.user = self.usuario
+        return request
+
+    def test_admin_oculta_solo_identificacion_sin_permiso(self):
+        fields = self.admin.get_fields(self._admin_request(), self.solicitud)
+
+        self.assertNotIn('identificacion', fields)
+        self.assertNotIn('identificacion_protegida', fields)
+        self.assertIn('folio', fields)
+        self.assertIn('estado', fields)
+        self.assertIn('fecha_limite', fields)
+        self.assertIn('respuesta', fields)
+
+    def test_admin_muestra_enlace_protegido_con_permiso(self):
+        self.usuario.user_permissions.add(self.permiso_identificacion)
+        request = self._admin_request()
+
+        fields = self.admin.get_fields(request, self.solicitud)
+        enlace = str(self.admin.identificacion_protegida(self.solicitud))
+
+        self.assertIn('identificacion_protegida', fields)
+        self.assertNotIn('identificacion', fields)
+        self.assertIn(reverse('legal:descargar_identificacion_arco',
+                              args=[self.solicitud.pk]), enlace)
+        self.assertNotIn(self.solicitud.identificacion.url, enlace)
+
+    def test_sin_permiso_no_puede_descargar_aunque_conozca_la_url(self):
+        self.client.force_login(self.usuario)
+        url = reverse('legal:descargar_identificacion_arco', args=[self.solicitud.pk])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(AccesoIdentificacionARCO.objects.exists())
+
+    def test_con_permiso_descarga_y_registra_bitacora(self):
+        self.usuario.user_permissions.add(self.permiso_identificacion)
+        self.client.force_login(self.usuario)
+        url = reverse('legal:descargar_identificacion_arco', args=[self.solicitud.pk])
+
+        response = self.client.get(url, REMOTE_ADDR='192.0.2.10')
+        contenido = b''.join(response.streaming_content)
+        response.close()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(contenido, b'contenido-identificacion')
+        self.assertIn('inline', response['Content-Disposition'])
+        self.assertEqual(response['Cache-Control'], 'private, no-store')
+        acceso = AccesoIdentificacionARCO.objects.get()
+        self.assertEqual(acceso.solicitud, self.solicitud)
+        self.assertEqual(acceso.usuario, self.usuario)
+        self.assertEqual(acceso.ip, '192.0.2.10')
+
+
 class VistasPublicasTest(TestCase):
 
     def test_documento_vigente_se_publica(self):
@@ -288,6 +387,10 @@ class SeedTest(TestCase):
 
         self._seed()
         for patron in urlpatterns:
+            # La identificación ARCO es deliberadamente privada y requiere el
+            # id de una solicitud; este candado cubre solo documentos públicos.
+            if patron.name == 'descargar_identificacion_arco':
+                continue
             url = reverse(f'legal:{patron.name}')
             with self.subTest(ruta=url):
                 self.assertEqual(self.client.get(url).status_code, 200)

@@ -1,8 +1,12 @@
 from django.contrib import admin, messages
+from django.urls import reverse
 from django.utils.html import format_html
 
 from .models import (
-    AceptacionLegal, DocumentoLegal, Finalidad, SolicitudARCO,
+    AceptacionLegal,
+    DocumentoLegal,
+    Finalidad,
+    SolicitudARCO,
 )
 
 
@@ -89,6 +93,29 @@ class SolicitudARCOAdmin(admin.ModelAdmin):
     search_fields = ('folio', 'titular_nombre', 'correo')
     readonly_fields = ('folio', 'recibida_en', 'fecha_limite')
     ordering = ['fecha_limite']
+
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        if 'identificacion' in fields:
+            indice = fields.index('identificacion')
+            fields.pop(indice)
+            fields = [field for field in fields if field != 'identificacion_protegida']
+            if request.user.has_perm('legal.ver_identificacion_arco'):
+                fields.insert(indice, 'identificacion_protegida')
+        return fields
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = list(super().get_readonly_fields(request, obj))
+        if request.user.has_perm('legal.ver_identificacion_arco'):
+            fields.append('identificacion_protegida')
+        return fields
+
+    @admin.display(description='Identificación')
+    def identificacion_protegida(self, obj):
+        if not obj or not obj.identificacion:
+            return 'Sin archivo'
+        url = reverse('legal:descargar_identificacion_arco', args=[obj.pk])
+        return format_html('<a href="{}" target="_blank" rel="noopener">Ver identificación</a>', url)
 
     def dias_restantes_display(self, obj):
         dias = obj.dias_restantes

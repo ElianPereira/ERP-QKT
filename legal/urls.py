@@ -6,6 +6,8 @@ from .models import TipoDocumento
 app_name = 'legal'
 
 urlpatterns = [
+    path('legal/arco/<int:solicitud_id>/identificacion/',
+         views.descargar_identificacion_arco, name='descargar_identificacion_arco'),
     path('aviso-de-privacidad/', views.documento_publico,
          {'tipo': TipoDocumento.AVISO_PRIVACIDAD}, name='aviso_privacidad'),
     path('terminos-y-condiciones/', views.documento_publico,
