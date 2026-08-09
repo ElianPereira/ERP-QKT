@@ -53,8 +53,22 @@ jobs:
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "mode-label=$mode_label" >> "$GITHUB_OUTPUT"
 
+          # Los Issues que salen del skill `solicitud-ai` ya traen un plan
+          # ejecutable escrito a mano en "Detalles o límites". Volver a
+          # planificarlos con Claude es trabajo duplicado y, además, era el
+          # único paso capaz de tumbar el job entero por agotar turnos.
+          # Se detecta por sus encabezados característicos.
+          if grep -Eq '^#{3,6} *(Alcance incluido|Plan de implementación|Criterios de aceptación)' <<<"$ISSUE_BODY"; then
+            echo "has-plan=true" >> "$GITHUB_OUTPUT"
+            echo "El Issue ya trae plan propio: se omite la fase de planeación." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "has-plan=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Plan with Claude
-        if: steps.request.outputs.mode == 'combined'
+        if: >-
+          steps.request.outputs.mode == 'combined' &&
+          steps.request.outputs.has-plan != 'true'
         id: plan
         uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
         with:
@@ -101,8 +115,40 @@ jobs:
             --allowedTools "Read,Grep,Glob,TodoWrite"
             --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
 
+      # Qué herramientas intentó usar el planificador y cuántas veces. El log
+      # de la acción oculta el detalle de la conversación a propósito, así que
+      # cuando el paso muere por agotar turnos no hay forma de saber en qué se
+      # fueron: en #165 fueron 5 denegaciones de 13 turnos y en #173 once de
+      # 26, y las dos veces hubo que adivinar cuál era la herramienta. Aquí
+      # solo se extraen NOMBRES de herramientas y conteos — nunca los inputs,
+      # el prompt ni la respuesta — y cualquiera que no esté en --allowedTools
+      # es, por definición, una denegación.
+      - name: Report planner tool usage
+        if: >-
+          always() &&
+          (steps.plan.outcome == 'success' || steps.plan.outcome == 'failure')
+        run: |
+          log=/home/runner/work/_temp/claude-execution-output.json
+          test -f "$log" || { echo "No se generó log de ejecución del planificador." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          {
+            echo "### Herramientas intentadas por el planificador"
+            echo
+            echo "| Herramienta | Intentos |"
+            echo "| --- | --- |"
+            jq -r '[.. | objects | select(.type? == "tool_use") | .name]
+                   | group_by(.)
+                   | sort_by(-length)
+                   | map("| \(.[0]) | \(length) |")
+                   | .[]' "$log" 2>/dev/null \
+              || echo "| (no se pudo parsear el log) | - |"
+            echo
+            echo "Permitidas: \`Read\`, \`Grep\`, \`Glob\`, \`TodoWrite\`. Cualquier otra de la tabla fue denegada y consumió un turno sin devolver nada."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish Claude plan
-        if: steps.request.outputs.mode == 'combined'
+        if: >-
+          steps.request.outputs.mode == 'combined' &&
+          steps.request.outputs.has-plan != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -166,8 +212,8 @@ jobs:
             SOLICITUD ORIGINAL:
             ${{ github.event.issue.body }}
 
-            PLAN VERIFICADO POR CLAUDE:
-            ${{ fromJSON(steps.plan.outputs.structured_output || '{}').plan }}
+            PLAN A SEGUIR:
+            ${{ steps.request.outputs.has-plan == 'true' && 'El plan ya viene dentro de la SOLICITUD ORIGINAL de arriba (sección "Detalles o límites"): alcance incluido y excluido, pasos, pruebas, criterios de aceptación y riesgos. Es el plan aprobado — síguelo tal cual y no lo reinterpretes. Si algo del plan resulta imposible o incorrecto al implementarlo, impleméntalo todo lo demás y decláralo explícitamente en el resumen final en vez de improvisar una alternativa.' || fromJSON(steps.plan.outputs.structured_output || '{}').plan }}
 
             Respeta la arquitectura Django, la lógica de negocio y las áreas sensibles.
             Modifica solo los archivos necesarios. No cambies workflows,
