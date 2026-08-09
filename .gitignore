@@ -7,6 +7,9 @@ __pycache__/
 # Base de datos local (¡No subir!)
 db.sqlite3
 
+# Reporte de coverage local
+.coverage
+
 # Archivos de entorno (Claves secretas)
 .env
 
