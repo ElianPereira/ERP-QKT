@@ -57,7 +57,7 @@ p{color:#4a4a4a;font-size:.9rem;font-weight:300;line-height:1.8;margin-bottom:1.
 <script>
   // Auto-redirigir al portal en 3 segundos si hay URL
   const url = "{{ portal_url }}";
-  if (url && url !== 'https://clientes.quintakooxtanil.com') {
+  if (url && url !== "{{ portal_base }}") {
     setTimeout(() => window.location.href = url, 3000);
   }
 </script>

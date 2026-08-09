@@ -21,7 +21,6 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.railway.app',
     'https://quintakooxtanil.com',
     'https://erp.quintakooxtanil.com',
-    'https://clientes.quintakooxtanil.com',
 ]
 
 # URL base del portal del cliente (usada en links, emails y notificaciones)

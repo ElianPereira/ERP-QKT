@@ -371,7 +371,7 @@ def cotizador_enviar(request):
         cotizacion=cotizacion,
         defaults={'activo': True},
     )
-    portal_base = getattr(settings, 'PORTAL_URL', 'https://clientes.quintakooxtanil.com')
+    portal_base = settings.PORTAL_URL
     portal_url = f"{portal_base}/mi-evento/{portal.token}/"
 
     # ── Notificación WA al negocio ──────────────────────────────────────────────────────────
@@ -661,5 +661,18 @@ def api_paquetes_cotizador(request):
 
 
 def cotizador_gracias(request):
-    portal_url = request.GET.get('portal', 'https://clientes.quintakooxtanil.com')
-    return render(request, 'cotizador/gracias.html', {'portal_url': portal_url})
+    # `portal` llega por query string y acaba en un href y en un
+    # window.location: solo se acepta si apunta al propio portal. Sin ese
+    # filtro, un `javascript:...` o un dominio ajeno convierten esta pantalla
+    # en XSS y en redirección abierta. Sin `?portal=` válido no hay cotización
+    # que enseñar: se cae al portal genérico y la plantilla usa `portal_base`
+    # para reconocer ese caso y no autoredirigir.
+    solicitado = request.GET.get('portal') or ''
+    if solicitado.startswith(f'{settings.PORTAL_URL}/'):
+        portal_url = solicitado
+    else:
+        portal_url = settings.PORTAL_URL
+    return render(request, 'cotizador/gracias.html', {
+        'portal_url': portal_url,
+        'portal_base': settings.PORTAL_URL,
+    })
