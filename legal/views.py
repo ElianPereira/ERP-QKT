@@ -1,11 +1,43 @@
+import mimetypes
+from pathlib import Path
+
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.cache import cache
-from django.http import Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
+from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 
-from .models import TipoDocumento
+from .models import AccesoIdentificacionARCO, SolicitudARCO, TipoDocumento
 from .services import LegalService
 
 CACHE_SEGUNDOS = 60 * 60
+
+
+@login_required
+@permission_required('legal.ver_identificacion_arco', raise_exception=True)
+def descargar_identificacion_arco(request, solicitud_id):
+    """Sirve la identificación sin revelar una URL directa del storage."""
+    solicitud = get_object_or_404(SolicitudARCO, pk=solicitud_id)
+    if not solicitud.identificacion:
+        raise Http404
+
+    archivo = solicitud.identificacion.open('rb')
+    AccesoIdentificacionARCO.objects.create(
+        solicitud=solicitud,
+        usuario=request.user,
+        ip=LegalService.obtener_ip(request),
+    )
+
+    nombre = Path(solicitud.identificacion.name).name
+    content_type, _ = mimetypes.guess_type(nombre)
+    response = FileResponse(
+        archivo,
+        as_attachment=False,
+        filename=nombre,
+        content_type=content_type or 'application/octet-stream',
+    )
+    response['Cache-Control'] = 'private, no-store'
+    return response
 
 
 def documento_publico(request, tipo):

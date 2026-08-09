@@ -15,7 +15,6 @@ import re
 from datetime import timedelta
 
 import markdown
-
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -268,6 +267,9 @@ class SolicitudARCO(models.Model):
         verbose_name_plural = 'Solicitudes ARCO'
         ordering = ['-recibida_en']
         indexes = [models.Index(fields=['estado', 'fecha_limite'])]
+        permissions = [
+            ('ver_identificacion_arco', 'Puede ver la identificación de solicitudes ARCO'),
+        ]
 
     def __str__(self):
         return f"{self.folio} — {self.get_tipo_display()}"
@@ -296,3 +298,29 @@ class SolicitudARCO(models.Model):
     def dias_restantes(self) -> int:
         """Días naturales para vencer el plazo legal. Negativo = vencido."""
         return (self.fecha_limite - timezone.localdate()).days
+
+
+class AccesoIdentificacionARCO(models.Model):
+    """Bitácora de cada visualización o descarga de una identificación ARCO."""
+
+    solicitud = models.ForeignKey(
+        SolicitudARCO,
+        on_delete=models.CASCADE,
+        related_name='accesos_identificacion',
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='accesos_identificacion_arco',
+    )
+    fecha = models.DateTimeField(auto_now_add=True, db_index=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Acceso a identificación ARCO'
+        verbose_name_plural = 'Accesos a identificaciones ARCO'
+        ordering = ['-fecha']
+        indexes = [models.Index(fields=['solicitud', '-fecha'])]
+
+    def __str__(self):
+        return f"Acceso {self.pk} — {self.solicitud.folio} — {self.fecha:%Y-%m-%d %H:%M}"
