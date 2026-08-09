@@ -33,7 +33,7 @@ Uso:
 """
 from decimal import Decimal
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from airbnb.models import PagoAirbnb
@@ -85,13 +85,13 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             for pago, poliza in pendientes:
-                self._corregir(pago, poliza)
+                self._corregir(pago, poliza, cuenta_iva)
 
         self.stdout.write(self.style.SUCCESS(
             f"{len(pendientes)} pólizas reemitidas con el IVA trasladado."))
 
-    @staticmethod
-    def _pendientes(cuenta_iva):
+    @classmethod
+    def _pendientes(cls, cuenta_iva):
         """
         Pagos cuya póliza vigente no registra el IVA trasladado que sí cobraron.
 
@@ -103,13 +103,7 @@ class Command(BaseCommand):
                  .order_by('fecha_pago', 'pk'))
 
         for pago in pagos:
-            poliza = (Poliza.objects
-                      .filter(origen='PAGO_AIRBNB', object_id=pago.pk,
-                              content_type__app_label='airbnb',
-                              content_type__model='pagoairbnb')
-                      .exclude(estado='CANCELADA')
-                      .order_by('-pk')
-                      .first())
+            poliza = cls._poliza_vigente(pago)
             if poliza is None:
                 continue
             if poliza.movimientos.filter(cuenta=cuenta_iva).exists():
@@ -117,7 +111,17 @@ class Command(BaseCommand):
             yield pago, poliza
 
     @staticmethod
-    def _corregir(pago, poliza):
+    def _poliza_vigente(pago):
+        return (Poliza.objects
+                .filter(origen='PAGO_AIRBNB', object_id=pago.pk,
+                        content_type__app_label='airbnb',
+                        content_type__model='pagoairbnb')
+                .exclude(estado='CANCELADA')
+                .order_by('-pk')
+                .first())
+
+    @classmethod
+    def _corregir(cls, pago, poliza, cuenta_iva):
         poliza.cancelar(
             get_usuario_sistema(),
             "Cancelada y reexpedida: el asiento no registraba el IVA "
@@ -128,3 +132,18 @@ class Command(BaseCommand):
         # que el asiento corregido es exactamente el que emitiría el sistema.
         sincronizar_poliza_pago_airbnb(
             sender=PagoAirbnb, instance=pago, created=False)
+
+        # El signal se degrada en silencio (falta una cuenta en
+        # ConfiguracionContable, unidad de negocio inactiva, etc.) en vez de
+        # lanzar: sin esta verificación, cancelar sin poder reexpedir dejaría
+        # el pago sin ninguna póliza APLICADA -peor que el descuadre original-
+        # y el comando lo reportaría como éxito de todos modos.
+        nueva = cls._poliza_vigente(pago)
+        if nueva is None or not nueva.movimientos.filter(cuenta=cuenta_iva).exists():
+            raise CommandError(
+                f"No se pudo reexpedir la póliza del pago {pago.pk} "
+                f"({pago.codigo_confirmacion or 'sin código'}): revisa la "
+                "configuración contable de Airbnb (cuentas y unidad de "
+                "negocio en ConfiguracionContable). No se aplicó ningún "
+                "cambio."
+            )
