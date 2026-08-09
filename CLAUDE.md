@@ -168,10 +168,11 @@ salvo que queden obsoletas.
   hooks) → descartado: guarda datos en `~/.claude-mem` (no en el repo, no
   es memoria realmente compartida) e instala runtimes extra (Bun, `uv`) en
   la máquina de cada quien. Ver hilo de la sesión si se reconsidera.
-- 2026-07-26 — Bug detectado, **sin corregir**: `comercial/admin.py` usa
-  `get_object_or_404` en 4 sitios (líneas 757, 763, 774, 815) sin
-  importarlo — `NameError` en runtime al aplicar/revertir descuentos o
-  generar contrato desde el admin.
+- 2026-07-26 — Bug detectado: `comercial/admin.py` usaba `get_object_or_404`
+  en 4 sitios sin importarlo — `NameError` en runtime al aplicar/revertir
+  descuentos o generar contrato desde el admin. **Corregido** en `1607c1e`
+  (import añadido en la línea 7); `ruff check --select F821 .` pasa limpio
+  en todo el repo. Entrada conservada como histórico.
 - 2026-07-26 — Se configuraron hooks, `.mcp.json`, este archivo, el skill
   `create-migration` y los subagentes `security-reviewer`/`code-reviewer`
   (ver PR #111).
