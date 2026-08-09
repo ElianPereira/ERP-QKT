@@ -18,7 +18,7 @@ def _portal_url(cotizacion):
         from comercial.models import PortalCliente
         portal = PortalCliente.objects.filter(cotizacion=cotizacion, activo=True).first()
         if portal:
-            base = getattr(settings, 'PORTAL_URL', 'https://clientes.quintakooxtanil.com')
+            base = settings.PORTAL_URL
             return f"{base}/mi-evento/{portal.token}/"
     except Exception:
         pass
