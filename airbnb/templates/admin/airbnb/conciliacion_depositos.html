@@ -1,0 +1,365 @@
+{% extends "admin/base_site.html" %}
+{% load humanize %}
+
+{% block extrahead %}
+<style>
+    .conciliacion-container {
+        max-width: 1400px;
+        margin: 20px auto;
+        padding: 20px;
+    }
+    .conciliacion-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .conciliacion-header h2 {
+        margin: 0;
+        color: #e0ddd4;
+    }
+    .filtros-form {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .filtros-form select {
+        padding: 8px 12px;
+        border: 1px solid #4a4845;
+        background: #383632;
+        color: #d4d1c8;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .btn-primary { background: #2E7D32; color: white; }
+    .btn-secondary { background: #4a4845; color: #d4d1c8; }
+
+    .cards-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    .card-stat {
+        background: #383632;
+        border: 1px solid #4a4845;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+    }
+    .card-stat .valor {
+        font-size: 26px;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #e0ddd4;
+    }
+    .card-stat .label {
+        font-size: 13px;
+        color: #a5a29a;
+        text-transform: uppercase;
+    }
+    .card-stat.ok .valor { color: #27ae60; }
+    .card-stat.alerta .valor { color: #e67e22; }
+
+    .deposito {
+        background: #383632;
+        border: 1px solid #4a4845;
+        border-left-width: 5px;
+        border-radius: 8px;
+        padding: 18px 20px;
+        margin-bottom: 18px;
+    }
+    .deposito.CONCILIADO { border-left-color: #27ae60; }
+    .deposito.DIFERENCIA { border-left-color: #e67e22; }
+    .deposito.AMBIGUO { border-left-color: #f1c40f; }
+    .deposito.SIN_MOVIMIENTO { border-left-color: #7f8c8d; }
+    .deposito.SIN_PAYOUT { border-left-color: #c62828; }
+
+    .deposito-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+    .deposito-head .payout {
+        font-family: monospace;
+        font-size: 13px;
+        color: #a5a29a;
+        word-break: break-all;
+    }
+    .deposito-head .total {
+        font-size: 22px;
+        font-weight: bold;
+        color: #e0ddd4;
+    }
+    .etiqueta {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    .etiqueta.CONCILIADO { background: #1b5e20; color: #c8e6c9; }
+    .etiqueta.DIFERENCIA { background: #7a3e00; color: #ffe0b2; }
+    .etiqueta.AMBIGUO { background: #6b5900; color: #fff3c4; }
+    .etiqueta.SIN_MOVIMIENTO { background: #4a4845; color: #d4d1c8; }
+    .etiqueta.SIN_PAYOUT { background: #8e1f1f; color: #ffcdd2; }
+
+    .resolver {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+    .resolver select {
+        padding: 6px 10px;
+        border: 1px solid #4a4845;
+        background: #33312e;
+        color: #d4d1c8;
+        border-radius: 4px;
+        font-size: 13px;
+        max-width: 100%;
+    }
+    .resolver button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        background: #2E7D32;
+        color: white;
+    }
+    .resolver button.deshacer { background: #4a4845; color: #d4d1c8; }
+    .confirmado-por {
+        font-size: 12px;
+        color: #a5a29a;
+    }
+
+    .banco {
+        font-size: 13px;
+        color: #d4d1c8;
+        margin-bottom: 12px;
+    }
+    .banco .diferencia { color: #e67e22; font-weight: bold; }
+
+    .tabla-pagos {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    .tabla-pagos th {
+        text-align: left;
+        padding: 6px 8px;
+        color: #a5a29a;
+        border-bottom: 1px solid #4a4845;
+        font-weight: normal;
+        text-transform: uppercase;
+        font-size: 11px;
+    }
+    .tabla-pagos td {
+        padding: 7px 8px;
+        border-bottom: 1px solid #4a4845;
+        color: #d4d1c8;
+    }
+    .tabla-pagos td.num { text-align: right; }
+    .tabla-pagos a { color: #8bc34a; }
+
+    .vacio {
+        background: #383632;
+        border: 1px solid #4a4845;
+        border-radius: 8px;
+        padding: 30px;
+        text-align: center;
+        color: #a5a29a;
+    }
+    .nota {
+        color: #a5a29a;
+        font-size: 13px;
+        margin-bottom: 20px;
+        line-height: 1.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="conciliacion-container">
+
+    <div class="conciliacion-header">
+        <h2>Conciliación de depósitos Airbnb — {{ mes_nombre }} {{ anio }}</h2>
+        <form method="get" class="filtros-form">
+            <select name="mes">
+                {% for numero, nombre in meses %}
+                <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+            <select name="anio">
+                {% for a in anios %}
+                <option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Ver</button>
+            <a href="{% url 'admin:airbnb_pagoairbnb_changelist' %}" class="btn btn-secondary">Volver a pagos</a>
+        </form>
+    </div>
+
+    <p class="nota">
+        Airbnb no deposita reserva por reserva: junta en un solo payout las que
+        liquida el mismo día. Aquí se suma el neto de cada payout y se busca el
+        abono correspondiente en los estados de cuenta cargados en contabilidad,
+        por referencia o por importe dentro de los días siguientes. Cuando dos
+        abonos encajan igual de bien, el depósito queda marcado para que lo
+        resuelvas tú: lo que confirmes a mano queda guardado.
+    </p>
+
+    <div class="cards-row">
+        <div class="card-stat">
+            <div class="valor">{{ totales.num_depositos }}</div>
+            <div class="label">Depósitos del mes</div>
+        </div>
+        <div class="card-stat ok">
+            <div class="valor">{{ totales.num_conciliados }}</div>
+            <div class="label">Cuadrados con el banco</div>
+        </div>
+        <div class="card-stat">
+            <div class="valor">${{ totales.esperado|floatformat:2|intcomma }}</div>
+            <div class="label">Neto esperado</div>
+        </div>
+        <div class="card-stat ok">
+            <div class="valor">${{ totales.conciliado|floatformat:2|intcomma }}</div>
+            <div class="label">Confirmado en banco</div>
+        </div>
+        <div class="card-stat {% if totales.num_ambiguos %}alerta{% endif %}">
+            <div class="valor">{{ totales.num_ambiguos }}</div>
+            <div class="label">Requieren decisión</div>
+        </div>
+        <div class="card-stat {% if totales.diferencia %}alerta{% endif %}">
+            <div class="valor">${{ totales.diferencia|floatformat:2|intcomma }}</div>
+            <div class="label">Diferencia</div>
+        </div>
+    </div>
+
+    {% for deposito in depositos %}
+    <div class="deposito {{ deposito.estado }}">
+        <div class="deposito-head">
+            <div>
+                <strong>{{ deposito.fecha|date:"d/m/Y" }}</strong>
+                <span class="etiqueta {{ deposito.estado }}">
+                    {% if deposito.estado == 'CONCILIADO' %}Cuadra
+                    {% elif deposito.estado == 'DIFERENCIA' %}Diferencia
+                    {% elif deposito.estado == 'AMBIGUO' %}Requiere decisión
+                    {% elif deposito.estado == 'SIN_MOVIMIENTO' %}Sin movimiento bancario
+                    {% else %}Sin payout en el CSV{% endif %}
+                </span>
+                {% if deposito.confirmado %}
+                <span class="confirmado-por">· conciliado a mano</span>
+                {% endif %}
+                <div class="payout">{{ deposito.payout_id|default:"—" }}</div>
+            </div>
+            <div class="total">${{ deposito.total|floatformat:2|intcomma }}</div>
+        </div>
+
+        <div class="banco">
+            {% if deposito.movimiento %}
+                Banco: {{ deposito.movimiento.estado_cuenta.cuenta_bancaria }} —
+                {{ deposito.movimiento.fecha|date:"d/m/Y" }} —
+                ${{ deposito.movimiento.abono|floatformat:2|intcomma }}
+                {% if deposito.movimiento.descripcion %} — {{ deposito.movimiento.descripcion }}{% endif %}
+                {% if deposito.diferencia %}
+                    <span class="diferencia">
+                        (difiere ${{ deposito.diferencia|floatformat:2|intcomma }})
+                    </span>
+                {% endif %}
+            {% elif deposito.estado == 'AMBIGUO' %}
+                Hay {{ deposito.candidatos|length }} abonos del mismo importe en
+                la ventana de fechas y el banco no conservó el id del payout.
+                El sistema no elige por ti: indica cuál corresponde.
+            {% elif deposito.estado == 'SIN_PAYOUT' %}
+                Estos pagos no traen payout en el CSV, así que no hay depósito
+                contra el cual cuadrarlos. Reimporta el archivo completo de
+                Airbnb —el que incluye las filas de transferencia— para
+                agruparlos.
+            {% else %}
+                No se encontró el abono en los estados de cuenta cargados. Falta
+                cargar el estado de cuenta del período, o el banco todavía no
+                abonó el depósito.
+            {% endif %}
+        </div>
+
+        {% if deposito.estado == 'AMBIGUO' %}
+        <form method="post" class="resolver">
+            {% csrf_token %}
+            <input type="hidden" name="payout_id" value="{{ deposito.payout_id }}">
+            <select name="movimiento_id">
+                {% for candidato in deposito.candidatos %}
+                <option value="{{ candidato.pk }}">
+                    {{ candidato.fecha|date:"d/m/Y" }} —
+                    ${{ candidato.abono|floatformat:2|intcomma }} —
+                    {{ candidato.estado_cuenta.cuenta_bancaria }}
+                    {% if candidato.descripcion %}— {{ candidato.descripcion }}{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit">Es este</button>
+        </form>
+        {% elif deposito.confirmado %}
+        <form method="post" class="resolver">
+            {% csrf_token %}
+            <input type="hidden" name="payout_id" value="{{ deposito.payout_id }}">
+            <button type="submit" name="deshacer" value="1" class="deshacer">
+                Soltar emparejamiento
+            </button>
+        </form>
+        {% endif %}
+
+        <table class="tabla-pagos">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Huésped</th>
+                    <th>Anuncio</th>
+                    <th>Check-in</th>
+                    <th style="text-align:right">Neto</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pago in deposito.pagos %}
+                <tr>
+                    <td>
+                        <a href="{% url 'admin:airbnb_pagoairbnb_change' pago.pk %}">
+                            {{ pago.codigo_confirmacion|default:"—" }}
+                        </a>
+                    </td>
+                    <td>{{ pago.huesped }}</td>
+                    <td>{{ pago.anuncio.nombre|default:"—" }}</td>
+                    <td>{{ pago.fecha_checkin|date:"d/m/Y" }}</td>
+                    <td class="num">${{ pago.monto_neto|floatformat:2|intcomma }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% empty %}
+    <div class="vacio">
+        No hay pagos de Airbnb con fecha de pago en {{ mes_nombre }} de {{ anio }}.
+    </div>
+    {% endfor %}
+
+</div>
+{% endblock %}

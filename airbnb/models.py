@@ -431,3 +431,40 @@ class ConflictoCalendario(models.Model):
         verbose_name_plural = "Conflictos de Calendario"
         ordering = ['-fecha_conflicto']
         unique_together = ['reserva_airbnb', 'cotizacion', 'fecha_conflicto']
+
+
+class DepositoConciliado(models.Model):
+    """
+    Emparejamiento confirmado a mano entre un payout de Airbnb y el abono
+    del banco.
+
+    Existe porque el emparejamiento automático no siempre puede decidir: si el
+    banco no conservó el id del payout y dos depósitos coinciden en importe y
+    fecha, cualquier asignación sería una adivinanza. En ese caso el sistema
+    no elige —los marca como ambiguos— y quien concilia dice cuál es cuál. Lo
+    que se guarda aquí manda sobre el automático y no se vuelve a preguntar.
+    """
+    payout_id = models.CharField(
+        max_length=100, unique=True,
+        verbose_name="Depósito de Airbnb",
+        help_text="El payout tal como lo trae el CSV.",
+    )
+    movimiento = models.OneToOneField(
+        'contabilidad.MovimientoEstadoCuenta',
+        on_delete=models.CASCADE,
+        related_name='deposito_airbnb',
+        verbose_name="Abono del estado de cuenta",
+    )
+    confirmado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    confirmado_at = models.DateTimeField(auto_now_add=True)
+    notas = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Depósito de Airbnb conciliado"
+        verbose_name_plural = "Depósitos de Airbnb conciliados"
+        ordering = ['-confirmado_at']
+
+    def __str__(self):
+        return f"{self.payout_id} → {self.movimiento_id}"

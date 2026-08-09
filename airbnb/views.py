@@ -10,6 +10,7 @@ from datetime import timedelta, datetime
 from decimal import Decimal
 
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import Sum, Count
@@ -19,6 +20,14 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib import messages
 
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
+
+# Nombres de los meses, compartidos por el reporte fiscal y la conciliación de
+# depósitos.
+MESES = {
+    1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+    5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+    9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
+}
 
 
 @staff_member_required
@@ -489,6 +498,89 @@ def dashboard_airbnb(request):
     
     return render(request, 'admin/airbnb/dashboard.html', context)
 
+
+@staff_member_required
+def conciliacion_depositos_airbnb(request):
+    """
+    Cuadra los depósitos de Airbnb del mes contra los abonos del banco.
+
+    Airbnb junta en un solo payout las reservas que liquida el mismo día, así
+    que la conciliación es por depósito y no por reserva: el estado de cuenta
+    trae un abono por payout, no uno por huésped. Antes esto se cuadraba a
+    mano contra el PDF del banco.
+
+    El POST resuelve los depósitos ambiguos: cuando el banco no conservó el id
+    del payout y dos abonos encajan igual de bien, el sistema no elige —quien
+    concilia dice cuál es cuál y la decisión queda guardada—.
+    """
+    from .services import ConciliacionDepositosService
+
+    hoy = timezone.localdate()
+
+    def _entero(nombre, defecto, minimo, maximo):
+        crudo = str(request.GET.get(nombre, defecto)).replace(',', '').strip()
+        try:
+            valor = int(crudo)
+        except (TypeError, ValueError):
+            return defecto
+        return valor if minimo <= valor <= maximo else defecto
+
+    mes = _entero('mes', hoy.month, 1, 12)
+    anio = _entero('anio', hoy.year, 2000, 2100)
+
+    if request.method == 'POST':
+        return _resolver_deposito_airbnb(request, mes, anio)
+
+    servicio = ConciliacionDepositosService(mes=mes, anio=anio)
+    depositos = servicio.conciliar()
+
+    context = {
+        'title': 'Conciliación de depósitos Airbnb',
+        'depositos': depositos,
+        'totales': servicio.totales(depositos),
+        'mes': mes,
+        'anio': anio,
+        'mes_nombre': MESES[mes],
+        'meses': sorted(MESES.items()),
+        'anios': list(range(hoy.year - 2, hoy.year + 1)),
+    }
+    return render(request, 'admin/airbnb/conciliacion_depositos.html', context)
+
+
+def _resolver_deposito_airbnb(request, mes, anio):
+    """Confirma o suelta el abono de un payout, y vuelve al mismo mes."""
+    from contabilidad.models import MovimientoEstadoCuenta
+
+    from .services import ConciliacionDepositosService
+
+    destino = (f"{reverse('conciliacion_depositos_airbnb')}"
+               f"?mes={mes}&anio={anio}")
+    payout_id = (request.POST.get('payout_id') or '').strip()
+    if not payout_id:
+        messages.error(request, "Falta el depósito a conciliar.")
+        return redirect(destino)
+
+    if request.POST.get('deshacer'):
+        if ConciliacionDepositosService.deshacer(payout_id):
+            messages.success(
+                request, f"Se soltó el emparejamiento del depósito {payout_id}.")
+        return redirect(destino)
+
+    try:
+        movimiento = MovimientoEstadoCuenta.objects.get(
+            pk=int(request.POST.get('movimiento_id', '')), abono__gt=0)
+    except (ValueError, TypeError, MovimientoEstadoCuenta.DoesNotExist):
+        messages.error(request, "El movimiento bancario seleccionado no existe.")
+        return redirect(destino)
+
+    ConciliacionDepositosService.confirmar(payout_id, movimiento, request.user)
+    messages.success(
+        request,
+        f"Depósito {payout_id} conciliado con el abono del "
+        f"{movimiento.fecha:%d/%m/%Y} por ${movimiento.abono}.")
+    return redirect(destino)
+
+
 @staff_member_required
 def reporte_fiscal_airbnb(request):
     """
@@ -503,12 +595,6 @@ def reporte_fiscal_airbnb(request):
     from django.template.loader import render_to_string
     from weasyprint import HTML
     from .models import PagoAirbnb, AnuncioAirbnb
-
-    MESES = {
-        1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
-        5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
-        9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
-    }
 
     # `localdate()` y no `now().date()`: con TIME_ZONE='America/Merida' el mes
     # cambiaba seis horas antes de tiempo (mismo bug ya corregido en comercial).

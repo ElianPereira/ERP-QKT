@@ -17,6 +17,12 @@
     </li>
 
     <li>
+        <a href="{% url 'conciliacion_depositos_airbnb' %}?mes={{ mes_actual }}&anio={{ anio_actual }}" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
+            Conciliar depósitos
+        </a>
+    </li>
+
+    <li>
         <form method="get" action="{{ reporte_fiscal_url }}" target="_blank" style="display:inline-flex; align-items:center; gap:6px;">
             <select name="mes" style="padding:5px 8px; border-radius:4px; border:1px solid #4a4845; background:#383632; color:#d4d1c8;">
                 {% for num, nombre in meses %}
