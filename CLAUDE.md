@@ -75,6 +75,22 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-09 — Carga masiva de imágenes de la landing
+  (`/admin/comercial/imagenlanding/carga-masiva/`, Issue #173): sube N
+  archivos de golpe con sección/categoría/enfoque comunes y continúa el
+  `orden` desde el máximo de esa sección, procesando por nombre de archivo.
+  Cada archivo pasa por un `ModelForm`, no por `objects.create(imagen=f)`:
+  `create()` se salta la validación del `ImageField` y un PDF renombrado
+  acabaría en el bucket rompiendo la página con una imagen muerta. El
+  `alt_text` queda vacío a propósito — autogenerarlo desde el nombre del
+  archivo no describe nada y ensucia el SEO. **El límite de 100 archivos por
+  request (`DATA_UPLOAD_MAX_NUMBER_FILES`, default de Django 6) no se sube**:
+  es superficie de DoS en todo el sitio; se captura `TooManyFilesSent` y se
+  pide subir por tandas. La acción hermana desactiva (nunca borra) los
+  registros cuyo archivo ya no está en el storage — es acción sobre
+  selección, no columna de `list_display`, porque `exists()` es una petición
+  de red por fila. Tests con `InMemoryStorage` vía `override_settings`, que
+  ya es el patrón del repo desde `test_recuperar_archivos_cloudinary.py`.
 - 2026-08-09 — `ai-implement.yml`/`ai-review-merge.yml`: varios pasos usan
   `fromJSON(steps.X.outputs.structured_output)` en su `if:`/`env:` sin
   proteger contra que ese step nunca haya corrido (modo Codex/Claude en vez
