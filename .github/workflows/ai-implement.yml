@@ -75,14 +75,29 @@ jobs:
             de aceptación, validaciones reales y riesgos. Marca blocked=true si
             falta una decisión humana, la petición es insegura o no puede
             planificarse con evidencia suficiente.
-          # 25 turnos y TodoWrite permitido: con 12 turnos y solo Read/Grep/Glob,
-          # el Issue #165 agotó el límite sin devolver plan (error_max_turns con
-          # 13 turnos y 5 denegaciones de permiso). Cada herramienta denegada
-          # consume un turno sin producir nada, así que investigar un repo de
-          # este tamaño quedaba en ~7 turnos útiles. TodoWrite no escribe en el
+
+            HERRAMIENTAS: en este paso solo tienes Read, Grep, Glob y TodoWrite.
+            Cualquier otra (Bash, Write, Edit, WebFetch, Task…) está denegada y
+            cada intento gasta un turno sin devolver nada. No las intentes: lo
+            que harías con `bash ls` hazlo con Glob, y lo que harías con
+            `bash grep`/`git log` hazlo con Grep sobre los archivos. Presupuesto
+            de turnos limitado — si te acercas al límite, devuelve el mejor plan
+            que tengas con lo investigado en vez de seguir explorando; un plan
+            parcial es útil y quedarte sin turnos no devuelve nada.
+          # Historial de este límite, para no volver a bajarlo a ciegas:
+          #   Issue #165 → 12 turnos, solo Read/Grep/Glob: error_max_turns a los
+          #     13 turnos con 5 denegaciones. Se subió a 25 y se añadió TodoWrite.
+          #   Issue #173 → 25 turnos: error_max_turns a los 26 con **11**
+          #     denegaciones, o sea ~15 turnos útiles para planificar un cambio
+          #     de admin + plantillas + pruebas. Sin plan, el job muere con
+          #     "Claude did not return structured_output" y el Issue se queda
+          #     sin PR y sin explicación.
+          # De ahí las dos medidas: 45 turnos, y la lista de herramientas
+          # explícita en el prompt para que las denegaciones dejen de comerse
+          # casi la mitad del presupuesto. TodoWrite no escribe en el
           # repositorio — solo lleva la lista de pasos del propio agente.
           claude_args: >-
-            --max-turns 25
+            --max-turns 45
             --allowedTools "Read,Grep,Glob,TodoWrite"
             --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
 
@@ -286,4 +301,32 @@ jobs:
             --title "AI: implementa #${ISSUE_NUMBER}" --body-file /tmp/pr-body.md)
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" \
             --body "La implementación en modo ${MODE_LABEL} quedó lista: $pr_url"
+
+      # Sin esto, un fallo del workflow solo se ve como una X roja en Actions:
+      # el Issue se queda sin PR y sin una sola palabra que lo explique. Así
+      # pasó con #173, que se descubrió por casualidad días después.
+      - name: Report failure on the issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        run: |
+          {
+            echo "## La automatización falló"
+            echo
+            echo "Este Issue **no tiene PR**: el workflow \`AI Implement\` terminó en error."
+            echo
+            if [ "$PLAN_OUTCOME" = "failure" ]; then
+              echo "Falló en la fase de planeación. La causa habitual es agotar el"
+              echo "presupuesto de turnos (\`error_max_turns\`): sin plan estructurado"
+              echo "el job no puede continuar."
+            fi
+            echo
+            echo "Detalle del run: $RUN_URL"
+            echo
+            echo "Vuelve a lanzarlo desde Actions o implementa el Issue a mano."
+          } > /tmp/ai-failure.md
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file /tmp/ai-failure.md
 
