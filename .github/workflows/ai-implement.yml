@@ -105,9 +105,14 @@ jobs:
       - name: Stop on planning blocker
         if: >-
           steps.request.outputs.mode == 'combined' &&
-          fromJSON(steps.plan.outputs.structured_output).blocked == true
+          fromJSON(steps.plan.outputs.structured_output || '{}').blocked == true
         env:
-          BLOCKER: ${{ fromJSON(steps.plan.outputs.structured_output).blocker }}
+          # steps.plan se salta por completo en modo Codex/Claude, así que su
+          # output queda vacío: sin el `|| '{}'` aquí y en el `if:` de arriba,
+          # fromJSON('') revienta la compilación del template para TODO el
+          # job (no solo este step) con "The template is not valid", incluso
+          # en modos que nunca llegan a ejecutar este paso.
+          BLOCKER: ${{ fromJSON(steps.plan.outputs.structured_output || '{}').blocker }}
         run: |
           echo "Claude bloqueó la implementación: $BLOCKER" >&2
           exit 1
@@ -141,7 +146,7 @@ jobs:
             ${{ github.event.issue.body }}
 
             PLAN VERIFICADO POR CLAUDE:
-            ${{ fromJSON(steps.plan.outputs.structured_output).plan }}
+            ${{ fromJSON(steps.plan.outputs.structured_output || '{}').plan }}
 
             Respeta la arquitectura Django, la lógica de negocio y las áreas sensibles.
             Modifica solo los archivos necesarios. No cambies workflows,

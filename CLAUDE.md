@@ -75,6 +75,16 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-09 — `ai-implement.yml`/`ai-review-merge.yml`: varios pasos usan
+  `fromJSON(steps.X.outputs.structured_output)` en su `if:`/`env:` sin
+  proteger contra que ese step nunca haya corrido (modo Codex/Claude en vez
+  de Combinado, donde "Plan with Claude" ni se ejecuta) o haya fallado sin
+  producir salida (`error_max_turns`). `fromJSON('')` revienta la
+  compilación del template de **todo el job** con `The template is not
+  valid`, un error que apunta a una línea sin problema real y oculta la
+  causa (turnos agotados, herramientas denegadas). Se protegieron las siete
+  ocurrencias con `fromJSON(... || '{}')`. Detectado al intentar disparar
+  Codex en modo "Solo Codex" sobre los Issues #168/#169.
 - 2026-08-08 — `.github/workflows/ai-review-merge.yml`: el job "Review,
   correct and merge" fallaba en el paso de `claude-code-action` con
   `Unable to get ACTIONS_ID_TOKEN_REQUEST_URL env variable`, pese a que el
