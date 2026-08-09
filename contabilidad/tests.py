@@ -997,3 +997,142 @@ class PolizaPagoAirbnbTest(TestCase):
         )
         saldo_ingreso = sum(m.haber - m.debe for m in movimientos)
         self.assertEqual(saldo_ingreso, Decimal('10000.00'))
+
+
+class CorregirPolizasAirbnbIvaTest(TestCase):
+    """
+    Reemisión de las pólizas de Airbnb que se generaron sin IVA trasladado.
+
+    Son las anteriores a que el modelo distinguiera ese IVA de las
+    retenciones: cargaban el depósito completo a bancos —que ya lo incluye—
+    pero solo abonaban el ingreso, así que el asiento descuadraba justo por
+    el IVA que el anfitrión tiene que enterar.
+    """
+
+    MONTOS = PolizaPagoAirbnbTest.MONTOS
+
+    def setUp(self):
+        setup_contabilidad_minima()
+
+    @staticmethod
+    def _cuenta(operacion):
+        return ConfiguracionContable.objects.get(operacion=operacion).cuenta
+
+    def _pago_con_poliza_vieja(self):
+        """Reproduce el asiento tal como se emitía antes de la corrección."""
+        from airbnb.models import PagoAirbnb
+
+        pago = PagoAirbnb.objects.create(
+            huesped='Huésped Test',
+            codigo_confirmacion='HMVIEJO',
+            fecha_checkin=date(2026, 3, 10),
+            fecha_checkout=date(2026, 3, 13),
+            fecha_pago=date(2026, 3, 11),
+            estado='PAGADO',
+            **self.MONTOS,
+        )
+        poliza = Poliza.objects.get(origen='PAGO_AIRBNB', object_id=pago.pk)
+        poliza.movimientos.filter(cuenta=self._cuenta('IVA_TRASLADADO')).delete()
+        return pago, poliza
+
+    @staticmethod
+    def _correr(*argumentos):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        salida = StringIO()
+        call_command('corregir_polizas_airbnb_iva', *argumentos,
+                     stdout=salida, stderr=salida)
+        return salida.getvalue()
+
+    def test_la_simulacion_no_escribe_nada(self):
+        pago, poliza = self._pago_con_poliza_vieja()
+
+        self._correr()
+
+        poliza.refresh_from_db()
+        self.assertEqual(poliza.estado, 'APLICADA')
+        self.assertEqual(
+            Poliza.objects.filter(object_id=pago.pk).count(), 1)
+
+    def test_reemite_la_poliza_con_el_iva_trasladado(self):
+        pago, vieja = self._pago_con_poliza_vieja()
+        self.assertEqual(vieja.total_debe - vieja.total_haber, Decimal('1600.00'))
+
+        self._correr('--aplicar')
+
+        vieja.refresh_from_db()
+        self.assertEqual(vieja.estado, 'CANCELADA')
+        nueva = (Poliza.objects
+                 .filter(origen='PAGO_AIRBNB', object_id=pago.pk)
+                 .exclude(pk=vieja.pk).get())
+        self.assertEqual(nueva.estado, 'APLICADA')
+        self.assertEqual(nueva.total_debe, nueva.total_haber)
+        self.assertEqual(
+            nueva.movimientos.get(cuenta=self._cuenta('IVA_TRASLADADO')).haber,
+            Decimal('1600.00'))
+
+    def test_no_borra_ni_edita_el_asiento_original(self):
+        """Queda cancelado y con su motivo, pero con sus movimientos intactos."""
+        pago, vieja = self._pago_con_poliza_vieja()
+        movimientos_antes = list(
+            vieja.movimientos.values_list('cuenta_id', 'debe', 'haber'))
+
+        self._correr('--aplicar')
+
+        vieja.refresh_from_db()
+        self.assertEqual(
+            list(vieja.movimientos.values_list('cuenta_id', 'debe', 'haber')),
+            movimientos_antes)
+        self.assertIn('IVA trasladado', vieja.motivo_cancelacion)
+
+    def test_el_mayor_queda_cuadrado_despues_de_corregir(self):
+        """
+        Lo que importa: sumando original, reversión y póliza nueva, el debe y
+        el haber del mayor coinciden. Antes faltaban $1,600 del lado del haber.
+        """
+        self._pago_con_poliza_vieja()
+
+        self._correr('--aplicar')
+
+        movimientos = MovimientoContable.objects.filter(
+            poliza__estado='APLICADA')
+        debe = sum(m.debe for m in movimientos)
+        haber = sum(m.haber for m in movimientos)
+        self.assertEqual(debe, haber)
+
+    def test_el_iva_trasladado_queda_registrado_una_sola_vez(self):
+        pago, _ = self._pago_con_poliza_vieja()
+
+        self._correr('--aplicar')
+
+        movimientos = MovimientoContable.objects.filter(
+            cuenta=self._cuenta('IVA_TRASLADADO'), poliza__estado='APLICADA')
+        saldo = sum(m.haber - m.debe for m in movimientos)
+        self.assertEqual(saldo, Decimal('1600.00'))
+
+    def test_correrlo_dos_veces_no_duplica_nada(self):
+        pago, _ = self._pago_con_poliza_vieja()
+
+        self._correr('--aplicar')
+        polizas = Poliza.objects.filter(object_id=pago.pk).count()
+        self._correr('--aplicar')
+
+        self.assertEqual(Poliza.objects.filter(object_id=pago.pk).count(),
+                         polizas)
+
+    def test_no_toca_las_polizas_que_ya_traen_el_iva(self):
+        from airbnb.models import PagoAirbnb
+
+        pago = PagoAirbnb.objects.create(
+            huesped='Huésped Test', codigo_confirmacion='HMNUEVO',
+            fecha_checkin=date(2026, 3, 10), fecha_checkout=date(2026, 3, 13),
+            fecha_pago=date(2026, 3, 11), estado='PAGADO', **self.MONTOS,
+        )
+
+        self._correr('--aplicar')
+
+        self.assertEqual(Poliza.objects.filter(object_id=pago.pk).count(), 1)
+        self.assertEqual(
+            Poliza.objects.get(object_id=pago.pk).estado, 'APLICADA')

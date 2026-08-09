@@ -12,7 +12,7 @@ from comercial.views_openpay import (
     openpay_webhook_view, portal_ficha_paynet, portal_procesar_pago_openpay,
     portal_retorno_3ds,
 )
-from airbnb.views import reporte_fiscal_airbnb
+from airbnb.views import reporte_fiscal_airbnb, conciliacion_depositos_airbnb
 
 from comercial.views_portal import (
 landing_publico, portal_acceso, portal_evento,
@@ -117,6 +117,10 @@ urlpatterns = [
 
     #---Reporte contbale airbnb---
     path('admin/airbnb/reporte-fiscal/', reporte_fiscal_airbnb, name='reporte_fiscal_airbnb'),
+
+    #---Conciliación de depósitos Airbnb contra el banco---
+    path('admin/airbnb/conciliacion-depositos/', conciliacion_depositos_airbnb,
+         name='conciliacion_depositos_airbnb'),
 
     # --- MÓDULO REPORTES ---
     path('admin/reportes/', include('reportes.urls')),
