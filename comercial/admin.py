@@ -1,3 +1,6 @@
+import logging
+
+from django import forms
 from django.contrib import admin
 from django.db import models as db_models
 from django.utils.html import format_html, mark_safe
@@ -18,8 +21,11 @@ from .models import (
     TipoEvento, Temporada, Descuento, DescuentoAplicado,
     OpenpayTransaccion,
 )
+from .choices import PosicionLanding
 from .services import CalculadoraBarraService
 from .widgets import TimeSlotWidget
+
+logger = logging.getLogger(__name__)
 
 # Estilo estandarizado para botones
 
@@ -1217,12 +1223,65 @@ class AsignacionPersonalAdmin(admin.ModelAdmin):
 # ==========================================
 # CONTENIDO DE LANDING PAGE
 # ==========================================
+class CargaMasivaImagenLandingForm(forms.ModelForm):
+    """Valida cada archivo de la carga masiva.
+
+    `ImagenLanding.objects.create(imagen=archivo)` se salta la verificación
+    del `ImageField`, así que un PDF renombrado o un `.heic` acabaría en el
+    bucket y después rompería la página web con una imagen muerta. Pasando
+    por el formulario, ese archivo se rechaza antes de subir nada.
+    """
+
+    class Meta:
+        model = ImagenLanding
+        fields = ('seccion', 'categoria_galeria', 'posicion_vertical',
+                  'mostrar_en_galeria', 'titulo', 'imagen', 'orden')
+
+
+class DesactivarSinArchivoMixin:
+    """Acción compartida por los modelos de la landing que guardan imagen.
+
+    Es una acción sobre la selección, no una columna de `list_display`:
+    `exists()` es una petición de red por registro y en la lista dispararía
+    una por fila en cada carga de página.
+    """
+
+    @admin.action(description="Desactivar los que ya no tienen archivo")
+    def desactivar_sin_archivo(self, request, queryset):
+        # Desactivar, nunca borrar: el archivo se puede volver a subir, pero
+        # el orden, la categoría y el alt_text del registro no se recuperan.
+        sin_archivo = []
+        con_archivo = 0
+        for obj in queryset:
+            if not obj.imagen:
+                continue
+            if obj.imagen.storage.exists(obj.imagen.name):
+                con_archivo += 1
+            else:
+                obj.activo = False
+                sin_archivo.append(obj)
+
+        if sin_archivo:
+            queryset.model.objects.bulk_update(sin_archivo, ['activo'])
+            messages.warning(
+                request,
+                f"{len(sin_archivo)} registro(s) sin archivo en el storage: "
+                "quedaron desactivados y fuera de la página web. Vuelve a "
+                "subirles la imagen y reactívalos."
+            )
+        if con_archivo:
+            messages.success(request, f"{con_archivo} registro(s) conservan su archivo.")
+        if not sin_archivo and not con_archivo:
+            messages.info(request, "Ninguno de los registros seleccionados tiene imagen asignada.")
+
+
 @admin.register(ImagenLanding)
-class ImagenLandingAdmin(admin.ModelAdmin):
+class ImagenLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
     list_display = ('preview_mini', 'seccion', 'categoria_galeria', 'mostrar_en_galeria', 'titulo', 'orden', 'activo')
     list_filter = ('seccion', 'categoria_galeria', 'mostrar_en_galeria', 'activo')
     list_editable = ('orden', 'activo')
     list_display_links = ('preview_mini', 'seccion')
+    actions = ['desactivar_sin_archivo']
     fieldsets = (
         (None, {
             'fields': ('seccion', 'categoria_galeria', 'mostrar_en_galeria', 'imagen', 'posicion_vertical', 'preview_grande'),
@@ -1232,6 +1291,113 @@ class ImagenLandingAdmin(admin.ModelAdmin):
         }),
     )
     readonly_fields = ('preview_grande',)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [path(
+            'carga-masiva/',
+            self.admin_site.admin_view(self.carga_masiva_view),
+            name='imagenlanding_carga_masiva',
+        )]
+        return my_urls + urls
+
+    def carga_masiva_view(self, request):
+        from pathlib import Path
+
+        from django.conf import settings
+        from django.core.exceptions import PermissionDenied, TooManyFilesSent
+
+        # admin_view() solo comprueba is_staff; esta vista crea registros, así
+        # que exige además el permiso de alta del modelo.
+        if not request.user.has_perm('comercial.add_imagenlanding'):
+            raise PermissionDenied
+
+        limite = settings.DATA_UPLOAD_MAX_NUMBER_FILES
+        contexto = {
+            'title': 'Carga masiva de imágenes',
+            'secciones': ImagenLanding.SECCION_CHOICES,
+            'categorias': ImagenLanding.CATEGORIA_GALERIA_CHOICES,
+            'posiciones': PosicionLanding.choices,
+            'limite_archivos': limite,
+        }
+        if request.method != 'POST':
+            return render(request, 'comercial/carga_masiva_imagenes.html', contexto)
+
+        try:
+            # TooManyFilesSent salta al tocar request.POST/FILES, antes de que
+            # la vista pueda contar nada. El límite no se sube globalmente
+            # (es superficie de DoS en todo el sitio): se avisa y se pide
+            # subir en tandas.
+            archivos = sorted(request.FILES.getlist('imagenes'), key=lambda f: f.name)
+            seccion = request.POST.get('seccion') or ''
+            categoria = request.POST.get('categoria_galeria') or ''
+            posicion = request.POST.get('posicion_vertical') or PosicionLanding.CENTER
+            mostrar_en_galeria = request.POST.get('mostrar_en_galeria') == '1'
+        except TooManyFilesSent:
+            messages.error(
+                request,
+                f"Enviaste más de {limite} archivos de una vez. Súbelos en "
+                f"tandas de máximo {limite}."
+            )
+            return redirect('.')
+
+        if not archivos:
+            messages.error(request, "No seleccionaste ninguna imagen.")
+            return redirect('.')
+        if seccion not in dict(ImagenLanding.SECCION_CHOICES):
+            messages.error(request, "Elige una sección válida.")
+            return redirect('.')
+
+        # El orden continúa desde el máximo de la sección: el orden en que se
+        # nombran los archivos es el orden en que salen en la página.
+        orden = ImagenLanding.objects.filter(seccion=seccion).aggregate(
+            db_models.Max('orden')
+        )['orden__max'] or 0
+
+        creadas = 0
+        invalidos = []
+        errores = 0
+        for archivo in archivos:
+            datos = {
+                'seccion': seccion,
+                'categoria_galeria': categoria,
+                'posicion_vertical': posicion,
+                'mostrar_en_galeria': mostrar_en_galeria,
+                # El alt_text lo escribe una persona: autogenerarlo desde el
+                # nombre del archivo no describe nada y ensucia el SEO.
+                'titulo': Path(archivo.name).stem[:120],
+                'orden': orden + 1,
+            }
+            form = CargaMasivaImagenLandingForm(datos, {'imagen': archivo})
+            if not form.is_valid():
+                invalidos.append(archivo.name)
+                continue
+            try:
+                form.save()
+            except Exception:
+                errores += 1
+                logger.exception("Error subiendo la imagen %s en la carga masiva", archivo.name)
+                continue
+            orden += 1
+            creadas += 1
+
+        if creadas:
+            messages.success(
+                request,
+                f"{creadas} imagen(es) creada(s) en «{dict(ImagenLanding.SECCION_CHOICES)[seccion]}». "
+                "Les falta el texto alternativo: complétalo en cada una para accesibilidad y SEO."
+            )
+        if invalidos:
+            resumen = ", ".join(invalidos[:5])
+            extra = f" (+{len(invalidos) - 5} más)" if len(invalidos) > 5 else ""
+            messages.warning(
+                request,
+                f"{len(invalidos)} archivo(s) descartado(s) por no ser imágenes válidas: {resumen}{extra}. "
+                "Los .heic de iPhone hay que convertirlos a JPG antes de subirlos."
+            )
+        if errores:
+            messages.error(request, f"{errores} archivo(s) fallaron al subir por un error técnico.")
+        return redirect('..')
 
     @admin.display(description="Preview")
     def preview_mini(self, obj):
@@ -1275,10 +1441,11 @@ class TestimonioLandingAdmin(admin.ModelAdmin):
 
 
 @admin.register(EspacioLanding)
-class EspacioLandingAdmin(admin.ModelAdmin):
+class EspacioLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
     list_display = ('preview_mini', 'nombre', 'capacidad', 'orden', 'activo')
     list_editable = ('orden', 'activo')
     list_display_links = ('preview_mini', 'nombre')
+    actions = ['desactivar_sin_archivo']
     fieldsets = (
         (None, {'fields': ('nombre', 'imagen', 'posicion_vertical', 'capacidad', 'descripcion')}),
         ('Opciones', {'fields': ('orden', 'activo')}),
