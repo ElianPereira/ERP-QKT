@@ -113,6 +113,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .paq-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem;}
 .paq-nombre{font-size:1rem;font-weight:600;color:var(--verde-d);}
 .paq-precio{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;color:var(--verde);white-space:nowrap;}
+.paq-iva{font-size:.68rem;font-weight:400;color:var(--texto-s);white-space:nowrap;margin-top:.15rem;}
 .paq-desc{font-size:.78rem;color:var(--texto-s);font-weight:300;line-height:1.5;margin-bottom:.7rem;}
 .paq-detalle{font-size:.75rem;color:var(--texto-s);font-weight:300;line-height:1.6;white-space:pre-line;}
 .paq-empty{text-align:center;padding:2rem 1rem;color:var(--texto-s);font-size:.88rem;font-weight:300;}
@@ -635,7 +636,7 @@ function renderPaquetes(paquetes) {
     html += '<div class="paq-card" data-paq-id="' + p.id + '" onclick="selPaquete(' + p.id + ',this)">';
     html += '<div class="paq-header"><div class="paq-nombre">' + esc(p.nombre) + '</div>';
     html += '<div style="text-align:right;"><div class="paq-precio">' + precioFmt + '</div>';
-    html += '<div style="font-size:.6rem;color:var(--texto-s);font-weight:400;">IVA incluido</div></div></div>';
+    html += '<div class="paq-iva">Precios en MXN, IVA incluido</div></div></div>';
     if (p.descripcion) html += '<div class="paq-desc">' + esc(p.descripcion) + '</div>';
     if (p.descripcion_larga) {
       html += '<div class="paq-detalle">' + esc(p.descripcion_larga).replace(/\n/g, '<br>') + '</div>';
