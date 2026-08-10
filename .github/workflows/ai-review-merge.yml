@@ -18,7 +18,7 @@ jobs:
       actions: read # wait for the CI workflow on the reviewed SHA
       contents: read # checkout and diff inspection
       issues: write # publish review comments on the PR
-      pull-requests: read # inspect PR state before using the Claude App token
+      pull-requests: write # gh pr comment uses the addComment GraphQL mutation, which needs write
       id-token: write # required by anthropics/claude-code-action to fetch its OIDC token
     if: startsWith(github.event.pull_request.head.ref, 'ai/combined/issue-')
     runs-on: ubuntu-latest
@@ -51,7 +51,27 @@ jobs:
           persist-credentials: false
 
       - name: Fetch main
-        run: git fetch --no-tags origin main
+        # Dos problemas distintos aquí, los dos detectados sobre el PR #180:
+        #
+        # 1) `git fetch origin main` sin refspec de destino solo actualiza
+        #    FETCH_HEAD, no refs/remotes/origin/main; esa ref quedaba vieja o
+        #    inexistente y todo lo que compara contra `origin/main` se rompía
+        #    en silencio. Se corrige con el refspec de destino explícito.
+        # 2) Aun con la ref bien apuntada, el checkout de un SHA concreto (no
+        #    una rama) deja el repo realmente shallow pese a `fetch-depth: 0`
+        #    en el checkout: el reviewer siguió reportando "clon shallow, sin
+        #    merge-base" incluso después del fix (1). Sin un merge-base real,
+        #    `git rev-list --count origin/main..HEAD` cuenta como "nuevos"
+        #    commits de la historia de main que en realidad ya son
+        #    ancestros de HEAD, así que el contador de rondas de corrección
+        #    se disparaba en falso. `--unshallow` fuerza la historia completa
+        #    (solo aplica si el repo sigue shallow; falla si no lo está).
+        run: |
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            git fetch --no-tags --force --unshallow origin main:refs/remotes/origin/main
+          else
+            git fetch --no-tags --force origin main:refs/remotes/origin/main
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -83,9 +103,17 @@ jobs:
             innecesarios. Devuelve approved=true únicamente cuando no exista
             ninguna observación bloqueante. En findings entrega observaciones
             concretas y accionables.
+          # Historial de este límite (mismo patrón que ai-implement.yml, Issues
+          # #165/#173): con 10 turnos y sin TodoWrite, el PR #180 agotó turnos
+          # (error_max_turns, 11 turnos, 6 denegaciones) sin devolver
+          # structured_output y tumbó el job entero. Se subió a 30 con
+          # TodoWrite y una ejecución completó en 39 turnos (12 denegaciones),
+          # pero la siguiente volvió a agotar turnos a los 31 con 17
+          # denegaciones: el conteo de denegaciones es no determinista de una
+          # corrida a otra, así que 30 no da margen suficiente. Se sube a 60.
           claude_args: >-
-            --max-turns 10
-            --allowedTools "Read,Grep,Glob,Bash(git status:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
+            --max-turns 60
+            --allowedTools "Read,Grep,Glob,TodoWrite,Bash(git status:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
             --json-schema '{"type":"object","properties":{"approved":{"type":"boolean"},"findings":{"type":"string"}},"required":["approved","findings"],"additionalProperties":false}'
 
       - name: Publish review result
@@ -114,9 +142,16 @@ jobs:
       - name: Count automated correction rounds
         if: fromJSON(steps.review.outputs.structured_output || '{}').approved != true
         id: rounds
+        # No usar `git rev-list --count origin/main..HEAD`: incluso con
+        # origin/main bien apuntada, depende de que el checkout tenga un
+        # merge-base real con main (ver comentario del paso "Fetch main"), y
+        # cuando falla lo hace en silencio contando de más. Contar en su
+        # lugar los commits que el propio paso "Push correction" produce más
+        # abajo (mensaje fijo "ai: address review for PR #N") es exacto y no
+        # depende de la topología de main.
         run: |
-          count=$(git rev-list --count origin/main..HEAD)
-          if [ "$count" -lt 3 ]; then echo "can_fix=true" >> "$GITHUB_OUTPUT"; else echo "can_fix=false" >> "$GITHUB_OUTPUT"; fi
+          count=$(git log --oneline --grep="^ai: address review for PR #${{ github.event.pull_request.number }}$" | wc -l)
+          if [ "$count" -lt 2 ]; then echo "can_fix=true" >> "$GITHUB_OUTPUT"; else echo "can_fix=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Stop after two correction rounds
         if: >-
@@ -244,5 +279,3 @@ jobs:
           current_sha=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
           test "$current_sha" = "$EXPECTED_SHA" || { echo "El PR cambió durante la revisión" >&2; exit 1; }
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
-
-
