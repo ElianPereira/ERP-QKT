@@ -96,10 +96,13 @@ jobs:
           # Historial de este límite (mismo patrón que ai-implement.yml, Issues
           # #165/#173): con 10 turnos y sin TodoWrite, el PR #180 agotó turnos
           # (error_max_turns, 11 turnos, 6 denegaciones) sin devolver
-          # structured_output y tumbó el job entero. Se sube a 30 y se agrega
-          # TodoWrite (no toca el repo, solo organiza los pasos del agente).
+          # structured_output y tumbó el job entero. Se subió a 30 con
+          # TodoWrite y una ejecución completó en 39 turnos (12 denegaciones),
+          # pero la siguiente volvió a agotar turnos a los 31 con 17
+          # denegaciones: el conteo de denegaciones es no determinista de una
+          # corrida a otra, así que 30 no da margen suficiente. Se sube a 60.
           claude_args: >-
-            --max-turns 30
+            --max-turns 60
             --allowedTools "Read,Grep,Glob,TodoWrite,Bash(git status:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
             --json-schema '{"type":"object","properties":{"approved":{"type":"boolean"},"findings":{"type":"string"}},"required":["approved","findings"],"additionalProperties":false}'
 
