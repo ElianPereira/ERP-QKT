@@ -18,7 +18,7 @@ jobs:
       actions: read # wait for the CI workflow on the reviewed SHA
       contents: read # checkout and diff inspection
       issues: write # publish review comments on the PR
-      pull-requests: read # inspect PR state before using the Claude App token
+      pull-requests: write # gh pr comment uses the addComment GraphQL mutation, which needs write
       id-token: write # required by anthropics/claude-code-action to fetch its OIDC token
     if: startsWith(github.event.pull_request.head.ref, 'ai/combined/issue-')
     runs-on: ubuntu-latest
