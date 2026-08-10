@@ -68,7 +68,9 @@
         </div>
         
         <div class="footer">
-            <a href="https://wa.me/529991699191">¿Necesitas ayuda? Escríbenos</a>
+            {% if wa_numero %}
+            <a href="https://wa.me/{{ wa_numero }}">¿Necesitas ayuda? Escríbenos</a>
+            {% endif %}
             <div style="margin-top:10px;">
                 <a href="{% url 'legal:aviso_privacidad' %}" target="_blank">Aviso de Privacidad</a>
                 <span style="opacity:.5; margin:0 6px;">·</span>

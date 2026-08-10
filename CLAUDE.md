@@ -75,6 +75,33 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-10 — Notificaciones transaccionales unificadas (Issue #181).
+  `comunicacion/services.py` es el único transporte (email + WhatsApp texto +
+  plantilla) y `services_notificaciones.py` la única capa de negocio; el
+  cotizador, los signals y el cron solo la llaman. Hallazgos que no eran
+  obvios: **había dos comandos de recordatorios**, y el de `comercial`
+  (`enviar_recordatorios_pagos`) ya mandaba WhatsApp con otro calendario y
+  otra tabla — se consolidó en `comunicacion.enviar_recordatorios` y el viejo
+  quedó como shim que delega, porque el Cron de Railway lo invoca por ese
+  nombre y su config vive fuera del repo. El calendario ahora es la unión de
+  ambos (`DIAS_AVISO = (3, 0, -1)`). **`transaction.on_commit()` va en los
+  signals, no en el cotizador**: `cotizador_enviar` corre en autocommit (sin
+  `atomic()` ni `ATOMIC_REQUESTS`), así que ahí el callback se ejecuta de
+  inmediato y solo aparentaría una garantía inexistente. La idempotencia es
+  `clave_idempotencia` única + INSERT antes de enviar; el `transaction.atomic()`
+  alrededor **no es opcional**: en PostgreSQL un `IntegrityError` sin savepoint
+  aborta la transacción envolvente y tumba el request, y en SQLite no se
+  reproduce. Los parámetros de plantilla se aplanan con `texto_plano_wa()`
+  porque Meta rechaza saltos de línea, tabuladores y >4 espacios seguidos
+  dentro de una variable, y el `$` vive en el cuerpo aprobado, no en el
+  parámetro. Dos variables distintas para dos roles: `WA_NUMERO_NEGOCIO`
+  (destino humano de la alerta interna, **debe diferir del emisor** o Meta
+  responde 131021) y `WA_NUMERO_CONTACTO_PUBLICO` (el `wa.me` que ve el
+  cliente); sin fallback hardcodeado en ninguna de las dos. De paso:
+  `normalizar_telefono_wa()` ya no fabrica un prefijo para números de 8 dígitos
+  —mandaba el mensaje a un desconocido— y el comando usa `timezone.localdate()`
+  en vez de `now().date()`, que devolvía la fecha **UTC** y corría los
+  recordatorios un día entre las 18:00 y la medianoche de Mérida.
 - 2026-08-09 — Carga masiva de imágenes de la landing
   (`/admin/comercial/imagenlanding/carga-masiva/`, Issue #173): sube N
   archivos de golpe con sección/categoría/enfoque comunes y continúa el

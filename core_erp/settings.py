@@ -169,6 +169,34 @@ ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 SERVER_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 
+# --- WHATSAPP CLOUD API (Meta) ---
+# Credenciales del número emisor. Se leen aquí (y no con config() disperso por
+# el código) para que exista una sola fuente y los tests puedan sobreescribirlas.
+WA_PHONE_NUMBER_ID = config('WA_PHONE_NUMBER_ID', default='')
+WA_CLOUD_API_TOKEN = config('WA_CLOUD_API_TOKEN', default='')
+
+# Dos números con roles distintos, y ninguno con fallback en código:
+#   WA_NUMERO_NEGOCIO         → destino de las alertas internas de nueva cotización.
+#                               Debe ser un teléfono que lea una persona y NO puede
+#                               coincidir con el número emisor (Meta rechaza con 131021).
+#   WA_NUMERO_CONTACTO_PUBLICO → el que se le muestra al cliente en los enlaces wa.me
+#                               del portal. Si va vacío, la plantilla oculta el enlace.
+WA_NUMERO_NEGOCIO = config('WA_NUMERO_NEGOCIO', default='')
+WA_NUMERO_CONTACTO_PUBLICO = config('WA_NUMERO_CONTACTO_PUBLICO', default='')
+WA_GRAPH_VERSION = config('WA_GRAPH_VERSION', default='v20.0')
+
+# Plantillas aprobadas en Meta. Los mensajes iniciados por el negocio (pago y
+# recordatorio) solo llegan por plantilla: fuera de la ventana de 24 h Meta
+# rechaza el texto libre con el error 131047. Si una plantilla no está
+# configurada, el envío queda FALLIDO y auditado, sin romper la operación.
+WA_TEMPLATE_LANGUAGE = config('WA_TEMPLATE_LANGUAGE', default='es_MX')
+WA_TEMPLATE_COTIZACION = config('WA_TEMPLATE_COTIZACION', default='')
+WA_TEMPLATE_PAGO = config('WA_TEMPLATE_PAGO', default='')
+WA_TEMPLATE_RECORDATORIO = config('WA_TEMPLATE_RECORDATORIO', default='')
+# Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
+# solo funciona mientras la ventana de 24 h con ese número esté abierta.
+WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
+
 # --- STORAGES (Cloudflare R2, S3-compatible) ---
 STORAGES = {
     "default": {

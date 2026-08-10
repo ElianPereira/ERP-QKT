@@ -110,7 +110,11 @@ def portal_acceso(request):
             except (ValueError, IndexError):
                 error = "Los datos no coinciden. Verifica tu código y teléfono."
     
-    return render(request, 'portal/acceso.html', {'error': error})
+    from comunicacion.services import normalizar_telefono_wa
+    return render(request, 'portal/acceso.html', {
+        'error': error,
+        'wa_numero': normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', '')),
+    })
 
 
 def portal_evento(request, token):
@@ -157,15 +161,14 @@ def portal_evento(request, token):
     porcentaje = cotizacion.porcentaje_pagado
     monto_minimo, monto_minimo_motivo = cotizacion.monto_minimo_pago_detalle()
     
-    # WhatsApp URL
-    wa_numero = '529991699191'
-    try:
-        from .models import ConstanteSistema
-        obj = ConstanteSistema.objects.get(clave='WHATSAPP_NEGOCIO')
-        wa_numero = obj.descripcion or wa_numero
-    except Exception:
-        pass
-    
+    # Número público de contacto para los enlaces wa.me que ve el cliente.
+    # Es el de atención, distinto del emisor de la Cloud API y distinto del
+    # WA_NUMERO_NEGOCIO al que van las alertas internas. Si no está configurado
+    # la plantilla oculta el enlace en vez de renderizar un wa.me/ roto.
+    from comunicacion.services import normalizar_telefono_wa
+    wa_numero = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', ''))
+
+
     context = {
         'portal': portal,
         'cotizacion': cotizacion,
