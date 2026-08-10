@@ -37,6 +37,17 @@ WA_ERRORES_META = {
     131056: 'Demasiados mensajes al mismo destinatario (límite de pares)',
     132000: 'Número de parámetros distinto al que espera la plantilla',
     132001: 'La plantilla no existe o no está aprobada en ese idioma',
+    132005: 'Un parámetro excede el largo permitido por la plantilla',
+    132012: 'Formato de parámetro inválido (revisa saltos de línea y espacios)',
+    # Errores de registro del número emisor: el número existe en la WABA pero no
+    # está dado de alta en la capa de mensajería de la Cloud API. Se resuelve
+    # fijándole el PIN de verificación en dos pasos (POST /{phone_id}/register),
+    # no tocando el código ni el token.
+    133010: 'El número emisor no está registrado en la Cloud API: fíjale el PIN '
+            'de verificación en dos pasos',
+    133005: 'PIN de verificación en dos pasos incorrecto',
+    133016: 'El número está bloqueado temporalmente por demasiados intentos de PIN',
+    190: 'Token inválido o expirado (usa un token permanente de usuario del sistema)',
 }
 
 # Número emisor resuelto contra Meta, cacheado por proceso: es un dato fijo y

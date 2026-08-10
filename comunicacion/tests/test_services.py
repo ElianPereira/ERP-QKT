@@ -96,7 +96,7 @@ class TransporteWhatsAppTest(TestCase):
         self.assertIn('/v20.0/PHONE_ID_TEST/messages', post.call_args.args[0])
 
     def test_errores_de_meta_quedan_auditados_con_su_codigo(self):
-        for codigo in (100, 131026, 131030, 131047, 132001):
+        for codigo in (100, 131026, 131030, 131047, 132001, 133010, 190):
             with self.subTest(codigo=codigo):
                 comm, _ = self._enviar(error_meta(codigo))
                 self.assertEqual(comm.estado, 'FALLIDO')
@@ -108,6 +108,15 @@ class TransporteWhatsAppTest(TestCase):
         comm, _ = self._enviar(error_meta(190, 'token inválido', status_code=401))
         self.assertEqual(comm.estado, 'FALLIDO')
         self.assertIn('HTTP 401', comm.error)
+        self.assertIn('token permanente', comm.error)
+
+    def test_numero_emisor_sin_registrar(self):
+        # Visto en producción: el número estaba en la WABA pero sin el PIN de
+        # verificación en dos pasos, así que la Cloud API lo rechazaba todo.
+        comm, _ = self._enviar(error_meta(133010, '(#133010) Account not registered'))
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertIn('Meta 133010', comm.error)
+        self.assertIn('PIN de verificación en dos pasos', comm.error)
 
     def test_rate_limit(self):
         comm, _ = self._enviar(error_meta(131056, status_code=429))
