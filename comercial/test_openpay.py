@@ -1137,12 +1137,11 @@ class Retorno3DSExtremoAExtremoTest(TestCase):
     """
 
     def setUp(self):
-        from django.core.cache import cache
-        # El bucket del rate limiting vive en el mismo cache de proceso y no se
-        # reinicia entre tests: sin esto, esta clase acumularía las peticiones
-        # de las anteriores y acabaría recibiendo 429 en vez del flujo real.
+        from core_erp.ratelimit import reset_rate_limit
+
+        # El bucket del rate limiting persiste entre tests en el cache de BD.
         for llave in ('portal_pago_openpay', 'portal_retorno_3ds'):
-            cache.delete(f'rl:{llave}:127.0.0.1')
+            reset_rate_limit(llave, '127.0.0.1', window=60)
 
         self.cotizacion = _crear_cotizacion()
         self.portal = PortalCliente.objects.get(cotizacion=self.cotizacion)

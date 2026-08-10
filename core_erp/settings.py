@@ -142,6 +142,41 @@ DATABASES = {
 db_from_env = dj_database_url.config(conn_max_age=500)
 DATABASES['default'].update(db_from_env)
 
+# --- CACHE COMPARTIDO ENTRE WORKERS ---
+# El default de Django (LocMemCache) vive dentro de cada proceso y gunicorn
+# arranca con --workers 2: los contadores del rate limiting y el candado
+# anti-doble-cobro de Openpay quedarían duplicados e inservibles. Se usa la
+# base de datos, que ya es compartida y no exige provisionar nada nuevo en
+# Railway; la tabla la crea una migración, no hace falta tocar el Dockerfile.
+# Si algún día se provisiona Redis (réplicas, más carga), basta con definir
+# REDIS_URL — en ese mismo PR hay que añadir `redis` a requirements.txt.
+REDIS_URL = config('REDIS_URL', default='')
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'TIMEOUT': 3600,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'qkt_cache',
+            'TIMEOUT': 3600,
+            # MAX_ENTRIES por defecto son 300: con el HTML de los documentos
+            # legales más los buckets del rate limiting, el cull podría borrar
+            # contadores vivos y regalar intentos al atacante.
+            'OPTIONS': {'MAX_ENTRIES': 10000, 'CULL_FREQUENCY': 4},
+        }
+    }
+
+# --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
+ADMIN_LOGIN_VENTANA = config('ADMIN_LOGIN_VENTANA', default=900, cast=int)
+ADMIN_LOGIN_MAX_INTENTOS_IP = config('ADMIN_LOGIN_MAX_INTENTOS_IP', default=10, cast=int)
+ADMIN_LOGIN_MAX_INTENTOS_USUARIO = config('ADMIN_LOGIN_MAX_INTENTOS_USUARIO', default=20, cast=int)
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},

@@ -1,9 +1,12 @@
+import logging
+
 from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias, api_disponibilidad_fecha, api_fechas_ocupadas, api_productos_cotizador, api_paquetes_cotizador, api_total_cotizador
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import logout
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from comercial.views import ver_cartera_cxc, importar_historico_view
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
@@ -13,6 +16,7 @@ from comercial.views_openpay import (
     portal_retorno_3ds,
 )
 from airbnb.views import reporte_fiscal_airbnb, conciliacion_depositos_airbnb
+from core_erp.ratelimit import _client_ip, login_bloqueado
 
 from comercial.views_portal import (
 landing_publico, portal_acceso, portal_evento,
@@ -24,6 +28,8 @@ try:
 except ImportError:
     calendario_unificado = reporte_pagos_airbnb = bloquear_en_airbnb = None
 
+logger = logging.getLogger(__name__)
+
 # --- FUNCIÓN DE LOGOUT MANUAL (CORREGIDA) ---
 def custom_logout(request):
     """
@@ -32,6 +38,23 @@ def custom_logout(request):
     """
     logout(request)
     return redirect('/admin/login/')
+
+
+def admin_login_limitado(request, *args, **kwargs):
+    """Sirve el login del admin con bloqueo por intentos fallidos."""
+    username = request.POST.get('username', '') if request.method == 'POST' else ''
+    if login_bloqueado(request, username):
+        logger.warning(
+            'Login de admin bloqueado por exceso de intentos (IP %s, usuario %s).',
+            _client_ip(request),
+            username,
+        )
+        return HttpResponse(
+            'Demasiados intentos fallidos. Espera unos minutos antes de volver a intentarlo.',
+            status=429,
+            headers={'Retry-After': str(settings.ADMIN_LOGIN_VENTANA)},
+        )
+    return admin.site.login(request, *args, **kwargs)
 
 # Importamos las vistas de Comercial (Manejo de errores por si falta alguna)
 try:
@@ -66,6 +89,7 @@ urlpatterns = [
     
     # FIX LOGOUT: Esta línea intercepta CUALQUIER intento de ir a /admin/logout/
     path('admin/logout/', custom_logout, name='logout'),
+    path('admin/login/', admin_login_limitado, name='admin_login_limitado'),
     path('airbnb/', include('airbnb.urls')),
 
     # --- 2. EL DASHBOARD (Tu página principal del admin) ---
