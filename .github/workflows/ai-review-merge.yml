@@ -51,7 +51,17 @@ jobs:
           persist-credentials: false
 
       - name: Fetch main
-        run: git fetch --no-tags origin main
+        # `git fetch origin main` sin refspec de destino solo actualiza
+        # FETCH_HEAD, no refs/remotes/origin/main. actions/checkout con un
+        # SHA concreto no deja configurado el refspec estándar de origin, así
+        # que esa ref queda inexistente o apuntando a un commit viejo. Todo lo
+        # que compara contra `origin/main` queda roto en silencio: el
+        # reviewer cae a `HEAD^ HEAD` y el contador de rondas de corrección
+        # (`git rev-list --count origin/main..HEAD`) cuenta decenas de
+        # commits de diferencia, dispara "máximo de dos correcciones
+        # automáticas" y tumba el job sin que se haya corrido ninguna
+        # corrección real (visto en el PR #180).
+        run: git fetch --no-tags --force origin main:refs/remotes/origin/main
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
