@@ -1,0 +1,297 @@
+"""Tests del transporte: normalización, errores de Meta, plantillas e idempotencia."""
+from datetime import date, timedelta
+from decimal import Decimal
+from unittest.mock import patch
+
+import requests
+from django.db import IntegrityError
+from django.test import TestCase
+
+from comercial.models import Cliente, Cotizacion
+from comunicacion.models import ComunicacionCliente
+from comunicacion.services import (
+    WA_ERRORES_META,
+    enviar_whatsapp,
+    enviar_whatsapp_template,
+    normalizar_telefono_wa,
+    numero_emisor_wa,
+    reservar_comunicacion,
+    telefono_seguro,
+    texto_plano_wa,
+)
+
+from .utils import (
+    TEL_CLIENTE,
+    TEL_EMISOR,
+    RespuestaFalsa,
+    error_meta,
+    limpiar_cache_emisor,
+    wa_settings,
+)
+
+
+class NormalizarTelefonoTest(TestCase):
+    def test_formatos_mexicanos(self):
+        self.assertEqual(normalizar_telefono_wa('9991234567'), '5219991234567')
+        self.assertEqual(normalizar_telefono_wa('529991234567'), '5219991234567')
+        self.assertEqual(normalizar_telefono_wa('5219991234567'), '5219991234567')
+
+    def test_ignora_separadores(self):
+        self.assertEqual(normalizar_telefono_wa('(999) 123-45 67'), '5219991234567')
+        self.assertEqual(normalizar_telefono_wa('+52 999 123 4567'), '5219991234567')
+
+    def test_valores_invalidos(self):
+        for entrada in ('', None, 'sin dígitos', '123', '12345678'):
+            self.assertEqual(normalizar_telefono_wa(entrada), '', entrada)
+
+    def test_no_inventa_prefijo_para_numeros_cortos(self):
+        # La implementación anterior convertía 8 dígitos en '5219999'+número,
+        # fabricando un destinatario que podía ser una persona real distinta.
+        self.assertEqual(normalizar_telefono_wa('12345678'), '')
+
+    def test_telefono_seguro_solo_expone_ultimos_cuatro(self):
+        seguro = telefono_seguro('5219991234567')
+        self.assertEqual(seguro, '…4567')
+        self.assertNotIn('999123', seguro)
+
+
+class TextoPlanoTest(TestCase):
+    def test_colapsa_saltos_de_linea_y_espacios(self):
+        # Meta rechaza los parámetros de plantilla con saltos de línea.
+        self.assertEqual(texto_plano_wa('Boda\nJardín\t\tprincipal'), 'Boda Jardín principal')
+        self.assertEqual(texto_plano_wa('  hola     mundo  '), 'hola mundo')
+
+    def test_valores_no_texto(self):
+        self.assertEqual(texto_plano_wa(None), '')
+        self.assertEqual(texto_plano_wa(Decimal('1234.50')), '1234.50')
+
+
+@wa_settings()
+class TransporteWhatsAppTest(TestCase):
+    def setUp(self):
+        limpiar_cache_emisor()
+        self.cliente = Cliente.objects.create(nombre='Ana Ruiz', telefono=TEL_CLIENTE)
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente,
+            nombre_evento='Boda Test',
+            fecha_evento=date.today() + timedelta(days=45),
+            num_personas=80,
+            precio_final=Decimal('30000.00'),
+        )
+
+    def _enviar(self, respuesta):
+        with patch('comunicacion.services.requests.post', return_value=respuesta) as post, \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            comm = enviar_whatsapp(
+                cotizacion=self.cot, tipo='OTRO',
+                telefono=TEL_CLIENTE, mensaje='hola',
+            )
+        return comm, post
+
+    def test_envio_correcto_guarda_proveedor_id(self):
+        comm, post = self._enviar(RespuestaFalsa())
+        self.assertEqual(comm.estado, 'ENVIADO')
+        self.assertEqual(comm.proveedor_id, 'wamid.TEST')
+        self.assertEqual(post.call_count, 1)
+        self.assertIn('/v20.0/PHONE_ID_TEST/messages', post.call_args.args[0])
+
+    def test_errores_de_meta_quedan_auditados_con_su_codigo(self):
+        for codigo in (100, 131026, 131030, 131047, 132001):
+            with self.subTest(codigo=codigo):
+                comm, _ = self._enviar(error_meta(codigo))
+                self.assertEqual(comm.estado, 'FALLIDO')
+                self.assertIn(f'Meta {codigo}', comm.error)
+                self.assertIn(WA_ERRORES_META[codigo], comm.error)
+                self.assertIn('TRACE_TEST', comm.error)
+
+    def test_token_invalido(self):
+        comm, _ = self._enviar(error_meta(190, 'token inválido', status_code=401))
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertIn('HTTP 401', comm.error)
+
+    def test_rate_limit(self):
+        comm, _ = self._enviar(error_meta(131056, status_code=429))
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertIn('HTTP 429', comm.error)
+
+    def test_timeout_no_propaga_excepcion(self):
+        with patch('comunicacion.services.requests.post', side_effect=requests.Timeout('timeout')), \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            comm = enviar_whatsapp(
+                cotizacion=self.cot, tipo='OTRO', telefono=TEL_CLIENTE, mensaje='hola',
+            )
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertTrue(comm.error)
+
+    def test_telefono_invalido_no_llama_a_meta(self):
+        with patch('comunicacion.services.requests.post') as post:
+            comm = enviar_whatsapp(
+                cotizacion=self.cot, tipo='OTRO', telefono='abc', mensaje='hola',
+            )
+        post.assert_not_called()
+        self.assertEqual(comm.estado, 'FALLIDO')
+
+    @wa_settings(WA_CLOUD_API_TOKEN='')
+    def test_sin_credenciales_no_llama_a_meta(self):
+        with patch('comunicacion.services.requests.post') as post:
+            comm = enviar_whatsapp(
+                cotizacion=self.cot, tipo='OTRO', telefono=TEL_CLIENTE, mensaje='hola',
+            )
+        post.assert_not_called()
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertIn('no configurado', comm.error)
+
+
+@wa_settings()
+class GuardaEmisorTest(TestCase):
+    """El emisor no puede ser también el destinatario (Meta 131021)."""
+
+    def setUp(self):
+        limpiar_cache_emisor()
+        self.cliente = Cliente.objects.create(nombre='Ana', telefono=TEL_EMISOR)
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Boda',
+            fecha_evento=date.today() + timedelta(days=30),
+            num_personas=50, precio_final=Decimal('1000.00'),
+        )
+
+    def test_destino_igual_al_emisor_no_llama_a_messages(self):
+        respuesta_emisor = RespuestaFalsa(payload={'display_phone_number': TEL_EMISOR})
+        with patch('comunicacion.services.requests.get', return_value=respuesta_emisor), \
+             patch('comunicacion.services.requests.post') as post:
+            comm = enviar_whatsapp(
+                cotizacion=self.cot, tipo='OTRO', telefono=TEL_EMISOR, mensaje='hola',
+            )
+        post.assert_not_called()
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertIn('131021', comm.error)
+
+    def test_el_numero_emisor_se_resuelve_una_sola_vez(self):
+        respuesta_emisor = RespuestaFalsa(payload={'display_phone_number': TEL_EMISOR})
+        with patch('comunicacion.services.requests.get', return_value=respuesta_emisor) as get:
+            self.assertEqual(numero_emisor_wa(), TEL_EMISOR)
+            self.assertEqual(numero_emisor_wa(), TEL_EMISOR)
+        self.assertEqual(get.call_count, 1)
+
+    def test_fallo_al_resolver_el_emisor_no_bloquea_el_envio(self):
+        with patch('comunicacion.services.requests.get', side_effect=requests.Timeout()), \
+             patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post:
+            comm = enviar_whatsapp(
+                cotizacion=self.cot, tipo='OTRO', telefono=TEL_CLIENTE, mensaje='hola',
+            )
+        post.assert_called_once()
+        self.assertEqual(comm.estado, 'ENVIADO')
+
+    def test_un_fallo_de_resolucion_no_se_cachea(self):
+        with patch('comunicacion.services.requests.get', side_effect=requests.Timeout()) as get:
+            self.assertEqual(numero_emisor_wa(), '')
+            self.assertEqual(numero_emisor_wa(), '')
+        self.assertEqual(get.call_count, 2)
+
+
+@wa_settings()
+class PlantillasTest(TestCase):
+    def setUp(self):
+        limpiar_cache_emisor()
+        self.cliente = Cliente.objects.create(nombre='Ana', telefono=TEL_CLIENTE)
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Boda',
+            fecha_evento=date.today() + timedelta(days=30),
+            num_personas=50, precio_final=Decimal('1000.00'),
+        )
+
+    def test_payload_de_plantilla(self):
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            comm = enviar_whatsapp_template(
+                cotizacion=self.cot, tipo='COTIZACION', telefono=TEL_CLIENTE,
+                template_name='qkt_cotizacion_lista',
+                parametros=['Ana', 'Boda\ncivil', '01/01/2027', '1,000.00', 'https://portal.test/x/'],
+            )
+        self.assertEqual(comm.estado, 'ENVIADO')
+        enviado = post.call_args.kwargs['json']
+        self.assertEqual(enviado['type'], 'template')
+        self.assertEqual(enviado['template']['name'], 'qkt_cotizacion_lista')
+        self.assertEqual(enviado['template']['language'], {'code': 'es_MX'})
+        textos = [p['text'] for p in enviado['template']['components'][0]['parameters']]
+        self.assertEqual(len(textos), 5)
+        # Ninguna variable puede llevar saltos de línea: Meta rechaza la plantilla.
+        for texto in textos:
+            self.assertNotIn('\n', texto)
+        self.assertEqual(textos[1], 'Boda civil')
+
+    def test_plantilla_sin_configurar_falla_sin_llamar_a_meta(self):
+        with patch('comunicacion.services.requests.post') as post:
+            comm = enviar_whatsapp_template(
+                cotizacion=self.cot, tipo='CONFIRMACION_PAGO', telefono=TEL_CLIENTE,
+                template_name='', parametros=['x'],
+            )
+        post.assert_not_called()
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertIn('no configurada', comm.error)
+
+    def test_plantilla_inexistente_en_meta(self):
+        with patch('comunicacion.services.requests.post', return_value=error_meta(132001)), \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            comm = enviar_whatsapp_template(
+                cotizacion=self.cot, tipo='COTIZACION', telefono=TEL_CLIENTE,
+                template_name='no_existe', parametros=['x'],
+            )
+        self.assertEqual(comm.estado, 'FALLIDO')
+        self.assertIn('Meta 132001', comm.error)
+
+
+class IdempotenciaTest(TestCase):
+    def setUp(self):
+        self.cliente = Cliente.objects.create(nombre='Ana', email='ana@example.com')
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Boda',
+            fecha_evento=date.today() + timedelta(days=30),
+            num_personas=50, precio_final=Decimal('1000.00'),
+        )
+
+    def test_la_clave_repetida_devuelve_none(self):
+        campos = dict(
+            cotizacion=self.cot, canal='EMAIL', tipo='COTIZACION',
+            destinatario='ana@example.com', clave_idempotencia='cotizacion:1:web:email',
+        )
+        primera = reservar_comunicacion(**campos)
+        segunda = reservar_comunicacion(**campos)
+        self.assertIsNotNone(primera)
+        self.assertIsNone(segunda)
+        self.assertEqual(ComunicacionCliente.objects.count(), 1)
+
+    def test_el_integrityerror_no_deja_la_transaccion_rota(self):
+        # En PostgreSQL un IntegrityError sin savepoint aborta la transacción
+        # envolvente: tras la colisión hay que poder seguir escribiendo.
+        campos = dict(
+            cotizacion=self.cot, canal='EMAIL', tipo='COTIZACION',
+            destinatario='ana@example.com', clave_idempotencia='clave-repetida',
+        )
+        reservar_comunicacion(**campos)
+        self.assertIsNone(reservar_comunicacion(**campos))
+        posterior = reservar_comunicacion(
+            cotizacion=self.cot, canal='EMAIL', tipo='OTRO',
+            destinatario='ana@example.com', clave_idempotencia='otra-clave',
+        )
+        self.assertIsNotNone(posterior)
+        self.assertEqual(ComunicacionCliente.objects.count(), 2)
+
+    def test_sin_clave_no_hay_deduplicacion(self):
+        for _ in range(2):
+            reservar_comunicacion(
+                cotizacion=self.cot, canal='EMAIL', tipo='OTRO',
+                destinatario='ana@example.com',
+            )
+        self.assertEqual(ComunicacionCliente.objects.count(), 2)
+
+    def test_sin_clave_el_integrityerror_se_propaga(self):
+        with patch(
+            'comunicacion.services.ComunicacionCliente.objects.create',
+            side_effect=IntegrityError('otro fallo'),
+        ):
+            with self.assertRaises(IntegrityError):
+                reservar_comunicacion(
+                    cotizacion=self.cot, canal='EMAIL', tipo='OTRO',
+                    destinatario='ana@example.com',
+                )

@@ -41,7 +41,7 @@ jobs:
           DEBUG: 'True'
           ALLOWED_HOSTS: '*'
         run: |
-          coverage run --source='.' manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp
+          coverage run --source='.' manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp comunicacion
           coverage report --skip-covered
 
   security:

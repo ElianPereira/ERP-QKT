@@ -5,7 +5,8 @@ Flujo:
 - Crea Cliente (reutiliza si ya existe por teléfono)
 - Crea Cotización BORRADOR con items reales del catálogo
 - Crea PortalCliente automáticamente
-- Envía notificación WhatsApp al negocio
+- Alerta al negocio y notifica al cliente (email + WhatsApp) vía
+  comunicacion.services_notificaciones
 - Retorna URL del portal para redirigir al cliente
 
 Rutas:
@@ -16,7 +17,6 @@ Rutas:
 
 import json
 import math
-import requests
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
@@ -28,7 +28,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.conf import settings
-from decouple import config
 
 from core_erp.ratelimit import rate_limit
 
@@ -73,26 +72,6 @@ def _redondear_personas(n, es_pasadia=False):
     if es_pasadia:
         return min(int(n), 20)
     return max(20, math.ceil(int(n) / 10) * 10)
-
-
-def _enviar_wa_negocio(mensaje: str) -> bool:
-    wa_token    = config('WA_CLOUD_API_TOKEN', default='')
-    wa_phone_id = config('WA_PHONE_NUMBER_ID', default='')
-    wa_negocio  = config('WA_NUMERO_NEGOCIO', default='529991699191')
-    if not wa_token or not wa_phone_id:
-        return False
-    try:
-        resp = requests.post(
-            f"https://graph.facebook.com/v19.0/{wa_phone_id}/messages",
-            headers={"Authorization": f"Bearer {wa_token}", "Content-Type": "application/json"},
-            json={"messaging_product": "whatsapp", "to": wa_negocio,
-                  "type": "text", "text": {"preview_url": False, "body": mensaje}},
-            timeout=10,
-        )
-        return resp.status_code == 200
-    except Exception as e:
-        logger.error(f"Error WA negocio: {e}")
-        return False
 
 
 # ─── Vistas ──────────────────────────────────────────────────────────────────────────────
@@ -262,7 +241,6 @@ def cotizador_enviar(request):
         cliente.save(update_fields=['es_cliente_fiscal', 'rfc', 'razon_social', 'codigo_postal_fiscal'])
 
     # ── Nombre del evento ──────────────────────────────────────────────────────────────
-    nombres_srv = {'EVENTO': 'Evento Social', 'PASADIA': 'Pastadía', 'ARRENDAMIENTO': 'Arrendamiento de Mobiliario'}
     if servicio == 'EVENTO':
         nombre_evento = f"{tipo_ev} — {nombre}"
     elif servicio == 'PASADIA':
@@ -297,18 +275,11 @@ def cotizador_enviar(request):
     )
     cotizacion.save()
 
-    resumen_partes = []
 
     # ── Paquete seleccionado (si aplica) ─────────────────────────────────────────────────────────
+    # La validación real del paquete la hace _lineas_cotizador(); aquí solo se
+    # pasa el id.
     paquete_id = data.get('paquete_id')
-    paquete_seleccionado = None
-    if paquete_id:
-        try:
-            paquete_seleccionado = Producto.objects.get(
-                id=int(paquete_id), es_paquete=True, visible_cotizador=True,
-            )
-        except (Producto.DoesNotExist, ValueError):
-            pass
 
     # ── Items según servicio ──────────────────────────────────────────────────────────────
     # La composición de las líneas vive en _lineas_cotizador(), compartida con
@@ -325,32 +296,6 @@ def cotizador_enviar(request):
     )
     for prod, qty, desc in lineas:
         _agregar_item(cotizacion, prod, qty, desc)
-
-    # Resumen legible para el aviso interno
-    if paquete_seleccionado:
-        resumen_partes.append(paquete_seleccionado.nombre)
-    elif servicio == 'EVENTO':
-        resumen_partes.append("Paquete Esencial")
-    elif servicio == 'PASADIA':
-        resumen_partes.append("Pastadía")
-    elif servicio == 'ARRENDAMIENTO':
-        resumen_partes.append("Arrendamiento de Mobiliario")
-
-    if servicio in ('EVENTO',) and horas_evento > 6:
-        resumen_partes.append(f"+{horas_evento - 6}hrs")
-
-    barra = []
-    if inc_cerveza:    barra.append("Cerveza")
-    if inc_nacional:   barra.append("Nacional")
-    if inc_premium:    barra.append("Premium")
-    if inc_cocteleria: barra.append("Coctelería")
-    if inc_mixologia:  barra.append("Mixología")
-    if barra and servicio == 'EVENTO':
-        resumen_partes.append("Barra(" + "/".join(barra) + ")")
-
-    for prod, _qty, _desc in lineas:
-        if prod.id in extras_ids:
-            resumen_partes.append(prod.nombre)
 
     # ── Descuentos automáticos ───────────────────────────────────────────────────────────
     # Tras agregar los items (subtotal ya real), evalúa y aplica los descuentos
@@ -371,27 +316,24 @@ def cotizador_enviar(request):
         cotizacion=cotizacion,
         defaults={'activo': True},
     )
-    portal_base = settings.PORTAL_URL
-    portal_url = f"{portal_base}/mi-evento/{portal.token}/"
+    portal_url = portal.get_full_url()
 
-    # ── Notificación WA al negocio ──────────────────────────────────────────────────────────
-    emoji = {'EVENTO': '🎉', 'PASADIA': '☀️', 'ARRENDAMIENTO': '🪑'}.get(servicio, '📋')
-    resumen_txt = ", ".join(resumen_partes) if resumen_partes else "Sin servicios adicionales"
-    _enviar_wa_negocio(
-        f"🔔 *Nueva solicitud web*\n\n"
-        f"{emoji} *Servicio:* {nombres_srv.get(servicio, servicio)}\n"
-        f"👤 *Nombre:* {nombre}\n"
-        f"📞 *Teléfono:* {tel_d}\n"
-        f"📅 *Fecha:* {fecha_evento.strftime('%d/%m/%Y')}\n"
-        f"👥 *Personas:* {num_personas}\n"
-        f"🕐 *Horario:* {hora_ini or '—'} a {hora_fin or '—'}\n"
-        f"📋 *Servicios:* {resumen_txt}\n"
-        + (f"🏷️ *Descuentos:* {descuentos_txt}\n" if descuentos_txt else "")
-        + f"📝 *Notas:* {notas or 'Sin notas'}\n"
-        f"*Nos encontró por:* {como_nos_encontro or 'No indicado'}\n\n"
-        f"🔗 Ver cotización:\n{portal_url}\n\n"
-        f"_COT-{cotizacion.id:03d} — ERP QKT_"
+    # ── Notificaciones ──────────────────────────────────────────────────────────────────
+    # Se disparan aquí, con la cotización, los items, los descuentos y el portal
+    # ya persistidos, para que el total del mensaje sea el definitivo.
+    #
+    # No se usa transaction.on_commit(): esta vista corre en autocommit (no hay
+    # atomic() ni ATOMIC_REQUESTS), así que el callback se ejecutaría igual de
+    # inmediato y solo aparentaría una garantía que no existe.
+    #
+    # Cada canal aísla su propio fallo dentro del servicio: ni Meta ni Brevo
+    # pueden impedir que el cliente reciba su URL del portal.
+    from comunicacion.services_notificaciones import (
+        alertar_equipo_nueva_cotizacion,
+        notificar_cotizacion,
     )
+    alertar_equipo_nueva_cotizacion(cotizacion)
+    notificar_cotizacion(cotizacion, origen='WEB')
 
     if aviso_fecha:
         try:

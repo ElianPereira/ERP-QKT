@@ -448,11 +448,13 @@
         {% endif %}
 
         <!-- WhatsApp -->
+        {% if wa_numero %}
         <div style="text-align:center; margin: 20px 0;">
             <a href="https://wa.me/{{ wa_numero }}?text=Hola%2C%20tengo%20una%20pregunta%20sobre%20mi%20evento%20COT-{{ cotizacion.id|stringformat:'03d' }}" class="btn btn-wa" target="_blank" style="font-size:15px; padding:14px 28px;">
                 <i class="fab fa-whatsapp" style="font-size:20px;"></i> Contactar por WhatsApp
             </a>
         </div>
+        {% endif %}
         
     </div>
     

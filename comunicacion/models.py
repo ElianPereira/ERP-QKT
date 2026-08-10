@@ -61,6 +61,20 @@ class ComunicacionCliente(models.Model):
     proveedor_id = models.CharField(max_length=100, blank=True,
                                      help_text="ID externo (Brevo, WhatsApp, etc.)")
 
+    # Identifica de forma única el par (evento de negocio, canal). El índice
+    # único es la reserva: se inserta la fila ANTES de enviar y un IntegrityError
+    # significa "ya se envió". Es lo que impide duplicados cuando un signal corre
+    # dos veces, el cron repite o Railway reinicia a media ejecución.
+    # Formato: cotizacion:{id}:web:email · pago:{id}:whatsapp ·
+    #          recordatorio:{parcialidad_id}:{YYYY-MM-DD}:email
+    # Nulo en los envíos manuales, donde repetir es legítimo (NULL no colisiona
+    # en un índice único ni en PostgreSQL ni en SQLite).
+    clave_idempotencia = models.CharField(
+        max_length=191, null=True, blank=True, unique=True,
+        verbose_name="Clave de idempotencia",
+        help_text="Evita envíos duplicados del mismo evento por el mismo canal.",
+    )
+
     class Meta:
         verbose_name = "Comunicación con cliente"
         verbose_name_plural = "Comunicaciones con clientes"
