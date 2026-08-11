@@ -75,6 +75,39 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-11 — Rate limiting compartido entre workers + bloqueo de fuerza
+  bruta en `/admin/login/` (Issue #179, PR #180). `LocMemCache` (default de
+  Django) vive por proceso y `gunicorn --workers 2` (Dockerfile) lo hacía
+  inútil: cada worker tenía sus propios contadores de rate limit y su propio
+  candado anti-doble-cobro de Openpay
+  (`comercial/views_openpay.py:pago_openpay_en_curso:`). Se cambió a
+  `django.core.cache.backends.db.DatabaseCache` (tabla `qkt_cache`, creada
+  por migración `comercial/migrations/0069_tabla_cache.py` con
+  `createcachetable`, idempotente); no se provisionó Redis por no tener
+  infraestructura nueva que mantener en Railway. `/admin/login/` ahora
+  bloquea por intentos fallidos (IP y usuario, buckets independientes;
+  `ADMIN_LOGIN_VENTANA`/`_MAX_INTENTOS_IP`/`_MAX_INTENTOS_USUARIO`),
+  interceptando la ruta antes de `admin.site.urls` con el mismo patrón que
+  ya usaba `custom_logout`. La revisión automática del PR (`ai-review-merge.yml`)
+  encontró 4 hallazgos bloqueantes reales que se corrigieron a mano tras dos
+  fallos consecutivos del paso "Review with Claude" (`is_error:true`,
+  `total_cost_usd:0`, `num_turns:1` — fallo a nivel de API, no de config):
+  **(1)** `_contar()` usaba `cache.incr()`, cuyo `set()` interno sin timeout
+  hacía que el bucket cayera al `TIMEOUT` global (3600s) en vez de los
+  `window*2` fijados por el `add()` inicial — un bucket 30x más longevo es
+  candidato temprano al cull por orden lexicográfico de `cache_key`, y
+  `pago_openpay_en_curso:` ordena antes que `rl:`, así que el candado de
+  Openpay habría sido el primero en perderse; ahora cada escritura fija su
+  propio timeout sin pasar por `incr()`. **(2)** `limpiar_intentos_login()`
+  borraba también el bucket de IP en un login exitoso: cualquiera con una
+  credencial válida podía alternar fallos contra otros usuarios (password
+  spraying) con un login propio correcto desde la misma IP y anular el
+  límite por IP; ahora solo se limpia el bucket del usuario que autenticó,
+  el de IP expira por ventana. **(3)** faltaban las 4 variables nuevas en
+  `.env.example`. **(4)** la rama `RedisCache` en `settings.py` era código
+  muerto que rompía el arranque si alguien definía `REDIS_URL` en Railway
+  (`redis` no está en `requirements.txt`); se eliminó en vez de añadir la
+  dependencia fuera de alcance.
 - 2026-08-10 — Notificaciones transaccionales unificadas (Issue #181).
   `comunicacion/services.py` es el único transporte (email + WhatsApp texto +
   plantilla) y `services_notificaciones.py` la única capa de negocio; el
