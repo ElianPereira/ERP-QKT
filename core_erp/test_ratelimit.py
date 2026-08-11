@@ -53,6 +53,21 @@ class CacheCompartidoTest(TestCase):
         with patch('core_erp.ratelimit.time.time', return_value=inicio_ventana + 60):
             self.assertEqual(vista(request).status_code, 200)
 
+    def test_contar_no_extiende_el_ttl_al_incrementar(self):
+        # Antes del fix, el incremento usaba cache.incr(), cuyo set() interno
+        # sin timeout caía al TIMEOUT global (3600s) en vez de respetar
+        # window*2 — el mismo defecto que dejaba el candado anti-doble-cobro
+        # de Openpay como primer candidato al cull.
+        from core_erp.ratelimit import _contar
+
+        bucket = 'rl:test-ttl:0'
+        _contar(bucket, window=1)
+        _contar(bucket, window=1)
+
+        time.sleep(2.5)
+
+        self.assertIsNone(cache.get(bucket))
+
 
 @override_settings(
     ADMIN_LOGIN_VENTANA=900,
@@ -103,16 +118,45 @@ class AdminLoginRateLimitTest(TestCase):
         response = self._post(password=self.password, ip='192.0.2.99')
         self.assertEqual(response.status_code, 429)
 
-    def test_login_correcto_limpia_los_contadores(self):
-        for _ in range(2):
-            self.assertEqual(self._post().status_code, 200)
+    def test_login_correcto_limpia_solo_el_contador_de_usuario(self):
+        # Cada fallo desde una IP distinta para no tocar el límite por IP;
+        # lo que se prueba es que el propio usuario recupera su cupo tras
+        # autenticar correctamente.
+        for numero in range(3):
+            self.assertEqual(self._post(ip=f'192.0.2.{60 + numero}').status_code, 200)
 
-        self.assertEqual(self._post(password=self.password).status_code, 302)
+        self.assertEqual(
+            self._post(password=self.password, ip='192.0.2.63').status_code, 302
+        )
         self.client.get(reverse('logout'))
 
-        for _ in range(2):
-            self.assertEqual(self._post().status_code, 200)
-        self.assertEqual(self._post(password=self.password).status_code, 302)
+        # Si el login correcto no hubiera limpiado el contador del usuario,
+        # este segundo bloque ya arrastraría los 3 fallos previos y el
+        # intento final quedaría bloqueado en vez de autenticar.
+        for numero in range(3):
+            self.assertEqual(self._post(ip=f'192.0.2.{70 + numero}').status_code, 200)
+        self.assertEqual(
+            self._post(password=self.password, ip='192.0.2.73').status_code, 302
+        )
+
+    def test_login_correcto_no_limpia_el_contador_de_ip(self):
+        ip = '192.0.2.80'
+        # Password spraying: 2 fallos contra usuarios distintos desde la
+        # misma IP (el límite por IP es 3).
+        self.assertEqual(self._post(ip=ip, username='otro_admin').status_code, 200)
+        self.assertEqual(self._post(ip=ip).status_code, 200)
+
+        # Login correcto de la cuenta real, misma IP.
+        self.assertEqual(self._post(password=self.password, ip=ip).status_code, 302)
+        self.client.get(reverse('logout'))
+
+        # El contador de IP debe seguir en 2, no en 0: un tercer fallo lo deja
+        # en el límite y el siguiente intento —aunque traiga la contraseña
+        # correcta— debe bloquearse. Si el login correcto hubiera limpiado
+        # bucket_ip, este último intento pasaría con 302.
+        self.assertEqual(self._post(ip=ip).status_code, 200)
+        response = self._post(password=self.password, ip=ip)
+        self.assertEqual(response.status_code, 429)
 
     def test_ip_distinta_no_hereda_el_bloqueo(self):
         for _ in range(settings.ADMIN_LOGIN_MAX_INTENTOS_IP):
