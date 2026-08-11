@@ -52,17 +52,25 @@ def _contar(bucket, window):
     Incrementa y devuelve un contador con expiración de respaldo.
 
     La ventana forma parte de la clave, por lo que no se depende de que el
-    backend conserve el TTL al incrementar. DatabaseCache no hace el incr de
-    forma atómica y puede perder un incremento concurrente; Redis sí es exacto.
+    backend conserve el TTL al incrementar. No se usa cache.incr(): su
+    implementación base hace un set() sin timeout explícito, que en
+    DatabaseCache cae al TIMEOUT global de settings.py (3600 s) en vez de
+    respetar los window*2 fijados por el add() inicial. Un bucket que vive
+    30x más de lo previsto es candidato temprano al cull por orden
+    lexicográfico de cache_key — y 'pago_openpay_en_curso:' ordena antes que
+    'rl:', así que el candado anti-doble-cobro de Openpay sería el primero en
+    perderse. Por eso cada escritura fija su propio timeout.
     """
     if cache.add(bucket, 1, timeout=window * 2):
         return 1
-    try:
-        return cache.incr(bucket)
-    except ValueError:
-        # La clave expiró entre add() e incr().
+    valor = cache.get(bucket)
+    if valor is None:
+        # La clave expiró entre el add() y este get().
         cache.set(bucket, 1, timeout=window * 2)
         return 1
+    valor += 1
+    cache.set(bucket, valor, timeout=window * 2)
+    return valor
 
 
 def rate_limit(key, limit=60, window=60):
@@ -142,9 +150,14 @@ def registrar_login_fallido(request, username):
 
 
 def limpiar_intentos_login(request, username):
-    """Borra los contadores por IP y usuario después de un login correcto."""
-    bucket_ip, bucket_usuario = _buckets_login(request, username)
-    if bucket_ip:
-        cache.delete(bucket_ip)
+    """Borra el contador del usuario que autenticó correctamente.
+
+    El bucket por IP NO se toca aquí a propósito: si un login válido lo
+    limpiara, cualquiera con credenciales de una sola cuenta podría alternar
+    intentos fallidos contra otros usuarios (password spraying) con un login
+    propio correcto desde la misma IP y anular así el límite por IP. Ese
+    bucket solo expira por ventana (ADMIN_LOGIN_VENTANA).
+    """
+    _, bucket_usuario = _buckets_login(request, username)
     if bucket_usuario:
         cache.delete(bucket_usuario)
