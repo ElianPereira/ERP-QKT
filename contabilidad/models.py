@@ -12,6 +12,7 @@ from django.db.models import Sum, Q
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from core_erp.storages_qkt import storage_privado
 from facturacion.choices import RegimenFiscal
 
 # Catálogo de régimenes fiscales SAT: fuente única en facturacion.choices.RegimenFiscal
@@ -793,7 +794,9 @@ class EstadoCuentaBancario(models.Model):
     banco = models.CharField(max_length=20, default='BBVA', verbose_name="Banco")
     periodo_mes = models.PositiveSmallIntegerField(verbose_name="Mes")
     periodo_anio = models.PositiveSmallIntegerField(verbose_name="Año")
-    archivo = models.FileField(upload_to='estados_cuenta/%Y/%m/', verbose_name="Archivo")
+    archivo = models.FileField(
+        upload_to='estados_cuenta/%Y/%m/', verbose_name="Archivo", storage=storage_privado,
+    )
     formato = models.CharField(max_length=5, choices=FORMATO_CHOICES, verbose_name="Formato")
     origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, default='MANUAL')
 

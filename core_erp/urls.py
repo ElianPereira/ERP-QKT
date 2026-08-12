@@ -8,7 +8,7 @@ from django.conf.urls.static import static
 from django.contrib.auth import logout
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from comercial.views import ver_cartera_cxc, importar_historico_view
+from comercial.views import ver_cartera_cxc, importar_historico_view, recuperar_archivos_view
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
 from comercial.views_openpay import (
@@ -16,6 +16,7 @@ from comercial.views_openpay import (
     portal_retorno_3ds,
 )
 from airbnb.views import reporte_fiscal_airbnb, conciliacion_depositos_airbnb
+from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
 
 from comercial.views_portal import (
@@ -129,6 +130,11 @@ urlpatterns = [
 
     # IMPORTACIÓN HISTÓRICA (una sola vez)
     path('admin/importar-historico/', importar_historico_view, name='importar_historico'),
+
+    # RECUPERACIÓN DE ARCHIVOS HISTÓRICOS DE CLOUDINARY (solo superusuario)
+    # Equivale a `manage.py recuperar_archivos_cloudinary`, para cuando no hay
+    # una terminal con las variables de producción.
+    path('admin/recuperar-archivos/', recuperar_archivos_view, name='recuperar_archivos'),
     path('admin/contabilidad/reportes/', include('contabilidad.urls')),
 
     #--- PLAN DE PAGOS---
@@ -171,6 +177,12 @@ urlpatterns = [
 
     # --- WEBHOOK OPENPAY (público, protegido con Basic Auth) ---
     path('pagos/openpay/webhook/', openpay_webhook_view, name='openpay_webhook'),
+
+    # --- DESCARGA DE ARCHIVOS SENSIBLES (sesión + permiso del modelo) ---
+    # Sirve el contenido en vez de publicar la URL del bucket, que es de
+    # lectura anónima. Ver core_erp/descargas.py.
+    path('admin/archivo/<str:app_label>/<str:model_name>/<str:campo>/<int:pk>/',
+         descargar_archivo_privado, name='descargar_archivo_privado'),
 
     # --- 6. ADMIN DE DJANGO (El resto de las URLs del admin) ---
     path('admin/', admin.site.urls),

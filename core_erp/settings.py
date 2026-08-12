@@ -164,6 +164,12 @@ CACHES = {
     }
 }
 
+# --- FEED iCAL PÚBLICO (lo consume Airbnb para bloquear fechas) ---
+# Se lee aquí y no con config() dentro de la vista para que exista una sola
+# fuente y los tests puedan sobreescribirlo con override_settings. Sin valor,
+# la vista responde 403: ver ICAL en airbnb/views.py::generar_ical_eventos.
+ICAL_PUBLIC_TOKEN = config('ICAL_PUBLIC_TOKEN', default='')
+
 # --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
 ADMIN_LOGIN_VENTANA = config('ADMIN_LOGIN_VENTANA', default=900, cast=int)
 ADMIN_LOGIN_MAX_INTENTOS_IP = config('ADMIN_LOGIN_MAX_INTENTOS_IP', default=10, cast=int)
@@ -240,6 +246,29 @@ STORAGES = {
             # False es intencional: el default histórico de django-storages
             # (True) pisa un archivo existente con el mismo nombre en vez de
             # generar uno nuevo con sufijo, a diferencia de FileSystemStorage.
+            "file_overwrite": False,
+        },
+    },
+    # Bucket privado para documentos sensibles (identificaciones ARCO, nómina,
+    # contratos, estados de cuenta). A diferencia del default: sin
+    # custom_domain y con querystring_auth, así las URLs van firmadas y
+    # caducan. Mientras CLOUDFLARE_R2_PRIVATE_BUCKET_NAME esté vacío,
+    # core_erp/storages_qkt.py cae al default y nada cambia — la activación es
+    # solo definir estas variables en Railway. Ver docs/security/.
+    "privado": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": config('CLOUDFLARE_R2_PRIVATE_ACCESS_KEY_ID',
+                                 default=config('CLOUDFLARE_R2_ACCESS_KEY_ID', default='')),
+            "secret_key": config('CLOUDFLARE_R2_PRIVATE_SECRET_ACCESS_KEY',
+                                 default=config('CLOUDFLARE_R2_SECRET_ACCESS_KEY', default='')),
+            "bucket_name": config('CLOUDFLARE_R2_PRIVATE_BUCKET_NAME', default=''),
+            "endpoint_url": f"https://{config('CLOUDFLARE_R2_ACCOUNT_ID', default='')}.r2.cloudflarestorage.com",
+            "region_name": "auto",
+            "signature_version": "s3v4",
+            # Firma cada URL y la caduca: es la diferencia con el bucket público.
+            "querystring_auth": True,
+            "querystring_expire": config('CLOUDFLARE_R2_PRIVATE_URL_EXPIRE', default=300, cast=int),
             "file_overwrite": False,
         },
     },

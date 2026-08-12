@@ -4,7 +4,7 @@ Vistas del módulo Airbnb
 Vistas para calendario unificado, reportes, iCal inverso y bloqueo manual.
 """
 import calendar
-import json
+import logging
 from collections import defaultdict
 from datetime import timedelta, datetime
 from decimal import Decimal
@@ -16,10 +16,11 @@ from django.utils import timezone
 from django.db.models import Sum, Count
 from django.db.models.functions import TruncMonth
 from django.contrib.admin.views.decorators import staff_member_required
-from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib import messages
 
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
+
+logger = logging.getLogger(__name__)
 
 # Nombres de los meses, compartidos por el reporte fiscal y la conciliación de
 # depósitos.
@@ -122,7 +123,11 @@ def calendario_unificado(request):
     ical_url = request.build_absolute_uri('/airbnb/ical/eventos/')
     
     context = {
-        'eventos_json': json.dumps(eventos_lista, cls=DjangoJSONEncoder),
+        # Sin json.dumps: la plantilla lo serializa con |json_script, que
+        # además escapa <, > y &. json.dumps no los escapa, así que un
+        # nombre de cliente con "</script>" —que el cotizador público acepta
+        # sin autenticación— cerraba el bloque <script> e inyectaba HTML.
+        'eventos_json': eventos_lista,
         'conflictos_pendientes': conflictos_pendientes,
         'ical_url': ical_url,
         'title': 'Calendario Unificado',
@@ -297,20 +302,29 @@ def generar_ical_eventos(request):
 
     URL: /airbnb/ical/eventos/?token=XXX
 
-    Si está configurado ICAL_PUBLIC_TOKEN en settings, exige el token por
-    query string. Si no, la URL queda abierta (para retrocompatibilidad).
+    Exige ICAL_PUBLIC_TOKEN siempre (fail-closed). Antes, si la variable no
+    estaba configurada la validación entera se saltaba y el feed quedaba
+    abierto a internet publicando el nombre de cada cliente con su evento y
+    su fecha — que fue exactamente lo que pasó en producción. Sin token
+    configurado la respuesta es 403: es preferible que Airbnb deje de
+    sincronizar, algo visible y reparable, a exponer la cartera en silencio.
     """
+    import hmac
+
+    from django.conf import settings
     from django.http import HttpResponseForbidden
-    from decouple import config
     from comercial.models import Cotizacion
 
-    token_esperado = config('ICAL_PUBLIC_TOKEN', default='')
-    if token_esperado:
-        import hmac
-        token_recibido = request.GET.get('token', '')
-        if not hmac.compare_digest(token_recibido, token_esperado):
-            return HttpResponseForbidden('Token inválido')
-    
+    token_esperado = getattr(settings, 'ICAL_PUBLIC_TOKEN', '')
+    if not token_esperado:
+        logger.error(
+            'ICAL_PUBLIC_TOKEN no está configurado: se rechaza toda petición al feed iCal.'
+        )
+        return HttpResponseForbidden('Feed no disponible')
+
+    if not hmac.compare_digest(request.GET.get('token', ''), token_esperado):
+        return HttpResponseForbidden('Token inválido')
+
     # Solo eventos confirmados (últimos 30 días + futuros)
     cotizaciones = Cotizacion.objects.filter(
         estado='CONFIRMADA',
@@ -339,12 +353,13 @@ def generar_ical_eventos(request):
         dtstamp = timezone.now().strftime('%Y%m%dT%H%M%SZ')
         created = cot.created_at.strftime('%Y%m%dT%H%M%SZ') if hasattr(cot, 'created_at') and cot.created_at else dtstamp
         
-        # Título del evento (Airbnb lo mostrará como "Not available" o el título)
-        titulo = f"EVENTO QKT: {cot.nombre_evento}"
-        
-        # Descripción
-        descripcion = f"Cliente: {cot.cliente.nombre}\\nPersonas: {cot.num_personas}\\nEstado: Confirmado"
-        
+        # Ni el nombre del cliente ni el del evento salen del ERP: el feed solo
+        # existe para que Airbnb bloquee la fecha, y para eso basta el folio.
+        # Publicar "Cliente: NOMBRE" regalaba la cartera a quien tuviera la URL.
+        # Como el folio es numérico, tampoco hay nada que escapar (RFC 5545).
+        titulo = f"EVENTO QKT: COT-{cot.id:03d}"
+        descripcion = "Fecha no disponible."
+
         lineas.extend([
             'BEGIN:VEVENT',
             f'UID:{uid}',
@@ -490,8 +505,9 @@ def dashboard_airbnb(request):
         'reservas_proximas': reservas_proximas,
         'conflictos': conflictos,
         'today': hoy.date(),
-        'ingresos_labels': json.dumps(ingresos_labels),
-        'ingresos_data': json.dumps(ingresos_data),
+        # Sin json.dumps: los serializa la plantilla con |json_script.
+        'ingresos_labels': ingresos_labels,
+        'ingresos_data': ingresos_data,
         'ical_url': ical_url,
         'title': 'Dashboard Airbnb',
     }

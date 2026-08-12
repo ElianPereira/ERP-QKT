@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import F, Sum
 from django.utils.timezone import now
+from core_erp.storages_qkt import storage_privado
 
 from comercial.choices import ModoDescuento, PosicionLanding
 from core_erp import impuestos
@@ -1002,7 +1003,9 @@ class ContratoServicio(models.Model):
     tipo_servicio = models.CharField(max_length=20, choices=TIPO_CHOICES, default='EVENTO')
     deposito_garantia = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
                                             verbose_name="Depósito en Garantía (MXN)")
-    archivo = models.FileField(upload_to='contratos_pdf/', verbose_name="Archivo PDF")
+    archivo = models.FileField(
+        upload_to='contratos_pdf/', verbose_name="Archivo PDF", storage=storage_privado,
+    )
     generado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     generado_en  = models.DateTimeField(auto_now_add=True)
     enviado_email = models.BooleanField(default=False)

@@ -9,6 +9,7 @@ from django.urls import reverse, NoReverseMatch, path
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from core_erp.descargas import url_descarga
 from .models import PortalCliente
 from .models import (
     Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto,
@@ -1097,7 +1098,7 @@ class CompraAdmin(admin.ModelAdmin):
     total_format.short_description = "Total"
     def ver_pdf(self, obj):
         if obj.archivo_pdf:
-            return format_html('<a href="{}" target="_blank">Ver</a>', obj.archivo_pdf.url)
+            return format_html('<a href="{}" target="_blank">Ver</a>', url_descarga(obj, 'archivo_pdf'))
         return "-"
     ver_pdf.short_description = "PDF"
 
@@ -1116,7 +1117,7 @@ class ContratoServicioAdmin(admin.ModelAdmin):
         if obj.archivo:
             return format_html(
                 '<a href="{}" target="_blank" class="btn btn-primary">PDF</a>',
-                obj.archivo.url
+                url_descarga(obj, 'archivo')
             )
         return "—"
 

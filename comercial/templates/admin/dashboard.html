@@ -155,16 +155,22 @@
     </div>
 </div>
 
+{{ chart_labels|json_script:"chart-labels" }}
+{{ chart_ventas_quinta|json_script:"chart-ventas-quinta" }}
+{{ chart_gastos_quinta|json_script:"chart-gastos-quinta" }}
+{{ chart_ingresos_ruby|json_script:"chart-ingresos-ruby" }}
+{{ chart_gastos_ruby|json_script:"chart-gastos-ruby" }}
 <script>
+    var _dato = function (id) { return JSON.parse(document.getElementById(id).textContent); };
     new Chart(document.getElementById('financeChart').getContext('2d'), {
         type: 'bar',
         data: {
-            labels: {{ chart_labels|safe }},
+            labels: _dato('chart-labels'),
             datasets: [
-                { label: 'Ventas QKT', data: {{ chart_ventas_quinta|safe }}, backgroundColor: 'rgba(46, 125, 50, 0.85)', borderRadius: 4 },
-                { label: 'Gastos QKT', data: {{ chart_gastos_quinta|safe }}, backgroundColor: 'rgba(231, 76, 60, 0.7)', borderRadius: 4 },
-                { label: 'Ingresos AIRBNB', data: {{ chart_ingresos_ruby|safe }}, backgroundColor: 'rgba(245, 197, 24, 0.9)', borderRadius: 4 },
-                { label: 'Gastos AIRBNB', data: {{ chart_gastos_ruby|safe }}, backgroundColor: 'rgba(230, 126, 34, 0.85)', borderRadius: 4 }
+                { label: 'Ventas QKT', data: _dato('chart-ventas-quinta'), backgroundColor: 'rgba(46, 125, 50, 0.85)', borderRadius: 4 },
+                { label: 'Gastos QKT', data: _dato('chart-gastos-quinta'), backgroundColor: 'rgba(231, 76, 60, 0.7)', borderRadius: 4 },
+                { label: 'Ingresos AIRBNB', data: _dato('chart-ingresos-ruby'), backgroundColor: 'rgba(245, 197, 24, 0.9)', borderRadius: 4 },
+                { label: 'Gastos AIRBNB', data: _dato('chart-gastos-ruby'), backgroundColor: 'rgba(230, 126, 34, 0.85)', borderRadius: 4 }
             ]
         },
         options: {

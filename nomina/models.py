@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from core_erp.storages_qkt import storage_privado
 
 class Empleado(models.Model):
     # PUESTOS DISPONIBLES
@@ -49,7 +50,9 @@ class ReciboNomina(models.Model):
     )
 
     # El archivo PDF generado
-    archivo_pdf = models.FileField(upload_to='nominas_pdf/', blank=True, null=True)
+    archivo_pdf = models.FileField(
+        upload_to='nominas_pdf/', blank=True, null=True, storage=storage_privado,
+    )
 
     class Meta:
         verbose_name = "Recibo"

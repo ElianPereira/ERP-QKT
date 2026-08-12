@@ -13,7 +13,7 @@ import json
 import os
 from decimal import Decimal
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse, Http404
+from django.http import FileResponse, HttpResponse, Http404
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -74,14 +74,20 @@ def portal_acceso(request):
     - Últimos 4 dígitos de su teléfono
     """
     error = None
-    
+
+    # Un único mensaje para todos los fallos de acceso. Distinguir "no existe
+    # esa cotización" de "el teléfono no coincide" permitía enumerar qué
+    # códigos son válidos —y el código es el id secuencial— antes de gastar un
+    # solo intento adivinando los 4 dígitos.
+    ERROR_ACCESO = "Los datos no coinciden. Verifica tu código y los últimos 4 dígitos de tu teléfono."
+
     if request.method == 'POST':
         codigo = request.POST.get('codigo', '').strip()
         telefono = request.POST.get('telefono', '').strip()
-        
+
         # Limpiar código: aceptar "7", "007", "COT-007", "cot007"
         codigo_limpio = ''.join(filter(str.isdigit, codigo))
-        
+
         if not codigo_limpio or not telefono:
             error = "Ingresa tu código de cotización y los últimos 4 dígitos de tu teléfono."
         elif len(telefono) != 4 or not telefono.isdigit():
@@ -90,7 +96,7 @@ def portal_acceso(request):
             try:
                 cotizacion_id = int(codigo_limpio)
                 cotizacion = Cotizacion.objects.select_related('cliente').get(id=cotizacion_id)
-                
+
                 # Validar últimos 4 dígitos del teléfono
                 tel_cliente = ''.join(filter(str.isdigit, cotizacion.cliente.telefono or ''))
                 if tel_cliente[-4:] == telefono:
@@ -104,12 +110,12 @@ def portal_acceso(request):
                     else:
                         error = "El acceso a este evento está deshabilitado."
                 else:
-                    error = "Los datos no coinciden. Verifica tu código y teléfono."
+                    error = ERROR_ACCESO
             except Cotizacion.DoesNotExist:
-                error = "No encontramos una cotización con ese código."
+                error = ERROR_ACCESO
             except (ValueError, IndexError):
-                error = "Los datos no coinciden. Verifica tu código y teléfono."
-    
+                error = ERROR_ACCESO
+
     from comunicacion.services import normalizar_telefono_wa
     return render(request, 'portal/acceso.html', {
         'error': error,
@@ -241,12 +247,33 @@ def portal_descargar_plan(request, token):
 
 
 def portal_descargar_contrato(request, token):
-    """Descarga el contrato PDF desde el portal."""
+    """Sirve el contrato PDF desde el portal, sin revelar la URL del storage.
+
+    Antes se redirigía a `contrato.archivo.url`, que en R2 es una URL pública y
+    permanente: quedaba en el historial del cliente y podía compartirse —o
+    filtrarse por Referer— dando acceso al contrato a cualquiera. Ahora el
+    contenido pasa por aquí, donde el token del portal sigue siendo el control
+    de acceso, y la respuesta se marca como no cacheable.
+    """
     portal = get_object_or_404(PortalCliente, token=token, activo=True)
     cotizacion = portal.cotizacion
-    
+
     contrato = cotizacion.contratos.filter(archivo__isnull=False).order_by('-generado_en').first()
     if not contrato or not contrato.archivo:
         raise Http404("No hay contrato disponible.")
-    
-    return redirect(contrato.archivo.url)
+
+    try:
+        archivo = contrato.archivo.open('rb')
+    except (FileNotFoundError, OSError):
+        # Registros heredados de Cloudinary que nunca se migraron al storage
+        # actual (ver manage.py recuperar_archivos_cloudinary).
+        raise Http404("El contrato no está disponible en este momento.") from None
+
+    respuesta = FileResponse(
+        archivo,
+        as_attachment=False,
+        filename=f'Contrato_COT-{cotizacion.id:03d}.pdf',
+        content_type='application/pdf',
+    )
+    respuesta['Cache-Control'] = 'private, no-store'
+    return respuesta

@@ -19,6 +19,7 @@ from decimal import Decimal
 from core_erp import impuestos
 from django.template.loader import render_to_string
 from django.core.files.base import ContentFile
+from core_erp.descargas import url_descarga
 from weasyprint import HTML
 from decouple import config
 import logging
@@ -226,14 +227,14 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
                     '<a href="{}" target="_blank" style="background:#27ae60; color:#fff; '
                     'padding:4px 10px; border-radius:4px; font-size:11px; '
                     'text-decoration:none; font-weight:600;">Descargar ZIP</a>',
-                    obj.archivo_zip.url
+                    url_descarga(obj, 'archivo_zip')
                 )
             elif obj.archivo_pdf:
                 return format_html(
                     '<a href="{}" target="_blank" style="background:#27ae60; color:#fff; '
                     'padding:4px 10px; border-radius:4px; font-size:11px; '
                     'text-decoration:none; font-weight:600;">Descargar PDF</a>',
-                    obj.archivo_pdf.url
+                    url_descarga(obj, 'archivo_pdf')
                 )
             return mark_safe('<span style="color:#27ae60; font-weight:600;">Facturada</span>')
 

@@ -75,6 +75,40 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-12 — Auditoría de seguridad (Issue #190, PR #194) y corrección de
+  los dos hallazgos que resultaron explotables. **XSS almacenado no
+  autenticado con toma de sesión de staff**: `json.dumps` **no escapa `<`,
+  `>` ni `&`** —solo comillas y barras—, así que el patrón
+  `{{ x|safe }}` sobre un `json.dumps` dentro de un `<script>` es inyectable
+  en cuanto el dato viene del usuario. En `/admin/calendario/` el dato venía
+  del cotizador **público**: un POST anónimo a `/cotizar/enviar/` con
+  `</script><script>…` en el nombre quedaba persistido en `nombre_evento` y
+  se ejecutaba en el navegador de cualquier staff que abriera el calendario.
+  Confirmado ejecutándolo, no leyéndolo. Se corrigió con `|json_script`, que
+  sí escapa esos tres caracteres y además mete el JSON en un
+  `<script type="application/json">` no ejecutable; el contexto pasa la
+  lista **sin serializar** (el filtro serializa, y con `DjangoJSONEncoder`,
+  así que las fechas siguen funcionando). Mismo cambio en los dos dashboards
+  por higiene. Ojo al tocarlos: los tests que hacían
+  `json.loads(response.context['chart_labels'])` ahora reciben una lista.
+  **Feed iCal abierto**: `generar_ical_eventos` hacía `if token_esperado:`
+  sobre un `config(..., default='')` — sin la variable, la validación entera
+  se saltaba (fail-open, y documentado como "retrocompatibilidad"). En
+  producción `ICAL_PUBLIC_TOKEN` **no estaba definida**, así que el `.ics`
+  se descargaba sin autenticación con nombre de cliente, evento, asistentes
+  y fecha de cada cotización confirmada. Ahora es fail-closed (403 sin
+  token) y el `.ics` solo lleva `COT-NNN`: el feed existe para que Airbnb
+  bloquee la fecha, no para publicar la cartera. Al eliminar el texto libre
+  desaparece de paso la inyección CRLF del RFC 5545. El token se lee de
+  `settings.ICAL_PUBLIC_TOKEN` y no con `config()` dentro de la vista,
+  siguiendo la convención ya escrita en `settings.py` para las variables de
+  WhatsApp: una sola fuente y `override_settings` en los tests. **Contener
+  la fuga no requirió desplegar**: bastó definir la variable en Railway y
+  añadir `?token=…` a la URL registrada en Airbnb — sin eso, Airbnb deja de
+  sincronizar en silencio. Quedan pendientes 46 tareas del backlog, entre
+  ellas verificar si el bucket R2 sirve las identificaciones ARCO por URL
+  sin firma (`querystring_auth: False`) y si existen respaldos probados de
+  PostgreSQL.
 - 2026-08-11 — Rate limiting compartido entre workers + bloqueo de fuerza
   bruta en `/admin/login/` (Issue #179, PR #180). `LocMemCache` (default de
   Django) vive por proceso y `gunicorn --workers 2` (Dockerfile) lo hacía

@@ -185,15 +185,17 @@
 
 </div>
 
+{{ ingresos_labels|json_script:"ingresos-labels" }}
+{{ ingresos_data|json_script:"ingresos-data" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     new Chart(document.getElementById('chartIngresos').getContext('2d'), {
         type: 'bar',
         data: {
-            labels: {{ ingresos_labels|safe }},
+            labels: JSON.parse(document.getElementById('ingresos-labels').textContent),
             datasets: [{
                 label: 'Ingresos Netos',
-                data: {{ ingresos_data|safe }},
+                data: JSON.parse(document.getElementById('ingresos-data').textContent),
                 backgroundColor: 'rgba(46, 125, 50, 0.7)',
                 borderColor: '#2E7D32',
                 borderWidth: 1,
