@@ -1,3 +1,4 @@
+from datetime import date
 from io import BytesIO, StringIO
 from unittest.mock import patch
 
@@ -8,9 +9,13 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
-from comercial.models import Producto
+from comercial.models import Cliente, Cotizacion, Producto
 from comercial.services_recuperacion import (
     ARCHIVOS_CLOUDINARY,
+    CATALOGO,
+    OTRA_FUENTE,
+    REGENERABLE,
+    SIN_FUENTE,
     RecuperacionError,
     recuperar_archivos,
 )
@@ -163,6 +168,42 @@ class RecuperarArchivosServicioTest(TestCase):
         get.assert_not_called()
         self.assertTrue(resultado.interrumpido)
         self.assertEqual(resultado.procesados, 0)
+
+    def test_el_desglose_separa_por_campo_y_por_origen(self):
+        Producto.objects.create(
+            nombre="Con foto",
+            imagen_promocional="productos/desglose-falta.jpg",
+        )
+        Cotizacion.objects.create(
+            cliente=Cliente.objects.create(nombre="Cliente desglose"),
+            fecha_evento=date(2026, 9, 1),
+            archivo_pdf="cotizaciones/desglose-falta.pdf",
+        )
+
+        with patch("comercial.services_recuperacion.requests.get") as get:
+            resultado = recuperar_archivos(simular=True)
+
+        get.assert_not_called()
+        desglose = {fila.etiqueta: fila for fila in resultado.desglose()}
+        self.assertEqual(desglose["Fotos de productos"].faltan, 1)
+        self.assertEqual(desglose["Cotizaciones (PDF)"].faltan, 1)
+        # Solo se listan los campos que tenían algo que revisar.
+        self.assertNotIn("Identificaciones de ARCO", desglose)
+
+        # Una foto de producto no se puede reconstruir; una cotización sí.
+        totales = resultado.faltan_por_origen()
+        self.assertEqual(totales[SIN_FUENTE], 1)
+        self.assertEqual(totales[REGENERABLE], 1)
+        self.assertEqual(totales[OTRA_FUENTE], 0)
+
+    def test_el_catalogo_cubre_los_16_campos_del_inventario(self):
+        sin_etiqueta = [
+            (app, modelo, campo)
+            for app, modelo, campo, _ in ARCHIVOS_CLOUDINARY
+            if (app, modelo, campo) not in CATALOGO
+        ]
+
+        self.assertEqual(sin_etiqueta, [])
 
     def test_rechaza_un_cloud_name_vacio(self):
         with self.assertRaisesMessage(RecuperacionError, "no puede estar vacío"):

@@ -41,8 +41,102 @@ ARCHIVOS_CLOUDINARY = (
 )
 
 
+# De dónde se puede volver a obtener un archivo si Cloudinary no lo devuelve.
+# No es decorativo: decide si vale la pena pagar la reactivación de la cuenta
+# o si basta con reemitir lo que el ERP sabe reconstruir.
+REGENERABLE = "regenerable"
+OTRA_FUENTE = "otra_fuente"
+SIN_FUENTE = "sin_fuente"
+
+ORIGEN_ETIQUETA = {
+    REGENERABLE: "El ERP lo vuelve a generar",
+    OTRA_FUENTE: "Se consigue en otro sitio",
+    SIN_FUENTE: "Sin otra fuente conocida",
+}
+
+# (app, modelo, campo) -> (etiqueta legible, origen, de dónde se saca)
+CATALOGO = {
+    ("comercial", "Cotizacion", "archivo_pdf"): (
+        "Cotizaciones (PDF)", REGENERABLE,
+        "Se reemite desde la cotización, que sigue en la base.",
+    ),
+    ("comercial", "Cotizacion", "archivo_contrato"): (
+        "Contratos adjuntos a cotización", REGENERABLE,
+        "Se reemite desde la cotización; además se envió por correo al cliente.",
+    ),
+    ("comercial", "ContratoServicio", "archivo"): (
+        "Contratos de servicio", REGENERABLE,
+        "Se reemite desde el contrato; además se envió por correo al cliente.",
+    ),
+    ("comercial", "Compra", "archivo_xml"): (
+        "Compras — XML (CFDI)", OTRA_FUENTE,
+        "Se descarga otra vez del portal del SAT.",
+    ),
+    ("comercial", "Compra", "archivo_pdf"): (
+        "Compras — PDF", OTRA_FUENTE,
+        "Se regenera desde el XML, o se pide al proveedor.",
+    ),
+    ("comercial", "Gasto", "archivo_xml"): (
+        "Gastos — XML (CFDI)", OTRA_FUENTE,
+        "Se descarga otra vez del portal del SAT.",
+    ),
+    ("comercial", "Gasto", "archivo_pdf"): (
+        "Gastos — PDF", OTRA_FUENTE,
+        "Se regenera desde el XML, o se pide al proveedor.",
+    ),
+    ("facturacion", "SolicitudFactura", "archivo_zip"): (
+        "Facturas emitidas — ZIP", OTRA_FUENTE,
+        "Se rearma con el XML y el PDF.",
+    ),
+    ("facturacion", "SolicitudFactura", "archivo_pdf"): (
+        "Facturas emitidas — PDF", OTRA_FUENTE,
+        "Se regenera desde el XML.",
+    ),
+    ("facturacion", "SolicitudFactura", "archivo_xml"): (
+        "Facturas emitidas — XML", OTRA_FUENTE,
+        "Se descarga otra vez del portal del SAT.",
+    ),
+    ("comercial", "Producto", "imagen_promocional"): (
+        "Fotos de productos", SIN_FUENTE,
+        "Son originales: si no hay copia local, hay que volver a fotografiar.",
+    ),
+    ("comercial", "ImagenLanding", "imagen"): (
+        "Imágenes de la landing", SIN_FUENTE,
+        "Son originales: si no hay copia local, hay que volver a fotografiar.",
+    ),
+    ("comercial", "EspacioLanding", "imagen"): (
+        "Imágenes de espacios", SIN_FUENTE,
+        "Son originales: si no hay copia local, hay que volver a fotografiar.",
+    ),
+    ("nomina", "ReciboNomina", "archivo_pdf"): (
+        "Recibos de nómina", OTRA_FUENTE,
+        "El CFDI de nómina se descarga del SAT.",
+    ),
+    ("contabilidad", "EstadoCuentaBancario", "archivo"): (
+        "Estados de cuenta bancarios", OTRA_FUENTE,
+        "Se vuelven a descargar de la banca en línea.",
+    ),
+    ("legal", "SolicitudARCO", "identificacion"): (
+        "Identificaciones de ARCO", SIN_FUENTE,
+        "Las subió el titular: no se pueden reconstruir y son datos personales.",
+    ),
+}
+
+
 class RecuperacionError(Exception):
     """Aborta la recuperación: el destino no sirve o el storage falló."""
+
+
+@dataclass
+class ConteoCampo:
+    """Cuántos archivos de un campo se revisaron y cuántos faltan."""
+
+    etiqueta: str
+    origen: str
+    nota: str
+    revisados: int = 0
+    en_storage: int = 0
+    faltan: int = 0
 
 
 @dataclass
@@ -55,6 +149,19 @@ class Resultado:
     pendientes: list = field(default_factory=list)
     no_encontrados: list = field(default_factory=list)
     interrumpido: bool = False
+    por_campo: dict = field(default_factory=dict)
+
+    def desglose(self):
+        """Filas del desglose, las que más faltan primero."""
+        filas = [conteo for conteo in self.por_campo.values() if conteo.revisados]
+        return sorted(filas, key=lambda conteo: (-conteo.faltan, conteo.etiqueta))
+
+    def faltan_por_origen(self):
+        """Cuántos faltan de cada origen, para decidir qué hacer con ellos."""
+        totales = {clave: 0 for clave in ORIGEN_ETIQUETA}
+        for conteo in self.por_campo.values():
+            totales[conteo.origen] += conteo.faltan
+        return totales
 
 
 def validar_storage_destino():
@@ -119,6 +226,13 @@ def recuperar_archivos(cloud_name=CLOUD_NAME_DEFAULT, *, simular=False, limite=N
 
     for app_label, model_name, field_name, resource_type in ARCHIVOS_CLOUDINARY:
         model = apps.get_model(app_label, model_name)
+        etiqueta, origen, nota = CATALOGO.get(
+            (app_label, model_name, field_name),
+            (f"{model_name}.{field_name}", SIN_FUENTE, ""),
+        )
+        conteo = ConteoCampo(etiqueta=etiqueta, origen=origen, nota=nota)
+        resultado.por_campo[f"{app_label}.{model_name}.{field_name}"] = conteo
+
         registros = (
             model.objects.filter(**{f"{field_name}__isnull": False})
             .exclude(**{field_name: ""})
@@ -137,6 +251,7 @@ def recuperar_archivos(cloud_name=CLOUD_NAME_DEFAULT, *, simular=False, limite=N
                 return resultado
 
             resultado.procesados += 1
+            conteo.revisados += 1
             referencia = f"{app_label}.{model_name} pk={registro.pk} campo={field_name}"
             try:
                 ya_existe = archivo.storage.exists(archivo.name)
@@ -147,8 +262,10 @@ def recuperar_archivos(cloud_name=CLOUD_NAME_DEFAULT, *, simular=False, limite=N
 
             if ya_existe:
                 resultado.omitidos += 1
+                conteo.en_storage += 1
                 continue
 
+            conteo.faltan += 1
             if simular:
                 resultado.pendientes.append(referencia)
                 continue
