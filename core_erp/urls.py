@@ -17,7 +17,6 @@ from comercial.views_openpay import (
 )
 from airbnb.views import reporte_fiscal_airbnb, conciliacion_depositos_airbnb
 from core_erp.descargas import descargar_archivo_privado
-from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
 
 from comercial.views_portal import (
@@ -173,12 +172,6 @@ urlpatterns = [
 
     # --- WEBHOOK OPENPAY (público, protegido con Basic Auth) ---
     path('pagos/openpay/webhook/', openpay_webhook_view, name='openpay_webhook'),
-
-    # --- DESCARGA DE ARCHIVOS SENSIBLES (sesión + permiso del modelo) ---
-    # Sirve el contenido en vez de publicar la URL del bucket, que es de
-    # lectura anónima. Ver core_erp/descargas.py.
-    path('admin/archivo/<str:app_label>/<str:model_name>/<str:campo>/<int:pk>/',
-         descargar_archivo_privado, name='descargar_archivo_privado'),
 
     # --- DESCARGA DE ARCHIVOS SENSIBLES (sesión + permiso del modelo) ---
     # Sirve el contenido en vez de publicar la URL del bucket, que es de
