@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import re
@@ -33,6 +34,8 @@ try:
     from airbnb.models import PagoAirbnb
 except ImportError:
     PagoAirbnb = None
+
+logger = logging.getLogger(__name__)
 
 # Estados que representan una venta ya concretada (no un simple borrador o
 # cotización enviada, y tampoco cancelada). El flujo normal de una venta
@@ -1111,3 +1114,66 @@ def importar_historico_view(request):
             context["resultado_ok"] = False
 
     return render(request, "admin/importar_historico.html", context)
+
+
+# Gunicorn corta la petición a los 120 s (ver Dockerfile), y cada archivo
+# cuesta al menos una consulta de red al bucket. Se recorta antes para que la
+# página alcance a renderizar el resumen en vez de morir con un 502.
+RECUPERACION_TIEMPO_MAXIMO = 90
+RECUPERACION_LIMITE = 25
+
+
+@staff_member_required
+def recuperar_archivos_view(request):
+    """Recupera desde el navegador los archivos que solo quedaron en Cloudinary.
+
+    Misma lógica que `manage.py recuperar_archivos_cloudinary`, para cuando no
+    hay una terminal con las variables de producción a mano. GET solo explica;
+    hay que elegir explícitamente simular o recuperar.
+    """
+    from comercial.services_recuperacion import (
+        ARCHIVOS_CLOUDINARY,
+        CLOUD_NAME_DEFAULT,
+        RecuperacionError,
+        recuperar_archivos,
+    )
+
+    # staff_member_required solo comprueba is_staff; esto escribe en el storage
+    # de todas las apps y sale a internet a descargar.
+    if not request.user.is_superuser:
+        messages.error(request, "Solo un superusuario puede recuperar archivos.")
+        return redirect("/admin/")
+
+    context = {
+        "title": "Recuperar archivos de Cloudinary",
+        "cloud_name": CLOUD_NAME_DEFAULT,
+        "n_campos": len(ARCHIVOS_CLOUDINARY),
+        "limite": RECUPERACION_LIMITE,
+        "tiempo_maximo": RECUPERACION_TIEMPO_MAXIMO,
+        "resultado": None,
+        "simulado": False,
+        "error": None,
+    }
+
+    if request.method != "POST":
+        return render(request, "admin/recuperar_archivos.html", context)
+
+    simular = request.POST.get("accion") != "recuperar"
+    cloud_name = (request.POST.get("cloud_name") or CLOUD_NAME_DEFAULT).strip()
+    context["cloud_name"] = cloud_name
+    context["simulado"] = simular
+
+    try:
+        context["resultado"] = recuperar_archivos(
+            cloud_name,
+            simular=simular,
+            limite=None if simular else RECUPERACION_LIMITE,
+            tiempo_maximo=RECUPERACION_TIEMPO_MAXIMO,
+        )
+    except RecuperacionError as exc:
+        context["error"] = str(exc)
+    except Exception as exc:
+        logger.exception("Fallo inesperado recuperando archivos de Cloudinary")
+        context["error"] = f"Fallo inesperado: {exc}"
+
+    return render(request, "admin/recuperar_archivos.html", context)

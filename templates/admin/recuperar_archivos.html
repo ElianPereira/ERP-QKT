@@ -1,0 +1,85 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Recuperar archivos de Cloudinary{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="background:#e3f2fd;border:1px solid #2196f3;border-radius:6px;padding:16px;margin-bottom:24px;">
+  Copia al storage actual los archivos que se subieron cuando el ERP guardaba en
+  Cloudinary y que hoy dan error al abrirse. Revisa <strong>{{ n_campos }} campos</strong>
+  de archivo y descarga solo los que faltan.
+  <strong>Es idempotente</strong>: lo que ya está en el storage se omite, así que
+  puedes lanzarla las veces que haga falta.
+  <br><br>
+  Empieza por <em>simular</em>: no descarga ni escribe nada, solo dice cuántos faltan.
+</div>
+
+{% if error %}
+  <div style="background:#ffebee;border:1px solid #e53935;border-radius:6px;padding:16px;margin-bottom:24px;">
+    <strong>❌ Error</strong>
+    <pre style="margin-top:8px;white-space:pre-wrap;font-size:12px;">{{ error }}</pre>
+  </div>
+{% endif %}
+
+{% if resultado %}
+  <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:16px;margin-bottom:24px;">
+    <strong>
+      {% if simulado %}🔍 Simulación (no se escribió nada){% else %}✅ Recuperación ejecutada{% endif %}
+    </strong>
+    <ul style="margin:8px 0 0 18px;">
+      <li>Archivos revisados: <b>{{ resultado.procesados }}</b></li>
+      <li>Ya estaban en el storage: <b>{{ resultado.omitidos }}</b></li>
+      {% if simulado %}
+        <li>Faltan por recuperar: <b>{{ resultado.pendientes|length }}</b></li>
+      {% else %}
+        <li>Recuperados en esta pasada: <b>{{ resultado.recuperados }}</b></li>
+        <li>No encontrados en Cloudinary: <b>{{ resultado.no_encontrados|length }}</b></li>
+      {% endif %}
+    </ul>
+
+    {% if resultado.interrumpido %}
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px;margin-top:12px;">
+        ⚠ Se cortó por el tope de la pasada ({{ limite }} descargas o
+        {{ tiempo_maximo }} segundos), para no agotar el tiempo de la petición.
+        <strong>Vuelve a lanzarla</strong> hasta que deje de aparecer este aviso.
+      </div>
+    {% endif %}
+  </div>
+
+  {% if resultado.pendientes %}
+    <h2 style="margin-bottom:12px;">Faltan por recuperar</h2>
+    <pre style="background:#fafafa;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:12px;max-height:320px;overflow:auto;">{% for referencia in resultado.pendientes %}{{ referencia }}
+{% endfor %}</pre>
+  {% endif %}
+
+  {% if resultado.no_encontrados %}
+    <h2 style="margin-bottom:12px;">No encontrados en Cloudinary</h2>
+    <pre style="background:#fafafa;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:12px;max-height:320px;overflow:auto;">{% for referencia, intentos in resultado.no_encontrados %}{{ referencia }}
+{% for url, detalle in intentos %}    {{ url }} -> {{ detalle }}
+{% endfor %}{% endfor %}</pre>
+  {% endif %}
+{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+
+  <div style="margin-bottom:16px;">
+    <label for="id_cloud_name" style="font-weight:600;display:block;margin-bottom:4px;">
+      Cloud name de origen
+    </label>
+    <input type="text" name="cloud_name" id="id_cloud_name" value="{{ cloud_name }}"
+           style="padding:8px;border:1px solid #ccc;border-radius:4px;width:280px;" required>
+  </div>
+
+  <button type="submit" name="accion" value="simular"
+    style="background:#1565c0;color:white;border:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;">
+    🔍 Simular
+  </button>
+  <button type="submit" name="accion" value="recuperar"
+    style="background:#2E7D32;color:white;border:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;margin-left:12px;">
+    ▶ Recuperar (hasta {{ limite }})
+  </button>
+  <a href="/admin/" style="margin-left:16px;color:#666;">Volver</a>
+</form>
+
+{% endblock %}
