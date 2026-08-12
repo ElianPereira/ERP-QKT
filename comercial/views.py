@@ -1177,3 +1177,59 @@ def recuperar_archivos_view(request):
         context["error"] = f"Fallo inesperado: {exc}"
 
     return render(request, "admin/recuperar_archivos.html", context)
+
+# Copiar es más caro que comprobar: por archivo son dos consultas al bucket
+# más una descarga y una subida. Tope más bajo que el de la recuperación.
+MIGRACION_TIEMPO_MAXIMO = 90
+MIGRACION_LIMITE = 15
+
+
+@staff_member_required
+def migrar_archivos_privados_view(request):
+    """Copia desde el navegador los documentos sensibles al bucket privado.
+
+    Misma lógica que `manage.py migrar_archivos_privados`, para cuando no hay
+    una terminal con las variables de producción a mano. GET solo explica; hay
+    que elegir explícitamente simular o copiar.
+    """
+    from comercial.services_migracion_privada import (
+        CAMPOS_PRIVADOS,
+        MigracionError,
+        migrar_archivos_privados,
+    )
+
+    # staff_member_required solo comprueba is_staff; esto mueve nómina,
+    # contratos e identificaciones de ARCO entre buckets.
+    if not request.user.is_superuser:
+        messages.error(request, "Solo un superusuario puede migrar archivos.")
+        return redirect("/admin/")
+
+    context = {
+        "title": "Migrar documentos sensibles al bucket privado",
+        "n_campos": len(CAMPOS_PRIVADOS),
+        "limite": MIGRACION_LIMITE,
+        "tiempo_maximo": MIGRACION_TIEMPO_MAXIMO,
+        "resultado": None,
+        "aplicado": False,
+        "error": None,
+    }
+
+    if request.method != "POST":
+        return render(request, "admin/migrar_archivos_privados.html", context)
+
+    aplicar = request.POST.get("accion") == "aplicar"
+    context["aplicado"] = aplicar
+
+    try:
+        context["resultado"] = migrar_archivos_privados(
+            aplicar=aplicar,
+            limite=MIGRACION_LIMITE if aplicar else None,
+            tiempo_maximo=MIGRACION_TIEMPO_MAXIMO,
+        )
+    except MigracionError as exc:
+        context["error"] = str(exc)
+    except Exception as exc:
+        logger.exception("Fallo inesperado migrando archivos al bucket privado")
+        context["error"] = f"Fallo inesperado: {exc}"
+
+    return render(request, "admin/migrar_archivos_privados.html", context)

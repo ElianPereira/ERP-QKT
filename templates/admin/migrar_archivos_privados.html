@@ -1,0 +1,92 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Migrar al bucket privado{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="background:#e3f2fd;border:1px solid #2196f3;border-radius:6px;padding:16px;margin-bottom:24px;">
+  Copia al bucket privado los <strong>{{ n_campos }} tipos de documento sensible</strong>
+  —contratos, recibos de nómina, estados de cuenta e identificaciones de ARCO— que
+  todavía están en el bucket público. En R2 el acceso público es por bucket y no por
+  archivo, así que separarlos es la única forma de que las fotos de la landing sigan
+  siendo públicas y estos documentos no.
+  <br><br>
+  <strong>Copia, no mueve</strong>: no borra nada del origen. Conserva la misma ruta,
+  así que la base de datos no se toca. Es idempotente: lo que ya esté copiado se omite.
+  <br><br>
+  Empieza por <em>simular</em>: no escribe nada, solo dice qué copiaría.
+</div>
+
+<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:16px;margin-bottom:24px;">
+  <strong>⚠ El borrado del bucket público es manual y va al final.</strong>
+  Hasta que borres <code>contratos_pdf/</code>, <code>nominas_pdf/</code>,
+  <code>estados_cuenta/</code> y <code>arco/identificaciones/</code> del bucket
+  público, esos archivos siguen siendo accesibles por URL. Bórralos solo después
+  de comprobar que abren desde el admin y desde el portal del cliente.
+</div>
+
+{% if error %}
+  <div style="background:#ffebee;border:1px solid #e53935;border-radius:6px;padding:16px;margin-bottom:24px;">
+    <strong>❌ Error</strong>
+    <pre style="margin-top:8px;white-space:pre-wrap;font-size:12px;">{{ error }}</pre>
+  </div>
+{% endif %}
+
+{% if resultado %}
+  <div style="background:{% if resultado.fallos %}#ffebee{% else %}#e8f5e9{% endif %};border:1px solid {% if resultado.fallos %}#e53935{% else %}#4caf50{% endif %};border-radius:6px;padding:16px;margin-bottom:24px;">
+    <strong>
+      {% if aplicado %}✅ Copia ejecutada{% else %}🔍 Simulación (no se escribió nada){% endif %}
+    </strong>
+    <ul style="margin:8px 0 0 18px;">
+      <li>{% if aplicado %}Copiados{% else %}Se copiarían{% endif %}: <b>{{ resultado.copiados }}</b></li>
+      <li>Ya estaban en el bucket privado: <b>{{ resultado.ya_estaban }}</b></li>
+      <li>Sin archivo en el origen: <b>{{ resultado.sin_origen|length }}</b></li>
+      <li>Fallos: <b>{{ resultado.fallos|length }}</b></li>
+    </ul>
+
+    {% if resultado.interrumpido %}
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px;margin-top:12px;">
+        ⚠ Se cortó por el tope de la pasada ({{ limite }} copias o {{ tiempo_maximo }}
+        segundos). <strong>Vuelve a lanzarla</strong> hasta que deje de aparecer este aviso.
+      </div>
+    {% endif %}
+
+    {% if aplicado and resultado.fallos %}
+      <div style="background:#ffebee;border:1px solid #e53935;border-radius:6px;padding:12px;margin-top:12px;">
+        <strong>No borres nada del bucket público</strong> hasta resolver los fallos de abajo.
+      </div>
+    {% endif %}
+  </div>
+
+  {% if resultado.sin_origen %}
+    <h2 style="margin-bottom:12px;">Sin archivo en el origen</h2>
+    <p style="color:#666;font-size:13px;margin-bottom:8px;">
+      La base los referencia pero no están en el bucket público. Son los heredados de
+      Cloudinary; no los arregla esta página.
+    </p>
+    <pre style="background:#fafafa;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:12px;max-height:280px;overflow:auto;">{% for referencia in resultado.sin_origen %}{{ referencia }}
+{% endfor %}</pre>
+  {% endif %}
+
+  {% if resultado.fallos %}
+    <h2 style="margin-bottom:12px;">Fallos</h2>
+    <pre style="background:#fafafa;border:1px solid #e53935;border-radius:6px;padding:12px;font-size:12px;max-height:280px;overflow:auto;">{% for referencia, motivo in resultado.fallos %}{{ referencia }}
+    {{ motivo }}
+{% endfor %}</pre>
+  {% endif %}
+{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+  <button type="submit" name="accion" value="simular"
+    style="background:#1565c0;color:white;border:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;">
+    🔍 Simular
+  </button>
+  <button type="submit" name="accion" value="aplicar"
+    style="background:#2E7D32;color:white;border:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;margin-left:12px;">
+    ▶ Copiar (hasta {{ limite }})
+  </button>
+  <a href="/admin/" style="margin-left:16px;color:#666;">Volver</a>
+</form>
+
+{% endblock %}

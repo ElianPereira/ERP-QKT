@@ -75,6 +75,27 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-12 — Migración al bucket privado desde el admin
+  (`/admin/migrar-archivos-privados/`, `comercial/services_migracion_privada.py`),
+  y **el orden en que se activa, que no es el intuitivo**. Definir
+  `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` es lo último, no lo primero: en cuanto
+  esa variable existe, los cuatro campos sensibles empiezan a leerse del
+  bucket nuevo, y si todavía está vacío **los archivos existentes dejan de
+  abrir** aunque sigan intactos en el público. Pasó en producción: la variable
+  se había definido días antes apuntando a `qkt-media-2` y estuvo inerte hasta
+  que el deploy del PR #194 trajo el código que la usa; a partir de ahí los
+  estados de cuenta —que estaban en `qkt-media`— quedaron ilocalizables, y
+  parte de lo que la página de recuperación contaba como "falta" era en
+  realidad esto y no Cloudinary. El rollback es borrar la variable: sin ella
+  `storage_privado()` cae al default y todo vuelve a su sitio, sin desplegar.
+  Secuencia correcta: crear el bucket → definir la variable → migrar → verificar
+  → borrar del público. El hueco entre el segundo y el tercer paso es
+  inevitable porque el comando necesita la variable para saber a dónde copiar;
+  hacerlos seguidos lo reduce a minutos. `migrar_archivos_privados` **copia y
+  no mueve**, y conserva el `name` exacto: la BD guarda esa ruta y no se toca,
+  por eso si el destino renombra se descarta la copia en vez de dejar el
+  registro apuntando a la nada. El comando entró en el PR #194 sin tests; los
+  14 de `comercial/test_migrar_archivos_privados.py` cubren ese hueco.
 - 2026-08-12 — Recuperación de los archivos históricos de Cloudinary
   (`/admin/recuperar-archivos/`, `comercial/services_recuperacion.py`). La
   vista existe porque el comando equivalente exige una terminal con las
