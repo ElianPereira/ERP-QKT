@@ -116,6 +116,32 @@ jobs:
             --allowedTools "Read,Grep,Glob,TodoWrite"
             --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
 
+      - name: Diagnose early Claude failure
+        if: always() && steps.plan.outcome == 'failure'
+        run: |
+          log=/home/runner/work/_temp/claude-execution-output.json
+          test -f "$log" || { echo "Claude no dejó archivo de ejecución." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          turns=$(jq -r '[.[] | select(.type == "result")][-1].num_turns // 0' "$log")
+          cost=$(jq -r '[.[] | select(.type == "result")][-1].total_cost_usd // 0' "$log")
+          is_error=$(jq -r '[.[] | select(.type == "result")][-1].is_error // false' "$log")
+          if [ "$is_error" = "true" ] && [ "$turns" -le 1 ] && [ "$cost" = "0" ]; then
+            raw=$(jq -r '
+              [.[] | select(.type == "result")][-1]
+              | if ((.result // "") | length) > 0 then .result
+                elif ((.errors // []) | length) > 0 then (.errors | join("; "))
+                else "(Claude no incluyó detalle adicional)"
+                end
+            ' "$log")
+            safe=$(printf '%s' "$raw" | sed -E               -e 's/sk-ant-[A-Za-z0-9_-]+/[ANTHROPIC_KEY_REDACTED]/g'               -e 's/github_pat_[A-Za-z0-9_]+/[GITHUB_TOKEN_REDACTED]/g'               -e 's/gh[pousr]_[A-Za-z0-9_]+/[GITHUB_TOKEN_REDACTED]/g'               -e 's/(Bearer )[A-Za-z0-9._-]+/\1[TOKEN_REDACTED]/g'               | head -c 600)
+            {
+              echo "### Diagnóstico seguro del fallo temprano de Claude"
+              echo
+              echo "- Turnos: $turns"
+              echo "- Costo reportado: $cost"
+              echo "- Detalle redactado: $safe"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       # Qué herramientas intentó usar el planificador y cuántas veces. El log
       # de la acción oculta el detalle de la conversación a propósito, así que
       # cuando el paso muere por agotar turnos no hay forma de saber en qué se
@@ -367,9 +393,8 @@ jobs:
             echo "Este Issue **no tiene PR**: el workflow \`AI Implement\` terminó en error."
             echo
             if [ "$PLAN_OUTCOME" = "failure" ]; then
-              echo "Falló en la fase de planeación. La causa habitual es agotar el"
-              echo "presupuesto de turnos (\`error_max_turns\`): sin plan estructurado"
-              echo "el job no puede continuar."
+              echo "Falló en la fase de planeación antes de producir salida estructurada."
+              echo "Consulta el resumen del run para ver el diagnóstico seguro del error."
             fi
             echo
             echo "Detalle del run: $RUN_URL"
