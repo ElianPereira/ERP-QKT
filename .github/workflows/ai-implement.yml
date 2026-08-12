@@ -2,7 +2,7 @@ name: AI Implement
 
 on:
   issues:
-    types: [opened]
+    types: [opened, reopened]
 
 permissions: {}
 
@@ -70,7 +70,7 @@ jobs:
           steps.request.outputs.mode == 'combined' &&
           steps.request.outputs.has-plan != 'true'
         id: plan
-        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
+        uses: anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -111,6 +111,7 @@ jobs:
           # casi la mitad del presupuesto. TodoWrite no escribe en el
           # repositorio — solo lleva la lista de pasos del propio agente.
           claude_args: >-
+            --model claude-sonnet-4-6
             --max-turns 45
             --allowedTools "Read,Grep,Glob,TodoWrite"
             --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
@@ -247,7 +248,7 @@ jobs:
       - name: Implement Claude-only request
         if: steps.request.outputs.mode == 'claude'
         id: claude-only
-        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
+        uses: anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -264,6 +265,7 @@ jobs:
             agentes, credenciales ni la propia automatización. No hagas push ni
             merge. Este modo tendrá revisión y merge manuales.
           claude_args: >-
+            --model claude-sonnet-4-6
             --max-turns 18
             --allowedTools "Read,Grep,Glob,Edit,Write,Bash(git status:*),Bash(git diff:*),Bash(python:*),Bash(ruff:*)"
 
