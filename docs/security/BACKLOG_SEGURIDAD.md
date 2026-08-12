@@ -121,8 +121,8 @@ aprobación del propietario antes de empezar.
 4. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 5. Orden 14 — `SEC-AUTHZ-001a` (`S`): la matriz de permisos, sin la cual la Fase 1 no puede continuar.
 
-Además, **rotar el `ICAL_PUBLIC_TOKEN`** usado para la contención: se generó en
-una conversación de trabajo y debe tratarse como provisional.
+El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
+contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).
 
 Ninguna tarea `XL`: la de mayor esfuerzo es `SEC-AUTHZ-001`, ya subdividida en
 cinco entregables (órdenes 14-18) que se pueden desplegar por separado.

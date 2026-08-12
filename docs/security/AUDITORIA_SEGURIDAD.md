@@ -39,8 +39,9 @@ Contención aplicada, en este orden:
 2. Se corrigió el diseño a fail-closed y se retiraron los datos personales del
    feed (ver los hallazgos correspondientes).
 
-El token usado para la contención debe rotarse: se generó en una conversación
-de trabajo y hay que tratarlo como provisional.
+El token se generó en un gestor de contraseñas y nunca salió de él, así que no
+requiere rotación por origen. Entra en el calendario ordinario de rotación de
+credenciales (`NV-06`).
 
 ---
 
