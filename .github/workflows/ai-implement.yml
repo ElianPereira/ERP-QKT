@@ -117,6 +117,7 @@ jobs:
             --json-schema '{"type":"object","properties":{"blocked":{"type":"boolean"},"blocker":{"type":"string"},"plan":{"type":"string"}},"required":["blocked","blocker","plan"],"additionalProperties":false}'
 
       - name: Diagnose early Claude failure
+        id: claude-diagnostic
         if: always() && steps.plan.outcome == 'failure'
         run: |
           log=/home/runner/work/_temp/claude-execution-output.json
@@ -140,6 +141,8 @@ jobs:
               echo "- Costo reportado: $cost"
               echo "- Detalle redactado: $safe"
             } >> "$GITHUB_STEP_SUMMARY"
+            echo "message=$safe" >> "$GITHUB_OUTPUT"
+            echo "::error::Claude terminó antes de iniciar: $safe"
           fi
 
       # Qué herramientas intentó usar el planificador y cuántas veces. El log
@@ -386,6 +389,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          CLAUDE_DIAGNOSTIC: ${{ steps.claude-diagnostic.outputs.message }}
         run: |
           {
             echo "## La automatización falló"
@@ -394,7 +398,11 @@ jobs:
             echo
             if [ "$PLAN_OUTCOME" = "failure" ]; then
               echo "Falló en la fase de planeación antes de producir salida estructurada."
-              echo "Consulta el resumen del run para ver el diagnóstico seguro del error."
+              if [ -n "$CLAUDE_DIAGNOSTIC" ]; then
+                echo "Diagnóstico: $CLAUDE_DIAGNOSTIC"
+              else
+                echo "Consulta el resumen del run para ver el diagnóstico seguro del error."
+              fi
             fi
             echo
             echo "Detalle del run: $RUN_URL"
