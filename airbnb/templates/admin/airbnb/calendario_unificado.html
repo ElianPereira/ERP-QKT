@@ -355,10 +355,11 @@
     </div>
 </div>
 
+{{ eventos_json|json_script:"eventos-data" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
-    var eventos = {{ eventos_json|safe }};
+    var eventos = JSON.parse(document.getElementById('eventos-data').textContent);
 
     var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',

@@ -3,7 +3,6 @@ Tests del módulo Comercial
 ==========================
 Ejecutar: python manage.py test comercial --verbosity=2
 """
-import json
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -609,7 +608,7 @@ class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
         response = self.client.get('/admin/')
 
         self.assertEqual(response.status_code, 200)
-        labels = json.loads(response.context['chart_labels'])
+        labels = response.context['chart_labels']
         esperado = [
             date(anio, 1, 1).strftime('%B %Y'),
             date(anio, 4, 1).strftime('%B %Y'),
@@ -759,14 +758,14 @@ class DashboardSeparacionElianRubyTest(TestCase):
         response = self.client.get('/admin/')
 
         self.assertEqual(response.status_code, 200)
-        labels = json.loads(response.context['chart_labels'])
+        labels = response.context['chart_labels']
         esperado = [date(anio, 1, 1).strftime('%B %Y'), date(anio, 3, 1).strftime('%B %Y')]
         self.assertEqual(labels, esperado)
 
-        ventas_quinta = json.loads(response.context['chart_ventas_quinta'])
-        gastos_quinta = json.loads(response.context['chart_gastos_quinta'])
-        ingresos_ruby = json.loads(response.context['chart_ingresos_ruby'])
-        gastos_ruby = json.loads(response.context['chart_gastos_ruby'])
+        ventas_quinta = response.context['chart_ventas_quinta']
+        gastos_quinta = response.context['chart_gastos_quinta']
+        ingresos_ruby = response.context['chart_ingresos_ruby']
+        gastos_ruby = response.context['chart_gastos_ruby']
 
         self.assertEqual(ventas_quinta, [1000.0, 0])
         self.assertEqual(gastos_quinta, [200.0, 0])

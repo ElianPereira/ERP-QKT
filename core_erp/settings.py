@@ -164,6 +164,12 @@ CACHES = {
     }
 }
 
+# --- FEED iCAL PÚBLICO (lo consume Airbnb para bloquear fechas) ---
+# Se lee aquí y no con config() dentro de la vista para que exista una sola
+# fuente y los tests puedan sobreescribirlo con override_settings. Sin valor,
+# la vista responde 403: ver ICAL en airbnb/views.py::generar_ical_eventos.
+ICAL_PUBLIC_TOKEN = config('ICAL_PUBLIC_TOKEN', default='')
+
 # --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
 ADMIN_LOGIN_VENTANA = config('ADMIN_LOGIN_VENTANA', default=900, cast=int)
 ADMIN_LOGIN_MAX_INTENTOS_IP = config('ADMIN_LOGIN_MAX_INTENTOS_IP', default=10, cast=int)

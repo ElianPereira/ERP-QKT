@@ -1,7 +1,46 @@
 # Auditoría de seguridad — ERP-QKT
 
 **Fecha**: 2026-08-12 · **Commit auditado**: `f813dcc` · **Issue**: #190
-**Modalidad**: revisión de solo lectura del repositorio. No se modificó código de producto.
+**Modalidad**: revisión de solo lectura del repositorio.
+
+---
+
+## 0. Estado de la remediación
+
+La auditoría se entregó como revisión de solo lectura. Tras entregarla se
+verificaron dos de los puntos externos y se corrigieron los hallazgos que
+resultaron ser exposiciones activas. Esta sección registra qué cambió después
+de la evaluación inicial; **el resto del documento describe el estado del
+commit auditado (`f813dcc`) y se conserva como está**, para que la evidencia
+original siga siendo legible.
+
+| ID | Estado al auditar | Estado ahora | Nota |
+|---|---|---|---|
+| `SEC-XSS-001` | P0 confirmado en ejecución | **CORREGIDO** | `json_script` sustituye a `\|safe` en el calendario y en los dos dashboards |
+| `SEC-DATA-001` | P1, condicionado a `NV-02` | **EXPOSICIÓN CONFIRMADA · CORREGIDO** | Ver abajo |
+| `SEC-INJ-001` | P2 | **CORREGIDO** | Colateral: al dejar de interpolar texto libre en el `.ics` no queda nada que escapar |
+| `NV-02` | No verificable | **VERIFICADO** | `ICAL_PUBLIC_TOKEN` **no estaba definida** en Railway |
+| `NV-01` | No verificable | Pendiente | Sigue sin confirmarse la política del bucket R2 |
+
+### `SEC-DATA-001` fue una fuga real, no un riesgo teórico
+
+La verificación de `NV-02` confirmó que `ICAL_PUBLIC_TOKEN` no estaba definida
+en Railway, de modo que la condición fail-open descrita en el hallazgo se
+cumplía. Se comprobó descargando `/airbnb/ical/eventos/` desde una sesión
+anónima en producción: el `.ics` se entregó sin autenticación y contenía
+nombre completo de cliente, nombre del evento, número de asistentes y fecha de
+las cotizaciones confirmadas.
+
+Contención aplicada, en este orden:
+
+1. Se definió `ICAL_PUBLIC_TOKEN` en Railway y se actualizó la URL registrada
+   en Airbnb para que la lleve como `?token=…`. Eso cerró la fuga sin esperar
+   a ningún despliegue de código.
+2. Se corrigió el diseño a fail-closed y se retiraron los datos personales del
+   feed (ver los hallazgos correspondientes).
+
+El token usado para la contención debe rotarse: se generó en una conversación
+de trabajo y hay que tratarlo como provisional.
 
 ---
 
@@ -205,9 +244,9 @@ antes de `admin.site.urls`, con bloqueo por IP y por usuario.
 | C-06 | Rate limiting | Pruebas de evasión | IMPLEMENTADO | — | `test_ratelimit.py::test_x_forwarded_for_no_permite_rotar_la_ip` | — | Ampliar al portal | — |
 | D-01 | Inyecciones | SQL injection | IMPLEMENTADO | — | Cero `raw()`, `RawSQL` o `cursor.execute` con interpolación fuera de tests | — | Conservar | `grep` en cada PR |
 | D-02 | Inyecciones | Deserialización y evaluación dinámica | IMPLEMENTADO | — | Cero `eval`, `exec`, `pickle`, `yaml.load` | — | Conservar | `grep` en cada PR |
-| D-03 | XSS | XSS almacenado en el admin | **NO IMPLEMENTADO** | **P0** | `calendario_unificado.html:361` + `airbnb/views.py:125` — **confirmado en ejecución** | Ejecución de JS con sesión de staff, desde un POST anónimo | `json_script` en vez de `|safe` | `SEC-XSS-001` |
+| D-03 | XSS | XSS almacenado en el admin | **NO IMPLEMENTADO** → *corregido, ver §0* | **P0** | `calendario_unificado.html:361` + `airbnb/views.py:125` — **confirmado en ejecución** | Ejecución de JS con sesión de staff, desde un POST anónimo | `json_script` en vez de `|safe` | `SEC-XSS-001` |
 | D-04 | XSS | Escapado en el resto de plantillas | IMPLEMENTADO | — | Autoescape activo; los otros `|safe` son `json.dumps` de datos no controlados por el usuario (`comercial/views.py:500-501`) o constantes (`paynet`) | — | Conservar | Revisión de cada `|safe` nuevo |
-| D-05 | Inyecciones | Inyección CRLF en el feed iCal | NO IMPLEMENTADO | P2 | `airbnb/views.py:346-349`: `nombre_evento` y `cliente.nombre` sin escapar en el `.ics` | Inyección de propiedades iCal en los calendarios que consuman el feed | Escapar `\`, `;`, `,`, CR y LF (RFC 5545) | `SEC-INJ-001` |
+| D-05 | Inyecciones | Inyección CRLF en el feed iCal | NO IMPLEMENTADO → *corregido, ver §0* | P2 | `airbnb/views.py:346-349`: `nombre_evento` y `cliente.nombre` sin escapar en el `.ics` | Inyección de propiedades iCal en los calendarios que consuman el feed | Escapar `\`, `;`, `,`, CR y LF (RFC 5545) | `SEC-INJ-001` |
 | D-06 | Inyecciones | SSRF | NO APLICA | — | Ninguna petición saliente toma la URL de entrada del usuario; todas son constantes o derivadas de settings | — | — | — |
 | D-07 | Validación | Validación en backend | PARCIAL | P2 | El cotizador valida manualmente (`views_cotizador.py:137-160`); no hay esquema formal | Campos como `notas` o `tipo_evento` entran sin restricción de contenido | Formularios de Django en endpoints públicos | `SEC-VAL-001` |
 | D-08 | Redirects | Redirects abiertos | IMPLEMENTADO | — | Todos los `redirect()` van a rutas internas o a `reverse()`; el único externo es `contrato.archivo.url` (storage propio) | — | Conservar | — |
@@ -257,6 +296,9 @@ antes de `admin.site.urls`, con bloqueo por IP y por usuario.
 ## 6. Hallazgos detallados
 
 ### SEC-XSS-001 — XSS almacenado no autenticado con toma de sesión de staff
+
+> **Corregido.** El calendario y los dos dashboards usan `json_script`; hay
+> tests de regresión en `airbnb/test_seguridad.py`. Ver §0.
 
 - **Severidad**: Crítica · **Prioridad**: P0
 - **Componente**: `airbnb/views.py::calendario_unificado` + `airbnb/templates/admin/airbnb/calendario_unificado.html`
@@ -367,6 +409,11 @@ haga `GET /admin/calendario/` con sesión de staff y afirme que
 ---
 
 ### SEC-DATA-001 — Feed iCal público abierto por defecto (fail-open)
+
+> **Verificado como exposición activa y corregido.** `ICAL_PUBLIC_TOKEN` no
+> estaba definida en Railway, así que la condición descrita abajo se cumplía en
+> producción: el `.ics` se descargó desde una sesión anónima con nombres reales
+> de clientes. Ver §0.
 
 - **Severidad**: Alta · **Prioridad**: P1
 - **Componente**: `airbnb/views.py::generar_ical_eventos`, ruta `/airbnb/ical/eventos/`
@@ -715,6 +762,9 @@ verificar que el cuerpo no contiene el texto de la excepción.
 
 ### SEC-INJ-001 — Inyección CRLF en el feed iCal
 
+> **Corregido** de forma colateral: el `.ics` ya no interpola texto libre, solo
+> el folio numérico de la cotización, así que no queda nada que escapar. Ver §0.
+
 - **Severidad**: Media · **Prioridad**: P2 · **CWE**: CWE-93
 
 **Evidencia** (`airbnb/views.py:346-360`): `nombre_evento` y `cliente.nombre` se
@@ -1031,7 +1081,7 @@ credencial — reescribir el historial no basta si el repositorio ya se clonó.
 | ID | Control | Por qué no se puede verificar | Evidencia a solicitar | Prioridad |
 |---|---|---|---|---|
 | NV-01 | Política de acceso del bucket R2 | La configuración del bucket vive en Cloudflare | Captura de la política de acceso público; resultado de pedir la URL de un archivo ARCO desde una sesión anónima | **P1** — condiciona `SEC-FILE-001` |
-| NV-02 | `ICAL_PUBLIC_TOKEN` en producción | Las variables de entorno viven en Railway | Confirmación de si la variable está definida y con valor no vacío | **P1** — condiciona `SEC-DATA-001` |
+| ~~NV-02~~ | ~~`ICAL_PUBLIC_TOKEN` en producción~~ | **VERIFICADO 2026-08-12**: no estaba definida. `SEC-DATA-001` era una fuga activa; contenida y corregida (§0) | — | Cerrado |
 | NV-03 | Backups de PostgreSQL | Servicio administrado de Railway | Frecuencia, retención, cifrado, y fecha de la última restauración probada | **P1** |
 | NV-04 | Comportamiento del edge con `X-Forwarded-For` | Depende de la infraestructura de Railway | Log de una petición con XFF fabricado, mostrando qué IP registra la app | P2 — condiciona `SEC-RL-002` |
 | NV-05 | HSTS efectivo en el edge | Django lo emite, pero el edge puede alterarlo | `curl -I https://erp.quintakooxtanil.com` mostrando `Strict-Transport-Security` | P2 |

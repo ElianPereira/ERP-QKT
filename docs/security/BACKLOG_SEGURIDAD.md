@@ -1,8 +1,12 @@
 # Backlog de seguridad — ERP-QKT
 
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
-**Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`. Nada de este backlog está
-implementado; requiere aprobación del propietario antes de empezar.
+**Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
+
+**Estado**: las órdenes 1, 2, 3, 5, 6 y 26 ya están hechas (Fase 0 completa y
+parte de la Fase 1) — ver §0 de la auditoría. Se marcan con ✅ y se conservan
+en la tabla para no perder la trazabilidad. El resto sigue pendiente y requiere
+aprobación del propietario antes de empezar.
 
 ## Criterios de prioridad
 
@@ -23,8 +27,8 @@ implementado; requiere aprobación del propietario antes de empezar.
 
 | Orden | ID | Tarea | Prioridad | Riesgo reducido | Dependencias | Esfuerzo | Responsable | Criterios de aceptación |
 |---|---|---|---|---|---|---|---|---|
-| 1 | SEC-XSS-001 | Sustituir `{{ eventos_json\|safe }}` por `json_script` en el calendario del admin y pasar `eventos_lista` sin serializar desde la vista | P0 | Ejecución de JS arbitrario con sesión de staff desde un POST anónimo; escalada a control total del ERP | Ninguna | XS | Dev | (1) Un `Cliente` con `nombre = '</script><script>window.x=1</script>'` no produce `</script>` sin escapar en `/admin/calendario/`; (2) el calendario sigue renderizando eventos correctamente; (3) test de regresión en la suite |
-| 2 | SEC-XSS-001b | Auditar los otros dos usos de `\|safe` sobre `json.dumps` (`comercial/templates/admin/dashboard.html:162-167`, `airbnb/.../dashboard.html:193-196`) y migrarlos a `json_script` | P0 | Mismo patrón; hoy no explotable porque solo llevan cifras agregadas, pero un cambio de contexto lo activaría | Orden 1 | XS | Dev | Ningún `\|safe` sobre `json.dumps` queda en plantillas del admin |
+| 1 ✅ | SEC-XSS-001 | **HECHO.** Sustituir `{{ eventos_json\|safe }}` por `json_script` en el calendario del admin y pasar `eventos_lista` sin serializar desde la vista | P0 | Ejecución de JS arbitrario con sesión de staff desde un POST anónimo; escalada a control total del ERP | Ninguna | XS | Dev | (1) Un `Cliente` con `nombre = '</script><script>window.x=1</script>'` no produce `</script>` sin escapar en `/admin/calendario/`; (2) el calendario sigue renderizando eventos correctamente; (3) test de regresión en la suite |
+| 2 ✅ | SEC-XSS-001b | **HECHO.** Auditar los otros dos usos de `\|safe` sobre `json.dumps` (`comercial/templates/admin/dashboard.html:162-167`, `airbnb/.../dashboard.html:193-196`) y migrarlos a `json_script` | P0 | Mismo patrón; hoy no explotable porque solo llevan cifras agregadas, pero un cambio de contexto lo activaría | Orden 1 | XS | Dev | Ningún `\|safe` sobre `json.dumps` queda en plantillas del admin |
 
 ---
 
@@ -32,10 +36,10 @@ implementado; requiere aprobación del propietario antes de empezar.
 
 | Orden | ID | Tarea | Prioridad | Riesgo reducido | Dependencias | Esfuerzo | Responsable | Criterios de aceptación |
 |---|---|---|---|---|---|---|---|---|
-| 3 | NV-02 | **Verificar** si `ICAL_PUBLIC_TOKEN` está definida y no vacía en Railway | P1 | Determina si `SEC-DATA-001` es una exposición activa o latente | Ninguna | XS | Infra | Respuesta documentada en el Issue; si está vacía, tratar `SEC-DATA-001` como incidente activo |
+| 3 ✅ | NV-02 | **HECHO.** Verificar si `ICAL_PUBLIC_TOKEN` está definida en Railway | P1 | — | Ninguna | XS | Infra | **No estaba definida**: `SEC-DATA-001` era una fuga activa. Contenida definiendo la variable y actualizando la URL en Airbnb |
 | 4 | NV-01 | **Verificar** la política de acceso del bucket R2: pedir la URL de un archivo de `arco/identificaciones/` desde una sesión anónima | P1 | Determina si `SEC-FILE-001` es una exposición activa o latente | Ninguna | XS | Infra | Resultado documentado (HTTP 200 vs. 403) |
-| 5 | SEC-DATA-001 | Invertir a fail-closed el feed iCal: sin `ICAL_PUBLIC_TOKEN` configurado, responder 403 | P1 | Publicación anónima de nombre de cliente, evento, asistentes y fecha de todas las cotizaciones confirmadas | Orden 3 | XS | Dev | Con la variable vacía, `/airbnb/ical/eventos/` devuelve 403; con token válido, 200 |
-| 6 | SEC-DATA-001b | Reducir el contenido del feed al mínimo funcional: `SUMMARY` genérico, sin nombre de cliente ni número de personas | P1 | Aunque el token se filtre, no se expone la cartera de clientes | Orden 5 | XS | Dev | El `.ics` no contiene el nombre de ningún cliente; Airbnb sigue bloqueando las fechas correctamente |
+| 5 ✅ | SEC-DATA-001 | **HECHO.** Invertir a fail-closed el feed iCal: sin `ICAL_PUBLIC_TOKEN` configurado, responder 403 | P1 | Publicación anónima de nombre de cliente, evento, asistentes y fecha de todas las cotizaciones confirmadas | Orden 3 | XS | Dev | Con la variable vacía, `/airbnb/ical/eventos/` devuelve 403; con token válido, 200 |
+| 6 ✅ | SEC-DATA-001b | **HECHO.** Reducir el contenido del feed al mínimo funcional: `SUMMARY` genérico, sin nombre de cliente ni número de personas | P1 | Aunque el token se filtre, no se expone la cartera de clientes | Orden 5 | XS | Dev | El `.ics` no contiene el nombre de ningún cliente; Airbnb sigue bloqueando las fechas correctamente |
 | 7 | SEC-FILE-001a | Pasar el bucket R2 a privado y activar `querystring_auth: True` para los documentos sensibles | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | Infra + Dev | `SolicitudARCO.identificacion.url` incluye parámetros de firma y caduca; las imágenes de la landing siguen cargando |
 | 8 | SEC-FILE-001b | Servir los documentos verdaderamente sensibles (ARCO, nómina, contratos) por vista autenticada con `FileResponse`, replicando el patrón de `legal/views.py`; que `portal_descargar_contrato` sirva el contenido en vez de redirigir a `archivo.url` | P1 | Cierra el hueco de forma independiente de la configuración del bucket | Orden 7 | M | Dev | Ninguna vista expone `archivo.url` de un documento sensible; cada descarga queda registrada |
 | 9 | SEC-AUTHN-001a | Unificar el mensaje de error de `portal_acceso` para código inexistente y teléfono incorrecto | P1 | Enumeración de identificadores de cotización válidos | Ninguna | XS | Dev | Ambos casos devuelven texto idéntico; test que lo verifica |
@@ -62,7 +66,7 @@ implementado; requiere aprobación del propietario antes de empezar.
 | 23 | SEC-CSRF-001 | Quitar `@csrf_exempt` de `cotizador_enviar` y enviar el token desde el formulario público | P2 | CSRF que crea registros y consume cuota de WhatsApp con coste real | Ninguna | S | Dev | `POST /cotizar/enviar/` sin token devuelve 403; el formulario legítimo sigue funcionando |
 | 24 | SEC-VAL-001 | Sustituir la validación manual de `cotizador_enviar` por un `forms.Form` con tipos, longitudes y `choices` | P2 | Entrada sin restricción en `notas`, `tipo_evento` y `como_nos_encontro`, que alimentan `nombre_evento` | Orden 23 | M | Dev | Campos fuera de rango devuelven 400; los tests del cotizador siguen pasando |
 | 25 | SEC-INFO-001 | Reemplazar `str(e)` por mensaje genérico + `logger.exception()` en `views_cotizador.py:371,394` y `nomina/views.py:377` | P2 | Filtración de rutas, nombres de tablas y detalles internos | Ninguna | XS | Dev | El cuerpo de un 500 no contiene el texto de la excepción; el detalle aparece en el log |
-| 26 | SEC-INJ-001 | Escapar conforme a RFC 5545 los valores interpolados en el feed iCal | P2 | Inyección de propiedades iCal en los calendarios que consuman el feed | Orden 6 | S | Dev | Una cotización con CRLF en el nombre no altera el número de `BEGIN:VEVENT` |
+| 26 ✅ | SEC-INJ-001 | **HECHO** (colateral de la orden 6): el `.ics` ya no interpola texto libre, solo el folio numérico | P2 | Inyección de propiedades iCal en los calendarios que consuman el feed | Orden 6 | S | Dev | Cubierto por `test_un_nombre_con_saltos_de_linea_no_inyecta_propiedades` |
 | 27 | SEC-SESS-001 | Añadir `expira_en` a `PortalCliente`, verificarlo en las 5 vistas del portal y permitir regenerar el token desde el admin | P2 | Token permanente en historiales, correos y WhatsApp | Ninguna | M | Dev | Un portal expirado devuelve 404; se puede regenerar sin tocar la BD a mano |
 | 28 | SEC-CFG-001 | Definir `SECURE_PROXY_SSL_HEADER` tras confirmar la cabecera que envía el edge | P2 | `request.is_secure()` incorrecto: bucles de redirección y URLs de retorno 3-D Secure en `http://` | NV-05 | XS | Infra + Dev | `request.is_secure()` devuelve `True` en producción |
 | 29 | SEC-CI-001a | `ruff check --fix` sobre los 555 hallazgos auto-corregibles y revisión manual de los 7 `E722` | P2 | Deuda que mantiene el gate de lint desactivado | Ninguna | S | Dev | `ruff check .` sin errores |
@@ -101,21 +105,24 @@ implementado; requiere aprobación del propietario antes de empezar.
 
 ## Resumen
 
-| Prioridad | Tareas | Esfuerzo agregado aproximado |
-|---|---|---|
-| P0 | 2 | XS — se cierra en una sesión |
-| P1 | 16 | ~2 semanas (5 son verificaciones de XS que no dependen de código) |
-| P2 | 22 | ~3 semanas |
-| P3 | 12 | ~2 semanas |
-| **Total** | **52** | — |
+| Prioridad | Tareas | Hechas | Esfuerzo restante aproximado |
+|---|---|---|---|
+| P0 | 2 | **2** | — |
+| P1 | 16 | 3 | ~2 semanas |
+| P2 | 22 | 1 | ~3 semanas |
+| P3 | 12 | 0 | ~2 semanas |
+| **Total** | **52** | **6** | — |
 
-**Las cinco tareas más rentables por relación impacto/esfuerzo** (todas `XS`):
+**Lo siguiente, por relación impacto/esfuerzo**:
 
-1. Orden 1 — `SEC-XSS-001`: elimina el único P0.
-2. Orden 3 — `NV-02`: una consulta que decide si hay una fuga de datos activa.
-3. Orden 4 — `NV-01`: una consulta que decide si hay documentos expuestos.
-4. Orden 5 — `SEC-DATA-001`: fail-closed en el feed iCal.
-5. Orden 9 — `SEC-AUTHN-001a`: cierra la enumeración del portal.
+1. Orden 4 — `NV-01` (`XS`): la consulta que decide si los documentos del bucket están expuestos. Es lo único que queda de las verificaciones inmediatas.
+2. Orden 9 — `SEC-AUTHN-001a` (`XS`): cierra la enumeración de códigos del portal.
+3. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
+4. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
+5. Orden 14 — `SEC-AUTHZ-001a` (`S`): la matriz de permisos, sin la cual la Fase 1 no puede continuar.
+
+Además, **rotar el `ICAL_PUBLIC_TOKEN`** usado para la contención: se generó en
+una conversación de trabajo y debe tratarse como provisional.
 
 Ninguna tarea `XL`: la de mayor esfuerzo es `SEC-AUTHZ-001`, ya subdividida en
 cinco entregables (órdenes 14-18) que se pueden desplegar por separado.
