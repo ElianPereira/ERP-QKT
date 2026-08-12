@@ -3,8 +3,10 @@
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
-**Estado**: las órdenes 1, 2, 3, 5, 6 y 26 ya están hechas (Fase 0 completa y
-parte de la Fase 1) — ver §0 de la auditoría. Se marcan con ✅ y se conservan
+**Estado**: las órdenes 1, 2, 3, 4, 5, 6 y 26 ya están hechas (Fase 0 completa y
+parte de la Fase 1) — ver §0 de la auditoría. Las dos verificaciones externas
+resultaron **positivas ambas**: el feed iCal estaba abierto (corregido) y el
+bucket R2 sirve lectura anónima (**sin corregir**, órdenes 7 y 8). Se marcan con ✅ y se conservan
 en la tabla para no perder la trazabilidad. El resto sigue pendiente y requiere
 aprobación del propietario antes de empezar.
 
@@ -37,7 +39,7 @@ aprobación del propietario antes de empezar.
 | Orden | ID | Tarea | Prioridad | Riesgo reducido | Dependencias | Esfuerzo | Responsable | Criterios de aceptación |
 |---|---|---|---|---|---|---|---|---|
 | 3 ✅ | NV-02 | **HECHO.** Verificar si `ICAL_PUBLIC_TOKEN` está definida en Railway | P1 | — | Ninguna | XS | Infra | **No estaba definida**: `SEC-DATA-001` era una fuga activa. Contenida definiendo la variable y actualizando la URL en Airbnb |
-| 4 | NV-01 | **Verificar** la política de acceso del bucket R2: pedir la URL de un archivo de `arco/identificaciones/` desde una sesión anónima | P1 | Determina si `SEC-FILE-001` es una exposición activa o latente | Ninguna | XS | Infra | Resultado documentado (HTTP 200 vs. 403) |
+| 4 ✅ | NV-01 | **HECHO.** Verificar la política de acceso del bucket R2 | P1 | — | Ninguna | XS | Infra | **Sirve lectura anónima** (las imágenes de la landing cargan sin sesión): `SEC-FILE-001` es exposición activa. Sube a la cabeza de la cola |
 | 5 ✅ | SEC-DATA-001 | **HECHO.** Invertir a fail-closed el feed iCal: sin `ICAL_PUBLIC_TOKEN` configurado, responder 403 | P1 | Publicación anónima de nombre de cliente, evento, asistentes y fecha de todas las cotizaciones confirmadas | Orden 3 | XS | Dev | Con la variable vacía, `/airbnb/ical/eventos/` devuelve 403; con token válido, 200 |
 | 6 ✅ | SEC-DATA-001b | **HECHO.** Reducir el contenido del feed al mínimo funcional: `SUMMARY` genérico, sin nombre de cliente ni número de personas | P1 | Aunque el token se filtre, no se expone la cartera de clientes | Orden 5 | XS | Dev | El `.ics` no contiene el nombre de ningún cliente; Airbnb sigue bloqueando las fechas correctamente |
 | 7 | SEC-FILE-001a | Pasar el bucket R2 a privado y activar `querystring_auth: True` para los documentos sensibles | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | Infra + Dev | `SolicitudARCO.identificacion.url` incluye parámetros de firma y caduca; las imágenes de la landing siguen cargando |
@@ -108,14 +110,14 @@ aprobación del propietario antes de empezar.
 | Prioridad | Tareas | Hechas | Esfuerzo restante aproximado |
 |---|---|---|---|
 | P0 | 2 | **2** | — |
-| P1 | 16 | 3 | ~2 semanas |
+| P1 | 16 | 4 | ~2 semanas |
 | P2 | 22 | 1 | ~3 semanas |
 | P3 | 12 | 0 | ~2 semanas |
-| **Total** | **52** | **6** | — |
+| **Total** | **52** | **7** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
-1. Orden 4 — `NV-01` (`XS`): la consulta que decide si los documentos del bucket están expuestos. Es lo único que queda de las verificaciones inmediatas.
+1. Órdenes 7 y 8 — `SEC-FILE-001` (`M`+`M`): ya no es hipótesis, el bucket es público. Es lo único P1 confirmado que sigue abierto.
 2. Orden 9 — `SEC-AUTHN-001a` (`XS`): cierra la enumeración de códigos del portal.
 3. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 4. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
@@ -123,6 +125,12 @@ aprobación del propietario antes de empezar.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).
+
+**Nota sobre las órdenes 7 y 8**: no admiten una contención rápida como la del
+feed iCal. Hacer el bucket privado sin separar antes las imágenes de la landing
+deja el sitio público sin fotos, así que el orden correcto es crear el bucket
+privado, migrar los documentos, y solo entonces cerrar el acceso público del
+actual.
 
 Ninguna tarea `XL`: la de mayor esfuerzo es `SEC-AUTHZ-001`, ya subdividida en
 cinco entregables (órdenes 14-18) que se pueden desplegar por separado.

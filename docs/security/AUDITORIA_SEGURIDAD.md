@@ -20,7 +20,8 @@ original siga siendo legible.
 | `SEC-DATA-001` | P1, condicionado a `NV-02` | **EXPOSICIÓN CONFIRMADA · CORREGIDO** | Ver abajo |
 | `SEC-INJ-001` | P2 | **CORREGIDO** | Colateral: al dejar de interpolar texto libre en el `.ics` no queda nada que escapar |
 | `NV-02` | No verificable | **VERIFICADO** | `ICAL_PUBLIC_TOKEN` **no estaba definida** en Railway |
-| `NV-01` | No verificable | Pendiente | Sigue sin confirmarse la política del bucket R2 |
+| `NV-01` | No verificable | **VERIFICADO** | El bucket R2 **sí sirve lectura anónima**. `SEC-FILE-001` es una exposición activa; ver abajo |
+| `SEC-FILE-001` | P1, condicionado a `NV-01` | **EXPOSICIÓN CONFIRMADA · sin corregir** | La corrección no es de una línea: ver §6 y la Fase 2 del plan |
 
 ### `SEC-DATA-001` fue una fuga real, no un riesgo teórico
 
@@ -42,6 +43,43 @@ Contención aplicada, en este orden:
 El token se generó en un gestor de contraseñas y nunca salió de él, así que no
 requiere rotación por origen. Entra en el calendario ordinario de rotación de
 credenciales (`NV-06`).
+
+### `SEC-FILE-001`: el bucket es público, y el único control es la URL
+
+`NV-01` se verificó indirectamente pero sin ambigüedad: las imágenes de la
+landing se sirven desde `media.quintakooxtanil.com` y cargan en una sesión
+anónima, luego el bucket permite lectura sin credenciales. Todo objeto
+almacenado ahí es accesible para quien conozca su ruta.
+
+Un primer intento de comprobación con la URL de un contrato devolvió 404, pero
+**ese 404 no significaba que el bucket fuera privado**: la URL llevaba el
+prefijo `/media/`, propio de rutas heredadas de Cloudinary, mientras que
+`upload_to` es `contratos_pdf/` y el `S3Storage` no define `location`. El objeto
+no estaba en R2, no es que estuviera protegido. El mensaje de Cloudflare
+(*"does not exist **or** is not publicly accessible"*) mezcla ambos casos y no
+sirve para distinguirlos.
+
+Dos matices para dimensionarlo correctamente, sin exagerarlo ni minimizarlo:
+
+- **No todo está en R2.** Los archivos anteriores a la migración siguen en
+  Cloudinary; el 404 del contrato lo demuestra. Lo expuesto es lo subido desde
+  que R2 es el storage activo.
+- **`file_overwrite: False` añade un sufijo aleatorio corto** al nombre
+  (`..._uxjral.pdf`), lo que hace la ruta no trivialmente adivinable. Eso es
+  seguridad por oscuridad, no control de acceso: la URL se filtra por historial,
+  por correo, por `Referer` (`SEC-CFG-003`) y —en el caso de los contratos—
+  porque `portal_descargar_contrato` se la entrega directamente al navegador del
+  cliente.
+
+Para las identificaciones de solicitudes ARCO esto es lo más serio: son datos
+personales recabados justamente para ejercer derechos ARCO, y el control que
+`legal/views.py` implementa (permiso dedicado + bitácora de accesos) queda
+sorteado por completo si alguien tiene la URL directa.
+
+**No hay contención de una línea aquí.** Hacer el bucket privado sin más deja la
+landing sin imágenes. La corrección correcta es separar buckets —uno público
+para la landing, uno privado para documentos— y está descrita en la Fase 2 del
+plan de implementación.
 
 ---
 
@@ -536,6 +574,9 @@ misma cotización desde IPs distintas la respuesta sea 429.
 
 ### SEC-FILE-001 — Archivos sensibles servidos por URL sin firma
 
+> **Verificado como exposición activa** (2026-08-12): el bucket sirve lectura
+> anónima. Pendiente de corregir — requiere separar buckets, ver §0 y Fase 2.
+
 - **Severidad**: Alta · **Prioridad**: P1
 - **Componente**: `core_erp/settings.py::STORAGES`, `legal/views.py`, `comercial/views_portal.py::portal_descargar_contrato`
 - **OWASP**: A01:2021 Broken Access Control · **CWE**: CWE-284, CWE-552
@@ -573,10 +614,9 @@ En `views_portal.py:252`, `portal_descargar_contrato` hace
 `redirect(contrato.archivo.url)`: entrega al navegador del cliente esa URL
 permanente, que queda en su historial y puede compartirse sin querer.
 
-**Requisito previo**: que el bucket permita lectura anónima. Es lo que implica la
-combinación `custom_domain` + `querystring_auth: False` (de otro modo las URLs no
-funcionarían), pero **la política real del bucket no está en el repositorio**:
-confirmar antes de dimensionar el impacto (ver sección 7).
+**Requisito previo**: que el bucket permita lectura anónima. **Confirmado el
+2026-08-12** (ver §0): las imágenes de la landing cargan desde
+`media.quintakooxtanil.com` en sesión anónima.
 
 **Escenario de abuso**: quien obtenga una URL — por historial, reenvío de correo,
 cabecera `Referer` (`SEC-CFG-003`), o adivinando rutas como
@@ -1081,7 +1121,7 @@ credencial — reescribir el historial no basta si el repositorio ya se clonó.
 
 | ID | Control | Por qué no se puede verificar | Evidencia a solicitar | Prioridad |
 |---|---|---|---|---|
-| NV-01 | Política de acceso del bucket R2 | La configuración del bucket vive en Cloudflare | Captura de la política de acceso público; resultado de pedir la URL de un archivo ARCO desde una sesión anónima | **P1** — condiciona `SEC-FILE-001` |
+| ~~NV-01~~ | ~~Política de acceso del bucket R2~~ | **VERIFICADO 2026-08-12**: sirve lectura anónima. `SEC-FILE-001` es exposición activa (§0) | — | Cerrado |
 | ~~NV-02~~ | ~~`ICAL_PUBLIC_TOKEN` en producción~~ | **VERIFICADO 2026-08-12**: no estaba definida. `SEC-DATA-001` era una fuga activa; contenida y corregida (§0) | — | Cerrado |
 | NV-03 | Backups de PostgreSQL | Servicio administrado de Railway | Frecuencia, retención, cifrado, y fecha de la última restauración probada | **P1** |
 | NV-04 | Comportamiento del edge con `X-Forwarded-For` | Depende de la infraestructura de Railway | Log de una petición con XFF fabricado, mostrando qué IP registra la app | P2 — condiciona `SEC-RL-002` |
