@@ -3,6 +3,7 @@ from django.contrib import admin, messages
 from django.conf import settings
 from django.utils.html import format_html
 from django.utils.timezone import now
+from core_erp.descargas import url_descarga
 from .models import Empleado, ReciboNomina
 
 try:
@@ -49,7 +50,7 @@ class ReciboNominaAdmin(admin.ModelAdmin):
                 '<a href="{}" target="_blank" style="background:#2E7D32; color:white; '
                 'padding:4px 10px; border-radius:4px; text-decoration:none; '
                 'font-size:11px; font-weight:600;">PDF</a>',
-                obj.archivo_pdf.url
+                url_descarga(obj, 'archivo_pdf')
             )
         return "-"
     ver_pdf.short_description = "Recibo"
