@@ -7,12 +7,14 @@ descargas pasen por el ERP —con sesión, permiso y sin cache— en vez de por 
 ruta del storage.
 """
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.functional import empty
 
 from comercial.models import Cliente, ContratoServicio, Cotizacion, PortalCliente
 from core_erp.descargas import ARCHIVOS_PROTEGIDOS, url_descarga
@@ -20,10 +22,22 @@ from core_erp.descargas import ARCHIVOS_PROTEGIDOS, url_descarga
 PDF = b'%PDF-1.4 contrato de prueba'
 
 
-@override_settings(STORAGES={
+def _resuelto():
+    """Fuerza el LazyObject y devuelve el backend real que envuelve."""
+    from core_erp.storages_qkt import storage_privado
+
+    lazy = storage_privado()
+    lazy.__class__  # noqa: B018 — el acceso dispara _setup()
+    return lazy._wrapped
+
+
+STORAGES_EN_MEMORIA = {
     'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
     'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
-})
+}
+
+
+@override_settings(STORAGES=STORAGES_EN_MEMORIA)
 class DescargaProtegidaTest(TestCase):
 
     def setUp(self):
@@ -115,10 +129,7 @@ class DescargaProtegidaTest(TestCase):
             self.assertIn(campo, campos, f'{app_label}.{model_name}.{campo} no existe')
 
 
-@override_settings(STORAGES={
-    'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
-    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
-})
+@override_settings(STORAGES=STORAGES_EN_MEMORIA)
 class PortalContratoTest(TestCase):
     """El portal sirve el contrato en vez de redirigir al bucket público."""
 
@@ -177,3 +188,57 @@ class MensajeDeAccesoAlPortalTest(TestCase):
 
         self.assertEqual(inexistente, telefono_malo)
         self.assertNotIn('No encontramos', inexistente)
+
+
+class StoragePrivadoTest(TestCase):
+    """El bucket privado es opt-in: sin configurar, todo sigue igual."""
+
+    def test_sin_bucket_privado_cae_al_default(self):
+        from django.core.files.storage import storages
+
+        from core_erp.storages_qkt import storage_privado
+
+        with override_settings(STORAGES={
+            'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+            'privado': {'BACKEND': 'django.core.files.storage.InMemoryStorage',
+                        'OPTIONS': {}},
+            'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+        }):
+            self.assertIs(_resuelto(), storages['default'])
+
+    def test_con_bucket_privado_usa_ese_backend(self):
+        from django.core.files.storage import storages
+
+        from core_erp.storages_qkt import storage_privado
+
+        with override_settings(STORAGES={
+            'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+            # InMemoryStorage acepta `location`; lo que mira storage_privado()
+            # es que OPTIONS traiga bucket_name, no que el backend lo use.
+            'privado': {'BACKEND': 'django.core.files.storage.InMemoryStorage',
+                        'OPTIONS': {'location': '/privado'}},
+            'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+        }):
+            with patch('core_erp.storages_qkt._hay_bucket_privado', return_value=True):
+                storage_privado()._wrapped = empty
+                self.assertIs(_resuelto(), storages['privado'])
+                self.assertIsNot(_resuelto(), storages['default'])
+
+    def test_los_campos_sensibles_usan_el_storage_privado(self):
+        from django.apps import apps
+
+        from core_erp.storages_qkt import storage_privado
+
+        esperados = [
+            ('legal', 'SolicitudARCO', 'identificacion'),
+            ('nomina', 'ReciboNomina', 'archivo_pdf'),
+            ('contabilidad', 'EstadoCuentaBancario', 'archivo'),
+            ('comercial', 'ContratoServicio', 'archivo'),
+        ]
+        for app_label, model_name, campo in esperados:
+            field = apps.get_model(app_label, model_name)._meta.get_field(campo)
+            # Django guarda el callable aparte y evalúa storage una sola vez.
+            self.assertIs(
+                field._storage_callable, storage_privado,
+                f'{app_label}.{model_name}.{campo} no usa storage_privado',
+            )

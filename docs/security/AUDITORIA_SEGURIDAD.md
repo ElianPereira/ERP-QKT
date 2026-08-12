@@ -21,7 +21,8 @@ original siga siendo legible.
 | `SEC-INJ-001` | P2 | **CORREGIDO** | Colateral: al dejar de interpolar texto libre en el `.ics` no queda nada que escapar |
 | `NV-02` | No verificable | **VERIFICADO** | `ICAL_PUBLIC_TOKEN` **no estaba definida** en Railway |
 | `NV-01` | No verificable | **VERIFICADO** | El bucket R2 **sí sirve lectura anónima**. `SEC-FILE-001` es una exposición activa; ver abajo |
-| `SEC-FILE-001` | P1, condicionado a `NV-01` | **EXPOSICIÓN CONFIRMADA · sin corregir** | La corrección no es de una línea: ver §6 y la Fase 2 del plan |
+| `SEC-FILE-001` | P1, condicionado a `NV-01` | **EXPOSICIÓN CONFIRMADA · parcialmente corregido** | El ERP ya no publica URLs del bucket (código). Falta activar el bucket privado en Cloudflare — ver abajo |
+| `SEC-AUTHN-001a` | P1 | **CORREGIDO** | `portal_acceso` devuelve el mismo mensaje en los tres fallos |
 
 ### `SEC-DATA-001` fue una fuga real, no un riesgo teórico
 
@@ -77,9 +78,30 @@ personales recabados justamente para ejercer derechos ARCO, y el control que
 sorteado por completo si alguien tiene la URL directa.
 
 **No hay contención de una línea aquí.** Hacer el bucket privado sin más deja la
-landing sin imágenes. La corrección correcta es separar buckets —uno público
-para la landing, uno privado para documentos— y está descrita en la Fase 2 del
-plan de implementación.
+landing sin imágenes, porque comparten almacenamiento. La corrección se dividió
+en dos mitades:
+
+**Hecho (código).** El ERP dejó de publicar URLs del bucket para documentos
+sensibles: `core_erp/descargas.py` los sirve con `FileResponse` exigiendo sesión
+y el permiso `view` del modelo, y `portal_descargar_contrato` entrega el PDF en
+vez de redirigir. Los `FileField` de identificaciones ARCO, nómina, contratos y
+estados de cuenta ya apuntan a un storage `privado` configurable
+(`core_erp/storages_qkt.py`), que **cae al bucket actual mientras no se
+configure** — así el código se despliega sin depender del cambio de
+infraestructura.
+
+**Pendiente (infraestructura).** Hasta que exista el bucket privado, las URLs
+que ya circulan siguen funcionando y el formulario de edición del admin sigue
+mostrando el enlace del `FileField` por el widget por defecto de Django. Pasos,
+en este orden:
+
+1. Crear el bucket privado en Cloudflare R2, **sin** dominio público conectado.
+2. Definir `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` en Railway (y las credenciales
+   si son distintas).
+3. `manage.py migrar_archivos_privados` para ver qué copiaría; luego
+   `--aplicar`. Copia, no mueve: no borra nada del origen.
+4. Verificar que las descargas funcionan contra el bucket nuevo.
+5. Solo entonces, borrar esos objetos del bucket público.
 
 ---
 

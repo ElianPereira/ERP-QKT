@@ -3,7 +3,7 @@
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
-**Estado**: las órdenes 1, 2, 3, 4, 5, 6 y 26 ya están hechas (Fase 0 completa y
+**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9 y 26 ya están hechas (Fase 0 completa y
 parte de la Fase 1) — ver §0 de la auditoría. Las dos verificaciones externas
 resultaron **positivas ambas**: el feed iCal estaba abierto (corregido) y el
 bucket R2 sirve lectura anónima (**sin corregir**, órdenes 7 y 8). Se marcan con ✅ y se conservan
@@ -42,9 +42,9 @@ aprobación del propietario antes de empezar.
 | 4 ✅ | NV-01 | **HECHO.** Verificar la política de acceso del bucket R2 | P1 | — | Ninguna | XS | Infra | **Sirve lectura anónima** (las imágenes de la landing cargan sin sesión): `SEC-FILE-001` es exposición activa. Sube a la cabeza de la cola |
 | 5 ✅ | SEC-DATA-001 | **HECHO.** Invertir a fail-closed el feed iCal: sin `ICAL_PUBLIC_TOKEN` configurado, responder 403 | P1 | Publicación anónima de nombre de cliente, evento, asistentes y fecha de todas las cotizaciones confirmadas | Orden 3 | XS | Dev | Con la variable vacía, `/airbnb/ical/eventos/` devuelve 403; con token válido, 200 |
 | 6 ✅ | SEC-DATA-001b | **HECHO.** Reducir el contenido del feed al mínimo funcional: `SUMMARY` genérico, sin nombre de cliente ni número de personas | P1 | Aunque el token se filtre, no se expone la cartera de clientes | Orden 5 | XS | Dev | El `.ics` no contiene el nombre de ningún cliente; Airbnb sigue bloqueando las fechas correctamente |
-| 7 | SEC-FILE-001a | Pasar el bucket R2 a privado y activar `querystring_auth: True` para los documentos sensibles | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | Infra + Dev | `SolicitudARCO.identificacion.url` incluye parámetros de firma y caduca; las imágenes de la landing siguen cargando |
-| 8 | SEC-FILE-001b | Servir los documentos verdaderamente sensibles (ARCO, nómina, contratos) por vista autenticada con `FileResponse`, replicando el patrón de `legal/views.py`; que `portal_descargar_contrato` sirva el contenido en vez de redirigir a `archivo.url` | P1 | Cierra el hueco de forma independiente de la configuración del bucket | Orden 7 | M | Dev | Ninguna vista expone `archivo.url` de un documento sensible; cada descarga queda registrada |
-| 9 | SEC-AUTHN-001a | Unificar el mensaje de error de `portal_acceso` para código inexistente y teléfono incorrecto | P1 | Enumeración de identificadores de cotización válidos | Ninguna | XS | Dev | Ambos casos devuelven texto idéntico; test que lo verifica |
+| 7 | SEC-FILE-001a | **Código listo, falta el paso de Cloudflare.** Crear el bucket privado (sin dominio público), definir `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` en Railway y correr `manage.py migrar_archivos_privados --aplicar` | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | **Infra** | `SolicitudARCO.identificacion.url` incluye parámetros de firma y caduca; las imágenes de la landing siguen cargando |
+| 8 ✅ | SEC-FILE-001b | **HECHO.** Servir los documentos verdaderamente sensibles (ARCO, nómina, contratos) por vista autenticada con `FileResponse`, replicando el patrón de `legal/views.py`; que `portal_descargar_contrato` sirva el contenido en vez de redirigir a `archivo.url` | P1 | Cierra el hueco de forma independiente de la configuración del bucket | Orden 7 | M | Dev | Ninguna vista expone `archivo.url` de un documento sensible; cada descarga queda registrada |
+| 9 ✅ | SEC-AUTHN-001a | **HECHO.** Unificar el mensaje de error de `portal_acceso` para código inexistente y teléfono incorrecto | P1 | Enumeración de identificadores de cotización válidos | Ninguna | XS | Dev | Ambos casos devuelven texto idéntico; test que lo verifica |
 | 10 | SEC-AUTHN-001b | Añadir contador de intentos **por cotización** además del de IP, reusando el patrón de `ratelimit.py::_buckets_login` | P1 | Fuerza bruta distribuida sobre los 4 dígitos del teléfono | Orden 9 | S | Dev | Tras N intentos fallidos contra la misma cotización desde IPs distintas, la respuesta es 429 |
 | 11 | SEC-AUTHN-001c | Dejar de crear el `PortalCliente` dentro de `portal_acceso`: resolver solo portales existentes y activos | P1 | Un atacante genera tokens permanentes para cotizaciones que nunca tuvieron portal | Orden 10 | S | Dev | `portal_acceso` no crea registros; el alta ocurre en el flujo comercial |
 | 12 | NV-03 | **Verificar** backups de PostgreSQL en Railway: frecuencia, retención, cifrado y última restauración probada | P1 | Pérdida de datos sin posibilidad de recuperación | Ninguna | XS | Infra | Evidencia documentada; si no hay respaldo, se convierte en P0 operativo |
@@ -110,16 +110,15 @@ aprobación del propietario antes de empezar.
 | Prioridad | Tareas | Hechas | Esfuerzo restante aproximado |
 |---|---|---|---|
 | P0 | 2 | **2** | — |
-| P1 | 16 | 4 | ~2 semanas |
+| P1 | 16 | 6 | ~1-2 semanas |
 | P2 | 22 | 1 | ~3 semanas |
 | P3 | 12 | 0 | ~2 semanas |
-| **Total** | **52** | **7** | — |
+| **Total** | **52** | **9** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
-1. Órdenes 7 y 8 — `SEC-FILE-001` (`M`+`M`): ya no es hipótesis, el bucket es público. Es lo único P1 confirmado que sigue abierto.
-2. Orden 9 — `SEC-AUTHN-001a` (`XS`): cierra la enumeración de códigos del portal.
-3. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
+1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
+2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 4. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 5. Orden 14 — `SEC-AUTHZ-001a` (`S`): la matriz de permisos, sin la cual la Fase 1 no puede continuar.
 

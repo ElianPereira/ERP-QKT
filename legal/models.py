@@ -19,6 +19,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from core_erp.storages_qkt import storage_privado
 
 # Un documento con marcadores sin resolver no puede publicarse: saldrían a la
 # vista del cliente cadenas como "[CONFIRMAR: +52 999 XXX XXXX]".
@@ -249,7 +250,9 @@ class SolicitudARCO(models.Model):
     correo = models.EmailField()
     telefono = models.CharField(max_length=20, blank=True)
     descripcion = models.TextField()
-    identificacion = models.FileField(upload_to='arco/identificaciones/', blank=True)
+    identificacion = models.FileField(
+        upload_to='arco/identificaciones/', blank=True, storage=storage_privado,
+    )
 
     estado = models.CharField(max_length=16, choices=EstadoARCO.choices,
                               default=EstadoARCO.RECIBIDA)
