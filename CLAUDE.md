@@ -75,6 +75,33 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-12 — Recuperación de los archivos históricos de Cloudinary
+  (`/admin/recuperar-archivos/`, `comercial/services_recuperacion.py`). La
+  vista existe porque el comando equivalente exige una terminal con las
+  variables de producción; comparte servicio con él, es solo superusuario
+  (`staff_member_required` mira únicamente `is_staff`) y corta cada pasada a
+  25 descargas o 90 s, porque gunicorn mata la petición a los 120
+  (Dockerfile) y **cada registro cuesta al menos una consulta de red al
+  bucket**. Tres cosas que costaron descubrir, en orden: **(1)** con un token
+  de R2 sin permiso de listado, `HeadObject` sobre una clave inexistente
+  devuelve **403, no 404** —comportamiento documentado de S3: sin
+  `ListBucket` el servicio no confirma la ausencia— así que `storage.exists()`
+  lanzaba y abortaba el barrido entero en el primer archivo que faltaba, que
+  es justo el caso que la herramienta busca. **(2)** El bucket `qkt-media`
+  solo tenía `estados_cuenta/` y `landing/`: la migración a R2 nunca movió
+  contratos, cotizaciones, productos, nómina, facturación ni las
+  identificaciones de ARCO. De 241 archivos, **228 vivían solo en
+  Cloudinary**. **(3)** Esa cuenta de Cloudinary está **deshabilitada por
+  exceder el límite de uso** (148 créditos contra una cuota de 25), y una
+  cuenta deshabilitada deja de servir las URLs: los 25 intentos dieron 404 en
+  los dos `resource_type`. Que el comando funcione descargando de
+  `res.cloudinary.com` **sin credenciales** es, de paso, la prueba de que todo
+  ese histórico es público — misma familia que `SEC-FILE-001` pero fuera de
+  R2 y más grande. La simulación desglosa por campo y por origen
+  (`CATALOGO` en el servicio) porque la decisión real no es técnica sino si
+  vale la pena pagar la reactivación: cotizaciones y contratos los reemite el
+  ERP, los CFDI y los estados de cuenta se rebajan del SAT y del banco, y lo
+  único sin otra fuente son las fotos y las identificaciones de ARCO.
 - 2026-08-12 — Auditoría de seguridad (Issue #190, PR #194) y corrección de
   los dos hallazgos que resultaron explotables. **XSS almacenado no
   autenticado con toma de sesión de staff**: `json.dumps` **no escapa `<`,

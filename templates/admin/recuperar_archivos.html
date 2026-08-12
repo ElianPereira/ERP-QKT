@@ -46,6 +46,51 @@
     {% endif %}
   </div>
 
+  {% if resultado.desglose %}
+    <h2 style="margin-bottom:12px;">Desglose por tipo de archivo</h2>
+
+    {% with totales=resultado.faltan_por_origen %}
+    <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+      <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:12px 16px;flex:1;min-width:200px;">
+        <div style="font-size:26px;font-weight:700;color:#2e7d32;">{{ totales.regenerable }}</div>
+        <div style="font-size:12px;">El ERP los vuelve a generar</div>
+      </div>
+      <div style="background:#e3f2fd;border:1px solid #2196f3;border-radius:6px;padding:12px 16px;flex:1;min-width:200px;">
+        <div style="font-size:26px;font-weight:700;color:#1565c0;">{{ totales.otra_fuente }}</div>
+        <div style="font-size:12px;">Se consiguen en otro sitio (SAT, banco, proveedor)</div>
+      </div>
+      <div style="background:#ffebee;border:1px solid #e53935;border-radius:6px;padding:12px 16px;flex:1;min-width:200px;">
+        <div style="font-size:26px;font-weight:700;color:#c62828;">{{ totales.sin_fuente }}</div>
+        <div style="font-size:12px;"><b>Sin otra fuente</b>: solo se recuperan de Cloudinary</div>
+      </div>
+    </div>
+    {% endwith %}
+
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px;">
+      <thead>
+        <tr style="background:#f5f5f5;">
+          <th style="padding:8px;border:1px solid #ddd;text-align:left;">Tipo</th>
+          <th style="padding:8px;border:1px solid #ddd;text-align:center;">Faltan</th>
+          <th style="padding:8px;border:1px solid #ddd;text-align:center;">Ya están</th>
+          <th style="padding:8px;border:1px solid #ddd;text-align:left;">Si Cloudinary no los devuelve</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fila in resultado.desglose %}
+        <tr>
+          <td style="padding:7px 8px;border:1px solid #ddd;">{{ fila.etiqueta }}</td>
+          <td style="padding:7px 8px;border:1px solid #ddd;text-align:center;font-weight:600;
+            {% if fila.faltan and fila.origen == 'sin_fuente' %}color:#c62828;{% endif %}">
+            {{ fila.faltan }}
+          </td>
+          <td style="padding:7px 8px;border:1px solid #ddd;text-align:center;color:#666;">{{ fila.en_storage }}</td>
+          <td style="padding:7px 8px;border:1px solid #ddd;color:#555;">{{ fila.nota }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
   {% if resultado.pendientes %}
     <h2 style="margin-bottom:12px;">Faltan por recuperar</h2>
     <pre style="background:#fafafa;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:12px;max-height:320px;overflow:auto;">{% for referencia in resultado.pendientes %}{{ referencia }}
