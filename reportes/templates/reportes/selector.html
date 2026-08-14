@@ -159,6 +159,7 @@
 
 <!-- Accesos rápidos con defaults -->
 <div class="quick-links">
+    {% if puede_contabilidad %}
     <a class="quick-link" href="{% url 'reportes:balanza' %}?fecha_inicio={{ inicio_anio|date:'Y-m-d' }}&fecha_fin={{ hoy|date:'Y-m-d' }}">
         <i class="fas fa-balance-scale"></i> Balanza Rápida (YTD)
     </a>
@@ -168,9 +169,12 @@
     <a class="quick-link" href="{% url 'reportes:balance_general' %}?fecha_fin={{ hoy|date:'Y-m-d' }}">
         <i class="fas fa-file-invoice-dollar"></i> Balance Hoy
     </a>
+    {% endif %}
+    {% if puede_comercial %}
     <a class="quick-link" href="{% url 'reportes:cxc' %}?fecha_corte={{ hoy|date:'Y-m-d' }}">
         <i class="fas fa-hand-holding-usd"></i> Cartera Hoy
     </a>
+    {% endif %}
 </div>
 
 <div class="reportes-grid">
@@ -178,6 +182,7 @@
     <!-- ============================================================ -->
     <!-- CONTABILIDAD                                                  -->
     <!-- ============================================================ -->
+    {% if puede_contabilidad %}
     <div class="seccion-reportes">
         <div class="seccion-header contabilidad">
             <i class="fas fa-calculator"></i> Contabilidad
@@ -322,6 +327,7 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
     <!-- ============================================================ -->
     <!-- COLUMNA DERECHA: COMERCIAL + AIRBNB + FACTURACIÓN             -->
@@ -329,6 +335,7 @@
     <div style="display:flex; flex-direction:column; gap:20px;">
 
         <!-- COMERCIAL -->
+        {% if puede_comercial %}
         <div class="seccion-reportes">
             <div class="seccion-header comercial">
                 <i class="fas fa-hand-holding-usd"></i> Comercial
@@ -376,8 +383,10 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
         <!-- AIRBNB -->
+        {% if puede_airbnb %}
         <div class="seccion-reportes">
             <div class="seccion-header airbnb">
                 <i class="fas fa-home"></i> Airbnb
@@ -437,8 +446,10 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
         <!-- FACTURACIÓN -->
+        {% if puede_facturacion %}
         <div class="seccion-reportes">
             <div class="seccion-header facturacion">
                 <i class="fas fa-file-invoice"></i> Facturación
@@ -462,6 +473,7 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
     </div>
 </div>

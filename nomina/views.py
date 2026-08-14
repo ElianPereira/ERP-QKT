@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -191,6 +192,7 @@ def _generar_recibos_desde_datos(datos_empleados, fecha_emision_por_empleado=Non
 # ==========================================
 
 @staff_member_required
+@permission_required('nomina.add_recibonomina', raise_exception=True)
 def cargar_nomina(request):
     if request.method == 'POST' and request.FILES.get('archivo_excel'):
         archivo = request.FILES['archivo_excel']
@@ -286,6 +288,7 @@ def cargar_nomina(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('nomina.change_recibonomina', raise_exception=True)
 def sync_jibble_view(request):
     from .services import JibbleService, JibbleAPIError
     svc = JibbleService()
@@ -382,6 +385,7 @@ def webhook_sync_jibble(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('nomina.view_recibonomina', raise_exception=True)
 def jibble_diagnostico_view(request):
     from .services import JibbleService
     svc = JibbleService()

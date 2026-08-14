@@ -7,12 +7,14 @@ from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
 from weasyprint import HTML
 
 from .models import SolicitudFactura
 from comercial.models import Cliente, Cotizacion
 
 @staff_member_required
+@permission_required('facturacion.add_solicitudfactura', raise_exception=True)
 def crear_solicitud(request):
     clientes = Cliente.objects.all().order_by('nombre')
     cotizaciones = Cotizacion.objects.filter(estado__in=['ACEPTADA', 'CONFIRMADA']).order_by('-id')

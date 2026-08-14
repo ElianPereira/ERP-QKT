@@ -31,7 +31,7 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp` |
+| Test completo (= CI) | `python manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp comunicacion reportes` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
@@ -75,6 +75,49 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-14 — Órdenes 14-16/18 del backlog de seguridad (`SEC-AUTHZ-001a/b/c/e`,
+  Issue #199, PR sobre `claude/solicitud-ai-nok66o`): 3 grupos Django
+  (Ventas, Contabilidad, Nómina) con permisos por modelo, más
+  `@permission_required` en las vistas custom que antes solo exigían
+  `is_staff`. **Dirección no es un grupo**: sigue siendo `is_superuser`, el
+  patrón que ya usaban `importar_historico_view` y
+  `migrar_archivos_privados_view` — un superusuario pasa cualquier
+  `has_perm`/`permission_required` sin permisos explícitos, así que crear un
+  grupo "Dirección" habría sido redundante. La matriz completa (qué app va
+  con qué grupo, y las excepciones) se decidió con el propietario antes de
+  escribir el Issue, no unilateralmente; quedó documentada ahí y no se repite
+  aquí. Dos decisiones puntuales sí vale la pena recordar: **(1)**
+  `comercial.ConstanteSistema` es la única excepción dentro de un área —
+  Ventas recibe solo `view`, no `add`/`change`/`delete`, porque son precios
+  de referencia que consultan pero no deben poder alterar solos. El comando
+  `crear_grupos_permisos` modela esto con un diccionario de excepciones por
+  `(app_label, modelo)` en vez de listar los ~40 modelos uno por uno —
+  itera `apps.get_app_config(app).get_models()` y aplica los 4 verbos
+  estándar salvo que el modelo esté en `EXCEPCIONES`. **(2)** `reportes/`
+  agrega en una sola pantalla reportes de las 4 áreas, así que no lleva un
+  único permiso de módulo: cada una de sus 11 vistas exige el permiso de su
+  área dueña, y `selector_reportes` pasa flags `puede_<area>` al contexto
+  para que la plantilla oculte secciones enteras en vez de mostrar un botón
+  que respondería 403 al pulsarlo. **Las 4 sub-vistas de
+  `SolicitudFacturaAdmin.get_urls()` no usan `@permission_required`**: son
+  métodos ligados de la clase, y decorar un método con un decorador pensado
+  para funciones desplaza los argumentos (`self` termina donde el decorador
+  espera `request`) — se replicó en su lugar el patrón ya existente de
+  `comercial/admin.py::descuentos_view`, un `if not
+  request.user.has_perm(...): messages.error(...); return redirect(...)`
+  inline; por eso esas 4 rechazan con 302, no 403, a diferencia del resto.
+  `core_erp/descargas.py::descargar_archivo_privado` **no se tocó**: ya
+  comprobaba `has_perm(f'{app_label}.view_{model_name}')` de forma dinámica
+  con un comentario propio anticipando esta orden exacta, así que los grupos
+  nuevos lo alinean solos. Los tests viven en `comercial/test_permisos_grupos.py`
+  aunque cruzan 7 apps, porque el comando de test de CI (y el documentado en
+  este archivo) no incluía `reportes` ni corría `comunicacion` de forma
+  consistente — se corrigieron ambos (`ci.yml` y la tabla de arriba) para
+  incluir las 9 apps reales. **La orden 17 (`SEC-AUTHZ-001d`) se dejó fuera**:
+  `importar_historico_view` ya bloqueaba el POST a no-superusuarios desde
+  antes de este PR, pero el GET (la vista previa del historial) sigue abierto
+  a cualquier staff y el rechazo es un redirect, no un 403 — no estaba en el
+  plan del Issue #199 y tocarlo de pasada habría sido alcance no pedido.
 - 2026-08-14 — Conciliación bancaria: la diferencia era **del histórico, no del
   periodo** (Issue #198). El caso reportado —banco $1,256.87 contra libros
   $43,725.82, diferencia $41,968.96— no venía de un error de julio: la fórmula

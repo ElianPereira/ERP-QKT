@@ -3,14 +3,15 @@
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
-**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 26 y 27 ya están hechas
-(Fase 0 completa y parte de la Fase 1) — ver §0 de la auditoría. Las dos
-verificaciones externas resultaron **positivas ambas**: el feed iCal estaba
-abierto (corregido) y el bucket R2 sirve lectura anónima —la orden 8 ya lo
-mitiga sirviendo por vista autenticada; la orden 7 (bucket privado aparte)
-sigue pendiente del lado de Cloudflare. Se marcan con ✅ y se conservan
-en la tabla para no perder la trazabilidad. El resto sigue pendiente y requiere
-aprobación del propietario antes de empezar.
+**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 18, 26 y 27
+ya están hechas (Fase 0 completa y casi toda la Fase 1 de autorización por
+área — falta solo la orden 17). Las dos verificaciones externas resultaron
+**positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
+sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
+autenticada; la orden 7 (bucket privado aparte) sigue pendiente del lado de
+Cloudflare. Se marcan con ✅ y se conservan en la tabla para no perder la
+trazabilidad. El resto sigue pendiente y requiere aprobación del propietario
+antes de empezar.
 
 **Nota fuera de tabla**: los 228 archivos que solo vivían en Cloudinary (no
 migrados nunca a R2) se dieron por perdidos — la cuenta quedó deshabilitada
@@ -59,11 +60,11 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 11 ✅ | SEC-AUTHN-001c | **HECHO.** `portal_acceso` ya no crea el `PortalCliente`: solo resuelve portales existentes, activos y vigentes | P1 | Un atacante genera tokens permanentes para cotizaciones que nunca tuvieron portal | Orden 10 | S | Dev | `portal_acceso` no crea registros; el alta sigue ocurriendo en `Cotizacion.save()` |
 | 12 | NV-03 | **Verificar** backups de PostgreSQL en Railway: frecuencia, retención, cifrado y última restauración probada | P1 | Pérdida de datos sin posibilidad de recuperación | Ninguna | XS | Infra | Evidencia documentada; si no hay respaldo, se convierte en P0 operativo |
 | 13 | NV-07 | **Definir** quién recibe alertas de error y por qué canal | P1 | Un incidente puede pasar inadvertido indefinidamente | Ninguna | S | Propietario | Canal y responsable documentados |
-| 14 | SEC-AUTHZ-001a | Definir grupos por área (Ventas, Contabilidad, Nómina, Dirección) y documentar qué modelos y vistas toca cada uno | P1 | Cualquier cuenta staff accede a nómina, contabilidad, ARCO y datos fiscales | NV-08 | S | Propietario + Dev | Matriz de permisos aprobada por el propietario |
-| 15 | SEC-AUTHZ-001b | Aplicar `@permission_required` a las vistas de **nómina** (`cargar_nomina`, `sync_jibble_view`, `jibble_diagnostico_view`) | P1 | Exposición de recibos de nómina entre empleados | Orden 14 | S | Dev | Un staff sin el permiso recibe 403 en `/admin/nomina/cargar/` |
-| 16 | SEC-AUTHZ-001c | Aplicar `@permission_required` a las vistas de **contabilidad y reportes financieros** (`reporte_balanza`, `estado_resultados`, `balance_general`, `libro_mayor`, `auxiliar`, `cartera_cxc`, `conciliacion_depositos_airbnb`, `reporte_fiscal_airbnb`) | P1 | Exposición de contabilidad completa a cualquier staff | Orden 14 | M | Dev | Un staff sin el permiso recibe 403 en cada una |
+| 14 ✅ | SEC-AUTHZ-001a | **HECHO.** Definir grupos por área (Ventas, Contabilidad, Nómina) y documentar qué modelos y vistas toca cada uno — Dirección no es un grupo Django, sigue siendo `is_superuser` | P1 | Cualquier cuenta staff accede a nómina, contabilidad, ARCO y datos fiscales | NV-08 | S | Propietario + Dev | Matriz de permisos aprobada por el propietario (Issue #199) |
+| 15 ✅ | SEC-AUTHZ-001b | **HECHO.** `@permission_required` en las vistas de **nómina** (`cargar_nomina`, `sync_jibble_view`, `jibble_diagnostico_view`) | P1 | Exposición de recibos de nómina entre empleados | Orden 14 | S | Dev | Un staff sin el permiso recibe 403 en `/admin/nomina/cargar/` |
+| 16 ✅ | SEC-AUTHZ-001c | **HECHO.** `@permission_required` en las vistas de **contabilidad y reportes financieros** (`balanza_comprobacion`, `estado_resultados`, `cartera_cxc` y las 11 vistas de `reportes/views.py`, cada una con el permiso de su área dueña) | P1 | Exposición de contabilidad completa a cualquier staff | Orden 14 | M | Dev | Un staff sin el permiso recibe 403 en cada una |
 | 17 | SEC-AUTHZ-001d | Restringir `importar_historico_view` a superusuario | P1 | Operación destructiva de importación masiva al alcance de cualquier staff | Orden 14 | XS | Dev | Un staff no superusuario recibe 403 |
-| 18 | SEC-AUTHZ-001e | Ajustar permisos por modelo en el admin conforme a los grupos definidos | P1 | Acceso a modelos fuera del área de cada persona | Orden 14 | M | Dev | Cada grupo ve únicamente los modelos de su área |
+| 18 ✅ | SEC-AUTHZ-001e | **HECHO.** `manage.py crear_grupos_permisos` asigna los permisos estándar de cada modelo (view/add/change/delete) a su grupo; verificado que ningún `ModelAdmin` existente amplía el acceso por encima del grupo (solo hay overrides que restringen más, nunca que abren) | P1 | Acceso a modelos fuera del área de cada persona | Orden 14 | M | Dev | Cada grupo ve únicamente los modelos de su área |
 
 ---
 
@@ -120,17 +121,17 @@ existe. Ver Memoria en `CLAUDE.md`.
 | Prioridad | Tareas | Hechas | Esfuerzo restante aproximado |
 |---|---|---|---|
 | P0 | 2 | **2** | — |
-| P1 | 16 | 6 | ~1-2 semanas |
+| P1 | 16 | 10 | ~3-5 días |
 | P2 | 22 | 1 | ~3 semanas |
 | P3 | 12 | 0 | ~2 semanas |
-| **Total** | **52** | **9** | — |
+| **Total** | **52** | **13** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
 1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
-4. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
-5. Orden 14 — `SEC-AUTHZ-001a` (`S`): la matriz de permisos, sin la cual la Fase 1 no puede continuar.
+3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
+4. Orden 17 — `SEC-AUTHZ-001d` (`XS`): `importar_historico_view` ya bloquea el POST a no-superusuarios, pero el GET (preview del historial) sigue abierto a cualquier staff — falta cerrarlo también y devolver 403 en vez de redirigir.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).
