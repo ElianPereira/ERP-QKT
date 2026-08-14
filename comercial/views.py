@@ -16,6 +16,7 @@ from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncMonth
 from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
 from django.utils import timezone
 from decimal import Decimal
 from weasyprint import HTML
@@ -290,6 +291,7 @@ def generar_lista_compras_barra(cotizacion):
 # ==========================================
 
 @staff_member_required
+@permission_required('comercial.change_plantillabarra', raise_exception=True)
 def configurar_plantilla_barra(request):
     """Vista de asistente visual para vincular insumos reales a cada concepto de la Plantilla de Barra."""
     from django.contrib import admin as django_admin
@@ -515,12 +517,14 @@ def ver_dashboard_kpis(request):
 # 2. REPORTES
 # ==========================================
 @staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
 def generar_lista_compras(request):
     if request.method == 'POST':
         return render(request, 'comercial/reporte_form.html', {'titulo': 'Reporte Masivo en Construcción'})
     return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
 
 @staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
 def descargar_lista_compras_pdf(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     lista_insumos = generar_lista_compras_barra(cotizacion)
@@ -555,6 +559,7 @@ def obtener_contexto_cotizacion(cotizacion):
     }
 
 @staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
 def generar_pdf_cotizacion(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     context = obtener_contexto_cotizacion(cotizacion)
@@ -567,6 +572,7 @@ def generar_pdf_cotizacion(request, cotizacion_id):
     return response
 
 @staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
 def enviar_cotizacion_email(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     cliente = cotizacion.cliente
@@ -613,6 +619,7 @@ def exportar_cierre_excel(request):
     return response
 
 @staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
 def exportar_reporte_cotizaciones(request):
     if request.method != 'POST': return render(request, 'comercial/reporte_form.html')
     fecha_inicio = request.POST.get('fecha_inicio')
@@ -754,6 +761,7 @@ def exportar_reporte_cotizaciones(request):
     return response
 
 @staff_member_required
+@permission_required('comercial.view_pago', raise_exception=True)
 def exportar_reporte_pagos(request):
     if request.method != 'POST': return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Reporte Detallado de Pagos'})
     fecha_inicio = request.POST.get('fecha_inicio')
@@ -778,6 +786,7 @@ def exportar_reporte_pagos(request):
 # 5. FICHA TÉCNICA
 # ==========================================
 @staff_member_required
+@permission_required('comercial.view_producto', raise_exception=True)
 def descargar_ficha_producto(request, producto_id):
     producto = get_object_or_404(Producto, id=producto_id)
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
@@ -804,6 +813,7 @@ def descargar_ficha_producto(request, producto_id):
 # ==========================================
 
 @staff_member_required
+@permission_required('comercial.view_pago', raise_exception=True)
 def ver_cartera_cxc(request):
     """Dashboard de Cuentas por Cobrar."""
     from django.db.models import F, Case, When, Value, CharField, DecimalField
@@ -893,6 +903,7 @@ def ver_cartera_cxc(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('comercial.add_planpago', raise_exception=True)
 def generar_plan_pagos(request, cotizacion_id):
     """
     Genera un plan de pagos para una cotización.
@@ -929,6 +940,7 @@ def generar_plan_pagos(request, cotizacion_id):
 
 
 @staff_member_required
+@permission_required('comercial.view_planpago', raise_exception=True)
 def descargar_plan_pagos_pdf(request, cotizacion_id):
     """Genera PDF del plan de pagos."""
     from .models import PlanPago
@@ -967,6 +979,7 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
 # CONTRATO DE SERVICIO
 # ==========================================
 @staff_member_required
+@permission_required('comercial.add_contratoservicio', raise_exception=True)
 def generar_contrato(request, cotizacion_id):
     from .models import ContratoServicio
     from .services import ContratoService
@@ -1013,6 +1026,7 @@ def generar_contrato(request, cotizacion_id):
 
 
 @staff_member_required
+@permission_required('comercial.view_contratoservicio', raise_exception=True)
 def enviar_contrato_email(request, contrato_id):
     """Envía el contrato por email al cliente."""
     from .models import ContratoServicio

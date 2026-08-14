@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.db.models import Sum, Count
 from django.db.models.functions import TruncMonth
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
 from django.contrib import messages
 
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
@@ -32,6 +33,7 @@ MESES = {
 
 
 @staff_member_required
+@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
 def calendario_unificado(request):
     """
     Calendario unificado que muestra eventos de la quinta + reservas de Airbnb.
@@ -137,6 +139,7 @@ def calendario_unificado(request):
 
 
 @staff_member_required
+@permission_required('airbnb.view_pagoairbnb', raise_exception=True)
 def reporte_pagos_airbnb(request):
     """
     Reporte de pagos de Airbnb para el contador.
@@ -387,7 +390,8 @@ def generar_ical_eventos(request):
 # ==========================================
 # BLOQUEO MANUAL EN AIRBNB
 # ==========================================
-@staff_member_required  
+@staff_member_required
+@permission_required('airbnb.view_anuncioairbnb', raise_exception=True)
 def bloquear_en_airbnb(request, cotizacion_id):
     """
     Redirige a Airbnb para bloquear manualmente las fechas de un evento.
@@ -444,6 +448,7 @@ def bloquear_en_airbnb(request, cotizacion_id):
 
 
 @staff_member_required
+@permission_required('airbnb.view_anuncioairbnb', raise_exception=True)
 def dashboard_airbnb(request):
     """
     Dashboard del módulo Airbnb con estadísticas y accesos rápidos.
@@ -516,6 +521,7 @@ def dashboard_airbnb(request):
 
 
 @staff_member_required
+@permission_required('airbnb.view_depositoconciliado', raise_exception=True)
 def conciliacion_depositos_airbnb(request):
     """
     Cuadra los depósitos de Airbnb del mes contra los abonos del banco.
@@ -598,6 +604,7 @@ def _resolver_deposito_airbnb(request, mes, anio):
 
 
 @staff_member_required
+@permission_required('airbnb.view_pagoairbnb', raise_exception=True)
 def reporte_fiscal_airbnb(request):
     """
     Reporte fiscal mensual de ingresos Airbnb.
