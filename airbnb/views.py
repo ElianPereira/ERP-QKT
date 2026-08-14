@@ -19,6 +19,8 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
 from django.contrib import messages
 
+from core_erp.ratelimit import rate_limit
+
 from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
 
 logger = logging.getLogger(__name__)
@@ -298,6 +300,7 @@ def exportar_reporte_excel(pagos, totales, año):
 # ==========================================
 # ICAL INVERSO - Exportar eventos del ERP
 # ==========================================
+@rate_limit(key='ical_eventos', limit=120, window=60)
 def generar_ical_eventos(request):
     """
     Genera un archivo iCal con los eventos confirmados del ERP.

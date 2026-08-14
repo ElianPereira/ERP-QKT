@@ -3,9 +3,11 @@
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
-**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18, 26 y
-27 ya están hechas (Fase 0 completa y toda la Fase 1 de autorización por
-área). Las dos verificaciones externas resultaron
+**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
+19, 20, 21, 26 y 27 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2
+de rate limiting ya está el rate limiting mismo, quedan la verificación del
+proxy de Railway — orden 22 — y CSRF/validación del cotizador). Las dos
+verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
 autenticada; la orden 7 (bucket privado aparte) sigue pendiente del lado de
@@ -72,9 +74,9 @@ existe. Ver Memoria en `CLAUDE.md`.
 
 | Orden | ID | Tarea | Prioridad | Riesgo reducido | Dependencias | Esfuerzo | Responsable | Criterios de aceptación |
 |---|---|---|---|---|---|---|---|---|
-| 19 | SEC-RL-001a | Aplicar `@rate_limit` a las descargas del portal (`portal_evento`, `portal_descargar_cotizacion/plan/contrato`), ~10/min | P2 | DoS por generación repetida de PDFs con WeasyPrint | Ninguna | XS | Dev | Superar el límite devuelve 429 |
-| 20 | SEC-RL-001b | Aplicar `@rate_limit` a las 5 APIs públicas del cotizador, ~60/min | P2 | Scraping de catálogo y precios | Ninguna | XS | Dev | Superar el límite devuelve 429 |
-| 21 | SEC-RL-001c | Aplicar `@rate_limit` a ambos webhooks y al feed iCal, ~120/min | P2 | Martilleo de credenciales del webhook y fuerza bruta del Bearer de Jibble | Ninguna | XS | Dev | Superar el límite devuelve 429 sin afectar el tráfico legítimo |
+| 19 ✅ | SEC-RL-001a | **HECHO.** `@rate_limit` en las descargas del portal (`portal_evento`, `portal_descargar_cotizacion/plan/contrato`), ~10/min | P2 | DoS por generación repetida de PDFs con WeasyPrint | Ninguna | XS | Dev | Superar el límite devuelve 429 |
+| 20 ✅ | SEC-RL-001b | **HECHO.** `@rate_limit` en las 5 APIs públicas del cotizador, ~60/min | P2 | Scraping de catálogo y precios | Ninguna | XS | Dev | Superar el límite devuelve 429 |
+| 21 ✅ | SEC-RL-001c | **HECHO.** `@rate_limit` en ambos webhooks (Openpay, Jibble) y en el feed iCal, ~120/min | P2 | Martilleo de credenciales del webhook y fuerza bruta del Bearer de Jibble | Ninguna | XS | Dev | Superar el límite devuelve 429 sin afectar el tráfico legítimo |
 | 22 | SEC-RL-002 | **Verificar** el comportamiento del edge de Railway con `X-Forwarded-For` y ajustar `RATELIMIT_TRUSTED_PROXY_COUNT` si procede | P2 | Evasión total del rate limiting y del bloqueo de login si el edge no añade la IP real | NV-04 | S | Infra + Dev | Una petición con XFF fabricado no altera la IP registrada; resultado anotado en la Memoria de `CLAUDE.md` |
 | 23 | SEC-CSRF-001 | Quitar `@csrf_exempt` de `cotizador_enviar` y enviar el token desde el formulario público | P2 | CSRF que crea registros y consume cuota de WhatsApp con coste real | Ninguna | S | Dev | `POST /cotizar/enviar/` sin token devuelve 403; el formulario legítimo sigue funcionando |
 | 24 | SEC-VAL-001 | Sustituir la validación manual de `cotizador_enviar` por un `forms.Form` con tipos, longitudes y `choices` | P2 | Entrada sin restricción en `notas`, `tipo_evento` y `como_nos_encontro`, que alimentan `nombre_evento` | Orden 23 | M | Dev | Campos fuera de rango devuelven 400; los tests del cotizador siguen pasando |
@@ -122,15 +124,17 @@ existe. Ver Memoria en `CLAUDE.md`.
 |---|---|---|---|
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
-| P2 | 22 | 1 | ~3 semanas |
+| P2 | 22 | 4 | ~2-3 semanas |
 | P3 | 12 | 0 | ~2 semanas |
-| **Total** | **52** | **14** | — |
+| **Total** | **52** | **17** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
 1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
+4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+5. Órdenes 23-24 — `SEC-CSRF-001`/`SEC-VAL-001` (`S`+`M`): quitar `@csrf_exempt` de `cotizador_enviar` y formalizar su validación con un `forms.Form`.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).

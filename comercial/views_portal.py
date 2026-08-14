@@ -148,6 +148,7 @@ def portal_acceso(request):
     })
 
 
+@_rate_limit(key='portal_evento', limit=10, window=60)
 def portal_evento(request, token):
     """
     Vista principal del portal — muestra toda la info del evento.
@@ -229,6 +230,7 @@ def portal_evento(request, token):
     return render(request, 'portal/evento.html', context)
 
 
+@_rate_limit(key='portal_descargar_cotizacion', limit=10, window=60)
 def portal_descargar_cotizacion(request, token):
     """Descarga PDF de cotización desde el portal."""
     portal = _portal_vigente_o_404(token)
@@ -243,6 +245,7 @@ def portal_descargar_cotizacion(request, token):
     HTML(string=html_string).write_pdf(response)
     return response
 
+@_rate_limit(key='portal_descargar_plan', limit=10, window=60)
 def portal_descargar_plan(request, token):
     """Descarga PDF del plan de pagos desde el portal."""
     portal = _portal_vigente_o_404(token)
@@ -271,6 +274,7 @@ def portal_descargar_plan(request, token):
     return response
 
 
+@_rate_limit(key='portal_descargar_contrato', limit=10, window=60)
 def portal_descargar_contrato(request, token):
     """Sirve el contrato PDF desde el portal, sin revelar la URL del storage.
 

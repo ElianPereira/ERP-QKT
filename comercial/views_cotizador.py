@@ -351,6 +351,7 @@ def cotizador_enviar(request):
     })
 
 
+@rate_limit(key='api_disponibilidad_fecha', limit=60, window=60)
 def api_disponibilidad_fecha(request):
     """GET /api/disponibilidad/?fecha=YYYY-MM-DD
     Responde si la fecha está libre o ya apartada (Airbnb / cotización confirmada)."""
@@ -377,6 +378,7 @@ def api_disponibilidad_fecha(request):
     })
 
 
+@rate_limit(key='api_fechas_ocupadas', limit=60, window=60)
 def api_fechas_ocupadas(request):
     """GET /api/fechas-ocupadas/?dias=365
     Devuelve la lista de fechas no disponibles (Airbnb + cotizaciones apartadas)
@@ -409,6 +411,7 @@ def api_fechas_ocupadas(request):
     })
 
 
+@rate_limit(key='api_productos_cotizador', limit=60, window=60)
 def api_productos_cotizador(request):
     """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|ARRENDAMIENTO
     Devuelve los productos visibles en el cotizador, agrupados por grupo_cotizador."""
@@ -520,6 +523,7 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     return lineas
 
 
+@rate_limit(key='api_total_cotizador', limit=60, window=60)
 def api_total_cotizador(request):
     """GET /api/cotizador/total/?servicio=&paquete=&extras=&personas=&horas=
 
@@ -564,6 +568,7 @@ def api_total_cotizador(request):
     })
 
 
+@rate_limit(key='api_paquetes_cotizador', limit=60, window=60)
 def api_paquetes_cotizador(request):
     """GET /api/cotizador/paquetes/?servicio=EVENTO&personas=100
     Devuelve paquetes (Producto con es_paquete=True) visibles en el cotizador,

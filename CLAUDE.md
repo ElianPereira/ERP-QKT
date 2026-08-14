@@ -75,6 +75,32 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-14 — Órdenes 19-21 del backlog de seguridad (`SEC-RL-001a/b/c`):
+  `@rate_limit` en las vistas públicas que no lo tenían — descargas del
+  portal (~10/min), 5 APIs del cotizador (~60/min) y ambos webhooks más el
+  feed iCal (~120/min). El decorador ya existía (`core_erp/ratelimit.py`,
+  usado desde el Issue #179 en login y desde entonces en
+  `cotizador_enviar` y las vistas de pago de Openpay); esta tarea era
+  aplicarlo donde faltaba, sin tocar la lógica de las vistas. Un detalle no
+  obvio para los tests: `rate_limit` cuenta **antes** de ejecutar el cuerpo
+  de la vista, así que ni siquiera hace falta simular datos válidos —agotar
+  el cupo con peticiones que fallan por otra razón (401 sin Basic Auth en
+  el webhook de Openpay, 403 sin token en el iCal, 500 sin
+  `NOMINA_CRON_TOKEN` en el de Jibble, 404 sin contrato en el portal) igual
+  deja la petición número 11/61/121 en 429. Cada vista lleva su propia
+  `key` de bucket (no una compartida): agotar `portal_evento` no debe tocar
+  el cupo de `portal_descargar_plan`, verificado en
+  `test_cada_vista_tiene_su_propio_cupo`. Tests nuevos repartidos por app —
+  `comercial/test_rate_limit_publico.py` (portal + cotizador + webhook
+  Openpay), `nomina/tests.py` (webhook Jibble, antes vacío) y una clase
+  añadida a `airbnb/test_seguridad.py` (feed iCal) — porque el rate
+  limiting de cada webhook/feed vive en la app dueña de esa vista, a
+  diferencia de la orden 14-18 que sí tuvo que centralizarse en
+  `comercial/` por el comando de test de CI incompleto de entonces (ya
+  corregido). Pendiente relacionado: la orden 22 (`SEC-RL-002`, verificar
+  `X-Forwarded-For` en el edge de Railway) cobra más peso ahora que el
+  rate limiting de producción depende de que `_client_ip()` resuelva bien
+  la IP real — sigue sin verificar.
 - 2026-08-14 — Reasignar el asiento de un movimiento del estado de cuenta
   (seguimiento del PR #200). Quien concilia no encontraba cómo deseleccionar: lo
   que quita la asignación es la **× de select2 dentro de la caja**, que por

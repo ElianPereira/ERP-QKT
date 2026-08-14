@@ -16,6 +16,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
+from core_erp.ratelimit import rate_limit
 from .models import Empleado, ReciboNomina
 from weasyprint import HTML
 
@@ -329,6 +330,7 @@ def sync_jibble_view(request):
 # VISTA 3: WEBHOOK CRON
 # ==========================================
 
+@rate_limit(key='jibble_webhook', limit=120, window=60)
 @csrf_exempt
 @require_POST
 def webhook_sync_jibble(request):
