@@ -95,8 +95,8 @@ def descargar_archivo_privado(request, app_label, model_name, campo, pk):
         contenido = archivo.open('rb')
     except (FileNotFoundError, OSError):
         # El archivo está en la BD pero no en el storage: pasa con los
-        # registros heredados de Cloudinary que nunca se migraron
-        # (ver manage.py recuperar_archivos_cloudinary).
+        # registros heredados de Cloudinary, que se dan por perdidos (la
+        # cuenta quedó deshabilitada; ver Memoria en CLAUDE.md).
         raise Http404 from None
 
     nombre = Path(archivo.name).name

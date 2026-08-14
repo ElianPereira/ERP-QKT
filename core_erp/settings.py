@@ -175,6 +175,12 @@ ADMIN_LOGIN_VENTANA = config('ADMIN_LOGIN_VENTANA', default=900, cast=int)
 ADMIN_LOGIN_MAX_INTENTOS_IP = config('ADMIN_LOGIN_MAX_INTENTOS_IP', default=10, cast=int)
 ADMIN_LOGIN_MAX_INTENTOS_USUARIO = config('ADMIN_LOGIN_MAX_INTENTOS_USUARIO', default=20, cast=int)
 
+# Bloqueo por cotización en el acceso al portal del cliente (SEC-AUTHN-001b):
+# complementa el rate_limit por IP de portal_acceso, que un atacante distribuido
+# elude cambiando de IP en cada intento contra los mismos 4 dígitos.
+PORTAL_ACCESO_VENTANA = config('PORTAL_ACCESO_VENTANA', default=900, cast=int)
+PORTAL_ACCESO_MAX_INTENTOS = config('PORTAL_ACCESO_MAX_INTENTOS', default=10, cast=int)
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},

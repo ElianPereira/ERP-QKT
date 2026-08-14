@@ -27,7 +27,12 @@ from .models import (
 from .paynet import TIENDAS_PAYNET
 
 
-from core_erp.ratelimit import rate_limit as _rate_limit
+from core_erp.ratelimit import (
+    limpiar_portal_acceso,
+    portal_acceso_bloqueado,
+    rate_limit as _rate_limit,
+    registrar_portal_acceso_fallido,
+)
 
 
 def landing_publico(request):
@@ -66,6 +71,17 @@ def landing_publico(request):
     return render(request, 'landing/index.html', context)
 
 
+def _portal_vigente_o_404(token):
+    """Resuelve un PortalCliente por token, exigiendo activo y sin expirar.
+
+    Un solo 404 para inactivo, expirado o inexistente: no confirma si el
+    token existió alguna vez (mismo criterio que ERROR_ACCESO en portal_acceso).
+    """
+    return get_object_or_404(
+        PortalCliente, token=token, activo=True, expira_en__gt=timezone.now()
+    )
+
+
 @_rate_limit(key='portal_acceso', limit=20, window=60)
 def portal_acceso(request):
     """
@@ -93,27 +109,36 @@ def portal_acceso(request):
         elif len(telefono) != 4 or not telefono.isdigit():
             error = "Ingresa exactamente los últimos 4 dígitos de tu teléfono."
         else:
+            cotizacion_id = int(codigo_limpio)
+
+            # Bucket por cotización, no por IP: reparte los intentos entre IPs
+            # distintas y sigue topando aquí, porque el objetivo (los 4
+            # dígitos de un mismo cliente) no cambia con la IP.
+            if portal_acceso_bloqueado(cotizacion_id):
+                return HttpResponse(
+                    'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.',
+                    status=429,
+                    headers={'Retry-After': str(settings.PORTAL_ACCESO_VENTANA)},
+                )
+
             try:
-                cotizacion_id = int(codigo_limpio)
                 cotizacion = Cotizacion.objects.select_related('cliente').get(id=cotizacion_id)
 
                 # Validar últimos 4 dígitos del teléfono
                 tel_cliente = ''.join(filter(str.isdigit, cotizacion.cliente.telefono or ''))
-                if tel_cliente[-4:] == telefono:
-                    # Buscar o crear portal
-                    portal, created = PortalCliente.objects.get_or_create(
-                        cotizacion=cotizacion,
-                        defaults={'activo': True}
-                    )
-                    if portal.activo:
-                        return redirect('portal_evento', token=portal.token)
-                    else:
-                        error = "El acceso a este evento está deshabilitado."
+                portal = getattr(cotizacion, 'portal', None)
+                if tel_cliente[-4:] == telefono and portal is not None and portal.vigente:
+                    limpiar_portal_acceso(cotizacion_id)
+                    return redirect('portal_evento', token=portal.token)
                 else:
+                    # Ya sea el teléfono, un portal inexistente/inactivo o uno
+                    # expirado: mismo error y mismo contador, para no revelar
+                    # cuál de los tres fue. El alta del portal ocurre en el
+                    # flujo comercial (ItemCotizacion.save), no aquí.
+                    registrar_portal_acceso_fallido(cotizacion_id)
                     error = ERROR_ACCESO
             except Cotizacion.DoesNotExist:
-                error = ERROR_ACCESO
-            except (ValueError, IndexError):
+                registrar_portal_acceso_fallido(cotizacion_id)
                 error = ERROR_ACCESO
 
     from comunicacion.services import normalizar_telefono_wa
@@ -127,7 +152,7 @@ def portal_evento(request, token):
     """
     Vista principal del portal — muestra toda la info del evento.
     """
-    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    portal = _portal_vigente_o_404(token)
     portal.registrar_visita()
     
     cotizacion = portal.cotizacion
@@ -206,7 +231,7 @@ def portal_evento(request, token):
 
 def portal_descargar_cotizacion(request, token):
     """Descarga PDF de cotización desde el portal."""
-    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
     
     from .views import obtener_contexto_cotizacion
@@ -220,7 +245,7 @@ def portal_descargar_cotizacion(request, token):
 
 def portal_descargar_plan(request, token):
     """Descarga PDF del plan de pagos desde el portal."""
-    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
     
     try:
@@ -255,7 +280,7 @@ def portal_descargar_contrato(request, token):
     contenido pasa por aquí, donde el token del portal sigue siendo el control
     de acceso, y la respuesta se marca como no cacheable.
     """
-    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
 
     contrato = cotizacion.contratos.filter(archivo__isnull=False).order_by('-generado_en').first()
@@ -265,8 +290,8 @@ def portal_descargar_contrato(request, token):
     try:
         archivo = contrato.archivo.open('rb')
     except (FileNotFoundError, OSError):
-        # Registros heredados de Cloudinary que nunca se migraron al storage
-        # actual (ver manage.py recuperar_archivos_cloudinary).
+        # Heredado de Cloudinary y dado por perdido (la cuenta quedó
+        # deshabilitada; ver Memoria en CLAUDE.md).
         raise Http404("El contrato no está disponible en este momento.") from None
 
     respuesta = FileResponse(

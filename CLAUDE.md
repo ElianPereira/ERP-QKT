@@ -75,6 +75,35 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-14 — Órdenes 10/11/27 del backlog de seguridad
+  (`SEC-AUTHN-001b/c`, `SEC-SESS-001`): bloqueo por cotización en el acceso
+  al portal, fin de la creación implícita de `PortalCliente` y caducidad de
+  90 días con regeneración desde el admin. **Precedida por una pérdida de
+  trabajo real**: dos sesiones anteriores implementaron esto mismo dos veces
+  en contenedores efímeros sin `git push` — los commits `3e9c6af` y
+  `8351bf1` no existen en ningún remoto y no eran recuperables. La única
+  vía es dejar el trabajo comprobadamente en `origin` antes de dar una tarea
+  por terminada; un commit local en un entorno que puede reciclarse en
+  cualquier momento no cuenta como hecho. El resumen de la sesión perdida
+  sirvió como especificación, pero el código se escribió de nuevo contra el
+  repo real, no copiado a ciegas — y una premisa suya era incorrecta: la
+  creación automática de `PortalCliente` no vive en `ItemCotizacion.save()`
+  sino en `Cotizacion.save()` (línea ~754), y ahí se quedó — es el flujo
+  legítimo de alta, `portal_acceso` solo deja de duplicarlo. El bucket por
+  cotización hashea el id con el mismo patrón que `_clave_usuario`, aunque
+  un id secuencial no es secreto: es barato y mantiene un solo criterio para
+  todo lo que entra a la tabla `qkt_cache`. `expira_en` se calcula en
+  `PortalCliente.save()` solo si `not self.pk`, así que **regenerar desde el
+  admin no puede reusar ese método**: la acción fija `expira_en` a mano
+  (ahora + 90 días, no evento + 90), porque regenerar es extender desde hoy,
+  no recalcular desde una fecha de evento que ya pasó. `getattr(cotizacion,
+  'portal', None)` para leer el `OneToOneField` inverso sin `try/except`
+  funciona porque Django hace que `RelatedObjectDoesNotExist` herede también
+  de `AttributeError`, a propósito, para que `getattr`/`hasattr` funcionen
+  con relaciones inversas — sin ese detalle el default de `getattr` nunca se
+  activaría. De paso se eliminó por completo la herramienta de recuperación
+  de Cloudinary (ver entrada de abajo): ya no tenía sentido mantenerla junto
+  a código nuevo de seguridad del portal.
 - 2026-08-12 — Migración al bucket privado desde el admin
   (`/admin/migrar-archivos-privados/`, `comercial/services_migracion_privada.py`),
   y **el orden en que se activa, que no es el intuitivo**. Definir
@@ -96,33 +125,25 @@ salvo que queden obsoletas.
   por eso si el destino renombra se descarta la copia en vez de dejar el
   registro apuntando a la nada. El comando entró en el PR #194 sin tests; los
   14 de `comercial/test_migrar_archivos_privados.py` cubren ese hueco.
-- 2026-08-12 — Recuperación de los archivos históricos de Cloudinary
-  (`/admin/recuperar-archivos/`, `comercial/services_recuperacion.py`). La
-  vista existe porque el comando equivalente exige una terminal con las
-  variables de producción; comparte servicio con él, es solo superusuario
-  (`staff_member_required` mira únicamente `is_staff`) y corta cada pasada a
-  25 descargas o 90 s, porque gunicorn mata la petición a los 120
-  (Dockerfile) y **cada registro cuesta al menos una consulta de red al
-  bucket**. Tres cosas que costaron descubrir, en orden: **(1)** con un token
-  de R2 sin permiso de listado, `HeadObject` sobre una clave inexistente
-  devuelve **403, no 404** —comportamiento documentado de S3: sin
-  `ListBucket` el servicio no confirma la ausencia— así que `storage.exists()`
-  lanzaba y abortaba el barrido entero en el primer archivo que faltaba, que
-  es justo el caso que la herramienta busca. **(2)** El bucket `qkt-media`
-  solo tenía `estados_cuenta/` y `landing/`: la migración a R2 nunca movió
-  contratos, cotizaciones, productos, nómina, facturación ni las
-  identificaciones de ARCO. De 241 archivos, **228 vivían solo en
-  Cloudinary**. **(3)** Esa cuenta de Cloudinary está **deshabilitada por
-  exceder el límite de uso** (148 créditos contra una cuota de 25), y una
-  cuenta deshabilitada deja de servir las URLs: los 25 intentos dieron 404 en
-  los dos `resource_type`. Que el comando funcione descargando de
-  `res.cloudinary.com` **sin credenciales** es, de paso, la prueba de que todo
-  ese histórico es público — misma familia que `SEC-FILE-001` pero fuera de
-  R2 y más grande. La simulación desglosa por campo y por origen
-  (`CATALOGO` en el servicio) porque la decisión real no es técnica sino si
-  vale la pena pagar la reactivación: cotizaciones y contratos los reemite el
-  ERP, los CFDI y los estados de cuenta se rebajan del SAT y del banco, y lo
-  único sin otra fuente son las fotos y las identificaciones de ARCO.
+- 2026-08-12 — Los 228 archivos que solo vivían en Cloudinary se dan
+  **definitivamente por perdidos** (decisión del propietario: no vale la pena
+  pagar la reactivación). Se eliminó toda la herramienta de recuperación que
+  se había construido para ese fin —`comercial/services_recuperacion.py`, el
+  comando `recuperar_archivos_cloudinary`, su vista de admin y sus tests—
+  porque nunca podrá tener éxito sin reactivar la cuenta, y esa reactivación
+  quedó descartada. La mayoría del daño es menor de lo que parecía: las
+  cotizaciones y contratos los reemite el ERP, y los CFDI y estados de cuenta
+  se rebajan del SAT y del banco; lo irrecuperable son las fotos de productos
+  y landing y las identificaciones de ARCO. Dos hallazgos de esa investigación
+  siguen valiendo la pena recordarlos si se vuelve a tocar R2 desde código:
+  **(1)** con un token sin permiso de listado, `HeadObject` sobre una clave
+  inexistente devuelve **403, no 404** —comportamiento documentado de S3: sin
+  `ListBucket` el servicio no confirma la ausencia—, así que un `exists()`
+  puede lanzar en vez de responder `False`. **(2)** el bucket público
+  `qkt-media` nunca recibió contratos, cotizaciones, productos, nómina ni
+  facturación en la migración a R2: solo tenía `estados_cuenta/` y
+  `landing/`. La migración al bucket privado (`SEC-FILE-001a`, entrada de
+  abajo) es una historia distinta y sí sigue en pie.
 - 2026-08-12 — Auditoría de seguridad (Issue #190, PR #194) y corrección de
   los dos hallazgos que resultaron explotables. **XSS almacenado no
   autenticado con toma de sesión de staff**: `json.dumps` **no escapa `<`,
@@ -232,7 +253,8 @@ salvo que queden obsoletas.
   registros cuyo archivo ya no está en el storage — es acción sobre
   selección, no columna de `list_display`, porque `exists()` es una petición
   de red por fila. Tests con `InMemoryStorage` vía `override_settings`, que
-  ya es el patrón del repo desde `test_recuperar_archivos_cloudinary.py`.
+  es el patrón del repo para probar storage sin tocar un bucket real (ver
+  `comercial/test_migrar_archivos_privados.py`).
 - 2026-08-09 — `ai-implement.yml`/`ai-review-merge.yml`: varios pasos usan
   `fromJSON(steps.X.outputs.structured_output)` en su `if:`/`env:` sin
   proteger contra que ese step nunca haya corrido (modo Codex/Claude en vez
