@@ -3,12 +3,22 @@
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
-**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9 y 26 ya están hechas (Fase 0 completa y
-parte de la Fase 1) — ver §0 de la auditoría. Las dos verificaciones externas
-resultaron **positivas ambas**: el feed iCal estaba abierto (corregido) y el
-bucket R2 sirve lectura anónima (**sin corregir**, órdenes 7 y 8). Se marcan con ✅ y se conservan
+**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 26 y 27 ya están hechas
+(Fase 0 completa y parte de la Fase 1) — ver §0 de la auditoría. Las dos
+verificaciones externas resultaron **positivas ambas**: el feed iCal estaba
+abierto (corregido) y el bucket R2 sirve lectura anónima —la orden 8 ya lo
+mitiga sirviendo por vista autenticada; la orden 7 (bucket privado aparte)
+sigue pendiente del lado de Cloudflare. Se marcan con ✅ y se conservan
 en la tabla para no perder la trazabilidad. El resto sigue pendiente y requiere
 aprobación del propietario antes de empezar.
+
+**Nota fuera de tabla**: los 228 archivos que solo vivían en Cloudinary (no
+migrados nunca a R2) se dieron por perdidos — la cuenta quedó deshabilitada
+por exceder su cuota y el propietario descartó reactivarla. No es una orden
+de este backlog porque no es un hallazgo de seguridad, pero explica por qué
+algunos documentos de nómina, contratos o ARCO seguirán sin abrir incluso
+después de la orden 7: no es que la migración falle, es que el origen ya no
+existe. Ver Memoria en `CLAUDE.md`.
 
 ## Criterios de prioridad
 
@@ -45,8 +55,8 @@ aprobación del propietario antes de empezar.
 | 7 | SEC-FILE-001a | **Código listo, falta el paso de Cloudflare.** Crear el bucket privado (sin dominio público), definir `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` en Railway y correr `manage.py migrar_archivos_privados --aplicar` | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | **Infra** | `SolicitudARCO.identificacion.url` incluye parámetros de firma y caduca; las imágenes de la landing siguen cargando |
 | 8 ✅ | SEC-FILE-001b | **HECHO.** Servir los documentos verdaderamente sensibles (ARCO, nómina, contratos) por vista autenticada con `FileResponse`, replicando el patrón de `legal/views.py`; que `portal_descargar_contrato` sirva el contenido en vez de redirigir a `archivo.url` | P1 | Cierra el hueco de forma independiente de la configuración del bucket | Orden 7 | M | Dev | Ninguna vista expone `archivo.url` de un documento sensible; cada descarga queda registrada |
 | 9 ✅ | SEC-AUTHN-001a | **HECHO.** Unificar el mensaje de error de `portal_acceso` para código inexistente y teléfono incorrecto | P1 | Enumeración de identificadores de cotización válidos | Ninguna | XS | Dev | Ambos casos devuelven texto idéntico; test que lo verifica |
-| 10 | SEC-AUTHN-001b | Añadir contador de intentos **por cotización** además del de IP, reusando el patrón de `ratelimit.py::_buckets_login` | P1 | Fuerza bruta distribuida sobre los 4 dígitos del teléfono | Orden 9 | S | Dev | Tras N intentos fallidos contra la misma cotización desde IPs distintas, la respuesta es 429 |
-| 11 | SEC-AUTHN-001c | Dejar de crear el `PortalCliente` dentro de `portal_acceso`: resolver solo portales existentes y activos | P1 | Un atacante genera tokens permanentes para cotizaciones que nunca tuvieron portal | Orden 10 | S | Dev | `portal_acceso` no crea registros; el alta ocurre en el flujo comercial |
+| 10 ✅ | SEC-AUTHN-001b | **HECHO.** Contador de intentos **por cotización** además del de IP, en `ratelimit.py::portal_acceso_bloqueado` | P1 | Fuerza bruta distribuida sobre los 4 dígitos del teléfono | Orden 9 | S | Dev | Tras N intentos fallidos contra la misma cotización desde IPs distintas, la respuesta es 429; test que reparte los intentos entre 10 IPs |
+| 11 ✅ | SEC-AUTHN-001c | **HECHO.** `portal_acceso` ya no crea el `PortalCliente`: solo resuelve portales existentes, activos y vigentes | P1 | Un atacante genera tokens permanentes para cotizaciones que nunca tuvieron portal | Orden 10 | S | Dev | `portal_acceso` no crea registros; el alta sigue ocurriendo en `Cotizacion.save()` |
 | 12 | NV-03 | **Verificar** backups de PostgreSQL en Railway: frecuencia, retención, cifrado y última restauración probada | P1 | Pérdida de datos sin posibilidad de recuperación | Ninguna | XS | Infra | Evidencia documentada; si no hay respaldo, se convierte en P0 operativo |
 | 13 | NV-07 | **Definir** quién recibe alertas de error y por qué canal | P1 | Un incidente puede pasar inadvertido indefinidamente | Ninguna | S | Propietario | Canal y responsable documentados |
 | 14 | SEC-AUTHZ-001a | Definir grupos por área (Ventas, Contabilidad, Nómina, Dirección) y documentar qué modelos y vistas toca cada uno | P1 | Cualquier cuenta staff accede a nómina, contabilidad, ARCO y datos fiscales | NV-08 | S | Propietario + Dev | Matriz de permisos aprobada por el propietario |
@@ -69,7 +79,7 @@ aprobación del propietario antes de empezar.
 | 24 | SEC-VAL-001 | Sustituir la validación manual de `cotizador_enviar` por un `forms.Form` con tipos, longitudes y `choices` | P2 | Entrada sin restricción en `notas`, `tipo_evento` y `como_nos_encontro`, que alimentan `nombre_evento` | Orden 23 | M | Dev | Campos fuera de rango devuelven 400; los tests del cotizador siguen pasando |
 | 25 | SEC-INFO-001 | Reemplazar `str(e)` por mensaje genérico + `logger.exception()` en `views_cotizador.py:371,394` y `nomina/views.py:377` | P2 | Filtración de rutas, nombres de tablas y detalles internos | Ninguna | XS | Dev | El cuerpo de un 500 no contiene el texto de la excepción; el detalle aparece en el log |
 | 26 ✅ | SEC-INJ-001 | **HECHO** (colateral de la orden 6): el `.ics` ya no interpola texto libre, solo el folio numérico | P2 | Inyección de propiedades iCal en los calendarios que consuman el feed | Orden 6 | S | Dev | Cubierto por `test_un_nombre_con_saltos_de_linea_no_inyecta_propiedades` |
-| 27 | SEC-SESS-001 | Añadir `expira_en` a `PortalCliente`, verificarlo en las 5 vistas del portal y permitir regenerar el token desde el admin | P2 | Token permanente en historiales, correos y WhatsApp | Ninguna | M | Dev | Un portal expirado devuelve 404; se puede regenerar sin tocar la BD a mano |
+| 27 ✅ | SEC-SESS-001 | **HECHO.** `expira_en` en `PortalCliente` (90 días desde el evento), verificado en las 7 vistas que usan el token, acción de admin para regenerar | P2 | Token permanente en historiales, correos y WhatsApp | Ninguna | M | Dev | Un portal expirado devuelve 404; se regenera desde el admin sin tocar la BD a mano |
 | 28 | SEC-CFG-001 | Definir `SECURE_PROXY_SSL_HEADER` tras confirmar la cabecera que envía el edge | P2 | `request.is_secure()` incorrecto: bucles de redirección y URLs de retorno 3-D Secure en `http://` | NV-05 | XS | Infra + Dev | `request.is_secure()` devuelve `True` en producción |
 | 29 | SEC-CI-001a | `ruff check --fix` sobre los 555 hallazgos auto-corregibles y revisión manual de los 7 `E722` | P2 | Deuda que mantiene el gate de lint desactivado | Ninguna | S | Dev | `ruff check .` sin errores |
 | 30 | SEC-CI-001b | Quitar `continue-on-error: true` del paso de lint en `ci.yml` | P2 | Un gate que no bloquea nada | Orden 29 | XS | Dev | Un PR con error de lint falla el CI |

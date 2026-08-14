@@ -9,8 +9,7 @@ from django.contrib.auth import logout
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from comercial.views import (
-    ver_cartera_cxc, importar_historico_view, recuperar_archivos_view,
-    migrar_archivos_privados_view,
+    ver_cartera_cxc, importar_historico_view, migrar_archivos_privados_view,
 )
 from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
 from comercial.views import generar_contrato, enviar_contrato_email
@@ -133,11 +132,6 @@ urlpatterns = [
 
     # IMPORTACIÓN HISTÓRICA (una sola vez)
     path('admin/importar-historico/', importar_historico_view, name='importar_historico'),
-
-    # RECUPERACIÓN DE ARCHIVOS HISTÓRICOS DE CLOUDINARY (solo superusuario)
-    # Equivale a `manage.py recuperar_archivos_cloudinary`, para cuando no hay
-    # una terminal con las variables de producción.
-    path('admin/recuperar-archivos/', recuperar_archivos_view, name='recuperar_archivos'),
 
     # MIGRACIÓN AL BUCKET PRIVADO (solo superusuario) — SEC-FILE-001a
     path('admin/migrar-archivos-privados/', migrar_archivos_privados_view,

@@ -1368,6 +1368,11 @@ class PortalCliente(models.Model):
         help_text="Se genera automáticamente. No editar."
     )
     activo = models.BooleanField(default=True, verbose_name="Portal Activo")
+    expira_en = models.DateTimeField(
+        verbose_name="Expira el",
+        help_text="Se calcula automáticamente. No editar directamente: usa la "
+                  "acción «Regenerar token y extender acceso 90 días».",
+    )
     visitas = models.PositiveIntegerField(default=0, verbose_name="Visitas")
     ultima_visita = models.DateTimeField(null=True, blank=True)
 
@@ -1381,7 +1386,32 @@ class PortalCliente(models.Model):
     def save(self, *args, **kwargs):
         if not self.token:
             self.token = secrets.token_urlsafe(32)
+        if not self.pk and not self.expira_en:
+            self.expira_en = self._expiracion_default()
         super().save(*args, **kwargs)
+
+    def _expiracion_default(self):
+        """90 días después del evento: token permanente = SEC-SESS-001.
+
+        `fecha_evento` puede llegar como `date` o como cadena ISO cuando el
+        objeto se construye a mano en tests o scripts sin pasar por un form.
+        """
+        from datetime import date, datetime, timedelta
+
+        from django.utils import timezone
+
+        fecha_evento = self.cotizacion.fecha_evento
+        if isinstance(fecha_evento, str):
+            fecha_evento = date.fromisoformat(fecha_evento)
+        inicio = timezone.make_aware(datetime.combine(fecha_evento, datetime.min.time()))
+        return inicio + timedelta(days=90)
+
+    @property
+    def vigente(self):
+        """Activo y sin haber alcanzado su expiración."""
+        from django.utils import timezone
+
+        return self.activo and self.expira_en is not None and self.expira_en > timezone.now()
 
     def get_url(self):
         """Retorna la URL pública del portal."""

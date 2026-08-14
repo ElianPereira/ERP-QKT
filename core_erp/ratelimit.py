@@ -161,3 +161,34 @@ def limpiar_intentos_login(request, username):
     _, bucket_usuario = _buckets_login(request, username)
     if bucket_usuario:
         cache.delete(bucket_usuario)
+
+
+def _clave_cotizacion(cotizacion_id):
+    """Hashea el id de cotización, igual que _clave_usuario con el username."""
+    return hashlib.sha256(str(cotizacion_id).encode()).hexdigest()[:32]
+
+
+def _bucket_portal(cotizacion_id):
+    ventana = settings.PORTAL_ACCESO_VENTANA
+    return _bucket('portal_acceso_cot', _clave_cotizacion(cotizacion_id), ventana)
+
+
+def portal_acceso_bloqueado(cotizacion_id):
+    """Indica si esa cotización agotó los intentos de acceso al portal.
+
+    El bucket es por cotización, no por IP: un atacante que reparte los
+    intentos entre IPs distintas para saltarse `rate_limit(key='portal_acceso')`
+    sigue topando aquí, porque los 4 dígitos del teléfono son el mismo
+    objetivo sin importar desde dónde se prueben.
+    """
+    bucket = _bucket_portal(cotizacion_id)
+    return cache.get(bucket, 0) >= settings.PORTAL_ACCESO_MAX_INTENTOS
+
+
+def registrar_portal_acceso_fallido(cotizacion_id):
+    _contar(_bucket_portal(cotizacion_id), settings.PORTAL_ACCESO_VENTANA)
+
+
+def limpiar_portal_acceso(cotizacion_id):
+    """Borra el contador tras un acceso correcto al portal."""
+    cache.delete(_bucket_portal(cotizacion_id))

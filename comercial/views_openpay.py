@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from core_erp.ratelimit import rate_limit
 from .models import OpenpayTransaccion, PortalCliente
+from .views_portal import _portal_vigente_o_404
 from .paynet import TIENDAS_PAYNET
 from .services_openpay import (
     procesar_cargo_tarjeta, procesar_cargo_efectivo, procesar_cargo_spei,
@@ -74,7 +75,7 @@ def portal_ficha_paynet(request, token, openpay_id):
     from django.template.loader import render_to_string
     from weasyprint import HTML
 
-    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    portal = _portal_vigente_o_404(token)
     del request  # solo se usa para el rate limit; el PDF no depende de él
     transaccion = get_object_or_404(
         OpenpayTransaccion, openpay_id=openpay_id,
@@ -117,7 +118,7 @@ def portal_ficha_paynet(request, token, openpay_id):
 @rate_limit(key='portal_pago_openpay', limit=10, window=60)
 @require_POST
 def portal_procesar_pago_openpay(request, token):
-    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
 
     metodo = request.POST.get('metodo')
@@ -210,7 +211,7 @@ def portal_retorno_3ds(request, token):
     se sabe si el banco emisor lo autorizó. Es un GET disparado por la
     redirección del banco, así que no lleva CSRF ni se puede exigir POST.
     """
-    portal = get_object_or_404(PortalCliente, token=token, activo=True)
+    portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
 
     # Openpay manda el id del cargo de vuelta, pero el nombre del parámetro no

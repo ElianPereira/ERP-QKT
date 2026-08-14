@@ -1,4 +1,6 @@
 import logging
+import secrets
+from datetime import timedelta
 
 from django import forms
 from django.contrib import admin
@@ -435,10 +437,16 @@ class PlanPagoAdmin(admin.ModelAdmin):
 
 @admin.register(PortalCliente)
 class PortalClienteAdmin(admin.ModelAdmin):
-    list_display = ('cotizacion_folio', 'cliente', 'activo', 'visitas', 'ultima_visita', 'link_portal')
+    list_display = (
+        'cotizacion_folio', 'cliente', 'activo', 'expira_en', 'visitas',
+        'ultima_visita', 'link_portal',
+    )
     list_filter = ('activo',)
-    readonly_fields = ('token', 'visitas', 'ultima_visita', 'created_at', 'created_by')
+    readonly_fields = (
+        'token', 'expira_en', 'visitas', 'ultima_visita', 'created_at', 'created_by',
+    )
     raw_id_fields = ('cotizacion',)
+    actions = ['regenerar_token']
 
     def cotizacion_folio(self, obj):
         return f"COT-{obj.cotizacion.id:03d}"
@@ -457,6 +465,27 @@ class PortalClienteAdmin(admin.ModelAdmin):
         if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+    @admin.action(description='Regenerar token y extender acceso 90 días')
+    def regenerar_token(self, request, queryset):
+        """Invalida la URL anterior y da 90 días de acceso desde hoy.
+
+        Es la vía para volver a compartir el portal sin editar la BD a mano:
+        el token viejo deja de servir en cuanto se guarda el nuevo.
+        """
+        ahora = timezone.now()
+        actualizados = 0
+        for portal in queryset:
+            portal.token = secrets.token_urlsafe(32)
+            portal.activo = True
+            portal.expira_en = ahora + timedelta(days=90)
+            portal.save(update_fields=['token', 'activo', 'expira_en'])
+            actualizados += 1
+        self.message_user(
+            request,
+            f"{actualizados} portal(es) regenerado(s): token nuevo y acceso "
+            "extendido 90 días.",
+        )
 
     class Media:
         css = MEDIA_CONFIG['css']
