@@ -9,6 +9,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 from django.conf import settings
@@ -1081,7 +1082,15 @@ def importar_historico_view(request):
     Página de administración para importar el historial del sistema anterior.
     GET  → muestra resumen y botón de confirmación.
     POST → ejecuta la importación y muestra resultados.
+
+    Operación destructiva de importación masiva: staff_member_required solo
+    exige is_staff, así que se exige is_superuser también en el GET (antes
+    solo el POST lo comprobaba, dejando la vista previa del historial
+    abierta a cualquier staff).
     """
+    if not request.user.is_superuser:
+        raise PermissionDenied
+
     from io import StringIO
     from comercial.management.commands.importar_historico import (
         CLIENTES, COTIZACIONES, PAGOS, Command,
@@ -1113,10 +1122,6 @@ def importar_historico_view(request):
     }
 
     if request.method == "POST":
-        if not request.user.is_superuser:
-            messages.error(request, "Solo un superusuario puede ejecutar esta importación.")
-            return redirect("/admin/")
-
         out = StringIO()
         cmd = Command(stdout=out, no_color=True)
         try:

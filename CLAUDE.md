@@ -98,6 +98,23 @@ salvo que queden obsoletas.
   `test_no_se_pueden_editar_los_importes_del_banco`). Se arregló creando el
   objeto con `SimpleUploadedFile` bajo `override_settings(STORAGES=...)` con
   `InMemoryStorage` —el patrón del repo— y asegurando `status_code == 302`.
+- 2026-08-14 — Orden 17 del backlog de seguridad (`SEC-AUTHZ-001d`), la que
+  había quedado deliberadamente fuera del PR de la orden 14-16/18 (ver
+  entrada de abajo). `importar_historico_view` ya rechazaba el POST a
+  no-superusuarios; el GET (la vista previa del historial, con los datos
+  del sistema anterior) seguía abierto a cualquier staff. Se movió el
+  chequeo `if not request.user.is_superuser` al principio de la vista, antes
+  de construir el contexto, y se cambió de `messages.error` + `redirect`
+  a `raise PermissionDenied` — el criterio de aceptación del backlog pedía
+  403 explícito, no un redirect silencioso, y de paso queda consistente con
+  el patrón ya usado en `comercial/admin.py::carga_masiva_view` y
+  `contabilidad/views.py::autocomplete_asiento_bancario` (`raise
+  PermissionDenied` inline en vez de decorador, cuando el chequeo no es un
+  simple `has_perm` de modelo sino una condición ad hoc). El branch POST se
+  quedó sin su propio chequeo: ahora es redundante porque nada llega ahí sin
+  pasar primero por el de arriba. Tests nuevos en
+  `comercial/test_permisos_grupos.py::ImportarHistoricoSoloSuperusuarioTest`
+  (GET y POST para staff sin `is_superuser`, GET para superusuario).
 - 2026-08-14 — Órdenes 14-16/18 del backlog de seguridad (`SEC-AUTHZ-001a/b/c/e`,
   Issue #199, PR sobre `claude/solicitud-ai-nok66o`): 3 grupos Django
   (Ventas, Contabilidad, Nómina) con permisos por modelo, más
