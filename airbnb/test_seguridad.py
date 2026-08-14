@@ -117,10 +117,20 @@ class FeedIcalTest(TestCase):
     def test_el_feed_no_publica_datos_del_cliente(self):
         cuerpo = self.client.get(self.url, {'token': TOKEN}).content.decode()
 
-        self.assertNotIn('ANDREA PEREZ', cuerpo)
-        self.assertNotIn('Boda de Andrea', cuerpo)
-        self.assertNotIn('Cliente:', cuerpo)
-        self.assertNotIn('137', cuerpo)
+        # DTSTAMP y CREATED llevan la hora actual, y buscar el número de
+        # invitados (137) sobre el cuerpo completo choca con ella cada vez que
+        # esos dígitos caen seguidos en la marca de tiempo — p. ej.
+        # `20260814T22`0137`Z`. Se comprueba sobre el resto del feed, que es
+        # donde un dato del cliente podría filtrarse de verdad.
+        sin_marcas_de_tiempo = '\n'.join(
+            linea for linea in cuerpo.splitlines()
+            if not linea.startswith(('DTSTAMP', 'CREATED'))
+        )
+
+        self.assertNotIn('ANDREA PEREZ', sin_marcas_de_tiempo)
+        self.assertNotIn('Boda de Andrea', sin_marcas_de_tiempo)
+        self.assertNotIn('Cliente:', sin_marcas_de_tiempo)
+        self.assertNotIn('137', sin_marcas_de_tiempo)
         # Sigue bloqueando la fecha, que es para lo único que existe el feed.
         self.assertIn('BEGIN:VEVENT', cuerpo)
         self.assertIn(f'COT-{self.cotizacion.id:03d}', cuerpo)
