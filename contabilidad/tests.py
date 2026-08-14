@@ -10,12 +10,16 @@ import os
 import unittest
 from datetime import date, timedelta
 from decimal import Decimal
+from io import StringIO
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
+from django.core.management import call_command
 from django.test import TestCase
+from django.urls import reverse
 
 from comercial.models import Cliente, Compra, Cotizacion, ItemCotizacion, Pago
 from contabilidad.models import (
+    ConciliacionBancaria,
     ConfiguracionContable,
     CuentaBancaria,
     CuentaContable,
@@ -685,10 +689,262 @@ class ConciliacionPreliminarTest(TestCase):
         estado_cuenta = EstadoCuentaBancario.objects.create(
             cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
             periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
-            fecha_corte_real=date(2026, 7, 1), saldo_final_estado=Decimal('2000.00'),
+            fecha_corte_real=date(2026, 7, 1),
+            saldo_inicial_estado=Decimal('2000.00'), saldo_final_estado=Decimal('2000.00'),
         )
         conciliacion = generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
         self.assertEqual(conciliacion.saldo_segun_libros, Decimal('2000.00'))
+
+    def test_sin_saldo_inicial_del_pdf_no_concilia(self):
+        """Sin el ancla del banco al inicio del periodo no se puede separar el
+        arrastre, y meterlo todo en `diferencia` es justo lo que se corrigió."""
+        estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 7, 31), saldo_final_estado=Decimal('0.00'),
+        )
+        with self.assertRaises(ValueError):
+            generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
+
+
+class ConciliacionDelPeriodoTest(TestCase):
+    """
+    La conciliación es del periodo del estado de cuenta: lo que ya venía
+    descuadrado antes del primer movimiento se aísla en `diferencia_arrastrada`
+    y no contamina `diferencia`.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user('contador_periodo', password='x')
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Periodo', banco='BBVA',
+            clabe='012345678901234572', cuenta_contable=self.cuenta_contable_banco,
+        )
+
+    def _poliza(self, fecha, debe=Decimal('0.00'), haber=Decimal('0.00'), concepto='Movimiento'):
+        tipo = 'I' if debe else 'E'
+        poliza = Poliza.objects.create(
+            tipo=tipo, folio=Poliza.siguiente_folio(tipo, fecha),
+            fecha=fecha, concepto=concepto, unidad_negocio=self.unidad,
+            estado='APLICADA', origen='MANUAL', created_by=self.user,
+        )
+        return MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_contable_banco,
+            debe=debe, haber=haber, concepto=concepto,
+        )
+
+    def _estado_cuenta(self, saldo_inicial, saldo_final):
+        return EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 7, 31),
+            saldo_inicial_estado=saldo_inicial, saldo_final_estado=saldo_final,
+        )
+
+    def test_periodo_cuadrado_da_cero(self):
+        estado_cuenta = self._estado_cuenta(Decimal('0.00'), Decimal('1500.00'))
+        mov_contable = self._poliza(date(2026, 7, 10), debe=Decimal('1500.00'))
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 7, 10),
+            descripcion='SPEI RECIBIDO', abono=Decimal('1500.00'),
+            movimiento_contable=mov_contable,
+        )
+        conciliacion = generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
+        self.assertEqual(conciliacion.diferencia, Decimal('0.00'))
+        self.assertEqual(conciliacion.diferencia_arrastrada, Decimal('0.00'))
+        self.assertTrue(conciliacion.cuadra)
+
+    def test_descuadre_previo_va_a_arrastrada_y_no_a_diferencia(self):
+        """Escenario del reporte real: los libros traen saldo de pólizas
+        anteriores al primer estado de cuenta cargado. El periodo sí cuadra."""
+        self._poliza(date(2026, 3, 5), debe=Decimal('41968.96'), concepto='Histórico sin respaldo')
+        estado_cuenta = self._estado_cuenta(Decimal('0.00'), Decimal('1500.00'))
+        mov_contable = self._poliza(date(2026, 7, 10), debe=Decimal('1500.00'))
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 7, 10),
+            descripcion='SPEI RECIBIDO', abono=Decimal('1500.00'),
+            movimiento_contable=mov_contable,
+        )
+        conciliacion = generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
+        self.assertEqual(conciliacion.diferencia_arrastrada, Decimal('41968.96'))
+        self.assertEqual(conciliacion.diferencia, Decimal('0.00'))
+
+    def test_deposito_en_transito_no_descuadra(self):
+        """Póliza del periodo sobre bancos que el banco todavía no acredita."""
+        estado_cuenta = self._estado_cuenta(Decimal('0.00'), Decimal('0.00'))
+        self._poliza(date(2026, 7, 30), debe=Decimal('3200.00'), concepto='Cobro en tránsito')
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 7, 1),
+            descripcion='Renglón de anclaje', abono=Decimal('0.00'), cargo=Decimal('0.00'),
+        )
+        conciliacion = generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
+        self.assertEqual(conciliacion.abonos_empresa_no_abonados, Decimal('3200.00'))
+        self.assertEqual(conciliacion.cargos_empresa_no_cobrados, Decimal('0.00'))
+        self.assertEqual(conciliacion.diferencia, Decimal('0.00'))
+
+    def test_salida_no_cobrada_por_el_banco_no_descuadra(self):
+        estado_cuenta = self._estado_cuenta(Decimal('0.00'), Decimal('0.00'))
+        self._poliza(date(2026, 7, 30), haber=Decimal('900.00'), concepto='Cheque en circulación')
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 7, 1),
+            descripcion='Renglón de anclaje', abono=Decimal('0.00'), cargo=Decimal('0.00'),
+        )
+        conciliacion = generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
+        self.assertEqual(conciliacion.cargos_empresa_no_cobrados, Decimal('900.00'))
+        self.assertEqual(conciliacion.diferencia, Decimal('0.00'))
+
+    def test_movimiento_del_banco_sin_asiento_sigue_contando(self):
+        """No hay regresión en el lado del banco: la comisión que nadie
+        registró sigue apareciendo como partida."""
+        estado_cuenta = self._estado_cuenta(Decimal('0.00'), Decimal('-500.00'))
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 7, 5),
+            descripcion='COM SERV BCA INTERNET', cargo=Decimal('500.00'),
+        )
+        conciliacion = generar_conciliacion_preliminar(estado_cuenta, usuario=self.user)
+        self.assertEqual(conciliacion.cargos_banco_no_registrados, Decimal('500.00'))
+        self.assertEqual(conciliacion.diferencia, Decimal('0.00'))
+
+    def test_comando_diagnostico_no_escribe_nada(self):
+        estado_cuenta = self._estado_cuenta(Decimal('0.00'), Decimal('1500.00'))
+        self._poliza(date(2026, 7, 10), debe=Decimal('1500.00'))
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 7, 10),
+            descripcion='SPEI RECIBIDO', abono=Decimal('1500.00'),
+        )
+        antes = (
+            ConciliacionBancaria.objects.count(),
+            Poliza.objects.count(),
+            MovimientoContable.objects.count(),
+            MovimientoEstadoCuenta.objects.count(),
+        )
+        salida = StringIO()
+        call_command('diagnosticar_conciliacion', '--estado-cuenta', str(estado_cuenta.pk), stdout=salida)
+        despues = (
+            ConciliacionBancaria.objects.count(),
+            Poliza.objects.count(),
+            MovimientoContable.objects.count(),
+            MovimientoEstadoCuenta.objects.count(),
+        )
+        self.assertEqual(antes, despues)
+        self.assertIn('DIFERENCIA DEL PERIODO', salida.getvalue())
+
+
+class EtiquetaMovimientoContableTest(TestCase):
+    """La etiqueta del asiento tiene que distinguir dos importes iguales."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('contador_etiqueta', password='x')
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta = CuentaContable.objects.get(codigo_sat='102.02.01')
+
+    def test_incluye_folio_fecha_y_concepto(self):
+        poliza = Poliza.objects.create(
+            tipo='E', folio=Poliza.siguiente_folio('E', date(2026, 7, 12)),
+            fecha=date(2026, 7, 12), concepto='Póliza de prueba',
+            unidad_negocio=self.unidad, estado='APLICADA', origen='MANUAL',
+            created_by=self.user,
+        )
+        mov = MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta,
+            debe=Decimal('1369.18'), concepto='Pago a proveedor de audio',
+        )
+        etiqueta = str(mov)
+        self.assertIn('12/07/2026', etiqueta)
+        self.assertIn('1,369.18', etiqueta)
+        self.assertIn('102.02.01', etiqueta)
+        self.assertIn('Pago a proveedor de audio', etiqueta)
+        self.assertIn(f"E-{str(poliza.folio).zfill(4)}", etiqueta)
+
+
+class AutocompleteAsientoBancarioTest(TestCase):
+    """
+    El buscador de asientos solo puede ofrecer candidatos legítimos: el
+    autocomplete estándar del admin ofrecía cualquier MovimientoContable,
+    incluidos los de cuentas de gastos.
+    """
+
+    def setUp(self):
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_gasto = CuentaContable.objects.filter(
+            tipo='GASTO', permite_movimientos=True
+        ).first()
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Autocomplete', banco='BBVA',
+            clabe='012345678901234573', cuenta_contable=self.cuenta_banco,
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 7, 31),
+            saldo_inicial_estado=Decimal('0.00'), saldo_final_estado=Decimal('0.00'),
+        )
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 1),
+            descripcion='Anclaje', cargo=Decimal('0.00'), abono=Decimal('0.00'),
+        )
+        self.staff = User.objects.create_user('staff_auto', password='x', is_staff=True)
+        self.staff.user_permissions.add(
+            Permission.objects.get(codename='view_movimientocontable')
+        )
+        self.url = reverse('contabilidad:autocomplete_asiento_bancario')
+
+    def _movimiento(self, cuenta, fecha=date(2026, 7, 10), debe=Decimal('1000.00'),
+                    estado='APLICADA', concepto='Asiento'):
+        poliza = Poliza.objects.create(
+            tipo='I', folio=Poliza.siguiente_folio('I', fecha), fecha=fecha,
+            concepto=concepto, unidad_negocio=self.unidad, estado=estado,
+            origen='MANUAL', created_by=self.staff,
+        )
+        return MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta, debe=debe, concepto=concepto,
+        )
+
+    def _ids(self, respuesta):
+        return {r['id'] for r in respuesta.json()['results']}
+
+    def test_solo_ofrece_asientos_de_la_cuenta_de_bancos(self):
+        del_banco = self._movimiento(self.cuenta_banco)
+        de_gastos = self._movimiento(self.cuenta_gasto, concepto='Gasto ajeno al banco')
+        self.client.force_login(self.staff)
+        respuesta = self.client.get(self.url, {'estado_cuenta': self.estado_cuenta.pk})
+        ids = self._ids(respuesta)
+        self.assertIn(str(del_banco.pk), ids)
+        self.assertNotIn(str(de_gastos.pk), ids)
+
+    def test_excluye_polizas_no_aplicadas_y_ya_emparejadas(self):
+        borrador = self._movimiento(self.cuenta_banco, estado='BORRADOR')
+        tomado = self._movimiento(self.cuenta_banco, concepto='Ya emparejado')
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 10),
+            descripcion='Movimiento tomado', abono=Decimal('1000.00'),
+            movimiento_contable=tomado,
+        )
+        self.client.force_login(self.staff)
+        ids = self._ids(self.client.get(self.url, {'estado_cuenta': self.estado_cuenta.pk}))
+        self.assertNotIn(str(borrador.pk), ids)
+        self.assertNotIn(str(tomado.pk), ids)
+
+    def test_busca_por_importe_y_por_concepto(self):
+        objetivo = self._movimiento(self.cuenta_banco, debe=Decimal('1369.18'),
+                                    concepto='Pago audio')
+        self._movimiento(self.cuenta_banco, debe=Decimal('55.00'), concepto='Otra cosa')
+        self.client.force_login(self.staff)
+        por_importe = self._ids(self.client.get(
+            self.url, {'estado_cuenta': self.estado_cuenta.pk, 'term': '1369.18'}))
+        por_concepto = self._ids(self.client.get(
+            self.url, {'estado_cuenta': self.estado_cuenta.pk, 'term': 'audio'}))
+        self.assertEqual(por_importe, {str(objetivo.pk)})
+        self.assertEqual(por_concepto, {str(objetivo.pk)})
+
+    def test_sin_permiso_de_lectura_no_lista_asientos(self):
+        sin_permiso = User.objects.create_user('staff_pelado', password='x', is_staff=True)
+        self.client.force_login(sin_permiso)
+        respuesta = self.client.get(self.url, {'estado_cuenta': self.estado_cuenta.pk})
+        self.assertEqual(respuesta.status_code, 403)
 
 
 class ParserBBVATest(TestCase):
@@ -1198,3 +1454,82 @@ class CorregirPolizasAirbnbIvaTest(TestCase):
         self.assertEqual(Poliza.objects.filter(object_id=pago.pk).count(), 1)
         self.assertEqual(
             Poliza.objects.get(object_id=pago.pk).estado, 'APLICADA')
+
+
+class PantallasConciliacionAdminTest(TestCase):
+    """
+    Smoke test de las dos pantallas que usa quien concilia. Cubre que los
+    fieldsets, los displays de solo lectura y el widget acotado del inline
+    rendericen — un nombre de campo mal escrito en `fieldsets` solo revienta
+    al abrir la página, no en `manage.py check`.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('admin_conc', 'a@b.mx', 'x')
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        cuenta_contable = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Pantallas', banco='BBVA',
+            clabe='012345678901234574', cuenta_contable=cuenta_contable,
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 7, 31),
+            saldo_inicial_estado=Decimal('0.00'), saldo_final_estado=Decimal('500.00'),
+        )
+        poliza = Poliza.objects.create(
+            tipo='I', folio=Poliza.siguiente_folio('I', date(2026, 7, 10)),
+            fecha=date(2026, 7, 10), concepto='Cobro', unidad_negocio=self.unidad,
+            estado='APLICADA', origen='MANUAL', created_by=self.admin,
+        )
+        self.mov_contable = MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta_contable, debe=Decimal('500.00'), concepto='Cobro',
+        )
+        self.mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 10),
+            descripcion='SPEI RECIBIDO SANTANDER MUY LARGO PARA PROBAR EL TRUNCADO',
+            abono=Decimal('500.00'), movimiento_contable=self.mov_contable,
+        )
+        self.client.force_login(self.admin)
+
+    def test_pantalla_estado_de_cuenta_abre(self):
+        url = f'/admin/contabilidad/estadocuentabancario/{self.estado_cuenta.pk}/change/'
+        respuesta = self.client.get(url)
+        self.assertEqual(respuesta.status_code, 200)
+        contenido = respuesta.content.decode()
+        # El buscador de asientos apunta a la vista acotada, no al autocomplete
+        # genérico del admin.
+        self.assertIn(
+            f"asiento-bancario/?estado_cuenta={self.estado_cuenta.pk}", contenido
+        )
+        self.assertIn('Confirmado', contenido)
+
+    def test_pantalla_conciliacion_explica_el_cuadre(self):
+        conciliacion = generar_conciliacion_preliminar(self.estado_cuenta, usuario=self.admin)
+        url = f'/admin/contabilidad/conciliacionbancaria/{conciliacion.pk}/change/'
+        respuesta = self.client.get(url)
+        self.assertEqual(respuesta.status_code, 200)
+        contenido = respuesta.content.decode()
+        self.assertIn('Depósitos en tránsito', contenido)
+        self.assertIn('Diferencia del periodo', contenido)
+
+    def test_no_se_pueden_editar_los_importes_del_banco(self):
+        """Los importes son copia del PDF: el formulario no los expone, así que
+        un POST que intente cambiarlos no altera el dato."""
+        url = f'/admin/contabilidad/estadocuentabancario/{self.estado_cuenta.pk}/change/'
+        prefijo = 'movimientos'
+        self.client.post(url, {
+            'cuenta_bancaria': self.cuenta_bancaria.pk,
+            'banco': 'BBVA', 'periodo_mes': 7, 'periodo_anio': 2026,
+            'formato': 'PDF', 'origen': 'MANUAL',
+            f'{prefijo}-TOTAL_FORMS': '1', f'{prefijo}-INITIAL_FORMS': '1',
+            f'{prefijo}-MIN_NUM_FORMS': '0', f'{prefijo}-MAX_NUM_FORMS': '1000',
+            f'{prefijo}-0-id': self.mov_banco.pk,
+            f'{prefijo}-0-estado_cuenta': self.estado_cuenta.pk,
+            f'{prefijo}-0-abono': '999999.00',
+            f'{prefijo}-0-movimiento_contable': self.mov_contable.pk,
+            f'{prefijo}-0-confirmado': 'on',
+        })
+        self.mov_banco.refresh_from_db()
+        self.assertEqual(self.mov_banco.abono, Decimal('500.00'))

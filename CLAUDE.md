@@ -118,6 +118,41 @@ salvo que queden obsoletas.
   antes de este PR, pero el GET (la vista previa del historial) sigue abierto
   a cualquier staff y el rechazo es un redirect, no un 403 — no estaba en el
   plan del Issue #199 y tocarlo de pasada habría sido alcance no pedido.
+- 2026-08-14 — Conciliación bancaria: la diferencia era **del histórico, no del
+  periodo** (Issue #198). El caso reportado —banco $1,256.87 contra libros
+  $43,725.82, diferencia $41,968.96— no venía de un error de julio: la fórmula
+  de `calcular_diferencia()` reproducía el número exacto, lo malo eran las
+  entradas. Tres causas. **(1)** `saldo_a_fecha()` acumula **desde el origen de
+  la cuenta** (no tiene cota inferior) y eso se comparaba contra el saldo final
+  de un único estado de cuenta: toda póliza anterior al primer estado de cuenta
+  cargado entraba íntegra a la diferencia. **(2)** `saldo_inicial_estado` —el
+  ancla que faltaba— lo extraía el parser, lo guardaba y **nadie lo usaba**: su
+  único uso en el repo era un assert de `tests.py`. Ahora
+  `diferencia_arrastrada = saldo_libros(día anterior al primer movimiento) −
+  saldo_inicial_estado` aísla el descuadre heredado y `diferencia` queda del
+  periodo. **(3)** `cargos_empresa_no_cobrados` y `abonos_empresa_no_abonados`
+  participaban en la fórmula pero **ningún código las escribía jamás**, así que
+  media conciliación estaba muerta: una póliza sobre bancos que el banco aún no
+  refleja no se clasificaba como partida en tránsito, se iba entera a la
+  diferencia. Al empezar a llenarlas apareció que **sus dos signos estaban
+  invertidos** desde siempre (los depósitos en tránsito SUMAN al banco, no
+  restan); nunca se notó porque valían cero. Se separó `analizar_conciliacion()`
+  como fuente única del cálculo, que consumen la generación y el nuevo
+  `manage.py diagnosticar_conciliacion` (solo lectura, desglosa las tres cosas
+  por separado). En el admin: el buscador de asientos del inline ofrecía
+  **cualquier** `MovimientoContable` —de cuentas de gastos incluidas, de
+  cualquier fecha y estado de póliza—, con etiqueta `"Cargo $1369.18 →
+  601.01.01"` sin folio, fecha ni concepto; se acotó con una vista propia
+  (`contabilidad:autocomplete_asiento_bancario`, el id del padre viaja en la URL
+  porque `limit_choices_to` no puede conocerlo) y se enriqueció `__str__`. La
+  tabla de movimientos se compactó de ~92px a 36px por fila: lo que la inflaba
+  era **una advertencia de zona horaria y un bloque de ayuda por cada renglón**,
+  repetidos 60 veces. El scroll se arregló acotando la altura del contenedor
+  (`max-height: 60vh; overflow: auto`) en vez de perseguir la barra: así queda
+  siempre a la vista y de paso `position: sticky` funciona en el `thead`, que con
+  scroll de página no funcionaría. Ojo al tocar ese CSS: Jazzmin pinta el fondo
+  en el `<tr>` y gana por especificidad, así que las celdas fijas necesitan
+  `background: #383632 !important` o dejan ver lo que pasa por debajo.
 - 2026-08-14 — Órdenes 10/11/27 del backlog de seguridad
   (`SEC-AUTHN-001b/c`, `SEC-SESS-001`): bloqueo por cotización en el acceso
   al portal, fin de la creación implícita de `PortalCliente` y caducidad de
