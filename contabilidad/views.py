@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
 from django.contrib import admin
 from django.db.models import Sum
 from django.shortcuts import render
@@ -25,6 +26,7 @@ def _parse_periodo(request):
 
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def balanza_comprobacion(request):
     """Balanza de comprobación por período y unidad de negocio."""
     desde, hasta = _parse_periodo(request)
@@ -82,6 +84,7 @@ def balanza_comprobacion(request):
 
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def estado_resultados(request):
     """Estado de resultados: Ingresos − Costos − Gastos = Utilidad."""
     desde, hasta = _parse_periodo(request)

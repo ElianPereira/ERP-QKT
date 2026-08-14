@@ -14,6 +14,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
 from django.utils import timezone
 from weasyprint import HTML
 
@@ -74,6 +75,11 @@ def selector_reportes(request):
     from contabilidad.models import CuentaContable, UnidadNegocio
     from airbnb.models import AnuncioAirbnb
 
+    puede_contabilidad = request.user.has_perm('contabilidad.view_movimientocontable')
+    puede_comercial = request.user.has_perm('comercial.view_cotizacion')
+    puede_airbnb = request.user.has_perm('airbnb.view_reservaairbnb')
+    puede_facturacion = request.user.has_perm('facturacion.view_solicitudfactura')
+
     context = {
         'title': 'Centro de Reportes',
         'unidades_negocio': UnidadNegocio.objects.filter(activa=True),
@@ -86,6 +92,10 @@ def selector_reportes(request):
         'anuncios_airbnb': AnuncioAirbnb.objects.filter(activo=True),
         'hoy': timezone.now().date(),
         'inicio_anio': date(timezone.now().year, 1, 1),
+        'puede_contabilidad': puede_contabilidad,
+        'puede_comercial': puede_comercial,
+        'puede_airbnb': puede_airbnb,
+        'puede_facturacion': puede_facturacion,
     }
     return render(request, 'reportes/selector.html', context)
 
@@ -95,6 +105,7 @@ def selector_reportes(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_balanza(request):
     """Genera Balanza de Comprobación en PDF."""
     from contabilidad.services import BalanzaComprobacionService
@@ -152,6 +163,7 @@ def reporte_balanza(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_estado_resultados(request):
     """Genera Estado de Resultados en PDF."""
     from .services.contabilidad import EstadoResultadosService
@@ -186,6 +198,7 @@ def reporte_estado_resultados(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_balance_general(request):
     """Genera Balance General en PDF."""
     from .services.contabilidad import BalanceGeneralService
@@ -218,6 +231,7 @@ def reporte_balance_general(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_libro_mayor(request):
     """Genera Libro Mayor de una cuenta en PDF."""
     from .services.contabilidad import LibroMayorService
@@ -258,6 +272,7 @@ def reporte_libro_mayor(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_auxiliar(request):
     """Genera Auxiliar de Cuentas (subcuentas de un padre) en PDF."""
     from .services.contabilidad import AuxiliarCuentasService
@@ -298,6 +313,7 @@ def reporte_auxiliar(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('comercial.view_pago', raise_exception=True)
 def reporte_cxc(request):
     """Genera reporte de CxC / Antigüedad de Saldos en PDF."""
     from .services.comercial import CxCCarteraService
@@ -317,6 +333,7 @@ def reporte_cxc(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
 def reporte_cotizaciones(request):
     """Genera reporte de cotizaciones por período/estado en PDF."""
     from .services.comercial import CotizacionesPeriodoService
@@ -345,6 +362,7 @@ def reporte_cotizaciones(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
 def reporte_ocupacion(request):
     """Genera reporte de ocupación Airbnb por listing/mes en PDF."""
     from .services.airbnb import OcupacionService
@@ -373,6 +391,7 @@ def reporte_ocupacion(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
 def reporte_comparativo_airbnb(request):
     """Genera comparativo mensual de ingresos Airbnb en PDF."""
     from .services.airbnb import ComparativoMensualService
@@ -401,6 +420,7 @@ def reporte_comparativo_airbnb(request):
 # ==========================================
 
 @staff_member_required
+@permission_required('facturacion.view_solicitudfactura', raise_exception=True)
 def reporte_facturas(request):
     """Genera reporte de facturas emitidas por período en PDF."""
     from .services.facturacion import FacturasEmitidasService

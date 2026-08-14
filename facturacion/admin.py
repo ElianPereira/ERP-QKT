@@ -281,6 +281,9 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
     def generar_pdf_view(self, request, solicitud_id):
         """Descarga el PDF de la solicitud."""
+        if not request.user.has_perm('facturacion.view_solicitudfactura'):
+            messages.error(request, "No tienes permiso para ver solicitudes de factura.")
+            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         solicitud = SolicitudFactura.objects.select_related('cliente', 'cotizacion').get(pk=solicitud_id)
         pdf_bytes = _generar_pdf_solicitud(solicitud)
         response  = HttpResponse(pdf_bytes, content_type='application/pdf')
@@ -289,6 +292,9 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
     def enviar_whatsapp_view(self, request, solicitud_id):
         """Genera el PDF y lo envía al contador via WhatsApp Cloud API."""
+        if not request.user.has_perm('facturacion.change_solicitudfactura'):
+            messages.error(request, "No tienes permiso para enviar solicitudes de factura.")
+            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         solicitud = SolicitudFactura.objects.select_related('cliente').get(pk=solicitud_id)
         contador  = ConfiguracionContador.get_activo()
 
@@ -323,6 +329,9 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
     def enviar_email_view(self, request, solicitud_id):
         """Envía email al contador con PDF adjunto."""
+        if not request.user.has_perm('facturacion.change_solicitudfactura'):
+            messages.error(request, "No tienes permiso para enviar solicitudes de factura.")
+            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         solicitud = SolicitudFactura.objects.select_related('cliente').get(pk=solicitud_id)
         contador  = ConfiguracionContador.get_activo()
 
@@ -350,6 +359,8 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
 
     def marcar_enviada_view(self, request, solicitud_id):
+        if not request.user.has_perm('facturacion.change_solicitudfactura'):
+            return JsonResponse({'status': 'error', 'detail': 'Sin permiso.'}, status=403)
         solicitud = SolicitudFactura.objects.get(pk=solicitud_id)
         metodo    = request.GET.get('metodo', 'WHATSAPP')
         solicitud.marcar_enviada(request.user, metodo)
