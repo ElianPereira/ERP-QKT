@@ -290,6 +290,25 @@ class DescargarArchivoPrivadoAlineadoTest(TestCase):
         self.assertEqual(self.client.get(self.url).status_code, 404)
 
 
+class ImportarHistoricoSoloSuperusuarioTest(TestCase):
+    """SEC-AUTHZ-001d (backlog orden 17): la vista previa del historial (GET)
+    ahora exige superusuario igual que el POST, y ambos rechazan con 403 en
+    vez del redirect que usaba antes solo el POST."""
+
+    def test_staff_sin_superusuario_recibe_403_en_get_y_post(self):
+        self.client.force_login(_crear_staff('staff_sin_super'))
+        url = reverse('importar_historico')
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.post(url).status_code, 403)
+
+    def test_superusuario_accede_al_get(self):
+        superusuario = User.objects.create_superuser(
+            'jefa2', 'jefa2@quintakooxtanil.com', 'clave-de-prueba'
+        )
+        self.client.force_login(superusuario)
+        self.assertEqual(self.client.get(reverse('importar_historico')).status_code, 200)
+
+
 class CrearGruposPermisosComandoTest(TestCase):
     """El comando en sí: idempotente y con la excepción de ConstanteSistema."""
 
