@@ -7,11 +7,13 @@ múltiples unidades de negocio y conciliación bancaria.
 ERP Quinta Ko'ox Tanil
 """
 from decimal import Decimal
-from django.db import models
-from django.db.models import Sum, Q
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db import models
+from django.db.models import Q, Sum
 from django.utils import timezone
+
 from core_erp.storages_qkt import storage_privado
 from facturacion.choices import RegimenFiscal
 
@@ -464,9 +466,28 @@ class MovimientoContable(models.Model):
         ]
 
     def __str__(self):
+        """Etiqueta identificable de un renglón de póliza.
+
+        Es la que ve quien concilia en el buscador de asientos del estado de
+        cuenta, así que tiene que distinguir dos asientos del mismo importe:
+        lleva folio, fecha y concepto además del monto y la cuenta. Antes era
+        solo `"{tipo} ${monto} → {codigo_sat}"` y con varias pólizas del mismo
+        importe el único discriminante visible era la cuenta del catálogo SAT.
+        """
         tipo = "Cargo" if self.debe > 0 else "Abono"
         monto = self.debe if self.debe > 0 else self.haber
-        return f"{tipo} ${monto} → {self.cuenta.codigo_sat}"
+        partes = []
+        if self.poliza_id:
+            partes.append(f"{self.poliza.tipo}-{str(self.poliza.folio).zfill(4)}")
+            partes.append(self.poliza.fecha.strftime('%d/%m/%Y'))
+        partes.append(f"{tipo} ${monto:,.2f}")
+        partes.append(self.cuenta.codigo_sat)
+        concepto = (self.concepto or '').strip()
+        if not concepto and self.poliza_id:
+            concepto = (self.poliza.concepto or '').strip()
+        if concepto:
+            partes.append(concepto if len(concepto) <= 60 else concepto[:57] + '...')
+        return ' · '.join(partes)
 
     def clean(self):
         if self.debe > 0 and self.haber > 0:
@@ -484,6 +505,15 @@ class MovimientoContable(models.Model):
 class ConciliacionBancaria(models.Model):
     """
     Conciliación mensual entre el saldo del banco y el saldo en libros.
+
+    La conciliación es **del periodo del estado de cuenta**, no del histórico
+    completo de la cuenta: `diferencia_arrastrada` absorbe lo que ya venía
+    descuadrado antes de la fecha de inicio del periodo, para que `diferencia`
+    señale únicamente lo que está mal en este estado de cuenta. Sin esa
+    separación, el saldo de libros (que `saldo_a_fecha()` acumula desde el
+    origen de la cuenta) se compara contra el saldo puntual de un solo estado
+    de cuenta y arrastra a la diferencia toda póliza anterior al primer estado
+    de cuenta cargado.
     """
     ESTADO_CHOICES = [
         ('PENDIENTE', 'Pendiente'),
@@ -532,22 +562,49 @@ class ConciliacionBancaria(models.Model):
         max_digits=14,
         decimal_places=2,
         default=Decimal('0.00'),
-        verbose_name="Cheques expedidos no cobrados",
-        help_text="Cheques girados pendientes de cobro"
+        verbose_name="Salidas registradas que el banco no ha cobrado",
+        help_text="Pagos ya asentados en pólizas (cheques, transferencias) que "
+                  "todavía no aparecen en el estado de cuenta."
     )
     abonos_empresa_no_abonados = models.DecimalField(
         max_digits=14,
         decimal_places=2,
         default=Decimal('0.00'),
         verbose_name="Depósitos en tránsito",
-        help_text="Depósitos registrados pendientes de acreditación"
+        help_text="Cobros ya asentados en pólizas que el banco todavía no acredita."
+    )
+
+    diferencia_arrastrada = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Diferencia arrastrada de periodos anteriores",
+        help_text="Distancia que ya existía entre libros y banco ANTES del primer "
+                  "día de este estado de cuenta. No se origina en este periodo: "
+                  "viene de pólizas anteriores al primer estado de cuenta cargado "
+                  "o de asientos sobre la cuenta de bancos sin respaldo bancario."
+    )
+    fecha_inicio_periodo = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Primer día conciliado",
+        help_text="Fecha del primer movimiento del estado de cuenta."
+    )
+    fecha_corte = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de corte",
+        help_text="Fecha de corte impresa por el banco, que es la usada para "
+                  "calcular el saldo según libros. No es necesariamente el "
+                  "último día del mes: distintas cuentas BBVA cortan en días "
+                  "distintos."
     )
 
     diferencia = models.DecimalField(
         max_digits=14,
         decimal_places=2,
         default=Decimal('0.00'),
-        verbose_name="Diferencia final"
+        verbose_name="Diferencia del periodo"
     )
     estado = models.CharField(
         max_length=15,
@@ -577,23 +634,45 @@ class ConciliacionBancaria(models.Model):
     def __str__(self):
         return f"{self.cuenta_bancaria} - {self.mes:02d}/{self.anio}"
 
-    def calcular_diferencia(self):
-        """
-        Calcula la diferencia entre saldo banco y saldo libros ajustado.
-        Si es 0, la conciliación cuadra.
-        """
-        saldo_libros_ajustado = (
+    @property
+    def saldo_libros_ajustado(self):
+        """Saldo de libros llevado a la realidad del banco: se le quita el
+        descuadre heredado y se le aplican los movimientos que el banco ya
+        registró y las pólizas todavía no."""
+        return (
             self.saldo_segun_libros
+            - self.diferencia_arrastrada
             - self.cargos_banco_no_registrados
             + self.abonos_banco_no_registrados
         )
-        saldo_banco_ajustado = (
+
+    @property
+    def saldo_banco_ajustado(self):
+        """Saldo del banco llevado a la realidad de los libros: se le aplican
+        los movimientos que las pólizas ya registraron y el banco todavía no.
+
+        Los depósitos en tránsito SUMAN al banco (el dinero ya se registró en
+        libros y el banco aún no lo acredita) y las salidas no cobradas RESTAN.
+        Hasta este cambio los dos signos estaban invertidos; nunca se notó
+        porque ningún código llenaba esas dos partidas y siempre valían cero.
+        """
+        return (
             self.saldo_segun_banco
-            - self.abonos_empresa_no_abonados
-            + self.cargos_empresa_no_cobrados
+            + self.abonos_empresa_no_abonados
+            - self.cargos_empresa_no_cobrados
         )
-        self.diferencia = saldo_libros_ajustado - saldo_banco_ajustado
+
+    def calcular_diferencia(self):
+        """
+        Calcula la diferencia del periodo entre saldo banco y saldo libros,
+        ambos ajustados. Si es 0, la conciliación cuadra.
+        """
+        self.diferencia = self.saldo_libros_ajustado - self.saldo_banco_ajustado
         return self.diferencia
+
+    @property
+    def cuadra(self):
+        return abs(self.diferencia) < Decimal('0.01')
 
     def save(self, *args, **kwargs):
         self.calcular_diferencia()

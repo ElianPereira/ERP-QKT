@@ -391,39 +391,131 @@ def _emparejar_automaticamente(estado_cuenta: EstadoCuentaBancario, tolerancia_d
             ya_emparejados_ids.add(match.id)
 
 
-def generar_conciliacion_preliminar(estado_cuenta: EstadoCuentaBancario, usuario=None):
+def movimientos_contables_del_periodo(estado_cuenta: EstadoCuentaBancario, fecha_inicio: date):
     """
-    Crea o actualiza la ConciliacionBancaria del periodo con los datos ya
-    procesados del estado de cuenta. No marca la conciliación como CONCILIADA
-    automáticamente — eso lo hace el usuario después de revisar/confirmar los
-    emparejamientos en el admin.
+    Renglones de póliza APLICADA que tocan la cuenta de bancos dentro del
+    periodo del estado de cuenta y que NO están emparejados con ningún
+    movimiento bancario de esa cuenta (ni de este estado de cuenta ni de otro).
+
+    Son las "partidas del lado de libros": lo que la contabilidad ya registró y
+    el banco todavía no refleja.
+    """
+    cuenta_contable = estado_cuenta.cuenta_bancaria.cuenta_contable
+    if not cuenta_contable:
+        return MovimientoContable.objects.none()
+
+    emparejados_ids = MovimientoEstadoCuenta.objects.filter(
+        estado_cuenta__cuenta_bancaria=estado_cuenta.cuenta_bancaria,
+        movimiento_contable__isnull=False,
+    ).values_list('movimiento_contable_id', flat=True)
+
+    return MovimientoContable.objects.filter(
+        cuenta=cuenta_contable,
+        poliza__estado='APLICADA',
+        poliza__fecha__gte=fecha_inicio,
+        poliza__fecha__lte=estado_cuenta.fecha_corte_real,
+    ).exclude(id__in=emparejados_ids).select_related('poliza', 'cuenta')
+
+
+def analizar_conciliacion(estado_cuenta: EstadoCuentaBancario):
+    """
+    Calcula todas las cifras de la conciliación de un estado de cuenta, sin
+    escribir nada. Es la fuente única del cálculo: la usan tanto
+    `generar_conciliacion_preliminar()` como el comando `diagnosticar_conciliacion`.
 
     Usa fecha_corte_real (la que imprime el propio banco), NUNCA el fin del mes
     calendario de periodo_mes/periodo_anio — distintas cuentas BBVA cortan en
     días distintos del mes (ej. Libretón Básico corta el día 14, Maestra PYME
     corta fin de mes). Forzar fin de mes calendario para todas produciría una
     diferencia que no es un error real, solo una comparación de fechas distintas.
+
+    La conciliación es DEL PERIODO: `saldo_a_fecha()` acumula desde el origen de
+    la cuenta, así que compararlo a secas contra el saldo final de un solo estado
+    de cuenta arrastra a la diferencia toda póliza anterior al primer estado de
+    cuenta cargado. Por eso se ancla el inicio del periodo en
+    `saldo_inicial_estado` —que el parser ya guardaba y nadie usaba— y lo que no
+    cuadra ahí se aísla en `diferencia_arrastrada`.
     """
     if estado_cuenta.estado != 'PROCESADO':
         raise ValueError("El estado de cuenta debe estar en estado PROCESADO antes de generar la conciliación.")
     if not estado_cuenta.fecha_corte_real:
         raise ValueError("El estado de cuenta no tiene fecha_corte_real — vuelve a procesarlo.")
 
-    saldo_libros = estado_cuenta.cuenta_bancaria.saldo_a_fecha(estado_cuenta.fecha_corte_real)
+    cuenta_bancaria = estado_cuenta.cuenta_bancaria
 
-    no_emparejados = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True)
-    abonos_banco_no_registrados = no_emparejados.aggregate(t=Sum('abono'))['t'] or Decimal('0.00')
-    cargos_banco_no_registrados = no_emparejados.aggregate(t=Sum('cargo'))['t'] or Decimal('0.00')
+    primer_movimiento = estado_cuenta.movimientos.order_by('fecha', 'id').first()
+    fecha_inicio = (
+        primer_movimiento.fecha if primer_movimiento
+        else estado_cuenta.fecha_corte_real.replace(day=1)
+    )
+
+    saldo_libros_inicio = cuenta_bancaria.saldo_a_fecha(fecha_inicio - timedelta(days=1))
+    saldo_libros_corte = cuenta_bancaria.saldo_a_fecha(estado_cuenta.fecha_corte_real)
+
+    saldo_inicial_banco = estado_cuenta.saldo_inicial_estado
+    if saldo_inicial_banco is None:
+        # Estado de cuenta procesado por una versión anterior del parser: sin
+        # ancla no se puede separar el arrastre, y meterlo todo en `diferencia`
+        # es justo el comportamiento que este cálculo existe para evitar.
+        raise ValueError(
+            "El estado de cuenta no tiene saldo inicial extraído del PDF — "
+            "vuelve a procesarlo para poder separar la diferencia arrastrada."
+        )
+    diferencia_arrastrada = saldo_libros_inicio - saldo_inicial_banco
+
+    # Lado del banco: movimientos del estado de cuenta sin asiento contable.
+    banco_sin_asiento = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True)
+    totales_banco = banco_sin_asiento.aggregate(abonos=Sum('abono'), cargos=Sum('cargo'))
+    abonos_banco_no_registrados = totales_banco['abonos'] or Decimal('0.00')
+    cargos_banco_no_registrados = totales_banco['cargos'] or Decimal('0.00')
+
+    # Lado de libros: asientos sobre la cuenta de bancos sin movimiento bancario.
+    libros_sin_banco = movimientos_contables_del_periodo(estado_cuenta, fecha_inicio)
+    totales_libros = libros_sin_banco.aggregate(debe=Sum('debe'), haber=Sum('haber'))
+    abonos_empresa_no_abonados = totales_libros['debe'] or Decimal('0.00')
+    cargos_empresa_no_cobrados = totales_libros['haber'] or Decimal('0.00')
+
+    return {
+        'cuenta_bancaria': cuenta_bancaria,
+        'fecha_inicio_periodo': fecha_inicio,
+        'fecha_corte': estado_cuenta.fecha_corte_real,
+        'saldo_inicial_banco': saldo_inicial_banco,
+        'saldo_libros_inicio': saldo_libros_inicio,
+        'saldo_segun_banco': estado_cuenta.saldo_final_estado or Decimal('0.00'),
+        'saldo_segun_libros': saldo_libros_corte,
+        'diferencia_arrastrada': diferencia_arrastrada,
+        'cargos_banco_no_registrados': cargos_banco_no_registrados,
+        'abonos_banco_no_registrados': abonos_banco_no_registrados,
+        'cargos_empresa_no_cobrados': cargos_empresa_no_cobrados,
+        'abonos_empresa_no_abonados': abonos_empresa_no_abonados,
+        'detalle_banco_sin_asiento': banco_sin_asiento,
+        'detalle_libros_sin_banco': libros_sin_banco,
+    }
+
+
+def generar_conciliacion_preliminar(estado_cuenta: EstadoCuentaBancario, usuario=None):
+    """
+    Crea o actualiza la ConciliacionBancaria del periodo con los datos ya
+    procesados del estado de cuenta. No marca la conciliación como CONCILIADA
+    automáticamente — eso lo hace el usuario después de revisar/confirmar los
+    emparejamientos en el admin.
+    """
+    datos = analizar_conciliacion(estado_cuenta)
 
     conciliacion, _ = ConciliacionBancaria.objects.update_or_create(
         cuenta_bancaria=estado_cuenta.cuenta_bancaria,
         mes=estado_cuenta.periodo_mes,
         anio=estado_cuenta.periodo_anio,
         defaults=dict(
-            saldo_segun_banco=estado_cuenta.saldo_final_estado or Decimal('0.00'),
-            saldo_segun_libros=saldo_libros,
-            cargos_banco_no_registrados=cargos_banco_no_registrados,
-            abonos_banco_no_registrados=abonos_banco_no_registrados,
+            saldo_segun_banco=datos['saldo_segun_banco'],
+            saldo_segun_libros=datos['saldo_segun_libros'],
+            cargos_banco_no_registrados=datos['cargos_banco_no_registrados'],
+            abonos_banco_no_registrados=datos['abonos_banco_no_registrados'],
+            cargos_empresa_no_cobrados=datos['cargos_empresa_no_cobrados'],
+            abonos_empresa_no_abonados=datos['abonos_empresa_no_abonados'],
+            diferencia_arrastrada=datos['diferencia_arrastrada'],
+            fecha_inicio_periodo=datos['fecha_inicio_periodo'],
+            fecha_corte=datos['fecha_corte'],
             estado='EN_PROCESO',
         )
     )

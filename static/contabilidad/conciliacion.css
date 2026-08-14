@@ -1,0 +1,244 @@
+/* ============================================================
+   Conciliación bancaria — estados de cuenta y su cuadre
+   ============================================================
+   La tabla de movimientos de un estado de cuenta trae decenas de renglones y
+   no cabe a lo ancho. El problema real no era el ancho sino la navegación: la
+   barra horizontal vivía al final de una tabla de 60 filas, así que para mover
+   una columna había que bajar hasta el fondo, deslizar y volver a subir.
+
+   La solución es acotar la altura del contenedor y darle su propio scroll: la
+   barra horizontal queda siempre a la vista, y el encabezado se fija arriba
+   con position:sticky (que funciona precisamente porque el contenedor es el
+   que hace scroll, no la página). La columna de fecha se fija a la izquierda
+   para no perder el renglón al desplazarse.
+   ============================================================ */
+
+/* ---------- Tabla de movimientos del estado de cuenta ---------- */
+
+#movimientos-group fieldset.module {
+    max-height: 60vh;
+    overflow: auto;
+    position: relative;
+    padding: 0;
+}
+
+#movimientos-group table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+    margin-bottom: 0;
+}
+
+/* El fondo va con !important y opaco a propósito: sin él la celda fija deja
+   ver el contenido que pasa por debajo al desplazarse, que es peor que no
+   fijarla. El color es el del tema (Jazzmin lo pinta en el <tr>, no en la
+   celda, y sus reglas ganan por especificidad). */
+#movimientos-group thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #383632 !important;
+    padding: 7px 10px;
+    font-size: 11px;
+    letter-spacing: .02em;
+}
+
+#movimientos-group tbody td,
+#movimientos-group tbody th {
+    padding: 2px 10px;
+    vertical-align: middle;
+    border-top: 1px solid rgba(255, 255, 255, .05);
+}
+
+/* Django emite una primera columna `original` que aquí siempre va vacía
+   (no hay enlace al detalle): solo roba ancho. */
+#movimientos-group td.original,
+#movimientos-group th.original {
+    display: none;
+}
+
+/* La fecha viaja con el renglón al desplazarse a lo ancho, para no perder de
+   vista de qué movimiento es la fila. */
+#movimientos-group thead th:nth-child(2),
+#movimientos-group td.field-fecha_display {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #383632 !important;
+    box-shadow: 1px 0 0 rgba(255, 255, 255, .06);
+}
+#movimientos-group thead th:nth-child(2) {
+    z-index: 4;
+}
+
+/* Lo que hacía la fila de 90px de alto: una advertencia de zona horaria y un
+   bloque de ayuda POR CADA renglón. En una tabla de 60 movimientos eso es
+   ruido repetido 60 veces; la explicación vive en el panel de arriba. */
+#movimientos-group .timezonewarning,
+#movimientos-group .help-block,
+#movimientos-group .helptext,
+#movimientos-group div.help,
+#movimientos-group .datetimeshortcuts {
+    display: none !important;
+}
+
+#movimientos-group td p,
+#movimientos-group td .form-group {
+    margin: 0;
+}
+
+/* Cada campo ocupa lo que ocupa su dato, no el ancho por defecto del widget. */
+#movimientos-group input[type="text"],
+#movimientos-group input[type="number"] {
+    padding: 2px 6px;
+    font-size: 12px;
+    height: 26px;
+}
+#movimientos-group .vDateField {
+    width: 8em;
+}
+#movimientos-group td.field-movimiento_contable,
+#movimientos-group th.column-movimiento_contable {
+    min-width: 26em;
+    max-width: 30em;
+}
+
+/* Columnas estrechas: el ancho lo fijaba el texto del encabezado, no el dato. */
+#movimientos-group th.column-periodo_devengo,
+#movimientos-group th.column-confirmado,
+#movimientos-group th.column-situacion_display {
+    width: 6em;
+}
+#movimientos-group td.field-periodo_devengo input,
+#movimientos-group td.field-periodo_devengo .vDateField {
+    width: 7em !important;
+    min-width: 0 !important;
+}
+#movimientos-group .select2-container {
+    width: 100% !important;
+}
+#movimientos-group .select2-selection--single {
+    height: 26px !important;
+}
+#movimientos-group .select2-selection__rendered {
+    line-height: 24px !important;
+    font-size: 12px;
+}
+#movimientos-group .select2-selection__arrow {
+    height: 24px !important;
+}
+
+.qkt-fecha {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: #d4d1c8;
+}
+
+.qkt-concepto {
+    color: #d4d1c8;
+    cursor: help;
+}
+
+.qkt-importe {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.qkt-entrada { color: #27ae60; }
+.qkt-salida  { color: #e74c3c; }
+
+/* ---------- Etiquetas de situación ---------- */
+
+.qkt-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    cursor: help;
+}
+.qkt-badge-ok       { background: #27ae60; }
+.qkt-badge-sugerido { background: #e67e22; }
+.qkt-badge-falta    { background: #e74c3c; }
+
+.qkt-muted { color: #95a5a6; font-size: 12px; }
+
+/* ---------- Panel de ayuda en pantalla ---------- */
+
+.qkt-ayuda {
+    background: rgba(76, 175, 80, .07);
+    border-left: 3px solid #4CAF50;
+    padding: 12px 16px;
+    border-radius: 4px;
+    line-height: 1.6;
+    max-width: 70em;
+}
+.qkt-ayuda-error {
+    background: rgba(231, 76, 60, .08);
+    border-left-color: #e74c3c;
+}
+.qkt-ayuda ul { margin: 8px 0 0 18px; }
+.qkt-ayuda li { margin-bottom: 4px; }
+
+/* ---------- Veredicto y desglose de la conciliación ---------- */
+
+.qkt-veredicto {
+    padding: 14px 18px;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 70em;
+}
+.qkt-veredicto-ok {
+    background: rgba(39, 174, 96, .1);
+    border-left: 4px solid #27ae60;
+}
+.qkt-veredicto-mal {
+    background: rgba(231, 76, 60, .1);
+    border-left: 4px solid #e74c3c;
+}
+
+.qkt-cuadre { max-width: 70em; }
+
+.qkt-cuadre-tabla {
+    width: 100%;
+    border-collapse: collapse;
+}
+.qkt-cuadre-tabla th {
+    text-align: left;
+    font-weight: 600;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    vertical-align: top;
+}
+.qkt-cuadre-tabla td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    white-space: nowrap;
+    vertical-align: top;
+}
+.qkt-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+.qkt-ayuda-fila {
+    font-weight: 400;
+    font-size: 12px;
+    color: #95a5a6;
+    margin-top: 3px;
+    line-height: 1.5;
+    white-space: normal;
+}
+.qkt-fila-alerta th { border-left: 3px solid #e67e22; }
+.qkt-fila-total th,
+.qkt-fila-total td {
+    font-size: 15px;
+    border-bottom: none;
+    border-top: 2px solid rgba(255, 255, 255, .15);
+    padding-top: 12px;
+}
+.qkt-ok  { color: #27ae60; }
+.qkt-mal { color: #e74c3c; }
