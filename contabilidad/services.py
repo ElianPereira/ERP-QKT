@@ -3,17 +3,18 @@ Servicios del Módulo de Contabilidad
 ====================================
 Lógica de negocio para reportes contables y regularización.
 """
+from datetime import date, timedelta
 from decimal import Decimal
-from datetime import date
 from typing import Dict, List, Optional, Tuple
-from django.db import transaction
-from django.db.models import Sum, Q
+
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
+from django.db.models import Q, Sum
 
 
 class BalanzaComprobacionService:
     """Genera la balanza de comprobación para un período."""
-    
+
     @classmethod
     def generar(
         cls,
@@ -23,48 +24,48 @@ class BalanzaComprobacionService:
         nivel_detalle: int = 3
     ) -> List[Dict]:
         from .models import CuentaContable, MovimientoContable
-        
+
         cuentas = CuentaContable.objects.filter(
             activa=True,
             nivel__lte=nivel_detalle
         ).order_by('codigo_sat')
-        
+
         filtros_mov = Q(poliza__estado='APLICADA')
         if unidad_negocio:
             filtros_mov &= Q(poliza__unidad_negocio=unidad_negocio)
-        
+
         resultado = []
-        
+
         for cuenta in cuentas:
             saldo_inicial_data = MovimientoContable.objects.filter(
                 filtros_mov,
                 cuenta=cuenta,
                 poliza__fecha__lt=fecha_inicio
             ).aggregate(debe=Sum('debe'), haber=Sum('haber'))
-            
+
             debe_inicial = saldo_inicial_data['debe'] or Decimal('0.00')
             haber_inicial = saldo_inicial_data['haber'] or Decimal('0.00')
-            
+
             if cuenta.naturaleza == 'D':
                 saldo_inicial = debe_inicial - haber_inicial
             else:
                 saldo_inicial = haber_inicial - debe_inicial
-            
+
             movimientos_periodo = MovimientoContable.objects.filter(
                 filtros_mov,
                 cuenta=cuenta,
                 poliza__fecha__gte=fecha_inicio,
                 poliza__fecha__lte=fecha_fin
             ).aggregate(debe=Sum('debe'), haber=Sum('haber'))
-            
+
             cargos = movimientos_periodo['debe'] or Decimal('0.00')
             abonos = movimientos_periodo['haber'] or Decimal('0.00')
-            
+
             if cuenta.naturaleza == 'D':
                 saldo_final = saldo_inicial + cargos - abonos
             else:
                 saldo_final = saldo_inicial - cargos + abonos
-            
+
             if saldo_inicial != 0 or cargos != 0 or abonos != 0 or saldo_final != 0:
                 resultado.append({
                     'codigo': cuenta.codigo_sat,
@@ -95,7 +96,7 @@ def aplicar_saldo_apertura(saldo_apertura, usuario=None):
     cuenta de ajuste de apertura (AJUSTE_APERTURA), nunca se fuerza
     el saldo del sistema directamente.
     """
-    from .models import Poliza, MovimientoContable
+    from .models import MovimientoContable, Poliza
     from .signals import get_cuenta, get_unidad_negocio, get_usuario_sistema
 
     if saldo_apertura.aplicado:
@@ -112,7 +113,10 @@ def aplicar_saldo_apertura(saldo_apertura, usuario=None):
     unidad = get_unidad_negocio('QUINTA')
     usuario = usuario or get_usuario_sistema()
 
-    saldo_sistema = cuenta_bancaria.saldo_actual
+    # A la fecha de corte, no a hoy: `saldo_actual` incluye todo lo posterior
+    # al corte, así que la póliza salía por un importe que no correspondía a la
+    # fecha en la que se asienta y dejaba el saldo del corte sin regularizar.
+    saldo_sistema = cuenta_bancaria.saldo_a_fecha(saldo_apertura.fecha_corte)
     diferencia = saldo_apertura.saldo_certificado - saldo_sistema
 
     with transaction.atomic():
@@ -162,6 +166,153 @@ def aplicar_saldo_apertura(saldo_apertura, usuario=None):
     return poliza
 
 
+# ==========================================
+# REGULARIZACIÓN: DIFERENCIA ARRASTRADA
+# ==========================================
+
+def proponer_regularizacion_arrastre(conciliacion, usuario):
+    """
+    Propone —en BORRADOR— la póliza que cancela la diferencia arrastrada de una
+    conciliación, para que Dirección la autorice.
+
+    La diferencia arrastrada es lo que ya no cuadraba entre libros y banco
+    ANTES del primer movimiento del estado de cuenta: pólizas anteriores al
+    primer estado de cuenta cargado, o asientos sobre la cuenta de bancos que
+    nunca pasaron por ese banco. No se origina en el periodo conciliado y no se
+    arregla tocándolo.
+
+    La póliza se fecha el **día anterior al primer movimiento del estado de
+    cuenta**, y eso no es negociable para que el mecanismo funcione: la
+    diferencia arrastrada se mide como `saldo_libros(inicio − 1 día) −
+    saldo_inicial_estado`, así que solo un asiento con esa fecha o anterior la
+    cancela. Fecharla dentro del periodo la dejaría intacta y además descuadraría
+    el periodo por el mismo importe.
+
+    El importe no se inventa: es la distancia contra el saldo inicial que
+    imprime el propio banco en el estado de cuenta, que es el documento que
+    certifica cuál era el saldo real. La contrapartida va a AJUSTE_APERTURA
+    (resultados de ejercicios anteriores), nunca se fuerza el saldo de bancos
+    contra nada.
+
+    Es idempotente: si ya hay una propuesta en BORRADOR para esta conciliación,
+    la reescribe con las cifras actuales en vez de acumular duplicados.
+    """
+    from .models import ConciliacionBancaria, MovimientoContable, Poliza
+    from .signals import get_cuenta, get_unidad_negocio
+
+    if abs(conciliacion.diferencia_arrastrada) < Decimal('0.01'):
+        raise ValueError(
+            f"La conciliación {conciliacion} no tiene diferencia arrastrada: "
+            "no hay nada que regularizar."
+        )
+    if not conciliacion.fecha_inicio_periodo:
+        raise ValueError(
+            f"La conciliación {conciliacion} no tiene fecha de inicio de periodo — "
+            "regenérala desde su estado de cuenta."
+        )
+    cuenta_bancaria = conciliacion.cuenta_bancaria
+    if not cuenta_bancaria.cuenta_contable:
+        raise ValueError(f"La cuenta {cuenta_bancaria} no tiene cuenta_contable ligada.")
+
+    cuenta_ajuste = get_cuenta('AJUSTE_APERTURA')
+    if not cuenta_ajuste:
+        raise ValueError("Falta configurar AJUSTE_APERTURA en ConfiguracionContable.")
+
+    fecha = conciliacion.fecha_inicio_periodo - timedelta(days=1)
+    importe = abs(conciliacion.diferencia_arrastrada)
+    # Diferencia positiva = los libros traían MÁS dinero del que el banco
+    # reconocía, así que hay que bajarlos: abono a bancos.
+    libros_sobran = conciliacion.diferencia_arrastrada > 0
+
+    content_type = ContentType.objects.get_for_model(ConciliacionBancaria)
+    concepto = (
+        f"Regularización de diferencia arrastrada — {cuenta_bancaria.nombre} "
+        f"al {fecha:%d/%m/%Y} (conciliación {conciliacion.mes:02d}/{conciliacion.anio})"
+    )
+
+    with transaction.atomic():
+        poliza = Poliza.objects.filter(
+            content_type=content_type,
+            object_id=conciliacion.pk,
+            origen='APERTURA',
+            estado='BORRADOR',
+        ).first()
+
+        if poliza:
+            poliza.fecha = fecha
+            poliza.concepto = concepto
+            poliza.save(update_fields=['fecha', 'concepto'])
+            poliza.movimientos.all().delete()
+        else:
+            poliza = Poliza.objects.create(
+                tipo='D',
+                folio=Poliza.siguiente_folio('D', fecha),
+                fecha=fecha,
+                concepto=concepto,
+                unidad_negocio=cuenta_bancaria.unidad_negocio or get_unidad_negocio('QUINTA'),
+                estado='BORRADOR',
+                origen='APERTURA',
+                content_type=content_type,
+                object_id=conciliacion.pk,
+                created_by=usuario,
+            )
+
+        cuenta_banco = cuenta_bancaria.cuenta_contable
+        detalle = "Ajuste al saldo que certifica el estado de cuenta del banco"
+
+        if libros_sobran:
+            MovimientoContable.objects.create(
+                poliza=poliza, cuenta=cuenta_ajuste,
+                debe=importe, haber=Decimal('0.00'),
+                concepto="Contrapartida de regularización de bancos",
+            )
+            MovimientoContable.objects.create(
+                poliza=poliza, cuenta=cuenta_banco,
+                debe=Decimal('0.00'), haber=importe,
+                concepto=detalle + " (los libros traían saldo de más)",
+            )
+        else:
+            MovimientoContable.objects.create(
+                poliza=poliza, cuenta=cuenta_banco,
+                debe=importe, haber=Decimal('0.00'),
+                concepto=detalle + " (los libros traían saldo de menos)",
+            )
+            MovimientoContable.objects.create(
+                poliza=poliza, cuenta=cuenta_ajuste,
+                debe=Decimal('0.00'), haber=importe,
+                concepto="Contrapartida de regularización de bancos",
+            )
+
+    return poliza
+
+
+def aprobar_regularizacion_arrastre(poliza, usuario):
+    """
+    Autoriza una propuesta de regularización: la pasa de BORRADOR a APLICADA
+    dejando asentado quién la autorizó y cuándo.
+
+    El control de quién puede hacerlo vive en el admin (es donde está el
+    `request.user`); aquí se comprueba lo que sí es invariante del modelo: que
+    la póliza sea efectivamente una propuesta de regularización en borrador y
+    que cuadre.
+    """
+    from .models import Poliza
+
+    if not isinstance(poliza, Poliza):
+        raise ValueError("Se esperaba una póliza.")
+    if not poliza.requiere_autorizacion_direccion:
+        raise ValueError(
+            f"La póliza {poliza.tipo}-{poliza.folio} no es una regularización de saldos."
+        )
+    if poliza.estado != 'BORRADOR':
+        raise ValueError(
+            f"La póliza {poliza.tipo}-{poliza.folio} ya no está en borrador "
+            f"(está {poliza.get_estado_display().lower()})."
+        )
+    poliza.aplicar(usuario)
+    return poliza
+
+
 def generar_compra_retroactiva(poliza):
     """
     Genera el registro Compra que debió existir detrás de una póliza de
@@ -181,6 +332,7 @@ def generar_compra_retroactiva(poliza):
     """
     from django.conf import settings
     from django.contrib.contenttypes.models import ContentType
+
     from comercial.models import Compra
 
     if poliza.tipo != 'E':
@@ -230,6 +382,7 @@ def completar_poliza_compra(poliza):
     faltando la cuenta de pago.
     """
     from comercial.models import Compra
+
     from .models import MovimientoContable
 
     if poliza.estado != 'BORRADOR':
