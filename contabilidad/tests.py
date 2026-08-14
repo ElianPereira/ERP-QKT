@@ -12,12 +12,15 @@ from datetime import date, timedelta
 from decimal import Decimal
 from io import StringIO
 
+from django.contrib import admin
 from django.contrib.auth.models import Permission, User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from comercial.models import Cliente, Compra, Cotizacion, ItemCotizacion, Pago
+from contabilidad.admin import MovimientoContableAdmin
 from contabilidad.models import (
     ConciliacionBancaria,
     ConfiguracionContable,
@@ -1456,6 +1459,11 @@ class CorregirPolizasAirbnbIvaTest(TestCase):
             Poliza.objects.get(object_id=pago.pk).estado, 'APLICADA')
 
 
+@override_settings(STORAGES={
+    "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "privado": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+})
 class PantallasConciliacionAdminTest(TestCase):
     """
     Smoke test de las dos pantallas que usa quien concilia. Cubre que los
@@ -1477,6 +1485,7 @@ class PantallasConciliacionAdminTest(TestCase):
             periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
             fecha_corte_real=date(2026, 7, 31),
             saldo_inicial_estado=Decimal('0.00'), saldo_final_estado=Decimal('500.00'),
+            archivo=SimpleUploadedFile('edo.pdf', b'%PDF-1.4 fake', content_type='application/pdf'),
         )
         poliza = Poliza.objects.create(
             tipo='I', folio=Poliza.siguiente_folio('I', date(2026, 7, 10)),
@@ -1519,7 +1528,7 @@ class PantallasConciliacionAdminTest(TestCase):
         un POST que intente cambiarlos no altera el dato."""
         url = f'/admin/contabilidad/estadocuentabancario/{self.estado_cuenta.pk}/change/'
         prefijo = 'movimientos'
-        self.client.post(url, {
+        respuesta = self.client.post(url, {
             'cuenta_bancaria': self.cuenta_bancaria.pk,
             'banco': 'BBVA', 'periodo_mes': 7, 'periodo_anio': 2026,
             'formato': 'PDF', 'origen': 'MANUAL',
@@ -1531,5 +1540,106 @@ class PantallasConciliacionAdminTest(TestCase):
             f'{prefijo}-0-movimiento_contable': self.mov_contable.pk,
             f'{prefijo}-0-confirmado': 'on',
         })
+        # El POST tiene que haber sido aceptado: si el formulario no valida, la
+        # prueba pasaría sin haber demostrado que el campo es de solo lectura.
+        self.assertEqual(respuesta.status_code, 302)
         self.mov_banco.refresh_from_db()
+        self.assertTrue(self.mov_banco.confirmado)
         self.assertEqual(self.mov_banco.abono, Decimal('500.00'))
+
+
+@override_settings(STORAGES={
+    "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "privado": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+})
+class ReasignarAsientoTest(TestCase):
+    """
+    Corregir un emparejamiento mal hecho: quitar el asiento y poner otro. Cubre
+    los dos candados que evitan que la corrección rompa algo por el camino.
+
+    El estado de cuenta lleva archivo de verdad (en InMemoryStorage) porque sin
+    él el formulario del admin no valida y el POST no llegaría a guardar nada:
+    la prueba pasaría sin haber probado nada.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('admin_reasig', 'r@b.mx', 'x')
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Reasignar', banco='BBVA',
+            clabe='012345678901234575', cuenta_contable=self.cuenta_contable,
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 7, 31),
+            saldo_inicial_estado=Decimal('0.00'), saldo_final_estado=Decimal('0.00'),
+            archivo=SimpleUploadedFile('edo.pdf', b'%PDF-1.4 fake', content_type='application/pdf'),
+        )
+        self.asiento_a = self._asiento('Pago proveedor audio')
+        self.asiento_b = self._asiento('Pago proveedor flores')
+        self.mov_1 = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 10),
+            descripcion='SPEI ENVIADO UNO', cargo=Decimal('500.00'),
+            movimiento_contable=self.asiento_a,
+        )
+        self.mov_2 = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 11),
+            descripcion='SPEI ENVIADO DOS', cargo=Decimal('500.00'),
+            movimiento_contable=self.asiento_b,
+        )
+        self.client.force_login(self.admin)
+        self.url = f'/admin/contabilidad/estadocuentabancario/{self.estado_cuenta.pk}/change/'
+
+    def _asiento(self, concepto):
+        poliza = Poliza.objects.create(
+            tipo='E', folio=Poliza.siguiente_folio('E', date(2026, 7, 10)),
+            fecha=date(2026, 7, 10), concepto=concepto, unidad_negocio=self.unidad,
+            estado='APLICADA', origen='MANUAL', created_by=self.admin,
+        )
+        return MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_contable,
+            haber=Decimal('500.00'), concepto=concepto,
+        )
+
+    def _post(self, asiento_1, asiento_2):
+        return self.client.post(self.url, {
+            'cuenta_bancaria': self.cuenta_bancaria.pk, 'banco': 'BBVA',
+            'periodo_mes': 7, 'periodo_anio': 2026, 'formato': 'PDF', 'origen': 'MANUAL',
+            'movimientos-TOTAL_FORMS': '2', 'movimientos-INITIAL_FORMS': '2',
+            'movimientos-MIN_NUM_FORMS': '0', 'movimientos-MAX_NUM_FORMS': '1000',
+            'movimientos-0-id': self.mov_1.pk,
+            'movimientos-0-estado_cuenta': self.estado_cuenta.pk,
+            'movimientos-0-movimiento_contable': asiento_1,
+            'movimientos-1-id': self.mov_2.pk,
+            'movimientos-1-estado_cuenta': self.estado_cuenta.pk,
+            'movimientos-1-movimiento_contable': asiento_2,
+        })
+
+    def test_se_puede_quitar_el_asiento_dejando_el_campo_vacio(self):
+        """Es lo que hace la × del buscador: mandar el campo en blanco."""
+        self._post('', self.asiento_b.pk)
+        self.mov_1.refresh_from_db()
+        self.assertIsNone(self.mov_1.movimiento_contable)
+
+    def test_no_se_puede_asignar_el_mismo_asiento_a_dos_movimientos(self):
+        """Un asiento contado dos veces desaparece de las partidas de la
+        conciliación y su descuadre no se ve por ningún lado."""
+        respuesta = self._post(self.asiento_a.pk, self.asiento_a.pk)
+        self.assertEqual(respuesta.status_code, 200)  # vuelve a mostrar el form
+        self.mov_2.refresh_from_db()
+        self.assertEqual(self.mov_2.movimiento_contable, self.asiento_b)
+        self.assertContains(respuesta, 'ya está asignado al movimiento', status_code=200)
+
+    def test_el_buscador_no_ofrece_borrar_el_asiento(self):
+        """La X roja del widget de Django borra el MovimientoContable de la BD,
+        no lo deselecciona: en esta pantalla no debe existir."""
+        contenido = self.client.get(self.url).content.decode()
+        inline = contenido[contenido.index('id="movimientos-group"'):]
+        self.assertNotIn('delete-related', inline)
+        self.assertFalse(
+            MovimientoContableAdmin(MovimientoContable, admin.site)
+            .has_delete_permission(None)
+        )

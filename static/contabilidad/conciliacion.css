@@ -128,6 +128,20 @@
     height: 24px !important;
 }
 
+/* La × que quita la asignación: es la única forma de reasignar un asiento y
+   por defecto pasa desapercibida entre el texto de la etiqueta y la flecha. */
+#movimientos-group .select2-selection__clear {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e67e22;
+    margin-right: 6px;
+    padding: 0 3px;
+    cursor: pointer;
+}
+#movimientos-group .select2-selection__clear:hover {
+    color: #e74c3c;
+}
+
 .qkt-fecha {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -242,3 +256,5 @@
 }
 .qkt-ok  { color: #27ae60; }
 .qkt-mal { color: #e74c3c; }
+
+.qkt-naranja { color: #e67e22; }
