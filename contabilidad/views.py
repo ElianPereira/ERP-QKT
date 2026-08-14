@@ -7,7 +7,6 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
-from django.core.exceptions import PermissionDenied
 from django.db.models import Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -193,6 +192,7 @@ def _candidatos_asiento_bancario(estado_cuenta, tolerancia_dias=5):
 
 
 @staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def autocomplete_asiento_bancario(request):
     """
     Fuente del buscador de asientos del inline de movimientos del estado de
@@ -201,9 +201,6 @@ def autocomplete_asiento_bancario(request):
     Mantiene el control de permisos de `AutocompleteJsonView`: quien no puede
     ver movimientos contables no puede listarlos por aquí.
     """
-    if not request.user.has_perm('contabilidad.view_movimientocontable'):
-        raise PermissionDenied("No tienes permiso para consultar movimientos contables.")
-
     try:
         estado_cuenta = EstadoCuentaBancario.objects.select_related(
             'cuenta_bancaria__cuenta_contable'

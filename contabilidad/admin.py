@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.db.models import Q, Sum
+from django.forms.models import BaseInlineFormSet
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
@@ -588,6 +589,17 @@ class MovimientoContableAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+    def has_delete_permission(self, request, obj=None):
+        """Un renglón de póliza no se borra: se cancela la póliza completa.
+
+        Borrarlo suelto deja el asiento descuadrado, que es justo lo que la
+        partida doble no permite. Además esto es lo que quita la X roja de
+        "eliminar" del buscador de asientos del estado de cuenta: ahí no
+        deselecciona nada, borra el movimiento contable de la base de datos.
+        """
+        return False
+
+
 @admin.register(SaldoApertura)
 class SaldoAperturaAdmin(admin.ModelAdmin):
     list_display = ['cuenta_bancaria', 'fecha_corte', 'saldo_certificado', 'aplicado', 'certificado_por']
@@ -637,6 +649,64 @@ class AutocompleteAsientoBancario(AutocompleteSelect):
         return url
 
 
+class MovimientoEstadoCuentaFormSet(BaseInlineFormSet):
+    """
+    Impide que dos movimientos del banco queden apuntando al mismo asiento.
+
+    El buscador ya excluye los asientos tomados, pero solo conoce el estado de
+    la base de datos al abrir la pantalla: dentro de un mismo guardado nada
+    impedía elegir el mismo asiento en dos renglones. Un asiento contado dos
+    veces desaparece de las partidas de la conciliación y el descuadre que
+    provoca no se ve por ningún lado.
+    """
+
+    def clean(self):
+        super().clean()
+        vistos = {}
+        for form in self.forms:
+            if not hasattr(form, 'cleaned_data') or form.cleaned_data.get('DELETE'):
+                continue
+            asiento = form.cleaned_data.get('movimiento_contable')
+            if not asiento:
+                continue
+            if asiento.pk in vistos:
+                form.add_error(
+                    'movimiento_contable',
+                    f"Este asiento ya está asignado al movimiento del "
+                    f"{vistos[asiento.pk]}. Un asiento contable solo puede "
+                    f"corresponder a un movimiento del banco: quita la asignación "
+                    f"de uno de los dos antes de guardar."
+                )
+            else:
+                vistos[asiento.pk] = form.instance.fecha.strftime('%d/%m/%Y')
+
+        if not vistos or not self.instance.pk:
+            return
+
+        # Tomados por un estado de cuenta distinto de la misma cuenta bancaria.
+        ajenos = dict(
+            MovimientoEstadoCuenta.objects
+            .filter(
+                estado_cuenta__cuenta_bancaria=self.instance.cuenta_bancaria,
+                movimiento_contable_id__in=vistos.keys(),
+            )
+            .exclude(estado_cuenta=self.instance)
+            .values_list('movimiento_contable_id', 'estado_cuenta__periodo_mes')
+        )
+        if not ajenos:
+            return
+        for form in self.forms:
+            if not hasattr(form, 'cleaned_data'):
+                continue
+            asiento = form.cleaned_data.get('movimiento_contable')
+            if asiento and asiento.pk in ajenos:
+                form.add_error(
+                    'movimiento_contable',
+                    f"Este asiento ya está asignado a un movimiento del estado de "
+                    f"cuenta del mes {ajenos[asiento.pk]:02d}. Quítalo de ahí primero."
+                )
+
+
 class MovimientoEstadoCuentaInline(admin.TabularInline):
     """
     Revisión de los movimientos que el parser extrajo del PDF.
@@ -648,6 +718,7 @@ class MovimientoEstadoCuentaInline(admin.TabularInline):
     las comisiones que el banco cobra a mes vencido— el periodo de devengo.
     """
     model = MovimientoEstadoCuenta
+    formset = MovimientoEstadoCuentaFormSet
     extra = 0
     can_delete = False
     verbose_name_plural = "Movimientos del estado de cuenta"
@@ -853,6 +924,13 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
             'El banco reporta <b>{}</b> movimientos entre el saldo inicial de '
             '<b>${}</b> y el saldo final de <b>${}</b> al corte del <b>{}</b>.'
             '<ul>{}</ul>'
+            '<p><b>Para cambiar un asiento mal asignado:</b> haz clic en la '
+            '<b class="qkt-naranja">×</b> que está <b>dentro</b> de la caja del '
+            'asiento (a la izquierda de la flecha) para quitar la asignación, y '
+            'vuelve a hacer clic en la caja para buscar el correcto. Puedes buscar '
+            'por concepto, por folio de póliza o escribiendo el importe exacto. Si '
+            'el asiento que necesitas ya está asignado a otro movimiento, quítaselo '
+            'a ese primero y guarda.</p>'
             'Cuando termines, vuelve al listado y aplica la acción '
             '<b>«Generar conciliación preliminar»</b>.'
             '</div>',

@@ -75,6 +75,29 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-14 — Reasignar el asiento de un movimiento del estado de cuenta
+  (seguimiento del PR #200). Quien concilia no encontraba cómo deseleccionar: lo
+  que quita la asignación es la **× de select2 dentro de la caja**, que por
+  defecto es casi invisible entre la etiqueta y la flecha (ahora en naranja y más
+  grande). Peor: la **X roja de fuera de la caja no deselecciona, borra el
+  `MovimientoContable` de la base de datos** — es el `delete-related` de
+  `RelatedFieldWidgetWrapper`, que aparece porque `formfield_for_dbfield` lo
+  cablea a `has_delete_permission()` del admin del modelo relacionado, y
+  `MovimientoContableAdmin` ya bloqueaba add y change pero no delete. Borrar un
+  renglón suelto descuadra la póliza, así que `has_delete_permission` pasa a
+  `False` y con eso desaparece el icono en todos lados (el ojito de `view` se
+  queda, sí es útil). Además el buscador acotado solo conoce el estado de la BD
+  al abrir la pantalla: dentro de un mismo guardado nada impedía elegir el mismo
+  asiento en dos renglones, y un asiento contado dos veces sale de las partidas
+  de la conciliación sin dejar rastro del descuadre → `MovimientoEstadoCuentaFormSet.clean()`
+  lo rechaza, tanto dentro del formset como contra otros estados de cuenta de la
+  misma cuenta bancaria. Ojo con los tests de admin de esta pantalla:
+  `EstadoCuentaBancario.archivo` es obligatorio, así que un POST sin archivo
+  **no valida y no guarda**, y una prueba que solo comprueba "el valor no
+  cambió" pasa sin haber probado nada (le pasaba a
+  `test_no_se_pueden_editar_los_importes_del_banco`). Se arregló creando el
+  objeto con `SimpleUploadedFile` bajo `override_settings(STORAGES=...)` con
+  `InMemoryStorage` —el patrón del repo— y asegurando `status_code == 302`.
 - 2026-08-14 — Órdenes 14-16/18 del backlog de seguridad (`SEC-AUTHZ-001a/b/c/e`,
   Issue #199, PR sobre `claude/solicitud-ai-nok66o`): 3 grupos Django
   (Ventas, Contabilidad, Nómina) con permisos por modelo, más
