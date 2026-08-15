@@ -13,18 +13,17 @@ Railway Cron (cada lunes a las 7am):
 """
 
 import os
-from datetime import date, timedelta, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from django.core.management.base import BaseCommand, CommandError
-from django.core.files.base import ContentFile
-from django.template.loader import render_to_string
 from django.conf import settings
-
+from django.core.files.base import ContentFile
+from django.core.management.base import BaseCommand, CommandError
+from django.template.loader import render_to_string
 from weasyprint import HTML
 
 from nomina.models import Empleado, ReciboNomina
-from nomina.services import JibbleService, JibbleAPIError
+from nomina.services import JibbleAPIError, JibbleService
 from nomina.views import redondear_horas_90
 
 

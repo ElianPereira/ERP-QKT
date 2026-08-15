@@ -15,7 +15,6 @@ from django.db import transaction
 
 from comercial.models import Cliente, Cotizacion, Pago, PortalCliente
 
-
 # ---------------------------------------------------------------------------
 # DATOS DEL SISTEMA ANTERIOR
 # ---------------------------------------------------------------------------

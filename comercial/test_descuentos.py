@@ -3,15 +3,20 @@ Tests del módulo de Descuentos
 ==============================
 Ejecutar: python manage.py test comercial.test_descuentos --verbosity=2
 """
-from decimal import Decimal
 from datetime import date, timedelta
+from decimal import Decimal
 
-from django.test import TestCase
 from django.contrib.auth.models import User
+from django.test import TestCase
 
 from comercial.models import (
-    Cliente, Cotizacion, ItemCotizacion,
-    Descuento, DescuentoAplicado, Temporada, TipoEvento,
+    Cliente,
+    Cotizacion,
+    Descuento,
+    DescuentoAplicado,
+    ItemCotizacion,
+    Temporada,
+    TipoEvento,
 )
 from comercial.services_descuentos import DescuentoService
 

@@ -12,7 +12,10 @@ from django.test import TestCase
 from django.urls import reverse
 
 from comercial.models import (
-    Cliente, Cotizacion, ItemCotizacion, PortalCliente,
+    Cliente,
+    Cotizacion,
+    ItemCotizacion,
+    PortalCliente,
 )
 
 

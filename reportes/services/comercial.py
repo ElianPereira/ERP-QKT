@@ -5,9 +5,10 @@ CxC (Antigüedad de Saldos) y Cotizaciones por período.
 
 ERP Quinta Ko'ox Tanil
 """
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from typing import Dict, List, Optional
+
 from django.utils import timezone
 
 

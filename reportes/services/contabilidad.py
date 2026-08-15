@@ -6,10 +6,11 @@ Usa la misma lógica de partida doble que BalanzaComprobacionService.
 
 ERP Quinta Ko'ox Tanil
 """
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from typing import Dict, List, Optional
-from django.db.models import Sum, Q
+
+from django.db.models import Q, Sum
 
 
 class EstadoResultadosService:

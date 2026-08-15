@@ -5,11 +5,12 @@ Ocupación por listing/mes y comparativo mensual.
 
 ERP Quinta Ko'ox Tanil
 """
-from decimal import Decimal
-from datetime import date, timedelta
 from calendar import monthrange
+from datetime import date, timedelta
+from decimal import Decimal
 from typing import Dict, List
-from django.db.models import Sum, Count, Q
+
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
 
 
@@ -126,7 +127,7 @@ class OcupacionService:
 
 class ComparativoMensualService:
     """
-    Genera comparativo mensual de ingresos Airbnb: bruto, comisiones, 
+    Genera comparativo mensual de ingresos Airbnb: bruto, comisiones,
     retenciones, neto. Agrupado por mes y listing.
     """
 
@@ -137,7 +138,7 @@ class ComparativoMensualService:
         fecha_fin: date,
         anuncio_id: int = None,
     ) -> Dict:
-        from airbnb.models import PagoAirbnb, AnuncioAirbnb
+        from airbnb.models import AnuncioAirbnb, PagoAirbnb
 
         qs = PagoAirbnb.objects.filter(
             fecha_checkin__gte=fecha_inicio,

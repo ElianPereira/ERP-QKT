@@ -39,7 +39,7 @@ trasladado y retención de ISR aplicada. Se conserva la fórmula, expresada a
 partir de las tasas en vez de como constante mágica.
 """
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 # --- Tasas -----------------------------------------------------------------
 

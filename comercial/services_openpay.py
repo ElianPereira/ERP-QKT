@@ -13,12 +13,14 @@ no toca la lógica de contabilidad.
 """
 import logging
 import uuid
-import requests
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
+
+import requests
 from django.conf import settings
 from django.db import transaction
-from .models import Cotizacion, Pago, OpenpayTransaccion, ParcialidadPago
+
+from .models import Cotizacion, OpenpayTransaccion, Pago, ParcialidadPago
 
 logger = logging.getLogger(__name__)
 
@@ -648,6 +650,7 @@ def borrar_transacciones_openpay_prueba(registros):
         )
 
     from django.contrib.contenttypes.models import ContentType
+
     from contabilidad.models import Poliza
 
     registros = list(registros)

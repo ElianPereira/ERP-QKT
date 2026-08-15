@@ -7,10 +7,10 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import F, Sum
 from django.utils.timezone import now
-from core_erp.storages_qkt import storage_privado
 
 from comercial.choices import ModoDescuento, PosicionLanding
 from core_erp import impuestos
+from core_erp.storages_qkt import storage_privado
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 
@@ -23,7 +23,8 @@ class ConstanteSistema(models.Model):
     descripcion = models.CharField(max_length=200, blank=True)
 
     def __str__(self): return f"{self.clave}: ${self.valor}"
-    class Meta: verbose_name = "Constante del Sistema"
+    class Meta:
+        verbose_name = "Constante del Sistema"
 
 
 # ==========================================
@@ -679,11 +680,13 @@ class Cotizacion(models.Model):
         return inventario
 
     def calcular_totales(self):
-        if not self.pk: return
+        if not self.pk:
+            return
         suma_items = sum(item.subtotal() for item in self.items.all())
         self.subtotal = suma_items
         base = Decimal(self.subtotal) - Decimal(self.descuento)
-        if base < 0: base = Decimal('0.00')
+        if base < 0:
+            base = Decimal('0.00')
         # El redondeo se hace aquí de forma explícita con ROUND_HALF_UP. Antes
         # se guardaba el producto sin redondear y era Django quien lo ajustaba
         # al DecimalField, aplicando ROUND_HALF_EVEN (el default del módulo
@@ -888,8 +891,10 @@ class ItemCotizacion(models.Model):
 
     def save(self, *args, **kwargs):
         if self.precio_unitario == 0:
-            if self.producto: self.precio_unitario = self.producto.sugerencia_precio()
-            elif self.insumo: self.precio_unitario = self.insumo.costo_unitario
+            if self.producto:
+                self.precio_unitario = self.producto.sugerencia_precio()
+            elif self.insumo:
+                self.precio_unitario = self.insumo.costo_unitario
         self.full_clean()
         super().save(*args, **kwargs)
         if self.cotizacion.pk:
@@ -1122,12 +1127,14 @@ class Compra(models.Model):
     def save(self, *args, **kwargs):
         if self.archivo_xml and not self.pk:
             try:
-                if self.archivo_xml.closed: self.archivo_xml.open()
+                if self.archivo_xml.closed:
+                    self.archivo_xml.open()
                 self.archivo_xml.seek(0)
                 tree = ET.parse(self.archivo_xml)
                 root = tree.getroot()
                 ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
-                if 'http://www.sat.gob.mx/cfd/3' in root.tag: ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+                if 'http://www.sat.gob.mx/cfd/3' in root.tag:
+                    ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
                 self.total = Decimal(root.attrib.get('Total', 0))
                 self.subtotal = Decimal(root.attrib.get('SubTotal', 0))
                 self.descuento = Decimal(root.attrib.get('Descuento', 0))
@@ -1147,21 +1154,27 @@ class Compra(models.Model):
                 if complemento is not None:
                     ns_tfd = {'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'}
                     timbre = complemento.find('tfd:TimbreFiscalDigital', ns_tfd)
-                    if timbre is not None: self.uuid = timbre.attrib.get('UUID', '')
+                    if timbre is not None:
+                        self.uuid = timbre.attrib.get('UUID', '')
                 impuestos = root.find('cfdi:Impuestos', ns)
                 if impuestos is not None:
                     retenciones = impuestos.find('cfdi:Retenciones', ns)
                     if retenciones is not None:
                         for r in retenciones.findall('cfdi:Retencion', ns):
-                            if r.attrib.get('Impuesto') == '001': self.ret_isr = Decimal(r.attrib.get('Importe', 0))
-                            elif r.attrib.get('Impuesto') == '002': self.ret_iva = Decimal(r.attrib.get('Importe', 0))
+                            if r.attrib.get('Impuesto') == '001':
+                                self.ret_isr = Decimal(r.attrib.get('Importe', 0))
+                            elif r.attrib.get('Impuesto') == '002':
+                                self.ret_iva = Decimal(r.attrib.get('Importe', 0))
                     traslados = impuestos.find('cfdi:Traslados', ns)
                     if traslados is not None:
                         for t in traslados.findall('cfdi:Traslado', ns):
-                            if t.attrib.get('Impuesto') == '002': self.iva = Decimal(t.attrib.get('Importe', 0))
-            except Exception as e: print(f"Error procesando XML cabecera: {e}")
+                            if t.attrib.get('Impuesto') == '002':
+                                self.iva = Decimal(t.attrib.get('Importe', 0))
+            except Exception as e:
+                print(f"Error procesando XML cabecera: {e}")
             finally:
-                if self.archivo_xml: self.archivo_xml.seek(0)
+                if self.archivo_xml:
+                    self.archivo_xml.seek(0)
         # Sin CFDI timbrado (uuid) no hay nada que acreditar ante el SAT —
         # esto no es una preferencia, es la regla fiscal, así que se fuerza
         # independientemente de lo que se haya capturado a mano en el admin.
@@ -1177,12 +1190,14 @@ class Compra(models.Model):
         if self.archivo_xml and self.pk:
             try:
                 if not self.gastos.exists():
-                    if self.archivo_xml.closed: self.archivo_xml.open()
+                    if self.archivo_xml.closed:
+                        self.archivo_xml.open()
                     self.archivo_xml.seek(0)
                     tree = ET.parse(self.archivo_xml)
                     root = tree.getroot()
                     ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
-                    if 'http://www.sat.gob.mx/cfd/3' in root.tag: ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
+                    if 'http://www.sat.gob.mx/cfd/3' in root.tag:
+                        ns = {'cfdi': 'http://www.sat.gob.mx/cfd/3'}
                     conceptos = root.find('cfdi:Conceptos', ns)
                     if conceptos is not None:
                         for c in conceptos.findall('cfdi:Concepto', ns):
@@ -1197,10 +1212,13 @@ class Compra(models.Model):
                             if traslados_c is not None:
                                 for t in traslados_c.findall('cfdi:Traslado', ns):
                                     if t.attrib.get('Impuesto') == '002':
-                                        try: iva_linea += Decimal(t.attrib.get('Importe', 0))
-                                        except: iva_linea = impuestos.iva_de(importe)
+                                        try:
+                                            iva_linea += Decimal(t.attrib.get('Importe', 0))
+                                        except Exception:
+                                            iva_linea = impuestos.iva_de(importe)
                             Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor_nombre, categoria='SIN_CLASIFICAR')
-            except Exception as e: print(f"Error procesando conceptos: {e}")
+            except Exception as e:
+                print(f"Error procesando conceptos: {e}")
 
     @property
     def proveedor_display(self):
@@ -1354,7 +1372,7 @@ class PortalCliente(models.Model):
     """
     Token de acceso público para que el cliente vea su cotización,
     plan de pagos, contrato y estado de pagos sin necesidad de login.
-    
+
     Acceso: código de cotización + últimos 4 dígitos del teléfono.
     URL: /mi-evento/<token>/
     """

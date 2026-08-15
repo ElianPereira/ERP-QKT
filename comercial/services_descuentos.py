@@ -12,7 +12,7 @@ Regla de negocio central (NO-ACUMULABLES):
 
 Todo cálculo monetario con Decimal y quantize(Decimal('0.01'), ROUND_HALF_UP).
 """
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
 from django.db.models import F

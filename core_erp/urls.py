@@ -1,33 +1,52 @@
 import logging
 
-from comercial.views_cotizador import cotizador_publico, cotizador_enviar, cotizador_gracias, api_disponibilidad_fecha, api_fechas_ocupadas, api_productos_cotizador, api_paquetes_cotizador, api_total_cotizador
-from django.contrib import admin
-from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.contrib.auth import logout
 from django.http import HttpResponse
 from django.shortcuts import redirect
+from django.urls import include, path
+
+from airbnb.views import conciliacion_depositos_airbnb, reporte_fiscal_airbnb
 from comercial.views import (
-    ver_cartera_cxc, importar_historico_view, migrar_archivos_privados_view,
+    descargar_plan_pagos_pdf,
+    enviar_contrato_email,
+    generar_contrato,
+    generar_plan_pagos,
+    importar_historico_view,
+    migrar_archivos_privados_view,
+    ver_cartera_cxc,
 )
-from comercial.views import generar_plan_pagos, descargar_plan_pagos_pdf
-from comercial.views import generar_contrato, enviar_contrato_email
+from comercial.views_cotizador import (
+    api_disponibilidad_fecha,
+    api_fechas_ocupadas,
+    api_paquetes_cotizador,
+    api_productos_cotizador,
+    api_total_cotizador,
+    cotizador_enviar,
+    cotizador_gracias,
+    cotizador_publico,
+)
 from comercial.views_openpay import (
-    openpay_webhook_view, portal_ficha_paynet, portal_procesar_pago_openpay,
+    openpay_webhook_view,
+    portal_ficha_paynet,
+    portal_procesar_pago_openpay,
     portal_retorno_3ds,
 )
-from airbnb.views import reporte_fiscal_airbnb, conciliacion_depositos_airbnb
+from comercial.views_portal import (
+    landing_publico,
+    portal_acceso,
+    portal_descargar_contrato,
+    portal_descargar_cotizacion,
+    portal_descargar_plan,
+    portal_evento,
+)
 from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
 
-from comercial.views_portal import (
-landing_publico, portal_acceso, portal_evento,
-portal_descargar_cotizacion, portal_descargar_plan, portal_descargar_contrato
-)
-
 try:
-    from airbnb.views import calendario_unificado, reporte_pagos_airbnb, bloquear_en_airbnb
+    from airbnb.views import bloquear_en_airbnb, calendario_unificado, reporte_pagos_airbnb
 except ImportError:
     calendario_unificado = reporte_pagos_airbnb = bloquear_en_airbnb = None
 
@@ -62,23 +81,23 @@ def admin_login_limitado(request, *args, **kwargs):
 # Importamos las vistas de Comercial (Manejo de errores por si falta alguna)
 try:
     from comercial.views import (
-        generar_pdf_cotizacion,
+        configurar_plantilla_barra,
+        descargar_ficha_producto,
+        descargar_lista_compras_pdf,
         enviar_cotizacion_email,
-        ver_dashboard_kpis,
         exportar_cierre_excel,
         exportar_reporte_cotizaciones,
-        generar_lista_compras,
         exportar_reporte_pagos,
-        descargar_lista_compras_pdf,
-        descargar_ficha_producto,
-        configurar_plantilla_barra,
+        generar_lista_compras,
+        generar_pdf_cotizacion,
+        ver_dashboard_kpis,
     )
 except ImportError as e:
     print(f"Advertencia de importación en Comercial: {e}")
 
 # Importamos vistas de otros módulos de forma segura
 try:
-    from nomina.views import cargar_nomina, sync_jibble_view, jibble_diagnostico_view, webhook_sync_jibble
+    from nomina.views import cargar_nomina, jibble_diagnostico_view, sync_jibble_view, webhook_sync_jibble
 except ImportError:
     cargar_nomina = sync_jibble_view = jibble_diagnostico_view = webhook_sync_jibble = None
 
@@ -89,7 +108,7 @@ except ImportError:
 
 urlpatterns = [
     # --- 1. REGLAS DE ORO (Van primero para interceptar acciones) ---
-    
+
     # FIX LOGOUT: Esta línea intercepta CUALQUIER intento de ir a /admin/logout/
     path('admin/logout/', custom_logout, name='logout'),
     path('admin/login/', admin_login_limitado, name='admin_login_limitado'),
@@ -113,7 +132,7 @@ urlpatterns = [
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
     path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
-    
+
     # --- 4. MÓDULOS EXTRA ---
     path('admin/nomina/cargar/', cargar_nomina if cargar_nomina else admin.site.urls, name='cargar_nomina'),
     path('admin/facturacion/nueva/', crear_solicitud if crear_solicitud else admin.site.urls, name='crear_solicitud'),
@@ -126,7 +145,7 @@ urlpatterns = [
     path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
     path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
     path('admin/airbnb/bloquear/<int:cotizacion_id>/', bloquear_en_airbnb, name='bloquear_en_airbnb'),
-    
+
     #---- CXC VISUALIZACION---
     path('admin/cartera/', ver_cartera_cxc, name='cartera_cxc'),
 
@@ -141,7 +160,7 @@ urlpatterns = [
     #--- PLAN DE PAGOS---
     path('cotizacion/<int:cotizacion_id>/plan-pagos/generar/', generar_plan_pagos, name='generar_plan_pagos'),
     path('cotizacion/<int:cotizacion_id>/plan-pagos/pdf/', descargar_plan_pagos_pdf, name='plan_pagos_pdf'),
-    
+
     #---Contrato de prestacion de servicios---
     path('cotizacion/<int:cotizacion_id>/contrato/generar/', generar_contrato,    name='cotizacion_contrato'),
     path('contrato/<int:contrato_id>/email/', enviar_contrato_email, name='contrato_email'),

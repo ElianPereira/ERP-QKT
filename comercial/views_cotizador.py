@@ -16,24 +16,22 @@ Rutas:
 """
 
 import json
-import math
 import logging
+import math
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
-from core_erp import impuestos
+from decimal import ROUND_HALF_UP, Decimal
 
-from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-from django.utils import timezone
 from django.conf import settings
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.utils import timezone
+from django.views.decorators.http import require_http_methods
 
+from core_erp import impuestos
 from core_erp.ratelimit import rate_limit
 
 from .forms_cotizador import CotizadorEnviarForm
-from .models import (
-    Cliente, Cotizacion, ItemCotizacion, Producto, PortalCliente
-)
+from .models import Cliente, Cotizacion, ItemCotizacion, PortalCliente, Producto
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +171,8 @@ def cotizador_enviar(request):
         hora_fin_obj    = datetime.strptime("19:00", "%H:%M").time()
         horas_evento    = 9
     elif hora_inicio_obj and hora_fin_obj:
-        from datetime import date as dt_date, datetime as dt
+        from datetime import date as dt_date
+        from datetime import datetime as dt
         dt_i = dt.combine(dt_date.today(), hora_inicio_obj)
         dt_f = dt.combine(dt_date.today(), hora_fin_obj)
         if dt_f <= dt_i:
@@ -572,10 +571,6 @@ def api_paquetes_cotizador(request):
     Devuelve paquetes (Producto con es_paquete=True) visibles en el cotizador,
     filtrados por servicio y rango de personas."""
     servicio = (request.GET.get('servicio') or '').upper()
-    try:
-        personas = int(request.GET.get('personas', '50'))
-    except ValueError:
-        personas = 50
 
     filtro = {'visible_cotizador': True, 'es_paquete': True}
     if servicio == 'EVENTO':

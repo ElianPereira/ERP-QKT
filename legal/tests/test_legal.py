@@ -345,6 +345,7 @@ class SeedTest(TestCase):
 
     def _seed(self, publicar=True):
         from io import StringIO
+
         from django.core.management import call_command
         salida = StringIO()
         args = ['seed_documentos_legales']
@@ -370,7 +371,8 @@ class SeedTest(TestCase):
         integrante— respondía 404 en producción.
         """
         from legal.management.commands.seed_documentos_legales import (
-            DIRECTORIO, DOCUMENTOS,
+            DIRECTORIO,
+            DOCUMENTOS,
         )
         faltantes = [a for a in DOCUMENTOS if not (DIRECTORIO / a).exists()]
         self.assertEqual(faltantes, [], f'archivos declarados sin escribir: {faltantes}')
@@ -442,7 +444,8 @@ class SeedTest(TestCase):
     @staticmethod
     def _version_del_seed(tipo):
         from legal.management.commands.seed_documentos_legales import (
-            DOCUMENTOS, Command,
+            DOCUMENTOS,
+            Command,
         )
         archivo = next(a for a, (t, _) in DOCUMENTOS.items() if t == tipo)
         return Command._version_desde_nombre(archivo)
@@ -518,6 +521,7 @@ class DocumentosSinNotasInternasTest(TestCase):
 
     def test_ningun_documento_publicable_trae_notas_internas(self):
         from pathlib import Path
+
         import legal
         directorio = Path(legal.__file__).parent / 'documentos_iniciales'
         for ruta in sorted(directorio.glob('*.md')):

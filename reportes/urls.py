@@ -4,6 +4,7 @@ URLs del Módulo de Reportes
 ERP Quinta Ko'ox Tanil
 """
 from django.urls import path
+
 from . import views
 
 app_name = 'reportes'

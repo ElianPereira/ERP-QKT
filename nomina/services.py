@@ -9,14 +9,15 @@ Endpoints verificados:
 Variables de entorno: JIBBLE_CLIENT_ID, JIBBLE_CLIENT_SECRET
 """
 
+import logging
 import re
 import time
-import logging
-import requests
 from datetime import datetime, timedelta
+
+import requests
 from django.conf import settings
-from django.db import transaction
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ class JibbleService:
         """
         Obtiene horas por dia por empleado usando el endpoint Timesheets.
         Incluye pausa entre requests para evitar rate limit (429).
-        
+
         Returns:
             dict {
                 'personas': {
@@ -230,7 +231,6 @@ class JibbleService:
                             })
 
                             # Rastrear la última salida de la semana para fecha de emisión
-                            salida_raw = str(last_out).strip() if last_out else ''
                             ultima_actual = personas[nombre].get('ultima_salida', '')
 
                             # Construir datetime de salida: fecha + hora

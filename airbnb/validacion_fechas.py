@@ -4,18 +4,19 @@ Servicio de validación de fechas bloqueadas
 Verifica si una fecha está disponible considerando reservas de Airbnb.
 """
 from datetime import date, timedelta
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
+
 from django.core.exceptions import ValidationError
 
 
 def verificar_disponibilidad_fecha(fecha_evento: date, cotizacion_id: int = None) -> Tuple[bool, Optional[str]]:
     """
     Verifica si una fecha está disponible para eventos.
-    
+
     Args:
         fecha_evento: La fecha a verificar
         cotizacion_id: ID de la cotización actual (para excluirla en ediciones)
-    
+
     Returns:
         Tuple (disponible: bool, mensaje_error: str o None)
     """
@@ -24,7 +25,7 @@ def verificar_disponibilidad_fecha(fecha_evento: date, cotizacion_id: int = None
     except ImportError:
         # Si el módulo airbnb no está instalado, permitir siempre
         return True, None
-    
+
     # Buscar reservas de Airbnb que afecten la quinta y coincidan con la fecha
     reservas_conflicto = ReservaAirbnb.objects.filter(
         anuncio__afecta_eventos_quinta=True,
@@ -33,7 +34,7 @@ def verificar_disponibilidad_fecha(fecha_evento: date, cotizacion_id: int = None
         fecha_inicio__lte=fecha_evento,
         fecha_fin__gt=fecha_evento,  # fecha_fin es checkout, no incluye ese día
     ).select_related('anuncio')
-    
+
     if reservas_conflicto.exists():
         reserva = reservas_conflicto.first()
         mensaje = (
@@ -69,7 +70,7 @@ def verificar_disponibilidad_fecha(fecha_evento: date, cotizacion_id: int = None
 def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]:
     """
     Obtiene todas las fechas bloqueadas en un rango.
-    
+
     Returns:
         Lista de diccionarios con info de cada bloqueo
     """
@@ -77,7 +78,7 @@ def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]
         from airbnb.models import ReservaAirbnb
     except ImportError:
         return []
-    
+
     reservas = ReservaAirbnb.objects.filter(
         anuncio__afecta_eventos_quinta=True,
         anuncio__activo=True,
@@ -85,7 +86,7 @@ def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]
         fecha_inicio__lte=fecha_fin,
         fecha_fin__gte=fecha_inicio,
     ).select_related('anuncio')
-    
+
     bloqueos = []
     for reserva in reservas:
         bloqueos.append({
@@ -95,7 +96,7 @@ def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]
             'tipo': 'airbnb',
             'titulo': reserva.titulo or 'Reserva Airbnb',
         })
-    
+
     # Cotizaciones apartadas en el rango
     try:
         from comercial.models import Cotizacion

@@ -6,22 +6,22 @@ Vistas para calendario unificado, reportes, iCal inverso y bloqueo manual.
 import calendar
 import logging
 from collections import defaultdict
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
-from django.shortcuts import render, get_object_or_404, redirect
-from django.urls import reverse
-from django.http import HttpResponse
-from django.utils import timezone
-from django.db.models import Sum, Count
-from django.db.models.functions import TruncMonth
+from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
-from django.contrib import messages
+from django.db.models import Count, Sum
+from django.db.models.functions import TruncMonth
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
 from core_erp.ratelimit import rate_limit
 
-from .models import AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario
+from .models import AnuncioAirbnb, ConflictoCalendario, PagoAirbnb, ReservaAirbnb
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +41,12 @@ def calendario_unificado(request):
     Calendario unificado que muestra eventos de la quinta + reservas de Airbnb.
     """
     from comercial.models import Cotizacion
-    
+
     eventos_lista = []
-    
+
     # EVENTOS DE LA QUINTA (Cotizaciones)
     cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA').select_related('cliente')
-    
+
     for c in cotizaciones:
         if c.estado == 'CONFIRMADA':
             color = '#27ae60'
@@ -54,7 +54,7 @@ def calendario_unificado(request):
         else:
             color = '#95a5a6'
             icon = ''
-        
+
         eventos_lista.append({
             'title': f"{icon} {c.cliente.nombre} - {c.nombre_evento}",
             'start': c.fecha_evento.strftime("%Y-%m-%d"),
@@ -62,16 +62,16 @@ def calendario_unificado(request):
             'url': f'/admin/comercial/cotizacion/{c.id}/change/',
             'extendedProps': {'tipo': 'evento'}
         })
-    
+
     # RESERVAS DE AIRBNB
     reservas = ReservaAirbnb.objects.filter(
         estado__in=['CONFIRMADA', 'BLOQUEADA', 'PENDIENTE'],
         anuncio__activo=True
     ).select_related('anuncio')
-    
+
     for r in reservas:
         tiene_conflicto = r.conflictos.filter(estado='PENDIENTE').exists()
-        
+
         if tiene_conflicto:
             color = '#e74c3c'
             icon = ''
@@ -87,7 +87,7 @@ def calendario_unificado(request):
         else:
             color = '#e67e22'
             icon = ''
-        
+
         eventos_lista.append({
             'title': f"{icon} {r.anuncio.nombre}: {r.titulo or 'Reserva'}",
             'start': r.fecha_inicio.strftime("%Y-%m-%d"),
@@ -96,7 +96,7 @@ def calendario_unificado(request):
             'url': f'/admin/airbnb/reservaairbnb/{r.id}/change/',
             'extendedProps': {'tipo': 'airbnb'}
         })
-    
+
     # ASIGNACIONES DE ESPACIO
     from comercial.models import AsignacionEspacio, AsignacionPersonal
     asignaciones_esp = AsignacionEspacio.objects.select_related('espacio', 'cotizacion__cliente')
@@ -122,10 +122,10 @@ def calendario_unificado(request):
         })
 
     conflictos_pendientes = ConflictoCalendario.objects.filter(estado='PENDIENTE').count()
-    
+
     # URL de iCal para mostrar en la página
     ical_url = request.build_absolute_uri('/airbnb/ical/eventos/')
-    
+
     context = {
         # Sin json.dumps: la plantilla lo serializa con |json_script, que
         # además escapa <, > y &. json.dumps no los escapa, así que un
@@ -136,7 +136,7 @@ def calendario_unificado(request):
         'ical_url': ical_url,
         'title': 'Calendario Unificado',
     }
-    
+
     return render(request, 'admin/airbnb/calendario_unificado.html', context)
 
 
@@ -166,7 +166,7 @@ def reporte_pagos_airbnb(request):
             numero_mes = None
         if numero_mes and 1 <= numero_mes <= 12:
             pagos = pagos.filter(fecha_pago__month=numero_mes)
-    
+
     totales = pagos.aggregate(
         total_bruto=Sum('monto_bruto'),
         total_comision=Sum('comision_airbnb'),
@@ -175,11 +175,11 @@ def reporte_pagos_airbnb(request):
         total_neto=Sum('monto_neto'),
         num_reservas=Count('id'),
     )
-    
+
     for key in totales:
         if totales[key] is None:
             totales[key] = Decimal('0.00') if 'total' in key else 0
-    
+
     resumen_mensual = pagos.annotate(
         mes=TruncMonth('fecha_checkin')
     ).values('mes').annotate(
@@ -189,7 +189,7 @@ def reporte_pagos_airbnb(request):
         iva=Sum('retencion_iva'),
         reservas=Count('id'),
     ).order_by('mes')
-    
+
     resumen_anuncio = pagos.values(
         'anuncio__nombre'
     ).annotate(
@@ -197,7 +197,7 @@ def reporte_pagos_airbnb(request):
         neto=Sum('monto_neto'),
         reservas=Count('id'),
     ).order_by('-bruto')
-    
+
     context = {
         'pagos': pagos.select_related('anuncio').order_by('-fecha_checkin'),
         'totales': totales,
@@ -208,22 +208,22 @@ def reporte_pagos_airbnb(request):
         'años_disponibles': range(2024, hoy.year + 2),
         'title': 'Reporte de Pagos Airbnb',
     }
-    
+
     if request.GET.get('export') == 'excel':
         return exportar_reporte_excel(pagos, totales, año)
-    
+
     return render(request, 'admin/airbnb/reporte_pagos.html', context)
 
 
 def exportar_reporte_excel(pagos, totales, año):
     """Genera archivo Excel con el reporte de pagos."""
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Pagos Airbnb"
-    
+
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="2E7D32", fill_type="solid")
     border = Border(
@@ -232,18 +232,18 @@ def exportar_reporte_excel(pagos, totales, año):
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
-    
+
     ws.merge_cells('A1:J1')
     ws['A1'] = 'REPORTE DE INGRESOS AIRBNB - PLATAFORMAS TECNOLÓGICAS'
     ws['A1'].font = Font(bold=True, size=14)
     ws['A1'].alignment = Alignment(horizontal='center')
-    
+
     ws.merge_cells('A2:J2')
     ws['A2'] = f'Año: {año} | Generado: {timezone.now().strftime("%d/%m/%Y %H:%M")}'
     ws['A2'].alignment = Alignment(horizontal='center')
-    
+
     headers = [
-        'Código', 'Huésped', 'Anuncio', 'Check-in', 'Check-out', 
+        'Código', 'Huésped', 'Anuncio', 'Check-in', 'Check-out',
         'Bruto', 'Comisión', 'ISR 4%', 'IVA 8%', 'Neto'
     ]
     for col, header in enumerate(headers, 1):
@@ -252,7 +252,7 @@ def exportar_reporte_excel(pagos, totales, año):
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal='center')
         cell.border = border
-    
+
     row_num = 5
     for pago in pagos:
         ws.cell(row=row_num, column=1, value=pago.codigo_confirmacion or '-')
@@ -265,12 +265,12 @@ def exportar_reporte_excel(pagos, totales, año):
         ws.cell(row=row_num, column=8, value=float(pago.retencion_isr))
         ws.cell(row=row_num, column=9, value=float(pago.retencion_iva))
         ws.cell(row=row_num, column=10, value=float(pago.monto_neto))
-        
+
         for col in range(1, 11):
             ws.cell(row=row_num, column=col).border = border
-        
+
         row_num += 1
-    
+
     total_row = row_num
     ws.cell(row=total_row, column=5, value="TOTALES:").font = Font(bold=True)
     ws.cell(row=total_row, column=6, value=float(totales['total_bruto'] or 0)).font = Font(bold=True)
@@ -278,22 +278,22 @@ def exportar_reporte_excel(pagos, totales, año):
     ws.cell(row=total_row, column=8, value=float(totales['total_isr'] or 0)).font = Font(bold=True)
     ws.cell(row=total_row, column=9, value=float(totales['total_iva'] or 0)).font = Font(bold=True)
     ws.cell(row=total_row, column=10, value=float(totales['total_neto'] or 0)).font = Font(bold=True)
-    
+
     nota_row = total_row + 2
     ws.merge_cells(f'A{nota_row}:J{nota_row}')
     ws[f'A{nota_row}'] = 'Régimen: Actividad Empresarial - Plataformas Tecnológicas (Art. 113-A LISR)'
     ws[f'A{nota_row}'].font = Font(italic=True, color="666666")
-    
+
     column_widths = [15, 25, 20, 12, 12, 12, 12, 10, 10, 12]
     for i, width in enumerate(column_widths, 1):
         ws.column_dimensions[chr(64 + i)].width = width
-    
+
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = f'attachment; filename="Airbnb_Pagos_{año}.xlsx"'
     wb.save(response)
-    
+
     return response
 
 
@@ -319,6 +319,7 @@ def generar_ical_eventos(request):
 
     from django.conf import settings
     from django.http import HttpResponseForbidden
+
     from comercial.models import Cotizacion
 
     token_esperado = getattr(settings, 'ICAL_PUBLIC_TOKEN', '')
@@ -336,7 +337,7 @@ def generar_ical_eventos(request):
         estado='CONFIRMADA',
         fecha_evento__gte=timezone.now().date() - timedelta(days=30)
     ).select_related('cliente')
-    
+
     # Generar contenido iCal
     lineas = [
         'BEGIN:VCALENDAR',
@@ -347,18 +348,18 @@ def generar_ical_eventos(request):
         'X-WR-CALNAME:Eventos Quinta Koox Tanil',
         'X-WR-TIMEZONE:America/Merida',
     ]
-    
+
     for cot in cotizaciones:
         uid = f"evento-{cot.id}@qkt-erp"
-        
+
         # Fecha de inicio y fin (evento de día completo)
         fecha_inicio = cot.fecha_evento.strftime('%Y%m%d')
         fecha_fin = (cot.fecha_evento + timedelta(days=1)).strftime('%Y%m%d')
-        
+
         # Timestamp de creación
         dtstamp = timezone.now().strftime('%Y%m%dT%H%M%SZ')
         created = cot.created_at.strftime('%Y%m%dT%H%M%SZ') if hasattr(cot, 'created_at') and cot.created_at else dtstamp
-        
+
         # Ni el nombre del cliente ni el del evento salen del ERP: el feed solo
         # existe para que Airbnb bloquee la fecha, y para eso basta el folio.
         # Publicar "Cliente: NOMBRE" regalaba la cartera a quien tuviera la URL.
@@ -379,14 +380,14 @@ def generar_ical_eventos(request):
             'TRANSP:OPAQUE',
             'END:VEVENT',
         ])
-    
+
     lineas.append('END:VCALENDAR')
-    
+
     contenido = '\r\n'.join(lineas)
-    
+
     response = HttpResponse(contenido, content_type='text/calendar; charset=utf-8')
     response['Content-Disposition'] = 'inline; filename="eventos_qkt.ics"'
-    
+
     return response
 
 
@@ -401,23 +402,22 @@ def bloquear_en_airbnb(request, cotizacion_id):
     Abre el calendario del anuncio en la fecha específica.
     """
     from comercial.models import Cotizacion
-    
+
     cotizacion = get_object_or_404(Cotizacion, pk=cotizacion_id)
-    
+
     # Obtener anuncios que afectan la quinta
     anuncios = AnuncioAirbnb.objects.filter(
         afecta_eventos_quinta=True,
         activo=True
     )
-    
+
     if not anuncios.exists():
         messages.warning(request, " No hay anuncios configurados que afecten la quinta")
         return redirect('admin:comercial_cotizacion_change', cotizacion_id)
-    
+
     # Generar URLs de bloqueo para cada anuncio
     urls_bloqueo = []
-    fecha_str = cotizacion.fecha_evento.strftime('%Y-%m-%d')
-    
+
     for anuncio in anuncios:
         if anuncio.airbnb_listing_id:
             # URL directa al multicalendar de Airbnb México
@@ -427,26 +427,26 @@ def bloquear_en_airbnb(request, cotizacion_id):
                 'url': url,
                 'listing_id': anuncio.airbnb_listing_id,
             })
-    
+
     if not urls_bloqueo:
         messages.warning(request, " Los anuncios no tienen Listing ID configurado")
         return redirect('admin:comercial_cotizacion_change', cotizacion_id)
-    
+
     if len(urls_bloqueo) == 1:
         # Si solo hay un anuncio, redirigir directamente
         messages.info(
-            request, 
+            request,
             f" Bloquea la fecha {cotizacion.fecha_evento.strftime('%d/%m/%Y')} en el calendario de Airbnb"
         )
         return redirect(urls_bloqueo[0]['url'])
-    
+
     # Si hay múltiples anuncios, mostrar página con links
     context = {
         'cotizacion': cotizacion,
         'urls_bloqueo': urls_bloqueo,
         'title': f'Bloquear en Airbnb: {cotizacion.nombre_evento}',
     }
-    
+
     return render(request, 'admin/airbnb/bloquear_manual.html', context)
 
 
@@ -457,10 +457,10 @@ def dashboard_airbnb(request):
     Dashboard del módulo Airbnb con estadísticas y accesos rápidos.
     """
     hoy = timezone.now()
-    
+
     # Estadísticas
     total_anuncios = AnuncioAirbnb.objects.filter(activo=True).count()
-    
+
     pagos_mes = PagoAirbnb.objects.filter(
         fecha_checkin__year=hoy.year,
         fecha_checkin__month=hoy.month,
@@ -469,43 +469,43 @@ def dashboard_airbnb(request):
         total_neto=Sum('monto_neto'),
         num_reservas=Count('id'),
     )
-    
+
     conflictos_count = ConflictoCalendario.objects.filter(estado='PENDIENTE').count()
-    
+
     # Próximas reservas
     reservas_proximas = ReservaAirbnb.objects.filter(
         fecha_inicio__gte=hoy.date(),
         estado='CONFIRMADA',
         anuncio__activo=True
     ).select_related('anuncio').order_by('fecha_inicio')[:5]
-    
+
     # Conflictos pendientes
     conflictos = ConflictoCalendario.objects.filter(
         estado='PENDIENTE'
     ).select_related('reserva_airbnb__anuncio', 'cotizacion')[:5]
-    
+
     # Datos para gráfica de ingresos (últimos 6 meses)
     ingresos_labels = []
     ingresos_data = []
-    
+
     for i in range(5, -1, -1):
         if i > 0:
             fecha = hoy - timedelta(days=30*i)
         else:
             fecha = hoy
-        
+
         total = PagoAirbnb.objects.filter(
             fecha_checkin__year=fecha.year,
             fecha_checkin__month=fecha.month,
             estado='PAGADO'
         ).aggregate(total=Sum('monto_neto'))['total'] or 0
-        
+
         ingresos_labels.append(fecha.strftime('%b %Y'))
         ingresos_data.append(float(total))
-    
+
     # URL del iCal
     ical_url = request.build_absolute_uri('/airbnb/ical/eventos/')
-    
+
     context = {
         'total_anuncios': total_anuncios,
         'pagos_mes': pagos_mes,
@@ -519,7 +519,7 @@ def dashboard_airbnb(request):
         'ical_url': ical_url,
         'title': 'Dashboard Airbnb',
     }
-    
+
     return render(request, 'admin/airbnb/dashboard.html', context)
 
 
@@ -620,7 +620,8 @@ def reporte_fiscal_airbnb(request):
     """
     from django.template.loader import render_to_string
     from weasyprint import HTML
-    from .models import PagoAirbnb, AnuncioAirbnb
+
+    from .models import AnuncioAirbnb, PagoAirbnb
 
     # `localdate()` y no `now().date()`: con TIME_ZONE='America/Merida' el mes
     # cambiaba seis horas antes de tiempo (mismo bug ya corregido en comercial).

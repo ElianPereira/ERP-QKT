@@ -26,7 +26,6 @@ jobs:
 
       - name: Lint with ruff
         run: ruff check .
-        continue-on-error: true
 
       - name: Run Django checks
         env:

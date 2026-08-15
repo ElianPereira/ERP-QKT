@@ -3,26 +3,28 @@ Admin del Módulo de Facturación
 ===============================
 Sistema de Diseño QKT v2.0
 """
-import os
 import io
+import logging
+import os
+from decimal import Decimal
+
 import requests
-from django.contrib import admin
+from decouple import config
+from django.conf import settings
+from django.contrib import admin, messages
+from django.core.files.base import ContentFile
+from django.core.mail import send_mail
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.template.loader import render_to_string
+from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.urls import path, reverse
-from django.http import HttpResponseRedirect, HttpResponse, JsonResponse
-from django.contrib import messages
-from django.core.mail import send_mail
-from django.conf import settings
-from .models import SolicitudFactura, ConfiguracionContador
-from decimal import Decimal
-from core_erp import impuestos
-from django.template.loader import render_to_string
-from django.core.files.base import ContentFile
-from core_erp.descargas import url_descarga
 from weasyprint import HTML
-from decouple import config
-import logging
+
+from core_erp import impuestos
+from core_erp.descargas import url_descarga
+
+from .models import ConfiguracionContador, SolicitudFactura
 
 logger = logging.getLogger(__name__)
 

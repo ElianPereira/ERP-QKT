@@ -6,10 +6,11 @@ Separado contablemente del resto del ERP (régimen fiscal diferente).
 """
 import re
 from decimal import Decimal
+
+from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Sum
 from django.utils.timezone import now
-from django.contrib.auth.models import User
 
 
 class AnuncioAirbnb(models.Model):
@@ -21,15 +22,15 @@ class AnuncioAirbnb(models.Model):
         ('CASA', 'Casa Completa'),
         ('HABITACION', 'Habitación en Quinta'),
     ]
-    
+
     nombre = models.CharField(
-        max_length=200, 
+        max_length=200,
         verbose_name="Nombre del Anuncio",
         help_text="Ej: Casa Jardín, Habitación Orquídea"
     )
     tipo = models.CharField(
-        max_length=20, 
-        choices=TIPO_CHOICES, 
+        max_length=20,
+        choices=TIPO_CHOICES,
         default='HABITACION'
     )
     url_ical = models.URLField(
@@ -38,25 +39,25 @@ class AnuncioAirbnb(models.Model):
         help_text="Obtener en Airbnb > Calendario > Exportar calendario"
     )
     airbnb_listing_id = models.CharField(
-        max_length=50, 
+        max_length=50,
         blank=True,
         verbose_name="ID de Airbnb",
         help_text="Se extrae automáticamente de la URL de iCal"
     )
-    
+
     # Configuración de conflictos
     afecta_eventos_quinta = models.BooleanField(
         default=True,
         verbose_name="¿Afecta eventos de la Quinta?",
         help_text="Si está activo, las reservas de este anuncio pueden generar conflictos con eventos"
     )
-    
+
     # Metadatos
     activo = models.BooleanField(default=True)
     ultima_sincronizacion = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def save(self, *args, **kwargs):
         # Extraer listing ID de la URL de iCal
         # (https://www.airbnb.mx/calendar/ical/XXXXXX.ics?...). Que no coincida
@@ -68,10 +69,10 @@ class AnuncioAirbnb(models.Model):
             if encontrado:
                 self.airbnb_listing_id = encontrado.group(1)
         super().save(*args, **kwargs)
-    
+
     def __str__(self):
         return f"{self.nombre} ({self.get_tipo_display()})"
-    
+
     class Meta:
         verbose_name = "Anuncio"
         verbose_name_plural = "Anuncios"
@@ -94,54 +95,54 @@ class ReservaAirbnb(models.Model):
         ('MANUAL', 'Registro Manual'),
         ('EVENTO', 'Bloqueo por Evento QKT'),
     ]
-    
+
     anuncio = models.ForeignKey(
-        AnuncioAirbnb, 
-        on_delete=models.CASCADE, 
+        AnuncioAirbnb,
+        on_delete=models.CASCADE,
         related_name='reservas'
     )
-    
+
     # Datos de la reserva
     uid_ical = models.CharField(
-        max_length=255, 
+        max_length=255,
         unique=True,
         verbose_name="UID de iCal",
         help_text="Identificador único del evento en el calendario"
     )
     titulo = models.CharField(
-        max_length=200, 
+        max_length=200,
         blank=True,
         verbose_name="Título/Huésped"
     )
     fecha_inicio = models.DateField(verbose_name="Check-in")
     fecha_fin = models.DateField(verbose_name="Check-out")
-    
+
     estado = models.CharField(
-        max_length=20, 
-        choices=ESTADO_CHOICES, 
+        max_length=20,
+        choices=ESTADO_CHOICES,
         default='CONFIRMADA'
     )
     origen = models.CharField(
-        max_length=20, 
-        choices=ORIGEN_CHOICES, 
+        max_length=20,
+        choices=ORIGEN_CHOICES,
         default='AIRBNB'
     )
-    
+
     # Notas
     notas = models.TextField(blank=True)
-    
+
     # Metadatos
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     @property
     def noches(self):
         """Calcula el número de noches de la reserva"""
         return (self.fecha_fin - self.fecha_inicio).days
-    
+
     def __str__(self):
         return f"{self.anuncio.nombre}: {self.fecha_inicio} → {self.fecha_fin}"
-    
+
     class Meta:
         verbose_name = "Reserva"
         verbose_name_plural = "Reservas"
@@ -181,13 +182,13 @@ class PagoAirbnb(models.Model):
         blank=True
     )
     reserva = models.ForeignKey(
-        ReservaAirbnb, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        ReservaAirbnb,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='pagos'
     )
-    
+
     # Datos del pago
     codigo_confirmacion = models.CharField(
         max_length=20,
@@ -198,43 +199,43 @@ class PagoAirbnb(models.Model):
         help_text="Código de reserva de Airbnb (ej: HMXXXXXXXX)"
     )
     huesped = models.CharField(
-        max_length=200, 
+        max_length=200,
         verbose_name="Nombre del Huésped"
     )
     fecha_checkin = models.DateField(verbose_name="Check-in")
     fecha_checkout = models.DateField(verbose_name="Check-out")
-    
+
     # Montos (todos en MXN)
     monto_bruto = models.DecimalField(
-        max_digits=12, 
+        max_digits=12,
         decimal_places=2,
         verbose_name="Monto Bruto",
         help_text="Total cobrado al huésped (antes de comisiones)"
     )
     comision_airbnb = models.DecimalField(
-        max_digits=12, 
-        decimal_places=2, 
+        max_digits=12,
+        decimal_places=2,
         default=Decimal('0.00'),
         verbose_name="Comisión Airbnb",
         help_text="Comisión cobrada por Airbnb (normalmente 3%)"
     )
-    
+
     # Retenciones de plataforma (régimen fiscal)
     retencion_isr = models.DecimalField(
-        max_digits=12, 
-        decimal_places=2, 
+        max_digits=12,
+        decimal_places=2,
         default=Decimal('0.00'),
         verbose_name="Retención ISR",
         help_text="ISR retenido por la plataforma, tal como viene en el CSV. La tasa depende de si Airbnb tiene el RFC del anfitrión (art. 113-A LISR)."
     )
     retencion_iva = models.DecimalField(
-        max_digits=12, 
-        decimal_places=2, 
+        max_digits=12,
+        decimal_places=2,
         default=Decimal('0.00'),
         verbose_name="Retención IVA",
         help_text="IVA retenido por la plataforma, tal como viene en el CSV (art. 18-J LIVA)."
     )
-    
+
     # IVA que Airbnb cobra al huésped y TRANSFIERE al anfitrión para que sea
     # él quien lo entere. En el CSV son las filas "Impuestos liquidados como
     # anfitrión" y suman al depósito, por eso no es un gasto.
@@ -266,20 +267,20 @@ class PagoAirbnb(models.Model):
         verbose_name="Monto Neto Recibido",
         help_text="Lo que realmente deposita Airbnb"
     )
-    
+
     # Fechas
     fecha_pago = models.DateField(
-        null=True, 
+        null=True,
         blank=True,
         verbose_name="Fecha de Pago",
         help_text="Fecha en que Airbnb depositó el pago"
     )
     estado = models.CharField(
-        max_length=20, 
-        choices=ESTADO_CHOICES, 
+        max_length=20,
+        choices=ESTADO_CHOICES,
         default='PENDIENTE'
     )
-    
+
     # Auditoría
     notas = models.TextField(blank=True)
     origen = models.CharField(
@@ -298,25 +299,25 @@ class PagoAirbnb(models.Model):
         help_text="Agrupa los pagos que Airbnb depositó juntos, para conciliar contra el banco.",
     )
     created_by = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='pagos_airbnb_creados'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     @property
     def noches(self):
         return (self.fecha_checkout - self.fecha_checkin).days
-    
+
     @property
     def tarifa_por_noche(self):
         if self.noches > 0:
             return self.monto_bruto / self.noches
         return Decimal('0.00')
-    
+
     def retenciones_esperadas(self, *, con_rfc: bool = True) -> dict:
         """
         Lo que la plataforma DEBERÍA haber retenido, según arts. 113-A LISR y
@@ -384,7 +385,7 @@ class PagoAirbnb(models.Model):
 
 class ConflictoCalendario(models.Model):
     """
-    Registro de conflictos detectados entre reservas de Airbnb 
+    Registro de conflictos detectados entre reservas de Airbnb
     y eventos de la quinta.
     """
     ESTADO_CHOICES = [
@@ -392,40 +393,40 @@ class ConflictoCalendario(models.Model):
         ('RESUELTO', 'Resuelto'),
         ('IGNORADO', 'Ignorado'),
     ]
-    
+
     reserva_airbnb = models.ForeignKey(
-        ReservaAirbnb, 
+        ReservaAirbnb,
         on_delete=models.CASCADE,
         related_name='conflictos'
     )
     cotizacion = models.ForeignKey(
-        'comercial.Cotizacion', 
+        'comercial.Cotizacion',
         on_delete=models.CASCADE,
         related_name='conflictos_airbnb'
     )
-    
+
     fecha_conflicto = models.DateField(verbose_name="Fecha del Conflicto")
     descripcion = models.TextField(blank=True)
     estado = models.CharField(
-        max_length=20, 
-        choices=ESTADO_CHOICES, 
+        max_length=20,
+        choices=ESTADO_CHOICES,
         default='PENDIENTE'
     )
-    
+
     resuelto_por = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True
     )
     fecha_resolucion = models.DateTimeField(null=True, blank=True)
     notas_resolucion = models.TextField(blank=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"Conflicto {self.fecha_conflicto}: {self.reserva_airbnb.anuncio.nombre} vs {self.cotizacion.nombre_evento}"
-    
+
     class Meta:
         verbose_name = "Conflicto de Calendario"
         verbose_name_plural = "Conflictos de Calendario"

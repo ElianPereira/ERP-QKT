@@ -2,29 +2,39 @@ import logging
 import math
 import os
 import re
-import openpyxl 
-from .models import MovimientoInventario
 from datetime import datetime, timedelta
-from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse, JsonResponse
-from django.template.loader import render_to_string
-from django.contrib import messages
-from django.core.exceptions import PermissionDenied
-from django.core.mail import EmailMultiAlternatives
-from django.utils.html import strip_tags
+from decimal import Decimal
+
+import openpyxl
 from django.conf import settings
-from django.db.models import Sum, Count, Q
-from django.db.models.functions import TruncMonth
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
-from django.utils import timezone
-from decimal import Decimal
-from weasyprint import HTML
-from django.views.decorators.csrf import csrf_exempt
+from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
+from django.core.mail import EmailMultiAlternatives
+from django.db.models import Count, Q, Sum
+from django.db.models.functions import TruncMonth
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
+from django.utils import timezone
+from django.utils.html import strip_tags
+from django.views.decorators.csrf import csrf_exempt
+from weasyprint import HTML
 
-from .models import Cotizacion, Gasto, Pago, ItemCotizacion, Compra, Producto, Cliente, PlantillaBarra, Insumo
+from .models import (
+    Cliente,
+    Compra,
+    Cotizacion,
+    Gasto,
+    Insumo,
+    ItemCotizacion,
+    MovimientoInventario,
+    Pago,
+    PlantillaBarra,
+    Producto,
+)
 from .services import CalculadoraBarraService, actualizar_item_cotizacion
 
 try:
@@ -65,14 +75,14 @@ def _buscar_insumo_palabra_completa(keyword):
     ).first()
     if insumo:
         return insumo
-    
+
     insumo = Insumo.objects.filter(
         nombre__icontains=f' {keyword}',
         categoria='CONSUMIBLE'
     ).first()
     if insumo:
         return insumo
-    
+
     return None
 
 
@@ -80,7 +90,7 @@ def _obtener_item_plantilla(categoria):
     plantilla = PlantillaBarra.objects.filter(
         categoria=categoria, activo=True
     ).select_related('insumo').first()
-    
+
     if plantilla and plantilla.insumo:
         insumo = plantilla.insumo
         nombre = insumo.nombre
@@ -93,7 +103,7 @@ def _obtener_item_plantilla(categoria):
             'proporcion': float(plantilla.proporcion),
             'insumo_id': insumo.id,
         }
-    
+
     BUSQUEDA_KEYWORDS = {
         'CERVEZA': ['cerveza', 'caguama', 'tecate', 'corona'],
         'TEQUILA_NAC': ['tequila cuervo', 'tequila tradicional', 'tequila'],
@@ -115,9 +125,9 @@ def _obtener_item_plantilla(categoria):
         'CAFE': ['café', 'cafe', 'espresso'],
         'SERVILLETAS': ['servilleta', 'popote'],
     }
-    
+
     keywords = BUSQUEDA_KEYWORDS.get(categoria, [])
-    
+
     for keyword in keywords:
         if ' ' in keyword:
             insumo = Insumo.objects.filter(
@@ -131,7 +141,7 @@ def _obtener_item_plantilla(categoria):
                 nombre__icontains=keyword,
                 categoria='CONSUMIBLE'
             ).first()
-        
+
         if insumo:
             nombre = insumo.nombre
             if insumo.presentacion:
@@ -144,7 +154,7 @@ def _obtener_item_plantilla(categoria):
                 'insumo_id': insumo.id,
                 '_via_fallback': True,
             }
-    
+
     return None
 
 
@@ -163,7 +173,7 @@ def _agregar_a_lista(lista, seccion, item_nombre, cantidad, unidad, nota='', pro
     """Helper para agregar un ítem a la lista de compras con formato consistente."""
     if seccion not in lista:
         lista[seccion] = []
-    
+
     entry = {
         'item': item_nombre,
         'cantidad': cantidad,
@@ -176,18 +186,17 @@ def _agregar_a_lista(lista, seccion, item_nombre, cantidad, unidad, nota='', pro
     if costo_unitario > 0:
         entry['costo_unitario'] = costo_unitario
         entry['costo_total'] = round(costo_unitario * cantidad, 2)
-    
+
     lista[seccion].append(entry)
 
 
 def generar_lista_compras_barra(cotizacion):
     calc = CalculadoraBarraService(cotizacion)
     datos = calc.calcular()
-    if not datos: 
+    if not datos:
         return {}
 
     lista_compras = {}
-    costo_total_lista = Decimal('0.00')
 
     if datos['cervezas_unidades'] > 0:
         p = _obtener_item_plantilla('CERVEZA') or _fallback_item('Cerveza Nacional (Caguama)')
@@ -296,7 +305,7 @@ def generar_lista_compras_barra(cotizacion):
 def configurar_plantilla_barra(request):
     """Vista de asistente visual para vincular insumos reales a cada concepto de la Plantilla de Barra."""
     from django.contrib import admin as django_admin
-    
+
     GRUPO_CONFIG = {
         'ALCOHOL_NACIONAL': {'nombre': 'Licores Nacionales', 'color': '#e67e22', 'icono': '',
                              'categorias': ['TEQUILA_NAC', 'WHISKY_NAC', 'RON_NAC', 'VODKA_NAC']},
@@ -313,39 +322,39 @@ def configurar_plantilla_barra(request):
         'CONSUMIBLE': {'nombre': 'Abarrotes y Consumibles', 'color': '#95a5a6', 'icono': '',
                        'categorias': ['SERVILLETAS']},
     }
-    
+
     cat_labels = dict(PlantillaBarra.CATEGORIAS_BARRA)
     insumos = Insumo.objects.all().order_by('nombre')
     mensaje_exito = None
     mensaje_error = None
-    
+
     if request.method == 'POST':
         creados = 0
         actualizados = 0
         errores = 0
-        
+
         for cat_key, cat_label in PlantillaBarra.CATEGORIAS_BARRA:
             insumo_id = request.POST.get(f'insumo_{cat_key}', '')
             proporcion_pct = request.POST.get(f'proporcion_{cat_key}', '100')
-            
+
             try:
                 proporcion_pct = int(proporcion_pct)
             except (ValueError, TypeError):
                 proporcion_pct = 100
-            
+
             proporcion_decimal = Decimal(proporcion_pct) / Decimal('100')
-            
+
             grupo = 'CONSUMIBLE'
             for g_key, g_conf in GRUPO_CONFIG.items():
                 if cat_key in g_conf['categorias']:
                     grupo = g_key
                     break
-            
+
             if insumo_id:
                 try:
                     insumo = Insumo.objects.get(id=int(insumo_id))
                     plantilla = PlantillaBarra.objects.filter(categoria=cat_key).first()
-                    
+
                     if plantilla:
                         plantilla.insumo = insumo
                         plantilla.proporcion = proporcion_decimal
@@ -359,45 +368,45 @@ def configurar_plantilla_barra(request):
                             proporcion=proporcion_decimal, activo=True, orden=0
                         )
                         creados += 1
-                        
-                except (Insumo.DoesNotExist, ValueError) as e:
+
+                except (Insumo.DoesNotExist, ValueError):
                     errores += 1
             else:
                 PlantillaBarra.objects.filter(categoria=cat_key).update(activo=False)
-        
+
         if errores == 0:
             mensaje_exito = f"Plantilla guardada: {creados} nuevos, {actualizados} actualizados."
         else:
             mensaje_error = f"Guardado con {errores} errores. {creados} nuevos, {actualizados} actualizados."
-    
+
     grupos = []
     vinculados = 0
     sin_vincular = 0
-    
+
     for g_key, g_conf in GRUPO_CONFIG.items():
         categorias_grupo = []
-        
+
         for cat_key in g_conf['categorias']:
             cat_label = cat_labels.get(cat_key, cat_key)
             plantilla = PlantillaBarra.objects.filter(
                 categoria=cat_key, activo=True
             ).select_related('insumo').first()
-            
+
             insumo_actual = plantilla.insumo if plantilla else None
             proporcion_pct = int(plantilla.proporcion * 100) if plantilla else 100
-            
+
             if insumo_actual:
                 vinculados += 1
             else:
                 sin_vincular += 1
-            
+
             categorias_grupo.append({
                 'key': cat_key,
                 'label': cat_label,
                 'insumo_actual': insumo_actual,
                 'proporcion_pct': proporcion_pct,
             })
-        
+
         grupos.append({
             'key': g_key,
             'nombre': g_conf['nombre'],
@@ -405,7 +414,7 @@ def configurar_plantilla_barra(request):
             'icono': g_conf['icono'],
             'categorias': categorias_grupo,
         })
-    
+
     context = {
         **django_admin.site.each_context(request),
         'grupos': grupos,
@@ -416,7 +425,7 @@ def configurar_plantilla_barra(request):
         'mensaje_exito': mensaje_exito,
         'mensaje_error': mensaje_error,
     }
-    
+
     return render(request, 'admin/comercial/configurar_plantilla_barra.html', context)
 
 
@@ -535,7 +544,7 @@ def descargar_lista_compras_pdf(request, cotizacion_id):
     html_string = render_to_string('pdf_lista_compras.html', {
         'cotizacion': cotizacion, 'lista': lista_insumos, 'logo_url': logo_url, 'fecha_impresion': timezone.now()
     })
-    
+
     html = HTML(string=html_string, base_url=request.build_absolute_uri())
     result = html.write_pdf()
     response = HttpResponse(content_type='application/pdf')
@@ -549,12 +558,12 @@ def descargar_lista_compras_pdf(request, cotizacion_id):
 def obtener_contexto_cotizacion(cotizacion):
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    
+
     calc = CalculadoraBarraService(cotizacion)
     datos_barra = calc.calcular()
-    
+
     return {
-        'cotizacion': cotizacion, 'items': cotizacion.items.all(), 
+        'cotizacion': cotizacion, 'items': cotizacion.items.all(),
         'logo_url': logo_url, 'total_pagado': cotizacion.total_pagado(),
         'saldo_pendiente': cotizacion.saldo_pendiente(), 'barra': datos_barra
     }
@@ -602,7 +611,8 @@ def enviar_cotizacion_email(request, cotizacion_id):
 # ==========================================
 @staff_member_required
 def exportar_cierre_excel(request):
-    if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()): return redirect('/admin/')
+    if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()):
+        return redirect('/admin/')
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     hoy = timezone.localdate()
     response['Content-Disposition'] = f'attachment; filename="Contabilidad_{hoy.strftime("%B_%Y")}.xlsx"'
@@ -622,16 +632,20 @@ def exportar_cierre_excel(request):
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
 def exportar_reporte_cotizaciones(request):
-    if request.method != 'POST': return render(request, 'comercial/reporte_form.html')
+    if request.method != 'POST':
+        return render(request, 'comercial/reporte_form.html')
     fecha_inicio = request.POST.get('fecha_inicio')
     fecha_fin = request.POST.get('fecha_fin')
     estado = request.POST.get('estado')
-    
+
     cotizaciones = Cotizacion.objects.all().select_related('cliente').prefetch_related('gasto_set__compra').order_by('fecha_evento')
-    
-    if fecha_inicio: cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
-    if fecha_fin: cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
-    if estado and estado != 'TODAS': cotizaciones = cotizaciones.filter(estado=estado)
+
+    if fecha_inicio:
+        cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
+    if fecha_fin:
+        cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
+    if estado and estado != 'TODAS':
+        cotizaciones = cotizaciones.filter(estado=estado)
 
     t_subtotal = Decimal(0)
     t_descuento = Decimal(0)
@@ -646,7 +660,7 @@ def exportar_reporte_cotizaciones(request):
     t_gastos_op_fiscal_iva = Decimal(0)
     t_gastos_op_nofiscal = Decimal(0)
     datos_tabla = []
-    
+
     for c in cotizaciones:
         base_real_venta = c.subtotal - c.descuento
         t_subtotal += c.subtotal
@@ -655,17 +669,17 @@ def exportar_reporte_cotizaciones(request):
         t_iva_trasladado += c.iva
         t_ret_isr += c.retencion_isr
         t_total_ventas += c.precio_final
-        
+
         ev_fiscal_base = Decimal(0)
         ev_fiscal_iva = Decimal(0)
         ev_nofiscal = Decimal(0)
-        
-        gastos_evento = c.gasto_set.all() 
-        
+
+        gastos_evento = c.gasto_set.all()
+
         for g in gastos_evento:
             total_linea = g.total_linea or Decimal(0)
             compra = g.compra
-            if compra.uuid: 
+            if compra.uuid:
                 if compra.total > 0 and compra.iva > 0:
                     factor = total_linea / compra.total
                     iva_prop = factor * compra.iva
@@ -675,7 +689,7 @@ def exportar_reporte_cotizaciones(request):
                     base_prop = total_linea
                 ev_fiscal_base += base_prop
                 ev_fiscal_iva += iva_prop
-            else: 
+            else:
                 ev_nofiscal += total_linea
 
         t_gastos_ev_fiscal_base += ev_fiscal_base
@@ -692,12 +706,14 @@ def exportar_reporte_cotizaciones(request):
         })
 
     gastos_qs = Gasto.objects.filter(evento_relacionado__isnull=True).select_related('compra')
-    if fecha_inicio: gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
-    if fecha_fin: gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
+    if fecha_inicio:
+        gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
+    if fecha_fin:
+        gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
 
     ops_fiscales = []
     ops_nofiscales = []
-    
+
     for g in gastos_qs:
         total_linea = g.total_linea or Decimal(0)
         compra = g.compra
@@ -711,7 +727,7 @@ def exportar_reporte_cotizaciones(request):
                 base_prop = total_linea
             t_gastos_op_fiscal_base += base_prop
             t_gastos_op_fiscal_iva += iva_prop
-            
+
             found = False
             for item in ops_fiscales:
                 if item['cat'] == g.categoria:
@@ -720,7 +736,8 @@ def exportar_reporte_cotizaciones(request):
                     item['total'] += total_linea
                     found = True
                     break
-            if not found: ops_fiscales.append({'cat': g.categoria, 'base': base_prop, 'iva': iva_prop, 'total': total_linea})
+            if not found:
+                ops_fiscales.append({'cat': g.categoria, 'base': base_prop, 'iva': iva_prop, 'total': total_linea})
         else:
             t_gastos_op_nofiscal += total_linea
             found = False
@@ -729,7 +746,8 @@ def exportar_reporte_cotizaciones(request):
                     item['total'] += total_linea
                     found = True
                     break
-            if not found: ops_nofiscales.append({'cat': g.categoria, 'total': total_linea})
+            if not found:
+                ops_nofiscales.append({'cat': g.categoria, 'total': total_linea})
 
     cat_labels = dict(Gasto.CATEGORIAS)
     gastos_operativos_fiscales_list = [{'nombre': cat_labels.get(item['cat'], item['cat']), 'base': item['base'], 'iva': item['iva'], 'total': item['total']} for item in ops_fiscales]
@@ -743,7 +761,7 @@ def exportar_reporte_cotizaciones(request):
 
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    
+
     context = {
         'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
         'logo_url': logo_url, 't_base_real': t_base_real, 't_iva_trasladado': t_iva_trasladado, 't_venta_total': t_total_ventas,
@@ -753,7 +771,7 @@ def exportar_reporte_cotizaciones(request):
         'total_costos_base': total_costos_deducibles, 'total_costos_nofiscal': total_costos_no_deducibles, 'utilidad_neta_real': utilidad_neta_real,
         'total_iva_acreditable': total_iva_acreditable, 'iva_por_pagar': iva_por_pagar
     }
-    
+
     html = render_to_string('cotizaciones/pdf_reporte_ventas.html', context)
     response = HttpResponse(content_type='application/pdf')
     filename = f"Estado_Resultados_{fecha_inicio if fecha_inicio else 'General'}.pdf"
@@ -764,12 +782,15 @@ def exportar_reporte_cotizaciones(request):
 @staff_member_required
 @permission_required('comercial.view_pago', raise_exception=True)
 def exportar_reporte_pagos(request):
-    if request.method != 'POST': return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Reporte Detallado de Pagos'})
+    if request.method != 'POST':
+        return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Reporte Detallado de Pagos'})
     fecha_inicio = request.POST.get('fecha_inicio')
     fecha_fin = request.POST.get('fecha_fin')
     pagos = Pago.objects.select_related('cotizacion', 'cotizacion__cliente', 'usuario').order_by('fecha_pago')
-    if fecha_inicio: pagos = pagos.filter(fecha_pago__gte=fecha_inicio)
-    if fecha_fin: pagos = pagos.filter(fecha_pago__lte=fecha_fin)
+    if fecha_inicio:
+        pagos = pagos.filter(fecha_pago__gte=fecha_inicio)
+    if fecha_fin:
+        pagos = pagos.filter(fecha_pago__lte=fecha_fin)
     total_ingresos = pagos.aggregate(Sum('monto'))['monto__sum'] or Decimal(0)
     metodos_data = pagos.values('metodo').annotate(total=Sum('monto')).order_by('-total')
     resumen_metodos = [{'nombre': dict(Pago.METODOS).get(item['metodo'], item['metodo']), 'total': item['total'], 'porcentaje': (item['total'] / total_ingresos * 100) if total_ingresos > 0 else 0} for item in metodos_data]
@@ -817,13 +838,13 @@ def descargar_ficha_producto(request, producto_id):
 @permission_required('comercial.view_pago', raise_exception=True)
 def ver_cartera_cxc(request):
     """Dashboard de Cuentas por Cobrar."""
-    from django.db.models import F, Case, When, Value, CharField, DecimalField
+    from django.db.models import Case, CharField, DecimalField, F, Value, When
     from django.db.models.functions import Coalesce
-    
+
     context = admin.site.each_context(request)
     hoy = timezone.now().date()
-    
-    from django.db.models import Sum, Q
+
+    from django.db.models import Sum
     cotizaciones = Cotizacion.objects.filter(
         estado__in=['COTIZADA', 'CONFIRMADA', 'EJECUTADA']
     ).select_related('cliente').annotate(
@@ -848,7 +869,7 @@ def ver_cartera_cxc(request):
 
         total_por_cobrar += saldo
         dias_evento = (cot.fecha_evento - hoy).days
-        
+
         if dias_evento < 0:
             antiguedad = 'VENCIDO'
             vencido += 1
@@ -864,7 +885,7 @@ def ver_cartera_cxc(request):
         else:
             antiguedad = 'AL_DIA'
             al_dia += 1
-        
+
         cartera.append({
             'cotizacion': cot,
             'folio': f"COT-{cot.id:03d}",
@@ -880,10 +901,10 @@ def ver_cartera_cxc(request):
             'telefono': cot.cliente.telefono,
             'email': cot.cliente.email,
         })
-    
+
     orden_prioridad = {'VENCIDO': 0, 'URGENTE': 1, 'PROXIMO': 2, 'AL_DIA': 3}
     cartera.sort(key=lambda x: (orden_prioridad.get(x['antiguedad'], 4), x['fecha_evento']))
-    
+
     context.update({
         'cartera': cartera,
         'total_por_cobrar': total_por_cobrar,
@@ -895,7 +916,7 @@ def ver_cartera_cxc(request):
         'count_proximo': vence_30_dias,
         'count_al_dia': al_dia,
     })
-    
+
     return render(request, 'admin/comercial/cartera_cxc.html', context)
 
 
@@ -912,13 +933,13 @@ def generar_plan_pagos(request, cotizacion_id):
     """
     from .models import PlanPago
     from .services import PlanPagosService
-    
+
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    
+
     if cotizacion.precio_final <= 0:
         messages.error(request, "La cotización no tiene precio calculado. Agrega items primero.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
-    
+
     num_parcialidades = request.GET.get('parcialidades')
     if num_parcialidades:
         try:
@@ -928,7 +949,7 @@ def generar_plan_pagos(request, cotizacion_id):
                 messages.warning(request, "Número de parcialidades debe ser entre 1 y 12. Se usó el default.")
         except ValueError:
             num_parcialidades = None
-    
+
     try:
         servicio = PlanPagosService(cotizacion)
         plan = servicio.generar(usuario=request.user, num_parcialidades=num_parcialidades)
@@ -936,7 +957,7 @@ def generar_plan_pagos(request, cotizacion_id):
         messages.success(request, f"Plan de {n} pagos generado para COT-{cotizacion.id:03d}")
     except Exception as e:
         messages.error(request, f"Error al generar plan: {e}")
-    
+
     return redirect(request.META.get('HTTP_REFERER', f'/admin/comercial/cotizacion/{cotizacion_id}/change/'))
 
 
@@ -945,22 +966,22 @@ def generar_plan_pagos(request, cotizacion_id):
 def descargar_plan_pagos_pdf(request, cotizacion_id):
     """Genera PDF del plan de pagos."""
     from .models import PlanPago
-    
+
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    
+
     try:
         plan = cotizacion.plan_pago
     except PlanPago.DoesNotExist:
         messages.error(request, "Esta cotización no tiene plan de pagos.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
-    
+
     if not plan.activo:
         messages.error(request, "El plan de pagos está inactivo.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
-    
+
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    
+
     context = {
         'cotizacion': cotizacion,
         'plan': plan,
@@ -968,7 +989,7 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
         'logo_url': logo_url,
         'fecha_generacion': timezone.now(),
     }
-    
+
     html_string = render_to_string('cotizaciones/pdf_plan_pagos.html', context)
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="Plan_Pagos_COT-{cotizacion.id:03d}.pdf"'
@@ -1092,8 +1113,12 @@ def importar_historico_view(request):
         raise PermissionDenied
 
     from io import StringIO
+
     from comercial.management.commands.importar_historico import (
-        CLIENTES, COTIZACIONES, PAGOS, Command,
+        CLIENTES,
+        COTIZACIONES,
+        PAGOS,
+        Command,
     )
 
     pagos_por_cot = {}

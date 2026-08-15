@@ -10,16 +10,15 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
-from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse
-from django.template.loader import render_to_string
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, render
+from django.template.loader import render_to_string
 from django.utils import timezone
 from weasyprint import HTML
 
 from .models import ReporteGenerado
-
 
 # ==========================================
 # UTILIDADES
@@ -72,8 +71,8 @@ def _render_pdf(request, template, context, filename):
 @staff_member_required
 def selector_reportes(request):
     """Página principal del centro de reportes."""
-    from contabilidad.models import CuentaContable, UnidadNegocio
     from airbnb.models import AnuncioAirbnb
+    from contabilidad.models import CuentaContable, UnidadNegocio
 
     puede_contabilidad = request.user.has_perm('contabilidad.view_movimientocontable')
     puede_comercial = request.user.has_perm('comercial.view_cotizacion')
@@ -108,8 +107,8 @@ def selector_reportes(request):
 @permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_balanza(request):
     """Genera Balanza de Comprobación en PDF."""
-    from contabilidad.services import BalanzaComprobacionService
     from contabilidad.models import UnidadNegocio
+    from contabilidad.services import BalanzaComprobacionService
 
     fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
     fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
@@ -166,8 +165,9 @@ def reporte_balanza(request):
 @permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_estado_resultados(request):
     """Genera Estado de Resultados en PDF."""
-    from .services.contabilidad import EstadoResultadosService
     from contabilidad.models import UnidadNegocio
+
+    from .services.contabilidad import EstadoResultadosService
 
     fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
     fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
@@ -201,8 +201,9 @@ def reporte_estado_resultados(request):
 @permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_balance_general(request):
     """Genera Balance General en PDF."""
-    from .services.contabilidad import BalanceGeneralService
     from contabilidad.models import UnidadNegocio
+
+    from .services.contabilidad import BalanceGeneralService
 
     fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
     unidad_id = request.GET.get('unidad_negocio')
@@ -234,8 +235,9 @@ def reporte_balance_general(request):
 @permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_libro_mayor(request):
     """Genera Libro Mayor de una cuenta en PDF."""
-    from .services.contabilidad import LibroMayorService
     from contabilidad.models import UnidadNegocio
+
+    from .services.contabilidad import LibroMayorService
 
     cuenta_id = request.GET.get('cuenta_id')
     if not cuenta_id:
@@ -275,8 +277,9 @@ def reporte_libro_mayor(request):
 @permission_required('contabilidad.view_movimientocontable', raise_exception=True)
 def reporte_auxiliar(request):
     """Genera Auxiliar de Cuentas (subcuentas de un padre) en PDF."""
-    from .services.contabilidad import AuxiliarCuentasService
     from contabilidad.models import UnidadNegocio
+
+    from .services.contabilidad import AuxiliarCuentasService
 
     cuenta_padre_id = request.GET.get('cuenta_padre_id')
     if not cuenta_padre_id:

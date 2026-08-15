@@ -5,8 +5,8 @@ Panel centralizado de reportes + historial de auditoría.
 Sistema de Diseño QKT v2.0
 """
 from django.contrib import admin
-from django.urls import path, reverse
 from django.shortcuts import render
+from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import ReporteGenerado
