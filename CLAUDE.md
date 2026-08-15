@@ -75,6 +75,23 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-15 — Orden 25 del backlog de seguridad (`SEC-INFO-001`): las tres
+  vistas públicas que devolvían `str(e)` crudo en el cuerpo de un 500 —
+  `api_disponibilidad_fecha`/`api_fechas_ocupadas` (`comercial/views_cotizador.py`)
+  y `webhook_sync_jibble` (`nomina/views.py`)— ahora responden un mensaje
+  genérico y el detalle va a `logger.exception()`. **No se tocó** el
+  `except JibbleAPIError` de `webhook_sync_jibble` (línea previa al
+  `except Exception` corregido): ese mensaje ya es controlado por el propio
+  servicio, no una excepción interna cruda, y tampoco se tocó
+  `sync_jibble_view` en el admin (usa `messages.error(request, f"Error
+  inesperado: {e}")`) porque esa vista exige `staff_member_required` +
+  `nomina.change_recibonomina` — quien la ve ya es una cuenta interna
+  autorizada, no el público anónimo que el backlog señalaba. Tests nuevos
+  con `assertLogs` para confirmar las dos mitades del criterio de
+  aceptación a la vez (el texto no está en la respuesta HTTP, sí está en el
+  log): `CotizadorApisErrorGenericoTest` en
+  `comercial/test_cotizador_seguridad.py` y
+  `WebhookSyncJibbleErrorGenericoTest` en `nomina/tests.py`.
 - 2026-08-14 — Órdenes 23-24 del backlog de seguridad (`SEC-CSRF-001`,
   `SEC-VAL-001`): `cotizador_enviar` deja de ser `@csrf_exempt` y su
   validación manual (5 `if` sueltos) se sustituyó por

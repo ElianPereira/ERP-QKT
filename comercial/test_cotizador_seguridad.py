@@ -1,7 +1,8 @@
 """
-Tests del backlog de seguridad (Issue #190), órdenes 23-24
-(SEC-CSRF-001, SEC-VAL-001): CSRF real en `cotizador_enviar` y su
-validación formalizada con `CotizadorEnviarForm`.
+Tests del backlog de seguridad (Issue #190), órdenes 23-25
+(SEC-CSRF-001, SEC-VAL-001, SEC-INFO-001): CSRF real en `cotizador_enviar`,
+su validación formalizada con `CotizadorEnviarForm`, y que un error
+inesperado en las APIs del cotizador no filtre el texto de la excepción.
 
 Ejecutar: python manage.py test comercial.test_cotizador_seguridad --verbosity=2
 """
@@ -128,3 +129,42 @@ class CotizadorEnviarValidacionTest(TestCase):
         self.assertIn('servicio', errores.lower())
         self.assertIn('fecha', errores.lower())
         self.assertIn('Aviso de Privacidad', errores)
+
+
+class CotizadorApisErrorGenericoTest(TestCase):
+    """SEC-INFO-001 (backlog orden 25): un error inesperado en las APIs
+    públicas del cotizador no debe filtrar el texto crudo de la excepción
+    (rutas, nombres de tablas, etc.) en el cuerpo de la respuesta."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_api_disponibilidad_fecha_no_filtra_el_detalle_pero_queda_en_el_log(self):
+        mensaje_interno = 'conexión perdida a la tabla airbnb_conflictocalendario'
+        with patch(
+            'airbnb.validacion_fechas.verificar_disponibilidad_fecha',
+            side_effect=RuntimeError(mensaje_interno),
+        ), self.assertLogs('comercial.views_cotizador', level='ERROR') as logs:
+            respuesta = self.client.get(
+                reverse('api_disponibilidad_fecha'), {'fecha': '2027-01-01'}
+            )
+
+        self.assertEqual(respuesta.status_code, 500)
+        cuerpo = respuesta.json()
+        self.assertNotIn(mensaje_interno, str(cuerpo))
+        self.assertEqual(cuerpo['error'], 'No se pudo verificar la disponibilidad.')
+        self.assertIn(mensaje_interno, '\n'.join(logs.output))
+
+    def test_api_fechas_ocupadas_no_filtra_el_detalle_pero_queda_en_el_log(self):
+        mensaje_interno = 'conexión perdida a la tabla airbnb_conflictocalendario'
+        with patch(
+            'airbnb.validacion_fechas.obtener_fechas_bloqueadas',
+            side_effect=RuntimeError(mensaje_interno),
+        ), self.assertLogs('comercial.views_cotizador', level='ERROR') as logs:
+            respuesta = self.client.get(reverse('api_fechas_ocupadas'))
+
+        self.assertEqual(respuesta.status_code, 500)
+        cuerpo = respuesta.json()
+        self.assertNotIn(mensaje_interno, str(cuerpo))
+        self.assertEqual(cuerpo['error'], 'No se pudieron obtener las fechas ocupadas.')
+        self.assertIn(mensaje_interno, '\n'.join(logs.output))
