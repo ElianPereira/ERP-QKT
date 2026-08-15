@@ -296,6 +296,7 @@ def _validar_basic_auth(request):
     )
 
 
+@rate_limit(key='openpay_webhook', limit=120, window=60)
 @csrf_exempt
 @require_POST
 def openpay_webhook_view(request):

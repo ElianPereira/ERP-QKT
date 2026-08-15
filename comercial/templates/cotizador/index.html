@@ -250,6 +250,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 </style>
 </head>
 <body>
+{% csrf_token %}
 
 <header class="header">
   <a href="https://quintakooxtanil.com" class="header-logo">Quinta <em>Ko'ox Tanil</em></a>
@@ -1084,9 +1085,10 @@ async function enviarSolicitud() {
   }
 
   try {
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
     var resp = await fetch('/cotizar/enviar/', {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json', 'X-CSRFToken':csrfToken},
       body:JSON.stringify(payload),
     });
     var data = await resp.json();

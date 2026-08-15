@@ -75,6 +75,69 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-14 — Órdenes 23-24 del backlog de seguridad (`SEC-CSRF-001`,
+  `SEC-VAL-001`): `cotizador_enviar` deja de ser `@csrf_exempt` y su
+  validación manual (5 `if` sueltos) se sustituyó por
+  `comercial/forms_cotizador.py::CotizadorEnviarForm`. **CSRF**: el
+  formulario público (`comercial/templates/cotizador/index.html`) no tenía
+  ningún `<form>`, es una SPA de un solo `<body>` con pasos en JS — se
+  renderiza `{% csrf_token %}` suelto justo tras abrir `<body>` (deja la
+  cookie puesta igual que dentro de un `<form>`) y el JS lo lee de
+  `document.querySelector('[name=csrfmiddlewaretoken]').value` para mandarlo
+  como header `X-CSRFToken` en el `fetch` a `/cotizar/enviar/`, porque el
+  body va como JSON y Django no busca el token en un JSON body, solo en el
+  header o en un campo de formulario. **Validación**: todos los campos del
+  form quedan `required=False` a nivel de `Field` a propósito — los 5
+  chequeos de "obligatorio" originales siguen viviendo en `clean()`, con el
+  mismo texto exacto de siempre (`test_cotizador_rechaza_la_solicitud_sin_consentimiento`
+  en `test_enlaces_legales.py` compara el string "Aviso de Privacidad"
+  literal). Lo que el form añade encima: `tipo_evento` y `como_nos_encontro`
+  —antes texto libre que alimentaba `nombre_evento` sin ninguna
+  restricción— pasan a `ChoiceField` con las mismas opciones que ya ofrece
+  el `<select>`/los chips del HTML; `notas` gana un `max_length=300`. Los
+  campos fiscales (`rfc`, `razon_social`, `cp_fiscal`) y `nombre` sí llevan
+  `max_length` pero generosos, iguales o por encima del `max_length` del
+  modelo `Cliente` — no son un cambio de comportamiento (antes se truncaban
+  en silencio con `[:N]` antes de guardar), son una red de seguridad para
+  el caso real de un `nombre` de más de 200 caracteres, que antes llegaba
+  intacto hasta `Cliente.objects.create()` y en Postgres habría reventado
+  con `DataError` en vez de un 400 limpio. `personas`, `hora_inicio`,
+  `hora_fin`, `email`, `extras_ids` y `finalidades` se dejaron sin
+  restricciones nuevas: ya se defienden solos (parseo con `try/except` que
+  cae a un default, o validación propia más abajo en
+  `get_or_create_cliente_desde_canal`) y el backlog no los señalaba. Tests
+  nuevos en `comercial/test_cotizador_seguridad.py`: CSRF con
+  `Client(enforce_csrf_checks=True)` (sin token → 403; con la cookie real de
+  visitar `/cotizar/` → pasa) y las choices/longitud del form. El cliente de
+  pruebas por defecto de Django (`self.client`) desactiva la verificación de
+  CSRF sin que haga falta tocar nada, así que ningún test existente se rompió
+  al quitar `@csrf_exempt`.
+- 2026-08-14 — Órdenes 19-21 del backlog de seguridad (`SEC-RL-001a/b/c`):
+  `@rate_limit` en las vistas públicas que no lo tenían — descargas del
+  portal (~10/min), 5 APIs del cotizador (~60/min) y ambos webhooks más el
+  feed iCal (~120/min). El decorador ya existía (`core_erp/ratelimit.py`,
+  usado desde el Issue #179 en login y desde entonces en
+  `cotizador_enviar` y las vistas de pago de Openpay); esta tarea era
+  aplicarlo donde faltaba, sin tocar la lógica de las vistas. Un detalle no
+  obvio para los tests: `rate_limit` cuenta **antes** de ejecutar el cuerpo
+  de la vista, así que ni siquiera hace falta simular datos válidos —agotar
+  el cupo con peticiones que fallan por otra razón (401 sin Basic Auth en
+  el webhook de Openpay, 403 sin token en el iCal, 500 sin
+  `NOMINA_CRON_TOKEN` en el de Jibble, 404 sin contrato en el portal) igual
+  deja la petición número 11/61/121 en 429. Cada vista lleva su propia
+  `key` de bucket (no una compartida): agotar `portal_evento` no debe tocar
+  el cupo de `portal_descargar_plan`, verificado en
+  `test_cada_vista_tiene_su_propio_cupo`. Tests nuevos repartidos por app —
+  `comercial/test_rate_limit_publico.py` (portal + cotizador + webhook
+  Openpay), `nomina/tests.py` (webhook Jibble, antes vacío) y una clase
+  añadida a `airbnb/test_seguridad.py` (feed iCal) — porque el rate
+  limiting de cada webhook/feed vive en la app dueña de esa vista, a
+  diferencia de la orden 14-18 que sí tuvo que centralizarse en
+  `comercial/` por el comando de test de CI incompleto de entonces (ya
+  corregido). Pendiente relacionado: la orden 22 (`SEC-RL-002`, verificar
+  `X-Forwarded-For` en el edge de Railway) cobra más peso ahora que el
+  rate limiting de producción depende de que `_client_ip()` resuelva bien
+  la IP real — sigue sin verificar.
 - 2026-08-14 — Regularización de la diferencia arrastrada, con autorización de
   Dirección (cierra el hilo de los Issues #198/#200). El descuadre heredado ya
   se medía y se aislaba; ahora se puede cancelar. Dos acciones en

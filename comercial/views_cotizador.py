@@ -24,13 +24,13 @@ from core_erp import impuestos
 
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.conf import settings
 
 from core_erp.ratelimit import rate_limit
 
+from .forms_cotizador import CotizadorEnviarForm
 from .models import (
     Cliente, Cotizacion, ItemCotizacion, Producto, PortalCliente
 )
@@ -80,10 +80,10 @@ def cotizador_publico(request):
     return render(request, 'cotizador/index.html')
 
 
-# Endpoint público sin login: se limita por IP para frenar spam/abuso, ya que
-# cada envío crea Cliente + Cotización y dispara una notificación de WhatsApp.
+# Endpoint público con sesión anónima (CSRF vía cookie, no login): se limita
+# por IP para frenar spam/abuso, ya que cada envío crea Cliente + Cotización
+# y dispara una notificación de WhatsApp.
 @rate_limit(key='cotizador_enviar', limit=10, window=60)
-@csrf_exempt
 @require_http_methods(["POST"])
 def cotizador_enviar(request):
     """
@@ -94,20 +94,28 @@ def cotizador_enviar(request):
     except Exception:
         data = request.POST.dict()
 
-    # ── Datos base ────────────────────────────────────────────────────────────
-    nombre    = str(data.get('nombre', '')).strip()
-    telefono  = str(data.get('telefono', '')).strip()
-    email     = str(data.get('email', '')).strip()
-    servicio  = str(data.get('servicio', '')).strip()      # EVENTO|PASADIA|ARRENDAMIENTO
-    fecha_str = str(data.get('fecha', '')).strip()
-    personas  = str(data.get('personas', '50')).strip()
-    hora_ini  = str(data.get('hora_inicio', '')).strip()
-    hora_fin  = str(data.get('hora_fin', '')).strip()
-    tipo_ev   = str(data.get('tipo_evento', 'Evento General')).strip()
-    notas              = str(data.get('notas', '')).strip()
-    como_nos_encontro  = str(data.get('como_nos_encontro', '')).strip()
+    form = CotizadorEnviarForm(data)
+    if not form.is_valid():
+        errores = [mensaje for lista in form.errors.values() for mensaje in lista]
+        return JsonResponse({'ok': False, 'errores': errores}, status=400)
+    limpio = form.cleaned_data
 
-    # Barra (siguen como booleanos — alimentan CalculadoraBarraService)
+    # ── Datos base ────────────────────────────────────────────────────────────
+    nombre    = limpio['nombre'].strip()
+    telefono  = limpio['telefono'].strip()
+    email     = limpio['email'].strip()
+    servicio  = limpio['servicio'].strip()      # EVENTO|PASADIA|ARRENDAMIENTO
+    fecha_str = limpio['fecha'].strip()
+    personas  = limpio['personas'].strip()
+    hora_ini  = limpio['hora_inicio'].strip()
+    hora_fin  = limpio['hora_fin'].strip()
+    tipo_ev   = limpio['tipo_evento'].strip() or 'Evento General'
+    notas              = limpio['notas'].strip()
+    como_nos_encontro  = limpio['como_nos_encontro'].strip()
+
+    # Barra (siguen como booleanos — alimentan CalculadoraBarraService). No
+    # forman parte del form: son flags internos del formulario, no texto
+    # libre que alimente ningún campo mostrado o buscable.
     inc_refrescos  = bool(data.get('inc_refrescos', False))
     inc_cerveza    = bool(data.get('inc_cerveza', False))
     inc_nacional   = bool(data.get('inc_nacional', False))
@@ -118,9 +126,9 @@ def cotizador_enviar(request):
     # Extras dinámicos (IDs de Producto con visible_cotizador=True)
     extras_ids_raw = data.get('extras_ids', [])
 
-    # Consentimiento (art. 8 LFPDPPP): el aviso y los términos son obligatorios;
-    # las finalidades secundarias son opcionales y se registran por separado.
-    acepta_legales = bool(data.get('acepta_legales', False))
+    # Consentimiento (art. 8 LFPDPPP): el aviso y los términos ya se validaron
+    # como obligatorios en CotizadorEnviarForm.clean(); las finalidades
+    # secundarias son opcionales y se registran por separado.
     finalidades_opt = [
         str(c).strip().upper()
         for c in (data.get('finalidades') or [])
@@ -128,24 +136,12 @@ def cotizador_enviar(request):
     ]
 
     # Datos fiscales (opcionales)
-    req_factura    = bool(data.get('requiere_factura', False))
-    rfc_raw        = str(data.get('rfc', '')).strip().upper()
-    razon_social   = str(data.get('razon_social', '')).strip()
-    cp_fiscal      = str(data.get('cp_fiscal', '')).strip()
+    req_factura    = bool(limpio['requiere_factura'])
+    rfc_raw        = limpio['rfc'].strip().upper()
+    razon_social   = limpio['razon_social'].strip()
+    cp_fiscal      = limpio['cp_fiscal'].strip()
 
-    # Validaciones
     tel_d = ''.join(filter(str.isdigit, telefono))
-    errores = []
-    if not nombre:      errores.append("El nombre es requerido.")
-    if len(tel_d) < 10: errores.append("El teléfono debe tener al menos 10 dígitos.")
-    if not servicio:    errores.append("Selecciona un tipo de servicio.")
-    if not fecha_str:   errores.append("La fecha es requerida.")
-    if not acepta_legales:
-        errores.append(
-            "Debes aceptar el Aviso de Privacidad y los Términos y Condiciones."
-        )
-    if errores:
-        return JsonResponse({'ok': False, 'errores': errores}, status=400)
 
     # ── Parsear fecha ──────────────────────────────────────────────────────────
     fecha_evento = None
@@ -351,6 +347,7 @@ def cotizador_enviar(request):
     })
 
 
+@rate_limit(key='api_disponibilidad_fecha', limit=60, window=60)
 def api_disponibilidad_fecha(request):
     """GET /api/disponibilidad/?fecha=YYYY-MM-DD
     Responde si la fecha está libre o ya apartada (Airbnb / cotización confirmada)."""
@@ -377,6 +374,7 @@ def api_disponibilidad_fecha(request):
     })
 
 
+@rate_limit(key='api_fechas_ocupadas', limit=60, window=60)
 def api_fechas_ocupadas(request):
     """GET /api/fechas-ocupadas/?dias=365
     Devuelve la lista de fechas no disponibles (Airbnb + cotizaciones apartadas)
@@ -409,6 +407,7 @@ def api_fechas_ocupadas(request):
     })
 
 
+@rate_limit(key='api_productos_cotizador', limit=60, window=60)
 def api_productos_cotizador(request):
     """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|ARRENDAMIENTO
     Devuelve los productos visibles en el cotizador, agrupados por grupo_cotizador."""
@@ -520,6 +519,7 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     return lineas
 
 
+@rate_limit(key='api_total_cotizador', limit=60, window=60)
 def api_total_cotizador(request):
     """GET /api/cotizador/total/?servicio=&paquete=&extras=&personas=&horas=
 
@@ -564,6 +564,7 @@ def api_total_cotizador(request):
     })
 
 
+@rate_limit(key='api_paquetes_cotizador', limit=60, window=60)
 def api_paquetes_cotizador(request):
     """GET /api/cotizador/paquetes/?servicio=EVENTO&personas=100
     Devuelve paquetes (Producto con es_paquete=True) visibles en el cotizador,

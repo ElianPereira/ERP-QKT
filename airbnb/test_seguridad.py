@@ -16,6 +16,7 @@ Regresiones de dos hallazgos de la auditoría del Issue #190:
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -145,3 +146,21 @@ class FeedIcalTest(TestCase):
         self.assertEqual(cuerpo.count('BEGIN:VEVENT'), 1)
         self.assertEqual(cuerpo.count('SUMMARY:'), 1)
         self.assertNotIn('INYECTADO', cuerpo)
+
+
+@override_settings(ICAL_PUBLIC_TOKEN=TOKEN)
+class FeedIcalRateLimitTest(TestCase):
+    """SEC-RL-001c (backlog orden 21, parte 2 de 3): el feed iCal, ~120/min.
+
+    Se cuenta antes de validar el token, así que peticiones sin token
+    (403) también agotan el cupo.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.url = reverse('airbnb:ical_eventos')
+
+    def test_bloquea_tras_ciento_veinte_peticiones(self):
+        for _ in range(120):
+            self.assertNotEqual(self.client.get(self.url).status_code, 429)
+        self.assertEqual(self.client.get(self.url).status_code, 429)
