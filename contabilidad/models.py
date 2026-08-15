@@ -340,6 +340,16 @@ class Poliza(models.Model):
     )
     fecha_cancelacion = models.DateTimeField(null=True, blank=True)
     motivo_cancelacion = models.TextField(blank=True, verbose_name="Motivo de cancelación")
+    aplicada_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='polizas_aplicadas',
+        verbose_name="Aplicada por",
+        help_text="Quién autorizó el paso de borrador a definitiva."
+    )
+    fecha_aplicacion = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = "Póliza contable"
@@ -381,6 +391,14 @@ class Poliza(models.Model):
                 f"La póliza no cuadra. Debe: ${self.total_debe}, Haber: ${self.total_haber}"
             )
 
+    @property
+    def requiere_autorizacion_direccion(self):
+        """Las pólizas de regularización de saldos mueven el histórico contra
+        una cuenta de ajuste, sin operación real detrás. No las aplica quien
+        concilia: las autoriza Dirección (`is_superuser`, el mismo criterio que
+        el resto del ERP — ver `crear_grupos_permisos`)."""
+        return self.origen == 'APERTURA'
+
     def aplicar(self, usuario):
         """Aplica la póliza (la hace definitiva)."""
         if not self.esta_cuadrada:
@@ -388,6 +406,8 @@ class Poliza(models.Model):
         if self.estado != 'BORRADOR':
             raise ValidationError("Solo se pueden aplicar pólizas en borrador.")
         self.estado = 'APLICADA'
+        self.aplicada_por = usuario
+        self.fecha_aplicacion = timezone.now()
         self.save()
 
     def cancelar(self, usuario, motivo):

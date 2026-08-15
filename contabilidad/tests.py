@@ -33,7 +33,11 @@ from contabilidad.models import (
     SaldoApertura,
     UnidadNegocio,
 )
-from contabilidad.services import aplicar_saldo_apertura
+from contabilidad.services import (
+    aplicar_saldo_apertura,
+    aprobar_regularizacion_arrastre,
+    proponer_regularizacion_arrastre,
+)
 from contabilidad.services_estados_cuenta import (
     _emparejar_automaticamente,
     generar_conciliacion_preliminar,
@@ -1643,3 +1647,164 @@ class ReasignarAsientoTest(TestCase):
             MovimientoContableAdmin(MovimientoContable, admin.site)
             .has_delete_permission(None)
         )
+
+
+class RegularizacionArrastreTest(TestCase):
+    """
+    La diferencia arrastrada se cancela con una póliza que nace en BORRADOR y
+    solo Dirección puede aplicar.
+    """
+
+    def setUp(self):
+        self.contador = User.objects.create_user(
+            'contador_regu', password='x', is_staff=True,
+        )
+        for codename in ('view_poliza', 'change_poliza',
+                         'view_conciliacionbancaria', 'change_conciliacionbancaria'):
+            self.contador.user_permissions.add(Permission.objects.get(codename=codename))
+        self.direccion = User.objects.create_superuser('direccion_regu', 'd@qkt.mx', 'x')
+
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        ConfiguracionContable.objects.get_or_create(
+            operacion='AJUSTE_APERTURA',
+            defaults={'cuenta': CuentaContable.objects.get(codigo_sat='304.01'), 'activa': True},
+        )
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Regularización', banco='BBVA',
+            clabe='012345678901234576', cuenta_contable=self.cuenta_banco,
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=7, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 7, 31),
+            saldo_inicial_estado=Decimal('0.00'), saldo_final_estado=Decimal('1500.00'),
+        )
+        # Histórico sin respaldo bancario: el arrastre del caso real.
+        self._poliza(date(2026, 3, 5), debe=Decimal('41968.96'), concepto='Histórico')
+        mov_contable = self._poliza(date(2026, 7, 10), debe=Decimal('1500.00'))
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 7, 10),
+            descripcion='SPEI RECIBIDO', abono=Decimal('1500.00'),
+            movimiento_contable=mov_contable,
+        )
+        self.conciliacion = generar_conciliacion_preliminar(
+            self.estado_cuenta, usuario=self.direccion
+        )
+        self.url = '/admin/contabilidad/conciliacionbancaria/'
+
+    def _poliza(self, fecha, debe=Decimal('0.00'), haber=Decimal('0.00'), concepto='Movimiento'):
+        tipo = 'I' if debe else 'E'
+        poliza = Poliza.objects.create(
+            tipo=tipo, folio=Poliza.siguiente_folio(tipo, fecha), fecha=fecha,
+            concepto=concepto, unidad_negocio=self.unidad, estado='APLICADA',
+            origen='MANUAL', created_by=self.direccion,
+        )
+        return MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_banco, debe=debe, haber=haber, concepto=concepto,
+        )
+
+    def _accion(self, usuario, accion):
+        self.client.force_login(usuario)
+        return self.client.post(self.url, {
+            'action': accion,
+            '_selected_action': [str(self.conciliacion.pk)],
+        }, follow=True)
+
+    # -- La propuesta -------------------------------------------------
+
+    def test_la_propuesta_nace_en_borrador_y_no_mueve_saldos(self):
+        saldo_antes = self.cuenta_bancaria.saldo_a_fecha(date(2026, 7, 31))
+
+        poliza = proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+
+        self.assertEqual(poliza.estado, 'BORRADOR')
+        self.assertEqual(poliza.origen, 'APERTURA')
+        self.assertTrue(poliza.esta_cuadrada)
+        self.assertEqual(poliza.total_debe, Decimal('41968.96'))
+        # Una póliza en borrador no entra en ningún saldo del ERP.
+        self.assertEqual(self.cuenta_bancaria.saldo_a_fecha(date(2026, 7, 31)), saldo_antes)
+
+    def test_se_fecha_el_dia_anterior_al_periodo(self):
+        """Solo con esa fecha la cancela: el arrastre se mide al cierre del día
+        anterior al primer movimiento."""
+        poliza = proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+        self.assertEqual(poliza.fecha, self.conciliacion.fecha_inicio_periodo - timedelta(days=1))
+
+    def test_abona_a_bancos_cuando_los_libros_traen_de_mas(self):
+        poliza = proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+        mov_banco = poliza.movimientos.get(cuenta=self.cuenta_banco)
+        self.assertEqual(mov_banco.haber, Decimal('41968.96'))
+        self.assertEqual(mov_banco.debe, Decimal('0.00'))
+
+    def test_no_duplica_la_propuesta(self):
+        primera = proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+        segunda = proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+        self.assertEqual(primera.pk, segunda.pk)
+        self.assertEqual(segunda.movimientos.count(), 2)
+
+    def test_sin_arrastre_no_propone_nada(self):
+        self.conciliacion.diferencia_arrastrada = Decimal('0.00')
+        self.conciliacion.save()
+        with self.assertRaises(ValueError):
+            proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+
+    # -- La autorización ----------------------------------------------
+
+    def test_el_contador_no_puede_autorizar(self):
+        proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+
+        self._accion(self.contador, 'aprobar_regularizacion')
+
+        poliza = Poliza.objects.get(origen='APERTURA')
+        self.assertEqual(poliza.estado, 'BORRADOR')
+
+    def test_el_contador_tampoco_puede_aplicarla_desde_la_pantalla_de_polizas(self):
+        """El candado no puede depender de una sola pantalla."""
+        poliza = proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+
+        self.client.force_login(self.contador)
+        self.client.post('/admin/contabilidad/poliza/', {
+            'action': 'aplicar_polizas',
+            '_selected_action': [str(poliza.pk)],
+        }, follow=True)
+
+        poliza.refresh_from_db()
+        self.assertEqual(poliza.estado, 'BORRADOR')
+
+    def test_direccion_autoriza_y_queda_asentado_quien_fue(self):
+        proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+
+        self._accion(self.direccion, 'aprobar_regularizacion')
+
+        poliza = Poliza.objects.get(origen='APERTURA')
+        self.assertEqual(poliza.estado, 'APLICADA')
+        self.assertEqual(poliza.aplicada_por, self.direccion)
+        self.assertIsNotNone(poliza.fecha_aplicacion)
+
+    def test_tras_autorizar_la_conciliacion_queda_sin_arrastre(self):
+        proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+        self._accion(self.direccion, 'aprobar_regularizacion')
+
+        conciliacion = generar_conciliacion_preliminar(
+            self.estado_cuenta, usuario=self.direccion
+        )
+
+        self.assertEqual(conciliacion.diferencia_arrastrada, Decimal('0.00'))
+        self.assertEqual(conciliacion.diferencia, Decimal('0.00'))
+        self.assertTrue(conciliacion.cuadra)
+
+    def test_no_se_autoriza_dos_veces(self):
+        poliza = proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+        aprobar_regularizacion_arrastre(poliza, usuario=self.direccion)
+        with self.assertRaises(ValueError):
+            aprobar_regularizacion_arrastre(poliza, usuario=self.direccion)
+
+    def test_no_autoriza_una_poliza_que_no_es_regularizacion(self):
+        poliza = Poliza.objects.create(
+            tipo='D', folio=Poliza.siguiente_folio('D', date(2026, 7, 15)),
+            fecha=date(2026, 7, 15), concepto='Cualquier cosa', unidad_negocio=self.unidad,
+            estado='BORRADOR', origen='MANUAL', created_by=self.contador,
+        )
+        with self.assertRaises(ValueError):
+            aprobar_regularizacion_arrastre(poliza, usuario=self.direccion)
