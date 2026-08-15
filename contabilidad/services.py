@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 
 class BalanzaComprobacionService:
@@ -414,3 +415,98 @@ def completar_poliza_compra(poliza):
             poliza.save(update_fields=['unidad_negocio'])
 
     return poliza
+
+
+# ==========================================
+# CIERRE DEL HISTÓRICO CONTABLE
+# ==========================================
+
+MOTIVO_CIERRE_HISTORICO = (
+    "Cierre de histórico: la contabilidad anterior a {fecha:%d/%m/%Y} la cerró "
+    "el contador fuera del ERP. Esta póliza queda fuera de saldos y reportes; "
+    "sus movimientos se conservan para auditoría."
+)
+
+
+def cerrar_historico_contable(fecha_corte, usuario, aplicar=False):
+    """
+    Deja fuera de la contabilidad del ERP todas las pólizas hasta `fecha_corte`,
+    para arrancar los libros del sistema en una fecha concreta.
+
+    **Cancela, no borra.** Una póliza CANCELADA conserva sus movimientos y su
+    auditoría, pero queda fuera de todo saldo y todo reporte, porque en el ERP
+    entero solo suma `estado='APLICADA'`. Borrarlas sí sería destructivo: los
+    movimientos desaparecerían y las pólizas están ligadas por content_type a
+    pagos, compras, recibos de nómina y pagos de Airbnb que sí siguen vivos.
+
+    Para qué existe: cuando los periodos anteriores ya los cerró el contador
+    fuera del ERP, las pólizas previas del sistema no son los libros — son
+    captura parcial que solo arrastra descuadres a la conciliación bancaria.
+
+    Toca también los BORRADOR anteriores al corte: si se quedaran vivos,
+    cualquiera podría aplicarlos después y volver a meter movimiento en un
+    periodo ya cerrado.
+
+    Devuelve siempre un informe; solo escribe si `aplicar=True`.
+    """
+    from .models import CuentaBancaria, Poliza
+
+    if isinstance(fecha_corte, str):
+        fecha_corte = date.fromisoformat(fecha_corte)
+    if fecha_corte > date.today():
+        raise ValueError(
+            f"La fecha de corte ({fecha_corte:%d/%m/%Y}) está en el futuro. "
+            "Se cerraría contabilidad que todavía no existe."
+        )
+
+    afectadas = Poliza.objects.filter(
+        fecha__lte=fecha_corte,
+        estado__in=('APLICADA', 'BORRADOR'),
+    )
+
+    por_periodo = {}
+    por_origen = {}
+    total = 0
+    for poliza in afectadas.only('fecha', 'origen'):
+        total += 1
+        clave = f"{poliza.fecha.year}-{poliza.fecha.month:02d}"
+        por_periodo[clave] = por_periodo.get(clave, 0) + 1
+        etiqueta = poliza.get_origen_display()
+        por_origen[etiqueta] = por_origen.get(etiqueta, 0) + 1
+
+    cuentas = []
+    for cuenta in CuentaBancaria.objects.filter(activa=True).select_related('cuenta_contable'):
+        cuentas.append({
+            'cuenta': cuenta,
+            'saldo_antes': cuenta.saldo_a_fecha(fecha_corte),
+            # Cancelado el histórico, al corte solo queda el saldo_inicial del
+            # alta de la cuenta: es el punto de partida sobre el que hay que
+            # capturar el saldo de apertura certificado.
+            'saldo_despues': cuenta.saldo_inicial,
+        })
+
+    informe = {
+        'fecha_corte': fecha_corte,
+        'total': total,
+        'por_periodo': dict(sorted(por_periodo.items())),
+        'por_origen': dict(sorted(por_origen.items(), key=lambda kv: -kv[1])),
+        'cuentas': cuentas,
+        'aplicado': False,
+        'canceladas': 0,
+    }
+
+    if not aplicar or not total:
+        return informe
+
+    motivo = MOTIVO_CIERRE_HISTORICO.format(fecha=fecha_corte)
+    with transaction.atomic():
+        informe['canceladas'] = afectadas.update(
+            estado='CANCELADA',
+            cancelada_por=usuario,
+            fecha_cancelacion=timezone.now(),
+            motivo_cancelacion=motivo,
+        )
+    informe['aplicado'] = True
+    for fila in informe['cuentas']:
+        fila['saldo_despues'] = fila['cuenta'].saldo_a_fecha(fecha_corte)
+    return informe

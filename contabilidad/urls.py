@@ -12,4 +12,5 @@ urlpatterns = [
         views.autocomplete_asiento_bancario,
         name='autocomplete_asiento_bancario',
     ),
+    path('cerrar-historico/', views.cerrar_historico_view, name='cerrar_historico'),
 ]
