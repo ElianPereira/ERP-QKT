@@ -7,6 +7,8 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 from django.forms.models import BaseInlineFormSet
 from django.urls import reverse
@@ -26,7 +28,11 @@ from .models import (
     SaldoApertura,
     UnidadNegocio,
 )
-from .services import aplicar_saldo_apertura
+from .services import (
+    aplicar_saldo_apertura,
+    aprobar_regularizacion_arrastre,
+    proponer_regularizacion_arrastre,
+)
 from .services_estados_cuenta import generar_conciliacion_preliminar, procesar_estado_cuenta
 
 
@@ -136,7 +142,8 @@ class PolizaAdmin(admin.ModelAdmin):
     search_fields = ['folio', 'concepto']
     date_hierarchy = 'fecha'
     ordering = ['-fecha', '-folio']
-    readonly_fields = ['created_by', 'created_at', 'cancelada_por', 'fecha_cancelacion']
+    readonly_fields = ['created_by', 'created_at', 'cancelada_por', 'fecha_cancelacion',
+                       'aplicada_por', 'fecha_aplicacion']
     inlines = [MovimientoContableInline]
 
     fieldsets = (
@@ -151,7 +158,7 @@ class PolizaAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Auditoría', {
-            'fields': ('created_by', 'created_at'),
+            'fields': ('created_by', 'created_at', 'aplicada_por', 'fecha_aplicacion'),
             'classes': ('collapse',)
         }),
     )
@@ -275,8 +282,14 @@ class PolizaAdmin(admin.ModelAdmin):
     def aplicar_polizas(self, request, queryset):
         aplicadas = 0
         errores = []
+        sin_autorizacion = []
         for poliza in queryset.filter(estado='BORRADOR'):
-            if poliza.esta_cuadrada:
+            # El mismo candado que la acción de la conciliación: sin esto, la
+            # autorización de Dirección se saltaría aplicando el borrador desde
+            # esta pantalla.
+            if poliza.requiere_autorizacion_direccion and not request.user.is_superuser:
+                sin_autorizacion.append("{}-{}".format(poliza.tipo, poliza.folio))
+            elif poliza.esta_cuadrada:
                 poliza.aplicar(request.user)
                 aplicadas += 1
             else:
@@ -286,6 +299,14 @@ class PolizaAdmin(admin.ModelAdmin):
             self.message_user(request, "{} póliza(s) aplicada(s)".format(aplicadas))
         if errores:
             self.message_user(request, "No cuadran: {}".format(', '.join(errores)), level='ERROR')
+        if sin_autorizacion:
+            self.message_user(
+                request,
+                "Solo Dirección puede aplicar regularizaciones de saldos: {}".format(
+                    ', '.join(sin_autorizacion)
+                ),
+                level=messages.ERROR,
+            )
 
     @admin.action(description="Cancelar pólizas seleccionadas")
     def cancelar_polizas(self, request, queryset):
@@ -338,6 +359,8 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
         ("Cierre", {'fields': ['estado', 'notas', 'conciliada_por', 'fecha_conciliacion']}),
     ]
 
+    actions = ['proponer_regularizacion', 'aprobar_regularizacion']
+
     class Media:
         css = {'all': ('contabilidad/conciliacion.css',)}
 
@@ -347,6 +370,78 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         # Una conciliación nace de un estado de cuenta procesado, nunca a mano.
         return False
+
+    # ------------------------------------------------------------------
+    # Regularización de la diferencia arrastrada
+    # ------------------------------------------------------------------
+
+    def _propuesta(self, obj, estado='BORRADOR'):
+        """Póliza de regularización ligada a esta conciliación, si existe."""
+        return Poliza.objects.filter(
+            content_type=ContentType.objects.get_for_model(ConciliacionBancaria),
+            object_id=obj.pk,
+            origen='APERTURA',
+            estado=estado,
+        ).first()
+
+    @admin.action(description="Proponer regularización de la diferencia arrastrada")
+    def proponer_regularizacion(self, request, queryset):
+        creadas, omitidas = [], []
+        for conciliacion in queryset:
+            try:
+                poliza = proponer_regularizacion_arrastre(conciliacion, usuario=request.user)
+            except ValueError as e:
+                omitidas.append(str(e))
+            else:
+                creadas.append(f"{poliza.tipo}-{str(poliza.folio).zfill(4)} ({conciliacion})")
+        if creadas:
+            self.message_user(
+                request,
+                "Propuesta(s) creada(s) EN BORRADOR: " + '; '.join(creadas) +
+                ". No afectan los saldos todavía: para que surtan efecto, Dirección "
+                "debe autorizarlas con la acción «Autorizar y aplicar la regularización».",
+                level=messages.SUCCESS,
+            )
+        for texto in omitidas:
+            self.message_user(request, texto, level=messages.WARNING)
+
+    @admin.action(description="Autorizar y aplicar la regularización (solo Dirección)")
+    def aprobar_regularizacion(self, request, queryset):
+        if not request.user.is_superuser:
+            self.message_user(
+                request,
+                "Solo Dirección puede autorizar una regularización de saldos: mueve el "
+                "histórico contra una cuenta de ajuste, sin una operación real detrás.",
+                level=messages.ERROR,
+            )
+            return
+
+        aplicadas, omitidas = [], []
+        for conciliacion in queryset:
+            poliza = self._propuesta(conciliacion)
+            if not poliza:
+                omitidas.append(
+                    f"{conciliacion}: no tiene ninguna propuesta en borrador. "
+                    "Genérala primero con «Proponer regularización»."
+                )
+                continue
+            try:
+                aprobar_regularizacion_arrastre(poliza, usuario=request.user)
+            except (ValueError, ValidationError) as e:
+                omitidas.append(f"{conciliacion}: {e}")
+            else:
+                aplicadas.append(f"{poliza.tipo}-{str(poliza.folio).zfill(4)}")
+
+        if aplicadas:
+            self.message_user(
+                request,
+                "Regularización aplicada: " + ', '.join(aplicadas) +
+                ". Vuelve a generar la conciliación desde su estado de cuenta para "
+                "que la diferencia arrastrada quede en cero.",
+                level=messages.SUCCESS,
+            )
+        for texto in omitidas:
+            self.message_user(request, texto, level=messages.WARNING)
 
     def save_model(self, request, obj, form, change):
         if obj.estado == 'CONCILIADA' and not obj.fecha_conciliacion:
@@ -378,6 +473,42 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
             '{:,.2f}'.format(abs(obj.diferencia)),
         )
 
+    def _texto_regularizacion(self, obj):
+        """En qué punto va la regularización de esta diferencia arrastrada.
+
+        Se lee dentro del propio desglose porque es ahí donde alguien ve el
+        número y se pregunta qué hacer con él.
+        """
+        aplicada = self._propuesta(obj, estado='APLICADA')
+        if aplicada:
+            return (
+                'Ya se regularizó con la póliza <b>{}-{}</b> del {:%d/%m/%Y}, autorizada '
+                'por {}. Vuelve a generar esta conciliación desde su estado de cuenta '
+                'para que el número de arriba quede en cero.'
+            ).format(
+                aplicada.tipo, str(aplicada.folio).zfill(4), aplicada.fecha,
+                aplicada.aplicada_por or 'Dirección',
+            )
+
+        borrador = self._propuesta(obj, estado='BORRADOR')
+        if borrador:
+            return (
+                '<b class="qkt-naranja">Hay una regularización propuesta en borrador</b>: '
+                'la póliza <a href="/admin/contabilidad/poliza/{}/change/">{}-{}</a>, '
+                'fechada el {:%d/%m/%Y}. Todavía no afecta ningún saldo. Para que surta '
+                'efecto, Dirección debe autorizarla con la acción «Autorizar y aplicar '
+                'la regularización» desde el listado de conciliaciones.'
+            ).format(
+                borrador.pk, borrador.tipo, str(borrador.folio).zfill(4), borrador.fecha,
+            )
+
+        return (
+            'Para cancelarla, aplica la acción <b>«Proponer regularización de la '
+            'diferencia arrastrada»</b> desde el listado de conciliaciones: prepara la '
+            'póliza en borrador contra la cuenta de ajuste de apertura, fechada el día '
+            'anterior al periodo, y queda esperando la autorización de Dirección.'
+        )
+
     @admin.display(description="De dónde sale la diferencia")
     def cuadre_display(self, obj):
         """El cálculo, renglón por renglón y en español llano. Es la respuesta
@@ -398,8 +529,7 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
                 'Los libros y el banco ya no coincidían el primer día de este periodo. '
                 'No se origina en este estado de cuenta: viene de pólizas anteriores al '
                 'primer estado de cuenta cargado, o de asientos a la cuenta de bancos sin '
-                'respaldo bancario. Se regulariza con un saldo de apertura certificado, '
-                'no tocando este periodo.',
+                'respaldo bancario. ' + self._texto_regularizacion(obj),
                 'qkt-fila-alerta',
             ))
 

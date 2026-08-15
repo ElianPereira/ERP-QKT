@@ -75,6 +75,27 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-14 — Regularización de la diferencia arrastrada, con autorización de
+  Dirección (cierra el hilo de los Issues #198/#200). El descuadre heredado ya
+  se medía y se aislaba; ahora se puede cancelar. Dos acciones en
+  `ConciliacionBancariaAdmin`: **proponer** (cualquiera que concilie) crea la
+  póliza en `BORRADOR` y **autorizar** (`is_superuser`, que es como el ERP
+  modela Dirección) la aplica. **La fecha de la póliza no es opcional: día
+  anterior al primer movimiento del estado de cuenta.** El arrastre se mide como
+  `saldo_libros(inicio − 1 día) − saldo_inicial_estado`, así que solo un asiento
+  con esa fecha o anterior lo cancela; fecharlo dentro del periodo lo dejaría
+  intacto **y además descuadraría el periodo por el mismo importe**, porque
+  `saldo_segun_libros` bajaría mientras `diferencia_arrastrada` se sigue restando.
+  El candado de autorización **no puede vivir en una sola pantalla**: aplicar el
+  borrador desde `PolizaAdmin.aplicar_polizas` se lo saltaba, así que ahí también
+  se comprueba `poliza.requiere_autorizacion_direccion and not is_superuser` (hay
+  test para esa vía, no solo para la acción de la conciliación). `Poliza` gana
+  `aplicada_por`/`fecha_aplicacion` — antes solo se asentaba quién cancelaba, no
+  quién autorizaba. La propuesta es idempotente: reescribe el borrador existente
+  en vez de acumular duplicados. De paso, `aplicar_saldo_apertura()` usaba
+  `saldo_actual` (todo el histórico, incluido lo POSTERIOR al corte) para
+  calcular la diferencia que luego asienta **en la fecha de corte** — mismo error
+  de fondo que el de la conciliación; pasa a `saldo_a_fecha(fecha_corte)`.
 - 2026-08-14 — Reasignar el asiento de un movimiento del estado de cuenta
   (seguimiento del PR #200). Quien concilia no encontraba cómo deseleccionar: lo
   que quita la asignación es la **× de select2 dentro de la caja**, que por
