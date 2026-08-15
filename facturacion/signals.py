@@ -9,6 +9,7 @@ Lógica de desglose fiscal:
 - El pago es una fracción del precio_final, se desglosa proporcionalmente
 """
 from decimal import Decimal
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -31,8 +32,8 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     cliente = cotizacion.cliente
 
     # Importar aquí para evitar circular imports
-    from facturacion.models import SolicitudFactura
     from facturacion.choices import FormaPago
+    from facturacion.models import SolicitudFactura
 
     # ─── Idempotencia: no crear duplicados ──────────────────────
     if SolicitudFactura.objects.filter(pago=pago).exists():

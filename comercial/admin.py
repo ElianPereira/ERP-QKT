@@ -3,28 +3,51 @@ import secrets
 from datetime import timedelta
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.db import models as db_models
-from django.utils.html import format_html, mark_safe
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
-from django.urls import reverse, NoReverseMatch, path
-from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import NoReverseMatch, path, reverse
 from django.utils import timezone
+from django.utils.html import format_html, mark_safe
+
 from core_erp.descargas import url_descarga
-from .models import PortalCliente
-from .models import (
-    Insumo, SubProducto, RecetaSubProducto, Producto, ComponenteProducto,
-    ProductoComponente,
-    Cliente, Cotizacion, ItemCotizacion, Pago,
-    Compra, Gasto, ConstanteSistema, PlantillaBarra, Proveedor,
-    MovimientoInventario, PlanPago, ParcialidadPago, RecordatorioPago,
-    Espacio, AsignacionEspacio, AsignacionPersonal,
-    ImagenLanding, TestimonioLanding, EspacioLanding, PreguntaFrecuente,
-    TipoEvento, Temporada, Descuento, DescuentoAplicado,
-    OpenpayTransaccion,
-)
+
 from .choices import PosicionLanding
+from .models import (
+    AsignacionEspacio,
+    AsignacionPersonal,
+    Cliente,
+    ComponenteProducto,
+    Compra,
+    ConstanteSistema,
+    Cotizacion,
+    Descuento,
+    DescuentoAplicado,
+    Espacio,
+    EspacioLanding,
+    Gasto,
+    ImagenLanding,
+    Insumo,
+    ItemCotizacion,
+    MovimientoInventario,
+    OpenpayTransaccion,
+    Pago,
+    ParcialidadPago,
+    PlanPago,
+    PlantillaBarra,
+    PortalCliente,
+    PreguntaFrecuente,
+    Producto,
+    ProductoComponente,
+    Proveedor,
+    RecetaSubProducto,
+    RecordatorioPago,
+    SubProducto,
+    Temporada,
+    TestimonioLanding,
+    TipoEvento,
+)
 from .services import CalculadoraBarraService
 from .widgets import TimeSlotWidget
 
@@ -93,7 +116,7 @@ class InsumoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'presentacion', 'categoria', 'proveedor', 'costo_unitario', 'factor_rendimiento', 'cantidad_stock', 'badge_stock')
     list_editable = ('costo_unitario', 'factor_rendimiento', 'categoria')
     list_filter = ('categoria', 'proveedor')
-    search_fields = ('nombre', 'proveedor__nombre', 'presentacion') 
+    search_fields = ('nombre', 'proveedor__nombre', 'presentacion')
     autocomplete_fields = ['proveedor']
     list_per_page = 20
     fieldsets = (
@@ -102,7 +125,7 @@ class InsumoAdmin(admin.ModelAdmin):
         ('Proveedor', {'fields': ('proveedor',)}),
         ('Opciones', {'fields': ('crear_como_subproducto',), 'classes': ('collapse',)}),
     )
-    
+
     def badge_stock(self, obj):
         if obj.stock_minimo > 0 and obj.cantidad_stock < obj.stock_minimo:
             return mark_safe('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">BAJO</span>')
@@ -110,7 +133,7 @@ class InsumoAdmin(admin.ModelAdmin):
             return mark_safe('<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">OK</span>')
         return mark_safe('<span style="background:#95a5a6; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">Sin stock</span>')
     badge_stock.short_description = "Estado"
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -128,13 +151,13 @@ class MovimientoInventarioAdmin(admin.ModelAdmin):
     readonly_fields = ('stock_anterior', 'stock_posterior', 'created_at', 'created_by')
     list_per_page = 30
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Movimiento', {'fields': ('insumo', 'tipo', 'cantidad')}),
         ('Referencias', {'fields': ('compra', 'cotizacion', 'nota'), 'classes': ('collapse',)}),
         ('Auditoría', {'fields': ('stock_anterior', 'stock_posterior', 'created_by', 'created_at')}),
     )
-    
+
     def tipo_badge(self, obj):
         colores = {
             'ENTRADA': '#27ae60', 'SALIDA': '#e74c3c',
@@ -148,25 +171,25 @@ class MovimientoInventarioAdmin(admin.ModelAdmin):
         )
     tipo_badge.short_description = "Tipo"
     tipo_badge.admin_order_field = 'tipo'
-    
+
     def nota_corta(self, obj):
         return (obj.nota[:50] + '...') if obj.nota and len(obj.nota) > 50 else (obj.nota or '-')
     nota_corta.short_description = "Nota"
-    
+
     def save_model(self, request, obj, form, change):
         if not change:
             obj.created_by = request.user
         obj.full_clean()
         super().save_model(request, obj, form, change)
-    
+
     def has_delete_permission(self, request, obj=None):
         return False
-    
+
     def has_change_permission(self, request, obj=None):
         if obj:
             return False
         return True
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -185,18 +208,18 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     list_per_page = 30
     ordering = ['grupo', 'orden', 'categoria']
     fieldsets = (('Configuración', {'fields': ('categoria', 'grupo', 'insumo', 'proporcion', 'orden', 'activo')}),)
-    
+
     def categoria_display(self, obj): return obj.get_categoria_display()
     categoria_display.short_description = "Concepto"
     categoria_display.admin_order_field = 'categoria'
-    
+
     def grupo_display(self, obj):
         colores = {'ALCOHOL_NACIONAL': '#e67e22', 'ALCOHOL_PREMIUM': '#9b59b6', 'CERVEZA': '#f1c40f', 'MEZCLADOR': '#3498db', 'HIELO': '#ecf0f1', 'COCTELERIA': '#2ecc71', 'CONSUMIBLE': '#95a5a6'}
         color = colores.get(obj.grupo, '#666')
         return format_html('<span style="background:{}; padding:2px 8px; border-radius:4px; color:#fff; font-size:11px;">{}</span>', color, obj.get_grupo_display())
     grupo_display.short_description = "Grupo"
     grupo_display.admin_order_field = 'grupo'
-    
+
     def insumo_nombre(self, obj): return obj.insumo.nombre
     insumo_nombre.short_description = "Insumo"
     insumo_nombre.admin_order_field = 'insumo__nombre'
@@ -206,25 +229,34 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     proveedor_insumo.short_description = "Proveedor"
     def costo_insumo(self, obj): return f"${obj.insumo.costo_unitario:,.2f}"
     costo_insumo.short_description = "Costo"
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
 
 
 class RecetaInline(admin.TabularInline):
-    model = RecetaSubProducto; extra = 1; raw_id_fields = ['insumo']; verbose_name = "Ingrediente"
+    model = RecetaSubProducto
+    extra = 1
+    raw_id_fields = ['insumo']
+    verbose_name = "Ingrediente"
 
 @admin.register(SubProducto)
 class SubProductoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'costo_display'); inlines = [RecetaInline]; search_fields = ('nombre',)
+    list_display = ('nombre', 'costo_display')
+    inlines = [RecetaInline]
+    search_fields = ('nombre',)
     def costo_display(self, obj): return f"${obj.costo_insumos():,.2f}"
     costo_display.short_description = "Costo Insumos"
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 class ComponenteInline(admin.TabularInline):
-    model = ComponenteProducto; extra = 1; raw_id_fields = ['subproducto']; verbose_name = "SubProducto"
+    model = ComponenteProducto
+    extra = 1
+    raw_id_fields = ['subproducto']
+    verbose_name = "SubProducto"
 
 
 class ProductoPaqueteInline(admin.TabularInline):
@@ -301,9 +333,12 @@ class ProductoAdmin(admin.ModelAdmin):
         if not obj.visible_cotizador:
             return mark_safe('<span style="color:#999;">—</span>')
         servicios = []
-        if obj.cotizador_evento: servicios.append('E')
-        if obj.cotizador_pasadia: servicios.append('P')
-        if obj.cotizador_arrendamiento: servicios.append('A')
+        if obj.cotizador_evento:
+            servicios.append('E')
+        if obj.cotizador_pasadia:
+            servicios.append('P')
+        if obj.cotizador_arrendamiento:
+            servicios.append('A')
         txt = '/'.join(servicios) or '—'
         return mark_safe(
             f'<span style="background:#2E7D32;color:white;padding:2px 8px;'
@@ -361,7 +396,8 @@ class ProductoAdmin(admin.ModelAdmin):
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
@@ -374,7 +410,8 @@ class ClienteAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('fecha_registro',)
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 
 # ==========================================
@@ -396,22 +433,23 @@ class PlanPagoAdmin(admin.ModelAdmin):
     search_fields = ('cotizacion__cliente__nombre', 'cotizacion__nombre_evento')
     readonly_fields = ('cotizacion', 'generado_por', 'fecha_generacion')
     inlines = [ParcialidadInline]
-    
+
     def cotizacion_folio(self, obj): return f"COT-{obj.cotizacion.id:03d}"
     cotizacion_folio.short_description = "Folio"
     def cliente(self, obj): return obj.cotizacion.cliente.nombre
     cliente.short_description = "Cliente"
     def monto_total(self, obj): return f"${obj.cotizacion.precio_final:,.2f}"
     monto_total.short_description = "Total"
-    
+
     def num_parcialidades(self, obj):
         return f"{obj.parcialidades_pagadas()}/{obj.parcialidades.count()}"
     num_parcialidades.short_description = "Pagadas"
-    
+
     def progreso_badge(self, obj):
         pagadas = obj.parcialidades_pagadas()
         total = obj.parcialidades.count()
-        if total == 0: return '-'
+        if total == 0:
+            return '-'
         pct = int((pagadas / total) * 100)
         color = '#27ae60' if pct >= 100 else '#f39c12' if pct >= 50 else '#e74c3c'
         return format_html(
@@ -419,7 +457,7 @@ class PlanPagoAdmin(admin.ModelAdmin):
             '<div style="width:{}%; background:{}; height:100%; border-radius:10px;"></div>'
             '</div> <small style="color:{};">{}%</small>', pct, color, color, pct)
     progreso_badge.short_description = "Progreso"
-    
+
     def siguiente_pago_info(self, obj):
         sig = obj.siguiente_pago()
         if not sig:
@@ -431,9 +469,10 @@ class PlanPagoAdmin(admin.ModelAdmin):
             return format_html('<span style="color:#f39c12; font-weight:bold;">${} en {} días</span>', f"{sig.monto:,.2f}", dias)
         return format_html('<span style="color:#3498db;">${} el {}</span>', f"{sig.monto:,.2f}", sig.fecha_limite.strftime('%d/%m/%Y'))
     siguiente_pago_info.short_description = "Próximo Pago"
-    
+
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 @admin.register(PortalCliente)
 class PortalClienteAdmin(admin.ModelAdmin):
@@ -492,22 +531,29 @@ class PortalClienteAdmin(admin.ModelAdmin):
         js = MEDIA_CONFIG['js']
 
 class PlanPagoResumenInline(admin.StackedInline):
-    model = PlanPago; extra = 0; max_num = 1; can_delete = False
+    model = PlanPago
+    extra = 0
+    max_num = 1
+    can_delete = False
     readonly_fields = ('generado_por', 'fecha_generacion')
     fields = ('activo', 'notas', 'generado_por', 'fecha_generacion')
-    verbose_name = "Plan de Pagos"; verbose_name_plural = "Plan de Pagos"
+    verbose_name = "Plan de Pagos"
+    verbose_name_plural = "Plan de Pagos"
 
 
 # ==========================================
 # COTIZACIONES
 # ==========================================
 class ItemCotizacionInline(admin.TabularInline):
-    model = ItemCotizacion; extra = 1; raw_id_fields = ['producto', 'insumo']
+    model = ItemCotizacion
+    extra = 1
+    raw_id_fields = ['producto', 'insumo']
     fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
     readonly_fields = ('subtotal',)
 
 class PagoInline(admin.TabularInline):
-    model = Pago; extra = 0
+    model = Pago
+    extra = 0
     fields = ('fecha_pago', 'monto', 'concepto', 'metodo', 'referencia', 'notas', 'usuario', 'created_at')
     readonly_fields = ('usuario', 'created_at')
 
@@ -525,7 +571,8 @@ class CotizacionAdmin(admin.ModelAdmin):
     }
 
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
     fieldsets = (
         ('Información del Evento', {'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'fecha_evento', 'hora_inicio', 'hora_fin', 'num_personas', 'estado')}),
@@ -566,21 +613,28 @@ class CotizacionAdmin(admin.ModelAdmin):
         return format_html('<span style="background:{}; color:white; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:bold;">{}</span>', color, label)
     estado_badge.short_description = "Estado"
     estado_badge.admin_order_field = 'estado'
-    
+
     def pago_badge(self, obj):
         pct = obj.porcentaje_pagado
-        if pct >= 100: color = '#27ae60'
-        elif pct >= 50: color = '#f39c12'
-        elif pct > 0: color = '#e67e22'
-        else: color = '#e74c3c'
+        if pct >= 100:
+            color = '#27ae60'
+        elif pct >= 50:
+            color = '#f39c12'
+        elif pct > 0:
+            color = '#e67e22'
+        else:
+            color = '#e74c3c'
         return format_html('<span style="color:{}; font-weight:bold;">{}%</span>', color, pct)
     pago_badge.short_description = "Pagado"
-    
+
     def get_nivel_paquete(self, obj):
         checks = sum([obj.incluye_refrescos, obj.incluye_cerveza, obj.incluye_licor_nacional, obj.incluye_licor_premium, obj.incluye_cocteleria_basica, obj.incluye_cocteleria_premium])
-        if checks == 0: return "Sin Barra"
-        if checks <= 2: return "Básico"
-        if checks <= 4: return "Plus"
+        if checks == 0:
+            return "Sin Barra"
+        if checks <= 2:
+            return "Básico"
+        if checks <= 4:
+            return "Plus"
         return "Premium"
     get_nivel_paquete.short_description = "Paquete"
 
@@ -641,14 +695,16 @@ class CotizacionAdmin(admin.ModelAdmin):
         try:
             url = reverse('cotizacion_pdf', args=[obj.id])
             return format_html(BTN_SM if compact else BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='PDF', extra='')
-        except NoReverseMatch: return "-"
+        except NoReverseMatch:
+            return "-"
     ver_pdf.short_description = "PDF"
 
     def ver_lista_compras(self, obj, compact=False):
         try:
             url = reverse('cotizacion_lista_compras', args=[obj.id])
             return format_html(BTN_SM if compact else BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='Lista', extra='')
-        except NoReverseMatch: return "-"
+        except NoReverseMatch:
+            return "-"
     ver_lista_compras.short_description = "Compras"
 
     def enviar_email_btn(self, obj, compact=False):
@@ -656,10 +712,11 @@ class CotizacionAdmin(admin.ModelAdmin):
             try:
                 url = reverse('cotizacion_email', args=[obj.id])
                 return format_html(BTN_SM if compact else BTN, url=url, target='', bg='#2E7D32', fg='white', label='Email', extra='onclick="return confirm(\'¿Enviar cotización por email?\')"')
-            except NoReverseMatch: return "-"
+            except NoReverseMatch:
+                return "-"
         return "-"
     enviar_email_btn.short_description = "Email"
-    
+
     def resumen_barra_html(self, obj):
         calc = CalculadoraBarraService(obj)
         datos = calc.calcular()
@@ -673,13 +730,13 @@ class CotizacionAdmin(admin.ModelAdmin):
         if change:
             old_obj = Cotizacion.objects.filter(pk=obj.pk).values('estado').first()
             old_estado = old_obj['estado'] if old_obj else 'BORRADOR'
-            
+
             if obj.estado != old_estado:
                 permitidos = Cotizacion.TRANSICIONES_PERMITIDAS.get(old_estado, [])
                 if obj.estado not in permitidos:
                     messages.error(request, f"No se puede cambiar de '{dict(Cotizacion.ESTADOS).get(old_estado)}' a '{obj.get_estado_display()}'.")
                     return
-                
+
                 if obj.estado == 'CONFIRMADA':
                     try:
                         pct_min = float(ConstanteSistema.objects.get(clave='PORCENTAJE_ANTICIPO_MINIMO').valor)
@@ -691,12 +748,12 @@ class CotizacionAdmin(admin.ModelAdmin):
                         if pct_pagado < pct_min:
                             messages.error(request, f"Se requiere al menos {pct_min}% de anticipo. Pagado: {pct_pagado:.1f}%")
                             return
-                
+
                 if old_estado == 'BORRADOR' and obj.estado != 'CANCELADA':
                     if obj.pk and not obj.items.exists():
                         messages.error(request, "La cotización debe tener al menos un item antes de avanzar.")
                         return
-                
+
                 if obj.estado == 'CANCELADA' and not obj.motivo_cancelacion:
                     messages.error(request, "Debe indicar el motivo de cancelación.")
                     return
@@ -704,7 +761,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     obj.cancelada_por = request.user
                     from django.utils.timezone import now
                     obj.fecha_cancelacion = now()
-        
+
         if obj.estado == 'CONFIRMADA':
             try:
                 from airbnb.validacion_fechas import validar_fecha_disponible
@@ -714,17 +771,20 @@ class CotizacionAdmin(admin.ModelAdmin):
                     return
             except ImportError:
                 pass
-    
-        if not obj.pk: obj.usuario = request.user
+
+        if not obj.pk:
+            obj.usuario = request.user
         super().save_model(request, obj, form, change)
-    
+
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
-        for obj in formset.deleted_objects: obj.delete()
+        for obj in formset.deleted_objects:
+            obj.delete()
         for instance in instances:
-            if isinstance(instance, Pago) and not instance.pk: instance.usuario = request.user
+            if isinstance(instance, Pago) and not instance.pk:
+                instance.usuario = request.user
             instance.save()
         formset.save_m2m()
         cot = formset.instance
@@ -935,7 +995,8 @@ class PagoAdmin(admin.ModelAdmin):
     )
 
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
     def tipo_badge(self, obj):
         color = '#e74c3c' if obj.tipo == 'REEMBOLSO' else '#2E7D32'
@@ -946,7 +1007,8 @@ class PagoAdmin(admin.ModelAdmin):
     tipo_badge.short_description = 'Tipo'
 
     def save_model(self, request, obj, form, change):
-        if not obj.pk: obj.usuario = request.user
+        if not obj.pk:
+            obj.usuario = request.user
         super().save_model(request, obj, form, change)
 
     def registrar_reembolso(self, request, queryset):
@@ -992,7 +1054,9 @@ class PagoAdmin(admin.ModelAdmin):
     reembolsar_en_openpay.short_description = "Reembolsar en Openpay (además de registrar reembolso)"
 
 class GastoInline(admin.TabularInline):
-    model = Gasto; extra = 0; can_delete = True
+    model = Gasto
+    extra = 0
+    can_delete = True
     fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea', 'categoria', 'evento_relacionado')
     readonly_fields = ('cantidad', 'unidad_medida', 'descripcion', 'precio_unitario', 'total_linea')
     def get_readonly_fields(self, request, obj=None): return [f for f in self.readonly_fields]
@@ -1028,15 +1092,19 @@ class CompraAdmin(admin.ModelAdmin):
         ('Totales Globales', {'fields': ('subtotal', 'descuento', 'iva', 'ret_isr', 'ret_iva', 'total')})
     )
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [path('carga-masiva/', self.admin_site.admin_view(self.carga_masiva_view), name='compra_carga_masiva')]
         return my_urls + urls
     def carga_masiva_view(self, request):
-        from django.core.files.uploadedfile import InMemoryUploadedFile
         from io import BytesIO
+
+        from django.core.files.uploadedfile import InMemoryUploadedFile
+
         from contabilidad.models import UnidadNegocio
+
         from .services import analizar_xml_compra
 
         if request.method == "POST":
@@ -1132,6 +1200,7 @@ class CompraAdmin(admin.ModelAdmin):
     ver_pdf.short_description = "PDF"
 
 from .models import ContratoServicio
+
 
 @admin.register(ContratoServicio)
 class ContratoServicioAdmin(admin.ModelAdmin):
@@ -1551,7 +1620,8 @@ class DescuentoAdmin(admin.ModelAdmin):
     )
 
     class Media:
-        css = MEDIA_CONFIG['css']; js = MEDIA_CONFIG['js']
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
     def tipo_valor_badge(self, obj):
         color = '#3498db' if obj.tipo_valor == 'PORCENTAJE' else '#9b59b6'

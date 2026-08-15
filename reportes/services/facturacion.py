@@ -5,10 +5,11 @@ Facturas (solicitudes) emitidas por período.
 
 ERP Quinta Ko'ox Tanil
 """
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from typing import Dict
-from django.db.models import Sum, Count
+
+from django.db.models import Count, Sum
 
 
 class FacturasEmitidasService:

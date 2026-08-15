@@ -12,27 +12,34 @@ Acceso: código de cotización + últimos 4 dígitos del teléfono.
 import json
 import os
 from decimal import Decimal
-from django.shortcuts import render, get_object_or_404, redirect
-from django.http import FileResponse, HttpResponse, Http404
+
+from django.conf import settings
 from django.db.models import Q
+from django.http import FileResponse, Http404, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
-from django.conf import settings
 from weasyprint import HTML
-
-from .models import (
-    Cotizacion, PortalCliente, PlanPago, ImagenLanding,
-    TestimonioLanding, EspacioLanding, PreguntaFrecuente,
-)
-from .paynet import TIENDAS_PAYNET
-
 
 from core_erp.ratelimit import (
     limpiar_portal_acceso,
     portal_acceso_bloqueado,
-    rate_limit as _rate_limit,
     registrar_portal_acceso_fallido,
 )
+from core_erp.ratelimit import (
+    rate_limit as _rate_limit,
+)
+
+from .models import (
+    Cotizacion,
+    EspacioLanding,
+    ImagenLanding,
+    PlanPago,
+    PortalCliente,
+    PreguntaFrecuente,
+    TestimonioLanding,
+)
+from .paynet import TIENDAS_PAYNET
 
 
 def landing_publico(request):
@@ -155,12 +162,12 @@ def portal_evento(request, token):
     """
     portal = _portal_vigente_o_404(token)
     portal.registrar_visita()
-    
+
     cotizacion = portal.cotizacion
     cliente = cotizacion.cliente
     items = cotizacion.items.all()
     pagos = cotizacion.pagos.all().order_by('fecha_pago').select_related('transaccion_openpay')
-    
+
     # Plan de pagos
     plan = None
     parcialidades = []
@@ -170,14 +177,14 @@ def portal_evento(request, token):
             parcialidades = plan.parcialidades.all()
     except PlanPago.DoesNotExist:
         pass
-    
+
     # Contrato
     contrato = None
     try:
         contrato = cotizacion.contratos.filter(archivo__isnull=False).order_by('-generado_en').first()
     except Exception:
         pass
-    
+
     # Historial de comunicaciones
     try:
         from comunicacion.models import ComunicacionCliente
@@ -192,7 +199,7 @@ def portal_evento(request, token):
     saldo_pendiente = cotizacion.saldo_pendiente()
     porcentaje = cotizacion.porcentaje_pagado
     monto_minimo, monto_minimo_motivo = cotizacion.monto_minimo_pago_detalle()
-    
+
     # Número público de contacto para los enlaces wa.me que ve el cliente.
     # Es el de atención, distinto del emisor de la Cloud API y distinto del
     # WA_NUMERO_NEGOCIO al que van las alertas internas. Si no está configurado
@@ -235,11 +242,11 @@ def portal_descargar_cotizacion(request, token):
     """Descarga PDF de cotización desde el portal."""
     portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
-    
+
     from .views import obtener_contexto_cotizacion
     context = obtener_contexto_cotizacion(cotizacion)
     html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
-    
+
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="Cotizacion_COT-{cotizacion.id:03d}.pdf"'
     HTML(string=html_string).write_pdf(response)
@@ -250,15 +257,15 @@ def portal_descargar_plan(request, token):
     """Descarga PDF del plan de pagos desde el portal."""
     portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
-    
+
     try:
         plan = cotizacion.plan_pago
     except PlanPago.DoesNotExist:
         raise Http404("No hay plan de pagos disponible.")
-    
+
     ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
     logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    
+
     context = {
         'cotizacion': cotizacion,
         'plan': plan,
@@ -266,7 +273,7 @@ def portal_descargar_plan(request, token):
         'logo_url': logo_url,
         'fecha_generacion': timezone.now(),
     }
-    
+
     html_string = render_to_string('cotizaciones/pdf_plan_pagos.html', context)
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="Plan_Pagos_COT-{cotizacion.id:03d}.pdf"'

@@ -3,8 +3,8 @@ Modelos del Módulo de Facturación
 =================================
 Gestión de solicitudes de factura y comunicación con contador.
 """
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
 from django.utils.timezone import now
 
 from comercial.models import Cliente, Cotizacion, Pago
@@ -244,7 +244,7 @@ class SolicitudFactura(models.Model):
         """Genera el texto con datos para enviar al contador."""
         folio = f"SOL-{int(self.id):04d}" if self.id else "Nueva"
         monto = float(self.monto) if self.monto else 0
-        
+
         lineas = [
             "═══════════════════════════════════",
             f"📋 SOLICITUD DE FACTURA {folio}",

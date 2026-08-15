@@ -17,7 +17,7 @@ class Command(BaseCommand):
         self.stdout.write("\n" + "="*60)
         self.stdout.write("CONFIGURACIÓN INICIAL DE ANUNCIOS AIRBNB")
         self.stdout.write("="*60 + "\n")
-        
+
         # Definición de los 3 anuncios
         anuncios_data = [
             {
@@ -39,10 +39,10 @@ class Command(BaseCommand):
                 'afecta_eventos_quinta': False,  # NO afecta la quinta
             },
         ]
-        
+
         creados = 0
         actualizados = 0
-        
+
         for data in anuncios_data:
             anuncio, created = AnuncioAirbnb.objects.update_or_create(
                 url_ical=data['url_ical'],
@@ -53,7 +53,7 @@ class Command(BaseCommand):
                     'activo': True,
                 }
             )
-            
+
             if created:
                 creados += 1
                 self.stdout.write(
@@ -64,18 +64,18 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"  → Actualizado: {anuncio.nombre}"
                 )
-            
+
             # Mostrar info adicional
             self.stdout.write(f"    Tipo: {anuncio.get_tipo_display()}")
             self.stdout.write(f"    Afecta quinta: {'Sí ' if anuncio.afecta_eventos_quinta else 'No'}")
             self.stdout.write(f"    Listing ID: {anuncio.airbnb_listing_id}")
             self.stdout.write("")
-        
+
         self.stdout.write("-"*40)
         self.stdout.write(f"Creados: {creados}")
         self.stdout.write(f"Actualizados: {actualizados}")
         self.stdout.write("")
-        
+
         self.stdout.write(
             self.style.SUCCESS(
                 "✓ Configuración completada. Ejecuta 'python manage.py sincronizar_airbnb' para sincronizar."

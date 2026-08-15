@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class RegimenFiscal(models.TextChoices):
     # Catálogo oficial SAT c_RegimenFiscal (única fuente de verdad;
     # también usado por contabilidad.UnidadNegocio.regimen_fiscal).

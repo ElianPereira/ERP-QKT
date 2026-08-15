@@ -7,17 +7,26 @@ import base64
 import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from django.test import TestCase, Client, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from comercial.models import (
-    Cliente, Cotizacion, ItemCotizacion, Pago, OpenpayTransaccion, PortalCliente,
+    Cliente,
+    Cotizacion,
+    ItemCotizacion,
+    OpenpayTransaccion,
+    Pago,
+    PortalCliente,
 )
 from comercial.services_openpay import (
-    procesar_webhook_openpay, procesar_cargo_tarjeta, procesar_cargo_efectivo,
-    procesar_cargo_spei, reembolsar_cargo_openpay, consultar_y_confirmar_cargo,
+    consultar_y_confirmar_cargo,
+    procesar_cargo_efectivo,
+    procesar_cargo_spei,
+    procesar_cargo_tarjeta,
+    procesar_webhook_openpay,
+    reembolsar_cargo_openpay,
 )
 
 WEBHOOK_USER = 'openpay-test-user'
@@ -538,7 +547,8 @@ class CargoEfectivoSpeiTest(TestCase):
         La fecha límite puede venir del plan de pagos, y una parcialidad a 45
         días empujaba el `due_date` fuera del máximo documentado por Openpay.
         """
-        from datetime import date, datetime, timedelta as td
+        from datetime import date, datetime
+        from datetime import timedelta as td
 
         from comercial.models import PlanPago
 
@@ -624,8 +634,8 @@ class CargoEfectivoSpeiTest(TestCase):
         líneas que documentaba la plantilla se imprimía tal cual encima de la
         ficha, a la vista del cliente.
         """
-        from pathlib import Path
         import re
+        from pathlib import Path
 
         from django.conf import settings
         from django.template.loader import render_to_string
@@ -912,6 +922,7 @@ class PaginasLegalesTest(TestCase):
 
     def _publicar(self, tipo, contenido):
         from datetime import date as _date
+
         from legal.models import DocumentoLegal
         return DocumentoLegal.objects.create(
             tipo=tipo, version='1.0', titulo=str(tipo),
@@ -943,7 +954,8 @@ class PaginasLegalesTest(TestCase):
         siguiera validando una versión retirada al publicar la siguiente.
         """
         from legal.management.commands.seed_documentos_legales import (
-            DIRECTORIO, DOCUMENTOS,
+            DIRECTORIO,
+            DOCUMENTOS,
         )
         from legal.models import TipoDocumento
 
@@ -1023,7 +1035,8 @@ class ConsistenciaPreciosTest(TestCase):
                 cotizacion=cot, descripcion=f'Linea {i}',
                 cantidad=1, precio_unitario=Decimal('100.05'),
             )
-        cot.save(); cot.refresh_from_db()
+        cot.save()
+        cot.refresh_from_db()
         base = Decimal(cot.subtotal) - Decimal(cot.descuento)
         self.assertEqual(impuestos.total_desde_bases([base]), cot.precio_final)
         # Y difiere de sumar linea por linea, que es justo lo que se evita
@@ -1088,7 +1101,8 @@ class TotalCotizadorCoincideTest(TestCase):
     def test_pasadia_incluye_su_paquete(self):
         from comercial.views_cotizador import _lineas_cotizador
         p = self._crear_producto('Pasadia', '3000.00')
-        p.cotizador_pasadia = True; p.save()
+        p.cotizador_pasadia = True
+        p.save()
         lineas = _lineas_cotizador(
             servicio='PASADIA', paquete_id=None, extras_ids=[],
             num_personas=50, horas_evento=9,
@@ -1097,8 +1111,8 @@ class TotalCotizadorCoincideTest(TestCase):
 
     def test_total_exhibido_igual_al_precio_final(self):
         """La prueba de fuego: el total del endpoint == precio_final real."""
-        from core_erp import impuestos
         from comercial.views_cotizador import _lineas_cotizador
+        from core_erp import impuestos
         paquete = self._crear_producto('Paquete Bodas', '104681.04', es_paquete=True)
         extra = self._crear_producto('Mobiliario', '1045.00')
 
@@ -1120,7 +1134,8 @@ class TotalCotizadorCoincideTest(TestCase):
                 cotizacion=cot, producto=prod, descripcion=prod.nombre,
                 cantidad=Decimal(qty), precio_unitario=Decimal(str(prod.sugerencia_precio())),
             )
-        cot.save(); cot.refresh_from_db()
+        cot.save()
+        cot.refresh_from_db()
         self.assertEqual(exhibido, cot.precio_final)
 
 

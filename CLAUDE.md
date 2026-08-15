@@ -75,6 +75,44 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-15 — Órdenes 29-30 del backlog de seguridad (`SEC-CI-001a/b`): el
+  gate de lint en CI ahora bloquea de verdad. `ruff check .` marcaba 631
+  errores (contando desde cero, el conteo de "555" que traía el backlog
+  quedó desactualizado por los PRs recientes) y el paso de lint en `ci.yml`
+  tenía `continue-on-error: true` desde siempre, así que nunca frenó nada.
+  El autofix normal (`ruff check --fix`) resolvió 497 sin tocar
+  comportamiento (imports, `W292`, `F541`, `F811` y la mayoría de
+  espacios en blanco al final de línea). Quedaron tres tipos que ruff no
+  auto-corrige: **(1)** 94 líneas con `E701`/`E702` (sentencias compuestas
+  en una sola línea con `;` o `if x: y`), casi todas en `comercial/admin.py`
+  (ModelAdmin/Inline terse), `services.py`, `models.py` y `views.py` —
+  reformateadas con un script propio (no `ruff format`/`black`: eso habría
+  cambiado comillas, imports multilínea y otro estilo no relacionado con
+  esta tarea) que usa `ast.parse` sobre cada línea aislada para ubicar con
+  exactitud dónde cortar (el punto y coma o los dos puntos de la cabecera
+  compuesta) sin regenerar texto — cada corte es una porción literal del
+  código original. Verificado con la red de seguridad real: `ast.dump()`
+  del archivo completo antes y después es **idéntico** (ignorando
+  posiciones), así que el AST no cambió, solo el formato. **(2)** Los 7
+  `E722` (`except:` sin tipo) — los 6 de `nomina/views.py` son parseo
+  defensivo de Excel/pandas con fallback (horas, fechas, horarios de
+  Jibble) y el de `comercial/models.py:1216` es el parseo de un XML de CFDI
+  con fallback a `impuestos.iva_de()`; todos pasan a `except Exception:`
+  sin cambiar el fallback. **(3)** `--unsafe-fixes` resolvió el resto de
+  espacios en blanco; los 5 `F841` (variable sin usar) que quedaban se
+  revisaron uno por uno antes de borrar la línea completa (no solo
+  aceptar el fix de ruff a ciegas) para confirmar que ninguna asignación
+  tenía efectos secundarios — los cinco eran expresiones puras
+  (`strftime`, `Decimal('0.00')`, un `int()` con `try/except` cuyo
+  resultado nunca se leía, una clave de diccionario, un `str().strip()`).
+  El caso de `comercial/views_cotizador.py::api_paquetes_cotizador` es
+  el más interesante: parseaba `personas` de la query string pero
+  **nunca la usaba para filtrar nada**, pese a que el docstring de la
+  función promete "filtrados por servicio y rango de personas" — es un
+  hueco de funcionalidad preexistente, no algo que esta tarea de lint deba
+  implementar; se dejó documentado aquí en vez de inventar el filtro de
+  paso. Con `ruff check .` en cero, se quitó el `continue-on-error` del
+  paso de lint en `ci.yml`.
 - 2026-08-15 — Orden 25 del backlog de seguridad (`SEC-INFO-001`): las tres
   vistas públicas que devolvían `str(e)` crudo en el cuerpo de un 500 —
   `api_disponibilidad_fecha`/`api_fechas_ocupadas` (`comercial/views_cotizador.py`)

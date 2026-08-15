@@ -12,19 +12,19 @@ Mejoras v2.0:
 - Mapeo de categorías de gasto a cuentas específicas
 """
 import logging
-from decimal import Decimal, ROUND_HALF_UP
-from core_erp import impuestos
+from decimal import ROUND_HALF_UP, Decimal
+
 from django.conf import settings
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from core_erp import impuestos
 
 logger = logging.getLogger(__name__)
 
-from .models import (
-    Poliza, MovimientoContable, ConfiguracionContable, UnidadNegocio
-)
+from .models import ConfiguracionContable, MovimientoContable, Poliza, UnidadNegocio
 
 
 def signals_enabled():
@@ -73,12 +73,12 @@ from comercial.services import calcular_desglose_proporcional  # noqa: F401 — 
 def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
     """
     Genera póliza de ingreso cuando se registra un pago de cliente.
-    
+
     Asiento con desglose de IVA (ejemplo pago $11,600 de cotización persona física):
         DEBE: Bancos/Caja                  $11,600.00
         HABER: Anticipo clientes           $10,000.00 (subtotal proporcional)
         HABER: IVA trasladado               $1,600.00 (16% proporcional)
-    
+
     Asiento cliente MORAL (ejemplo pago $11,475 con retención ISR 1.25%):
         DEBE: Bancos/Caja                  $11,475.00
         DEBE: ISR retenido por cliente        $125.00 (impuesto a favor)
@@ -144,7 +144,6 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
     subtotal = desglose['subtotal']
     iva = desglose['iva']
     retencion_isr = desglose['retencion_isr']
-    retencion_iva = desglose['retencion_iva']
 
     # ─── Crear póliza ───────────────────────────────────────────
     usuario = get_usuario_sistema()
@@ -992,23 +991,23 @@ MAPEO_CATEGORIA_CUENTA = {
 def get_cuenta_por_categoria(categoria):
     """
     Obtiene la cuenta contable apropiada según la categoría del gasto.
-    
+
     Args:
         categoria: str - Categoría del gasto (puede ser None)
-    
+
     Returns:
         CuentaContable o None
     """
     if not categoria:
         return get_cuenta('GASTOS_GENERALES')
-    
+
     # Buscar mapeo exacto
     operacion = MAPEO_CATEGORIA_CUENTA.get(categoria.upper())
     if operacion:
         cuenta = get_cuenta(operacion)
         if cuenta:
             return cuenta
-    
+
     # Buscar por palabra clave parcial
     categoria_upper = categoria.upper()
     for keyword, op in MAPEO_CATEGORIA_CUENTA.items():
@@ -1016,7 +1015,7 @@ def get_cuenta_por_categoria(categoria):
             cuenta = get_cuenta(op)
             if cuenta:
                 return cuenta
-    
+
     # Fallback a gastos generales
     return get_cuenta('GASTOS_GENERALES')
 

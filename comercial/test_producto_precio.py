@@ -9,7 +9,11 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from comercial.models import (
-    ComponenteProducto, Insumo, Producto, RecetaSubProducto, SubProducto,
+    ComponenteProducto,
+    Insumo,
+    Producto,
+    RecetaSubProducto,
+    SubProducto,
 )
 
 

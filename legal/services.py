@@ -5,7 +5,10 @@ import logging
 from django.db import transaction
 
 from .models import (
-    AceptacionLegal, DocumentoLegal, Finalidad, TipoDocumento,
+    AceptacionLegal,
+    DocumentoLegal,
+    Finalidad,
+    TipoDocumento,
 )
 
 logger = logging.getLogger(__name__)

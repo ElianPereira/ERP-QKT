@@ -16,7 +16,6 @@ from django.db.models import Q
 
 from comercial.models import Cliente
 
-
 RFC_GENERICO = 'XAXX010101000'
 RAZON_SOCIAL_GENERICA_KEYS = ('PUBLICO EN GENERAL', 'PÚBLICO EN GENERAL')
 

@@ -6,6 +6,7 @@ en registros del modelo Proveedor y los vincula automáticamente.
 Uso: python manage.py migrar_proveedores
 """
 from django.core.management.base import BaseCommand
+
 from comercial.models import Insumo, Proveedor
 
 
@@ -49,7 +50,7 @@ class Command(BaseCommand):
             vinculados += 1
 
         self.stdout.write('')
-        self.stdout.write(self.style.SUCCESS(f'=== MIGRACIÓN COMPLETADA ==='))
+        self.stdout.write(self.style.SUCCESS('=== MIGRACIÓN COMPLETADA ==='))
         self.stdout.write(f'  Proveedores creados:    {creados}')
         self.stdout.write(f'  Insumos vinculados:     {vinculados}')
         self.stdout.write(f'  Ya estaban vinculados:  {ya_vinculados}')

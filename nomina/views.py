@@ -1,24 +1,27 @@
-import pandas as pd
 import io
-import os
-import math
 import logging
-from decimal import Decimal, ROUND_HALF_UP
+import math
+import os
+from datetime import date, datetime, time, timedelta
+from decimal import ROUND_HALF_UP, Decimal
+
+import pandas as pd
 from django.conf import settings
-from datetime import datetime, date, time, timedelta
-from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.core.files.base import ContentFile
-from django.template.loader import render_to_string
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
+from django.core.files.base import ContentFile
 from django.http import JsonResponse
+from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from django.utils import timezone
-from core_erp.ratelimit import rate_limit
-from .models import Empleado, ReciboNomina
 from weasyprint import HTML
+
+from core_erp.ratelimit import rate_limit
+
+from .models import Empleado, ReciboNomina
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +42,7 @@ def parsear_horas_complejas(valor):
             sec = float(parts[2]) if len(parts) > 2 else 0.0
             return round(h + (m / 60.0) + (sec / 3600.0), 4)
         return round(float(s), 4)
-    except:
+    except Exception:
         return 0.0
 
 
@@ -57,7 +60,7 @@ def parsear_hms(valor):
         m = int(resto_min)
         sec = int((resto_min - m) * 60)
         return (h, m, sec)
-    except:
+    except Exception:
         return (0, 0, 0)
 
 
@@ -78,7 +81,7 @@ def calcular_hora_salida(hora_entrada, horas_h, horas_m, horas_s):
         dt_entrada = datetime(2026, 1, 1, hora_entrada.hour, hora_entrada.minute, 0)
         dt_salida = dt_entrada + timedelta(hours=horas_h, minutes=horas_m, seconds=horas_s)
         return dt_salida.strftime('%H:%M')
-    except:
+    except Exception:
         return '-'
 
 
@@ -109,11 +112,11 @@ def parsear_horario_trabajo(df):
                                 try:
                                     t = pd.to_datetime(str(val_start)).time()
                                     horarios[dia_idx] = t
-                                except:
+                                except Exception:
                                     pass
                             break
                 break
-    except:
+    except Exception:
         pass
     return horarios
 
@@ -218,7 +221,7 @@ def cargar_nomina(request):
                         if not pd.isna(fecha_dt) and fecha_dt.year > 2000:
                             temp_map[c] = fecha_dt
                             fechas_encontradas += 1
-                    except:
+                    except Exception:
                         pass
                 if fechas_encontradas > 3:
                     row_fechas_idx = r
@@ -291,7 +294,7 @@ def cargar_nomina(request):
 @staff_member_required
 @permission_required('nomina.change_recibonomina', raise_exception=True)
 def sync_jibble_view(request):
-    from .services import JibbleService, JibbleAPIError
+    from .services import JibbleAPIError, JibbleService
     svc = JibbleService()
     if not svc.esta_configurado():
         messages.error(request, "Jibble no configurado. Agrega JIBBLE_CLIENT_ID y JIBBLE_CLIENT_SECRET en Railway.")
@@ -334,7 +337,7 @@ def sync_jibble_view(request):
 @csrf_exempt
 @require_POST
 def webhook_sync_jibble(request):
-    from .services import JibbleService, JibbleAPIError
+    from .services import JibbleAPIError, JibbleService
     cron_token = getattr(settings, 'NOMINA_CRON_TOKEN', '')
     if not cron_token:
         return JsonResponse({'error': 'NOMINA_CRON_TOKEN no configurado'}, status=500)

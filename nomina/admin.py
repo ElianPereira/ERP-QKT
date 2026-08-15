@@ -1,9 +1,12 @@
 from datetime import date, timedelta
-from django.contrib import admin, messages
+
 from django.conf import settings
+from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.utils.timezone import now
+
 from core_erp.descargas import url_descarga
+
 from .models import Empleado, ReciboNomina
 
 try:

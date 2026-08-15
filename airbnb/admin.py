@@ -5,21 +5,23 @@ Panel de administración para gestión de anuncios, reservas y pagos.
 Compatible con Django 6.0+
 """
 from decimal import Decimal
-from django.contrib import admin
-from django.urls import path, reverse
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.db.models import Sum, Count
-from django.utils import timezone
+
+from django.contrib import admin, messages
+from django.db.models import Count, Sum
 from django.http import HttpResponseRedirect
+from django.shortcuts import redirect, render
+from django.urls import path, reverse
+from django.utils import timezone
 from django.utils.html import format_html
 
 from .models import (
-    AnuncioAirbnb, ReservaAirbnb, PagoAirbnb, ConflictoCalendario,
+    AnuncioAirbnb,
+    ConflictoCalendario,
     DepositoConciliado,
+    PagoAirbnb,
+    ReservaAirbnb,
 )
-from .services import SincronizadorAirbnbService, DetectorConflictosService, ImportadorCSVPagosService
-
+from .services import DetectorConflictosService, ImportadorCSVPagosService, SincronizadorAirbnbService
 
 # ==========================================
 # CONFIGURACIÓN COMÚN
@@ -36,7 +38,7 @@ MEDIA_CONFIG = {
 @admin.register(AnuncioAirbnb)
 class AnuncioAirbnbAdmin(admin.ModelAdmin):
     list_display = (
-        'nombre', 
+        'nombre',
         'tipo',
         'afecta_eventos_quinta',
         'ultima_sincronizacion',
@@ -46,7 +48,7 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
     list_editable = ('activo',)
     search_fields = ('nombre', 'airbnb_listing_id')
     readonly_fields = ('airbnb_listing_id', 'ultima_sincronizacion', 'created_at', 'updated_at')
-    
+
     fieldsets = (
         ('Información del Anuncio', {
             'fields': ('nombre', 'tipo', 'url_ical', 'airbnb_listing_id')
@@ -64,13 +66,13 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     actions = ['sincronizar_seleccionados']
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
-    
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -81,13 +83,13 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
             ),
         ]
         return custom_urls + urls
-    
+
     @admin.action(description="Sincronizar seleccionados")
     def sincronizar_seleccionados(self, request, queryset):
         servicio = SincronizadorAirbnbService()
         total_creadas = 0
         total_actualizadas = 0
-        
+
         for anuncio in queryset:
             try:
                 creadas, actualizadas, errores = servicio.sincronizar_anuncio(anuncio)
@@ -95,35 +97,35 @@ class AnuncioAirbnbAdmin(admin.ModelAdmin):
                 total_actualizadas += actualizadas
             except Exception as e:
                 messages.error(request, f"Error en {anuncio.nombre}: {str(e)}")
-        
+
         # Detectar conflictos
         detector = DetectorConflictosService()
         conflictos = detector.detectar_conflictos()
-        
+
         messages.success(request, f"Sincronización: {total_creadas} nuevas, {total_actualizadas} actualizadas")
         if conflictos:
             messages.warning(request, f" {len(conflictos)} nuevos conflictos detectados")
-    
+
     def sincronizar_todos(self, request):
         servicio = SincronizadorAirbnbService()
         resultados = servicio.sincronizar_todos()
-        
+
         exitos = sum(1 for r in resultados.values() if r.get('status') == 'ok')
         errores = sum(1 for r in resultados.values() if r.get('status') == 'error')
-        
+
         if exitos > 0:
             messages.success(request, f" {exitos} anuncios sincronizados correctamente")
         if errores > 0:
             messages.error(request, f" {errores} anuncios con errores")
-        
+
         # Detectar conflictos
         detector = DetectorConflictosService()
         conflictos = detector.detectar_conflictos()
         if conflictos:
             messages.warning(request, f" {len(conflictos)} nuevos conflictos detectados")
-        
+
         return redirect('admin:airbnb_anuncioairbnb_changelist')
-    
+
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context['title'] = 'Anuncios Airbnb'
@@ -148,7 +150,7 @@ class ReservaAirbnbAdmin(admin.ModelAdmin):
     date_hierarchy = 'fecha_inicio'
     readonly_fields = ('uid_ical', 'created_at', 'updated_at')
     raw_id_fields = ('anuncio',)
-    
+
     fieldsets = (
         ('Reserva', {
             'fields': ('anuncio', 'titulo', 'fecha_inicio', 'fecha_fin', 'estado', 'origen')
@@ -162,7 +164,7 @@ class ReservaAirbnbAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -199,7 +201,7 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
         'retenciones_esperadas_display',
     )
     raw_id_fields = ('anuncio', 'reserva')
-    
+
     fieldsets = (
         ('Reserva', {
             'fields': ('anuncio', 'reserva', 'codigo_confirmacion', 'huesped')
@@ -227,11 +229,11 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
-    
+
     @admin.display(description='Cuadra', boolean=True)
     def cuadra_display(self, obj):
         return obj.cuadra
@@ -261,7 +263,7 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
             ),
         ]
         return custom_urls + urls
-    
+
     # Un CSV de un año de operación no llega a 1 MB. El tope evita que una
     # subida equivocada (un ZIP, un video) se lea entera en memoria.
     TAMANO_MAXIMO_CSV = 5 * 1024 * 1024
@@ -351,7 +353,7 @@ class PagoAirbnbAdmin(admin.ModelAdmin):
                 f"… y {len(resumen['errores']) - 5} errores más "
                 f"({len(resumen['errores'])} en total).",
             )
-    
+
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context['show_import_button'] = True
@@ -389,7 +391,7 @@ class ConflictoCalendarioAdmin(admin.ModelAdmin):
     date_hierarchy = 'fecha_conflicto'
     readonly_fields = ('reserva_airbnb', 'cotizacion', 'fecha_conflicto', 'descripcion', 'created_at')
     raw_id_fields = ('resuelto_por',)
-    
+
     fieldsets = (
         ('Conflicto', {
             'fields': ('fecha_conflicto', 'reserva_airbnb', 'cotizacion', 'descripcion')
@@ -398,13 +400,13 @@ class ConflictoCalendarioAdmin(admin.ModelAdmin):
             'fields': ('estado', 'resuelto_por', 'fecha_resolucion', 'notas_resolucion')
         }),
     )
-    
+
     actions = ['marcar_resuelto', 'marcar_ignorado']
-    
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
-    
+
     @admin.action(description="Marcar como resuelto")
     def marcar_resuelto(self, request, queryset):
         queryset.update(
@@ -413,12 +415,12 @@ class ConflictoCalendarioAdmin(admin.ModelAdmin):
             fecha_resolucion=timezone.now()
         )
         messages.success(request, f"{queryset.count()} conflictos marcados como resueltos")
-    
+
     @admin.action(description="Marcar como ignorado")
     def marcar_ignorado(self, request, queryset):
         queryset.update(estado='IGNORADO')
         messages.success(request, f"{queryset.count()} conflictos ignorados")
-    
+
     def save_model(self, request, obj, form, change):
         if obj.estado == 'RESUELTO' and not obj.resuelto_por:
             obj.resuelto_por = request.user

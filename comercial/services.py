@@ -1,9 +1,11 @@
-from decimal import Decimal, ROUND_HALF_UP
-from core_erp import impuestos
 import math
-from django.conf import settings
-from .models import ItemCotizacion, ConstanteSistema
+from decimal import ROUND_HALF_UP, Decimal
 
+from django.conf import settings
+
+from core_erp import impuestos
+
+from .models import ConstanteSistema, ItemCotizacion
 
 # Nombres considerados "genéricos" — si un cliente existente tiene uno
 # de estos, se sobrescribe con el nombre real cuando llega del canal.
@@ -19,8 +21,8 @@ def _es_nombre_generico(nombre: str) -> bool:
 
 def _email_valido(email: str) -> bool:
     """Validación liviana de formato de email (sin tocar BD)."""
-    from django.core.validators import validate_email
     from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
     if not email:
         return False
     try:
@@ -171,7 +173,7 @@ def calcular_desglose_proporcional(monto_pago, cotizacion):
 
 class CalculadoraBarraService:
     """
-    Servicio encargado de toda la lógica de cálculo de barra, 
+    Servicio encargado de toda la lógica de cálculo de barra,
     separando la lógica de negocio del modelo de base de datos.
     """
 
@@ -229,14 +231,21 @@ class CalculadoraBarraService:
         TOTAL_TRAGOS = c.num_personas * c.horas_servicio * tragos_ph
 
         pesos = {}
-        if checks['cerveza']: pesos['cerveza'] = 55
-        if checks['nacional']: pesos['nacional'] = 35
-        if checks['premium']: pesos['premium'] = 25
-        if checks['coctel_base']: pesos['coctel_base'] = 20
-        if checks['coctel_prem']: pesos['coctel_prem'] = 15
+        if checks['cerveza']:
+            pesos['cerveza'] = 55
+        if checks['nacional']:
+            pesos['nacional'] = 35
+        if checks['premium']:
+            pesos['premium'] = 25
+        if checks['coctel_base']:
+            pesos['coctel_base'] = 20
+        if checks['coctel_prem']:
+            pesos['coctel_prem'] = 15
         if checks['refrescos']:
-            if not pesos: pesos['refrescos'] = 100
-            else: pesos['refrescos'] = 15
+            if not pesos:
+                pesos['refrescos'] = 100
+            else:
+                pesos['refrescos'] = 15
 
         total_peso = sum(pesos.values()) or 1
 
@@ -335,7 +344,8 @@ class CalculadoraBarraService:
         ratio_barman = 40 if (checks['coctel_base'] or checks['coctel_prem']) else 50
         num_barmans = math.ceil(c.num_personas / ratio_barman)
         num_auxiliares = math.ceil(num_barmans / 2)
-        if num_barmans > 1 and num_auxiliares == 0: num_auxiliares = 1
+        if num_barmans > 1 and num_auxiliares == 0:
+            num_auxiliares = 1
 
         C_BARMAN = self._get_costo(c.insumo_barman, 'COSTO_BARMAN', '1200.00')
         C_AUX = self._get_costo(c.insumo_auxiliar, 'COSTO_AUXILIAR', '800.00')
@@ -408,11 +418,16 @@ def actualizar_item_cotizacion(cotizacion):
             Decimal('0.01'), rounding=ROUND_HALF_UP
         )
         partes = []
-        if cotizacion.incluye_cerveza: partes.append("Cerveza")
-        if cotizacion.incluye_licor_nacional: partes.append("Nacional")
-        if cotizacion.incluye_licor_premium: partes.append("Premium")
-        if cotizacion.incluye_cocteleria_basica: partes.append("Cocteles")
-        if cotizacion.incluye_cocteleria_premium: partes.append("Mixología")
+        if cotizacion.incluye_cerveza:
+            partes.append("Cerveza")
+        if cotizacion.incluye_licor_nacional:
+            partes.append("Nacional")
+        if cotizacion.incluye_licor_premium:
+            partes.append("Premium")
+        if cotizacion.incluye_cocteleria_basica:
+            partes.append("Cocteles")
+        if cotizacion.incluye_cocteleria_premium:
+            partes.append("Mixología")
 
         info = "/".join(partes) if partes else "Básico"
         clima_tag = "" if cotizacion.clima in ['calor', 'extremo'] else ""
@@ -432,13 +447,15 @@ def actualizar_item_cotizacion(cotizacion):
                 precio_unitario=precio
             )
     else:
-        if item_barra: item_barra.delete()
+        if item_barra:
+            item_barra.delete()
 
 
 # ==========================================
 # PLAN DE PAGOS
 # ==========================================
 from datetime import timedelta
+
 from django.utils import timezone
 
 
@@ -464,10 +481,14 @@ class PlanPagosService:
         self.cotizacion = cotizacion
 
     def _get_esquema(self, dias_anticipacion):
-        if dias_anticipacion >= 120: return self.ESQUEMAS['largo']
-        elif dias_anticipacion >= 60: return self.ESQUEMAS['medio']
-        elif dias_anticipacion >= 30: return self.ESQUEMAS['corto']
-        else: return self.ESQUEMAS['urgente']
+        if dias_anticipacion >= 120:
+            return self.ESQUEMAS['largo']
+        elif dias_anticipacion >= 60:
+            return self.ESQUEMAS['medio']
+        elif dias_anticipacion >= 30:
+            return self.ESQUEMAS['corto']
+        else:
+            return self.ESQUEMAS['urgente']
 
     def _generar_esquema_personalizado(self, num_parcialidades):
         porcentaje_base = round(100 / num_parcialidades, 2)
@@ -475,9 +496,12 @@ class PlanPagosService:
         porcentajes[-1] = round(100 - sum(porcentajes[:-1]), 2)
         conceptos = []
         for i in range(num_parcialidades):
-            if i == 0: conceptos.append('Anticipo')
-            elif i == num_parcialidades - 1: conceptos.append('Liquidación')
-            else: conceptos.append(f'Parcialidad {i + 1}')
+            if i == 0:
+                conceptos.append('Anticipo')
+            elif i == num_parcialidades - 1:
+                conceptos.append('Liquidación')
+            else:
+                conceptos.append(f'Parcialidad {i + 1}')
         return {'parcialidades': porcentajes, 'conceptos': conceptos}
 
     def _calcular_fechas(self, fecha_contratacion, fecha_evento, num_parcialidades):
@@ -500,7 +524,7 @@ class PlanPagosService:
         return fechas
 
     def generar(self, usuario=None, num_parcialidades=None):
-        from .models import PlanPago, ParcialidadPago
+        from .models import ParcialidadPago, PlanPago
 
         cotizacion = self.cotizacion
         monto_total = cotizacion.precio_final
@@ -581,12 +605,18 @@ class ContratoService:
         for item in self.cot.items.select_related('producto').all():
             partes.append(item.descripcion or (item.producto.nombre if item.producto else ""))
         barra = []
-        if self.cot.incluye_refrescos:          barra.append("Refrescos/Mezcladores")
-        if self.cot.incluye_cerveza:            barra.append("Cerveza")
-        if self.cot.incluye_licor_nacional:     barra.append("Licor Nacional")
-        if self.cot.incluye_licor_premium:      barra.append("Licor Premium")
-        if self.cot.incluye_cocteleria_basica:  barra.append("Coctelería")
-        if self.cot.incluye_cocteleria_premium: barra.append("Mixología")
+        if self.cot.incluye_refrescos:
+            barra.append("Refrescos/Mezcladores")
+        if self.cot.incluye_cerveza:
+            barra.append("Cerveza")
+        if self.cot.incluye_licor_nacional:
+            barra.append("Licor Nacional")
+        if self.cot.incluye_licor_premium:
+            barra.append("Licor Premium")
+        if self.cot.incluye_cocteleria_basica:
+            barra.append("Coctelería")
+        if self.cot.incluye_cocteleria_premium:
+            barra.append("Mixología")
         if barra:
             partes.append("Barra: " + ", ".join(barra))
         return " | ".join(filter(None, partes)) or "Según cotización adjunta"
@@ -627,7 +657,7 @@ class ContratoService:
         Genera el PDF del contrato y retorna (pdf_bytes, numero_contrato).
         """
         import os
-        from django.conf import settings
+
         from django.template.loader import render_to_string
         from weasyprint import HTML
 
@@ -731,6 +761,7 @@ def analizar_xml_compra(xml_content):
     app `contabilidad` en el import de nivel de módulo.
     """
     import xml.etree.ElementTree as ET
+
     from .models import Compra
 
     try:
