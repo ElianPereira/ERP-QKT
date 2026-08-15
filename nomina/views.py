@@ -378,8 +378,9 @@ def webhook_sync_jibble(request):
         })
     except JibbleAPIError as e:
         return JsonResponse({'error': f'Jibble API: {e}'}, status=502)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+    except Exception:
+        logger.exception("Error inesperado sincronizando Jibble (%s a %s).", fecha_inicio, fecha_fin)
+        return JsonResponse({'error': 'Error inesperado al sincronizar con Jibble.'}, status=500)
 
 
 # ==========================================

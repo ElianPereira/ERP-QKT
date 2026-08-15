@@ -364,8 +364,9 @@ def api_disponibilidad_fecha(request):
     try:
         from airbnb.validacion_fechas import verificar_disponibilidad_fecha
         disponible, mensaje = verificar_disponibilidad_fecha(fecha)
-    except Exception as e:
-        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+    except Exception:
+        logger.exception("Error al verificar disponibilidad de la fecha %s.", fecha)
+        return JsonResponse({'ok': False, 'error': 'No se pudo verificar la disponibilidad.'}, status=500)
     return JsonResponse({
         'ok': True,
         'fecha': fecha.strftime('%Y-%m-%d'),
@@ -389,8 +390,9 @@ def api_fechas_ocupadas(request):
     try:
         from airbnb.validacion_fechas import obtener_fechas_bloqueadas
         bloqueos = obtener_fechas_bloqueadas(hoy, fin)
-    except Exception as e:
-        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+    except Exception:
+        logger.exception("Error al obtener las fechas bloqueadas (%s a %s).", hoy, fin)
+        return JsonResponse({'ok': False, 'error': 'No se pudieron obtener las fechas ocupadas.'}, status=500)
 
     fechas = set()
     for b in bloqueos:
