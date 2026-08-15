@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -17,6 +18,7 @@ from .models import (
     MovimientoEstadoCuenta,
     UnidadNegocio,
 )
+from .services import cerrar_historico_contable
 
 
 def _parse_periodo(request):
@@ -243,3 +245,67 @@ def _a_decimal(texto):
         return Decimal(limpio)
     except (InvalidOperation, ValueError):
         return None
+
+
+# ==========================================
+# CIERRE DEL HISTÓRICO CONTABLE
+# ==========================================
+
+@staff_member_required
+def cerrar_historico_view(request):
+    """Arranca la contabilidad del ERP en una fecha, desde el navegador.
+
+    Misma lógica que `manage.py cerrar_historico_contable`, para cuando no hay
+    una terminal con las variables de producción a mano. GET solo explica y
+    previsualiza; hay que elegir explícitamente simular o aplicar.
+    """
+    # staff_member_required solo comprueba is_staff: esto saca de los libros
+    # toda la contabilidad previa a una fecha. Es de Dirección, igual que
+    # autorizar una regularización.
+    if not request.user.is_superuser:
+        raise PermissionDenied(
+            "Solo Dirección puede cerrar el histórico contable."
+        )
+
+    context = {
+        **admin.site.each_context(request),
+        'title': "Arrancar la contabilidad del ERP en una fecha",
+        'informe': None,
+        'error': None,
+        'fecha_sugerida': _fecha_corte_sugerida(),
+        'fecha_usada': '',
+    }
+
+    if request.method != 'POST':
+        return render(request, 'admin/cerrar_historico_contable.html', context)
+
+    fecha = (request.POST.get('fecha_corte') or '').strip()
+    context['fecha_usada'] = fecha
+    aplicar = request.POST.get('accion') == 'aplicar'
+
+    try:
+        context['informe'] = cerrar_historico_contable(
+            fecha, usuario=request.user, aplicar=aplicar,
+        )
+    except (ValueError, TypeError) as e:
+        context['error'] = str(e)
+
+    return render(request, 'admin/cerrar_historico_contable.html', context)
+
+
+def _fecha_corte_sugerida():
+    """Último día del mes anterior al del primer estado de cuenta procesado.
+
+    Es la fecha natural de corte: los libros del ERP arrancan donde arranca el
+    primer estado de cuenta que se cargó.
+    """
+    primero = (
+        EstadoCuentaBancario.objects
+        .filter(estado='PROCESADO')
+        .order_by('periodo_anio', 'periodo_mes')
+        .first()
+    )
+    if not primero:
+        return ''
+    inicio = date(primero.periodo_anio, primero.periodo_mes, 1)
+    return (inicio - timedelta(days=1)).isoformat()

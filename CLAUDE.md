@@ -75,6 +75,31 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-15 — Arranque de la contabilidad del ERP en una fecha
+  (`cerrar_historico_contable`, `/admin/contabilidad/reportes/cerrar-historico/`).
+  El propietario confirmó que **los periodos anteriores a julio ya los cerró el
+  contador fuera del ERP**: las pólizas previas del sistema no son los libros,
+  son captura parcial, y lo único que hacían era arrastrar descuadres a la
+  conciliación bancaria (la `diferencia_arrastrada` de −$226,730.45 que motivó
+  todo esto). **Cancela, no borra**, y esa es la decisión de fondo: una póliza
+  `CANCELADA` conserva movimientos, folio y auditoría pero queda fuera de todo
+  saldo y todo reporte, porque en el ERP entero solo suma `estado='APLICADA'`.
+  Borrarlas sí sería destructivo — están ligadas por `content_type` a pagos,
+  compras, recibos de nómina y pagos de Airbnb que siguen vivos, y los
+  `MovimientoContable` desaparecerían. Cancela también los **BORRADOR**
+  anteriores al corte: si se quedaran vivos, alguien podría aplicarlos después y
+  volver a meter movimiento en un periodo ya cerrado. Es de `is_superuser`
+  (Dirección) y simula por defecto, en las dos vías. **Ojo con los signals**: si
+  se reguarda un `Pago`/`Compra`/`ReciboNomina`/`PagoAirbnb` anterior al corte,
+  su signal reexpide la póliza con la fecha vieja y vuelve a colarse en el
+  histórico — no se bloqueó porque sería alcance no pedido, pero es el hueco
+  conocido de este mecanismo. El paso que **no** hace el cierre y sin el cual el
+  ERP cree que las cuentas arrancan en cero: capturar el saldo de apertura
+  certificado en `/admin/contabilidad/saldoapertura/`. Las plantillas de admin
+  one-shot del repo (`migrar_archivos_privados.html`) usan paneles con fondo
+  claro (`#e3f2fd`, `#fff3cd`) que en el tema oscuro de Jazzmin dejan el texto
+  ilegible; aquí se usó fondo translúcido + borde izquierdo de color, como en
+  `static/contabilidad/conciliacion.css`.
 - 2026-08-15 — Orden 25 del backlog de seguridad (`SEC-INFO-001`): las tres
   vistas públicas que devolvían `str(e)` crudo en el cuerpo de un 500 —
   `api_disponibilidad_fecha`/`api_fechas_ocupadas` (`comercial/views_cotizador.py`)

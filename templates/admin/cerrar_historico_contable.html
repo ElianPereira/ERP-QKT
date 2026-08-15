@@ -1,0 +1,132 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Arrancar la contabilidad en una fecha{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="background:rgba(52,152,219,.10);border-left:4px solid #3498db;border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;line-height:1.6;">
+  Deja fuera de la contabilidad del ERP <strong>todas las pólizas hasta la fecha que
+  elijas</strong>, para que los libros del sistema arranquen ahí. Es para cuando los
+  periodos anteriores ya los cerró el contador fuera del ERP: las pólizas previas del
+  sistema no son los libros, son captura parcial, y lo único que hacen es arrastrar
+  descuadres a la conciliación bancaria.
+  <br><br>
+  <strong>Cancela, no borra.</strong> Una póliza cancelada conserva sus movimientos,
+  su folio y su auditoría, pero deja de sumar en cualquier saldo y en cualquier
+  reporte. Nada se pierde: se puede consultar en Pólizas filtrando por estado
+  «Cancelada».
+  <br><br>
+  Empieza por <em>simular</em>: no escribe nada, solo dice qué haría.
+</div>
+
+<div style="background:rgba(230,126,34,.12);border-left:4px solid #e67e22;border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;line-height:1.6;">
+  <strong>⚠ Después de cerrar, la balanza y el estado de resultados de los meses
+  anteriores saldrán en cero.</strong> Es el resultado buscado —el ERP deja de
+  afirmar que tiene esa contabilidad— pero conviene que lo sepas antes.
+  <br><br>
+  <strong>Y falta un paso al final:</strong> capturar en
+  <a href="/admin/contabilidad/saldoapertura/">Saldos de apertura</a> el saldo real
+  de cada cuenta bancaria a la fecha de corte, leyéndolo del estado de cuenta del
+  banco. Sin eso, el ERP creerá que las cuentas arrancan en cero.
+</div>
+
+{% if error %}
+  <div style="background:rgba(231,76,60,.12);border-left:4px solid #e74c3c;border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;">
+    <strong>❌ {{ error }}</strong>
+  </div>
+{% endif %}
+
+<form method="post" style="background:rgba(255,255,255,.04);border-radius:4px;padding:16px;margin-bottom:24px;max-width:64em;">
+  {% csrf_token %}
+  <label for="fecha_corte"><strong>Cerrar todo hasta esta fecha, inclusive:</strong></label>
+  <input type="date" id="fecha_corte" name="fecha_corte"
+         value="{{ fecha_usada|default:fecha_sugerida }}" required
+         style="margin:0 12px;padding:6px 10px;">
+  {% if fecha_sugerida %}
+    <span style="color:#95a5a6;font-size:12px;">
+      Sugerida: {{ fecha_sugerida }} — el día antes del primer estado de cuenta cargado.
+    </span>
+  {% endif %}
+  <div style="margin-top:16px;">
+    <button type="submit" name="accion" value="simular"
+            style="background:#3498db;color:#fff;border:0;border-radius:4px;padding:8px 18px;font-weight:600;cursor:pointer;">
+      Simular
+    </button>
+    <button type="submit" name="accion" value="aplicar"
+            onclick="return confirm('Se cancelarán todas las pólizas hasta la fecha indicada. Sus movimientos se conservan, pero dejarán de contar en saldos y reportes. ¿Continuar?');"
+            style="background:#e74c3c;color:#fff;border:0;border-radius:4px;padding:8px 18px;font-weight:600;cursor:pointer;margin-left:8px;">
+      Aplicar
+    </button>
+  </div>
+</form>
+
+{% if informe %}
+  <div style="background:{% if informe.aplicado %}rgba(39,174,96,.12){% else %}rgba(255,255,255,.04){% endif %};border-left:4px solid {% if informe.aplicado %}#27ae60{% else %}#95a5a6{% endif %};border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;line-height:1.6;">
+    <strong>
+      {% if informe.aplicado %}
+        ✅ Cierre aplicado: {{ informe.canceladas }} póliza(s) canceladas.
+      {% else %}
+        🔍 Simulación — no se escribió nada.
+      {% endif %}
+    </strong>
+    <br>
+    Fecha de corte: <strong>{{ informe.fecha_corte|date:"d/m/Y" }}</strong> ·
+    Pólizas afectadas: <strong>{{ informe.total }}</strong>
+    {% if informe.aplicado %}
+      <br><br>
+      <strong>Siguiente paso:</strong> captura el saldo real de cada cuenta al
+      {{ informe.fecha_corte|date:"d/m/Y" }} en
+      <a href="/admin/contabilidad/saldoapertura/">Saldos de apertura</a>, y vuelve a
+      generar la conciliación desde su estado de cuenta.
+    {% endif %}
+  </div>
+
+  {% if informe.total %}
+    <div style="display:flex;gap:24px;flex-wrap:wrap;max-width:64em;">
+      <table style="border-collapse:collapse;">
+        <thead><tr><th colspan="2" style="text-align:left;padding:6px 12px;">Por periodo</th></tr></thead>
+        <tbody>
+        {% for periodo, cuantas in informe.por_periodo.items %}
+          <tr><td style="padding:4px 12px;">{{ periodo }}</td>
+              <td style="padding:4px 12px;text-align:right;">{{ cuantas }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      <table style="border-collapse:collapse;">
+        <thead><tr><th colspan="2" style="text-align:left;padding:6px 12px;">Por origen</th></tr></thead>
+        <tbody>
+        {% for origen, cuantas in informe.por_origen.items %}
+          <tr><td style="padding:4px 12px;">{{ origen }}</td>
+              <td style="padding:4px 12px;text-align:right;">{{ cuantas }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <table style="border-collapse:collapse;margin-top:24px;max-width:64em;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:6px 12px;">Cuenta bancaria</th>
+          <th style="text-align:right;padding:6px 12px;">Saldo al corte, antes</th>
+          <th style="text-align:right;padding:6px 12px;">Saldo al corte, después</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for fila in informe.cuentas %}
+        <tr>
+          <td style="padding:4px 12px;">{{ fila.cuenta }}</td>
+          <td style="padding:4px 12px;text-align:right;">${{ fila.saldo_antes|floatformat:2 }}</td>
+          <td style="padding:4px 12px;text-align:right;">${{ fila.saldo_despues|floatformat:2 }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p style="color:#95a5a6;font-size:12px;max-width:64em;">
+      El saldo «después» es lo que el ERP creerá que hay en la cuenta a la fecha de
+      corte una vez cerrado el histórico. Ese es el número que hay que sustituir por
+      el saldo real del banco, capturándolo en Saldos de apertura.
+    </p>
+  {% endif %}
+{% endif %}
+{% endblock %}

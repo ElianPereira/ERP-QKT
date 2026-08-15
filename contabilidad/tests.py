@@ -36,6 +36,7 @@ from contabilidad.models import (
 from contabilidad.services import (
     aplicar_saldo_apertura,
     aprobar_regularizacion_arrastre,
+    cerrar_historico_contable,
     proponer_regularizacion_arrastre,
 )
 from contabilidad.services_estados_cuenta import (
@@ -1808,3 +1809,158 @@ class RegularizacionArrastreTest(TestCase):
         )
         with self.assertRaises(ValueError):
             aprobar_regularizacion_arrastre(poliza, usuario=self.direccion)
+
+
+class CerrarHistoricoContableTest(TestCase):
+    """
+    Arrancar los libros del ERP en una fecha: cancela lo anterior, no lo borra.
+    """
+
+    def setUp(self):
+        self.direccion = User.objects.create_superuser('direccion_cierre', 'd@qkt.mx', 'x')
+        self.contador = User.objects.create_user(
+            'contador_cierre', password='x', is_staff=True,
+        )
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Cierre', banco='BBVA',
+            clabe='012345678901234577', cuenta_contable=self.cuenta_banco,
+        )
+        self.vieja = self._poliza(date(2026, 3, 5), debe=Decimal('41968.96'))
+        self.borrador_viejo = self._poliza(
+            date(2026, 5, 20), debe=Decimal('100.00'), estado='BORRADOR',
+        )
+        self.nueva = self._poliza(date(2026, 7, 10), debe=Decimal('1500.00'))
+        self.url = reverse('contabilidad:cerrar_historico')
+
+    def _poliza(self, fecha, debe=Decimal('0.00'), estado='APLICADA'):
+        poliza = Poliza.objects.create(
+            tipo='I', folio=Poliza.siguiente_folio('I', fecha), fecha=fecha,
+            concepto='Movimiento', unidad_negocio=self.unidad, estado=estado,
+            origen='MANUAL', created_by=self.direccion,
+        )
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=self.cuenta_banco, debe=debe, concepto='x',
+        )
+        return poliza
+
+    # -- El servicio ---------------------------------------------------
+
+    def test_simular_no_escribe_nada(self):
+        informe = cerrar_historico_contable(
+            date(2026, 6, 30), usuario=self.direccion, aplicar=False,
+        )
+        self.assertEqual(informe['total'], 2)
+        self.assertFalse(informe['aplicado'])
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'APLICADA')
+
+    def test_cancela_lo_anterior_y_respeta_lo_posterior(self):
+        cerrar_historico_contable(date(2026, 6, 30), usuario=self.direccion, aplicar=True)
+
+        self.vieja.refresh_from_db()
+        self.borrador_viejo.refresh_from_db()
+        self.nueva.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'CANCELADA')
+        # Los borradores viejos también: si no, alguien podría aplicarlos
+        # después y volver a meter movimiento en un periodo ya cerrado.
+        self.assertEqual(self.borrador_viejo.estado, 'CANCELADA')
+        self.assertEqual(self.nueva.estado, 'APLICADA')
+
+    def test_no_borra_las_polizas_ni_sus_movimientos(self):
+        polizas_antes = Poliza.objects.count()
+        movimientos_antes = MovimientoContable.objects.count()
+
+        cerrar_historico_contable(date(2026, 6, 30), usuario=self.direccion, aplicar=True)
+
+        self.assertEqual(Poliza.objects.count(), polizas_antes)
+        self.assertEqual(MovimientoContable.objects.count(), movimientos_antes)
+        self.assertEqual(self.vieja.movimientos.count(), 1)
+
+    def test_asienta_quien_lo_hizo_y_por_que(self):
+        cerrar_historico_contable(date(2026, 6, 30), usuario=self.direccion, aplicar=True)
+
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.cancelada_por, self.direccion)
+        self.assertIsNotNone(self.vieja.fecha_cancelacion)
+        self.assertIn('Cierre de histórico', self.vieja.motivo_cancelacion)
+
+    def test_el_saldo_de_bancos_deja_de_arrastrar_el_historico(self):
+        antes = self.cuenta_bancaria.saldo_a_fecha(date(2026, 6, 30))
+        self.assertEqual(antes, Decimal('41968.96'))
+
+        cerrar_historico_contable(date(2026, 6, 30), usuario=self.direccion, aplicar=True)
+
+        self.assertEqual(self.cuenta_bancaria.saldo_a_fecha(date(2026, 6, 30)), Decimal('0.00'))
+        # Lo de julio sigue intacto.
+        self.assertEqual(self.cuenta_bancaria.saldo_a_fecha(date(2026, 7, 31)), Decimal('1500.00'))
+
+    def test_rechaza_una_fecha_futura(self):
+        with self.assertRaises(ValueError):
+            cerrar_historico_contable(
+                date.today() + timedelta(days=1), usuario=self.direccion, aplicar=True,
+            )
+
+    def test_es_idempotente(self):
+        cerrar_historico_contable(date(2026, 6, 30), usuario=self.direccion, aplicar=True)
+        segundo = cerrar_historico_contable(
+            date(2026, 6, 30), usuario=self.direccion, aplicar=True,
+        )
+        self.assertEqual(segundo['total'], 0)
+
+    # -- La pantalla ---------------------------------------------------
+
+    def test_solo_direccion_entra(self):
+        self.client.force_login(self.contador)
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(
+            self.client.post(self.url, {'fecha_corte': '2026-06-30', 'accion': 'aplicar'}).status_code,
+            403,
+        )
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'APLICADA')
+
+    def test_direccion_simula_desde_la_pantalla(self):
+        self.client.force_login(self.direccion)
+        respuesta = self.client.post(
+            self.url, {'fecha_corte': '2026-06-30', 'accion': 'simular'},
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'APLICADA')
+
+    def test_direccion_aplica_desde_la_pantalla(self):
+        self.client.force_login(self.direccion)
+        respuesta = self.client.post(
+            self.url, {'fecha_corte': '2026-06-30', 'accion': 'aplicar'},
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'CANCELADA')
+
+    def test_una_fecha_invalida_no_revienta_la_pantalla(self):
+        self.client.force_login(self.direccion)
+        respuesta = self.client.post(
+            self.url, {'fecha_corte': 'no-es-fecha', 'accion': 'simular'},
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'APLICADA')
+
+    def test_el_comando_simula_por_defecto(self):
+        salida = StringIO()
+        call_command('cerrar_historico_contable', '--hasta', '2026-06-30', stdout=salida)
+        self.assertIn('SIMULACIÓN', salida.getvalue())
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'APLICADA')
+
+    def test_el_comando_aplica_con_la_bandera(self):
+        salida = StringIO()
+        call_command(
+            'cerrar_historico_contable', '--hasta', '2026-06-30', '--aplicar',
+            '--usuario', 'direccion_cierre', stdout=salida,
+        )
+        self.vieja.refresh_from_db()
+        self.assertEqual(self.vieja.estado, 'CANCELADA')
+        self.assertEqual(self.vieja.cancelada_por, self.direccion)
