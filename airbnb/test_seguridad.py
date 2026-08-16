@@ -2,16 +2,25 @@
 Tests de seguridad del módulo Airbnb
 ====================================
 
-Regresiones de dos hallazgos de la auditoría del Issue #190:
+Regresiones de tres hallazgos de la auditoría del Issue #190:
 
   - SEC-XSS-001: el calendario del admin interpolaba con |safe el resultado
     de json.dumps dentro de un <script>. json.dumps no escapa <, > ni &, así
     que un nombre con "</script>" —que el cotizador público acepta sin
     autenticación— cerraba el bloque e inyectaba HTML en la sesión de staff.
+    Desde la orden 44 (SEC-DOS-001) los eventos ya no viajan embebidos en el
+    HTML de la página: la vista solo entrega la URL de un endpoint JSON que
+    FullCalendar consulta por AJAX, así que la clase de vulnerabilidad
+    (romper un bloque <script>) ya no aplica a ese endpoint — se sirve como
+    `application/json`, nunca interpretado como HTML/JS por el navegador.
 
   - SEC-DATA-001: el feed iCal se saltaba la validación entera cuando
     ICAL_PUBLIC_TOKEN no estaba configurado, y publicaba el nombre de cada
     cliente con su evento, sus asistentes y su fecha.
+
+  - SEC-DOS-001: `calendario_unificado` consultaba el histórico completo de
+    cotizaciones/reservas/asignaciones en cada carga de página. Ahora solo
+    consulta el rango que pide `calendario_unificado_eventos` (start/end).
 """
 import time
 from datetime import date, timedelta
@@ -36,50 +45,107 @@ class CalendarioAdminXssTest(TestCase):
             username='staff_seguridad', password='Segura-190!', is_staff=True, is_superuser=True,
         )
         self.client.force_login(self.staff)
+        self.fecha_evento = date.today() + timedelta(days=15)
 
     def _cotizacion(self, nombre_cliente, nombre_evento):
         cliente = Cliente.objects.create(nombre=nombre_cliente, telefono='9990000000')
         return Cotizacion.objects.create(
             cliente=cliente,
             nombre_evento=nombre_evento,
-            fecha_evento=date.today() + timedelta(days=15),
+            fecha_evento=self.fecha_evento,
             estado='COTIZADA',
         )
 
-    def _afirmar_payload_neutralizado(self, cuerpo):
-        """El texto del atacante puede aparecer —es el nombre que se muestra—
-        pero nunca como marcado ejecutable: json_script escapa < y > a \\u003C
-        y \\u003E, así que el </script> del payload no cierra nada."""
-        self.assertNotIn('</script><script>', cuerpo)
-        self.assertIn('\\u003C/script\\u003E', cuerpo)
-        self.assertIn('id="eventos-data" type="application/json"', cuerpo)
+    def _eventos(self):
+        # Rango que cubre self.fecha_evento con margen de sobra.
+        inicio = (self.fecha_evento - timedelta(days=5)).isoformat()
+        fin = (self.fecha_evento + timedelta(days=5)).isoformat()
+        return self.client.get(reverse('calendario_unificado_eventos'), {'start': inicio, 'end': fin})
 
-    def test_nombre_de_cliente_con_script_no_rompe_el_bloque(self):
+    def test_la_pagina_del_calendario_no_embebe_datos_de_eventos(self):
+        # La vulnerabilidad original era interpolar datos de usuario dentro
+        # de un <script> embebido en la página; ahora la página no trae
+        # ningún evento, solo la URL del endpoint que FullCalendar consulta.
         self._cotizacion(PAYLOAD, 'Evento normal')
 
         cuerpo = self.client.get(reverse('calendario_unificado')).content.decode()
 
-        self._afirmar_payload_neutralizado(cuerpo)
+        self.assertNotIn('</script><script>', cuerpo)
+        self.assertNotIn(PAYLOAD, cuerpo)
+        self.assertIn('id="eventos-url"', cuerpo)
 
-    def test_nombre_de_evento_con_script_no_rompe_el_bloque(self):
+    def test_nombre_de_cliente_con_script_no_se_sirve_como_html(self):
+        self._cotizacion(PAYLOAD, 'Evento normal')
+
+        respuesta = self._eventos()
+
+        self.assertEqual(respuesta.headers['Content-Type'], 'application/json')
+        eventos = respuesta.json()
+        self.assertTrue(any(PAYLOAD in e['title'] for e in eventos))
+
+    def test_nombre_de_evento_con_script_no_se_sirve_como_html(self):
         # El cotizador público arma nombre_evento con texto del formulario,
         # así que este campo es tan controlable por el atacante como el otro.
         self._cotizacion('Cliente normal', PAYLOAD)
 
-        cuerpo = self.client.get(reverse('calendario_unificado')).content.decode()
+        respuesta = self._eventos()
 
-        self._afirmar_payload_neutralizado(cuerpo)
+        self.assertEqual(respuesta.headers['Content-Type'], 'application/json')
+        eventos = respuesta.json()
+        self.assertTrue(any(PAYLOAD in e['title'] for e in eventos))
 
     def test_el_calendario_sigue_entregando_los_eventos(self):
-        # Que no se rompa el escapado a costa de dejar de renderizar.
         self._cotizacion('Cliente Legítimo', 'Boda de prueba')
 
-        respuesta = self.client.get(reverse('calendario_unificado'))
-        cuerpo = respuesta.content.decode()
+        respuesta = self._eventos()
+        eventos = respuesta.json()
 
         self.assertEqual(respuesta.status_code, 200)
-        self.assertIn('id="eventos-data"', cuerpo)
-        self.assertIn('Boda de prueba', cuerpo)
+        self.assertTrue(any('Boda de prueba' in e['title'] for e in eventos))
+
+
+class CalendarioEventosRangoTest(TestCase):
+    """SEC-DOS-001 — calendario_unificado_eventos solo consulta el rango
+    pedido, no el histórico completo."""
+
+    def setUp(self):
+        self.staff = get_user_model().objects.create_user(
+            username='staff_rango', password='Segura-190!', is_staff=True, is_superuser=True,
+        )
+        self.client.force_login(self.staff)
+
+    def _cotizacion(self, nombre_evento, fecha_evento):
+        cliente = Cliente.objects.create(nombre='Cliente Rango', telefono='9990000001')
+        return Cotizacion.objects.create(
+            cliente=cliente, nombre_evento=nombre_evento, fecha_evento=fecha_evento, estado='COTIZADA',
+        )
+
+    def test_un_evento_fuera_del_rango_pedido_no_se_incluye(self):
+        self._cotizacion('Dentro del rango', date(2027, 6, 15))
+        self._cotizacion('Fuera del rango', date(2030, 1, 1))
+
+        respuesta = self.client.get(
+            reverse('calendario_unificado_eventos'), {'start': '2027-06-01', 'end': '2027-07-01'},
+        )
+        titulos = [e['title'] for e in respuesta.json()]
+
+        self.assertTrue(any('Dentro del rango' in t for t in titulos))
+        self.assertFalse(any('Fuera del rango' in t for t in titulos))
+
+    def test_sin_start_o_end_responde_400_en_vez_de_devolver_todo(self):
+        respuesta = self.client.get(reverse('calendario_unificado_eventos'))
+        self.assertEqual(respuesta.status_code, 400)
+
+    def test_staff_sin_permiso_recibe_403(self):
+        staff_sin_permiso = get_user_model().objects.create_user(
+            username='staff_sin_permiso_calendario', password='Segura-190!', is_staff=True,
+        )
+        self.client.force_login(staff_sin_permiso)
+
+        respuesta = self.client.get(
+            reverse('calendario_unificado_eventos'), {'start': '2027-06-01', 'end': '2027-07-01'},
+        )
+        self.assertEqual(respuesta.status_code, 403)
 
 
 @override_settings(ICAL_PUBLIC_TOKEN=TOKEN)

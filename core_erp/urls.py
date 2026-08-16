@@ -46,9 +46,14 @@ from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
 
 try:
-    from airbnb.views import bloquear_en_airbnb, calendario_unificado, reporte_pagos_airbnb
+    from airbnb.views import (
+        bloquear_en_airbnb,
+        calendario_unificado,
+        calendario_unificado_eventos,
+        reporte_pagos_airbnb,
+    )
 except ImportError:
-    calendario_unificado = reporte_pagos_airbnb = bloquear_en_airbnb = None
+    calendario_unificado = calendario_unificado_eventos = reporte_pagos_airbnb = bloquear_en_airbnb = None
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +148,7 @@ urlpatterns = [
     # --- 5.MÓDULO AIRBNB ---
 
     path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
+    path('admin/airbnb/calendario/eventos/', calendario_unificado_eventos, name='calendario_unificado_eventos'),
     path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
     path('admin/airbnb/bloquear/<int:cotizacion_id>/', bloquear_en_airbnb, name='bloquear_en_airbnb'),
 
