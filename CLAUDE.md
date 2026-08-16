@@ -75,6 +75,37 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 36 del backlog de seguridad (`SEC-LOG-001`): logger
+  `django.security` declarado explícitamente en `LOGGING`
+  (`core_erp/settings.py`) + `core_erp/middleware.py::AuthorizationAuditMiddleware`
+  nuevo, registrado justo después de `AuthenticationMiddleware` en
+  `MIDDLEWARE`. **Por qué un middleware y no tocar cada vista**: hay tres
+  formas de llegar a un 403 en el repo (`raise PermissionDenied` ad hoc en
+  3 sitios, `@permission_required(raise_exception=True)` en decenas de
+  vistas, y en teoría un `HttpResponseForbidden` manual) — instrumentar
+  cada una por separado se habría quedado corto en cuanto alguien añadiera
+  la siguiente vista protegida. El middleware inspecciona la **respuesta**
+  (`response.status_code == 403`) después de `get_response()`, no la
+  excepción: cubre las tres formas por igual sin importar cómo se generó
+  el 403, con el mismo patrón (post-respuesta, no `process_exception`) que
+  ya usa `PublicSecurityHeadersMiddleware` en el mismo archivo.
+  `propagate=False` en la entrada de `django.security` es necesario: sin
+  eso, cualquier mensaje logueado ahí (el nuestro, o los que Django ya trae
+  de fábrica como `django.security.DisallowedHost`/`django.security.csrf`)
+  se duplicaría también en el logger `django`, que ya tiene el mismo
+  handler de consola y lo recibiría igual por herencia. El criterio de
+  aceptación del backlog (una petición con `Host` inválido produce una
+  línea identificable) en realidad **ya lo cumplía Django solo** —
+  `django.security.DisallowedHost` es un logger de fábrica que hereda del
+  padre `django`, que ya tenía handler—; declarar `django.security`
+  explícito no lo activa, lo hace *filtrable* aparte del resto del tráfico
+  y a prueba de que alguien cambie la config de `django` sin darse cuenta
+  de que también silenciaría la seguridad. Tests nuevos en
+  `core_erp/test_middleware.py`: un 403 real (`importar_historico_view`
+  sin superusuario) deja `usuario=<username> ruta=<path>` en el log; una
+  respuesta 200 no genera ninguna línea (`assertNoLogs`); y el caso
+  `Host` inválido del propio criterio de aceptación, con
+  `override_settings(ALLOWED_HOSTS=[...])`.
 - 2026-08-16 — Orden 33 del backlog de seguridad (`SEC-SECRET-002`):
   auditoría de secretos sobre el **historial completo** del repositorio,
   no solo el árbol de trabajo actual (eso es el gate continuo de la orden

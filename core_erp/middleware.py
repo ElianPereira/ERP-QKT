@@ -24,7 +24,11 @@ Toggles de entorno:
   - PUBLIC_CSP_REPORT_ONLY (default False): la CSP pública en modo prueba.
   - PORTAL_CSP_REPORT_ONLY (default False): activa la CSP Report-Only del portal.
 """
+import logging
+
 from django.conf import settings
+
+logger_seguridad = logging.getLogger('django.security')
 
 # --- Permissions-Policy: seguro en todo el sitio (no incluye 'payment' para no
 # interferir con Openpay/3-D Secure en el portal de pago). ---
@@ -111,4 +115,30 @@ class PublicSecurityHeadersMiddleware:
         ):
             response['Content-Security-Policy-Report-Only'] = PORTAL_CSP_REPORT_ONLY_POLICY
 
+        return response
+
+
+class AuthorizationAuditMiddleware:
+    """Registra explícitamente cada 403 de autorización, con quién y qué ruta.
+
+    Se apoya en la respuesta (no en un `process_exception`) para cubrir por
+    igual el `raise PermissionDenied`/`@permission_required(raise_exception=
+    True)` y cualquier vista que regrese un 403 manual sin lanzar excepción.
+    Django ya loguea el 403 en `django.request` (solo la ruta y el status);
+    esta línea aparte añade el usuario y queda en un logger propio
+    (`django.security`) para poder filtrarla o alertar sobre ella sin
+    mezclarla con el resto del tráfico.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if response.status_code == 403:
+            usuario = request.user if getattr(request, 'user', None) and request.user.is_authenticated else 'anónimo'
+            logger_seguridad.warning(
+                "403 de autorización: usuario=%s ruta=%s método=%s",
+                usuario, request.path, request.method,
+            )
         return response
