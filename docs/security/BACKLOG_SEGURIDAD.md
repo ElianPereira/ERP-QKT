@@ -4,13 +4,14 @@
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
-19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32 y 33 ya están hechas (Fase 0
-y Fase 1 completas; de la Fase 2, rate limiting, CSRF/validación del
-cotizador, el ocultamiento de detalles de excepción, el gate de lint en
-CI, el análisis estático de seguridad de ruff, la detección de secretos en
-CI y la auditoría de secretos en el historial completo ya están — queda la
-verificación del proxy de Railway, orden 22, que depende de Infra). Las
-dos verificaciones externas resultaron
+19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33 y 36 ya están hechas
+(Fase 0 y Fase 1 completas; de la Fase 2, rate limiting, CSRF/validación
+del cotizador, el ocultamiento de detalles de excepción, el gate de lint
+en CI, el análisis estático de seguridad de ruff, la detección de secretos
+en CI, la auditoría de secretos en el historial completo y el registro
+explícito de 403 de autorización ya están — queda la verificación del
+proxy de Railway, orden 22, que depende de Infra). Las dos verificaciones
+externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
 autenticada; la orden 7 (bucket privado aparte) sigue pendiente del lado de
@@ -94,7 +95,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 33 ✅ | SEC-SECRET-002 | **HECHO.** `gitleaks detect --log-opts="--all"` corrido sobre el historial completo (793 commits) — **sin hallazgos**, no hay ninguna credencial que rotar | P2 | Secreto commiteado y borrado, todavía recuperable | Ninguna | XS | Dev | Informe adjunto al Issue; si aparece algo, rotar la credencial afectada |
 | 34 | SEC-DEP-001 | Generar `requirements.lock` con `pip-compile` e instalar desde ahí en `Dockerfile` y CI | P2 | Builds no reproducibles; imposible reconstruir el entorno de un incidente | Ninguna | M | Dev | Dos builds del mismo commit producen el mismo `pip freeze` |
 | 35 | SEC-FILE-002 | Añadir `FileExtensionValidator` a los 16 `FileField`/`ImageField` y verificación de firma para PDF y XML | P2 | Contenido activo subido al storage | Orden 7 | M | Dev | Un `.html` renombrado a `.pdf` es rechazado por el formulario |
-| 36 | SEC-LOG-001 | Declarar el logger `django.security` y añadir registro explícito de los 403 de autorización | P2 | Eventos de seguridad sin nivel ni formato propios | Ninguna | S | Dev | Una petición con `Host` inválido produce una línea identificable |
+| 36 ✅ | SEC-LOG-001 | **HECHO.** Logger `django.security` declarado en `settings.py`; nuevo `AuthorizationAuditMiddleware` registra cada 403 con usuario y ruta, cubriendo por igual `raise PermissionDenied`, `@permission_required` y cualquier 403 manual | P2 | Eventos de seguridad sin nivel ni formato propios | Ninguna | S | Dev | Una petición con `Host` inválido produce una línea identificable |
 | 37 | SEC-CFG-002 | CSP para `/admin/` en modo Report-Only, recoger violaciones de Jazzmin y endurecer por etapas | P2 | Sin defensa en profundidad en la superficie de mayor privilegio | Orden 1 | L | Dev | `/admin/` devuelve cabecera CSP; ninguna funcionalidad de Jazzmin se rompe |
 | 38 | NV-06 | **Documentar** el calendario de rotación de credenciales (Openpay, WhatsApp, Brevo, R2, Jibble) | P2 | Credenciales de larga vida sin control | Ninguna | S | Propietario + Infra | Documento con fecha de última rotación y periodicidad acordada |
 | 39 | NV-08 | **Revisar** el listado de cuentas con `is_staff`/`is_superuser` y retirar las que no correspondan | P2 | Cuentas con más privilegio del necesario o ya innecesarias | Ninguna | S | Propietario | Listado revisado y depurado |
@@ -127,9 +128,9 @@ existe. Ver Memoria en `CLAUDE.md`.
 |---|---|---|---|
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
-| P2 | 22 | 12 | ~1-2 semanas |
+| P2 | 22 | 13 | ~1-2 semanas |
 | P3 | 12 | 0 | ~2 semanas |
-| **Total** | **52** | **25** | — |
+| **Total** | **52** | **26** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
@@ -137,7 +138,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
-5. Orden 36 — `SEC-LOG-001` (`S`): declarar el logger `django.security` y registrar explícitamente los 403 de autorización.
+5. Orden 34 — `SEC-DEP-001` (`M`): generar `requirements.lock` con `pip-compile` e instalar desde ahí en `Dockerfile` y CI, para builds reproducibles.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).

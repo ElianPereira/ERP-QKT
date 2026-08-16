@@ -91,6 +91,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core_erp.middleware.AuthorizationAuditMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -130,6 +131,12 @@ LOGGING = {
         # cruda de Openpay, request_id). Requisito de la certificación: el
         # cliente ve un error genérico, pero el log debe traer la causa real.
         'comercial.services_openpay': {'handlers': ['console'], 'level': 'INFO'},
+        # Eventos de seguridad con identidad propia (403 de autorización vía
+        # AuthorizationAuditMiddleware, y los sub-loggers que Django ya trae
+        # de fábrica: django.security.DisallowedHost, django.security.csrf,
+        # etc.). propagate=False evita que además se dupliquen en el logger
+        # 'django' de arriba, que ya los recibiría por herencia.
+        'django.security': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
     },
 }
 
