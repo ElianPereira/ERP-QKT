@@ -4,15 +4,16 @@
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
-19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34 y 36 ya están hechas
-(Fase 0 y Fase 1 completas; de la Fase 2, rate limiting, CSRF/validación
-del cotizador, el ocultamiento de detalles de excepción, el gate de lint
-en CI, el análisis estático de seguridad de ruff, la detección de secretos
-en CI, la auditoría de secretos en el historial completo, el registro
-explícito de 403 de autorización y los builds reproducibles con
-`requirements.lock` ya están — queda la verificación del proxy de
-Railway, orden 22, que depende de Infra). Las dos verificaciones externas
-resultaron
+19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36 y 41 ya están
+hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate limiting,
+CSRF/validación del cotizador, el ocultamiento de detalles de excepción,
+el gate de lint en CI, el análisis estático de seguridad de ruff, la
+detección de secretos en CI, la auditoría de secretos en el historial
+completo, el registro explícito de 403 de autorización y los builds
+reproducibles con `requirements.lock` ya están — queda la verificación
+del proxy de Railway, orden 22, que depende de Infra). De la Fase 3
+también está hecha la orden 41 (Referrer-Policy). Las dos verificaciones
+externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
 autenticada; la orden 7 (bucket privado aparte) sigue pendiente del lado de
@@ -108,7 +109,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 
 | Orden | ID | Tarea | Prioridad | Riesgo reducido | Dependencias | Esfuerzo | Responsable | Criterios de aceptación |
 |---|---|---|---|---|---|---|---|---|
-| 41 | SEC-CFG-003 | Definir `SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'` | P3 | Filtración del token del portal por la cabecera `Referer` | Ninguna | XS | Dev | La respuesta de `/mi-evento/<token>/` incluye la cabecera |
+| 41 ✅ | SEC-CFG-003 | **HECHO.** `SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'` definida (fuera del bloque `if not DEBUG`, es solo una cabecera de respuesta) | P3 | Filtración del token del portal por la cabecera `Referer` | Ninguna | XS | Dev | La respuesta de `/mi-evento/<token>/` incluye la cabecera |
 | 42 | SEC-AUTHN-002 | Instalar `django-otp` y exigir TOTP a los superusuarios | P3 | Una contraseña filtrada da acceso completo al ERP | Orden 14 | L | Dev | Un superusuario sin dispositivo TOTP no completa el login |
 | 43 | SEC-CFG-004 | Añadir `USER` sin privilegios al `Dockerfile` | P3 | Una RCE tendría root dentro del contenedor | Ninguna | S | Dev | `whoami` en el contenedor no devuelve `root`; el despliegue funciona |
 | 44 | SEC-DOS-001 | Acotar por rango de fechas la consulta de `calendario_unificado` | P3 | Degradación progresiva conforme crece el histórico | Orden 1 | S | Dev | La vista consulta solo el rango visible |
@@ -130,8 +131,8 @@ existe. Ver Memoria en `CLAUDE.md`.
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
 | P2 | 22 | 14 | ~1 semana |
-| P3 | 12 | 0 | ~2 semanas |
-| **Total** | **52** | **27** | — |
+| P3 | 12 | 1 | ~2 semanas |
+| **Total** | **52** | **28** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
@@ -139,6 +140,8 @@ existe. Ver Memoria en `CLAUDE.md`.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+5. Orden 49 — `SEC-CFG-005` (`XS`): definir `MEDIA_ROOT` en `settings.py`, ahora mismo referencia un setting inexistente en modo `DEBUG`.
+6. Orden 46 — `SEC-CI-002` (`XS`): fijar por SHA las acciones de `ci.yml` (`actions/checkout`, `actions/setup-python`).
 5. De la Fase 3 (P3), las `XS` sueltas: orden 41 (`SEC-CFG-003`, `Referrer-Policy`), orden 46 (`SEC-CI-002`, fijar acciones de `ci.yml` por SHA) y orden 49 (`SEC-CFG-005`, `MEDIA_ROOT`) — el resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de

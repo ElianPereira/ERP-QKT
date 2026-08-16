@@ -16,12 +16,23 @@ from django.urls import reverse
 
 from comercial.models import Cliente, Cotizacion, ItemCotizacion, PortalCliente
 
-# Fija el reloj del rate limiter durante el agotamiento del cupo: sin esto,
-# el bucket (`int(time.time() // window)`) puede cruzar de ventana a mitad
-# del bucle si la ejecución cae justo sobre el borde de los 60s, dejando la
-# petición N+1 en la ventana nueva con el cupo vuelto a cero — visto tanto
-# en local como en CI real (backlog órdenes 19-21).
-_INICIO_VENTANA = int(time.time() // 60) * 60
+
+def _inicio_ventana():
+    """Ancla del reloj del rate limiter, calculada al momento de usarse.
+
+    Fijar el reloj evita que el bucket (`int(time.time() // window)`) cruce
+    de ventana a mitad del bucle de peticiones — visto tanto en local como
+    en CI real (backlog órdenes 19-21). Pero el valor tiene que calcularse
+    **en cada test, justo antes de usarlo**, no una sola vez al importar el
+    módulo: Django's DatabaseCache calcula la expiración de cada entrada con
+    `time.time() + timeout` usando el mismo `time.time()` parcheado, así que
+    si el valor congelado quedara desfasado del reloj real por más que el
+    timeout (~120s) — como pasa si el módulo se importa al arrancar una
+    suite de cientos de tests y este test corre varios minutos después — la
+    entrada nace "expirada" y el conteo nunca avanza. Mismo patrón que ya
+    usa `core_erp/test_ratelimit.py`.
+    """
+    return int(time.time() // 60) * 60
 
 
 def _crear_cotizacion():
@@ -51,7 +62,7 @@ class PortalDescargasRateLimitTest(TestCase):
 
     def _agota_y_verifica_429(self, nombre_url):
         url = reverse(nombre_url, args=[self.portal.token])
-        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+        with patch('core_erp.ratelimit.time.time', return_value=_inicio_ventana()):
             for _ in range(10):
                 self.assertNotEqual(self.client.get(url).status_code, 429)
             respuesta = self.client.get(url)
@@ -73,7 +84,7 @@ class PortalDescargasRateLimitTest(TestCase):
     def test_cada_vista_tiene_su_propio_cupo(self):
         # Agotar portal_evento no debe afectar a portal_descargar_plan: cada
         # vista usa una key de bucket distinta en @_rate_limit.
-        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+        with patch('core_erp.ratelimit.time.time', return_value=_inicio_ventana()):
             url_evento = reverse('portal_evento', args=[self.portal.token])
             for _ in range(11):
                 self.client.get(url_evento)
@@ -91,7 +102,7 @@ class CotizadorApisRateLimitTest(TestCase):
 
     def _agota_y_verifica_429(self, nombre_url, query=''):
         url = reverse(nombre_url) + query
-        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+        with patch('core_erp.ratelimit.time.time', return_value=_inicio_ventana()):
             for _ in range(60):
                 self.assertNotEqual(self.client.get(url).status_code, 429)
             self.assertEqual(self.client.get(url).status_code, 429)
@@ -125,7 +136,7 @@ class OpenpayWebhookRateLimitTest(TestCase):
         self.url = reverse('openpay_webhook')
 
     def test_bloquea_tras_ciento_veinte_peticiones(self):
-        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+        with patch('core_erp.ratelimit.time.time', return_value=_inicio_ventana()):
             for _ in range(120):
                 respuesta = self.client.post(
                     self.url, data='{}', content_type='application/json',

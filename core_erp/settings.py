@@ -29,6 +29,16 @@ PORTAL_URL = config('PORTAL_URL', default='https://erp.quintakooxtanil.com')
 # --- URL canónica del sitio (para links en emails, portales, etc.) ---
 SITE_URL = config('SITE_URL', default='https://erp-qkt.up.railway.app')
 
+# --- Referrer-Policy explícita (SEC-CFG-003) ---
+# El token del portal del cliente va en la URL (/mi-evento/<token>/); esta
+# política evita que el path (con el token) viaje en la cabecera Referer
+# hacia un sitio de otro origen si alguien hace clic en un link externo
+# desde ahí — solo se manda el origen (esquema+host), nunca el path, y nada
+# en absoluto si se baja de HTTPS a HTTP. No depende de DEBUG: es una
+# cabecera de respuesta sin efecto funcional, útil tenerla igual en local
+# para poder probarla.
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
 # --- Seguridad en producción (se activan cuando DEBUG=False) ---
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
