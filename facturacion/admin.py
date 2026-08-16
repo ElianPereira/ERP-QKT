@@ -259,7 +259,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
                 extra='', bg='#3498db', fg='#fff', label='Email'
             ),
         ]
-        return mark_safe(''.join(html_parts))
+        return mark_safe(''.join(html_parts))  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
 
     # ─── Custom URLs ──────────────────────────────────────────
 

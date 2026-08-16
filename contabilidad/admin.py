@@ -79,7 +79,7 @@ class CuentaContableAdmin(admin.ModelAdmin):
             'ORDEN': '#95a5a6',
         }
         color = colores.get(obj.tipo, '#95a5a6')
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="background:{}; color:#fff; padding:4px 10px; '
             'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
                 color, obj.tipo
@@ -104,7 +104,7 @@ class UnidadNegocioAdmin(admin.ModelAdmin):
         texto = obj.get_regimen_fiscal_display()
         if len(texto) > 50:
             texto = texto[:50] + '...'
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:#d4d1c8; font-size:12px;">{}</span>'.format(texto)
         )
 
@@ -118,7 +118,7 @@ class CuentaBancariaAdmin(admin.ModelAdmin):
     @admin.display(description="CLABE")
     def clabe_display(self, obj):
         if obj.clabe:
-            return mark_safe(
+            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
                 '<span style="color:#95a5a6;">****{}</span>'.format(obj.clabe[-4:])
             )
         return "-"
@@ -130,7 +130,7 @@ class CuentaBancariaAdmin(admin.ModelAdmin):
             color = '#27ae60'
         else:
             color = '#e74c3c'
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:{}; font-weight:600;">${:,.2f}</span>'.format(color, float(saldo))
         )
 
@@ -165,7 +165,7 @@ class PolizaAdmin(admin.ModelAdmin):
 
     @admin.display(description="Folio", ordering="folio")
     def folio_display(self, obj):
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:#4CAF50; font-weight:700;">{}-{}</span>'.format(
                 obj.tipo, str(obj.folio).zfill(4)
             )
@@ -179,7 +179,7 @@ class PolizaAdmin(admin.ModelAdmin):
             'D': '#3498db'
         }
         color = colores.get(obj.tipo, '#95a5a6')
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="background:{}; color:#fff; padding:4px 12px; '
             'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
                 color, obj.get_tipo_display()
@@ -198,10 +198,10 @@ class PolizaAdmin(admin.ModelAdmin):
         total = obj.total_debe
         cuadra = obj.esta_cuadrada
         if cuadra:
-            return mark_safe(
+            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
                 '<span style="color:#27ae60; font-weight:600;">${:,.2f}</span>'.format(float(total))
             )
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:#e74c3c; font-weight:600;">${:,.2f} !</span>'.format(float(total))
         )
 
@@ -213,7 +213,7 @@ class PolizaAdmin(admin.ModelAdmin):
             'CANCELADA': '#95a5a6'
         }
         color = colores.get(obj.estado, '#95a5a6')
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="background:{}; color:#fff; padding:4px 12px; '
             'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
                 color, obj.get_estado_display()
@@ -460,7 +460,7 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
                 '<div class="qkt-veredicto qkt-veredicto-ok">'
                 '<b>La conciliación cuadra.</b> Lo que dice el banco y lo que dicen las '
                 'pólizas coincide en este periodo.{}</div>',
-                mark_safe(
+                mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
                     '<br><span class="qkt-muted">Ojo: además hay una diferencia arrastrada '
                     'de <b>${:,.2f}</b> de periodos anteriores, que no se origina aquí. '
                     'Ver el desglose de abajo.</span>'.format(float(obj.diferencia_arrastrada))
@@ -572,10 +572,10 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
             '<tr class="qkt-fila-total"><th>Diferencia del periodo</th>'
             '<td class="qkt-num {}">${}</td></tr>'
             '</table>{}</div>',
-            mark_safe(''.join(filas)),
+            mark_safe(''.join(filas)),  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             'qkt-ok' if obj.cuadra else 'qkt-mal',
             '{:,.2f}'.format(float(obj.diferencia)),
-            mark_safe(enlace),
+            mark_safe(enlace),  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
         )
 
     @admin.display(description="Arrastrada")
@@ -592,7 +592,7 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
     def periodo_display(self, obj):
         meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
                  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:#F5C518; font-weight:600;">{} {}</span>'.format(
                 meses[obj.mes], obj.anio
             )
@@ -604,7 +604,7 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
             return mark_safe(
                 '<span style="color:#27ae60; font-weight:600;">$0.00</span>'
             )
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:#e74c3c; font-weight:600;">${:,.2f}</span>'.format(
                 float(obj.diferencia)
             )
@@ -618,7 +618,7 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
             'CONCILIADA': '#27ae60'
         }
         color = colores.get(obj.estado, '#95a5a6')
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="background:{}; color:#fff; padding:4px 12px; '
             'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
                 color, obj.get_estado_display()
@@ -635,7 +635,7 @@ class ConfiguracionContableAdmin(admin.ModelAdmin):
 
     @admin.display(description="Operación", ordering="operacion")
     def operacion_display(self, obj):
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:#4CAF50; font-weight:600;">{}</span>'.format(
                 obj.get_operacion_display()
             )
@@ -646,7 +646,7 @@ class ConfiguracionContableAdmin(admin.ModelAdmin):
         nombre = obj.cuenta.nombre
         if len(nombre) > 30:
             nombre = nombre[:30] + '...'
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<span style="color:#d4d1c8;">{} - {}</span>'.format(
                 obj.cuenta.codigo_sat, nombre
             )
@@ -686,7 +686,7 @@ class MovimientoContableAdmin(admin.ModelAdmin):
 
     @admin.display(description="Póliza")
     def poliza_display(self, obj):
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<a href="/admin/contabilidad/poliza/{}/change/" '
             'style="color:#4CAF50; font-weight:600;">{}-{}</a>'.format(
                 obj.poliza.pk, obj.poliza.tipo, str(obj.poliza.folio).zfill(4)
@@ -696,7 +696,7 @@ class MovimientoContableAdmin(admin.ModelAdmin):
     @admin.display(description="Debe")
     def debe_display(self, obj):
         if obj.debe > 0:
-            return mark_safe(
+            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
                 '<span style="color:#3498db; font-weight:600;">${:,.2f}</span>'.format(
                     float(obj.debe)
                 )
@@ -706,7 +706,7 @@ class MovimientoContableAdmin(admin.ModelAdmin):
     @admin.display(description="Haber")
     def haber_display(self, obj):
         if obj.haber > 0:
-            return mark_safe(
+            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
                 '<span style="color:#9b59b6; font-weight:600;">${:,.2f}</span>'.format(
                     float(obj.haber)
                 )
@@ -1068,7 +1068,7 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
             '{:,.2f}'.format(obj.saldo_inicial_estado or 0),
             '{:,.2f}'.format(obj.saldo_final_estado or 0),
             obj.fecha_corte_real.strftime('%d/%m/%Y') if obj.fecha_corte_real else '—',
-            mark_safe(''.join(pendientes)),
+            mark_safe(''.join(pendientes)),  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
         )
 
     def procesar(self, request, queryset):

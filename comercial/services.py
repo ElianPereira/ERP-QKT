@@ -760,7 +760,7 @@ def analizar_xml_compra(xml_content):
     resuelve a instancia en el caller para no acoplar este servicio a la
     app `contabilidad` en el import de nivel de módulo.
     """
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
 
     from .models import Compra
 

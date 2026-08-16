@@ -30,7 +30,7 @@ class CacheCompartidoTest(TestCase):
         tabla = connection.ops.quote_name(settings.CACHES['default']['LOCATION'])
         with connection.cursor() as cursor:
             cursor.execute(
-                f'SELECT cache_key FROM {tabla} WHERE cache_key = %s',
+                f'SELECT cache_key FROM {tabla} WHERE cache_key = %s',  # noqa: S608 -- tabla viene de settings.CACHES, no de entrada externa; valor va parametrizado
                 [cache.make_key(clave)],
             )
             fila = cursor.fetchone()
@@ -215,6 +215,6 @@ class AdminLoginRateLimitTest(TestCase):
         self._post()
         tabla = connection.ops.quote_name(settings.CACHES['default']['LOCATION'])
         with connection.cursor() as cursor:
-            cursor.execute(f'SELECT cache_key FROM {tabla}')
+            cursor.execute(f'SELECT cache_key FROM {tabla}')  # noqa: S608 -- tabla viene de settings.CACHES, no de entrada externa
             claves = [fila[0] for fila in cursor.fetchall()]
         self.assertFalse(any(self.username in clave_cache for clave_cache in claves))

@@ -340,10 +340,11 @@ class ProductoAdmin(admin.ModelAdmin):
         if obj.cotizador_arrendamiento:
             servicios.append('A')
         txt = '/'.join(servicios) or '—'
-        return mark_safe(
-            f'<span style="background:#2E7D32;color:white;padding:2px 8px;'
-            f'border-radius:4px;font-size:11px;font-weight:600;">'
-            f'{obj.icono} {txt}</span>'
+        return format_html(
+            '<span style="background:#2E7D32;color:white;padding:2px 8px;'
+            'border-radius:4px;font-size:11px;font-weight:600;">'
+            '{} {}</span>',
+            obj.icono, txt,
         )
     badge_cotizador.short_description = "Cotizador"
 
@@ -722,7 +723,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         datos = calc.calcular()
         if not datos:
             return mark_safe('<div style="padding:15px; color:#666;">Seleccione servicios y guarde para calcular.</div>')
-        return mark_safe(render_to_string('admin/comercial/resumen_barra_partial.html', {'datos': datos}))
+        return mark_safe(render_to_string('admin/comercial/resumen_barra_partial.html', {'datos': datos}))  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
     resumen_barra_html.short_description = "Reporte Ejecutivo"
 
     # --- SAVE MODEL CON VALIDACIONES ---
@@ -816,7 +817,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                 'font-size:' + font_size + ';font-weight:600;text-decoration:none;display:inline-block;white-space:nowrap;">Contrato</a>',
                 url
             )
-        return mark_safe(f'<span style="color:#95a5a6;font-size:{"10px" if compact else "11px"};">—</span>')
+        return mark_safe(f'<span style="color:#95a5a6;font-size:{"10px" if compact else "11px"};">—</span>')  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
     ver_contrato.short_description = "Contrato"
 
     @admin.display(description="Acciones")
@@ -833,7 +834,7 @@ class CotizacionAdmin(admin.ModelAdmin):
             self.ver_contrato(obj, compact=True),
             self.ver_portal(obj, compact=True),
         ])
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<div style="display:flex; flex-wrap:nowrap; align-items:center; gap:3px; '
             'overflow-x:auto; max-width:100%;">' + partes + '</div>'
         )
@@ -971,7 +972,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                 )
         except Exception:
             pass
-        return mark_safe(f'<span style="color:#95a5a6;font-size:{font_size};">Sin portal</span>')
+        return mark_safe(f'<span style="color:#95a5a6;font-size:{font_size};">Sin portal</span>')  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
     ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
