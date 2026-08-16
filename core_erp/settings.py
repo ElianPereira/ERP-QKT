@@ -312,6 +312,13 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
 }
 
+# El storage activo real es remoto (R2/Cloudinary, ver STORAGES arriba);
+# MEDIA_ROOT solo importa para el `static(MEDIA_URL, document_root=...)` de
+# core_erp/urls.py, que sirve /media/ localmente cuando DEBUG=True. Sin este
+# setting, Django cae al default global de global_settings.py (`''`), que
+# sirve (o falla en servir) desde el directorio de trabajo actual en vez de
+# una ruta real del proyecto.
+MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

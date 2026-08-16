@@ -76,6 +76,32 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 49 del backlog de seguridad (`SEC-CFG-005`):
+  `MEDIA_ROOT = BASE_DIR / 'media'` en `settings.py`. **El hallazgo del
+  backlog no reproduce como crash**: Django trae `MEDIA_ROOT = ''` como
+  default global (`django/conf/global_settings.py`), así que
+  `settings.MEDIA_ROOT` nunca lanzaba `AttributeError` como sugería el
+  backlog — sirve (o falla en servir) desde el directorio de trabajo
+  actual, en vez de reventar. Confirmado con una petición real a
+  `/media/algo.jpg` antes del cambio: 404, no 500. Se corrigió de todas
+  formas porque depender del default vacío de Django es frágil e
+  incorrecto (sirve desde donde sea que arrancó el proceso, no desde una
+  ruta real del proyecto) y es exactamente el tipo de cosa que un day
+  cualquiera se vuelve un problema real. **Detalle no obvio para el test**:
+  Django's `manage.py test` fuerza `settings.DEBUG = False` durante toda
+  la suite (`DiscoverRunner.setup_test_environment()`, salvo pasarle
+  `--debug-mode`) — sin importar qué diga el `DEBUG` del entorno al
+  arrancar. El `if not DEBUG:` de `settings.py` (SECURE_SSL_REDIRECT,
+  etc.) sí respeta el valor real del entorno porque se evalúa al importar
+  el módulo de settings, **antes** de que el test runner pise
+  `settings.DEBUG` — pero cualquier código que lea `settings.DEBUG` en
+  vivo durante un test (como el `if settings.DEBUG:` de
+  `core_erp/urls.py` que añade el patrón de `/media/`) ve `False` sin
+  importar el `DEBUG=True` que se exporte antes de correr los tests. Por
+  eso el test de esta orden llama directo a `django.views.static.serve()`
+  (la vista real que `urls.py` conecta) en vez de pegarle a `/media/` con
+  el test client — así prueba el código real sin depender de si el
+  patrón de URL quedó cableado o no.
 - 2026-08-16 — Orden 41 del backlog de seguridad (`SEC-CFG-003`):
   `SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'` en
   `settings.py`, fuera del bloque `if not DEBUG` (es una cabecera de
