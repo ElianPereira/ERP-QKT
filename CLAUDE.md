@@ -76,6 +76,49 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 41 del backlog de seguridad (`SEC-CFG-003`):
+  `SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'` en
+  `settings.py`, fuera del bloque `if not DEBUG` (es una cabecera de
+  respuesta sin efecto funcional, sirve tenerla también en local para
+  poder probarla). Dato no obvio: Django 6 ya trae por defecto
+  `'same-origin'` para este setting — **más estricto** que lo que pide
+  el backlog (`same-origin` no manda absolutamente nada en peticiones
+  cross-origin; `strict-origin-when-cross-origin` sí manda el origen,
+  sin el path). El token del portal vive en el *path*
+  (`/mi-evento/<token>/`), así que en ninguno de los dos casos se filtra
+  — esta orden no cerraba una fuga activa, hacía explícita una política
+  que Django ya aplicaba implícitamente (a prueba de que una futura
+  versión de Django cambie su propio default sin que nadie se entere).
+  Tests en `core_erp/test_referrer_policy.py`. **Encontrado y corregido de
+  paso un bug real en el fix de la sesión anterior** (el que arregló
+  `test_portal_descargar_cotizacion_bloquea_tras_diez_peticiones`, ver
+  entrada del PR #211 más abajo): en `comercial/test_rate_limit_publico.py`
+  el ancla del reloj (`_INICIO_VENTANA`) se calculaba **una sola vez, a
+  nivel de módulo**, en vez de en cada test como sí hacían correctamente
+  `airbnb/test_seguridad.py` y `nomina/tests.py`. Funcionaba en aislado
+  (el módulo se importa segundos antes de que el test corra, así que el
+  valor congelado coincide con el reloj real) pero **rompía por completo**
+  el rate limiting al correr la suite completa: si el módulo se importa al
+  arrancar los 593 tests y este archivo corre varios minutos después,
+  `django.core.cache.backends.base.BaseCache.get_backend_timeout()` —que
+  también usa el mismo `time.time()` global parcheado, porque
+  `core_erp/ratelimit.py` hace `import time` y el `patch()` mockea el
+  módulo real, no una copia— calcula la expiración de la entrada como
+  `valor_congelado_viejo + timeout`, un valor ya pasado respecto al reloj
+  real con el que luego se compara al leer. Resultado: la entrada nace
+  "expirada", el conteo nunca pasa de 1, y el límite jamás se alcanza — no
+  es la ventana cruzándose (el síntoma original), es el contador vuelto a
+  cero en cada petición. Reproducido de forma aislada y determinista con
+  `time_module.time = Mock(return_value=1970-algo)` antes de tocar el
+  código: `cache.add()` devuelve `True` pero el `cache.get()` inmediatamente
+  después ya da `None`. Corregido moviendo el cálculo a una función
+  (`_inicio_ventana()`) invocada justo antes de cada `with patch(...)`, en
+  vez de una constante de módulo — mismo patrón que ya usaba
+  `core_erp/test_ratelimit.py` desde el principio, que por eso nunca tuvo
+  este problema. Verificado corriendo la suite completa (593 tests, ~5 min)
+  dos veces seguidas tras el fix, no solo el archivo en aislado (que ya
+  "pasaba" antes con el bug presente, y por eso no lo había detectado la
+  vez anterior).
 - 2026-08-16 — Orden 34 del backlog de seguridad (`SEC-DEP-001`): builds
   reproducibles con `requirements.lock`. `requirements.txt` sigue siendo
   la lista de dependencias directas (sin versión exacta), pero deja de
