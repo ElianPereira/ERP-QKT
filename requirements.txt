@@ -1,3 +1,9 @@
+# Dependencias directas del proyecto, sin pinnear versión exacta (eso lo
+# hace requirements.lock). Dockerfile y CI instalan desde requirements.lock,
+# no desde este archivo — es la fuente de la que se genera, no lo que se
+# despliega. Al cambiar algo aquí, regenerar el lock:
+#   pip install pip-tools
+#   pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking
 Django>=6.0
 gunicorn
 psycopg2-binary
