@@ -21,7 +21,7 @@ from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
-JIBBLE_TOKEN_URL = 'https://identity.prod.jibble.io/connect/token'
+JIBBLE_TOKEN_URL = 'https://identity.prod.jibble.io/connect/token'  # noqa: S105 — es una URL, no una contraseña
 JIBBLE_PEOPLE_URL = 'https://workspace.prod.jibble.io/v1/People'
 JIBBLE_TIMESHEETS_URL = 'https://time-attendance.prod.jibble.io/v1/Timesheets'
 

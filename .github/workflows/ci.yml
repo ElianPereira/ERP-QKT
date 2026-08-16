@@ -76,3 +76,23 @@ jobs:
       - name: Audit dependencies (pip-audit)
         run: pip-audit -r requirements.txt --desc
         continue-on-error: true
+
+      # Detección de secretos commiteados (API keys, tokens, credenciales).
+      # Se instala el binario directo desde el release oficial (no la
+      # GitHub Action de gitleaks, que requiere licencia en repos privados)
+      # y se verifica su checksum contra el que publica el propio release.
+      # --no-git escanea el árbol de trabajo tal como quedó el checkout, no
+      # el historial completo (eso es la auditoría puntual de la orden 33).
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.21.2
+        run: |
+          ARCHIVE="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSL -O "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${ARCHIVE}"
+          curl -sSL -O "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          sha256sum --ignore-missing -c "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          tar -xzf "${ARCHIVE}" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+
+      - name: Scan for secrets (gitleaks)
+        run: gitleaks detect --no-git --source . --redact -v

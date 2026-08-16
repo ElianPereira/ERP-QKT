@@ -29,7 +29,7 @@ class TimeSlotWidget(forms.TimeInput):
 
     def render(self, name, value, attrs=None, renderer=None):
         input_html = super().render(name, value, attrs, renderer)
-        return mark_safe(
+        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
             '<div class="time-slot-field">'
             + input_html
             + '<button type="button" class="time-slot-toggle" aria-label="Elegir hora" tabindex="-1">'

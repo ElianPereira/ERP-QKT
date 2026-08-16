@@ -75,6 +75,75 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 32 del backlog de seguridad (`SEC-CI-001d`): `gitleaks`
+  detecta secretos commiteados en el job `security` de `ci.yml`. Se
+  descartó la GitHub Action oficial (`gitleaks/gitleaks-action`): exige
+  `GITLEAKS_LICENSE` en repos privados/de organización, y este repo lo es.
+  En su lugar se instala el binario del release oficial directo (versión
+  fijada `8.21.2`, no `latest`) y se verifica su `sha256sum` contra el
+  `checksums.txt` que publica el propio release antes de ejecutarlo — mismo
+  nivel de rigor que ya se aplicaría a cualquier binario de terceros que
+  entra al pipeline. Se probó localmente contra el repo completo antes de
+  activarlo como gate: `gitleaks detect --no-git --source .` no encontró
+  nada (`exit 0`), y una prueba deliberada con un secreto de Stripe
+  fabricado sí lo detectó y devolvió `exit 1` — confirmando que el gate
+  bloquea de verdad y no es un placebo. `--no-git` escanea el árbol de
+  trabajo tal como queda el checkout (no el historial de git): con
+  `actions/checkout@v4` en modo shallow (`fetch-depth: 1`, el default), un
+  escaneo en modo git solo vería el último commit y se perdería secretos
+  introducidos en commits anteriores del mismo PR antes de un squash-merge;
+  escanear el árbol completo es más simple y determinista, y cubre el
+  criterio de aceptación real ("un PR con una clave... falla el CI"). El
+  escaneo del **historial** completo (detectar un secreto que se subió y
+  luego se borró) es la orden 33 (`SEC-SECRET-002`), una auditoría puntual
+  aparte, no parte de este gate continuo.
+- 2026-08-15 — Orden 31 del backlog de seguridad (`SEC-CI-001c`): ruleset
+  `S` (flake8-bandit) de ruff activado. Marcó 84 hallazgos; se revisaron
+  **todos** a mano, uno por uno, antes de decidir arreglar vs. ignorar —
+  ninguno se descartó a ciegas. **(1)** `S106`/`S105`/`S107` (posible
+  contraseña hardcodeada, 38) eran en su totalidad credenciales de prueba
+  en archivos de test (`create_user(password=...)`, tokens simulados de
+  webhook) salvo una: `nomina/services.py::JIBBLE_TOKEN_URL`, un falso
+  positivo del regex de bandit sobre la palabra "TOKEN" en el nombre de una
+  URL. Los de test se ignoran por patrón de archivo
+  (`**/tests.py`/`**/test_*.py`/`**/tests/*.py`) en
+  `[tool.ruff.lint.per-file-ignores]`; el de `nomina/services.py` lleva un
+  `# noqa: S105` puntual — así un secreto real fuera de esos patrones sigue
+  bloqueando el CI. **(2)** `S110` (`try`/`except`/`pass`, 13) son parseo o
+  consultas best-effort con fallback silencioso a un default sensato
+  (disponibilidad, horarios de Jibble, fechas, lookups opcionales) — mismo
+  patrón ya aceptado en la orden 25/29 para los `except Exception:`
+  genéricos; se ignora la regla completa con la justificación en
+  `pyproject.toml` en vez de forzar logging en 13 sitios que no esconden
+  ningún control de seguridad. **(3)** `S308` (uso de `mark_safe`, 28) se
+  revisó **cada llamada** individualmente: 27 interpolan solo choices
+  (`get_FOO_display()`), números (folios, montos, fechas), o HTML generado
+  por el propio Django (`render_to_string`, el `render()` de un widget) —
+  ninguno alcanzable con texto libre de un formulario — y llevan
+  `# noqa: S308` puntual con esa razón. La excepción real:
+  `comercial/admin.py::badge_cotizador` interpolaba `obj.icono`
+  (`CharField` libre de hasta 10 caracteres, editable por cualquier staff
+  con permiso sobre `Producto`) sin escapar dentro de un f-string envuelto
+  en `mark_safe` — mismo patrón de fondo que el XSS de `SEC-XSS-001`
+  (Issue #190), aunque con impacto mucho menor por el límite de 10
+  caracteres. Corregido cambiando a `format_html`, que sí escapa los
+  argumentos. **(4)** `S314` (parseo de XML sin protección contra XXE, 3):
+  `comercial/models.py` (`Compra.save()`, dos parseos) y
+  `comercial/services.py::procesar_compra_desde_xml` leen el XML del CFDI
+  que sube quien captura una compra — viene de un proveedor externo, no es
+  dato confiable. Se agregó `defusedxml` a `requirements.txt` (dependencia
+  nueva, pura, sin transitivas, mantenida, hecha exactamente para esto) y
+  se cambió el import de `xml.etree.ElementTree` a
+  `defusedxml.ElementTree` en los tres sitios — mismo API
+  (`.parse()`/`.fromstring()`/`ParseError`), cero cambios de lógica.
+  **(5)** `S608` (SQL con f-string, 2): ambos en
+  `core_erp/test_ratelimit.py`, interpolando el nombre de tabla que sale de
+  `settings.CACHES` (no de entrada externa) con el valor real parametrizado
+  vía `%s` — `# noqa: S608` puntual con la razón. Los 84 hallazgos
+  originales se cerraron sin dejar ninguno "silenciado a ciegas": cada
+  ignore/noqa en `pyproject.toml` documenta por qué, y los dos hallazgos
+  genuinos (el XSS de 10 caracteres y el XXE del CFDI) se corrigieron en
+  vez de justificarse.
 - 2026-08-15 — Órdenes 29-30 del backlog de seguridad (`SEC-CI-001a/b`): el
   gate de lint en CI ahora bloquea de verdad. `ruff check .` marcaba 631
   errores (contando desde cero, el conteo de "555" que traía el backlog

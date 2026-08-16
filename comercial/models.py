@@ -1,7 +1,7 @@
 import secrets
-import xml.etree.ElementTree as ET
 from decimal import ROUND_HALF_UP, Decimal
 
+import defusedxml.ElementTree as ET
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
