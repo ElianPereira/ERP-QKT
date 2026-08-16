@@ -76,6 +76,35 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 44 del backlog de seguridad (`SEC-DOS-001`):
+  `calendario_unificado` consultaba **todo** el histórico de
+  cotizaciones/reservas/asignaciones en cada carga de página, sin ningún
+  filtro de fecha. FullCalendar además recibía todo embebido de una vez
+  vía `|json_script`, así que la página crecía sin límite conforme
+  crecía el histórico. Se separó en dos vistas: `calendario_unificado`
+  (la página, ya sin datos de eventos) y `calendario_unificado_eventos`
+  (endpoint JSON nuevo, `admin/airbnb/calendario/eventos/`) que exige
+  `start`/`end` (YYYY-MM-DD, fin exclusivo) y responde 400 sin ellos —
+  nunca cae de vuelta a "traer todo" por default. FullCalendar pide ese
+  endpoint vía `events: function(fetchInfo, ...)`, con el rango que
+  tenga visible en cada momento (mes/semana actual, o el que se navegue
+  después), en vez de recibir el array completo al cargar. Las
+  reservas de Airbnb se filtran por **traslape** de rango
+  (`fecha_inicio__lt=fin, fecha_fin__gte=inicio`), no por fecha de
+  inicio exacta, para no perder una reserva larga que empezó antes del
+  rango pedido pero sigue vigente dentro de él. **Efecto colateral
+  bueno en seguridad**: el vector de XSS original (SEC-XSS-001, un
+  `</script>` en el nombre de cliente/evento rompiendo el bloque
+  `<script>` de la página) deja de aplicar a los datos de eventos por
+  completo — ya no viajan embebidos en HTML en ningún momento, solo
+  como respuesta `application/json` de una API que el navegador nunca
+  interpreta como marcado ejecutable. Los 3 tests de
+  `CalendarioAdminXssTest` en `airbnb/test_seguridad.py` se
+  reescribieron para probar el endpoint nuevo en vez del HTML de la
+  página (que ya no tiene nada que probar ahí); se añadió
+  `CalendarioEventosRangoTest` para confirmar que un evento **fuera**
+  del rango pedido no se incluye (no basta con que "funcione", tiene
+  que filtrar de verdad) y que falta `start`/`end` da 400.
 - 2026-08-16 — Orden 43 del backlog de seguridad (`SEC-CFG-004`): usuario
   de sistema `appuser` sin privilegios en el `Dockerfile`. Orden de las
   capas importa: `chown -R appuser:appuser /app` va **después** de

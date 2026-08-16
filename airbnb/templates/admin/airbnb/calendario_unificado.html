@@ -355,11 +355,11 @@
     </div>
 </div>
 
-{{ eventos_json|json_script:"eventos-data" }}
+{{ eventos_url|json_script:"eventos-url" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
-    var eventos = JSON.parse(document.getElementById('eventos-data').textContent);
+    var eventosUrl = JSON.parse(document.getElementById('eventos-url').textContent);
 
     var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
@@ -380,7 +380,18 @@ document.addEventListener('DOMContentLoaded', function() {
             list: 'Lista'
         },
 
-        events: eventos,
+        // Pide solo los eventos del rango visible en cada momento (mes/semana
+        // actual, o el que se navegue después) en vez de traer el histórico
+        // completo de una sola vez — ver backlog SEC-DOS-001.
+        events: function(fetchInfo, successCallback, failureCallback) {
+            var url = eventosUrl
+                + '?start=' + fetchInfo.startStr.slice(0, 10)
+                + '&end=' + fetchInfo.endStr.slice(0, 10);
+            fetch(url)
+                .then(function(resp) { return resp.json(); })
+                .then(successCallback)
+                .catch(failureCallback);
+        },
 
         eventClick: function(info) {
             if (info.event.url) {

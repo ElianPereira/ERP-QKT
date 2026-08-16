@@ -14,10 +14,11 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncMonth
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from core_erp.ratelimit import rate_limit
 
@@ -34,18 +35,20 @@ MESES = {
 }
 
 
-@staff_member_required
-@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
-def calendario_unificado(request):
-    """
-    Calendario unificado que muestra eventos de la quinta + reservas de Airbnb.
-    """
-    from comercial.models import Cotizacion
+def _construir_eventos_calendario(fecha_inicio, fecha_fin):
+    """Arma la lista de eventos del calendario unificado, acotada al rango
+    [fecha_inicio, fecha_fin) — nunca el histórico completo. La vista
+    original consultaba todas las cotizaciones/reservas/asignaciones que
+    hayan existido jamás en cada carga de página (SEC-DOS-001): con el
+    histórico creciendo sin límite, eso degrada progresivamente."""
+    from comercial.models import AsignacionEspacio, AsignacionPersonal, Cotizacion
 
     eventos_lista = []
 
     # EVENTOS DE LA QUINTA (Cotizaciones)
-    cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA').select_related('cliente')
+    cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA').filter(
+        fecha_evento__gte=fecha_inicio, fecha_evento__lt=fecha_fin,
+    ).select_related('cliente')
 
     for c in cotizaciones:
         if c.estado == 'CONFIRMADA':
@@ -63,10 +66,12 @@ def calendario_unificado(request):
             'extendedProps': {'tipo': 'evento'}
         })
 
-    # RESERVAS DE AIRBNB
+    # RESERVAS DE AIRBNB — se incluye cualquier reserva cuyo rango se
+    # traslape con [fecha_inicio, fecha_fin), no solo las que empiezan ahí.
     reservas = ReservaAirbnb.objects.filter(
         estado__in=['CONFIRMADA', 'BLOQUEADA', 'PENDIENTE'],
-        anuncio__activo=True
+        anuncio__activo=True,
+        fecha_inicio__lt=fecha_fin, fecha_fin__gte=fecha_inicio,
     ).select_related('anuncio')
 
     for r in reservas:
@@ -98,8 +103,9 @@ def calendario_unificado(request):
         })
 
     # ASIGNACIONES DE ESPACIO
-    from comercial.models import AsignacionEspacio, AsignacionPersonal
-    asignaciones_esp = AsignacionEspacio.objects.select_related('espacio', 'cotizacion__cliente')
+    asignaciones_esp = AsignacionEspacio.objects.filter(
+        fecha__gte=fecha_inicio, fecha__lt=fecha_fin,
+    ).select_related('espacio', 'cotizacion__cliente')
     for a in asignaciones_esp:
         eventos_lista.append({
             'title': f"📍 {a.espacio.nombre}: COT-{a.cotizacion_id:03d}",
@@ -111,7 +117,9 @@ def calendario_unificado(request):
         })
 
     # ASIGNACIONES DE PERSONAL
-    asignaciones_per = AsignacionPersonal.objects.select_related('empleado')
+    asignaciones_per = AsignacionPersonal.objects.filter(
+        fecha__gte=fecha_inicio, fecha__lt=fecha_fin,
+    ).select_related('empleado')
     for a in asignaciones_per:
         eventos_lista.append({
             'title': f"👤 {a.empleado.nombre} ({a.get_rol_display()})",
@@ -121,23 +129,49 @@ def calendario_unificado(request):
             'extendedProps': {'tipo': 'personal'}
         })
 
+    return eventos_lista
+
+
+@staff_member_required
+@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
+def calendario_unificado(request):
+    """
+    Calendario unificado que muestra eventos de la quinta + reservas de Airbnb.
+
+    La página en sí no trae eventos: FullCalendar los pide por AJAX a
+    `calendario_unificado_eventos` para el rango que esté visible en cada
+    momento (mes/semana actual, o el que el usuario navegue a continuación),
+    en vez de recibir el histórico completo cada vez que se abre la página.
+    """
     conflictos_pendientes = ConflictoCalendario.objects.filter(estado='PENDIENTE').count()
 
     # URL de iCal para mostrar en la página
     ical_url = request.build_absolute_uri('/airbnb/ical/eventos/')
 
     context = {
-        # Sin json.dumps: la plantilla lo serializa con |json_script, que
-        # además escapa <, > y &. json.dumps no los escapa, así que un
-        # nombre de cliente con "</script>" —que el cotizador público acepta
-        # sin autenticación— cerraba el bloque <script> e inyectaba HTML.
-        'eventos_json': eventos_lista,
+        'eventos_url': reverse('calendario_unificado_eventos'),
         'conflictos_pendientes': conflictos_pendientes,
         'ical_url': ical_url,
         'title': 'Calendario Unificado',
     }
 
     return render(request, 'admin/airbnb/calendario_unificado.html', context)
+
+
+@staff_member_required
+@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
+def calendario_unificado_eventos(request):
+    """JSON de eventos del calendario, acotado a `start`/`end` (YYYY-MM-DD,
+    fin exclusivo) — el rango que FullCalendar tenga visible en cada momento.
+    Devuelve un array plano de eventos, no un objeto envolvente: es el
+    formato que FullCalendar espera cuando `events` recibe una función que
+    llama a `successCallback(eventos)`."""
+    fecha_inicio = parse_date(request.GET.get('start', ''))
+    fecha_fin = parse_date(request.GET.get('end', ''))
+    if not fecha_inicio or not fecha_fin:
+        return JsonResponse({'error': "Parámetros 'start' y 'end' requeridos (YYYY-MM-DD)."}, status=400)
+
+    return JsonResponse(_construir_eventos_calendario(fecha_inicio, fecha_fin), safe=False)
 
 
 @staff_member_required
