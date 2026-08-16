@@ -1,3 +1,4 @@
+import time
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -19,11 +20,16 @@ class WebhookSyncJibbleRateLimitTest(TestCase):
         self.url = reverse('webhook_sync_jibble')
 
     def test_bloquea_tras_ciento_veinte_peticiones(self):
-        for _ in range(120):
+        # Fija el reloj del rate limiter: sin esto, el bucle de 120
+        # peticiones puede cruzar de ventana de 60s a mitad de camino y
+        # dejar la petición 121 con el cupo vuelto a cero (backlog orden 21).
+        inicio_ventana = int(time.time() // 60) * 60
+        with patch('core_erp.ratelimit.time.time', return_value=inicio_ventana):
+            for _ in range(120):
+                respuesta = self.client.post(self.url, data='{}', content_type='application/json')
+                self.assertNotEqual(respuesta.status_code, 429)
             respuesta = self.client.post(self.url, data='{}', content_type='application/json')
-            self.assertNotEqual(respuesta.status_code, 429)
-        respuesta = self.client.post(self.url, data='{}', content_type='application/json')
-        self.assertEqual(respuesta.status_code, 429)
+            self.assertEqual(respuesta.status_code, 429)
 
 
 @override_settings(NOMINA_CRON_TOKEN='token-de-prueba')

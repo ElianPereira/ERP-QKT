@@ -13,7 +13,9 @@ Regresiones de dos hallazgos de la auditoría del Issue #190:
     ICAL_PUBLIC_TOKEN no estaba configurado, y publicaba el nombre de cada
     cliente con su evento, sus asistentes y su fecha.
 """
+import time
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -161,6 +163,11 @@ class FeedIcalRateLimitTest(TestCase):
         self.url = reverse('airbnb:ical_eventos')
 
     def test_bloquea_tras_ciento_veinte_peticiones(self):
-        for _ in range(120):
-            self.assertNotEqual(self.client.get(self.url).status_code, 429)
-        self.assertEqual(self.client.get(self.url).status_code, 429)
+        # Fija el reloj del rate limiter: sin esto, el bucle de 120
+        # peticiones puede cruzar de ventana de 60s a mitad de camino y
+        # dejar la petición 121 con el cupo vuelto a cero (backlog orden 21).
+        inicio_ventana = int(time.time() // 60) * 60
+        with patch('core_erp.ratelimit.time.time', return_value=inicio_ventana):
+            for _ in range(120):
+                self.assertNotEqual(self.client.get(self.url).status_code, 429)
+            self.assertEqual(self.client.get(self.url).status_code, 429)

@@ -6,13 +6,22 @@ se prueban en sus propias apps.
 
 Ejecutar: python manage.py test comercial.test_rate_limit_publico --verbosity=2
 """
+import time
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
 from comercial.models import Cliente, Cotizacion, ItemCotizacion, PortalCliente
+
+# Fija el reloj del rate limiter durante el agotamiento del cupo: sin esto,
+# el bucket (`int(time.time() // window)`) puede cruzar de ventana a mitad
+# del bucle si la ejecución cae justo sobre el borde de los 60s, dejando la
+# petición N+1 en la ventana nueva con el cupo vuelto a cero — visto tanto
+# en local como en CI real (backlog órdenes 19-21).
+_INICIO_VENTANA = int(time.time() // 60) * 60
 
 
 def _crear_cotizacion():
@@ -42,11 +51,12 @@ class PortalDescargasRateLimitTest(TestCase):
 
     def _agota_y_verifica_429(self, nombre_url):
         url = reverse(nombre_url, args=[self.portal.token])
-        for _ in range(10):
-            self.assertNotEqual(self.client.get(url).status_code, 429)
-        respuesta = self.client.get(url)
-        self.assertEqual(respuesta.status_code, 429)
-        self.assertIn('Retry-After', respuesta.headers)
+        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+            for _ in range(10):
+                self.assertNotEqual(self.client.get(url).status_code, 429)
+            respuesta = self.client.get(url)
+            self.assertEqual(respuesta.status_code, 429)
+            self.assertIn('Retry-After', respuesta.headers)
 
     def test_portal_evento_bloquea_tras_diez_peticiones(self):
         self._agota_y_verifica_429('portal_evento')
@@ -63,13 +73,14 @@ class PortalDescargasRateLimitTest(TestCase):
     def test_cada_vista_tiene_su_propio_cupo(self):
         # Agotar portal_evento no debe afectar a portal_descargar_plan: cada
         # vista usa una key de bucket distinta en @_rate_limit.
-        url_evento = reverse('portal_evento', args=[self.portal.token])
-        for _ in range(11):
-            self.client.get(url_evento)
-        self.assertEqual(self.client.get(url_evento).status_code, 429)
+        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+            url_evento = reverse('portal_evento', args=[self.portal.token])
+            for _ in range(11):
+                self.client.get(url_evento)
+            self.assertEqual(self.client.get(url_evento).status_code, 429)
 
-        url_plan = reverse('portal_descargar_plan', args=[self.portal.token])
-        self.assertNotEqual(self.client.get(url_plan).status_code, 429)
+            url_plan = reverse('portal_descargar_plan', args=[self.portal.token])
+            self.assertNotEqual(self.client.get(url_plan).status_code, 429)
 
 
 class CotizadorApisRateLimitTest(TestCase):
@@ -80,9 +91,10 @@ class CotizadorApisRateLimitTest(TestCase):
 
     def _agota_y_verifica_429(self, nombre_url, query=''):
         url = reverse(nombre_url) + query
-        for _ in range(60):
-            self.assertNotEqual(self.client.get(url).status_code, 429)
-        self.assertEqual(self.client.get(url).status_code, 429)
+        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+            for _ in range(60):
+                self.assertNotEqual(self.client.get(url).status_code, 429)
+            self.assertEqual(self.client.get(url).status_code, 429)
 
     def test_api_disponibilidad_fecha_bloquea_tras_sesenta_peticiones(self):
         self._agota_y_verifica_429('api_disponibilidad_fecha', '?fecha=2027-01-01')
@@ -113,12 +125,13 @@ class OpenpayWebhookRateLimitTest(TestCase):
         self.url = reverse('openpay_webhook')
 
     def test_bloquea_tras_ciento_veinte_peticiones(self):
-        for _ in range(120):
+        with patch('core_erp.ratelimit.time.time', return_value=_INICIO_VENTANA):
+            for _ in range(120):
+                respuesta = self.client.post(
+                    self.url, data='{}', content_type='application/json',
+                )
+                self.assertNotEqual(respuesta.status_code, 429)
             respuesta = self.client.post(
                 self.url, data='{}', content_type='application/json',
             )
-            self.assertNotEqual(respuesta.status_code, 429)
-        respuesta = self.client.post(
-            self.url, data='{}', content_type='application/json',
-        )
-        self.assertEqual(respuesta.status_code, 429)
+            self.assertEqual(respuesta.status_code, 429)
