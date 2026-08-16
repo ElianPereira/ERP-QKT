@@ -4,12 +4,13 @@
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
-19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31 y 32 ya están hechas (Fase 0 y
-Fase 1 completas; de la Fase 2, rate limiting, CSRF/validación del
+19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32 y 33 ya están hechas (Fase 0
+y Fase 1 completas; de la Fase 2, rate limiting, CSRF/validación del
 cotizador, el ocultamiento de detalles de excepción, el gate de lint en
-CI, el análisis estático de seguridad de ruff y la detección de secretos
-en CI ya están — queda la verificación del proxy de Railway, orden 22, que
-depende de Infra). Las dos verificaciones externas resultaron
+CI, el análisis estático de seguridad de ruff, la detección de secretos en
+CI y la auditoría de secretos en el historial completo ya están — queda la
+verificación del proxy de Railway, orden 22, que depende de Infra). Las
+dos verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
 autenticada; la orden 7 (bucket privado aparte) sigue pendiente del lado de
@@ -90,7 +91,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 30 ✅ | SEC-CI-001b | **HECHO.** Quitado `continue-on-error: true` del paso de lint en `ci.yml` | P2 | Un gate que no bloqueaba nada | Orden 29 | XS | Dev | Un PR con error de lint falla el CI |
 | 31 ✅ | SEC-CI-001c | **HECHO.** Ruleset `S` (flake8-bandit) añadido al `select` de ruff. Un hallazgo real (`comercial/admin.py::badge_cotizador`, XSS potencial vía `obj.icono` sin escapar) corregido con `format_html`; XXE en el parseo de CFDI (`comercial/models.py`, `comercial/services.py`) cerrado migrando a `defusedxml`; el resto son excepciones documentadas en `pyproject.toml`/`# noqa` (ver Memoria) | P2 | Ausencia total de análisis estático de seguridad | Orden 30 | M | Dev | Un PR con `subprocess.call(shell=True)` falla el CI |
 | 32 ✅ | SEC-CI-001d | **HECHO.** `gitleaks` añadido al job `security` de `ci.yml` — binario oficial descargado con verificación de checksum (no la GitHub Action, que exige licencia en repos privados), escaneo del árbol de trabajo (`--no-git`) | P2 | Un secreto commiteado pasa inadvertido | Ninguna | S | Dev | Un PR con una clave con formato de secreto falla el CI |
-| 33 | SEC-SECRET-002 | Ejecutar `gitleaks detect --log-opts="--all"` sobre el historial completo | P2 | Secreto commiteado y borrado, todavía recuperable | Ninguna | XS | Dev | Informe adjunto al Issue; si aparece algo, rotar la credencial afectada |
+| 33 ✅ | SEC-SECRET-002 | **HECHO.** `gitleaks detect --log-opts="--all"` corrido sobre el historial completo (793 commits) — **sin hallazgos**, no hay ninguna credencial que rotar | P2 | Secreto commiteado y borrado, todavía recuperable | Ninguna | XS | Dev | Informe adjunto al Issue; si aparece algo, rotar la credencial afectada |
 | 34 | SEC-DEP-001 | Generar `requirements.lock` con `pip-compile` e instalar desde ahí en `Dockerfile` y CI | P2 | Builds no reproducibles; imposible reconstruir el entorno de un incidente | Ninguna | M | Dev | Dos builds del mismo commit producen el mismo `pip freeze` |
 | 35 | SEC-FILE-002 | Añadir `FileExtensionValidator` a los 16 `FileField`/`ImageField` y verificación de firma para PDF y XML | P2 | Contenido activo subido al storage | Orden 7 | M | Dev | Un `.html` renombrado a `.pdf` es rechazado por el formulario |
 | 36 | SEC-LOG-001 | Declarar el logger `django.security` y añadir registro explícito de los 403 de autorización | P2 | Eventos de seguridad sin nivel ni formato propios | Ninguna | S | Dev | Una petición con `Host` inválido produce una línea identificable |
@@ -126,9 +127,9 @@ existe. Ver Memoria en `CLAUDE.md`.
 |---|---|---|---|
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
-| P2 | 22 | 11 | ~1-2 semanas |
+| P2 | 22 | 12 | ~1-2 semanas |
 | P3 | 12 | 0 | ~2 semanas |
-| **Total** | **52** | **24** | — |
+| **Total** | **52** | **25** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
@@ -136,7 +137,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
-5. Orden 33 — `SEC-SECRET-002` (`XS`): ejecutar `gitleaks detect --log-opts="--all"` sobre el historial completo, ahora que gitleaks (orden 32) ya está instalado y verificado en CI.
+5. Orden 36 — `SEC-LOG-001` (`S`): declarar el logger `django.security` y registrar explícitamente los 403 de autorización.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).

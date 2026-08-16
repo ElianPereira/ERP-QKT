@@ -75,6 +75,18 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 33 del backlog de seguridad (`SEC-SECRET-002`):
+  auditoría de secretos sobre el **historial completo** del repositorio,
+  no solo el árbol de trabajo actual (eso es el gate continuo de la orden
+  32). El checkout de esta sesión venía shallow (`fetch-depth` implícito
+  de 1), así que `gitleaks detect` con `--log-opts="--all"` habría
+  escaneado un solo commit sin avisar del problema — hizo falta
+  `git fetch --unshallow` primero (256 commits visibles pasaron a 829)
+  para que el escaneo fuera real. Resultado: **793 commits escaneados, cero
+  hallazgos** — no hay ninguna credencial que rotar. Mismo binario y mismo
+  checksum verificado que ya usa el gate de CI (orden 32, `gitleaks
+  8.21.2`), corrido localmente porque esta orden es una auditoría puntual,
+  no algo que deba repetirse en cada PR.
 - 2026-08-16 — Orden 32 del backlog de seguridad (`SEC-CI-001d`): `gitleaks`
   detecta secretos commiteados en el job `security` de `ci.yml`. Se
   descartó la GitHub Action oficial (`gitleaks/gitleaks-action`): exige
