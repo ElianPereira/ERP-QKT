@@ -18,6 +18,15 @@ RUN pip install --no-cache-dir -r requirements.lock
 COPY . .
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
+# El proceso de la app corre sin privilegios: una RCE (WeasyPrint, un
+# parser de XML/Excel, lo que sea) no debería salir con root dentro del
+# contenedor. --system evita el UID/GID interactivo por defecto (con home,
+# shell, etc.) que no hace falta aquí. chown de /app completo porque
+# collectstatic y el checkout ya escribieron como root.
+RUN groupadd --system appuser && useradd --system --gid appuser --no-create-home appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # El seed es idempotente y no degrada una versión publicada desde el admin,
 # así que es seguro correrlo en cada arranque. Nunca debe tumbar el deploy.
 CMD python manage.py migrate --noinput && \
