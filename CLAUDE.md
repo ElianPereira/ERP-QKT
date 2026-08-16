@@ -76,6 +76,24 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 46 del backlog de seguridad (`SEC-CI-002`):
+  `actions/checkout@v4` y `actions/setup-python@v5` en `ci.yml` fijadas
+  por SHA (`11d5960a326750d5838078e36cf38b85af677262` y
+  `a26af69be951a213d495a4c3e4e4022e16d87065` respectivamente, con el tag
+  original como comentario `# v4`/`# v5` — mismo patrón que ya usaban
+  `ai-review-merge.yml`/`ai-implement.yml`). Los SHA se sacaron con
+  `git ls-remote https://github.com/<owner>/<repo>.git <tag>` (no
+  `curl api.github.com`: ese endpoint está bloqueado para repos fuera del
+  scope de esta sesión — `git ls-remote` no pasa por esa puerta y no hace
+  falta el repo "adjunto" para leerlo). Los dos tags son ligeros, no
+  anotados (`git ls-remote --tags` no mostró la línea `^{}` de
+  dereferencia), así que el SHA que devuelve la referencia **es** el
+  commit real, usable directo para pinnear una Action. Los otros dos
+  workflows (`ai-review-merge.yml`, `ai-implement.yml`) ya tenían **todas**
+  sus acciones fijadas por SHA desde antes — `ci.yml` era el único
+  workflow con tags flotantes en el repo, y su `actions/setup-python@v5`
+  resolvió al **mismo SHA exacto** que ya usaban los otros dos, buena señal
+  de que ambos apuntan a la misma versión real.
 - 2026-08-16 — Orden 49 del backlog de seguridad (`SEC-CFG-005`):
   `MEDIA_ROOT = BASE_DIR / 'media'` en `settings.py`. **El hallazgo del
   backlog no reproduce como crash**: Django trae `MEDIA_ROOT = ''` como
