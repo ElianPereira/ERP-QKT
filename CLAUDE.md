@@ -76,6 +76,27 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 43 del backlog de seguridad (`SEC-CFG-004`): usuario
+  de sistema `appuser` sin privilegios en el `Dockerfile`. Orden de las
+  capas importa: `chown -R appuser:appuser /app` va **después** de
+  `COPY . .` y de `collectstatic` (ambos corren como root y dejan archivos
+  de root, incluida `STATIC_ROOT=/app/staticfiles`), y `USER appuser` va
+  al final, justo antes del `CMD` — así el proceso de gunicorn arranca sin
+  privilegios pero puede leer todo lo que necesita. `--system` en
+  `useradd`/`groupadd` evita crear un usuario interactivo (home, shell de
+  login) que no hace falta en un contenedor. **No se pudo validar con un
+  `docker build` real**: el daemon de Docker sí pudo arrancarse en este
+  entorno (`dockerd` manual, algo que en sesiones anteriores no era
+  posible), pero las descargas de capas desde `production.cloudfront.docker.com`
+  (el CDN de Docker Hub) devuelven `403 Forbidden` a través del proxy de
+  la sesión — mismo patrón que bloquea `api.github.com` para repos fuera
+  del scope de esta sesión. Validado en su lugar simulando la secuencia
+  `chown -R` + `useradd --system` + lectura del archivo por el usuario sin
+  privilegios directamente en este filesystem (fuera de Docker): confirma
+  que el usuario nuevo puede leer archivos que antes pertenecían a root
+  tras el `chown`. El puerto de gunicorn (`${PORT:-8080}`) es un puerto
+  sin privilegios (>1024), así que no hace falta ninguna capability extra
+  para que `appuser` pueda hacer bind.
 - 2026-08-16 — Orden 46 del backlog de seguridad (`SEC-CI-002`):
   `actions/checkout@v4` y `actions/setup-python@v5` en `ci.yml` fijadas
   por SHA (`11d5960a326750d5838078e36cf38b85af677262` y
