@@ -36,6 +36,7 @@ pre-commit · CI en GitHub Actions.
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
+| Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
 **Estructura clave** (9 apps Django):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
@@ -75,6 +76,34 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-16 — Orden 34 del backlog de seguridad (`SEC-DEP-001`): builds
+  reproducibles con `requirements.lock`. `requirements.txt` sigue siendo
+  la lista de dependencias directas (sin versión exacta), pero deja de
+  instalarse directamente: `Dockerfile`, `ci.yml` (ambos jobs) y los dos
+  workflows de automatización con IA (`ai-review-merge.yml`,
+  `ai-implement.yml`) instalan desde `requirements.lock`, generado con
+  `pip-compile --resolver=backtracking` (146 líneas, todo el árbol de
+  dependencias transitivas fijado). `pip-audit` en el job `security`
+  también pasa a auditar el lock, no el `.txt` — antes auditaba rangos
+  sueltos (`Django>=6.0`) en vez de la versión exacta que realmente se
+  instala. **Hallazgo antes de tocar nada**: el `Dockerfile` usa
+  `python:3.13-slim` pero el resto del proyecto (CI, `pyproject.toml`
+  `target-version`) es Python 3.12 — inconsistencia preexistente, no
+  introducida por esta orden. Se decidió generar el lock con 3.12 (la
+  versión que de verdad fija el proyecto) y no tocar la imagen base del
+  `Dockerfile` de paso, que sería alcance no pedido sobre un archivo que
+  afecta producción directamente. Verificado que la instalación completa
+  desde el lock funciona igual bajo ambas versiones antes de confiar en
+  eso: instalación limpia en un venv nuevo con Python 3.12 y otra con
+  3.13 (la que probablemente esté usando Railway), las dos con
+  `manage.py check` limpio. Confirmado el criterio de aceptación
+  literal ("dos builds del mismo commit producen el mismo `pip freeze`"):
+  correr `pip-compile` dos veces seguidas produce un archivo byte-a-byte
+  idéntico. No se pudo probar el `Dockerfile` con un build real (`docker
+  build`) porque este entorno no tiene el daemon de Docker corriendo
+  (`/var/run/docker.sock` no existe) — la validación se hizo instalando
+  el lock en venvs limpios de 3.12 y 3.13 en su lugar, que cubre la parte
+  que de verdad cambia (qué se instala), no la capa de Docker en sí.
 - 2026-08-16 — Orden 36 del backlog de seguridad (`SEC-LOG-001`): logger
   `django.security` declarado explícitamente en `LOGGING`
   (`core_erp/settings.py`) + `core_erp/middleware.py::AuthorizationAuditMiddleware`
