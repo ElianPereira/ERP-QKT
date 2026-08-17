@@ -15,6 +15,7 @@ import re
 from datetime import timedelta
 
 import markdown
+import nh3
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -103,12 +104,24 @@ class DocumentoLegal(models.Model):
         El documento se redacta en Markdown, pero al cliente hay que
         entregárselo formateado: encabezados, tablas y listas, no los
         asteriscos y pipes del código fuente.
+
+        `markdown.markdown()` deja pasar HTML crudo embebido en el
+        Markdown fuente tal cual (no hay `safe_mode` desde hace varias
+        versiones de python-markdown), y la extensión `attr_list` permite
+        adjuntar atributos arbitrarios a cualquier elemento
+        (`{: onclick="..."}`). El resultado se sirve con `|safe` en
+        `legal/documento.html` a un público no autenticado, así que se
+        sanitiza con `nh3` (lista blanca de etiquetas/atributos) antes de
+        entregarlo — defensa en profundidad ante un `contenido_md`
+        publicado por una cuenta comprometida, no solo confianza en quién
+        puede editarlo hoy.
         """
-        return markdown.markdown(
+        html = markdown.markdown(
             self.cuerpo_markdown(),
             extensions=['tables', 'sane_lists', 'attr_list'],
             output_format='html',
         )
+        return nh3.clean(html)
 
     def marcadores_pendientes(self) -> list:
         """Marcadores [CONFIRMAR:] / [PENDIENTE:] que quedan en el contenido."""

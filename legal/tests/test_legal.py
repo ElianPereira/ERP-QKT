@@ -507,6 +507,60 @@ class RenderMarkdownTest(TestCase):
         self.assertNotContains(r, '|---|')
 
 
+class RenderHtmlSanitizadoTest(TestCase):
+    """SEC-XSS-003: el HTML crudo embebido en el Markdown fuente (o inyectado
+    vía la extensión attr_list) se sanitiza antes de servirse con |safe a un
+    público no autenticado — una cuenta comprometida con acceso al admin de
+    legal no debería poder publicar HTML activo."""
+
+    def test_quita_script_embebido_en_el_markdown(self):
+        doc = _doc(TipoDocumento.TERMINOS, contenido=(
+            "## Sección\n\nTexto normal.\n\n<script>alert(document.cookie)</script>\n"
+        ))
+        html = doc.render_html()
+        self.assertNotIn('<script', html)
+        self.assertNotIn('alert(document.cookie)', html)
+        self.assertIn('Texto normal.', html)
+
+    def test_quita_manejadores_de_evento_inyectados_con_attr_list(self):
+        doc = _doc(TipoDocumento.TERMINOS, contenido=(
+            "## Sección\n\n[enlace](https://example.com){: onclick=\"alert(1)\"}\n"
+        ))
+        html = doc.render_html()
+        self.assertNotIn('onclick', html)
+        self.assertIn('href="https://example.com"', html)
+
+    def test_quita_url_javascript_en_un_enlace(self):
+        doc = _doc(TipoDocumento.TERMINOS, contenido=(
+            "## Sección\n\n[enlace](javascript:alert(1))\n"
+        ))
+        html = doc.render_html()
+        self.assertNotIn('javascript:', html)
+
+    def test_conserva_las_etiquetas_legitimas(self):
+        doc = _doc(TipoDocumento.TERMINOS, contenido=(
+            "## Sección\n\nUn párrafo con **negritas** y un "
+            "[enlace](https://example.com).\n\n"
+            "| Concepto | Dato |\n|---|---|\n| RFC | PECE010202IA0 |\n"
+        ))
+        html = doc.render_html()
+        self.assertIn('<h2>', html)
+        self.assertIn('<strong>negritas</strong>', html)
+        self.assertIn('<a href="https://example.com"', html)
+        self.assertIn('<table>', html)
+
+    def test_la_pagina_publica_no_sirve_script_inyectado(self):
+        # La página en sí trae un <script> legítimo (el que envuelve las
+        # tablas anchas), así que se verifica que el payload inyectado no
+        # sobreviva, no que la página no tenga ningún <script>.
+        _doc(TipoDocumento.AVISO_PRIVACIDAD, contenido=(
+            "# AVISO\n\n## 1. Responsable\n\n<script>alert('xss-inyectado')</script>\n"
+        ))
+        r = self.client.get(reverse('legal:aviso_privacidad'), secure=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "alert('xss-inyectado')")
+
+
 class DocumentosSinNotasInternasTest(TestCase):
     """Los archivos que se publican no deben traer instrucciones de redacción."""
 

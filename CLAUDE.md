@@ -76,6 +76,45 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 50 del backlog de seguridad (`SEC-XSS-003`):
+  `DocumentoLegal.render_html()` (`legal/models.py`) sanitiza con `nh3`
+  antes de devolver el HTML que `legal/documento.html:155` sirve con
+  `{{ cuerpo|safe }}` a un público **no autenticado**
+  (`/aviso-de-privacidad/`, `/terminos-y-condiciones/`,
+  `/politica-de-cancelacion/`). **Por qué hacía falta pese a que
+  `contenido_md` hoy solo lo edita un superusuario**: `python-markdown`
+  no tiene `safe_mode` desde hace varias versiones — cualquier HTML crudo
+  embebido en el Markdown fuente (`<script>...`) pasa intacto al HTML de
+  salida — y la extensión `attr_list` (ya activa, para poder anclar ids a
+  encabezados) permite adjuntar **atributos arbitrarios** a cualquier
+  elemento con la sintaxis `{: onclick="..."}`, incluidos manejadores de
+  evento. Es defensa en profundidad ante una cuenta comprometida con
+  acceso al admin de `legal`, no una vulnerabilidad hoy explotable por
+  alguien sin esas credenciales. Se eligió `nh3` (bindings de Python sobre
+  `ammonia`, el sanitizador de Mozilla en Rust) en vez de `bleach`: cero
+  dependencias transitivas (`bleach` arrastra `html5lib`/`six`/
+  `webencodings`), activamente mantenido, y su lista blanca **por
+  defecto** ya cubre exactamente las etiquetas que estos documentos usan
+  (`h1`-`h6`, `p`, `strong`, `em`, `a`, `ul`/`ol`/`li`, `table` y afines,
+  `blockquote`, `code`, `hr`) sin tener que declarar una lista propia —
+  confirmado corriendo `nh3.clean()` contra la salida real de
+  `markdown.markdown()` para los tres documentos ya publicados
+  (aviso de privacidad, términos, política de cancelación) sin que se
+  perdiera ninguna etiqueta legítima. Como beneficio adicional (no
+  buscado, pero verificado), `nh3` por defecto añade
+  `rel="noopener noreferrer"` a los enlaces que sanitiza. Tests nuevos en
+  `legal/tests/test_legal.py::RenderHtmlSanitizadoTest`: `<script>`
+  embebido en el Markdown fuente se elimina, un manejador de evento
+  inyectado vía `attr_list` (`{: onclick="..."}`) se elimina, una URL
+  `javascript:` en un enlace se elimina, las etiquetas legítimas
+  (encabezados, negritas, enlaces, tablas) sobreviven intactas, y la
+  página pública real no sirve el payload inyectado. **Detalle del test
+  de la página pública**: no se puede afirmar "la respuesta no contiene
+  `<script`" a secas — la propia plantilla `documento.html` trae un
+  `<script>` legítimo al final (el que envuelve las tablas anchas para
+  scroll en móvil) — el test verifica que el payload específico
+  inyectado (`alert('xss-inyectado')`) no sobreviva, no la ausencia total
+  de la etiqueta.
 - 2026-08-17 — Orden 47 del backlog de seguridad (`SEC-BIZ-001`, replay del
   webhook de Openpay): **ya estaba cubierta por código preexistente, sin
   relación con esta sesión de seguridad** — mismo patrón que las órdenes 41

@@ -5,7 +5,7 @@
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
 19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 41, 43, 44, 45,
-46, 47 y 49 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
+46, 47, 49 y 50 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
 limiting, CSRF/validación del cotizador, el ocultamiento de detalles de
 excepción, el gate de lint en CI, el análisis estático de seguridad de
 ruff, la detección de secretos en CI, la auditoría de secretos en el
@@ -15,8 +15,8 @@ verificación del proxy de Railway, orden 22, que depende de Infra). De la
 Fase 3 también están hechas las órdenes 41 (Referrer-Policy), 43 (usuario
 sin privilegios en el `Dockerfile`), 44 (calendario acotado por rango), 45
 (correlation ID por request), 46 (acciones de CI fijadas por SHA), 47
-(idempotencia del webhook de Openpay, ya cubierta por código preexistente)
-y 49 (`MEDIA_ROOT`). Las dos
+(idempotencia del webhook de Openpay, ya cubierta por código preexistente),
+49 (`MEDIA_ROOT`) y 50 (sanitizado del HTML de markdown con `nh3`). Las dos
 verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
@@ -122,7 +122,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 47 ✅ | SEC-BIZ-001 | **YA CUBIERTO por código preexistente**, verificado y documentado en esta orden — ver Memoria 2026-08-17. `OpenpayTransaccion.openpay_id` es único (`unique=True, db_index=True`) y `procesar_webhook_openpay()` corta con `if registro.procesado: return registro` | P3 | Replay de payloads capturados (hoy mitigado por idempotencia) | Ninguna | S | Dev | Un payload repetido no genera efectos adicionales — cubierto por `ProcesarWebhookIdempotenciaTest.test_no_duplica_pago_con_mismo_openpay_id` |
 | 48 | SEC-BIZ-002 | Confirmación explícita en acciones destructivas del admin (borrados, cambios de permisos) | P3 | Una sesión secuestrada opera sin fricción | Orden 14 | M | Dev | Las acciones destructivas piden confirmación |
 | 49 ✅ | SEC-CFG-005 | **HECHO.** `MEDIA_ROOT = BASE_DIR / 'media'` en `settings.py` — antes caía al default global de Django (`''`) | P3 | `urls.py:189` referencia un setting inexistente en modo `DEBUG` | Ninguna | XS | Dev | `manage.py runserver` con `DEBUG=True` sirve `/media/` sin error |
-| 50 | SEC-XSS-003 | Evaluar sanitizado del HTML generado por markdown en `legal/documento.html:155` | P3 | Un admin comprometido podría publicar HTML activo en una página pública | Ninguna | S | Dev | El markdown se renderiza con lista blanca de etiquetas |
+| 50 ✅ | SEC-XSS-003 | **HECHO.** `DocumentoLegal.render_html()` sanitiza con `nh3` (lista blanca de etiquetas/atributos) antes de que `legal/documento.html:155` lo sirva con `\|safe` | P3 | Un admin comprometido podría publicar HTML activo en una página pública | Ninguna | S | Dev | El markdown se renderiza con lista blanca de etiquetas |
 | 51 | SEC-TEST-001 | Suite de tests de seguridad: autorización cruzada, XSS, CSRF, cabeceras, expiración de sesión | P3 | Regresiones silenciosas en los controles corregidos | Órdenes 1-18 | L | Dev | Un PR que reintroduzca cualquiera de los hallazgos corregidos falla el CI |
 | 52 | SEC-DOC-001 | Runbook de incidentes: contención, revocación de sesiones, rotación de secretos, preservación de evidencia, comunicación | P3 | Respuesta improvisada ante un incidente | Orden 13 | M | Propietario + Dev | Documento en `docs/security/` revisado por el propietario |
 
@@ -135,16 +135,16 @@ existe. Ver Memoria en `CLAUDE.md`.
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
 | P2 | 22 | 14 | ~1 semana |
-| P3 | 12 | 7 | ~1 semana |
-| **Total** | **52** | **34** | — |
+| P3 | 12 | 8 | ~1 semana |
+| **Total** | **52** | **35** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
 1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
-4. Orden 50 — `SEC-XSS-003` (`S`): evaluar sanitizado del HTML generado por markdown en `legal/documento.html:155`.
-5. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+5. Orden 48 — `SEC-BIZ-002` (`M`): confirmación explícita en acciones destructivas del admin.
 7. El resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
