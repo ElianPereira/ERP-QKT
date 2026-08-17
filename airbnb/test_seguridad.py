@@ -32,6 +32,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from comercial.models import Cliente, Cotizacion
+from core_erp.test_utils import login_superuser_con_totp
 
 PAYLOAD = '</script><script>window.PWNED=1</script>'
 TOKEN = 'token-de-prueba-para-el-feed-ical'
@@ -44,7 +45,7 @@ class CalendarioAdminXssTest(TestCase):
         self.staff = get_user_model().objects.create_user(
             username='staff_seguridad', password='Segura-190!', is_staff=True, is_superuser=True,
         )
-        self.client.force_login(self.staff)
+        login_superuser_con_totp(self.client, self.staff)
         self.fecha_evento = date.today() + timedelta(days=15)
 
     def _cotizacion(self, nombre_cliente, nombre_evento):
@@ -112,7 +113,7 @@ class CalendarioEventosRangoTest(TestCase):
         self.staff = get_user_model().objects.create_user(
             username='staff_rango', password='Segura-190!', is_staff=True, is_superuser=True,
         )
-        self.client.force_login(self.staff)
+        login_superuser_con_totp(self.client, self.staff)
 
     def _cotizacion(self, nombre_evento, fecha_evento):
         cliente = Cliente.objects.create(nombre='Cliente Rango', telefono='9990000001')

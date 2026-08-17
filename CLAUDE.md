@@ -76,6 +76,83 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 42 del backlog de seguridad (`SEC-AUTHN-002`), **código
+  y tests listos pero SIN mergear a propósito** — es el único de todo este
+  backlog donde se rompió el patrón "implementar → validar → mergear" de
+  las demás órdenes, deliberadamente. `django-otp` (`django_otp`,
+  `django_otp.plugins.otp_totp`) + `SuperuserTOTPGateMiddleware`
+  (`core_erp/middleware.py`, justo después de
+  `django_otp.middleware.OTPMiddleware` en `MIDDLEWARE`): cualquier
+  superusuario autenticado (`is_superuser`, no `is_staff` a secas — Ventas/
+  Contabilidad/Nómina quedan fuera, tal como pide la orden) cuya sesión no
+  haya pasado por `django_otp.login()` es redirigido antes de llegar a
+  *cualquier* vista de `/admin/` — a `totp_activar_view`
+  (`core_erp/views_totp.py`) si no tiene ningún `TOTPDevice` confirmado
+  (genera uno nuevo sin confirmar, muestra el QR con `qrcode` + el secreto
+  en texto para alta manual, y solo lo confirma tras un código válido), o a
+  `totp_verificar_view` si ya tiene uno (solo pide el código). Ambas rutas
+  (`/admin/2fa/activar/`, `/admin/2fa/verificar/`) están en la lista de
+  exención del middleware junto con `/admin/logout/`, y van *antes* de
+  `path('admin/', admin.site.urls)` en `urls.py` para que el resolver las
+  encuentre primero. **Por qué es auto-servicio y no requiere que alguien
+  provisione el dispositivo de antemano**: la alternativa (bloquear sin
+  ruta de alta) dejaría a Dirección fuera de su propio ERP en el primer
+  login tras el deploy — el criterio de aceptación del backlog ("no
+  completa el login sin dispositivo") se cumple igual porque un
+  superusuario sin TOTP nunca llega a ninguna vista real de negocio, solo
+  a la pantalla de alta, que es el patrón estándar de cualquier MFA
+  obligatorio (Google, GitHub, AWS funcionan igual). **Error de API
+  encontrado explorando `django-otp` antes de escribir el middleware**:
+  `django_otp.devices_for_user()` no devuelve un queryset (`.exists()`
+  revienta con `AttributeError: 'generator' object has no attribute
+  'exists'`) — es un generador (`yield from` sobre cada modelo de
+  dispositivo registrado), hay que consumirlo con `any(...)`. **El
+  hallazgo real de esta orden, y la razón de no mergearla sin más**: la
+  primera corrida de la suite completa tras activar el gate rompió **45
+  tests + 7 errores** en 13 clases repartidas en 11 archivos de 6 apps
+  (`contabilidad`, `comercial`, `airbnb`, `facturacion`, `legal`,
+  `core_erp`) — todo test que hacía `force_login(superusuario)` y luego
+  pegaba contra una URL de `/admin/` (que es la enorme mayoría de los
+  tests de acciones de admin de este backlog, incluidas casi todas las
+  órdenes 48 y 14-18) dejó de recibir 200 y empezó a recibir un 302 al
+  gate. Nada de eso era un bug: es exactamente el comportamiento que pide
+  la orden, aplicado también a `force_login`, que crea una sesión
+  autenticada real — igual que la tendría un atacante con una cookie de
+  sesión robada, el escenario exacto que la orden busca cerrar. La
+  corrección no fue relajar el middleware: se agregó
+  `core_erp/test_utils.py::login_superuser_con_totp(client, usuario)` —
+  crea (o reutiliza) un `TOTPDevice` confirmado y escribe
+  `DEVICE_ID_SESSION_KEY` (`'otp_device_id'`) directo en la sesión del
+  test client, replicando lo que hace `django_otp.login()` sin tener que
+  simular el flujo real de QR en cada test — y se reemplazó
+  `force_login()` por este helper en los 13 sitios reales que lo
+  necesitaban (uno de ellos, `PermisosSuperusuarioTest` en
+  `comercial/test_permisos_grupos.py`, no había aparecido en el primer
+  barrido de errores de la suite y se encontró en una segunda auditoría
+  manual antes de dar por cerrada la lista — corregido igual, preventivo).
+  Suite completa corrida de nuevo tras el fix: 655/655 verdes (641 previos
+  + 14 nuevos de `core_erp/test_totp.py`), `ruff check .`,
+  `manage.py check` y `manage.py check --deploy --fail-level WARNING`
+  (con `DEBUG=False`, replicando el job `security` de CI) limpios.
+  **Por qué se documenta esto en vez de simplemente mergear como las
+  demás 15 órdenes de esta sesión**: el propio blast radius descubierto
+  —45+7 fallos con solo activar el gate, en tests que ya llevaban meses en
+  el repo— es la prueba de que este es el cambio de mayor alcance real de
+  todo el backlog sobre el flujo de login, la única superficie que **toda
+  persona con acceso al ERP** usa en cada sesión de trabajo, y afecta
+  directamente a la cuenta de mayor privilegio (Dirección). Esta sesión no
+  tiene forma de probar interactivamente el flujo real de escaneo de QR
+  con una app de autenticación de verdad (Google Authenticator, Authy) en
+  un navegador — solo la mecánica server-side vía el test client. El
+  riesgo concreto si algo estuviera mal y se desplegara sin aviso: la
+  cuenta de Dirección queda fuera de `/admin/` en el primer login tras el
+  deploy hasta completar el alta (que sí debería funcionar según el
+  diseño y los tests, pero nadie lo ha visto funcionar en un navegador
+  real). Por eso el PR de esta orden se deja fuera del patrón de
+  auto-mergear apenas CI está en verde que se siguió en el resto de esta
+  sesión: queda abierto, con el backlog marcado ⚠️ (no ✅), a la espera de
+  que el propietario lo revise —y probablemente lo pruebe en un entorno
+  de verdad— antes de mergear a `main`.
 - 2026-08-17 — Orden 51 del backlog de seguridad (`SEC-TEST-001`):
   `core_erp/test_regresion_seguridad.py`. **No se reinventó lo que ya
   existía**: antes de escribir una sola línea se auditó qué órdenes 1-18

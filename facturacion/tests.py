@@ -13,6 +13,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from comercial.models import Cliente, Cotizacion, Pago
+from core_erp.test_utils import login_superuser_con_totp
 from facturacion.models import ConfiguracionContador, SolicitudFactura
 
 
@@ -96,7 +97,7 @@ class MarcarCanceladasAdminAccionTest(TestCase):
         self.superusuario = User.objects.create_superuser(
             'jefa_factura', 'jefa_factura@quintakooxtanil.com', 'clave-de-prueba',
         )
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         cliente = Cliente.objects.create(nombre='Cliente factura')
         cot = _crear_cotizacion(cliente, Decimal('5000.00'))
         pago = Pago.objects.create(
@@ -133,7 +134,7 @@ class EnviarEmailContadorRemitenteTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_superuser('admin', password='x', email='admin@qkt.mx')
-        self.client.force_login(self.user)
+        login_superuser_con_totp(self.client, self.user)
         self.contador = ConfiguracionContador.objects.create(
             nombre='Contador Test', email='contador@example.com',
             telefono_whatsapp='529991234567',

@@ -15,6 +15,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from core_erp.middleware import CorrelationIdFilter
+from core_erp.test_utils import login_superuser_con_totp
 
 User = get_user_model()
 
@@ -52,7 +53,7 @@ class AuthorizationAuditMiddlewareTest(TestCase):
         superusuario = User.objects.create_superuser(
             'jefa_middleware', 'jefa_middleware@quintakooxtanil.com', 'clave-de-prueba',
         )
-        self.client.force_login(superusuario)
+        login_superuser_con_totp(self.client, superusuario)
         url = reverse('importar_historico')
 
         with self.assertNoLogs('django.security', level='WARNING'):

@@ -20,6 +20,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from comercial.models import Cliente, ContratoServicio, Cotizacion, ItemCotizacion
+from core_erp.test_utils import login_superuser_con_totp
 
 STORAGES_PRUEBA = {
     "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
@@ -175,7 +176,7 @@ class PermisosSuperusuarioTest(TestCase):
         self.superusuario = User.objects.create_superuser(
             'jefa', 'jefa@quintakooxtanil.com', 'clave-de-prueba'
         )
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
 
     def test_ninguna_vista_protegida_da_403(self):
         # 'configurar_plantilla_barra' se excluye: su plantilla
@@ -305,7 +306,7 @@ class ImportarHistoricoSoloSuperusuarioTest(TestCase):
         superusuario = User.objects.create_superuser(
             'jefa2', 'jefa2@quintakooxtanil.com', 'clave-de-prueba'
         )
-        self.client.force_login(superusuario)
+        login_superuser_con_totp(self.client, superusuario)
         self.assertEqual(self.client.get(reverse('importar_historico')).status_code, 200)
 
 

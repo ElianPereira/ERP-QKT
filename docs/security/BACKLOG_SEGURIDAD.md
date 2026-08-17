@@ -116,7 +116,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | Orden | ID | Tarea | Prioridad | Riesgo reducido | Dependencias | Esfuerzo | Responsable | Criterios de aceptación |
 |---|---|---|---|---|---|---|---|---|
 | 41 ✅ | SEC-CFG-003 | **HECHO.** `SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'` definida (fuera del bloque `if not DEBUG`, es solo una cabecera de respuesta) | P3 | Filtración del token del portal por la cabecera `Referer` | Ninguna | XS | Dev | La respuesta de `/mi-evento/<token>/` incluye la cabecera |
-| 42 | SEC-AUTHN-002 | Instalar `django-otp` y exigir TOTP a los superusuarios | P3 | Una contraseña filtrada da acceso completo al ERP | Orden 14 | L | Dev | Un superusuario sin dispositivo TOTP no completa el login |
+| 42 ⚠️ | SEC-AUTHN-002 | **Código y tests listos, pendiente de aprobación del propietario para mergear.** `django-otp` + `SuperuserTOTPGateMiddleware` — cualquier superusuario autenticado sin sesión TOTP verificada es redirigido a `/admin/2fa/activar/` (sin dispositivo) o `/admin/2fa/verificar/` (ya tiene uno) antes de llegar a cualquier vista de `/admin/`. Ver Memoria 2026-08-17 | P3 | Una contraseña filtrada da acceso completo al ERP | Orden 14 | L | Dev + **Propietario** | Un superusuario sin dispositivo TOTP no completa el login — cubierto por `core_erp/test_totp.py` (14 tests) |
 | 43 ✅ | SEC-CFG-004 | **HECHO.** Usuario de sistema `appuser` sin privilegios añadido al `Dockerfile`; `chown -R` de `/app` antes del `USER appuser`, después de `collectstatic` | P3 | Una RCE tendría root dentro del contenedor | Ninguna | S | Dev | `whoami` en el contenedor no devuelve `root`; el despliegue funciona |
 | 44 ✅ | SEC-DOS-001 | **HECHO.** Los eventos ya no viajan embebidos en la página: `calendario_unificado_eventos` (nuevo endpoint JSON) los sirve acotados a `start`/`end`, y FullCalendar lo consulta por AJAX según el rango visible en cada momento | P3 | Degradación progresiva conforme crece el histórico | Orden 1 | S | Dev | La vista consulta solo el rango visible |
 | 45 ✅ | SEC-LOG-002 | **HECHO.** `CorrelationIdMiddleware` genera un ID por request (nunca aceptado del cliente), expuesto en `X-Correlation-ID` y en todo log emitido durante el procesamiento vía `CorrelationIdFilter` | P3 | Dificultad para correlacionar eventos con 2 workers concurrentes | Orden 36 | S | Dev | Todas las líneas de log de un request comparten identificador |
@@ -146,7 +146,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
-5. Orden 42 — `SEC-AUTHN-002` (`L`): `django-otp` + TOTP obligatorio para superusuarios.
+5. **Orden 42 — `SEC-AUTHN-002`: código y 14 tests listos en PR, esperando que el propietario confirme el flujo de alta de TOTP antes de mergear** — es un cambio de autenticación de producción para la cuenta de mayor privilegio (Dirección) y este entorno no puede probar interactivamente el escaneo de QR con una app real. Ver Memoria 2026-08-17 para el detalle del riesgo.
 6. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes.
 7. El resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
 

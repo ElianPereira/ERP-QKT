@@ -44,12 +44,15 @@ django==6.1
     #   dj-database-url
     #   django-anymail
     #   django-jazzmin
+    #   django-otp
     #   django-storages
 django-anymail==15.1
     # via -r requirements.txt
 django-cloudinary-storage==0.3.0
     # via -r requirements.txt
 django-jazzmin==3.0.5
+    # via -r requirements.txt
+django-otp==1.7.0
     # via -r requirements.txt
 django-storages==1.14.6
     # via -r requirements.txt
@@ -106,6 +109,8 @@ python-dateutil==2.9.0.post0
 python-decouple==3.8
     # via -r requirements.txt
 python-docx==1.2.0
+    # via -r requirements.txt
+qrcode==8.2
     # via -r requirements.txt
 requests==2.34.2
     # via

@@ -1,0 +1,41 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Inicio</a>
+› Activar autenticación en dos pasos
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Activa la autenticación en dos pasos</h1>
+
+<div style="background:rgba(52,152,219,.12);border-left:4px solid #3498db;border-radius:4px;padding:16px;margin-bottom:20px;max-width:38em;line-height:1.6;">
+  Tu cuenta tiene privilegios de superusuario. Antes de continuar, escanea
+  este código con una app de autenticación (Google Authenticator, Authy,
+  1Password, etc.) y confirma el código de 6 dígitos que te muestre.
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+    <p style="color:#e74c3c;font-weight:600;">{{ message }}</p>
+  {% endfor %}
+{% endif %}
+
+<div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;max-width:38em;">
+  <img src="{{ qr_data_uri }}" alt="Código QR para activar TOTP" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:4px;">
+  <div>
+    <p>¿No puedes escanear el código? Ingresa esta clave manualmente:</p>
+    <code style="font-size:1.1em;letter-spacing:.1em;">{{ secreto_manual }}</code>
+
+    <form method="post" style="margin-top:20px;">
+      {% csrf_token %}
+      <label for="codigo">Código de 6 dígitos</label><br>
+      <input type="text" id="codigo" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus>
+      <button type="submit" style="background:#3498db;color:#fff;border:0;border-radius:4px;padding:8px 20px;font-weight:600;cursor:pointer;margin-left:8px;">
+        Activar
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

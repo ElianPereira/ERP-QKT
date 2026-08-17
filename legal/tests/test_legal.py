@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import Cliente
+from core_erp.test_utils import login_superuser_con_totp
 from legal.admin import SolicitudARCOAdmin
 from legal.models import (
     AccesoIdentificacionARCO,
@@ -98,7 +99,7 @@ class PublicarVersionAdminAccionTest(TestCase):
         self.superusuario = get_user_model().objects.create_superuser(
             'jefa_legal', 'jefa_legal@quintakooxtanil.com', 'clave-de-prueba',
         )
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         self.doc = _doc(TipoDocumento.TERMINOS, version='2.0', vigente=False)
         self.url = reverse('admin:legal_documentolegal_changelist')
 

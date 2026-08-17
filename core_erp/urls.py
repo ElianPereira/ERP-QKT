@@ -44,6 +44,7 @@ from comercial.views_portal import (
 )
 from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
+from core_erp.views_totp import totp_activar_view, totp_verificar_view
 
 try:
     from airbnb.views import (
@@ -117,6 +118,13 @@ urlpatterns = [
     # FIX LOGOUT: Esta línea intercepta CUALQUIER intento de ir a /admin/logout/
     path('admin/logout/', custom_logout, name='logout'),
     path('admin/login/', admin_login_limitado, name='admin_login_limitado'),
+
+    # TOTP obligatorio para superusuarios (SEC-AUTHN-002, orden 42). Deben ir
+    # antes de la línea 6 (el resto del admin de Django) para que el gate del
+    # middleware pueda redirigir aquí sin que "admin/" las intercepte primero.
+    path('admin/2fa/activar/', totp_activar_view, name='totp_activar'),
+    path('admin/2fa/verificar/', totp_verificar_view, name='totp_verificar'),
+
     path('airbnb/', include('airbnb.urls')),
 
     # --- 2. EL DASHBOARD (Tu página principal del admin) ---

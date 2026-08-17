@@ -31,3 +31,5 @@ pdfplumber
 markdown
 nh3
 defusedxml
+django-otp
+qrcode

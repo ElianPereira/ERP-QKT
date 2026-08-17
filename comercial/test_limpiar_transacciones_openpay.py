@@ -13,6 +13,7 @@ from comercial.models import OpenpayTransaccion, Pago
 from comercial.services_openpay import procesar_webhook_openpay
 from comercial.test_openpay import _crear_cotizacion, _payload_exitoso
 from contabilidad.models import Poliza
+from core_erp.test_utils import login_superuser_con_totp
 
 
 def _webhook_con_fee(cotizacion, openpay_id='txlimpieza01', amount=1000.00):
@@ -73,7 +74,7 @@ class AdminActionBorrarTransaccionesTest(TestCase):
     def setUp(self):
         from django.contrib.auth.models import User
         self.admin_user = User.objects.create_superuser('admin_tpv', 'admin@test.com', 'pass1234')
-        self.client.force_login(self.admin_user)
+        login_superuser_con_totp(self.client, self.admin_user)
 
     def test_sin_confirmar_no_borra_nada(self):
         """SEC-BIZ-002: un solo POST sin 'confirmar=si' no debe borrar nada."""

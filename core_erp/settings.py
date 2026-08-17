@@ -84,7 +84,12 @@ INSTALLED_APPS = [
     'reportes',
     'comunicacion',
     'legal',
+    'django_otp',
+    'django_otp.plugins.otp_totp',
 ]
+
+# --- TOTP obligatorio para superusuarios (SEC-AUTHN-002) ---
+OTP_TOTP_ISSUER = 'ERP QKT'
 
 # --- Cabeceras de seguridad por ruta. Ver core_erp/middleware.py ---
 PUBLIC_CSP_ENABLED = config('PUBLIC_CSP_ENABLED', default=True, cast=bool)
@@ -104,6 +109,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_otp.middleware.OTPMiddleware',
+    'core_erp.middleware.SuperuserTOTPGateMiddleware',
     'core_erp.middleware.AuthorizationAuditMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
