@@ -76,6 +76,70 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 35 del backlog de seguridad (`SEC-FILE-002`):
+  `core_erp/validadores_archivos.py` — `FileExtensionValidator` +
+  verificación de firma binaria real en los 16 `FileField`/`ImageField`
+  del repo (fuera de `*/migrations/*.py`). **La premisa del backlog
+  ("Dependencias: Orden 7") no se sostuvo al auditar el código real**:
+  esta orden valida contenido en el momento de la carga (extensión +
+  firma), algo que no tiene relación con dónde vive el bucket (público
+  vs. privado, que es lo que resuelve la orden 7, bloqueada por
+  Cloudflare) — mismo patrón que ya corrigieron las órdenes 41/47/49 con
+  otras premisas del backlog. Se implementó sin esperar la orden 7.
+  **Auditoría previa de superficie real** (`grep` de `request.FILES`/
+  `forms.FileField` fuera de `/admin/`): los 16 campos solo se cargan
+  desde el admin (staff) o se generan internamente (WeasyPrint) — no hay
+  ningún formulario público que acepte archivos, así que el riesgo que
+  cubre esta orden es una sesión de staff comprometida subiendo contenido
+  activo disfrazado de PDF/XML/ZIP, no un vector anónimo. Dos capas por
+  campo: **(1)** `FileExtensionValidator` de Django (barato, solo mira el
+  nombre) en los 16; **(2)** firma binaria real —`%PDF-` para PDF,
+  cabeceras `PK` para ZIP, y "¿parsea con `defusedxml`?" para XML, ya que
+  el proyecto no tiene margen para asumir `safe_mode` en nada— en los
+  campos que aceptan PDF/XML/ZIP (10 de los 16; los otros 6 son
+  `ImageField`, que ya validan el contenido real con Pillow por sí solos,
+  así que ahí solo hacía falta la extensión). **El detalle que sí importa
+  para no volver esto un problema de rendimiento**: los validadores de
+  firma solo leen el archivo si es una carga *nueva* de esta petición
+  (`_es_carga_nueva()`, que distingue un `UploadedFile` recién asignado
+  de un `FieldFile` ya persistido) — sin ese candado, cada `full_clean()`
+  de un `ModelForm` del admin re-descargaría el archivo completo desde el
+  storage remoto (R2) aunque la edición no tocara ese campo, y
+  `Cotizacion.archivo_pdf`/`archivo_contrato` se guardan en cada cambio
+  de estado de una cotización — un hot path real, no hipotético. La
+  detección de "carga nueva" comprueba tanto el `UploadedFile` directo
+  como el caso real de Django (`FileDescriptor.__get__` envuelve la
+  carga en un `FieldFile` cuyo `.file` es ese mismo `UploadedFile`), y
+  ambos casos tienen test. `SolicitudARCO.identificacion` solo lleva
+  extensión (`pdf`/`jpg`/`jpeg`/`png`, admite foto o escaneo), sin firma
+  binaria — la orden es literal ("verificación de firma para PDF y XML")
+  y ese campo hoy está fuera del alcance de cualquier `ModelForm` del
+  admin (`SolicitudARCOAdmin.get_fields()` lo saca siempre del
+  formulario), así que añadir la firma ahí no cubriría ningún flujo real
+  todavía. `EstadoCuentaBancario.archivo` acepta indistintamente PDF o
+  XML (el campo `formato` es quien lo distingue, no el `FileField`), así
+  que su firma prueba una U (`validar_firma_pdf_o_xml`). **Error en el
+  primer intento de test, no del validador**: un HTML "disfrazado" bien
+  formado (`<html><body><script>...`) resultó ser XML válido también
+  —etiquetas balanceadas sin atributos ni texto suelto es XHTML-like—,
+  así que la firma de XML no lo rechazaba; el fixture de prueba pasó a
+  incluir un `&` sin escapar (`Cotizaciones & Eventos`), que es HTML
+  válido pero rompe el *well-formedness* de XML de verdad. Y el XML
+  "válido" del primer fixture (`<cfdi:Comprobante>` sin declarar su
+  namespace) fallaba con `unbound prefix` — correcto: un CFDI real
+  siempre declara `xmlns:cfdi`, así que exigirlo aquí es más estricto que
+  un simple "empieza con `<`", no un bug. Migraciones nuevas (una por app
+  tocada, solo `AlterField` por los `validators=` nuevos, no tocan la
+  BD): `comercial.0073`, `contabilidad.0019`, `facturacion.0007`,
+  `legal.0005`, `nomina.0005`. Tests en
+  `core_erp/test_validadores_archivos.py` (24): las funciones de firma en
+  aislado, el candado de "no revalidar lo ya guardado" con un archivo
+  guardado a propósito con contenido inválido (por la vía que salta
+  `full_clean`, igual que hacen los servicios internos), que cada uno de
+  los 16 campos tiene sus validadores realmente enchufados
+  (`Model._meta.get_field(...).validators`, no una copia), y el criterio
+  de aceptación literal del backlog contra `Compra.full_clean()` real.
+  Suite completa (695 tests) corrida dos veces tras el cambio.
 - 2026-08-17 — Mínimo a pagar por tipo de servicio y cercanía de la fecha
   (pedido del propietario tras el fix del cotizador). `monto_minimo_pago_detalle()`
   (`comercial/models.py`) exigía **50% siempre** en el primer pago; ahora

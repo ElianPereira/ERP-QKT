@@ -22,6 +22,7 @@ from django.db import models
 from django.utils import timezone
 
 from core_erp.storages_qkt import storage_privado
+from core_erp.validadores_archivos import extension_identificacion
 
 # Un documento con marcadores sin resolver no puede publicarse: saldrían a la
 # vista del cliente cadenas como "[CONFIRMAR: +52 999 XXX XXXX]".
@@ -266,6 +267,7 @@ class SolicitudARCO(models.Model):
     descripcion = models.TextField()
     identificacion = models.FileField(
         upload_to='arco/identificaciones/', blank=True, storage=storage_privado,
+        validators=[extension_identificacion],
     )
 
     estado = models.CharField(max_length=16, choices=EstadoARCO.choices,
