@@ -2,6 +2,8 @@ from django.contrib import admin, messages
 from django.urls import reverse
 from django.utils.html import format_html
 
+from core_erp.admin_utils import confirmar_accion_destructiva
+
 from .models import (
     AceptacionLegal,
     DocumentoLegal,
@@ -37,6 +39,10 @@ class DocumentoLegalAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
     @admin.action(description="Publicar esta versión (desmarca la anterior)")
+    @confirmar_accion_destructiva(
+        "¿Publicar esta versión? Queda vigente de inmediato en la página "
+        "pública correspondiente, y desmarca la versión anterior."
+    )
     def publicar_version(self, request, queryset):
         if queryset.count() != 1:
             self.message_user(request, "Selecciona exactamente un documento.",

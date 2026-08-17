@@ -132,6 +132,61 @@ salvo que queden obsoletas.
   "Paquete Pasadía QKT (11 Pax, 10:00-19:00)", y un evento de 8 horas con
   $6,496.00 = Paquete Esencial + 2 horas extra, cotización creada en la BD
   con esos mismos items. Tests en `comercial/test_cotizador_lineas.py` (18).
+- 2026-08-17 — Orden 48 del backlog de seguridad (`SEC-BIZ-002`):
+  `confirmar_accion_destructiva` (`core_erp/admin_utils.py`) envuelve una
+  acción de admin (`def accion(self, request, queryset)`) con una página de
+  confirmación intermedia — **mismo patrón que el propio `delete_selected`
+  de Django**, no uno inventado: la selección viaja en campos ocultos
+  (`_selected_action` por cada pk, más `action` con el nombre) y el
+  decorador solo deja pasar a la función real si el POST de vuelta trae
+  `confirmar=si`. La plantilla compartida
+  (`templates/admin/confirmar_accion_destructiva.html`) es una versión
+  simplificada de `admin/delete_selected_confirmation.html` (la de Django,
+  leída directo del paquete instalado para replicar el patrón exacto:
+  `ModelAdmin.response_action()` ya sabe devolver directo cualquier
+  `HttpResponseBase` que la acción retorne en vez de redirigir al
+  changelist — por eso una `TemplateResponse` desde dentro de la acción
+  funciona sin tocar nada más). **Por qué server-side y no un simple
+  `confirm()` de JavaScript** (que ya existía como patrón suelto en
+  `cerrar_historico_contable.html`): el riesgo que describe la orden es
+  "una sesión secuestrada opera sin fricción" — un atacante con la cookie
+  de sesión (no necesariamente con acceso al navegador real) puede
+  scriptear un POST directo saltándose cualquier `onclick`/`confirm()` de
+  JS, que nunca llega a ejecutarse fuera de un navegador real. El gate de
+  servidor exige un segundo viaje de ida y vuelta real (con su propio CSRF
+  token), que sí sube el costo de automatizar el ataque. Se aplicó a las
+  10 acciones de mayor impacto identificadas en una auditoría dirigida del
+  repo (no solo las que "sonaban" destructivas): `aplicar_polizas`,
+  `cancelar_polizas`, `aprobar_regularizacion` y `aplicar_saldo` en
+  `contabilidad/admin.py`; `regenerar_token`, `registrar_reembolso`,
+  `reembolsar_en_openpay` y `borrar_transacciones_de_prueba` en
+  `comercial/admin.py`; `marcar_canceladas` en `facturacion/admin.py`;
+  `publicar_version` en `legal/admin.py`. **No se tocaron** el
+  `delete_selected` estándar de Django (ya trae su propia confirmación de
+  fábrica) ni las acciones de menor impacto que la misma auditoría separó
+  aparte (`marcar_como_pagado` de nómina, `marcar_resuelto`/
+  `marcar_ignorado` de conflictos de calendario en airbnb,
+  `desactivar_sin_archivo` de imágenes de landing): son reversibles o de
+  bajo riesgo, y añadir fricción ahí sería alcance no pedido. **Detalle
+  que rompió tests existentes, no un bug del feature**: varios tests ya
+  posteaban directo a estas acciones esperando que se ejecutaran de
+  inmediato (`test_seguridad_portal.py`, `test_limpiar_transacciones_
+  openpay.py`, `contabilidad/tests.py`) — se les agregó `'confirmar':
+  'si'` al payload del POST, exactamente lo que ahora hace falta para
+  pasar el gate; no cambió ninguna aserción de fondo, cada test sigue
+  probando lo mismo que antes. Test nuevo por cada acción envuelta
+  confirmando las dos mitades del contrato: un POST sin `confirmar=si` no
+  cambia nada en la BD y muestra la página de confirmación, y un segundo
+  POST con `confirmar=si` sí ejecuta — más una prueba de la mecánica del
+  decorador en aislado (`core_erp/test_admin_utils.py`, sin tocar la base
+  de datos ni un modelo real) que nombra el escenario del backlog
+  explícitamente: `test_un_post_directo_sin_pasar_por_la_confirmacion_
+  no_tiene_efecto`. `reembolsar_en_openpay` (el que mueve dinero real
+  contra la API de Openpay) se probó igual sin necesidad de mockear la
+  API: el gate intercepta *antes* de que la función original —la que
+  llamaría a `reembolsar_cargo_openpay`— se ejecute siquiera, así que
+  probar "sin confirmar no pasa nada" no requiere simular la respuesta de
+  Openpay en absoluto.
 - 2026-08-17 — Remitente de email por tipo (Issue #221): dominio propio
   `quintakooxtanil.com` verificado en Brevo (SPF/DKIM) y `reservas@`/
   `pagos@`/`notificaciones@quintakooxtanil.com` dados de alta como

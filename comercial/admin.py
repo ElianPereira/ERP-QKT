@@ -11,6 +11,7 @@ from django.urls import NoReverseMatch, path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, mark_safe
 
+from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
 
 from .choices import PosicionLanding
@@ -508,6 +509,11 @@ class PortalClienteAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
     @admin.action(description='Regenerar token y extender acceso 90 días')
+    @confirmar_accion_destructiva(
+        "¿Regenerar el token del portal? El enlace anterior deja de servir de "
+        "inmediato — cualquiera que lo tenga guardado (correo, WhatsApp) pierde "
+        "acceso."
+    )
     def regenerar_token(self, request, queryset):
         """Invalida la URL anterior y da 90 días de acceso desde hoy.
 
@@ -1013,6 +1019,10 @@ class PagoAdmin(admin.ModelAdmin):
             obj.usuario = request.user
         super().save_model(request, obj, form, change)
 
+    @confirmar_accion_destructiva(
+        "¿Registrar un reembolso espejo de los pagos seleccionados? Crea un "
+        "Pago tipo REEMBOLSO por cada uno, reduciendo el ingreso registrado."
+    )
     def registrar_reembolso(self, request, queryset):
         """Crea un Pago tipo REEMBOLSO espejo por cada pago seleccionado."""
         creados = 0
@@ -1038,6 +1048,10 @@ class PagoAdmin(admin.ModelAdmin):
             self.message_user(request, err, messages.ERROR)
     registrar_reembolso.short_description = "Registrar reembolso (espejo del pago)"
 
+    @confirmar_accion_destructiva(
+        "¿Reembolsar en Openpay los pagos seleccionados? Dispara el refund "
+        "real contra la API de Openpay — mueve dinero de verdad."
+    )
     def reembolsar_en_openpay(self, request, queryset):
         """Dispara el refund real en Openpay para pagos que vinieron de ahí.
         Es adicional a 'registrar_reembolso' (que solo crea el registro interno)."""
@@ -1706,6 +1720,11 @@ class OpenpayTransaccionAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False  # solo se crean desde el webhook, nunca manual
 
+    @confirmar_accion_destructiva(
+        "¿Borrar las transacciones de prueba seleccionadas junto con su Pago "
+        "y sus pólizas contables? La cotización queda intacta, pero esto no "
+        "se puede deshacer."
+    )
     def borrar_transacciones_de_prueba(self, request, queryset):
         """
         Borra las transacciones seleccionadas junto con su Pago y las pólizas

@@ -16,6 +16,8 @@ from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
+from core_erp.admin_utils import confirmar_accion_destructiva
+
 from .models import (
     ConciliacionBancaria,
     ConfiguracionContable,
@@ -279,6 +281,10 @@ class PolizaAdmin(admin.ModelAdmin):
             self.message_user(request, "Omitidas: " + '; '.join(omitidas), level=messages.WARNING)
 
     @admin.action(description="Aplicar pólizas seleccionadas")
+    @confirmar_accion_destructiva(
+        "¿Aplicar (postear) las pólizas seleccionadas? Una póliza aplicada "
+        "entra a los saldos y reportes del ERP."
+    )
     def aplicar_polizas(self, request, queryset):
         aplicadas = 0
         errores = []
@@ -309,6 +315,10 @@ class PolizaAdmin(admin.ModelAdmin):
             )
 
     @admin.action(description="Cancelar pólizas seleccionadas")
+    @confirmar_accion_destructiva(
+        "¿Cancelar las pólizas seleccionadas? Sus movimientos se conservan, "
+        "pero dejarán de sumar en cualquier saldo o reporte."
+    )
     def cancelar_polizas(self, request, queryset):
         canceladas = queryset.exclude(estado='CANCELADA').update(
             estado='CANCELADA',
@@ -406,6 +416,11 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
             self.message_user(request, texto, level=messages.WARNING)
 
     @admin.action(description="Autorizar y aplicar la regularización (solo Dirección)")
+    @confirmar_accion_destructiva(
+        "¿Autorizar y aplicar la regularización de la diferencia arrastrada? "
+        "Mueve el histórico contra una cuenta de ajuste — no hay una operación "
+        "real detrás."
+    )
     def aprobar_regularizacion(self, request, queryset):
         if not request.user.is_superuser:
             self.message_user(
@@ -737,6 +752,10 @@ class SaldoAperturaAdmin(admin.ModelAdmin):
     readonly_fields = ['aplicado', 'poliza']
     actions = ['aplicar_saldo']
 
+    @confirmar_accion_destructiva(
+        "¿Generar la póliza de apertura para los saldos certificados "
+        "seleccionados? Fija el saldo inicial de la cuenta en el ERP."
+    )
     def aplicar_saldo(self, request, queryset):
         aplicados, errores = 0, []
         for saldo in queryset.filter(aplicado=False):
