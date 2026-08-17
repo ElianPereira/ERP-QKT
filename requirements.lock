@@ -71,6 +71,8 @@ lxml==6.1.1
     # via python-docx
 markdown==3.10.3
     # via -r requirements.txt
+nh3==0.3.6
+    # via -r requirements.txt
 numpy==2.5.2
     # via pandas
 openpyxl==3.1.5

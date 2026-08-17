@@ -29,4 +29,5 @@ urllib3
 python-docx
 pdfplumber
 markdown
+nh3
 defusedxml
