@@ -76,6 +76,48 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 37 del backlog de seguridad (`SEC-CFG-002`): CSP
+  Report-Only para `/admin/`, opt-in vía `ADMIN_CSP_REPORT_ONLY` (default
+  `False`) — mismo patrón exacto que ya usaba la orden 27 para el portal
+  de pago (`PORTAL_CSP_REPORT_ONLY`/`PORTAL_CSP_REPORT_ONLY_POLICY`), en
+  `core_erp/middleware.py::PublicSecurityHeadersMiddleware`. **Por qué
+  Report-Only y no bloqueante de entrada**: el propio docstring del
+  middleware ya documentaba por qué el admin no llevaba ninguna CSP
+  ("Jazzmin/AdminLTE usan recursos propios que una CSP estricta
+  rompería") — igual que con el portal, la única forma responsable de
+  endurecer sin arriesgar el panel de operación diaria es observarlo
+  primero en modo Report-Only con tráfico real. Esta sesión no puede
+  desplegar a producción ni abrir devtools contra un admin en uso real,
+  así que el entregable de esta orden es la mecánica de observación en
+  sí (el toggle + la política), no el endurecimiento por etapas — eso
+  queda documentado como pendiente de Infra/Propietario en
+  `BACKLOG_SEGURIDAD.md`. **Los orígenes de la política no se
+  adivinaron**: se auditó el código real antes de escribirla —
+  `grep` de `https://`/`http://` en `templates/admin/**/*.html` de las 6
+  apps con vistas de admin propias, más los templates vendorizados de
+  Jazzmin (`site-packages/jazzmin/templates` y `/static`, instalando un
+  venv con Python 3.12 porque Django 6.1 ya no soporta 3.11 en este
+  entorno). Resultado: Jazzmin sirve todo su CSS/JS (AdminLTE, Select2,
+  FontAwesome) vendorizado desde `STATIC_URL` (`'self'`), salvo Google
+  Fonts (`@import` en `admin_fix.css` del propio proyecto, no de
+  Jazzmin); los dashboards y calendarios del admin (`comercial/`,
+  `airbnb/`) cargan FullCalendar y Chart.js desde `cdn.jsdelivr.net` —
+  el mismo host que `PUBLIC_CSP` ya permite, ninguno nuevo. Las
+  miniaturas de imágenes (`preview_grande` en landing/producto) se
+  sirven desde `media.quintakooxtanil.com` (el dominio público de R2,
+  ya en `PUBLIC_CSP`). `'unsafe-inline'` en `script-src`/`style-src` por
+  el mismo motivo que las otras dos políticas del archivo: Django admin
+  y Jazzmin usan bastante inline, y quitarlo sin migrar a nonces sería
+  una CSP que rompe el panel en vez de observarlo — no es el alcance de
+  esta orden. Tests nuevos en
+  `core_erp/test_regresion_seguridad.py::PublicSecurityHeadersMiddlewareTest`
+  (3): sin el flag no manda ninguna CSP (default), con el flag manda
+  `Content-Security-Policy-Report-Only` con los orígenes esperados y
+  nunca la variante bloqueante, y que el flag del admin no se filtra a
+  las páginas públicas (aislamiento de rutas). El patrón que reemplazó
+  (`PORTAL_CSP_REPORT_ONLY`) no tenía ningún test hasta ahora — no se
+  tocó de paso por no ser el alcance de esta orden, pero queda como
+  hueco conocido si se retoma la Fase 3.
 - 2026-08-17 — Orden 35 del backlog de seguridad (`SEC-FILE-002`):
   `core_erp/validadores_archivos.py` — `FileExtensionValidator` +
   verificación de firma binaria real en los 16 `FileField`/`ImageField`

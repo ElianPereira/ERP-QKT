@@ -113,3 +113,33 @@ class PublicSecurityHeadersMiddlewareTest(TestCase):
 
         respuesta_admin = self.client.get('/admin/login/')
         self.assertIn('Permissions-Policy', respuesta_admin.headers)
+
+    @override_settings(ADMIN_CSP_REPORT_ONLY=False)
+    def test_admin_sin_el_flag_no_manda_ninguna_csp(self):
+        # Default: el admin queda sin CSP, como documenta el docstring del
+        # middleware (Jazzmin rompería con una CSP bloqueante sin observarla
+        # antes en uso real).
+        respuesta = self.client.get('/admin/login/')
+
+        self.assertNotIn('Content-Security-Policy', respuesta.headers)
+        self.assertNotIn('Content-Security-Policy-Report-Only', respuesta.headers)
+
+    @override_settings(ADMIN_CSP_REPORT_ONLY=True)
+    def test_admin_csp_report_only_manda_la_cabecera_sin_bloquear(self):
+        respuesta = self.client.get('/admin/login/')
+
+        self.assertIn('Content-Security-Policy-Report-Only', respuesta.headers)
+        # Nunca la variante bloqueante: por diseño, el admin no debe recibir
+        # una CSP que pueda romper Jazzmin sin haberla observado antes.
+        self.assertNotIn('Content-Security-Policy', respuesta.headers)
+        cabecera = respuesta.headers['Content-Security-Policy-Report-Only']
+        self.assertIn("default-src 'self'", cabecera)
+        self.assertIn("object-src 'none'", cabecera)
+        self.assertIn('https://cdn.jsdelivr.net', cabecera)  # FullCalendar/Chart.js
+        self.assertIn('https://fonts.googleapis.com', cabecera)  # @import de admin_fix.css
+
+    @override_settings(ADMIN_CSP_REPORT_ONLY=True)
+    def test_admin_csp_report_only_no_se_filtra_a_paginas_publicas(self):
+        respuesta = self.client.get('/')
+
+        self.assertNotIn('Content-Security-Policy-Report-Only', respuesta.headers)

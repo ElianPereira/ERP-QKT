@@ -92,6 +92,10 @@ PUBLIC_CSP_REPORT_ONLY = config('PUBLIC_CSP_REPORT_ONLY', default=False, cast=bo
 # CSP Report-Only del portal de pago (no bloquea): activar solo para probar qué
 # recursos usa Openpay/3-D Secure antes de plantear una CSP bloqueante ahí.
 PORTAL_CSP_REPORT_ONLY = config('PORTAL_CSP_REPORT_ONLY', default=False, cast=bool)
+# CSP Report-Only del admin (no bloquea): activar para observar en la consola
+# del navegador, con Jazzmin en uso real, qué violaciones deja antes de
+# plantear una CSP bloqueante ahí (orden 37 del backlog, SEC-CFG-002).
+ADMIN_CSP_REPORT_ONLY = config('ADMIN_CSP_REPORT_ONLY', default=False, cast=bool)
 
 MIDDLEWARE = [
     # Primero de todos: cubre el log de cualquier middleware/vista/señal

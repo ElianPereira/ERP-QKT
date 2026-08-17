@@ -4,8 +4,8 @@
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
-19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 41, 43, 44,
-45, 46, 47, 48, 49, 50 y 51 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
+19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 41, 43,
+44, 45, 46, 47, 48, 49, 50 y 51 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
 limiting, CSRF/validación del cotizador, el ocultamiento de detalles de
 excepción, el gate de lint en CI, el análisis estático de seguridad de
 ruff, la detección de secretos en CI, la auditoría de secretos en el
@@ -13,7 +13,9 @@ historial completo, el registro explícito de 403 de autorización, los
 builds reproducibles con `requirements.lock` y la validación de extensión
 y firma de los 16 `FileField`/`ImageField` ya están — queda la
 verificación del proxy de Railway, orden 22, que depende de Infra). De la
-Fase 3 también están hechas las órdenes 41 (Referrer-Policy), 43 (usuario
+Fase 3 también están hechas las órdenes 37 (CSP Report-Only del admin, la
+parte de Dev — falta que Infra/Propietario active la variable y observe
+violaciones reales antes de endurecer), 41 (Referrer-Policy), 43 (usuario
 sin privilegios en el `Dockerfile`), 44 (calendario acotado por rango), 45
 (correlation ID por request), 46 (acciones de CI fijadas por SHA), 47
 (idempotencia del webhook de Openpay, ya cubierta por código preexistente),
@@ -105,7 +107,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 34 ✅ | SEC-DEP-001 | **HECHO.** `requirements.lock` generado con `pip-compile`; `Dockerfile`, `ci.yml` y los workflows de IA (`ai-review-merge.yml`/`ai-implement.yml`) instalan desde ahí, no desde `requirements.txt` | P2 | Builds no reproducibles; imposible reconstruir el entorno de un incidente | Ninguna | M | Dev | Dos builds del mismo commit producen el mismo `pip freeze` |
 | 35 ✅ | SEC-FILE-002 | **HECHO.** `FileExtensionValidator` (`core_erp/validadores_archivos.py`) en los 16 `FileField`/`ImageField`, más verificación de firma binaria real para los que aceptan PDF/XML/ZIP (los que solo aceptan imagen ya la tienen gratis vía `ImageField`+Pillow) | P2 | Contenido activo subido al storage | Ninguna | M | Dev | Un `.html` renombrado a `.pdf` es rechazado por el formulario — `core_erp/test_validadores_archivos.py` |
 | 36 ✅ | SEC-LOG-001 | **HECHO.** Logger `django.security` declarado en `settings.py`; nuevo `AuthorizationAuditMiddleware` registra cada 403 con usuario y ruta, cubriendo por igual `raise PermissionDenied`, `@permission_required` y cualquier 403 manual | P2 | Eventos de seguridad sin nivel ni formato propios | Ninguna | S | Dev | Una petición con `Host` inválido produce una línea identificable |
-| 37 | SEC-CFG-002 | CSP para `/admin/` en modo Report-Only, recoger violaciones de Jazzmin y endurecer por etapas | P2 | Sin defensa en profundidad en la superficie de mayor privilegio | Orden 1 | L | Dev | `/admin/` devuelve cabecera CSP; ninguna funcionalidad de Jazzmin se rompe |
+| 37 ✅ | SEC-CFG-002 | **HECHO (la parte de Dev).** CSP Report-Only para `/admin/`, opt-in vía `ADMIN_CSP_REPORT_ONLY` (`core_erp/middleware.py`) — mismo patrón que la orden 27 ya usaba para el portal de pago. **Pendiente de Infra/Propietario**: activar la variable en Railway, usar el admin con normalidad y revisar la consola del navegador por violaciones antes de plantear una CSP bloqueante — "endurecer por etapas" no es alcanzable sin esa observación en producción real | P2 | Sin defensa en profundidad en la superficie de mayor privilegio | Orden 1 | L | Dev | `/admin/` devuelve cabecera CSP (con el flag activo); ninguna funcionalidad de Jazzmin se rompe (Report-Only nunca bloquea, por diseño) — `core_erp/test_regresion_seguridad.py::PublicSecurityHeadersMiddlewareTest` |
 | 38 | NV-06 | **Documentar** el calendario de rotación de credenciales (Openpay, WhatsApp, Brevo, R2, Jibble) | P2 | Credenciales de larga vida sin control | Ninguna | S | Propietario + Infra | Documento con fecha de última rotación y periodicidad acordada |
 | 39 | NV-08 | **Revisar** el listado de cuentas con `is_staff`/`is_superuser` y retirar las que no correspondan | P2 | Cuentas con más privilegio del necesario o ya innecesarias | Ninguna | S | Propietario | Listado revisado y depurado |
 | 40 | NV-09 | **Verificar** quién accede al dashboard de Openpay y si usan MFA | P2 | Acceso al panel de cobros sin segundo factor | Ninguna | XS | Propietario | Listado documentado |
@@ -137,9 +139,9 @@ existe. Ver Memoria en `CLAUDE.md`.
 |---|---|---|---|
 | P0 | 2 | **2** | — |
 | P1 | 16 | 13 | ~1-2 días |
-| P2 | 22 | 16 | ~3-4 días |
+| P2 | 22 | 17 | ~2-3 días |
 | P3 | 12 | 10 | ~1 semana |
-| **Total** | **52** | **41** | — |
+| **Total** | **52** | **42** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
@@ -149,7 +151,9 @@ existe. Ver Memoria en `CLAUDE.md`.
 4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
 5. Orden 42 — `SEC-AUTHN-002` (`L`): `django-otp` + TOTP obligatorio para superusuarios — código listo en el PR #226, pendiente de que el propietario pruebe el escaneo de QR y apruebe.
 6. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes — borrador listo en el PR #226, pendientes 3 `[CONFIRMAR:]` de negocio.
-7. Lo único que queda en P2 fuera de Infra/Propietario es la orden 37 (`SEC-CFG-002`, CSP para `/admin/`, `L`) — no depende de la orden 7 pese a estar en la misma sección; queda pendiente por su propio esfuerzo (recolectar violaciones reales de Jazzmin antes de endurecer por etapas), no por ningún bloqueo externo.
+7. Orden 37 — `SEC-CFG-002`: la parte de Dev ya está (CSP Report-Only del admin, opt-in vía `ADMIN_CSP_REPORT_ONLY`); falta que Infra/Propietario active la variable en Railway, use el admin con normalidad y reporte las violaciones que aparezcan en la consola del navegador — sin esa observación no hay forma responsable de endurecer a una CSP bloqueante.
+
+No queda ninguna tarea de P0-P3 accionable por Dev en solitario sin depender de Infra o del propietario.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).
