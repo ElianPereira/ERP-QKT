@@ -5,7 +5,7 @@
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
 19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 41, 43, 44, 45,
-46 y 49 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
+46, 47 y 49 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
 limiting, CSRF/validación del cotizador, el ocultamiento de detalles de
 excepción, el gate de lint en CI, el análisis estático de seguridad de
 ruff, la detección de secretos en CI, la auditoría de secretos en el
@@ -14,8 +14,9 @@ builds reproducibles con `requirements.lock` ya están — queda la
 verificación del proxy de Railway, orden 22, que depende de Infra). De la
 Fase 3 también están hechas las órdenes 41 (Referrer-Policy), 43 (usuario
 sin privilegios en el `Dockerfile`), 44 (calendario acotado por rango), 45
-(correlation ID por request), 46 (acciones de CI fijadas por SHA) y 49
-(`MEDIA_ROOT`). Las dos
+(correlation ID por request), 46 (acciones de CI fijadas por SHA), 47
+(idempotencia del webhook de Openpay, ya cubierta por código preexistente)
+y 49 (`MEDIA_ROOT`). Las dos
 verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
@@ -118,7 +119,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 44 ✅ | SEC-DOS-001 | **HECHO.** Los eventos ya no viajan embebidos en la página: `calendario_unificado_eventos` (nuevo endpoint JSON) los sirve acotados a `start`/`end`, y FullCalendar lo consulta por AJAX según el rango visible en cada momento | P3 | Degradación progresiva conforme crece el histórico | Orden 1 | S | Dev | La vista consulta solo el rango visible |
 | 45 ✅ | SEC-LOG-002 | **HECHO.** `CorrelationIdMiddleware` genera un ID por request (nunca aceptado del cliente), expuesto en `X-Correlation-ID` y en todo log emitido durante el procesamiento vía `CorrelationIdFilter` | P3 | Dificultad para correlacionar eventos con 2 workers concurrentes | Orden 36 | S | Dev | Todas las líneas de log de un request comparten identificador |
 | 46 ✅ | SEC-CI-002 | **HECHO.** `actions/checkout`/`actions/setup-python` en `ci.yml` fijadas por SHA (mismas versiones y SHA ya usados en `ai-review-merge.yml`/`ai-implement.yml`, que ya estaban fijados) | P3 | Riesgo bajo de cadena de suministro | Ninguna | XS | Dev | Ninguna acción usa tag flotante |
-| 47 | SEC-BIZ-001 | Registrar identificadores de evento del webhook de Openpay y descartar repetidos | P3 | Replay de payloads capturados (hoy mitigado por idempotencia) | Ninguna | S | Dev | Un payload repetido no genera efectos adicionales |
+| 47 ✅ | SEC-BIZ-001 | **YA CUBIERTO por código preexistente**, verificado y documentado en esta orden — ver Memoria 2026-08-17. `OpenpayTransaccion.openpay_id` es único (`unique=True, db_index=True`) y `procesar_webhook_openpay()` corta con `if registro.procesado: return registro` | P3 | Replay de payloads capturados (hoy mitigado por idempotencia) | Ninguna | S | Dev | Un payload repetido no genera efectos adicionales — cubierto por `ProcesarWebhookIdempotenciaTest.test_no_duplica_pago_con_mismo_openpay_id` |
 | 48 | SEC-BIZ-002 | Confirmación explícita en acciones destructivas del admin (borrados, cambios de permisos) | P3 | Una sesión secuestrada opera sin fricción | Orden 14 | M | Dev | Las acciones destructivas piden confirmación |
 | 49 ✅ | SEC-CFG-005 | **HECHO.** `MEDIA_ROOT = BASE_DIR / 'media'` en `settings.py` — antes caía al default global de Django (`''`) | P3 | `urls.py:189` referencia un setting inexistente en modo `DEBUG` | Ninguna | XS | Dev | `manage.py runserver` con `DEBUG=True` sirve `/media/` sin error |
 | 50 | SEC-XSS-003 | Evaluar sanitizado del HTML generado por markdown en `legal/documento.html:155` | P3 | Un admin comprometido podría publicar HTML activo en una página pública | Ninguna | S | Dev | El markdown se renderiza con lista blanca de etiquetas |
@@ -134,17 +135,16 @@ existe. Ver Memoria en `CLAUDE.md`.
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
 | P2 | 22 | 14 | ~1 semana |
-| P3 | 12 | 6 | ~1 semana |
-| **Total** | **52** | **33** | — |
+| P3 | 12 | 7 | ~1 semana |
+| **Total** | **52** | **34** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
 1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
-4. Orden 47 — `SEC-BIZ-001` (`S`): registrar identificadores de evento del webhook de Openpay y descartar repetidos.
-5. Orden 50 — `SEC-XSS-003` (`S`): evaluar sanitizado del HTML generado por markdown en `legal/documento.html:155`.
-6. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+4. Orden 50 — `SEC-XSS-003` (`S`): evaluar sanitizado del HTML generado por markdown en `legal/documento.html:155`.
+5. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
 7. El resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
