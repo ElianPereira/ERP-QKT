@@ -76,6 +76,50 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 51 del backlog de seguridad (`SEC-TEST-001`):
+  `core_erp/test_regresion_seguridad.py`. **No se reinventó lo que ya
+  existía**: antes de escribir una sola línea se auditó qué órdenes 1-18
+  ya tenían test dedicado (grep de los IDs `SEC-XXX` contra `**/test*.py`)
+  — las cinco categorías que pide la orden (autorización cruzada, XSS,
+  CSRF, cabeceras, expiración de sesión) resultaron **casi todas** ya
+  cubiertas por tests escritos junto con cada corrección: XSS
+  (`airbnb/test_seguridad.py::CalendarioAdminXssTest`), autorización
+  cruzada (`comercial/test_permisos_grupos.py`, órdenes 14-18), CSRF
+  (`comercial/test_cotizador_seguridad.py`), y la mitad de "cabeceras"
+  (`core_erp/test_referrer_policy.py`, `core_erp/test_middleware.py`). El
+  archivo nuevo abre con un índice explícito de dónde vive cada uno —para
+  que "¿qué prueba SEC-AUTHZ-001c?" tenga una respuesta de un solo lugar,
+  sin tener que grepear IDs por el repo cada vez— y **solo añade** tests a
+  los dos huecos reales que esa auditoría encontró. **(1) Cabeceras**:
+  `PublicSecurityHeadersMiddleware` (`core_erp/middleware.py`, CSP +
+  Permissions-Policy en páginas públicas) no tenía ningún test —una
+  regresión que quitara la CSP bloqueante de `/`, `/cotizar/*` o `/api/*`
+  habría pasado inadvertida—; tests nuevos cubren la CSP bloqueante por
+  default, el flag `PUBLIC_CSP_REPORT_ONLY` cambiando a la cabecera
+  Report-Only, `PUBLIC_CSP_ENABLED=False` no mandando ninguna, y
+  Permissions-Policy en toda respuesta (pública y de `/admin/`). **(2)
+  Expiración de sesión**: cero tests sobre `SESSION_COOKIE_AGE`/
+  `SESSION_IDLE_TIMEOUT`/`SESSION_SAVE_EVERY_REQUEST`/
+  `SESSION_EXPIRE_AT_BROWSER_CLOSE` (`settings.py`) pese a que el propio
+  comentario del archivo documenta la intención exacta (idle timeout de
+  30 min, no expiración absoluta). **Error descubierto escribiendo el
+  primer intento de test**: comprobar el `max-age` de la cookie
+  `sessionid` de la respuesta falla con `ValueError` al hacer
+  `int('')` — no es un bug del test, es que `SESSION_EXPIRE_AT_BROWSER_CLOSE
+  = True` hace que Django mande la cookie **sin** `max-age`/`Expires`
+  (cookie de sesión de navegador, a propósito, documentado en los propios
+  docs de Django: "browser-length cookie"), así que el timeout de
+  inactividad real no vive en la cookie sino del lado del servidor. El
+  test correcto usa `self.client.session.get_expiry_age()` (que sí lee
+  `SESSION_COOKIE_AGE` internamente) en vez de parsear la cookie. También
+  se probó el invariante `SESSION_COOKIE_AGE == SESSION_IDLE_TIMEOUT`
+  (nunca deberían desalinearse, son la misma variable por diseño) y que
+  `core_erp/context_processors.py::session_idle` —el valor que lee el
+  auto-logout de JS en el navegador— reporta exactamente los mismos
+  minutos que el backend, para que aviso y expiración real no se
+  desincronicen. Suite completa corrida dos veces (localmente antes del
+  PR y en CI) para confirmar que los 9 tests nuevos son deterministas, no
+  solo que pasan una vez.
 - 2026-08-17 — Orden 48 del backlog de seguridad (`SEC-BIZ-002`):
   `confirmar_accion_destructiva` (`core_erp/admin_utils.py`) envuelve una
   acción de admin (`def accion(self, request, queryset)`) con una página de

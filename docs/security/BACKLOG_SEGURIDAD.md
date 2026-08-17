@@ -5,7 +5,7 @@
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
 19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 41, 43, 44, 45,
-46, 47, 48, 49 y 50 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
+46, 47, 48, 49, 50 y 51 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
 limiting, CSRF/validación del cotizador, el ocultamiento de detalles de
 excepción, el gate de lint en CI, el análisis estático de seguridad de
 ruff, la detección de secretos en CI, la auditoría de secretos en el
@@ -16,8 +16,9 @@ Fase 3 también están hechas las órdenes 41 (Referrer-Policy), 43 (usuario
 sin privilegios en el `Dockerfile`), 44 (calendario acotado por rango), 45
 (correlation ID por request), 46 (acciones de CI fijadas por SHA), 47
 (idempotencia del webhook de Openpay, ya cubierta por código preexistente),
-48 (confirmación en acciones destructivas del admin), 49 (`MEDIA_ROOT`) y 50
-(sanitizado del HTML de markdown con `nh3`). Las dos
+48 (confirmación en acciones destructivas del admin), 49 (`MEDIA_ROOT`), 50
+(sanitizado del HTML de markdown con `nh3`) y 51 (suite de regresión de
+seguridad). Las dos
 verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
@@ -124,7 +125,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 48 ✅ | SEC-BIZ-002 | **HECHO.** `confirmar_accion_destructiva` (`core_erp/admin_utils.py`) — mismo patrón que `delete_selected` de Django — envuelve las 10 acciones de admin de mayor impacto: aplicar/cancelar pólizas, autorizar regularización, aplicar saldo de apertura, regenerar token del portal, registrar reembolso, reembolsar en Openpay, borrar transacciones de prueba, cancelar solicitudes de factura y publicar versión de documento legal | P3 | Una sesión secuestrada opera sin fricción | Orden 14 | M | Dev | Las acciones destructivas piden confirmación |
 | 49 ✅ | SEC-CFG-005 | **HECHO.** `MEDIA_ROOT = BASE_DIR / 'media'` en `settings.py` — antes caía al default global de Django (`''`) | P3 | `urls.py:189` referencia un setting inexistente en modo `DEBUG` | Ninguna | XS | Dev | `manage.py runserver` con `DEBUG=True` sirve `/media/` sin error |
 | 50 ✅ | SEC-XSS-003 | **HECHO.** `DocumentoLegal.render_html()` sanitiza con `nh3` (lista blanca de etiquetas/atributos) antes de que `legal/documento.html:155` lo sirva con `\|safe` | P3 | Un admin comprometido podría publicar HTML activo en una página pública | Ninguna | S | Dev | El markdown se renderiza con lista blanca de etiquetas |
-| 51 | SEC-TEST-001 | Suite de tests de seguridad: autorización cruzada, XSS, CSRF, cabeceras, expiración de sesión | P3 | Regresiones silenciosas en los controles corregidos | Órdenes 1-18 | L | Dev | Un PR que reintroduzca cualquiera de los hallazgos corregidos falla el CI |
+| 51 ✅ | SEC-TEST-001 | **HECHO.** `core_erp/test_regresion_seguridad.py` — índice de dónde vive cada test de las órdenes 1-18 (ya cubiertas al corregirse, no reinventadas) + cobertura nueva a los dos huecos reales encontrados: `PublicSecurityHeadersMiddleware` (CSP/Permissions-Policy) y la expiración de sesión por inactividad, sin ningún test hasta ahora | P3 | Regresiones silenciosas en los controles corregidos | Órdenes 1-18 | L | Dev | Un PR que reintroduzca cualquiera de los hallazgos corregidos falla el CI |
 | 52 | SEC-DOC-001 | Runbook de incidentes: contención, revocación de sesiones, rotación de secretos, preservación de evidencia, comunicación | P3 | Respuesta improvisada ante un incidente | Orden 13 | M | Propietario + Dev | Documento en `docs/security/` revisado por el propietario |
 
 ---
@@ -136,8 +137,8 @@ existe. Ver Memoria en `CLAUDE.md`.
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
 | P2 | 22 | 14 | ~1 semana |
-| P3 | 12 | 9 | ~1 semana |
-| **Total** | **52** | **36** | — |
+| P3 | 12 | 10 | ~1 semana |
+| **Total** | **52** | **37** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
@@ -146,8 +147,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
 5. Orden 42 — `SEC-AUTHN-002` (`L`): `django-otp` + TOTP obligatorio para superusuarios.
-6. Orden 51 — `SEC-TEST-001` (`L`): suite de tests de seguridad de regresión.
-7. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes.
+6. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes.
 7. El resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
