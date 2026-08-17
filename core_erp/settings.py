@@ -94,6 +94,9 @@ PUBLIC_CSP_REPORT_ONLY = config('PUBLIC_CSP_REPORT_ONLY', default=False, cast=bo
 PORTAL_CSP_REPORT_ONLY = config('PORTAL_CSP_REPORT_ONLY', default=False, cast=bool)
 
 MIDDLEWARE = [
+    # Primero de todos: cubre el log de cualquier middleware/vista/señal
+    # posterior con el mismo correlation ID, incluido el de SecurityMiddleware.
+    'core_erp.middleware.CorrelationIdMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'core_erp.middleware.PublicSecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -130,9 +133,34 @@ WSGI_APPLICATION = 'core_erp.wsgi.application'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    # SEC-LOG-002: correlation ID por request, para poder agrupar todas las
+    # líneas de log de una misma petición (con 2 workers de gunicorn
+    # intercalando salida de procesos distintos, sin esto es imposible
+    # separar qué línea es de qué request).
+    'filters': {
+        'correlation_id': {'()': 'core_erp.middleware.CorrelationIdFilter'},
+    },
+    'formatters': {
+        'con_correlation_id': {
+            'format': '[%(correlation_id)s] %(levelname)s %(name)s: %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'filters': ['correlation_id'],
+            'formatter': 'con_correlation_id',
+        },
+    },
     'loggers': {
-        'django': {'handlers': ['console'], 'level': 'INFO'},
+        # propagate=False: sin esto, cualquier mensaje que llegue hasta acá
+        # (todo lo que cuelga de 'django.*', incluido 'django.server') sigue
+        # subiendo al logger raíz. Algunas librerías (dj_database_url) llaman
+        # al logging.warning() de nivel de módulo, lo que dispara el
+        # basicConfig() implícito de Python y deja un StreamHandler suelto en
+        # el logger raíz, sin nuestro formatter — cada línea saldría
+        # duplicada, una con correlation_id y otra sin él.
+        'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
         'weasyprint': {'handlers': ['console'], 'level': 'WARNING'},
         # Los logger.info del webhook Openpay (ej. el código de verificación al
         # registrar el webhook) deben verse en los Deploy Logs de Railway.

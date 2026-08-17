@@ -4,8 +4,8 @@
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
 **Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
-19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 41, 43, 44, 46
-y 49 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
+19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 41, 43, 44, 45,
+46 y 49 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
 limiting, CSRF/validación del cotizador, el ocultamiento de detalles de
 excepción, el gate de lint en CI, el análisis estático de seguridad de
 ruff, la detección de secretos en CI, la auditoría de secretos en el
@@ -13,8 +13,9 @@ historial completo, el registro explícito de 403 de autorización y los
 builds reproducibles con `requirements.lock` ya están — queda la
 verificación del proxy de Railway, orden 22, que depende de Infra). De la
 Fase 3 también están hechas las órdenes 41 (Referrer-Policy), 43 (usuario
-sin privilegios en el `Dockerfile`), 44 (calendario acotado por rango), 46
-(acciones de CI fijadas por SHA) y 49 (`MEDIA_ROOT`). Las dos
+sin privilegios en el `Dockerfile`), 44 (calendario acotado por rango), 45
+(correlation ID por request), 46 (acciones de CI fijadas por SHA) y 49
+(`MEDIA_ROOT`). Las dos
 verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
@@ -115,7 +116,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 42 | SEC-AUTHN-002 | Instalar `django-otp` y exigir TOTP a los superusuarios | P3 | Una contraseña filtrada da acceso completo al ERP | Orden 14 | L | Dev | Un superusuario sin dispositivo TOTP no completa el login |
 | 43 ✅ | SEC-CFG-004 | **HECHO.** Usuario de sistema `appuser` sin privilegios añadido al `Dockerfile`; `chown -R` de `/app` antes del `USER appuser`, después de `collectstatic` | P3 | Una RCE tendría root dentro del contenedor | Ninguna | S | Dev | `whoami` en el contenedor no devuelve `root`; el despliegue funciona |
 | 44 ✅ | SEC-DOS-001 | **HECHO.** Los eventos ya no viajan embebidos en la página: `calendario_unificado_eventos` (nuevo endpoint JSON) los sirve acotados a `start`/`end`, y FullCalendar lo consulta por AJAX según el rango visible en cada momento | P3 | Degradación progresiva conforme crece el histórico | Orden 1 | S | Dev | La vista consulta solo el rango visible |
-| 45 | SEC-LOG-002 | Middleware de correlation/request ID, expuesto en logs y en cabecera de respuesta | P3 | Dificultad para correlacionar eventos con 2 workers concurrentes | Orden 36 | S | Dev | Todas las líneas de log de un request comparten identificador |
+| 45 ✅ | SEC-LOG-002 | **HECHO.** `CorrelationIdMiddleware` genera un ID por request (nunca aceptado del cliente), expuesto en `X-Correlation-ID` y en todo log emitido durante el procesamiento vía `CorrelationIdFilter` | P3 | Dificultad para correlacionar eventos con 2 workers concurrentes | Orden 36 | S | Dev | Todas las líneas de log de un request comparten identificador |
 | 46 ✅ | SEC-CI-002 | **HECHO.** `actions/checkout`/`actions/setup-python` en `ci.yml` fijadas por SHA (mismas versiones y SHA ya usados en `ai-review-merge.yml`/`ai-implement.yml`, que ya estaban fijados) | P3 | Riesgo bajo de cadena de suministro | Ninguna | XS | Dev | Ninguna acción usa tag flotante |
 | 47 | SEC-BIZ-001 | Registrar identificadores de evento del webhook de Openpay y descartar repetidos | P3 | Replay de payloads capturados (hoy mitigado por idempotencia) | Ninguna | S | Dev | Un payload repetido no genera efectos adicionales |
 | 48 | SEC-BIZ-002 | Confirmación explícita en acciones destructivas del admin (borrados, cambios de permisos) | P3 | Una sesión secuestrada opera sin fricción | Orden 14 | M | Dev | Las acciones destructivas piden confirmación |
@@ -133,20 +134,18 @@ existe. Ver Memoria en `CLAUDE.md`.
 | P0 | 2 | **2** | — |
 | P1 | 16 | 11 | ~2-4 días |
 | P2 | 22 | 14 | ~1 semana |
-| P3 | 12 | 5 | ~1 semana |
-| **Total** | **52** | **32** | — |
+| P3 | 12 | 6 | ~1 semana |
+| **Total** | **52** | **33** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
 1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
 2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
-4. Orden 45 — `SEC-LOG-002` (`S`): middleware de correlation/request ID, ahora que el registro explícito de 403 (orden 36) ya está.
-5. Orden 47 — `SEC-BIZ-001` (`S`): registrar identificadores de evento del webhook de Openpay y descartar repetidos.
-6. Orden 50 — `SEC-XSS-003` (`S`): evaluar sanitizado del HTML generado por markdown en `legal/documento.html:155`.
-4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
-5. Orden 44 — `SEC-DOS-001` (`S`): acotar por rango de fechas la consulta de `calendario_unificado`.
-5. De la Fase 3 (P3), las `XS` sueltas: orden 41 (`SEC-CFG-003`, `Referrer-Policy`), orden 46 (`SEC-CI-002`, fijar acciones de `ci.yml` por SHA) y orden 49 (`SEC-CFG-005`, `MEDIA_ROOT`) — el resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
+4. Orden 47 — `SEC-BIZ-001` (`S`): registrar identificadores de evento del webhook de Openpay y descartar repetidos.
+5. Orden 50 — `SEC-XSS-003` (`S`): evaluar sanitizado del HTML generado por markdown en `legal/documento.html:155`.
+6. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+7. El resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).
