@@ -76,6 +76,63 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 45 del backlog de seguridad (`SEC-LOG-002`):
+  `CorrelationIdMiddleware` (`core_erp/middleware.py`), primero en
+  `MIDDLEWARE` — así cubre el log de cualquier middleware/vista/señal
+  posterior, incluido `SecurityMiddleware`. Genera un ID corto
+  (`uuid4().hex[:12]`) por request y **nunca confía en uno que mande el
+  cliente**: aceptar `X-Correlation-ID` de entrada permitiría inyectar
+  valores arbitrarios en el log o que un cliente reutilice el mismo ID
+  entre peticiones distintas para confundir la correlación. Se guarda en
+  un `contextvars.ContextVar` (no `threading.local()`): con gunicorn en
+  modo sync (WSGI) da igual, pero es la forma correcta si el proyecto
+  adopta async más adelante, donde varias tareas pueden compartir hilo
+  sin heredarse el contexto entre sí. El `.set()`/`.reset(token)` va en
+  `try/finally` alrededor de `get_response()` para no dejar el ID de un
+  request filtrándose al siguiente que atienda el mismo worker. Un
+  `logging.Filter` (`CorrelationIdFilter`, cableado en
+  `LOGGING['handlers']['console']['filters']`) inyecta `record.
+  correlation_id` leyendo el mismo `ContextVar` — así cualquier código
+  que solo tiene acceso a un logger (señales, servicios, sin `request` a
+  la mano) también queda agrupado, no solo lo que loguean las vistas.
+  **Bug preexistente encontrado de paso, invisible hasta este cambio**:
+  al añadir un formatter propio (`con_correlation_id`) al handler
+  `console`, las líneas de log empezaron a salir **duplicadas** — una con
+  el formato nuevo y otra sin formatear. Causa: `dj_database_url.config()`
+  (llamado a nivel de módulo en `settings.py`, antes de que Django
+  aplique su propio `LOGGING` vía `dictConfig()`) hace un
+  `logging.warning()` de nivel de módulo cuando no hay `DATABASE_URL`
+  —cierto en dev sin Postgres—, y ese `logging.warning()` suelto dispara
+  el `basicConfig()` implícito de Python, que deja un `StreamHandler` sin
+  formatter propio pegado directo al logger **raíz**. Antes de este
+  cambio el duplicado ya existía pero era invisible: el handler de
+  `'django'` tampoco tenía formatter custom, así que las dos copias se
+  veían idénticas. Se corrigió con `'propagate': False` en la entrada
+  `'django'` de `LOGGING['loggers']` (ya lo tenía `'django.security'`
+  desde la orden 36) — sin eso, cualquier mensaje que llegue a `'django'`
+  sigue subiendo al logger raíz sin importar cuántos handlers propios
+  tenga. Verificado con `runserver` real (`curl -sSI` contra el server:
+  la cabecera `X-Correlation-ID` aparece, y el log dejó de duplicarse).
+  **Detalle de `runserver` que no es bug**: la línea de acceso
+  `django.server: "GET / HTTP/1.1" 200 ...` la emite
+  `WSGIRequestHandler.log_message()` **después** de que la respuesta ya
+  se generó y el `try/finally` del middleware ya hizo `reset()` — esa
+  línea en particular sale con `[-]` en vez de un ID real. Es un
+  artefacto propio de `runserver` (gunicorn en producción no pasa su
+  access log por el módulo `logging` de Python); el log que sí importa
+  —el que se emite **durante** el procesamiento del request, como el 403
+  de `AuthorizationAuditMiddleware`— sí lleva el ID correcto, confirmado
+  en el test nuevo. **Test no trivial**: `assertLogs()` de Django instala
+  su propio handler temporal en el logger y **no aplica los filtros del
+  handler real** (`filters` vive en el handler, no en el logger), así que
+  `logs.records[0].correlation_id` con `assertLogs` normal lanza
+  `AttributeError` — no es que el filtro no funcione, es que el test no
+  lo estaba ejercitando. Se probó en su lugar con un `logging.Handler` de
+  prueba propio, con `CorrelationIdFilter()` añadido a mano
+  (`core_erp/test_middleware.py::CorrelationIdMiddlewareTest`), que sí
+  replica el cableado real de producción (filtro a nivel de handler) y
+  compara el `correlation_id` del registro capturado contra la cabecera
+  `X-Correlation-ID` de la respuesta.
 - 2026-08-16 — Orden 44 del backlog de seguridad (`SEC-DOS-001`):
   `calendario_unificado` consultaba **todo** el histórico de
   cotizaciones/reservas/asignaciones en cada carga de página, sin ningún

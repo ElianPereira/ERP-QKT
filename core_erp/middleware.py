@@ -25,10 +25,53 @@ Toggles de entorno:
   - PORTAL_CSP_REPORT_ONLY (default False): activa la CSP Report-Only del portal.
 """
 import logging
+import uuid
+from contextvars import ContextVar
 
 from django.conf import settings
 
 logger_seguridad = logging.getLogger('django.security')
+
+# --- CORRELATION ID (SEC-LOG-002) ---
+# ContextVar en vez de threading.local: gunicorn corre en modo sync (WSGI,
+# no ASGI) así que ambos funcionarían igual aquí, pero ContextVar es la
+# forma correcta si el proyecto adopta async más adelante — cada tarea
+# async tiene su propia copia sin herencia entre requests concurrentes.
+_correlation_id = ContextVar('correlation_id', default=None)
+
+
+class CorrelationIdFilter(logging.Filter):
+    """Inyecta el correlation ID del request actual en cada LogRecord, para
+    que todas las líneas de log de una misma petición se puedan agrupar —
+    incluidas las que emiten señales, servicios o código que no tiene
+    acceso directo al `request` (solo al logger)."""
+
+    def filter(self, record):
+        record.correlation_id = _correlation_id.get() or '-'
+        return True
+
+
+class CorrelationIdMiddleware:
+    """Genera un ID corto por request (nunca confía en uno que mande el
+    cliente: aceptar `X-Correlation-ID` de fuera permitiría inyectar
+    valores arbitrarios en el log, o que un cliente reutilice el mismo ID
+    entre peticiones distintas para confundir la correlación) y lo deja
+    disponible para el logging vía `CorrelationIdFilter`, y en la cabecera
+    de la respuesta para poder cruzarlo con lo que ve el cliente."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        correlation_id = uuid.uuid4().hex[:12]
+        token = _correlation_id.set(correlation_id)
+        request.correlation_id = correlation_id
+        try:
+            response = self.get_response(request)
+        finally:
+            _correlation_id.reset(token)
+        response['X-Correlation-ID'] = correlation_id
+        return response
 
 # --- Permissions-Policy: seguro en todo el sitio (no incluye 'payment' para no
 # interferir con Openpay/3-D Secure en el portal de pago). ---
