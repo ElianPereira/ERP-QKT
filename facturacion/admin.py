@@ -348,7 +348,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             email     = EmailMessage(
                 subject=f"Solicitud de Factura {folio} | {solicitud.cliente.nombre}",
                 body=solicitud.get_datos_para_contador(),
-                from_email=settings.DEFAULT_FROM_EMAIL,
+                from_email=settings.EMAIL_FROM_NOTIFICACIONES,
                 to=[contador.email],
             )
             email.attach(f"Solicitud_{folio}.pdf", pdf_bytes, 'application/pdf')

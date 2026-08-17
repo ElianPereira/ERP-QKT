@@ -4,13 +4,16 @@ Tests del módulo Facturación
 """
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.template.loader import render_to_string
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from comercial.models import Cliente, Cotizacion, Pago
-from facturacion.models import SolicitudFactura
+from facturacion.models import ConfiguracionContador, SolicitudFactura
 
 
 def _crear_cotizacion(cliente, precio):
@@ -83,3 +86,32 @@ class SolicitudFacturaClienteNoFiscalTest(TestCase):
         self.assertEqual(solicitud.rfc, 'ABC010101AB1')
         self.assertEqual(solicitud.razon_social, 'EMPRESA SA DE CV')
         self.assertEqual(solicitud.uso_cfdi, 'G03')
+
+
+@override_settings(EMAIL_FROM_NOTIFICACIONES='notificaciones@qkt.mx')
+class EnviarEmailContadorRemitenteTest(TestCase):
+    """El email al contador (interno, no al cliente) sale de EMAIL_FROM_NOTIFICACIONES."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser('admin', password='x', email='admin@qkt.mx')
+        self.client.force_login(self.user)
+        self.contador = ConfiguracionContador.objects.create(
+            nombre='Contador Test', email='contador@example.com',
+            telefono_whatsapp='529991234567',
+        )
+        cliente = Cliente.objects.create(nombre='Cliente sin factura')
+        cot = _crear_cotizacion(cliente, Decimal('11600.00'))
+        pago = Pago.objects.create(
+            cotizacion=cot, monto=Decimal('11600.00'), metodo='EFECTIVO', usuario=self.user,
+        )
+        self.solicitud = SolicitudFactura.objects.get(pago=pago)
+
+    def test_email_al_contador_sale_de_notificaciones(self):
+        with patch('facturacion.admin._generar_pdf_solicitud', return_value=b'%PDF-fake'):
+            self.client.get(reverse(
+                'admin:solicitudfactura_enviar_email',
+                args=[self.solicitud.id],
+            ))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].from_email, 'notificaciones@qkt.mx')
+        self.assertEqual(mail.outbox[0].to, ['contador@example.com'])

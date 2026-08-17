@@ -76,6 +76,30 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Remitente de email por tipo (Issue #221): dominio propio
+  `quintakooxtanil.com` verificado en Brevo (SPF/DKIM) y `reservas@`/
+  `pagos@`/`notificaciones@quintakooxtanil.com` dados de alta como
+  remitentes, con Cloudflare Email Routing reenviando las respuestas al
+  Gmail del negocio. `comunicacion/services.py::remitente_por_tipo()`
+  centraliza el mapeo: `COTIZACION` → `EMAIL_FROM_RESERVAS`;
+  `CONFIRMACION_PAGO`/`REEMBOLSO`/`RECORDATORIO_PAGO` → `EMAIL_FROM_PAGOS`;
+  cualquier otro tipo (incluido `'OTRO'`, que son siempre alertas internas,
+  nunca al cliente) cae a `EMAIL_FROM_NOTIFICACIONES` por default explícito
+  del `dict.get()`, así que un tipo nuevo que se agregue a
+  `ComunicacionCliente.TIPO_CHOICES` sin tocar este mapeo no queda sin
+  remitente. El email al contador en `facturacion/admin.py::enviar_email_view()`
+  también usa `EMAIL_FROM_NOTIFICACIONES` — es correo interno/operativo
+  aunque el asunto diga "factura", el cliente nunca lo recibe. Las tres
+  variables nuevas caen a `DEFAULT_FROM_EMAIL` si no están configuradas, a
+  propósito: el código se desplegó antes de que Codex pudiera implementarlo
+  (se quedó sin crédito en OpenAI, `stream disconnected ... no credits
+  remaining` en el job `ai-implement.yml` del Issue #221 — lo implementé yo
+  directo, a pedido explícito del propietario, saltándose el flujo normal
+  de planificar-en-Issue-y-dejar-que-Codex-implemente), así que el
+  fallback evita que production mande correos con un remitente no
+  autenticado si las variables de Railway se configuran en el orden
+  incorrecto.
+
 - 2026-08-17 — Orden 50 del backlog de seguridad (`SEC-XSS-003`):
   `DocumentoLegal.render_html()` (`legal/models.py`) sanitiza con `nh3`
   antes de devolver el HTML que `legal/documento.html:155` sirve con
