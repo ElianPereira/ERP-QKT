@@ -267,6 +267,12 @@ class RecetaSubProducto(models.Model):
     def __str__(self): return f"{self.subproducto.nombre} <- {self.insumo.nombre}"
 
 class Producto(models.Model):
+    ROL_COTIZADOR_CHOICES = [
+        ('BASE_EVENTO', 'Base — Evento (se agrega solo)'),
+        ('BASE_PASADIA', 'Base — Pasadía (se agrega solo)'),
+        ('HORA_EXTRA', 'Hora extra de arrendamiento'),
+    ]
+
     GRUPO_COTIZADOR_CHOICES = [
         ('PAQUETE', 'Paquetes'),
         ('ENTRETENIMIENTO', 'Entretenimiento'),
@@ -313,6 +319,15 @@ class Producto(models.Model):
     cotizador_evento = models.BooleanField(default=False, verbose_name="Disponible para Evento")
     cotizador_pasadia = models.BooleanField(default=False, verbose_name="Disponible para Pasadía")
     cotizador_arrendamiento = models.BooleanField(default=False, verbose_name="Disponible para Arrendamiento de Mobiliario")
+    rol_cotizador = models.CharField(
+        max_length=20, blank=True, choices=ROL_COTIZADOR_CHOICES, db_index=True,
+        verbose_name="Rol en el cotizador",
+        help_text=(
+            "Producto que el cotizador agrega SOLO al elegir el servicio (el "
+            "arrendamiento de la quinta). No se ofrece como extra: si el cliente "
+            "pudiera marcarlo, se cobraría dos veces. Vacío = extra normal."
+        ),
+    )
 
     es_paquete = models.BooleanField(
         default=False,

@@ -276,7 +276,7 @@ class ProductoPaqueteInline(admin.TabularInline):
 class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline, ProductoPaqueteInline]
     list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_upgrade', 'badge_licor')
-    list_filter = ('visible_cotizador', 'grupo_cotizador', 'es_paquete', 'es_upgrade', 'requiere_licor')
+    list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'es_paquete', 'es_upgrade', 'requiere_licor')
     filter_horizontal = ('hereda_inventario_de',)
     search_fields = ('nombre',)
     fieldsets = (
@@ -304,6 +304,7 @@ class ProductoAdmin(admin.ModelAdmin):
             'fields': (
                 'visible_cotizador',
                 ('cotizador_evento', 'cotizador_pasadia', 'cotizador_arrendamiento'),
+                'rol_cotizador',
                 'grupo_cotizador', 'icono', 'descripcion_corta',
                 'orden_cotizador', 'grupo_exclusion',
                 ('cantidad_por_persona', 'factor_personas'),

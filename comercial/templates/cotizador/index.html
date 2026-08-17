@@ -358,10 +358,16 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
   <!-- PASO 3: Bifurcación — Paquete o Personalizado -->
   <div class="step-panel" id="panel-3">
-    <h2 class="panel-title">Elige cómo <em>cotizar</em></h2>
-    <p class="panel-sub">Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.</p>
+    <h2 class="panel-title" id="titulo-paso3">Elige cómo <em>cotizar</em></h2>
+    <p class="panel-sub" id="sub-paso3">Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.</p>
 
-    <div class="path-grid">
+    <!-- Lo que ya va incluido por el solo hecho de elegir el servicio. Lo agrega
+         el servidor (_lineas_cotizador), aquí solo se anuncia. -->
+    <div id="nota-base" style="display:none;font-size:.82rem;line-height:1.7;color:var(--verde-d);
+         background:rgba(46,125,50,.08);border-left:3px solid var(--verde);
+         padding:.9rem 1rem;border-radius:0 6px 6px 0;margin-bottom:1.4rem;"></div>
+
+    <div class="path-grid" id="path-grid">
       <div class="path-card" onclick="selCamino('paquete',this)">
         <span class="path-nom">Elegir paquete</span>
         <span class="path-desc">Paquetes prediseñados con todo incluido. Rápido y sencillo.</span>
@@ -622,6 +628,48 @@ function actualizarPanelSegunServicio() {
   }
   document.getElementById('personas-min-lbl').textContent = slider.min;
   document.getElementById('personas-max-lbl').textContent = slider.max;
+
+  configurarPaso3();
+}
+
+// El servicio decide qué ofrece el paso 3. La pasadía no tiene paquetes
+// prediseñados que elegir —su producto base lo agrega el servidor siempre, con
+// horario fijo—, así que la bifurcación sobra y se va directo a los extras.
+function configurarPaso3() {
+  var esPasadia = servicioSel === 'PASADIA';
+  var pathGrid  = document.getElementById('path-grid');
+  var titulo    = document.getElementById('titulo-paso3');
+  var sub       = document.getElementById('sub-paso3');
+  var subPaq    = document.getElementById('sub-paquetes');
+  var subPer    = document.getElementById('sub-personalizado');
+
+  caminoSel  = null;
+  paqueteSel = null;
+  document.querySelectorAll('.path-card').forEach(function(c) { c.classList.remove('selected'); });
+  document.getElementById('err-camino').style.display = 'none';
+  subPaq.style.display = 'none';
+  subPer.style.display = 'none';
+  mostrarNotaBase('');
+
+  if (esPasadia) {
+    pathGrid.style.display = 'none';
+    titulo.innerHTML = 'Agrega <em>extras</em>';
+    sub.textContent = 'Tu pasadía ya está incluida. Lo de abajo es opcional.';
+    mostrarNotaBase('Tu cotización ya incluye el Paquete Pasadía QKT: uso de la quinta de 10:00 a 19:00.');
+    caminoSel = 'personalizado';
+    subPer.style.display = 'block';
+    cargarExtrasPersonalizado();
+  } else {
+    pathGrid.style.display = '';
+    titulo.innerHTML = 'Elige cómo <em>cotizar</em>';
+    sub.textContent = 'Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.';
+  }
+}
+
+function mostrarNotaBase(texto) {
+  var nota = document.getElementById('nota-base');
+  nota.textContent = texto;
+  nota.style.display = texto ? 'block' : 'none';
 }
 
 function selCamino(camino, el) {
@@ -637,10 +685,18 @@ function selCamino(camino, el) {
   if (camino === 'paquete') {
     subPaq.style.display = 'block';
     subPer.style.display = 'none';
+    // El paquete ya incluye el arrendamiento de la quinta: no se suma aparte.
+    mostrarNotaBase('');
     cargarPaquetes();
   } else {
     subPaq.style.display = 'none';
     subPer.style.display = 'block';
+    if (servicioSel === 'EVENTO') {
+      mostrarNotaBase('Tu cotización ya incluye el Paquete Esencial QKT: arrendamiento de la quinta '
+                    + '(6 horas; las adicionales se cobran como hora extra). Lo de abajo es opcional.');
+    } else {
+      mostrarNotaBase('');
+    }
     cargarExtrasPersonalizado();
   }
 }
@@ -657,7 +713,15 @@ async function cargarPaquetes() {
       renderPaquetes(data.paquetes);
     } else {
       paquetesData = [];
-      grid.innerHTML = '<div class="paq-empty">No hay paquetes disponibles para este servicio. Puedes armar tu cotización personalizada.</div>';
+      // Sin paquetes configurados este camino no lleva a ningún lado: se cae a
+      // personalizado, que sí muestra extras y agrega la línea base del servicio.
+      grid.innerHTML = '';
+      var tarjetaCustom = document.querySelector('.path-card.path-custom');
+      if (tarjetaCustom) {
+        selCamino('personalizado', tarjetaCustom);
+      } else {
+        grid.innerHTML = '<div class="paq-empty">No hay paquetes disponibles para este servicio. Puedes armar tu cotización personalizada.</div>';
+      }
     }
   } catch(e) {
     grid.innerHTML = '<div class="paq-empty">Error al cargar paquetes. Intenta de nuevo.</div>';
@@ -964,9 +1028,13 @@ function construirResumen() {
     + '<div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">' + fechaFmt + '</span></div>';
   if (servicioSel === 'EVENTO') {
     html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">' + esc(hi) + ' — ' + esc(hf) + '</span></div>';
+  } else if (servicioSel === 'PASADIA') {
+    // Horario fijo de la pasadía; el backend lo impone igual (HORA_*_PASADIA).
+    html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">10:00 — 19:00</span></div>';
   }
   html += '<div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">' + esc(personas) + '</span></div>'
-    + '<div class="resumen-item"><span class="resumen-key">Modalidad</span><span class="resumen-val">' + (caminoSel === 'paquete' ? 'Paquete' : 'Personalizado') + '</span></div>'
+    + (servicioSel === 'PASADIA' ? ''
+        : '<div class="resumen-item"><span class="resumen-key">Modalidad</span><span class="resumen-val">' + (caminoSel === 'paquete' ? 'Paquete' : 'Personalizado') + '</span></div>')
     + '<div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">' + esc(nombre) + '</span></div>'
     + '<div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">' + esc(tel) + '</span></div>';
   if (email) html += '<div class="resumen-item"><span class="resumen-key">Correo</span><span class="resumen-val">' + esc(email) + '</span></div>';
@@ -1011,6 +1079,10 @@ async function cargarTotal() {
     servicio: servicioSel || '',
     // Mismo criterio que el backend: minimo 6h, y Pasadia son 9h fijas.
     horas: String(horasEvento()),
+    // Solo cambia el texto del concepto (no el importe), pero así el desglose
+    // que se exhibe dice lo mismo que la cotización que se va a crear.
+    tipo: (document.getElementById('tipo_evento') && servicioSel === 'EVENTO')
+      ? document.getElementById('tipo_evento').value : '',
   });
   if (paqueteSel) params.set('paquete', paqueteSel);
   if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
@@ -1022,7 +1094,16 @@ async function cargarTotal() {
     h += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Total estimado</span>';
     h += '<span style="font-family:Cormorant Garamond,serif;font-size:1.6rem;color:var(--verde);font-weight:400;">' + d.total_formateado + '</span>';
     h += '</div>';
-    h += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">' + d.leyenda + '. Incluye el paquete y los extras seleccionados.</div>';
+    // El desglose lo manda el servidor: son las MISMAS líneas que se van a
+    // cobrar, incluida la base que el cotizador agrega solo.
+    if (d.conceptos && d.conceptos.length) {
+      h += '<ul style="list-style:none;margin:.7rem 0 0;padding:0;font-size:.74rem;color:var(--texto-s);font-weight:300;line-height:1.7;">';
+      for (var i = 0; i < d.conceptos.length; i++) {
+        h += '<li>· ' + esc(d.conceptos[i]) + '</li>';
+      }
+      h += '</ul>';
+    }
+    h += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">' + d.leyenda + '.</div>';
     cont.innerHTML = h;
   } catch (e) {
     cont.innerHTML = '<div style="font-size:.72rem;color:var(--texto-s);">El total se confirmará en tu cotización.</div>';
