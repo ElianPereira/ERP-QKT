@@ -126,7 +126,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 49 ✅ | SEC-CFG-005 | **HECHO.** `MEDIA_ROOT = BASE_DIR / 'media'` en `settings.py` — antes caía al default global de Django (`''`) | P3 | `urls.py:189` referencia un setting inexistente en modo `DEBUG` | Ninguna | XS | Dev | `manage.py runserver` con `DEBUG=True` sirve `/media/` sin error |
 | 50 ✅ | SEC-XSS-003 | **HECHO.** `DocumentoLegal.render_html()` sanitiza con `nh3` (lista blanca de etiquetas/atributos) antes de que `legal/documento.html:155` lo sirva con `\|safe` | P3 | Un admin comprometido podría publicar HTML activo en una página pública | Ninguna | S | Dev | El markdown se renderiza con lista blanca de etiquetas |
 | 51 ✅ | SEC-TEST-001 | **HECHO.** `core_erp/test_regresion_seguridad.py` — índice de dónde vive cada test de las órdenes 1-18 (ya cubiertas al corregirse, no reinventadas) + cobertura nueva a los dos huecos reales encontrados: `PublicSecurityHeadersMiddleware` (CSP/Permissions-Policy) y la expiración de sesión por inactividad, sin ningún test hasta ahora | P3 | Regresiones silenciosas en los controles corregidos | Órdenes 1-18 | L | Dev | Un PR que reintroduzca cualquiera de los hallazgos corregidos falla el CI |
-| 52 | SEC-DOC-001 | Runbook de incidentes: contención, revocación de sesiones, rotación de secretos, preservación de evidencia, comunicación | P3 | Respuesta improvisada ante un incidente | Orden 13 | M | Propietario + Dev | Documento en `docs/security/` revisado por el propietario |
+| 52 ⚠️ | SEC-DOC-001 | **Borrador de Dev listo, pendiente de revisión del propietario.** `docs/security/RUNBOOK_INCIDENTES.md` — contención por tipo de incidente, preservación de evidencia, tabla de rotación de las 10 credenciales reales del proyecto (Openpay, Brevo, WhatsApp, R2 público/privado, Jibble, etc.) con su variable de Railway exacta. Tres puntos quedan `[CONFIRMAR:]` porque dependen de la orden 13 (canal de alertas) y de decisiones de negocio (política de notificación a clientes) que no le corresponden a Dev | P3 | Respuesta improvisada ante un incidente | Orden 13 | M | Propietario + Dev | Documento en `docs/security/` revisado por el propietario |
 
 ---
 
@@ -147,7 +147,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
 4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
 5. **Orden 42 — `SEC-AUTHN-002`: código y 14 tests listos en PR, esperando que el propietario confirme el flujo de alta de TOTP antes de mergear** — es un cambio de autenticación de producción para la cuenta de mayor privilegio (Dirección) y este entorno no puede probar interactivamente el escaneo de QR con una app real. Ver Memoria 2026-08-17 para el detalle del riesgo.
-6. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes.
+6. **Orden 52 — `SEC-DOC-001`: borrador del runbook de incidentes listo, esperando revisión del propietario** (tres puntos de comunicación/canal quedan `[CONFIRMAR:]` a propósito).
 7. El resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de

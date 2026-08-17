@@ -76,6 +76,41 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 52 del backlog de seguridad (`SEC-DOC-001`),
+  `docs/security/RUNBOOK_INCIDENTES.md` — **borrador de Dev, no cerrado**:
+  la propia orden lo marca `Propietario + Dev`, así que se escribió con
+  todo lo que Dev puede definir desde el código y la infraestructura ya
+  documentada en el repo, y se dejaron exactamente 3 puntos con
+  `[CONFIRMAR:]` en vez de inventar una respuesta: a quién avisar y por
+  qué canal (bloqueado por la orden 13, `NV-07`, que sigue sin resolver),
+  el umbral de severidad para notificar a clientes, y quién redacta/aprueba
+  ese aviso — son decisiones de negocio, no huecos técnicos. El contenido
+  que sí se pudo escribir con certeza salió de grepear el propio repo, no
+  de una plantilla genérica de runbook: la tabla de rotación de
+  credenciales (§5) lista las 10 credenciales reales con su variable
+  exacta de Railway (`OPENPAY_PRIVATE_KEY`, `WA_CLOUD_API_TOKEN`,
+  `CLOUDFLARE_R2_PRIVATE_ACCESS_KEY_ID`, etc., sacadas de los `config(...)`
+  de `settings.py`) y el efecto colateral real de rotar cada una — no una
+  lista de "credenciales típicas". El paso de "revocar todas las sesiones
+  activas" (§3.1) tuvo que investigarse porque no es obvio en Django:
+  `manage.py clearsessions` **no sirve** para esto (solo borra sesiones ya
+  expiradas), hace falta `Session.objects.all().delete()` directo sobre la
+  tabla `django_session` (el `SESSION_ENGINE` de este proyecto es el
+  default de Django, backend de base de datos — confirmado que no hay
+  override en `settings.py`) o, más agresivo, rotar `SECRET_KEY` en
+  Railway (invalida la firma de todas las cookies de sesión existentes sin
+  tocar la base de datos). El documento referencia activamente el propio
+  historial de incidentes reales del proyecto en vez de hablar en
+  abstracto: el feed iCal sin `ICAL_PUBLIC_TOKEN` (orden 5) como ejemplo
+  de contención "definir una variable en Railway sin esperar deploy", y la
+  auditoría de secretos en el historial completo de git (`gitleaks
+  --log-opts="--all"`, orden 33) como el proceso ya existente para medir
+  el alcance real de un secreto commiteado. También apunta explícitamente
+  a la orden 42 (TOTP): si esa orden ya está mergeada al momento de un
+  incidente de cuenta comprometida, borrar solo la cuenta o su contraseña
+  no basta —hay que borrar también el `TOTPDevice` de esa cuenta, o un
+  atacante que recupere la contraseña vieja más adelante seguiría teniendo
+  un segundo factor válido—.
 - 2026-08-17 — Orden 42 del backlog de seguridad (`SEC-AUTHN-002`), **código
   y tests listos pero SIN mergear a propósito** — es el único de todo este
   backlog donde se rompió el patrón "implementar → validar → mergear" de
