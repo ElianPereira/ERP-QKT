@@ -22,6 +22,7 @@ from django.utils.safestring import mark_safe
 from weasyprint import HTML
 
 from core_erp import impuestos
+from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
 
 from .models import ConfiguracionContador, SolicitudFactura
@@ -388,6 +389,10 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         self.message_user(request, f"{count} solicitud(es) marcada(s) como enviadas.")
 
     @admin.action(description="Cancelar solicitudes")
+    @confirmar_accion_destructiva(
+        "¿Cancelar las solicitudes de factura seleccionadas? Las que ya "
+        "estén FACTURADA no se tocan; el resto queda como CANCELADA."
+    )
     def marcar_canceladas(self, request, queryset):
         count = queryset.exclude(estado='FACTURADA').update(estado='CANCELADA')
         self.message_user(request, f"{count} solicitud(es) cancelada(s).")

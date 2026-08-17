@@ -90,6 +90,39 @@ class DocumentoLegalTest(TestCase):
         self.assertFalse(doc.vigente)
 
 
+class PublicarVersionAdminAccionTest(TestCase):
+    """SEC-BIZ-002: publicar una versión desde el admin exige un segundo POST
+    con 'confirmar=si' — afecta de inmediato una página pública."""
+
+    def setUp(self):
+        self.superusuario = get_user_model().objects.create_superuser(
+            'jefa_legal', 'jefa_legal@quintakooxtanil.com', 'clave-de-prueba',
+        )
+        self.client.force_login(self.superusuario)
+        self.doc = _doc(TipoDocumento.TERMINOS, version='2.0', vigente=False)
+        self.url = reverse('admin:legal_documentolegal_changelist')
+
+    def test_sin_confirmar_no_publica(self):
+        respuesta = self.client.post(self.url, {
+            'action': 'publicar_version',
+            '_selected_action': [str(self.doc.pk)],
+        }, follow=True)
+
+        self.doc.refresh_from_db()
+        self.assertFalse(self.doc.vigente)
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
+
+    def test_con_confirmar_si_publica(self):
+        self.client.post(self.url, {
+            'action': 'publicar_version',
+            '_selected_action': [str(self.doc.pk)],
+            'confirmar': 'si',
+        }, follow=True)
+
+        self.doc.refresh_from_db()
+        self.assertTrue(self.doc.vigente)
+
+
 class AceptacionTest(TestCase):
 
     def setUp(self):
