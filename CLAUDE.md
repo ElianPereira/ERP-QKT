@@ -76,6 +76,41 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Orden 47 del backlog de seguridad (`SEC-BIZ-001`, replay del
+  webhook de Openpay): **ya estaba cubierta por código preexistente, sin
+  relación con esta sesión de seguridad** — mismo patrón que las órdenes 41
+  y 49, donde la premisa del backlog no reproducía tal cual contra el
+  código real. `OpenpayTransaccion.openpay_id` ya es `unique=True,
+  db_index=True` (comercial/models.py:1939) y `procesar_webhook_openpay()`
+  ya corta en seco con `if registro.procesado: return registro`
+  (comercial/services_openpay.py:709) antes de generar ningún efecto
+  adicional. El propio `AUDITORIA_SEGURIDAD.md` (que originó este backlog)
+  ya lo reconocía explícitamente en el hallazgo original: "la idempotencia
+  por `openpay_id` ... hace que un reenvío converja al mismo estado, que es
+  la mitigación efectiva. Se documenta como riesgo residual, no como
+  vulnerabilidad explotable con el diseño actual." Y ya existía un test que
+  prueba el criterio de aceptación literal del backlog ("un payload
+  repetido no genera efectos adicionales") con conteos antes/después, no
+  solo un chequeo de estado:
+  `comercial/test_openpay.py::ProcesarWebhookIdempotenciaTest::test_no_duplica_pago_con_mismo_openpay_id`
+  manda el mismo payload dos veces seguidas (`# simula reintento de
+  Openpay`) y verifica `OpenpayTransaccion.objects.filter(...).count() ==
+  1` y `Pago.objects.filter(...).count() == 1`. **Por qué no hace falta
+  `transaction.atomic()` extra alrededor del `get_or_create`**: el
+  `get_or_create()` de Django ya envuelve internamente su propio `create()`
+  en un `atomic()` y, si el `INSERT` choca contra el `unique=True` por una
+  petición concurrente (dos entregas del mismo webhook llegando a la vez a
+  dos workers de gunicorn), atrapa el `IntegrityError` y vuelve a consultar
+  la fila que ganó la carrera — no hay ventana real de duplicado ni con
+  Postgres en producción. Se descartó ir más allá (ej. guardar un
+  "identificador de evento" separado del id de transacción): Openpay no
+  expone en sus payloads reales un id de evento distinto al de la
+  transacción (confirmado contra los payloads reales ya documentados en
+  este archivo para el evento `VERIFICATION`), así que "identificador de
+  evento" y "openpay_id" son la misma cosa en este proveedor — no hay un
+  campo adicional que registrar. Sin cambios de código; solo se cerró en
+  `docs/security/BACKLOG_SEGURIDAD.md` con la referencia al test que ya
+  cubre el criterio de aceptación.
 - 2026-08-17 — Orden 45 del backlog de seguridad (`SEC-LOG-002`):
   `CorrelationIdMiddleware` (`core_erp/middleware.py`), primero en
   `MIDDLEWARE` — así cubre el log de cualquier middleware/vista/señal
