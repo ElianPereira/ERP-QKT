@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Inicio</a>
+› <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+› <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+› Confirmar acción
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="background:rgba(231,76,60,.12);border-left:4px solid #e74c3c;border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;line-height:1.6;">
+  {{ mensaje }}
+</div>
+
+<p>Se aplicará a {{ queryset|length }} elemento(s):</p>
+<ul style="max-width:64em;max-height:320px;overflow:auto;">
+  {% for obj in queryset %}
+    <li>{{ obj }}</li>
+  {% endfor %}
+</ul>
+
+<form method="post">
+  {% csrf_token %}
+  {% for obj in queryset %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="{{ action_name }}">
+  <input type="hidden" name="confirmar" value="si">
+  <button type="submit" style="background:#e74c3c;color:#fff;border:0;border-radius:4px;padding:10px 24px;font-weight:600;cursor:pointer;">
+    Sí, continuar
+  </button>
+  <a href="{% url opts|admin_urlname:'changelist' %}" style="margin-left:16px;color:#95a5a6;">Cancelar</a>
+</form>
+{% endblock %}

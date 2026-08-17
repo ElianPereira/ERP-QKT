@@ -88,6 +88,45 @@ class SolicitudFacturaClienteNoFiscalTest(TestCase):
         self.assertEqual(solicitud.uso_cfdi, 'G03')
 
 
+class MarcarCanceladasAdminAccionTest(TestCase):
+    """SEC-BIZ-002: cancelar solicitudes desde el admin exige un segundo
+    POST con 'confirmar=si' — un solo POST directo no las cancela."""
+
+    def setUp(self):
+        self.superusuario = User.objects.create_superuser(
+            'jefa_factura', 'jefa_factura@quintakooxtanil.com', 'clave-de-prueba',
+        )
+        self.client.force_login(self.superusuario)
+        cliente = Cliente.objects.create(nombre='Cliente factura')
+        cot = _crear_cotizacion(cliente, Decimal('5000.00'))
+        pago = Pago.objects.create(
+            cotizacion=cot, monto=Decimal('5000.00'),
+            metodo='EFECTIVO', usuario=self.superusuario,
+        )
+        self.solicitud = SolicitudFactura.objects.get(pago=pago)
+        self.url = reverse('admin:facturacion_solicitudfactura_changelist')
+
+    def test_sin_confirmar_no_cancela(self):
+        respuesta = self.client.post(self.url, {
+            'action': 'marcar_canceladas',
+            '_selected_action': [str(self.solicitud.pk)],
+        }, follow=True)
+
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, 'PENDIENTE')
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
+
+    def test_con_confirmar_si_cancela(self):
+        self.client.post(self.url, {
+            'action': 'marcar_canceladas',
+            '_selected_action': [str(self.solicitud.pk)],
+            'confirmar': 'si',
+        }, follow=True)
+
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, 'CANCELADA')
+
+
 @override_settings(EMAIL_FROM_NOTIFICACIONES='notificaciones@qkt.mx')
 class EnviarEmailContadorRemitenteTest(TestCase):
     """El email al contador (interno, no al cliente) sale de EMAIL_FROM_NOTIFICACIONES."""

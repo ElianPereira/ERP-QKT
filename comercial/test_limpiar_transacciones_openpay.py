@@ -75,6 +75,21 @@ class AdminActionBorrarTransaccionesTest(TestCase):
         self.admin_user = User.objects.create_superuser('admin_tpv', 'admin@test.com', 'pass1234')
         self.client.force_login(self.admin_user)
 
+    def test_sin_confirmar_no_borra_nada(self):
+        """SEC-BIZ-002: un solo POST sin 'confirmar=si' no debe borrar nada."""
+        cotizacion = _crear_cotizacion()
+        procesar_webhook_openpay(_webhook_con_fee(cotizacion))
+
+        from django.urls import reverse
+        url = reverse('admin:comercial_openpaytransaccion_changelist')
+        respuesta = self.client.post(url, {
+            'action': 'borrar_transacciones_de_prueba',
+            '_selected_action': [str(OpenpayTransaccion.objects.get().pk)],
+        }, follow=True)
+
+        self.assertEqual(OpenpayTransaccion.objects.count(), 1)
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
+
     def test_accion_borra_seleccionadas(self):
         cotizacion = _crear_cotizacion()
         procesar_webhook_openpay(_webhook_con_fee(cotizacion))
@@ -85,6 +100,7 @@ class AdminActionBorrarTransaccionesTest(TestCase):
         response = self.client.post(url, {
             'action': 'borrar_transacciones_de_prueba',
             '_selected_action': [str(registro.pk)],
+            'confirmar': 'si',
         }, follow=True)
 
         self.assertEqual(response.status_code, 200)
@@ -103,6 +119,7 @@ class AdminActionBorrarTransaccionesTest(TestCase):
         self.client.post(url, {
             'action': 'borrar_transacciones_de_prueba',
             '_selected_action': [str(registro.pk)],
+            'confirmar': 'si',
         }, follow=True)
 
         self.assertEqual(OpenpayTransaccion.objects.count(), 1)

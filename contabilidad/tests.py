@@ -1710,6 +1710,7 @@ class RegularizacionArrastreTest(TestCase):
         return self.client.post(self.url, {
             'action': accion,
             '_selected_action': [str(self.conciliacion.pk)],
+            'confirmar': 'si',
         }, follow=True)
 
     # -- La propuesta -------------------------------------------------
@@ -1768,10 +1769,26 @@ class RegularizacionArrastreTest(TestCase):
         self.client.post('/admin/contabilidad/poliza/', {
             'action': 'aplicar_polizas',
             '_selected_action': [str(poliza.pk)],
+            'confirmar': 'si',
         }, follow=True)
 
         poliza.refresh_from_db()
         self.assertEqual(poliza.estado, 'BORRADOR')
+
+    def test_sin_confirmar_no_autoriza_nada(self):
+        """SEC-BIZ-002: un solo POST sin 'confirmar=si' no debe aplicar la
+        regularización, aunque sea Dirección quien lo mande."""
+        proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
+
+        self.client.force_login(self.direccion)
+        respuesta = self.client.post(self.url, {
+            'action': 'aprobar_regularizacion',
+            '_selected_action': [str(self.conciliacion.pk)],
+        }, follow=True)
+
+        poliza = Poliza.objects.get(origen='APERTURA')
+        self.assertEqual(poliza.estado, 'BORRADOR')
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
 
     def test_direccion_autoriza_y_queda_asentado_quien_fue(self):
         proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
@@ -1964,3 +1981,69 @@ class CerrarHistoricoContableTest(TestCase):
         self.vieja.refresh_from_db()
         self.assertEqual(self.vieja.estado, 'CANCELADA')
         self.assertEqual(self.vieja.cancelada_por, self.direccion)
+
+
+class PolizaAdminAccionesConfirmacionTest(TestCase):
+    """SEC-BIZ-002: 'Aplicar'/'Cancelar pólizas' desde el admin exigen un
+    segundo POST con 'confirmar=si' — un solo POST directo no las dispara."""
+
+    def setUp(self):
+        self.direccion = User.objects.create_superuser('direccion_confirma', 'd@qkt.mx', 'x')
+        self.client.force_login(self.direccion)
+        self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.contra = CuentaContable.objects.get(codigo_sat='402.02')
+        self.poliza = Poliza.objects.create(
+            tipo='I', folio=Poliza.siguiente_folio('I', date(2026, 8, 1)),
+            fecha=date(2026, 8, 1), concepto='Prueba', unidad_negocio=self.unidad,
+            estado='BORRADOR', origen='MANUAL', created_by=self.direccion,
+        )
+        MovimientoContable.objects.create(poliza=self.poliza, cuenta=self.cuenta, debe=Decimal('100.00'))
+        MovimientoContable.objects.create(poliza=self.poliza, cuenta=self.contra, haber=Decimal('100.00'))
+        self.url = '/admin/contabilidad/poliza/'
+
+    def test_aplicar_sin_confirmar_no_cambia_el_estado(self):
+        respuesta = self.client.post(self.url, {
+            'action': 'aplicar_polizas',
+            '_selected_action': [str(self.poliza.pk)],
+        }, follow=True)
+
+        self.poliza.refresh_from_db()
+        self.assertEqual(self.poliza.estado, 'BORRADOR')
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
+
+    def test_aplicar_con_confirmar_si_aplica(self):
+        self.client.post(self.url, {
+            'action': 'aplicar_polizas',
+            '_selected_action': [str(self.poliza.pk)],
+            'confirmar': 'si',
+        }, follow=True)
+
+        self.poliza.refresh_from_db()
+        self.assertEqual(self.poliza.estado, 'APLICADA')
+
+    def test_cancelar_sin_confirmar_no_cambia_el_estado(self):
+        self.poliza.estado = 'APLICADA'
+        self.poliza.save(update_fields=['estado'])
+
+        respuesta = self.client.post(self.url, {
+            'action': 'cancelar_polizas',
+            '_selected_action': [str(self.poliza.pk)],
+        }, follow=True)
+
+        self.poliza.refresh_from_db()
+        self.assertEqual(self.poliza.estado, 'APLICADA')
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
+
+    def test_cancelar_con_confirmar_si_cancela(self):
+        self.poliza.estado = 'APLICADA'
+        self.poliza.save(update_fields=['estado'])
+
+        self.client.post(self.url, {
+            'action': 'cancelar_polizas',
+            '_selected_action': [str(self.poliza.pk)],
+            'confirmar': 'si',
+        }, follow=True)
+
+        self.poliza.refresh_from_db()
+        self.assertEqual(self.poliza.estado, 'CANCELADA')

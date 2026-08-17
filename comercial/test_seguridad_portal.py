@@ -246,6 +246,24 @@ class PortalClienteAdminRegenerarTokenTest(TestCase):
         self.cotizacion = _crear_cotizacion()
         self.portal = PortalCliente.objects.get(cotizacion=self.cotizacion)
 
+    def test_sin_confirmar_no_regenera_el_token(self):
+        """SEC-BIZ-002: un solo POST sin 'confirmar=si' no debe regenerar el
+        token — invalidarlo sin querer deja sin acceso a quien lo tenga."""
+        token_viejo = self.portal.token
+
+        respuesta = self.client.post(
+            reverse('admin:comercial_portalcliente_changelist'),
+            {
+                'action': 'regenerar_token',
+                '_selected_action': [str(self.portal.pk)],
+            },
+            follow=True,
+        )
+
+        self.portal.refresh_from_db()
+        self.assertEqual(self.portal.token, token_viejo)
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
+
     def test_regenerar_cambia_token_reactiva_y_extiende_90_dias(self):
         token_viejo = self.portal.token
         self.portal.activo = False
@@ -257,6 +275,7 @@ class PortalClienteAdminRegenerarTokenTest(TestCase):
             {
                 'action': 'regenerar_token',
                 '_selected_action': [str(self.portal.pk)],
+                'confirmar': 'si',
             },
             follow=True,
         )
@@ -272,7 +291,11 @@ class PortalClienteAdminRegenerarTokenTest(TestCase):
 
         self.client.post(
             reverse('admin:comercial_portalcliente_changelist'),
-            {'action': 'regenerar_token', '_selected_action': [str(self.portal.pk)]},
+            {
+                'action': 'regenerar_token',
+                '_selected_action': [str(self.portal.pk)],
+                'confirmar': 'si',
+            },
         )
         self.portal.refresh_from_db()
 
