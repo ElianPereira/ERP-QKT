@@ -11,13 +11,14 @@ from django.test import Client, TestCase
 from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago, PlanPago, PortalCliente
 
 
-def _crear_cotizacion(precio_items=Decimal('10000.00')):
+def _crear_cotizacion(precio_items=Decimal('10000.00'), tipo_servicio='EVENTO', dias_para_evento=120):
     """precio_final termina con IVA incluido (16%) — las pruebas usan
     cot.precio_final, no el precio_items pasado, como base de cálculo."""
     cliente = Cliente.objects.create(nombre='Cliente Plan', tipo_persona='FISICA', telefono='9991234567')
     cotizacion = Cotizacion.objects.create(
         cliente=cliente, nombre_evento='Evento Plan',
-        fecha_evento=date.today() + timedelta(days=120),
+        tipo_servicio=tipo_servicio,
+        fecha_evento=date.today() + timedelta(days=dias_para_evento),
         incluye_refrescos=False,
     )
     ItemCotizacion.objects.create(
@@ -122,6 +123,72 @@ class ConPlanDePagosTest(TestCase):
         self.assertTrue(motivo)
 
 
+class PagoTotalPorServicioTest(TestCase):
+    """Cerca de la fecha (o en arrendamiento) ya no se acepta anticipo: va el 100%."""
+
+    def test_evento_a_mas_de_quince_dias_sigue_pidiendo_el_50(self):
+        cot = _crear_cotizacion(tipo_servicio='EVENTO', dias_para_evento=15)
+        minimo, _ = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final * Decimal('0.50'))
+
+    def test_evento_a_menos_de_quince_dias_pide_el_total(self):
+        cot = _crear_cotizacion(tipo_servicio='EVENTO', dias_para_evento=14)
+        minimo, motivo = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final)
+        self.assertIn('15 días', motivo)
+
+    def test_pasadia_a_mas_de_siete_dias_sigue_pidiendo_el_50(self):
+        cot = _crear_cotizacion(tipo_servicio='PASADIA', dias_para_evento=7)
+        minimo, _ = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final * Decimal('0.50'))
+
+    def test_pasadia_a_menos_de_siete_dias_pide_el_total(self):
+        cot = _crear_cotizacion(tipo_servicio='PASADIA', dias_para_evento=6)
+        minimo, motivo = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final)
+        self.assertIn('7 días', motivo)
+
+    def test_una_pasadia_a_diez_dias_no_se_trata_como_evento(self):
+        # 10 días: dentro del umbral del evento (15) pero fuera del de pasadía (7).
+        cot = _crear_cotizacion(tipo_servicio='PASADIA', dias_para_evento=10)
+        minimo, _ = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final * Decimal('0.50'))
+
+    def test_arrendamiento_pide_el_total_aunque_falten_meses(self):
+        cot = _crear_cotizacion(tipo_servicio='ARRENDAMIENTO', dias_para_evento=200)
+        minimo, motivo = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final)
+        self.assertIn('100%', motivo)
+
+    def test_el_total_exigido_es_el_saldo_no_el_precio_completo(self):
+        # Si ya abonó algo, el mínimo es lo que falta, no el total otra vez.
+        cot = _crear_cotizacion(tipo_servicio='ARRENDAMIENTO')
+        _pagar(cot, Decimal('1000.00'))
+        minimo, _ = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.saldo_pendiente())
+        self.assertEqual(minimo, cot.precio_final - Decimal('1000.00'))
+
+    def test_saldado_no_pide_nada_aunque_sea_arrendamiento(self):
+        cot = _crear_cotizacion(tipo_servicio='ARRENDAMIENTO')
+        _pagar(cot, cot.precio_final)
+        minimo, motivo = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, Decimal('0.00'))
+        self.assertEqual(motivo, '')
+
+    def test_manda_sobre_el_plan_de_pagos(self):
+        # Un plan con parcialidades futuras no puede dejar pasar un abono parcial
+        # cuando la fecha ya está encima.
+        cot = _crear_cotizacion(tipo_servicio='EVENTO', dias_para_evento=5)
+        _crear_plan(cot, [(cot.precio_final / 2, -1), (cot.precio_final / 2, 3)])
+        minimo, _ = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final)
+
+    def test_una_fecha_ya_pasada_tambien_pide_el_total(self):
+        cot = _crear_cotizacion(tipo_servicio='EVENTO', dias_para_evento=-3)
+        minimo, _ = cot.monto_minimo_pago_detalle()
+        self.assertEqual(minimo, cot.precio_final)
+
+
 class ValidacionServidorTest(TestCase):
     """El endpoint del checkout rechaza montos por debajo del mínimo, no solo el JS."""
 
@@ -139,3 +206,16 @@ class ValidacionServidorTest(TestCase):
         self.assertFalse(data['ok'])
         self.assertIn('mínimo', data['mensaje'].lower())
         self.assertEqual(Pago.objects.filter(cotizacion=self.cot).count(), 0)
+
+    def test_rechaza_un_anticipo_en_una_pasadia_a_menos_de_siete_dias(self):
+        cot = _crear_cotizacion(tipo_servicio='PASADIA', dias_para_evento=3)
+        portal = PortalCliente.objects.get(cotizacion=cot)
+        response = self.client.post(
+            f'/mi-evento/{portal.token}/pagar-openpay/',
+            {'metodo': 'store', 'monto': str(cot.precio_final / 2)},
+            secure=True,
+        )
+        data = response.json()
+        self.assertFalse(data['ok'])
+        self.assertIn('mínimo', data['mensaje'].lower())
+        self.assertEqual(Pago.objects.filter(cotizacion=cot).count(), 0)

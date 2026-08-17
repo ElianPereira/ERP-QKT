@@ -76,6 +76,34 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Mínimo a pagar por tipo de servicio y cercanía de la fecha
+  (pedido del propietario tras el fix del cotizador). `monto_minimo_pago_detalle()`
+  (`comercial/models.py`) exigía **50% siempre** en el primer pago; ahora
+  `requiere_pago_total_detalle()` corre **antes** que el plan de pagos y que
+  ese 50%, y obliga al saldo completo cuando: el servicio es
+  `ARRENDAMIENTO` (siempre, sin importar los días), o faltan menos días que
+  su umbral — `Cotizacion.DIAS_PAGO_TOTAL` = 15 para `EVENTO`, 7 para
+  `PASADIA`; una fecha ya pasada también entra. Devuelve `saldo_pendiente()`,
+  no `precio_final`: si el cliente ya abonó algo, el mínimo es lo que falta,
+  no el total otra vez. **Manda sobre el plan de pagos a propósito**: un plan
+  con parcialidades posteriores a la fecha del evento dejaría pasar un abono
+  parcial justo cuando ya no hay margen para cobrar el resto. No hizo falta
+  tocar el portal ni Openpay: `views_openpay.py::pagar_openpay` valida contra
+  `monto_minimo_pago()` y `templates/portal/evento.html` prellena el input con
+  ese mismo mínimo (`data-min`), así que los dos heredan la regla. **Bug
+  preexistente que había que corregir para que la regla funcionara**:
+  `cotizador_enviar` **nunca guardaba `tipo_servicio`** al construir la
+  `Cotizacion`, así que toda solicitud del cotizador web quedaba como
+  `EVENTO` (el default del campo) — la pasadía nunca habría usado su umbral
+  de 7 días, y de paso los descuentos acotados por `tipos_servicio`
+  (`services_descuentos.py:90`) se evaluaban contra el tipo equivocado desde
+  siempre. De paso, `CotizadorEnviarForm.servicio` pasa de `CharField(max_length=20)`
+  a `ChoiceField` con los tres códigos: ese valor ahora se guarda tal cual en
+  un campo de `max_length=15`, y un string libre de 20 caracteres habría
+  reventado con `DataError` en Postgres. Verificado renderizando el portal
+  real (no solo el método): evento a 60 días → `data-min` 5,800 de 11,600;
+  evento a 14 días, pasadía a 6 días y arrendamiento a 200 días → 11,600.
+  Tests en `comercial/test_monto_minimo_pago.py` (20).
 - 2026-08-17 — Cotizador público: la línea base del servicio (el
   arrendamiento de la quinta) se agrega sola y ya no depende de cómo esté
   escrito el nombre del producto. **El bug real reportado por el

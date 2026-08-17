@@ -520,7 +520,8 @@
         }
         montoInput.setSelectionRange(pos, pos);
     });
-    // Prellenado: el mínimo requerido (plan vencido / 50% inicial) si aplica,
+    // Prellenado: el mínimo requerido (liquidación total por cercanía de la
+    // fecha o por arrendamiento / plan vencido / 50% inicial) si aplica,
     // si no, el saldo completo — el cliente puede editarlo hacia abajo hasta
     // el mínimo, o dejarlo para pagar de más (abono) si no hay mínimo.
     montoInput.value = formatearMoneda(montoMin > 0 ? montoMin : montoMax);
