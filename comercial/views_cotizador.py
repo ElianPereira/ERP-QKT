@@ -19,6 +19,7 @@ import json
 import logging
 import math
 from datetime import datetime, timedelta
+from datetime import time as dt_time
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
@@ -30,16 +31,66 @@ from django.views.decorators.http import require_http_methods
 from core_erp import impuestos
 from core_erp.ratelimit import rate_limit
 
-from .forms_cotizador import CotizadorEnviarForm
+from .forms_cotizador import TIPO_EVENTO_CHOICES, CotizadorEnviarForm
 from .models import Cliente, Cotizacion, ItemCotizacion, PortalCliente, Producto
+from .roles_cotizador import normalizar as _normalizar
 
 logger = logging.getLogger(__name__)
+
+# Duración de los servicios, en un solo sitio: la usan el cálculo de horas
+# extra, el horario que se guarda en la cotización y el texto que ve el
+# cliente. El JS de la plantilla replica estos mismos valores.
+HORAS_BASE_EVENTO = 6          # incluidas en el paquete; a partir de aquí se cobra hora extra
+HORA_INICIO_PASADIA = dt_time(10, 0)
+HORA_FIN_PASADIA = dt_time(19, 0)
+HORAS_PASADIA = 9
 
 
 # ─── Helpers (reutilizados del webhook) ─────────────────────────────────────────────────────
 
 def _buscar_producto_por_nombre(nombre_parcial):
-    return Producto.objects.filter(nombre__icontains=nombre_parcial).first()
+    """Busca un producto por coincidencia parcial de nombre, IGNORANDO acentos.
+
+    `icontains` se traduce a un LIKE: insensible a mayúsculas pero **sensible a
+    acentos** tanto en SQLite como en PostgreSQL. Por eso buscar 'Pasadia' nunca
+    encontraba el producto real 'Paquete Pasadía QKT' y la cotización se creaba
+    sin su línea base, en cero. Se intenta primero en la base (barato, cubre el
+    caso normal) y solo si no hay coincidencia se compara normalizado en Python.
+    """
+    prod = Producto.objects.filter(nombre__icontains=nombre_parcial).first()
+    if prod:
+        return prod
+    objetivo = _normalizar(nombre_parcial)
+    if not objetivo:
+        return None
+    for candidato in Producto.objects.order_by('id'):
+        if objetivo in _normalizar(candidato.nombre):
+            return candidato
+    return None
+
+
+def _producto_por_rol(rol, *nombres_fallback):
+    """Producto marcado con `rol_cotizador=rol`, o el primero que case por nombre.
+
+    El rol es la fuente de verdad (se configura en el admin y no depende de cómo
+    esté escrito el nombre); la búsqueda por nombre queda como red de seguridad
+    para una instalación donde nadie haya marcado el rol todavía. Si no aparece
+    por ninguna de las dos vías se avisa en el log: sin esto, la cotización se
+    creaba vacía en silencio.
+    """
+    prod = Producto.objects.filter(rol_cotizador=rol).order_by('orden_cotizador', 'id').first()
+    if prod:
+        return prod
+    for nombre in nombres_fallback:
+        prod = _buscar_producto_por_nombre(nombre)
+        if prod:
+            return prod
+    logger.warning(
+        "Cotizador: no hay ningún producto con rol_cotizador='%s' (ni por nombre: %s). "
+        "La cotización se creará SIN su línea base.",
+        rol, ', '.join(nombres_fallback) or '—',
+    )
+    return None
 
 
 def _agregar_item(cotizacion, producto, cantidad=1, desc_override=None):
@@ -167,9 +218,10 @@ def cotizador_enviar(request):
     hora_fin_obj    = _parsear_hora(hora_fin)
 
     if servicio == 'PASADIA':
-        hora_inicio_obj = datetime.strptime("10:00", "%H:%M").time()
-        hora_fin_obj    = datetime.strptime("19:00", "%H:%M").time()
-        horas_evento    = 9
+        # Horario fijo: la pasadía no ofrece elegir horas en el formulario.
+        hora_inicio_obj = HORA_INICIO_PASADIA
+        hora_fin_obj    = HORA_FIN_PASADIA
+        horas_evento    = HORAS_PASADIA
     elif hora_inicio_obj and hora_fin_obj:
         from datetime import date as dt_date
         from datetime import datetime as dt
@@ -177,9 +229,9 @@ def cotizador_enviar(request):
         dt_f = dt.combine(dt_date.today(), hora_fin_obj)
         if dt_f <= dt_i:
             dt_f += timedelta(days=1)
-        horas_evento = max(6, int((dt_f - dt_i).total_seconds() / 3600))
+        horas_evento = max(HORAS_BASE_EVENTO, int((dt_f - dt_i).total_seconds() / 3600))
     else:
-        horas_evento = 6
+        horas_evento = HORAS_BASE_EVENTO
 
     # ── Número de personas ──────────────────────────────────────────────────────────────
     try:
@@ -239,7 +291,7 @@ def cotizador_enviar(request):
     if servicio == 'EVENTO':
         nombre_evento = f"{tipo_ev} — {nombre}"
     elif servicio == 'PASADIA':
-        nombre_evento = f"Pastadía — {nombre}"
+        nombre_evento = f"Pasadía — {nombre}"
     else:
         nombre_evento = f"Arrendamiento de Mobiliario — {nombre}"
     if notas:
@@ -422,8 +474,12 @@ def api_productos_cotizador(request):
     elif servicio == 'ARRENDAMIENTO':
         filtro['cotizador_arrendamiento'] = True
 
-    # Los paquetes se eligen en su propio paso; no deben aparecer como extras.
-    productos = Producto.objects.filter(**filtro).exclude(es_paquete=True).order_by('grupo_cotizador', 'orden_cotizador', 'nombre')
+    # Los paquetes se eligen en su propio paso y las líneas base (`rol_cotizador`)
+    # las agrega el cotizador solo al elegir el servicio: ninguno de los dos debe
+    # aparecer como extra, o el cliente podría marcarlo y pagarlo dos veces.
+    productos = (Producto.objects.filter(**filtro, rol_cotizador='')
+                 .exclude(es_paquete=True)
+                 .order_by('grupo_cotizador', 'orden_cotizador', 'nombre'))
 
     NOMBRES_GRUPO = dict(Producto.GRUPO_COTIZADOR_CHOICES)
     ICONOS_GRUPO = {
@@ -478,39 +534,42 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
             id=int(paquete_id), es_paquete=True, visible_cotizador=True,
         ).first()
 
+    # Línea base del servicio: el arrendamiento de la quinta, que va SIEMPRE.
+    # Un paquete prediseñado ya lo lleva dentro, así que ahí no se agrega
+    # aparte (se cobraría dos veces).
     if paquete:
         lineas.append((paquete, 1,
                        f"{paquete.nombre} ({num_personas} Pax, {horas_evento}hrs)"))
-        if servicio == 'EVENTO' and horas_evento > 6:
-            extra = horas_evento - 6
-            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
-                    or _buscar_producto_por_nombre('Hora Extra'))
-            if prod:
-                lineas.append((prod, extra,
-                               f"Horas Extra de Arrendamiento ({extra} hrs adicionales)"))
 
     elif servicio == 'EVENTO':
-        prod = _buscar_producto_por_nombre('Paquete Esencial')
-        if prod:
-            lineas.append((prod, 1,
-                           f"Paquete Esencial QKT — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)"))
-        if horas_evento > 6:
-            extra = horas_evento - 6
-            prod = (_buscar_producto_por_nombre('Hora Extra De Arrendamiento')
-                    or _buscar_producto_por_nombre('Hora Extra'))
-            if prod:
-                lineas.append((prod, extra,
-                               f"Horas Extra de Arrendamiento ({extra} hrs adicionales)"))
+        base = _producto_por_rol('BASE_EVENTO', 'Paquete Esencial')
+        if base:
+            lineas.append((base, 1,
+                           f"{base.nombre} — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)"))
 
     elif servicio == 'PASADIA':
-        prod = (_buscar_producto_por_nombre('Pastadía')
-                or _buscar_producto_por_nombre('Pasadia'))
+        base = _producto_por_rol('BASE_PASADIA', 'Paquete Pasadía', 'Pasadia')
+        if base:
+            lineas.append((base, 1,
+                           f"{base.nombre} ({num_personas} Pax, {HORA_INICIO_PASADIA:%H:%M}"
+                           f"-{HORA_FIN_PASADIA:%H:%M})"))
+
+    # Horas extra: solo el evento tiene horario elegible. La pasadía es de
+    # duración fija y el arrendamiento de mobiliario no se cobra por horas.
+    if servicio == 'EVENTO' and horas_evento > HORAS_BASE_EVENTO:
+        extra = horas_evento - HORAS_BASE_EVENTO
+        prod = _producto_por_rol('HORA_EXTRA', 'Hora Extra De Arrendamiento', 'Hora Extra')
         if prod:
-            lineas.append((prod, 1,
-                           f"Paquete Pastadía QKT ({num_personas} Pax, 10am-7pm)"))
+            lineas.append((prod, extra,
+                           f"Horas Extra de Arrendamiento ({extra} hrs adicionales)"))
 
     if extras_ids:
-        for prod in Producto.objects.filter(id__in=extras_ids, visible_cotizador=True):
+        # Las líneas base nunca son elegibles como extra (ver
+        # `api_productos_cotizador`), pero se vuelve a filtrar aquí: los ids
+        # llegan del cliente y nada impide mandar uno a mano.
+        for prod in Producto.objects.filter(
+            id__in=extras_ids, visible_cotizador=True, rol_cotizador='',
+        ):
             qty = 1
             if prod.cantidad_por_persona and prod.factor_personas > 0:
                 qty = math.ceil(num_personas / prod.factor_personas)
@@ -539,10 +598,18 @@ def api_total_cotizador(request):
             return defecto
 
     num_personas = max(1, _entero('personas', 50))
-    horas_evento = max(1, _entero('horas', 6))
+    horas_evento = max(1, _entero('horas', HORAS_BASE_EVENTO))
     servicio = (request.GET.get('servicio') or '').upper()
+    if servicio == 'PASADIA':
+        horas_evento = HORAS_PASADIA
     extras_ids = [int(x) for x in (request.GET.get('extras') or '').split(',')
                   if x.strip().isdigit()]
+
+    # Solo alimenta el texto del concepto que se exhibe; se acota a las mismas
+    # opciones del formulario en vez de aceptar el texto libre de la query.
+    tipo_ev = request.GET.get('tipo') or ''
+    if tipo_ev not in dict(TIPO_EVENTO_CHOICES):
+        tipo_ev = 'Evento General'
 
     lineas = _lineas_cotizador(
         servicio=servicio,
@@ -550,6 +617,7 @@ def api_total_cotizador(request):
         extras_ids=extras_ids,
         num_personas=num_personas,
         horas_evento=horas_evento,
+        tipo_ev=tipo_ev,
     )
     bases = [Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
              for prod, qty, _ in lineas]
@@ -562,14 +630,20 @@ def api_total_cotizador(request):
         'total_formateado': f"${total:,.2f}",
         'leyenda': 'Precios en MXN, IVA incluido',
         'lineas': len(lineas),
+        # Qué incluye el total, para que el cliente vea la línea base que el
+        # cotizador agrega solo y no solo los extras que él marcó.
+        'conceptos': [desc or prod.nombre for prod, _, desc in lineas],
     })
 
 
 @rate_limit(key='api_paquetes_cotizador', limit=60, window=60)
 def api_paquetes_cotizador(request):
-    """GET /api/cotizador/paquetes/?servicio=EVENTO&personas=100
-    Devuelve paquetes (Producto con es_paquete=True) visibles en el cotizador,
-    filtrados por servicio y rango de personas."""
+    """GET /api/cotizador/paquetes/?servicio=EVENTO
+    Devuelve los paquetes (Producto con es_paquete=True) visibles en el
+    cotizador para ese servicio.
+
+    No filtra por número de personas: `Producto` no tiene rango de personas que
+    permita hacerlo. El parámetro `personas` que manda el navegador se ignora."""
     servicio = (request.GET.get('servicio') or '').upper()
 
     filtro = {'visible_cotizador': True, 'es_paquete': True}

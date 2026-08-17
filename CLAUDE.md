@@ -76,6 +76,62 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-17 — Cotizador público: la línea base del servicio (el
+  arrendamiento de la quinta) se agrega sola y ya no depende de cómo esté
+  escrito el nombre del producto. **El bug real reportado por el
+  propietario**: una solicitud de PASADÍA creaba la cotización **en cero**.
+  `_lineas_cotizador()` buscaba el producto con
+  `_buscar_producto_por_nombre('Pastadía')` (typo con **t**, presente
+  también en `nombre_evento`) y como fallback `'Pasadia'` sin acento — pero
+  `nombre__icontains` se traduce a un **LIKE, insensible a mayúsculas y
+  SENSIBLE a acentos** en SQLite y en PostgreSQL, así que ninguna de las dos
+  encontraba el producto real, `'Paquete Pasadía QKT'`, y `_agregar_item()`
+  se salía en silencio con su `if not producto: return None`. Confirmado
+  contra el catálogo real del admin. **Lo que había detrás y explica el
+  resto de los síntomas**: ni `Paquete Esencial QKT` ni `Paquete Pasadía
+  QKT` tienen `es_paquete=True` (los dos salen como SIMPLE en el admin), así
+  que `api_paquetes_cotizador` —que filtra `es_paquete=True`— devolvía
+  **cero** paquetes para los dos servicios: el camino "Elegir paquete" era
+  un callejón sin salida que dejaba seguir sin seleccionar nada, y al mismo
+  tiempo `api_productos_cotizador` —que solo excluía `es_paquete=True`— los
+  ofrecía **como extras**, con lo que un cliente podía marcarlos y pagarlos
+  dos veces. La solución no es más búsqueda por nombre: `Producto` gana
+  `rol_cotizador` (`BASE_EVENTO`/`BASE_PASADIA`/`HORA_EXTRA`, migración
+  0072), que es la fuente de verdad; la búsqueda por nombre —ahora sin
+  acentos, `comercial/roles_cotizador.py::normalizar`— queda solo como red
+  de seguridad, y si no aparece por ninguna vía se emite un
+  `logger.warning` en vez de crear la cotización vacía en silencio. Los
+  productos con rol quedan fuera de los extras (`api_productos_cotizador`)
+  **y** se filtran otra vez al componer las líneas, porque los `extras_ids`
+  llegan del cliente y nada impide mandarlos a mano. La migración siembra
+  los tres roles por nombre normalizado, así que producción no necesita que
+  nadie marque nada en el admin tras el deploy (el helper vive en
+  `comercial/roles_cotizador.py` y lo comparten migración, vistas y tests;
+  si cambiara, lo peor que pasa es que una BD nueva arranque sin marcar,
+  el campo es opcional). En el front: la pasadía **ya no muestra la
+  bifurcación paquete/personalizado** —no tiene paquetes que elegir y su
+  base va siempre—, entra directo a los extras con una nota de lo que ya
+  incluye; para evento/arrendamiento, si `api_paquetes_cotizador` devuelve
+  cero paquetes se cae solo a personalizado en vez de dejar el callejón sin
+  salida. `api_total_cotizador` ahora devuelve `conceptos` (las mismas
+  descripciones que se van a cobrar) y el resumen las lista: el cliente ve
+  la línea base que él no marcó. De paso: horario/horas de la pasadía y las
+  6 horas base del evento pasan a constantes
+  (`HORA_INICIO_PASADIA`/`HORA_FIN_PASADIA`/`HORAS_PASADIA`/`HORAS_BASE_EVENTO`)
+  en vez de literales repartidos, `api_total_cotizador` fuerza 9 horas para
+  pasadía (antes un `horas=99` en la query string le habría exhibido horas
+  extra que la cotización real no cobra), el `tipo` de evento viaja al
+  cálculo del total acotado a `TIPO_EVENTO_CHOICES` para que el concepto
+  exhibido diga lo mismo que el que se guarda, y se corrigió el docstring de
+  `api_paquetes_cotizador`, que prometía un filtro por número de personas
+  que **no existe** (`Producto` no tiene rango de personas; el parámetro
+  `personas` que manda el navegador se ignora — es el hueco que ya estaba
+  documentado en la entrada de las órdenes 29-30). Verificado con navegador
+  real (Playwright sobre el `runserver`, no solo tests): pasadía sin
+  seleccionar nada llega al resumen con **$1,500.00** y el concepto
+  "Paquete Pasadía QKT (11 Pax, 10:00-19:00)", y un evento de 8 horas con
+  $6,496.00 = Paquete Esencial + 2 horas extra, cotización creada en la BD
+  con esos mismos items. Tests en `comercial/test_cotizador_lineas.py` (18).
 - 2026-08-17 — Orden 51 del backlog de seguridad (`SEC-TEST-001`):
   `core_erp/test_regresion_seguridad.py`. **No se reinventó lo que ya
   existía**: antes de escribir una sola línea se auditó qué órdenes 1-18
