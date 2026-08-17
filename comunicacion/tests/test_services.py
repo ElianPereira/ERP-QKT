@@ -4,17 +4,22 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import requests
+from django.core import mail
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from comercial.models import Cliente, Cotizacion
 from comunicacion.models import ComunicacionCliente
 from comunicacion.services import (
     WA_ERRORES_META,
+    alertar_equipo_email,
+    alertar_equipo_fecha_chocada,
+    enviar_email,
     enviar_whatsapp,
     enviar_whatsapp_template,
     normalizar_telefono_wa,
     numero_emisor_wa,
+    remitente_por_tipo,
     reservar_comunicacion,
     telefono_seguro,
     texto_plano_wa,
@@ -304,3 +309,69 @@ class IdempotenciaTest(TestCase):
                     cotizacion=self.cot, canal='EMAIL', tipo='OTRO',
                     destinatario='ana@example.com',
                 )
+
+
+@override_settings(
+    EMAIL_FROM_RESERVAS='reservas@qkt.mx',
+    EMAIL_FROM_PAGOS='pagos@qkt.mx',
+    EMAIL_FROM_NOTIFICACIONES='notificaciones@qkt.mx',
+)
+class RemitentePorTipoTest(TestCase):
+    """El remitente del email depende del tipo de comunicación (Issue #221)."""
+
+    def setUp(self):
+        self.cliente = Cliente.objects.create(nombre='Ana', email='ana@example.com')
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Boda',
+            fecha_evento=date.today() + timedelta(days=30),
+            num_personas=50, precio_final=Decimal('1000.00'),
+        )
+
+    def test_remitente_por_tipo_mapea_cada_tipo(self):
+        self.assertEqual(remitente_por_tipo('COTIZACION'), 'reservas@qkt.mx')
+        self.assertEqual(remitente_por_tipo('CONFIRMACION_PAGO'), 'pagos@qkt.mx')
+        self.assertEqual(remitente_por_tipo('REEMBOLSO'), 'pagos@qkt.mx')
+        self.assertEqual(remitente_por_tipo('RECORDATORIO_PAGO'), 'pagos@qkt.mx')
+        self.assertEqual(remitente_por_tipo('OTRO'), 'notificaciones@qkt.mx')
+        self.assertEqual(remitente_por_tipo('TIPO_FUTURO_NO_MAPEADO'), 'notificaciones@qkt.mx')
+
+    def _enviar(self, tipo, clave):
+        return enviar_email(
+            cotizacion=self.cot, tipo=tipo, destinatario='ana@example.com',
+            asunto='asunto', template='comunicacion/email/cotizacion.html',
+            context={}, clave_idempotencia=clave,
+        )
+
+    def test_cotizacion_sale_de_reservas(self):
+        self._enviar('COTIZACION', 'clave-1')
+        self.assertEqual(mail.outbox[-1].from_email, 'reservas@qkt.mx')
+
+    def test_pago_reembolso_y_recordatorio_salen_de_pagos(self):
+        for i, tipo in enumerate(('CONFIRMACION_PAGO', 'REEMBOLSO', 'RECORDATORIO_PAGO')):
+            with self.subTest(tipo=tipo):
+                self._enviar(tipo, f'clave-pago-{i}')
+                self.assertEqual(mail.outbox[-1].from_email, 'pagos@qkt.mx')
+
+    def test_otro_sale_de_notificaciones(self):
+        self._enviar('OTRO', 'clave-otro')
+        self.assertEqual(mail.outbox[-1].from_email, 'notificaciones@qkt.mx')
+
+    @override_settings(
+        EMAIL_FROM_RESERVAS='fallback@qkt.mx',
+        EMAIL_FROM_PAGOS='fallback@qkt.mx',
+        EMAIL_FROM_NOTIFICACIONES='fallback@qkt.mx',
+    )
+    def test_sin_variables_configuradas_cae_a_default_from_email(self):
+        # En settings.py las tres variables nuevas caen a DEFAULT_FROM_EMAIL si
+        # no están definidas en el entorno; aquí se simula ese fallback ya
+        # resuelto (override_settings no puede "desconfigurar" una variable).
+        self._enviar('COTIZACION', 'clave-fallback')
+        self.assertEqual(mail.outbox[-1].from_email, 'fallback@qkt.mx')
+
+    def test_alertar_equipo_fecha_chocada_sale_de_notificaciones(self):
+        alertar_equipo_fecha_chocada(self.cot, 'mensaje de prueba')
+        self.assertEqual(mail.outbox[-1].from_email, 'notificaciones@qkt.mx')
+
+    def test_alertar_equipo_email_sale_de_notificaciones(self):
+        alertar_equipo_email(self.cot, asunto='asunto', cuerpo='cuerpo', clave_idempotencia='clave-alerta')
+        self.assertEqual(mail.outbox[-1].from_email, 'notificaciones@qkt.mx')

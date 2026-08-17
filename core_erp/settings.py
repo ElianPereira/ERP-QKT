@@ -252,6 +252,12 @@ EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
 ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 SERVER_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
+# Remitentes por tipo de correo (Issue #221). Cada uno cae a DEFAULT_FROM_EMAIL
+# si no está configurado, para que el deploy no rompa nada si llega antes de
+# que el dominio quede verificado en Brevo.
+EMAIL_FROM_RESERVAS = config('EMAIL_FROM_RESERVAS', default=DEFAULT_FROM_EMAIL)
+EMAIL_FROM_PAGOS = config('EMAIL_FROM_PAGOS', default=DEFAULT_FROM_EMAIL)
+EMAIL_FROM_NOTIFICACIONES = config('EMAIL_FROM_NOTIFICACIONES', default=DEFAULT_FROM_EMAIL)
 
 # --- WHATSAPP CLOUD API (Meta) ---
 # Credenciales del número emisor. Se leen aquí (y no con config() disperso por

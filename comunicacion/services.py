@@ -54,6 +54,22 @@ WA_ERRORES_META = {
 # resolverlo en cada cotización metería una llamada HTTP extra en el request.
 _EMISOR_CACHE: dict = {}
 
+# Remitente por tipo de correo (Issue #221). Cualquier tipo no listado —incluido
+# 'OTRO', que son siempre alertas internas, nunca al cliente— cae a
+# EMAIL_FROM_NOTIFICACIONES.
+_REMITENTE_POR_TIPO = {
+    'COTIZACION': 'EMAIL_FROM_RESERVAS',
+    'CONFIRMACION_PAGO': 'EMAIL_FROM_PAGOS',
+    'REEMBOLSO': 'EMAIL_FROM_PAGOS',
+    'RECORDATORIO_PAGO': 'EMAIL_FROM_PAGOS',
+}
+
+
+def remitente_por_tipo(tipo: str) -> str:
+    """Resuelve el `from_email` que le toca a un `tipo` de ComunicacionCliente."""
+    setting = _REMITENTE_POR_TIPO.get(tipo, 'EMAIL_FROM_NOTIFICACIONES')
+    return getattr(settings, setting)
+
 
 # ─────────────────────────────── Utilidades ────────────────────────────────
 
@@ -236,7 +252,7 @@ def enviar_email(
         msg = EmailMultiAlternatives(
             subject=asunto,
             body=strip_tags(html),
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=remitente_por_tipo(tipo),
             to=[destinatario],
         )
         msg.attach_alternative(html, 'text/html')
@@ -270,7 +286,7 @@ def alertar_equipo_fecha_chocada(cotizacion, mensaje: str) -> None:
         from django.core.mail import send_mail
         send_mail(
             asunto, cuerpo,
-            settings.DEFAULT_FROM_EMAIL,
+            settings.EMAIL_FROM_NOTIFICACIONES,
             destinatarios,
             fail_silently=True,
         )
@@ -310,7 +326,7 @@ def alertar_equipo_email(cotizacion, *, asunto: str, cuerpo: str,
         return None
     try:
         from django.core.mail import send_mail
-        send_mail(asunto, cuerpo, settings.DEFAULT_FROM_EMAIL, destinatarios, fail_silently=False)
+        send_mail(asunto, cuerpo, settings.EMAIL_FROM_NOTIFICACIONES, destinatarios, fail_silently=False)
         comm.estado = 'ENVIADO'
         comm.fecha_envio = timezone.now()
     except Exception as e:
