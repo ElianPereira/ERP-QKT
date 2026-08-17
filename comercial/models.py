@@ -499,6 +499,14 @@ class Cotizacion(models.Model):
         ('ARRENDAMIENTO', 'Arrendamiento de Mobiliario'),
     ]
 
+    # Días antes de la fecha a partir de los cuales el pago deja de admitir
+    # anticipo y tiene que cubrir el total. El arrendamiento de mobiliario no
+    # aparece porque se liquida al 100% siempre (ver requiere_pago_total_detalle).
+    DIAS_PAGO_TOTAL = {
+        'EVENTO': 15,
+        'PASADIA': 7,
+    }
+
     cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT)
     tipo_servicio = models.CharField(
         max_length=15, choices=TIPO_SERVICIO_CHOICES, default='EVENTO',
@@ -813,10 +821,40 @@ class Cotizacion(models.Model):
         return qs.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
     def saldo_pendiente(self): return self.precio_final - self.total_pagado()
 
+    def requiere_pago_total_detalle(self):
+        """
+        ¿Este servicio debe liquidarse al 100% en el siguiente pago? (bool, motivo)
+
+        Manda sobre el plan de pagos y sobre el 50% de anticipo: son los casos en
+        los que ya no queda margen para cobrar el resto antes de la fecha.
+
+        - Arrendamiento de mobiliario: SIEMPRE, sin importar los días que falten.
+        - Evento y pasadía: cuando faltan menos días que su umbral
+          (`DIAS_PAGO_TOTAL`). Una fecha ya pasada también cuenta.
+        """
+        if self.tipo_servicio == 'ARRENDAMIENTO':
+            return True, 'El arrendamiento de mobiliario se liquida al 100% por adelantado.'
+
+        umbral = self.DIAS_PAGO_TOTAL.get(self.tipo_servicio)
+        if umbral is None or not self.fecha_evento:
+            return False, ''
+
+        from django.utils import timezone
+        dias_restantes = (self.fecha_evento - timezone.localdate()).days
+        if dias_restantes < umbral:
+            etiqueta = 'tu pasadía' if self.tipo_servicio == 'PASADIA' else 'tu evento'
+            return True, f'A menos de {umbral} días de la fecha de {etiqueta}, el pago debe cubrir el total.'
+        return False, ''
+
+    def requiere_pago_total(self):
+        return self.requiere_pago_total_detalle()[0]
+
     def monto_minimo_pago_detalle(self):
         """
         Mínimo que el cliente debe abonar en su siguiente pago, con el motivo:
 
+        - Servicios que se liquidan al 100% (ver `requiere_pago_total_detalle`):
+          el saldo completo. Manda sobre todo lo demás.
         - Con plan de pagos: la suma de las parcialidades cuya fecha_limite ya
           llegó (vencidas + la que toca hoy) menos lo ya pagado. Si está al
           corriente (nada vencido todavía), no hay mínimo — puede abonar lo
@@ -835,6 +873,10 @@ class Cotizacion(models.Model):
         saldo = self.saldo_pendiente()
         if saldo <= 0:
             return Decimal('0.00'), ''
+
+        pago_total, motivo_total = self.requiere_pago_total_detalle()
+        if pago_total:
+            return saldo, motivo_total
 
         total_pagado = self.total_pagado()
         try:

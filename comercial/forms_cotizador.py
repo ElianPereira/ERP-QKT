@@ -22,6 +22,8 @@ TIPO_EVENTO_CHOICES = [(v, v) for v in (
     'Aniversario', 'Evento Corporativo', 'Otro',
 )]
 
+SERVICIO_CHOICES = [(v, v) for v in ('EVENTO', 'PASADIA', 'ARRENDAMIENTO')]
+
 COMO_NOS_ENCONTRO_CHOICES = [(v, v) for v in (
     'Facebook', 'Instagram', 'TikTok', 'Google', 'Recomendación',
     'WhatsApp', 'Visité la quinta', 'Otro',
@@ -32,7 +34,10 @@ class CotizadorEnviarForm(forms.Form):
     nombre = forms.CharField(max_length=200, required=False)
     telefono = forms.CharField(max_length=30, required=False)
     email = forms.CharField(max_length=254, required=False)
-    servicio = forms.CharField(max_length=20, required=False)
+    # Acotado a los códigos reales de Cotizacion.TIPO_SERVICIO_CHOICES: el valor
+    # se guarda tal cual en `Cotizacion.tipo_servicio` (max_length=15), y de él
+    # dependen el mínimo a pagar en el portal y los descuentos por servicio.
+    servicio = forms.ChoiceField(choices=SERVICIO_CHOICES, required=False)
     fecha = forms.CharField(max_length=10, required=False)
     personas = forms.CharField(max_length=10, required=False)
     hora_inicio = forms.CharField(max_length=10, required=False)

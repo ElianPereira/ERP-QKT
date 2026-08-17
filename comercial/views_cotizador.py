@@ -304,6 +304,10 @@ def cotizador_enviar(request):
 
     cotizacion = Cotizacion(
         cliente=cliente,
+        # Sin esto toda solicitud del cotizador quedaba como EVENTO (el default
+        # del campo), y de ahí dependen el mínimo a pagar en el portal y los
+        # descuentos acotados por tipo de servicio.
+        tipo_servicio=servicio,
         nombre_evento=nombre_evento[:200],
         fecha_evento=fecha_evento,
         num_personas=num_personas,
