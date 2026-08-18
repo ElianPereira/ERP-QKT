@@ -143,6 +143,7 @@ LOGGING = {
     # separar qué línea es de qué request).
     'filters': {
         'correlation_id': {'()': 'core_erp.middleware.CorrelationIdFilter'},
+        'require_debug_false': {'()': 'django.utils.log.RequireDebugFalse'},
     },
     'formatters': {
         'con_correlation_id': {
@@ -155,6 +156,14 @@ LOGGING = {
             'filters': ['correlation_id'],
             'formatter': 'con_correlation_id',
         },
+        # Orden 13 (NV-07): correo a ADMINS ante un error 500 sin capturar.
+        # Mismo handler que trae Django por default (solo que Django no lo
+        # cablea a ningún logger si LOGGING se sobreescribe, como aquí).
+        'mail_admins': {
+            'level': 'ERROR',
+            'filters': ['require_debug_false'],
+            'class': 'django.utils.log.AdminEmailHandler',
+        },
     },
     'loggers': {
         # propagate=False: sin esto, cualquier mensaje que llegue hasta acá
@@ -164,7 +173,10 @@ LOGGING = {
         # basicConfig() implícito de Python y deja un StreamHandler suelto en
         # el logger raíz, sin nuestro formatter — cada línea saldría
         # duplicada, una con correlation_id y otra sin él.
-        'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        # 'mail_admins' agrega la alerta por correo (orden 13); 'django.request'
+        # (donde Django registra cada 500) cuelga de este logger por jerarquía
+        # de nombres, así que no hace falta configurarlo aparte.
+        'django': {'handlers': ['console', 'mail_admins'], 'level': 'INFO', 'propagate': False},
         'weasyprint': {'handlers': ['console'], 'level': 'WARNING'},
         # Los logger.info del webhook Openpay (ej. el código de verificación al
         # registrar el webhook) deben verse en los Deploy Logs de Railway.
@@ -256,6 +268,12 @@ EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
 ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 SERVER_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
+EMAIL_SUBJECT_PREFIX = '[ERP QKT] '
+# Orden 13 del backlog de seguridad (NV-07): quién recibe la alerta cuando
+# el ERP genera un error 500 sin capturar. Reutiliza el mismo backend de
+# correo (Brevo) que ya está configurado arriba, vía el handler estándar de
+# Django (`django.utils.log.AdminEmailHandler`, ver LOGGING).
+ADMINS = [('Quinta Kooxtanil', config('ADMIN_ALERT_EMAIL', default=SERVER_EMAIL))]
 # Remitentes por tipo de correo (Issue #221). Cada uno cae a DEFAULT_FROM_EMAIL
 # si no está configurado, para que el deploy no rompa nada si llega antes de
 # que el dominio quede verificado en Brevo.

@@ -76,6 +76,59 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-18 — Orden 13 del backlog de seguridad (`NV-07`): alertas por
+  correo ante un error 500 sin capturar. El propietario decidió: solo él
+  (`ADMIN_ALERT_EMAIL`, cae a `SERVER_EMAIL` si no está configurada) y por
+  correo, no WhatsApp ni Sentry — reutilizar lo que ya existe (Brevo vía
+  `django-anymail`, ya configurado como `EMAIL_BACKEND`) en vez de sumar un
+  servicio nuevo que mantener. `ADMINS` en `settings.py` +
+  `django.utils.log.AdminEmailHandler` (el handler estándar de Django, no
+  uno propio) enganchado al logger `'django'` en `LOGGING` — funciona
+  porque `django.request` (donde Django registra cada 500, en
+  `response_for_exception()`) cuelga de `'django'` por jerarquía de
+  nombres de logger, así que no hace falta configurarlo aparte. Filtro
+  `RequireDebugFalse` (también estándar) para que el correo no se dispare
+  en desarrollo. `EMAIL_SUBJECT_PREFIX = '[ERP QKT] '` para que el correo
+  sea identificable entre las demás alertas que ya le llegan al mismo
+  buzón. **Antes de este cambio, un 500 no notificaba a nadie**: la
+  auditoría previa confirmó que no existía `ADMINS`, ni `mail_admins`, ni
+  Sentry ni ningún otro canal — todo lo que `logger.error`/`.exception`
+  escribe (31 sitios en el código) solo llegaba a los Deploy Logs de
+  Railway, invisibles a menos que alguien entrara a revisarlos a mano.
+  Probado contra el logger real (`logging.getLogger('django.request')`,
+  con `extra={'status_code': 500, 'request': ...}`, el mismo patrón que usa
+  Django internamente) en vez de tumbar una vista real a propósito — más
+  simple y prueba exactamente la pieza que se tocó (el cableado en
+  `LOGGING`), no el mecanismo interno de Django que ya está probado por
+  Django mismo. Tests en `core_erp/test_alertas_admin.py` (5): un 500 real
+  envía correo a `ADMINS` con el prefijo esperado, `ADMINS` vacío no
+  falla ni envía (mail_admins() es no-op silencioso — red de seguridad si
+  algún día se despliega sin la variable), un nivel por debajo de 500 (404)
+  no dispara nada, `ADMINS` siempre tiene al menos un correo válido
+  configurado, y una prueba estructural de que `mail_admins` sigue
+  enganchado al logger `'django'` (para que una futura reorganización de
+  `LOGGING` no revierta esto en silencio sin que ningún otro test lo
+  note). Suite completa (703 tests) corrida tras el cambio, sin
+  migraciones nuevas (no toca modelos).
+- 2026-08-18 — Orden 7 del backlog de seguridad (`SEC-FILE-001a`)
+  completada por el propietario del lado de Cloudflare/Railway: bucket
+  privado creado (sin dominio público conectado),
+  `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` definida en Railway y
+  `manage.py migrar_archivos_privados --aplicar` ejecutado desde
+  `/admin/migrar-archivos-privados/`. Resultado: **6** archivos ya estaban
+  en el bucket privado (migrados en una corrida previa), **0** copiados de
+  nuevo, **30** sin archivo en el origen — estos últimos son exactamente
+  los documentos que solo vivían en Cloudinary y se dieron por perdidos
+  (entrada del 2026-08-12 más abajo), no una falla de la migración: el
+  origen ya no existe, así que no hay nada que copiar. El propietario
+  verificó manualmente que un documento sensible abre bien desde el
+  bucket privado antes de borrar del público, siguiendo la secuencia ya
+  documentada en la entrada del 2026-08-12 (crear bucket → definir
+  variable → migrar → **verificar** → borrar del público) — el orden
+  importa porque borrar antes de verificar dejaría documentos
+  inaccesibles sin forma barata de confirmar que la migración funcionó.
+  Backlog actualizado (`docs/security/BACKLOG_SEGURIDAD.md`): orden 7 ✅,
+  contador de P1 hechas 13→14, total 42→43.
 - 2026-08-17 — Orden 37 del backlog de seguridad (`SEC-CFG-002`): CSP
   Report-Only para `/admin/`, opt-in vía `ADMIN_CSP_REPORT_ONLY` (default
   `False`) — mismo patrón exacto que ya usaba la orden 27 para el portal

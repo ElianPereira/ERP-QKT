@@ -3,9 +3,9 @@
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
-**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
-19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 41, 43,
-44, 45, 46, 47, 48, 49, 50 y 51 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
+**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17,
+18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 41,
+43, 44, 45, 46, 47, 48, 49, 50 y 51 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
 limiting, CSRF/validación del cotizador, el ocultamiento de detalles de
 excepción, el gate de lint en CI, el análisis estático de seguridad de
 ruff, la detección de secretos en CI, la auditoría de secretos en el
@@ -25,10 +25,15 @@ seguridad). Las dos
 verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
-autenticada; la orden 7 (bucket privado aparte) sigue pendiente del lado de
-Cloudflare. Se marcan con ✅ y se conservan en la tabla para no perder la
-trazabilidad. El resto sigue pendiente y requiere aprobación del propietario
-antes de empezar.
+autenticada; la orden 7 (bucket privado) se completó del lado de Cloudflare/
+Railway el 2026-08-18: bucket privado creado, `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME`
+definida en Railway, `manage.py migrar_archivos_privados --aplicar` ejecutado
+(6 archivos ya en el privado, 0 nuevos por copiar, 30 sin origen — los
+documentos que solo vivían en Cloudinary y se dieron por perdidos, ver nota
+abajo), documento sensible verificado abriendo bien desde el bucket privado,
+y los archivos sensibles borrados del bucket público. Se marcan con ✅ y se
+conservan en la tabla para no perder la trazabilidad. El resto sigue
+pendiente y requiere aprobación del propietario antes de empezar.
 
 **Nota fuera de tabla**: los 228 archivos que solo vivían en Cloudinary (no
 migrados nunca a R2) se dieron por perdidos — la cuenta quedó deshabilitada
@@ -70,13 +75,13 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 4 ✅ | NV-01 | **HECHO.** Verificar la política de acceso del bucket R2 | P1 | — | Ninguna | XS | Infra | **Sirve lectura anónima** (las imágenes de la landing cargan sin sesión): `SEC-FILE-001` es exposición activa. Sube a la cabeza de la cola |
 | 5 ✅ | SEC-DATA-001 | **HECHO.** Invertir a fail-closed el feed iCal: sin `ICAL_PUBLIC_TOKEN` configurado, responder 403 | P1 | Publicación anónima de nombre de cliente, evento, asistentes y fecha de todas las cotizaciones confirmadas | Orden 3 | XS | Dev | Con la variable vacía, `/airbnb/ical/eventos/` devuelve 403; con token válido, 200 |
 | 6 ✅ | SEC-DATA-001b | **HECHO.** Reducir el contenido del feed al mínimo funcional: `SUMMARY` genérico, sin nombre de cliente ni número de personas | P1 | Aunque el token se filtre, no se expone la cartera de clientes | Orden 5 | XS | Dev | El `.ics` no contiene el nombre de ningún cliente; Airbnb sigue bloqueando las fechas correctamente |
-| 7 | SEC-FILE-001a | **Código listo, falta el paso de Cloudflare.** Crear el bucket privado (sin dominio público), definir `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` en Railway y correr `manage.py migrar_archivos_privados --aplicar` | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | **Infra** | `SolicitudARCO.identificacion.url` incluye parámetros de firma y caduca; las imágenes de la landing siguen cargando |
+| 7 ✅ | SEC-FILE-001a | **HECHO.** Crear el bucket privado (sin dominio público), definir `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` en Railway y correr `manage.py migrar_archivos_privados --aplicar` | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | **Infra** | Bucket privado creado, migración aplicada (6 archivos migrados, 30 irrecuperables de Cloudinary), verificado que abren bien, y borrados del bucket público |
 | 8 ✅ | SEC-FILE-001b | **HECHO.** Servir los documentos verdaderamente sensibles (ARCO, nómina, contratos) por vista autenticada con `FileResponse`, replicando el patrón de `legal/views.py`; que `portal_descargar_contrato` sirva el contenido en vez de redirigir a `archivo.url` | P1 | Cierra el hueco de forma independiente de la configuración del bucket | Orden 7 | M | Dev | Ninguna vista expone `archivo.url` de un documento sensible; cada descarga queda registrada |
 | 9 ✅ | SEC-AUTHN-001a | **HECHO.** Unificar el mensaje de error de `portal_acceso` para código inexistente y teléfono incorrecto | P1 | Enumeración de identificadores de cotización válidos | Ninguna | XS | Dev | Ambos casos devuelven texto idéntico; test que lo verifica |
 | 10 ✅ | SEC-AUTHN-001b | **HECHO.** Contador de intentos **por cotización** además del de IP, en `ratelimit.py::portal_acceso_bloqueado` | P1 | Fuerza bruta distribuida sobre los 4 dígitos del teléfono | Orden 9 | S | Dev | Tras N intentos fallidos contra la misma cotización desde IPs distintas, la respuesta es 429; test que reparte los intentos entre 10 IPs |
 | 11 ✅ | SEC-AUTHN-001c | **HECHO.** `portal_acceso` ya no crea el `PortalCliente`: solo resuelve portales existentes, activos y vigentes | P1 | Un atacante genera tokens permanentes para cotizaciones que nunca tuvieron portal | Orden 10 | S | Dev | `portal_acceso` no crea registros; el alta sigue ocurriendo en `Cotizacion.save()` |
-| 12 | NV-03 | **Verificar** backups de PostgreSQL en Railway: frecuencia, retención, cifrado y última restauración probada | P1 | Pérdida de datos sin posibilidad de recuperación | Ninguna | XS | Infra | Evidencia documentada; si no hay respaldo, se convierte en P0 operativo |
-| 13 | NV-07 | **Definir** quién recibe alertas de error y por qué canal | P1 | Un incidente puede pasar inadvertido indefinidamente | Ninguna | S | Propietario | Canal y responsable documentados |
+| 12 | NV-03 | **Parcial.** Verificar backups de PostgreSQL en Railway: frecuencia, retención, cifrado y última restauración probada | P1 | Pérdida de datos sin posibilidad de recuperación | Ninguna | XS | Infra | Diagnóstico inicial: plan sin Pro no tenía `backup schedule` (P0 real, mitigado). Tras subir a Pro: schedule Daily configurado (retención 6 días). Falta probar una restauración real antes de cerrar la orden |
+| 13 ✅ | NV-07 | **HECHO.** Definir quién recibe alertas de error y por qué canal: el propietario decidió correo, a `ADMIN_ALERT_EMAIL` (cae a `SERVER_EMAIL`). `ADMINS` en `settings.py` + handler `mail_admins` (`django.utils.log.AdminEmailHandler`, estándar de Django) enganchado al logger `django` — cubre cada 500 sin capturar, vía el backend de Brevo ya configurado | P1 | Un incidente puede pasar inadvertido indefinidamente | Ninguna | S | Propietario + Dev | Un error 500 real envía un correo a `ADMINS`; probado con `core_erp/test_alertas_admin.py` (5 tests) |
 | 14 ✅ | SEC-AUTHZ-001a | **HECHO.** Definir grupos por área (Ventas, Contabilidad, Nómina) y documentar qué modelos y vistas toca cada uno — Dirección no es un grupo Django, sigue siendo `is_superuser` | P1 | Cualquier cuenta staff accede a nómina, contabilidad, ARCO y datos fiscales | NV-08 | S | Propietario + Dev | Matriz de permisos aprobada por el propietario (Issue #199) |
 | 15 ✅ | SEC-AUTHZ-001b | **HECHO.** `@permission_required` en las vistas de **nómina** (`cargar_nomina`, `sync_jibble_view`, `jibble_diagnostico_view`) | P1 | Exposición de recibos de nómina entre empleados | Orden 14 | S | Dev | Un staff sin el permiso recibe 403 en `/admin/nomina/cargar/` |
 | 16 ✅ | SEC-AUTHZ-001c | **HECHO.** `@permission_required` en las vistas de **contabilidad y reportes financieros** (`balanza_comprobacion`, `estado_resultados`, `cartera_cxc` y las 11 vistas de `reportes/views.py`, cada una con el permiso de su área dueña) | P1 | Exposición de contabilidad completa a cualquier staff | Orden 14 | M | Dev | Un staff sin el permiso recibe 403 en cada una |
@@ -138,19 +143,17 @@ existe. Ver Memoria en `CLAUDE.md`.
 | Prioridad | Tareas | Hechas | Esfuerzo restante aproximado |
 |---|---|---|---|
 | P0 | 2 | **2** | — |
-| P1 | 16 | 13 | ~1-2 días |
+| P1 | 16 | 15 | ~1-2 días |
 | P2 | 22 | 17 | ~2-3 días |
 | P3 | 12 | 10 | ~1 semana |
-| **Total** | **52** | **42** | — |
+| **Total** | **52** | **44** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
-1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
-2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
-3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
-4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
-5. Orden 42 — `SEC-AUTHN-002` (`L`): `django-otp` + TOTP obligatorio para superusuarios — código listo en el PR #226, pendiente de que el propietario pruebe el escaneo de QR y apruebe.
-6. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes — borrador listo en el PR #226, pendientes 3 `[CONFIRMAR:]` de negocio.
+1. Orden 12 — `NV-03` (`XS`): backup schedule Daily ya configurado en Railway Pro (retención 6 días); falta probar una restauración real para cerrarla del todo.
+2. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+3. Orden 42 — `SEC-AUTHN-002` (`L`): `django-otp` + TOTP obligatorio para superusuarios — código listo en el PR #226, pendiente de que el propietario pruebe el escaneo de QR y apruebe.
+4. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes — borrador listo en el PR #226, pendientes 3 `[CONFIRMAR:]` de negocio.
 7. Orden 37 — `SEC-CFG-002`: la parte de Dev ya está (CSP Report-Only del admin, opt-in vía `ADMIN_CSP_REPORT_ONLY`); falta que Infra/Propietario active la variable en Railway, use el admin con normalidad y reporte las violaciones que aparezcan en la consola del navegador — sin esa observación no hay forma responsable de endurecer a una CSP bloqueante.
 
 No queda ninguna tarea de P0-P3 accionable por Dev en solitario sin depender de Infra o del propietario.
