@@ -3,7 +3,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Reporte Fiscal Airbnb — {{ mes_nombre }} {{ anio }}</title>
+  <title>Reporte Fiscal Airbnb — {{ mes_nombre }} {{ anio|stringformat:"d" }}</title>
   <style>
     /* ── Base — idéntica al reporte de eventos ───────────────── */
     @page {
@@ -218,8 +218,8 @@
       <div class="title">Reporte Fiscal Airbnb</div>
       <div class="subtitle">Ingresos, Retenciones y Base Gravable — Plataformas Tecnológicas</div>
       <div style="font-size:9px; margin-top:4px;">
-        <strong>Período:</strong> {{ mes_nombre }} {{ anio }} &nbsp;|&nbsp;
-        <strong>Folio:</strong> RPT-AIRBNB-{{ anio }}{{ mes|stringformat:"02d" }} &nbsp;|&nbsp;
+        <strong>Período:</strong> {{ mes_nombre }} {{ anio|stringformat:"d" }} &nbsp;|&nbsp;
+        <strong>Folio:</strong> RPT-AIRBNB-{{ anio|stringformat:"d" }}{{ mes|stringformat:"02d" }} &nbsp;|&nbsp;
         <strong>Generado:</strong> {{ fecha_generacion }}
       </div>
     </td>
@@ -410,7 +410,7 @@
     <!-- Caja declaración fiscal -->
     <td style="width:42%; vertical-align:top; padding:0;">
       <div class="box-container">
-        <div class="box-header azul"> Datos para Declaración Fiscal — {{ mes_nombre }} {{ anio }}</div>
+        <div class="box-header azul"> Datos para Declaración Fiscal — {{ mes_nombre }} {{ anio|stringformat:"d" }}</div>
         <table class="inner-table">
           <tr style="background:#eaf0f6;">
             <td colspan="2" style="font-weight:bold; font-size:9px; color:#2E7D32; text-transform:uppercase;">
@@ -540,7 +540,7 @@
 </table>
 
 <p style="text-align:center; margin-top:10px; font-size:8px; color:#aaa;">
-  Quinta Ko'ox Tanil — Reporte Fiscal Airbnb {{ mes_nombre }} {{ anio }} —
+  Quinta Ko'ox Tanil — Reporte Fiscal Airbnb {{ mes_nombre }} {{ anio|stringformat:"d" }} —
   Generado por ERP QKT el {{ fecha_generacion }} — DOCUMENTO CONFIDENCIAL
 </p>
 

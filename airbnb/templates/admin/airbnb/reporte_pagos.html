@@ -143,7 +143,7 @@
         <form method="get" class="filtros-form">
             <select name="año">
                 {% for a in años_disponibles %}
-                <option value="{{ a }}" {% if a == año_actual %}selected{% endif %}>{{ a }}</option>
+                <option value="{{ a|stringformat:"d" }}" {% if a == año_actual %}selected{% endif %}>{{ a|stringformat:"d" }}</option>
                 {% endfor %}
             </select>
             <select name="mes">
@@ -162,7 +162,7 @@
                 <option value="12" {% if mes_actual == 12 %}selected{% endif %}>Diciembre</option>
             </select>
             <button type="submit" class="btn btn-primary">Filtrar</button>
-            <a href="?año={{ año_actual }}&mes={{ mes_actual|default:'' }}&export=excel" class="btn btn-success">
+            <a href="?año={{ año_actual|stringformat:"d" }}&mes={{ mes_actual|default:'' }}&export=excel" class="btn btn-success">
                  Exportar Excel
             </a>
         </form>
