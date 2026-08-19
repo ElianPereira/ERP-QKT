@@ -277,7 +277,7 @@ class ProductoPaqueteInline(admin.TabularInline):
 class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline, ProductoPaqueteInline]
     list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_upgrade', 'badge_licor')
-    list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'es_paquete', 'es_upgrade', 'requiere_licor')
+    list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'cotizador_hospedaje', 'es_paquete', 'es_upgrade', 'requiere_licor')
     filter_horizontal = ('hereda_inventario_de',)
     search_fields = ('nombre',)
     fieldsets = (
@@ -304,7 +304,7 @@ class ProductoAdmin(admin.ModelAdmin):
         ('Cotizador Web', {
             'fields': (
                 'visible_cotizador',
-                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_arrendamiento'),
+                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
                 'rol_cotizador',
                 'grupo_cotizador', 'icono', 'descripcion_corta',
                 'orden_cotizador', 'grupo_exclusion',
@@ -341,6 +341,8 @@ class ProductoAdmin(admin.ModelAdmin):
             servicios.append('P')
         if obj.cotizador_arrendamiento:
             servicios.append('A')
+        if obj.cotizador_hospedaje:
+            servicios.append('H')
         txt = '/'.join(servicios) or '—'
         return format_html(
             '<span style="background:#2E7D32;color:white;padding:2px 8px;'
@@ -583,7 +585,10 @@ class CotizacionAdmin(admin.ModelAdmin):
         js = MEDIA_CONFIG['js']
 
     fieldsets = (
-        ('Información del Evento', {'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'fecha_evento', 'hora_inicio', 'hora_fin', 'num_personas', 'estado')}),
+        ('Información del Evento', {
+            'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'fecha_evento', 'fecha_salida', 'hora_inicio', 'hora_fin', 'num_personas', 'estado'),
+            'description': '"Fecha de salida" solo aplica a Hospedaje (checkout, varias noches); en el resto de los servicios déjala vacía.',
+        }),
         ('Configuración de Barra', {
             'fields': ('incluye_refrescos', 'incluye_cerveza', 'incluye_licor_nacional', 'incluye_licor_premium', 'incluye_cocteleria_basica', 'incluye_cocteleria_premium', 'clima', 'horas_servicio', 'factor_utilidad_barra', 'resumen_barra_html'),
             'description': 'Selecciona los componentes para armar el paquete.'
@@ -769,16 +774,6 @@ class CotizacionAdmin(admin.ModelAdmin):
                     obj.cancelada_por = request.user
                     from django.utils.timezone import now
                     obj.fecha_cancelacion = now()
-
-        if obj.estado == 'CONFIRMADA':
-            try:
-                from airbnb.validacion_fechas import validar_fecha_disponible
-                disponible, mensaje = validar_fecha_disponible(obj.fecha_evento, exclude_cotizacion_id=obj.pk)
-                if not disponible:
-                    messages.error(request, f"Conflicto de calendario: {mensaje}.")
-                    return
-            except ImportError:
-                pass
 
         if not obj.pk:
             obj.usuario = request.user

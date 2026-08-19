@@ -371,11 +371,18 @@
   <table class="tabla-campos">
     <tr><td class="label">Tipo de servicio</td><td>{{ tipo_marca }}</td></tr>
     <tr><td class="label">Nombre del evento</td><td>{{ cotizacion.nombre_evento }}</td></tr>
+    {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+    <tr><td class="label">Check-in</td><td>{{ fecha_evento }}, {{ hora_ini }}</td></tr>
+    <tr><td class="label">Check-out</td><td>{{ fecha_salida }}, {{ hora_fin }}</td></tr>
+    <tr><td class="label">Noches</td><td>{{ noches }}</td></tr>
+    <tr><td class="label">Huéspedes</td><td>{{ cotizacion.num_personas }} (aforo declarado)</td></tr>
+    {% else %}
     <tr><td class="label">Fecha del evento</td><td>{{ fecha_evento }}</td></tr>
-    <tr><td class="label">Horario</td><td>{{ hora_ini }} a {{ hora_fin }} horas</td></tr>
+    <tr><td class="label">Horario</td><td>{{ hora_ini }} a {{ hora_fin }}</td></tr>
     <tr><td class="label">Número de personas</td><td>{{ cotizacion.num_personas }} personas (aforo máximo)</td></tr>
+    {% endif %}
     <tr><td class="label">Servicios incluidos</td><td>{{ servicios_incluidos }}</td></tr>
-    {% if tipo_servicio != 'ARRENDAMIENTO' %}
+    {% if cotizacion.tipo_servicio != 'ARRENDAMIENTO' and cotizacion.tipo_servicio != 'HOSPEDAJE' %}
     <tr><td class="label">Hora extra adicional</td><td>Costo por acuerdo previo entre las partes, no incluido en este contrato</td></tr>
     {% endif %}
   </table>

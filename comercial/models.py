@@ -271,6 +271,7 @@ class Producto(models.Model):
         ('BASE_EVENTO', 'Base — Evento (se agrega solo)'),
         ('BASE_PASADIA', 'Base — Pasadía (se agrega solo)'),
         ('HORA_EXTRA', 'Hora extra de arrendamiento'),
+        ('HABITACION_HOSPEDAJE', 'Habitación de Hospedaje (selección múltiple)'),
     ]
 
     GRUPO_COTIZADOR_CHOICES = [
@@ -319,13 +320,17 @@ class Producto(models.Model):
     cotizador_evento = models.BooleanField(default=False, verbose_name="Disponible para Evento")
     cotizador_pasadia = models.BooleanField(default=False, verbose_name="Disponible para Pasadía")
     cotizador_arrendamiento = models.BooleanField(default=False, verbose_name="Disponible para Arrendamiento de Mobiliario")
+    cotizador_hospedaje = models.BooleanField(default=False, verbose_name="Disponible para Hospedaje")
     rol_cotizador = models.CharField(
         max_length=20, blank=True, choices=ROL_COTIZADOR_CHOICES, db_index=True,
         verbose_name="Rol en el cotizador",
         help_text=(
             "Producto que el cotizador agrega SOLO al elegir el servicio (el "
-            "arrendamiento de la quinta). No se ofrece como extra: si el cliente "
-            "pudiera marcarlo, se cobraría dos veces. Vacío = extra normal."
+            "arrendamiento de la quinta), o que se elige en su propio paso "
+            "dedicado en vez de la lista de extras (las habitaciones de "
+            "Hospedaje, selección múltiple, cantidad = noches). No se ofrece "
+            "como extra: si el cliente pudiera marcarlo ahí también, se "
+            "cobraría dos veces. Vacío = extra normal."
         ),
     )
 
@@ -497,14 +502,18 @@ class Cotizacion(models.Model):
         ('EVENTO', 'Evento'),
         ('PASADIA', 'Pasadía'),
         ('ARRENDAMIENTO', 'Arrendamiento de Mobiliario'),
+        ('HOSPEDAJE', 'Hospedaje'),
     ]
 
     # Días antes de la fecha a partir de los cuales el pago deja de admitir
     # anticipo y tiene que cubrir el total. El arrendamiento de mobiliario no
     # aparece porque se liquida al 100% siempre (ver requiere_pago_total_detalle).
+    # HOSPEDAJE usa el mismo umbral que PASADIA: coincide con el corte de 0%
+    # de reembolso de la política de cancelación de hospedaje (§8).
     DIAS_PAGO_TOTAL = {
         'EVENTO': 15,
         'PASADIA': 7,
+        'HOSPEDAJE': 7,
     }
 
     cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT)
@@ -518,6 +527,14 @@ class Cotizacion(models.Model):
         related_name='cotizaciones', verbose_name="Tipo de evento",
     )
     fecha_evento = models.DateField()
+    fecha_salida = models.DateField(
+        null=True, blank=True, verbose_name="Fecha de salida (checkout)",
+        help_text=(
+            "Solo aplica a HOSPEDAJE: fecha de checkout, EXCLUSIVA (la última "
+            "noche ocupada es fecha_salida - 1 día), mismo criterio que "
+            "ReservaAirbnb.fecha_fin. Vacía en cualquier otro tipo de servicio."
+        ),
+    )
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
 
@@ -642,6 +659,27 @@ class Cotizacion(models.Model):
         hoy = timezone.now().date()
         return (self.fecha_evento - hoy).days
 
+    @property
+    def noches(self):
+        """Noches de una estancia de HOSPEDAJE, o None si no aplica."""
+        if self.fecha_salida:
+            return (self.fecha_salida - self.fecha_evento).days
+        return None
+
+    def rango_ocupado(self):
+        """(fecha_inicio, fecha_fin_exclusiva) que esta cotización ocupa.
+
+        `fecha_fin` es EXCLUSIVA, mismo criterio que `ReservaAirbnb.fecha_fin`:
+        para HOSPEDAJE es el checkout real (`fecha_salida`); para cualquier otro
+        tipo de servicio es un solo día (`fecha_evento` al día siguiente). Es la
+        fuente única que usa `airbnb.validacion_fechas` para overlap de rangos,
+        así una Cotizacion de un día y una de varias noches se comparan con la
+        misma aritmética.
+        """
+        from datetime import timedelta
+        fin = self.fecha_salida if self.fecha_salida else self.fecha_evento + timedelta(days=1)
+        return self.fecha_evento, fin
+
     def calcular_inventario_inteligente(self):
         """
         Calcula el inventario consolidado de la cotización evitando duplicados de
@@ -731,9 +769,10 @@ class Cotizacion(models.Model):
         super().clean()
         if self.fecha_evento and self.estado == 'CONFIRMADA':
             try:
-                from airbnb.validacion_fechas import verificar_disponibilidad_fecha
-                disponible, msg = verificar_disponibilidad_fecha(
-                    self.fecha_evento, cotizacion_id=self.pk
+                from airbnb.validacion_fechas import verificar_disponibilidad_rango
+                inicio, fin = self.rango_ocupado()
+                disponible, msg = verificar_disponibilidad_rango(
+                    inicio, fin, cotizacion_id=self.pk
                 )
                 if not disponible:
                     raise ValidationError({'fecha_evento': msg})

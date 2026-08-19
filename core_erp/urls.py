@@ -21,6 +21,7 @@ from comercial.views import (
 from comercial.views_cotizador import (
     api_disponibilidad_fecha,
     api_fechas_ocupadas,
+    api_habitaciones_cotizador,
     api_paquetes_cotizador,
     api_productos_cotizador,
     api_total_cotizador,
@@ -199,6 +200,7 @@ urlpatterns = [
     path('api/fechas-ocupadas/', api_fechas_ocupadas, name='api_fechas_ocupadas'),
     path('api/cotizador/productos/', api_productos_cotizador, name='api_productos_cotizador'),
     path('api/cotizador/paquetes/', api_paquetes_cotizador, name='api_paquetes_cotizador'),
+    path('api/cotizador/habitaciones/', api_habitaciones_cotizador, name='api_habitaciones_cotizador'),
     path('api/cotizador/total/', api_total_cotizador, name='api_total_cotizador'),
 
     # --- WEBHOOK OPENPAY (público, protegido con Basic Auth) ---

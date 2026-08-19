@@ -29,6 +29,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from core_erp import impuestos
+from core_erp.horarios import formato_hora_ampm
 from core_erp.ratelimit import rate_limit
 
 from .forms_cotizador import TIPO_EVENTO_CHOICES, CotizadorEnviarForm
@@ -44,6 +45,14 @@ HORAS_BASE_EVENTO = 6          # incluidas en el paquete; a partir de aquí se c
 HORA_INICIO_PASADIA = dt_time(10, 0)
 HORA_FIN_PASADIA = dt_time(19, 0)
 HORAS_PASADIA = 9
+
+# Check-in/check-out de Hospedaje: coincide con lo ya publicado y vigente en
+# el Reglamento y los Términos y Condiciones (sección de hospedaje) — no
+# cambiar sin actualizar esos documentos también.
+HORA_INICIO_HOSPEDAJE = dt_time(14, 0)
+HORA_FIN_HOSPEDAJE = dt_time(10, 0)
+NOCHES_HOSPEDAJE_MIN = 1
+NOCHES_HOSPEDAJE_MAX = 30
 
 
 # ─── Helpers (reutilizados del webhook) ─────────────────────────────────────────────────────
@@ -117,9 +126,16 @@ def _detectar_clima(fecha):
     return 'normal'
 
 
-def _redondear_personas(n, es_pasadia=False):
-    if es_pasadia:
+def _redondear_personas(n, servicio=''):
+    # Pasadía y Hospedaje: tope simple, sin redondear a múltiplos de 10 (ese
+    # redondeo es para los tramos de precio por 10 personas de Evento, que no
+    # aplican aquí). El tope de Hospedaje es orientativo (huéspedes por
+    # habitación), no alimenta ningún cálculo de precio — eso lo hace el
+    # número de habitaciones elegidas, no num_personas.
+    if servicio == 'PASADIA':
         return min(int(n), 20)
+    if servicio == 'HOSPEDAJE':
+        return min(int(n), 10)
     return max(20, math.ceil(int(n) / 10) * 10)
 
 
@@ -153,9 +169,10 @@ def cotizador_enviar(request):
     nombre    = limpio['nombre'].strip()
     telefono  = limpio['telefono'].strip()
     email     = limpio['email'].strip()
-    servicio  = limpio['servicio'].strip()      # EVENTO|PASADIA|ARRENDAMIENTO
+    servicio  = limpio['servicio'].strip()      # EVENTO|PASADIA|ARRENDAMIENTO|HOSPEDAJE
     fecha_str = limpio['fecha'].strip()
     personas  = limpio['personas'].strip()
+    noches_str = limpio['noches'].strip()
     hora_ini  = limpio['hora_inicio'].strip()
     hora_fin  = limpio['hora_fin'].strip()
     tipo_ev   = limpio['tipo_evento'].strip() or 'Evento General'
@@ -174,6 +191,9 @@ def cotizador_enviar(request):
 
     # Extras dinámicos (IDs de Producto con visible_cotizador=True)
     extras_ids_raw = data.get('extras_ids', [])
+    # Habitaciones elegidas (solo HOSPEDAJE) — mismo patrón que extras_ids: no
+    # forman parte de CotizadorEnviarForm porque son una lista de ids libre.
+    habitaciones_ids_raw = data.get('habitaciones_ids', [])
 
     # Consentimiento (art. 8 LFPDPPP): el aviso y los términos ya se validaron
     # como obligatorios en CotizadorEnviarForm.clean(); las finalidades
@@ -217,11 +237,30 @@ def cotizador_enviar(request):
     hora_inicio_obj = _parsear_hora(hora_ini)
     hora_fin_obj    = _parsear_hora(hora_fin)
 
+    # ── Noches y fecha de salida (solo HOSPEDAJE) ────────────────────────────────
+    fecha_salida = None
+    if servicio == 'HOSPEDAJE':
+        try:
+            noches = int(noches_str)
+        except ValueError:
+            noches = NOCHES_HOSPEDAJE_MIN
+        noches = max(NOCHES_HOSPEDAJE_MIN, min(noches, NOCHES_HOSPEDAJE_MAX))
+        fecha_salida = fecha_evento + timedelta(days=noches)
+    else:
+        noches = None
+
     if servicio == 'PASADIA':
         # Horario fijo: la pasadía no ofrece elegir horas en el formulario.
         hora_inicio_obj = HORA_INICIO_PASADIA
         hora_fin_obj    = HORA_FIN_PASADIA
         horas_evento    = HORAS_PASADIA
+    elif servicio == 'HOSPEDAJE':
+        # Horario fijo, mismo criterio que Pasadía. No hay concepto de "hora
+        # extra" en Hospedaje: horas_servicio queda neutro, no alimenta ningún
+        # cálculo (la barra es exclusiva de Evento).
+        hora_inicio_obj = HORA_INICIO_HOSPEDAJE
+        hora_fin_obj    = HORA_FIN_HOSPEDAJE
+        horas_evento    = 0
     elif hora_inicio_obj and hora_fin_obj:
         from datetime import date as dt_date
         from datetime import datetime as dt
@@ -238,13 +277,33 @@ def cotizador_enviar(request):
         num_raw = max(1, min(int(''.join(filter(str.isdigit, personas)) or '50'), 200))
     except ValueError:
         num_raw = 50
-    num_personas = _redondear_personas(num_raw, servicio == 'PASADIA')
+    num_personas = _redondear_personas(num_raw, servicio)
+
+    # ── Habitaciones (solo HOSPEDAJE) ────────────────────────────────────────────────────
+    # No hay línea base automática como en Evento/Pasadía: el cliente elige
+    # una o varias habitaciones reales del catálogo. Sin al menos una, no hay
+    # nada que cobrar — se rechaza aquí, antes de crear Cliente/Cotizacion,
+    # igual que las demás validaciones de CotizadorEnviarForm.
+    habitaciones_ids = [int(x) for x in habitaciones_ids_raw if str(x).isdigit()]
+    if servicio == 'HOSPEDAJE':
+        habitaciones_validas = Producto.objects.filter(
+            id__in=habitaciones_ids, rol_cotizador='HABITACION_HOSPEDAJE', visible_cotizador=True,
+        ).count()
+        if habitaciones_validas == 0:
+            return JsonResponse({
+                'ok': False,
+                'errores': ["Selecciona al menos una habitación."],
+            }, status=400)
 
     # ── Disponibilidad de fecha ────────────────────────────────────────────────────────────
     aviso_fecha = None
     try:
-        from airbnb.validacion_fechas import verificar_disponibilidad_fecha
-        disponible, msg_disp = verificar_disponibilidad_fecha(fecha_evento)
+        if servicio == 'HOSPEDAJE':
+            from airbnb.validacion_fechas import verificar_disponibilidad_hospedaje
+            disponible, msg_disp = verificar_disponibilidad_hospedaje(fecha_evento, fecha_salida)
+        else:
+            from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+            disponible, msg_disp = verificar_disponibilidad_fecha(fecha_evento)
         if not disponible:
             aviso_fecha = msg_disp
     except Exception:
@@ -292,6 +351,8 @@ def cotizador_enviar(request):
         nombre_evento = f"{tipo_ev} — {nombre}"
     elif servicio == 'PASADIA':
         nombre_evento = f"Pasadía — {nombre}"
+    elif servicio == 'HOSPEDAJE':
+        nombre_evento = f"Hospedaje ({noches} noche{'s' if noches != 1 else ''}) — {nombre}"
     else:
         nombre_evento = f"Arrendamiento de Mobiliario — {nombre}"
     if notas:
@@ -310,6 +371,7 @@ def cotizador_enviar(request):
         tipo_servicio=servicio,
         nombre_evento=nombre_evento[:200],
         fecha_evento=fecha_evento,
+        fecha_salida=fecha_salida,
         num_personas=num_personas,
         horas_servicio=horas_evento,
         hora_inicio=hora_inicio_obj,
@@ -344,6 +406,8 @@ def cotizador_enviar(request):
         num_personas=num_personas,
         horas_evento=horas_evento,
         tipo_ev=tipo_ev,
+        noches=noches or 1,
+        habitaciones_ids=habitaciones_ids,
     )
     for prod, qty, desc in lineas:
         _agregar_item(cotizacion, prod, qty, desc)
@@ -404,8 +468,9 @@ def cotizador_enviar(request):
 
 @rate_limit(key='api_disponibilidad_fecha', limit=60, window=60)
 def api_disponibilidad_fecha(request):
-    """GET /api/disponibilidad/?fecha=YYYY-MM-DD
-    Responde si la fecha está libre o ya apartada (Airbnb / cotización confirmada)."""
+    """GET /api/disponibilidad/?fecha=YYYY-MM-DD[&noches=N]
+    Responde si la fecha (o, con `noches`, el rango completo de una estancia
+    de Hospedaje) está libre o ya apartada (Airbnb / cotización confirmada)."""
     fecha_str = (request.GET.get('fecha') or '').strip()
     fecha = None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
@@ -416,9 +481,22 @@ def api_disponibilidad_fecha(request):
             pass
     if not fecha:
         return JsonResponse({'ok': False, 'error': 'Fecha inválida'}, status=400)
+
+    noches_str = (request.GET.get('noches') or '').strip()
     try:
-        from airbnb.validacion_fechas import verificar_disponibilidad_fecha
-        disponible, mensaje = verificar_disponibilidad_fecha(fecha)
+        from airbnb.validacion_fechas import (
+            verificar_disponibilidad_fecha,
+            verificar_disponibilidad_hospedaje,
+        )
+        if noches_str:
+            noches = max(NOCHES_HOSPEDAJE_MIN, min(int(noches_str), NOCHES_HOSPEDAJE_MAX))
+            disponible, mensaje = verificar_disponibilidad_hospedaje(
+                fecha, fecha + timedelta(days=noches),
+            )
+        else:
+            disponible, mensaje = verificar_disponibilidad_fecha(fecha)
+    except ValueError:
+        return JsonResponse({'ok': False, 'error': 'Número de noches inválido'}, status=400)
     except Exception:
         logger.exception("Error al verificar disponibilidad de la fecha %s.", fecha)
         return JsonResponse({'ok': False, 'error': 'No se pudo verificar la disponibilidad.'}, status=500)
@@ -477,10 +555,15 @@ def api_productos_cotizador(request):
         filtro['cotizador_pasadia'] = True
     elif servicio == 'ARRENDAMIENTO':
         filtro['cotizador_arrendamiento'] = True
+    elif servicio == 'HOSPEDAJE':
+        filtro['cotizador_hospedaje'] = True
 
-    # Los paquetes se eligen en su propio paso y las líneas base (`rol_cotizador`)
-    # las agrega el cotizador solo al elegir el servicio: ninguno de los dos debe
-    # aparecer como extra, o el cliente podría marcarlo y pagarlo dos veces.
+    # Los paquetes se eligen en su propio paso, las líneas base (`rol_cotizador`)
+    # las agrega el cotizador solo al elegir el servicio, y las habitaciones de
+    # Hospedaje se eligen en su propio selector (api_habitaciones_cotizador,
+    # también vía `rol_cotizador`): ninguno de los tres debe aparecer como
+    # extra, o el cliente podría marcarlo y pagarlo dos veces. El filtro
+    # `rol_cotizador=''` ya excluye a los tres por igual.
     productos = (Producto.objects.filter(**filtro, rol_cotizador='')
                  .exclude(es_paquete=True)
                  .order_by('grupo_cotizador', 'orden_cotizador', 'nombre'))
@@ -519,7 +602,7 @@ def api_productos_cotizador(request):
 
 
 def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_evento,
-                      tipo_ev='Evento General'):
+                      tipo_ev='Evento General', noches=1, habitaciones_ids=None):
     """
     Lista de (producto, cantidad, descripcion) que compone una cotización del
     cotizador público.
@@ -557,6 +640,24 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
             lineas.append((base, 1,
                            f"{base.nombre} ({num_personas} Pax, {HORA_INICIO_PASADIA:%H:%M}"
                            f"-{HORA_FIN_PASADIA:%H:%M})"))
+
+    elif servicio == 'HOSPEDAJE':
+        # Sin línea base automática: el cliente elige una o varias habitaciones
+        # reales del catálogo (rol_cotizador='HABITACION_HOSPEDAJE'), cada una
+        # se cobra por noche. Sin al menos una no hay nada que cobrar —
+        # cotizador_enviar ya rechaza esa solicitud antes de llegar aquí; esta
+        # función puede devolver una lista vacía sin problema (la usa también
+        # api_total_cotizador, que solo exhibe un estimado).
+        checkin = formato_hora_ampm(HORA_INICIO_HOSPEDAJE)
+        checkout = formato_hora_ampm(HORA_FIN_HOSPEDAJE)
+        habitaciones = Producto.objects.filter(
+            id__in=(habitaciones_ids or []),
+            rol_cotizador='HABITACION_HOSPEDAJE', visible_cotizador=True,
+        )
+        for hab in habitaciones:
+            lineas.append((hab, noches,
+                           f"{hab.nombre} ({noches} noche{'s' if noches != 1 else ''}, "
+                           f"check-in {checkin} — check-out {checkout})"))
 
     # Horas extra: solo el evento tiene horario elegible. La pasadía es de
     # duración fija y el arrendamiento de mobiliario no se cobra por horas.
@@ -608,6 +709,9 @@ def api_total_cotizador(request):
         horas_evento = HORAS_PASADIA
     extras_ids = [int(x) for x in (request.GET.get('extras') or '').split(',')
                   if x.strip().isdigit()]
+    noches = max(NOCHES_HOSPEDAJE_MIN, min(_entero('noches', 1), NOCHES_HOSPEDAJE_MAX))
+    habitaciones_ids = [int(x) for x in (request.GET.get('habitaciones') or '').split(',')
+                        if x.strip().isdigit()]
 
     # Solo alimenta el texto del concepto que se exhibe; se acota a las mismas
     # opciones del formulario en vez de aceptar el texto libre de la query.
@@ -622,6 +726,8 @@ def api_total_cotizador(request):
         num_personas=num_personas,
         horas_evento=horas_evento,
         tipo_ev=tipo_ev,
+        noches=noches,
+        habitaciones_ids=habitaciones_ids,
     )
     bases = [Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
              for prod, qty, _ in lineas]
@@ -676,6 +782,31 @@ def api_paquetes_cotizador(request):
         })
 
     return JsonResponse({'ok': True, 'paquetes': resultado})
+
+
+@rate_limit(key='api_habitaciones_cotizador', limit=60, window=60)
+def api_habitaciones_cotizador(request):
+    """GET /api/cotizador/habitaciones/
+    Devuelve las habitaciones de Hospedaje (rol_cotizador='HABITACION_HOSPEDAJE')
+    disponibles para elegir — selección múltiple, precio por noche."""
+    habitaciones = Producto.objects.filter(
+        rol_cotizador='HABITACION_HOSPEDAJE', visible_cotizador=True,
+    ).order_by('orden_cotizador', 'nombre')
+
+    resultado = []
+    for hab in habitaciones:
+        # Con IVA incluido — mismo criterio que api_paquetes_cotizador, para
+        # que lo que ve el cliente coincida con lo que factura el total real.
+        precio_con_iva = impuestos.con_iva(Decimal(str(hab.sugerencia_precio())))
+        resultado.append({
+            'id': hab.id,
+            'nombre': hab.nombre,
+            'icono': hab.icono,
+            'descripcion': hab.descripcion_corta,
+            'precio_noche': str(precio_con_iva),
+        })
+
+    return JsonResponse({'ok': True, 'habitaciones': resultado})
 
 
 def cotizador_gracias(request):
