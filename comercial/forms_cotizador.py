@@ -22,7 +22,7 @@ TIPO_EVENTO_CHOICES = [(v, v) for v in (
     'Aniversario', 'Evento Corporativo', 'Otro',
 )]
 
-SERVICIO_CHOICES = [(v, v) for v in ('EVENTO', 'PASADIA', 'ARRENDAMIENTO')]
+SERVICIO_CHOICES = [(v, v) for v in ('EVENTO', 'PASADIA', 'ARRENDAMIENTO', 'HOSPEDAJE')]
 
 COMO_NOS_ENCONTRO_CHOICES = [(v, v) for v in (
     'Facebook', 'Instagram', 'TikTok', 'Google', 'Recomendación',
@@ -40,6 +40,9 @@ class CotizadorEnviarForm(forms.Form):
     servicio = forms.ChoiceField(choices=SERVICIO_CHOICES, required=False)
     fecha = forms.CharField(max_length=10, required=False)
     personas = forms.CharField(max_length=10, required=False)
+    # Solo HOSPEDAJE; parseo laxo igual que `personas`, la validación real de
+    # rango vive en clean() y en views_cotizador.py.
+    noches = forms.CharField(max_length=5, required=False)
     hora_inicio = forms.CharField(max_length=10, required=False)
     hora_fin = forms.CharField(max_length=10, required=False)
     tipo_evento = forms.ChoiceField(choices=TIPO_EVENTO_CHOICES, required=False)
@@ -67,6 +70,13 @@ class CotizadorEnviarForm(forms.Form):
 
         if not cleaned.get('fecha', '').strip():
             errores.append("La fecha es requerida.")
+
+        if cleaned.get('servicio') == 'HOSPEDAJE':
+            try:
+                if int(cleaned.get('noches', '').strip() or 0) < 1:
+                    errores.append("Indica cuántas noches te vas a quedar.")
+            except ValueError:
+                errores.append("Indica cuántas noches te vas a quedar.")
 
         if not cleaned.get('acepta_legales'):
             errores.append(

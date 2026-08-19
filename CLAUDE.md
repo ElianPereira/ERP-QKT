@@ -76,6 +76,89 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-19 — Nueva línea de negocio Hospedaje (Issue #230), implementada
+  directo por Claude sin pasar por Codex (decisión del propietario del
+  2026-08-17, ver entrada de abajo). Reservas de estancia corta —
+  habitaciones **dentro de la Quinta**, no el inmueble "Honey Sea House" que
+  también mencionan los documentos legales— contratadas directamente (no
+  Airbnb), bajo el mismo RFC que Evento/Pasadía (`PECE010202IA0`, `QUINTA`).
+  **Decisiones confirmadas por el propietario antes de tocar código** (las
+  tres vía `AskUserQuestion`, no adivinadas): check-in/check-out **14:00/10:00**
+  (coincide con `terminos_v2.1.md`/`reglamento_v1.1.md` ya vigentes — no hizo
+  falta versionar ningún documento legal); exclusividad de fechas **a nivel
+  de toda la quinta**, no por habitación (una reserva de Hospedaje bloquea
+  el rango completo para Airbnb/Evento/Pasadía/Arrendamiento/otro Hospedaje,
+  y viceversa — sin modelar inventario por unidad); y **solo habitaciones de
+  la Quinta**, Honey Sea House queda fuera de alcance.
+  **Modelo**: `Cotizacion.fecha_salida` (checkout, exclusiva, mismo criterio
+  que `ReservaAirbnb.fecha_fin`), propiedad `noches` y método `rango_ocupado()`
+  — este último es la fuente única que usa `airbnb.validacion_fechas` para
+  comparar rangos, así un servicio de un día y uno de varias noches se
+  comparan con la misma aritmética de traslape (`fecha_evento__lt=fin AND
+  (fecha_salida__gt=inicio OR (fecha_salida__isnull=True AND
+  fecha_evento__gte=inicio))` — exacto, sin necesidad de refinar en Python).
+  `verificar_disponibilidad_fecha`/`obtener_fechas_bloqueadas` (antes de un
+  solo día) pasan a ser wrappers de `verificar_disponibilidad_rango`, así
+  Evento/Pasadía/Arrendamiento cruzan contra Hospedaje (y viceversa) sin que
+  sus llamadores actuales noten diferencia de firma ni de mensajes.
+  **Bug preexistente encontrado y corregido de paso** (no una vulnerabilidad
+  nueva, dead code): `comercial/admin.py::CotizacionAdmin.save_model`
+  llamaba a `validar_fecha_disponible` — función que **no existe** en
+  `airbnb/validacion_fechas.py` — dentro de un `except ImportError: pass`
+  que tragaba el error en silencio. Confirmado que esto **no era una
+  vulnerabilidad real**: `Cotizacion.clean()` (que sí llama a la función
+  correcta) ya corre automáticamente vía `ModelForm.full_clean()` antes de
+  que `save_model` se ejecute en el flujo estándar del admin, así que la
+  validación real siempre existió por ese otro camino; el bloque roto de
+  `admin.py` era redundante y se eliminó en vez de arreglarse (una sola
+  fuente de verdad).
+  **Selector de habitaciones — NO usa una línea base automática** como
+  Evento/Pasadía: el propietario aclaró a media implementación que solo hay
+  dos habitaciones reales (Ka'an, Otoch) y el cliente debe poder elegir una
+  o ambas. Se descartó `rol_cotizador='BASE_HOSPEDAJE'` (una sola línea
+  automática) y en su lugar cada habitación es un `Producto` con
+  `rol_cotizador='HABITACION_HOSPEDAJE'` (selección múltiple, cantidad =
+  noches); `Producto.cotizador_hospedaje` quedó con el mismo significado que
+  `cotizador_evento`/`cotizador_pasadia` (extra normal disponible para ese
+  servicio, ej. desayuno), no para marcar habitaciones — evitar esa
+  confusión de significado fue el motivo del primer intento fallido (los
+  tests fallaban porque la validación de "selecciona al menos una
+  habitación" filtraba por el campo equivocado). El propietario no necesita
+  dar de alta "Otoch" antes del deploy — lo hace él en el admin después,
+  mismo patrón que ya se usó para `rol_cotizador` en el PR #225.
+  **Horas siempre en 12h con a.m./p.m.** (pedido explícito, "no queremos
+  confusiones"): `core_erp/horarios.py::formato_hora_ampm()` es la fuente
+  única (no usa `strftime('%I:%M %p')`, que depende del locale del
+  servidor), usada por el cotizador, `ContratoService._fmt_hora` (afecta
+  también Evento/Pasadía/Arrendamiento, no solo Hospedaje — corrige de paso
+  un "10:00 — 19:00" en 24h que quedaba en la nota de Pasadía del
+  cotizador) y el filtro de plantilla `hora_ampm` (`comercial/templatetags/
+  qkt_horarios.py`) para el portal.
+  **Precios siempre con IVA incluido**: mismo criterio que ya usa
+  `api_paquetes_cotizador` — encontrado y corregido un bug de IVA doble en
+  el primer borrador del mockup (verificado también en Playwright: 3 noches
+  × $904.80 = $2,714.40 por habitación, suma exacta sin reconversión).
+  `DIAS_PAGO_TOTAL['HOSPEDAJE'] = 7` (igual que Pasadía, alineado con el
+  corte de 0% de reembolso de `politica_cancelacion_v2.0.md` §8) — propuesto
+  por Claude, no instruido explícitamente, documentado como tal en el Issue.
+  Verificado de punta a punta con navegador real (Playwright sobre
+  `runserver`, no solo tests): flujo completo con 2 habitaciones × 3 noches
+  crea la Cotizacion con `fecha_salida`/`noches` correctos, el portal
+  muestra check-in/check-out en a.m./p.m., el calendario admin pinta el
+  rango completo (`_construir_eventos_calendario`) y el contrato PDF se
+  genera sin errores. Tests en `comercial/test_hospedaje.py` (30), incluida
+  la exclusividad bidireccional en las 5 combinaciones (Hospedaje↔Airbnb,
+  ↔Evento, ↔Pasadía, ↔Arrendamiento, ↔otro Hospedaje con traslape a mitad
+  de estancia) y que una Cotizacion `BORRADOR` nunca bloquea, en ninguna
+  dirección.
+- 2026-08-17 — Se deja de usar Codex por completo (decisión del propietario,
+  categórica en la segunda mención: "ya de plano no lo vamos a utilizar para
+  nada, no me gustó, se quedó muy corto"). Ver "Planificación mediante
+  GitHub Issues" arriba: Claude implementa directo tras planificar, ya no
+  hay hand-off. Surgió durante el diseño de la línea de negocio Hospedaje
+  (Issue #230): ese Issue se escribió bajo el flujo viejo (plan sin
+  implementar, para que Codex lo tomara) y se queda como estaba de
+  referencia/bitácora, pero su ejecución la hace Claude, no Codex.
 - 2026-08-17 — `USE_THOUSAND_SEPARATOR = True` (settings.py) formatea con coma
   **cualquier entero** que se imprima crudo en una plantilla (`{{ anio }}` →
   "2,026"), no solo montos. El único lugar del ERP donde esto pasaba de verdad
