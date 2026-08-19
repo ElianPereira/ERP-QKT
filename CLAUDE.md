@@ -57,17 +57,24 @@ código de pagos) → `.claude/settings.json`.
 
 ## Planificación mediante GitHub Issues
 
-Durante la fase de planificación, Claude debe limitarse a analizar el problema,
-identificar dependencias, riesgos y archivos relevantes, y diseñar un plan
-ejecutable. Debe publicar ese plan en un GitHub Issue usando la plantilla de
-implementación, con alcance incluido y excluido, pasos concretos, criterios de
-aceptación verificables y comandos de validación disponibles en el repositorio.
+**Ya no se usa Codex** (decisión del propietario, 2026-08-17 — ver Memoria).
+Quien implementa, tras planificar, es Claude directamente: no hay hand-off a
+otro ejecutor ni fase separada de "esperar a que alguien más lo tome".
 
-Claude no debe implementar código ni modificar archivos del producto durante
-esta fase. La implementación comienza únicamente después de que el Issue tenga
-un plan suficientemente preciso para que Codex pueda ejecutarlo; cualquier
-incertidumbre o decisión que requiera intervención humana debe quedar explícita
-en el Issue.
+Para cambios grandes o que tocan varios dominios (legal, contable, producto,
+varias apps), sigue valiendo la pena investigar y publicar el plan en un
+GitHub Issue con la plantilla de implementación (alcance incluido/excluido,
+pasos concretos, criterios de aceptación verificables, comandos de
+validación) **antes** de tocar código — no como gate para otro ejecutor, sino
+porque ordena el trabajo, dejó decisiones no obvias por escrito y le da al
+propietario un punto donde comentar/corregir antes de que el cambio esté
+hecho. Cualquier incertidumbre o decisión que requiera intervención humana
+va explícita ahí (o se resuelve directo con el propietario, lo que sea más
+rápido) antes de implementar — no se inventa a discreción.
+
+Para cambios chicos/acotados, implementar directo sigue siendo válido, como
+ya se ha hecho varias veces (ver Memoria) — el Issue es una herramienta para
+cuando el tamaño del cambio la justifica, no un trámite obligatorio.
 
 ## Memoria
 
