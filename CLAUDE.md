@@ -91,6 +91,31 @@ salvo que queden obsoletas.
   (Issue #230): ese Issue se escribió bajo el flujo viejo (plan sin
   implementar, para que Codex lo tomara) y se queda como estaba de
   referencia/bitácora, pero su ejecución la hace Claude, no Codex.
+- 2026-08-17 — `USE_THOUSAND_SEPARATOR = True` (settings.py) formatea con coma
+  **cualquier entero** que se imprima crudo en una plantilla (`{{ anio }}` →
+  "2,026"), no solo montos. El único lugar del ERP donde esto pasaba de verdad
+  eran los selects de año armados a mano en `airbnb/`: tres orígenes en Python
+  (`PagoAirbnbAdmin.changelist_view`, `reporte_pagos_airbnb`,
+  `conciliacion_depositos_airbnb`) pasan `anio`/`año` como `int` a 4 plantillas
+  (`pagoairbnb/change_list.html`, `conciliacion_depositos.html`,
+  `reporte_pagos.html`, `reporte_fiscal_airbnb.html`). El daño real no era solo
+  visual: en el PDF fiscal el folio salía `RPT-AIRBNB-2,0267` en vez de
+  `RPT-AIRBNB-202607` — un documento fiscal con folio corrupto. El `list_filter`
+  nativo de Django (ej. `ConciliacionBancariaAdmin` con `'anio'`) **no tiene este
+  bug**: `AllValuesFieldListFilter.choices()` ya hace `str(val)` antes de
+  renderizar, así que solo los años armados a mano con `{% for a in anios %}`
+  estaban expuestos. Fix: `{{ anio|stringformat:"d" }}` en cada uno de los 8
+  sitios — fuerza texto plano vía `%d` de Python, inmune a la localización de
+  números; no se tocó `USE_THOUSAND_SEPARATOR` porque ahí sí se necesita para
+  los montos en pesos en todo el resto del ERP. Grep de auditoría que confirma
+  que no queda ninguno suelto: `grep -rnoE "\{\{[^}]*\}\}" --include=*.html . |
+  grep -E "año|anio" | grep -v "stringformat\|date:"`. Verificado con Playwright
+  contra el servidor real (no solo el código): el `<option>` del filtro de año
+  renderiza "2026" limpio en `value` y en texto, y el PDF fiscal generado con
+  WeasyPrint (extraído con `pdfplumber`, ya que `response.body()` de Playwright
+  al navegar directo a un PDF devuelve el HTML del visor de Chromium, no los
+  bytes — hay que usar `request.new_context()` en su lugar) trae
+  `RPT-AIRBNB-202607`.
 - 2026-08-17 — Mínimo a pagar por tipo de servicio y cercanía de la fecha
   (pedido del propietario tras el fix del cotizador). `monto_minimo_pago_detalle()`
   (`comercial/models.py`) exigía **50% siempre** en el primer pago; ahora

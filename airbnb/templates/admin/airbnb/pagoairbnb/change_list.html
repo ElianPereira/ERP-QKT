@@ -17,7 +17,7 @@
     </li>
 
     <li>
-        <a href="{% url 'conciliacion_depositos_airbnb' %}?mes={{ mes_actual }}&anio={{ anio_actual }}" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
+        <a href="{% url 'conciliacion_depositos_airbnb' %}?mes={{ mes_actual }}&anio={{ anio_actual|stringformat:"d" }}" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
             Conciliar depósitos
         </a>
     </li>
@@ -31,7 +31,7 @@
             </select>
             <select name="anio" style="padding:5px 8px; border-radius:4px; border:1px solid #4a4845; background:#383632; color:#d4d1c8;">
                 {% for a in anios %}
-                    <option value="{{ a }}" {% if a == anio_actual %}selected{% endif %}>{{ a }}</option>
+                    <option value="{{ a|stringformat:"d" }}" {% if a == anio_actual %}selected{% endif %}>{{ a|stringformat:"d" }}</option>
                 {% endfor %}
             </select>
             <button type="submit" style="background:#2E7D32; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:600; font-size:12px; cursor:pointer;">
