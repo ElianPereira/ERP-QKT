@@ -11,9 +11,15 @@ SECRET_KEY = config('SECRET_KEY')  # SIN default — fuerza a que exista en .env
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
-# Nº de proxies de confianza delante de la app (el edge de Railway = 1). Se usa
-# para leer la IP real del cliente en el rate limiting sin que sea spoofeable
-# vía X-Forwarded-For. Ajustar solo si se añaden más proxies (CDN, etc.).
+# Nº de proxies de confianza delante de la app. Se usa para leer la IP real
+# del cliente en el rate limiting sin que sea spoofeable vía X-Forwarded-For.
+# Orden 22 del backlog de seguridad (SEC-RL-002): verificado contra el DNS
+# real que erp.quintakooxtanil.com está con Cloudflare en modo proxy
+# (cf-proxied:true, no solo DNS), así que en producción hay DOS proxies
+# delante de Django (Cloudflare + el edge de Railway), no uno solo — el
+# valor real se fija en Railway con RATELIMIT_TRUSTED_PROXY_COUNT=2. El
+# default de 1 aquí es solo para entornos sin Cloudflare delante (ej. si se
+# accede directo por *.up.railway.app sin el dominio propio).
 RATELIMIT_TRUSTED_PROXY_COUNT = config('RATELIMIT_TRUSTED_PROXY_COUNT', default=1, cast=int)
 
 CSRF_TRUSTED_ORIGINS = [

@@ -76,6 +76,52 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-19 — Orden 22 del backlog de seguridad (`SEC-RL-002`), parcial:
+  verificado por DNS (export de zona de Cloudflare que compartió el
+  propietario) que `erp.quintakooxtanil.com` está con Cloudflare en modo
+  **proxy** (`cf_tags=cf-proxied:true`), no solo DNS — la topología real de
+  producción es `cliente → Cloudflare → edge de Railway → Django`, **dos**
+  proxies de confianza, no uno. El comentario original en `settings.py`
+  ("el edge de Railway = 1") solo contaba a Railway; con
+  `RATELIMIT_TRUSTED_PROXY_COUNT=1` (el valor que trae hoy Railway por
+  default, nunca se había fijado explícitamente), `_client_ip()` —usada
+  por el rate limiting de las órdenes 19-21 y por el bloqueo de fuerza
+  bruta del login— estaría devolviendo la IP del **edge de Cloudflare**,
+  no la del cliente real: el rate limiting agruparía usuarios distintos
+  bajo el mismo cupo, y un atacante podría evadir el bloqueo si Cloudflare
+  rota de colo entre peticiones. **No se desplegó una vista de diagnóstico
+  para confirmarlo en producción real** (habría requerido mergear a `main`,
+  la única rama que Railway despliega — confirmado con el propietario) —
+  se aplicó la fórmula ya documentada en el propio código
+  (`_client_ip()`: contar un salto por cada proxy de confianza) sobre una
+  topología de red ya confirmada por evidencia dura (el export DNS), no
+  adivinada. `.env.example` documenta `RATELIMIT_TRUSTED_PROXY_COUNT=2`
+  como el valor real de producción; **queda pendiente que el propietario
+  fije esa variable en Railway** (hoy no está definida ahí, cae al default
+  de código, que sigue en 1 a propósito — es el valor correcto solo para
+  acceder sin el dominio propio, directo por `*.up.railway.app`). Tests
+  nuevos en `core_erp/test_ratelimit.py::ClientIpTrustedProxyCountTest`
+  (4): sin XFF cae a `REMOTE_ADDR`, con 2 proxies de confianza toma la IP
+  real, un prefijo spoofeado por el cliente no engaña al conteo desde la
+  derecha, y un test que documenta explícitamente el escenario de riesgo
+  (con `trusted=1` pero 2 proxies reales, `_client_ip()` devuelve la IP de
+  Cloudflare, no la del cliente) — antes de esta orden, `_client_ip()` no
+  tenía ningún test directo de su lógica de conteo de saltos, solo
+  cobertura indirecta vía el rate limiting del login. **Hallazgo
+  relacionado, corregido a pedido del propietario aunque quedaba fuera del
+  alcance literal de la orden**: `legal/services.py::obtener_ip()`
+  (evidencia de consentimiento ARCO) usaba una lógica distinta y más
+  frágil — tomaba el **primer** valor de X-Forwarded-For en vez de contar
+  desde la derecha, así que un solicitante de ARCO podía falsear la IP
+  que queda registrada como evidencia con solo mandar un header
+  fabricado. Corregido reutilizando `core_erp.ratelimit._client_ip()` en
+  vez de duplicar la lógica (evita que las dos implementaciones vuelvan a
+  divergir). Test viejo (`test_ip_toma_el_primer_valor_de_x_forwarded_for`)
+  reescrito: ya no se puede afirmar "toma el primer valor" como
+  comportamiento correcto — ahora hay dos tests en
+  `legal/tests/test_legal.py`, uno con `trusted=1` (default) y otro con
+  `trusted=2` (la topología real de producción) confirmando que un
+  prefijo spoofeado no engaña al conteo desde la derecha.
 - 2026-08-18 — Orden 13 del backlog de seguridad (`NV-07`): alertas por
   correo ante un error 500 sin capturar. El propietario decidió: solo él
   (`ADMIN_ALERT_EMAIL`, cae a `SERVER_EMAIL` si no está configurada) y por

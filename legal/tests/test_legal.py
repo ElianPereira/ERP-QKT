@@ -187,9 +187,21 @@ class AceptacionTest(TestCase):
         with self.assertRaises(ValidationError):
             ac.delete()
 
-    def test_ip_toma_el_primer_valor_de_x_forwarded_for(self):
-        req = self._request(HTTP_X_FORWARDED_FOR='189.1.2.3, 10.0.0.1',
-                            REMOTE_ADDR='10.0.0.1')
+    def test_ip_cuenta_desde_la_derecha_segun_proxies_de_confianza(self):
+        # Orden 22 (SEC-RL-002): ya no se toma el primer valor de XFF (el
+        # solicitante lo puede fijar él mismo) — se cuenta desde la derecha,
+        # mismo criterio que core_erp.ratelimit._client_ip().
+        req = self._request(HTTP_X_FORWARDED_FOR='189.1.2.3, 10.0.0.1')
+        self.assertEqual(LegalService.obtener_ip(req), '10.0.0.1')
+
+    @override_settings(RATELIMIT_TRUSTED_PROXY_COUNT=2)
+    def test_ip_con_dos_proxies_de_confianza_toma_la_ip_real_no_la_spoofeada(self):
+        # Topología real de producción: Cloudflare + el edge de Railway.
+        # Un solicitante que intente colar una IP falsa al frente de la
+        # cabecera no logra que quede registrada como evidencia.
+        req = self._request(
+            HTTP_X_FORWARDED_FOR='1.2.3.4, 189.1.2.3, 172.68.10.1',
+        )
         self.assertEqual(LegalService.obtener_ip(req), '189.1.2.3')
 
     def test_publicar_version_nueva_no_altera_snapshot_previo(self):
