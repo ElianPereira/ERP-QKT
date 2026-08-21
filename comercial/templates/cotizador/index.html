@@ -746,7 +746,7 @@ function configurarPaso3() {
     pathGrid.style.display = 'none';
     titulo.innerHTML = 'Agrega <em>extras</em>';
     sub.textContent = 'Tu pasadía ya está incluida. Lo de abajo es opcional.';
-    mostrarNotaBase('Tu cotización ya incluye el Paquete Pasadía QKT: uso de la quinta de 10:00 a.m. a 7:00 p.m.');
+    mostrarNotaBase('Tu cotización ya incluye el Paquete Pasadía QKT: uso de la quinta de 11:00 a.m. a 7:00 p.m.');
     caminoSel = 'personalizado';
     subPer.style.display = 'block';
     cargarExtrasPersonalizado();
@@ -1212,7 +1212,7 @@ function construirResumen() {
     html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">' + esc(hi) + ' — ' + esc(hf) + '</span></div>';
   } else if (servicioSel === 'PASADIA') {
     // Horario fijo de la pasadía; el backend lo impone igual (HORA_*_PASADIA).
-    html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">10:00 a.m. — 7:00 p.m.</span></div>';
+    html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">11:00 a.m. — 7:00 p.m.</span></div>';
   }
   html += '<div class="resumen-item"><span class="resumen-key">' + (servicioSel === 'HOSPEDAJE' ? 'Huéspedes' : 'Personas') + '</span><span class="resumen-val">' + esc(personas) + '</span></div>';
   html += (servicioSel === 'PASADIA' || servicioSel === 'HOSPEDAJE' ? ''
