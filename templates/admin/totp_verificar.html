@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Inicio</a>
+› Verificar código de autenticación
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Verifica tu código de autenticación</h1>
+
+<div style="background:rgba(52,152,219,.12);border-left:4px solid #3498db;border-radius:4px;padding:16px;margin-bottom:20px;max-width:38em;line-height:1.6;">
+  Ingresa el código de 6 dígitos de tu app de autenticación para continuar.
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+    <p style="color:#e74c3c;font-weight:600;">{{ message }}</p>
+  {% endfor %}
+{% endif %}
+
+<form method="post" style="max-width:38em;">
+  {% csrf_token %}
+  <label for="codigo">Código de 6 dígitos</label><br>
+  <input type="text" id="codigo" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus>
+  <button type="submit" style="background:#3498db;color:#fff;border:0;border-radius:4px;padding:8px 20px;font-weight:600;cursor:pointer;margin-left:8px;">
+    Verificar
+  </button>
+</form>
+{% endblock %}

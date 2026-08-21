@@ -9,6 +9,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from comercial.services_migracion_privada import MigracionError, migrar_archivos_privados
+from core_erp.test_utils import login_superuser_con_totp
 from legal.models import SolicitudARCO, TipoARCO
 
 # Dos InMemoryStorage distintos: `storages` instancia uno por alias, así que
@@ -181,7 +182,7 @@ class MigrarArchivosPrivadosVistaTest(TestCase):
         self.assertRedirects(respuesta, "/admin/", fetch_redirect_response=False)
 
     def test_get_no_ejecuta_nada(self):
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         camino = ruta("vista-get")
         crear_solicitud(camino)
         sembrar_en_publico(camino)
@@ -193,7 +194,7 @@ class MigrarArchivosPrivadosVistaTest(TestCase):
         self.assertFalse(storages["privado"].exists(camino))
 
     def test_post_simula_por_defecto(self):
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         camino = ruta("vista-simular")
         crear_solicitud(camino)
         sembrar_en_publico(camino)
@@ -206,7 +207,7 @@ class MigrarArchivosPrivadosVistaTest(TestCase):
         self.assertFalse(storages["privado"].exists(camino))
 
     def test_post_con_accion_aplicar_copia(self):
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         camino = ruta("vista-aplicar")
         crear_solicitud(camino)
         sembrar_en_publico(camino)
@@ -219,7 +220,7 @@ class MigrarArchivosPrivadosVistaTest(TestCase):
         self.assertTrue(storages["privado"].exists(camino))
 
     def test_muestra_el_error_en_vez_de_reventar(self):
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
 
         # Sin bucket privado configurado: la página lo explica, no da un 500.
         respuesta = self.client.post(self.url, {"accion": "aplicar"})

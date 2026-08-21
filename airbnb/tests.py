@@ -10,6 +10,7 @@ from django.test import TestCase
 from airbnb.models import AnuncioAirbnb, PagoAirbnb, ReservaAirbnb
 from airbnb.services import DetectorConflictosService
 from comercial.models import Cliente, Cotizacion
+from core_erp.test_utils import login_superuser_con_totp
 
 
 class ConflictoFechasTest(TestCase):
@@ -598,7 +599,7 @@ class ConciliacionDepositosTest(TestCase):
         self._abono('643.36', date(2026, 3, 14))
         elegido = self._abono('643.36', date(2026, 3, 16))
         User.objects.create_superuser('staff_amb', 'amb@demo.mx', 'x' * 12)
-        self.client.force_login(User.objects.get(username='staff_amb'))
+        login_superuser_con_totp(self.client, User.objects.get(username='staff_amb'))
 
         respuesta = self.client.post(
             '/admin/airbnb/conciliacion-depositos/?mes=3&anio=2026',
@@ -687,7 +688,7 @@ class ConciliacionDepositosTest(TestCase):
                    payout_id='PAYOUT-1')
         self._abono('600.00', date(2026, 3, 14))
         User.objects.create_superuser('staff_demo', 'staff@demo.mx', 'x' * 12)
-        self.client.force_login(User.objects.get(username='staff_demo'))
+        login_superuser_con_totp(self.client, User.objects.get(username='staff_demo'))
 
         respuesta = self.client.get(
             '/admin/airbnb/conciliacion-depositos/?mes=3&anio=2026')
@@ -700,7 +701,7 @@ class ConciliacionDepositosTest(TestCase):
         from django.contrib.auth.models import User
 
         User.objects.create_superuser('staff_demo2', 'staff2@demo.mx', 'x' * 12)
-        self.client.force_login(User.objects.get(username='staff_demo2'))
+        login_superuser_con_totp(self.client, User.objects.get(username='staff_demo2'))
 
         respuesta = self.client.get(
             '/admin/airbnb/conciliacion-depositos/?mes=abc&anio=13')

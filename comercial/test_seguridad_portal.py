@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import Cliente, Cotizacion, ItemCotizacion, PortalCliente
+from core_erp.test_utils import login_superuser_con_totp
 
 
 def _crear_cotizacion(telefono='5551234567', dias_evento=90, nombre='Cliente Portal'):
@@ -242,7 +243,7 @@ class PortalClienteAdminRegenerarTokenTest(TestCase):
             'jefa', 'jefa@quintakooxtanil.com', 'clave-de-prueba'
         )
         self.client = Client()
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         self.cotizacion = _crear_cotizacion()
         self.portal = PortalCliente.objects.get(cotizacion=self.cotizacion)
 

@@ -84,7 +84,12 @@ INSTALLED_APPS = [
     'reportes',
     'comunicacion',
     'legal',
+    'django_otp',
+    'django_otp.plugins.otp_totp',
 ]
+
+# --- TOTP obligatorio para superusuarios (SEC-AUTHN-002) ---
+OTP_TOTP_ISSUER = 'ERP QKT'
 
 # --- Cabeceras de seguridad por ruta. Ver core_erp/middleware.py ---
 PUBLIC_CSP_ENABLED = config('PUBLIC_CSP_ENABLED', default=True, cast=bool)
@@ -104,6 +109,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_otp.middleware.OTPMiddleware',
+    'core_erp.middleware.SuperuserTOTPGateMiddleware',
     'core_erp.middleware.AuthorizationAuditMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -467,6 +474,11 @@ JAZZMIN_SETTINGS = {
         "auth.user":                        "fas fa-user",
         "auth.group":                       "fas fa-users-cog",
 
+        # 2FA (django_otp) — sección propia, renombrada y ordenada justo
+        # después de auth.group (ver core_erp.apps.QktAuthConfig.ready()).
+        "otp_totp":                          "fas fa-shield-alt",
+        "otp_totp.totpdevice":               "fas fa-mobile-alt",
+
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-clipboard-list",
@@ -550,6 +562,10 @@ JAZZMIN_SETTINGS = {
         "auth",
         "auth.user",
         "auth.group",
+
+        # === 2FA ===
+        "otp_totp",
+        "otp_totp.totpdevice",
     ],
 
     "custom_css": "css/admin_fix.css",

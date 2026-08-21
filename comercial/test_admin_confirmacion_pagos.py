@@ -13,6 +13,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago
+from core_erp.test_utils import login_superuser_con_totp
 
 
 def _crear_cotizacion():
@@ -34,7 +35,7 @@ class RegistrarReembolsoAdminAccionTest(TestCase):
         self.superusuario = User.objects.create_superuser(
             'jefa_pagos', 'jefa_pagos@quintakooxtanil.com', 'clave-de-prueba',
         )
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         cotizacion = _crear_cotizacion()
         self.pago = Pago.objects.create(
             cotizacion=cotizacion, tipo='INGRESO', monto=Decimal('500.00'),
@@ -72,7 +73,7 @@ class ReembolsarEnOpenpayAdminAccionTest(TestCase):
         self.superusuario = User.objects.create_superuser(
             'jefa_openpay', 'jefa_openpay@quintakooxtanil.com', 'clave-de-prueba',
         )
-        self.client.force_login(self.superusuario)
+        login_superuser_con_totp(self.client, self.superusuario)
         cotizacion = _crear_cotizacion()
         self.pago = Pago.objects.create(
             cotizacion=cotizacion, tipo='INGRESO', monto=Decimal('500.00'),

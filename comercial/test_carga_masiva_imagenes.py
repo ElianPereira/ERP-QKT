@@ -16,6 +16,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from comercial.models import EspacioLanding, ImagenLanding
+from core_erp.test_utils import login_superuser_con_totp
 
 STORAGES_PRUEBA = {
     "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
@@ -39,7 +40,7 @@ class CargaMasivaImagenesTest(TestCase):
     def setUp(self):
         self.url = reverse('admin:imagenlanding_carga_masiva')
         self.admin = User.objects.create_superuser('jefa', 'jefa@qkt.mx', 'x')
-        self.client.force_login(self.admin)
+        login_superuser_con_totp(self.client, self.admin)
 
     def _subir(self, archivos, **extra):
         datos = {'seccion': 'GALERIA', 'imagenes': archivos}
@@ -101,7 +102,7 @@ class CargaMasivaImagenesTest(TestCase):
 class DesactivarSinArchivoTest(TestCase):
     def setUp(self):
         self.admin = User.objects.create_superuser('jefa', 'jefa@qkt.mx', 'x')
-        self.client.force_login(self.admin)
+        login_superuser_con_totp(self.client, self.admin)
 
     def _ejecutar(self, ruta, ids):
         return self.client.post(

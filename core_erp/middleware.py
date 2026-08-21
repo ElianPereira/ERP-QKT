@@ -29,6 +29,8 @@ import uuid
 from contextvars import ContextVar
 
 from django.conf import settings
+from django.shortcuts import redirect
+from django_otp import devices_for_user
 
 logger_seguridad = logging.getLogger('django.security')
 
@@ -159,6 +161,44 @@ class PublicSecurityHeadersMiddleware:
             response['Content-Security-Policy-Report-Only'] = PORTAL_CSP_REPORT_ONLY_POLICY
 
         return response
+
+
+_TOTP_RUTAS_EXENTAS = ('/admin/2fa/activar/', '/admin/2fa/verificar/', '/admin/logout/')
+
+
+class SuperuserTOTPGateMiddleware:
+    """SEC-AUTHN-002 (orden 42): ningún superusuario completa el login sin
+    verificar un segundo factor (TOTP). `django_otp.middleware.OTPMiddleware`
+    (justo antes en MIDDLEWARE) resuelve `request.user.is_verified()` — True
+    solo si la sesión actual ya pasó por `django_otp.login()`. Para
+    cualquier superusuario autenticado pero no verificado que pida una URL
+    de `/admin/`, esta clase redirige a la pantalla de activación (sin
+    dispositivo confirmado aún) o de verificación (ya tiene uno, falta el
+    código de esta sesión) antes de dejarlo llegar a cualquier otra vista.
+
+    Deliberadamente acotado a superusuarios: el staff de Ventas/Contabilidad/
+    Nómina (is_staff sin is_superuser) no lleva TOTP, tal como pide la
+    orden — es Dirección quien tiene acceso a todo el ERP sin restricción de
+    grupo, así que es la cuenta cuyo robo tiene el impacto más alto.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        usuario = getattr(request, 'user', None)
+        necesita_segundo_factor = (
+            usuario is not None
+            and usuario.is_authenticated
+            and usuario.is_superuser
+            and request.path.startswith('/admin/')
+            and request.path not in _TOTP_RUTAS_EXENTAS
+            and not usuario.is_verified()
+        )
+        if necesita_segundo_factor:
+            destino = 'totp_verificar' if any(devices_for_user(usuario)) else 'totp_activar'
+            return redirect(destino)
+        return self.get_response(request)
 
 
 class AuthorizationAuditMiddleware:

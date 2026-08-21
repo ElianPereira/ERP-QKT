@@ -27,6 +27,7 @@ from comercial.models import (
     PlanPago,
 )
 from comercial.services import PlanPagosService
+from core_erp.test_utils import login_superuser_con_totp
 from nomina.models import Empleado
 
 
@@ -991,7 +992,7 @@ class BotonContratoNoGeneraDeInmediatoTest(TestCase):
         from comercial.models import ContratoServicio
 
         staff = User.objects.create_superuser('admin_test', password='x')
-        self.client.force_login(staff)
+        login_superuser_con_totp(self.client, staff)
 
         response = self.client.get(f'/admin/comercial/cotizacion/{self.cot.id}/contrato/')
 

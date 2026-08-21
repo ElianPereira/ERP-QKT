@@ -43,6 +43,7 @@ from contabilidad.services_estados_cuenta import (
     _emparejar_automaticamente,
     generar_conciliacion_preliminar,
 )
+from core_erp.test_utils import login_superuser_con_totp
 from nomina.models import Empleado, ReciboNomina
 from nomina.services import marcar_recibo_como_pagado
 
@@ -1505,7 +1506,7 @@ class PantallasConciliacionAdminTest(TestCase):
             descripcion='SPEI RECIBIDO SANTANDER MUY LARGO PARA PROBAR EL TRUNCADO',
             abono=Decimal('500.00'), movimiento_contable=self.mov_contable,
         )
-        self.client.force_login(self.admin)
+        login_superuser_con_totp(self.client, self.admin)
 
     def test_pantalla_estado_de_cuenta_abre(self):
         url = f'/admin/contabilidad/estadocuentabancario/{self.estado_cuenta.pk}/change/'
@@ -1595,7 +1596,7 @@ class ReasignarAsientoTest(TestCase):
             descripcion='SPEI ENVIADO DOS', cargo=Decimal('500.00'),
             movimiento_contable=self.asiento_b,
         )
-        self.client.force_login(self.admin)
+        login_superuser_con_totp(self.client, self.admin)
         self.url = f'/admin/contabilidad/estadocuentabancario/{self.estado_cuenta.pk}/change/'
 
     def _asiento(self, concepto):
@@ -1706,7 +1707,10 @@ class RegularizacionArrastreTest(TestCase):
         )
 
     def _accion(self, usuario, accion):
-        self.client.force_login(usuario)
+        if usuario.is_superuser:
+            login_superuser_con_totp(self.client, usuario)
+        else:
+            self.client.force_login(usuario)
         return self.client.post(self.url, {
             'action': accion,
             '_selected_action': [str(self.conciliacion.pk)],
@@ -1780,7 +1784,7 @@ class RegularizacionArrastreTest(TestCase):
         regularización, aunque sea Dirección quien lo mande."""
         proponer_regularizacion_arrastre(self.conciliacion, usuario=self.contador)
 
-        self.client.force_login(self.direccion)
+        login_superuser_con_totp(self.client, self.direccion)
         respuesta = self.client.post(self.url, {
             'action': 'aprobar_regularizacion',
             '_selected_action': [str(self.conciliacion.pk)],
@@ -1939,7 +1943,7 @@ class CerrarHistoricoContableTest(TestCase):
         self.assertEqual(self.vieja.estado, 'APLICADA')
 
     def test_direccion_simula_desde_la_pantalla(self):
-        self.client.force_login(self.direccion)
+        login_superuser_con_totp(self.client, self.direccion)
         respuesta = self.client.post(
             self.url, {'fecha_corte': '2026-06-30', 'accion': 'simular'},
         )
@@ -1948,7 +1952,7 @@ class CerrarHistoricoContableTest(TestCase):
         self.assertEqual(self.vieja.estado, 'APLICADA')
 
     def test_direccion_aplica_desde_la_pantalla(self):
-        self.client.force_login(self.direccion)
+        login_superuser_con_totp(self.client, self.direccion)
         respuesta = self.client.post(
             self.url, {'fecha_corte': '2026-06-30', 'accion': 'aplicar'},
         )
@@ -1957,7 +1961,7 @@ class CerrarHistoricoContableTest(TestCase):
         self.assertEqual(self.vieja.estado, 'CANCELADA')
 
     def test_una_fecha_invalida_no_revienta_la_pantalla(self):
-        self.client.force_login(self.direccion)
+        login_superuser_con_totp(self.client, self.direccion)
         respuesta = self.client.post(
             self.url, {'fecha_corte': 'no-es-fecha', 'accion': 'simular'},
         )
@@ -1989,7 +1993,7 @@ class PolizaAdminAccionesConfirmacionTest(TestCase):
 
     def setUp(self):
         self.direccion = User.objects.create_superuser('direccion_confirma', 'd@qkt.mx', 'x')
-        self.client.force_login(self.direccion)
+        login_superuser_con_totp(self.client, self.direccion)
         self.unidad = UnidadNegocio.objects.get(clave='QUINTA')
         self.cuenta = CuentaContable.objects.get(codigo_sat='102.02.01')
         self.contra = CuentaContable.objects.get(codigo_sat='402.02')
