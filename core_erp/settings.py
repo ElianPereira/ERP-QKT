@@ -473,6 +473,7 @@ JAZZMIN_SETTINGS = {
         "auth":                             "fas fa-shield-alt",
         "auth.user":                        "fas fa-user",
         "auth.group":                       "fas fa-users-cog",
+        "auth.totpdeviceauth":              "fas fa-mobile-alt",
 
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
@@ -557,6 +558,7 @@ JAZZMIN_SETTINGS = {
         "auth",
         "auth.user",
         "auth.group",
+        "auth.totpdeviceauth",
     ],
 
     "custom_css": "css/admin_fix.css",
