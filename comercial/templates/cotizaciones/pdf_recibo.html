@@ -1,4 +1,4 @@
-{% load humanize %}
+{% load humanize qkt_horarios %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -120,7 +120,7 @@
     </div>
 
     <div class="doc-title">
-        <h1>Cotización</h1>
+        <h1>Cotización de {{ cotizacion.get_tipo_servicio_display }}</h1>
         <p>Folio: COT-{{ cotizacion.id|stringformat:"03d" }}</p>
     </div>
 
@@ -134,13 +134,20 @@
                             <td class="card-value" style="text-transform: uppercase;">{{ cotizacion.cliente.nombre }}</td>
                         </tr>
                         <tr>
-                            <td class="card-label">Tipo:</td>
-                            <td class="card-value">{{ cotizacion.get_tipo_servicio_display }}</td>
-                        </tr>
-                        <tr>
-                            <td class="card-label">Evento:</td>
+                            <td class="card-label">{% if cotizacion.tipo_servicio == 'EVENTO' %}Evento:{% else %}Detalle:{% endif %}</td>
                             <td class="card-value">{{ cotizacion.nombre_evento }}</td>
                         </tr>
+                        {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+                        <tr>
+                            <td class="card-label">Huéspedes:</td>
+                            <td class="card-value">{{ cotizacion.num_personas }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="card-label">Personas:</td>
+                            <td class="card-value">{{ cotizacion.num_personas }}</td>
+                        </tr>
+                        {% endif %}
                         <tr>
                             <td class="card-label">Email:</td>
                             <td class="card-value">{{ cotizacion.cliente.email|default:"-" }}</td>
@@ -149,20 +156,35 @@
                 </td>
                 <td style="width: 40%;">
                     <table style="width: 100%;">
+                        {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
                         <tr>
-                            <td class="card-label" style="text-align: right;">Fecha Evento:</td>
+                            <td class="card-label" style="text-align: right;">Check-in:</td>
+                            <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_evento|date:"d/m/Y" }}, {{ cotizacion.hora_inicio|hora_ampm }}</td>
+                        </tr>
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Check-out:</td>
+                            <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_salida|date:"d/m/Y" }}, {{ cotizacion.hora_fin|hora_ampm }}</td>
+                        </tr>
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Noches:</td>
+                            <td class="card-value" style="text-align: right;">{{ cotizacion.noches }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="card-label" style="text-align: right;">Fecha:</td>
                             <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</td>
                         </tr>
                         <tr>
                             <td class="card-label" style="text-align: right;">Horario:</td>
                             <td class="card-value" style="text-align: right;">
                                 {% if cotizacion.hora_inicio %}
-                                    {{ cotizacion.hora_inicio|date:"H:i" }} - {{ cotizacion.hora_fin|date:"H:i" }}
+                                    {{ cotizacion.hora_inicio|hora_ampm }} - {{ cotizacion.hora_fin|hora_ampm }}
                                 {% else %}
                                     Por definir
                                 {% endif %}
                             </td>
                         </tr>
+                        {% endif %}
                         <tr>
                             <td class="card-label" style="text-align: right;">Emisión:</td>
                             <td class="card-value" style="text-align: right;">{% now "d/m/Y H:i" %}</td>

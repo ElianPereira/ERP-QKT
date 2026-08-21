@@ -106,10 +106,10 @@ class LineaBasePorServicioTest(TestCase):
         self.assertEqual(lineas[1][1], 2)  # 8 − 6 horas base
 
     def test_la_pasadia_nunca_cobra_horas_extra(self):
-        # Son 9 horas fijas, no 6 + 3 adicionales.
+        # Son 8 horas fijas, no 6 + 3 adicionales.
         lineas = _lineas_cotizador(
             servicio='PASADIA', paquete_id=None, extras_ids=[],
-            num_personas=10, horas_evento=9,
+            num_personas=10, horas_evento=8,
         )
         self.assertNotIn(self.hora_extra, self._productos(lineas))
 
@@ -294,9 +294,9 @@ class CotizacionCreadaConLineasTest(TestCase):
                      hora_inicio='23:00', hora_fin='23:30')
 
         cotizacion = Cotizacion.objects.latest('id')
-        self.assertEqual(cotizacion.hora_inicio.strftime('%H:%M'), '10:00')
+        self.assertEqual(cotizacion.hora_inicio.strftime('%H:%M'), '11:00')
         self.assertEqual(cotizacion.hora_fin.strftime('%H:%M'), '19:00')
-        self.assertEqual(cotizacion.horas_servicio, 9)
+        self.assertEqual(cotizacion.horas_servicio, 8)
         self.assertTrue(cotizacion.nombre_evento.startswith('Pasadía —'))
 
     def test_un_evento_sin_paquete_trae_el_esencial(self):

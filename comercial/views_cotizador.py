@@ -42,9 +42,9 @@ logger = logging.getLogger(__name__)
 # extra, el horario que se guarda en la cotización y el texto que ve el
 # cliente. El JS de la plantilla replica estos mismos valores.
 HORAS_BASE_EVENTO = 6          # incluidas en el paquete; a partir de aquí se cobra hora extra
-HORA_INICIO_PASADIA = dt_time(10, 0)
+HORA_INICIO_PASADIA = dt_time(11, 0)
 HORA_FIN_PASADIA = dt_time(19, 0)
-HORAS_PASADIA = 9
+HORAS_PASADIA = 8
 
 # Check-in/check-out de Hospedaje: coincide con lo ya publicado y vigente en
 # el Reglamento y los Términos y Condiciones (sección de hospedaje) — no
