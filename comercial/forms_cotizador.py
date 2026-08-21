@@ -22,6 +22,8 @@ TIPO_EVENTO_CHOICES = [(v, v) for v in (
     'Aniversario', 'Evento Corporativo', 'Otro',
 )]
 
+SERVICIO_CHOICES = [(v, v) for v in ('EVENTO', 'PASADIA', 'ARRENDAMIENTO', 'HOSPEDAJE')]
+
 COMO_NOS_ENCONTRO_CHOICES = [(v, v) for v in (
     'Facebook', 'Instagram', 'TikTok', 'Google', 'Recomendación',
     'WhatsApp', 'Visité la quinta', 'Otro',
@@ -32,9 +34,15 @@ class CotizadorEnviarForm(forms.Form):
     nombre = forms.CharField(max_length=200, required=False)
     telefono = forms.CharField(max_length=30, required=False)
     email = forms.CharField(max_length=254, required=False)
-    servicio = forms.CharField(max_length=20, required=False)
+    # Acotado a los códigos reales de Cotizacion.TIPO_SERVICIO_CHOICES: el valor
+    # se guarda tal cual en `Cotizacion.tipo_servicio` (max_length=15), y de él
+    # dependen el mínimo a pagar en el portal y los descuentos por servicio.
+    servicio = forms.ChoiceField(choices=SERVICIO_CHOICES, required=False)
     fecha = forms.CharField(max_length=10, required=False)
     personas = forms.CharField(max_length=10, required=False)
+    # Solo HOSPEDAJE; parseo laxo igual que `personas`, la validación real de
+    # rango vive en clean() y en views_cotizador.py.
+    noches = forms.CharField(max_length=5, required=False)
     hora_inicio = forms.CharField(max_length=10, required=False)
     hora_fin = forms.CharField(max_length=10, required=False)
     tipo_evento = forms.ChoiceField(choices=TIPO_EVENTO_CHOICES, required=False)
@@ -62,6 +70,13 @@ class CotizadorEnviarForm(forms.Form):
 
         if not cleaned.get('fecha', '').strip():
             errores.append("La fecha es requerida.")
+
+        if cleaned.get('servicio') == 'HOSPEDAJE':
+            try:
+                if int(cleaned.get('noches', '').strip() or 0) < 1:
+                    errores.append("Indica cuántas noches te vas a quedar.")
+            except ValueError:
+                errores.append("Indica cuántas noches te vas a quedar.")
 
         if not cleaned.get('acepta_legales'):
             errores.append(

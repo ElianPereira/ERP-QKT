@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.apps import apps
 from django.contrib.auth.apps import AuthConfig
 
 
@@ -9,11 +9,8 @@ class QktAuthConfig(AuthConfig):
     def ready(self):
         super().ready()
         from django.contrib.auth.signals import user_logged_in, user_login_failed
-        from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
-        from django_otp.plugins.otp_totp.models import TOTPDevice
 
         from core_erp import ratelimit
-        from core_erp.models_totp import TOTPDeviceAuth
 
         def _fallo(sender, credentials=None, request=None, **kwargs):
             ratelimit.registrar_login_fallido(request, (credentials or {}).get('username'))
@@ -24,9 +21,12 @@ class QktAuthConfig(AuthConfig):
         user_login_failed.connect(_fallo, dispatch_uid='qkt_login_fallido', weak=False)
         user_logged_in.connect(_exito, dispatch_uid='qkt_login_exitoso', weak=False)
 
-        # Mueve el admin de TOTPDevice (2FA, orden 42/SEC-AUTHN-002) al grupo
-        # "Autenticación y Usuarios", junto a Usuarios y Grupos, en vez de su
-        # propia sección "Otp_Totp" — es la misma pantalla que registra
-        # django_otp por default, solo bajo un app_label distinto.
-        admin.site.unregister(TOTPDevice)
-        admin.site.register(TOTPDeviceAuth, TOTPDeviceAdmin)
+        # Renombra la sección del admin de django_otp (2FA, orden 42/
+        # SEC-AUTHN-002) para que se lea junto a "Autenticación y Usuarios"
+        # en vez de su nombre autogenerado "Otp_Totp". Solo cambia el título
+        # visible del grupo (Jazzmin lee app_config.verbose_name al
+        # renderizar el menú) — el modelo sigue siendo TOTPDevice normal de
+        # django_otp, sin proxy ni migración nueva: un proxy con
+        # app_label='auth' obligaría a una migración dentro del propio
+        # paquete django.contrib.auth (fuera del repo), inviable.
+        apps.get_app_config('otp_totp').verbose_name = 'Autenticación (2FA)'

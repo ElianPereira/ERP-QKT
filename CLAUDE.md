@@ -57,17 +57,24 @@ código de pagos) → `.claude/settings.json`.
 
 ## Planificación mediante GitHub Issues
 
-Durante la fase de planificación, Claude debe limitarse a analizar el problema,
-identificar dependencias, riesgos y archivos relevantes, y diseñar un plan
-ejecutable. Debe publicar ese plan en un GitHub Issue usando la plantilla de
-implementación, con alcance incluido y excluido, pasos concretos, criterios de
-aceptación verificables y comandos de validación disponibles en el repositorio.
+**Ya no se usa Codex** (decisión del propietario, 2026-08-17 — ver Memoria).
+Quien implementa, tras planificar, es Claude directamente: no hay hand-off a
+otro ejecutor ni fase separada de "esperar a que alguien más lo tome".
 
-Claude no debe implementar código ni modificar archivos del producto durante
-esta fase. La implementación comienza únicamente después de que el Issue tenga
-un plan suficientemente preciso para que Codex pueda ejecutarlo; cualquier
-incertidumbre o decisión que requiera intervención humana debe quedar explícita
-en el Issue.
+Para cambios grandes o que tocan varios dominios (legal, contable, producto,
+varias apps), sigue valiendo la pena investigar y publicar el plan en un
+GitHub Issue con la plantilla de implementación (alcance incluido/excluido,
+pasos concretos, criterios de aceptación verificables, comandos de
+validación) **antes** de tocar código — no como gate para otro ejecutor, sino
+porque ordena el trabajo, dejó decisiones no obvias por escrito y le da al
+propietario un punto donde comentar/corregir antes de que el cambio esté
+hecho. Cualquier incertidumbre o decisión que requiera intervención humana
+va explícita ahí (o se resuelve directo con el propietario, lo que sea más
+rápido) antes de implementar — no se inventa a discreción.
+
+Para cambios chicos/acotados, implementar directo sigue siendo válido, como
+ya se ha hecho varias veces (ver Memoria) — el Issue es una herramienta para
+cuando el tamaño del cambio la justifica, no un trámite obligatorio.
 
 ## Memoria
 
@@ -76,15 +83,240 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-19 — Nueva línea de negocio Hospedaje (Issue #230), implementada
+  directo por Claude sin pasar por Codex (decisión del propietario del
+  2026-08-17, ver entrada de abajo). Reservas de estancia corta —
+  habitaciones **dentro de la Quinta**, no el inmueble "Honey Sea House" que
+  también mencionan los documentos legales— contratadas directamente (no
+  Airbnb), bajo el mismo RFC que Evento/Pasadía (`PECE010202IA0`, `QUINTA`).
+  **Decisiones confirmadas por el propietario antes de tocar código** (las
+  tres vía `AskUserQuestion`, no adivinadas): check-in/check-out **14:00/10:00**
+  (coincide con `terminos_v2.1.md`/`reglamento_v1.1.md` ya vigentes — no hizo
+  falta versionar ningún documento legal); exclusividad de fechas **a nivel
+  de toda la quinta**, no por habitación (una reserva de Hospedaje bloquea
+  el rango completo para Airbnb/Evento/Pasadía/Arrendamiento/otro Hospedaje,
+  y viceversa — sin modelar inventario por unidad); y **solo habitaciones de
+  la Quinta**, Honey Sea House queda fuera de alcance.
+  **Modelo**: `Cotizacion.fecha_salida` (checkout, exclusiva, mismo criterio
+  que `ReservaAirbnb.fecha_fin`), propiedad `noches` y método `rango_ocupado()`
+  — este último es la fuente única que usa `airbnb.validacion_fechas` para
+  comparar rangos, así un servicio de un día y uno de varias noches se
+  comparan con la misma aritmética de traslape (`fecha_evento__lt=fin AND
+  (fecha_salida__gt=inicio OR (fecha_salida__isnull=True AND
+  fecha_evento__gte=inicio))` — exacto, sin necesidad de refinar en Python).
+  `verificar_disponibilidad_fecha`/`obtener_fechas_bloqueadas` (antes de un
+  solo día) pasan a ser wrappers de `verificar_disponibilidad_rango`, así
+  Evento/Pasadía/Arrendamiento cruzan contra Hospedaje (y viceversa) sin que
+  sus llamadores actuales noten diferencia de firma ni de mensajes.
+  **Bug preexistente encontrado y corregido de paso** (no una vulnerabilidad
+  nueva, dead code): `comercial/admin.py::CotizacionAdmin.save_model`
+  llamaba a `validar_fecha_disponible` — función que **no existe** en
+  `airbnb/validacion_fechas.py` — dentro de un `except ImportError: pass`
+  que tragaba el error en silencio. Confirmado que esto **no era una
+  vulnerabilidad real**: `Cotizacion.clean()` (que sí llama a la función
+  correcta) ya corre automáticamente vía `ModelForm.full_clean()` antes de
+  que `save_model` se ejecute en el flujo estándar del admin, así que la
+  validación real siempre existió por ese otro camino; el bloque roto de
+  `admin.py` era redundante y se eliminó en vez de arreglarse (una sola
+  fuente de verdad).
+  **Selector de habitaciones — NO usa una línea base automática** como
+  Evento/Pasadía: el propietario aclaró a media implementación que solo hay
+  dos habitaciones reales (Ka'an, Otoch) y el cliente debe poder elegir una
+  o ambas. Se descartó `rol_cotizador='BASE_HOSPEDAJE'` (una sola línea
+  automática) y en su lugar cada habitación es un `Producto` con
+  `rol_cotizador='HABITACION_HOSPEDAJE'` (selección múltiple, cantidad =
+  noches); `Producto.cotizador_hospedaje` quedó con el mismo significado que
+  `cotizador_evento`/`cotizador_pasadia` (extra normal disponible para ese
+  servicio, ej. desayuno), no para marcar habitaciones — evitar esa
+  confusión de significado fue el motivo del primer intento fallido (los
+  tests fallaban porque la validación de "selecciona al menos una
+  habitación" filtraba por el campo equivocado). El propietario no necesita
+  dar de alta "Otoch" antes del deploy — lo hace él en el admin después,
+  mismo patrón que ya se usó para `rol_cotizador` en el PR #225.
+  **Horas siempre en 12h con a.m./p.m.** (pedido explícito, "no queremos
+  confusiones"): `core_erp/horarios.py::formato_hora_ampm()` es la fuente
+  única (no usa `strftime('%I:%M %p')`, que depende del locale del
+  servidor), usada por el cotizador, `ContratoService._fmt_hora` (afecta
+  también Evento/Pasadía/Arrendamiento, no solo Hospedaje — corrige de paso
+  un "10:00 — 19:00" en 24h que quedaba en la nota de Pasadía del
+  cotizador) y el filtro de plantilla `hora_ampm` (`comercial/templatetags/
+  qkt_horarios.py`) para el portal.
+  **Precios siempre con IVA incluido**: mismo criterio que ya usa
+  `api_paquetes_cotizador` — encontrado y corregido un bug de IVA doble en
+  el primer borrador del mockup (verificado también en Playwright: 3 noches
+  × $904.80 = $2,714.40 por habitación, suma exacta sin reconversión).
+  `DIAS_PAGO_TOTAL['HOSPEDAJE'] = 7` (igual que Pasadía, alineado con el
+  corte de 0% de reembolso de `politica_cancelacion_v2.0.md` §8) — propuesto
+  por Claude, no instruido explícitamente, documentado como tal en el Issue.
+  Verificado de punta a punta con navegador real (Playwright sobre
+  `runserver`, no solo tests): flujo completo con 2 habitaciones × 3 noches
+  crea la Cotizacion con `fecha_salida`/`noches` correctos, el portal
+  muestra check-in/check-out en a.m./p.m., el calendario admin pinta el
+  rango completo (`_construir_eventos_calendario`) y el contrato PDF se
+  genera sin errores. Tests en `comercial/test_hospedaje.py` (30), incluida
+  la exclusividad bidireccional en las 5 combinaciones (Hospedaje↔Airbnb,
+  ↔Evento, ↔Pasadía, ↔Arrendamiento, ↔otro Hospedaje con traslape a mitad
+  de estancia) y que una Cotizacion `BORRADOR` nunca bloquea, en ninguna
+  dirección.
+- 2026-08-17 — Se deja de usar Codex por completo (decisión del propietario,
+  categórica en la segunda mención: "ya de plano no lo vamos a utilizar para
+  nada, no me gustó, se quedó muy corto"). Ver "Planificación mediante
+  GitHub Issues" arriba: Claude implementa directo tras planificar, ya no
+  hay hand-off. Surgió durante el diseño de la línea de negocio Hospedaje
+  (Issue #230): ese Issue se escribió bajo el flujo viejo (plan sin
+  implementar, para que Codex lo tomara) y se queda como estaba de
+  referencia/bitácora, pero su ejecución la hace Claude, no Codex.
+- 2026-08-17 — `USE_THOUSAND_SEPARATOR = True` (settings.py) formatea con coma
+  **cualquier entero** que se imprima crudo en una plantilla (`{{ anio }}` →
+  "2,026"), no solo montos. El único lugar del ERP donde esto pasaba de verdad
+  eran los selects de año armados a mano en `airbnb/`: tres orígenes en Python
+  (`PagoAirbnbAdmin.changelist_view`, `reporte_pagos_airbnb`,
+  `conciliacion_depositos_airbnb`) pasan `anio`/`año` como `int` a 4 plantillas
+  (`pagoairbnb/change_list.html`, `conciliacion_depositos.html`,
+  `reporte_pagos.html`, `reporte_fiscal_airbnb.html`). El daño real no era solo
+  visual: en el PDF fiscal el folio salía `RPT-AIRBNB-2,0267` en vez de
+  `RPT-AIRBNB-202607` — un documento fiscal con folio corrupto. El `list_filter`
+  nativo de Django (ej. `ConciliacionBancariaAdmin` con `'anio'`) **no tiene este
+  bug**: `AllValuesFieldListFilter.choices()` ya hace `str(val)` antes de
+  renderizar, así que solo los años armados a mano con `{% for a in anios %}`
+  estaban expuestos. Fix: `{{ anio|stringformat:"d" }}` en cada uno de los 8
+  sitios — fuerza texto plano vía `%d` de Python, inmune a la localización de
+  números; no se tocó `USE_THOUSAND_SEPARATOR` porque ahí sí se necesita para
+  los montos en pesos en todo el resto del ERP. Grep de auditoría que confirma
+  que no queda ninguno suelto: `grep -rnoE "\{\{[^}]*\}\}" --include=*.html . |
+  grep -E "año|anio" | grep -v "stringformat\|date:"`. Verificado con Playwright
+  contra el servidor real (no solo el código): el `<option>` del filtro de año
+  renderiza "2026" limpio en `value` y en texto, y el PDF fiscal generado con
+  WeasyPrint (extraído con `pdfplumber`, ya que `response.body()` de Playwright
+  al navegar directo a un PDF devuelve el HTML del visor de Chromium, no los
+  bytes — hay que usar `request.new_context()` en su lugar) trae
+  `RPT-AIRBNB-202607`.
+- 2026-08-17 — Mínimo a pagar por tipo de servicio y cercanía de la fecha
+  (pedido del propietario tras el fix del cotizador). `monto_minimo_pago_detalle()`
+  (`comercial/models.py`) exigía **50% siempre** en el primer pago; ahora
+  `requiere_pago_total_detalle()` corre **antes** que el plan de pagos y que
+  ese 50%, y obliga al saldo completo cuando: el servicio es
+  `ARRENDAMIENTO` (siempre, sin importar los días), o faltan menos días que
+  su umbral — `Cotizacion.DIAS_PAGO_TOTAL` = 15 para `EVENTO`, 7 para
+  `PASADIA`; una fecha ya pasada también entra. Devuelve `saldo_pendiente()`,
+  no `precio_final`: si el cliente ya abonó algo, el mínimo es lo que falta,
+  no el total otra vez. **Manda sobre el plan de pagos a propósito**: un plan
+  con parcialidades posteriores a la fecha del evento dejaría pasar un abono
+  parcial justo cuando ya no hay margen para cobrar el resto. No hizo falta
+  tocar el portal ni Openpay: `views_openpay.py::pagar_openpay` valida contra
+  `monto_minimo_pago()` y `templates/portal/evento.html` prellena el input con
+  ese mismo mínimo (`data-min`), así que los dos heredan la regla. **Bug
+  preexistente que había que corregir para que la regla funcionara**:
+  `cotizador_enviar` **nunca guardaba `tipo_servicio`** al construir la
+  `Cotizacion`, así que toda solicitud del cotizador web quedaba como
+  `EVENTO` (el default del campo) — la pasadía nunca habría usado su umbral
+  de 7 días, y de paso los descuentos acotados por `tipos_servicio`
+  (`services_descuentos.py:90`) se evaluaban contra el tipo equivocado desde
+  siempre. De paso, `CotizadorEnviarForm.servicio` pasa de `CharField(max_length=20)`
+  a `ChoiceField` con los tres códigos: ese valor ahora se guarda tal cual en
+  un campo de `max_length=15`, y un string libre de 20 caracteres habría
+  reventado con `DataError` en Postgres. Verificado renderizando el portal
+  real (no solo el método): evento a 60 días → `data-min` 5,800 de 11,600;
+  evento a 14 días, pasadía a 6 días y arrendamiento a 200 días → 11,600.
+  Tests en `comercial/test_monto_minimo_pago.py` (20).
+- 2026-08-17 — Cotizador público: la línea base del servicio (el
+  arrendamiento de la quinta) se agrega sola y ya no depende de cómo esté
+  escrito el nombre del producto. **El bug real reportado por el
+  propietario**: una solicitud de PASADÍA creaba la cotización **en cero**.
+  `_lineas_cotizador()` buscaba el producto con
+  `_buscar_producto_por_nombre('Pastadía')` (typo con **t**, presente
+  también en `nombre_evento`) y como fallback `'Pasadia'` sin acento — pero
+  `nombre__icontains` se traduce a un **LIKE, insensible a mayúsculas y
+  SENSIBLE a acentos** en SQLite y en PostgreSQL, así que ninguna de las dos
+  encontraba el producto real, `'Paquete Pasadía QKT'`, y `_agregar_item()`
+  se salía en silencio con su `if not producto: return None`. Confirmado
+  contra el catálogo real del admin. **Lo que había detrás y explica el
+  resto de los síntomas**: ni `Paquete Esencial QKT` ni `Paquete Pasadía
+  QKT` tienen `es_paquete=True` (los dos salen como SIMPLE en el admin), así
+  que `api_paquetes_cotizador` —que filtra `es_paquete=True`— devolvía
+  **cero** paquetes para los dos servicios: el camino "Elegir paquete" era
+  un callejón sin salida que dejaba seguir sin seleccionar nada, y al mismo
+  tiempo `api_productos_cotizador` —que solo excluía `es_paquete=True`— los
+  ofrecía **como extras**, con lo que un cliente podía marcarlos y pagarlos
+  dos veces. La solución no es más búsqueda por nombre: `Producto` gana
+  `rol_cotizador` (`BASE_EVENTO`/`BASE_PASADIA`/`HORA_EXTRA`, migración
+  0072), que es la fuente de verdad; la búsqueda por nombre —ahora sin
+  acentos, `comercial/roles_cotizador.py::normalizar`— queda solo como red
+  de seguridad, y si no aparece por ninguna vía se emite un
+  `logger.warning` en vez de crear la cotización vacía en silencio. Los
+  productos con rol quedan fuera de los extras (`api_productos_cotizador`)
+  **y** se filtran otra vez al componer las líneas, porque los `extras_ids`
+  llegan del cliente y nada impide mandarlos a mano. La migración siembra
+  los tres roles por nombre normalizado, así que producción no necesita que
+  nadie marque nada en el admin tras el deploy (el helper vive en
+  `comercial/roles_cotizador.py` y lo comparten migración, vistas y tests;
+  si cambiara, lo peor que pasa es que una BD nueva arranque sin marcar,
+  el campo es opcional). En el front: la pasadía **ya no muestra la
+  bifurcación paquete/personalizado** —no tiene paquetes que elegir y su
+  base va siempre—, entra directo a los extras con una nota de lo que ya
+  incluye; para evento/arrendamiento, si `api_paquetes_cotizador` devuelve
+  cero paquetes se cae solo a personalizado en vez de dejar el callejón sin
+  salida. `api_total_cotizador` ahora devuelve `conceptos` (las mismas
+  descripciones que se van a cobrar) y el resumen las lista: el cliente ve
+  la línea base que él no marcó. De paso: horario/horas de la pasadía y las
+  6 horas base del evento pasan a constantes
+  (`HORA_INICIO_PASADIA`/`HORA_FIN_PASADIA`/`HORAS_PASADIA`/`HORAS_BASE_EVENTO`)
+  en vez de literales repartidos, `api_total_cotizador` fuerza 9 horas para
+  pasadía (antes un `horas=99` en la query string le habría exhibido horas
+  extra que la cotización real no cobra), el `tipo` de evento viaja al
+  cálculo del total acotado a `TIPO_EVENTO_CHOICES` para que el concepto
+  exhibido diga lo mismo que el que se guarda, y se corrigió el docstring de
+  `api_paquetes_cotizador`, que prometía un filtro por número de personas
+  que **no existe** (`Producto` no tiene rango de personas; el parámetro
+  `personas` que manda el navegador se ignora — es el hueco que ya estaba
+  documentado en la entrada de las órdenes 29-30). Verificado con navegador
+  real (Playwright sobre el `runserver`, no solo tests): pasadía sin
+  seleccionar nada llega al resumen con **$1,500.00** y el concepto
+  "Paquete Pasadía QKT (11 Pax, 10:00-19:00)", y un evento de 8 horas con
+  $6,496.00 = Paquete Esencial + 2 horas extra, cotización creada en la BD
+  con esos mismos items. Tests en `comercial/test_cotizador_lineas.py` (18).
+- 2026-08-21 — Orden 42 (`SEC-AUTHN-002`) mergeada a `main` tras revisión y
+  prueba real del propietario (ver entrada del 2026-08-17 más abajo para el
+  detalle técnico completo — esta entrada solo cierra lo que quedaba
+  pendiente ahí). Verificado en un ambiente de Railway aislado (duplicado
+  de `production`, apuntado a esta rama, borrado después de la prueba): el
+  QR de `/admin/2fa/activar/` escaneó correctamente con una app de
+  autenticación real, el código de 6 dígitos se aceptó, y un segundo login
+  completo (usuario+contraseña+código TOTP) funcionó — el riesgo que
+  mantenía el PR en draft (nunca se había visto el flujo de escaneo real en
+  un navegador) queda cerrado. De paso, la sección del admin de `django_otp`
+  se renombra a "Autenticación (2FA)" y se ordena justo después de
+  Usuarios/Grupos (`core_erp/apps.py::QktAuthConfig.ready()`, vía
+  `apps.get_app_config('otp_totp').verbose_name = ...`), para que quede
+  visualmente junto a "Autenticación y Usuarios" en vez de su nombre
+  autogenerado "Otp_Totp". **Intento descartado antes de esto**: un proxy
+  de `TOTPDevice` con `Meta.app_label='auth'` (para fusionarlo en la misma
+  sección, no solo ponerlo al lado) — `makemigrations --check --dry-run` lo
+  detecta como cambio pendiente y Django solo sabe escribir esa migración
+  dentro de `django/contrib/auth/migrations/` (resuelve la carpeta de
+  migraciones por `app_label`, no por dónde se define la clase), que es
+  parte del paquete instalado de Django, no del repo — inviable sin
+  vendorizar migraciones de Django o redirigir `MIGRATION_MODULES['auth']`
+  entero (arriesgar las migraciones reales de `auth` por una mejora
+  cosmética de menú). El renombrado de sección logra el mismo resultado
+  visual práctico (agrupado junto a Auth) sin ninguno de esos riesgos.
+  Orden 52 (`SEC-DOC-001`) también resuelta el mismo día:
+  ver la entrada original de abajo para el detalle del runbook; los 3
+  `[CONFIRMAR:]` los respondió el propietario directamente (canal de aviso:
+  `pereiraelian18@gmail.com`/9992689400 a Elián Pereira; umbral de aviso a
+  clientes: solo datos fiscales o de pago; quién redacta/aprueba: Elián
+  Pereira) y quedaron escritos en `docs/security/RUNBOOK_INCIDENTES.md`.
 - 2026-08-17 — Orden 52 del backlog de seguridad (`SEC-DOC-001`),
-  `docs/security/RUNBOOK_INCIDENTES.md` — **borrador de Dev, no cerrado**:
-  la propia orden lo marca `Propietario + Dev`, así que se escribió con
-  todo lo que Dev puede definir desde el código y la infraestructura ya
-  documentada en el repo, y se dejaron exactamente 3 puntos con
-  `[CONFIRMAR:]` en vez de inventar una respuesta: a quién avisar y por
-  qué canal (bloqueado por la orden 13, `NV-07`, que sigue sin resolver),
-  el umbral de severidad para notificar a clientes, y quién redacta/aprueba
-  ese aviso — son decisiones de negocio, no huecos técnicos. El contenido
+  `docs/security/RUNBOOK_INCIDENTES.md` — **borrador de Dev al momento de
+  escribir esta entrada** (ver arriba, 2026-08-21, para el cierre real con
+  las respuestas del propietario): la propia orden lo marca `Propietario +
+  Dev`, así que se escribió con todo lo que Dev puede definir desde el
+  código y la infraestructura ya documentada en el repo, y se dejaron
+  exactamente 3 puntos con `[CONFIRMAR:]` en vez de inventar una respuesta:
+  a quién avisar y por qué canal (bloqueado por la orden 13, `NV-07`, que
+  sigue sin resolver), el umbral de severidad para notificar a clientes, y
+  quién redacta/aprueba ese aviso — son decisiones de negocio, no huecos
+  técnicos. El contenido
   que sí se pudo escribir con certeza salió de grepear el propio repo, no
   de una plantilla genérica de runbook: la tabla de rotación de
   credenciales (§5) lista las 10 credenciales reales con su variable

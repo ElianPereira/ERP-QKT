@@ -592,13 +592,19 @@ class ContratoService:
         return f"{d.day} de {meses[d.month]} de {d.year}"
 
     def _fmt_hora(self, t):
-        return t.strftime("%H:%M h") if t else "—"
+        # 12h con a.m./p.m. explícito, nunca 24h a secas — pedido del
+        # propietario para evitar confusiones en lo que ve el cliente.
+        from core_erp.horarios import formato_hora_ampm
+        return formato_hora_ampm(t) or "—"
 
     def _fmt_money(self, v):
         return f"${v:,.2f} MXN"
 
     def _tipo_display(self):
-        return {"EVENTO": "Evento", "PASADIA": "Pasadía", "ARRENDAMIENTO": "Arrendamiento de Mobiliario"}.get(self.tipo, self.tipo)
+        return {
+            "EVENTO": "Evento", "PASADIA": "Pasadía",
+            "ARRENDAMIENTO": "Arrendamiento de Mobiliario", "HOSPEDAJE": "Hospedaje",
+        }.get(self.tipo, self.tipo)
 
     def _servicios_incluidos(self):
         partes = []
@@ -650,6 +656,15 @@ class ContratoService:
                 "La devolución de los bienes debe realizarse en las mismas condiciones de entrega.",
                 "No se permite subarrendar o ceder el uso de los bienes sin autorización escrita.",
             ],
+            'HOSPEDAJE': [
+                f"Entrada a partir de las {hora_ini}; salida a más tardar a las {hora_fin}. "
+                "Las salidas tardías no autorizadas generan un cargo equivalente a una noche adicional.",
+                "La reserva ampara únicamente el número de huéspedes declarado.",
+                "EL HUÉSPED TITULAR responde por los daños causados al inmueble, mobiliario y equipo "
+                "durante la estancia, por sí o por sus acompañantes.",
+                "La cancelación de esta reserva se rige por la sección de hospedaje de la Política de "
+                "Cancelación y Reembolso, distinta de la aplicable a eventos.",
+            ],
         }.get(self.tipo, [])
 
     def generar(self):
@@ -680,10 +695,11 @@ class ContratoService:
             anticipo_str = "Pendiente"
 
         tipo_marca = {
-            'EVENTO':         '☑ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario',
-            'PASADIA':        '☐ Evento   ☑ Pasadía   ☐ Arrend. Mobiliario',
-            'ARRENDAMIENTO':  '☐ Evento   ☐ Pasadía   ☑ Arrend. Mobiliario',
-        }.get(self.tipo, '☐ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario')
+            'EVENTO':         '☑ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario   ☐ Hospedaje',
+            'PASADIA':        '☐ Evento   ☑ Pasadía   ☐ Arrend. Mobiliario   ☐ Hospedaje',
+            'ARRENDAMIENTO':  '☐ Evento   ☐ Pasadía   ☑ Arrend. Mobiliario   ☐ Hospedaje',
+            'HOSPEDAJE':      '☐ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario   ☑ Hospedaje',
+        }.get(self.tipo, '☐ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario   ☐ Hospedaje')
 
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url  = f"file://{ruta_logo}" if os.name != 'nt' else f"file:///{ruta_logo.replace(os.sep, '/')}"
@@ -702,6 +718,10 @@ class ContratoService:
             'fecha_evento':      self._fmt_fecha(self.cot.fecha_evento),
             'hora_ini':          self._fmt_hora(self.cot.hora_inicio),
             'hora_fin':          self._fmt_hora(self.cot.hora_fin),
+            # Solo HOSPEDAJE: check-out real y noches, para la fila condicional
+            # del PDF (ver contrato_pdf.html). None en el resto de los tipos.
+            'fecha_salida':      self._fmt_fecha(self.cot.fecha_salida) if self.cot.fecha_salida else None,
+            'noches':            self.cot.noches,
             'servicios_incluidos': self._servicios_incluidos(),
             'precio_total':      self._fmt_money(self.cot.precio_final),
             'anticipo_str':      anticipo_str,

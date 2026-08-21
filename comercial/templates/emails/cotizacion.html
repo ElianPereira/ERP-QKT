@@ -29,15 +29,20 @@
 
         <div class="content">
             <h2>Hola, {{ cliente.nombre }}</h2>
-            
-            <p>Gracias por tu interés en realizar tu evento con nosotros. Adjunto encontrarás la cotización detallada.</p>
-            
-            <p><strong>Resumen del Evento:</strong></p>
+
+            <p>Gracias por tu interés en contratar {{ cotizacion.get_tipo_servicio_display|lower }} con nosotros. Adjunto encontrarás la cotización detallada.</p>
+
+            <p><strong>Resumen de tu {{ cotizacion.get_tipo_servicio_display|lower }}:</strong></p>
             <ul>
-                <li> <strong>Fecha:</strong> {{ cotizacion.fecha_evento }}</li>
                 <li> <strong>Folio:</strong> COT-{{ cotizacion.id }}</li>
-                <li> <strong>Paquete:</strong> {{ cotizacion.producto.nombre }}</li>
-                <li> <strong>Total a Pagar:</strong> ${{ precio_final_real|floatformat:2 }} MXN</li>
+                {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+                <li> <strong>Check-in:</strong> {{ cotizacion.fecha_evento|date:"d/m/Y" }}</li>
+                <li> <strong>Check-out:</strong> {{ cotizacion.fecha_salida|date:"d/m/Y" }} ({{ cotizacion.noches }} noche{{ cotizacion.noches|pluralize }})</li>
+                {% else %}
+                <li> <strong>Fecha:</strong> {{ cotizacion.fecha_evento|date:"d/m/Y" }}</li>
+                {% endif %}
+                <li> <strong>Detalle:</strong> {{ cotizacion.nombre_evento }}</li>
+                <li> <strong>Total a Pagar:</strong> ${{ cotizacion.precio_final|floatformat:2 }} MXN</li>
             </ul>
 
             <p>Si tienes alguna duda o deseas confirmar la fecha, simplemente responde a este correo o haz clic en el botón de abajo.</p>

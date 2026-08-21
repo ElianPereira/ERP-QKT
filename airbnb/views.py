@@ -41,13 +41,20 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
     original consultaba todas las cotizaciones/reservas/asignaciones que
     hayan existido jamás en cada carga de página (SEC-DOS-001): con el
     histórico creciendo sin límite, eso degrada progresivamente."""
+    from django.db.models import Q
+
     from comercial.models import AsignacionEspacio, AsignacionPersonal, Cotizacion
 
     eventos_lista = []
 
-    # EVENTOS DE LA QUINTA (Cotizaciones)
+    # EVENTOS DE LA QUINTA (Cotizaciones) — traslape de rango, no solo las que
+    # empiezan dentro de la ventana: un Hospedaje de varias noches puede haber
+    # comenzado antes de fecha_inicio y seguir vigente dentro de la ventana.
     cotizaciones = Cotizacion.objects.exclude(estado='CANCELADA').filter(
-        fecha_evento__gte=fecha_inicio, fecha_evento__lt=fecha_fin,
+        fecha_evento__lt=fecha_fin,
+    ).filter(
+        Q(fecha_salida__gt=fecha_inicio)
+        | Q(fecha_salida__isnull=True, fecha_evento__gte=fecha_inicio)
     ).select_related('cliente')
 
     for c in cotizaciones:
@@ -58,13 +65,18 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
             color = '#95a5a6'
             icon = ''
 
-        eventos_lista.append({
+        evento = {
             'title': f"{icon} {c.cliente.nombre} - {c.nombre_evento}",
             'start': c.fecha_evento.strftime("%Y-%m-%d"),
             'color': color,
             'url': f'/admin/comercial/cotizacion/{c.id}/change/',
             'extendedProps': {'tipo': 'evento'}
-        })
+        }
+        if c.tipo_servicio == 'HOSPEDAJE' and c.fecha_salida:
+            # Rango real (FullCalendar: 'end' es exclusivo), en vez del punto
+            # de un solo día que sigue usando el resto de los servicios.
+            evento['end'] = c.fecha_salida.strftime("%Y-%m-%d")
+        eventos_lista.append(evento)
 
     # RESERVAS DE AIRBNB — se incluye cualquier reserva cuyo rango se
     # traslape con [fecha_inicio, fecha_fin), no solo las que empiezan ahí.
@@ -386,9 +398,11 @@ def generar_ical_eventos(request):
     for cot in cotizaciones:
         uid = f"evento-{cot.id}@qkt-erp"
 
-        # Fecha de inicio y fin (evento de día completo)
+        # Fecha de inicio y fin: rango real de noches para Hospedaje, un solo
+        # día (evento de día completo) para el resto de los servicios.
         fecha_inicio = cot.fecha_evento.strftime('%Y%m%d')
-        fecha_fin = (cot.fecha_evento + timedelta(days=1)).strftime('%Y%m%d')
+        fecha_fin_date = cot.fecha_salida if cot.tipo_servicio == 'HOSPEDAJE' and cot.fecha_salida else cot.fecha_evento + timedelta(days=1)
+        fecha_fin = fecha_fin_date.strftime('%Y%m%d')
 
         # Timestamp de creación
         dtstamp = timezone.now().strftime('%Y%m%dT%H%M%SZ')

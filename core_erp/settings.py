@@ -473,7 +473,11 @@ JAZZMIN_SETTINGS = {
         "auth":                             "fas fa-shield-alt",
         "auth.user":                        "fas fa-user",
         "auth.group":                       "fas fa-users-cog",
-        "auth.totpdeviceauth":              "fas fa-mobile-alt",
+
+        # 2FA (django_otp) — sección propia, renombrada y ordenada justo
+        # después de auth.group (ver core_erp.apps.QktAuthConfig.ready()).
+        "otp_totp":                          "fas fa-shield-alt",
+        "otp_totp.totpdevice":               "fas fa-mobile-alt",
 
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
@@ -558,7 +562,10 @@ JAZZMIN_SETTINGS = {
         "auth",
         "auth.user",
         "auth.group",
-        "auth.totpdeviceauth",
+
+        # === 2FA ===
+        "otp_totp",
+        "otp_totp.totpdevice",
     ],
 
     "custom_css": "css/admin_fix.css",

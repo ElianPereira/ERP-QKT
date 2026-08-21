@@ -71,7 +71,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .campo-fila{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
 
 /* Tarjetas de servicio */
-.srv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;margin-bottom:1.5rem;}
+.srv-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.9rem;margin-bottom:1.5rem;}
 .srv-card{
   border:1.5px solid var(--borde);border-radius:6px;
   padding:1.2rem .8rem;text-align:center;cursor:pointer;
@@ -161,6 +161,32 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .personas-btn:hover{background:var(--verde);color:var(--blanco);}
 .personas-btn:active{transform:scale(.9);}
 .personas-minmax{display:flex;justify-content:space-between;font-size:.62rem;color:var(--texto-s);margin-top:.3rem;padding:0 40px;}
+
+/* Noches (Hospedaje) */
+.noches-wrap{display:flex;align-items:center;gap:.8rem;}
+.noches-val{font-family:'Cormorant Garamond',serif;font-size:1.7rem;color:var(--verde-d);min-width:2.4rem;text-align:center;}
+.checkin-line{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;background:var(--crema);border:1px solid var(--borde);border-radius:6px;padding:.7rem .95rem;margin-top:1rem;font-size:.76rem;color:var(--texto-s);}
+.checkin-line b{color:var(--verde-d);font-weight:600;}
+
+/* Habitaciones (Hospedaje) */
+.hab-grid{display:grid;gap:.7rem;margin-bottom:.5rem;}
+.hab-card{
+  position:relative;display:flex;gap:.9rem;align-items:flex-start;
+  border:1.5px solid var(--borde);border-radius:6px;padding:.9rem 1rem;
+  background:var(--blanco);cursor:pointer;transition:all .2s;user-select:none;
+}
+.hab-card:hover{border-color:var(--verde);background:#f5fbf5;}
+.hab-card.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 2px rgba(46,125,50,.15);}
+.hab-check{width:20px;height:20px;border:2px solid var(--borde);border-radius:4px;flex-shrink:0;margin-top:.1rem;display:flex;align-items:center;justify-content:center;font-size:.72rem;color:transparent;transition:all .2s;}
+.hab-card.selected .hab-check{background:var(--verde);border-color:var(--verde);color:var(--blanco);}
+.hab-info{flex:1;}
+.hab-top{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;}
+.hab-nombre{font-size:.88rem;font-weight:600;color:var(--verde-d);}
+.hab-precio{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--verde);white-space:nowrap;}
+.hab-precio small{font-size:.6rem;font-weight:400;color:var(--texto-s);font-family:'IBM Plex Sans',sans-serif;}
+.hab-desc{font-size:.73rem;color:var(--texto-s);font-weight:300;line-height:1.45;margin-top:.2rem;}
+.hab-sub{font-size:.68rem;color:var(--verde-d);font-weight:500;margin-top:.4rem;display:none;}
+.hab-card.selected .hab-sub{display:block;}
 
 /* Nav botones */
 .btn-nav{display:flex;gap:1rem;justify-content:space-between;margin-top:2rem;}
@@ -291,6 +317,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
         <span class="srv-nom">Arrendamiento de Mobiliario</span>
         <span class="srv-desc">Renta de mobiliario y equipo para uso externo</span>
       </div>
+      <div class="srv-card" onclick="selServicio('HOSPEDAJE',this)">
+        <span class="srv-nom">Hospedaje</span>
+        <span class="srv-desc">Habitaciones dentro de la Quinta, una o más noches</span>
+      </div>
     </div>
     <div id="err-servicio" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona un tipo de servicio para continuar.</div>
     <div class="btn-nav">
@@ -336,8 +366,21 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       </div>
     </div>
 
+    <div class="campo panel-condicional" id="blq-noches">
+      <label>Noches</label>
+      <div class="noches-wrap">
+        <button type="button" class="personas-btn" onclick="cambiarNoches(-1)" aria-label="Restar noche">−</button>
+        <span class="noches-val" id="noches-val">1</span>
+        <button type="button" class="personas-btn" onclick="cambiarNoches(1)" aria-label="Agregar noche">+</button>
+      </div>
+      <div class="checkin-line">
+        <span>Check-in <b>2:00 p.m.</b></span>
+        <span>Check-out <b id="checkout-txt">10:00 a.m.</b></span>
+      </div>
+    </div>
+
     <div class="campo" id="blq-personas">
-      <label>Número de personas: <span id="personas-label">50</span></label>
+      <label><span id="personas-etiqueta">Número de personas</span>: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
         <button type="button" class="personas-btn" id="personas-minus" onclick="cambiarPersonas(-1)" aria-label="Restar persona">−</button>
         <input type="range" id="personas" min="1" max="200" step="10" value="50"
@@ -358,10 +401,16 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
   <!-- PASO 3: Bifurcación — Paquete o Personalizado -->
   <div class="step-panel" id="panel-3">
-    <h2 class="panel-title">Elige cómo <em>cotizar</em></h2>
-    <p class="panel-sub">Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.</p>
+    <h2 class="panel-title" id="titulo-paso3">Elige cómo <em>cotizar</em></h2>
+    <p class="panel-sub" id="sub-paso3">Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.</p>
 
-    <div class="path-grid">
+    <!-- Lo que ya va incluido por el solo hecho de elegir el servicio. Lo agrega
+         el servidor (_lineas_cotizador), aquí solo se anuncia. -->
+    <div id="nota-base" style="display:none;font-size:.82rem;line-height:1.7;color:var(--verde-d);
+         background:rgba(46,125,50,.08);border-left:3px solid var(--verde);
+         padding:.9rem 1rem;border-radius:0 6px 6px 0;margin-bottom:1.4rem;"></div>
+
+    <div class="path-grid" id="path-grid">
       <div class="path-card" onclick="selCamino('paquete',this)">
         <span class="path-nom">Elegir paquete</span>
         <span class="path-desc">Paquetes prediseñados con todo incluido. Rápido y sencillo.</span>
@@ -383,6 +432,13 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <!-- Sub-panel: Personalizado (extras) -->
     <div id="sub-personalizado" style="display:none;">
+      <div class="panel-condicional" id="blq-habitaciones">
+        <div class="hab-grid" id="hab-grid">
+          <div class="paq-empty" id="hab-loading">Cargando habitaciones...</div>
+        </div>
+        <div id="err-habitaciones" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona al menos una habitación.</div>
+      </div>
+
       <div id="extras-dinamicos"></div>
 
       <div class="panel-condicional" id="blq-extras-arrendamiento">
@@ -533,6 +589,9 @@ let paquetesData = [];
 let barraExtras = {};
 let selectedExtras = new Set();
 let extrasInfo = {};
+let selectedHabitaciones = new Set();
+let habitacionesData = [];
+let noches = 1;
 let pasoActual = 1;
 const totalPasos = 6;
 
@@ -568,6 +627,7 @@ async function inicializarCalendario() {
       document.getElementById('err-fecha').style.display = 'none';
       document.getElementById('fecha').classList.remove('error');
       document.getElementById('aviso-fecha').style.display = 'none';
+      if (servicioSel === 'HOSPEDAJE') actualizarCheckout();
     },
     onDayCreate: function(dObj, dStr, fp, dayElem) {
       if (dayElem.classList.contains('flatpickr-disabled')) {
@@ -588,22 +648,29 @@ function selServicio(val, el) {
 }
 
 function actualizarPanelSegunServicio() {
-  var esEvento  = servicioSel === 'EVENTO';
-  var esPasadia = servicioSel === 'PASADIA';
-  var esArr     = servicioSel === 'ARRENDAMIENTO';
+  var esEvento    = servicioSel === 'EVENTO';
+  var esPasadia   = servicioSel === 'PASADIA';
+  var esArr       = servicioSel === 'ARRENDAMIENTO';
+  var esHospedaje = servicioSel === 'HOSPEDAJE';
 
   toggle('blq-tipo-evento', esEvento);
   toggle('blq-horario', esEvento);
+  toggle('blq-noches', esHospedaje);
 
   var lblFecha = document.getElementById('lbl-fecha');
   if (esPasadia) lblFecha.textContent = 'Fecha de la visita';
   else if (esArr) lblFecha.textContent = 'Fecha de entrega';
+  else if (esHospedaje) lblFecha.textContent = 'Fecha de entrada';
   else lblFecha.textContent = 'Fecha del evento';
 
   var subDet = document.getElementById('sub-detalles');
   if (esPasadia) subDet.textContent = 'Selecciona la fecha de tu visita y el número de personas.';
   else if (esArr) subDet.textContent = 'Selecciona la fecha de entrega del mobiliario.';
+  else if (esHospedaje) subDet.textContent = 'Fecha de entrada y cuántas noches te quedas.';
   else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
+
+  document.getElementById('personas-etiqueta').textContent =
+    esHospedaje ? 'Número de huéspedes' : 'Número de personas';
 
   var slider = document.getElementById('personas');
   if (esEvento) {
@@ -616,12 +683,92 @@ function actualizarPanelSegunServicio() {
     if (v > 20) { slider.value = 20; actualizarPersonas(20); }
     else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
     else actualizarPersonas(v);
+  } else if (esHospedaje) {
+    slider.min = 1; slider.max = 10; slider.step = 1;
+    var v = parseInt(slider.value);
+    if (v > 10) { slider.value = 10; actualizarPersonas(10); }
+    else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
+    else actualizarPersonas(v);
   } else {
     slider.min = 1; slider.max = 200; slider.step = 1;
     actualizarPersonas(parseInt(slider.value));
   }
   document.getElementById('personas-min-lbl').textContent = slider.min;
   document.getElementById('personas-max-lbl').textContent = slider.max;
+
+  if (esHospedaje) actualizarCheckout();
+
+  configurarPaso3();
+}
+
+function cambiarNoches(delta) {
+  noches = Math.max(1, Math.min(30, noches + delta));
+  document.getElementById('noches-val').textContent = noches;
+  actualizarCheckout();
+  actualizarSubtotalesHabitaciones();
+}
+
+// Refleja el checkout en la nota de horario y en el resumen; no cambia el
+// selector de fecha (flatpickr solo captura la fecha de entrada).
+function actualizarCheckout() {
+  var fechaInput = document.getElementById('fecha');
+  var checkoutEl = document.getElementById('checkout-txt');
+  if (!fechaInput.value) { checkoutEl.textContent = '10:00 a.m.'; return; }
+  var partes = fechaInput.value.split('-');
+  var salida = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
+  salida.setDate(salida.getDate() + noches);
+  var meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  checkoutEl.textContent = salida.getDate() + ' ' + meses[salida.getMonth()] + ', 10:00 a.m.';
+}
+
+// El servicio decide qué ofrece el paso 3. La pasadía no tiene paquetes
+// prediseñados que elegir —su producto base lo agrega el servidor siempre, con
+// horario fijo—, así que la bifurcación sobra y se va directo a los extras.
+function configurarPaso3() {
+  var esPasadia   = servicioSel === 'PASADIA';
+  var esHospedaje = servicioSel === 'HOSPEDAJE';
+  var pathGrid  = document.getElementById('path-grid');
+  var titulo    = document.getElementById('titulo-paso3');
+  var sub       = document.getElementById('sub-paso3');
+  var subPaq    = document.getElementById('sub-paquetes');
+  var subPer    = document.getElementById('sub-personalizado');
+
+  caminoSel  = null;
+  paqueteSel = null;
+  document.querySelectorAll('.path-card').forEach(function(c) { c.classList.remove('selected'); });
+  document.getElementById('err-camino').style.display = 'none';
+  subPaq.style.display = 'none';
+  subPer.style.display = 'none';
+  toggle('blq-habitaciones', esHospedaje);
+  mostrarNotaBase('');
+
+  if (esPasadia) {
+    pathGrid.style.display = 'none';
+    titulo.innerHTML = 'Agrega <em>extras</em>';
+    sub.textContent = 'Tu pasadía ya está incluida. Lo de abajo es opcional.';
+    mostrarNotaBase('Tu cotización ya incluye el Paquete Pasadía QKT: uso de la quinta de 11:00 a.m. a 7:00 p.m.');
+    caminoSel = 'personalizado';
+    subPer.style.display = 'block';
+    cargarExtrasPersonalizado();
+  } else if (esHospedaje) {
+    pathGrid.style.display = 'none';
+    titulo.innerHTML = 'Elige tu <em>habitación</em>';
+    sub.textContent = 'Solo hay dos disponibles en la Quinta. Elige una o ambas.';
+    caminoSel = 'personalizado';
+    subPer.style.display = 'block';
+    cargarHabitaciones();
+    cargarExtrasPersonalizado();
+  } else {
+    pathGrid.style.display = '';
+    titulo.innerHTML = 'Elige cómo <em>cotizar</em>';
+    sub.textContent = 'Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.';
+  }
+}
+
+function mostrarNotaBase(texto) {
+  var nota = document.getElementById('nota-base');
+  nota.textContent = texto;
+  nota.style.display = texto ? 'block' : 'none';
 }
 
 function selCamino(camino, el) {
@@ -637,10 +784,18 @@ function selCamino(camino, el) {
   if (camino === 'paquete') {
     subPaq.style.display = 'block';
     subPer.style.display = 'none';
+    // El paquete ya incluye el arrendamiento de la quinta: no se suma aparte.
+    mostrarNotaBase('');
     cargarPaquetes();
   } else {
     subPaq.style.display = 'none';
     subPer.style.display = 'block';
+    if (servicioSel === 'EVENTO') {
+      mostrarNotaBase('Tu cotización ya incluye el Paquete Esencial QKT: arrendamiento de la quinta '
+                    + '(6 horas; las adicionales se cobran como hora extra). Lo de abajo es opcional.');
+    } else {
+      mostrarNotaBase('');
+    }
     cargarExtrasPersonalizado();
   }
 }
@@ -657,7 +812,15 @@ async function cargarPaquetes() {
       renderPaquetes(data.paquetes);
     } else {
       paquetesData = [];
-      grid.innerHTML = '<div class="paq-empty">No hay paquetes disponibles para este servicio. Puedes armar tu cotización personalizada.</div>';
+      // Sin paquetes configurados este camino no lleva a ningún lado: se cae a
+      // personalizado, que sí muestra extras y agrega la línea base del servicio.
+      grid.innerHTML = '';
+      var tarjetaCustom = document.querySelector('.path-card.path-custom');
+      if (tarjetaCustom) {
+        selCamino('personalizado', tarjetaCustom);
+      } else {
+        grid.innerHTML = '<div class="paq-empty">No hay paquetes disponibles para este servicio. Puedes armar tu cotización personalizada.</div>';
+      }
     }
   } catch(e) {
     grid.innerHTML = '<div class="paq-empty">Error al cargar paquetes. Intenta de nuevo.</div>';
@@ -687,6 +850,69 @@ function selPaquete(id, el) {
   paqueteSel = id;
   document.querySelectorAll('.paq-card').forEach(function(c) { c.classList.remove('selected'); });
   el.classList.add('selected');
+}
+
+async function cargarHabitaciones() {
+  var grid = document.getElementById('hab-grid');
+  selectedHabitaciones.clear();
+  grid.innerHTML = '<div class="paq-empty" id="hab-loading">Cargando habitaciones...</div>';
+  try {
+    var resp = await fetch('/api/cotizador/habitaciones/');
+    var data = await resp.json();
+    if (data.ok && data.habitaciones.length) {
+      habitacionesData = data.habitaciones;
+      renderHabitaciones(data.habitaciones);
+    } else {
+      habitacionesData = [];
+      grid.innerHTML = '<div class="paq-empty">No hay habitaciones disponibles por el momento.</div>';
+    }
+  } catch (e) {
+    grid.innerHTML = '<div class="paq-empty">Error al cargar habitaciones. Intenta de nuevo.</div>';
+  }
+}
+
+function renderHabitaciones(habitaciones) {
+  var grid = document.getElementById('hab-grid');
+  var html = '';
+  for (var i = 0; i < habitaciones.length; i++) {
+    var h = habitaciones[i];
+    html += '<div class="hab-card" data-hab-id="' + h.id + '" onclick="toggleHabitacion(' + h.id + ',this)">';
+    html += '<div class="hab-check">✓</div><div class="hab-info">';
+    html += '<div class="hab-top"><span class="hab-nombre">' + esc(h.nombre) + '</span>';
+    html += '<span class="hab-precio">' + fmtMXN(h.precio_noche) + '<small> /noche</small></span></div>';
+    if (h.descripcion) html += '<div class="hab-desc">' + esc(h.descripcion) + '</div>';
+    html += '<div class="hab-sub" id="hab-sub-' + h.id + '"></div>';
+    html += '</div></div>';
+  }
+  grid.innerHTML = html;
+  actualizarSubtotalesHabitaciones();
+}
+
+function toggleHabitacion(id, el) {
+  if (selectedHabitaciones.has(id)) selectedHabitaciones.delete(id);
+  else selectedHabitaciones.add(id);
+  el.classList.toggle('selected', selectedHabitaciones.has(id));
+  if (selectedHabitaciones.size > 0) {
+    document.getElementById('err-habitaciones').style.display = 'none';
+  }
+  actualizarSubtotalesHabitaciones();
+}
+
+// El precio por noche que da la API ya incluye IVA (mismo criterio que
+// api_paquetes_cotizador): el subtotal por habitación es la suma directa,
+// sin volver a aplicar el 16%. Solo informativo — el total real lo calcula
+// el servidor en cargarTotal().
+function actualizarSubtotalesHabitaciones() {
+  habitacionesData.forEach(function (h) {
+    var sub = document.getElementById('hab-sub-' + h.id);
+    if (!sub) return;
+    if (selectedHabitaciones.has(h.id)) {
+      var subtotal = Number(h.precio_noche) * noches;
+      sub.textContent = noches + (noches === 1 ? ' noche × ' : ' noches × ') + fmtMXN(h.precio_noche) + ' = ' + fmtMXN(subtotal);
+    } else {
+      sub.textContent = '';
+    }
+  });
 }
 
 function cargarExtrasPersonalizado() {
@@ -901,6 +1127,10 @@ function validarPaso(paso) {
     if (caminoSel === 'personalizado' && servicioSel !== 'ARRENDAMIENTO' && selectedExtras.size === 0 && !Object.values(barraExtras).some(function(v){return v;})) {
       // Allow empty — it's optional
     }
+    if (servicioSel === 'HOSPEDAJE' && selectedHabitaciones.size === 0) {
+      document.getElementById('err-habitaciones').style.display = 'block';
+      return false;
+    }
   }
   if (paso === 5) {
     var ok = true;
@@ -932,11 +1162,17 @@ function mostrarErr(errId, inputId) {
 }
 
 function construirResumen() {
-  var nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','ARRENDAMIENTO':'Arrendamiento de Mobiliario'};
+  var nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','ARRENDAMIENTO':'Arrendamiento de Mobiliario','HOSPEDAJE':'Hospedaje'};
   var fecha = document.getElementById('fecha').value;
   var fechaFmt = fecha
     ? new Date(fecha+'T00:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})
     : '—';
+  var checkoutFmt = '—';
+  if (fecha && servicioSel === 'HOSPEDAJE') {
+    var salida = new Date(fecha+'T00:00:00');
+    salida.setDate(salida.getDate() + noches);
+    checkoutFmt = salida.toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+  }
   var personas  = document.getElementById('personas').value;
   var nombre    = document.getElementById('nombre').value.trim();
   var tel       = document.getElementById('telefono').value.trim();
@@ -957,16 +1193,30 @@ function construirResumen() {
     var info = extrasInfo[id];
     if (info) tags.push(info.nombre);
   });
+  selectedHabitaciones.forEach(function(id) {
+    var hab = habitacionesData.find(function(h) { return h.id === id; });
+    if (hab) tags.push(hab.nombre);
+  });
   var tagsHtml = tags.map(function(t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('');
 
   var html = '<div class="resumen-titulo">Resumen de tu solicitud</div>'
-    + '<div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">' + esc(nombres[servicioSel]||servicioSel) + (tipoEv && servicioSel==='EVENTO' ? ' — '+esc(tipoEv) : '') + '</span></div>'
-    + '<div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">' + fechaFmt + '</span></div>';
+    + '<div class="resumen-item"><span class="resumen-key">Servicio</span><span class="resumen-val">' + esc(nombres[servicioSel]||servicioSel) + (tipoEv && servicioSel==='EVENTO' ? ' — '+esc(tipoEv) : '') + '</span></div>';
+  if (servicioSel === 'HOSPEDAJE') {
+    html += '<div class="resumen-item"><span class="resumen-key">Check-in</span><span class="resumen-val">' + fechaFmt + ', 2:00 p.m.</span></div>'
+      + '<div class="resumen-item"><span class="resumen-key">Check-out</span><span class="resumen-val">' + checkoutFmt + ', 10:00 a.m.</span></div>'
+      + '<div class="resumen-item"><span class="resumen-key">Noches</span><span class="resumen-val">' + noches + '</span></div>';
+  } else {
+    html += '<div class="resumen-item"><span class="resumen-key">Fecha</span><span class="resumen-val">' + fechaFmt + '</span></div>';
+  }
   if (servicioSel === 'EVENTO') {
     html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">' + esc(hi) + ' — ' + esc(hf) + '</span></div>';
+  } else if (servicioSel === 'PASADIA') {
+    // Horario fijo de la pasadía; el backend lo impone igual (HORA_*_PASADIA).
+    html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">11:00 a.m. — 7:00 p.m.</span></div>';
   }
-  html += '<div class="resumen-item"><span class="resumen-key">Personas</span><span class="resumen-val">' + esc(personas) + '</span></div>'
-    + '<div class="resumen-item"><span class="resumen-key">Modalidad</span><span class="resumen-val">' + (caminoSel === 'paquete' ? 'Paquete' : 'Personalizado') + '</span></div>'
+  html += '<div class="resumen-item"><span class="resumen-key">' + (servicioSel === 'HOSPEDAJE' ? 'Huéspedes' : 'Personas') + '</span><span class="resumen-val">' + esc(personas) + '</span></div>';
+  html += (servicioSel === 'PASADIA' || servicioSel === 'HOSPEDAJE' ? ''
+        : '<div class="resumen-item"><span class="resumen-key">Modalidad</span><span class="resumen-val">' + (caminoSel === 'paquete' ? 'Paquete' : 'Personalizado') + '</span></div>')
     + '<div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">' + esc(nombre) + '</span></div>'
     + '<div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">' + esc(tel) + '</span></div>';
   if (email) html += '<div class="resumen-item"><span class="resumen-key">Correo</span><span class="resumen-val">' + esc(email) + '</span></div>';
@@ -1011,9 +1261,17 @@ async function cargarTotal() {
     servicio: servicioSel || '',
     // Mismo criterio que el backend: minimo 6h, y Pasadia son 9h fijas.
     horas: String(horasEvento()),
+    // Solo cambia el texto del concepto (no el importe), pero así el desglose
+    // que se exhibe dice lo mismo que la cotización que se va a crear.
+    tipo: (document.getElementById('tipo_evento') && servicioSel === 'EVENTO')
+      ? document.getElementById('tipo_evento').value : '',
   });
   if (paqueteSel) params.set('paquete', paqueteSel);
   if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
+  if (servicioSel === 'HOSPEDAJE') {
+    params.set('noches', String(noches));
+    if (selectedHabitaciones.size) params.set('habitaciones', Array.from(selectedHabitaciones).join(','));
+  }
   try {
     var r = await fetch('/api/cotizador/total/?' + params.toString());
     var d = await r.json();
@@ -1022,7 +1280,16 @@ async function cargarTotal() {
     h += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Total estimado</span>';
     h += '<span style="font-family:Cormorant Garamond,serif;font-size:1.6rem;color:var(--verde);font-weight:400;">' + d.total_formateado + '</span>';
     h += '</div>';
-    h += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">' + d.leyenda + '. Incluye el paquete y los extras seleccionados.</div>';
+    // El desglose lo manda el servidor: son las MISMAS líneas que se van a
+    // cobrar, incluida la base que el cotizador agrega solo.
+    if (d.conceptos && d.conceptos.length) {
+      h += '<ul style="list-style:none;margin:.7rem 0 0;padding:0;font-size:.74rem;color:var(--texto-s);font-weight:300;line-height:1.7;">';
+      for (var i = 0; i < d.conceptos.length; i++) {
+        h += '<li>· ' + esc(d.conceptos[i]) + '</li>';
+      }
+      h += '</ul>';
+    }
+    h += '<div style="font-size:.68rem;color:var(--texto-s);font-weight:300;margin-top:.4rem;">' + d.leyenda + '.</div>';
     cont.innerHTML = h;
   } catch (e) {
     cont.innerHTML = '<div style="font-size:.72rem;color:var(--texto-s);">El total se confirmará en tu cotización.</div>';
@@ -1072,6 +1339,8 @@ async function enviarSolicitud() {
     inc_cocteleria: !!barraExtras.inc_cocteleria,
     inc_mixologia:  !!barraExtras.inc_mixologia,
     extras_ids:     Array.from(selectedExtras),
+    noches:         servicioSel === 'HOSPEDAJE' ? String(noches) : '',
+    habitaciones_ids: servicioSel === 'HOSPEDAJE' ? Array.from(selectedHabitaciones) : [],
     paquete_id:     paqueteSel,
     requiere_factura: requiereFactura,
     acepta_legales: true,
@@ -1119,7 +1388,7 @@ inicializarCalendario();
   try {
     var params = new URLSearchParams(window.location.search);
     var srv = (params.get('servicio') || '').toUpperCase();
-    if (['EVENTO','PASADIA','ARRENDAMIENTO'].indexOf(srv) === -1) return;
+    if (['EVENTO','PASADIA','ARRENDAMIENTO','HOSPEDAJE'].indexOf(srv) === -1) return;
     var cards = document.querySelectorAll('.srv-card');
     cards.forEach(function(card) {
       var oc = card.getAttribute('onclick') || '';
