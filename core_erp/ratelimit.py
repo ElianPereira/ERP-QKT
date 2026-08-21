@@ -22,12 +22,16 @@ def _client_ip(request):
 
     X-Forwarded-For lo puede fijar el propio cliente, así que tomar el primer
     valor permitiría a un atacante rotar IPs falsas y saltarse el rate limit.
-    Cada proxy de confianza (el edge de Railway) *añade* la IP real al final de
-    la cabecera, por lo que la entrada fiable es la que agregó nuestro proxy:
+    Cada proxy de confianza *añade* la IP que ve al final de la cabecera, por
+    lo que la entrada fiable es la que agregó el último proxy de confianza:
     contando desde la derecha tantos saltos como proxies de confianza haya.
 
-    Se controla con RATELIMIT_TRUSTED_PROXY_COUNT (por defecto 1, el edge de
-    Railway). Si no hay XFF, cae a REMOTE_ADDR.
+    Se controla con RATELIMIT_TRUSTED_PROXY_COUNT. En producción son DOS
+    proxies, no uno: `erp.quintakooxtanil.com` está con Cloudflare en modo
+    proxy (confirmado por DNS, `cf-proxied:true`) delante del edge de
+    Railway — Cloudflare agrega su propia entrada además de la que agrega
+    Railway, así que hay que contar dos saltos desde la derecha para llegar
+    a la IP real del cliente, no uno. Si no hay XFF, cae a REMOTE_ADDR.
     """
     trusted = getattr(settings, 'RATELIMIT_TRUSTED_PROXY_COUNT', 1)
     xff = request.META.get('HTTP_X_FORWARDED_FOR', '')

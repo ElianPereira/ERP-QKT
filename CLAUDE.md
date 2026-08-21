@@ -83,6 +83,211 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-19 — Orden 22 del backlog de seguridad (`SEC-RL-002`), parcial:
+  verificado por DNS (export de zona de Cloudflare que compartió el
+  propietario) que `erp.quintakooxtanil.com` está con Cloudflare en modo
+  **proxy** (`cf_tags=cf-proxied:true`), no solo DNS — la topología real de
+  producción es `cliente → Cloudflare → edge de Railway → Django`, **dos**
+  proxies de confianza, no uno. El comentario original en `settings.py`
+  ("el edge de Railway = 1") solo contaba a Railway; con
+  `RATELIMIT_TRUSTED_PROXY_COUNT=1` (el valor que trae hoy Railway por
+  default, nunca se había fijado explícitamente), `_client_ip()` —usada
+  por el rate limiting de las órdenes 19-21 y por el bloqueo de fuerza
+  bruta del login— estaría devolviendo la IP del **edge de Cloudflare**,
+  no la del cliente real: el rate limiting agruparía usuarios distintos
+  bajo el mismo cupo, y un atacante podría evadir el bloqueo si Cloudflare
+  rota de colo entre peticiones. **No se desplegó una vista de diagnóstico
+  para confirmarlo en producción real** (habría requerido mergear a `main`,
+  la única rama que Railway despliega — confirmado con el propietario) —
+  se aplicó la fórmula ya documentada en el propio código
+  (`_client_ip()`: contar un salto por cada proxy de confianza) sobre una
+  topología de red ya confirmada por evidencia dura (el export DNS), no
+  adivinada. `.env.example` documenta `RATELIMIT_TRUSTED_PROXY_COUNT=2`
+  como el valor real de producción; **queda pendiente que el propietario
+  fije esa variable en Railway** (hoy no está definida ahí, cae al default
+  de código, que sigue en 1 a propósito — es el valor correcto solo para
+  acceder sin el dominio propio, directo por `*.up.railway.app`). Tests
+  nuevos en `core_erp/test_ratelimit.py::ClientIpTrustedProxyCountTest`
+  (4): sin XFF cae a `REMOTE_ADDR`, con 2 proxies de confianza toma la IP
+  real, un prefijo spoofeado por el cliente no engaña al conteo desde la
+  derecha, y un test que documenta explícitamente el escenario de riesgo
+  (con `trusted=1` pero 2 proxies reales, `_client_ip()` devuelve la IP de
+  Cloudflare, no la del cliente) — antes de esta orden, `_client_ip()` no
+  tenía ningún test directo de su lógica de conteo de saltos, solo
+  cobertura indirecta vía el rate limiting del login. **Hallazgo
+  relacionado, corregido a pedido del propietario aunque quedaba fuera del
+  alcance literal de la orden**: `legal/services.py::obtener_ip()`
+  (evidencia de consentimiento ARCO) usaba una lógica distinta y más
+  frágil — tomaba el **primer** valor de X-Forwarded-For en vez de contar
+  desde la derecha, así que un solicitante de ARCO podía falsear la IP
+  que queda registrada como evidencia con solo mandar un header
+  fabricado. Corregido reutilizando `core_erp.ratelimit._client_ip()` en
+  vez de duplicar la lógica (evita que las dos implementaciones vuelvan a
+  divergir). Test viejo (`test_ip_toma_el_primer_valor_de_x_forwarded_for`)
+  reescrito: ya no se puede afirmar "toma el primer valor" como
+  comportamiento correcto — ahora hay dos tests en
+  `legal/tests/test_legal.py`, uno con `trusted=1` (default) y otro con
+  `trusted=2` (la topología real de producción) confirmando que un
+  prefijo spoofeado no engaña al conteo desde la derecha.
+- 2026-08-18 — Orden 13 del backlog de seguridad (`NV-07`): alertas por
+  correo ante un error 500 sin capturar. El propietario decidió: solo él
+  (`ADMIN_ALERT_EMAIL`, cae a `SERVER_EMAIL` si no está configurada) y por
+  correo, no WhatsApp ni Sentry — reutilizar lo que ya existe (Brevo vía
+  `django-anymail`, ya configurado como `EMAIL_BACKEND`) en vez de sumar un
+  servicio nuevo que mantener. `ADMINS` en `settings.py` +
+  `django.utils.log.AdminEmailHandler` (el handler estándar de Django, no
+  uno propio) enganchado al logger `'django'` en `LOGGING` — funciona
+  porque `django.request` (donde Django registra cada 500, en
+  `response_for_exception()`) cuelga de `'django'` por jerarquía de
+  nombres de logger, así que no hace falta configurarlo aparte. Filtro
+  `RequireDebugFalse` (también estándar) para que el correo no se dispare
+  en desarrollo. `EMAIL_SUBJECT_PREFIX = '[ERP QKT] '` para que el correo
+  sea identificable entre las demás alertas que ya le llegan al mismo
+  buzón. **Antes de este cambio, un 500 no notificaba a nadie**: la
+  auditoría previa confirmó que no existía `ADMINS`, ni `mail_admins`, ni
+  Sentry ni ningún otro canal — todo lo que `logger.error`/`.exception`
+  escribe (31 sitios en el código) solo llegaba a los Deploy Logs de
+  Railway, invisibles a menos que alguien entrara a revisarlos a mano.
+  Probado contra el logger real (`logging.getLogger('django.request')`,
+  con `extra={'status_code': 500, 'request': ...}`, el mismo patrón que usa
+  Django internamente) en vez de tumbar una vista real a propósito — más
+  simple y prueba exactamente la pieza que se tocó (el cableado en
+  `LOGGING`), no el mecanismo interno de Django que ya está probado por
+  Django mismo. Tests en `core_erp/test_alertas_admin.py` (5): un 500 real
+  envía correo a `ADMINS` con el prefijo esperado, `ADMINS` vacío no
+  falla ni envía (mail_admins() es no-op silencioso — red de seguridad si
+  algún día se despliega sin la variable), un nivel por debajo de 500 (404)
+  no dispara nada, `ADMINS` siempre tiene al menos un correo válido
+  configurado, y una prueba estructural de que `mail_admins` sigue
+  enganchado al logger `'django'` (para que una futura reorganización de
+  `LOGGING` no revierta esto en silencio sin que ningún otro test lo
+  note). Suite completa (703 tests) corrida tras el cambio, sin
+  migraciones nuevas (no toca modelos).
+- 2026-08-18 — Orden 7 del backlog de seguridad (`SEC-FILE-001a`)
+  completada por el propietario del lado de Cloudflare/Railway: bucket
+  privado creado (sin dominio público conectado),
+  `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` definida en Railway y
+  `manage.py migrar_archivos_privados --aplicar` ejecutado desde
+  `/admin/migrar-archivos-privados/`. Resultado: **6** archivos ya estaban
+  en el bucket privado (migrados en una corrida previa), **0** copiados de
+  nuevo, **30** sin archivo en el origen — estos últimos son exactamente
+  los documentos que solo vivían en Cloudinary y se dieron por perdidos
+  (entrada del 2026-08-12 más abajo), no una falla de la migración: el
+  origen ya no existe, así que no hay nada que copiar. El propietario
+  verificó manualmente que un documento sensible abre bien desde el
+  bucket privado antes de borrar del público, siguiendo la secuencia ya
+  documentada en la entrada del 2026-08-12 (crear bucket → definir
+  variable → migrar → **verificar** → borrar del público) — el orden
+  importa porque borrar antes de verificar dejaría documentos
+  inaccesibles sin forma barata de confirmar que la migración funcionó.
+  Backlog actualizado (`docs/security/BACKLOG_SEGURIDAD.md`): orden 7 ✅,
+  contador de P1 hechas 13→14, total 42→43.
+- 2026-08-17 — Orden 37 del backlog de seguridad (`SEC-CFG-002`): CSP
+  Report-Only para `/admin/`, opt-in vía `ADMIN_CSP_REPORT_ONLY` (default
+  `False`) — mismo patrón exacto que ya usaba la orden 27 para el portal
+  de pago (`PORTAL_CSP_REPORT_ONLY`/`PORTAL_CSP_REPORT_ONLY_POLICY`), en
+  `core_erp/middleware.py::PublicSecurityHeadersMiddleware`. **Por qué
+  Report-Only y no bloqueante de entrada**: el propio docstring del
+  middleware ya documentaba por qué el admin no llevaba ninguna CSP
+  ("Jazzmin/AdminLTE usan recursos propios que una CSP estricta
+  rompería") — igual que con el portal, la única forma responsable de
+  endurecer sin arriesgar el panel de operación diaria es observarlo
+  primero en modo Report-Only con tráfico real. Esta sesión no puede
+  desplegar a producción ni abrir devtools contra un admin en uso real,
+  así que el entregable de esta orden es la mecánica de observación en
+  sí (el toggle + la política), no el endurecimiento por etapas — eso
+  queda documentado como pendiente de Infra/Propietario en
+  `BACKLOG_SEGURIDAD.md`. **Los orígenes de la política no se
+  adivinaron**: se auditó el código real antes de escribirla —
+  `grep` de `https://`/`http://` en `templates/admin/**/*.html` de las 6
+  apps con vistas de admin propias, más los templates vendorizados de
+  Jazzmin (`site-packages/jazzmin/templates` y `/static`, instalando un
+  venv con Python 3.12 porque Django 6.1 ya no soporta 3.11 en este
+  entorno). Resultado: Jazzmin sirve todo su CSS/JS (AdminLTE, Select2,
+  FontAwesome) vendorizado desde `STATIC_URL` (`'self'`), salvo Google
+  Fonts (`@import` en `admin_fix.css` del propio proyecto, no de
+  Jazzmin); los dashboards y calendarios del admin (`comercial/`,
+  `airbnb/`) cargan FullCalendar y Chart.js desde `cdn.jsdelivr.net` —
+  el mismo host que `PUBLIC_CSP` ya permite, ninguno nuevo. Las
+  miniaturas de imágenes (`preview_grande` en landing/producto) se
+  sirven desde `media.quintakooxtanil.com` (el dominio público de R2,
+  ya en `PUBLIC_CSP`). `'unsafe-inline'` en `script-src`/`style-src` por
+  el mismo motivo que las otras dos políticas del archivo: Django admin
+  y Jazzmin usan bastante inline, y quitarlo sin migrar a nonces sería
+  una CSP que rompe el panel en vez de observarlo — no es el alcance de
+  esta orden. Tests nuevos en
+  `core_erp/test_regresion_seguridad.py::PublicSecurityHeadersMiddlewareTest`
+  (3): sin el flag no manda ninguna CSP (default), con el flag manda
+  `Content-Security-Policy-Report-Only` con los orígenes esperados y
+  nunca la variante bloqueante, y que el flag del admin no se filtra a
+  las páginas públicas (aislamiento de rutas). El patrón que reemplazó
+  (`PORTAL_CSP_REPORT_ONLY`) no tenía ningún test hasta ahora — no se
+  tocó de paso por no ser el alcance de esta orden, pero queda como
+  hueco conocido si se retoma la Fase 3.
+- 2026-08-17 — Orden 35 del backlog de seguridad (`SEC-FILE-002`):
+  `core_erp/validadores_archivos.py` — `FileExtensionValidator` +
+  verificación de firma binaria real en los 16 `FileField`/`ImageField`
+  del repo (fuera de `*/migrations/*.py`). **La premisa del backlog
+  ("Dependencias: Orden 7") no se sostuvo al auditar el código real**:
+  esta orden valida contenido en el momento de la carga (extensión +
+  firma), algo que no tiene relación con dónde vive el bucket (público
+  vs. privado, que es lo que resuelve la orden 7, bloqueada por
+  Cloudflare) — mismo patrón que ya corrigieron las órdenes 41/47/49 con
+  otras premisas del backlog. Se implementó sin esperar la orden 7.
+  **Auditoría previa de superficie real** (`grep` de `request.FILES`/
+  `forms.FileField` fuera de `/admin/`): los 16 campos solo se cargan
+  desde el admin (staff) o se generan internamente (WeasyPrint) — no hay
+  ningún formulario público que acepte archivos, así que el riesgo que
+  cubre esta orden es una sesión de staff comprometida subiendo contenido
+  activo disfrazado de PDF/XML/ZIP, no un vector anónimo. Dos capas por
+  campo: **(1)** `FileExtensionValidator` de Django (barato, solo mira el
+  nombre) en los 16; **(2)** firma binaria real —`%PDF-` para PDF,
+  cabeceras `PK` para ZIP, y "¿parsea con `defusedxml`?" para XML, ya que
+  el proyecto no tiene margen para asumir `safe_mode` en nada— en los
+  campos que aceptan PDF/XML/ZIP (10 de los 16; los otros 6 son
+  `ImageField`, que ya validan el contenido real con Pillow por sí solos,
+  así que ahí solo hacía falta la extensión). **El detalle que sí importa
+  para no volver esto un problema de rendimiento**: los validadores de
+  firma solo leen el archivo si es una carga *nueva* de esta petición
+  (`_es_carga_nueva()`, que distingue un `UploadedFile` recién asignado
+  de un `FieldFile` ya persistido) — sin ese candado, cada `full_clean()`
+  de un `ModelForm` del admin re-descargaría el archivo completo desde el
+  storage remoto (R2) aunque la edición no tocara ese campo, y
+  `Cotizacion.archivo_pdf`/`archivo_contrato` se guardan en cada cambio
+  de estado de una cotización — un hot path real, no hipotético. La
+  detección de "carga nueva" comprueba tanto el `UploadedFile` directo
+  como el caso real de Django (`FileDescriptor.__get__` envuelve la
+  carga en un `FieldFile` cuyo `.file` es ese mismo `UploadedFile`), y
+  ambos casos tienen test. `SolicitudARCO.identificacion` solo lleva
+  extensión (`pdf`/`jpg`/`jpeg`/`png`, admite foto o escaneo), sin firma
+  binaria — la orden es literal ("verificación de firma para PDF y XML")
+  y ese campo hoy está fuera del alcance de cualquier `ModelForm` del
+  admin (`SolicitudARCOAdmin.get_fields()` lo saca siempre del
+  formulario), así que añadir la firma ahí no cubriría ningún flujo real
+  todavía. `EstadoCuentaBancario.archivo` acepta indistintamente PDF o
+  XML (el campo `formato` es quien lo distingue, no el `FileField`), así
+  que su firma prueba una U (`validar_firma_pdf_o_xml`). **Error en el
+  primer intento de test, no del validador**: un HTML "disfrazado" bien
+  formado (`<html><body><script>...`) resultó ser XML válido también
+  —etiquetas balanceadas sin atributos ni texto suelto es XHTML-like—,
+  así que la firma de XML no lo rechazaba; el fixture de prueba pasó a
+  incluir un `&` sin escapar (`Cotizaciones & Eventos`), que es HTML
+  válido pero rompe el *well-formedness* de XML de verdad. Y el XML
+  "válido" del primer fixture (`<cfdi:Comprobante>` sin declarar su
+  namespace) fallaba con `unbound prefix` — correcto: un CFDI real
+  siempre declara `xmlns:cfdi`, así que exigirlo aquí es más estricto que
+  un simple "empieza con `<`", no un bug. Migraciones nuevas (una por app
+  tocada, solo `AlterField` por los `validators=` nuevos, no tocan la
+  BD): `comercial.0073`, `contabilidad.0019`, `facturacion.0007`,
+  `legal.0005`, `nomina.0005`. Tests en
+  `core_erp/test_validadores_archivos.py` (24): las funciones de firma en
+  aislado, el candado de "no revalidar lo ya guardado" con un archivo
+  guardado a propósito con contenido inválido (por la vía que salta
+  `full_clean`, igual que hacen los servicios internos), que cada uno de
+  los 16 campos tiene sus validadores realmente enchufados
+  (`Model._meta.get_field(...).validators`, no una copia), y el criterio
+  de aceptación literal del backlog contra `Compra.full_clean()` real.
+  Suite completa (695 tests) corrida dos veces tras el cambio.
 - 2026-08-19 — Nueva línea de negocio Hospedaje (Issue #230), implementada
   directo por Claude sin pasar por Codex (decisión del propietario del
   2026-08-17, ver entrada de abajo). Reservas de estancia corta —

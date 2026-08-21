@@ -3,16 +3,19 @@
 **Fecha**: 2026-08-12 · **Commit base**: `f813dcc` · **Issue**: #190
 **Origen**: hallazgos de `AUDITORIA_SEGURIDAD.md`.
 
-**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18,
-19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 41, 43, 44, 45,
-46, 47, 48, 49, 50 y 51 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
+**Estado**: las órdenes 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17,
+18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 41,
+43, 44, 45, 46, 47, 48, 49, 50 y 51 ya están hechas (Fase 0 y Fase 1 completas; de la Fase 2, rate
 limiting, CSRF/validación del cotizador, el ocultamiento de detalles de
 excepción, el gate de lint en CI, el análisis estático de seguridad de
 ruff, la detección de secretos en CI, la auditoría de secretos en el
-historial completo, el registro explícito de 403 de autorización y los
-builds reproducibles con `requirements.lock` ya están — queda la
+historial completo, el registro explícito de 403 de autorización, los
+builds reproducibles con `requirements.lock` y la validación de extensión
+y firma de los 16 `FileField`/`ImageField` ya están — queda la
 verificación del proxy de Railway, orden 22, que depende de Infra). De la
-Fase 3 también están hechas las órdenes 41 (Referrer-Policy), 43 (usuario
+Fase 3 también están hechas las órdenes 37 (CSP Report-Only del admin, la
+parte de Dev — falta que Infra/Propietario active la variable y observe
+violaciones reales antes de endurecer), 41 (Referrer-Policy), 43 (usuario
 sin privilegios en el `Dockerfile`), 44 (calendario acotado por rango), 45
 (correlation ID por request), 46 (acciones de CI fijadas por SHA), 47
 (idempotencia del webhook de Openpay, ya cubierta por código preexistente),
@@ -22,10 +25,15 @@ seguridad). Las dos
 verificaciones externas resultaron
 **positivas ambas**: el feed iCal estaba abierto (corregido) y el bucket R2
 sirve lectura anónima —la orden 8 ya lo mitiga sirviendo por vista
-autenticada; la orden 7 (bucket privado aparte) sigue pendiente del lado de
-Cloudflare. Se marcan con ✅ y se conservan en la tabla para no perder la
-trazabilidad. El resto sigue pendiente y requiere aprobación del propietario
-antes de empezar.
+autenticada; la orden 7 (bucket privado) se completó del lado de Cloudflare/
+Railway el 2026-08-18: bucket privado creado, `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME`
+definida en Railway, `manage.py migrar_archivos_privados --aplicar` ejecutado
+(6 archivos ya en el privado, 0 nuevos por copiar, 30 sin origen — los
+documentos que solo vivían en Cloudinary y se dieron por perdidos, ver nota
+abajo), documento sensible verificado abriendo bien desde el bucket privado,
+y los archivos sensibles borrados del bucket público. Se marcan con ✅ y se
+conservan en la tabla para no perder la trazabilidad. El resto sigue
+pendiente y requiere aprobación del propietario antes de empezar.
 
 **Nota fuera de tabla**: los 228 archivos que solo vivían en Cloudinary (no
 migrados nunca a R2) se dieron por perdidos — la cuenta quedó deshabilitada
@@ -67,13 +75,13 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 4 ✅ | NV-01 | **HECHO.** Verificar la política de acceso del bucket R2 | P1 | — | Ninguna | XS | Infra | **Sirve lectura anónima** (las imágenes de la landing cargan sin sesión): `SEC-FILE-001` es exposición activa. Sube a la cabeza de la cola |
 | 5 ✅ | SEC-DATA-001 | **HECHO.** Invertir a fail-closed el feed iCal: sin `ICAL_PUBLIC_TOKEN` configurado, responder 403 | P1 | Publicación anónima de nombre de cliente, evento, asistentes y fecha de todas las cotizaciones confirmadas | Orden 3 | XS | Dev | Con la variable vacía, `/airbnb/ical/eventos/` devuelve 403; con token válido, 200 |
 | 6 ✅ | SEC-DATA-001b | **HECHO.** Reducir el contenido del feed al mínimo funcional: `SUMMARY` genérico, sin nombre de cliente ni número de personas | P1 | Aunque el token se filtre, no se expone la cartera de clientes | Orden 5 | XS | Dev | El `.ics` no contiene el nombre de ningún cliente; Airbnb sigue bloqueando las fechas correctamente |
-| 7 | SEC-FILE-001a | **Código listo, falta el paso de Cloudflare.** Crear el bucket privado (sin dominio público), definir `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` en Railway y correr `manage.py migrar_archivos_privados --aplicar` | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | **Infra** | `SolicitudARCO.identificacion.url` incluye parámetros de firma y caduca; las imágenes de la landing siguen cargando |
+| 7 ✅ | SEC-FILE-001a | **HECHO.** Crear el bucket privado (sin dominio público), definir `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` en Railway y correr `manage.py migrar_archivos_privados --aplicar` | P1 | Acceso anónimo a identificaciones ARCO, contratos, nómina y estados de cuenta por URL directa | Orden 4 | M | **Infra** | Bucket privado creado, migración aplicada (6 archivos migrados, 30 irrecuperables de Cloudinary), verificado que abren bien, y borrados del bucket público |
 | 8 ✅ | SEC-FILE-001b | **HECHO.** Servir los documentos verdaderamente sensibles (ARCO, nómina, contratos) por vista autenticada con `FileResponse`, replicando el patrón de `legal/views.py`; que `portal_descargar_contrato` sirva el contenido en vez de redirigir a `archivo.url` | P1 | Cierra el hueco de forma independiente de la configuración del bucket | Orden 7 | M | Dev | Ninguna vista expone `archivo.url` de un documento sensible; cada descarga queda registrada |
 | 9 ✅ | SEC-AUTHN-001a | **HECHO.** Unificar el mensaje de error de `portal_acceso` para código inexistente y teléfono incorrecto | P1 | Enumeración de identificadores de cotización válidos | Ninguna | XS | Dev | Ambos casos devuelven texto idéntico; test que lo verifica |
 | 10 ✅ | SEC-AUTHN-001b | **HECHO.** Contador de intentos **por cotización** además del de IP, en `ratelimit.py::portal_acceso_bloqueado` | P1 | Fuerza bruta distribuida sobre los 4 dígitos del teléfono | Orden 9 | S | Dev | Tras N intentos fallidos contra la misma cotización desde IPs distintas, la respuesta es 429; test que reparte los intentos entre 10 IPs |
 | 11 ✅ | SEC-AUTHN-001c | **HECHO.** `portal_acceso` ya no crea el `PortalCliente`: solo resuelve portales existentes, activos y vigentes | P1 | Un atacante genera tokens permanentes para cotizaciones que nunca tuvieron portal | Orden 10 | S | Dev | `portal_acceso` no crea registros; el alta sigue ocurriendo en `Cotizacion.save()` |
-| 12 | NV-03 | **Verificar** backups de PostgreSQL en Railway: frecuencia, retención, cifrado y última restauración probada | P1 | Pérdida de datos sin posibilidad de recuperación | Ninguna | XS | Infra | Evidencia documentada; si no hay respaldo, se convierte en P0 operativo |
-| 13 | NV-07 | **Definir** quién recibe alertas de error y por qué canal | P1 | Un incidente puede pasar inadvertido indefinidamente | Ninguna | S | Propietario | Canal y responsable documentados |
+| 12 | NV-03 | **Parcial.** Verificar backups de PostgreSQL en Railway: frecuencia, retención, cifrado y última restauración probada | P1 | Pérdida de datos sin posibilidad de recuperación | Ninguna | XS | Infra | Diagnóstico inicial: plan sin Pro no tenía `backup schedule` (P0 real, mitigado). Tras subir a Pro: schedule Daily configurado (retención 6 días). Falta probar una restauración real antes de cerrar la orden |
+| 13 ✅ | NV-07 | **HECHO.** Definir quién recibe alertas de error y por qué canal: el propietario decidió correo, a `ADMIN_ALERT_EMAIL` (cae a `SERVER_EMAIL`). `ADMINS` en `settings.py` + handler `mail_admins` (`django.utils.log.AdminEmailHandler`, estándar de Django) enganchado al logger `django` — cubre cada 500 sin capturar, vía el backend de Brevo ya configurado | P1 | Un incidente puede pasar inadvertido indefinidamente | Ninguna | S | Propietario + Dev | Un error 500 real envía un correo a `ADMINS`; probado con `core_erp/test_alertas_admin.py` (5 tests) |
 | 14 ✅ | SEC-AUTHZ-001a | **HECHO.** Definir grupos por área (Ventas, Contabilidad, Nómina) y documentar qué modelos y vistas toca cada uno — Dirección no es un grupo Django, sigue siendo `is_superuser` | P1 | Cualquier cuenta staff accede a nómina, contabilidad, ARCO y datos fiscales | NV-08 | S | Propietario + Dev | Matriz de permisos aprobada por el propietario (Issue #199) |
 | 15 ✅ | SEC-AUTHZ-001b | **HECHO.** `@permission_required` en las vistas de **nómina** (`cargar_nomina`, `sync_jibble_view`, `jibble_diagnostico_view`) | P1 | Exposición de recibos de nómina entre empleados | Orden 14 | S | Dev | Un staff sin el permiso recibe 403 en `/admin/nomina/cargar/` |
 | 16 ✅ | SEC-AUTHZ-001c | **HECHO.** `@permission_required` en las vistas de **contabilidad y reportes financieros** (`balanza_comprobacion`, `estado_resultados`, `cartera_cxc` y las 11 vistas de `reportes/views.py`, cada una con el permiso de su área dueña) | P1 | Exposición de contabilidad completa a cualquier staff | Orden 14 | M | Dev | Un staff sin el permiso recibe 403 en cada una |
@@ -89,7 +97,7 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 19 ✅ | SEC-RL-001a | **HECHO.** `@rate_limit` en las descargas del portal (`portal_evento`, `portal_descargar_cotizacion/plan/contrato`), ~10/min | P2 | DoS por generación repetida de PDFs con WeasyPrint | Ninguna | XS | Dev | Superar el límite devuelve 429 |
 | 20 ✅ | SEC-RL-001b | **HECHO.** `@rate_limit` en las 5 APIs públicas del cotizador, ~60/min | P2 | Scraping de catálogo y precios | Ninguna | XS | Dev | Superar el límite devuelve 429 |
 | 21 ✅ | SEC-RL-001c | **HECHO.** `@rate_limit` en ambos webhooks (Openpay, Jibble) y en el feed iCal, ~120/min | P2 | Martilleo de credenciales del webhook y fuerza bruta del Bearer de Jibble | Ninguna | XS | Dev | Superar el límite devuelve 429 sin afectar el tráfico legítimo |
-| 22 | SEC-RL-002 | **Verificar** el comportamiento del edge de Railway con `X-Forwarded-For` y ajustar `RATELIMIT_TRUSTED_PROXY_COUNT` si procede | P2 | Evasión total del rate limiting y del bloqueo de login si el edge no añade la IP real | NV-04 | S | Infra + Dev | Una petición con XFF fabricado no altera la IP registrada; resultado anotado en la Memoria de `CLAUDE.md` |
+| 22 | SEC-RL-002 | **Parcial.** Verificar el comportamiento del edge de Railway con `X-Forwarded-For` y ajustar `RATELIMIT_TRUSTED_PROXY_COUNT` si procede | P2 | Evasión total del rate limiting y del bloqueo de login si el edge no añade la IP real | NV-04 | S | Infra + Dev | Verificado por DNS que `erp.quintakooxtanil.com` está con Cloudflare en modo proxy (`cf-proxied:true`) delante del edge de Railway — 2 proxies, no 1. Código/docs listos (`RATELIMIT_TRUSTED_PROXY_COUNT=2` en `.env.example`, tests en `core_erp/test_ratelimit.py::ClientIpTrustedProxyCountTest`); falta que Infra fije la variable en Railway para cerrar la orden. De paso, corregido `legal/services.py::obtener_ip()` (evidencia ARCO), que tenía la misma clase de vulnerabilidad — ver Memoria |
 | 23 ✅ | SEC-CSRF-001 | **HECHO.** Quitado `@csrf_exempt` de `cotizador_enviar`; el formulario público renderiza `{% csrf_token %}` y lo manda como `X-CSRFToken` | P2 | CSRF que crea registros y consume cuota de WhatsApp con coste real | Ninguna | S | Dev | `POST /cotizar/enviar/` sin token devuelve 403; el formulario legítimo sigue funcionando |
 | 24 ✅ | SEC-VAL-001 | **HECHO.** Validación manual de `cotizador_enviar` sustituida por `CotizadorEnviarForm` (tipos, longitudes y `choices` cerradas en `tipo_evento`/`como_nos_encontro`) | P2 | Entrada sin restricción en `notas`, `tipo_evento` y `como_nos_encontro`, que alimentan `nombre_evento` | Orden 23 | M | Dev | Campos fuera de rango devuelven 400; los tests del cotizador siguen pasando |
 | 25 ✅ | SEC-INFO-001 | **HECHO.** `str(e)` reemplazado por mensaje genérico + `logger.exception()` en `api_disponibilidad_fecha`/`api_fechas_ocupadas` (`views_cotizador.py`) y `webhook_sync_jibble` (`nomina/views.py`) | P2 | Filtración de rutas, nombres de tablas y detalles internos | Ninguna | XS | Dev | El cuerpo de un 500 no contiene el texto de la excepción; el detalle aparece en el log |
@@ -102,9 +110,9 @@ existe. Ver Memoria en `CLAUDE.md`.
 | 32 ✅ | SEC-CI-001d | **HECHO.** `gitleaks` añadido al job `security` de `ci.yml` — binario oficial descargado con verificación de checksum (no la GitHub Action, que exige licencia en repos privados), escaneo del árbol de trabajo (`--no-git`) | P2 | Un secreto commiteado pasa inadvertido | Ninguna | S | Dev | Un PR con una clave con formato de secreto falla el CI |
 | 33 ✅ | SEC-SECRET-002 | **HECHO.** `gitleaks detect --log-opts="--all"` corrido sobre el historial completo (793 commits) — **sin hallazgos**, no hay ninguna credencial que rotar | P2 | Secreto commiteado y borrado, todavía recuperable | Ninguna | XS | Dev | Informe adjunto al Issue; si aparece algo, rotar la credencial afectada |
 | 34 ✅ | SEC-DEP-001 | **HECHO.** `requirements.lock` generado con `pip-compile`; `Dockerfile`, `ci.yml` y los workflows de IA (`ai-review-merge.yml`/`ai-implement.yml`) instalan desde ahí, no desde `requirements.txt` | P2 | Builds no reproducibles; imposible reconstruir el entorno de un incidente | Ninguna | M | Dev | Dos builds del mismo commit producen el mismo `pip freeze` |
-| 35 | SEC-FILE-002 | Añadir `FileExtensionValidator` a los 16 `FileField`/`ImageField` y verificación de firma para PDF y XML | P2 | Contenido activo subido al storage | Orden 7 | M | Dev | Un `.html` renombrado a `.pdf` es rechazado por el formulario |
+| 35 ✅ | SEC-FILE-002 | **HECHO.** `FileExtensionValidator` (`core_erp/validadores_archivos.py`) en los 16 `FileField`/`ImageField`, más verificación de firma binaria real para los que aceptan PDF/XML/ZIP (los que solo aceptan imagen ya la tienen gratis vía `ImageField`+Pillow) | P2 | Contenido activo subido al storage | Ninguna | M | Dev | Un `.html` renombrado a `.pdf` es rechazado por el formulario — `core_erp/test_validadores_archivos.py` |
 | 36 ✅ | SEC-LOG-001 | **HECHO.** Logger `django.security` declarado en `settings.py`; nuevo `AuthorizationAuditMiddleware` registra cada 403 con usuario y ruta, cubriendo por igual `raise PermissionDenied`, `@permission_required` y cualquier 403 manual | P2 | Eventos de seguridad sin nivel ni formato propios | Ninguna | S | Dev | Una petición con `Host` inválido produce una línea identificable |
-| 37 | SEC-CFG-002 | CSP para `/admin/` en modo Report-Only, recoger violaciones de Jazzmin y endurecer por etapas | P2 | Sin defensa en profundidad en la superficie de mayor privilegio | Orden 1 | L | Dev | `/admin/` devuelve cabecera CSP; ninguna funcionalidad de Jazzmin se rompe |
+| 37 ✅ | SEC-CFG-002 | **HECHO (la parte de Dev).** CSP Report-Only para `/admin/`, opt-in vía `ADMIN_CSP_REPORT_ONLY` (`core_erp/middleware.py`) — mismo patrón que la orden 27 ya usaba para el portal de pago. **Pendiente de Infra/Propietario**: activar la variable en Railway, usar el admin con normalidad y revisar la consola del navegador por violaciones antes de plantear una CSP bloqueante — "endurecer por etapas" no es alcanzable sin esa observación en producción real | P2 | Sin defensa en profundidad en la superficie de mayor privilegio | Orden 1 | L | Dev | `/admin/` devuelve cabecera CSP (con el flag activo); ninguna funcionalidad de Jazzmin se rompe (Report-Only nunca bloquea, por diseño) — `core_erp/test_regresion_seguridad.py::PublicSecurityHeadersMiddlewareTest` |
 | 38 | NV-06 | **Documentar** el calendario de rotación de credenciales (Openpay, WhatsApp, Brevo, R2, Jibble) | P2 | Credenciales de larga vida sin control | Ninguna | S | Propietario + Infra | Documento con fecha de última rotación y periodicidad acordada |
 | 39 | NV-08 | **Revisar** el listado de cuentas con `is_staff`/`is_superuser` y retirar las que no correspondan | P2 | Cuentas con más privilegio del necesario o ya innecesarias | Ninguna | S | Propietario | Listado revisado y depurado |
 | 40 | NV-09 | **Verificar** quién accede al dashboard de Openpay y si usan MFA | P2 | Acceso al panel de cobros sin segundo factor | Ninguna | XS | Propietario | Listado documentado |
@@ -135,20 +143,20 @@ existe. Ver Memoria en `CLAUDE.md`.
 | Prioridad | Tareas | Hechas | Esfuerzo restante aproximado |
 |---|---|---|---|
 | P0 | 2 | **2** | — |
-| P1 | 16 | 11 | ~2-4 días |
-| P2 | 22 | 14 | ~1 semana |
+| P1 | 16 | 15 | ~1-2 días |
+| P2 | 22 | 17 | ~2-3 días |
 | P3 | 12 | 10 | ~1 semana |
-| **Total** | **52** | **37** | — |
+| **Total** | **52** | **44** | — |
 
 **Lo siguiente, por relación impacto/esfuerzo**:
 
-1. Orden 7 — `SEC-FILE-001a`: **solo falta el paso de Cloudflare**; el código ya está y es inerte hasta que se configure el bucket.
-2. Orden 12 — `NV-03` (`XS`): confirmar que existen respaldos y que se han probado.
-3. Orden 13 — `NV-07` (`S`): definir quién recibe las alertas.
-4. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
-5. Orden 42 — `SEC-AUTHN-002` (`L`): `django-otp` + TOTP obligatorio para superusuarios.
-6. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes.
-7. El resto de P2 que queda (orden 35) depende de la orden 7, bloqueada por Infra.
+1. Orden 12 — `NV-03` (`XS`): backup schedule Daily ya configurado en Railway Pro (retención 6 días); falta probar una restauración real para cerrarla del todo.
+2. Orden 22 — `SEC-RL-002` (`S`): verificar `X-Forwarded-For` en el edge de Railway, ahora que el rate limiting (órdenes 19-21) ya depende de que `_client_ip()` resuelva la IP real.
+3. Orden 42 — `SEC-AUTHN-002` (`L`): `django-otp` + TOTP obligatorio para superusuarios — código listo en el PR #226, pendiente de que el propietario pruebe el escaneo de QR y apruebe.
+4. Orden 52 — `SEC-DOC-001` (`M`, Propietario + Dev): runbook de incidentes — borrador listo en el PR #226, pendientes 3 `[CONFIRMAR:]` de negocio.
+7. Orden 37 — `SEC-CFG-002`: la parte de Dev ya está (CSP Report-Only del admin, opt-in vía `ADMIN_CSP_REPORT_ONLY`); falta que Infra/Propietario active la variable en Railway, use el admin con normalidad y reporte las violaciones que aparezcan en la consola del navegador — sin esa observación no hay forma responsable de endurecer a una CSP bloqueante.
+
+No queda ninguna tarea de P0-P3 accionable por Dev en solitario sin depender de Infra o del propietario.
 
 El `ICAL_PUBLIC_TOKEN` no necesita rotación inmediata: se generó en un gestor de
 contraseñas. Queda cubierto por el calendario ordinario de rotación (orden 38).

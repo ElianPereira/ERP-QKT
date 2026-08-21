@@ -8,6 +8,14 @@ from django.db import models
 from django.utils.timezone import now
 
 from comercial.models import Cliente, Cotizacion, Pago
+from core_erp.validadores_archivos import (
+    extension_pdf,
+    extension_xml,
+    extension_zip,
+    validar_firma_pdf,
+    validar_firma_xml,
+    validar_firma_zip,
+)
 from facturacion.choices import FormaPago, MetodoPago, RegimenFiscal, UsoCFDI
 
 
@@ -155,19 +163,22 @@ class SolicitudFactura(models.Model):
         blank=True,
         null=True,
         verbose_name="ZIP con PDF y XML",
-        help_text="Archivo ZIP con la factura (PDF + XML)"
+        help_text="Archivo ZIP con la factura (PDF + XML)",
+        validators=[extension_zip, validar_firma_zip],
     )
     archivo_pdf = models.FileField(
         upload_to='facturas_pdf/',
         blank=True,
         null=True,
-        verbose_name="Factura PDF"
+        verbose_name="Factura PDF",
+        validators=[extension_pdf, validar_firma_pdf],
     )
     archivo_xml = models.FileField(
         upload_to='facturas_xml/',
         blank=True,
         null=True,
-        verbose_name="Factura XML"
+        verbose_name="Factura XML",
+        validators=[extension_xml, validar_firma_xml],
     )
     uuid_factura = models.CharField(
         max_length=36,

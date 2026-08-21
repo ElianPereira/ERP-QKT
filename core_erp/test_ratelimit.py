@@ -11,7 +11,12 @@ from django.http import HttpResponse
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
-from core_erp.ratelimit import limpiar_intentos_login, rate_limit, registrar_login_fallido
+from core_erp.ratelimit import (
+    _client_ip,
+    limpiar_intentos_login,
+    rate_limit,
+    registrar_login_fallido,
+)
 
 
 class CacheCompartidoTest(TestCase):
@@ -67,6 +72,46 @@ class CacheCompartidoTest(TestCase):
         time.sleep(2.5)
 
         self.assertIsNone(cache.get(bucket))
+
+
+class ClientIpTrustedProxyCountTest(TestCase):
+    """Orden 22 (SEC-RL-002): verificado por DNS que `erp.quintakooxtanil.com`
+    está con Cloudflare en modo proxy delante del edge de Railway — dos
+    proxies de confianza, no uno. `_client_ip()` nunca tenía un test directo
+    de su lógica de conteo de saltos."""
+
+    def test_sin_xff_cae_a_remote_addr(self):
+        request = RequestFactory().get('/', REMOTE_ADDR='203.0.113.5')
+        self.assertEqual(_client_ip(request), '203.0.113.5')
+
+    @override_settings(RATELIMIT_TRUSTED_PROXY_COUNT=2)
+    def test_con_dos_proxies_de_confianza_toma_la_ip_real_del_cliente(self):
+        # Cloudflare agrega la IP real; Railway agrega la suya encima.
+        request = RequestFactory().get(
+            '/', HTTP_X_FORWARDED_FOR='198.51.100.7, 172.68.10.1',
+        )
+        self.assertEqual(_client_ip(request), '198.51.100.7')
+
+    @override_settings(RATELIMIT_TRUSTED_PROXY_COUNT=2)
+    def test_con_dos_proxies_un_prefijo_spoofeado_por_el_cliente_no_engana(self):
+        # El cliente intenta colar una IP falsa al frente de la cabecera —
+        # sigue sin importar, porque se cuenta desde la derecha.
+        request = RequestFactory().get(
+            '/', HTTP_X_FORWARDED_FOR='1.2.3.4, 198.51.100.7, 172.68.10.1',
+        )
+        self.assertEqual(_client_ip(request), '198.51.100.7')
+
+    @override_settings(RATELIMIT_TRUSTED_PROXY_COUNT=1)
+    def test_con_trusted_desalineado_del_numero_real_de_proxies_falla_mal(self):
+        # Documenta por qué la orden 22 importa: con trusted=1 pero DOS
+        # proxies reales delante (Cloudflare + Railway), _client_ip()
+        # devuelve la IP del edge de Cloudflare, no la del cliente — el
+        # rate limiting agruparía usuarios distintos bajo la misma IP.
+        request = RequestFactory().get(
+            '/', HTTP_X_FORWARDED_FOR='198.51.100.7, 172.68.10.1',
+        )
+        self.assertEqual(_client_ip(request), '172.68.10.1')
+        self.assertNotEqual(_client_ip(request), '198.51.100.7')
 
 
 @override_settings(

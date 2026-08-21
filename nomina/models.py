@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.db import models
 
 from core_erp.storages_qkt import storage_privado
+from core_erp.validadores_archivos import extension_pdf, validar_firma_pdf
 
 
 class Empleado(models.Model):
@@ -54,6 +55,7 @@ class ReciboNomina(models.Model):
     # El archivo PDF generado
     archivo_pdf = models.FileField(
         upload_to='nominas_pdf/', blank=True, null=True, storage=storage_privado,
+        validators=[extension_pdf, validar_firma_pdf],
     )
 
     class Meta:

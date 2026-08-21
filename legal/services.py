@@ -4,6 +4,8 @@ import logging
 
 from django.db import transaction
 
+from core_erp.ratelimit import _client_ip
+
 from .models import (
     AceptacionLegal,
     DocumentoLegal,
@@ -34,14 +36,17 @@ class LegalService:
     @staticmethod
     def obtener_ip(request):
         """
-        Railway pone un proxy delante de Django: la IP real viene en
-        X-Forwarded-For. Se toma el PRIMER valor de la cadena, que es el
-        cliente; el resto son los proxies intermedios.
+        IP que queda como evidencia del consentimiento ARCO. Reutiliza
+        `core_erp.ratelimit._client_ip()` (orden 22 del backlog de
+        seguridad, SEC-RL-002) en vez de tomar el primer valor de
+        X-Forwarded-For: ese primer valor lo puede fijar el propio
+        solicitante, que podría falsear la IP que queda registrada como
+        evidencia con solo mandar un header fabricado. La lógica correcta
+        cuenta desde la derecha tantos saltos como proxies de confianza
+        haya delante de Django (Cloudflare + el edge de Railway en
+        producción, ver `RATELIMIT_TRUSTED_PROXY_COUNT`).
         """
-        forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
-        if forwarded:
-            return forwarded.split(',')[0].strip()
-        return request.META.get('REMOTE_ADDR')
+        return _client_ip(request)
 
     @classmethod
     @transaction.atomic

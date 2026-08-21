@@ -11,9 +11,15 @@ SECRET_KEY = config('SECRET_KEY')  # SIN default — fuerza a que exista en .env
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
-# Nº de proxies de confianza delante de la app (el edge de Railway = 1). Se usa
-# para leer la IP real del cliente en el rate limiting sin que sea spoofeable
-# vía X-Forwarded-For. Ajustar solo si se añaden más proxies (CDN, etc.).
+# Nº de proxies de confianza delante de la app. Se usa para leer la IP real
+# del cliente en el rate limiting sin que sea spoofeable vía X-Forwarded-For.
+# Orden 22 del backlog de seguridad (SEC-RL-002): verificado contra el DNS
+# real que erp.quintakooxtanil.com está con Cloudflare en modo proxy
+# (cf-proxied:true, no solo DNS), así que en producción hay DOS proxies
+# delante de Django (Cloudflare + el edge de Railway), no uno solo — el
+# valor real se fija en Railway con RATELIMIT_TRUSTED_PROXY_COUNT=2. El
+# default de 1 aquí es solo para entornos sin Cloudflare delante (ej. si se
+# accede directo por *.up.railway.app sin el dominio propio).
 RATELIMIT_TRUSTED_PROXY_COUNT = config('RATELIMIT_TRUSTED_PROXY_COUNT', default=1, cast=int)
 
 CSRF_TRUSTED_ORIGINS = [
@@ -92,6 +98,10 @@ PUBLIC_CSP_REPORT_ONLY = config('PUBLIC_CSP_REPORT_ONLY', default=False, cast=bo
 # CSP Report-Only del portal de pago (no bloquea): activar solo para probar qué
 # recursos usa Openpay/3-D Secure antes de plantear una CSP bloqueante ahí.
 PORTAL_CSP_REPORT_ONLY = config('PORTAL_CSP_REPORT_ONLY', default=False, cast=bool)
+# CSP Report-Only del admin (no bloquea): activar para observar en la consola
+# del navegador, con Jazzmin en uso real, qué violaciones deja antes de
+# plantear una CSP bloqueante ahí (orden 37 del backlog, SEC-CFG-002).
+ADMIN_CSP_REPORT_ONLY = config('ADMIN_CSP_REPORT_ONLY', default=False, cast=bool)
 
 MIDDLEWARE = [
     # Primero de todos: cubre el log de cualquier middleware/vista/señal
@@ -139,6 +149,7 @@ LOGGING = {
     # separar qué línea es de qué request).
     'filters': {
         'correlation_id': {'()': 'core_erp.middleware.CorrelationIdFilter'},
+        'require_debug_false': {'()': 'django.utils.log.RequireDebugFalse'},
     },
     'formatters': {
         'con_correlation_id': {
@@ -151,6 +162,14 @@ LOGGING = {
             'filters': ['correlation_id'],
             'formatter': 'con_correlation_id',
         },
+        # Orden 13 (NV-07): correo a ADMINS ante un error 500 sin capturar.
+        # Mismo handler que trae Django por default (solo que Django no lo
+        # cablea a ningún logger si LOGGING se sobreescribe, como aquí).
+        'mail_admins': {
+            'level': 'ERROR',
+            'filters': ['require_debug_false'],
+            'class': 'django.utils.log.AdminEmailHandler',
+        },
     },
     'loggers': {
         # propagate=False: sin esto, cualquier mensaje que llegue hasta acá
@@ -160,7 +179,10 @@ LOGGING = {
         # basicConfig() implícito de Python y deja un StreamHandler suelto en
         # el logger raíz, sin nuestro formatter — cada línea saldría
         # duplicada, una con correlation_id y otra sin él.
-        'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        # 'mail_admins' agrega la alerta por correo (orden 13); 'django.request'
+        # (donde Django registra cada 500) cuelga de este logger por jerarquía
+        # de nombres, así que no hace falta configurarlo aparte.
+        'django': {'handlers': ['console', 'mail_admins'], 'level': 'INFO', 'propagate': False},
         'weasyprint': {'handlers': ['console'], 'level': 'WARNING'},
         # Los logger.info del webhook Openpay (ej. el código de verificación al
         # registrar el webhook) deben verse en los Deploy Logs de Railway.
@@ -252,6 +274,12 @@ EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
 ANYMAIL = {"BREVO_API_KEY": config('BREVO_API_KEY', default='')}
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
 SERVER_EMAIL = config('DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
+EMAIL_SUBJECT_PREFIX = '[ERP QKT] '
+# Orden 13 del backlog de seguridad (NV-07): quién recibe la alerta cuando
+# el ERP genera un error 500 sin capturar. Reutiliza el mismo backend de
+# correo (Brevo) que ya está configurado arriba, vía el handler estándar de
+# Django (`django.utils.log.AdminEmailHandler`, ver LOGGING).
+ADMINS = [('Quinta Kooxtanil', config('ADMIN_ALERT_EMAIL', default=SERVER_EMAIL))]
 # Remitentes por tipo de correo (Issue #221). Cada uno cae a DEFAULT_FROM_EMAIL
 # si no está configurado, para que el deploy no rompa nada si llega antes de
 # que el dominio quede verificado en Brevo.

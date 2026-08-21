@@ -11,6 +11,13 @@ from django.utils.timezone import now
 from comercial.choices import ModoDescuento, PosicionLanding
 from core_erp import impuestos
 from core_erp.storages_qkt import storage_privado
+from core_erp.validadores_archivos import (
+    extension_imagen,
+    extension_pdf,
+    extension_xml,
+    validar_firma_pdf,
+    validar_firma_xml,
+)
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 
@@ -292,7 +299,9 @@ class Producto(models.Model):
         verbose_name="Precio de venta fijo",
         help_text="Si se define (>0), sobreescribe el cálculo costo×margen. Para rentas de precio fijo (mobiliario).",
     )
-    imagen_promocional = models.ImageField(upload_to='productos/', blank=True, null=True)
+    imagen_promocional = models.ImageField(
+        upload_to='productos/', blank=True, null=True, validators=[extension_imagen],
+    )
 
     visible_cotizador = models.BooleanField(default=False, verbose_name="Mostrar en cotizador web")
     grupo_cotizador = models.CharField(
@@ -578,8 +587,14 @@ class Cotizacion(models.Model):
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
-    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF")
+    archivo_pdf = models.FileField(
+        upload_to='cotizaciones_pdf/', blank=True, null=True,
+        validators=[extension_pdf, validar_firma_pdf],
+    )
+    archivo_contrato = models.FileField(
+        upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF",
+        validators=[extension_pdf, validar_firma_pdf],
+    )
 
     def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
         """
@@ -1106,6 +1121,7 @@ class ContratoServicio(models.Model):
                                             verbose_name="Depósito en Garantía (MXN)")
     archivo = models.FileField(
         upload_to='contratos_pdf/', verbose_name="Archivo PDF", storage=storage_privado,
+        validators=[extension_pdf, validar_firma_pdf],
     )
     generado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     generado_en  = models.DateTimeField(auto_now_add=True)
@@ -1187,8 +1203,14 @@ class Compra(models.Model):
     ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True)
-    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True)
+    archivo_xml = models.FileField(
+        upload_to='xml_compras/', blank=True, null=True,
+        validators=[extension_xml, validar_firma_xml],
+    )
+    archivo_pdf = models.FileField(
+        upload_to='pdf_compras/', blank=True, null=True,
+        validators=[extension_pdf, validar_firma_pdf],
+    )
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     unidad_negocio = models.ForeignKey(
@@ -1338,8 +1360,14 @@ class Gasto(models.Model):
     unidad_medida = models.CharField(max_length=20, blank=True)
     fecha_gasto = models.DateField(blank=True, null=True, db_index=True)
     proveedor = models.CharField(max_length=200, blank=True)
-    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True)
-    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True)
+    archivo_xml = models.FileField(
+        upload_to='xml_gastos/', blank=True, null=True,
+        validators=[extension_xml, validar_firma_xml],
+    )
+    archivo_pdf = models.FileField(
+        upload_to='pdf_gastos/', blank=True, null=True,
+        validators=[extension_pdf, validar_firma_pdf],
+    )
     def __str__(self): return f"{self.descripcion} (${self.total_linea})"
 
 # ==========================================
@@ -1724,7 +1752,7 @@ class ImagenLanding(models.Model):
         ('GENERAL', 'General'),
     ]
     seccion = models.CharField(max_length=20, choices=SECCION_CHOICES, verbose_name="Sección")
-    imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
+    imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen", validators=[extension_imagen])
     posicion_vertical = models.CharField(
         max_length=10, choices=PosicionLanding.choices, default=PosicionLanding.CENTER,
         verbose_name="Enfoque vertical",
@@ -1774,7 +1802,7 @@ class TestimonioLanding(models.Model):
 
 class EspacioLanding(models.Model):
     nombre = models.CharField(max_length=100, verbose_name="Nombre del espacio")
-    imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen")
+    imagen = models.ImageField(upload_to='landing/', verbose_name="Imagen", validators=[extension_imagen])
     capacidad = models.CharField(max_length=80, verbose_name="Capacidad",
                                  help_text="Ej: Hasta 200 invitados")
     descripcion = models.CharField(max_length=200, blank=True, verbose_name="Descripción corta")
