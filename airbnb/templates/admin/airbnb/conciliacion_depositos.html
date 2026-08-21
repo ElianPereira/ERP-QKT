@@ -202,7 +202,7 @@
 <div class="conciliacion-container">
 
     <div class="conciliacion-header">
-        <h2>Conciliación de depósitos Airbnb — {{ mes_nombre }} {{ anio }}</h2>
+        <h2>Conciliación de depósitos Airbnb — {{ mes_nombre }} {{ anio|stringformat:"d" }}</h2>
         <form method="get" class="filtros-form">
             <select name="mes">
                 {% for numero, nombre in meses %}
@@ -211,7 +211,7 @@
             </select>
             <select name="anio">
                 {% for a in anios %}
-                <option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>
+                <option value="{{ a|stringformat:"d" }}" {% if a == anio %}selected{% endif %}>{{ a|stringformat:"d" }}</option>
                 {% endfor %}
             </select>
             <button type="submit" class="btn btn-primary">Ver</button>
@@ -357,7 +357,7 @@
     </div>
     {% empty %}
     <div class="vacio">
-        No hay pagos de Airbnb con fecha de pago en {{ mes_nombre }} de {{ anio }}.
+        No hay pagos de Airbnb con fecha de pago en {{ mes_nombre }} de {{ anio|stringformat:"d" }}.
     </div>
     {% endfor %}
 

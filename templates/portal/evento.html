@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load qkt_horarios %}<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -90,7 +90,14 @@
     <div class="header">
         <img src="/static/img/logo.png" alt="Quinta Ko'ox Tanil">
         <h1>{{ cotizacion.nombre_evento }}</h1>
-        <div class="folio">COT-{{ cotizacion.id|stringformat:"03d" }} — {{ cotizacion.fecha_evento|date:"d \d\e F \d\e Y" }}</div>
+        <div class="folio">
+            COT-{{ cotizacion.id|stringformat:"03d" }} —
+            {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+                {{ cotizacion.fecha_evento|date:"d \d\e F" }} al {{ cotizacion.fecha_salida|date:"d \d\e F \d\e Y" }}
+            {% else %}
+                {{ cotizacion.fecha_evento|date:"d \d\e F \d\e Y" }}
+            {% endif %}
+        </div>
     </div>
     
     <div class="container">
@@ -160,9 +167,16 @@
             <div class="card-title"><i class="fas fa-calendar-alt"></i> Datos del evento</div>
             <table>
                 <tr><td style="font-weight:600; color:#555; width:40%;">Cliente</td><td>{{ cliente.nombre }}</td></tr>
+                {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+                <tr><td style="font-weight:600; color:#555;">Check-in</td><td>{{ cotizacion.fecha_evento|date:"d/m/Y" }}, {{ cotizacion.hora_inicio|hora_ampm }}</td></tr>
+                <tr><td style="font-weight:600; color:#555;">Check-out</td><td>{{ cotizacion.fecha_salida|date:"d/m/Y" }}, {{ cotizacion.hora_fin|hora_ampm }}</td></tr>
+                <tr><td style="font-weight:600; color:#555;">Noches</td><td>{{ cotizacion.noches }}</td></tr>
+                <tr><td style="font-weight:600; color:#555;">Huéspedes</td><td>{{ cotizacion.num_personas }}</td></tr>
+                {% else %}
                 <tr><td style="font-weight:600; color:#555;">Fecha</td><td>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</td></tr>
-                {% if cotizacion.hora_inicio %}<tr><td style="font-weight:600; color:#555;">Horario</td><td>{{ cotizacion.hora_inicio|time:"H:i" }} — {{ cotizacion.hora_fin|time:"H:i" }}</td></tr>{% endif %}
+                {% if cotizacion.hora_inicio %}<tr><td style="font-weight:600; color:#555;">Horario</td><td>{{ cotizacion.hora_inicio|hora_ampm }} — {{ cotizacion.hora_fin|hora_ampm }}</td></tr>{% endif %}
                 <tr><td style="font-weight:600; color:#555;">Personas</td><td>{{ cotizacion.num_personas }}</td></tr>
+                {% endif %}
             </table>
         </div>
         

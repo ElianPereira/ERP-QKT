@@ -57,17 +57,24 @@ código de pagos) → `.claude/settings.json`.
 
 ## Planificación mediante GitHub Issues
 
-Durante la fase de planificación, Claude debe limitarse a analizar el problema,
-identificar dependencias, riesgos y archivos relevantes, y diseñar un plan
-ejecutable. Debe publicar ese plan en un GitHub Issue usando la plantilla de
-implementación, con alcance incluido y excluido, pasos concretos, criterios de
-aceptación verificables y comandos de validación disponibles en el repositorio.
+**Ya no se usa Codex** (decisión del propietario, 2026-08-17 — ver Memoria).
+Quien implementa, tras planificar, es Claude directamente: no hay hand-off a
+otro ejecutor ni fase separada de "esperar a que alguien más lo tome".
 
-Claude no debe implementar código ni modificar archivos del producto durante
-esta fase. La implementación comienza únicamente después de que el Issue tenga
-un plan suficientemente preciso para que Codex pueda ejecutarlo; cualquier
-incertidumbre o decisión que requiera intervención humana debe quedar explícita
-en el Issue.
+Para cambios grandes o que tocan varios dominios (legal, contable, producto,
+varias apps), sigue valiendo la pena investigar y publicar el plan en un
+GitHub Issue con la plantilla de implementación (alcance incluido/excluido,
+pasos concretos, criterios de aceptación verificables, comandos de
+validación) **antes** de tocar código — no como gate para otro ejecutor, sino
+porque ordena el trabajo, dejó decisiones no obvias por escrito y le da al
+propietario un punto donde comentar/corregir antes de que el cambio esté
+hecho. Cualquier incertidumbre o decisión que requiera intervención humana
+va explícita ahí (o se resuelve directo con el propietario, lo que sea más
+rápido) antes de implementar — no se inventa a discreción.
+
+Para cambios chicos/acotados, implementar directo sigue siendo válido, como
+ya se ha hecho varias veces (ver Memoria) — el Issue es una herramienta para
+cuando el tamaño del cambio la justifica, no un trámite obligatorio.
 
 ## Memoria
 
@@ -281,6 +288,114 @@ salvo que queden obsoletas.
   (`Model._meta.get_field(...).validators`, no una copia), y el criterio
   de aceptación literal del backlog contra `Compra.full_clean()` real.
   Suite completa (695 tests) corrida dos veces tras el cambio.
+- 2026-08-19 — Nueva línea de negocio Hospedaje (Issue #230), implementada
+  directo por Claude sin pasar por Codex (decisión del propietario del
+  2026-08-17, ver entrada de abajo). Reservas de estancia corta —
+  habitaciones **dentro de la Quinta**, no el inmueble "Honey Sea House" que
+  también mencionan los documentos legales— contratadas directamente (no
+  Airbnb), bajo el mismo RFC que Evento/Pasadía (`PECE010202IA0`, `QUINTA`).
+  **Decisiones confirmadas por el propietario antes de tocar código** (las
+  tres vía `AskUserQuestion`, no adivinadas): check-in/check-out **14:00/10:00**
+  (coincide con `terminos_v2.1.md`/`reglamento_v1.1.md` ya vigentes — no hizo
+  falta versionar ningún documento legal); exclusividad de fechas **a nivel
+  de toda la quinta**, no por habitación (una reserva de Hospedaje bloquea
+  el rango completo para Airbnb/Evento/Pasadía/Arrendamiento/otro Hospedaje,
+  y viceversa — sin modelar inventario por unidad); y **solo habitaciones de
+  la Quinta**, Honey Sea House queda fuera de alcance.
+  **Modelo**: `Cotizacion.fecha_salida` (checkout, exclusiva, mismo criterio
+  que `ReservaAirbnb.fecha_fin`), propiedad `noches` y método `rango_ocupado()`
+  — este último es la fuente única que usa `airbnb.validacion_fechas` para
+  comparar rangos, así un servicio de un día y uno de varias noches se
+  comparan con la misma aritmética de traslape (`fecha_evento__lt=fin AND
+  (fecha_salida__gt=inicio OR (fecha_salida__isnull=True AND
+  fecha_evento__gte=inicio))` — exacto, sin necesidad de refinar en Python).
+  `verificar_disponibilidad_fecha`/`obtener_fechas_bloqueadas` (antes de un
+  solo día) pasan a ser wrappers de `verificar_disponibilidad_rango`, así
+  Evento/Pasadía/Arrendamiento cruzan contra Hospedaje (y viceversa) sin que
+  sus llamadores actuales noten diferencia de firma ni de mensajes.
+  **Bug preexistente encontrado y corregido de paso** (no una vulnerabilidad
+  nueva, dead code): `comercial/admin.py::CotizacionAdmin.save_model`
+  llamaba a `validar_fecha_disponible` — función que **no existe** en
+  `airbnb/validacion_fechas.py` — dentro de un `except ImportError: pass`
+  que tragaba el error en silencio. Confirmado que esto **no era una
+  vulnerabilidad real**: `Cotizacion.clean()` (que sí llama a la función
+  correcta) ya corre automáticamente vía `ModelForm.full_clean()` antes de
+  que `save_model` se ejecute en el flujo estándar del admin, así que la
+  validación real siempre existió por ese otro camino; el bloque roto de
+  `admin.py` era redundante y se eliminó en vez de arreglarse (una sola
+  fuente de verdad).
+  **Selector de habitaciones — NO usa una línea base automática** como
+  Evento/Pasadía: el propietario aclaró a media implementación que solo hay
+  dos habitaciones reales (Ka'an, Otoch) y el cliente debe poder elegir una
+  o ambas. Se descartó `rol_cotizador='BASE_HOSPEDAJE'` (una sola línea
+  automática) y en su lugar cada habitación es un `Producto` con
+  `rol_cotizador='HABITACION_HOSPEDAJE'` (selección múltiple, cantidad =
+  noches); `Producto.cotizador_hospedaje` quedó con el mismo significado que
+  `cotizador_evento`/`cotizador_pasadia` (extra normal disponible para ese
+  servicio, ej. desayuno), no para marcar habitaciones — evitar esa
+  confusión de significado fue el motivo del primer intento fallido (los
+  tests fallaban porque la validación de "selecciona al menos una
+  habitación" filtraba por el campo equivocado). El propietario no necesita
+  dar de alta "Otoch" antes del deploy — lo hace él en el admin después,
+  mismo patrón que ya se usó para `rol_cotizador` en el PR #225.
+  **Horas siempre en 12h con a.m./p.m.** (pedido explícito, "no queremos
+  confusiones"): `core_erp/horarios.py::formato_hora_ampm()` es la fuente
+  única (no usa `strftime('%I:%M %p')`, que depende del locale del
+  servidor), usada por el cotizador, `ContratoService._fmt_hora` (afecta
+  también Evento/Pasadía/Arrendamiento, no solo Hospedaje — corrige de paso
+  un "10:00 — 19:00" en 24h que quedaba en la nota de Pasadía del
+  cotizador) y el filtro de plantilla `hora_ampm` (`comercial/templatetags/
+  qkt_horarios.py`) para el portal.
+  **Precios siempre con IVA incluido**: mismo criterio que ya usa
+  `api_paquetes_cotizador` — encontrado y corregido un bug de IVA doble en
+  el primer borrador del mockup (verificado también en Playwright: 3 noches
+  × $904.80 = $2,714.40 por habitación, suma exacta sin reconversión).
+  `DIAS_PAGO_TOTAL['HOSPEDAJE'] = 7` (igual que Pasadía, alineado con el
+  corte de 0% de reembolso de `politica_cancelacion_v2.0.md` §8) — propuesto
+  por Claude, no instruido explícitamente, documentado como tal en el Issue.
+  Verificado de punta a punta con navegador real (Playwright sobre
+  `runserver`, no solo tests): flujo completo con 2 habitaciones × 3 noches
+  crea la Cotizacion con `fecha_salida`/`noches` correctos, el portal
+  muestra check-in/check-out en a.m./p.m., el calendario admin pinta el
+  rango completo (`_construir_eventos_calendario`) y el contrato PDF se
+  genera sin errores. Tests en `comercial/test_hospedaje.py` (30), incluida
+  la exclusividad bidireccional en las 5 combinaciones (Hospedaje↔Airbnb,
+  ↔Evento, ↔Pasadía, ↔Arrendamiento, ↔otro Hospedaje con traslape a mitad
+  de estancia) y que una Cotizacion `BORRADOR` nunca bloquea, en ninguna
+  dirección.
+- 2026-08-17 — Se deja de usar Codex por completo (decisión del propietario,
+  categórica en la segunda mención: "ya de plano no lo vamos a utilizar para
+  nada, no me gustó, se quedó muy corto"). Ver "Planificación mediante
+  GitHub Issues" arriba: Claude implementa directo tras planificar, ya no
+  hay hand-off. Surgió durante el diseño de la línea de negocio Hospedaje
+  (Issue #230): ese Issue se escribió bajo el flujo viejo (plan sin
+  implementar, para que Codex lo tomara) y se queda como estaba de
+  referencia/bitácora, pero su ejecución la hace Claude, no Codex.
+- 2026-08-17 — `USE_THOUSAND_SEPARATOR = True` (settings.py) formatea con coma
+  **cualquier entero** que se imprima crudo en una plantilla (`{{ anio }}` →
+  "2,026"), no solo montos. El único lugar del ERP donde esto pasaba de verdad
+  eran los selects de año armados a mano en `airbnb/`: tres orígenes en Python
+  (`PagoAirbnbAdmin.changelist_view`, `reporte_pagos_airbnb`,
+  `conciliacion_depositos_airbnb`) pasan `anio`/`año` como `int` a 4 plantillas
+  (`pagoairbnb/change_list.html`, `conciliacion_depositos.html`,
+  `reporte_pagos.html`, `reporte_fiscal_airbnb.html`). El daño real no era solo
+  visual: en el PDF fiscal el folio salía `RPT-AIRBNB-2,0267` en vez de
+  `RPT-AIRBNB-202607` — un documento fiscal con folio corrupto. El `list_filter`
+  nativo de Django (ej. `ConciliacionBancariaAdmin` con `'anio'`) **no tiene este
+  bug**: `AllValuesFieldListFilter.choices()` ya hace `str(val)` antes de
+  renderizar, así que solo los años armados a mano con `{% for a in anios %}`
+  estaban expuestos. Fix: `{{ anio|stringformat:"d" }}` en cada uno de los 8
+  sitios — fuerza texto plano vía `%d` de Python, inmune a la localización de
+  números; no se tocó `USE_THOUSAND_SEPARATOR` porque ahí sí se necesita para
+  los montos en pesos en todo el resto del ERP. Grep de auditoría que confirma
+  que no queda ninguno suelto: `grep -rnoE "\{\{[^}]*\}\}" --include=*.html . |
+  grep -E "año|anio" | grep -v "stringformat\|date:"`. Verificado con Playwright
+  contra el servidor real (no solo el código): el `<option>` del filtro de año
+  renderiza "2026" limpio en `value` y en texto, y el PDF fiscal generado con
+  WeasyPrint (extraído con `pdfplumber`, ya que `response.body()` de Playwright
+  al navegar directo a un PDF devuelve el HTML del visor de Chromium, no los
+  bytes — hay que usar `request.new_context()` en su lugar) trae
+  `RPT-AIRBNB-202607`.
 - 2026-08-17 — Mínimo a pagar por tipo de servicio y cercanía de la fecha
   (pedido del propietario tras el fix del cotizador). `monto_minimo_pago_detalle()`
   (`comercial/models.py`) exigía **50% siempre** en el primer pago; ahora
