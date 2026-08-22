@@ -40,6 +40,7 @@ from comercial.views_portal import (
     portal_acceso,
     portal_descargar_contrato,
     portal_descargar_cotizacion,
+    portal_descargar_guia,
     portal_descargar_plan,
     portal_evento,
 )
@@ -196,6 +197,7 @@ urlpatterns = [
     path('mi-evento/<str:token>/cotizacion.pdf', portal_descargar_cotizacion, name='portal_descargar_cotizacion'),
     path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
     path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),
+    path('mi-evento/<str:token>/guia.pdf', portal_descargar_guia, name='portal_descargar_guia'),
     path('mi-evento/<str:token>/pagar-openpay/', portal_procesar_pago_openpay, name='portal_procesar_pago_openpay'),
     path('mi-evento/<str:token>/pago-3ds/', portal_retorno_3ds, name='portal_retorno_3ds'),
     path('mi-evento/<str:token>/ficha-paynet/<str:openpay_id>.pdf',

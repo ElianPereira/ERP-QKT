@@ -62,6 +62,9 @@ _REMITENTE_POR_TIPO = {
     'CONFIRMACION_PAGO': 'EMAIL_FROM_PAGOS',
     'REEMBOLSO': 'EMAIL_FROM_PAGOS',
     'RECORDATORIO_PAGO': 'EMAIL_FROM_PAGOS',
+    # Guía pre-evento (Issue #234): contenido cliente-facing antes del
+    # evento/pasadía/hospedaje, mismo remitente que COTIZACION.
+    'EVENTO_PROXIMO': 'EMAIL_FROM_RESERVAS',
 }
 
 

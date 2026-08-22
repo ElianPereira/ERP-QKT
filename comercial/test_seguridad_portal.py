@@ -150,6 +150,7 @@ class PortalExpiradoUnifica404Test(TestCase):
             reverse('portal_descargar_cotizacion', args=[token]),
             reverse('portal_descargar_plan', args=[token]),
             reverse('portal_descargar_contrato', args=[token]),
+            reverse('portal_descargar_guia', args=[token]),
             reverse('portal_ficha_paynet', args=[token, 'tx-inexistente']),
             reverse('portal_retorno_3ds', args=[token]),
         ]

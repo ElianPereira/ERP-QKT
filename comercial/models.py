@@ -1828,6 +1828,27 @@ class TipoEvento(models.Model):
         return self.nombre
 
 
+class GuiaTipoServicio(models.Model):
+    """PDF de guía informativa que se manda automáticamente antes de la fecha
+    de un Evento/Pasadía/Hospedaje confirmado (Issue #234). Uno por tipo de
+    servicio; Arrendamiento de Mobiliario no aplica, no tiene un sitio físico
+    al que llegar el día del evento."""
+    TIPOS_CON_GUIA = [c for c in Cotizacion.TIPO_SERVICIO_CHOICES if c[0] != 'ARRENDAMIENTO']
+
+    tipo_servicio = models.CharField(
+        max_length=15, choices=TIPOS_CON_GUIA, unique=True, verbose_name="Tipo de servicio"
+    )
+    archivo_pdf = models.FileField(upload_to='guias_servicio/', verbose_name="PDF de la guía")
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Guía por tipo de servicio"
+        verbose_name_plural = "Guías por tipo de servicio"
+
+    def __str__(self):
+        return f"Guía — {self.get_tipo_servicio_display()}"
+
+
 class Temporada(models.Model):
     """Rango de fechas etiquetado (ej. 'Temporada Alta Verano 2026').
     Se usa como condición de vigencia de descuentos por fecha de evento."""

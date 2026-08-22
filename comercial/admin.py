@@ -28,6 +28,7 @@ from .models import (
     Espacio,
     EspacioLanding,
     Gasto,
+    GuiaTipoServicio,
     ImagenLanding,
     Insumo,
     ItemCotizacion,
@@ -1589,6 +1590,14 @@ class TipoEventoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'orden', 'activo')
     list_editable = ('orden', 'activo')
     ordering = ('orden', 'nombre')
+
+
+@admin.register(GuiaTipoServicio)
+class GuiaTipoServicioAdmin(admin.ModelAdmin):
+    """Sube/reemplaza el PDF que se manda automáticamente antes del evento
+    (comunicacion.enviar_guias, Issue #234). Solo 3 filas posibles (una por
+    tipo_servicio con guía), no hace falta ninguna pantalla más elaborada."""
+    list_display = ('tipo_servicio', 'archivo_pdf', 'actualizado_en')
 
 
 @admin.register(Temporada)

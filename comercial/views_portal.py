@@ -33,6 +33,7 @@ from core_erp.ratelimit import (
 from .models import (
     Cotizacion,
     EspacioLanding,
+    GuiaTipoServicio,
     ImagenLanding,
     PlanPago,
     PortalCliente,
@@ -309,6 +310,37 @@ def portal_descargar_contrato(request, token):
         archivo,
         as_attachment=False,
         filename=f'Contrato_COT-{cotizacion.id:03d}.pdf',
+        content_type='application/pdf',
+    )
+    respuesta['Cache-Control'] = 'private, no-store'
+    return respuesta
+
+
+@_rate_limit(key='portal_descargar_guia', limit=10, window=60)
+def portal_descargar_guia(request, token):
+    """Sirve el PDF de la guía informativa del tipo de servicio de la cotización.
+
+    Es el enlace que manda el WhatsApp de `notificar_guia_evento` (Issue #234)
+    — el email adjunta el PDF directamente, esta vista es solo para el canal
+    que no puede llevar el archivo adjunto sin una plantilla de Meta más lenta
+    de aprobar.
+    """
+    portal = _portal_vigente_o_404(token)
+    cotizacion = portal.cotizacion
+
+    guia = GuiaTipoServicio.objects.filter(tipo_servicio=cotizacion.tipo_servicio).first()
+    if not guia or not guia.archivo_pdf:
+        raise Http404("La guía no está disponible en este momento.")
+
+    try:
+        archivo = guia.archivo_pdf.open('rb')
+    except (FileNotFoundError, OSError):
+        raise Http404("La guía no está disponible en este momento.") from None
+
+    respuesta = FileResponse(
+        archivo,
+        as_attachment=False,
+        filename=f'Guia_{cotizacion.get_tipo_servicio_display()}.pdf',
         content_type='application/pdf',
     )
     respuesta['Cache-Control'] = 'private, no-store'
