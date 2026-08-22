@@ -319,13 +319,18 @@ def notificar_recordatorio(parcialidad, *, fecha, dias_restantes=None):
 # ────────────────────────── Guía pre-evento (Issue #234) ────────────────────
 
 # Domicilio único de Quinta Ko'ox Tanil (mismo texto que legal/documentos_iniciales/
-# reglamento_v1.1.md §1), fuente para el enlace de Google Maps de la guía.
+# reglamento_v1.1.md §1), solo para referencia en el cuerpo del mensaje.
 DOMICILIO_QKT = "Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán"
 
-
-def _maps_url(direccion: str) -> str:
-    from urllib.parse import quote
-    return f"https://www.google.com/maps/search/?api=1&query={quote(direccion)}"
+# Ficha real de Google Maps del negocio (confirmada por el propietario), no un
+# enlace de búsqueda genérico armado a partir del texto del domicilio: apunta
+# directo a la ficha con reseñas/fotos en vez de a un resultado de búsqueda
+# que podría no coincidir con el lugar exacto.
+MAPS_URL_QKT = (
+    "https://www.google.com/maps/place/Quinta+Ko%C2%B4ox+Tanil/"
+    "@20.8889293,-89.7032089,17z/data=!3m1!4b1!4m6!3m5!"
+    "1s0x8f5613ea09962ecf:0x3a487596f790346c!8m2!3d20.8889293!4d-89.7032089!16s%2Fg%2F11h8f9592m"
+)
 
 
 def notificar_guia_evento(cotizacion):
@@ -371,7 +376,7 @@ def notificar_guia_evento(cotizacion):
         return
 
     portal = url_portal(cotizacion)
-    maps_url = _maps_url(DOMICILIO_QKT)
+    maps_url = MAPS_URL_QKT
 
     if cliente.email:
         try:

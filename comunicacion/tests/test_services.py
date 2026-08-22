@@ -37,13 +37,15 @@ from .utils import (
 
 class NormalizarTelefonoTest(TestCase):
     def test_formatos_mexicanos(self):
-        self.assertEqual(normalizar_telefono_wa('9991234567'), '5219991234567')
-        self.assertEqual(normalizar_telefono_wa('529991234567'), '5219991234567')
-        self.assertEqual(normalizar_telefono_wa('5219991234567'), '5219991234567')
+        self.assertEqual(normalizar_telefono_wa('9991234567'), '529991234567')
+        self.assertEqual(normalizar_telefono_wa('529991234567'), '529991234567')
+        # El '1' extra ya no lo exige Meta; una entrada heredada con él se
+        # normaliza igual al formato correcto, no se deja pasar tal cual.
+        self.assertEqual(normalizar_telefono_wa('5219991234567'), '529991234567')
 
     def test_ignora_separadores(self):
-        self.assertEqual(normalizar_telefono_wa('(999) 123-45 67'), '5219991234567')
-        self.assertEqual(normalizar_telefono_wa('+52 999 123 4567'), '5219991234567')
+        self.assertEqual(normalizar_telefono_wa('(999) 123-45 67'), '529991234567')
+        self.assertEqual(normalizar_telefono_wa('+52 999 123 4567'), '529991234567')
 
     def test_valores_invalidos(self):
         for entrada in ('', None, 'sin dígitos', '123', '12345678'):
@@ -55,7 +57,7 @@ class NormalizarTelefonoTest(TestCase):
         self.assertEqual(normalizar_telefono_wa('12345678'), '')
 
     def test_telefono_seguro_solo_expone_ultimos_cuatro(self):
-        seguro = telefono_seguro('5219991234567')
+        seguro = telefono_seguro('529991234567')
         self.assertEqual(seguro, '…4567')
         self.assertNotIn('999123', seguro)
 

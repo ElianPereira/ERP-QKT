@@ -83,6 +83,41 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-22 — Dos correcciones tras la primera prueba en producción de la
+  guía pre-evento (Issue #234, entrada de abajo): **(1)** `normalizar_telefono_wa()`
+  (`comunicacion/services.py`, compartida por TODO WhatsApp del sistema —
+  cotización, pago, recordatorio, alerta interna y ahora guía) anteponía un
+  `1` extra a los celulares mexicanos (`521XXXXXXXXXX`). Ese `1` fue un
+  requisito real de la Graph API en algún momento, pero Meta dejó de
+  exigirlo — mandar con él hoy no da error (la API responde 200) pero el
+  mensaje no le llega al número correcto. Confirmado con una prueba real: un
+  WhatsApp a `5219992689400` no llegó, a `529992689400` sí. La función pasa
+  a devolver `52XXXXXXXXXX` (12 dígitos, sin el `1`) como forma canónica; una
+  entrada que ya venga con el `1` de más (dato heredado) se normaliza igual,
+  no se deja pasar tal cual. Como esta función es compartida, el fix aplica
+  a **todos** los canales de WhatsApp del ERP, no solo a la guía — no hay
+  forma de arreglarlo solo para un caso sin duplicar la función. **(2)** El
+  enlace de Google Maps de la guía usaba `_maps_url()`, que armaba una URL
+  de **búsqueda genérica** a partir del texto del domicilio
+  (`google.com/maps/search/?q=<domicilio>`) — no apuntaba a la ficha real
+  del negocio en Maps. Se reemplazó por `MAPS_URL_QKT`, la URL real de la
+  ficha de "Quinta Ko'ox Tanil" en Google Maps (confirmada por el
+  propietario, con reseñas y fotos), fija en vez de armada por código.
+  Ambos bugs se encontraron mandando una cotización de prueba real
+  (`estado='CONFIRMADA'`, `fecha_evento` = hoy+3, teléfono/correo del propio
+  propietario) y corriendo el cron `enviar_guias` manualmente desde Railway
+  ("Run now") — no en tests: los tests con números `555...` mockeados no
+  habrían detectado ninguno de los dos porque nunca comparan contra un
+  número o una URL reales. Detalle no obvio de la prueba: el primer intento
+  falló por variables de entorno faltantes en el servicio del cron
+  (`CLOUDFLARE_R2_ACCOUNT_ID` y `EMAIL_FROM_RESERVAS`, no copiadas al
+  duplicar el servicio de `enviar_recordatorios` en Railway) — eso dejó dos
+  `ComunicacionCliente` en estado `FALLIDO` con la `clave_idempotencia` ya
+  reservada, así que la siguiente corrida (ya con las variables corregidas)
+  no reintentó nada hasta borrar esos dos registros a mano: el diseño de
+  idempotencia de este módulo reserva la clave **antes** de intentar el
+  envío, así que un fallo de configuración también bloquea reintentos, no
+  solo un envío exitoso.
 - 2026-08-22 — Guía pre-evento automática (Issue #234): 3 días antes de la
   `fecha_evento` de una `Cotizacion` **confirmada** de tipo Evento, Pasadía u
   Hospedaje, el cron nuevo `comunicacion.enviar_guias` manda un email corto
