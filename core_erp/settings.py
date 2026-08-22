@@ -474,11 +474,6 @@ JAZZMIN_SETTINGS = {
         "auth.user":                        "fas fa-user",
         "auth.group":                       "fas fa-users-cog",
 
-        # 2FA (django_otp) — sección propia, renombrada y ordenada justo
-        # después de auth.group (ver core_erp.apps.QktAuthConfig.ready()).
-        "otp_totp":                          "fas fa-shield-alt",
-        "otp_totp.totpdevice":               "fas fa-mobile-alt",
-
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-clipboard-list",
@@ -562,10 +557,6 @@ JAZZMIN_SETTINGS = {
         "auth",
         "auth.user",
         "auth.group",
-
-        # === 2FA ===
-        "otp_totp",
-        "otp_totp.totpdevice",
     ],
 
     "custom_css": "css/admin_fix.css",
@@ -574,6 +565,22 @@ JAZZMIN_SETTINGS = {
     # Los grupos del menú (Eventos & Servicios, etc.) inician colapsados;
     # un clic en el título muestra/oculta sus submódulos.
     "navigation_expanded": False,
+
+    # django_otp (2FA, orden 42/SEC-AUTHN-002) trae su propia sección
+    # autogenerada "Otp_Totp"; se oculta y en su lugar se agrega un enlace
+    # dentro de "auth" (Autenticación y Usuarios) al mismo changelist de
+    # TOTPDevice — queda fusionado de verdad en un solo grupo del menú, sin
+    # crear un proxy con app_label='auth' (eso exigiría una migración dentro
+    # del propio paquete django.contrib.auth, fuera del repo — inviable).
+    "hide_apps": ["otp_totp"],
+    "custom_links": {
+        "auth": [{
+            "name": "Dispositivos TOTP (2FA)",
+            "url": "admin:otp_totp_totpdevice_changelist",
+            "icon": "fas fa-mobile-alt",
+            "permissions": ["auth.view_user"],
+        }],
+    },
 }
 
 JAZZMIN_UI_TWEAKS = {

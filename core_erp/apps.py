@@ -1,4 +1,3 @@
-from django.apps import apps
 from django.contrib.auth.apps import AuthConfig
 
 
@@ -20,13 +19,3 @@ class QktAuthConfig(AuthConfig):
 
         user_login_failed.connect(_fallo, dispatch_uid='qkt_login_fallido', weak=False)
         user_logged_in.connect(_exito, dispatch_uid='qkt_login_exitoso', weak=False)
-
-        # Renombra la sección del admin de django_otp (2FA, orden 42/
-        # SEC-AUTHN-002) para que se lea junto a "Autenticación y Usuarios"
-        # en vez de su nombre autogenerado "Otp_Totp". Solo cambia el título
-        # visible del grupo (Jazzmin lee app_config.verbose_name al
-        # renderizar el menú) — el modelo sigue siendo TOTPDevice normal de
-        # django_otp, sin proxy ni migración nueva: un proxy con
-        # app_label='auth' obligaría a una migración dentro del propio
-        # paquete django.contrib.auth (fuera del repo), inviable.
-        apps.get_app_config('otp_totp').verbose_name = 'Autenticación (2FA)'
