@@ -85,8 +85,13 @@ def normalizar_telefono_wa(telefono) -> str:
     Normaliza un teléfono al formato que espera WhatsApp Cloud API: dígitos sin
     '+', con código de país. Devuelve '' si no se puede validar.
 
-    Solo resuelve números mexicanos (`521` + 10 dígitos). Un número extranjero
-    ya normalizado se devuelve tal cual si trae entre 11 y 15 dígitos.
+    Solo resuelve números mexicanos (`52` + 10 dígitos, SIN el '1' adicional
+    que Meta exigía antes para celulares en México — lo dejó de requerir hace
+    tiempo, y mandarlo hoy hace que el mensaje no llegue al destinatario
+    correcto, aunque la Graph API responda 200. Un '521' + 10 dígitos que
+    llegue como entrada (dato heredado, o alguien lo escribió así a mano) se
+    normaliza igual al formato correcto. Un número extranjero ya normalizado
+    se devuelve tal cual si trae entre 11 y 15 dígitos.
     """
     if not telefono:
         return ''
@@ -94,13 +99,13 @@ def normalizar_telefono_wa(telefono) -> str:
     if not digitos:
         return ''
 
-    # México: 521XXXXXXXXXX es la forma canónica para celulares.
+    # México: 52XXXXXXXXXX (12 dígitos) es la forma canónica.
     if digitos.startswith('521') and len(digitos) == 13:
-        return digitos
+        return '52' + digitos[3:]
     if digitos.startswith('52') and len(digitos) == 12:
-        return '521' + digitos[2:]
+        return digitos
     if len(digitos) == 10:
-        return '521' + digitos
+        return '52' + digitos
 
     # Otros países: se acepta lo que ya venga con código de país (E.164 sin '+').
     if 11 <= len(digitos) <= 15:

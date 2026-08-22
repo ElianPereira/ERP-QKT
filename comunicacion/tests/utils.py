@@ -7,9 +7,9 @@ from comunicacion import services
 
 # Números ficticios: el rango 555 está reservado y nunca corresponde a una
 # persona real. Nunca poner aquí un teléfono del negocio ni de un cliente.
-TEL_CLIENTE = '5215555550001'
-TEL_NEGOCIO = '5215555550002'
-TEL_EMISOR = '5215555550003'
+TEL_CLIENTE = '525555550001'
+TEL_NEGOCIO = '525555550002'
+TEL_EMISOR = '525555550003'
 
 WA_SETTINGS = dict(
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
