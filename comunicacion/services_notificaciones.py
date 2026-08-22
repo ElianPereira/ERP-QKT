@@ -316,6 +316,119 @@ def notificar_recordatorio(parcialidad, *, fecha, dias_restantes=None):
     )
 
 
+# ────────────────────────── Guía pre-evento (Issue #234) ────────────────────
+
+# Domicilio único de Quinta Ko'ox Tanil (mismo texto que legal/documentos_iniciales/
+# reglamento_v1.1.md §1), fuente para el enlace de Google Maps de la guía.
+DOMICILIO_QKT = "Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán"
+
+
+def _maps_url(direccion: str) -> str:
+    from urllib.parse import quote
+    return f"https://www.google.com/maps/search/?api=1&query={quote(direccion)}"
+
+
+def notificar_guia_evento(cotizacion):
+    """
+    Guía informativa (PDF) antes de un Evento/Pasadía/Hospedaje confirmado.
+
+    Se manda una sola vez por cotización —la clave de idempotencia no lleva
+    fecha de ejecución, a diferencia de `notificar_recordatorio` que sí se
+    repite en varios cortes— así que correr el cron varias veces no duplica
+    ni reintenta un envío ya reservado.
+
+    El email adjunta el PDF directamente (`enviar_email(..., adjuntos=...)`).
+    El WhatsApp no lleva el PDF adjunto —requeriría una plantilla tipo
+    "documento" aprobada por Meta, más lenta— sino un enlace a
+    `portal_descargar_guia`, protegido por el token del portal igual que el
+    resto de descargas.
+    """
+    from comercial.models import GuiaTipoServicio
+
+    cliente = getattr(cotizacion, 'cliente', None)
+    if cliente is None:
+        return
+
+    guia = GuiaTipoServicio.objects.filter(tipo_servicio=cotizacion.tipo_servicio).first()
+    if guia is None or not guia.archivo_pdf:
+        logger.warning(
+            "COT-%s: no hay GuiaTipoServicio configurada para %s; la guía no se envía",
+            cotizacion.pk, cotizacion.tipo_servicio,
+        )
+        _seguro(
+            'avisar al equipo que falta la guía configurada',
+            alertar_equipo_email,
+            cotizacion,
+            asunto=f"⚠️ Falta la guía de {cotizacion.get_tipo_servicio_display()} — COT-{cotizacion.pk:03d}",
+            cuerpo=(
+                f"La cotización COT-{cotizacion.pk:03d} ({cotizacion.get_tipo_servicio_display()}) "
+                f"tiene fecha de evento el {cotizacion.fecha_evento} y le tocaba recibir "
+                f"la guía automática, pero no hay un PDF configurado en Guías por tipo de "
+                f"servicio. Súbelo desde el admin para que el próximo caso sí se envíe."
+            ),
+            clave_idempotencia=f"guia:{cotizacion.pk}:falta_config",
+        )
+        return
+
+    portal = url_portal(cotizacion)
+    maps_url = _maps_url(DOMICILIO_QKT)
+
+    if cliente.email:
+        try:
+            contenido_pdf = guia.archivo_pdf.read()
+        except Exception:
+            logger.exception("COT-%s: no se pudo leer el PDF de la guía", cotizacion.pk)
+            contenido_pdf = None
+
+        adjuntos = []
+        if contenido_pdf:
+            nombre_archivo = f"Guia_{cotizacion.get_tipo_servicio_display()}.pdf"
+            adjuntos = [(nombre_archivo, contenido_pdf, 'application/pdf')]
+
+        _seguro(
+            'enviar el email de guía pre-evento',
+            enviar_email,
+            cotizacion=cotizacion,
+            tipo='EVENTO_PROXIMO',
+            destinatario=cliente.email,
+            asunto=f"Tu guía — {cotizacion.nombre_evento}",
+            template='comunicacion/email/guia_evento.html',
+            context={
+                'cotizacion': cotizacion,
+                'portal_url': portal,
+                'maps_url': maps_url,
+                'wa_numero': normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', '')),
+            },
+            trigger='CRON',
+            adjuntos=adjuntos,
+            clave_idempotencia=f"guia:{cotizacion.pk}:email",
+        )
+
+    telefono = _telefono(cliente)
+    if not telefono:
+        return
+
+    # Enlace a la descarga protegida del portal, no al PDF directo: la vista
+    # resuelve el tipo de servicio de la cotización y sirve el archivo, sin
+    # exponer la URL real del storage.
+    url_guia = f"{portal}guia.pdf" if portal else ''
+    _seguro(
+        'enviar el WhatsApp de guía pre-evento',
+        enviar_whatsapp_template,
+        cotizacion=cotizacion,
+        tipo='EVENTO_PROXIMO',
+        telefono=telefono,
+        template_name=_plantilla('WA_TEMPLATE_GUIA'),
+        parametros=[
+            _nombre_pila(cliente),
+            _fecha(cotizacion.fecha_evento),
+            url_guia,
+        ],
+        trigger='CRON',
+        clave_idempotencia=f"guia:{cotizacion.pk}:whatsapp",
+    )
+
+
 # ─────────────────────────── Alerta interna al equipo ───────────────────────
 
 def alertar_equipo_nueva_cotizacion(cotizacion):

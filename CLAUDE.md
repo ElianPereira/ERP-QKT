@@ -83,6 +83,49 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-22 — Guía pre-evento automática (Issue #234): 3 días antes de la
+  `fecha_evento` de una `Cotizacion` **confirmada** de tipo Evento, Pasadía u
+  Hospedaje, el cron nuevo `comunicacion.enviar_guias` manda un email corto
+  con el PDF de la guía adjunto y un WhatsApp con enlace de descarga —
+  Arrendamiento de Mobiliario no aplica (no tiene un sitio físico al que
+  llegar) y Airbnb queda fuera por construcción (`ReservaAirbnb` no tiene
+  relación con `Cotizacion`). El PDF real —uno por tipo de servicio, ya
+  armado por el propietario— se sube desde `comercial.GuiaTipoServicio` en el
+  admin; no se generó ningún contenido de "qué llevar" en código, vive
+  íntegro en el PDF. **Por qué WhatsApp no lleva el PDF adjunto**: Meta exige
+  una plantilla tipo "documento" para adjuntar un archivo fuera de la ventana
+  de 24 h, más lenta de aprobar que una de solo texto — en su lugar manda un
+  enlace a `portal_descargar_guia` (`/mi-evento/<token>/guia.pdf`), protegido
+  por el token del portal igual que `portal_descargar_contrato`, con
+  `@rate_limit` como el resto de descargas del portal (convención no
+  opcional en este repo, ver Issue #190). `remitente_por_tipo()` gana
+  `'EVENTO_PROXIMO': 'EMAIL_FROM_RESERVAS'` — es contenido cliente-facing
+  antes del evento, mismo remitente que `COTIZACION`, no `EMAIL_FROM_
+  NOTIFICACIONES` (reservado para alertas internas). El tipo `EVENTO_PROXIMO`
+  ya existía declarado en `ComunicacionCliente.TIPO_CHOICES` desde el diseño
+  original (Issue #181) pero nunca se había cableado a ningún código — es la
+  primera vez que se usa. La clave de idempotencia (`f"guia:{cotizacion.pk}:
+  canal"`) **no lleva fecha de ejecución**, a diferencia de
+  `notificar_recordatorio()`: la guía se manda una sola vez por cotización,
+  no se repite en varios cortes, así que no hace falta distinguir corridas
+  de días distintos. Si no hay `GuiaTipoServicio` configurada para el tipo de
+  servicio de una cotización elegible, el comando no truena ni manda nada
+  roto al cliente: se salta esa cotización y avisa al equipo interno vía
+  `alertar_equipo_email()` (mismo mecanismo que otras alertas operativas) —
+  cubierto con test dedicado (`test_sin_guia_configurada_no_rompe_el_comando`).
+  Dos tareas externas, ninguna bloqueante para el email: dar de alta el Cron
+  Job `enviar_guias` en Railway (vive fuera del repo, mismo patrón que
+  `enviar_recordatorios`, Issue #181) y someter `WA_TEMPLATE_GUIA` a
+  aprobación de Meta Business Manager — sin ella el WhatsApp queda `FALLIDO`
+  y auditado sin bloquear el email, verificado con test
+  (`test_sin_whatsapp_configurado_el_email_igual_se_manda`). El propio Issue
+  #234 se planificó y luego se implementó en la misma sesión —conversación
+  directa con el propietario vía `AskUserQuestion` para resolver alcance
+  (Hospedaje sí, Arrendamiento no), canal (email + WhatsApp), calendario (un
+  solo aviso, 3 días antes), filtro de estado (solo `CONFIRMADA`) y el hecho
+  de que el contenido extenso vive en PDFs que el propietario ya tiene armados,
+  no en texto libre dentro del mensaje— siguiendo el flujo vigente desde el
+  Issue #231 (Claude implementa directo, sin hand-off a Codex).
 - 2026-08-19 — Nueva línea de negocio Hospedaje (Issue #230), implementada
   directo por Claude sin pasar por Codex (decisión del propietario del
   2026-08-17, ver entrada de abajo). Reservas de estancia corta —
