@@ -1,0 +1,42 @@
+{% extends "comunicacion/email/base.html" %}
+{% load qkt_horarios %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Tu guía — {{ cotizacion.nombre_evento }}</h2>
+
+{% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+<p>Hola {{ cotizacion.cliente.nombre }}, tu hospedaje se acerca. Aquí tienes lo que necesitas saber antes de llegar.</p>
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">Check-in:</td><td style="padding:8px;"><strong>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</strong>, a partir de las 2:00 p.m.</td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Check-out:</td><td style="padding:8px;"><strong>{{ cotizacion.fecha_salida|date:"d/m/Y" }}</strong>, antes de las 10:00 a.m.</td></tr>
+</table>
+{% elif cotizacion.tipo_servicio == 'PASADIA' %}
+<p>Hola {{ cotizacion.cliente.nombre }}, tu pasadía se acerca. Aquí tienes lo que necesitas saber.</p>
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">Fecha:</td><td style="padding:8px;"><strong>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</strong></td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Horario:</td><td style="padding:8px;">11:00 a.m. a 7:00 p.m.</td></tr>
+</table>
+{% else %}
+<p>Hola {{ cotizacion.cliente.nombre }}, tu evento se acerca. Aquí tienes lo que necesitas saber.</p>
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">Fecha:</td><td style="padding:8px;"><strong>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</strong></td></tr>
+  {% if cotizacion.hora_inicio and cotizacion.hora_fin %}
+  <tr><td style="padding:8px;background:#f9f9f9;">Horario:</td><td style="padding:8px;">{{ cotizacion.hora_inicio|hora_ampm }} a {{ cotizacion.hora_fin|hora_ampm }}</td></tr>
+  {% endif %}
+</table>
+{% endif %}
+
+<p>📍 <strong>Ubicación:</strong> Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán —
+<a href="{{ maps_url }}">ver en Google Maps</a>.</p>
+
+<p>Te adjuntamos tu guía completa en PDF, con toda la información: qué llevar, reglas del lugar y más.</p>
+
+{% if portal_url %}
+<p style="text-align:center;margin:25px 0;">
+  <a href="{{ portal_url }}" style="background:#2E7D32;color:#F5C518;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:bold;">Ver mi evento</a>
+</p>
+{% endif %}
+
+{% if wa_numero %}
+<p>¿Dudas? Escríbenos por WhatsApp: <a href="https://wa.me/{{ wa_numero }}">+{{ wa_numero }}</a></p>
+{% endif %}
+{% endblock %}

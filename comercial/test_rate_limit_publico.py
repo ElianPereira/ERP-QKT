@@ -81,6 +81,9 @@ class PortalDescargasRateLimitTest(TestCase):
     def test_portal_descargar_contrato_bloquea_tras_diez_peticiones(self):
         self._agota_y_verifica_429('portal_descargar_contrato')
 
+    def test_portal_descargar_guia_bloquea_tras_diez_peticiones(self):
+        self._agota_y_verifica_429('portal_descargar_guia')
+
     def test_cada_vista_tiene_su_propio_cupo(self):
         # Agotar portal_evento no debe afectar a portal_descargar_plan: cada
         # vista usa una key de bucket distinta en @_rate_limit.

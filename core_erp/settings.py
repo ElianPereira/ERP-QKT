@@ -290,6 +290,9 @@ WA_TEMPLATE_LANGUAGE = config('WA_TEMPLATE_LANGUAGE', default='es_MX')
 WA_TEMPLATE_COTIZACION = config('WA_TEMPLATE_COTIZACION', default='')
 WA_TEMPLATE_PAGO = config('WA_TEMPLATE_PAGO', default='')
 WA_TEMPLATE_RECORDATORIO = config('WA_TEMPLATE_RECORDATORIO', default='')
+# Guía pre-evento (Issue #234): enlace de descarga, nunca el PDF adjunto —
+# adjuntarlo requeriría una plantilla tipo "documento", más lenta de aprobar.
+WA_TEMPLATE_GUIA = config('WA_TEMPLATE_GUIA', default='')
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
 WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
