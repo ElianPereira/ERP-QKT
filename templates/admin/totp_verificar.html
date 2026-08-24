@@ -1,31 +1,81 @@
-{% extends "admin/base_site.html" %}
+{% extends "registration/base.html" %}
 
-{% block breadcrumbs %}
-<div class="breadcrumbs">
-<a href="{% url 'admin:index' %}">Inicio</a>
-› Verificar código de autenticación
-</div>
+{% block extrastyle %}
+<style>
+  .login-box{max-width:400px}
+  .totp-icon{width:56px;height:56px;border-radius:50%;background:rgba(40,167,69,.15);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.5rem;color:#28a745}
+  .totp-lead{text-align:center;color:var(--bs-secondary-color,#8a8a8a);margin-bottom:24px;font-size:.92rem}
+  .totp-code-boxes{display:flex;gap:8px;justify-content:center;margin-bottom:20px}
+  .totp-code-boxes input{width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:600;
+    border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.04);color:inherit}
+  .totp-code-boxes input:focus{outline:0;border-color:#28a745;box-shadow:0 0 0 .2rem rgba(40,167,69,.25)}
+  .totp-footer-link{text-align:center;margin-top:16px;font-size:.85rem}
+</style>
 {% endblock %}
 
 {% block content %}
-<h1>Verifica tu código de autenticación</h1>
-
-<div style="background:rgba(52,152,219,.12);border-left:4px solid #3498db;border-radius:4px;padding:16px;margin-bottom:20px;max-width:38em;line-height:1.6;">
-  Ingresa el código de 6 dígitos de tu app de autenticación para continuar.
-</div>
+<div class="totp-icon"><i class="fas fa-mobile-alt"></i></div>
+<p class="login-box-msg" style="margin-bottom:4px;">Verifica tu identidad</p>
+<p class="totp-lead">Ingresa el código de 6 dígitos de tu app de autenticación.</p>
 
 {% if messages %}
   {% for message in messages %}
-    <p style="color:#e74c3c;font-weight:600;">{{ message }}</p>
+    <div class="callout callout-danger"><p>{{ message }}</p></div>
   {% endfor %}
 {% endif %}
 
-<form method="post" style="max-width:38em;">
+<form method="post" id="totp-form">
   {% csrf_token %}
-  <label for="codigo">Código de 6 dígitos</label><br>
-  <input type="text" id="codigo" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus>
-  <button type="submit" style="background:#3498db;color:#fff;border:0;border-radius:4px;padding:8px 20px;font-weight:600;cursor:pointer;margin-left:8px;">
-    Verificar
-  </button>
+  <input type="hidden" name="codigo" id="codigo">
+  <div class="totp-code-boxes">
+    <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" autofocus>
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+  </div>
+  <div class="d-grid">
+    <button type="submit" class="btn btn-success">Verificar</button>
+  </div>
 </form>
+
+<div class="totp-footer-link">
+  <a href="{% url 'logout' %}">Cerrar sesión</a>
+</div>
+
+<script>
+(function() {
+  var boxes = document.querySelectorAll('.totp-code-boxes input');
+  var hidden = document.getElementById('codigo');
+
+  function sync() {
+    var valor = '';
+    boxes.forEach(function(b) { valor += b.value; });
+    hidden.value = valor;
+  }
+
+  boxes.forEach(function(box, i) {
+    box.addEventListener('input', function() {
+      box.value = box.value.replace(/[^0-9]/g, '');
+      if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+      sync();
+    });
+    box.addEventListener('keydown', function(e) {
+      if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
+    });
+    box.addEventListener('paste', function(e) {
+      var texto = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '');
+      if (!texto) return;
+      e.preventDefault();
+      for (var j = 0; j < boxes.length; j++) boxes[j].value = texto[j] || '';
+      sync();
+      boxes[Math.min(texto.length, boxes.length) - 1].focus();
+    });
+  });
+
+  document.getElementById('totp-form').addEventListener('submit', sync);
+})();
+</script>
 {% endblock %}
