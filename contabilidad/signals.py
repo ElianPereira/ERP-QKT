@@ -1030,6 +1030,12 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     Si la compra no tiene cuenta_pago y/o unidad_negocio asignados, la póliza
     se crea en estado BORRADOR (no aplicada) para que quede visible como
     pendiente de completar, en vez de asumir una cuenta o unidad por defecto.
+
+    Cuando una Compra en BORRADOR se completa después (se le asigna
+    cuenta_pago), este signal no hace nada por sí solo — este signal solo
+    corre al crear. Completar esa póliza es `contabilidad.services.
+    completar_poliza_compra()`, ya existente (acción "Completar con la
+    cuenta de pago de la Compra" en PolizaAdmin).
     """
     if not signals_enabled() or not created:
         return

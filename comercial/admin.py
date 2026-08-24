@@ -1077,6 +1077,7 @@ class GastoInline(admin.TabularInline):
 class CompraAdmin(admin.ModelAdmin):
     change_list_template = "comercial/compra_change_list.html"
     list_display = ('fecha_emision', 'proveedor', 'total_format', 'unidad_negocio', 'cuenta_pago', 'es_deducible', 'uuid', 'ver_pdf')
+    list_editable = ('es_deducible',)
     list_filter = ('fecha_emision', 'unidad_negocio', 'cuenta_pago', 'es_deducible')
     search_fields = ('proveedor__nombre', 'proveedor_nombre', 'uuid', 'rfc_emisor')
     date_hierarchy = 'fecha_emision'
@@ -1177,7 +1178,10 @@ class CompraAdmin(admin.ModelAdmin):
                     request,
                     f"{exitos} factura(s) del negocio procesada(s) correctamente. Sus líneas de gasto "
                     "quedaron en categoría 'Sin Clasificar' — revísalas y asigna la categoría correcta "
-                    "en cada Compra para que los reportes por categoría salgan bien."
+                    "en cada Compra para que los reportes por categoría salgan bien. Las que pertenecen "
+                    "a una unidad de negocio con una sola cuenta bancaria activa ya quedaron aplicadas "
+                    "solas; el resto se queda en BORRADOR hasta que subas el estado de cuenta del mes y "
+                    "uses ahí la acción «Sugerir y aplicar Compras pendientes»."
                 )
             if duplicadas > 0:
                 resumen_dup = "; ".join(motivos_duplicadas[:5])

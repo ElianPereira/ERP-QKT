@@ -35,7 +35,11 @@ from .services import (
     aprobar_regularizacion_arrastre,
     proponer_regularizacion_arrastre,
 )
-from .services_estados_cuenta import generar_conciliacion_preliminar, procesar_estado_cuenta
+from .services_estados_cuenta import (
+    aplicar_sugerencias_compras,
+    generar_conciliacion_preliminar,
+    procesar_estado_cuenta,
+)
 
 
 class MovimientoContableInline(admin.TabularInline):
@@ -963,7 +967,7 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
     ]
     list_filter = ['estado', 'cuenta_bancaria', 'periodo_anio']
     inlines = [MovimientoEstadoCuentaInline]
-    actions = ['procesar', 'generar_conciliacion']
+    actions = ['procesar', 'generar_conciliacion', 'sugerir_y_aplicar_compras']
     readonly_fields = ['resumen_display', 'saldo_inicial_estado', 'saldo_final_estado',
                        'fecha_corte_real', 'estado', 'error_detalle', 'conciliacion']
     fieldsets = [
@@ -1117,3 +1121,37 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
         for err in errores:
             self.message_user(request, err, level=messages.ERROR)
     generar_conciliacion.short_description = "Generar conciliación preliminar"
+
+    @confirmar_accion_destructiva(
+        "¿Sugerir y aplicar las Compras pendientes que calcen con los cargos sin "
+        "emparejar de este estado de cuenta? Para cada cargo con una única Compra "
+        "candidata (mismo importe y fecha cercana, de la misma unidad de negocio), "
+        "se le asignará la cuenta de pago y se aplicará su póliza. Los cargos con "
+        "más de una candidata o sin ninguna no se tocan — quedan para revisión manual."
+    )
+    def sugerir_y_aplicar_compras(self, request, queryset):
+        for ec in queryset:
+            aplicadas, ambiguas, sin_candidata = aplicar_sugerencias_compras(ec, request.user)
+            if aplicadas:
+                self.message_user(
+                    request,
+                    f"{ec}: {len(aplicadas)} Compra(s) emparejada(s) y aplicada(s). "
+                    "Quedan «Por revisar» en el inline de abajo hasta que las confirmes.",
+                    level=messages.SUCCESS,
+                )
+            if ambiguas:
+                self.message_user(
+                    request,
+                    f"{ec}: {len(ambiguas)} cargo(s) con más de una Compra candidata del "
+                    "mismo importe — no se asignaron solos, revísalos a mano.",
+                    level=messages.WARNING,
+                )
+            if sin_candidata:
+                self.message_user(
+                    request,
+                    f"{ec}: {len(sin_candidata)} cargo(s) sin ninguna Compra pendiente que calce.",
+                    level=messages.WARNING,
+                )
+            if not (aplicadas or ambiguas or sin_candidata):
+                self.message_user(request, f"{ec}: no hay cargos sin emparejar.", level=messages.INFO)
+    sugerir_y_aplicar_compras.short_description = "Sugerir y aplicar Compras pendientes"
