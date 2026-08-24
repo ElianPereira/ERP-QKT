@@ -1,41 +1,112 @@
-{% extends "admin/base_site.html" %}
+{% extends "registration/base.html" %}
+{% load static %}
 
-{% block breadcrumbs %}
-<div class="breadcrumbs">
-<a href="{% url 'admin:index' %}">Inicio</a>
-› Activar autenticación en dos pasos
-</div>
+{% block extrastyle %}
+<style>
+  .login-box{max-width:440px}
+  .totp-icon{width:56px;height:56px;border-radius:50%;background:rgba(40,167,69,.15);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.5rem;color:#28a745}
+  .totp-lead{text-align:center;color:var(--bs-secondary-color,#8a8a8a);margin-bottom:20px;font-size:.92rem}
+  .totp-qr-wrap{background:#fff;border-radius:10px;padding:16px;display:flex;justify-content:center;margin-bottom:16px}
+  .totp-qr-wrap img{width:190px;height:190px}
+  .totp-manual{background:rgba(255,255,255,.05);border-radius:8px;padding:12px 14px;margin-bottom:22px}
+  .totp-manual summary{cursor:pointer;font-size:.85rem;color:var(--bs-secondary-color,#8a8a8a)}
+  .totp-manual-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .totp-manual-row code{flex:1;font-size:.95rem;letter-spacing:.08em;word-break:break-all;background:transparent}
+  .totp-copy-btn{border:1px solid rgba(255,255,255,.15);background:transparent;color:inherit;
+    border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;white-space:nowrap}
+  .totp-copy-btn:hover{background:rgba(255,255,255,.08)}
+  .totp-code-boxes{display:flex;gap:8px;justify-content:center;margin-bottom:20px}
+  .totp-code-boxes input{width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:600;
+    border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.04);color:inherit}
+  .totp-code-boxes input:focus{outline:0;border-color:#28a745;box-shadow:0 0 0 .2rem rgba(40,167,69,.25)}
+  .totp-footer-link{text-align:center;margin-top:16px;font-size:.85rem}
+</style>
 {% endblock %}
 
 {% block content %}
-<h1>Activa la autenticación en dos pasos</h1>
-
-<div style="background:rgba(52,152,219,.12);border-left:4px solid #3498db;border-radius:4px;padding:16px;margin-bottom:20px;max-width:38em;line-height:1.6;">
-  Tu cuenta tiene privilegios de superusuario. Antes de continuar, escanea
-  este código con una app de autenticación (Google Authenticator, Authy,
-  1Password, etc.) y confirma el código de 6 dígitos que te muestre.
-</div>
+<div class="totp-icon"><i class="fas fa-shield-alt"></i></div>
+<p class="login-box-msg" style="margin-bottom:4px;">Protege tu cuenta con 2FA</p>
+<p class="totp-lead">
+  Tu cuenta tiene privilegios de superusuario y requiere un segundo factor.
+  Escanea el código con tu app de autenticación (Google Authenticator,
+  Authy, 1Password…) y confirma el código de 6 dígitos.
+</p>
 
 {% if messages %}
   {% for message in messages %}
-    <p style="color:#e74c3c;font-weight:600;">{{ message }}</p>
+    <div class="callout callout-danger"><p>{{ message }}</p></div>
   {% endfor %}
 {% endif %}
 
-<div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;max-width:38em;">
-  <img src="{{ qr_data_uri }}" alt="Código QR para activar TOTP" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:4px;">
-  <div>
-    <p>¿No puedes escanear el código? Ingresa esta clave manualmente:</p>
-    <code style="font-size:1.1em;letter-spacing:.1em;">{{ secreto_manual }}</code>
-
-    <form method="post" style="margin-top:20px;">
-      {% csrf_token %}
-      <label for="codigo">Código de 6 dígitos</label><br>
-      <input type="text" id="codigo" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus>
-      <button type="submit" style="background:#3498db;color:#fff;border:0;border-radius:4px;padding:8px 20px;font-weight:600;cursor:pointer;margin-left:8px;">
-        Activar
-      </button>
-    </form>
-  </div>
+<div class="totp-qr-wrap">
+  <img src="{{ qr_data_uri }}" alt="Código QR para activar la autenticación en dos pasos">
 </div>
+
+<details class="totp-manual">
+  <summary>¿No puedes escanear el código? Ingresa la clave manualmente</summary>
+  <div class="totp-manual-row">
+    <code id="totp-secreto">{{ secreto_manual }}</code>
+    <button type="button" class="totp-copy-btn" onclick="totpCopiarSecreto()">Copiar</button>
+  </div>
+</details>
+
+<form method="post" id="totp-form">
+  {% csrf_token %}
+  <input type="hidden" name="codigo" id="codigo">
+  <div class="totp-code-boxes">
+    <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" autofocus>
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+    <input type="text" inputmode="numeric" maxlength="1">
+  </div>
+  <div class="d-grid">
+    <button type="submit" class="btn btn-success">Activar</button>
+  </div>
+</form>
+
+<div class="totp-footer-link">
+  <a href="{% url 'logout' %}">Cerrar sesión</a>
+</div>
+
+<script>
+(function() {
+  var boxes = document.querySelectorAll('.totp-code-boxes input');
+  var hidden = document.getElementById('codigo');
+
+  function sync() {
+    var valor = '';
+    boxes.forEach(function(b) { valor += b.value; });
+    hidden.value = valor;
+  }
+
+  boxes.forEach(function(box, i) {
+    box.addEventListener('input', function() {
+      box.value = box.value.replace(/[^0-9]/g, '');
+      if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+      sync();
+    });
+    box.addEventListener('keydown', function(e) {
+      if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
+    });
+    box.addEventListener('paste', function(e) {
+      var texto = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '');
+      if (!texto) return;
+      e.preventDefault();
+      for (var j = 0; j < boxes.length; j++) boxes[j].value = texto[j] || '';
+      sync();
+      boxes[Math.min(texto.length, boxes.length) - 1].focus();
+    });
+  });
+
+  document.getElementById('totp-form').addEventListener('submit', sync);
+})();
+
+function totpCopiarSecreto() {
+  var texto = document.getElementById('totp-secreto').textContent.trim();
+  navigator.clipboard && navigator.clipboard.writeText(texto);
+}
+</script>
 {% endblock %}
