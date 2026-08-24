@@ -568,6 +568,45 @@ class PagoInline(admin.TabularInline):
     fields = ('fecha_pago', 'monto', 'concepto', 'metodo', 'referencia', 'notas', 'usuario', 'created_at')
     readonly_fields = ('usuario', 'created_at')
 
+def autocompletar_cotizacion_nueva(obj):
+    """Rellena horario y nombre_evento al crear una Cotizacion desde el admin.
+
+    Horario: Pasadía y Hospedaje tienen horario fijo y conocido de antemano
+    (a diferencia de Evento/Arrendamiento, que varían por cotización), así
+    que si se deja en blanco no debe quedar "Por definir" en el PDF/portal.
+
+    Nombre del evento: concatenación de tipo de servicio + tipo de evento
+    (solo aplica a EVENTO) + primer nombre del cliente, en vez del "Evento
+    General" genérico que trae el campo por default.
+    """
+    from .views_cotizador import (
+        HORA_FIN_HOSPEDAJE,
+        HORA_FIN_PASADIA,
+        HORA_INICIO_HOSPEDAJE,
+        HORA_INICIO_PASADIA,
+    )
+    if obj.tipo_servicio == 'PASADIA':
+        if not obj.hora_inicio:
+            obj.hora_inicio = HORA_INICIO_PASADIA
+        if not obj.hora_fin:
+            obj.hora_fin = HORA_FIN_PASADIA
+    elif obj.tipo_servicio == 'HOSPEDAJE':
+        if not obj.hora_inicio:
+            obj.hora_inicio = HORA_INICIO_HOSPEDAJE
+        if not obj.hora_fin:
+            obj.hora_fin = HORA_FIN_HOSPEDAJE
+
+    primer_nombre = ''
+    if obj.cliente_id and obj.cliente.nombre:
+        primer_nombre = obj.cliente.nombre.split()[0]
+    partes = [obj.get_tipo_servicio_display()]
+    if obj.tipo_evento_id:
+        partes.append(obj.tipo_evento.nombre)
+    if primer_nombre:
+        partes.append(primer_nombre)
+    obj.nombre_evento = ' - '.join(partes)[:200]
+
+
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
@@ -778,6 +817,7 @@ class CotizacionAdmin(admin.ModelAdmin):
 
         if not obj.pk:
             obj.usuario = request.user
+            autocompletar_cotizacion_nueva(obj)
         super().save_model(request, obj, form, change)
 
     def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
