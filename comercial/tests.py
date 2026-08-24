@@ -954,6 +954,30 @@ class CompraDeteccionAutomaticaTest(TestCase):
         self.assertEqual(compra.proveedor.nombre, 'Ferretería Local')
 
 
+class CompraAdminEsDeducibleListEditableTest(TestCase):
+    """es_deducible se puede editar en bloque desde el listado de Compras
+    (list_editable), y el candado de Compra.save() —forzar No sin UUID—
+    sigue aplicando sin importar qué formulario dispare el save()."""
+
+    def test_es_deducible_es_editable_desde_el_listado(self):
+        from comercial.admin import CompraAdmin
+
+        self.assertIn('es_deducible', CompraAdmin.list_editable)
+
+    def test_guardar_sin_uuid_no_persiste_deducible_true_sin_importar_el_llamador(self):
+        """Mismo candado que CompraSinCFDINoDeducibleTest, pero disparado con
+        el patrón real de un guardado desde list_editable: instanciar,
+        forzar el campo y llamar a save() — no pasar por __init__/create()."""
+        compra = Compra.objects.create(proveedor_nombre='Proveedor Sin Factura', total=Decimal('50.00'))
+        self.assertFalse(compra.es_deducible)  # sin uuid, ya nace en No
+
+        compra.es_deducible = True
+        compra.save()
+        compra.refresh_from_db()
+
+        self.assertFalse(compra.es_deducible)
+
+
 class BotonContratoNoGeneraDeInmediatoTest(TestCase):
     """Regresión: el botón 'Contrato' del listado de Cotizacion NO debe
     disparar la generación/subida de un PDF nuevo con solo hacer clic —

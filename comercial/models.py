@@ -1282,6 +1282,19 @@ class Compra(models.Model):
         # captura usado.
         if not self.proveedor_id and self.proveedor_nombre:
             self.proveedor = _resolver_o_crear_proveedor(self.proveedor_nombre, self.rfc_emisor)
+        # Cuenta de pago: igual que unidad_negocio, se asigna sola solo si no
+        # hay ambigüedad posible — una única cuenta bancaria activa para esa
+        # unidad de negocio. Con dos o más cuentas activas (o ninguna) se deja
+        # en blanco, exactamente como hoy: nunca se adivina cuál de varias.
+        if not self.pk and self.unidad_negocio_id and not self.cuenta_pago_id:
+            from contabilidad.models import CuentaBancaria
+            cuentas_activas = list(
+                CuentaBancaria.objects.filter(
+                    unidad_negocio_id=self.unidad_negocio_id, activa=True
+                )[:2]
+            )
+            if len(cuentas_activas) == 1:
+                self.cuenta_pago = cuentas_activas[0]
         super().save(*args, **kwargs)
         if self.archivo_xml and self.pk:
             try:

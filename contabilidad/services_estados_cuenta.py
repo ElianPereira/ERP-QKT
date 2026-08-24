@@ -28,6 +28,7 @@ import re
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Sum
 
@@ -389,6 +390,145 @@ def _emparejar_automaticamente(estado_cuenta: EstadoCuentaBancario, tolerancia_d
             mov_banco.confirmado = False
             mov_banco.save(update_fields=['movimiento_contable', 'match_automatico', 'confirmado'])
             ya_emparejados_ids.add(match.id)
+
+
+def sugerir_compras_pendientes(estado_cuenta: EstadoCuentaBancario, tolerancia_dias=5):
+    """
+    Para los cargos del estado de cuenta que sigan sin emparejar después de
+    _emparejar_automaticamente() (esa función solo busca en pólizas ya
+    APLICADA), busca candidatas en comercial.Compra: BORRADOR, de la misma
+    unidad de negocio que esta cuenta bancaria, con el mismo importe exacto
+    y fecha de emisión dentro de +/- tolerancia_dias. Es el mismo criterio
+    de tolerancia que ya usa _emparejar_automaticamente, para no tener dos
+    definiciones distintas de "qué cuenta como match" en el módulo.
+
+    No decide por sí sola en caso de ambigüedad: un cargo con más de una
+    Compra candidata del mismo importe/fecha se marca como ambiguo — mismo
+    principio que ya se aplicó en la conciliación de depósitos de Airbnb
+    (no adivinar cuál de varias, dejar la decisión a quien concilia).
+
+    Devuelve {movimiento_estado_cuenta_id: {'candidata': Compra|None, 'ambiguas': [Compra,...]}}.
+    Un cargo sin ninguna candidata simplemente no aparece en el dict.
+    """
+    from comercial.models import Compra
+
+    unidad = estado_cuenta.cuenta_bancaria.unidad_negocio
+    if not unidad:
+        return {}
+
+    pendientes = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True, cargo__gt=0)
+
+    sugerencias = {}
+    for mov_banco in pendientes:
+        rango_inicio = mov_banco.fecha - timedelta(days=tolerancia_dias)
+        rango_fin = mov_banco.fecha + timedelta(days=tolerancia_dias)
+        candidatas = list(
+            Compra.objects.filter(
+                unidad_negocio=unidad,
+                cuenta_pago__isnull=True,
+                total=mov_banco.cargo,
+                fecha_emision__gte=rango_inicio,
+                fecha_emision__lte=rango_fin,
+            )
+        )
+        if len(candidatas) == 1:
+            sugerencias[mov_banco.id] = {'candidata': candidatas[0], 'ambiguas': []}
+        elif len(candidatas) > 1:
+            sugerencias[mov_banco.id] = {'candidata': None, 'ambiguas': candidatas}
+    return sugerencias
+
+
+def aplicar_sugerencias_compras(estado_cuenta: EstadoCuentaBancario, usuario, tolerancia_dias=5):
+    """
+    Aplica lo que propone sugerir_compras_pendientes(): para cada cargo con
+    una única Compra candidata, le asigna cuenta_pago, completa su póliza
+    BORRADOR con `contabilidad.services.completar_poliza_compra()` (ya
+    existente — agrega el movimiento de banco que faltaba, sin duplicar
+    nada si se corre dos veces), la aplica con `Poliza.aplicar(usuario)`, y
+    liga el MovimientoContable de banco resultante al MovimientoEstadoCuenta
+    correspondiente. Nunca marca confirmado=True: sigue exigiendo revisión
+    humana individual en el inline de conciliación, igual que
+    _emparejar_automaticamente().
+
+    Si dos cargos distintos del mismo importe/fecha comparten como única
+    candidata la misma Compra (posible porque sugerir_compras_pendientes
+    evalúa cada cargo por separado, sin conocer a los demás), solo el primero
+    en procesarse (por fecha, luego id) se queda con ella — el segundo se
+    reporta como sin candidata en vez de reclamarla también, para no asignar
+    la misma Compra a dos movimientos del banco.
+
+    Devuelve (aplicadas, ambiguas, sin_candidata): listas de
+    MovimientoEstadoCuenta, para el resumen que ve quien concilia.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from comercial.models import Compra
+
+    from .models import Poliza
+    from .services import completar_poliza_compra
+
+    sugerencias = sugerir_compras_pendientes(estado_cuenta, tolerancia_dias=tolerancia_dias)
+    cuenta_bancaria = estado_cuenta.cuenta_bancaria
+    content_type_compra = ContentType.objects.get_for_model(Compra)
+
+    pendientes = list(
+        estado_cuenta.movimientos
+        .filter(movimiento_contable__isnull=True, cargo__gt=0)
+        .order_by('fecha', 'id')
+    )
+
+    aplicadas, ambiguas, sin_candidata = [], [], []
+    compras_asignadas = set()
+    for mov_banco in pendientes:
+        sugerencia = sugerencias.get(mov_banco.id)
+        if not sugerencia:
+            sin_candidata.append(mov_banco)
+            continue
+        if sugerencia['ambiguas']:
+            ambiguas.append(mov_banco)
+            continue
+
+        compra = sugerencia['candidata']
+        if compra.pk in compras_asignadas:
+            sin_candidata.append(mov_banco)
+            continue
+
+        poliza = Poliza.objects.filter(
+            content_type=content_type_compra, object_id=compra.pk,
+            origen='COMPRA', estado='BORRADOR',
+        ).first()
+        if not poliza:
+            sin_candidata.append(mov_banco)
+            continue
+
+        compra.cuenta_pago = cuenta_bancaria
+        compra.save()
+        compras_asignadas.add(compra.pk)
+
+        try:
+            completar_poliza_compra(poliza)
+            poliza.aplicar(usuario)
+        except (ValueError, ValidationError):
+            sin_candidata.append(mov_banco)
+            continue
+
+        movimiento_banco = None
+        if cuenta_bancaria.cuenta_contable:
+            movimiento_banco = poliza.movimientos.filter(
+                cuenta=cuenta_bancaria.cuenta_contable, haber=compra.total,
+            ).first()
+
+        if not movimiento_banco:
+            sin_candidata.append(mov_banco)
+            continue
+
+        mov_banco.movimiento_contable = movimiento_banco
+        mov_banco.match_automatico = True
+        mov_banco.confirmado = False
+        mov_banco.save(update_fields=['movimiento_contable', 'match_automatico', 'confirmado'])
+        aplicadas.append(mov_banco)
+
+    return aplicadas, ambiguas, sin_candidata
 
 
 def movimientos_contables_del_periodo(estado_cuenta: EstadoCuentaBancario, fecha_inicio: date):

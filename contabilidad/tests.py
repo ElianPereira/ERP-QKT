@@ -41,7 +41,9 @@ from contabilidad.services import (
 )
 from contabilidad.services_estados_cuenta import (
     _emparejar_automaticamente,
+    aplicar_sugerencias_compras,
     generar_conciliacion_preliminar,
+    sugerir_compras_pendientes,
 )
 from core_erp.test_utils import login_superuser_con_totp
 from nomina.models import Empleado, ReciboNomina
@@ -325,6 +327,84 @@ class CompraSinDatosCompletosTest(TestCase):
         poliza = Poliza.objects.filter(origen='COMPRA', object_id=compra.pk).first()
         self.assertEqual(poliza.estado, 'APLICADA')
         self.assertEqual(poliza.unidad_negocio.clave, 'AIRBNB')  # no debe caer en QUINTA por default
+
+
+class AutoAsignarCuentaPagoTest(TestCase):
+    """
+    Compra.save(): si la unidad de negocio (detectada por RFC o capturada a
+    mano) tiene una sola CuentaBancaria activa, se le asigna sola — mismo
+    criterio que unidad_negocio: nunca se adivina entre varias.
+    """
+
+    def setUp(self):
+        self.unidad_quinta = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable_1 = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.cuenta_contable_2 = CuentaContable.objects.get(codigo_sat='102.02.02')
+
+    def test_una_sola_cuenta_activa_se_asigna_sola(self):
+        cuenta = CuentaBancaria.objects.create(
+            nombre='BBVA Única', banco='BBVA', clabe='012345678901234574',
+            cuenta_contable=self.cuenta_contable_1, unidad_negocio=self.unidad_quinta,
+        )
+        compra = Compra.objects.create(
+            proveedor_nombre='Proveedor X', subtotal=Decimal('100.00'), total=Decimal('100.00'),
+            unidad_negocio=self.unidad_quinta,
+        )
+        self.assertEqual(compra.cuenta_pago_id, cuenta.pk)
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=compra.pk)
+        self.assertEqual(poliza.estado, 'APLICADA')
+
+    def test_dos_cuentas_activas_no_asigna_ninguna(self):
+        CuentaBancaria.objects.create(
+            nombre='BBVA Uno', banco='BBVA', clabe='012345678901234575',
+            cuenta_contable=self.cuenta_contable_1, unidad_negocio=self.unidad_quinta,
+        )
+        CuentaBancaria.objects.create(
+            nombre='BBVA Dos', banco='BBVA', clabe='012345678901234576',
+            cuenta_contable=self.cuenta_contable_2, unidad_negocio=self.unidad_quinta,
+        )
+        compra = Compra.objects.create(
+            proveedor_nombre='Proveedor Y', subtotal=Decimal('100.00'), total=Decimal('100.00'),
+            unidad_negocio=self.unidad_quinta,
+        )
+        self.assertIsNone(compra.cuenta_pago_id)
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=compra.pk)
+        self.assertEqual(poliza.estado, 'BORRADOR')
+
+    def test_ninguna_cuenta_activa_no_asigna(self):
+        compra = Compra.objects.create(
+            proveedor_nombre='Proveedor Z', subtotal=Decimal('100.00'), total=Decimal('100.00'),
+            unidad_negocio=self.unidad_quinta,
+        )
+        self.assertIsNone(compra.cuenta_pago_id)
+
+    def test_cuenta_inactiva_no_cuenta_como_unica(self):
+        CuentaBancaria.objects.create(
+            nombre='BBVA Inactiva', banco='BBVA', clabe='012345678901234577',
+            cuenta_contable=self.cuenta_contable_1, unidad_negocio=self.unidad_quinta,
+            activa=False,
+        )
+        compra = Compra.objects.create(
+            proveedor_nombre='Proveedor W', subtotal=Decimal('100.00'), total=Decimal('100.00'),
+            unidad_negocio=self.unidad_quinta,
+        )
+        self.assertIsNone(compra.cuenta_pago_id)
+
+    def test_cuenta_pago_explicita_no_se_sobreescribe(self):
+        CuentaBancaria.objects.create(
+            nombre='BBVA A', banco='BBVA', clabe='012345678901234578',
+            cuenta_contable=self.cuenta_contable_1, unidad_negocio=self.unidad_quinta,
+        )
+        cuenta_b = CuentaBancaria.objects.create(
+            nombre='BBVA B', banco='BBVA', clabe='012345678901234579',
+            cuenta_contable=self.cuenta_contable_2, unidad_negocio=self.unidad_quinta,
+        )
+        # Dos cuentas activas (caso ambiguo), pero se forzó una a mano.
+        compra = Compra.objects.create(
+            proveedor_nombre='Proveedor V', subtotal=Decimal('100.00'), total=Decimal('100.00'),
+            unidad_negocio=self.unidad_quinta, cuenta_pago=cuenta_b,
+        )
+        self.assertEqual(compra.cuenta_pago_id, cuenta_b.pk)
 
 
 class CompletarPolizaCompraTest(TestCase):
@@ -666,6 +746,276 @@ class EmparejamientoAutomaticoTest(TestCase):
         mov_banco.refresh_from_db()
         self.assertIsNone(mov_banco.movimiento_contable)
         self.assertFalse(mov_banco.match_automatico)
+
+
+class SugerirComprasPendientesTest(TestCase):
+    """sugerir_compras_pendientes: candidatas de Compra BORRADOR para cargos
+    del estado de cuenta que _emparejar_automaticamente no puede ver (no
+    tienen todavía ningún MovimientoContable de banco)."""
+
+    def setUp(self):
+        self.unidad_quinta = UnidadNegocio.objects.get(clave='QUINTA')
+        self.unidad_airbnb = UnidadNegocio.objects.get(clave='AIRBNB')
+        self.cuenta_contable_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+
+    def _crear_cuenta_y_estado(self, clabe):
+        # Se crea DESPUÉS de las Compras del test a propósito: si la cuenta
+        # bancaria ya existiera al guardar la Compra, la auto-asignación de
+        # cuenta_pago (Compra.save(), una sola cuenta activa) la completaría
+        # de inmediato y dejaría de ser una candidata BORRADOR pendiente —
+        # justo el escenario que esta prueba necesita simular.
+        cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal (test sugerencias)', banco='BBVA',
+            clabe=clabe, cuenta_contable=self.cuenta_contable_banco,
+            unidad_negocio=self.unidad_quinta,
+        )
+        estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=cuenta_bancaria, banco='BBVA',
+            periodo_mes=8, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+        )
+        return cuenta_bancaria, estado_cuenta
+
+    def test_match_unico_se_propone(self):
+        compra = Compra.objects.create(
+            proveedor_nombre='Proveedor Único', subtotal=Decimal('500.00'), total=Decimal('500.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+        )
+        _, estado_cuenta = self._crear_cuenta_y_estado('012345678901234571')
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor', cargo=Decimal('500.00'),
+        )
+        sugerencias = sugerir_compras_pendientes(estado_cuenta)
+        self.assertEqual(sugerencias[mov_banco.id]['candidata'], compra)
+        self.assertEqual(sugerencias[mov_banco.id]['ambiguas'], [])
+
+    def test_dos_candidatas_mismo_importe_quedan_ambiguas(self):
+        Compra.objects.create(
+            proveedor_nombre='Proveedor A', subtotal=Decimal('300.00'), total=Decimal('300.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+        )
+        Compra.objects.create(
+            proveedor_nombre='Proveedor B', subtotal=Decimal('300.00'), total=Decimal('300.00'),
+            fecha_emision=date(2026, 8, 6), unidad_negocio=self.unidad_quinta,
+        )
+        _, estado_cuenta = self._crear_cuenta_y_estado('012345678901234572')
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 7),
+            descripcion='Pago proveedor', cargo=Decimal('300.00'),
+        )
+        sugerencias = sugerir_compras_pendientes(estado_cuenta)
+        self.assertIsNone(sugerencias[mov_banco.id]['candidata'])
+        self.assertEqual(len(sugerencias[mov_banco.id]['ambiguas']), 2)
+
+    def test_compra_de_otra_unidad_no_es_candidata(self):
+        Compra.objects.create(
+            proveedor_nombre='Proveedor Airbnb', subtotal=Decimal('200.00'), total=Decimal('200.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_airbnb,
+        )
+        _, estado_cuenta = self._crear_cuenta_y_estado('012345678901234573')
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor', cargo=Decimal('200.00'),
+        )
+        sugerencias = sugerir_compras_pendientes(estado_cuenta)
+        self.assertNotIn(mov_banco.id, sugerencias)
+
+    def test_compra_con_cuenta_pago_ya_asignada_no_es_candidata(self):
+        cuenta_bancaria, estado_cuenta = self._crear_cuenta_y_estado('012345678901234574')
+        Compra.objects.create(
+            proveedor_nombre='Proveedor Ya Pagado', subtotal=Decimal('100.00'), total=Decimal('100.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+            cuenta_pago=cuenta_bancaria,
+        )
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor', cargo=Decimal('100.00'),
+        )
+        sugerencias = sugerir_compras_pendientes(estado_cuenta)
+        self.assertNotIn(mov_banco.id, sugerencias)
+
+
+class AplicarSugerenciasComprasTest(TestCase):
+    """aplicar_sugerencias_compras: asigna cuenta_pago, completa y aplica la
+    póliza (reusando contabilidad.services.completar_poliza_compra, ya
+    existente) y liga el MovimientoContable resultante al movimiento del
+    banco — sin confirmar el emparejamiento, eso sigue siendo manual."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('contador_aplicar', password='x')
+        self.unidad_quinta = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+
+    def _crear_cuenta_y_estado(self, clabe):
+        # Igual que en SugerirComprasPendientesTest: se crea después de las
+        # Compras del test para que la auto-asignación de cuenta_pago (una
+        # sola cuenta activa) no las complete antes de tiempo.
+        cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal (test aplicar)', banco='BBVA',
+            clabe=clabe, cuenta_contable=self.cuenta_contable_banco,
+            unidad_negocio=self.unidad_quinta,
+        )
+        estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=cuenta_bancaria, banco='BBVA',
+            periodo_mes=8, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+        )
+        return cuenta_bancaria, estado_cuenta
+
+    def test_match_unico_completa_y_aplica_la_poliza(self):
+        compra = Compra.objects.create(
+            proveedor_nombre='Proveedor Único', subtotal=Decimal('500.00'), total=Decimal('500.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+        )
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=compra.pk)
+        self.assertEqual(poliza.estado, 'BORRADOR')
+
+        cuenta_bancaria, estado_cuenta = self._crear_cuenta_y_estado('012345678901234575')
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor', cargo=Decimal('500.00'),
+        )
+
+        aplicadas, ambiguas, sin_candidata = aplicar_sugerencias_compras(estado_cuenta, self.user)
+
+        self.assertEqual(len(aplicadas), 1)
+        self.assertEqual(ambiguas, [])
+        self.assertEqual(sin_candidata, [])
+
+        compra.refresh_from_db()
+        self.assertEqual(compra.cuenta_pago_id, cuenta_bancaria.pk)
+
+        poliza.refresh_from_db()
+        self.assertEqual(poliza.estado, 'APLICADA')
+        self.assertTrue(poliza.esta_cuadrada)
+
+        mov_banco.refresh_from_db()
+        self.assertIsNotNone(mov_banco.movimiento_contable_id)
+        self.assertTrue(mov_banco.match_automatico)
+        self.assertFalse(mov_banco.confirmado)  # sigue exigiendo revisión humana
+
+    def test_ambigua_no_se_asigna_sola(self):
+        Compra.objects.create(
+            proveedor_nombre='Proveedor A', subtotal=Decimal('300.00'), total=Decimal('300.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+        )
+        Compra.objects.create(
+            proveedor_nombre='Proveedor B', subtotal=Decimal('300.00'), total=Decimal('300.00'),
+            fecha_emision=date(2026, 8, 6), unidad_negocio=self.unidad_quinta,
+        )
+        _, estado_cuenta = self._crear_cuenta_y_estado('012345678901234576')
+        mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 7),
+            descripcion='Pago proveedor', cargo=Decimal('300.00'),
+        )
+        aplicadas, ambiguas, sin_candidata = aplicar_sugerencias_compras(estado_cuenta, self.user)
+        self.assertEqual(aplicadas, [])
+        self.assertEqual(len(ambiguas), 1)
+        mov_banco.refresh_from_db()
+        self.assertIsNone(mov_banco.movimiento_contable_id)
+
+    def test_dos_cargos_mismo_importe_comparten_candidata_unica(self):
+        """Dos cargos con el mismo importe y fecha, pero una sola Compra
+        BORRADOR pendiente que calza con ambos: solo el primero (por fecha,
+        luego id) se la queda; el segundo no debe reclamarla también."""
+        Compra.objects.create(
+            proveedor_nombre='Proveedor Único', subtotal=Decimal('200.00'), total=Decimal('200.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+        )
+        _, estado_cuenta = self._crear_cuenta_y_estado('012345678901234577')
+        mov_1 = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor 1', cargo=Decimal('200.00'),
+        )
+        mov_2 = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor 2', cargo=Decimal('200.00'),
+        )
+        aplicadas, ambiguas, sin_candidata = aplicar_sugerencias_compras(estado_cuenta, self.user)
+        self.assertEqual(len(aplicadas), 1)
+        self.assertEqual(len(sin_candidata), 1)
+        ids_tocados = {m.id for m in aplicadas} | {m.id for m in sin_candidata}
+        self.assertEqual(ids_tocados, {mov_1.id, mov_2.id})
+
+    def test_idempotente_correr_dos_veces(self):
+        Compra.objects.create(
+            proveedor_nombre='Proveedor Único', subtotal=Decimal('150.00'), total=Decimal('150.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+        )
+        _, estado_cuenta = self._crear_cuenta_y_estado('012345678901234578')
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor', cargo=Decimal('150.00'),
+        )
+        aplicar_sugerencias_compras(estado_cuenta, self.user)
+        aplicadas_2, ambiguas_2, sin_candidata_2 = aplicar_sugerencias_compras(estado_cuenta, self.user)
+        self.assertEqual(aplicadas_2, [])
+        self.assertEqual(ambiguas_2, [])
+        self.assertEqual(sin_candidata_2, [])
+        movimientos_banco = MovimientoContable.objects.filter(
+            cuenta=self.cuenta_contable_banco, haber=Decimal('150.00'),
+        )
+        self.assertEqual(movimientos_banco.count(), 1)
+
+
+class SugerirYAplicarComprasAdminActionTest(TestCase):
+    """Acción de EstadoCuentaBancarioAdmin: exige confirmación en dos pasos,
+    igual que el resto de las acciones destructivas del admin."""
+
+    def setUp(self):
+        self.direccion = User.objects.create_superuser('direccion_sugerir', 'd2@qkt.mx', 'x')
+        login_superuser_con_totp(self.client, self.direccion)
+        self.unidad_quinta = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+
+        # La Compra se crea ANTES que la cuenta bancaria a propósito: si la
+        # cuenta ya existiera, la auto-asignación de cuenta_pago (una sola
+        # cuenta activa) la completaría de inmediato y no quedaría nada
+        # pendiente que esta acción tenga que sugerir.
+        self.compra = Compra.objects.create(
+            proveedor_nombre='Proveedor Único', subtotal=Decimal('500.00'), total=Decimal('500.00'),
+            fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad_quinta,
+        )
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA Principal (test admin sugerir)', banco='BBVA',
+            clabe='012345678901234579', cuenta_contable=self.cuenta_contable_banco,
+            unidad_negocio=self.unidad_quinta,
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=8, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+        )
+        self.mov_banco = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Pago proveedor', cargo=Decimal('500.00'),
+        )
+        self.url = '/admin/contabilidad/estadocuentabancario/'
+
+    def test_sin_confirmar_no_tiene_efecto(self):
+        respuesta = self.client.post(self.url, {
+            'action': 'sugerir_y_aplicar_compras',
+            '_selected_action': [str(self.estado_cuenta.pk)],
+        }, follow=True)
+
+        self.compra.refresh_from_db()
+        self.assertIsNone(self.compra.cuenta_pago_id)
+        self.assertContains(respuesta, '¿Confirmar esta acción?')
+
+    def test_con_confirmar_si_asigna_y_aplica(self):
+        self.client.post(self.url, {
+            'action': 'sugerir_y_aplicar_compras',
+            '_selected_action': [str(self.estado_cuenta.pk)],
+            'confirmar': 'si',
+        }, follow=True)
+
+        self.compra.refresh_from_db()
+        self.assertEqual(self.compra.cuenta_pago_id, self.cuenta_bancaria.pk)
+
+        poliza = Poliza.objects.get(origen='COMPRA', object_id=self.compra.pk)
+        self.assertEqual(poliza.estado, 'APLICADA')
+
+        self.mov_banco.refresh_from_db()
+        self.assertIsNotNone(self.mov_banco.movimiento_contable_id)
+        self.assertFalse(self.mov_banco.confirmado)
 
 
 class ConciliacionPreliminarTest(TestCase):
