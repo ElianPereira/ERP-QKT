@@ -27,7 +27,7 @@ from .services import DetectorConflictosService, ImportadorCSVPagosService, Sinc
 # CONFIGURACIÓN COMÚN
 # ==========================================
 MEDIA_CONFIG = {
-    'css': {'all': ('css/admin_fix.css', 'css/mobile_fix.css')},
+    'css': {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')},
     'js': ('js/tabs_fix.js',)
 }
 

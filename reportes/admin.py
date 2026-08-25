@@ -22,7 +22,7 @@ class ReporteGeneradoAdmin(admin.ModelAdmin):
     readonly_fields = ('tipo', 'formato', 'fecha_inicio', 'fecha_fin', 'parametros', 'created_by', 'created_at')
 
     class Media:
-        css = {'all': ('css/admin_fix.css', 'css/mobile_fix.css')}
+        css = {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')}
         js = ('js/tabs_fix.js',)
 
     def has_add_permission(self, request):

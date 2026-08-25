@@ -70,7 +70,7 @@ BTN_SM = '<a href="{url}" {target} class="btn btn-sm qkt-accion-btn" style="back
 # Gris (neutral/inactivo):               bg='#95a5a6', fg='white'
 
 MEDIA_CONFIG = {
-    'css': { 'all': ('css/admin_fix.css', 'css/mobile_fix.css') },
+    'css': { 'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css') },
     'js': ('js/tabs_fix.js',)
 }
 
