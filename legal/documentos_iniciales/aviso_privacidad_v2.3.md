@@ -1,6 +1,6 @@
 # AVISO DE PRIVACIDAD INTEGRAL
 
-**Versión 2.3 — Vigente a partir del [CONFIRMAR: fecha de publicación]**
+**Versión 2.3 — Vigente a partir del 25 de agosto de 2026**
 *Sustituye a la versión 2.2 del 4 de agosto de 2026.*
 
 ---
