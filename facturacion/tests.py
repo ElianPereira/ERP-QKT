@@ -197,6 +197,7 @@ class EnviarWhatsappContadorPlantillaTest(TestCase):
         payload_enviado = mock_post.call_args_list[1].kwargs['json']
         self.assertEqual(payload_enviado['type'], 'document')
         self.assertEqual(payload_enviado['document']['id'], 'media-123')
+        self.assertIn("Quinta Ko'ox Tanil", payload_enviado['document']['caption'])
 
     @override_settings(WA_TEMPLATE_SOLICITUD_FACTURA='solicitud_factura')
     def test_con_plantilla_manda_template_con_documento_en_la_cabecera(self):
@@ -216,6 +217,47 @@ class EnviarWhatsappContadorPlantillaTest(TestCase):
         cuerpo = payload_enviado['template']['components'][1]
         self.assertEqual(cuerpo['parameters'][0]['text'], f"SOL-{self.solicitud.id:04d}")
         self.assertEqual(cuerpo['parameters'][1]['text'], 'Cliente Plantilla')
+        self.assertEqual(cuerpo['parameters'][2]['text'], "Quinta Ko'ox Tanil")
+
+
+class LineaNegocioSolicitudFacturaTest(TestCase):
+    """Toda solicitud debe dejar claro bajo qué RFC propio se factura —
+    la empresa opera dos: PECE010202IA0 (Quinta, reservas directas) y
+    CERU580518QZ5 (Airbnb, no pasa por Cotizacion/Pago hoy)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('u_linea', password='x')
+        self.cliente = Cliente.objects.create(nombre='Cliente Línea')
+        self.cot = _crear_cotizacion(self.cliente, Decimal('5000.00'))
+
+    def test_solicitud_automatica_queda_marcada_quinta(self):
+        pago = Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('5000.00'),
+            metodo='EFECTIVO', usuario=self.user,
+        )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        self.assertEqual(solicitud.linea_negocio, 'QUINTA')
+        self.assertEqual(solicitud.rfc_emisor, 'PECE010202IA0')
+
+    def test_airbnb_usa_su_propio_rfc_emisor(self):
+        solicitud = SolicitudFactura.objects.create(
+            cliente=self.cliente, linea_negocio='AIRBNB',
+            monto=Decimal('1000.00'), concepto='Ingreso Airbnb',
+            rfc='XAXX010101000', razon_social='PUBLICO EN GENERAL',
+            codigo_postal='97238', regimen_fiscal='616',
+        )
+        self.assertEqual(solicitud.rfc_emisor, 'CERU580518QZ5')
+        self.assertIn('CERU580518QZ5', solicitud.get_datos_para_contador())
+
+    def test_pdf_muestra_el_rfc_emisor(self):
+        pago = Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('5000.00'),
+            metodo='EFECTIVO', usuario=self.user,
+        )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        from facturacion.services import generar_pdf_solicitud
+        pdf_bytes = generar_pdf_solicitud(solicitud)
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
 
 
 class EnvioAutomaticoAlRegistrarPagoTest(TestCase):

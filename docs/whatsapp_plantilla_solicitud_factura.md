@@ -26,11 +26,14 @@ tarda un poco más en aprobarse que una de solo texto.
 5. Encabezado: tipo **Documento**. Cuando Meta pida un archivo de muestra para la
    revisión, sube cualquier PDF de una solicitud de factura real ya generada (puedes
    descargar una con el botón "PDF" de `/admin/facturacion/solicitudfactura/`).
-6. Cuerpo del mensaje — usa **exactamente estas dos variables**, en este orden
-   (el código ya manda `{{1}}` = folio y `{{2}}` = nombre del cliente):
+6. Cuerpo del mensaje — usa **exactamente estas tres variables**, en este
+   orden (el código ya manda `{{1}}` = folio, `{{2}}` = nombre del cliente y
+   `{{3}}` = línea de negocio — "Quinta Ko'ox Tanil" o "Airbnb", así el
+   contador sabe de inmediato bajo cuál de los dos RFC de la empresa debe
+   timbrar sin tener que abrir el PDF):
 
    ```
-   Nueva solicitud de factura {{1}} — {{2}}.
+   Nueva solicitud de factura {{1}} — {{2}} ({{3}}).
 
    Se adjunta el PDF con los datos fiscales y el monto a facturar.
    ```
@@ -59,5 +62,5 @@ Los rechazos más comunes para plantillas de utilidad con documento:
   sin llamados a la acción ni ofertas.
 - El PDF de muestra tiene datos que parecen inventados/placeholder → sube un PDF real
   (anonimiza el monto/RFC si te preocupa, pero que la estructura sea la real).
-- Variables sin contexto → el texto de arriba ya deja claro qué es cada `{{1}}`/`{{2}}`
-  para el revisor.
+- Variables sin contexto → el texto de arriba ya deja claro qué es cada
+  `{{1}}`/`{{2}}`/`{{3}}` para el revisor.

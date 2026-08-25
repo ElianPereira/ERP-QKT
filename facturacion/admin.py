@@ -37,10 +37,10 @@ class ConfiguracionContadorAdmin(admin.ModelAdmin):
 @admin.register(SolicitudFactura)
 class SolicitudFacturaAdmin(admin.ModelAdmin):
     list_display = [
-        'folio_display', 'cliente_display', 'monto_display',
+        'folio_display', 'cliente_display', 'linea_negocio_display', 'monto_display',
         'forma_pago', 'fecha_display', 'estado_display', 'acciones_display',
     ]
-    list_filter    = ['estado', 'forma_pago', 'fecha_solicitud']
+    list_filter    = ['linea_negocio', 'estado', 'forma_pago', 'fecha_solicitud']
     search_fields  = ['cliente__nombre', 'rfc', 'razon_social', 'concepto']
     date_hierarchy = 'fecha_solicitud'
     ordering       = ['-fecha_solicitud']
@@ -50,7 +50,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     ]
 
     fieldsets = (
-        ('Cliente', {'fields': ('cliente',)}),
+        ('Cliente', {'fields': ('cliente', 'linea_negocio')}),
         ('Datos Fiscales', {
             'fields': (('rfc', 'razon_social'), ('codigo_postal', 'regimen_fiscal'), 'uso_cfdi')
         }),
@@ -91,6 +91,15 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         if len(nombre) > 35:
             nombre = nombre[:35] + "..."
         return format_html('<span style="color:#d4d1c8;">{}</span>', nombre)
+
+    @admin.display(description="Línea", ordering="linea_negocio")
+    def linea_negocio_display(self, obj):
+        colores = {'QUINTA': '#2E7D32', 'AIRBNB': '#FF5A5F'}
+        return format_html(
+            '<span style="background:{}; color:#fff; padding:3px 10px; '
+            'border-radius:10px; font-size:11px; font-weight:600;">{}</span>',
+            colores.get(obj.linea_negocio, '#95a5a6'), obj.get_linea_negocio_display()
+        )
 
     @admin.display(description="Monto", ordering="monto")
     def monto_display(self, obj):

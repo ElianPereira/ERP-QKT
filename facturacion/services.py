@@ -61,12 +61,13 @@ def generar_pdf_solicitud(solicitud):
         'calc_iva':     iva,
         'calc_ret_isr': ret_isr,
         'calc_total':   total,
+        'linea_negocio_color': '#2E7D32' if solicitud.linea_negocio == 'QUINTA' else '#FF5A5F',
     }
     html_string = render_to_string('facturacion/solicitud_pdf.html', context)
     return HTML(string=html_string).write_pdf()
 
 
-def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
+def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, linea_negocio_nombre):
     """
     Envía el PDF de la solicitud al contador via WhatsApp Cloud API.
     1. Sube el PDF al Media API → obtiene media_id
@@ -113,7 +114,9 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
 
     template_name = getattr(settings, 'WA_TEMPLATE_SOLICITUD_FACTURA', '')
     if template_name:
-        payload = _payload_plantilla_solicitud_factura(template_name, media_id, filename, folio, cliente_nombre)
+        payload = _payload_plantilla_solicitud_factura(
+            template_name, media_id, filename, folio, cliente_nombre, linea_negocio_nombre,
+        )
     else:
         payload = {
             "messaging_product": "whatsapp",
@@ -122,7 +125,7 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
             "document": {
                 "id": media_id,
                 "filename": filename,
-                "caption": f"Solicitud de Factura {folio} — {cliente_nombre}",
+                "caption": f"Solicitud de Factura {folio} — {cliente_nombre} ({linea_negocio_nombre})",
             },
         }
     payload["to"] = telefono
@@ -143,13 +146,13 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
     return False, f"Error envío ({resp_send.status_code}): {resp_send.text[:200]}"
 
 
-def _payload_plantilla_solicitud_factura(template_name, media_id, filename, folio, cliente_nombre):
+def _payload_plantilla_solicitud_factura(template_name, media_id, filename, folio, cliente_nombre, linea_negocio_nombre):
     """
     Arma el payload de la plantilla aprobada para la solicitud de factura:
-    cabecera tipo documento (el PDF adjunto) + cuerpo con dos variables de
-    texto ({{1}}=folio, {{2}}=cliente). El texto exacto que hay que someter
-    a Meta con estos mismos dos placeholders vive en
-    docs/whatsapp_plantilla_solicitud_factura.md — si el texto real
+    cabecera tipo documento (el PDF adjunto) + cuerpo con tres variables de
+    texto ({{1}}=folio, {{2}}=cliente, {{3}}=línea de negocio). El texto
+    exacto que hay que someter a Meta con estos mismos tres placeholders vive
+    en docs/whatsapp_plantilla_solicitud_factura.md — si el texto real
     aprobado por Meta usa más o menos variables, este payload hay que
     ajustarlo para que coincida.
     """
@@ -172,6 +175,7 @@ def _payload_plantilla_solicitud_factura(template_name, media_id, filename, foli
                     "parameters": [
                         {"type": "text", "text": folio},
                         {"type": "text", "text": cliente_nombre},
+                        {"type": "text", "text": linea_negocio_nombre},
                     ],
                 },
             ],
@@ -199,7 +203,10 @@ def enviar_solicitud_por_whatsapp(solicitud):
 
     folio = f"SOL-{solicitud.id:04d}"
     filename = f"Solicitud_{folio}.pdf"
-    return _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, solicitud.cliente.nombre)
+    return _enviar_pdf_whatsapp(
+        pdf_bytes, filename, telefono, folio, solicitud.cliente.nombre,
+        solicitud.get_linea_negocio_display(),
+    )
 
 
 def enviar_solicitud_por_email(solicitud):
@@ -214,7 +221,7 @@ def enviar_solicitud_por_email(solicitud):
         pdf_bytes = generar_pdf_solicitud(solicitud)
         folio = f"SOL-{solicitud.id:04d}"
         email = EmailMessage(
-            subject=f"Solicitud de Factura {folio} | {solicitud.cliente.nombre}",
+            subject=f"Solicitud de Factura {folio} | {solicitud.cliente.nombre} | {solicitud.get_linea_negocio_display()}",
             body=solicitud.get_datos_para_contador(),
             from_email=settings.EMAIL_FROM_NOTIFICACIONES,
             to=[contador.email],
