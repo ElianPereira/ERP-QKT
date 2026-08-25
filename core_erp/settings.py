@@ -296,6 +296,14 @@ WA_TEMPLATE_GUIA = config('WA_TEMPLATE_GUIA', default='')
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
 WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
+# Solicitud de factura al contador (facturacion/services.py): a diferencia de
+# la guía, aquí SÍ se somete una plantilla tipo "documento" — el pedido
+# original es mandar el PDF adjunto, no un enlace. Ver
+# docs/whatsapp_plantilla_solicitud_factura.md para el texto exacto a
+# someter en Meta Business Manager. Vacía = sigue mandando el PDF como
+# mensaje 'document' directo (funciona dentro de la ventana de 24h, falla
+# fuera de ella — comportamiento sin cambios hasta que se apruebe).
+WA_TEMPLATE_SOLICITUD_FACTURA = config('WA_TEMPLATE_SOLICITUD_FACTURA', default='')
 
 # --- STORAGES (Cloudflare R2, S3-compatible) ---
 STORAGES = {
