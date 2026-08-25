@@ -64,6 +64,10 @@ class ConsentimientoObligatorioTest(TestCase):
             cotizacion=cotizacion, descripcion='Servicio de evento',
             cantidad=1, precio_unitario=Decimal('10000.00'),
         )
+        # Este test aísla el requisito de consentimiento legal, no el de
+        # identificación oficial (otro requisito distinto del checkout) —
+        # sin esto el gate de identificación ganaría primero.
+        cotizacion.identificacion_oficial.name = 'cotizaciones/identificaciones/test-ine.jpg'
         cotizacion.save()
         cotizacion.refresh_from_db()
         portal = PortalCliente.objects.get(cotizacion=cotizacion)

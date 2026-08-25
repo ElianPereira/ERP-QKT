@@ -292,8 +292,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 <div class="steps" id="stepsBar">
   <div class="step active" data-step="1"><div class="step-num"><span>1</span></div><div class="step-label">Servicio</div></div>
   <div class="step" data-step="2"><div class="step-num"><span>2</span></div><div class="step-label">Detalles</div></div>
-  <div class="step" data-step="3"><div class="step-num"><span>3</span></div><div class="step-label">Paquete</div></div>
-  <div class="step" data-step="4"><div class="step-num"><span>4</span></div><div class="step-label">Extras</div></div>
+  <div class="step" data-step="3"><div class="step-num"><span>3</span></div><div class="step-label" id="steplbl-3">Paquete</div></div>
+  <div class="step" data-step="4"><div class="step-num"><span>4</span></div><div class="step-label" id="steplbl-4">Notas</div></div>
   <div class="step" data-step="5"><div class="step-num"><span>5</span></div><div class="step-label">Contacto</div></div>
   <div class="step" data-step="6"><div class="step-num"><span>6</span></div><div class="step-label">Confirmar</div></div>
 </div>
@@ -446,17 +446,22 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
           Cuéntanos en las notas qué mobiliario o equipo necesitas y las fechas de entrega y devolución.
         </p>
       </div>
+
+      <div class="campo" style="margin-top:1.5rem;">
+        <label for="notas-personalizado">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
+        <textarea id="notas-personalizado" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
+      </div>
     </div>
 
     <div id="err-camino" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona una opción para continuar.</div>
 
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(2)">← Atrás</button>
-      <button class="btn-next" onclick="irA(4)">Siguiente →</button>
+      <button class="btn-next" onclick="siguienteDesdePaso3()">Siguiente →</button>
     </div>
   </div>
 
-  <!-- PASO 4: Extras adicionales + notas -->
+  <!-- PASO 4: Extras adicionales al paquete + notas (solo camino 'paquete') -->
   <div class="step-panel" id="panel-4">
     <h2 class="panel-title">Servicios <em>adicionales</em></h2>
     <p class="panel-sub" id="sub-extras">¿Necesitas algo más? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
@@ -465,8 +470,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div id="extras-dinamicos-p4"></div>
 
     <div class="campo" style="margin-top:1.5rem;">
-      <label for="notas">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
-      <textarea id="notas" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
+      <label for="notas-paquete">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
+      <textarea id="notas-paquete" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
     </div>
 
     <div class="btn-nav">
@@ -531,7 +536,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     </div>
 
     <div class="btn-nav">
-      <button class="btn-prev" onclick="irA(4)">← Atrás</button>
+      <button class="btn-prev" onclick="atrasDesdePaso5()">← Atrás</button>
       <button class="btn-next" onclick="irA(6)">Siguiente →</button>
     </div>
   </div>
@@ -727,6 +732,7 @@ function actualizarCheckout() {
 function configurarPaso3() {
   var esPasadia   = servicioSel === 'PASADIA';
   var esHospedaje = servicioSel === 'HOSPEDAJE';
+  var esArr       = servicioSel === 'ARRENDAMIENTO';
   var pathGrid  = document.getElementById('path-grid');
   var titulo    = document.getElementById('titulo-paso3');
   var sub       = document.getElementById('sub-paso3');
@@ -758,11 +764,26 @@ function configurarPaso3() {
     subPer.style.display = 'block';
     cargarHabitaciones();
     cargarExtrasPersonalizado();
+  } else if (esArr) {
+    pathGrid.style.display = 'none';
+    titulo.innerHTML = 'Elige tu <em>mobiliario</em>';
+    sub.textContent = 'Selecciona lo que necesites, o descríbelo en las notas.';
+    caminoSel = 'personalizado';
+    subPer.style.display = 'block';
+    cargarExtrasPersonalizado();
   } else {
     pathGrid.style.display = '';
     titulo.innerHTML = 'Elige cómo <em>cotizar</em>';
     sub.textContent = 'Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.';
   }
+  actualizarEtiquetaPaso3();
+}
+
+function actualizarEtiquetaPaso3() {
+  var lbl = document.getElementById('steplbl-3');
+  if (servicioSel === 'HOSPEDAJE') lbl.textContent = 'Habitación';
+  else if (servicioSel === 'PASADIA' || servicioSel === 'ARRENDAMIENTO') lbl.textContent = 'Extras';
+  else lbl.textContent = caminoSel === 'personalizado' ? 'Extras' : 'Paquete';
 }
 
 function mostrarNotaBase(texto) {
@@ -798,6 +819,7 @@ function selCamino(camino, el) {
     }
     cargarExtrasPersonalizado();
   }
+  actualizarEtiquetaPaso3();
 }
 
 async function cargarPaquetes() {
@@ -1096,6 +1118,23 @@ function irA(paso) {
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
+// Camino 'personalizado' (Pasadía/Arrendamiento/Hospedaje siempre, Evento
+// cuando el cliente arma su propia cotización) ya muestra sus extras y notas
+// en el propio paso 3 — el paso 4 ahí solo repetiría un cuadro de notas
+// vacío, así que se salta directo al paso 5. Camino 'paquete' (solo Evento)
+// sí necesita el paso 4 para ofrecer extras adicionales al paquete elegido.
+function siguienteDesdePaso3() {
+  irA(caminoSel === 'personalizado' ? 5 : 4);
+}
+function atrasDesdePaso5() {
+  irA(caminoSel === 'personalizado' ? 3 : 4);
+}
+function obtenerNotas() {
+  var id = caminoSel === 'personalizado' ? 'notas-personalizado' : 'notas-paquete';
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
 function prepararPaso4() {
   if (caminoSel === 'paquete') {
     cargarExtras(servicioSel, 'extras-dinamicos-p4');
@@ -1177,7 +1216,7 @@ function construirResumen() {
   var nombre    = document.getElementById('nombre').value.trim();
   var tel       = document.getElementById('telefono').value.trim();
   var email     = document.getElementById('email').value.trim();
-  var notas     = document.getElementById('notas').value.trim();
+  var notas     = obtenerNotas();
   var tipoEv    = document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : '';
   var hi        = document.getElementById('hora_inicio') ? document.getElementById('hora_inicio').value : '';
   var hf        = document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '';
@@ -1331,7 +1370,7 @@ async function enviarSolicitud() {
     nombre:     document.getElementById('nombre').value.trim(),
     telefono:   document.getElementById('telefono').value.trim(),
     email:      document.getElementById('email').value.trim(),
-    notas:      document.getElementById('notas').value.trim(),
+    notas:      obtenerNotas(),
     como_nos_encontro: medioSel,
     inc_cerveza:    !!barraExtras.inc_cerveza,
     inc_nacional:   !!barraExtras.inc_nacional,

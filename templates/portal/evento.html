@@ -291,9 +291,32 @@
         </div>
         {% endif %}
         
-        <!-- Pagar en línea (Openpay) -->
         {% if openpay_habilitado and saldo_pendiente > 0 %}
-        <div class="card" id="card-pago-linea">
+        <!-- Identificación oficial: requisito previo al pago -->
+        <div class="card" id="card-identificacion">
+            <div class="card-title"><i class="fas fa-id-card"></i> Identificación oficial</div>
+            <div id="identificacion-lista" {% if not identificacion_completa %}style="display:none;"{% endif %}>
+                <p style="font-size:13px; color:#2E7D32; margin:0;">
+                    <i class="fas fa-check-circle"></i> Identificación recibida. Ya puedes continuar con el pago.
+                </p>
+            </div>
+            <div id="identificacion-form-wrap" {% if identificacion_completa %}style="display:none;"{% endif %}>
+                <p style="font-size:13px; color:#8a8780; margin-bottom:14px;">
+                    Sube una foto o escaneo de tu INE (u otra identificación oficial) de quien contrata.
+                    Es un requisito para continuar con el pago. Formatos JPG, PNG o PDF, máximo 8 MB.
+                </p>
+                <input type="file" id="input-identificacion" accept="image/jpeg,image/png,application/pdf"
+                       style="width:100%; margin-bottom:10px;">
+                <div id="identificacion-error" style="display:none; font-size:12px; color:#c0392b; margin-bottom:10px;"></div>
+                <button type="button" id="btn-subir-identificacion" class="btn btn-green"
+                        style="border:none; cursor:pointer; width:100%; justify-content:center; font-size:15px;">
+                    <i class="fas fa-upload"></i> <span id="texto-btn-identificacion">Subir identificación</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Pagar en línea (Openpay) -->
+        <div class="card" id="card-pago-linea" {% if not identificacion_completa %}style="display:none;"{% endif %}>
             <div class="card-title"><i class="fas fa-credit-card"></i> Pagar en línea</div>
             <p style="font-size:13px; color:#8a8780; margin-bottom:14px;">
                 Paga con tarjeta, en efectivo (tiendas de conveniencia) o por transferencia SPEI.
@@ -900,6 +923,53 @@
 
         div.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+    </script>
+
+    <script>
+    (function() {
+        var btn = document.getElementById('btn-subir-identificacion');
+        if (!btn) { return; }
+        var input = document.getElementById('input-identificacion');
+        var err = document.getElementById('identificacion-error');
+        var textoBtn = document.getElementById('texto-btn-identificacion');
+        var csrf = document.querySelector('#payment-form [name=csrfmiddlewaretoken]').value;
+
+        btn.addEventListener('click', function() {
+            err.style.display = 'none';
+            var archivo = input.files[0];
+            if (!archivo) {
+                err.textContent = 'Selecciona un archivo primero.';
+                err.style.display = 'block';
+                return;
+            }
+            btn.disabled = true;
+            textoBtn.textContent = 'Subiendo…';
+
+            var body = new FormData();
+            body.append('identificacion', archivo);
+            body.append('csrfmiddlewaretoken', csrf);
+
+            fetch("{% url 'portal_subir_identificacion' portal.token %}", {
+                method: 'POST', body: body,
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                btn.disabled = false;
+                textoBtn.textContent = 'Subir identificación';
+                if (data.ok) {
+                    document.getElementById('identificacion-form-wrap').style.display = 'none';
+                    document.getElementById('identificacion-lista').style.display = 'block';
+                    document.getElementById('card-pago-linea').style.display = 'block';
+                } else {
+                    err.textContent = data.mensaje || 'No se pudo subir el archivo.';
+                    err.style.display = 'block';
+                }
+            }).catch(function() {
+                btn.disabled = false;
+                textoBtn.textContent = 'Subir identificación';
+                err.textContent = 'No se pudo subir el archivo. Intenta de nuevo.';
+                err.style.display = 'block';
+            });
+        });
+    })();
     </script>
     {% endif %}
 

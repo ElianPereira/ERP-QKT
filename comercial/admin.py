@@ -611,7 +611,7 @@ def autocompletar_cotizacion_nueva(obj):
 class CotizacionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/comercial/cotizacion/change_form.html'
     inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'precio_final', 'acciones_display')
+    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'identificacion_badge', 'precio_final', 'acciones_display')
     list_filter = ('estado', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
@@ -644,9 +644,12 @@ class CotizacionAdmin(admin.ModelAdmin):
                            'es el importe que se le exhibe y se le cobra al cliente.',
         }),
         ('Cancelación', {'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'), 'classes': ('collapse',)}),
-        ('Documentos', {'fields': ('archivo_pdf', 'enviar_email_btn')}),
+        ('Documentos', {
+            'fields': ('archivo_pdf', 'identificacion_oficial', 'identificacion_revisada',
+                       'identificacion_revisada_por', 'identificacion_revisada_en', 'enviar_email_btn'),
+        }),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en')
 
     # --- BADGES CORTOS (Punto 3) ---
     def estado_badge(self, obj):
@@ -679,6 +682,15 @@ class CotizacionAdmin(admin.ModelAdmin):
             color = '#e74c3c'
         return format_html('<span style="color:{}; font-weight:bold;">{}%</span>', color, pct)
     pago_badge.short_description = "Pagado"
+
+    def identificacion_badge(self, obj):
+        # Las tres cadenas son estáticas (sin interpolar datos de usuario).
+        if not obj.identificacion_oficial:
+            return mark_safe('<span style="color:#999;">—</span>')  # noqa: S308
+        if obj.identificacion_revisada:
+            return mark_safe('<span style="color:#27ae60; font-weight:bold;">Revisada</span>')  # noqa: S308
+        return mark_safe('<span style="color:#e67e22; font-weight:bold;">Sin revisar</span>')  # noqa: S308
+    identificacion_badge.short_description = "INE"
 
     def get_nivel_paquete(self, obj):
         checks = sum([obj.incluye_refrescos, obj.incluye_cerveza, obj.incluye_licor_nacional, obj.incluye_licor_premium, obj.incluye_cocteleria_basica, obj.incluye_cocteleria_premium])
@@ -781,8 +793,18 @@ class CotizacionAdmin(admin.ModelAdmin):
     # --- SAVE MODEL CON VALIDACIONES ---
     def save_model(self, request, obj, form, change):
         if change:
-            old_obj = Cotizacion.objects.filter(pk=obj.pk).values('estado').first()
+            old_obj = Cotizacion.objects.filter(pk=obj.pk).values(
+                'estado', 'identificacion_revisada',
+            ).first()
             old_estado = old_obj['estado'] if old_obj else 'BORRADOR'
+
+            if obj.identificacion_revisada and not (old_obj and old_obj['identificacion_revisada']):
+                obj.identificacion_revisada_por = request.user
+                from django.utils.timezone import now as _now
+                obj.identificacion_revisada_en = _now()
+            elif not obj.identificacion_revisada:
+                obj.identificacion_revisada_por = None
+                obj.identificacion_revisada_en = None
 
             if obj.estado != old_estado:
                 permitidos = Cotizacion.TRANSICIONES_PERMITIDAS.get(old_estado, [])

@@ -38,9 +38,17 @@ def _basic_auth_header(user, password):
     return f"Basic {token}"
 
 
-def _crear_cotizacion(monto_items=Decimal('1000.00')):
+def _crear_cotizacion(monto_items=Decimal('1000.00'), con_identificacion=True):
     """Cotización con un item real para que precio_final > 0 (Cotizacion.save
-    recalcula los totales desde los items, así que no basta pasar precio_final)."""
+    recalcula los totales desde los items, así que no basta pasar precio_final).
+
+    `con_identificacion=True` por default: la mayoría de estos tests ejercitan
+    el cargo en sí, no el requisito de identificación oficial (ver
+    RequiereIdentificacionOficialTest) — sin esto, portal_procesar_pago_openpay
+    los rechazaría a todos antes de llegar a Openpay. Basta con poner un
+    `name` en el FieldFile (sin tocar storage real): identificacion_completa()
+    solo comprueba que el campo no esté vacío.
+    """
     cliente = Cliente.objects.create(nombre='Cliente Openpay', tipo_persona='FISICA')
     cotizacion = Cotizacion.objects.create(
         cliente=cliente,
@@ -52,6 +60,8 @@ def _crear_cotizacion(monto_items=Decimal('1000.00')):
         cotizacion=cotizacion, descripcion='Servicio de evento',
         cantidad=1, precio_unitario=monto_items,
     )
+    if con_identificacion:
+        cotizacion.identificacion_oficial.name = 'cotizaciones/identificaciones/test-ine.jpg'
     cotizacion.save()
     cotizacion.refresh_from_db()
     return cotizacion
@@ -748,6 +758,43 @@ class CargoEfectivoSpeiTest(TestCase):
         resultado = procesar_cargo_spei(cotizacion, Decimal('500.00'))
         self.assertFalse(resultado['ok'])
         self.assertNotIn('already been processed', resultado['mensaje'])
+
+
+class RequiereIdentificacionOficialTest(TestCase):
+    """El pago exige identificación oficial subida (decisión del propietario:
+    obligatoria antes de pagar/confirmar). Ver Cotizacion.identificacion_completa()
+    y comercial/views_openpay.py::portal_procesar_pago_openpay."""
+
+    def setUp(self):
+        self.cotizacion = _crear_cotizacion(con_identificacion=False)
+        self.portal = PortalCliente.objects.get(cotizacion=self.cotizacion)
+        self.url = reverse('portal_procesar_pago_openpay', args=[self.portal.token])
+
+    def test_sin_identificacion_el_pago_se_rechaza_sin_llamar_openpay(self):
+        with patch('comercial.services_openpay.requests.post') as mock_post:
+            response = self.client.post(
+                self.url, secure=True,
+                data={'metodo': 'store', 'monto': '600.00', 'acepta_legales': '1'},
+            )
+        data = response.json()
+        self.assertFalse(data['ok'])
+        self.assertIn('identificación', data['mensaje'])
+        mock_post.assert_not_called()
+        self.assertFalse(OpenpayTransaccion.objects.exists())
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_con_identificacion_el_pago_procede(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-ine-001', 'status': 'in_progress',
+            'payment_method': {'reference': 'OPENPAY-INE-01'},
+        })
+        self.cotizacion.identificacion_oficial.name = 'cotizaciones/identificaciones/test-ine.jpg'
+        self.cotizacion.save()
+        response = self.client.post(
+            self.url, secure=True,
+            data={'metodo': 'store', 'monto': '600.00', 'acepta_legales': '1'},
+        )
+        self.assertTrue(response.json()['ok'])
 
 
 class PortalCheckoutViewTest(TestCase):

@@ -127,6 +127,12 @@ def portal_procesar_pago_openpay(request, token):
     portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
 
+    if not cotizacion.identificacion_completa():
+        return JsonResponse({
+            'ok': False,
+            'mensaje': 'Sube tu identificación oficial (INE) antes de continuar con el pago.',
+        })
+
     metodo = request.POST.get('metodo')
     try:
         monto = Decimal(request.POST.get('monto', '0'))

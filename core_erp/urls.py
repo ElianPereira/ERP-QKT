@@ -43,6 +43,7 @@ from comercial.views_portal import (
     portal_descargar_guia,
     portal_descargar_plan,
     portal_evento,
+    portal_subir_identificacion,
 )
 from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
@@ -198,6 +199,7 @@ urlpatterns = [
     path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
     path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),
     path('mi-evento/<str:token>/guia.pdf', portal_descargar_guia, name='portal_descargar_guia'),
+    path('mi-evento/<str:token>/identificacion/', portal_subir_identificacion, name='portal_subir_identificacion'),
     path('mi-evento/<str:token>/pagar-openpay/', portal_procesar_pago_openpay, name='portal_procesar_pago_openpay'),
     path('mi-evento/<str:token>/pago-3ds/', portal_retorno_3ds, name='portal_retorno_3ds'),
     path('mi-evento/<str:token>/ficha-paynet/<str:openpay_id>.pdf',

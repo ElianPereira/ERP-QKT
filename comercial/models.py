@@ -580,6 +580,35 @@ class Cotizacion(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
     archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF")
+    identificacion_oficial = models.FileField(
+        upload_to='cotizaciones/identificaciones/', blank=True, null=True,
+        storage=storage_privado, verbose_name="Identificación oficial (INE)",
+        help_text="INE u otra identificación oficial de quien contrata. Se pide desde "
+                   "el portal antes de pagar; ver Cotizacion.identificacion_completa().",
+    )
+    # No hay forma automática de validar que el archivo subido SEA una
+    # identificación real (eso requeriría un servicio de verificación de
+    # identidad, desproporcionado para el tamaño de este negocio) — este flag
+    # es la mitigación pragmática: revisión manual posterior por quien
+    # concilia pagos, no un gate que bloquee el pago.
+    identificacion_revisada = models.BooleanField(
+        default=False, verbose_name="Identificación revisada",
+        help_text="Márcalo tras confirmar visualmente que el archivo subido es "
+                   "una identificación oficial legible.",
+    )
+    identificacion_revisada_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name="Revisada por",
+    )
+    identificacion_revisada_en = models.DateTimeField(null=True, blank=True, verbose_name="Revisada el")
+
+    def identificacion_completa(self):
+        """
+        Único punto de verdad de si ya se cumplió el requisito de identificación
+        oficial — lo usa tanto el gate de pago (views_openpay.pagar_openpay) como
+        el portal, para no duplicar el criterio en dos lugares.
+        """
+        return bool(self.identificacion_oficial)
 
     def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
         """
