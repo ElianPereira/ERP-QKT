@@ -1,0 +1,201 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+<style>
+    .sim-container { max-width: 900px; margin: 0 auto; padding: 20px; font-family: 'IBM Plex Sans', sans-serif; }
+    .sim-header { margin-bottom: 22px; }
+    .sim-header h2 { margin: 0 0 6px; color: #e0ddd4; font-size: 20px; font-weight: 600; }
+    .sim-header p { margin: 0; color: #8a8780; font-size: 13px; max-width: 62em; line-height: 1.6; }
+
+    .sim-panel { background: #383632; border-radius: 8px; border: 1px solid #4a4845; margin-bottom: 18px; overflow: hidden; }
+    .sim-panel-header { background: #33312e; padding: 12px 18px; border-bottom: 1px solid #4a4845; }
+    .sim-panel-header h3 { margin: 0; font-size: 13px; color: #d4d1c8; font-weight: 600; }
+    .sim-panel-body { padding: 16px 18px; }
+
+    .sim-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .sim-field { display: flex; flex-direction: column; gap: 4px; }
+    .sim-field label { font-size: 11px; color: #8a8780; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+    .sim-field input[type="text"], .sim-field select {
+        background: #2b2a27; border: 1px solid #4a4845; color: #e0ddd4;
+        border-radius: 4px; padding: 8px 10px; font-size: 13px; min-width: 220px;
+    }
+    .sim-field.chico input, .sim-field.chico select { min-width: 140px; }
+    .sim-btn {
+        background: #2E7D32; color: #fff; border: none; border-radius: 4px;
+        padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .sim-btn:hover { background: #388E3C; }
+
+    .sim-resultados-list { list-style: none; margin: 0; padding: 0; }
+    .sim-resultados-list li { border-bottom: 1px solid rgba(255,255,255,.05); }
+    .sim-resultados-list li:last-child { border-bottom: none; }
+    .sim-resultados-list a {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 4px; text-decoration: none; color: #d4d1c8;
+    }
+    .sim-resultados-list a:hover { color: #4CAF50; }
+    .sim-resultados-list .monto { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+    .sim-cotizacion-actual {
+        display: flex; justify-content: space-between; flex-wrap: wrap; gap: 18px;
+    }
+    .sim-dato { display: flex; flex-direction: column; gap: 2px; }
+    .sim-dato .label { font-size: 11px; color: #8a8780; text-transform: uppercase; letter-spacing: .03em; }
+    .sim-dato .valor { font-size: 16px; font-weight: 700; color: #e0ddd4; font-variant-numeric: tabular-nums; }
+
+    .sim-error { background: rgba(231,76,60,.1); border-left: 4px solid #e74c3c; border-radius: 4px; padding: 14px 18px; margin-bottom: 18px; color: #f2a89e; font-size: 13px; }
+
+    .sim-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .sim-tabla th { text-align: left; padding: 8px 4px; color: #8a8780; font-weight: 600; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #4a4845; }
+    .sim-tabla td { padding: 9px 4px; border-bottom: 1px solid rgba(255,255,255,.05); color: #d4d1c8; }
+    .sim-tabla tr:last-child td { border-bottom: none; }
+    .sim-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+
+    .sim-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #fff; }
+    .sim-badge-ok { background: #27ae60; }
+    .sim-badge-no { background: #e74c3c; }
+    .sim-badge-neutro { background: #6b6862; }
+
+    .sim-aviso { background: rgba(76,175,80,.08); border-left: 3px solid #4CAF50; border-radius: 4px; padding: 10px 14px; font-size: 12px; color: #b9b6ad; margin-top: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sim-container">
+
+    <div class="sim-header">
+        <h2>Simulador de pago</h2>
+        <p>
+            Escribe un monto hipotético sobre una cotización real y mira cómo quedaría el saldo, el
+            mínimo a pagar y el desglose fiscal — <b>sin guardar nada</b>. No crea ningún Pago, no
+            genera póliza contable ni solicitud de factura, y el cliente nunca lo ve en su portal.
+        </p>
+    </div>
+
+    <div class="sim-panel">
+        <div class="sim-panel-header"><h3>1. Busca la cotización</h3></div>
+        <div class="sim-panel-body">
+            <form method="get" class="sim-form">
+                <div class="sim-field">
+                    <label>Cliente, evento o folio (ej. COT-045)</label>
+                    <input type="text" name="q" value="{{ q }}" placeholder="Buscar…" autofocus>
+                </div>
+                <button type="submit" class="sim-btn">Buscar</button>
+            </form>
+
+            {% if cotizaciones_encontradas %}
+            <ul class="sim-resultados-list" style="margin-top:14px;">
+                {% for c in cotizaciones_encontradas %}
+                <li>
+                    <a href="?cotizacion_id={{ c.pk }}">
+                        <span>COT-{{ c.pk|stringformat:"03d" }} — {{ c.cliente.nombre }} — {{ c.nombre_evento|default:"" }}</span>
+                        <span class="monto">${{ c.precio_final|floatformat:2 }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% elif q %}
+            <p class="sim-aviso">Sin resultados para «{{ q }}».</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if cotizacion %}
+    <div class="sim-panel">
+        <div class="sim-panel-header"><h3>2. COT-{{ cotizacion.pk|stringformat:"03d" }} — {{ cotizacion.cliente.nombre }}</h3></div>
+        <div class="sim-panel-body">
+            <div class="sim-cotizacion-actual">
+                <div class="sim-dato"><span class="label">Precio final</span><span class="valor">${{ cotizacion.precio_final|floatformat:2 }}</span></div>
+                <div class="sim-dato"><span class="label">Pagado hoy</span><span class="valor">${{ cotizacion.total_pagado|floatformat:2 }}</span></div>
+                <div class="sim-dato"><span class="label">Saldo pendiente hoy</span><span class="valor">${{ cotizacion.saldo_pendiente|floatformat:2 }}</span></div>
+            </div>
+
+            <form method="get" class="sim-form" style="margin-top:18px;">
+                <input type="hidden" name="cotizacion_id" value="{{ cotizacion.pk }}">
+                <div class="sim-field chico">
+                    <label>Monto hipotético</label>
+                    <input type="text" name="monto" value="{{ monto_str }}" placeholder="0.00">
+                </div>
+                <div class="sim-field chico">
+                    <label>Método</label>
+                    <select name="metodo">
+                        {% for valor, nombre in metodos %}
+                        <option value="{{ valor }}" {% if valor == metodo %}selected{% endif %}>{{ nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="sim-btn">Simular</button>
+            </form>
+        </div>
+    </div>
+
+    {% if error_monto %}
+    <div class="sim-error">{{ error_monto }}</div>
+    {% endif %}
+
+    {% if simulacion %}
+    <div class="sim-panel">
+        <div class="sim-panel-header"><h3>Resultado — si registraras ${{ simulacion.monto|floatformat:2 }}</h3></div>
+        <div class="sim-panel-body">
+            <table class="sim-tabla">
+                <tbody>
+                    <tr><th>Saldo pendiente antes</th><td class="sim-num">${{ simulacion.saldo_antes|floatformat:2 }}</td></tr>
+                    <tr><th>Saldo pendiente después</th><td class="sim-num">${{ simulacion.saldo_despues|floatformat:2 }}</td></tr>
+                    <tr>
+                        <th>Mínimo requerido en este pago</th>
+                        <td class="sim-num">
+                            {% if simulacion.minimo %}${{ simulacion.minimo|floatformat:2 }}{% else %}Sin mínimo{% endif %}
+                            {% if simulacion.cumple_minimo %}
+                                <span class="sim-badge sim-badge-ok">Lo cubre</span>
+                            {% else %}
+                                <span class="sim-badge sim-badge-no">No lo cubre</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if simulacion.motivo_minimo %}
+                    <tr><td colspan="2" style="color:#8a8780; font-size:12px;">{{ simulacion.motivo_minimo }}</td></tr>
+                    {% endif %}
+                    <tr>
+                        <th>¿Alcanzaría a confirmar la cotización?</th>
+                        <td>
+                            {% if simulacion.alcanzaria_confirmar %}
+                                <span class="sim-badge sim-badge-ok">Sí — {{ simulacion.porcentaje_pagado_despues|floatformat:1 }}% de anticipo</span>
+                            {% else %}
+                                <span class="sim-badge sim-badge-no">No — {{ simulacion.porcentaje_pagado_despues|floatformat:1 }}% de {{ simulacion.porcentaje_minimo_confirmar|floatformat:0 }}% requerido</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>¿Cerraría la cotización?</th>
+                        <td>
+                            {% if simulacion.cerraria_cotizacion %}
+                                <span class="sim-badge sim-badge-ok">Sí, quedaría saldada</span>
+                            {% else %}
+                                <span class="sim-badge sim-badge-neutro">No, seguiría con saldo</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="sim-panel">
+        <div class="sim-panel-header"><h3>Desglose fiscal proporcional que tendría este pago</h3></div>
+        <div class="sim-panel-body">
+            <table class="sim-tabla">
+                <tbody>
+                    <tr><th>Subtotal</th><td class="sim-num">${{ simulacion.desglose.subtotal|floatformat:2 }}</td></tr>
+                    <tr><th>IVA</th><td class="sim-num">${{ simulacion.desglose.iva|floatformat:2 }}</td></tr>
+                    <tr><th>Retención ISR</th><td class="sim-num">${{ simulacion.desglose.retencion_isr|floatformat:2 }}</td></tr>
+                    <tr><th>Retención IVA</th><td class="sim-num">${{ simulacion.desglose.retencion_iva|floatformat:2 }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -8,9 +8,11 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
+from django.core.management import call_command
 from django.template.loader import render_to_string
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from comercial.models import Cliente, Cotizacion, Pago
 from core_erp.test_utils import login_superuser_con_totp
@@ -147,7 +149,7 @@ class EnviarEmailContadorRemitenteTest(TestCase):
         self.solicitud = SolicitudFactura.objects.get(pago=pago)
 
     def test_email_al_contador_sale_de_notificaciones(self):
-        with patch('facturacion.admin._generar_pdf_solicitud', return_value=b'%PDF-fake'):
+        with patch('facturacion.services.generar_pdf_solicitud', return_value=b'%PDF-fake'):
             self.client.get(reverse(
                 'admin:solicitudfactura_enviar_email',
                 args=[self.solicitud.id],
@@ -155,3 +157,173 @@ class EnviarEmailContadorRemitenteTest(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].from_email, 'notificaciones@qkt.mx')
         self.assertEqual(mail.outbox[0].to, ['contador@example.com'])
+
+
+class EnvioAutomaticoAlRegistrarPagoTest(TestCase):
+    """
+    La solicitud de factura ya no requiere darle click a los botones del
+    admin: se manda sola (email + WhatsApp) en cuanto el Pago que la generó
+    queda confirmado en la base de datos.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user('u2', password='x')
+        ConfiguracionContador.objects.create(
+            nombre='Contador Test', email='contador@example.com',
+            telefono_whatsapp='529991234567',
+        )
+        self.cliente = Cliente.objects.create(nombre='Cliente auto-envío')
+        self.cot = _crear_cotizacion(self.cliente, Decimal('5000.00'))
+
+    def test_se_manda_solo_al_confirmarse_la_transaccion(self):
+        with patch('facturacion.services.enviar_solicitud_por_email', return_value=(True, '')) as m_email, \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp', return_value=(True, '')) as m_wa:
+            with self.captureOnCommitCallbacks(execute=True):
+                pago = Pago.objects.create(
+                    cotizacion=self.cot, monto=Decimal('5000.00'),
+                    metodo='EFECTIVO', usuario=self.user,
+                )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        m_email.assert_called_once_with(solicitud)
+        m_wa.assert_called_once_with(solicitud)
+        solicitud.refresh_from_db()
+        self.assertEqual(solicitud.estado, 'ENVIADA')
+        self.assertEqual(solicitud.metodo_envio, 'EMAIL')
+        self.assertIsNotNone(solicitud.fecha_envio)
+
+    def test_no_se_dispara_antes_de_que_la_transaccion_confirme(self):
+        """Sin captureOnCommitCallbacks (equivalente a que la transacción no
+        haya confirmado todavía), el envío no debe intentarse."""
+        with patch('facturacion.services.enviar_solicitud_por_email') as m_email, \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp') as m_wa:
+            Pago.objects.create(
+                cotizacion=self.cot, monto=Decimal('5000.00'),
+                metodo='EFECTIVO', usuario=self.user,
+            )
+        m_email.assert_not_called()
+        m_wa.assert_not_called()
+
+    def test_email_falla_whatsapp_ok_igual_marca_enviada(self):
+        with patch('facturacion.services.enviar_solicitud_por_email', return_value=(False, 'Brevo caído')), \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp', return_value=(True, '')):
+            with self.captureOnCommitCallbacks(execute=True):
+                pago = Pago.objects.create(
+                    cotizacion=self.cot, monto=Decimal('5000.00'),
+                    metodo='EFECTIVO', usuario=self.user,
+                )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        solicitud.refresh_from_db()
+        self.assertEqual(solicitud.estado, 'ENVIADA')
+        self.assertEqual(solicitud.metodo_envio, 'WHATSAPP')
+
+    def test_los_dos_canales_fallan_se_queda_pendiente(self):
+        with patch('facturacion.services.enviar_solicitud_por_email', return_value=(False, 'Brevo caído')), \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp', return_value=(False, 'Meta caído')):
+            with self.captureOnCommitCallbacks(execute=True):
+                pago = Pago.objects.create(
+                    cotizacion=self.cot, monto=Decimal('5000.00'),
+                    metodo='EFECTIVO', usuario=self.user,
+                )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        solicitud.refresh_from_db()
+        self.assertEqual(solicitud.estado, 'PENDIENTE')
+        self.assertIsNone(solicitud.fecha_envio)
+
+    def test_una_excepcion_inesperada_no_tumba_el_guardado_del_pago(self):
+        """El auto-envío nunca debe impedir que el Pago se haya guardado —
+        aunque el envío truene con algo no contemplado por el try/except
+        interno de servicios (aquí se fuerza en la orquestación misma)."""
+        with patch('facturacion.services.enviar_solicitud_al_contador', side_effect=RuntimeError('boom')):
+            with self.captureOnCommitCallbacks(execute=True):
+                pago = Pago.objects.create(
+                    cotizacion=self.cot, monto=Decimal('5000.00'),
+                    metodo='EFECTIVO', usuario=self.user,
+                )
+        self.assertTrue(Pago.objects.filter(pk=pago.pk).exists())
+        self.assertTrue(SolicitudFactura.objects.filter(pago=pago).exists())
+
+
+class RecordatorioContadorCommandTest(TestCase):
+    """enviar_recordatorios_contador: recuerda por email/WhatsApp solo lo
+    ENVIADA y todavía sin facturar, en los días exactos de la cadencia, y
+    no repite el mismo recordatorio si el comando corre dos veces el mismo día."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('u3', password='x')
+        ConfiguracionContador.objects.create(
+            nombre='Contador Test', email='contador@example.com',
+            telefono_whatsapp='529991234567',
+        )
+
+    def _crear_solicitud_enviada(self, dias_atras, ultimo_recordatorio=None):
+        # Cliente/cotización propios por llamada: cada solicitud de prueba
+        # necesita su propio saldo disponible de $5000, sin pisarse entre sí.
+        cliente = Cliente.objects.create(nombre='Cliente recordatorio')
+        cot = _crear_cotizacion(cliente, Decimal('5000.00'))
+        with self.captureOnCommitCallbacks(execute=True):
+            with patch('facturacion.services.enviar_solicitud_por_email', return_value=(True, '')), \
+                 patch('facturacion.services.enviar_solicitud_por_whatsapp', return_value=(True, '')):
+                pago = Pago.objects.create(
+                    cotizacion=cot, monto=Decimal('5000.00'),
+                    metodo='EFECTIVO', usuario=self.user,
+                )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        fecha_envio = timezone.now() - timedelta(days=dias_atras)
+        SolicitudFactura.objects.filter(pk=solicitud.pk).update(
+            fecha_envio=fecha_envio, ultimo_recordatorio_enviado=ultimo_recordatorio,
+        )
+        solicitud.refresh_from_db()
+        return solicitud
+
+    def test_recuerda_a_los_3_dias(self):
+        solicitud = self._crear_solicitud_enviada(dias_atras=3)
+        with patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_email',
+                   return_value=(True, '')) as m_email, \
+             patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_whatsapp',
+                   return_value=(True, '')):
+            call_command('enviar_recordatorios_contador')
+        m_email.assert_called_once_with(solicitud)
+        solicitud.refresh_from_db()
+        self.assertIsNotNone(solicitud.ultimo_recordatorio_enviado)
+
+    def test_no_recuerda_fuera_de_la_cadencia(self):
+        self._crear_solicitud_enviada(dias_atras=5)
+        with patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_email') as m_email, \
+             patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_whatsapp') as m_wa:
+            call_command('enviar_recordatorios_contador')
+        m_email.assert_not_called()
+        m_wa.assert_not_called()
+
+    def test_no_repite_el_mismo_dia(self):
+        self._crear_solicitud_enviada(dias_atras=3, ultimo_recordatorio=timezone.now())
+        with patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_email') as m_email, \
+             patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_whatsapp') as m_wa:
+            call_command('enviar_recordatorios_contador')
+        m_email.assert_not_called()
+        m_wa.assert_not_called()
+
+    def test_no_recuerda_pendiente_ni_facturada_ni_cancelada(self):
+        pendiente = self._crear_solicitud_enviada(dias_atras=3)
+        SolicitudFactura.objects.filter(pk=pendiente.pk).update(estado='PENDIENTE', fecha_envio=None)
+
+        facturada = self._crear_solicitud_enviada(dias_atras=3)
+        SolicitudFactura.objects.filter(pk=facturada.pk).update(estado='FACTURADA')
+
+        cancelada = self._crear_solicitud_enviada(dias_atras=3)
+        SolicitudFactura.objects.filter(pk=cancelada.pk).update(estado='CANCELADA')
+
+        with patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_email') as m_email, \
+             patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_whatsapp') as m_wa:
+            call_command('enviar_recordatorios_contador')
+        m_email.assert_not_called()
+        m_wa.assert_not_called()
+
+    def test_dry_run_no_manda_ni_registra(self):
+        solicitud = self._crear_solicitud_enviada(dias_atras=7)
+        with patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_email') as m_email, \
+             patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_whatsapp') as m_wa:
+            call_command('enviar_recordatorios_contador', '--dry-run')
+        m_email.assert_not_called()
+        m_wa.assert_not_called()
+        solicitud.refresh_from_db()
+        self.assertIsNone(solicitud.ultimo_recordatorio_enviado)

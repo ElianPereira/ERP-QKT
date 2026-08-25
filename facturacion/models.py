@@ -148,6 +148,12 @@ class SolicitudFactura(models.Model):
         choices=[('EMAIL', 'Email'), ('WHATSAPP', 'WhatsApp')],
         verbose_name="Método de Envío"
     )
+    ultimo_recordatorio_enviado = models.DateTimeField(
+        null=True, blank=True, verbose_name="Último recordatorio enviado",
+        help_text="Lo escribe el cron de recordatorios al contador — no confundir "
+                  "con fecha_envio (el primer envío). Evita que un recordatorio se "
+                  "mande dos veces el mismo día si el comando se corre más de una vez.",
+    )
 
     # ─── Archivos de factura ──────────────────────────────────
     archivo_zip = models.FileField(
