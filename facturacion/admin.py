@@ -3,123 +3,21 @@ Admin del Módulo de Facturación
 ===============================
 Sistema de Diseño QKT v2.0
 """
-import io
 import logging
-import os
-from decimal import Decimal
 
-import requests
-from decouple import config
-from django.conf import settings
 from django.contrib import admin, messages
-from django.core.files.base import ContentFile
-from django.core.mail import send_mail
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-from django.template.loader import render_to_string
 from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from weasyprint import HTML
 
-from core_erp import impuestos
 from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
 
 from .models import ConfiguracionContador, SolicitudFactura
+from .services import enviar_solicitud_por_email, enviar_solicitud_por_whatsapp, generar_pdf_solicitud
 
 logger = logging.getLogger(__name__)
-
-
-def _generar_pdf_solicitud(solicitud):
-    """Genera el PDF de la solicitud y retorna los bytes."""
-    cliente = solicitud.cliente
-
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    if os.name == 'nt':
-        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
-    else:
-        logo_url = f"file://{ruta_logo}"
-
-    total = Decimal(str(solicitud.monto))
-    _d = impuestos.desglosar(
-        total, con_retencion_isr=(getattr(cliente, 'tipo_persona', None) == 'MORAL'),
-    )
-    subtotal, iva, ret_isr = _d['base'], _d['iva'], _d['ret_isr']
-
-    context = {
-        'solicitud':    solicitud,
-        'cliente':      cliente,
-        'folio':        f"SOL-{int(solicitud.id):03d}",
-        'logo_url':     logo_url,
-        'calc_subtotal':subtotal,
-        'calc_iva':     iva,
-        'calc_ret_isr': ret_isr,
-        'calc_total':   total,
-    }
-    html_string = render_to_string('facturacion/solicitud_pdf.html', context)
-    return HTML(string=html_string).write_pdf()
-
-
-def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
-    """
-    Envía el PDF de la solicitud al contador via WhatsApp Cloud API.
-    1. Sube el PDF al Media API → obtiene media_id
-    2. Envía mensaje tipo 'document' con el media_id
-    Retorna (True, '') o (False, 'mensaje de error')
-    """
-    wa_token    = config('WA_CLOUD_API_TOKEN', default='')
-    wa_phone_id = config('WA_PHONE_NUMBER_ID', default='')
-
-    if not wa_token or not wa_phone_id:
-        return False, "WA_CLOUD_API_TOKEN o WA_PHONE_NUMBER_ID no configurados."
-
-    headers_auth = {"Authorization": f"Bearer {wa_token}"}
-
-    # 1. Subir PDF
-    try:
-        resp_upload = requests.post(
-            f"https://graph.facebook.com/v19.0/{wa_phone_id}/media",
-            headers=headers_auth,
-            files={
-                'file':               (filename, io.BytesIO(pdf_bytes), 'application/pdf'),
-                'messaging_product':  (None, 'whatsapp'),
-                'type':               (None, 'application/pdf'),
-            },
-            timeout=30,
-        )
-    except Exception as e:
-        return False, f"Error al subir PDF: {e}"
-
-    if resp_upload.status_code != 200:
-        return False, f"Error upload ({resp_upload.status_code}): {resp_upload.text[:200]}"
-
-    media_id = resp_upload.json().get('id')
-    if not media_id:
-        return False, f"No se obtuvo media_id: {resp_upload.text[:200]}"
-
-    # 2. Enviar documento
-    try:
-        resp_send = requests.post(
-            f"https://graph.facebook.com/v19.0/{wa_phone_id}/messages",
-            headers={**headers_auth, "Content-Type": "application/json"},
-            json={
-                "messaging_product": "whatsapp",
-                "to": telefono,
-                "type": "document",
-                "document": {
-                    "id": media_id,
-                    "filename": filename,
-                    "caption": f"Solicitud de Factura {folio} — {cliente_nombre}",
-                },
-            },
-            timeout=15,
-        )
-    except Exception as e:
-        return False, f"Error al enviar documento: {e}"
-
-    if resp_send.status_code == 200:
-        return True, ''
-    return False, f"Error envío ({resp_send.status_code}): {resp_send.text[:200]}"
 
 
 @admin.register(ConfiguracionContador)
@@ -148,7 +46,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     ordering       = ['-fecha_solicitud']
     readonly_fields = [
         'created_by', 'created_at', 'updated_at',
-        'enviada_por', 'fecha_envio', 'metodo_envio', 'uuid_factura'
+        'enviada_por', 'fecha_envio', 'metodo_envio', 'ultimo_recordatorio_enviado', 'uuid_factura'
     ]
 
     fieldsets = (
@@ -160,7 +58,11 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             'fields': (('monto', 'concepto'), ('forma_pago', 'metodo_pago'), 'fecha_pago')
         }),
         ('Estado y Envío', {
-            'fields': ('estado', ('enviada_por', 'fecha_envio', 'metodo_envio'))
+            'fields': (
+                'estado',
+                ('enviada_por', 'fecha_envio', 'metodo_envio'),
+                'ultimo_recordatorio_enviado',
+            )
         }),
         ('Archivos de Factura', {
             'fields': ('archivo_zip', ('archivo_pdf', 'archivo_xml'), ('uuid_factura', 'fecha_factura')),
@@ -288,7 +190,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             messages.error(request, "No tienes permiso para ver solicitudes de factura.")
             return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         solicitud = SolicitudFactura.objects.select_related('cliente', 'cotizacion').get(pk=solicitud_id)
-        pdf_bytes = _generar_pdf_solicitud(solicitud)
+        pdf_bytes = generar_pdf_solicitud(solicitud)
         response  = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="Solicitud_SOL-{solicitud.id:04d}.pdf"'
         return response
@@ -299,32 +201,13 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             messages.error(request, "No tienes permiso para enviar solicitudes de factura.")
             return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         solicitud = SolicitudFactura.objects.select_related('cliente').get(pk=solicitud_id)
-        contador  = ConfiguracionContador.get_activo()
+        folio = f"SOL-{solicitud.id:04d}"
 
-        if not contador:
-            messages.error(request, "No hay contador configurado.")
-            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
-
-        telefono = ''.join(filter(str.isdigit, contador.telefono_whatsapp or ''))
-        if not telefono:
-            messages.error(request, "El contador no tiene teléfono WhatsApp configurado.")
-            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
-
-        try:
-            pdf_bytes = _generar_pdf_solicitud(solicitud)
-        except Exception as e:
-            messages.error(request, f"Error al generar PDF: {e}")
-            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
-
-        folio    = f"SOL-{solicitud.id:04d}"
-        filename = f"Solicitud_{folio}.pdf"
-        ok, error = _enviar_pdf_whatsapp(
-            pdf_bytes, filename, telefono, folio, solicitud.cliente.nombre
-        )
-
+        ok, error = enviar_solicitud_por_whatsapp(solicitud)
         if ok:
             solicitud.marcar_enviada(request.user, 'WHATSAPP')
-            messages.success(request, f"PDF {folio} enviado por WhatsApp a {contador.nombre}.")
+            contador = ConfiguracionContador.get_activo()
+            messages.success(request, f"PDF {folio} enviado por WhatsApp a {contador.nombre if contador else 'el contador'}.")
         else:
             messages.error(request, f"Error WhatsApp: {error}")
 
@@ -336,28 +219,14 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
             messages.error(request, "No tienes permiso para enviar solicitudes de factura.")
             return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
         solicitud = SolicitudFactura.objects.select_related('cliente').get(pk=solicitud_id)
-        contador  = ConfiguracionContador.get_activo()
 
-        if not contador:
-            messages.error(request, "No hay contador configurado.")
-            return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
-
-        try:
-            from django.core.mail import EmailMessage
-            pdf_bytes = _generar_pdf_solicitud(solicitud)
-            folio     = f"SOL-{solicitud.id:04d}"
-            email     = EmailMessage(
-                subject=f"Solicitud de Factura {folio} | {solicitud.cliente.nombre}",
-                body=solicitud.get_datos_para_contador(),
-                from_email=settings.EMAIL_FROM_NOTIFICACIONES,
-                to=[contador.email],
-            )
-            email.attach(f"Solicitud_{folio}.pdf", pdf_bytes, 'application/pdf')
-            email.send()
+        ok, error = enviar_solicitud_por_email(solicitud)
+        if ok:
             solicitud.marcar_enviada(request.user, 'EMAIL')
-            messages.success(request, f"Email enviado a {contador.email} con PDF adjunto.")
-        except Exception as e:
-            messages.error(request, f"Error al enviar email: {e}")
+            contador = ConfiguracionContador.get_activo()
+            messages.success(request, f"Email enviado a {contador.email if contador else 'el contador'} con PDF adjunto.")
+        else:
+            messages.error(request, f"Error al enviar email: {error}")
 
         return HttpResponseRedirect(reverse('admin:facturacion_solicitudfactura_changelist'))
 

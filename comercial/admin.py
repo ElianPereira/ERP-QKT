@@ -1019,6 +1019,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
+    change_list_template = "admin/comercial/pago/change_list.html"
     list_display = ('cotizacion', 'tipo_badge', 'concepto', 'fecha_pago', 'monto', 'metodo', 'comision_tpv', 'referencia', 'usuario', 'created_at')
     list_filter = ('tipo', 'concepto', 'metodo', 'fecha_pago')
     search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
@@ -1104,6 +1105,108 @@ class PagoAdmin(admin.ModelAdmin):
         for err in errores:
             self.message_user(request, err, messages.ERROR)
     reembolsar_en_openpay.short_description = "Reembolsar en Openpay (además de registrar reembolso)"
+
+    # ─── Simulador de pago (no guarda nada) ──────────────────────
+    # Para "¿cómo se comportaría esto?" sin crear un Pago real — que dispararía
+    # póliza contable y solicitud de factura de verdad, y contaminaría el saldo
+    # que ve el cliente en su portal. Reusa Pago.full_clean() sobre una
+    # instancia en memoria: la misma validación real, sin persistir nada.
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [path('simular/', self.admin_site.admin_view(self.simular_view), name='comercial_pago_simular')]
+        return my_urls + urls
+
+    def simular_view(self, request):
+        from decimal import Decimal, InvalidOperation
+
+        from django.core.exceptions import ValidationError
+        from django.db.models import Q
+
+        from .services import calcular_desglose_proporcional
+
+        q = request.GET.get('q', '').strip()
+        cotizacion_id = request.GET.get('cotizacion_id', '').strip()
+        monto_str = request.GET.get('monto', '').strip()
+        metodo = request.GET.get('metodo') or Pago.METODOS[0][0]
+
+        cotizaciones_encontradas = []
+        cotizacion = None
+        simulacion = None
+        error_monto = None
+
+        if q and not cotizacion_id:
+            qs = Cotizacion.objects.select_related('cliente').exclude(estado='CANCELADA')
+            folio = q.upper().removeprefix('COT-').strip()
+            if folio.isdigit():
+                qs = qs.filter(pk=int(folio))
+            else:
+                qs = qs.filter(Q(cliente__nombre__icontains=q) | Q(nombre_evento__icontains=q))
+            cotizaciones_encontradas = list(qs.order_by('-created_at')[:20])
+
+        if cotizacion_id.isdigit():
+            cotizacion = Cotizacion.objects.select_related('cliente').filter(pk=int(cotizacion_id)).first()
+
+        if cotizacion and monto_str:
+            try:
+                monto = Decimal(monto_str)
+                if monto <= 0:
+                    raise InvalidOperation
+            except InvalidOperation:
+                error_monto = "Ingresa un monto válido, mayor a cero."
+            else:
+                pago_prueba = Pago(
+                    cotizacion=cotizacion, tipo='INGRESO', concepto='VENTA',
+                    monto=monto, metodo=metodo, fecha_pago=timezone.now().date(),
+                )
+                try:
+                    pago_prueba.full_clean()
+                except ValidationError as e:
+                    error_monto = ' '.join(
+                        f"{campo}: {'; '.join(msgs)}" for campo, msgs in e.message_dict.items()
+                    )
+                else:
+                    saldo_antes = cotizacion.saldo_pendiente()
+                    minimo, motivo_minimo = cotizacion.monto_minimo_pago_detalle()
+                    desglose = calcular_desglose_proporcional(monto, cotizacion)
+                    saldo_despues = saldo_antes - monto
+                    total_pagado_despues = cotizacion.total_pagado() + monto
+                    porcentaje_pagado_despues = (
+                        (total_pagado_despues / cotizacion.precio_final * 100)
+                        if cotizacion.precio_final else Decimal('0')
+                    )
+                    porcentaje_minimo_confirmar = cotizacion._get_porcentaje_anticipo_minimo()
+
+                    simulacion = {
+                        'monto': monto,
+                        'saldo_antes': saldo_antes,
+                        'saldo_despues': saldo_despues,
+                        'minimo': minimo,
+                        'motivo_minimo': motivo_minimo,
+                        'cumple_minimo': (monto >= minimo) if minimo else True,
+                        'desglose': desglose,
+                        'porcentaje_pagado_despues': porcentaje_pagado_despues,
+                        'porcentaje_minimo_confirmar': porcentaje_minimo_confirmar,
+                        'alcanzaria_confirmar': (
+                            porcentaje_minimo_confirmar == 0
+                            or porcentaje_pagado_despues >= porcentaje_minimo_confirmar
+                        ),
+                        'cerraria_cotizacion': saldo_despues <= Decimal('0.50'),
+                    }
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': "Simulador de pago",
+            'q': q,
+            'cotizaciones_encontradas': cotizaciones_encontradas,
+            'cotizacion': cotizacion,
+            'monto_str': monto_str,
+            'metodo': metodo,
+            'metodos': Pago.METODOS,
+            'simulacion': simulacion,
+            'error_monto': error_monto,
+        }
+        return render(request, 'admin/comercial/simulador_pago.html', context)
+
 
 class GastoInline(admin.TabularInline):
     model = Gasto

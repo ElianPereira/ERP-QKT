@@ -1022,3 +1022,84 @@ class BotonContratoNoGeneraDeInmediatoTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(ContratoServicio.objects.filter(cotizacion=self.cot).count(), 0)
+
+
+class SimuladorPagoTest(TestCase):
+    """Simulador de pago (PagoAdmin): no debe crear ningún Pago, póliza ni
+    solicitud de factura — solo calcula y muestra."""
+
+    def setUp(self):
+        self.staff = User.objects.create_superuser('simulador_admin', password='x')
+        login_superuser_con_totp(self.client, self.staff)
+        self.cliente = Cliente.objects.create(nombre='Cliente Simulador')
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Boda Simulada',
+            fecha_evento=date.today() + timedelta(days=60),
+            incluye_refrescos=False, incluye_cerveza=False,
+            incluye_licor_nacional=False, incluye_licor_premium=False,
+            incluye_cocteleria_basica=False, incluye_cocteleria_premium=False,
+        )
+        Cotizacion.objects.filter(pk=self.cot.pk).update(precio_final=Decimal('10000.00'))
+        self.cot.refresh_from_db()
+        self.url = '/admin/comercial/pago/simular/'
+
+    def test_no_crea_nada_al_simular(self):
+        respuesta = self.client.get(self.url, {
+            'cotizacion_id': self.cot.pk, 'monto': '3000.00',
+        })
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(Pago.objects.count(), 0)
+        from contabilidad.models import Poliza
+        from facturacion.models import SolicitudFactura
+        self.assertEqual(Poliza.objects.count(), 0)
+        self.assertEqual(SolicitudFactura.objects.count(), 0)
+
+    def test_calcula_saldo_y_desglose_correctos(self):
+        respuesta = self.client.get(self.url, {
+            'cotizacion_id': self.cot.pk, 'monto': '3000.00',
+        })
+        simulacion = respuesta.context['simulacion']
+        self.assertEqual(simulacion['saldo_antes'], Decimal('10000.00'))
+        self.assertEqual(simulacion['saldo_despues'], Decimal('7000.00'))
+        self.assertEqual(simulacion['cerraria_cotizacion'], False)
+
+    def test_monto_que_excede_el_saldo_da_error_sin_reventar(self):
+        respuesta = self.client.get(self.url, {
+            'cotizacion_id': self.cot.pk, 'monto': '999999.00',
+        })
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIsNone(respuesta.context['simulacion'])
+        self.assertIsNotNone(respuesta.context['error_monto'])
+        self.assertEqual(Pago.objects.count(), 0)
+
+    def test_monto_que_cierra_la_cotizacion_lo_marca(self):
+        respuesta = self.client.get(self.url, {
+            'cotizacion_id': self.cot.pk, 'monto': '10000.00',
+        })
+        simulacion = respuesta.context['simulacion']
+        self.assertTrue(simulacion['cerraria_cotizacion'])
+
+    def test_busqueda_por_folio_encuentra_la_cotizacion(self):
+        respuesta = self.client.get(self.url, {'q': f'COT-{self.cot.pk}'})
+        encontradas = respuesta.context['cotizaciones_encontradas']
+        self.assertIn(self.cot, encontradas)
+
+    def test_busqueda_por_nombre_de_cliente(self):
+        respuesta = self.client.get(self.url, {'q': 'Cliente Simulador'})
+        encontradas = respuesta.context['cotizaciones_encontradas']
+        self.assertIn(self.cot, encontradas)
+
+    def test_un_pago_real_existente_no_se_ve_afectado_por_simular(self):
+        """Simular no debe tocar el saldo real: un pago real ya registrado
+        sigue contando igual antes y después de correr una simulación."""
+        Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('1000.00'),
+            metodo='EFECTIVO', usuario=self.staff,
+        )
+        self.assertEqual(self.cot.saldo_pendiente(), Decimal('9000.00'))
+
+        self.client.get(self.url, {'cotizacion_id': self.cot.pk, 'monto': '5000.00'})
+
+        self.cot.refresh_from_db()
+        self.assertEqual(self.cot.saldo_pendiente(), Decimal('9000.00'))
+        self.assertEqual(Pago.objects.count(), 1)

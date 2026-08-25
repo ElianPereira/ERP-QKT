@@ -8,12 +8,16 @@ Lógica de desglose fiscal:
 - La cotización SIEMPRE tiene IVA calculado (precio_final = subtotal + iva - retenciones)
 - El pago es una fracción del precio_final, se desglosa proporcionalmente
 """
+import logging
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from comercial.services import calcular_desglose_proporcional
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(post_save, sender='comercial.Pago')
@@ -76,7 +80,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     forma_pago = mapeo_forma_pago.get(pago.metodo, FormaPago.TRANSFERENCIA)
 
     # ─── Crear la solicitud ─────────────────────────────────────
-    SolicitudFactura.objects.create(
+    solicitud = SolicitudFactura.objects.create(
         cliente=cliente,
         cotizacion=cotizacion,
         pago=pago,
@@ -95,3 +99,20 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         fecha_pago=pago.fecha_pago,
         created_by=pago.usuario,
     )
+
+    # ─── Envío automático al contador ────────────────────────────
+    # Antes había que entrar al admin y darle a los botones "Email"/"WhatsApp"
+    # a mano por cada solicitud. Se manda sola en cuanto el Pago que la generó
+    # queda confirmado en la base de datos (on_commit: si el guardado del Pago
+    # se revierte, este envío nunca se dispara). Nunca lanza — un fallo aquí
+    # no debe tumbar el guardado del Pago que lo originó.
+    def _enviar_automatico():
+        from .services import enviar_solicitud_al_contador
+        try:
+            enviar_solicitud_al_contador(solicitud)
+        except Exception:
+            logger.exception(
+                "Envío automático de la solicitud de factura #%s falló", solicitud.pk
+            )
+
+    transaction.on_commit(_enviar_automatico)

@@ -83,6 +83,58 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-25 — Automatización del envío de solicitudes de factura al
+  contador + simulador de pago (pedido directo del propietario, sin Issue
+  previo — cambio acotado). **(1)** `facturacion/admin.py` tenía duplicada
+  toda la lógica de generar el PDF y hablar con Meta/Brevo dentro de las
+  vistas de los botones — se extrajo tal cual a `facturacion/services.py`
+  (`generar_pdf_solicitud`, `enviar_solicitud_por_email`,
+  `enviar_solicitud_por_whatsapp`, `enviar_solicitud_al_contador`), sin
+  cambiar ningún comportamiento, para poder reusarla desde el signal y el
+  cron nuevos sin copiar el código una tercera vez. **(2)**
+  `facturacion/signals.py::crear_solicitud_factura_desde_pago` ahora manda
+  la solicitud sola (email + WhatsApp) con `transaction.on_commit()` justo
+  después de crearla — ya no hace falta entrar al admin y darle a los
+  botones. Cada canal se intenta por separado y ninguno lanza: si solo uno
+  de los dos tiene éxito, igual se marca `ENVIADA` con ese método; si los
+  dos fallan, se queda en `PENDIENTE` con el detalle en el log, sin tumbar
+  el guardado del `Pago` que la originó (mismo criterio que el resto del
+  ERP: nunca bloquear la operación real por un canal de aviso caído). El
+  WhatsApp al contador sigue siendo un mensaje tipo `document` directo, no
+  una plantilla aprobada — fuera de la ventana de 24h de Meta puede fallar
+  silenciosamente (auditado en el log, no en la cara del usuario); se
+  aceptó ese riesgo a propósito en vez de bloquear la automatización
+  esperando someter una plantilla nueva a aprobación, decisión explícita
+  del propietario vía `AskUserQuestion`. **(3)** Cron nuevo
+  `enviar_recordatorios_contador` (mismo patrón que `enviar_recordatorios`/
+  `enviar_guias`): recuerda a los 3/7/14 días de `fecha_envio` mientras la
+  solicitud siga `ENVIADA` sin llegar a `FACTURADA`. Campo nuevo
+  `SolicitudFactura.ultimo_recordatorio_enviado` (migración `0007`) para no
+  reescribir `fecha_envio`/`estado` en cada recordatorio ni duplicar el
+  mismo aviso si el comando corre dos veces el mismo día — deliberadamente
+  **no** reusa el envío automático del punto 2 (que sí llama
+  `marcar_enviada`), porque eso habría corrido el reloj de la cadencia cada
+  vez que se manda un recordatorio. Falta dar de alta este Cron Job en
+  Railway (fuera del repo, mismo patrón que los otros dos). **(4)**
+  "Pagos borrador" — el pedido original era que un `Pago` de prueba tuviera
+  "el mismo funcionamiento menos póliza y solicitud de factura". Investigar
+  antes de tocar código encontró que `total_pagado()`/`saldo_pendiente()`
+  alimentan sin ningún filtro el portal del cliente, el checkout público de
+  Openpay, el cron `cerrar_cotizaciones` (cierra automático al llegar a
+  saldo cero) y el Excel de cierre mensual a Dirección — un Pago de prueba
+  con ese diseño se le habría mostrado al cliente real en su portal y
+  podría haber cerrado una cotización real sola. Se lo planteé al
+  propietario con esos riesgos explícitos (`AskUserQuestion`) y se optó por
+  no guardar nada: **simulador** nuevo en `/admin/comercial/pago/simular/`
+  (botón "Simular pago" en el changelist de `PagoAdmin`, mismo patrón que
+  "Subir XML" de Compras) — busca una cotización real, captura un monto
+  hipotético, y calcula saldo antes/después, mínimo a pagar, desglose
+  fiscal proporcional y si alcanzaría a confirmar/cerrar la cotización,
+  reusando `Pago(...).full_clean()` sobre una instancia **en memoria, nunca
+  guardada** para la validación real (mismo `clean()` que un Pago de
+  verdad, sin duplicar esa lógica) — cero riesgo de contaminar el portal,
+  Openpay, el cierre automático o el Excel de Dirección porque no se
+  escribe nada en la base de datos.
 - 2026-08-22 — Dos correcciones tras la primera prueba en producción de la
   guía pre-evento (Issue #234, entrada de abajo): **(1)** `normalizar_telefono_wa()`
   (`comunicacion/services.py`, compartida por TODO WhatsApp del sistema —
