@@ -583,6 +583,12 @@ JAZZMIN_SETTINGS = {
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
         }],
+        "contabilidad": [{
+            "name": "Panel de cobertura",
+            "url": "contabilidad:panel_cobertura",
+            "icon": "fas fa-clipboard-check",
+            "permissions": ["contabilidad.view_movimientocontable"],
+        }],
     },
 }
 

@@ -13,4 +13,5 @@ urlpatterns = [
         name='autocomplete_asiento_bancario',
     ),
     path('cerrar-historico/', views.cerrar_historico_view, name='cerrar_historico'),
+    path('panel-cobertura/', views.panel_cobertura, name='panel_cobertura'),
 ]
