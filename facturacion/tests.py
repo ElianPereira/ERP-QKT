@@ -4,7 +4,7 @@ Tests del módulo Facturación
 """
 from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from django.contrib.auth.models import User
 from django.core import mail
@@ -403,7 +403,10 @@ class RecordatorioContadorCommandTest(TestCase):
         m_email.assert_not_called()
         m_wa.assert_not_called()
 
-    def test_no_recuerda_pendiente_ni_facturada_ni_cancelada(self):
+    def test_no_recuerda_facturada_ni_cancelada_pero_si_reintenta_pendiente(self):
+        """PENDIENTE ya no queda fuera del cron: se reintenta (ver
+        ReintentoEnvioPendienteCommandTest para el detalle de esa rama).
+        FACTURADA y CANCELADA siguen totalmente fuera de las dos ramas."""
         pendiente = self._crear_solicitud_enviada(dias_atras=3)
         SolicitudFactura.objects.filter(pk=pendiente.pk).update(estado='PENDIENTE', fecha_envio=None)
 
@@ -413,9 +416,12 @@ class RecordatorioContadorCommandTest(TestCase):
         cancelada = self._crear_solicitud_enviada(dias_atras=3)
         SolicitudFactura.objects.filter(pk=cancelada.pk).update(estado='CANCELADA')
 
-        with patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_email') as m_email, \
+        with patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_al_contador',
+                   return_value=(True, False)) as m_reintento, \
+             patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_email') as m_email, \
              patch('facturacion.management.commands.enviar_recordatorios_contador.enviar_solicitud_por_whatsapp') as m_wa:
             call_command('enviar_recordatorios_contador')
+        m_reintento.assert_called_once_with(pendiente, usuario=ANY)
         m_email.assert_not_called()
         m_wa.assert_not_called()
 
@@ -428,3 +434,58 @@ class RecordatorioContadorCommandTest(TestCase):
         m_wa.assert_not_called()
         solicitud.refresh_from_db()
         self.assertIsNone(solicitud.ultimo_recordatorio_enviado)
+
+
+class ReintentoEnvioPendienteCommandTest(TestCase):
+    """El cron reintenta las solicitudes PENDIENTE (el envío automático al
+    registrar el pago falló en los dos canales) en cada corrida — a
+    diferencia de los recordatorios de las ENVIADA, sin esperar ninguna
+    cadencia de días."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('u_retry', password='x')
+        ConfiguracionContador.objects.create(
+            nombre='Contador Test', email='contador@example.com',
+            telefono_whatsapp='529991234567',
+        )
+        self.cliente = Cliente.objects.create(nombre='Cliente reintento')
+        self.cot = _crear_cotizacion(self.cliente, Decimal('5000.00'))
+
+    def _crear_solicitud_pendiente(self):
+        with patch('facturacion.services.enviar_solicitud_por_email', return_value=(False, 'Brevo caído')), \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp', return_value=(False, 'Meta caído')):
+            with self.captureOnCommitCallbacks(execute=True):
+                pago = Pago.objects.create(
+                    cotizacion=self.cot, monto=Decimal('5000.00'),
+                    metodo='EFECTIVO', usuario=self.user,
+                )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        self.assertEqual(solicitud.estado, 'PENDIENTE')
+        return solicitud
+
+    def test_reintento_exitoso_deja_enviada(self):
+        solicitud = self._crear_solicitud_pendiente()
+        with patch('facturacion.services.enviar_solicitud_por_email', return_value=(True, '')), \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp', return_value=(False, 'Meta caído')):
+            call_command('enviar_recordatorios_contador')
+        solicitud.refresh_from_db()
+        self.assertEqual(solicitud.estado, 'ENVIADA')
+        self.assertEqual(solicitud.metodo_envio, 'EMAIL')
+
+    def test_reintento_fallido_sigue_pendiente(self):
+        solicitud = self._crear_solicitud_pendiente()
+        with patch('facturacion.services.enviar_solicitud_por_email', return_value=(False, 'Brevo caído')), \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp', return_value=(False, 'Meta caído')):
+            call_command('enviar_recordatorios_contador')
+        solicitud.refresh_from_db()
+        self.assertEqual(solicitud.estado, 'PENDIENTE')
+
+    def test_dry_run_no_reintenta(self):
+        solicitud = self._crear_solicitud_pendiente()
+        with patch('facturacion.services.enviar_solicitud_por_email') as m_email, \
+             patch('facturacion.services.enviar_solicitud_por_whatsapp') as m_wa:
+            call_command('enviar_recordatorios_contador', '--dry-run')
+        m_email.assert_not_called()
+        m_wa.assert_not_called()
+        solicitud.refresh_from_db()
+        self.assertEqual(solicitud.estado, 'PENDIENTE')

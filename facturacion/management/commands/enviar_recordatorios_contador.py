@@ -1,16 +1,20 @@
 """
-Cron: recuerda al contador las solicitudes de factura que ya se enviaron
-pero siguen sin factura (ENVIADA, nunca llegó a FACTURADA).
+Cron: (1) reintenta el envío inicial de las solicitudes cuyo auto-envío
+falló en los dos canales (PENDIENTE) y (2) recuerda al contador las que ya
+se enviaron pero siguen sin factura (ENVIADA, nunca llegó a FACTURADA).
 
 Uso:
     python manage.py enviar_recordatorios_contador
     python manage.py enviar_recordatorios_contador --dry-run
 
-No toca solicitudes en PENDIENTE: esas se mandan solas al crearse
+Una solicitud en PENDIENTE es porque el envío automático
 (facturacion.signals.crear_solicitud_factura_desde_pago, vía
-enviar_solicitud_al_contador) — si una sigue en PENDIENTE es porque ese
-primer envío falló en los dos canales, y este comando no reintenta un
-envío que nunca se confirmó como hecho.
+enviar_solicitud_al_contador) falló en los dos canales — este comando
+reintenta exactamente esa misma llamada, una vez por corrida, hasta que
+alguno de los dos tenga éxito y quede ENVIADA. Sin cadencia de días como
+los recordatorios de abajo: mientras siga PENDIENTE es porque nunca se
+mandó de verdad, así que se reintenta en cada corrida del cron sin esperar
+ningún número de días.
 """
 from datetime import timedelta
 
@@ -18,26 +22,52 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from facturacion.models import SolicitudFactura
-from facturacion.services import enviar_solicitud_por_email, enviar_solicitud_por_whatsapp
+from facturacion.services import (
+    enviar_solicitud_al_contador,
+    enviar_solicitud_por_email,
+    enviar_solicitud_por_whatsapp,
+    get_usuario_sistema,
+)
 
 # Días desde fecha_envio en los que se recuerda, mientras siga sin facturarse.
 DIAS_RECORDATORIO = (3, 7, 14)
 
 
 class Command(BaseCommand):
-    help = "Recuerda al contador (email + WhatsApp) las solicitudes de factura enviadas y aún no facturadas."
+    help = (
+        "Reintenta el envío al contador de las solicitudes PENDIENTE (falló "
+        "en los dos canales) y recuerda (email + WhatsApp) las ENVIADA aún "
+        "sin facturar."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--dry-run',
             action='store_true',
-            help='Muestra a quién se recordaría sin mandar nada ni registrar nada.',
+            help='Muestra qué se reintentaría/recordaría sin mandar nada ni registrar nada.',
         )
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
         hoy = timezone.localdate()
 
+        # ─── (1) Reintento de solicitudes cuyo envío inicial falló ──────────
+        fallidas = SolicitudFactura.objects.filter(estado='PENDIENTE')
+        reintentadas = 0
+        for solicitud in fallidas:
+            folio = f"SOL-{solicitud.id:04d}"
+            if dry_run:
+                self.stdout.write(f"[DRY RUN] {folio} — PENDIENTE, se reintentaría el envío")
+                reintentadas += 1
+                continue
+
+            email_ok, wa_ok = enviar_solicitud_al_contador(solicitud, usuario=get_usuario_sistema())
+            if email_ok or wa_ok:
+                reintentadas += 1
+            else:
+                self.stderr.write(f"{folio}: reintento automático volvió a fallar en los dos canales")
+
+        # ─── (2) Recordatorios de las ya enviadas y aún sin facturar ────────
         pendientes = SolicitudFactura.objects.filter(estado='ENVIADA', fecha_envio__isnull=False)
 
         recordadas = 0
@@ -73,4 +103,7 @@ class Command(BaseCommand):
                 self.stderr.write(f"{folio}: recordatorio por WhatsApp falló: {wa_error}")
 
         etiqueta = '[DRY RUN] ' if dry_run else ''
-        self.stdout.write(self.style.SUCCESS(f"{etiqueta}Recordatorios al contador procesados: {recordadas}"))
+        self.stdout.write(self.style.SUCCESS(
+            f"{etiqueta}Reintentos de envío inicial: {reintentadas} — "
+            f"Recordatorios al contador procesados: {recordadas}"
+        ))
