@@ -8,7 +8,14 @@ from django.db import models
 from django.utils.timezone import now
 
 from comercial.models import Cliente, Cotizacion, Pago
+from comercial.services import RFC_UNIDAD_MAP
 from facturacion.choices import FormaPago, MetodoPago, RegimenFiscal, UsoCFDI
+
+# Mismo mapeo que ya usa Compra para detectar el RFC receptor de un XML de
+# compra (comercial/services.py) — aquí se usa al revés: de la clave de línea
+# de negocio a su RFC emisor propio, para que la solicitud de factura le diga
+# al contador bajo cuál de los dos RFC de la empresa debe timbrar.
+_RFC_POR_LINEA_NEGOCIO = {clave: rfc for rfc, clave in RFC_UNIDAD_MAP.items()}
 
 
 class ConfiguracionContador(models.Model):
@@ -57,6 +64,16 @@ class SolicitudFactura(models.Model):
         ('CANCELADA', 'Cancelada'),
     ]
 
+    # La empresa opera bajo dos RFC propios según el origen del ingreso — el
+    # contador necesita saber cuál usar para timbrar. QUINTA es el default:
+    # las solicitudes automáticas (señal desde comercial.Pago) siempre vienen
+    # de una Cotizacion de Evento/Pasadía/Hospedaje/Arrendamiento, que son
+    # reservas directas de la Quinta, nunca de Airbnb.
+    LINEA_NEGOCIO_CHOICES = [
+        ('QUINTA', "Quinta Ko'ox Tanil"),
+        ('AIRBNB', 'Airbnb'),
+    ]
+
     # ─── Relaciones ───────────────────────────────────────────
     cliente = models.ForeignKey(
         Cliente,
@@ -88,6 +105,17 @@ class SolicitudFactura(models.Model):
     retencion_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Retención ISR")
     retencion_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Retención IVA")
     concepto = models.TextField(verbose_name="Concepto / Descripción")
+
+    linea_negocio = models.CharField(
+        max_length=10,
+        choices=LINEA_NEGOCIO_CHOICES,
+        default='QUINTA',
+        verbose_name="Línea de Negocio",
+        help_text="Bajo qué RFC propio se debe timbrar: PECE010202IA0 para "
+                  "Quinta Ko'ox Tanil (Eventos, Pasadías y Hospedajes "
+                  "Directos) o CERU580518QZ5 para ingresos directos de "
+                  "Airbnb.",
+    )
 
     # Datos fiscales (copiados del cliente al crear, editables)
     rfc = models.CharField(max_length=13, verbose_name="RFC")
@@ -225,6 +253,13 @@ class SolicitudFactura(models.Model):
         """Verifica si ya se subió la factura (PDF o ZIP)."""
         return bool(self.archivo_zip or (self.archivo_pdf and self.archivo_xml))
 
+    @property
+    def rfc_emisor(self):
+        """RFC propio de la empresa bajo el que se debe timbrar esta
+        solicitud — no confundir con self.rfc, que es el RFC del cliente
+        (receptor de la factura)."""
+        return _RFC_POR_LINEA_NEGOCIO.get(self.linea_negocio, '')
+
     def marcar_enviada(self, usuario, metodo):
         """Marca la solicitud como enviada."""
         self.estado = 'ENVIADA'
@@ -255,6 +290,9 @@ class SolicitudFactura(models.Model):
             "═══════════════════════════════════",
             f"📋 SOLICITUD DE FACTURA {folio}",
             "═══════════════════════════════════",
+            "",
+            f"🏢 Línea de negocio: {self.get_linea_negocio_display()} "
+            f"(timbrar con RFC {self.rfc_emisor})",
             "",
             "👤 DATOS FISCALES:",
             f"   RFC: {self.rfc}",

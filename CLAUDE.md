@@ -83,6 +83,51 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-25 — Línea de negocio (RFC emisor) visible en la solicitud de
+  factura al contador (pedido directo del propietario, sin Issue previo —
+  cambio acotado, seguimiento del punto anterior). La empresa opera bajo dos
+  RFC propios y el contador no tenía forma de saber cuál usar al timbrar sin
+  preguntar: `PECE010202IA0` para Quinta Ko'ox Tanil (Eventos, Pasadías y
+  Hospedajes Directos) y `CERU580518QZ5` para ingresos directos de Airbnb —
+  este mapeo **ya existía** como `RFC_UNIDAD_MAP` en
+  `comercial/services.py` (lo usa `Compra.save()` para detectar la unidad de
+  negocio del RFC receptor de un XML de compra); en vez de duplicar los dos
+  RFC como strings nuevos, `SolicitudFactura` reusa ese mismo diccionario
+  invertido (`_RFC_POR_LINEA_NEGOCIO` en `facturacion/models.py`) para no
+  tener dos fuentes de verdad del mismo dato. Campo nuevo
+  `SolicitudFactura.linea_negocio` (choices `QUINTA`/`AIRBNB`, migración
+  `0008`, default `QUINTA`) + property `rfc_emisor` que resuelve el RFC a
+  partir de esa clave. **Por qué el default es QUINTA y por qué la migración
+  no necesitó una corrida de datos aparte**: hoy el signal
+  (`facturacion/signals.py::crear_solicitud_factura_desde_pago`) es la única
+  vía automática de creación, y siempre nace de una `Cotizacion` de
+  Evento/Pasadía/Hospedaje/Arrendamiento — reservas directas de la Quinta,
+  nunca de Airbnb (que no pasa por `Cotizacion`/`Pago`, vive aparte en
+  `airbnb.PagoAirbnb` y **no** genera `SolicitudFactura` en absoluto
+  todavía) — así que el default `QUINTA` con el `AddField` normal de Django
+  ya deja bien las ~decenas de solicitudes existentes sin tocar nada a mano.
+  El campo se dejó editable en el admin (con `AIRBNB` como opción) para el
+  día en que alguien capture una solicitud manual de un ingreso de Airbnb —
+  hoy no hay ningún flujo automático que la cree así, pero el campo ya
+  soporta el caso sin más cambios de modelo. Se hizo visible en los tres
+  lugares que lee el contador: **(1)** el PDF (`solicitud_pdf.html`) lleva
+  un banner de color justo bajo el título, verde para Quinta / rojo Airbnb
+  (mismo color que usa el badge del admin), con el RFC emisor en grande —
+  no se mezcló con la tarjeta de datos fiscales del *cliente* (RFC/razón
+  social del receptor) porque son dos RFC distintos y mezclarlos en la misma
+  tarjeta confundiría más de lo que aclara. **(2)** el email
+  (`get_datos_para_contador()`, que arma tanto el cuerpo del correo como el
+  texto de `get_whatsapp_url()`) gana una línea nueva justo después del
+  encabezado, antes de los datos fiscales del cliente, y el asunto del
+  correo también lleva la línea de negocio al final. **(3)** el WhatsApp:
+  el mensaje `document` directo (sin plantilla aprobada) lleva la línea de
+  negocio en el caption; la plantilla de Meta (`WA_TEMPLATE_SOLICITUD_
+  FACTURA`, todavía sin someter — ver entrada de abajo) pasa de 2 a 3
+  variables (`{{3}}` = línea de negocio corta, "Quinta Ko'ox Tanil" o
+  "Airbnb") — como el texto aún no se ha sometido a Meta, no hay
+  compatibilidad que romper; `docs/whatsapp_plantilla_solicitud_factura.md`
+  se actualizó con el texto de las 3 variables antes de que el propietario
+  lo suba al Business Manager.
 - 2026-08-25 — Automatización del envío de solicitudes de factura al
   contador + simulador de pago (pedido directo del propietario, sin Issue
   previo — cambio acotado). **(1)** `facturacion/admin.py` tenía duplicada

@@ -57,10 +57,17 @@
             .total-row span:last-child { color: #333; }
             
             .grand-total {
-                background-color: #2E7D32; color: white; padding: 10px; 
+                background-color: #2E7D32; color: white; padding: 10px;
                 border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 8px;
                 display: flex; justify-content: space-between;
             }
+
+            .linea-negocio-banner {
+                background-color: {{ linea_negocio_color }}; color: white; padding: 10px 15px;
+                border-radius: 6px; margin-bottom: 15px; font-size: 13px;
+                display: flex; justify-content: space-between; align-items: center;
+            }
+            .linea-negocio-banner strong { font-size: 14px; }
         </style>
     </head>
     <body>
@@ -84,6 +91,11 @@
         <div class="doc-title">
             <h1>Ficha Técnica de Facturación</h1>
             <p>Folio Solicitud: SOL-{{ solicitud.id|stringformat:"03d" }}</p>
+        </div>
+
+        <div class="linea-negocio-banner">
+            <span>Timbrar bajo:<br><strong>{{ solicitud.get_linea_negocio_display }}</strong></span>
+            <span style="text-align: right;">RFC emisor:<br><strong>{{ solicitud.rfc_emisor }}</strong></span>
         </div>
 
         <div class="info-card">
