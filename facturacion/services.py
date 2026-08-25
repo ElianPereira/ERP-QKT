@@ -70,13 +70,16 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
     """
     Envía el PDF de la solicitud al contador via WhatsApp Cloud API.
     1. Sube el PDF al Media API → obtiene media_id
-    2. Envía mensaje tipo 'document' con el media_id
+    2. Envía el mensaje con ese media_id — como plantilla aprobada si
+       WA_TEMPLATE_SOLICITUD_FACTURA está configurada, o como mensaje
+       'document' directo si no (comportamiento de siempre).
     Retorna (True, '') o (False, 'mensaje de error').
 
-    Nota: mensaje tipo 'document' directo, no una plantilla aprobada — fuera
+    Nota: el mensaje 'document' directo no es una plantilla aprobada — fuera
     de la ventana de 24h de conversación de Meta, esto puede fallar. Igual
-    que con la guía pre-evento, someter una plantilla es trabajo aparte;
-    mientras tanto el fallo queda registrado (nunca bloquea el email).
+    que con la guía pre-evento, someter una plantilla es trabajo aparte
+    (ver docs/whatsapp_plantilla_solicitud_factura.md); mientras no esté
+    aprobada, el fallo queda registrado sin bloquear el email.
     """
     wa_token    = config('WA_CLOUD_API_TOKEN', default='')
     wa_phone_id = config('WA_PHONE_NUMBER_ID', default='')
@@ -108,21 +111,28 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
     if not media_id:
         return False, f"No se obtuvo media_id: {resp_upload.text[:200]}"
 
-    # 2. Enviar documento
+    template_name = getattr(settings, 'WA_TEMPLATE_SOLICITUD_FACTURA', '')
+    if template_name:
+        payload = _payload_plantilla_solicitud_factura(template_name, media_id, filename, folio, cliente_nombre)
+    else:
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono,
+            "type": "document",
+            "document": {
+                "id": media_id,
+                "filename": filename,
+                "caption": f"Solicitud de Factura {folio} — {cliente_nombre}",
+            },
+        }
+    payload["to"] = telefono
+
+    # 2. Enviar mensaje
     try:
         resp_send = requests.post(
             f"https://graph.facebook.com/v19.0/{wa_phone_id}/messages",
             headers={**headers_auth, "Content-Type": "application/json"},
-            json={
-                "messaging_product": "whatsapp",
-                "to": telefono,
-                "type": "document",
-                "document": {
-                    "id": media_id,
-                    "filename": filename,
-                    "caption": f"Solicitud de Factura {folio} — {cliente_nombre}",
-                },
-            },
+            json=payload,
             timeout=15,
         )
     except Exception as e:
@@ -131,6 +141,42 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre):
     if resp_send.status_code == 200:
         return True, ''
     return False, f"Error envío ({resp_send.status_code}): {resp_send.text[:200]}"
+
+
+def _payload_plantilla_solicitud_factura(template_name, media_id, filename, folio, cliente_nombre):
+    """
+    Arma el payload de la plantilla aprobada para la solicitud de factura:
+    cabecera tipo documento (el PDF adjunto) + cuerpo con dos variables de
+    texto ({{1}}=folio, {{2}}=cliente). El texto exacto que hay que someter
+    a Meta con estos mismos dos placeholders vive en
+    docs/whatsapp_plantilla_solicitud_factura.md — si el texto real
+    aprobado por Meta usa más o menos variables, este payload hay que
+    ajustarlo para que coincida.
+    """
+    idioma = getattr(settings, 'WA_TEMPLATE_LANGUAGE', 'es_MX')
+    return {
+        "messaging_product": "whatsapp",
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": idioma},
+            "components": [
+                {
+                    "type": "header",
+                    "parameters": [
+                        {"type": "document", "document": {"id": media_id, "filename": filename}},
+                    ],
+                },
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "text": folio},
+                        {"type": "text", "text": cliente_nombre},
+                    ],
+                },
+            ],
+        },
+    }
 
 
 def enviar_solicitud_por_whatsapp(solicitud):

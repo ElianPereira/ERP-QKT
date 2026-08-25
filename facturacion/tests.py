@@ -17,6 +17,7 @@ from django.utils import timezone
 from comercial.models import Cliente, Cotizacion, Pago
 from core_erp.test_utils import login_superuser_con_totp
 from facturacion.models import ConfiguracionContador, SolicitudFactura
+from facturacion.services import enviar_solicitud_por_whatsapp
 
 
 def _crear_cotizacion(cliente, precio):
@@ -157,6 +158,64 @@ class EnviarEmailContadorRemitenteTest(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].from_email, 'notificaciones@qkt.mx')
         self.assertEqual(mail.outbox[0].to, ['contador@example.com'])
+
+
+class EnviarWhatsappContadorPlantillaTest(TestCase):
+    """Sin WA_TEMPLATE_SOLICITUD_FACTURA configurada, sigue mandando el PDF
+    como mensaje 'document' directo (comportamiento de siempre). Con la
+    variable configurada, manda una plantilla con el mismo PDF como
+    cabecera — sin tocar nada más del flujo (mismo media_id, mismo
+    endpoint, mismo manejo de error)."""
+
+    def setUp(self):
+        ConfiguracionContador.objects.create(
+            nombre='Contador Test', email='contador@example.com',
+            telefono_whatsapp='529991234567',
+        )
+        cliente = Cliente.objects.create(nombre='Cliente Plantilla')
+        cot = _crear_cotizacion(cliente, Decimal('5000.00'))
+        user = User.objects.create_user('u_wa', password='x')
+        pago = Pago.objects.create(
+            cotizacion=cot, monto=Decimal('5000.00'), metodo='EFECTIVO', usuario=user,
+        )
+        self.solicitud = SolicitudFactura.objects.get(pago=pago)
+
+    def _mock_respuestas(self, mock_post):
+        respuesta_upload = type('R', (), {'status_code': 200, 'json': lambda self: {'id': 'media-123'}})()
+        respuesta_send = type('R', (), {'status_code': 200, 'text': ''})()
+        mock_post.side_effect = [respuesta_upload, respuesta_send]
+
+    @override_settings(WA_TEMPLATE_SOLICITUD_FACTURA='')
+    def test_sin_plantilla_manda_documento_directo(self):
+        with patch('facturacion.services.generar_pdf_solicitud', return_value=b'%PDF-fake'), \
+             patch('facturacion.services.config', return_value='token-o-id'), \
+             patch('facturacion.services.requests.post') as mock_post:
+            self._mock_respuestas(mock_post)
+            ok, error = enviar_solicitud_por_whatsapp(self.solicitud)
+
+        self.assertTrue(ok, error)
+        payload_enviado = mock_post.call_args_list[1].kwargs['json']
+        self.assertEqual(payload_enviado['type'], 'document')
+        self.assertEqual(payload_enviado['document']['id'], 'media-123')
+
+    @override_settings(WA_TEMPLATE_SOLICITUD_FACTURA='solicitud_factura')
+    def test_con_plantilla_manda_template_con_documento_en_la_cabecera(self):
+        with patch('facturacion.services.generar_pdf_solicitud', return_value=b'%PDF-fake'), \
+             patch('facturacion.services.config', return_value='token-o-id'), \
+             patch('facturacion.services.requests.post') as mock_post:
+            self._mock_respuestas(mock_post)
+            ok, error = enviar_solicitud_por_whatsapp(self.solicitud)
+
+        self.assertTrue(ok, error)
+        payload_enviado = mock_post.call_args_list[1].kwargs['json']
+        self.assertEqual(payload_enviado['type'], 'template')
+        self.assertEqual(payload_enviado['template']['name'], 'solicitud_factura')
+        cabecera = payload_enviado['template']['components'][0]
+        self.assertEqual(cabecera['type'], 'header')
+        self.assertEqual(cabecera['parameters'][0]['document']['id'], 'media-123')
+        cuerpo = payload_enviado['template']['components'][1]
+        self.assertEqual(cuerpo['parameters'][0]['text'], f"SOL-{self.solicitud.id:04d}")
+        self.assertEqual(cuerpo['parameters'][1]['text'], 'Cliente Plantilla')
 
 
 class EnvioAutomaticoAlRegistrarPagoTest(TestCase):
