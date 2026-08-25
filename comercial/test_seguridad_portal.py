@@ -190,6 +190,15 @@ class PortalExpiradoUnifica404Test(TestCase):
         respuesta = self.client.get(reverse('portal_evento', args=[self.portal.token]))
         self.assertEqual(respuesta.status_code, 200)
 
+    def test_portal_subir_identificacion_expirado_da_404(self):
+        self.portal.expira_en = timezone.now() - timedelta(days=1)
+        self.portal.save(update_fields=['expira_en'])
+
+        respuesta = self.client.post(
+            reverse('portal_subir_identificacion', args=[self.portal.token]), {},
+        )
+        self.assertEqual(respuesta.status_code, 404)
+
 
 class PortalClienteVigenciaModelTest(TestCase):
     """Cálculo de expira_en y la propiedad vigente."""
