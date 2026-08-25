@@ -83,6 +83,23 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-25 — El cron de recordatorios al contador (`enviar_recordatorios_
+  contador`) ahora también reintenta las solicitudes `PENDIENTE` (pedido
+  directo del propietario tras dudar si el cron cubría ese caso). Antes esas
+  solicitudes —el envío automático al registrar el pago falló en los dos
+  canales— se quedaban ahí para siempre salvo intervención manual desde el
+  admin: el cron original solo miraba `ENVIADA`. Ahora, en cada corrida,
+  primero reintenta cada `PENDIENTE` llamando exactamente a
+  `enviar_solicitud_al_contador()` (la misma función que usa el envío
+  automático original) y solo después procesa los recordatorios de cadencia
+  de las `ENVIADA`. **Sin cadencia de días para el reintento** (a propósito,
+  a diferencia de los recordatorios 3/7/14): mientras siga `PENDIENTE` es
+  porque nunca se mandó de verdad, así que se reintenta en cada corrida sin
+  esperar ningún número de días — no hay riesgo de bucle infinito porque el
+  Cron Job de Railway define la cadencia real (una corrida por día), y en
+  cuanto un canal tiene éxito la solicitud pasa a `ENVIADA` y sale de esta
+  rama para siempre. Se mantuvo en el mismo comando/archivo en vez de crear
+  uno nuevo para no obligar a dar de alta un segundo Cron Job en Railway.
 - 2026-08-25 — Línea de negocio (RFC emisor) visible en la solicitud de
   factura al contador (pedido directo del propietario, sin Issue previo —
   cambio acotado, seguimiento del punto anterior). La empresa opera bajo dos
