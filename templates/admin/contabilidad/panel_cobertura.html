@@ -1,0 +1,235 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+<style>
+    .cob-container { max-width: 1200px; margin: 0 auto; padding: 20px; font-family: 'IBM Plex Sans', sans-serif; }
+    .cob-header { margin-bottom: 22px; }
+    .cob-header h2 { margin: 0 0 6px; color: #e0ddd4; font-size: 20px; font-weight: 600; }
+    .cob-header p { margin: 0; color: #8a8780; font-size: 13px; max-width: 62em; line-height: 1.6; }
+
+    .cob-todo-al-dia {
+        background: rgba(39, 174, 96, .1); border-left: 4px solid #27ae60;
+        border-radius: 4px; padding: 22px 26px; margin-bottom: 24px;
+        display: flex; align-items: center; gap: 16px;
+    }
+    .cob-todo-al-dia .icono { font-size: 32px; }
+    .cob-todo-al-dia h3 { margin: 0 0 4px; color: #27ae60; font-size: 16px; }
+    .cob-todo-al-dia p { margin: 0; color: #b9b6ad; font-size: 13px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 26px; }
+    .stat-card { background: #383632; border-radius: 8px; padding: 18px; display: flex; align-items: center; gap: 14px; border: 1px solid #4a4845; }
+    .stat-card.ok { opacity: .55; }
+    .stat-icon { width: 46px; height: 46px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .stat-icon.orange { background: rgba(230,126,34,.15); color: #e67e22; }
+    .stat-icon.red { background: rgba(231,76,60,.15); color: #e74c3c; }
+    .stat-icon.green { background: rgba(39,174,96,.15); color: #27ae60; }
+    .stat-content .valor { font-size: 24px; font-weight: 700; color: #e0ddd4; line-height: 1; }
+    .stat-content .label { font-size: 11px; color: #8a8780; margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+
+    .panel { background: #383632; border-radius: 8px; overflow: hidden; border: 1px solid #4a4845; margin-bottom: 18px; }
+    .panel-header { background: #33312e; padding: 14px 18px; border-bottom: 1px solid #4a4845; }
+    .panel-header h3 { margin: 0 0 3px; font-size: 14px; color: #d4d1c8; font-weight: 600; }
+    .panel-header p { margin: 0; font-size: 12px; color: #8a8780; line-height: 1.5; }
+    .panel-body { padding: 0; }
+
+    .cob-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .cob-tabla th { text-align: left; padding: 8px 16px; color: #8a8780; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid #4a4845; }
+    .cob-tabla td { padding: 9px 16px; border-bottom: 1px solid rgba(255,255,255,.05); color: #d4d1c8; vertical-align: middle; }
+    .cob-tabla tr:last-child td { border-bottom: none; }
+    .cob-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+    .cob-motivo { color: #e67e22; font-size: 11.5px; }
+    .cob-accion { text-align: right; white-space: nowrap; }
+    .cob-accion a { color: #4CAF50; text-decoration: none; font-weight: 600; font-size: 12px; margin-left: 10px; }
+    .cob-accion a:hover { color: #66BB6A; }
+
+    .cob-badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 10px; font-weight: 600; color: #fff; white-space: nowrap; }
+    .cob-badge-error { background: #e74c3c; }
+    .cob-badge-espera { background: #e67e22; }
+
+    .cob-footer-link { text-align: right; margin-top: -6px; margin-bottom: 24px; }
+    .cob-footer-link a { color: #8a8780; font-size: 12px; text-decoration: none; }
+    .cob-footer-link a:hover { color: #d4d1c8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cob-container">
+
+    <div class="cob-header">
+        <h2>Panel de cobertura contable</h2>
+        <p>
+            Todo lo que sigue pendiente de revisar en el ciclo de Compras y conciliación bancaria,
+            junto en un solo lugar. No adivina ni completa nada por sí solo — es para que nada se
+            quede perdido entre pantallas: cada renglón de aquí abajo te lleva directo a donde se resuelve.
+        </p>
+    </div>
+
+    {% if total_pendiente == 0 %}
+    <div class="cob-todo-al-dia">
+        <div class="icono">✅</div>
+        <div>
+            <h3>Todo al día</h3>
+            <p>No hay Compras pendientes de aplicar, movimientos de banco sin asiento o sin confirmar, estados de cuenta sin procesar, ni conciliaciones con diferencia abierta.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="stats-grid">
+        <div class="stat-card {% if not compras_pendientes %}ok{% endif %}">
+            <div class="stat-icon orange">🧾</div>
+            <div class="stat-content">
+                <div class="valor">{{ compras_pendientes|length }}</div>
+                <div class="label">Compras pendientes de aplicar</div>
+            </div>
+        </div>
+        <div class="stat-card {% if not total_sin_asiento %}ok{% endif %}">
+            <div class="stat-icon red">🏦</div>
+            <div class="stat-content">
+                <div class="valor">{{ total_sin_asiento }}</div>
+                <div class="label">Movimientos del banco sin asiento</div>
+            </div>
+        </div>
+        <div class="stat-card {% if not total_sin_confirmar %}ok{% endif %}">
+            <div class="stat-icon orange">🔎</div>
+            <div class="stat-content">
+                <div class="valor">{{ total_sin_confirmar }}</div>
+                <div class="label">Emparejamientos sin confirmar</div>
+            </div>
+        </div>
+        <div class="stat-card {% if not estados_sin_procesar and not estados_con_error %}ok{% endif %}">
+            <div class="stat-icon red">⚠️</div>
+            <div class="stat-content">
+                <div class="valor">{{ estados_por_revisar }}</div>
+                <div class="label">Estados de cuenta por revisar</div>
+            </div>
+        </div>
+        <div class="stat-card {% if not conciliaciones_pendientes %}ok{% endif %}">
+            <div class="stat-icon red">⚖️</div>
+            <div class="stat-content">
+                <div class="valor">{{ conciliaciones_pendientes|length }}</div>
+                <div class="label">Conciliaciones con diferencia</div>
+            </div>
+        </div>
+    </div>
+
+    {% if compras_pendientes %}
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Compras pendientes de aplicar</h3>
+            <p>Su póliza quedó en BORRADOR — les falta unidad de negocio y/o cuenta de pago. Súbeles el estado de cuenta correspondiente y usa «Sugerir y aplicar Compras pendientes», o complétalas a mano.</p>
+        </div>
+        <div class="panel-body">
+            <table class="cob-tabla">
+                <thead>
+                    <tr><th>Fecha</th><th>Proveedor</th><th>Total</th><th>Falta</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for item in compras_pendientes %}
+                    <tr>
+                        <td>{{ item.compra.fecha_emision|default:"—" }}</td>
+                        <td>{{ item.compra.proveedor_display|default:"—" }}</td>
+                        <td class="cob-num">${{ item.compra.total|floatformat:2 }}</td>
+                        <td class="cob-motivo">{{ item.faltantes }}</td>
+                        <td class="cob-accion">
+                            <a href="{% url 'admin:comercial_compra_change' item.compra.pk %}">Completar Compra</a>
+                            <a href="{% url 'admin:contabilidad_poliza_change' item.poliza.pk %}">Ver póliza</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if estados_sin_procesar or estados_con_error %}
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Estados de cuenta por revisar</h3>
+            <p>Ya se subieron, pero todavía no se procesaron o el sistema no pudo leer el PDF.</p>
+        </div>
+        <div class="panel-body">
+            <table class="cob-tabla">
+                <thead>
+                    <tr><th>Cuenta bancaria</th><th>Periodo</th><th>Situación</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for ec in estados_con_error %}
+                    <tr>
+                        <td>{{ ec.cuenta_bancaria }}</td>
+                        <td>{{ ec.periodo_mes|stringformat:"02d" }}/{{ ec.periodo_anio|stringformat:"d" }}</td>
+                        <td><span class="cob-badge cob-badge-error">Error al leer el PDF</span></td>
+                        <td class="cob-accion"><a href="{% url 'admin:contabilidad_estadocuentabancario_change' ec.pk %}">Revisar</a></td>
+                    </tr>
+                    {% endfor %}
+                    {% for ec in estados_sin_procesar %}
+                    <tr>
+                        <td>{{ ec.cuenta_bancaria }}</td>
+                        <td>{{ ec.periodo_mes|stringformat:"02d" }}/{{ ec.periodo_anio|stringformat:"d" }}</td>
+                        <td><span class="cob-badge cob-badge-espera">Sin procesar</span></td>
+                        <td class="cob-accion"><a href="{% url 'admin:contabilidad_estadocuentabancario_change' ec.pk %}">Procesar</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if estados_con_pendientes %}
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Movimientos del banco por confirmar</h3>
+            <p>Ya se procesaron, pero les falta asiento o falta que confirmes el emparejamiento que propuso el sistema.</p>
+        </div>
+        <div class="panel-body">
+            <table class="cob-tabla">
+                <thead>
+                    <tr><th>Cuenta bancaria</th><th>Periodo</th><th>Sin asiento</th><th>Sin confirmar</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for item in estados_con_pendientes %}
+                    <tr>
+                        <td>{{ item.estado_cuenta.cuenta_bancaria }}</td>
+                        <td>{{ item.estado_cuenta.periodo_mes|stringformat:"02d" }}/{{ item.estado_cuenta.periodo_anio|stringformat:"d" }}</td>
+                        <td class="cob-num">{{ item.sin_asiento }}</td>
+                        <td class="cob-num">{{ item.sin_confirmar }}</td>
+                        <td class="cob-accion"><a href="{% url 'admin:contabilidad_estadocuentabancario_change' item.estado_cuenta.pk %}">Revisar</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if conciliaciones_pendientes %}
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Conciliaciones con diferencia sin resolver</h3>
+            <p>El saldo del banco y el de libros de ese periodo no cuadran todavía.</p>
+        </div>
+        <div class="panel-body">
+            <table class="cob-tabla">
+                <thead>
+                    <tr><th>Cuenta bancaria</th><th>Periodo</th><th>Estado</th><th>Diferencia</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for c in conciliaciones_pendientes %}
+                    <tr>
+                        <td>{{ c.cuenta_bancaria }}</td>
+                        <td>{{ c.mes|stringformat:"02d" }}/{{ c.anio|stringformat:"d" }}</td>
+                        <td>{{ c.get_estado_display }}</td>
+                        <td class="cob-num">${{ c.diferencia|floatformat:2 }}</td>
+                        <td class="cob-accion"><a href="{% url 'admin:contabilidad_conciliacionbancaria_change' c.pk %}">Revisar</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

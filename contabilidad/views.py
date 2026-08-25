@@ -7,15 +7,18 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import render
 
 from .models import (
+    ConciliacionBancaria,
     EstadoCuentaBancario,
     MovimientoContable,
     MovimientoEstadoCuenta,
+    Poliza,
     UnidadNegocio,
 )
 from .services import cerrar_historico_contable
@@ -309,3 +312,98 @@ def _fecha_corte_sugerida():
         return ''
     inicio = date(primero.periodo_anio, primero.periodo_mes, 1)
     return (inicio - timedelta(days=1)).isoformat()
+
+
+# ==========================================
+# PANEL DE COBERTURA (visibilidad de lo pendiente)
+# ==========================================
+
+@staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
+def panel_cobertura(request):
+    """
+    Un solo lugar que junta TODO lo que sigue pendiente en el ciclo de
+    Compras/conciliación, cruzando varias pantallas del admin que por
+    separado no lo muestran junto: Compras en BORRADOR, movimientos de
+    banco sin asiento o sin confirmar, estados de cuenta sin procesar/con
+    error, y conciliaciones con diferencia sin resolver.
+
+    No amplía ningún criterio de emparejamiento automático — el objetivo no
+    es "adivinar más" (eso sube el riesgo de un match incorrecto), sino que
+    nada quede fuera de la vista aunque siga pendiente de resolverse a mano.
+    """
+    from comercial.models import Compra
+
+    # ---- Compras con póliza en BORRADOR (pendientes de completar/aplicar) ----
+    compra_ct = ContentType.objects.get_for_model(Compra)
+    polizas_compra_borrador = list(
+        Poliza.objects
+        .filter(origen='COMPRA', estado='BORRADOR', content_type=compra_ct)
+        .order_by('-fecha')
+    )
+    compras_por_id = Compra.objects.in_bulk(
+        [p.object_id for p in polizas_compra_borrador]
+    )
+    compras_pendientes = []
+    for poliza in polizas_compra_borrador:
+        compra = compras_por_id.get(poliza.object_id)
+        if not compra:
+            continue
+        faltantes = []
+        if not compra.unidad_negocio_id:
+            faltantes.append('unidad de negocio')
+        if not compra.cuenta_pago_id:
+            faltantes.append('cuenta de pago')
+        compras_pendientes.append({
+            'compra': compra, 'poliza': poliza,
+            'faltantes': ' y '.join(faltantes) or 'sin cuadrar',
+        })
+
+    # ---- Estados de cuenta: sin procesar, con error, o procesados con pendientes ----
+    estados_sin_procesar = list(
+        EstadoCuentaBancario.objects.filter(estado='CARGADO').select_related('cuenta_bancaria')
+    )
+    estados_con_error = list(
+        EstadoCuentaBancario.objects.filter(estado='ERROR').select_related('cuenta_bancaria')
+    )
+    estados_con_pendientes = []
+    total_sin_asiento = 0
+    total_sin_confirmar = 0
+    for ec in EstadoCuentaBancario.objects.filter(estado='PROCESADO').select_related('cuenta_bancaria'):
+        sin_asiento = ec.movimientos.filter(movimiento_contable__isnull=True).count()
+        sin_confirmar = ec.movimientos.filter(movimiento_contable__isnull=False, confirmado=False).count()
+        if sin_asiento or sin_confirmar:
+            estados_con_pendientes.append({
+                'estado_cuenta': ec, 'sin_asiento': sin_asiento, 'sin_confirmar': sin_confirmar,
+            })
+            total_sin_asiento += sin_asiento
+            total_sin_confirmar += sin_confirmar
+
+    # ---- Conciliaciones sin cerrar ----
+    conciliaciones_pendientes = list(
+        ConciliacionBancaria.objects
+        .exclude(estado='CONCILIADA')
+        .select_related('cuenta_bancaria')
+        .order_by('-anio', '-mes')
+    )
+
+    estados_por_revisar = len(estados_sin_procesar) + len(estados_con_error)
+    total_pendiente = (
+        len(compras_pendientes) + total_sin_asiento + total_sin_confirmar
+        + estados_por_revisar + len(conciliaciones_pendientes)
+    )
+
+    context = {
+        **admin.site.each_context(request),
+        'title': "Panel de cobertura contable",
+        'compras_pendientes': compras_pendientes,
+        'estados_sin_procesar': estados_sin_procesar,
+        'estados_con_error': estados_con_error,
+        'estados_con_pendientes': estados_con_pendientes,
+        'conciliaciones_pendientes': conciliaciones_pendientes,
+        'total_sin_asiento': total_sin_asiento,
+        'total_sin_confirmar': total_sin_confirmar,
+        'estados_por_revisar': estados_por_revisar,
+        'total_pendiente': total_pendiente,
+    }
+    return render(request, 'admin/contabilidad/panel_cobertura.html', context)

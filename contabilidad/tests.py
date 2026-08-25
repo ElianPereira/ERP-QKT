@@ -1018,6 +1018,89 @@ class SugerirYAplicarComprasAdminActionTest(TestCase):
         self.assertFalse(self.mov_banco.confirmado)
 
 
+class PanelCoberturaTest(TestCase):
+    """Panel de cobertura: junta en un solo lugar todo lo que sigue
+    pendiente (Compras BORRADOR, movimientos sin asiento/confirmar, estados
+    de cuenta sin procesar/con error, conciliaciones con diferencia) — sin
+    ampliar ningún criterio de emparejamiento, solo visibilidad."""
+
+    def setUp(self):
+        self.unidad_quinta = UnidadNegocio.objects.get(clave='QUINTA')
+        self.cuenta_contable_banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        self.staff = User.objects.create_user('staff_cobertura', password='x', is_staff=True)
+        self.staff.user_permissions.add(Permission.objects.get(codename='view_movimientocontable'))
+        self.client.force_login(self.staff)
+        self.url = reverse('contabilidad:panel_cobertura')
+
+    def test_requiere_permiso(self):
+        anonimo = User.objects.create_user('sin_permiso', password='x', is_staff=True)
+        self.client.force_login(anonimo)
+        respuesta = self.client.get(self.url)
+        self.assertEqual(respuesta.status_code, 403)
+
+    def test_todo_al_dia_cuando_no_hay_pendientes(self):
+        respuesta = self.client.get(self.url)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.context['total_pendiente'], 0)
+        self.assertContains(respuesta, 'Todo al día')
+
+    def test_compra_en_borrador_aparece_en_el_panel(self):
+        # Sin unidad_negocio: no hay ninguna CuentaBancaria de por medio, así
+        # que no hay riesgo de que la auto-asignación del punto 0 la complete.
+        Compra.objects.create(
+            proveedor_nombre='Proveedor Pendiente', subtotal=Decimal('300.00'), total=Decimal('300.00'),
+        )
+        respuesta = self.client.get(self.url)
+        self.assertEqual(len(respuesta.context['compras_pendientes']), 1)
+        self.assertContains(respuesta, 'Proveedor Pendiente')
+        self.assertNotContains(respuesta, 'Todo al día')
+
+    def test_estado_de_cuenta_sin_procesar_aparece(self):
+        cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA (test panel)', banco='BBVA', clabe='012345678901234580',
+            cuenta_contable=self.cuenta_contable_banco, unidad_negocio=self.unidad_quinta,
+        )
+        EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=cuenta_bancaria, banco='BBVA',
+            periodo_mes=8, periodo_anio=2026, formato='PDF', estado='CARGADO',
+        )
+        respuesta = self.client.get(self.url)
+        self.assertEqual(len(respuesta.context['estados_sin_procesar']), 1)
+        self.assertEqual(respuesta.context['estados_por_revisar'], 1)
+        self.assertContains(respuesta, 'Sin procesar')
+
+    def test_movimiento_sin_asiento_cuenta_en_el_total(self):
+        cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA (test panel 2)', banco='BBVA', clabe='012345678901234581',
+            cuenta_contable=self.cuenta_contable_banco, unidad_negocio=self.unidad_quinta,
+        )
+        estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=cuenta_bancaria, banco='BBVA',
+            periodo_mes=8, periodo_anio=2026, formato='PDF', estado='PROCESADO',
+        )
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado_cuenta, fecha=date(2026, 8, 6),
+            descripcion='Cargo sin identificar', cargo=Decimal('999.00'),
+        )
+        respuesta = self.client.get(self.url)
+        self.assertEqual(respuesta.context['total_sin_asiento'], 1)
+        self.assertEqual(len(respuesta.context['estados_con_pendientes']), 1)
+
+    def test_conciliacion_pendiente_aparece(self):
+        cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA (test panel 3)', banco='BBVA', clabe='012345678901234582',
+            cuenta_contable=self.cuenta_contable_banco, unidad_negocio=self.unidad_quinta,
+        )
+        ConciliacionBancaria.objects.create(
+            cuenta_bancaria=cuenta_bancaria, mes=8, anio=2026, estado='PENDIENTE',
+            saldo_segun_banco=Decimal('100.00'), saldo_segun_libros=Decimal('50.00'),
+            diferencia=Decimal('50.00'),
+        )
+        respuesta = self.client.get(self.url)
+        self.assertEqual(len(respuesta.context['conciliaciones_pendientes']), 1)
+        self.assertNotContains(respuesta, 'Todo al día')
+
+
 class ConciliacionPreliminarTest(TestCase):
     """generar_conciliacion_preliminar usa saldo_a_fecha, no saldo_actual corrido a hoy."""
 
