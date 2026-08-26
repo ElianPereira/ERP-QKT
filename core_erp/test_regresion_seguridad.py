@@ -113,3 +113,25 @@ class PublicSecurityHeadersMiddlewareTest(TestCase):
 
         respuesta_admin = self.client.get('/admin/login/')
         self.assertIn('Permissions-Policy', respuesta_admin.headers)
+
+    def test_admin_csp_report_only_desactivada_por_default_no_manda_nada(self):
+        # ADMIN_CSP_REPORT_ONLY default es False (orden 37, SEC-CFG-002):
+        # el admin no debe llevar ninguna CSP mientras no se active a propósito.
+        respuesta = self.client.get('/admin/login/')
+
+        self.assertNotIn('Content-Security-Policy', respuesta.headers)
+        self.assertNotIn('Content-Security-Policy-Report-Only', respuesta.headers)
+
+    @override_settings(ADMIN_CSP_REPORT_ONLY=True)
+    def test_admin_csp_report_only_activada_manda_report_only_no_bloqueante(self):
+        respuesta = self.client.get('/admin/login/')
+
+        self.assertIn('Content-Security-Policy-Report-Only', respuesta.headers)
+        self.assertNotIn('Content-Security-Policy', respuesta.headers)
+        cabecera = respuesta.headers['Content-Security-Policy-Report-Only']
+        self.assertIn("default-src 'self'", cabecera)
+        self.assertIn('https://cdn.jsdelivr.net', cabecera)
+
+        # No debe filtrarse a rutas fuera de /admin/.
+        respuesta_publica = self.client.get('/')
+        self.assertNotIn('Content-Security-Policy-Report-Only', respuesta_publica.headers)

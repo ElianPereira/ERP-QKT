@@ -16,13 +16,18 @@ el admin (Jazzmin) ni los pagos (Openpay/3-D Secure):
      observar qué recursos carga Openpay/3-D Secure y poder diseñar después una
      CSP a medida sin arriesgar cobros reales.
 
-El admin ("/admin/…") queda fuera de cualquier CSP porque Jazzmin/AdminLTE usan
-recursos propios que una CSP estricta rompería.
+  4. CSP en modo Report-Only para el admin ("/admin/…"), opt-in vía
+     ADMIN_CSP_REPORT_ONLY=True (orden 37, SEC-CFG-002). Mismo motivo que el
+     portal: Jazzmin/AdminLTE, FullCalendar y Chart.js (jsDelivr) cargan
+     recursos que una CSP bloqueante rompería sin antes ver qué falta en la
+     lista blanca — nunca se activa en modo bloqueante sin haber recorrido el
+     admin completo primero y ajustado la política a las violaciones reales.
 
 Toggles de entorno:
   - PUBLIC_CSP_ENABLED (default True): apaga la CSP pública sin tocar código.
   - PUBLIC_CSP_REPORT_ONLY (default False): la CSP pública en modo prueba.
   - PORTAL_CSP_REPORT_ONLY (default False): activa la CSP Report-Only del portal.
+  - ADMIN_CSP_REPORT_ONLY (default False): activa la CSP Report-Only del admin.
 """
 import logging
 import uuid
@@ -114,6 +119,25 @@ PORTAL_CSP_REPORT_ONLY_POLICY = (
     "frame-src https://www.google.com"
 )
 
+# --- CSP objetivo del admin, SOLO Report-Only (no bloquea). Cubre lo que ya
+# se sabe que carga el admin: FullCalendar y Chart.js vía jsDelivn (calendario
+# unificado, dashboards de comercial/airbnb), Google Fonts (admin_fix.css) y
+# las imágenes del bucket público (miniaturas de ImagenLanding/Producto). Se
+# revisa y amplía con las violaciones reales antes de plantear una versión
+# bloqueante — ver docstring del módulo. ---
+ADMIN_CSP_REPORT_ONLY_POLICY = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'; "
+    "frame-ancestors 'self'; "
+    "form-action 'self'; "
+    "img-src 'self' data: https://media.quintakooxtanil.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+    "font-src 'self' https://fonts.gstatic.com data:; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "connect-src 'self'"
+)
+
 
 def _es_pagina_publica(path):
     return path == '/' or path.startswith('/cotizar') or path.startswith('/api/')
@@ -159,6 +183,14 @@ class PublicSecurityHeadersMiddleware:
             and not _tiene_csp(response)
         ):
             response['Content-Security-Policy-Report-Only'] = PORTAL_CSP_REPORT_ONLY_POLICY
+
+        # 4) CSP Report-Only (no bloquea) en el admin, opt-in.
+        elif (
+            getattr(settings, 'ADMIN_CSP_REPORT_ONLY', False)
+            and path.startswith('/admin/')
+            and not _tiene_csp(response)
+        ):
+            response['Content-Security-Policy-Report-Only'] = ADMIN_CSP_REPORT_ONLY_POLICY
 
         return response
 
