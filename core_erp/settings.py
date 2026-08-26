@@ -41,6 +41,12 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 # --- Seguridad en producción (se activan cuando DEBUG=False) ---
 if not DEBUG:
+    # Railway termina TLS en su borde y reenvía al contenedor por HTTP plano
+    # marcando X-Forwarded-Proto: https. Sin esto, request.is_secure() es
+    # siempre False detrás del proxy y SECURE_SSL_REDIRECT entra en un loop
+    # infinito de redirecciones (confirmado en producción: ERR_TOO_MANY_REDIRECTS
+    # en cuanto DEBUG pasó a False y esta rama empezó a ejecutarse de verdad).
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
