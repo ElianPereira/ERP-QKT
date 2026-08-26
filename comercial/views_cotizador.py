@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 # extra, el horario que se guarda en la cotización y el texto que ve el
 # cliente. El JS de la plantilla replica estos mismos valores.
 HORAS_BASE_EVENTO = 6          # incluidas en el paquete; a partir de aquí se cobra hora extra
+MAX_HORAS_EXTRA_EVENTO = 3     # tope de horas extra que el cliente puede agregar sobre las base
+HORAS_MAX_EVENTO = HORAS_BASE_EVENTO + MAX_HORAS_EXTRA_EVENTO
 HORA_INICIO_PASADIA = dt_time(11, 0)
 HORA_FIN_PASADIA = dt_time(19, 0)
 HORAS_PASADIA = 8
@@ -269,6 +271,15 @@ def cotizador_enviar(request):
         if dt_f <= dt_i:
             dt_f += timedelta(days=1)
         horas_evento = max(HORAS_BASE_EVENTO, int((dt_f - dt_i).total_seconds() / 3600))
+        if servicio == 'EVENTO' and horas_evento > HORAS_MAX_EVENTO:
+            return JsonResponse({
+                'ok': False,
+                'errores': [
+                    f"El horario del evento no puede superar las {HORAS_MAX_EVENTO} horas "
+                    f"({HORAS_BASE_EVENTO} incluidas + {MAX_HORAS_EXTRA_EVENTO} de hora extra "
+                    "como máximo). Ajusta la hora de inicio o de fin."
+                ],
+            }, status=400)
     else:
         horas_evento = HORAS_BASE_EVENTO
 
@@ -707,6 +718,10 @@ def api_total_cotizador(request):
     servicio = (request.GET.get('servicio') or '').upper()
     if servicio == 'PASADIA':
         horas_evento = HORAS_PASADIA
+    elif servicio == 'EVENTO':
+        # Mismo tope que cotizador_enviar: el total exhibido no debe insinuar
+        # un cobro que la solicitud real va a rechazar.
+        horas_evento = min(horas_evento, HORAS_MAX_EVENTO)
     extras_ids = [int(x) for x in (request.GET.get('extras') or '').split(',')
                   if x.strip().isdigit()]
     noches = max(NOCHES_HOSPEDAJE_MIN, min(_entero('noches', 1), NOCHES_HOSPEDAJE_MAX))

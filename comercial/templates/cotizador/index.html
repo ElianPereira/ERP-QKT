@@ -358,12 +358,15 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="panel-condicional campo-fila" id="blq-horario">
       <div class="campo">
         <label for="hora_inicio">Hora de inicio</label>
-        <input type="time" id="hora_inicio" value="14:00">
+        <input type="time" id="hora_inicio">
       </div>
       <div class="campo">
         <label for="hora_fin">Hora de fin</label>
-        <input type="time" id="hora_fin" value="22:00">
+        <input type="time" id="hora_fin">
       </div>
+    </div>
+    <div class="campo-error" id="err-horario" style="display:none;">
+      El evento puede durar hasta 9 horas (6 incluidas + 3 de hora extra como máximo). Ajusta el horario.
     </div>
 
     <div class="campo panel-condicional" id="blq-noches">
@@ -599,6 +602,10 @@ let habitacionesData = [];
 let noches = 1;
 let pasoActual = 1;
 const totalPasos = 6;
+// Mismo tope que views_cotizador.py (HORAS_BASE_EVENTO + MAX_HORAS_EXTRA_EVENTO):
+// 6 horas incluidas + 3 de hora extra como máximo.
+const HORAS_BASE_EVENTO = 6;
+const HORAS_MAX_EVENTO = 9;
 
 // Formatea un importe decimal que llega como string desde el servidor, sin
 // convertirlo a float (perdería el centavo en importes grandes).
@@ -813,7 +820,7 @@ function selCamino(camino, el) {
     subPer.style.display = 'block';
     if (servicioSel === 'EVENTO') {
       mostrarNotaBase('Tu cotización ya incluye el Paquete Esencial QKT: arrendamiento de la quinta '
-                    + '(6 horas; las adicionales se cobran como hora extra). Lo de abajo es opcional.');
+                    + '(6 horas; hasta 3 horas adicionales se cobran como hora extra). Lo de abajo es opcional.');
     } else {
       mostrarNotaBase('');
     }
@@ -1153,6 +1160,20 @@ function validarPaso(paso) {
     if (!document.getElementById('fecha').value) {
       mostrarErr('err-fecha','fecha'); return false;
     }
+    if (servicioSel === 'EVENTO' && document.getElementById('hora_inicio').value
+        && document.getElementById('hora_fin').value) {
+      var a = document.getElementById('hora_inicio').value.split(':');
+      var b = document.getElementById('hora_fin').value.split(':');
+      var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
+      var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
+      if (fin <= ini) fin += 24 * 60;
+      var horas = Math.floor((fin - ini) / 60);
+      if (horas > HORAS_MAX_EVENTO) {
+        document.getElementById('err-horario').style.display = 'block';
+        return false;
+      }
+    }
+    document.getElementById('err-horario').style.display = 'none';
   }
   if (paso === 3) {
     if (!caminoSel) {
@@ -1283,12 +1304,15 @@ function horasEvento() {
   if (servicioSel === 'PASADIA') return 9;
   var hi = document.getElementById('hora_inicio');
   var hf = document.getElementById('hora_fin');
-  if (!hi || !hf || !hi.value || !hf.value) return 6;
+  if (!hi || !hf || !hi.value || !hf.value) return HORAS_BASE_EVENTO;
   var a = hi.value.split(':'), b = hf.value.split(':');
   var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
   var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
   if (fin <= ini) fin += 24 * 60;
-  return Math.max(6, Math.floor((fin - ini) / 60));
+  var horas = Math.max(HORAS_BASE_EVENTO, Math.floor((fin - ini) / 60));
+  // El total exhibido no debe insinuar un cobro que validarPaso(2) va a
+  // rechazar antes de dejar avanzar: mismo tope que el backend.
+  return Math.min(horas, HORAS_MAX_EVENTO);
 }
 
 async function cargarTotal() {
