@@ -134,8 +134,14 @@ ADMIN_CSP_REPORT_ONLY_POLICY = (
     "img-src 'self' data: https://media.quintakooxtanil.com; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
     "font-src 'self' https://fonts.gstatic.com data:; "
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-    "connect-src 'self'"
+    # cdn.jsdelivr.net: FullCalendar/Chart.js. static.cloudflareinsights.com:
+    # el beacon de Cloudflare Web Analytics, inyectado por el propio proxy de
+    # Cloudflare delante de erp.quintakooxtanil.com — no es un script que
+    # sirva el código del ERP, no se puede quitar desde acá sin desactivarlo
+    # en el dashboard de Cloudflare. Detectado en la primera pasada real de
+    # Report-Only (orden 37).
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; "
+    "connect-src 'self' https://cloudflareinsights.com"
 )
 
 
