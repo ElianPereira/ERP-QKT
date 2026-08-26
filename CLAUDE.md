@@ -83,6 +83,41 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-26 — Páginas de error propias (400/403/404/500) con la identidad
+  visual del portal, en vez de la página técnica/genérica de Django que veía
+  el propietario (reportado con un enlace de guía de Pasadía con fecha ya
+  pasada — ese caso concreto es un 404 real de `_portal_vigente_o_404`, no
+  un bug). `templates/400.html`/`403.html`/`404.html`/`500.html` extienden
+  `templates/errores/_base.html` (header amarillo, tarjeta blanca, mismo
+  patrón que `portal/acceso.html`) — Django las detecta solas por nombre
+  exacto en el `DIRS` de `TEMPLATES` (`templates/`), sin necesitar
+  `handler404`/`handler500` en `urls.py`. El `500.html` se renderiza **sin
+  contexto de request** (`django.views.defaults.server_error` llama
+  `template.render()` sin argumentos, a diferencia de 400/403/404 que sí
+  reciben `request` y sus context processors) — nada de `{% csrf_token %}`
+  ni de settings vía context processor ahí; el WhatsApp del footer usa el
+  mismo número público ya hardcodeado en `templates/landing/*.html`
+  (`529994457178`), no `settings.WA_NUMERO_CONTACTO_PUBLICO`, porque ese
+  no llega sin contexto. Verificado con
+  `get_template(name).render({})` para las cuatro (mismo camino que usa
+  Django internamente) y con `manage.py test` completo. **Nota para el
+  propietario, no resuelta aquí**: si lo que viste era la pantalla
+  amarilla/beige con el traceback técnico (no un 404/500 genérico), eso es
+  la página de depuración de Django, que solo aparece con `DEBUG=True` —
+  confirma que esa variable en Railway está en `False` en producción, o
+  cualquier caída expone rutas de archivos y variables de entorno al
+  público.
+- De paso, se corrigió el 500 documentado y pendiente de la sesión anterior
+  en `configurar_plantilla_barra` (`/admin/comercial/configurar-plantilla-
+  barra/`): la plantilla `admin/comercial/configurar_plantilla_barra.html`
+  nunca había existido en el repo — la vista revienta con
+  `TemplateDoesNotExist` en cuanto se le da GET/POST real, bug ya
+  documentado como tal en `comercial/test_permisos_grupos.py` (con la
+  vista excluida de `test_ninguna_vista_protegida_da_403` a propósito).
+  Se creó la plantilla con el patrón `admin/base_site.html` + Jazzmin ya
+  usado en `carga_masiva_imagenes.html` (selects de insumo/proporción por
+  categoría de barra, agrupados por `GRUPO_CONFIG`) y se quitó la exclusión
+  del test.
 - 2026-08-25 — El cron de recordatorios al contador (`enviar_recordatorios_
   contador`) ahora también reintenta las solicitudes `PENDIENTE` (pedido
   directo del propietario tras dudar si el cron cubría ese caso). Antes esas
