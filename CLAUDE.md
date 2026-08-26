@@ -83,6 +83,22 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-26 — **`DEBUG=True` estaba activo en producción (Railway)**,
+  confirmado con una captura real del propietario: el 404 del enlace de
+  guía de Pasadía mostraba la página técnica de Django (listado completo de
+  `URLconf`, vista que lo generó, método de la petición) — eso **solo
+  aparece con `DEBUG=True`**, no es el 404 genérico. El propietario ya lo
+  corrigió en las variables de Railway (`DEBUG=False`, que además es el
+  default de `core_erp/settings.py` si la variable no existiera). Mientras
+  estuvo activo, cualquier error de la app pudo haber expuesto rutas
+  internas y, en un 500 real, también variables de entorno y fragmentos de
+  código fuente a cualquier visitante — no hay forma de auditar desde el
+  repo cuánto tiempo estuvo así ni si alguien más lo vio, porque es
+  configuración de Railway, no algo que quede en el historial de git.
+  `ci.yml` ya corre `manage.py check --deploy --fail-level WARNING` con
+  `DEBUG=False` (orden de seguridad previa), pero eso valida el código, no
+  las variables de entorno reales de Railway — no hay gate automático
+  posible desde este repo contra un valor mal puesto ahí.
 - 2026-08-26 — Páginas de error propias (400/403/404/500) con la identidad
   visual del portal, en vez de la página técnica/genérica de Django que veía
   el propietario (reportado con un enlace de guía de Pasadía con fecha ya
