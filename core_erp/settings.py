@@ -90,6 +90,7 @@ INSTALLED_APPS = [
     'reportes',
     'comunicacion',
     'legal',
+    'operaciones',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]
@@ -314,6 +315,12 @@ WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
 # mensaje 'document' directo (funciona dentro de la ventana de 24h, falla
 # fuera de ella — comportamiento sin cambios hasta que se apruebe).
 WA_TEMPLATE_SOLICITUD_FACTURA = config('WA_TEMPLATE_SOLICITUD_FACTURA', default='')
+# Módulo de operaciones (Issue #257): abre la conversación con el colaborador
+# antes del checklist/aviso de horario en texto libre (que sí puede llevar
+# saltos de línea, a diferencia de un parámetro de plantilla). Vacía = se
+# manda solo el texto libre, funciona mientras la ventana de 24h esté
+# abierta — mismo criterio que el resto de mensajería interna sin plantilla.
+WA_TEMPLATE_OPERACIONES = config('WA_TEMPLATE_OPERACIONES', default='')
 
 # --- STORAGES (Cloudflare R2, S3-compatible) ---
 STORAGES = {

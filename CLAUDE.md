@@ -83,6 +83,52 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-27 — Módulo `operaciones/` (Issue #257): organización de
+  mantenimiento continuo y preparación de servicios (turnover), informativo
+  y unidireccional por WhatsApp — sin checklist interactiva para
+  colaboradores, decisión explícita del propietario tras varias rondas de
+  `AskUserQuestion` (se resisten a usar una interfaz web). `PlantillaChecklist`
+  (una por tipo de servicio de turnover + N de mantenimiento recurrente, con
+  `ItemChecklist` ya redactados "verbo + objeto + criterio de terminado") se
+  captura una sola vez en el admin; `TareaProgramada` se genera sola: turnover
+  vía signal en `Cotizacion` (post_save, estado CONFIRMADA, mismo patrón
+  reentrante que `comunicacion/signals.py` — idempotente por `get_or_create`,
+  no por `created`) usando `cotizacion.hora_inicio` como hora límite (ya
+  poblado en 14:00 para Hospedaje y 11:00 para Pasadía por el cotizador);
+  mantenimiento recurrente vía `generar_tareas_mantenimiento()`, llamado cada
+  corrida del cron nuevo. **Tres envíos independientes por tarea**, cada uno
+  con su propio estado (`estado_aviso_horario`/`estado_operativo`/
+  `estado_resumen_propietario` en `TareaProgramada`, no en
+  `ComunicacionCliente`: aquí repetir el intento hasta ENVIADO es el
+  comportamiento buscado, así que no se le puso clave de idempotencia): (1)
+  aviso de cambio de horario, solo si `requiere_tiempo_extra` (entrada antes
+  de las 8:00 a.m. o salida después de las 2:00 p.m., turno normal de los
+  colaboradores) — sale de inmediato al confirmarse la cotización, no espera
+  al cron; (2) checklist operativo al responsable, exactamente
+  `HORAS_ANTES_ENVIO_OPERATIVO` (2 h) antes de su hora de entrada ese día; (3)
+  resumen consolidado al propietario (`WA_NUMERO_NEGOCIO`), la noche anterior
+  (corte 8:00 p.m.) o de inmediato si la cotización se confirmó después de
+  ese corte. **Por qué el checklist sale como plantilla + texto libre y no
+  todo en una plantilla**: los colaboradores no necesariamente le han
+  escrito al número del negocio en 24 h, así que un texto libre iniciado por
+  el sistema puede rechazarse (Meta 131047) — pero Meta tampoco deja meter
+  saltos de línea en un parámetro de plantilla (mismo límite ya documentado
+  para `texto_plano_wa`), así que un checklist de varias tareas no cabe
+  entero en una. Se manda `WA_TEMPLATE_OPERACIONES` (plantilla corta, aún
+  sin someter a Meta Business Manager) como apertura y el contenido real
+  como texto libre justo después — decisión explícita del propietario vía
+  `AskUserQuestion`, mismo patrón de riesgo aceptado que ya existe en el
+  repo para `WA_TEMPLATE_GUIA`/`WA_TEMPLATE_SOLICITUD_FACTURA`. Un solo cron
+  nuevo, `procesar_tareas_operativas`, hace las tres cosas (generar
+  mantenimiento, mandar lo vencido, reintentar lo `FALLIDO`) — **pendiente
+  dar de alta en Railway con periodicidad de 10 minutos**, a diferencia de
+  todos los demás Cron Jobs del ERP que corren una vez al día. Responsable de
+  cada tarea es `nomina.Empleado` (reusa `telefono` y el catálogo existente,
+  sin duplicar un modelo de "colaborador" nuevo), con override manual desde
+  el admin (`TareaProgramadaAdmin`, de solo lectura salvo ese campo) antes de
+  que salga el envío. `TareaProgramadaAdmin` no permite alta manual
+  (`has_add_permission=False`): las tareas nacen del signal/cron, capturarlas
+  a mano rompería la idempotencia por la que se generan.
 - 2026-08-26 — **`DEBUG=True` estaba activo en producción (Railway)**,
   confirmado con una captura real del propietario: el 404 del enlace de
   guía de Pasadía mostraba la página técnica de Django (listado completo de
