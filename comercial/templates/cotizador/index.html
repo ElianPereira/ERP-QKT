@@ -187,6 +187,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .hab-desc{font-size:.73rem;color:var(--texto-s);font-weight:300;line-height:1.45;margin-top:.2rem;}
 .hab-sub{font-size:.68rem;color:var(--verde-d);font-weight:500;margin-top:.4rem;display:none;}
 .hab-card.selected .hab-sub{display:block;}
+.hab-img{width:72px;height:72px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--crema);}
+.hab-capacidad{font-size:.68rem;color:var(--texto-s);font-weight:400;margin-top:.15rem;}
 
 /* Nav botones */
 .btn-nav{display:flex;gap:1rem;justify-content:space-between;margin-top:2rem;}
@@ -440,6 +442,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
           <div class="paq-empty" id="hab-loading">Cargando habitaciones...</div>
         </div>
         <div id="err-habitaciones" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona al menos una habitación.</div>
+        <div id="aviso-personas-extra" style="display:none;margin-bottom:1rem;padding:10px 12px;background:#FFF3CD;border-left:4px solid #F5C518;color:#664d03;border-radius:6px;font-size:.78rem;line-height:1.5;"></div>
       </div>
 
       <div id="extras-dinamicos"></div>
@@ -599,6 +602,7 @@ let selectedExtras = new Set();
 let extrasInfo = {};
 let selectedHabitaciones = new Set();
 let habitacionesData = [];
+let precioPersonaExtraHospedaje = null;
 let noches = 1;
 let pasoActual = 1;
 const totalPasos = 6;
@@ -696,9 +700,13 @@ function actualizarPanelSegunServicio() {
     else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
     else actualizarPersonas(v);
   } else if (esHospedaje) {
-    slider.min = 1; slider.max = 10; slider.step = 1;
+    // Sin tope duro de huéspedes (pedido explícito del propietario): más de
+    // la capacidad base de las habitaciones elegidas es válido, solo cobra
+    // el recargo de persona extra — el 20 es un límite generoso del control,
+    // no una regla de negocio.
+    slider.min = 1; slider.max = 20; slider.step = 1;
     var v = parseInt(slider.value);
-    if (v > 10) { slider.value = 10; actualizarPersonas(10); }
+    if (v > 20) { slider.value = 20; actualizarPersonas(20); }
     else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
     else actualizarPersonas(v);
   } else {
@@ -890,6 +898,7 @@ async function cargarHabitaciones() {
     var data = await resp.json();
     if (data.ok && data.habitaciones.length) {
       habitacionesData = data.habitaciones;
+      precioPersonaExtraHospedaje = data.precio_persona_extra || null;
       renderHabitaciones(data.habitaciones);
     } else {
       habitacionesData = [];
@@ -906,15 +915,18 @@ function renderHabitaciones(habitaciones) {
   for (var i = 0; i < habitaciones.length; i++) {
     var h = habitaciones[i];
     html += '<div class="hab-card" data-hab-id="' + h.id + '" onclick="toggleHabitacion(' + h.id + ',this)">';
+    if (h.imagen_url) html += '<img class="hab-img" src="' + esc(h.imagen_url) + '" alt="' + esc(h.nombre) + '">';
     html += '<div class="hab-check">✓</div><div class="hab-info">';
     html += '<div class="hab-top"><span class="hab-nombre">' + esc(h.nombre) + '</span>';
     html += '<span class="hab-precio">' + fmtMXN(h.precio_noche) + '<small> /noche</small></span></div>';
     if (h.descripcion) html += '<div class="hab-desc">' + esc(h.descripcion) + '</div>';
+    if (h.capacidad) html += '<div class="hab-capacidad">Capacidad: ' + h.capacidad + ' persona' + (h.capacidad !== 1 ? 's' : '') + '</div>';
     html += '<div class="hab-sub" id="hab-sub-' + h.id + '"></div>';
     html += '</div></div>';
   }
   grid.innerHTML = html;
   actualizarSubtotalesHabitaciones();
+  actualizarAvisoPersonasExtra();
 }
 
 function toggleHabitacion(id, el) {
@@ -925,6 +937,39 @@ function toggleHabitacion(id, el) {
     document.getElementById('err-habitaciones').style.display = 'none';
   }
   actualizarSubtotalesHabitaciones();
+  actualizarAvisoPersonasExtra();
+}
+
+// Personas extra sobre la capacidad base de las habitaciones elegidas (pedido
+// explícito del propietario, sin tope duro de huéspedes): informativo, el
+// cobro real lo aplica _lineas_cotizador() en el servidor, tanto aquí como en
+// cotizador_enviar — mismo criterio en los dos lados.
+function actualizarAvisoPersonasExtra() {
+  var aviso = document.getElementById('aviso-personas-extra');
+  if (!aviso) return;
+  if (servicioSel !== 'HOSPEDAJE' || selectedHabitaciones.size === 0) {
+    aviso.style.display = 'none';
+    return;
+  }
+  var capacidadTotal = 0;
+  habitacionesData.forEach(function(h) {
+    if (selectedHabitaciones.has(h.id)) capacidadTotal += (h.capacidad || 0);
+  });
+  var personasEl = document.getElementById('personas');
+  var personas = personasEl ? parseInt(personasEl.value, 10) || 0 : 0;
+  var extra = personas - capacidadTotal;
+  if (extra <= 0) {
+    aviso.style.display = 'none';
+    return;
+  }
+  var texto = '⚠️ Elegiste <b>' + personas + '</b> huéspedes para una capacidad de <b>' + capacidadTotal
+    + '</b> en las habitaciones seleccionadas. Las <b>' + extra + '</b> persona' + (extra !== 1 ? 's' : '')
+    + ' extra no tienen la misma garantía de comodidad y espacio';
+  texto += precioPersonaExtraHospedaje
+    ? (', y tienen un costo adicional de <b>' + fmtMXN(precioPersonaExtraHospedaje) + '</b> por persona, por noche (se queden o no a dormir).')
+    : '.';
+  aviso.innerHTML = texto;
+  aviso.style.display = 'block';
 }
 
 // El precio por noche que da la API ya incluye IVA (mismo criterio que
@@ -1121,6 +1166,11 @@ function irA(paso) {
     if (n === paso) s.classList.add('active');
   });
   if (paso === totalPasos) construirResumen();
+  // El aviso de personas extra depende de num_personas (paso 2) y de las
+  // habitaciones elegidas (paso 3): recalcula al entrar aquí por si el
+  // cliente cambió el número de huéspedes después de haber cargado las
+  // habitaciones (no vuelve a pedirlas, solo recalcula con lo que ya hay).
+  if (paso === 3 && servicioSel === 'HOSPEDAJE') actualizarAvisoPersonasExtra();
   pasoActual = paso;
   window.scrollTo({top:0, behavior:'smooth'});
 }

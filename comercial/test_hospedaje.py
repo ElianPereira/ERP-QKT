@@ -55,6 +55,17 @@ def _crear_habitaciones():
     return kaan, otoch
 
 
+def _crear_persona_extra(precio_con_iva='200.00'):
+    # precio_venta_fijo va SIN IVA (mismo criterio que las habitaciones):
+    # sugerencia_precio() devuelve la base, con_iva() la convierte al exhibirla.
+    from core_erp import impuestos
+    return Producto.objects.create(
+        nombre='Persona Extra Hospedaje',
+        precio_venta_fijo=impuestos.sin_iva(Decimal(precio_con_iva)),
+        rol_cotizador='PERSONA_EXTRA_HOSPEDAJE',
+    )
+
+
 class FormatoHoraAmPmTest(TestCase):
     def test_mediodia_y_medianoche(self):
         self.assertEqual(formato_hora_ampm(dt_time(14, 0)), '2:00 p.m.')
@@ -283,6 +294,84 @@ class ApiTotalCotizadorHospedajeTest(TestCase):
         self.assertGreater(Decimal(r2.json()['total']), Decimal(r1.json()['total']))
 
 
+class PersonaExtraHospedajeTest(TestCase):
+    """Recargo por persona extra sobre la capacidad base de las habitaciones
+    elegidas (pedido directo del propietario): sin tope duro de huéspedes,
+    $200/noche por persona, se quede o no a dormir. Ka'an y Otoch tienen la
+    capacidad por default del modelo (4)."""
+
+    def setUp(self):
+        cache.clear()
+        self.kaan, self.otoch = _crear_habitaciones()
+
+    def test_personas_dentro_de_capacidad_no_cobra_extra(self):
+        lineas = _lineas_cotizador(
+            servicio='HOSPEDAJE', paquete_id=None, extras_ids=[],
+            num_personas=4, horas_evento=0, noches=2, habitaciones_ids=[self.kaan.id],
+        )
+        self.assertEqual(len(lineas), 1)  # solo la habitación, sin recargo
+
+    def test_sin_producto_persona_extra_no_cobra_nada(self):
+        # Nadie ha dado de alta el producto todavía (mismo patrón que
+        # HORA_EXTRA/BASE_EVENTO ausentes): no revienta, solo no cobra el
+        # recargo — el propietario lo crea en el admin cuando lo necesite.
+        lineas = _lineas_cotizador(
+            servicio='HOSPEDAJE', paquete_id=None, extras_ids=[],
+            num_personas=6, horas_evento=0, noches=2, habitaciones_ids=[self.kaan.id],
+        )
+        self.assertEqual(len(lineas), 1)
+
+    def test_personas_extra_cobra_recargo_por_noche(self):
+        extra = _crear_persona_extra()
+        lineas = _lineas_cotizador(
+            servicio='HOSPEDAJE', paquete_id=None, extras_ids=[],
+            num_personas=6, horas_evento=0, noches=3, habitaciones_ids=[self.kaan.id],
+        )
+        self.assertEqual(len(lineas), 2)
+        prod, cantidad, desc = next(l for l in lineas if l[0] == extra)
+        # Capacidad 4, 6 huéspedes -> 2 personas extra x 3 noches = 6.
+        self.assertEqual(cantidad, 6)
+        self.assertIn('2 persona', desc)
+        self.assertIn('3 noche', desc)
+
+    def test_dos_habitaciones_suman_capacidad(self):
+        _crear_persona_extra()
+        # Capacidad conjunta 4+4=8; 8 huéspedes no genera recargo.
+        lineas = _lineas_cotizador(
+            servicio='HOSPEDAJE', paquete_id=None, extras_ids=[],
+            num_personas=8, horas_evento=0, noches=2,
+            habitaciones_ids=[self.kaan.id, self.otoch.id],
+        )
+        self.assertEqual(len(lineas), 2)  # las dos habitaciones, sin recargo
+
+    def test_api_habitaciones_expone_capacidad_e_imagen(self):
+        respuesta = self.client.get(reverse('api_habitaciones_cotizador'))
+        datos = respuesta.json()
+        kaan_datos = next(h for h in datos['habitaciones'] if h['nombre'] == "Habitación Ka'an")
+        self.assertEqual(kaan_datos['capacidad'], 4)
+        self.assertIsNone(kaan_datos['imagen_url'])
+        self.assertIsNone(datos['precio_persona_extra'])
+
+    def test_api_habitaciones_expone_precio_persona_extra(self):
+        _crear_persona_extra('200.00')
+        respuesta = self.client.get(reverse('api_habitaciones_cotizador'))
+        datos = respuesta.json()
+        self.assertEqual(Decimal(datos['precio_persona_extra']), Decimal('200.00'))
+
+    def test_api_total_incluye_el_recargo(self):
+        _crear_persona_extra()
+        r_sin_extra = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'HOSPEDAJE', 'personas': '4', 'noches': '2',
+            'habitaciones': str(self.kaan.id),
+        })
+        r_con_extra = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'HOSPEDAJE', 'personas': '6', 'noches': '2',
+            'habitaciones': str(self.kaan.id),
+        })
+        self.assertGreater(Decimal(r_con_extra.json()['total']), Decimal(r_sin_extra.json()['total']))
+        self.assertTrue(any('Persona extra' in c for c in r_con_extra.json()['conceptos']))
+
+
 @wa_settings()
 class CotizadorEnviarHospedajeTest(TestCase):
     """De punta a punta: el POST público crea la Cotización de Hospedaje."""
@@ -338,6 +427,16 @@ class CotizadorEnviarHospedajeTest(TestCase):
         self.assertEqual(respuesta.status_code, 200, respuesta.content)
         cot = Cotizacion.objects.latest('id')
         self.assertEqual(cot.noches, 30)
+
+    def test_personas_sobre_capacidad_crean_item_de_recargo(self):
+        _crear_persona_extra()
+        respuesta = self._enviar(personas='6', noches='2', habitaciones_ids=[self.kaan.id])
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        cot = Cotizacion.objects.latest('id')
+        self.assertEqual(cot.items.count(), 2)
+        item_extra = cot.items.exclude(producto=self.kaan).get()
+        # Capacidad 4, 6 huéspedes -> 2 personas extra x 2 noches = 4.
+        self.assertEqual(item_extra.cantidad, 4)
 
 
 class MontoMinimoHospedajeTest(TestCase):

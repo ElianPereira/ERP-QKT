@@ -306,7 +306,7 @@ class ProductoAdmin(admin.ModelAdmin):
             'fields': (
                 'visible_cotizador',
                 ('cotizador_evento', 'cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
-                'rol_cotizador',
+                'rol_cotizador', 'capacidad_base_hospedaje',
                 'grupo_cotizador', 'icono', 'descripcion_corta',
                 'orden_cotizador', 'grupo_exclusion',
                 ('cantidad_por_persona', 'factor_personas'),
