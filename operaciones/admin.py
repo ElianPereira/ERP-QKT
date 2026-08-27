@@ -2,6 +2,17 @@ from django.contrib import admin
 
 from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
 
+# Jazzmin convierte los fieldsets nombrados de PlantillaChecklistAdmin en
+# pestañas — el selector de hora del admin (DateTimeShortcuts.js) posiciona
+# su caja sumando offsetLeft/offsetTop de los padres, cálculo que no
+# contempla pestañas ni transform, y la deja anclada fuera de la pantalla o
+# bloqueada (mismo bug ya resuelto en comercial/airbnb/reportes). El fix
+# vive en static/js/tabs_fix.js, sin tocar el JS de Django.
+MEDIA_CONFIG = {
+    'css': {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')},
+    'js': ('js/tabs_fix.js',),
+}
+
 
 class ItemChecklistInline(admin.TabularInline):
     model = ItemChecklist
@@ -27,6 +38,10 @@ class PlantillaChecklistAdmin(admin.ModelAdmin):
             'description': "Solo aplica a plantillas de tipo Mantenimiento recurrente.",
         }),
     ]
+
+    class Media:
+        css = MEDIA_CONFIG['css']
+        js = MEDIA_CONFIG['js']
 
 
 @admin.register(TareaProgramada)
