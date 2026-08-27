@@ -72,12 +72,22 @@ class Command(BaseCommand):
 
         recordadas = 0
         for solicitud in pendientes:
-            dias_transcurridos = (hoy - solicitud.fecha_envio.date()).days
+            # .date() sobre un datetime aware da la fecha en UTC, no en la
+            # zona horaria local — hay que convertir primero con localtime()
+            # o, entre las 18:00 y la medianoche en Mérida (00:00-06:00 UTC),
+            # la fecha UTC ya es un día más que "hoy" (que sí es local) y el
+            # recordatorio sale con un día de más. Mismo bug ya corregido una
+            # vez en comunicacion.enviar_recordatorios (ver Memoria, 2026-08-10).
+            dias_transcurridos = (hoy - timezone.localtime(solicitud.fecha_envio).date()).days
             if dias_transcurridos not in DIAS_RECORDATORIO:
                 continue
 
             # No repetir el mismo recordatorio si el comando ya corrió hoy.
-            if solicitud.ultimo_recordatorio_enviado and solicitud.ultimo_recordatorio_enviado.date() == hoy:
+            # Mismo cuidado de zona horaria que arriba: comparar contra `hoy`
+            # (local) requiere convertir este datetime a local antes de
+            # tomar su fecha.
+            if (solicitud.ultimo_recordatorio_enviado
+                    and timezone.localtime(solicitud.ultimo_recordatorio_enviado).date() == hoy):
                 continue
 
             folio = f"SOL-{solicitud.id:04d}"
