@@ -272,6 +272,7 @@ class Producto(models.Model):
         ('BASE_PASADIA', 'Base — Pasadía (se agrega solo)'),
         ('HORA_EXTRA', 'Hora extra de arrendamiento'),
         ('HABITACION_HOSPEDAJE', 'Habitación de Hospedaje (selección múltiple)'),
+        ('PERSONA_EXTRA_HOSPEDAJE', 'Persona extra en Hospedaje (recargo por noche)'),
     ]
 
     GRUPO_COTIZADOR_CHOICES = [
@@ -293,6 +294,14 @@ class Producto(models.Model):
         help_text="Si se define (>0), sobreescribe el cálculo costo×margen. Para rentas de precio fijo (mobiliario).",
     )
     imagen_promocional = models.ImageField(upload_to='productos/', blank=True, null=True)
+    capacidad_base_hospedaje = models.PositiveIntegerField(
+        default=4, verbose_name="Capacidad base (Hospedaje)",
+        help_text=(
+            "Huéspedes incluidos en el precio por noche de esta habitación antes "
+            "de cobrar personas extra. Solo aplica si el rol es 'Habitación de "
+            "Hospedaje'."
+        ),
+    )
 
     visible_cotizador = models.BooleanField(default=False, verbose_name="Mostrar en cotizador web")
     grupo_cotizador = models.CharField(
@@ -322,7 +331,7 @@ class Producto(models.Model):
     cotizador_arrendamiento = models.BooleanField(default=False, verbose_name="Disponible para Arrendamiento de Mobiliario")
     cotizador_hospedaje = models.BooleanField(default=False, verbose_name="Disponible para Hospedaje")
     rol_cotizador = models.CharField(
-        max_length=20, blank=True, choices=ROL_COTIZADOR_CHOICES, db_index=True,
+        max_length=30, blank=True, choices=ROL_COTIZADOR_CHOICES, db_index=True,
         verbose_name="Rol en el cotizador",
         help_text=(
             "Producto que el cotizador agrega SOLO al elegir el servicio (el "
