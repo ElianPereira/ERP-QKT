@@ -964,10 +964,15 @@ function actualizarAvisoPersonasExtra() {
   }
   var texto = '⚠️ Elegiste <b>' + personas + '</b> huéspedes para una capacidad de <b>' + capacidadTotal
     + '</b> en las habitaciones seleccionadas. Las <b>' + extra + '</b> persona' + (extra !== 1 ? 's' : '')
-    + ' extra no tienen la misma garantía de comodidad y espacio';
-  texto += precioPersonaExtraHospedaje
-    ? (', y tienen un costo adicional de <b>' + fmtMXN(precioPersonaExtraHospedaje) + '</b> por persona, por noche (se queden o no a dormir).')
-    : '.';
+    + ' extra sí se admiten, pero no tienen la misma garantía de comodidad y espacio';
+  if (precioPersonaExtraHospedaje) {
+    var totalExtra = Number(precioPersonaExtraHospedaje) * extra * noches;
+    texto += ', y tienen un costo adicional de <b>' + fmtMXN(precioPersonaExtraHospedaje) + '</b> por persona, por noche'
+      + ' (se queden o no a dormir): <b>' + extra + ' × ' + noches + ' noche' + (noches !== 1 ? 's' : '')
+      + ' × ' + fmtMXN(precioPersonaExtraHospedaje) + ' = ' + fmtMXN(totalExtra) + '</b>.';
+  } else {
+    texto += '.';
+  }
   aviso.innerHTML = texto;
   aviso.style.display = 'block';
 }
