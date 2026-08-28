@@ -1,13 +1,17 @@
 from django.contrib import admin
+from django.db import models as db_models
+
+from comercial.widgets import TimeSlotWidget
 
 from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
 
 # Jazzmin convierte los fieldsets nombrados de PlantillaChecklistAdmin en
-# pestañas — el selector de hora del admin (DateTimeShortcuts.js) posiciona
+# pestañas — el selector de fecha del admin (DateTimeShortcuts.js) posiciona
 # su caja sumando offsetLeft/offsetTop de los padres, cálculo que no
 # contempla pestañas ni transform, y la deja anclada fuera de la pantalla o
 # bloqueada (mismo bug ya resuelto en comercial/airbnb/reportes). El fix
-# vive en static/js/tabs_fix.js, sin tocar el JS de Django.
+# vive en static/js/tabs_fix.js, sin tocar el JS de Django. Este admin no
+# tiene ningún DateField hoy, pero se deja cableado por si se agrega uno.
 MEDIA_CONFIG = {
     'css': {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')},
     'js': ('js/tabs_fix.js',),
@@ -27,6 +31,13 @@ class PlantillaChecklistAdmin(admin.ModelAdmin):
     list_filter = ['tipo', 'cadencia', 'activa']
     search_fields = ['nombre', 'encabezado']
     inlines = [ItemChecklistInline]
+    # Mismo widget que usa Cotizacion para hora_inicio/hora_fin — un
+    # dropdown buscable con franjas de 15 min, en vez del popover nativo de
+    # Django ("Elija una hora", 5 atajos fijos) que además arrastra el bug
+    # de posicionamiento del <dialog> nativo en pantallas con pestañas.
+    formfield_overrides = {
+        db_models.TimeField: {'widget': TimeSlotWidget},
+    }
     fieldsets = [
         (None, {'fields': ['nombre', 'tipo', 'encabezado', 'responsable_default', 'activa']}),
         ('Turnover', {
