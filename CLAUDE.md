@@ -83,6 +83,46 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-27 — **`static/js/tabs_fix.js` llevaba roto, en TODO el admin
+  (comercial/airbnb/reportes/operaciones), desde la subida a Django 6** —
+  no solo en la plantilla nueva de `operaciones` donde se detectó. Reportado
+  por el propietario al capturar una `PlantillaChecklist`: el selector de
+  hora se abría centrado/anclado, tapando el formulario, igual que el bug
+  de fecha que este mismo script ya había resuelto antes (PR #151). Un
+  primer intento (cablear `tabs_fix.js` en `operaciones/admin.py`, ver
+  entrada de abajo) no lo arregló — el propietario confirmó "sigue igual" y
+  hubo que investigar más a fondo en vez de dar el primer fix por bueno.
+  Verificado con Playwright contra el admin real, no solo leyendo código:
+  se reprodujo el bug con la versión vieja del script, se confirmó el fix
+  con la nueva, y se verificó que seleccionar una hora sí llena el campo.
+  **Dos causas independientes, ambas del salto a Django 6.1**: (1) el botón
+  que abre el calendario/reloj pasó de `<a>` a `<button type="button">`
+  (accesibilidad) — el listener de clic de `tabs_fix.js` seguía buscando
+  `a[id^="calendarlink"], a[id^="clocklink"]`, que ya no coincidía con
+  nada: el reposicionamiento no se disparaba en absoluto, no solo salía mal
+  calculado. Selector corregido para no fijar la etiqueta
+  (`[id^="calendarlink"], [id^="clocklink"]`). (2) El propio calendarbox/
+  clockbox pasó de `<div>` a `<dialog>` nativo, abierto con
+  `showModal()`. El estado `:modal` de un `<dialog>` trae, por hoja de
+  estilos del navegador, `position: fixed; inset-block: 0; margin: auto` —
+  centra la caja verticalmente pese al `top` que le pone el script, porque
+  con `top` fijado por JS y `bottom` aún en 0 (regla del navegador) quedan
+  los dos extremos opuestos ocupados y `margin: auto` reparte el sobrante
+  entre ambos en vez de respetar el `top` tal cual. Se neutraliza fijando
+  `margin: 0` y `right`/`bottom` en `'auto'` al reposicionar, dejando que
+  `top`/`left` manden solos — sin tocar `DateTimeShortcuts.js`, mismo
+  criterio que el resto del archivo. Como el fix vive en un solo archivo
+  compartido, corrige el selector de fecha/hora en los cuatro admins que ya
+  lo cargaban (`comercial`/`airbnb`/`reportes`/`operaciones`) de una vez,
+  no solo el caso reportado.
+- 2026-08-27 — Cableado inicial (incompleto, ver entrada de arriba) de
+  `tabs_fix.js` en `operaciones/admin.py` — el admin de `PlantillaChecklist`
+  usa fieldsets nombrados que Jazzmin convierte en pestañas, y ese archivo
+  no estaba declarado en su `class Media` (sí en `comercial`/`airbnb`/
+  `reportes`, que ya habían necesitado el fix del calendario antes). Quedó
+  corto porque el bug real (ver arriba) no era falta de wiring sino que el
+  propio script dejó de funcionar con Django 6.
+
 - 2026-08-27 — Módulo `operaciones/` (Issue #257): organización de
   mantenimiento continuo y preparación de servicios (turnover), informativo
   y unidireccional por WhatsApp — sin checklist interactiva para
