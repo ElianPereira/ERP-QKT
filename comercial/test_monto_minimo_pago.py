@@ -25,6 +25,10 @@ def _crear_cotizacion(precio_items=Decimal('10000.00'), tipo_servicio='EVENTO', 
         cotizacion=cotizacion, descripcion='Servicio de evento',
         cantidad=1, precio_unitario=precio_items,
     )
+    # ValidacionServidorTest pega directo contra portal_procesar_pago_openpay,
+    # que desde este cambio exige identificación oficial antes que cualquier
+    # otra cosa; estos tests validan el mínimo de pago, no ese requisito.
+    cotizacion.identificacion_oficial.name = 'cotizaciones/identificaciones/test-ine.jpg'
     cotizacion.save()
     cotizacion.refresh_from_db()
     return cotizacion

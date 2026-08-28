@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 # extra, el horario que se guarda en la cotización y el texto que ve el
 # cliente. El JS de la plantilla replica estos mismos valores.
 HORAS_BASE_EVENTO = 6          # incluidas en el paquete; a partir de aquí se cobra hora extra
+MAX_HORAS_EXTRA_EVENTO = 3     # tope de horas extra que el cliente puede agregar sobre las base
+HORAS_MAX_EVENTO = HORAS_BASE_EVENTO + MAX_HORAS_EXTRA_EVENTO
 HORA_INICIO_PASADIA = dt_time(11, 0)
 HORA_FIN_PASADIA = dt_time(19, 0)
 HORAS_PASADIA = 8
@@ -127,15 +129,17 @@ def _detectar_clima(fecha):
 
 
 def _redondear_personas(n, servicio=''):
-    # Pasadía y Hospedaje: tope simple, sin redondear a múltiplos de 10 (ese
-    # redondeo es para los tramos de precio por 10 personas de Evento, que no
-    # aplican aquí). El tope de Hospedaje es orientativo (huéspedes por
-    # habitación), no alimenta ningún cálculo de precio — eso lo hace el
-    # número de habitaciones elegidas, no num_personas.
+    # Pasadía: tope simple, sin redondear a múltiplos de 10 (ese redondeo es
+    # para los tramos de precio por 10 personas de Evento, que no aplican
+    # aquí). Hospedaje **no tiene tope propio a propósito**: más huéspedes que
+    # la capacidad base de las habitaciones elegidas es válido, solo cobra el
+    # recargo de personas extra (ver PERSONA_EXTRA_HOSPEDAJE en
+    # `_lineas_cotizador`) — el único límite es el genérico de 1-200 que ya
+    # aplica antes de llamar a esta función.
     if servicio == 'PASADIA':
         return min(int(n), 20)
     if servicio == 'HOSPEDAJE':
-        return min(int(n), 10)
+        return int(n)
     return max(20, math.ceil(int(n) / 10) * 10)
 
 
@@ -269,6 +273,15 @@ def cotizador_enviar(request):
         if dt_f <= dt_i:
             dt_f += timedelta(days=1)
         horas_evento = max(HORAS_BASE_EVENTO, int((dt_f - dt_i).total_seconds() / 3600))
+        if servicio == 'EVENTO' and horas_evento > HORAS_MAX_EVENTO:
+            return JsonResponse({
+                'ok': False,
+                'errores': [
+                    f"El horario del evento no puede superar las {HORAS_MAX_EVENTO} horas "
+                    f"({HORAS_BASE_EVENTO} incluidas + {MAX_HORAS_EXTRA_EVENTO} de hora extra "
+                    "como máximo). Ajusta la hora de inicio o de fin."
+                ],
+            }, status=400)
     else:
         horas_evento = HORAS_BASE_EVENTO
 
@@ -659,6 +672,24 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
                            f"{hab.nombre} ({noches} noche{'s' if noches != 1 else ''}, "
                            f"check-in {checkin} — check-out {checkout})"))
 
+        # Personas extra sobre la capacidad base de las habitaciones elegidas
+        # (pedido explícito del propietario): no hay tope duro de huéspedes,
+        # pero cada persona por encima de la capacidad de las habitaciones
+        # elegidas se cobra aparte, por noche, se quede o no a dormir — mismo
+        # importe sin distinguir ese caso. `habitaciones` ya está evaluado por
+        # el for de arriba, así que sumar su capacidad no repite la consulta.
+        capacidad_total = sum(h.capacidad_base_hospedaje for h in habitaciones)
+        personas_extra = max(0, num_personas - capacidad_total)
+        if personas_extra > 0:
+            prod_extra = _producto_por_rol(
+                'PERSONA_EXTRA_HOSPEDAJE', 'Persona Extra Hospedaje', 'Persona Extra',
+            )
+            if prod_extra:
+                lineas.append((prod_extra, personas_extra * noches,
+                               f"Persona extra en Hospedaje ({personas_extra} "
+                               f"persona{'s' if personas_extra != 1 else ''} × {noches} "
+                               f"noche{'s' if noches != 1 else ''})"))
+
     # Horas extra: solo el evento tiene horario elegible. La pasadía es de
     # duración fija y el arrendamiento de mobiliario no se cobra por horas.
     if servicio == 'EVENTO' and horas_evento > HORAS_BASE_EVENTO:
@@ -707,6 +738,10 @@ def api_total_cotizador(request):
     servicio = (request.GET.get('servicio') or '').upper()
     if servicio == 'PASADIA':
         horas_evento = HORAS_PASADIA
+    elif servicio == 'EVENTO':
+        # Mismo tope que cotizador_enviar: el total exhibido no debe insinuar
+        # un cobro que la solicitud real va a rechazar.
+        horas_evento = min(horas_evento, HORAS_MAX_EVENTO)
     extras_ids = [int(x) for x in (request.GET.get('extras') or '').split(',')
                   if x.strip().isdigit()]
     noches = max(NOCHES_HOSPEDAJE_MIN, min(_entero('noches', 1), NOCHES_HOSPEDAJE_MAX))
@@ -804,9 +839,24 @@ def api_habitaciones_cotizador(request):
             'icono': hab.icono,
             'descripcion': hab.descripcion_corta,
             'precio_noche': str(precio_con_iva),
+            'capacidad': hab.capacidad_base_hospedaje,
+            'imagen_url': hab.imagen_promocional.url if hab.imagen_promocional else None,
         })
 
-    return JsonResponse({'ok': True, 'habitaciones': resultado})
+    # El frontend necesita el importe real del recargo para avisarle al
+    # cliente ANTES de enviar (mismo criterio que el resto del cotizador: el
+    # total exhibido no debe insinuar un cobro distinto al que el servidor va
+    # a aplicar). Si nadie ha dado de alta el producto todavía, no hay recargo
+    # que anunciar — `_lineas_cotizador` tampoco lo cobra en ese caso.
+    prod_extra = Producto.objects.filter(rol_cotizador='PERSONA_EXTRA_HOSPEDAJE').first()
+    precio_persona_extra = (
+        str(impuestos.con_iva(Decimal(str(prod_extra.sugerencia_precio()))))
+        if prod_extra else None
+    )
+
+    return JsonResponse({
+        'ok': True, 'habitaciones': resultado, 'precio_persona_extra': precio_persona_extra,
+    })
 
 
 def cotizador_gracias(request):

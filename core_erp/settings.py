@@ -41,6 +41,12 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 # --- Seguridad en producción (se activan cuando DEBUG=False) ---
 if not DEBUG:
+    # Railway termina TLS en su borde y reenvía al contenedor por HTTP plano
+    # marcando X-Forwarded-Proto: https. Sin esto, request.is_secure() es
+    # siempre False detrás del proxy y SECURE_SSL_REDIRECT entra en un loop
+    # infinito de redirecciones (confirmado en producción: ERR_TOO_MANY_REDIRECTS
+    # en cuanto DEBUG pasó a False y esta rama empezó a ejecutarse de verdad).
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -84,6 +90,7 @@ INSTALLED_APPS = [
     'reportes',
     'comunicacion',
     'legal',
+    'operaciones',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]
@@ -97,6 +104,10 @@ PUBLIC_CSP_REPORT_ONLY = config('PUBLIC_CSP_REPORT_ONLY', default=False, cast=bo
 # CSP Report-Only del portal de pago (no bloquea): activar solo para probar qué
 # recursos usa Openpay/3-D Secure antes de plantear una CSP bloqueante ahí.
 PORTAL_CSP_REPORT_ONLY = config('PORTAL_CSP_REPORT_ONLY', default=False, cast=bool)
+# CSP Report-Only del admin (no bloquea): activar solo para probar qué
+# recursos usa Jazzmin/FullCalendar/Chart.js antes de plantear una CSP
+# bloqueante ahí (orden 37, SEC-CFG-002).
+ADMIN_CSP_REPORT_ONLY = config('ADMIN_CSP_REPORT_ONLY', default=False, cast=bool)
 
 MIDDLEWARE = [
     # Primero de todos: cubre el log de cualquier middleware/vista/señal
@@ -304,6 +315,12 @@ WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
 # mensaje 'document' directo (funciona dentro de la ventana de 24h, falla
 # fuera de ella — comportamiento sin cambios hasta que se apruebe).
 WA_TEMPLATE_SOLICITUD_FACTURA = config('WA_TEMPLATE_SOLICITUD_FACTURA', default='')
+# Módulo de operaciones (Issue #257): abre la conversación con el colaborador
+# antes del checklist/aviso de horario en texto libre (que sí puede llevar
+# saltos de línea, a diferencia de un parámetro de plantilla). Vacía = se
+# manda solo el texto libre, funciona mientras la ventana de 24h esté
+# abierta — mismo criterio que el resto de mensajería interna sin plantilla.
+WA_TEMPLATE_OPERACIONES = config('WA_TEMPLATE_OPERACIONES', default='')
 
 # --- STORAGES (Cloudflare R2, S3-compatible) ---
 STORAGES = {

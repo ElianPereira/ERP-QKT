@@ -272,6 +272,7 @@ class Producto(models.Model):
         ('BASE_PASADIA', 'Base — Pasadía (se agrega solo)'),
         ('HORA_EXTRA', 'Hora extra de arrendamiento'),
         ('HABITACION_HOSPEDAJE', 'Habitación de Hospedaje (selección múltiple)'),
+        ('PERSONA_EXTRA_HOSPEDAJE', 'Persona extra en Hospedaje (recargo por noche)'),
     ]
 
     GRUPO_COTIZADOR_CHOICES = [
@@ -293,6 +294,14 @@ class Producto(models.Model):
         help_text="Si se define (>0), sobreescribe el cálculo costo×margen. Para rentas de precio fijo (mobiliario).",
     )
     imagen_promocional = models.ImageField(upload_to='productos/', blank=True, null=True)
+    capacidad_base_hospedaje = models.PositiveIntegerField(
+        default=4, verbose_name="Capacidad base (Hospedaje)",
+        help_text=(
+            "Huéspedes incluidos en el precio por noche de esta habitación antes "
+            "de cobrar personas extra. Solo aplica si el rol es 'Habitación de "
+            "Hospedaje'."
+        ),
+    )
 
     visible_cotizador = models.BooleanField(default=False, verbose_name="Mostrar en cotizador web")
     grupo_cotizador = models.CharField(
@@ -322,7 +331,7 @@ class Producto(models.Model):
     cotizador_arrendamiento = models.BooleanField(default=False, verbose_name="Disponible para Arrendamiento de Mobiliario")
     cotizador_hospedaje = models.BooleanField(default=False, verbose_name="Disponible para Hospedaje")
     rol_cotizador = models.CharField(
-        max_length=20, blank=True, choices=ROL_COTIZADOR_CHOICES, db_index=True,
+        max_length=30, blank=True, choices=ROL_COTIZADOR_CHOICES, db_index=True,
         verbose_name="Rol en el cotizador",
         help_text=(
             "Producto que el cotizador agrega SOLO al elegir el servicio (el "
@@ -580,6 +589,35 @@ class Cotizacion(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
     archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF")
+    identificacion_oficial = models.FileField(
+        upload_to='cotizaciones/identificaciones/', blank=True, null=True,
+        storage=storage_privado, verbose_name="Identificación oficial (INE)",
+        help_text="INE u otra identificación oficial de quien contrata. Se pide desde "
+                   "el portal antes de pagar; ver Cotizacion.identificacion_completa().",
+    )
+    # No hay forma automática de validar que el archivo subido SEA una
+    # identificación real (eso requeriría un servicio de verificación de
+    # identidad, desproporcionado para el tamaño de este negocio) — este flag
+    # es la mitigación pragmática: revisión manual posterior por quien
+    # concilia pagos, no un gate que bloquee el pago.
+    identificacion_revisada = models.BooleanField(
+        default=False, verbose_name="Identificación revisada",
+        help_text="Márcalo tras confirmar visualmente que el archivo subido es "
+                   "una identificación oficial legible.",
+    )
+    identificacion_revisada_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name="Revisada por",
+    )
+    identificacion_revisada_en = models.DateTimeField(null=True, blank=True, verbose_name="Revisada el")
+
+    def identificacion_completa(self):
+        """
+        Único punto de verdad de si ya se cumplió el requisito de identificación
+        oficial — lo usa tanto el gate de pago (views_openpay.pagar_openpay) como
+        el portal, para no duplicar el criterio en dos lugares.
+        """
+        return bool(self.identificacion_oficial)
 
     def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
         """

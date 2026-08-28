@@ -115,6 +115,143 @@ salvo que queden obsoletas.
   CortesiaTest` (porcentaje_pagado en 100% con precio_final=0, y que
   `es_cortesia` viaja correctamente al `DescuentoAplicado`). Suite completa
   de `comercial` corrida tras el cambio: 371/371 verdes.
+- 2026-08-27 — **`static/js/tabs_fix.js` llevaba roto, en TODO el admin
+  (comercial/airbnb/reportes/operaciones), desde la subida a Django 6** —
+  no solo en la plantilla nueva de `operaciones` donde se detectó. Reportado
+  por el propietario al capturar una `PlantillaChecklist`: el selector de
+  hora se abría centrado/anclado, tapando el formulario, igual que el bug
+  de fecha que este mismo script ya había resuelto antes (PR #151). Un
+  primer intento (cablear `tabs_fix.js` en `operaciones/admin.py`, ver
+  entrada de abajo) no lo arregló — el propietario confirmó "sigue igual" y
+  hubo que investigar más a fondo en vez de dar el primer fix por bueno.
+  Verificado con Playwright contra el admin real, no solo leyendo código:
+  se reprodujo el bug con la versión vieja del script, se confirmó el fix
+  con la nueva, y se verificó que seleccionar una hora sí llena el campo.
+  **Dos causas independientes, ambas del salto a Django 6.1**: (1) el botón
+  que abre el calendario/reloj pasó de `<a>` a `<button type="button">`
+  (accesibilidad) — el listener de clic de `tabs_fix.js` seguía buscando
+  `a[id^="calendarlink"], a[id^="clocklink"]`, que ya no coincidía con
+  nada: el reposicionamiento no se disparaba en absoluto, no solo salía mal
+  calculado. Selector corregido para no fijar la etiqueta
+  (`[id^="calendarlink"], [id^="clocklink"]`). (2) El propio calendarbox/
+  clockbox pasó de `<div>` a `<dialog>` nativo, abierto con
+  `showModal()`. El estado `:modal` de un `<dialog>` trae, por hoja de
+  estilos del navegador, `position: fixed; inset-block: 0; margin: auto` —
+  centra la caja verticalmente pese al `top` que le pone el script, porque
+  con `top` fijado por JS y `bottom` aún en 0 (regla del navegador) quedan
+  los dos extremos opuestos ocupados y `margin: auto` reparte el sobrante
+  entre ambos en vez de respetar el `top` tal cual. Se neutraliza fijando
+  `margin: 0` y `right`/`bottom` en `'auto'` al reposicionar, dejando que
+  `top`/`left` manden solos — sin tocar `DateTimeShortcuts.js`, mismo
+  criterio que el resto del archivo. Como el fix vive en un solo archivo
+  compartido, corrige el selector de fecha/hora en los cuatro admins que ya
+  lo cargaban (`comercial`/`airbnb`/`reportes`/`operaciones`) de una vez,
+  no solo el caso reportado.
+- 2026-08-27 — Cableado inicial (incompleto, ver entrada de arriba) de
+  `tabs_fix.js` en `operaciones/admin.py` — el admin de `PlantillaChecklist`
+  usa fieldsets nombrados que Jazzmin convierte en pestañas, y ese archivo
+  no estaba declarado en su `class Media` (sí en `comercial`/`airbnb`/
+  `reportes`, que ya habían necesitado el fix del calendario antes). Quedó
+  corto porque el bug real (ver arriba) no era falta de wiring sino que el
+  propio script dejó de funcionar con Django 6.
+
+- 2026-08-27 — Módulo `operaciones/` (Issue #257): organización de
+  mantenimiento continuo y preparación de servicios (turnover), informativo
+  y unidireccional por WhatsApp — sin checklist interactiva para
+  colaboradores, decisión explícita del propietario tras varias rondas de
+  `AskUserQuestion` (se resisten a usar una interfaz web). `PlantillaChecklist`
+  (una por tipo de servicio de turnover + N de mantenimiento recurrente, con
+  `ItemChecklist` ya redactados "verbo + objeto + criterio de terminado") se
+  captura una sola vez en el admin; `TareaProgramada` se genera sola: turnover
+  vía signal en `Cotizacion` (post_save, estado CONFIRMADA, mismo patrón
+  reentrante que `comunicacion/signals.py` — idempotente por `get_or_create`,
+  no por `created`) usando `cotizacion.hora_inicio` como hora límite (ya
+  poblado en 14:00 para Hospedaje y 11:00 para Pasadía por el cotizador);
+  mantenimiento recurrente vía `generar_tareas_mantenimiento()`, llamado cada
+  corrida del cron nuevo. **Tres envíos independientes por tarea**, cada uno
+  con su propio estado (`estado_aviso_horario`/`estado_operativo`/
+  `estado_resumen_propietario` en `TareaProgramada`, no en
+  `ComunicacionCliente`: aquí repetir el intento hasta ENVIADO es el
+  comportamiento buscado, así que no se le puso clave de idempotencia): (1)
+  aviso de cambio de horario, solo si `requiere_tiempo_extra` (entrada antes
+  de las 8:00 a.m. o salida después de las 2:00 p.m., turno normal de los
+  colaboradores) — sale de inmediato al confirmarse la cotización, no espera
+  al cron; (2) checklist operativo al responsable, exactamente
+  `HORAS_ANTES_ENVIO_OPERATIVO` (2 h) antes de su hora de entrada ese día; (3)
+  resumen consolidado al propietario (`WA_NUMERO_NEGOCIO`), la noche anterior
+  (corte 8:00 p.m.) o de inmediato si la cotización se confirmó después de
+  ese corte. **Por qué el checklist sale como plantilla + texto libre y no
+  todo en una plantilla**: los colaboradores no necesariamente le han
+  escrito al número del negocio en 24 h, así que un texto libre iniciado por
+  el sistema puede rechazarse (Meta 131047) — pero Meta tampoco deja meter
+  saltos de línea en un parámetro de plantilla (mismo límite ya documentado
+  para `texto_plano_wa`), así que un checklist de varias tareas no cabe
+  entero en una. Se manda `WA_TEMPLATE_OPERACIONES` (plantilla corta, aún
+  sin someter a Meta Business Manager) como apertura y el contenido real
+  como texto libre justo después — decisión explícita del propietario vía
+  `AskUserQuestion`, mismo patrón de riesgo aceptado que ya existe en el
+  repo para `WA_TEMPLATE_GUIA`/`WA_TEMPLATE_SOLICITUD_FACTURA`. Un solo cron
+  nuevo, `procesar_tareas_operativas`, hace las tres cosas (generar
+  mantenimiento, mandar lo vencido, reintentar lo `FALLIDO`) — **pendiente
+  dar de alta en Railway con periodicidad de 10 minutos**, a diferencia de
+  todos los demás Cron Jobs del ERP que corren una vez al día. Responsable de
+  cada tarea es `nomina.Empleado` (reusa `telefono` y el catálogo existente,
+  sin duplicar un modelo de "colaborador" nuevo), con override manual desde
+  el admin (`TareaProgramadaAdmin`, de solo lectura salvo ese campo) antes de
+  que salga el envío. `TareaProgramadaAdmin` no permite alta manual
+  (`has_add_permission=False`): las tareas nacen del signal/cron, capturarlas
+  a mano rompería la idempotencia por la que se generan.
+- 2026-08-26 — **`DEBUG=True` estaba activo en producción (Railway)**,
+  confirmado con una captura real del propietario: el 404 del enlace de
+  guía de Pasadía mostraba la página técnica de Django (listado completo de
+  `URLconf`, vista que lo generó, método de la petición) — eso **solo
+  aparece con `DEBUG=True`**, no es el 404 genérico. El propietario ya lo
+  corrigió en las variables de Railway (`DEBUG=False`, que además es el
+  default de `core_erp/settings.py` si la variable no existiera). Mientras
+  estuvo activo, cualquier error de la app pudo haber expuesto rutas
+  internas y, en un 500 real, también variables de entorno y fragmentos de
+  código fuente a cualquier visitante — no hay forma de auditar desde el
+  repo cuánto tiempo estuvo así ni si alguien más lo vio, porque es
+  configuración de Railway, no algo que quede en el historial de git.
+  `ci.yml` ya corre `manage.py check --deploy --fail-level WARNING` con
+  `DEBUG=False` (orden de seguridad previa), pero eso valida el código, no
+  las variables de entorno reales de Railway — no hay gate automático
+  posible desde este repo contra un valor mal puesto ahí.
+- 2026-08-26 — Páginas de error propias (400/403/404/500) con la identidad
+  visual del portal, en vez de la página técnica/genérica de Django que veía
+  el propietario (reportado con un enlace de guía de Pasadía con fecha ya
+  pasada — ese caso concreto es un 404 real de `_portal_vigente_o_404`, no
+  un bug). `templates/400.html`/`403.html`/`404.html`/`500.html` extienden
+  `templates/errores/_base.html` (header amarillo, tarjeta blanca, mismo
+  patrón que `portal/acceso.html`) — Django las detecta solas por nombre
+  exacto en el `DIRS` de `TEMPLATES` (`templates/`), sin necesitar
+  `handler404`/`handler500` en `urls.py`. El `500.html` se renderiza **sin
+  contexto de request** (`django.views.defaults.server_error` llama
+  `template.render()` sin argumentos, a diferencia de 400/403/404 que sí
+  reciben `request` y sus context processors) — nada de `{% csrf_token %}`
+  ni de settings vía context processor ahí; el WhatsApp del footer usa el
+  mismo número público ya hardcodeado en `templates/landing/*.html`
+  (`529994457178`), no `settings.WA_NUMERO_CONTACTO_PUBLICO`, porque ese
+  no llega sin contexto. Verificado con
+  `get_template(name).render({})` para las cuatro (mismo camino que usa
+  Django internamente) y con `manage.py test` completo. **Nota para el
+  propietario, no resuelta aquí**: si lo que viste era la pantalla
+  amarilla/beige con el traceback técnico (no un 404/500 genérico), eso es
+  la página de depuración de Django, que solo aparece con `DEBUG=True` —
+  confirma que esa variable en Railway está en `False` en producción, o
+  cualquier caída expone rutas de archivos y variables de entorno al
+  público.
+- De paso, se corrigió el 500 documentado y pendiente de la sesión anterior
+  en `configurar_plantilla_barra` (`/admin/comercial/configurar-plantilla-
+  barra/`): la plantilla `admin/comercial/configurar_plantilla_barra.html`
+  nunca había existido en el repo — la vista revienta con
+  `TemplateDoesNotExist` en cuanto se le da GET/POST real, bug ya
+  documentado como tal en `comercial/test_permisos_grupos.py` (con la
+  vista excluida de `test_ninguna_vista_protegida_da_403` a propósito).
+  Se creó la plantilla con el patrón `admin/base_site.html` + Jazzmin ya
+  usado en `carga_masiva_imagenes.html` (selects de insumo/proporción por
+  categoría de barra, agrupados por `GRUPO_CONFIG`) y se quitó la exclusión
+  del test.
 - 2026-08-25 — El cron de recordatorios al contador (`enviar_recordatorios_
   contador`) ahora también reintenta las solicitudes `PENDIENTE` (pedido
   directo del propietario tras dudar si el cron cubría ese caso). Antes esas

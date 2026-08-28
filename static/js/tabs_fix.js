@@ -104,6 +104,20 @@ window.addEventListener('pageshow', function(event) {
 
         box.style.position = 'fixed';
 
+        // Django 6 volvió <dialog> nativo el calendarbox/clockbox (antes un
+        // <div> normal). El estado :modal de un <dialog> trae por hoja de
+        // estilos del navegador `position: fixed; inset-block: 0; margin:
+        // auto`, que centra la caja verticalmente — top/bottom quedan
+        // "enfrentados" con margin:auto, así que fijar solo `top` no basta:
+        // el navegador reparte el espacio sobrante entre los dos márgenes y
+        // la caja se ve "anclada" a un punto intermedio/abajo, no donde se
+        // le indica. Poner margin en 0 y dejar right/bottom en 'auto' saca
+        // el margin:auto de la ecuación y deja que top/left manden solos,
+        // sin tocar DateTimeShortcuts.js. Es inofensivo en el <div> viejo.
+        box.style.margin = '0';
+        box.style.right = 'auto';
+        box.style.bottom = 'auto';
+
         // Si la caja no cabe a lo alto en la ventana, se limita su altura
         // y se le permite scroll interno (aportación del PR #151), para no
         // perder los últimos días ni el pie Hoy/Cancelar. Se resetea antes
@@ -147,8 +161,13 @@ window.addEventListener('pageshow', function(event) {
     // DateTimeShortcuts.js hace e.stopPropagation() al abrir (para no
     // disparar su propio listener de "clic afuera cierra"), así que hay
     // que escuchar en fase de CAPTURA para llegar antes que ese corte.
+    //
+    // El selector no fija la etiqueta (`a`/`button`) a propósito: Django 6
+    // volvió `<button type="button">` este disparador (antes era `<a>`), y
+    // con el selector viejo (`a[id^=...]`) el listener nunca coincidía —
+    // el reposicionamiento no se disparaba en absoluto, no solo salía mal.
     document.addEventListener('click', function (e) {
-        var icono = e.target.closest && e.target.closest('a[id^="calendarlink"], a[id^="clocklink"]');
+        var icono = e.target.closest && e.target.closest('[id^="calendarlink"], [id^="clocklink"]');
         if (!icono) return;
         // setTimeout(0): deja que Django cree/posicione la caja primero.
         setTimeout(function () {

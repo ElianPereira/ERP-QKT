@@ -15,10 +15,11 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db.models import Q
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from weasyprint import HTML
 
 from core_erp.ratelimit import (
@@ -230,6 +231,7 @@ def portal_evento(request, token):
         'openpay_sandbox': settings.OPENPAY_MODE == 'sandbox',
         'monto_minimo_pago': monto_minimo,
         'monto_minimo_pago_motivo': monto_minimo_motivo,
+        'identificacion_completa': cotizacion.identificacion_completa(),
         # Catálogo de cadenas Paynet como JSON: el portal y la ficha PDF leen
         # la misma lista, así no se desincronizan.
         'tiendas_paynet': json.dumps([list(t) for t in TIENDAS_PAYNET]),
@@ -345,3 +347,41 @@ def portal_descargar_guia(request, token):
     )
     respuesta['Cache-Control'] = 'private, no-store'
     return respuesta
+
+
+# Mismo criterio de tamaño/formato para una identificación oficial escaneada
+# o fotografiada con el celular — suficiente para una foto de buena calidad
+# sin abrir la puerta a archivos arbitrarios.
+IDENTIFICACION_TIPOS_PERMITIDOS = {'image/jpeg', 'image/png', 'application/pdf'}
+IDENTIFICACION_TAMANO_MAXIMO = 8 * 1024 * 1024  # 8 MB
+
+
+@_rate_limit(key='portal_subir_identificacion', limit=10, window=60)
+@require_POST
+def portal_subir_identificacion(request, token):
+    """
+    Sube la identificación oficial (INE) de quien contrata. Se guarda en
+    storage privado (ver Cotizacion.identificacion_oficial) — el gate real de
+    "obligatoria antes de pagar" vive en
+    views_openpay.portal_procesar_pago_openpay, esta vista solo la recibe.
+    """
+    portal = _portal_vigente_o_404(token)
+    cotizacion = portal.cotizacion
+
+    archivo = request.FILES.get('identificacion')
+    if not archivo:
+        return JsonResponse({'ok': False, 'mensaje': 'Selecciona un archivo.'}, status=400)
+
+    if archivo.content_type not in IDENTIFICACION_TIPOS_PERMITIDOS:
+        return JsonResponse({
+            'ok': False,
+            'mensaje': 'Formato no válido. Sube una foto (JPG/PNG) o un PDF de tu identificación.',
+        }, status=400)
+
+    if archivo.size > IDENTIFICACION_TAMANO_MAXIMO:
+        return JsonResponse({'ok': False, 'mensaje': 'El archivo pesa demasiado (máximo 8 MB).'}, status=400)
+
+    cotizacion.identificacion_oficial = archivo
+    cotizacion.save(update_fields=['identificacion_oficial'])
+
+    return JsonResponse({'ok': True, 'mensaje': 'Identificación recibida.'})

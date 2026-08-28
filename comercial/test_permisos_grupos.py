@@ -179,14 +179,7 @@ class PermisosSuperusuarioTest(TestCase):
         login_superuser_con_totp(self.client, self.superusuario)
 
     def test_ninguna_vista_protegida_da_403(self):
-        # 'configurar_plantilla_barra' se excluye: su plantilla
-        # admin/comercial/configurar_plantilla_barra.html no existe en el
-        # repo (bug preexistente, no relacionado con SEC-AUTHZ-001 — el
-        # decorador de permiso funciona igual, pero invocar el cuerpo de la
-        # vista revienta con TemplateDoesNotExist antes de llegar al render).
         for nombre_url, kwargs in VISTAS_PROTEGIDAS:
-            if nombre_url == 'configurar_plantilla_barra':
-                continue
             with self.subTest(vista=nombre_url):
                 respuesta = self.client.get(reverse(nombre_url, kwargs=kwargs))
                 self.assertNotEqual(respuesta.status_code, 403)

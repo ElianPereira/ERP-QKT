@@ -187,6 +187,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .hab-desc{font-size:.73rem;color:var(--texto-s);font-weight:300;line-height:1.45;margin-top:.2rem;}
 .hab-sub{font-size:.68rem;color:var(--verde-d);font-weight:500;margin-top:.4rem;display:none;}
 .hab-card.selected .hab-sub{display:block;}
+.hab-img{width:72px;height:72px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--crema);}
+.hab-capacidad{font-size:.68rem;color:var(--texto-s);font-weight:400;margin-top:.15rem;}
 
 /* Nav botones */
 .btn-nav{display:flex;gap:1rem;justify-content:space-between;margin-top:2rem;}
@@ -292,8 +294,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 <div class="steps" id="stepsBar">
   <div class="step active" data-step="1"><div class="step-num"><span>1</span></div><div class="step-label">Servicio</div></div>
   <div class="step" data-step="2"><div class="step-num"><span>2</span></div><div class="step-label">Detalles</div></div>
-  <div class="step" data-step="3"><div class="step-num"><span>3</span></div><div class="step-label">Paquete</div></div>
-  <div class="step" data-step="4"><div class="step-num"><span>4</span></div><div class="step-label">Extras</div></div>
+  <div class="step" data-step="3"><div class="step-num"><span>3</span></div><div class="step-label" id="steplbl-3">Paquete</div></div>
+  <div class="step" data-step="4"><div class="step-num"><span>4</span></div><div class="step-label" id="steplbl-4">Notas</div></div>
   <div class="step" data-step="5"><div class="step-num"><span>5</span></div><div class="step-label">Contacto</div></div>
   <div class="step" data-step="6"><div class="step-num"><span>6</span></div><div class="step-label">Confirmar</div></div>
 </div>
@@ -358,12 +360,15 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="panel-condicional campo-fila" id="blq-horario">
       <div class="campo">
         <label for="hora_inicio">Hora de inicio</label>
-        <input type="time" id="hora_inicio" value="14:00">
+        <input type="time" id="hora_inicio">
       </div>
       <div class="campo">
         <label for="hora_fin">Hora de fin</label>
-        <input type="time" id="hora_fin" value="22:00">
+        <input type="time" id="hora_fin">
       </div>
+    </div>
+    <div class="campo-error" id="err-horario" style="display:none;">
+      El evento puede durar hasta 9 horas (6 incluidas + 3 de hora extra como máximo). Ajusta el horario.
     </div>
 
     <div class="campo panel-condicional" id="blq-noches">
@@ -437,6 +442,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
           <div class="paq-empty" id="hab-loading">Cargando habitaciones...</div>
         </div>
         <div id="err-habitaciones" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona al menos una habitación.</div>
+        <div id="aviso-personas-extra" style="display:none;margin-bottom:1rem;padding:10px 12px;background:#FFF3CD;border-left:4px solid #F5C518;color:#664d03;border-radius:6px;font-size:.78rem;line-height:1.5;"></div>
       </div>
 
       <div id="extras-dinamicos"></div>
@@ -446,17 +452,22 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
           Cuéntanos en las notas qué mobiliario o equipo necesitas y las fechas de entrega y devolución.
         </p>
       </div>
+
+      <div class="campo" style="margin-top:1.5rem;">
+        <label for="notas-personalizado">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
+        <textarea id="notas-personalizado" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
+      </div>
     </div>
 
     <div id="err-camino" style="display:none;color:var(--error);font-size:.78rem;margin-bottom:1rem;">Selecciona una opción para continuar.</div>
 
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(2)">← Atrás</button>
-      <button class="btn-next" onclick="irA(4)">Siguiente →</button>
+      <button class="btn-next" onclick="siguienteDesdePaso3()">Siguiente →</button>
     </div>
   </div>
 
-  <!-- PASO 4: Extras adicionales + notas -->
+  <!-- PASO 4: Extras adicionales al paquete + notas (solo camino 'paquete') -->
   <div class="step-panel" id="panel-4">
     <h2 class="panel-title">Servicios <em>adicionales</em></h2>
     <p class="panel-sub" id="sub-extras">¿Necesitas algo más? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span></p>
@@ -465,8 +476,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div id="extras-dinamicos-p4"></div>
 
     <div class="campo" style="margin-top:1.5rem;">
-      <label for="notas">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
-      <textarea id="notas" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
+      <label for="notas-paquete">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
+      <textarea id="notas-paquete" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
     </div>
 
     <div class="btn-nav">
@@ -531,7 +542,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     </div>
 
     <div class="btn-nav">
-      <button class="btn-prev" onclick="irA(4)">← Atrás</button>
+      <button class="btn-prev" onclick="atrasDesdePaso5()">← Atrás</button>
       <button class="btn-next" onclick="irA(6)">Siguiente →</button>
     </div>
   </div>
@@ -591,9 +602,14 @@ let selectedExtras = new Set();
 let extrasInfo = {};
 let selectedHabitaciones = new Set();
 let habitacionesData = [];
+let precioPersonaExtraHospedaje = null;
 let noches = 1;
 let pasoActual = 1;
 const totalPasos = 6;
+// Mismo tope que views_cotizador.py (HORAS_BASE_EVENTO + MAX_HORAS_EXTRA_EVENTO):
+// 6 horas incluidas + 3 de hora extra como máximo.
+const HORAS_BASE_EVENTO = 6;
+const HORAS_MAX_EVENTO = 9;
 
 // Formatea un importe decimal que llega como string desde el servidor, sin
 // convertirlo a float (perdería el centavo en importes grandes).
@@ -684,9 +700,13 @@ function actualizarPanelSegunServicio() {
     else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
     else actualizarPersonas(v);
   } else if (esHospedaje) {
-    slider.min = 1; slider.max = 10; slider.step = 1;
+    // Sin tope duro de huéspedes (pedido explícito del propietario): más de
+    // la capacidad base de las habitaciones elegidas es válido, solo cobra
+    // el recargo de persona extra — el 20 es un límite generoso del control,
+    // no una regla de negocio.
+    slider.min = 1; slider.max = 20; slider.step = 1;
     var v = parseInt(slider.value);
-    if (v > 10) { slider.value = 10; actualizarPersonas(10); }
+    if (v > 20) { slider.value = 20; actualizarPersonas(20); }
     else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
     else actualizarPersonas(v);
   } else {
@@ -727,6 +747,7 @@ function actualizarCheckout() {
 function configurarPaso3() {
   var esPasadia   = servicioSel === 'PASADIA';
   var esHospedaje = servicioSel === 'HOSPEDAJE';
+  var esArr       = servicioSel === 'ARRENDAMIENTO';
   var pathGrid  = document.getElementById('path-grid');
   var titulo    = document.getElementById('titulo-paso3');
   var sub       = document.getElementById('sub-paso3');
@@ -758,11 +779,26 @@ function configurarPaso3() {
     subPer.style.display = 'block';
     cargarHabitaciones();
     cargarExtrasPersonalizado();
+  } else if (esArr) {
+    pathGrid.style.display = 'none';
+    titulo.innerHTML = 'Elige tu <em>mobiliario</em>';
+    sub.textContent = 'Selecciona lo que necesites, o descríbelo en las notas.';
+    caminoSel = 'personalizado';
+    subPer.style.display = 'block';
+    cargarExtrasPersonalizado();
   } else {
     pathGrid.style.display = '';
     titulo.innerHTML = 'Elige cómo <em>cotizar</em>';
     sub.textContent = 'Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.';
   }
+  actualizarEtiquetaPaso3();
+}
+
+function actualizarEtiquetaPaso3() {
+  var lbl = document.getElementById('steplbl-3');
+  if (servicioSel === 'HOSPEDAJE') lbl.textContent = 'Habitación';
+  else if (servicioSel === 'PASADIA' || servicioSel === 'ARRENDAMIENTO') lbl.textContent = 'Extras';
+  else lbl.textContent = caminoSel === 'personalizado' ? 'Extras' : 'Paquete';
 }
 
 function mostrarNotaBase(texto) {
@@ -792,12 +828,13 @@ function selCamino(camino, el) {
     subPer.style.display = 'block';
     if (servicioSel === 'EVENTO') {
       mostrarNotaBase('Tu cotización ya incluye el Paquete Esencial QKT: arrendamiento de la quinta '
-                    + '(6 horas; las adicionales se cobran como hora extra). Lo de abajo es opcional.');
+                    + '(6 horas; hasta 3 horas adicionales se cobran como hora extra). Lo de abajo es opcional.');
     } else {
       mostrarNotaBase('');
     }
     cargarExtrasPersonalizado();
   }
+  actualizarEtiquetaPaso3();
 }
 
 async function cargarPaquetes() {
@@ -861,6 +898,7 @@ async function cargarHabitaciones() {
     var data = await resp.json();
     if (data.ok && data.habitaciones.length) {
       habitacionesData = data.habitaciones;
+      precioPersonaExtraHospedaje = data.precio_persona_extra || null;
       renderHabitaciones(data.habitaciones);
     } else {
       habitacionesData = [];
@@ -877,15 +915,18 @@ function renderHabitaciones(habitaciones) {
   for (var i = 0; i < habitaciones.length; i++) {
     var h = habitaciones[i];
     html += '<div class="hab-card" data-hab-id="' + h.id + '" onclick="toggleHabitacion(' + h.id + ',this)">';
+    if (h.imagen_url) html += '<img class="hab-img" src="' + esc(h.imagen_url) + '" alt="' + esc(h.nombre) + '">';
     html += '<div class="hab-check">✓</div><div class="hab-info">';
     html += '<div class="hab-top"><span class="hab-nombre">' + esc(h.nombre) + '</span>';
     html += '<span class="hab-precio">' + fmtMXN(h.precio_noche) + '<small> /noche</small></span></div>';
     if (h.descripcion) html += '<div class="hab-desc">' + esc(h.descripcion) + '</div>';
+    if (h.capacidad) html += '<div class="hab-capacidad">Capacidad: ' + h.capacidad + ' persona' + (h.capacidad !== 1 ? 's' : '') + '</div>';
     html += '<div class="hab-sub" id="hab-sub-' + h.id + '"></div>';
     html += '</div></div>';
   }
   grid.innerHTML = html;
   actualizarSubtotalesHabitaciones();
+  actualizarAvisoPersonasExtra();
 }
 
 function toggleHabitacion(id, el) {
@@ -896,6 +937,44 @@ function toggleHabitacion(id, el) {
     document.getElementById('err-habitaciones').style.display = 'none';
   }
   actualizarSubtotalesHabitaciones();
+  actualizarAvisoPersonasExtra();
+}
+
+// Personas extra sobre la capacidad base de las habitaciones elegidas (pedido
+// explícito del propietario, sin tope duro de huéspedes): informativo, el
+// cobro real lo aplica _lineas_cotizador() en el servidor, tanto aquí como en
+// cotizador_enviar — mismo criterio en los dos lados.
+function actualizarAvisoPersonasExtra() {
+  var aviso = document.getElementById('aviso-personas-extra');
+  if (!aviso) return;
+  if (servicioSel !== 'HOSPEDAJE' || selectedHabitaciones.size === 0) {
+    aviso.style.display = 'none';
+    return;
+  }
+  var capacidadTotal = 0;
+  habitacionesData.forEach(function(h) {
+    if (selectedHabitaciones.has(h.id)) capacidadTotal += (h.capacidad || 0);
+  });
+  var personasEl = document.getElementById('personas');
+  var personas = personasEl ? parseInt(personasEl.value, 10) || 0 : 0;
+  var extra = personas - capacidadTotal;
+  if (extra <= 0) {
+    aviso.style.display = 'none';
+    return;
+  }
+  var texto = '⚠️ Elegiste <b>' + personas + '</b> huéspedes para una capacidad de <b>' + capacidadTotal
+    + '</b> en las habitaciones seleccionadas. Las <b>' + extra + '</b> persona' + (extra !== 1 ? 's' : '')
+    + ' extra sí se admiten, pero no tienen la misma garantía de comodidad y espacio';
+  if (precioPersonaExtraHospedaje) {
+    var totalExtra = Number(precioPersonaExtraHospedaje) * extra * noches;
+    texto += ', y tienen un costo adicional de <b>' + fmtMXN(precioPersonaExtraHospedaje) + '</b> por persona, por noche'
+      + ' (se queden o no a dormir): <b>' + extra + ' × ' + noches + ' noche' + (noches !== 1 ? 's' : '')
+      + ' × ' + fmtMXN(precioPersonaExtraHospedaje) + ' = ' + fmtMXN(totalExtra) + '</b>.';
+  } else {
+    texto += '.';
+  }
+  aviso.innerHTML = texto;
+  aviso.style.display = 'block';
 }
 
 // El precio por noche que da la API ya incluye IVA (mismo criterio que
@@ -1092,8 +1171,30 @@ function irA(paso) {
     if (n === paso) s.classList.add('active');
   });
   if (paso === totalPasos) construirResumen();
+  // El aviso de personas extra depende de num_personas (paso 2) y de las
+  // habitaciones elegidas (paso 3): recalcula al entrar aquí por si el
+  // cliente cambió el número de huéspedes después de haber cargado las
+  // habitaciones (no vuelve a pedirlas, solo recalcula con lo que ya hay).
+  if (paso === 3 && servicioSel === 'HOSPEDAJE') actualizarAvisoPersonasExtra();
   pasoActual = paso;
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Camino 'personalizado' (Pasadía/Arrendamiento/Hospedaje siempre, Evento
+// cuando el cliente arma su propia cotización) ya muestra sus extras y notas
+// en el propio paso 3 — el paso 4 ahí solo repetiría un cuadro de notas
+// vacío, así que se salta directo al paso 5. Camino 'paquete' (solo Evento)
+// sí necesita el paso 4 para ofrecer extras adicionales al paquete elegido.
+function siguienteDesdePaso3() {
+  irA(caminoSel === 'personalizado' ? 5 : 4);
+}
+function atrasDesdePaso5() {
+  irA(caminoSel === 'personalizado' ? 3 : 4);
+}
+function obtenerNotas() {
+  var id = caminoSel === 'personalizado' ? 'notas-personalizado' : 'notas-paquete';
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
 }
 
 function prepararPaso4() {
@@ -1114,6 +1215,20 @@ function validarPaso(paso) {
     if (!document.getElementById('fecha').value) {
       mostrarErr('err-fecha','fecha'); return false;
     }
+    if (servicioSel === 'EVENTO' && document.getElementById('hora_inicio').value
+        && document.getElementById('hora_fin').value) {
+      var a = document.getElementById('hora_inicio').value.split(':');
+      var b = document.getElementById('hora_fin').value.split(':');
+      var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
+      var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
+      if (fin <= ini) fin += 24 * 60;
+      var horas = Math.floor((fin - ini) / 60);
+      if (horas > HORAS_MAX_EVENTO) {
+        document.getElementById('err-horario').style.display = 'block';
+        return false;
+      }
+    }
+    document.getElementById('err-horario').style.display = 'none';
   }
   if (paso === 3) {
     if (!caminoSel) {
@@ -1177,7 +1292,7 @@ function construirResumen() {
   var nombre    = document.getElementById('nombre').value.trim();
   var tel       = document.getElementById('telefono').value.trim();
   var email     = document.getElementById('email').value.trim();
-  var notas     = document.getElementById('notas').value.trim();
+  var notas     = obtenerNotas();
   var tipoEv    = document.getElementById('tipo_evento') ? document.getElementById('tipo_evento').value : '';
   var hi        = document.getElementById('hora_inicio') ? document.getElementById('hora_inicio').value : '';
   var hf        = document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '';
@@ -1244,12 +1359,15 @@ function horasEvento() {
   if (servicioSel === 'PASADIA') return 9;
   var hi = document.getElementById('hora_inicio');
   var hf = document.getElementById('hora_fin');
-  if (!hi || !hf || !hi.value || !hf.value) return 6;
+  if (!hi || !hf || !hi.value || !hf.value) return HORAS_BASE_EVENTO;
   var a = hi.value.split(':'), b = hf.value.split(':');
   var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
   var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
   if (fin <= ini) fin += 24 * 60;
-  return Math.max(6, Math.floor((fin - ini) / 60));
+  var horas = Math.max(HORAS_BASE_EVENTO, Math.floor((fin - ini) / 60));
+  // El total exhibido no debe insinuar un cobro que validarPaso(2) va a
+  // rechazar antes de dejar avanzar: mismo tope que el backend.
+  return Math.min(horas, HORAS_MAX_EVENTO);
 }
 
 async function cargarTotal() {
@@ -1331,7 +1449,7 @@ async function enviarSolicitud() {
     nombre:     document.getElementById('nombre').value.trim(),
     telefono:   document.getElementById('telefono').value.trim(),
     email:      document.getElementById('email').value.trim(),
-    notas:      document.getElementById('notas').value.trim(),
+    notas:      obtenerNotas(),
     como_nos_encontro: medioSel,
     inc_cerveza:    !!barraExtras.inc_cerveza,
     inc_nacional:   !!barraExtras.inc_nacional,
