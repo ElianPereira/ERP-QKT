@@ -647,10 +647,17 @@ class Cotizacion(models.Model):
 
     @property
     def porcentaje_pagado(self):
-        """Retorna el porcentaje de pago como número."""
+        """Retorna el porcentaje de pago como número.
+
+        precio_final == 0 (ej. un pasadía con 100% de descuento/cortesía) no
+        significa "nada pagado": significa que no se debe nada, igual que
+        saldo_pendiente() == 0. Reportarlo como 100% evita el contraste que
+        confunde en el portal y en el admin ("0% cubierto" junto a "$0.00
+        por pagar" en la misma pantalla).
+        """
         if self.precio_final > 0:
             return round((self.total_pagado() / self.precio_final) * 100, 1)
-        return Decimal('0.0')
+        return Decimal('100.0')
 
     @property
     def dias_para_evento(self):
@@ -1920,6 +1927,12 @@ class Descuento(models.Model):
         verbose_name="Modo de aplicación",
     )
     activo = models.BooleanField(default=True, verbose_name="Activo")
+    es_cortesia = models.BooleanField(
+        default=False, verbose_name="¿Es cortesía/regalo?",
+        help_text="Marca esta regla como cortesía (evento regalado) en vez de "
+                   "promoción comercial. Solo cambia cómo se reporta/filtra el "
+                   "descuento, no su cálculo.",
+    )
 
     # ── Condiciones (todas opcionales, se evalúan con AND) ──────────────
     monto_minimo = models.DecimalField(

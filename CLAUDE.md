@@ -83,6 +83,38 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-28 — Pasadías/eventos regalados al 100% (reportado por el
+  propietario: dos cotizaciones con un descuento igual al importe total
+  mostraban "0% cubierto" junto con "$0.00 por pagar" en la misma pantalla,
+  contradictorio). **Bug real en `Cotizacion.porcentaje_pagado`**
+  (`comercial/models.py`): cuando `precio_final == 0` (100% de descuento
+  aplicado) la propiedad devolvía `0.0` en vez de `100.0` — precio_final en
+  cero no significa "nada pagado", significa "no se debe nada", igual que
+  `saldo_pendiente() == 0`. Visible en el portal del cliente
+  (`views_portal.py`) y en el badge de pago del admin de `Cotizacion`
+  (`pago_badge`, que pintaba rojo un evento ya completamente cubierto). Los
+  dos usos duplicados de la misma fórmula (`views.py::cartera_cxc` y
+  `reportes/services/comercial.py`) **no se tocaron a propósito**: ambos
+  filtran `saldo <= 0` antes de listar, así que un `precio_final == 0` nunca
+  llega a esa rama — tocarlos habría sido una edición no quirúrgica sobre
+  código inalcanzable en este caso. **Marcador de cortesía/regalo**: campo
+  nuevo `Descuento.es_cortesia` (booleano, migración `0075`) en la *regla*
+  de descuento, no en la cotización — así toda `DescuentoAplicado` que
+  referencia esa regla queda distinguible sin duplicar el dato. Visible en
+  `DescuentoAdmin` (badge 🎁 + filtro) y en `DescuentoAplicadoAdmin`
+  (columna + filtro por `descuento__es_cortesia`), para poder separar en
+  auditoría cuánto se "perdió" por cortesías reales vs. promociones
+  comerciales — hoy `reportes/` no reporta descuentos en ningún PDF/Excel
+  (se verificó con grep, cero menciones), así que no había ningún reporte
+  existente que romper o que ampliar; se dejó fuera del alcance armar un
+  reporte nuevo de cortesías porque no se pidió explícitamente. Uso: crear
+  la regla (ej. "Cortesía", 100%, `modo=MANUAL`, `es_cortesia=True`) en
+  `/admin/comercial/descuento/` y aplicarla desde el botón de descuentos de
+  la cotización — mismo flujo de siempre, solo que ahora la regla queda
+  marcada para reporting. Tests nuevos en `comercial/test_descuentos.py::
+  CortesiaTest` (porcentaje_pagado en 100% con precio_final=0, y que
+  `es_cortesia` viaja correctamente al `DescuentoAplicado`). Suite completa
+  de `comercial` corrida tras el cambio: 371/371 verdes.
 - 2026-08-25 — El cron de recordatorios al contador (`enviar_recordatorios_
   contador`) ahora también reintenta las solicitudes `PENDIENTE` (pedido
   directo del propietario tras dudar si el cron cubría ese caso). Antes esas

@@ -211,6 +211,42 @@ class VigenciaTest(DescuentoBaseTest):
         self.assertEqual(DescuentoService.evaluar_automaticos(fuera), [])
 
 
+class CortesiaTest(DescuentoBaseTest):
+    """Pasadía/evento regalado: descuento del 100% vía una regla es_cortesia."""
+
+    def test_descuento_100_marca_100_por_ciento_pagado_no_0(self):
+        d = Descuento.objects.create(
+            nombre='Cortesía', tipo_valor='PORCENTAJE', valor=Decimal('100.00'),
+            modo='MANUAL', activo=True, es_cortesia=True,
+        )
+        cot = self._cotizacion('1500.00')
+        DescuentoService.aplicar(cot, d, usuario=self.user, modo='MANUAL')
+        cot.refresh_from_db()
+
+        self.assertEqual(cot.precio_final, Decimal('0.00'))
+        self.assertEqual(cot.saldo_pendiente(), Decimal('0.00'))
+        # precio_final == 0 no debe leerse como "0% cubierto": no se debe nada.
+        self.assertEqual(cot.porcentaje_pagado, Decimal('100.0'))
+
+    def test_es_cortesia_distingue_el_descuento_aplicado(self):
+        cortesia = Descuento.objects.create(
+            nombre='Cortesía', tipo_valor='PORCENTAJE', valor=Decimal('100.00'),
+            modo='MANUAL', activo=True, es_cortesia=True,
+        )
+        promo = Descuento.objects.create(
+            nombre='Promo temporada', tipo_valor='PORCENTAJE', valor=Decimal('10.00'),
+            modo='MANUAL', activo=True, es_cortesia=False,
+        )
+        cot = self._cotizacion('1500.00')
+        aplicado = DescuentoService.aplicar(cot, cortesia, usuario=self.user, modo='MANUAL')
+
+        self.assertTrue(aplicado.descuento.es_cortesia)
+        self.assertFalse(promo.es_cortesia)
+        self.assertEqual(
+            DescuentoAplicado.objects.filter(descuento__es_cortesia=True).count(), 1
+        )
+
+
 class RevertirTest(DescuentoBaseTest):
 
     def test_revertir_recalcula_descuento_y_total(self):

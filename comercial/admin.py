@@ -1768,14 +1768,14 @@ class TemporadaAdmin(admin.ModelAdmin):
 class DescuentoAdmin(admin.ModelAdmin):
     list_display = (
         'nombre', 'tipo_valor_badge', 'valor_display', 'modo_badge',
-        'activo', 'vigencia', 'acumulable', 'prioridad', 'usos_display',
+        'cortesia_badge', 'activo', 'vigencia', 'acumulable', 'prioridad', 'usos_display',
     )
-    list_filter = ('activo', 'modo', 'acumulable', 'tipo_valor', 'temporada')
+    list_filter = ('activo', 'modo', 'es_cortesia', 'acumulable', 'tipo_valor', 'temporada')
     search_fields = ('nombre', 'descripcion')
     filter_horizontal = ('tipos_evento',)
     readonly_fields = ('usos', 'created_by', 'created_at', 'updated_by', 'updated_at')
     fieldsets = (
-        (None, {'fields': ('nombre', 'descripcion', 'activo')}),
+        (None, {'fields': ('nombre', 'descripcion', 'activo', 'es_cortesia')}),
         ('Valor', {'fields': ('tipo_valor', 'valor')}),
         ('Aplicación', {'fields': ('modo', 'acumulable', 'prioridad', 'max_usos', 'usos')}),
         ('Condiciones (opcionales, se evalúan con AND)', {
@@ -1808,6 +1808,15 @@ class DescuentoAdmin(admin.ModelAdmin):
     modo_badge.short_description = 'Modo'
     modo_badge.admin_order_field = 'modo'
 
+    def cortesia_badge(self, obj):
+        if not obj.es_cortesia:
+            return '—'
+        return format_html(
+            '<span style="background:#e91e63;color:white;padding:2px 8px;border-radius:4px;font-size:11px;">🎁 Cortesía</span>'
+        )
+    cortesia_badge.short_description = 'Cortesía'
+    cortesia_badge.admin_order_field = 'es_cortesia'
+
     def valor_display(self, obj):
         return f"{obj.valor}%" if obj.tipo_valor == 'PORCENTAJE' else f"${obj.valor:,.2f}"
     valor_display.short_description = 'Valor'
@@ -1839,16 +1848,24 @@ class DescuentoAdmin(admin.ModelAdmin):
 class DescuentoAplicadoAdmin(admin.ModelAdmin):
     """Auditoría inmutable: solo lectura, sin borrado."""
     list_display = (
-        'fecha_aplicacion', 'cotizacion', 'descuento', 'monto_aplicado',
+        'fecha_aplicacion', 'cotizacion', 'descuento', 'es_cortesia_display', 'monto_aplicado',
         'porcentaje_equivalente', 'modo_aplicacion', 'aplicado_por', 'activo',
     )
-    list_filter = ('activo', 'modo_aplicacion', 'descuento', 'fecha_aplicacion')
+    list_filter = ('activo', 'modo_aplicacion', 'descuento__es_cortesia', 'descuento', 'fecha_aplicacion')
     search_fields = ('cotizacion__id', 'cotizacion__nombre_evento', 'descuento__nombre')
     date_hierarchy = 'fecha_aplicacion'
     readonly_fields = (
         'cotizacion', 'descuento', 'monto_aplicado', 'porcentaje_equivalente',
         'modo_aplicacion', 'aplicado_por', 'fecha_aplicacion', 'activo', 'notas',
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cotizacion', 'descuento', 'aplicado_por')
+
+    def es_cortesia_display(self, obj):
+        return '🎁 Sí' if obj.descuento.es_cortesia else 'No'
+    es_cortesia_display.short_description = 'Cortesía'
+    es_cortesia_display.admin_order_field = 'descuento__es_cortesia'
 
     def has_add_permission(self, request):
         return False
