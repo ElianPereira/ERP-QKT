@@ -505,6 +505,11 @@ JAZZMIN_SETTINGS = {
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-clipboard-list",
+
+        # OPERACIONES
+        "operaciones":                       "fas fa-broom",
+        "operaciones.PlantillaChecklist":    "fas fa-tasks",
+        "operaciones.TareaProgramada":       "fas fa-clock",
     },
 
     # ── TOP MENU ──────────────────────────────────────────────
