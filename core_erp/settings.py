@@ -505,6 +505,11 @@ JAZZMIN_SETTINGS = {
         # REPORTERÍA
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-clipboard-list",
+
+        # OPERACIONES
+        "operaciones":                       "fas fa-broom",
+        "operaciones.PlantillaChecklist":    "fas fa-tasks",
+        "operaciones.TareaProgramada":       "fas fa-clock",
     },
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -603,7 +608,7 @@ JAZZMIN_SETTINGS = {
     "hide_apps": ["otp_totp"],
     "custom_links": {
         "auth": [{
-            "name": "Dispositivos TOTP (2FA)",
+            "name": "Auth 2FA",
             "url": "admin:otp_totp_totpdevice_changelist",
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],

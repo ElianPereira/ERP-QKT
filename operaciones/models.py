@@ -82,7 +82,7 @@ class PlantillaChecklist(models.Model):
 
     class Meta:
         verbose_name = "Plantilla de checklist"
-        verbose_name_plural = "Plantillas de checklist"
+        verbose_name_plural = "Plantillas"
         ordering = ['tipo', 'nombre']
 
     def __str__(self):
@@ -149,7 +149,7 @@ class TareaProgramada(models.Model):
 
     class Meta:
         verbose_name = "Tarea programada"
-        verbose_name_plural = "Tareas programadas"
+        verbose_name_plural = "Tareas"
         ordering = ['-fecha', 'hora_entrada']
         unique_together = [('plantilla', 'cotizacion', 'fecha')]
         indexes = [
