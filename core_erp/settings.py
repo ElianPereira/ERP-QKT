@@ -603,7 +603,7 @@ JAZZMIN_SETTINGS = {
     "hide_apps": ["otp_totp"],
     "custom_links": {
         "auth": [{
-            "name": "Dispositivos TOTP (2FA)",
+            "name": "Auth 2FA",
             "url": "admin:otp_totp_totpdevice_changelist",
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
