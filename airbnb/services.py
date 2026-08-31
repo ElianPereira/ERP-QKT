@@ -342,7 +342,15 @@ class ImportadorCSVPagosService:
     - Impuestos liquidados como anfitrión: Impuesto de hospedaje
     - Payout: Transferencia (sin código, se ignora)
 
-    Este servicio agrupa todo por código de confirmación.
+    Este servicio agrupa las filas por cobro real, no solo por código de
+    confirmación: una extensión de estancia genera una fila "Reservación"
+    nueva —con su propio payout y su propia fecha— que reutiliza el mismo
+    código de reserva. Agrupar solo por código fusionaba en un único
+    registro dos depósitos bancarios reales y distintos, y el contador no
+    podía facturar por separado lo que el estado de cuenta trae como dos
+    abonos. Ver `_agrupar_por_codigo` para cómo se decide a qué cobro
+    pertenece cada fila que no es "Reservación" (retenciones, impuestos,
+    reembolsos).
     """
 
     def __init__(self, archivo_nombre: str = None):
@@ -385,7 +393,7 @@ class ImportadorCSVPagosService:
         # CSV aplicado. En simulación se revierte siempre.
         try:
             with transaction.atomic():
-                for codigo, datos in agrupadas.items():
+                for (codigo, _fecha), datos in agrupadas.items():
                     try:
                         self._procesar_reserva_agrupada(codigo, datos, usuario, resumen)
                     except Exception as e:
@@ -397,15 +405,26 @@ class ImportadorCSVPagosService:
 
         return resumen
 
-    def _agrupar_por_codigo(self, filas: List[Dict]) -> Dict[str, Dict]:
+    def _agrupar_por_codigo(
+        self, filas: List[Dict]
+    ) -> Dict[Tuple[str, Optional[date]], Dict]:
         """
-        Agrupa las filas del CSV por código de confirmación.
+        Agrupa las filas del CSV por cobro real, no solo por código de
+        confirmación.
 
-        El CSV trae varias filas por reserva —el cargo, cada retención, el
-        impuesto de hospedaje, los reembolsos— y hay que sumarlas para saber
-        qué pasó realmente con esa reserva.
+        Dentro de un mismo código puede haber más de un cobro: una extensión
+        de estancia se factura como una "Reservación" nueva, con su propia
+        fecha y su propio payout —el mismo código de reserva, pero un
+        depósito bancario distinto—. Cada fila de "Reservación" es el ancla
+        de un cobro. Las demás filas de ese código (retenciones, impuesto de
+        hospedaje, reembolsos/ajustes) no siempre comparten la fecha exacta
+        de su ancla —un reembolso puede registrarse días después del cargo
+        que ajusta—, así que se les asigna al ancla más cercana en el tiempo,
+        no a una fecha idéntica. Si el código solo tiene un cobro (el caso
+        normal), todas sus filas caen en esa única ancla sin importar su
+        propia fecha, igual que antes de este cambio.
         """
-        agrupado = defaultdict(self._grupo_vacio)
+        filas_por_codigo: Dict[str, List[Tuple[str, Optional[date], Dict]]] = defaultdict(list)
         payouts: Dict[date, str] = {}
 
         for fila in filas:
@@ -425,74 +444,112 @@ class ImportadorCSVPagosService:
                     if fecha and referencia:
                         payouts[fecha] = referencia
                 continue
-            datos = agrupado[codigo]
+            filas_por_codigo[codigo].append((tipo, fecha, fila))
 
-            for clave, etiquetas in (
-                ('huesped', ('Huésped', 'Huesped', 'Guest')),
-                ('espacio', ('Espacio', 'Listing', 'Anuncio')),
-                ('divisa', ('Divisa', 'Currency')),
-                ('payout_id', ('ID de pago', 'Payout ID', 'Referencia')),
-            ):
-                if not datos[clave]:
-                    datos[clave] = self._campo(fila, *etiquetas)
+        agrupado: Dict[Tuple[str, Optional[date]], Dict] = {}
 
-            if not datos['fecha_checkin']:
-                datos['fecha_checkin'] = self._parsear_fecha(
-                    self._campo(fila, 'Fecha de inicio', 'Start date'))
-            if not datos['fecha_checkout']:
-                datos['fecha_checkout'] = self._parsear_fecha(
-                    self._campo(fila, 'Fecha de finalización',
-                                'Fecha de finalizacion', 'End date'))
-            if not datos['fecha_pago']:
-                # La fecha de la transacción es la que determina el período
-                # fiscal: es cuando Airbnb pagó y retuvo.
-                datos['fecha_pago'] = self._parsear_fecha(
-                    self._campo(fila, 'Fecha', 'Date'))
-
-            if not datos['noches']:
-                try:
-                    datos['noches'] = int(self._campo(fila, 'Noches', 'Nights') or 0)
-                except ValueError:
-                    datos['noches'] = 0
-
-            monto = self._parsear_monto(self._campo(fila, 'Monto', 'Amount'))
-            tarifa = self._parsear_monto(
-                self._campo(fila, 'Tarifa de servicio', 'Service fee'))
-            brutos = self._parsear_monto(
-                self._campo(fila, 'Ingresos brutos', 'Gross earnings'))
-            # Columna aparte: el impuesto al hospedaje que Airbnb retiene y
-            # entera por su cuenta. No llega al depósito.
-            ish = self._parsear_monto(
-                self._campo(fila, 'Impuesto liquidado por Airbnb',
-                            'Taxes withheld by Airbnb'))
-
-            if 'reservaci' in tipo or 'reservation' in tipo:
-                datos['monto_reservacion'] += monto
-                datos['tarifa_servicio'] += abs(tarifa)
-                datos['ingresos_brutos'] += brutos
-                datos['impuesto_hospedaje'] += ish
-            elif 'retenci' in tipo and 'renta' in tipo:
-                datos['retencion_isr'] += abs(monto)
-            elif 'retenci' in tipo and 'iva' in tipo:
-                datos['retencion_iva'] += abs(monto)
-            elif 'impuesto' in tipo and 'liquidado' in tipo:
-                # "Impuestos liquidados como anfitrión" es el IVA trasladado
-                # que Airbnb cobra al huésped y transfiere al anfitrión: suma
-                # al depósito y lo entera él. No confundir con el ISH.
-                datos['iva_trasladado'] += monto
-            elif any(p in tipo for p in ('reembolso', 'refund', 'resolution',
-                                         'resolución', 'resolucion', 'ajuste',
-                                         'adjustment', 'cancel')):
-                # Antes estas filas caían en ninguna rama y desaparecían, así
-                # que un reembolso al huésped no se reflejaba en ningún lado.
-                datos['ajustes'] += monto
-                datos['tiene_ajuste'] = True
+        for codigo, registros in filas_por_codigo.items():
+            anclas = sorted({
+                fecha for tipo, fecha, _ in registros
+                if fecha and ('reservaci' in tipo or 'reservation' in tipo)
+            })
+            for tipo, fecha, fila in registros:
+                ancla = self._ancla_del_cobro(fecha, anclas)
+                clave = (codigo, ancla)
+                datos = agrupado.setdefault(clave, self._grupo_vacio())
+                if ancla is not None and not datos['fecha_pago']:
+                    # La fecha del cobro es la de su "Reservación" ancla, no
+                    # la de la primera fila que se procese: el orden de las
+                    # filas dentro de un mismo cobro no está garantizado.
+                    datos['fecha_pago'] = ancla
+                self._acumular_fila(datos, tipo, fecha, fila)
 
         for datos in agrupado.values():
             if not datos['payout_id'] and datos['fecha_pago'] in payouts:
                 datos['payout_id'] = payouts[datos['fecha_pago']]
 
-        return dict(agrupado)
+        return agrupado
+
+    @staticmethod
+    def _ancla_del_cobro(fecha: Optional[date], anclas: List[date]) -> Optional[date]:
+        """
+        Elige a qué cobro (fila "Reservación") pertenece una fila que no lo
+        es. Si no hay ninguna ancla para este código en el lote (un reembolso
+        que llega en un CSV posterior sin su cargo original, por ejemplo), no
+        se inventa una: se deja sin ancla y todas esas filas huérfanas caen
+        juntas, igual que se comportaba el importador antes de este cambio.
+        """
+        if not anclas:
+            return None
+        if fecha in anclas:
+            return fecha
+        if fecha is None:
+            return anclas[0]
+        return min(anclas, key=lambda a: (abs((fecha - a).days), -a.toordinal()))
+
+    def _acumular_fila(self, datos: Dict, tipo: str, fecha: Optional[date],
+                       fila: Dict) -> None:
+        """Suma una fila del CSV al cobro (`datos`) que le corresponde."""
+        for clave, etiquetas in (
+            ('huesped', ('Huésped', 'Huesped', 'Guest')),
+            ('espacio', ('Espacio', 'Listing', 'Anuncio')),
+            ('divisa', ('Divisa', 'Currency')),
+            ('payout_id', ('ID de pago', 'Payout ID', 'Referencia')),
+        ):
+            if not datos[clave]:
+                datos[clave] = self._campo(fila, *etiquetas)
+
+        if not datos['fecha_checkin']:
+            datos['fecha_checkin'] = self._parsear_fecha(
+                self._campo(fila, 'Fecha de inicio', 'Start date'))
+        if not datos['fecha_checkout']:
+            datos['fecha_checkout'] = self._parsear_fecha(
+                self._campo(fila, 'Fecha de finalización',
+                            'Fecha de finalizacion', 'End date'))
+        if not datos['fecha_pago']:
+            # La fecha de la transacción es la que determina el período
+            # fiscal: es cuando Airbnb pagó y retuvo. Solo se llega aquí para
+            # un cobro sin ancla (ver `_ancla_del_cobro`).
+            datos['fecha_pago'] = fecha
+
+        if not datos['noches']:
+            try:
+                datos['noches'] = int(self._campo(fila, 'Noches', 'Nights') or 0)
+            except ValueError:
+                datos['noches'] = 0
+
+        monto = self._parsear_monto(self._campo(fila, 'Monto', 'Amount'))
+        tarifa = self._parsear_monto(
+            self._campo(fila, 'Tarifa de servicio', 'Service fee'))
+        brutos = self._parsear_monto(
+            self._campo(fila, 'Ingresos brutos', 'Gross earnings'))
+        # Columna aparte: el impuesto al hospedaje que Airbnb retiene y
+        # entera por su cuenta. No llega al depósito.
+        ish = self._parsear_monto(
+            self._campo(fila, 'Impuesto liquidado por Airbnb',
+                        'Taxes withheld by Airbnb'))
+
+        if 'reservaci' in tipo or 'reservation' in tipo:
+            datos['monto_reservacion'] += monto
+            datos['tarifa_servicio'] += abs(tarifa)
+            datos['ingresos_brutos'] += brutos
+            datos['impuesto_hospedaje'] += ish
+        elif 'retenci' in tipo and 'renta' in tipo:
+            datos['retencion_isr'] += abs(monto)
+        elif 'retenci' in tipo and 'iva' in tipo:
+            datos['retencion_iva'] += abs(monto)
+        elif 'impuesto' in tipo and 'liquidado' in tipo:
+            # "Impuestos liquidados como anfitrión" es el IVA trasladado
+            # que Airbnb cobra al huésped y transfiere al anfitrión: suma
+            # al depósito y lo entera él. No confundir con el ISH.
+            datos['iva_trasladado'] += monto
+        elif any(p in tipo for p in ('reembolso', 'refund', 'resolution',
+                                     'resolución', 'resolucion', 'ajuste',
+                                     'adjustment', 'cancel')):
+            # Antes estas filas caían en ninguna rama y desaparecían, así
+            # que un reembolso al huésped no se reflejaba en ningún lado.
+            datos['ajustes'] += monto
+            datos['tiene_ajuste'] = True
 
     @staticmethod
     def _grupo_vacio() -> Dict[str, Any]:
@@ -583,7 +640,13 @@ class ImportadorCSVPagosService:
         if anuncio:
             campos['anuncio'] = anuncio
 
-        existente = PagoAirbnb.objects.filter(codigo_confirmacion=codigo).first()
+        # Filtra también por fecha_pago: es lo que distingue el cobro original
+        # de una extensión de estancia con el mismo código de reserva. Sin la
+        # fecha, el segundo payout se leería como "actualización" del primero
+        # y los fusionaría de nuevo.
+        existente = PagoAirbnb.objects.filter(
+            codigo_confirmacion=codigo, fecha_pago=datos['fecha_pago'],
+        ).first()
 
         if existente is None:
             pago = PagoAirbnb(codigo_confirmacion=codigo, created_by=usuario, **campos)

@@ -83,6 +83,43 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-31 — Extensión de estancia en Airbnb fusionaba dos payouts reales
+  en un solo `PagoAirbnb` (reportado por el propietario con un CSV real:
+  código `HMTFC4FD4K` con dos payouts —$1,204.70 el 11 de agosto y $4,818.82
+  el 8— que el importador dejaba como un único registro de $6,023.52).
+  Causa: `_agrupar_por_codigo()` (`airbnb/services.py`) agrupaba **solo por
+  código de confirmación**, y Airbnb reutiliza el mismo código cuando el
+  huésped extiende su estancia (la extensión se cobra como una fila
+  "Reservación" nueva, con su propio payout). Con eso el contador no podía
+  facturar por separado lo que el estado de cuenta trae como dos abonos
+  distintos — el objetivo explícito del propietario: "quiero que en el
+  registro de pagos sea por cada abono realizado a la cuenta". Fix: cada
+  fila "Reservación" es ahora el **ancla** de un cobro; las filas que no lo
+  son (retenciones, impuesto de hospedaje, reembolsos/ajustes) se asignan a
+  la ancla más cercana en fecha, no a una fecha idéntica — un reembolso
+  puede registrarse días después del cargo que ajusta (cubierto por
+  `test_los_reembolsos_dejan_de_desaparecer`, que ya existía y sigue en
+  verde) y no debe convertirse en un cobro nuevo. Si el código solo tiene
+  una "Reservación" en el lote (el caso normal, sin extensión), todas sus
+  filas caen en esa única ancla sin importar su propia fecha — mismo
+  comportamiento de siempre. `PagoAirbnb.codigo_confirmacion` deja de ser
+  `unique=True` (migración `0007`): pasa a `UniqueConstraint` sobre
+  `(codigo_confirmacion, fecha_pago)`, que sigue impidiendo el duplicado real
+  (reimportar el mismo payout dos veces) sin bloquear una extensión
+  legítima. `ConciliacionDepositosService` y el signal que emite la póliza
+  contable (`contabilidad/signals.py::sincronizar_poliza_pago_airbnb`) **no
+  necesitaron cambios**: ya agrupaban por `payout_id` y por `pago.pk`
+  respectivamente, nunca asumieron un único `PagoAirbnb` por código — con
+  esto, cada payout de la extensión genera su propia póliza, que es
+  exactamente lo que el propietario pidió para que el contador facture cada
+  abono por separado. Verificado contra el CSV real adjuntado por el
+  propietario (no solo con datos inventados): las tres transacciones de
+  agosto —Geovany $2,409.41, y las dos de Jesús Alvarez $4,818.82 y
+  $1,204.70— quedan como tres `PagoAirbnb` independientes, cada uno con su
+  `payout_id` real. Suite completa corrida tras el cambio: 849/849 verdes.
+  Casos nuevos en `airbnb/tests.py::ImportadorCSVPagosTest`
+  (`test_extension_de_estancia_no_fusiona_dos_payouts_del_mismo_codigo`,
+  `test_reimportar_extension_actualiza_su_propio_payout_no_el_otro`).
 - 2026-08-28 — Pasadías/eventos regalados al 100% (reportado por el
   propietario: dos cotizaciones con un descuento igual al importe total
   mostraban "0% cubierto" junto con "$0.00 por pagar" en la misma pantalla,
