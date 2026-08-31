@@ -137,7 +137,9 @@ def _redondear_personas(n, servicio=''):
     # `_lineas_cotizador`) — el único límite es el genérico de 1-200 que ya
     # aplica antes de llamar a esta función.
     if servicio == 'PASADIA':
-        return min(int(n), 20)
+        # Aforo base 20, aforo ampliado con cargo extra hasta el máximo
+        # inexcedible de 30 (Reglamento Interno v1.2, sección 4).
+        return min(int(n), 30)
     if servicio == 'HOSPEDAJE':
         return int(n)
     return max(20, math.ceil(int(n) / 10) * 10)
@@ -611,7 +613,20 @@ def api_productos_cotizador(request):
             'es_base_refrescos': p.nombre in ('Refrescos y Mezcladores',),
         })
 
-    return JsonResponse({'ok': True, 'grupos': list(grupos_dict.values())})
+    respuesta = {'ok': True, 'grupos': list(grupos_dict.values())}
+
+    # El frontend necesita el importe real del recargo por aforo ampliado
+    # ANTES de enviar (mismo criterio que api_habitaciones_cotizador con
+    # PERSONA_EXTRA_HOSPEDAJE): si nadie ha dado de alta el producto todavía,
+    # no hay recargo que anunciar — _lineas_cotizador tampoco lo cobra.
+    if servicio == 'PASADIA':
+        prod_extra = Producto.objects.filter(rol_cotizador='PERSONA_EXTRA_PASADIA').first()
+        respuesta['precio_persona_extra'] = (
+            str(impuestos.con_iva(Decimal(str(prod_extra.sugerencia_precio()))))
+            if prod_extra else None
+        )
+
+    return JsonResponse(respuesta)
 
 
 def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_evento,
@@ -651,8 +666,21 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
         base = _producto_por_rol('BASE_PASADIA', 'Paquete Pasadía', 'Pasadia')
         if base:
             lineas.append((base, 1,
-                           f"{base.nombre} ({num_personas} Pax, {HORA_INICIO_PASADIA:%H:%M}"
+                           f"{base.nombre} ({min(num_personas, 20)} Pax, {HORA_INICIO_PASADIA:%H:%M}"
                            f"-{HORA_FIN_PASADIA:%H:%M})"))
+
+        # Aforo ampliado (21-30, Reglamento Interno v1.2 sección 4): las
+        # primeras 20 personas están incluidas en la tarifa base, cada
+        # persona adicional se cobra aparte e incluye su mobiliario
+        # correspondiente — no se crea una línea de mobiliario separada.
+        if num_personas > 20:
+            extra_prod = _producto_por_rol('PERSONA_EXTRA_PASADIA', 'Persona Extra Pasadía')
+            if extra_prod:
+                extra_qty = num_personas - 20
+                lineas.append((extra_prod, extra_qty,
+                               f"Persona Extra Pasadía — incluye mobiliario "
+                               f"({extra_qty} persona{'s' if extra_qty != 1 else ''} "
+                               f"adicional{'es' if extra_qty != 1 else ''} sobre el aforo base de 20)"))
 
     elif servicio == 'HOSPEDAJE':
         # Sin línea base automática: el cliente elige una o varias habitaciones
@@ -738,6 +766,9 @@ def api_total_cotizador(request):
     servicio = (request.GET.get('servicio') or '').upper()
     if servicio == 'PASADIA':
         horas_evento = HORAS_PASADIA
+        # El total exhibido no debe insinuar un cobro que la solicitud real
+        # va a topar — mismo tope que _redondear_personas en cotizador_enviar.
+        num_personas = min(num_personas, 30)
     elif servicio == 'EVENTO':
         # Mismo tope que cotizador_enviar: el total exhibido no debe insinuar
         # un cobro que la solicitud real va a rechazar.

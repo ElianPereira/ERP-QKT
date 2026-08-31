@@ -273,6 +273,7 @@ class Producto(models.Model):
         ('HORA_EXTRA', 'Hora extra de arrendamiento'),
         ('HABITACION_HOSPEDAJE', 'Habitación de Hospedaje (selección múltiple)'),
         ('PERSONA_EXTRA_HOSPEDAJE', 'Persona extra en Hospedaje (recargo por noche)'),
+        ('PERSONA_EXTRA_PASADIA', 'Persona extra en Pasadía (aforo ampliado 21-30, incluye mobiliario)'),
     ]
 
     GRUPO_COTIZADOR_CHOICES = [

@@ -20,7 +20,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from comercial.models import Cotizacion, Producto
+from comercial.models import Cliente, Cotizacion, ItemCotizacion, Producto
 from comercial.roles_cotizador import sembrar_roles
 from comercial.views_cotizador import _lineas_cotizador
 from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
@@ -262,6 +262,87 @@ class TotalExhibidoTest(TestCase):
 
 
 @wa_settings()
+class PersonaExtraPasadiaTest(TestCase):
+    """Aforo ampliado de Pasadía (20 → 30, Reglamento Interno v1.2)."""
+
+    def setUp(self):
+        cache.clear()
+        self.esencial, self.pasadia, self.hora_extra, self.extra = _crear_catalogo()
+        self.persona_extra = Producto.objects.create(
+            nombre='Persona Extra Pasadía', precio_venta_fijo=Decimal('155.17'),
+            visible_cotizador=True, cotizador_pasadia=True,
+            rol_cotizador='PERSONA_EXTRA_PASADIA',
+        )
+
+    def test_pasadia_20_personas_sin_cargo_extra(self):
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=20, horas_evento=8,
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [self.pasadia])
+
+    def test_pasadia_25_personas_cobra_5_extra(self):
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=25, horas_evento=8,
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [self.pasadia, self.persona_extra])
+        self.assertEqual(lineas[1][1], 5)
+
+    def test_pasadia_30_personas_cobra_10_extra(self):
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=30, horas_evento=8,
+        )
+        self.assertEqual(lineas[1][1], 10)
+
+    def test_pasadia_31_personas_se_limita_a_30(self):
+        # El backend topa antes de llegar aquí (_redondear_personas /
+        # api_total_cotizador); esta prueba confirma el tope real de punta a
+        # punta, vía el endpoint público, no solo la función interna.
+        respuesta = self.client.get(
+            reverse('api_total_cotizador'), {'servicio': 'PASADIA', 'personas': '31'},
+        )
+        self.assertIn('(10 personas adicionales', respuesta.json()['conceptos'][1])
+
+    def test_total_exhibido_pasadia_incluye_extra(self):
+        # Misma prueba de fuego que test_total_exhibido_igual_al_precio_final
+        # (comercial/test_openpay.py), pero con el aforo ampliado de Pasadía.
+        from core_erp import impuestos
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=25, horas_evento=8,
+        )
+        bases = [Decimal(str(pr.sugerencia_precio())) * Decimal(q) for pr, q, _ in lineas]
+        exhibido = impuestos.total_desde_bases(bases)
+
+        respuesta = self.client.get(
+            reverse('api_total_cotizador'), {'servicio': 'PASADIA', 'personas': '25'},
+        )
+        self.assertEqual(str(exhibido), respuesta.json()['total'])
+
+        cliente = Cliente.objects.create(nombre='Cliente Pasadía Ampliada', tipo_persona='FISICA')
+        cot = Cotizacion.objects.create(
+            cliente=cliente, tipo_servicio='PASADIA', nombre_evento='Pasadía',
+            fecha_evento=timezone.localdate() + timedelta(days=30), incluye_refrescos=False,
+        )
+        for prod, qty, _desc in lineas:
+            ItemCotizacion.objects.create(
+                cotizacion=cot, producto=prod, descripcion=prod.nombre,
+                cantidad=Decimal(qty), precio_unitario=Decimal(str(prod.sugerencia_precio())),
+            )
+        cot.save()
+        cot.refresh_from_db()
+        self.assertEqual(exhibido, cot.precio_final)
+
+    def test_persona_extra_precio_iva_incluido(self):
+        # 1 unidad de precio_venta_fijo=155.17 (antes de IVA) debe dar $180.00
+        # exactos con IVA incluido — el importe ya decidido por el owner.
+        from core_erp import impuestos
+        base = Decimal(str(self.persona_extra.sugerencia_precio()))
+        self.assertEqual(impuestos.con_iva(base), Decimal('180.00'))
+
+
 class CotizacionCreadaConLineasTest(TestCase):
     """De punta a punta: el POST público crea la cotización ya cobrada."""
 

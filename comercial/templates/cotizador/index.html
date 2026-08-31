@@ -396,6 +396,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
         <span id="personas-min-lbl">1</span>
         <span id="personas-max-lbl">200</span>
       </div>
+      <div id="aviso-persona-extra-pasadia" style="display:none;margin-top:.8rem;padding:10px 12px;background:#FFF3CD;border-left:4px solid #F5C518;color:#664d03;border-radius:6px;font-size:.78rem;line-height:1.5;"></div>
     </div>
 
     <div class="btn-nav">
@@ -603,6 +604,7 @@ let extrasInfo = {};
 let selectedHabitaciones = new Set();
 let habitacionesData = [];
 let precioPersonaExtraHospedaje = null;
+let precioPersonaExtraPasadia = null;
 let noches = 1;
 let pasoActual = 1;
 const totalPasos = 6;
@@ -694,9 +696,11 @@ function actualizarPanelSegunServicio() {
     var v = parseInt(slider.value);
     if (v < 50) { slider.value = 50; actualizarPersonas(50); } else actualizarPersonas(v);
   } else if (esPasadia) {
-    slider.min = 1; slider.max = 20; slider.step = 1;
+    // Aforo base 20 (incluido en tarifa), aforo ampliado 21-30 con cargo
+    // extra por persona (incluye mobiliario) — Reglamento Interno v1.2.
+    slider.min = 1; slider.max = 30; slider.step = 1;
     var v = parseInt(slider.value);
-    if (v > 20) { slider.value = 20; actualizarPersonas(20); }
+    if (v > 30) { slider.value = 30; actualizarPersonas(30); }
     else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
     else actualizarPersonas(v);
   } else if (esHospedaje) {
@@ -977,6 +981,33 @@ function actualizarAvisoPersonasExtra() {
   aviso.style.display = 'block';
 }
 
+// Aforo base: 20 personas incluidas en la tarifa. El cobro real por persona
+// extra (incluye mobiliario) lo aplica _lineas_cotizador() en el servidor,
+// tanto aquí como en cotizador_enviar — mismo criterio en los dos lados.
+function actualizarAvisoPersonaExtraPasadia() {
+  var aviso = document.getElementById('aviso-persona-extra-pasadia');
+  if (!aviso) return;
+  var personasEl = document.getElementById('personas');
+  var personas = servicioSel === 'PASADIA' && personasEl ? parseInt(personasEl.value, 10) || 0 : 0;
+  var extra = personas - 20;
+  if (servicioSel !== 'PASADIA' || extra <= 0) {
+    aviso.style.display = 'none';
+    return;
+  }
+  var texto = '⚠️ Aforo base: <b>20</b> personas incluidas. Elegiste <b>' + personas + '</b>: las <b>'
+    + extra + '</b> persona' + (extra !== 1 ? 's' : '') + ' extra';
+  if (precioPersonaExtraPasadia) {
+    var totalExtra = Number(precioPersonaExtraPasadia) * extra;
+    texto += ' tienen un costo adicional de <b>' + fmtMXN(precioPersonaExtraPasadia) + '</b> cada una '
+      + '(incluye mobiliario): <b>' + extra + ' × ' + fmtMXN(precioPersonaExtraPasadia)
+      + ' = ' + fmtMXN(totalExtra) + '</b>.';
+  } else {
+    texto += ' tienen costo adicional (incluye mobiliario).';
+  }
+  aviso.innerHTML = texto;
+  aviso.style.display = 'block';
+}
+
 // El precio por noche que da la API ya incluye IVA (mismo criterio que
 // api_paquetes_cotizador): el subtotal por habitación es la suma directa,
 // sin volver a aplicar el 16%. Solo informativo — el total real lo calcula
@@ -1009,6 +1040,10 @@ async function cargarExtras(servicio, targetId) {
     var resp = await fetch('/api/cotizador/productos/?servicio=' + encodeURIComponent(servicio));
     var data = await resp.json();
     if (data.ok && data.grupos.length) renderizarExtras(data.grupos, targetId);
+    if (servicio === 'PASADIA') {
+      precioPersonaExtraPasadia = (data.ok && data.precio_persona_extra) || null;
+      actualizarAvisoPersonaExtraPasadia();
+    }
   } catch(e) { /* silencioso */ }
 }
 
@@ -1145,6 +1180,7 @@ function actualizarPersonas(val) {
   var input = document.getElementById('personas');
   var pct = ((val - input.min) / (input.max - input.min)) * 100;
   input.style.background = 'linear-gradient(to right, var(--verde) ' + pct + '%, var(--borde) ' + pct + '%)';
+  actualizarAvisoPersonaExtraPasadia();
 }
 
 function cambiarPersonas(delta) {
