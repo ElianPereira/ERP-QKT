@@ -393,9 +393,17 @@ class ImportadorCSVPagosService:
         # CSV aplicado. En simulación se revierte siempre.
         try:
             with transaction.atomic():
-                for (codigo, _fecha), datos in agrupadas.items():
+                for (codigo, ancla), datos in agrupadas.items():
                     try:
-                        self._procesar_reserva_agrupada(codigo, datos, usuario, resumen)
+                        if ancla is None:
+                            # Sin ancla: no hay ninguna fila "Reservación" de
+                            # este código en el lote, así que es un ajuste
+                            # (reembolso, cancelación, revocación de
+                            # retención) que llegó en un CSV posterior sin su
+                            # cargo original. Se busca el pago ya existente.
+                            self._aplicar_ajuste_a_pago_existente(codigo, datos, resumen)
+                        else:
+                            self._procesar_reserva_agrupada(codigo, datos, usuario, resumen)
                     except Exception as e:
                         resumen['errores'].append(f"Código {codigo}: {e}")
                 if simular:
@@ -529,7 +537,21 @@ class ImportadorCSVPagosService:
             self._campo(fila, 'Impuesto liquidado por Airbnb',
                         'Taxes withheld by Airbnb'))
 
-        if 'reservaci' in tipo or 'reservation' in tipo:
+        if any(p in tipo for p in ('reembolso', 'refund', 'resolution',
+                                   'resolución', 'resolucion', 'ajuste',
+                                   'adjustment', 'cancel', 'revocaci')):
+            # Se revisa ANTES que "retención"/"impuesto liquidado" a
+            # propósito: Airbnb nombra la reversión de una retención
+            # "Revocación de la retención..." y la de un impuesto liquidado
+            # "Ajuste de impuestos remitidos...", que contienen esas mismas
+            # palabras pero significan justo lo contrario. Si cayeran en esas
+            # ramas se SUMARÍAN a la retención/impuesto en vez de anularlos
+            # —duplicando el importe original en vez de revertirlo—. El
+            # monto de la fila ya trae el signo correcto (positivo revierte
+            # una retención, negativo revierte un cargo).
+            datos['ajustes'] += monto
+            datos['tiene_ajuste'] = True
+        elif 'reservaci' in tipo or 'reservation' in tipo:
             datos['monto_reservacion'] += monto
             datos['tarifa_servicio'] += abs(tarifa)
             datos['ingresos_brutos'] += brutos
@@ -543,13 +565,6 @@ class ImportadorCSVPagosService:
             # que Airbnb cobra al huésped y transfiere al anfitrión: suma
             # al depósito y lo entera él. No confundir con el ISH.
             datos['iva_trasladado'] += monto
-        elif any(p in tipo for p in ('reembolso', 'refund', 'resolution',
-                                     'resolución', 'resolucion', 'ajuste',
-                                     'adjustment', 'cancel')):
-            # Antes estas filas caían en ninguna rama y desaparecían, así
-            # que un reembolso al huésped no se reflejaba en ningún lado.
-            datos['ajustes'] += monto
-            datos['tiene_ajuste'] = True
 
     @staticmethod
     def _grupo_vacio() -> Dict[str, Any]:
@@ -676,6 +691,74 @@ class ImportadorCSVPagosService:
         # concepto que no estamos modelando.
         if not pago.cuadra:
             resumen['descuadrados'].append((codigo, pago.diferencia_neto))
+
+    def _aplicar_ajuste_a_pago_existente(self, codigo: str, datos: Dict,
+                                         resumen: Dict) -> None:
+        """
+        Aplica un ajuste/reversión que llegó sin su fila "Reservación" en
+        este lote —el caso real: Airbnb deposita el pago y, semanas
+        después, en el CSV de otro mes, revierte el cargo por una
+        cancelación—. No hay con qué anclarlo dentro de este lote (ver
+        `_ancla_del_cobro`), así que se busca contra los pagos ya
+        existentes de ese código y se aplica como DELTA sobre el mismo
+        registro, nunca sobrescribiendo sus campos: así la póliza de
+        reversión —que el signal de `contabilidad` ya sabe emitir cuando un
+        pago deja de estar PAGADO— se genera sobre la póliza original en
+        vez de perderse en un pago nuevo sin historia (un pago recién
+        creado no tiene póliza previa que revertir).
+
+        `monto_bruto`/`comision_airbnb` no se tocan: son el cargo original,
+        tal como se declaró en su período fiscal. Si el ajuste deja de
+        cuadrar con esos componentes, `cuadra` lo marca a propósito —es la
+        señal de que hubo una cancelación, no un error de captura.
+        """
+        candidatos = list(
+            PagoAirbnb.objects.filter(codigo_confirmacion=codigo, origen='CSV')
+        )
+        if not candidatos:
+            raise ValueError(
+                "Trae un ajuste/revocación pero no hay ningún pago de este "
+                "código ya importado. ¿Ya se importó el CSV con la "
+                "'Reservación' original?"
+            )
+        if len(candidatos) == 1:
+            pago = candidatos[0]
+        else:
+            # Extensión de estancia con más de un cobro: el ajuste se pega
+            # al payout más cercano en fecha, no al primero que aparezca.
+            pago = min(candidatos, key=lambda p: (
+                abs((p.fecha_pago - datos['fecha_pago']).days)
+                if p.fecha_pago and datos['fecha_pago'] else 10 ** 6
+            ))
+
+        bruto = datos['ingresos_brutos'] or datos['monto_reservacion']
+        comision = datos['tarifa_servicio']
+        if datos['ingresos_brutos'] and datos['monto_reservacion']:
+            comision = datos['ingresos_brutos'] - datos['monto_reservacion']
+
+        delta_neto = (bruto - comision + datos['iva_trasladado']
+                      - datos['retencion_isr'] - datos['retencion_iva']
+                      + datos['ajustes'])
+
+        pago.monto_neto += delta_neto
+        pago.retencion_isr += datos['retencion_isr']
+        pago.retencion_iva += datos['retencion_iva']
+        pago.iva_trasladado += datos['iva_trasladado']
+        pago.impuesto_hospedaje += datos['impuesto_hospedaje']
+        if pago.monto_neto <= Decimal('0.00'):
+            pago.estado = 'REEMBOLSADO'
+
+        fecha_txt = (datos['fecha_pago'].strftime('%d/%m/%Y')
+                    if datos['fecha_pago'] else '?')
+        nota = (f"Ajuste importado el {fecha_txt} "
+                f"({self.archivo_nombre or 'CSV'}): neto {delta_neto:+.2f}")
+        pago.notas = f"{pago.notas}\n{nota}".strip() if pago.notas else nota
+        pago.save()
+
+        etiqueta = f"{codigo} (ajuste {fecha_txt})"
+        resumen['actualizados'].append((etiqueta, ['ajuste sobre pago existente']))
+        if not pago.cuadra:
+            resumen['descuadrados'].append((etiqueta, pago.diferencia_neto))
 
     def _buscar_reserva(self, pago) -> Optional[ReservaAirbnb]:
         """

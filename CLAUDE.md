@@ -83,6 +83,58 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-08-31 — Reversión de un pago de Airbnb por cancelación (seguimiento
+  directo del punto anterior: el propietario reportó que la reserva
+  `HMKDEJR33E` se canceló, Airbnb ya había hecho el abono pero tiene
+  programado el cargo que lo revierte, y adjuntó el CSV real de ese cargo
+  —fallido por falta de fondos en la cuenta, pero con el formato real—).
+  Ese CSV **no trae la fila "Reservación" original** (ya se había
+  importado en agosto): son solo 4 filas de reversión —"Ajuste de
+  impuestos remitidos como anfitrión", "Ajuste", "Revocación de la
+  retención del impuesto sobre la renta" y "Revocación de la retención del
+  IVA"— que suman exactamente `-2409.41`, el neto original en signo
+  contrario. Esto es justo el riesgo que había quedado documentado como
+  "Riesgos pendientes" en el PR de la extensión de estancia (ver punto de
+  arriba): una fila de ajuste sin ancla en el lote. Se implementó antes de
+  que ocurriera en producción. **Dos bugs de clasificación reales,
+  encontrados con este CSV, no con datos inventados**: (1) "Revocación de
+  la retención..." contiene las palabras "retención"/"impuesto liquidado"
+  pero es lo contrario — antes cayía en la misma rama que la retención
+  original y la **sumaba en vez de anularla**, duplicando el importe.
+  Se reordenó `_acumular_fila()` para revisar los patrones de reversión
+  (`ajuste`, `revocaci`, `reembolso`, `cancel`, etc.) **antes** que
+  "retención"/"impuesto liquidado", no después. (2) Un ajuste sin fila
+  "Reservación" en el lote (`_ancla_del_cobro` devuelve `None`) antes
+  habría intentado crear un `PagoAirbnb` nuevo con `fecha_pago` del ajuste
+  — no coincide con el `fecha_pago` del pago original, así que el
+  `UniqueConstraint` nuevo lo habría dejado pasar como un **segundo
+  registro roto** (sin fecha de check-in real, sin cargo asociado), y la
+  póliza de reversión nunca se habría generado: el signal
+  `sincronizar_poliza_pago_airbnb` solo revierte una póliza que ya existe
+  para el `pk` del pago, y un registro nuevo nace sin ninguna. Fix:
+  `_aplicar_ajuste_a_pago_existente()` — cuando un grupo no tiene ancla,
+  se busca el `PagoAirbnb` ya importado con ese código (el más cercano en
+  fecha si el código tiene más de un cobro, por la extensión de estancia)
+  y el ajuste se aplica como **delta** sobre ese mismo registro
+  (`monto_neto`, retenciones, `estado`), nunca sobrescribiendo
+  `monto_bruto`/`comisión` — el cargo original se queda tal como se
+  declaró en su período fiscal. Si el ajuste deja el pago sin cuadrar
+  contra sus componentes originales, se marca en `descuadrados` a
+  propósito (`cuadra` ya documentaba este caso: "significa que el CSV
+  trae un concepto que no estamos modelando"), no se maquilla
+  recalculando el histórico. Verificado con los dos CSV reales del
+  propietario en secuencia (agosto, luego el de la reversión): el pago de
+  Geovany queda en el mismo registro (`pk` sin cambiar), `monto_neto` en
+  `$0.00`, `estado='REEMBOLSADO'`, y el signal emitió correctamente la
+  póliza de reversión (tipo D, origen AJUSTE) espejo de la póliza
+  original — sin crear ningún registro duplicado. Sobre la pregunta del
+  contador ("no se haría factura por ese importe"): correcto y no requería
+  cambio — los pagos de Airbnb no generan `SolicitudFactura` automática
+  (solo `Cotizacion` de Evento/Pasadía/Hospedaje/Arrendamiento lo hace).
+  Tests nuevos en `airbnb/tests.py::ImportadorCSVPagosTest`
+  (`test_reversion_en_csv_posterior_se_aplica_al_mismo_pago`,
+  `test_ajuste_sin_pago_previo_se_reporta_como_error`). Suite completa:
+  851/851 verdes.
 - 2026-08-31 — Extensión de estancia en Airbnb fusionaba dos payouts reales
   en un solo `PagoAirbnb` (reportado por el propietario con un CSV real:
   código `HMTFC4FD4K` con dos payouts —$1,204.70 el 11 de agosto y $4,818.82
