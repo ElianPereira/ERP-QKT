@@ -647,7 +647,9 @@ class ContratoService:
             ],
             'PASADIA': [
                 f"El acceso es de {hora_ini} a {hora_fin}. No se permite pernoctar.",
-                "Personas adicionales al aforo pactado tienen costo extra por persona.",
+                "Personas adicionales al aforo base de 20 tienen un costo extra de $180.00 MXN por persona "
+                "(incluye mobiliario correspondiente), hasta un máximo inexcedible de 30 personas conforme "
+                "al Reglamento Interno.",
                 "No se permite el acceso de proveedores externos sin notificación previa.",
             ],
             'ARRENDAMIENTO': [
