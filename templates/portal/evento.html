@@ -533,9 +533,11 @@
     </div>
 
     {% if openpay_habilitado and saldo_pendiente > 0 %}
-    {# Origen documentado por Openpay. El bucket de S3 que se usaba antes
-       sirve los mismos archivos pero no aparece en la documentación: si lo
-       retiran, el checkout deja de tokenizar y no se cobra nada. #}
+    {% comment %}
+    Origen documentado por Openpay. El bucket de S3 que se usaba antes
+    sirve los mismos archivos pero no aparece en la documentación: si lo
+    retiran, el checkout deja de tokenizar y no se cobra nada.
+    {% endcomment %}
     <script src="https://js.openpay.mx/openpay.v1.min.js"></script>
     <script src="https://js.openpay.mx/openpay-data.v1.min.js"></script>
     <script>
