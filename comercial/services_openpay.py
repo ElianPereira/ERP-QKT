@@ -13,7 +13,7 @@ no toca la lógica de contabilidad.
 """
 import logging
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 import requests
@@ -601,6 +601,76 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
         'comercio': 'Quinta Ko\'ox Tanil',
         'recibo_url': _recibo_pdf_url('spei', data.get('id', '')),
     }
+
+
+def datos_referencia_pendiente(transaccion: OpenpayTransaccion) -> dict:
+    """
+    Reconstruye la misma forma de dict que devuelven procesar_cargo_efectivo/
+    procesar_cargo_spei, a partir de una OpenpayTransaccion ya guardada — para
+    poder mostrarle al cliente en el portal una referencia generada en un
+    intento anterior sin volver a llamar a Openpay.
+    """
+    data = transaccion.payload_crudo or {}
+    pm = data.get('payment_method', {}) or data.get('store', {}) or {}
+    monto = transaccion.monto if transaccion.monto is not None else Decimal('0')
+    base = {
+        'ok': True, 'referencia': True, 'metodo': transaccion.metodo,
+        'reference': pm.get('reference') or pm.get('name', ''),
+        'monto': f"{monto:,.2f}",
+        'due_date': pm.get('due_date') or data.get('due_date', ''),
+        'order_id': data.get('order_id', ''),
+        'comercio': 'Quinta Ko\'ox Tanil',
+    }
+    if transaccion.metodo == 'store':
+        base['barcode_url'] = pm.get('barcode_url', '')
+        base['recibo_url'] = _recibo_pdf_url('paynet', pm.get('reference', ''))
+        base['openpay_id'] = transaccion.openpay_id
+    else:
+        base['bank'] = pm.get('bank', '')
+        base['clabe'] = pm.get('clabe', '')
+        base['agreement'] = pm.get('agreement', '')
+        base['recibo_url'] = _recibo_pdf_url('spei', transaccion.openpay_id)
+    return base
+
+
+def transacciones_pendientes(cotizacion: Cotizacion) -> list:
+    """
+    Referencias de efectivo/SPEI ya generadas, vigentes y aún sin pagar — la
+    más reciente por método (store/bank_account).
+
+    Cada clic en "pagar" con estos dos métodos genera una referencia NUEVA
+    sin cancelar la anterior; un cliente que reintenta sin saber esto termina
+    con varias referencias válidas a la vez y no sabe cuál usar (caso real:
+    2 CLABEs SPEI + 1 ficha de efectivo en 17 minutos). El portal usa esto
+    para mostrárselas de entrada en vez de dejarlo generar otra a ciegas.
+    """
+    from django.utils import timezone
+
+    ahora = timezone.localtime()
+    vistos = set()
+    resultado = []
+    qs = OpenpayTransaccion.objects.filter(
+        cotizacion=cotizacion, metodo__in=('store', 'bank_account'),
+        procesado=False, estado_openpay='in_progress',
+    ).order_by('-created_at')
+    for t in qs:
+        if t.metodo in vistos:
+            continue
+        data = t.payload_crudo or {}
+        pm = data.get('payment_method', {}) or data.get('store', {}) or {}
+        due = pm.get('due_date') or data.get('due_date')
+        if due:
+            try:
+                vence = datetime.fromisoformat(due)
+                if timezone.is_naive(vence):
+                    vence = timezone.make_aware(vence)
+                if vence < ahora:
+                    continue
+            except (ValueError, TypeError):
+                pass
+        vistos.add(t.metodo)
+        resultado.append(datos_referencia_pendiente(t))
+    return resultado
 
 
 # --- REEMBOLSOS (llama al refund real de Openpay, no solo el registro interno) ---

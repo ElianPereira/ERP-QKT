@@ -209,6 +209,8 @@ def portal_evento(request, token):
     from comunicacion.services import normalizar_telefono_wa
     wa_numero = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', ''))
 
+    from .services_openpay import transacciones_pendientes
+    pagos_pendientes_openpay = transacciones_pendientes(cotizacion) if saldo_pendiente > 0 else []
 
     context = {
         'portal': portal,
@@ -235,6 +237,10 @@ def portal_evento(request, token):
         # Catálogo de cadenas Paynet como JSON: el portal y la ficha PDF leen
         # la misma lista, así no se desincronizan.
         'tiendas_paynet': json.dumps([list(t) for t in TIENDAS_PAYNET]),
+        # Referencias de efectivo/SPEI de un intento anterior, aún vigentes:
+        # se muestran de entrada para que el cliente las reintente en vez de
+        # generar otra sin saber que ya tenía una pendiente.
+        'pagos_pendientes_openpay': pagos_pendientes_openpay,
     }
 
     return render(request, 'portal/evento.html', context)

@@ -726,7 +726,7 @@ function actualizarPanelSegunServicio() {
     // Aforo base 20 (incluido en tarifa), aforo ampliado 21-30 con cargo
     // extra por persona (incluye mobiliario) — Reglamento Interno v1.2.
     slider.min = 1; slider.max = 30; slider.step = 1;
-    slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
+    slider.value = v > 30 ? 30 : (v < 1 ? 1 : v);
   } else if (esHospedaje) {
     // Sin tope duro de huéspedes (pedido explícito del propietario): más de
     // la capacidad base de las habitaciones elegidas es válido, solo cobra

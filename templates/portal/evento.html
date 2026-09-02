@@ -98,8 +98,11 @@
                 {{ cotizacion.fecha_evento|date:"d \d\e F \d\e Y" }}
             {% endif %}
         </div>
+        <div style="font-size:11px; opacity:.85; margin-top:6px;">
+            <i class="fas fa-bookmark"></i> Guarda este enlace — puedes volver a entrar cuando quieras, sin volver a cotizar.
+        </div>
     </div>
-    
+
     <div class="container">
 
         <!-- Confirmación de pago tras la recarga (?pago=exitoso) -->
@@ -292,6 +295,24 @@
         {% endif %}
         
         {% if openpay_habilitado and saldo_pendiente > 0 %}
+
+        {% if pagos_pendientes_openpay %}
+        <!-- Referencias de efectivo/SPEI de un intento anterior, aún vigentes:
+             se muestran de entrada para no dejar que genere otra sin saber que
+             ya tenía una pendiente. -->
+        <div class="card" id="card-pagos-pendientes">
+            <div class="card-title"><i class="fas fa-hourglass-half"></i> Ya tienes un pago en proceso</div>
+            <p style="font-size:13px; color:#8a8780; margin-bottom:4px;">
+                Completa la referencia de abajo en tu banco o tienda — no es necesario que generes una nueva.
+                Si prefieres pagar con otro método, puedes hacerlo más abajo.
+            </p>
+            {% for pago in pagos_pendientes_openpay %}
+            <div id="pago-pendiente-{{ forloop.counter0 }}" style="margin-top:10px; padding:14px; border-radius:8px; background:#f8f8f6; font-size:14px;"></div>
+            {% endfor %}
+        </div>
+        {{ pagos_pendientes_openpay|json_script:"pagos-pendientes-data" }}
+        {% endif %}
+
         <!-- Identificación oficial: requisito previo al pago -->
         <div class="card" id="card-identificacion">
             <div class="card-title"><i class="fas fa-id-card"></i> Identificación oficial</div>
@@ -340,6 +361,12 @@
                            data-max="{{ saldo_pendiente|stringformat:'0.2f' }}"
                            data-min="{{ monto_minimo_pago|stringformat:'0.2f' }}"
                            style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
+                    <div style="display:flex; gap:8px; margin-top:6px;">
+                        {% if monto_minimo_pago > 0 %}
+                        <button type="button" id="btn-monto-minimo" class="btn btn-outline" style="padding:5px 12px; font-size:12px; cursor:pointer;">Pagar el mínimo</button>
+                        {% endif %}
+                        <button type="button" id="btn-monto-saldo" class="btn btn-outline" style="padding:5px 12px; font-size:12px; cursor:pointer;">Pagar todo el saldo</button>
+                    </div>
                     {% if monto_minimo_pago > 0 %}
                     <div style="font-size:11px; color:#e67e22; margin-top:4px;">
                         {{ monto_minimo_pago_motivo }} Mínimo a pagar: ${{ monto_minimo_pago|floatformat:2 }} · Máximo ${{ saldo_pendiente|floatformat:2 }}
@@ -562,6 +589,19 @@
     // si no, el saldo completo — el cliente puede editarlo hacia abajo hasta
     // el mínimo, o dejarlo para pagar de más (abono) si no hay mínimo.
     montoInput.value = formatearMoneda(montoMin > 0 ? montoMin : montoMax);
+
+    var btnMontoMinimo = document.getElementById('btn-monto-minimo');
+    if (btnMontoMinimo) {
+        btnMontoMinimo.addEventListener('click', function() {
+            montoInput.value = formatearMoneda(montoMin);
+        });
+    }
+    var btnMontoSaldo = document.getElementById('btn-monto-saldo');
+    if (btnMontoSaldo) {
+        btnMontoSaldo.addEventListener('click', function() {
+            montoInput.value = formatearMoneda(montoMax);
+        });
+    }
 
     var TEXTO_BOTON = {
         card: { icono: 'fa-lock', texto: 'Pagar' },
@@ -810,8 +850,8 @@
         return html + '</div></div>';
     }
 
-    function mostrarReferencia(data) {
-        var div = document.getElementById('referencia-pago');
+    function mostrarReferencia(data, targetId, sinScroll) {
+        var div = document.getElementById(targetId || 'referencia-pago');
         div.style.display = 'block';
         var esEfectivo = data.metodo === 'store';
 
@@ -921,8 +961,21 @@
             });
         });
 
-        div.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!sinScroll) {
+            div.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     }
+
+    // Referencias de un intento anterior (aún vigentes): se pintan de
+    // entrada con la misma función que usa un cargo recién creado, sin
+    // volver a llamar a Openpay — los datos ya quedaron guardados.
+    (function() {
+        var el = document.getElementById('pagos-pendientes-data');
+        if (!el) return;
+        JSON.parse(el.textContent).forEach(function(data, i) {
+            mostrarReferencia(data, 'pago-pendiente-' + i, true);
+        });
+    })();
     </script>
 
     <script>

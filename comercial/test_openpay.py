@@ -27,6 +27,7 @@ from comercial.services_openpay import (
     procesar_cargo_tarjeta,
     procesar_webhook_openpay,
     reembolsar_cargo_openpay,
+    transacciones_pendientes,
 )
 
 WEBHOOK_USER = 'openpay-test-user'
@@ -1057,6 +1058,75 @@ class DueDateReferenciaTest(TestCase):
         payload = mock_post.call_args.kwargs['json']
         vence = datetime.strptime(payload['due_date'], '%Y-%m-%dT%H:%M:%S').date()
         self.assertLessEqual(vence, cotizacion.fecha_evento)
+
+
+class TransaccionesPendientesTest(TestCase):
+    """
+    El portal muestra las referencias de efectivo/SPEI de un intento anterior
+    que sigan vigentes, para que el cliente no genere otra sin saber que ya
+    tenía una pendiente (caso real: 2 CLABEs SPEI + 1 ficha en 17 minutos).
+    """
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_una_referencia_vigente_aparece(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-pend-01', 'status': 'in_progress', 'order_id': 'COT-001-abc',
+            'due_date': (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+            'payment_method': {'bank': 'STP', 'clabe': '646180111812345678', 'name': 'REF-PEND'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_spei(cotizacion, Decimal('500.00'))
+
+        pendientes = transacciones_pendientes(cotizacion)
+        self.assertEqual(len(pendientes), 1)
+        self.assertEqual(pendientes[0]['metodo'], 'bank_account')
+        self.assertEqual(pendientes[0]['clabe'], '646180111812345678')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_una_referencia_vencida_no_aparece(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-pend-02', 'status': 'in_progress', 'order_id': 'COT-001-abc',
+            'due_date': (datetime.now() - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+            'payment_method': {'reference': 'REF-VIEJA'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+
+        self.assertEqual(transacciones_pendientes(cotizacion), [])
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_solo_la_mas_reciente_por_metodo(self, mock_post):
+        # Dos referencias SPEI seguidas (mismo escenario que el cliente real):
+        # solo la más nueva debe mostrarse, no las dos.
+        cotizacion = _crear_cotizacion()
+        for openpay_id, clabe in (('tx-pend-vieja', '646100000000000001'),
+                                   ('tx-pend-nueva', '646100000000000002')):
+            mock_post.return_value = MagicMock(status_code=200, json=lambda oid=openpay_id, cl=clabe: {
+                'id': oid, 'status': 'in_progress', 'order_id': 'COT-001-abc',
+                'due_date': (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+                'payment_method': {'bank': 'STP', 'clabe': cl, 'name': 'REF'},
+            })
+            procesar_cargo_spei(cotizacion, Decimal('500.00'))
+
+        pendientes = transacciones_pendientes(cotizacion)
+        self.assertEqual(len(pendientes), 1)
+        self.assertEqual(pendientes[0]['clabe'], '646100000000000002')
+
+    @patch('comercial.services_openpay.requests.post')
+    def test_una_referencia_ya_pagada_no_aparece(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {
+            'id': 'tx-pend-03', 'status': 'in_progress', 'order_id': 'COT-001-abc',
+            'due_date': (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+            'payment_method': {'reference': 'REF-PAGADA'},
+        })
+        cotizacion = _crear_cotizacion()
+        procesar_cargo_efectivo(cotizacion, Decimal('500.00'))
+        procesar_webhook_openpay({
+            'type': 'charge.succeeded',
+            'transaction': {'id': 'tx-pend-03', 'status': 'completed', 'amount': 500.00, 'method': 'store'},
+        })
+
+        self.assertEqual(transacciones_pendientes(cotizacion), [])
 
 
 class ConsistenciaPreciosTest(TestCase):
