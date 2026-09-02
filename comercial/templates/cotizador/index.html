@@ -270,11 +270,27 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .flatpickr-weekday{color:rgba(255,255,255,.75);font-weight:500;}
 .flatpickr-day.selected,.flatpickr-day.selected:hover{background:var(--verde);border-color:var(--verde);color:var(--blanco);}
 .flatpickr-day:hover:not(.flatpickr-disabled):not(.selected){background:#e8f5e9;border-color:var(--verde);}
+.flatpickr-day{position:relative;}
 .flatpickr-day.flatpickr-disabled,.flatpickr-day.flatpickr-disabled:hover{
   background:#fdf2f2;color:#c0777777;text-decoration:line-through;
   cursor:not-allowed;opacity:.7;
 }
+/* Puntos "disponible"/"apartado": mismo criterio de color que el resto del
+   sitio (verde = ok, rojo = bloqueado), sin tocar el estilo base del día. */
+.flatpickr-day.flatpickr-disabled:not(.prevMonthDay):not(.nextMonthDay)::after{
+  content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--error);
+}
+.flatpickr-day:not(.flatpickr-disabled):not(.prevMonthDay):not(.nextMonthDay):not(.selected)::after{
+  content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--verde);opacity:.6;
+}
 .flatpickr-input[readonly]{cursor:pointer;background:var(--blanco);}
+.cal-leyenda{display:flex;gap:1.2rem;margin-top:.6rem;font-size:.7rem;color:var(--texto-s);}
+.cal-leyenda-item{display:flex;align-items:center;gap:.4rem;}
+.cal-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.cal-dot-disp{background:var(--verde);}
+.cal-dot-ocup{background:var(--error);}
 </style>
 </head>
 <body>
@@ -355,6 +371,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <input type="text" id="fecha" readonly placeholder="Selecciona una fecha">
       <div class="campo-error" id="err-fecha">Selecciona una fecha.</div>
       <div id="aviso-fecha" style="display:none; margin-top:8px; padding:10px 12px; background:#FFF3CD; border-left:4px solid #F5C518; color:#664d03; border-radius:6px; font-size:14px;"></div>
+      <div class="cal-leyenda">
+        <span class="cal-leyenda-item"><i class="cal-dot cal-dot-disp"></i>Disponible</span>
+        <span class="cal-leyenda-item"><i class="cal-dot cal-dot-ocup"></i>Apartado</span>
+      </div>
     </div>
 
     <div class="panel-condicional campo-fila" id="blq-horario">
@@ -691,32 +711,34 @@ function actualizarPanelSegunServicio() {
     esHospedaje ? 'Número de huéspedes' : 'Número de personas';
 
   var slider = document.getElementById('personas');
+  // El valor previo se lee ANTES de tocar min/max/step: el propio navegador
+  // reclampa/realinea el valor del <input type="range"> en cuanto cambia su
+  // min o max (a la rejilla del step VIEJO, que en ese instante aún no se
+  // actualizó), así que leerlo después ya viene corrompido — ej. saliendo de
+  // Evento (step 10) hacia Pasadía (max 30) el valor quedaba en 21, no en 20,
+  // y disparaba de entrada el aviso de persona extra sin que el cliente
+  // hubiera movido nada.
+  var v = parseInt(slider.value);
   if (esEvento) {
     slider.min = 50; slider.max = 200; slider.step = 10;
-    var v = parseInt(slider.value);
-    if (v < 50) { slider.value = 50; actualizarPersonas(50); } else actualizarPersonas(v);
+    slider.value = v < 50 ? 50 : v;
   } else if (esPasadia) {
     // Aforo base 20 (incluido en tarifa), aforo ampliado 21-30 con cargo
     // extra por persona (incluye mobiliario) — Reglamento Interno v1.2.
     slider.min = 1; slider.max = 30; slider.step = 1;
-    var v = parseInt(slider.value);
-    if (v > 30) { slider.value = 30; actualizarPersonas(30); }
-    else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
-    else actualizarPersonas(v);
+    slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
   } else if (esHospedaje) {
     // Sin tope duro de huéspedes (pedido explícito del propietario): más de
     // la capacidad base de las habitaciones elegidas es válido, solo cobra
     // el recargo de persona extra — el 20 es un límite generoso del control,
     // no una regla de negocio.
     slider.min = 1; slider.max = 20; slider.step = 1;
-    var v = parseInt(slider.value);
-    if (v > 20) { slider.value = 20; actualizarPersonas(20); }
-    else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
-    else actualizarPersonas(v);
+    slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
   } else {
     slider.min = 1; slider.max = 200; slider.step = 1;
-    actualizarPersonas(parseInt(slider.value));
+    slider.value = v;
   }
+  actualizarPersonas(slider.value);
   document.getElementById('personas-min-lbl').textContent = slider.min;
   document.getElementById('personas-max-lbl').textContent = slider.max;
 
