@@ -270,11 +270,27 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .flatpickr-weekday{color:rgba(255,255,255,.75);font-weight:500;}
 .flatpickr-day.selected,.flatpickr-day.selected:hover{background:var(--verde);border-color:var(--verde);color:var(--blanco);}
 .flatpickr-day:hover:not(.flatpickr-disabled):not(.selected){background:#e8f5e9;border-color:var(--verde);}
+.flatpickr-day{position:relative;}
 .flatpickr-day.flatpickr-disabled,.flatpickr-day.flatpickr-disabled:hover{
   background:#fdf2f2;color:#c0777777;text-decoration:line-through;
   cursor:not-allowed;opacity:.7;
 }
+/* Puntos "disponible"/"apartado": mismo criterio de color que el resto del
+   sitio (verde = ok, rojo = bloqueado), sin tocar el estilo base del día. */
+.flatpickr-day.flatpickr-disabled:not(.prevMonthDay):not(.nextMonthDay)::after{
+  content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--error);
+}
+.flatpickr-day:not(.flatpickr-disabled):not(.prevMonthDay):not(.nextMonthDay):not(.selected)::after{
+  content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--verde);opacity:.6;
+}
 .flatpickr-input[readonly]{cursor:pointer;background:var(--blanco);}
+.cal-leyenda{display:flex;gap:1.2rem;margin-top:.6rem;font-size:.7rem;color:var(--texto-s);}
+.cal-leyenda-item{display:flex;align-items:center;gap:.4rem;}
+.cal-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.cal-dot-disp{background:var(--verde);}
+.cal-dot-ocup{background:var(--error);}
 </style>
 </head>
 <body>
@@ -355,6 +371,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <input type="text" id="fecha" readonly placeholder="Selecciona una fecha">
       <div class="campo-error" id="err-fecha">Selecciona una fecha.</div>
       <div id="aviso-fecha" style="display:none; margin-top:8px; padding:10px 12px; background:#FFF3CD; border-left:4px solid #F5C518; color:#664d03; border-radius:6px; font-size:14px;"></div>
+      <div class="cal-leyenda">
+        <span class="cal-leyenda-item"><i class="cal-dot cal-dot-disp"></i>Disponible</span>
+        <span class="cal-leyenda-item"><i class="cal-dot cal-dot-ocup"></i>Apartado</span>
+      </div>
     </div>
 
     <div class="panel-condicional campo-fila" id="blq-horario">
