@@ -691,32 +691,34 @@ function actualizarPanelSegunServicio() {
     esHospedaje ? 'Número de huéspedes' : 'Número de personas';
 
   var slider = document.getElementById('personas');
+  // El valor previo se lee ANTES de tocar min/max/step: el propio navegador
+  // reclampa/realinea el valor del <input type="range"> en cuanto cambia su
+  // min o max (a la rejilla del step VIEJO, que en ese instante aún no se
+  // actualizó), así que leerlo después ya viene corrompido — ej. saliendo de
+  // Evento (step 10) hacia Pasadía (max 30) el valor quedaba en 21, no en 20,
+  // y disparaba de entrada el aviso de persona extra sin que el cliente
+  // hubiera movido nada.
+  var v = parseInt(slider.value);
   if (esEvento) {
     slider.min = 50; slider.max = 200; slider.step = 10;
-    var v = parseInt(slider.value);
-    if (v < 50) { slider.value = 50; actualizarPersonas(50); } else actualizarPersonas(v);
+    slider.value = v < 50 ? 50 : v;
   } else if (esPasadia) {
     // Aforo base 20 (incluido en tarifa), aforo ampliado 21-30 con cargo
     // extra por persona (incluye mobiliario) — Reglamento Interno v1.2.
     slider.min = 1; slider.max = 30; slider.step = 1;
-    var v = parseInt(slider.value);
-    if (v > 30) { slider.value = 30; actualizarPersonas(30); }
-    else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
-    else actualizarPersonas(v);
+    slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
   } else if (esHospedaje) {
     // Sin tope duro de huéspedes (pedido explícito del propietario): más de
     // la capacidad base de las habitaciones elegidas es válido, solo cobra
     // el recargo de persona extra — el 20 es un límite generoso del control,
     // no una regla de negocio.
     slider.min = 1; slider.max = 20; slider.step = 1;
-    var v = parseInt(slider.value);
-    if (v > 20) { slider.value = 20; actualizarPersonas(20); }
-    else if (v < 1) { slider.value = 1; actualizarPersonas(1); }
-    else actualizarPersonas(v);
+    slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
   } else {
     slider.min = 1; slider.max = 200; slider.step = 1;
-    actualizarPersonas(parseInt(slider.value));
+    slider.value = v;
   }
+  actualizarPersonas(slider.value);
   document.getElementById('personas-min-lbl').textContent = slider.min;
   document.getElementById('personas-max-lbl').textContent = slider.max;
 
