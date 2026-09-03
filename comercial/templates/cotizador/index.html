@@ -302,7 +302,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 </header>
 
 <div class="cot-hero">
-  <h1>Cotiza tu <em>evento</em></h1>
+  <h1>Cotiza tu <em id="hero-servicio">evento</em></h1>
   <p>Cuéntanos qué tienes en mente. Recibirás acceso a tu cotización personalizada al instante.</p>
 </div>
 
@@ -695,6 +695,9 @@ function actualizarPanelSegunServicio() {
   toggle('blq-horario', esEvento);
   toggle('blq-noches', esHospedaje);
 
+  document.getElementById('hero-servicio').textContent =
+    esPasadia ? 'pasadía' : esArr ? 'arrendamiento' : esHospedaje ? 'hospedaje' : 'evento';
+
   var lblFecha = document.getElementById('lbl-fecha');
   if (esPasadia) lblFecha.textContent = 'Fecha de la visita';
   else if (esArr) lblFecha.textContent = 'Fecha de entrega';
@@ -725,8 +728,11 @@ function actualizarPanelSegunServicio() {
   } else if (esPasadia) {
     // Aforo base 20 (incluido en tarifa), aforo ampliado 21-30 con cargo
     // extra por persona (incluye mobiliario) — Reglamento Interno v1.2.
+    // El default al entrar es 20 (el aforo SIN costo extra), no el tope de
+    // 30: quien necesite más personas lo mueve él mismo y ahí aparece el
+    // aviso de cargo adicional, no de entrada.
     slider.min = 1; slider.max = 30; slider.step = 1;
-    slider.value = v > 30 ? 30 : (v < 1 ? 1 : v);
+    slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
   } else if (esHospedaje) {
     // Sin tope duro de huéspedes (pedido explícito del propietario): más de
     // la capacidad base de las habitaciones elegidas es válido, solo cobra
