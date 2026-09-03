@@ -194,9 +194,14 @@ class PagoAirbnb(models.Model):
         max_length=20,
         blank=True,
         null=True,
-        unique=True,
+        db_index=True,
         verbose_name="Código de Confirmación",
-        help_text="Código de reserva de Airbnb (ej: HMXXXXXXXX)"
+        help_text=(
+            "Código de reserva de Airbnb (ej: HMXXXXXXXX). Ya NO es único: una "
+            "extensión de estancia genera un segundo payout con el mismo código "
+            "(mismo huésped, cobro nuevo), y cada uno necesita su propio registro "
+            "para cuadrar con el estado de cuenta y con las facturas del contador."
+        )
     )
     huesped = models.CharField(
         max_length=200,
@@ -380,6 +385,18 @@ class PagoAirbnb(models.Model):
             models.Index(fields=['fecha_pago']),
             models.Index(fields=['estado', '-fecha_pago']),
             models.Index(fields=['anuncio', '-fecha_checkin']),
+        ]
+        constraints = [
+            # Un mismo código de reserva puede tener más de un payout (p. ej.
+            # una extensión de estancia cobrada aparte), pero no dos payouts
+            # el mismo día para el mismo código: eso sí sería el duplicado que
+            # la reimportación del CSV debe actualizar, no crear de nuevo.
+            models.UniqueConstraint(
+                fields=['codigo_confirmacion', 'fecha_pago'],
+                condition=models.Q(codigo_confirmacion__isnull=False)
+                & models.Q(fecha_pago__isnull=False),
+                name='airbnb_pago_codigo_fecha_unico',
+            ),
         ]
 
 

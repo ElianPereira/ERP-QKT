@@ -92,6 +92,46 @@ class SolicitudFacturaClienteNoFiscalTest(TestCase):
         self.assertEqual(solicitud.uso_cfdi, 'G03')
 
 
+class RegimenFiscalFallbackMoralTest(TestCase):
+    """
+    616 ("Sin obligaciones fiscales") es un régimen exclusivo de persona
+    física — usarlo como fallback también para una persona moral sin
+    régimen capturado produciría un CFDI inválido. El fallback debe
+    depender de `tipo_persona`.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user('u2', password='x')
+
+    def test_moral_sin_regimen_cae_en_601_no_en_616(self):
+        cliente = Cliente.objects.create(
+            nombre='Empresa Sin Régimen SA', es_cliente_fiscal=True,
+            tipo_persona='MORAL', rfc='ABC010101AB1',
+            razon_social='EMPRESA SIN RÉGIMEN SA DE CV', regimen_fiscal='',
+        )
+        cot = _crear_cotizacion(cliente, Decimal('11600.00'))
+        pago = Pago.objects.create(
+            cotizacion=cot, monto=Decimal('11600.00'),
+            metodo='TRANSFERENCIA', usuario=self.user,
+        )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        self.assertEqual(solicitud.regimen_fiscal, '601')
+
+    def test_fisica_sin_regimen_sigue_cayendo_en_616(self):
+        cliente = Cliente.objects.create(
+            nombre='Persona Física', es_cliente_fiscal=True,
+            tipo_persona='FISICA', rfc='XEXX010101AB1',
+            razon_social='PERSONA FÍSICA', regimen_fiscal='',
+        )
+        cot = _crear_cotizacion(cliente, Decimal('11600.00'))
+        pago = Pago.objects.create(
+            cotizacion=cot, monto=Decimal('11600.00'),
+            metodo='TRANSFERENCIA', usuario=self.user,
+        )
+        solicitud = SolicitudFactura.objects.get(pago=pago)
+        self.assertEqual(solicitud.regimen_fiscal, '616')
+
+
 class MarcarCanceladasAdminAccionTest(TestCase):
     """SEC-BIZ-002: cancelar solicitudes desde el admin exige un segundo
     POST con 'confirmar=si' — un solo POST directo no las cancela."""

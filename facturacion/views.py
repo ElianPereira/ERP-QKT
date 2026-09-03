@@ -45,6 +45,14 @@ def crear_solicitud(request):
             cliente.regimen_fiscal = regimen_fiscal
             cliente.uso_cfdi = uso_cfdi
             cliente.es_cliente_fiscal = True
+            # Este formulario nunca pidió "¿física o moral?" — se infiere de
+            # la longitud del RFC (regla del SAT) para que la retención de
+            # ISR de abajo (`con_retencion_isr=cliente.tipo_persona ==
+            # 'MORAL'`) no dependa de que alguien haya marcado el tipo de
+            # persona a mano en el admin antes de generar la solicitud.
+            tipo_detectado = impuestos.tipo_persona_por_rfc(rfc)
+            if tipo_detectado:
+                cliente.tipo_persona = tipo_detectado
             cliente.save()
 
             # 2. Creamos la solicitud en BD (con su propia copia de los datos

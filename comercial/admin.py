@@ -11,6 +11,7 @@ from django.urls import NoReverseMatch, path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, mark_safe
 
+from core_erp import impuestos
 from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
 
@@ -407,7 +408,8 @@ class ProductoAdmin(admin.ModelAdmin):
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'tipo_persona', 'es_cliente_fiscal', 'rfc', 'email', 'telefono')
+    list_display = ('nombre', 'tipo_persona', 'alerta_tipo_persona', 'es_cliente_fiscal',
+                    'rfc', 'email', 'telefono')
     list_filter = ('tipo_persona', 'es_cliente_fiscal', 'origen')
     search_fields = ('nombre', 'rfc', 'razon_social')
     fieldsets = (
@@ -415,6 +417,25 @@ class ClienteAdmin(admin.ModelAdmin):
         ('Datos Fiscales', {'fields': ('es_cliente_fiscal', 'tipo_persona', 'rfc', 'razon_social', 'codigo_postal_fiscal', 'regimen_fiscal', 'uso_cfdi')}),
     )
     readonly_fields = ('fecha_registro',)
+
+    def alerta_tipo_persona(self, obj):
+        """
+        No bloquea el guardado (un dato ya capturado no debe impedir editar
+        otra cosa del cliente): solo avisa cuando la longitud del RFC —regla
+        del SAT, no interpretación— no coincide con el tipo de persona
+        marcado, para que quien concilia fiscalmente lo note sin tener que
+        auditar RFC por RFC.
+        """
+        esperado = impuestos.tipo_persona_por_rfc(obj.rfc)
+        if esperado and esperado != obj.tipo_persona:
+            return format_html(
+                '<span style="color:#c62828;" title="RFC de {} caracteres, '
+                'típico de persona {}">⚠ revisar</span>',
+                len((obj.rfc or '').strip()), esperado.lower(),
+            )
+        return ''
+    alerta_tipo_persona.short_description = 'Tipo vs. RFC'
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']

@@ -143,6 +143,113 @@ class ImportadorCSVPagosTest(TestCase):
         self.assertEqual(resumen['sin_cambios'], ['HM001'])
         self.assertEqual(resumen['actualizados'], [])
 
+    def test_extension_de_estancia_no_fusiona_dos_payouts_del_mismo_codigo(self):
+        """
+        Airbnb reutiliza el código de reserva cuando el huésped extiende la
+        estancia, pero es un cobro nuevo con su propio payout (fecha propia,
+        depósito bancario propio). Antes se agrupaba solo por código y los
+        dos cobros se sumaban en un único registro: el contador no podía
+        facturar por separado lo que el estado de cuenta trae como dos
+        abonos distintos.
+        """
+        resumen = self._importar([
+            self._fila_reserva(codigo='HM001', monto='2000.00', brutos='2000.00',
+                               tarifa='0.00', fecha_pago='08/08/2026'),
+            self._fila_reserva(codigo='HM001', monto='1000.00', brutos='1000.00',
+                               tarifa='0.00', fecha_pago='08/11/2026'),
+        ])
+        self.assertEqual(len(resumen['creados']), 2)
+        pagos = list(
+            PagoAirbnb.objects.filter(codigo_confirmacion='HM001').order_by('fecha_pago')
+        )
+        self.assertEqual(len(pagos), 2)
+        self.assertEqual(pagos[0].fecha_pago, date(2026, 8, 8))
+        self.assertEqual(pagos[0].monto_neto, Decimal('2000.00'))
+        self.assertEqual(pagos[1].fecha_pago, date(2026, 8, 11))
+        self.assertEqual(pagos[1].monto_neto, Decimal('1000.00'))
+
+    def test_reimportar_extension_actualiza_su_propio_payout_no_el_otro(self):
+        """Reimportar el CSV debe seguir siendo idempotente por cobro, no por código."""
+        self._importar([
+            self._fila_reserva(codigo='HM001', monto='2000.00', brutos='2000.00',
+                               tarifa='0.00', fecha_pago='08/08/2026'),
+            self._fila_reserva(codigo='HM001', monto='1000.00', brutos='1000.00',
+                               tarifa='0.00', fecha_pago='08/11/2026'),
+        ])
+        resumen = self._importar([
+            self._fila_reserva(codigo='HM001', monto='2000.00', brutos='2000.00',
+                               tarifa='0.00', fecha_pago='08/08/2026'),
+            self._fila_reserva(codigo='HM001', monto='1500.00', brutos='1500.00',
+                               tarifa='0.00', fecha_pago='08/11/2026'),
+        ])
+        self.assertEqual(PagoAirbnb.objects.filter(codigo_confirmacion='HM001').count(), 2)
+        self.assertEqual(len(resumen['actualizados']), 1)
+        self.assertEqual(len(resumen['sin_cambios']), 1)
+        self.assertEqual(
+            PagoAirbnb.objects.get(codigo_confirmacion='HM001',
+                                   fecha_pago=date(2026, 8, 11)).monto_neto,
+            Decimal('1500.00'),
+        )
+        self.assertEqual(
+            PagoAirbnb.objects.get(codigo_confirmacion='HM001',
+                                   fecha_pago=date(2026, 8, 8)).monto_neto,
+            Decimal('2000.00'),
+        )
+
+    def test_reversion_en_csv_posterior_se_aplica_al_mismo_pago(self):
+        """
+        Caso real: Airbnb deposita el pago y semanas después cancela la
+        reserva, revirtiendo el cargo en el CSV de OTRO mes —sin la fila
+        "Reservación" original, que ya se importó antes—. El ajuste debe
+        caer sobre el mismo registro (para que la póliza de reversión salga
+        de la póliza original), no crear un pago nuevo sin historia.
+        """
+        self._importar([
+            self._fila_reserva(codigo='HM001', monto='2296.61', brutos='2747.81',
+                               tarifa='523.39', fecha_pago='08/15/2026'),
+            '08/15/2026,Impuestos liquidados como anfitrión,HM001,Ana López,Casa Miel,'
+            '09/05/2026,09/08/2026,3,451.20,0.00,0.00\n',
+            '08/15/2026,Retención del impuesto sobre la renta para México,HM001,'
+            'Ana López,Casa Miel,09/05/2026,09/08/2026,3,-112.80,0.00,0.00\n',
+            '08/15/2026,Retención del IVA en México,HM001,Ana López,Casa Miel,'
+            '09/05/2026,09/08/2026,3,-225.60,0.00,0.00\n',
+        ])
+        pago = PagoAirbnb.objects.get(codigo_confirmacion='HM001')
+        self.assertEqual(pago.monto_neto, Decimal('2409.41'))
+        pk_original = pago.pk
+
+        resumen = self._importar([
+            '08/17/2026,Ajuste de impuestos remitidos como anfitrión,HM001,'
+            'Ana López,Casa Miel,09/05/2026,09/08/2026,3,-451.20,0.00,0.00\n',
+            '08/17/2026,Ajuste,HM001,Ana López,Casa Miel,'
+            '09/05/2026,09/08/2026,3,-2296.61,-523.39,0.00\n',
+            '08/17/2026,Revocación de la retención del impuesto sobre la renta '
+            'para México,HM001,Ana López,Casa Miel,09/05/2026,09/08/2026,3,'
+            '112.80,0.00,0.00\n',
+            '08/17/2026,Revocación de la retención del IVA para México,HM001,'
+            'Ana López,Casa Miel,09/05/2026,09/08/2026,3,225.60,0.00,0.00\n',
+        ])
+
+        self.assertEqual(resumen['errores'], [])
+        self.assertEqual(PagoAirbnb.objects.filter(codigo_confirmacion='HM001').count(), 1)
+        pago.refresh_from_db()
+        self.assertEqual(pago.pk, pk_original)
+        self.assertEqual(pago.monto_neto, Decimal('0.00'))
+        self.assertEqual(pago.estado, 'REEMBOLSADO')
+        # El cargo original no se reescribe: la cancelación se ve como un
+        # descuadre a propósito, no se maquilla recalculando el histórico.
+        self.assertFalse(pago.cuadra)
+
+    def test_ajuste_sin_pago_previo_se_reporta_como_error(self):
+        """Un ajuste huérfano (sin cargo original importado) no debe crear nada."""
+        resumen = self._importar([
+            '08/17/2026,Ajuste,HM999,Ana López,Casa Miel,'
+            '09/05/2026,09/08/2026,3,-100.00,0.00,0.00\n',
+        ])
+        self.assertEqual(len(resumen['errores']), 1)
+        self.assertIn('HM999', resumen['errores'][0])
+        self.assertEqual(PagoAirbnb.objects.count(), 0)
+
     def test_no_pisa_un_pago_capturado_a_mano(self):
         self._importar([self._fila_reserva()])
         pago = PagoAirbnb.objects.get(codigo_confirmacion='HM001')
