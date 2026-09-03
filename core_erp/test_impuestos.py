@@ -109,3 +109,25 @@ class DesgloseTest(TestCase):
     def test_desglose_rechaza_float(self):
         with self.assertRaises(TypeError):
             imp.desglosar(1000.0)
+
+
+class TipoPersonaPorRfcTest(TestCase):
+    """
+    Regla del SAT usada para detectar automáticamente si un cliente que
+    entra por el cotizador público (que nunca pregunta "¿física o moral?")
+    es una persona moral, a partir de la longitud de su RFC.
+    """
+
+    def test_doce_caracteres_es_moral(self):
+        self.assertEqual(imp.tipo_persona_por_rfc('ABC010101AB1'), 'MORAL')
+
+    def test_trece_caracteres_es_fisica(self):
+        self.assertEqual(imp.tipo_persona_por_rfc('XAXX010101000'), 'FISICA')
+
+    def test_longitud_invalida_no_adivina(self):
+        self.assertIsNone(imp.tipo_persona_por_rfc('ABC123'))
+        self.assertIsNone(imp.tipo_persona_por_rfc(''))
+        self.assertIsNone(imp.tipo_persona_por_rfc(None))
+
+    def test_ignora_espacios_y_minusculas(self):
+        self.assertEqual(imp.tipo_persona_por_rfc(' abc010101ab1 '), 'MORAL')

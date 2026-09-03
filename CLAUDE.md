@@ -83,6 +83,47 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-03 — Detección automática de persona moral en el cotizador
+  público (pregunta directa del propietario: "¿estamos preparados para
+  personas morales?"). El modelo `Cliente` ya tenía todo lo necesario
+  (`tipo_persona`, régimen fiscal con catálogo completo incluyendo
+  601/603/626, y `Cotizacion.calcular_totales()` ya aplicaba la retención
+  de ISR cuando `tipo_persona == 'MORAL'`), pero **ningún flujo
+  cliente-facing lo capturaba**: el cotizador público pedía RFC/razón
+  social/CP fiscal pero nunca preguntaba física/moral, así que todo
+  cliente que entraba por ahí quedaba en 'FISICA' (el default del campo)
+  aunque subiera un RFC de 12 caracteres de empresa — sin retención de
+  ISR, sin que nadie lo notara. Fix: `core_erp/impuestos.py::
+  tipo_persona_por_rfc()` (función nueva, fuente única) infiere
+  FISICA/MORAL de la longitud del RFC —regla del SAT, no una convención
+  del ERP: 12 caracteres = moral, 13 = física—, sin agregar ninguna
+  pregunta nueva al formulario público (cero fricción extra). Se aplica en
+  dos puntos: `cotizador_enviar` (el formulario público) y
+  `facturacion/views.py::crear_solicitud` (el formulario interno que usa
+  el staff para generar una solicitud de factura, que tampoco lo
+  preguntaba). **Segundo hueco encontrado al reanalizar, no solo el
+  reportado**: el fallback de régimen fiscal en
+  `facturacion/signals.py::crear_solicitud_factura_desde_pago` (cuando el
+  cliente no trae régimen capturado) caía siempre en `616` ("Sin
+  obligaciones fiscales") — ese régimen es **exclusivo de persona
+  física**, así que una persona moral sin régimen capturado habría
+  generado un CFDI inválido. Ahora el fallback depende de `tipo_persona`:
+  `601` (General de Ley Personas Morales) para moral, `616` sin cambio
+  para física. **Tercero**: badge no bloqueante en `ClienteAdmin`
+  (`alerta_tipo_persona`) que avisa cuando la longitud del RFC no coincide
+  con el tipo de persona marcado a mano — no impide guardar (un dato ya
+  capturado no debe bloquear editar otra cosa del cliente), solo hace
+  visible el mismatch en el listado para quien concilia fiscalmente. No se
+  tocó el flujo de admin manual (`ClienteAdmin` sigue dejando a
+  `tipo_persona` como campo editable normal): la detección automática es
+  para los flujos que nunca preguntan, no para sobreescribir el criterio
+  de alguien que ya lo corrigió a mano — verificado con test dedicado
+  (`test_no_pisa_un_tipo_de_persona_ya_corregido_a_mano`). Tests nuevos en
+  `core_erp/test_impuestos.py::TipoPersonaPorRfcTest`,
+  `comercial/test_persona_moral_cotizador.py` (E2E: RFC de 12 caracteres
+  en el cotizador termina con retención de ISR calculada en la cotización
+  creada) y `facturacion/tests.py::RegimenFiscalFallbackMoralTest`. Suite
+  completa: 860/860 verdes.
 - 2026-08-31 — Reversión de un pago de Airbnb por cancelación (seguimiento
   directo del punto anterior: el propietario reportó que la reserva
   `HMKDEJR33E` se canceló, Airbnb ya había hecho el abono pero tiene

@@ -31,6 +31,7 @@ from django.views.decorators.http import require_http_methods
 from core_erp import impuestos
 from core_erp.horarios import formato_hora_ampm
 from core_erp.ratelimit import rate_limit
+from facturacion.choices import RegimenFiscal
 
 from .forms_cotizador import TIPO_EVENTO_CHOICES, CotizadorEnviarForm
 from .models import Cliente, Cotizacion, ItemCotizacion, PortalCliente, Producto
@@ -357,7 +358,27 @@ def cotizador_enviar(request):
             cliente.razon_social = razon_social[:200]
         if cp_fiscal:
             cliente.codigo_postal_fiscal = cp_fiscal[:5]
-        cliente.save(update_fields=['es_cliente_fiscal', 'rfc', 'razon_social', 'codigo_postal_fiscal'])
+        # El cotizador público nunca pregunta "¿física o moral?" — la
+        # longitud del RFC (regla del SAT) es la señal fiable, no algo que
+        # dependa de que el visitante lo sepa marcar. Sin esto todo cliente
+        # que entra por aquí se quedaba en 'FISICA' (el default del campo),
+        # así que una empresa nunca disparaba la retención de ISR que le
+        # corresponde en `Cotizacion.calcular_totales()`.
+        tipo_detectado = impuestos.tipo_persona_por_rfc(cliente.rfc)
+        campos_actualizados = ['es_cliente_fiscal', 'rfc', 'razon_social', 'codigo_postal_fiscal']
+        if tipo_detectado and cliente.tipo_persona != tipo_detectado:
+            cliente.tipo_persona = tipo_detectado
+            if (tipo_detectado == 'MORAL'
+                    and cliente.regimen_fiscal in (None, '', RegimenFiscal.SIN_OBLIGACIONES_FISCALES)):
+                # El régimen 616 ("Sin obligaciones fiscales") es exclusivo
+                # de persona física — dejarlo así en una persona moral
+                # produciría un CFDI inválido. 601 (General de Ley Personas
+                # Morales) es el régimen real más común; el contador lo
+                # corrige en el admin si la empresa tributa distinto.
+                cliente.regimen_fiscal = RegimenFiscal.GRAL_LEY_PERSONAS_MORALES
+                campos_actualizados.append('regimen_fiscal')
+            campos_actualizados.append('tipo_persona')
+        cliente.save(update_fields=campos_actualizados)
 
     # ── Nombre del evento ──────────────────────────────────────────────────────────────
     if servicio == 'EVENTO':

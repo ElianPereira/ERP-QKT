@@ -48,7 +48,14 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         rfc = cliente.rfc
         razon_social = cliente.razon_social
         codigo_postal = cliente.codigo_postal_fiscal or '97238'
-        regimen_fiscal = cliente.regimen_fiscal or '616'
+        # 616 ("Sin obligaciones fiscales") es exclusivo de persona física —
+        # dejarlo como fallback también para una persona moral produciría un
+        # CFDI inválido. 601 (General de Ley Personas Morales) es el régimen
+        # real más común para una empresa; el contador lo corrige si tributa
+        # distinto.
+        regimen_fiscal = cliente.regimen_fiscal or (
+            '601' if cliente.tipo_persona == 'MORAL' else '616'
+        )
         uso_cfdi = cliente.uso_cfdi or 'G03'
     else:
         rfc = 'XAXX010101000'

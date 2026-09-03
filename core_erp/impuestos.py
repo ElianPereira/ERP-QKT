@@ -40,6 +40,7 @@ partir de las tasas en vez de como constante mágica.
 """
 
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Optional
 
 # --- Tasas -----------------------------------------------------------------
 
@@ -127,6 +128,24 @@ def sin_iva(total) -> Decimal:
 def ret_isr_de(base) -> Decimal:
     """Retención de ISR (RESICO) sobre una base. Solo aplica a persona moral."""
     return centavos(_exigir_decimal(base, 'base') * TASA_RET_ISR_RESICO)
+
+
+def tipo_persona_por_rfc(rfc: str) -> Optional[str]:
+    """
+    Deduce 'FISICA'/'MORAL' de la longitud del RFC — regla del SAT, no una
+    convención de este ERP: persona moral = 12 caracteres (3 letras + 6
+    dígitos + homoclave), persona física = 13 (4 letras + 6 dígitos +
+    homoclave). Devuelve `None` ante un RFC vacío o de longitud inválida,
+    para no adivinar sobre un dato incompleto — quien llama decide qué
+    hacer con `None` (típicamente: no tocar el tipo de persona ya
+    guardado).
+    """
+    rfc = (rfc or '').strip().upper()
+    if len(rfc) == 12:
+        return 'MORAL'
+    if len(rfc) == 13:
+        return 'FISICA'
+    return None
 
 
 def total_desde_bases(bases) -> Decimal:
