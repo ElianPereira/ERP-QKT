@@ -42,11 +42,13 @@
             <div class="mensaje">{% block descripcion %}Inténtalo de nuevo en unos minutos.{% endblock %}</div>
 
             <div class="acciones">
-                {# Fijo a quintakooxtanil.com, no "/" relativo: esta página también
-                   se sirve en el subdominio erp.* (panel interno), donde "/" hace
-                   redirect a /admin/ (ver comercial/views_portal.py::landing_publico).
-                   Un cliente que caiga aquí desde un enlace roto no debe terminar
-                   viendo la pantalla de login del ERP. #}
+                {% comment %}
+                Fijo a quintakooxtanil.com, no "/" relativo: esta página también
+                se sirve en el subdominio erp.* (panel interno), donde "/" hace
+                redirect a /admin/ (ver comercial/views_portal.py::landing_publico).
+                Un cliente que caiga aquí desde un enlace roto no debe terminar
+                viendo la pantalla de login del ERP.
+                {% endcomment %}
                 <a href="https://quintakooxtanil.com/" class="btn btn-primary">Ir al inicio</a>
                 <a href="https://wa.me/529994457178" target="_blank" class="btn btn-secundario">Escríbenos por WhatsApp</a>
             </div>
