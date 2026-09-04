@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "plan",
+    "defaultMode": "acceptEdits",
     "allow": [
       "Bash(git:*)",
       "Bash(gh pr create:*)",
@@ -20,9 +20,10 @@
       "Bash(git push origin master:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
-      "Edit(**/payments/**)",
+      "Edit(**/comercial/views_openpay.py)",
+      "Edit(**/comercial/services_openpay.py)",
       "Edit(**/legal/**)",
-      "Edit(**/accounting/services.py)"
+      "Edit(**/contabilidad/services.py)"
     ]
   }
 }

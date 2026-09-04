@@ -64,7 +64,7 @@
 Toda sugerencia estratégica se entrega como documento en `/docs/` — nunca se implementa directo.
 
 ## 5. Watchlist Activa (revisar en cada rutina)
-- [ ] Horario pasadía hardcodeado "10am–7pm" → corregir a "11am–7pm".
+- [x] ~~Horario pasadía hardcodeado "10am–7pm"~~ — verificado en sesión: ya no existe en el código actual (`comercial/views_cotizador.py` usa 11:00 a.m.–7:00 p.m.). Ver detalle en `CLAUDE.md`.
 - [ ] Precios sin IVA incluido en cualquier vista nueva.
 - [ ] Régimen fiscal (RESICO vs. arrendamiento) sin confirmar → no tocar factor de retención 1.1475.
 - [ ] Migración Cloudinary → DigitalOcean Spaces (pendiente).
@@ -79,7 +79,7 @@ Estas dos rutinas se implementan como **Routines** de Claude Code (`claude.ai/co
 
 **Archivos a colocar en la raíz del repo (versionar en git):**
 - `CLAUDE.md` — contexto del proyecto, estándares y watchlist. Se lee automático en cada corrida.
-- `.claude/settings.json` — copiar `settings.json`. Bloquea `curl`/`wget`/`migrate`/push directo a `main` o `master`/force-push, y edición en `payments/`, `legal/`, `accounting/services.py`. Permite push de ramas nuevas para que el Routine pueda abrir su Pull Request.
+- `.claude/settings.json` — copiar `settings.json`. Bloquea `curl`/`wget`/`migrate`/push directo a `main` o `master`/force-push, y edición en `comercial/views_openpay.py`, `comercial/services_openpay.py` (pagos), `legal/` y `contabilidad/services.py` (rutas reales de este repo — no existen carpetas `payments/` ni `accounting/`). Permite push de ramas nuevas para que el Routine pueda abrir su Pull Request.
 
 **Routine 1 — QKT Rutina Técnica**
 - Modelo: Sonnet 5
@@ -90,8 +90,8 @@ Estas dos rutinas se implementan como **Routines** de Claude Code (`claude.ai/co
 Ejecuta la Rutina Técnica: revisa el git diff de los últimos 3 commits. Reporta solo (1) N+1 o
 queries ineficientes, (2) cualquier float en cálculos monetarios, (3) deuda técnica crítica. Si hay
 corrección clara y de bajo riesgo, crea rama opt/mejora-<fecha> con el fix y tests, y abre un Pull
-Request contra main. Nunca hagas merge directo ni edites payments/, legal/ o accounting/services.py.
-Sin teoría, solo hallazgos y código.
+Request contra main. Nunca hagas merge directo ni edites comercial/views_openpay.py,
+comercial/services_openpay.py, legal/ o contabilidad/services.py. Sin teoría, solo hallazgos y código.
 ```
 
 **Routine 2 — QKT Rutina Operativa/Contable**
