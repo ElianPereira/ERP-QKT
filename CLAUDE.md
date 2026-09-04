@@ -20,6 +20,31 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
   estilo ya existente en el repo (mezcla ES/EN, no lo normalices).
 - No hagas `commit`/`push` sin que se pida explícitamente.
 
+## Contexto del negocio
+
+- **Negocio**: Quinta Ko'ox Tanil (QKT), Umán, Yucatán — eventos, pasadía,
+  hospedaje corto (Ka'an, Otoch, Honey Sea House). Unidades de negocio:
+  QUINTA, PASADÍA, AIRBNB.
+- **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
+  `clientes.quintakooxtanil.com` (portal cliente, Railway),
+  `quintakooxtanil.com` (landing pública, Cloudflare Pages).
+- **Cuentas bancarias**: BBVA Maestra PYME → QUINTA / BBVA Libretón Básico →
+  AIRBNB (corte día 14). No mezclar movimientos de una unidad con la cuenta
+  de la otra al conciliar o reportar.
+
+## Estándares de código (obligatorio, sin excepción)
+
+- `Decimal` + `ROUND_HALF_UP` en todo cálculo monetario — `float` en una
+  ruta de dinero es bug crítico, no sugerencia (ver `core_erp/impuestos.py`
+  como fuente única del IVA, ya referenciada abajo).
+- Modelos de auditoría: soft-deactivation, nunca `DELETE` físico (mismo
+  criterio que las pólizas de `contabilidad`, ver Memoria 2026-08-15).
+- `created_by`/`updated_by`/`created_at`/`updated_at` en toda operación
+  sensible (ventas, cancelaciones, ajustes de precio/inventario).
+- IVA: conversión única sobre el subtotal, nunca por línea (tolerancia SAT
+  PAC ±0.01/concepto).
+- Precios visibles al consumidor siempre IVA incluido (LFPC Art. 7 BIS).
+
 ## Contexto técnico
 
 **Stack**: Django 6 · PostgreSQL (prod, Railway) / SQLite (dev) · admin
@@ -75,6 +100,60 @@ rápido) antes de implementar — no se inventa a discreción.
 Para cambios chicos/acotados, implementar directo sigue siendo válido, como
 ya se ha hecho varias veces (ver Memoria) — el Issue es una herramienta para
 cuando el tamaño del cambio la justifica, no un trámite obligatorio.
+
+## Reglas para Claude Code Routines (sesiones automatizadas, sin supervisión)
+
+Además de todo lo anterior, este repo tiene dos **Routines** programadas
+(`claude.ai/code/routines`) que corren sin nadie mirando y sin pausa de
+aprobación — el detalle completo (prompts disparadores, frecuencia, modelo)
+vive en `docs/agente_instrucciones_erp.md`. `.claude/settings.json` es el
+control real para ellas (allow/deny de comandos y edición), no solo esta
+sección; ambos deben coincidir en qué está permitido.
+
+**Zonas restringidas — nunca editar sin aprobación humana explícita**
+(rutas reales del repo, no genéricas):
+- `comercial/views_openpay.py`, `comercial/services_openpay.py` — lógica de
+  pagos (Openpay). Mismo criterio que ya aplican los hooks de
+  `.claude/settings.json` sobre estos dos archivos.
+- `legal/` — documentos legales, consentimientos, ARCO.
+- `contabilidad/services.py` — cálculo/desglose de impuestos.
+- Cualquier migración de schema o dato en producción.
+
+**Permitido sin aprobación (solo análisis/bajo riesgo):**
+- Lectura total del repo y esquema de BD (no datos vivos sensibles), logs
+  no productivos.
+- Tests, linters, `makemigrations --check`, análisis estático.
+- Crear ramas/PRs con fixes de performance, tests o lint.
+
+**Requiere aprobación explícita antes de tocar código:**
+- Lógica de precios, impuestos (IVA/ISH), descuentos o pagos (Openpay).
+- Migraciones de datos o cambios de schema.
+- Documentos legales o modelos de consentimiento/auditoría.
+- `DELETE` físico o modificación de registros inmutables.
+
+**Nunca autorizado, ni con aprobación en el prompt:**
+- Merge a `main`/`master` — toda entrega es Pull Request para revisión
+  humana, igual que ya aplica al resto de este archivo.
+- Migraciones o deploys en producción.
+- Exponer datos sensibles (financieros, personales) en logs o respuestas.
+
+Toda sugerencia estratégica (la Rutina Operativa/Contable) se entrega como
+documento en `/docs/` vía Pull Request — nunca se implementa directo.
+
+## Watchlist activa (revisar en cada Rutina)
+- [x] ~~Horario pasadía hardcodeado "10am–7pm"~~ — verificado en sesión: ya
+  no existe en el código actual (`HORA_INICIO_PASADIA=11:00` en
+  `comercial/views_cotizador.py` y "11:00 a.m. — 7:00 p.m." en el template
+  del cotizador). Se deja tachado en vez de borrado para no perder el
+  historial de que se revisó y no era un bug real.
+- [ ] Precios sin IVA incluido en cualquier vista nueva.
+- [ ] Régimen fiscal (RESICO vs. arrendamiento) sin confirmar → no tocar
+  factor de retención 1.1475.
+- [ ] Migración Cloudinary → DigitalOcean Spaces (pendiente).
+- [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
+- [ ] Registro PROFECO NOM-174 pendiente.
+- [ ] ISH Airbnb sin resolver.
+- [ ] Módulo de depósito en garantía ausente.
 
 ## Memoria
 
