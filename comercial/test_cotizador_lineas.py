@@ -176,7 +176,7 @@ class BusquedaSinAcentosTest(TestCase):
         vigente = Producto.objects.create(
             nombre='Estancia de día', precio_venta_fijo=Decimal('1293.10'),
             visible_cotizador=True, cotizador_pasadia=True,
-            rol_cotizador='BASE_PASADIA',
+            rol_cotizador='BASE_PASADIA_BASICO',
         )
         lineas = _lineas_cotizador(
             servicio='PASADIA', paquete_id=None, extras_ids=[],
@@ -341,6 +341,120 @@ class PersonaExtraPasadiaTest(TestCase):
         from core_erp import impuestos
         base = Decimal(str(self.persona_extra.sugerencia_precio()))
         self.assertEqual(impuestos.con_iva(base), Decimal('180.00'))
+
+
+@wa_settings()
+class NivelPasadiaTest(TestCase):
+    """Toggle Básico/Premium de Pasadía (pedido directo del propietario,
+    2026-09-03): dos productos fijos por rol_cotizador, Básico por default,
+    y Premium reemplaza —no se suma a— el cargo de persona extra (21-30),
+    porque su precio fijo ya incluye ese mobiliario."""
+
+    def setUp(self):
+        limpiar_cache_emisor()
+        cache.clear()
+        self.basico = Producto.objects.create(
+            nombre='Pasadía Básico', precio_venta_fijo=Decimal('1724.14'),
+            visible_cotizador=False, cotizador_pasadia=True,
+            rol_cotizador='BASE_PASADIA_BASICO',
+        )
+        self.premium = Producto.objects.create(
+            nombre='Pasadía Premium', precio_venta_fijo=Decimal('2586.21'),
+            visible_cotizador=False, cotizador_pasadia=True,
+            rol_cotizador='BASE_PASADIA_PREMIUM',
+        )
+        self.persona_extra = Producto.objects.create(
+            nombre='Persona Extra Pasadía', precio_venta_fijo=Decimal('155.17'),
+            visible_cotizador=False, rol_cotizador='PERSONA_EXTRA_PASADIA',
+        )
+
+    def test_default_es_basico(self):
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=15, horas_evento=9,
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [self.basico])
+
+    def test_premium_elegido_usa_el_producto_premium(self):
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=15, horas_evento=9, nivel_pasadia='PREMIUM',
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [self.premium])
+
+    def test_premium_no_duplica_el_cargo_de_persona_extra(self):
+        # Premium ya incluye mobiliario para las 10 personas extra (21-30)
+        # en su precio fijo — el cargo aparte no debe aparecer, aunque el
+        # producto de recargo sí exista en el catálogo.
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=27, horas_evento=9, nivel_pasadia='PREMIUM',
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [self.premium])
+
+    def test_basico_si_cobra_el_cargo_de_persona_extra(self):
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=27, horas_evento=9, nivel_pasadia='BASICO',
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [self.basico, self.persona_extra])
+        self.assertEqual(lineas[1][1], 7)
+
+    def test_premium_sin_configurar_cae_a_basico(self):
+        # Instalación donde el owner todavía no dio de alta el producto
+        # Premium: la cotización no debe quedarse sin línea base.
+        self.premium.delete()
+        lineas = _lineas_cotizador(
+            servicio='PASADIA', paquete_id=None, extras_ids=[],
+            num_personas=15, horas_evento=9, nivel_pasadia='PREMIUM',
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [self.basico])
+
+    def test_api_productos_expone_los_dos_precios_con_iva(self):
+        from core_erp import impuestos
+        respuesta = self.client.get(
+            reverse('api_productos_cotizador'), {'servicio': 'PASADIA'},
+        )
+        datos = respuesta.json()
+        self.assertEqual(
+            datos['nivel_pasadia_basico_precio'],
+            str(impuestos.con_iva(Decimal(str(self.basico.sugerencia_precio())))),
+        )
+        self.assertEqual(
+            datos['nivel_pasadia_premium_precio'],
+            str(impuestos.con_iva(Decimal(str(self.premium.sugerencia_precio())))),
+        )
+
+    def test_api_productos_no_ofrece_premium_sin_configurar(self):
+        self.premium.delete()
+        respuesta = self.client.get(
+            reverse('api_productos_cotizador'), {'servicio': 'PASADIA'},
+        )
+        self.assertIsNone(respuesta.json()['nivel_pasadia_premium_precio'])
+
+    def test_api_total_cotizador_respeta_el_nivel_elegido(self):
+        respuesta = self.client.get(
+            reverse('api_total_cotizador'),
+            {'servicio': 'PASADIA', 'personas': '15', 'nivel_pasadia': 'PREMIUM'},
+        )
+        self.assertEqual(respuesta.json()['total'], '3000.00')
+
+    def test_cotizador_enviar_crea_la_cotizacion_con_premium(self):
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()), \
+             patch('comunicacion.services.numero_emisor_wa', return_value='5215555550003'):
+            respuesta = self.client.post(
+                reverse('cotizador_enviar'),
+                data=json.dumps(_payload(
+                    servicio='PASADIA', personas='27', nivel_pasadia='PREMIUM',
+                )),
+                content_type='application/json',
+            )
+        self.assertEqual(respuesta.status_code, 200)
+        cotizacion = Cotizacion.objects.latest('id')
+        self.assertEqual(
+            [item.producto for item in cotizacion.items.all()], [self.premium],
+        )
+        self.assertEqual(cotizacion.precio_final, Decimal('3000.00'))
 
 
 class CotizacionCreadaConLineasTest(TestCase):

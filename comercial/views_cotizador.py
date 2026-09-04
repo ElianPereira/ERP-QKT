@@ -202,6 +202,13 @@ def cotizador_enviar(request):
     # forman parte de CotizadorEnviarForm porque son una lista de ids libre.
     habitaciones_ids_raw = data.get('habitaciones_ids', [])
 
+    # Nivel del toggle Básico/Premium (solo PASADIA) — no forma parte de
+    # CotizadorEnviarForm por el mismo motivo que paquete_id: la validación
+    # real (si el nivel elegido existe de verdad) vive en _lineas_cotizador.
+    nivel_pasadia = str(data.get('nivel_pasadia') or 'BASICO').upper()
+    if nivel_pasadia not in ('BASICO', 'PREMIUM'):
+        nivel_pasadia = 'BASICO'
+
     # Consentimiento (art. 8 LFPDPPP): el aviso y los términos ya se validaron
     # como obligatorios en CotizadorEnviarForm.clean(); las finalidades
     # secundarias son opcionales y se registran por separado.
@@ -444,6 +451,7 @@ def cotizador_enviar(request):
         tipo_ev=tipo_ev,
         noches=noches or 1,
         habitaciones_ids=habitaciones_ids,
+        nivel_pasadia=nivel_pasadia,
     )
     for prod, qty, desc in lineas:
         _agregar_item(cotizacion, prod, qty, desc)
@@ -647,11 +655,23 @@ def api_productos_cotizador(request):
             if prod_extra else None
         )
 
+        # Precios de los dos niveles del toggle Básico/Premium. `None` cuando
+        # el producto todavía no existe en el catálogo — el frontend no debe
+        # ofrecer un nivel sin precio real que mostrar (mismo criterio que
+        # precio_persona_extra arriba).
+        def _precio_nivel(rol):
+            prod = Producto.objects.filter(rol_cotizador=rol).first()
+            return str(impuestos.con_iva(Decimal(str(prod.sugerencia_precio())))) if prod else None
+
+        respuesta['nivel_pasadia_basico_precio'] = _precio_nivel('BASE_PASADIA_BASICO')
+        respuesta['nivel_pasadia_premium_precio'] = _precio_nivel('BASE_PASADIA_PREMIUM')
+
     return JsonResponse(respuesta)
 
 
 def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_evento,
-                      tipo_ev='Evento General', noches=1, habitaciones_ids=None):
+                      tipo_ev='Evento General', noches=1, habitaciones_ids=None,
+                      nivel_pasadia='BASICO'):
     """
     Lista de (producto, cantidad, descripcion) que compone una cotización del
     cotizador público.
@@ -684,17 +704,30 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
                            f"{base.nombre} — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)"))
 
     elif servicio == 'PASADIA':
-        base = _producto_por_rol('BASE_PASADIA', 'Paquete Pasadía', 'Pasadia')
+        # Dos niveles fijos (toggle en el paso 2, no el grid de "elige tu
+        # paquete" que usan Evento/Arrendamiento): Básico es el default y
+        # Premium solo se usa si el cliente lo eligió Y el producto ya está
+        # configurado — si no, se cae a Básico en vez de dejar la cotización
+        # sin línea base (mismo criterio que el resto de `_producto_por_rol`).
+        es_premium = str(nivel_pasadia).upper() == 'PREMIUM'
+        base = _producto_por_rol('BASE_PASADIA_PREMIUM') if es_premium else None
+        if not base:
+            es_premium = False
+            base = _producto_por_rol('BASE_PASADIA_BASICO', 'Paquete Pasadía', 'Pasadia')
+        tope_incluido = 30 if es_premium else 20
         if base:
             lineas.append((base, 1,
-                           f"{base.nombre} ({min(num_personas, 20)} Pax, {HORA_INICIO_PASADIA:%H:%M}"
+                           f"{base.nombre} ({min(num_personas, tope_incluido)} Pax, {HORA_INICIO_PASADIA:%H:%M}"
                            f"-{HORA_FIN_PASADIA:%H:%M})"))
 
         # Aforo ampliado (21-30, Reglamento Interno v1.2 sección 4): las
         # primeras 20 personas están incluidas en la tarifa base, cada
         # persona adicional se cobra aparte e incluye su mobiliario
         # correspondiente — no se crea una línea de mobiliario separada.
-        if num_personas > 20:
+        # Pasadía Premium ya trae ese mobiliario (para las 10 personas extra)
+        # incluido en su precio fijo, así que este cargo NO se duplica cuando
+        # el cliente eligió Premium.
+        if num_personas > 20 and not es_premium:
             extra_prod = _producto_por_rol('PERSONA_EXTRA_PASADIA', 'Persona Extra Pasadía')
             if extra_prod:
                 extra_qty = num_personas - 20
@@ -799,6 +832,9 @@ def api_total_cotizador(request):
     noches = max(NOCHES_HOSPEDAJE_MIN, min(_entero('noches', 1), NOCHES_HOSPEDAJE_MAX))
     habitaciones_ids = [int(x) for x in (request.GET.get('habitaciones') or '').split(',')
                         if x.strip().isdigit()]
+    nivel_pasadia = (request.GET.get('nivel_pasadia') or 'BASICO').upper()
+    if nivel_pasadia not in ('BASICO', 'PREMIUM'):
+        nivel_pasadia = 'BASICO'
 
     # Solo alimenta el texto del concepto que se exhibe; se acota a las mismas
     # opciones del formulario en vez de aceptar el texto libre de la query.
@@ -815,6 +851,7 @@ def api_total_cotizador(request):
         tipo_ev=tipo_ev,
         noches=noches,
         habitaciones_ids=habitaciones_ids,
+        nivel_pasadia=nivel_pasadia,
     )
     bases = [Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
              for prod, qty, _ in lineas]
