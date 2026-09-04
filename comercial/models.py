@@ -269,11 +269,13 @@ class RecetaSubProducto(models.Model):
 class Producto(models.Model):
     ROL_COTIZADOR_CHOICES = [
         ('BASE_EVENTO', 'Base — Evento (se agrega solo)'),
-        ('BASE_PASADIA', 'Base — Pasadía (se agrega solo)'),
+        ('BASE_PASADIA', 'Base — Pasadía (obsoleto, ver Básico/Premium)'),
+        ('BASE_PASADIA_BASICO', 'Base — Pasadía Básico (toggle, elegido por default)'),
+        ('BASE_PASADIA_PREMIUM', 'Base — Pasadía Premium (toggle)'),
         ('HORA_EXTRA', 'Hora extra de arrendamiento'),
         ('HABITACION_HOSPEDAJE', 'Habitación de Hospedaje (selección múltiple)'),
         ('PERSONA_EXTRA_HOSPEDAJE', 'Persona extra en Hospedaje (recargo por noche)'),
-        ('PERSONA_EXTRA_PASADIA', 'Persona extra en Pasadía (aforo ampliado 21-30, incluye mobiliario)'),
+        ('PERSONA_EXTRA_PASADIA', 'Persona extra en Pasadía (aforo ampliado 21-30, incluye mobiliario; NO aplica si el cliente eligió Premium)'),
     ]
 
     GRUPO_COTIZADOR_CHOICES = [

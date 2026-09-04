@@ -83,6 +83,88 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-04 — Pasadía Básico/Premium (pedido directo del propietario, sin
+  Issue previo — cambio acotado sobre un flujo ya existente). Toggle en el
+  paso 2 del cotizador, no el grid de "elige tu paquete" que usan Evento/
+  Arrendamiento — decisión explícita del propietario tras `AskUserQuestion`,
+  porque son solo 2 opciones cerradas, no un catálogo abierto. Contenido de
+  cada nivel es copy fijo del propietario, no calculado: **Básico**
+  ($2,000.00 IVA incluido) = uso de instalaciones + mesas/sillas para 20
+  personas + 1 habitación + brincolín; **Premium** ($3,000.00 IVA incluido)
+  = todo lo de Básico + mesas/sillas para 10 personas extra + 1 habitación
+  adicional + carrito de bolis (30 piezas, sabores surtidos) — "habitación"
+  aquí es uso diurno (confirmado con el propietario: Pasadía no pernocta),
+  así que no interactúa con la exclusividad de Hospedaje ni con las
+  habitaciones reales (`HABITACION_HOSPEDAJE`), es solo texto informativo.
+  Dos roles nuevos en `Producto.ROL_COTIZADOR_CHOICES` (migración `0080`,
+  solo metadata, no toca datos): `BASE_PASADIA_BASICO`/`BASE_PASADIA_PREMIUM`,
+  mismo patrón que `BASE_EVENTO`. `BASE_PASADIA` (el rol viejo, una sola
+  línea sin niveles) queda marcado obsoleto en el choices pero sin
+  migración de datos — `_lineas_cotizador()` ya no lo busca por rol, pero el
+  fallback por nombre a 'Paquete Pasadía'/'Pasadia' se conserva para
+  Básico, así que un producto viejo sin re-etiquetar sigue funcionando.
+  **Decisión de negocio confirmada explícitamente vía `AskUserQuestion`
+  antes de tocar código, no asumida a discreción por el impacto en
+  dinero**: Premium **reemplaza**, no se suma al cargo ya existente de
+  `PERSONA_EXTRA_PASADIA` (21-30, $180.00/persona, ver entrada del
+  2026-08-17/PR #267-#270 más abajo) — el precio fijo de Premium ya incluye
+  el mobiliario de esas 10 personas extra, así que cobrar también el cargo
+  por persona habría cobrado el mismo mobiliario dos veces; con Básico el
+  cargo sigue aplicando exactamente igual que antes. `_lineas_cotizador()`
+  lo resuelve con un solo flag (`es_premium`) que decide tanto qué producto
+  base agregar como si se salta la línea de persona extra.
+  **Precios capturados como precio final con IVA** (confirmado con el
+  propietario, no asumido): `precio_venta_fijo` en el admin es el monto
+  ANTES de IVA, así que se calculó con `impuestos.sin_iva()` para que el
+  redondeo cuadre exacto — Básico `1724.14` (→ $2,000.00 con IVA), Premium
+  `2586.21` (→ $3,000.00 con IVA), verificado con round-trip
+  (`con_iva(sin_iva(x)) == x`) antes de dárselos al propietario, mismo
+  criterio que ya se usó para `precio_venta_fijo=155.17` de
+  `PERSONA_EXTRA_PASADIA`. **Grácil si Premium no está configurado
+  todavía**: `api_productos_cotizador` devuelve
+  `nivel_pasadia_premium_precio: null` mientras el producto no exista, y el
+  botón "Premium" del toggle se queda oculto (mismo criterio que
+  `precio_persona_extra`) — el cliente nunca ve un nivel sin precio real;
+  `_lineas_cotizador` cae a Básico en ese caso en vez de dejar la
+  cotización sin línea base. **Pendiente del propietario, sin lo cual el
+  toggle no cobra nada real**: dar de alta los dos productos en
+  `/admin/comercial/producto/agregar/` con los `precio_venta_fijo` de
+  arriba y el rol correspondiente. Verificado con Playwright contra
+  `runserver` real: toggle visual en ambos estados, precios $2,000.00/
+  $3,000.00 exactos, el aviso de persona extra cambia de advertencia
+  amarilla (Básico) a confirmación verde "ya incluido" (Premium) al mover
+  el slider sobre 20, y el envío real (`cotizador_enviar`) crea la
+  `Cotizacion` con un solo ítem `Pasadía Premium` y `precio_final=
+  $3,000.00` aunque el cliente indique 27 personas. Tests nuevos en
+  `comercial/test_cotizador_lineas.py::NivelPasadiaTest` (11) más 1
+  corregido en `BusquedaSinAcentosTest` (usaba el rol viejo `BASE_PASADIA`
+  en un caso que ahora requiere `BASE_PASADIA_BASICO`, se habría roto con
+  el cambio). Suite completa de `comercial` corrida tras el cambio:
+  409/409 verdes.
+- 2026-09-03 — Cotizador (PR #272): título del hero dinámico por servicio +
+  corrige una regresión del default de personas en Pasadía. Reportado por
+  el propietario: el título "Cotiza tu evento" se quedaba fijo sin importar
+  el servicio elegido, y el slider de personas en Pasadía volvía a saltar a
+  30 en vez de 20 al abrir el paso. **(1)** `actualizarPanelSegunServicio()`
+  ahora actualiza el `<em id="hero-servicio">` del `<h1>` (evento/pasadía/
+  arrendamiento/hospedaje) cada vez que cambia `servicioSel` — antes
+  quedaba fijo en "evento" en las seis pantallas del flujo. **(2)** El PR
+  #269 (mismo día) ya había corregido que el slider entrara en 20 en vez de
+  saltar al tope; el PR #270 ("aforo ampliado a 30"), armado en paralelo
+  sin partir de esa rama, reintrodujo el mismo bug al fusionarse:
+  `slider.value = v > 30 ? 30 : ...` en vez de `v > 20 ? 20 : ...` — el
+  clamp usaba el TOPE (30) como default en vez del aforo base sin costo
+  extra (20). Revertido de vuelta a `v > 20 ? 20`; el tope de 30 sigue
+  disponible moviendo el slider a mano, momento en que sí aparece el aviso
+  de cargo extra. Lección operativa: dos PRs tocando la misma función en
+  paralelo, sin que uno partiera de la rama del otro, pisó un fix ya
+  mergeado sin que nadie lo notara hasta que el propietario lo probó en
+  vivo — vale la pena revisar el diff completo de una función antes de
+  mergear un PR que la toca, no solo el fragmento que ese PR pretende
+  cambiar. Verificado con Playwright contra `runserver` real: título
+  correcto para los 4 servicios, Pasadía entra en 20 sin aviso, y el aviso
+  aparece al mover el slider a 25.
+
 - 2026-09-03 — Detección automática de persona moral en el cotizador
   público (pregunta directa del propietario: "¿estamos preparados para
   personas morales?"). El modelo `Cliente` ya tenía todo lo necesario

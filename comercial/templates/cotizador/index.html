@@ -242,6 +242,15 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .factura-fields{display:none;padding:1rem;background:#fafaf8;border:1px solid var(--borde);border-radius:6px;margin-bottom:1.4rem;}
 .factura-fields.visible{display:block;}
 
+/* Toggle Básico/Premium (Pasadía) */
+.nivel-pasadia-toggle{display:flex;border:1px solid var(--borde);border-radius:10px;overflow:hidden;}
+.nivel-pasadia-toggle .nivel-btn{flex:1;padding:.9rem .6rem;background:var(--blanco);border:none;cursor:pointer;text-align:center;font-family:inherit;color:var(--texto-s);transition:background .15s,color .15s;}
+.nivel-pasadia-toggle .nivel-btn+.nivel-btn{border-left:1px solid var(--borde);}
+.nivel-pasadia-toggle .nivel-btn.active{background:var(--verde);color:var(--blanco);}
+.nivel-pasadia-toggle .nivel-btn .nivel-nombre{display:block;font-weight:600;font-size:.88rem;}
+.nivel-pasadia-toggle .nivel-btn .nivel-precio{display:block;font-size:.76rem;margin-top:.15rem;opacity:.85;}
+.nivel-pasadia-desc{font-size:.76rem;color:var(--texto-s);font-weight:300;margin-top:.6rem;line-height:1.5;}
+
 /* Medio de captación */
 .medio-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.3rem;}
 .medio-chip{
@@ -402,6 +411,19 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
         <span>Check-in <b>2:00 p.m.</b></span>
         <span>Check-out <b id="checkout-txt">10:00 a.m.</b></span>
       </div>
+    </div>
+
+    <div class="campo panel-condicional" id="blq-nivel-pasadia">
+      <label>Nivel de tu Pasadía</label>
+      <div class="nivel-pasadia-toggle">
+        <button type="button" class="nivel-btn active" id="nivel-btn-basico" onclick="selNivelPasadia('BASICO')">
+          <span class="nivel-nombre">Básico</span><span class="nivel-precio" id="nivel-precio-basico"></span>
+        </button>
+        <button type="button" class="nivel-btn" id="nivel-btn-premium" onclick="selNivelPasadia('PREMIUM')" style="display:none;">
+          <span class="nivel-nombre">Premium</span><span class="nivel-precio" id="nivel-precio-premium"></span>
+        </button>
+      </div>
+      <p class="nivel-pasadia-desc" id="nivel-pasadia-desc"></p>
     </div>
 
     <div class="campo" id="blq-personas">
@@ -625,6 +647,9 @@ let selectedHabitaciones = new Set();
 let habitacionesData = [];
 let precioPersonaExtraHospedaje = null;
 let precioPersonaExtraPasadia = null;
+let nivelPasadiaSel = 'BASICO';
+let precioNivelBasicoPasadia = null;
+let precioNivelPremiumPasadia = null;
 let noches = 1;
 let pasoActual = 1;
 const totalPasos = 6;
@@ -694,6 +719,7 @@ function actualizarPanelSegunServicio() {
   toggle('blq-tipo-evento', esEvento);
   toggle('blq-horario', esEvento);
   toggle('blq-noches', esHospedaje);
+  toggle('blq-nivel-pasadia', esPasadia);
 
   document.getElementById('hero-servicio').textContent =
     esPasadia ? 'pasadía' : esArr ? 'arrendamiento' : esHospedaje ? 'hospedaje' : 'evento';
@@ -799,7 +825,7 @@ function configurarPaso3() {
     pathGrid.style.display = 'none';
     titulo.innerHTML = 'Agrega <em>extras</em>';
     sub.textContent = 'Tu pasadía ya está incluida. Lo de abajo es opcional.';
-    mostrarNotaBase('Tu cotización ya incluye el Paquete Pasadía QKT: uso de la quinta de 11:00 a.m. a 7:00 p.m.');
+    actualizarNotaPasadia();
     caminoSel = 'personalizado';
     subPer.style.display = 'block';
     cargarExtrasPersonalizado();
@@ -1022,6 +1048,20 @@ function actualizarAvisoPersonaExtraPasadia() {
     aviso.style.display = 'none';
     return;
   }
+  // Pasadía Premium ya incluye mobiliario para las 10 personas extra (21-30)
+  // dentro de su precio fijo — mismo criterio que el backend en
+  // _lineas_cotizador, que por eso no agrega el cargo aparte en este caso.
+  if (nivelPasadiaSel === 'PREMIUM') {
+    aviso.style.background = '#E8F5E9';
+    aviso.style.borderLeftColor = 'var(--verde)';
+    aviso.style.color = 'var(--verde-d)';
+    aviso.innerHTML = '✓ Tu Pasadía Premium ya incluye mobiliario para hasta 30 personas, sin costo adicional.';
+    aviso.style.display = 'block';
+    return;
+  }
+  aviso.style.background = '#FFF3CD';
+  aviso.style.borderLeftColor = '#F5C518';
+  aviso.style.color = '#664d03';
   var texto = '⚠️ Aforo base: <b>20</b> personas incluidas. Elegiste <b>' + personas + '</b>: las <b>'
     + extra + '</b> persona' + (extra !== 1 ? 's' : '') + ' extra';
   if (precioPersonaExtraPasadia) {
@@ -1034,6 +1074,51 @@ function actualizarAvisoPersonaExtraPasadia() {
   }
   aviso.innerHTML = texto;
   aviso.style.display = 'block';
+}
+
+// Toggle Básico/Premium de Pasadía: los precios vienen de api_productos_
+// cotizador (con_iva ya aplicado, mismo criterio que el resto del
+// cotizador); el texto de "qué incluye" es copy fijo del propietario, no
+// depende del servidor.
+var NIVEL_PASADIA_DESC = {
+  BASICO: 'Uso de instalaciones, mesas y sillas para 20 personas, 1 habitación y brincolín.',
+  PREMIUM: 'Todo lo de Básico, más mesas y sillas para 10 personas extra, 1 habitación adicional '
+    + 'y carrito de bolis (30 piezas, sabores surtidos).',
+};
+
+function actualizarNivelPasadiaUI() {
+  var btnB = document.getElementById('nivel-btn-basico');
+  var btnP = document.getElementById('nivel-btn-premium');
+  if (!btnB || !btnP) return;
+  document.getElementById('nivel-precio-basico').textContent =
+    precioNivelBasicoPasadia ? fmtMXN(precioNivelBasicoPasadia) : '';
+  document.getElementById('nivel-precio-premium').textContent =
+    precioNivelPremiumPasadia ? fmtMXN(precioNivelPremiumPasadia) : '';
+  // Sin Premium configurado en el catálogo todavía, no se ofrece como
+  // opción — mismo criterio que precio_persona_extra: nada que anunciar,
+  // nada que el backend vaya a cobrar.
+  btnP.style.display = precioNivelPremiumPasadia ? '' : 'none';
+  if (!precioNivelPremiumPasadia) nivelPasadiaSel = 'BASICO';
+  btnB.classList.toggle('active', nivelPasadiaSel === 'BASICO');
+  btnP.classList.toggle('active', nivelPasadiaSel === 'PREMIUM');
+  actualizarNotaPasadia();
+}
+
+function actualizarNotaPasadia() {
+  var desc = document.getElementById('nivel-pasadia-desc');
+  if (desc) desc.textContent = NIVEL_PASADIA_DESC[nivelPasadiaSel] || '';
+  if (servicioSel === 'PASADIA') {
+    mostrarNotaBase('Tu cotización ya incluye Pasadía ' + (nivelPasadiaSel === 'PREMIUM' ? 'Premium' : 'Básico')
+      + ': uso de la quinta de 11:00 a.m. a 7:00 p.m. — ' + (NIVEL_PASADIA_DESC[nivelPasadiaSel] || ''));
+  }
+}
+
+function selNivelPasadia(val) {
+  if (val === 'PREMIUM' && !precioNivelPremiumPasadia) return;
+  nivelPasadiaSel = val;
+  actualizarNivelPasadiaUI();
+  actualizarAvisoPersonaExtraPasadia();
+  cargarTotal();
 }
 
 // El precio por noche que da la API ya incluye IVA (mismo criterio que
@@ -1070,6 +1155,10 @@ async function cargarExtras(servicio, targetId) {
     if (data.ok && data.grupos.length) renderizarExtras(data.grupos, targetId);
     if (servicio === 'PASADIA') {
       precioPersonaExtraPasadia = (data.ok && data.precio_persona_extra) || null;
+      precioNivelBasicoPasadia = (data.ok && data.nivel_pasadia_basico_precio) || null;
+      precioNivelPremiumPasadia = (data.ok && data.nivel_pasadia_premium_precio) || null;
+      nivelPasadiaSel = 'BASICO'; // Toda selección fresca de Pasadía arranca en Básico.
+      actualizarNivelPasadiaUI();
       actualizarAvisoPersonaExtraPasadia();
     }
   } catch(e) { /* silencioso */ }
@@ -1450,6 +1539,7 @@ async function cargarTotal() {
   });
   if (paqueteSel) params.set('paquete', paqueteSel);
   if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
+  if (servicioSel === 'PASADIA') params.set('nivel_pasadia', nivelPasadiaSel);
   if (servicioSel === 'HOSPEDAJE') {
     params.set('noches', String(noches));
     if (selectedHabitaciones.size) params.set('habitaciones', Array.from(selectedHabitaciones).join(','));
@@ -1524,6 +1614,7 @@ async function enviarSolicitud() {
     noches:         servicioSel === 'HOSPEDAJE' ? String(noches) : '',
     habitaciones_ids: servicioSel === 'HOSPEDAJE' ? Array.from(selectedHabitaciones) : [],
     paquete_id:     paqueteSel,
+    nivel_pasadia:  servicioSel === 'PASADIA' ? nivelPasadiaSel : '',
     requiere_factura: requiereFactura,
     acepta_legales: true,
     finalidades:    finalidades,
