@@ -1116,6 +1116,16 @@ function actualizarNotaPasadia() {
 function selNivelPasadia(val) {
   if (val === 'PREMIUM' && !precioNivelPremiumPasadia) return;
   nivelPasadiaSel = val;
+  // El precio de cada nivel es fijo sin importar cuántos de los incluidos
+  // asista el cliente, así que el slider salta al tope de ese nivel al
+  // elegirlo (30 en Premium, 20 en Básico) — deja explícito hasta cuántas
+  // personas cubre, en vez de quedarse en el valor del nivel anterior.
+  var slider = document.getElementById('personas');
+  if (slider) {
+    var nuevoValor = val === 'PREMIUM' ? 30 : 20;
+    slider.value = nuevoValor;
+    actualizarPersonas(nuevoValor);
+  }
   actualizarNivelPasadiaUI();
   actualizarAvisoPersonaExtraPasadia();
   cargarTotal();
