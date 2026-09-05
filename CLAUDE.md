@@ -543,6 +543,46 @@ salvo que queden obsoletas.
   usado en `carga_masiva_imagenes.html` (selects de insumo/proporción por
   categoría de barra, agrupados por `GRUPO_CONFIG`) y se quitó la exclusión
   del test.
+- 2026-08-26 — Tres incidentes de producción encadenados, todos gatillados
+  por la corrección de `DEBUG=True → False` de la entrada anterior (cada
+  uno solo se manifestó al desactivarse `DEBUG`, que hasta entonces
+  enmascaraba las tres cosas): **(1)** El sitio quedó en `ERR_TOO_MANY_
+  REDIRECTS` — Railway termina TLS en su borde y reenvía al contenedor por
+  HTTP plano marcando `X-Forwarded-Proto: https`; sin `SECURE_PROXY_
+  SSL_HEADER`, Django nunca reconoce la petición como segura y
+  `SECURE_SSL_REDIRECT=True` (activo solo con `DEBUG=False`) entra en loop
+  infinito. Fix: `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO',
+  'https')` en el bloque `if not DEBUG:` de `settings.py` (PR #254).
+  Reproducido y verificado directo contra `SecurityMiddleware.
+  process_request`: sin la cabecera, `is_secure()` da `False` y redirige;
+  con ella, `True` y no redirige. **(2)** Ya sin el loop, el sitio cargaba
+  pero sin CSS ni imágenes — logs de Railway mostraban `UserWarning: No
+  directory at: /app/staticfiles/` y 404 en cada `/static/*`. Causa real:
+  `RUN python manage.py collectstatic --noinput 2>/dev/null || true` en el
+  `Dockerfile` **truena en cada build** porque `settings.py` exige
+  `SECRET_KEY` sin default (a propósito) y esa variable no llega al build
+  de Railway — el `|| true` tragaba el fallo en silencio desde que se
+  escribió el Dockerfile, probablemente sin que ningún build hubiera
+  generado `staticfiles/` jamás. Fix (PR #255): un placeholder de
+  `SECRET_KEY` **inline en el mismo `RUN`** (no un `ENV`/`ARG`, que sí
+  persistiría en el historial de capas de la imagen) y se quita el
+  `|| true`, para que un fallo real de `collectstatic` rompa el build en
+  vez de esconderse otra vez. Reproducido el error exacto
+  (`decouple.UndefinedValueError: SECRET_KEY not found`) y confirmado que
+  el comando del Dockerfile sin el placeholder falla con exit code 1.
+  **(3)** Con el logo y el CSS ya sirviendo, un cliente que caía en un
+  404/500 en el subdominio `erp.quintakooxtanil.com` (el panel interno) y
+  le daba a "Ir al inicio" terminaba viendo la pantalla de login del ERP:
+  `comercial/views_portal.py::landing_publico()` redirige `/` a `/admin/`
+  a propósito en ese subdominio, y el botón de las páginas de error usaba
+  `href="/"` relativo. Fix (PR #256): el botón fija
+  `https://quintakooxtanil.com/` en vez de depender del subdominio donde
+  se sirvió el error — no es una fuga de datos (no se puede entrar sin
+  credenciales), pero exponía innecesariamente la puerta del panel interno
+  a un cliente. Los tres diagnósticos salieron de capturas y logs reales
+  del propietario en la misma conversación, no de sospecha — cada fix se
+  verificó reproduciendo el mecanismo exacto del bug antes de escribirlo,
+  no solo el síntoma.
 - 2026-08-25 — El cron de recordatorios al contador (`enviar_recordatorios_
   contador`) ahora también reintenta las solicitudes `PENDIENTE` (pedido
   directo del propietario tras dudar si el cron cubría ese caso). Antes esas
