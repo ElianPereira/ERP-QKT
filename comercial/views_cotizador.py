@@ -23,6 +23,7 @@ from datetime import time as dt_time
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -34,8 +35,23 @@ from core_erp.ratelimit import rate_limit
 from facturacion.choices import RegimenFiscal
 
 from .forms_cotizador import TIPO_EVENTO_CHOICES, CotizadorEnviarForm
-from .models import Cliente, Cotizacion, ItemCotizacion, PortalCliente, Producto
+from .models import (
+    Cliente,
+    ConfiguracionEventoCotizacion,
+    Cotizacion,
+    ItemCotizacion,
+    PortalCliente,
+    Producto,
+)
+from .reglas_eventos import (
+    MAX_PERSONAS_EVENTO,
+    MIN_PERSONAS_PAQUETE,
+    MODALIDAD_PAQUETE,
+    personas_validas_paquete,
+    redondear_personas_paquete,
+)
 from .roles_cotizador import normalizar as _normalizar
+from .services_eventos import catalogo_para_cotizador, lineas_evento, resolver_seleccion
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +318,38 @@ def cotizador_enviar(request):
         num_raw = 50
     num_personas = _redondear_personas(num_raw, servicio)
 
+    # ── Catálogo cerrado de Eventos ─────────────────────────────────────────────────────
+    # Solo se activa si la solicitud trae `modalidad`; sin ella, Evento sigue
+    # por el camino de siempre (ver `_lineas_cotizador`).
+    seleccion_evento = None
+    if servicio == 'EVENTO' and data.get('modalidad'):
+        seleccion_evento = resolver_seleccion(data)
+
+        if num_raw > MAX_PERSONAS_EVENTO:
+            # Tope duro, sin ruta alterna: no se recorta la solicitud a 100 en
+            # silencio, porque el cliente pidió un evento que no operamos.
+            return JsonResponse({'ok': False, 'errores': [
+                f"No ofrecemos eventos de más de {MAX_PERSONAS_EVENTO} personas. "
+                "Escríbenos si necesitas algo distinto y lo vemos contigo."
+            ]}, status=400)
+
+        num_personas = (redondear_personas_paquete(num_raw)
+                        if seleccion_evento['modalidad'] == MODALIDAD_PAQUETE else num_raw)
+
+        # Se valida ANTES de crear Cliente/Cotización: una combinación
+        # rechazada no debe dejar una cotización huérfana en BORRADOR. La
+        # instancia es de memoria, nunca se guarda — mismo patrón que el
+        # simulador de pagos del admin.
+        campos = {k: v for k, v in seleccion_evento.items() if k != 'extras'}
+        previa = ConfiguracionEventoCotizacion(
+            cotizacion=Cotizacion(num_personas=num_personas), **campos,
+        )
+        try:
+            previa.full_clean(exclude=['cotizacion'], validate_unique=False)
+            previa.validar_extras(seleccion_evento['extras'])
+        except ValidationError as exc:
+            return JsonResponse({'ok': False, 'errores': list(exc.messages)}, status=400)
+
     # ── Habitaciones (solo HOSPEDAJE) ────────────────────────────────────────────────────
     # No hay línea base automática como en Evento/Pasadía: el cliente elige
     # una o varias habitaciones reales del catálogo. Sin al menos una, no hay
@@ -431,6 +479,16 @@ def cotizador_enviar(request):
     )
     cotizacion.save()
 
+    # ── Selección del catálogo de Eventos ────────────────────────────────────────────────
+    # Ya validada arriba; aquí solo se persiste, junto a la cotización que
+    # describe. Guarda qué eligió el cliente, no cuánto costó: eso vive en los
+    # ItemCotizacion, que son el snapshot inmutable del precio.
+    if seleccion_evento is not None:
+        config_evento = ConfiguracionEventoCotizacion.objects.create(
+            cotizacion=cotizacion,
+            **{k: v for k, v in seleccion_evento.items() if k != 'extras'},
+        )
+        config_evento.extras.set(seleccion_evento['extras'])
 
     # ── Paquete seleccionado (si aplica) ─────────────────────────────────────────────────────────
     # La validación real del paquete la hace _lineas_cotizador(); aquí solo se
@@ -452,6 +510,7 @@ def cotizador_enviar(request):
         noches=noches or 1,
         habitaciones_ids=habitaciones_ids,
         nivel_pasadia=nivel_pasadia,
+        seleccion_evento=seleccion_evento,
     )
     for prod, qty, desc in lineas:
         _agregar_item(cotizacion, prod, qty, desc)
@@ -671,7 +730,7 @@ def api_productos_cotizador(request):
 
 def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_evento,
                       tipo_ev='Evento General', noches=1, habitaciones_ids=None,
-                      nivel_pasadia='BASICO'):
+                      nivel_pasadia='BASICO', seleccion_evento=None):
     """
     Lista de (producto, cantidad, descripcion) que compone una cotización del
     cotizador público.
@@ -681,11 +740,20 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     exhibe el total al cliente antes de enviar). Si las dos calcularan la
     lista por separado, el total exhibido podría quedar por debajo del
     cobrado, que es justo lo que prohíbe el art. 7 BIS de la LFPC.
+
+    `seleccion_evento` activa el catálogo cerrado de Eventos (paquete Esencial/
+    QKT, mobiliario, licor, taquiza, extras). Cuando llega, manda por completo:
+    `paquete_id` y `extras_ids` —el catálogo abierto de siempre— se ignoran,
+    porque las opciones cerradas ya incluyen todo lo cotizable y admitir las
+    dos vías a la vez dejaría cobrar el mismo concepto dos veces. Mientras el
+    frontend nuevo no exista, las solicitudes de Evento siguen llegando sin
+    este parámetro y el camino de siempre se conserva intacto.
     """
     lineas = []
+    usa_catalogo_eventos = servicio == 'EVENTO' and seleccion_evento is not None
 
     paquete = None
-    if paquete_id and str(paquete_id).isdigit():
+    if not usa_catalogo_eventos and paquete_id and str(paquete_id).isdigit():
         paquete = Producto.objects.filter(
             id=int(paquete_id), es_paquete=True, visible_cotizador=True,
         ).first()
@@ -693,7 +761,16 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     # Línea base del servicio: el arrendamiento de la quinta, que va SIEMPRE.
     # Un paquete prediseñado ya lo lleva dentro, así que ahí no se agrega
     # aparte (se cobraría dos veces).
-    if paquete:
+    if usa_catalogo_eventos:
+        # El arrendamiento del espacio va en las DOS modalidades: es lo único
+        # que se cobra en "solo arrendamiento" y la base que el paquete hereda.
+        base = _producto_por_rol('BASE_EVENTO', 'Paquete Esencial')
+        if base:
+            lineas.append((base, 1,
+                           f"{base.nombre} — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)"))
+        lineas += lineas_evento(num_personas=num_personas, **seleccion_evento)
+
+    elif paquete:
         lineas.append((paquete, 1,
                        f"{paquete.nombre} ({num_personas} Pax, {horas_evento}hrs)"))
 
@@ -781,7 +858,7 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
             lineas.append((prod, extra,
                            f"Horas Extra de Arrendamiento ({extra} hrs adicionales)"))
 
-    if extras_ids:
+    if extras_ids and not usa_catalogo_eventos:
         # Las líneas base nunca son elegibles como extra (ver
         # `api_productos_cotizador`), pero se vuelve a filtrar aquí: los ids
         # llegan del cliente y nada impide mandar uno a mano.
@@ -842,6 +919,25 @@ def api_total_cotizador(request):
     if tipo_ev not in dict(TIPO_EVENTO_CHOICES):
         tipo_ev = 'Evento General'
 
+    # Mismo criterio que `cotizador_enviar`: el catálogo cerrado solo se activa
+    # si la petición trae `modalidad`, y entonces el aforo se ajusta con sus
+    # reglas en vez de las del camino viejo.
+    seleccion_evento = None
+    if servicio == 'EVENTO' and request.GET.get('modalidad'):
+        seleccion_evento = resolver_seleccion({
+            'modalidad': request.GET.get('modalidad'),
+            'paquete_evento_id': request.GET.get('paquete_evento'),
+            'mobiliario_id': request.GET.get('mobiliario'),
+            'incluir_licores': request.GET.get('incluir_licores') in ('1', 'true', 'True'),
+            'nivel_licor_id': request.GET.get('nivel_licor'),
+            'combo_taquiza_id': request.GET.get('combo_taquiza'),
+            'extras_evento_ids': [x for x in (request.GET.get('extras_evento') or '').split(',')
+                                  if x.strip().isdigit()],
+        })
+        num_personas = min(num_personas, MAX_PERSONAS_EVENTO)
+        if seleccion_evento['modalidad'] == MODALIDAD_PAQUETE:
+            num_personas = redondear_personas_paquete(num_personas)
+
     lineas = _lineas_cotizador(
         servicio=servicio,
         paquete_id=request.GET.get('paquete'),
@@ -852,6 +948,7 @@ def api_total_cotizador(request):
         noches=noches,
         habitaciones_ids=habitaciones_ids,
         nivel_pasadia=nivel_pasadia,
+        seleccion_evento=seleccion_evento,
     )
     bases = [Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
              for prod, qty, _ in lineas]
@@ -867,6 +964,35 @@ def api_total_cotizador(request):
         # Qué incluye el total, para que el cliente vea la línea base que el
         # cotizador agrega solo y no solo los extras que él marcó.
         'conceptos': [desc or prod.nombre for prod, _, desc in lineas],
+        # Aforo realmente cotizado: en modalidad de paquete el servidor sube al
+        # siguiente tramo de 10, y el cliente tiene que ver ese número, no el
+        # que escribió.
+        'personas': num_personas,
+    })
+
+
+@rate_limit(key='api_catalogo_eventos', limit=60, window=60)
+def api_catalogo_eventos(request):
+    """GET /api/cotizador/eventos/?personas=N
+
+    Opciones cerradas del cotizador de Eventos (paquetes, mobiliario, niveles
+    de licor, combos de taquiza y extras), ya valorizadas para ese aforo y con
+    IVA incluido. Una opción sin productos asignados en el admin viaja con
+    `sin_configurar: True` para que el frontend no la ofrezca.
+    """
+    try:
+        personas = int(request.GET.get('personas', MIN_PERSONAS_PAQUETE))
+    except (TypeError, ValueError):
+        personas = MIN_PERSONAS_PAQUETE
+    personas = max(1, min(personas, MAX_PERSONAS_EVENTO))
+
+    return JsonResponse({
+        'ok': True,
+        'personas': personas,
+        'max_personas': MAX_PERSONAS_EVENTO,
+        'min_personas_paquete': MIN_PERSONAS_PAQUETE,
+        'aforos_paquete': personas_validas_paquete(),
+        **catalogo_para_cotizador(personas),
     })
 
 

@@ -1956,3 +1956,9 @@ class OpenpayTransaccionAdmin(admin.ModelAdmin):
             level=messages.SUCCESS,
         )
     borrar_transacciones_de_prueba.short_description = "Borrar transacción de prueba (y su Pago/póliza)"
+
+
+# El admin de la capa de asignación del cotizador de Eventos vive en su propio
+# módulo (este archivo ya pasa de las 1.900 líneas); Django solo autodescubre
+# `admin.py`, así que se importa aquí para que se registre.
+from . import admin_eventos  # noqa: E402, F401
