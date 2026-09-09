@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     shared-mime-info \
     libcairo2 \
+    fonts-liberation \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.lock .
@@ -30,10 +32,18 @@ RUN SECRET_KEY=build-only-placeholder-nunca-usado-en-runtime python manage.py co
 
 # El proceso de la app corre sin privilegios: una RCE (WeasyPrint, un
 # parser de XML/Excel, lo que sea) no debería salir con root dentro del
-# contenedor. --system evita el UID/GID interactivo por defecto (con home,
-# shell, etc.) que no hace falta aquí. chown de /app completo porque
-# collectstatic y el checkout ya escribieron como root.
-RUN groupadd --system appuser && useradd --system --gid appuser --no-create-home appuser \
+# contenedor. chown de /app completo porque collectstatic y el checkout ya
+# escribieron como root.
+#
+# El home SÍ se crea (antes era --no-create-home). `useradd` deja
+# HOME=/home/appuser en /etc/passwd aunque no cree el directorio, así que sin
+# él todo lo que escribe en $HOME fallaba en producción: fontconfig no podía
+# cachear ("No writable cache directories" en cada arranque, re-escaneando las
+# fuentes en cada render de PDF) y el control server de gunicorn arrancaba con
+# "[Errno 13] Permission denied: '/home/appuser'". No es un home interactivo:
+# no hay shell de login, solo un directorio escribible para caches.
+RUN groupadd --system appuser \
+    && useradd --system --gid appuser --create-home --home-dir /home/appuser appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
