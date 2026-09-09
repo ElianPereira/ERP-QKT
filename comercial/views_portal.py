@@ -201,6 +201,7 @@ def portal_evento(request, token):
     saldo_pendiente = cotizacion.saldo_pendiente()
     porcentaje = cotizacion.porcentaje_pagado
     monto_minimo, monto_minimo_motivo = cotizacion.monto_minimo_pago_detalle()
+    admite_pago, admite_pago_motivo = cotizacion.admite_pago_detalle()
 
     # Número público de contacto para los enlaces wa.me que ve el cliente.
     # Es el de atención, distinto del emisor de la Cloud API y distinto del
@@ -234,6 +235,11 @@ def portal_evento(request, token):
         'monto_minimo_pago': monto_minimo,
         'monto_minimo_pago_motivo': monto_minimo_motivo,
         'identificacion_completa': cotizacion.identificacion_completa(),
+        # Una cotización cancelada o expirada ya no admite pagos: la tarjeta de
+        # checkout no se pinta, en vez de dejar al cliente intentar y comerse el
+        # rechazo del servidor. El gate real vive en `portal_procesar_pago_openpay`.
+        'admite_pago': admite_pago,
+        'admite_pago_motivo': admite_pago_motivo,
         # Catálogo de cadenas Paynet como JSON: el portal y la ficha PDF leen
         # la misma lista, así no se desincronizan.
         'tiendas_paynet': json.dumps([list(t) for t in TIENDAS_PAYNET]),

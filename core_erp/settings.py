@@ -455,6 +455,9 @@ JAZZMIN_SETTINGS = {
         "comercial.Descuento":              "fas fa-percentage",
         "comercial.DescuentoAplicado":      "fas fa-history",
         "comercial.Temporada":              "fas fa-calendar-week",
+        "comercial.GuiaTipoServicio":       "fas fa-book-open",
+        "comercial.CatalogoEvento":         "fas fa-swatchbook",
+        "comercial.ConfiguracionEventoCotizacion": "fas fa-sliders-h",
 
         # AIRBNB
         "airbnb":                           "fas fa-bed",
@@ -462,6 +465,7 @@ JAZZMIN_SETTINGS = {
         "airbnb.PagoAirbnb":               "fas fa-money-bill-wave",
         "airbnb.ConflictoCalendario":       "fas fa-exclamation-triangle",
         "airbnb.AnuncioAirbnb":             "fas fa-home",
+        "airbnb.DepositoConciliado":        "fas fa-check-double",
 
         # CONTABILIDAD
         "contabilidad":                     "fas fa-calculator",

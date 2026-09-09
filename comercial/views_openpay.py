@@ -127,6 +127,14 @@ def portal_procesar_pago_openpay(request, token):
     portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
 
+    # Va ANTES que cualquier otra validación: a una cotización cancelada o
+    # expirada no tiene sentido ni pedirle la identificación. El token del
+    # portal vive 90 días y no sabe nada del estado de la venta, así que este
+    # es el único punto donde se cierra.
+    admite, motivo = cotizacion.admite_pago_detalle()
+    if not admite:
+        return JsonResponse({'ok': False, 'mensaje': motivo})
+
     if not cotizacion.identificacion_completa():
         return JsonResponse({
             'ok': False,

@@ -17,13 +17,7 @@ from decimal import Decimal
 
 from core_erp import impuestos
 
-from .models import (
-    ComboTaquiza,
-    ExtraEvento,
-    NivelLicor,
-    PaqueteEvento,
-    TipoMobiliario,
-)
+from .models import CatalogoEvento
 from .reglas_eventos import MODALIDAD_ARRENDAMIENTO, MODALIDAD_PAQUETE
 
 logger = logging.getLogger(__name__)
@@ -53,22 +47,28 @@ def resolver_seleccion(datos):
     if modalidad not in (MODALIDAD_ARRENDAMIENTO, MODALIDAD_PAQUETE):
         modalidad = MODALIDAD_ARRENDAMIENTO
 
-    def _uno(modelo, clave):
+    def _uno(tipo, clave):
+        # El filtro por `tipo` no es cosmético: las cinco selecciones salen de la
+        # misma tabla, así que un id del tipo equivocado (a mano en el POST)
+        # entraría como si fuera válido. Se resuelve a None y la combinación la
+        # juzga `clean()`.
         valor = datos.get(clave)
         if not _id_valido(valor):
             return None
-        return modelo.objects.filter(id=int(valor), activo=True).first()
+        return CatalogoEvento.objects.filter(
+            id=int(valor), tipo=tipo, activo=True).first()
 
     extras_ids = [int(x) for x in (datos.get('extras_evento_ids') or []) if _id_valido(x)]
 
     return {
         'modalidad': modalidad,
-        'paquete': _uno(PaqueteEvento, 'paquete_evento_id'),
-        'tipo_mobiliario': _uno(TipoMobiliario, 'mobiliario_id'),
+        'paquete': _uno(CatalogoEvento.TIPO_PAQUETE, 'paquete_evento_id'),
+        'tipo_mobiliario': _uno(CatalogoEvento.TIPO_MOBILIARIO, 'mobiliario_id'),
         'incluir_licores': bool(datos.get('incluir_licores')),
-        'nivel_licor': _uno(NivelLicor, 'nivel_licor_id'),
-        'combo_taquiza': _uno(ComboTaquiza, 'combo_taquiza_id'),
-        'extras': list(ExtraEvento.objects.filter(id__in=extras_ids, activo=True)),
+        'nivel_licor': _uno(CatalogoEvento.TIPO_LICOR, 'nivel_licor_id'),
+        'combo_taquiza': _uno(CatalogoEvento.TIPO_TAQUIZA, 'combo_taquiza_id'),
+        'extras': list(CatalogoEvento.objects.filter(
+            id__in=extras_ids, tipo=CatalogoEvento.TIPO_EXTRA, activo=True)),
     }
 
 
@@ -79,11 +79,11 @@ def _lineas_de(asignaciones, num_personas, etiqueta):
         cantidad = asignacion.cantidad_para(num_personas)
         if cantidad <= 0:
             continue
-        lineas.append((
-            asignacion.producto,
-            cantidad,
-            f"{etiqueta} — {asignacion.producto.nombre}",
-        ))
+        # Un extra suele llamarse igual que su único producto ("Brincolín
+        # 4x4"), y repetirlo a los dos lados del guion se lee como un error.
+        nombre = asignacion.producto.nombre
+        descripcion = nombre if etiqueta == nombre else f"{etiqueta} — {nombre}"
+        lineas.append((asignacion.producto, cantidad, descripcion))
     return lineas
 
 
@@ -105,12 +105,15 @@ def lineas_evento(*, modalidad, paquete, tipo_mobiliario, incluir_licores, nivel
     lineas = []
 
     # Lo que el paquete incluye sin que el cliente lo elija (refrescos, servicio
-    # de mesa). Cada fila trae su propio concepto capturado en el admin.
-    for asignacion in _activas(paquete.productos_incluidos):
+    # de mesa). Cada fila trae su propio concepto capturado en el admin; si se
+    # dejó vacío se cae al nombre del paquete, que es mejor que una línea que
+    # empieza con un guion suelto.
+    for asignacion in _activas(paquete.productos):
         cantidad = asignacion.cantidad_para(num_personas)
         if cantidad > 0:
+            concepto = asignacion.concepto or paquete.nombre
             lineas.append((asignacion.producto, cantidad,
-                           f"{asignacion.concepto} — {asignacion.producto.nombre}"))
+                           f"{concepto} — {asignacion.producto.nombre}"))
 
     if tipo_mobiliario:
         lineas += _lineas_de(_activas(tipo_mobiliario.productos), num_personas,
@@ -124,10 +127,11 @@ def lineas_evento(*, modalidad, paquete, tipo_mobiliario, incluir_licores, nivel
         lineas += _lineas_de(_activas(combo_taquiza.productos), num_personas,
                              f"{CONCEPTO_TAQUIZA} {combo_taquiza.nombre}")
 
+    # Un extra ya no es una asignación en sí mismo: es una opción con sus
+    # productos, igual que el resto. Normalmente uno solo, pero nada impide un
+    # extra compuesto (carrito + operador) sin cambiar el schema.
     for extra in extras:
-        cantidad = extra.cantidad_para(num_personas)
-        if cantidad > 0:
-            lineas.append((extra.producto, cantidad, extra.nombre))
+        lineas += _lineas_de(_activas(extra.productos), num_personas, extra.nombre)
 
     if not lineas:
         # El catálogo existe pero nadie le asignó productos todavía: la
@@ -175,15 +179,17 @@ def catalogo_para_cotizador(num_personas):
     cobraría $0.00 (mismo criterio que el toggle de Pasadía Premium, que se
     oculta mientras su producto no exista).
     """
-    def _lista(queryset, relacion):
+    def _opciones_de(tipo):
         salida = []
-        for obj in queryset.filter(activo=True).order_by('orden', 'nombre'):
-            salida.append(_opcion(obj, num_personas, list(_activas(getattr(obj, relacion)))))
+        for obj in CatalogoEvento.objects.filter(tipo=tipo, activo=True).order_by(
+                'orden', 'nombre'):
+            salida.append(_opcion(obj, num_personas, list(_activas(obj.productos))))
         return salida
 
     paquetes = []
-    for paq in PaqueteEvento.objects.filter(activo=True).order_by('orden', 'nombre'):
-        datos = _opcion(paq, num_personas, list(_activas(paq.productos_incluidos)))
+    for paq in CatalogoEvento.objects.filter(
+            tipo=CatalogoEvento.TIPO_PAQUETE, activo=True).order_by('orden', 'nombre'):
+        datos = _opcion(paq, num_personas, list(_activas(paq.productos)))
         # Un paquete SIN productos incluidos es legítimo (Esencial solo lleva
         # mobiliario, que se elige aparte), así que aquí no significa "sin
         # configurar" como en el resto de las opciones.
@@ -197,24 +203,17 @@ def catalogo_para_cotizador(num_personas):
         paquetes.append(datos)
 
     extras = []
-    for extra in ExtraEvento.objects.filter(activo=True).select_related(
-            'producto').order_by('orden', 'nombre'):
-        base = Decimal(str(extra.producto.sugerencia_precio())) * extra.cantidad_para(num_personas)
-        extras.append({
-            'id': extra.id,
-            'codigo': extra.codigo,
-            'nombre': extra.nombre,
-            'descripcion': extra.descripcion_corta,
-            'precio': str(impuestos.con_iva(base)),
-            'capacidad_maxima_simultanea': extra.capacidad_maxima_simultanea,
-            'sin_configurar': False,
-        })
+    for extra in CatalogoEvento.objects.filter(
+            tipo=CatalogoEvento.TIPO_EXTRA, activo=True).order_by('orden', 'nombre'):
+        datos = _opcion(extra, num_personas, list(_activas(extra.productos)))
+        datos['capacidad_maxima_simultanea'] = extra.capacidad_maxima_simultanea
+        extras.append(datos)
 
     return {
         'paquetes': paquetes,
-        'mobiliario': _lista(TipoMobiliario.objects, 'productos'),
-        'niveles_licor': _lista(NivelLicor.objects, 'productos'),
-        'combos_taquiza': _lista(ComboTaquiza.objects, 'productos'),
+        'mobiliario': _opciones_de(CatalogoEvento.TIPO_MOBILIARIO),
+        'niveles_licor': _opciones_de(CatalogoEvento.TIPO_LICOR),
+        'combos_taquiza': _opciones_de(CatalogoEvento.TIPO_TAQUIZA),
         'extras': extras,
         'imagen_zonas_restringidas': _imagen_zonas_restringidas(),
     }
