@@ -501,18 +501,33 @@ class Cotizacion(models.Model):
         ('CONFIRMADA', 'Venta Confirmada'),
         ('EJECUTADA', 'Evento Ejecutado'),
         ('CERRADA', 'Cerrada / Completada'),
+        ('EXPIRADA', 'Expirada sin pago'),
         ('CANCELADA', 'Cancelada'),
     ]
 
     # Transiciones permitidas: estado_actual -> [estados_destino]
+    #
+    # EXPIRADA no es lo mismo que CANCELADA, a propósito: cancelar es una
+    # decisión (de la Quinta o del cliente) que puede traer reembolso y póliza
+    # de reversión; expirar es que la cotización simplemente nunca prosperó.
+    # Separarlas conserva la tasa de conversión real (cuántas se cotizaron vs.
+    # cuántas se cerraron), que se perdería si todo lo no vendido se
+    # amontonara en CANCELADA.
     TRANSICIONES_PERMITIDAS = {
-        'BORRADOR': ['COTIZADA', 'CANCELADA'],
-        'COTIZADA': ['CONFIRMADA', 'CANCELADA'],
+        'BORRADOR': ['COTIZADA', 'CANCELADA', 'EXPIRADA'],
+        'COTIZADA': ['CONFIRMADA', 'CANCELADA', 'EXPIRADA'],
         'CONFIRMADA': ['EJECUTADA', 'CANCELADA'],
         'EJECUTADA': ['CERRADA'],
         'CERRADA': [],  # Estado final
+        'EXPIRADA': ['BORRADOR'],  # El cliente reapareció: se revive y se recotiza
         'CANCELADA': ['BORRADOR'],  # Permite reactivar
     }
+
+    # Días sin ningún pago tras los cuales una cotización se da por perdida.
+    # Coincide con DIAS_PAGO_TOTAL['EVENTO']: pasado ese punto el ERP ya
+    # exigiría el saldo completo, así que una cotización sin un peso encima
+    # difícilmente se convierte.
+    DIAS_EXPIRACION_SIN_PAGO = 15
 
     CLIMA_CHOICES = [
         ('normal', 'Interior / Aire Acondicionado'),
@@ -631,6 +646,36 @@ class Cotizacion(models.Model):
         el portal, para no duplicar el criterio en dos lugares.
         """
         return bool(self.identificacion_oficial)
+
+    def motivo_expiracion(self):
+        """Por qué esta cotización debería expirar, o `None` si no procede.
+
+        Fuente única de la regla: la usan el cron y los tests, para que
+        "¿esta se expira?" tenga una sola respuesta y no dos criterios que
+        puedan separarse.
+
+        Solo expira lo que **nunca recibió un peso**: un abono parcial, por
+        chico que sea, significa que hubo una operación real de por medio y
+        que alguien tiene que decidir a mano qué pasa con ese dinero — no un
+        cron a las 3 de la mañana.
+        """
+        if self.estado not in ('BORRADOR', 'COTIZADA'):
+            return None
+        if self.total_pagado() > Decimal('0.00'):
+            return None
+
+        from django.utils import timezone  # mismo patrón local que el resto del archivo
+        hoy = timezone.localdate()
+        if self.fecha_evento and self.fecha_evento < hoy:
+            return 'fecha del evento ya pasada sin ningún pago'
+
+        # `created_at` es auto_now_add, así que siempre existe salvo en una
+        # instancia sin guardar.
+        if self.created_at:
+            dias = (hoy - timezone.localtime(self.created_at).date()).days
+            if dias >= self.DIAS_EXPIRACION_SIN_PAGO:
+                return f'{dias} días sin ningún pago'
+        return None
 
     def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
         """

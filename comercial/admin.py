@@ -677,13 +677,15 @@ class CotizacionAdmin(admin.ModelAdmin):
         colores = {
             'BORRADOR': '#95a5a6', 'COTIZADA': '#3498db',
             'CONFIRMADA': '#2E7D32', 'EJECUTADA': '#1B5E20',
-            'CERRADA': '#1abc9c', 'CANCELADA': '#e74c3c',
+            'CERRADA': '#1abc9c', 'EXPIRADA': '#7f8c8d',
+            'CANCELADA': '#e74c3c',
         }
 
         etiquetas = {
             'BORRADOR': 'Borrador', 'COTIZADA': 'Cotizada',
             'CONFIRMADA': 'Confirmada', 'EJECUTADA': 'Ejecutada',
-            'CERRADA': 'Cerrada', 'CANCELADA': 'Cancelada',
+            'CERRADA': 'Cerrada', 'EXPIRADA': 'Expirada',
+            'CANCELADA': 'Cancelada',
         }
         color = colores.get(obj.estado, '#666')
         label = etiquetas.get(obj.estado, obj.get_estado_display())
