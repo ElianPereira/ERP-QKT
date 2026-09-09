@@ -219,3 +219,59 @@ class NoSePuedePagarUnaCotizacionMuertaTest(TestCase):
         for estado in ('BORRADOR', 'COTIZADA', 'CONFIRMADA', 'EJECUTADA', 'CERRADA'):
             self._forzar_estado(estado)
             self.assertTrue(Cotizacion.objects.get(pk=self.cot.pk).admite_pago(), estado)
+
+
+class UnaReferenciaDePagoVivaImpideExpirarTest(TestCase):
+    """Dinero en camino, aunque todavía no haya un `Pago`.
+
+    Escenario real: el cliente genera una ficha de efectivo o una CLABE SPEI,
+    la cotización se queda quieta, y él va a pagar a la tienda días después.
+    El webhook de Openpay acredita ese abono aunque la cotización ya no esté
+    viva —y hace bien, el dinero entró—, así que expirarla mientras tanto la
+    dejaría EXPIRADA con un pago encima.
+    """
+
+    def setUp(self):
+        self.cot = _cotizacion(dias_de_antiguedad=60)
+
+    def _referencia(self, *, metodo='store', estado='in_progress', procesado=False,
+                    vence_en_dias=5):
+        from comercial.models import OpenpayTransaccion
+        vence = (timezone.localtime() + timedelta(days=vence_en_dias)).strftime(
+            '%Y-%m-%dT%H:%M:%S')
+        return OpenpayTransaccion.objects.create(
+            openpay_id=f'tr_{metodo}_{estado}_{vence_en_dias}',
+            cotizacion=self.cot, metodo=metodo, estado_openpay=estado,
+            procesado=procesado, monto=Decimal('5000.00'),
+            payload_crudo={'payment_method': {'due_date': vence, 'reference': '99887766'}},
+        )
+
+    def test_una_ficha_de_efectivo_vigente_impide_expirar(self):
+        self._referencia(metodo='store')
+        self.assertIsNone(Cotizacion.objects.get(pk=self.cot.pk).motivo_expiracion())
+
+    def test_una_clabe_spei_vigente_impide_expirar(self):
+        self._referencia(metodo='bank_account')
+        self.assertIsNone(Cotizacion.objects.get(pk=self.cot.pk).motivo_expiracion())
+
+    def test_una_referencia_ya_vencida_no_la_salva(self):
+        # Si la referencia caducó, nadie va a pagarla: vuelve a ser candidata.
+        self._referencia(vence_en_dias=-3)
+        self.assertIsNotNone(Cotizacion.objects.get(pk=self.cot.pk).motivo_expiracion())
+
+    def test_una_transaccion_ya_procesada_no_la_salva(self):
+        # Ya se resolvió (pagada o fallida); si hubiera pago, lo salva el
+        # chequeo de `total_pagado()`, no este.
+        self._referencia(estado='completed', procesado=True)
+        self.assertIsNotNone(Cotizacion.objects.get(pk=self.cot.pk).motivo_expiracion())
+
+    def test_un_cargo_con_tarjeta_pendiente_no_la_salva(self):
+        # Tarjeta es síncrona: no deja una referencia que el cliente pueda ir
+        # a pagar después, así que no hay dinero en camino que proteger.
+        self._referencia(metodo='card')
+        self.assertIsNotNone(Cotizacion.objects.get(pk=self.cot.pk).motivo_expiracion())
+
+    def test_el_cron_respeta_la_referencia_viva(self):
+        self._referencia()
+        call_command('cerrar_cotizaciones', stdout=StringIO())
+        self.assertEqual(Cotizacion.objects.get(pk=self.cot.pk).estado, 'COTIZADA')

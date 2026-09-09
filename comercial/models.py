@@ -678,14 +678,28 @@ class Cotizacion(models.Model):
         "¿esta se expira?" tenga una sola respuesta y no dos criterios que
         puedan separarse.
 
-        Solo expira lo que **nunca recibió un peso**: un abono parcial, por
-        chico que sea, significa que hubo una operación real de por medio y
-        que alguien tiene que decidir a mano qué pasa con ese dinero — no un
-        cron a las 3 de la mañana.
+        Solo expira lo que **nunca recibió un peso ni lo tiene en camino**: un
+        abono parcial, por chico que sea, significa que hubo una operación real
+        de por medio y que alguien tiene que decidir a mano qué pasa con ese
+        dinero — no un cron a las 3 de la mañana. Una referencia de efectivo o
+        SPEI vigente cuenta igual: todavía no hay pago, pero puede haberlo en
+        cualquier momento.
         """
         if self.estado not in ('BORRADOR', 'COTIZADA'):
             return None
         if self.total_pagado() > Decimal('0.00'):
+            return None
+
+        # Una referencia de efectivo/SPEI ya generada y todavía vigente es
+        # dinero en camino: el cliente puede pagarla en la tienda días después,
+        # y el webhook de Openpay acredita ese pago aunque la cotización ya no
+        # esté viva (registrarlo es lo correcto — el dinero entró de verdad).
+        # Expirar aquí dejaría la cotización EXPIRADA con un abono encima.
+        # Se reusa `transacciones_pendientes()`, que ya es la fuente única de
+        # "referencias vigentes sin pagar" que usa el portal, incluido el
+        # descarte de las que ya vencieron por `due_date`.
+        from .services_openpay import transacciones_pendientes
+        if transacciones_pendientes(self):
             return None
 
         from django.utils import timezone  # mismo patrón local que el resto del archivo
