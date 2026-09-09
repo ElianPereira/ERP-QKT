@@ -131,10 +131,23 @@ sección; ambos deben coincidir en qué está permitido.
 - Documentos legales o modelos de consentimiento/auditoría.
 - `DELETE` físico o modificación de registros inmutables.
 
-**Nunca autorizado, ni con aprobación en el prompt:**
-- Merge a `main`/`master` — toda entrega es Pull Request para revisión
-  humana, igual que ya aplica al resto de este archivo.
+**Nunca autorizado en una Routine (sesión automatizada, sin supervisión):**
+- Merge a `main`/`master`. Una Routine entrega Pull Request y se detiene ahí.
 - Migraciones o deploys en producción.
+
+**Merge a `main`/`master` en una sesión supervisada** (el propietario presente
+en la conversación) **sí está autorizado**, pero solo cuando él lo pide de
+forma explícita para ese PR concreto — nunca por iniciativa propia ni
+interpretando un "adelante" genérico. Antes de mergear hay que decirle, en el
+mismo turno, **qué se va a desplegar y qué migraciones va a correr ese
+deploy**: el `CMD` del `Dockerfile` es `manage.py migrate --noinput && ...`,
+así que todo merge a `main` aplica en la base de producción las migraciones
+pendientes de esa rama, sin ningún paso manual de por medio. Autorizar el
+merge es autorizar esa migración; no son dos permisos separados.
+
+Lo que sigue sin autorizarse nunca, ni con aprobación en el prompt:
+- Correr `migrate`, `dbshell` o cualquier escritura **a mano** contra la base
+  de producción, fuera del deploy que dispara un merge autorizado.
 - Exponer datos sensibles (financieros, personales) en logs o respuestas.
 
 Toda sugerencia estratégica (la Rutina Operativa/Contable) se entrega como
@@ -162,6 +175,30 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-09 — Se levanta la prohibición absoluta de mergear a `main`
+  (decisión explícita del propietario, sostenida en varias vueltas de la
+  conversación al pedir el merge del PR #279: "quiero que tú lo hagas").
+  La prohibición queda acotada a las **Routines** —sesiones automatizadas
+  sin nadie mirando, que es donde de verdad protegía algo—: ahí una Routine
+  sigue entregando PR y deteniéndose. En una sesión supervisada, con el
+  propietario pidiéndolo para un PR concreto, el merge sí está autorizado.
+  **El detalle que motivó redactarlo con cuidado en vez de solo borrar la
+  línea**: el `CMD` del `Dockerfile` es `manage.py migrate --noinput && ...`,
+  así que Railway corre las migraciones pendientes contra la base de
+  **producción** en cada deploy desde `main` — mergear no es solo mergear,
+  aplica el schema en vivo sin ningún paso manual. Por eso "Migraciones o
+  deploys en producción" no podía quedarse como prohibición general al lado
+  de un merge permitido: las dos reglas se contradecían. Quedó reformulado
+  como (a) autorizar el merge **es** autorizar esa migración, no son dos
+  permisos separados, y (b) sigue prohibido para siempre correr `migrate`/
+  `dbshell`/escrituras **a mano** contra producción fuera de ese deploy.
+  Obligación nueva que compensa lo relajado: antes de mergear hay que
+  decirle en el mismo turno qué se despliega y qué migraciones corren, para
+  que su "sí" sea informado. Nota operativa: el clasificador de auto mode
+  bloqueó dos veces el `git push` de este mismo cambio —un agente subiendo
+  el archivo que gobierna sus propios permisos—, así que hizo falta que el
+  propietario habilitara el permiso; si vuelve a pasar, es el mismo caso y
+  la salida es que él lo autorice, no buscarle la vuelta.
 - 2026-09-04 — Pasadía Básico/Premium (pedido directo del propietario, sin
   Issue previo — cambio acotado sobre un flujo ya existente). Toggle en el
   paso 2 del cotizador, no el grid de "elige tu paquete" que usan Evento/
