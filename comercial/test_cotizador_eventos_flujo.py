@@ -14,13 +14,15 @@ se separaran, el cotizador estaría anunciando un precio y cobrando otro
 Ejecutar: python manage.py test comercial.test_cotizador_eventos_flujo --verbosity=2
 """
 
+import base64
 import json
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -30,6 +32,7 @@ from comercial.models import (
     ConfiguracionEventoCotizacion,
     Cotizacion,
     ExtraEvento,
+    ImagenLanding,
     NivelLicor,
     NivelLicorProducto,
     PaqueteEvento,
@@ -42,6 +45,11 @@ from comercial.reglas_eventos import MODALIDAD_ARRENDAMIENTO, MODALIDAD_PAQUETE
 from comercial.services_eventos import lineas_evento, resolver_seleccion
 from comercial.views_cotizador import _lineas_cotizador
 from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
+
+# PNG 1x1 real: el ImageField valida la imagen, no basta con bytes cualquiera.
+_PNG_MINIMO = base64.b64decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+)
 
 
 def _producto(nombre, precio, **extra):
@@ -508,3 +516,32 @@ class ApiCatalogoEventosTest(TestCase):
     def test_un_aforo_fuera_de_rango_se_acota_en_vez_de_reventar(self):
         self.assertEqual(self._catalogo(personas='abc')['personas'], 50)
         self.assertEqual(self._catalogo(personas=999)['personas'], 100)
+
+    def test_sin_plano_de_zonas_cargado_no_se_ofrece_ninguno(self):
+        # El frontend se salta el bloque; vale más no mostrar nada que un hueco.
+        self.assertIsNone(self._catalogo(personas=80)['imagen_zonas_restringidas'])
+
+    @override_settings(STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    })
+    def test_el_plano_de_zonas_cargado_llega_al_cotizador(self):
+        ImagenLanding.objects.create(
+            seccion='ZONAS_RESTRINGIDAS',
+            imagen=SimpleUploadedFile('zonas.png', _PNG_MINIMO, content_type='image/png'),
+            alt_text='Áreas no incluidas',
+        )
+        datos = self._catalogo(personas=80)['imagen_zonas_restringidas']
+        self.assertIn('zonas', datos['url'])
+        self.assertEqual(datos['alt'], 'Áreas no incluidas')
+
+    @override_settings(STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    })
+    def test_un_plano_desactivado_deja_de_mostrarse(self):
+        ImagenLanding.objects.create(
+            seccion='ZONAS_RESTRINGIDAS', activo=False,
+            imagen=SimpleUploadedFile('zonas.png', _PNG_MINIMO, content_type='image/png'),
+        )
+        self.assertIsNone(self._catalogo(personas=80)['imagen_zonas_restringidas'])

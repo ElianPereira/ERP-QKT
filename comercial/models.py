@@ -1786,6 +1786,11 @@ class ImagenLanding(models.Model):
         ('PASADIA', 'Servicio — Pasadía'),
         ('HOSPEDAJE', 'Servicio — Hospedaje'),
         ('GALERIA', 'Galería de fotos'),
+        # Plano que el cotizador de Eventos le muestra al cliente antes de
+        # confirmar: qué áreas de la quinta NO entran en el arrendamiento.
+        # Mientras no haya ninguna cargada, el cotizador simplemente no
+        # muestra el bloque (mismo criterio que el resto del catálogo).
+        ('ZONAS_RESTRINGIDAS', 'Mapa de zonas restringidas (cotizador)'),
     ]
     CATEGORIA_GALERIA_CHOICES = [
         ('BODAS', 'Bodas'),
