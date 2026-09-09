@@ -154,3 +154,68 @@ class TransicionesExpiradaTest(TestCase):
     def _expirar(self, cot):
         call_command('cerrar_cotizaciones', stdout=StringIO())
         self.assertEqual(Cotizacion.objects.get(pk=cot.pk).estado, 'EXPIRADA')
+
+
+class NoSePuedePagarUnaCotizacionMuertaTest(TestCase):
+    """El portal y el checkout rechazan una cotización cancelada o expirada.
+
+    Hueco real que existía antes de este cambio: el token del portal vive 90
+    días y no sabe nada del estado de la venta, así que un cliente con el
+    enlace de una cotización YA CANCELADA podía pagarla — dinero entrando
+    contra una venta que el ERP ya revirtió.
+    """
+
+    def setUp(self):
+        from comercial.models import PortalCliente
+        self.cot = _cotizacion(estado='COTIZADA', dias_de_antiguedad=1)
+        self.portal, _ = PortalCliente.objects.get_or_create(cotizacion=self.cot)
+
+    def _pagar(self):
+        from django.urls import reverse
+        return self.client.post(
+            reverse('portal_procesar_pago_openpay', args=[self.portal.token]),
+            {'metodo': 'card', 'monto': '100.00', 'acepta_legales': '1'},
+        )
+
+    def _forzar_estado(self, estado):
+        Cotizacion.objects.filter(pk=self.cot.pk).update(estado=estado)
+
+    def test_una_cotizacion_cancelada_no_se_puede_pagar(self):
+        self._forzar_estado('CANCELADA')
+        datos = self._pagar().json()
+        self.assertFalse(datos['ok'])
+        self.assertIn('ya no admite pagos', datos['mensaje'])
+
+    def test_una_cotizacion_expirada_no_se_puede_pagar(self):
+        self._forzar_estado('EXPIRADA')
+        datos = self._pagar().json()
+        self.assertFalse(datos['ok'])
+        self.assertIn('ya no admite pagos', datos['mensaje'])
+
+    def test_el_gate_de_estado_corre_antes_que_el_de_identificacion(self):
+        # A una cotización muerta no se le pide la INE: sería pedirle un dato
+        # personal para un pago que de todos modos se va a rechazar.
+        self._forzar_estado('CANCELADA')
+        self.assertNotIn('identificación', self._pagar().json()['mensaje'].lower())
+
+    def test_una_cotizacion_viva_sigue_pasando_este_gate(self):
+        # No se rompe el camino normal: llega hasta el requisito siguiente.
+        datos = self._pagar().json()
+        self.assertFalse(datos['ok'])
+        self.assertIn('identificación', datos['mensaje'].lower())
+
+    def test_el_portal_no_pinta_el_checkout_de_una_cotizacion_muerta(self):
+        from django.urls import reverse
+        self._forzar_estado('EXPIRADA')
+        html = self.client.get(
+            reverse('portal_evento', args=[self.portal.token])).content.decode()
+        self.assertIn('ya no admite pagos', html)
+        self.assertNotIn('card-pago-linea', html)
+
+    def test_admite_pago_es_la_fuente_unica_del_criterio(self):
+        for estado in Cotizacion.ESTADOS_SIN_COBRO:
+            self._forzar_estado(estado)
+            self.assertFalse(Cotizacion.objects.get(pk=self.cot.pk).admite_pago(), estado)
+        for estado in ('BORRADOR', 'COTIZADA', 'CONFIRMADA', 'EJECUTADA', 'CERRADA'):
+            self._forzar_estado(estado)
+            self.assertTrue(Cotizacion.objects.get(pk=self.cot.pk).admite_pago(), estado)

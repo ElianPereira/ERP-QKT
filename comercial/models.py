@@ -639,6 +639,30 @@ class Cotizacion(models.Model):
     )
     identificacion_revisada_en = models.DateTimeField(null=True, blank=True, verbose_name="Revisada el")
 
+    # Estados en los que la cotización ya no representa una venta viva: nadie
+    # debería poder pagarla desde el portal. CANCELADA puede haber generado ya
+    # una póliza de reversión y un reembolso; EXPIRADA nunca prosperó y su
+    # precio es de hace semanas. Cobrar en cualquiera de los dos casos deja
+    # dinero entrando contra una venta que no existe.
+    ESTADOS_SIN_COBRO = ('CANCELADA', 'EXPIRADA')
+
+    def admite_pago_detalle(self):
+        """¿Se puede cobrar esta cotización? -> (bool, motivo para el cliente).
+
+        Fuente única del criterio, igual que `identificacion_completa()`: la
+        usan el gate real del checkout y el portal, para que la tarjeta de pago
+        no se muestre en un caso que el servidor va a rechazar.
+        """
+        if self.estado in self.ESTADOS_SIN_COBRO:
+            return False, (
+                f"Esta cotización está {self.get_estado_display().lower()} y ya no "
+                "admite pagos. Escríbenos si necesitas retomarla."
+            )
+        return True, ''
+
+    def admite_pago(self):
+        return self.admite_pago_detalle()[0]
+
     def identificacion_completa(self):
         """
         Único punto de verdad de si ya se cumplió el requisito de identificación

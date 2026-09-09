@@ -294,7 +294,17 @@
         </div>
         {% endif %}
         
-        {% if openpay_habilitado and saldo_pendiente > 0 %}
+        {% if not admite_pago %}
+        <!-- La cotización ya no admite pagos (cancelada o expirada). Se explica
+             en vez de simplemente no pintar nada: el cliente llegó aquí con un
+             enlace que le mandamos y merece saber por qué no puede pagar. -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-circle-info"></i> Esta cotización ya no admite pagos</div>
+            <p style="font-size:13px; color:#8a8780; margin:0;">{{ admite_pago_motivo }}</p>
+        </div>
+        {% endif %}
+
+        {% if openpay_habilitado and saldo_pendiente > 0 and admite_pago %}
 
         {% if pagos_pendientes_openpay %}
         <!-- Referencias de efectivo/SPEI de un intento anterior, aún vigentes:
@@ -532,7 +542,7 @@
         </div>
     </div>
 
-    {% if openpay_habilitado and saldo_pendiente > 0 %}
+    {% if openpay_habilitado and saldo_pendiente > 0 and admite_pago %}
     {% comment %}
     Origen documentado por Openpay. El bucket de S3 que se usaba antes
     sirve los mismos archivos pero no aparece en la documentación: si lo
