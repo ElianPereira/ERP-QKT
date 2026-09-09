@@ -216,4 +216,23 @@ def catalogo_para_cotizador(num_personas):
         'niveles_licor': _lista(NivelLicor.objects, 'productos'),
         'combos_taquiza': _lista(ComboTaquiza.objects, 'productos'),
         'extras': extras,
+        'imagen_zonas_restringidas': _imagen_zonas_restringidas(),
     }
+
+
+def _imagen_zonas_restringidas():
+    """Plano de las áreas que NO entran en el arrendamiento, o `None`.
+
+    El cotizador lo enseña justo antes de confirmar. Devuelve `None` mientras
+    el propietario no haya subido ninguna, y el frontend se salta el bloque —
+    vale más no mostrar nada que mostrar un hueco roto.
+    """
+    from .models import ImagenLanding
+
+    imagen = (ImagenLanding.objects
+              .filter(seccion='ZONAS_RESTRINGIDAS', activo=True)
+              .order_by('orden', 'id')
+              .first())
+    if not imagen or not imagen.imagen:
+        return None
+    return {'url': imagen.imagen.url, 'alt': imagen.alt_text or 'Zonas restringidas de la Quinta'}

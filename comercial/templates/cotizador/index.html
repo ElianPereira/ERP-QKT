@@ -249,6 +249,21 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .nivel-pasadia-toggle .nivel-btn.active{background:var(--verde);color:var(--blanco);}
 .nivel-pasadia-toggle .nivel-btn .nivel-nombre{display:block;font-weight:600;font-size:.88rem;}
 .nivel-pasadia-toggle .nivel-btn .nivel-precio{display:block;font-size:.76rem;margin-top:.15rem;opacity:.85;}
+.nivel-pasadia-toggle .nivel-btn:disabled{cursor:not-allowed;opacity:.45;}
+/* Catálogo cerrado de Eventos */
+.opc-grupo{margin-bottom:1.7rem;}
+.opc-tit{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--texto-s);margin:0 0 .6rem;}
+.opc-tit .opc-req{color:var(--error);margin-left:.2rem;}
+.opc-incluido{background:rgba(46,125,50,.08);border-left:3px solid var(--verde);border-radius:0 6px 6px 0;
+  padding:.9rem 1rem;margin-bottom:1.4rem;font-size:.8rem;line-height:1.75;color:var(--verde-d);}
+.opc-incluido ul{list-style:none;margin:.45rem 0 0;padding:0;}
+.opc-incluido li:before{content:'✓';font-weight:600;margin-right:.4rem;}
+.opc-err{display:none;color:var(--error);font-size:.78rem;margin:-.9rem 0 1.1rem;}
+.zonas{margin:1.4rem 0;border:1px solid var(--borde);border-radius:10px;overflow:hidden;background:var(--blanco);}
+.zonas img{display:block;width:100%;height:auto;}
+.zonas p{margin:0;padding:.85rem 1rem;font-size:.78rem;line-height:1.65;color:var(--texto-s);font-weight:300;}
+.aforo-tope{display:none;margin-top:.8rem;padding:10px 12px;background:#FFF3CD;border-left:4px solid #F5C518;
+  color:#664d03;border-radius:6px;font-size:.78rem;line-height:1.55;}
 .nivel-pasadia-desc{font-size:.76rem;color:var(--texto-s);font-weight:300;margin-top:.6rem;line-height:1.5;}
 
 /* Medio de captación */
@@ -426,6 +441,23 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       <p class="nivel-pasadia-desc" id="nivel-pasadia-desc"></p>
     </div>
 
+    <div class="campo panel-condicional" id="blq-modalidad-evento">
+      <label>¿Qué quieres contratar?</label>
+      <div class="nivel-pasadia-toggle">
+        <button type="button" class="nivel-btn active" id="mod-btn-arrendamiento"
+                onclick="selModalidad('ARRENDAMIENTO')">
+          <span class="nivel-nombre">Solo el espacio</span>
+          <span class="nivel-precio">Arrendamiento de la quinta</span>
+        </button>
+        <button type="button" class="nivel-btn" id="mod-btn-paquete"
+                onclick="selModalidad('PAQUETE')">
+          <span class="nivel-nombre">Con paquete</span>
+          <span class="nivel-precio" id="mod-paquete-sub">Desde 50 personas</span>
+        </button>
+      </div>
+      <p class="nivel-pasadia-desc" id="mod-desc"></p>
+    </div>
+
     <div class="campo" id="blq-personas">
       <label><span id="personas-etiqueta">Número de personas</span>: <span id="personas-label">50</span></label>
       <div class="personas-wrap">
@@ -439,6 +471,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
         <span id="personas-max-lbl">200</span>
       </div>
       <div id="aviso-persona-extra-pasadia" style="display:none;margin-top:.8rem;padding:10px 12px;background:#FFF3CD;border-left:4px solid #F5C518;color:#664d03;border-radius:6px;font-size:.78rem;line-height:1.5;"></div>
+      <div class="aforo-tope" id="aviso-aforo-evento"></div>
     </div>
 
     <div class="btn-nav">
@@ -475,6 +508,58 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div id="sub-paquetes" style="display:none;">
       <div class="paq-grid" id="paq-grid">
         <div class="paq-empty" id="paq-loading">Cargando paquetes...</div>
+      </div>
+    </div>
+
+    <!-- Sub-panel: catálogo cerrado de Eventos (Etapa C).
+         Todo lo que se puede elegir viene de /api/cotizador/eventos/; una
+         opción sin productos asignados llega con sin_configurar y no se
+         ofrece, para que el cliente nunca elija algo que cobraría $0.00. -->
+    <div id="sub-evento" style="display:none;">
+      <div class="opc-grupo panel-condicional visible" id="grp-paquete">
+        <p class="opc-tit">Elige tu paquete<span class="opc-req">*</span></p>
+        <div class="paq-grid" id="paq-evento-grid">
+          <div class="paq-empty">Cargando paquetes...</div>
+        </div>
+      </div>
+      <div class="opc-err" id="err-paquete-evento">Elige un paquete para continuar.</div>
+
+      <div class="opc-incluido" id="incluido-paquete" style="display:none;"></div>
+
+      <div class="opc-grupo panel-condicional" id="grp-mobiliario">
+        <p class="opc-tit">Mobiliario<span class="opc-req">*</span></p>
+        <div class="hab-grid" id="mobiliario-grid"></div>
+      </div>
+      <div class="opc-err" id="err-mobiliario">Elige un tipo de mobiliario.</div>
+
+      <div class="opc-grupo panel-condicional" id="grp-licores">
+        <p class="opc-tit">Licores</p>
+        <div class="nivel-pasadia-toggle" style="margin-bottom:.8rem;">
+          <button type="button" class="nivel-btn active" id="lic-btn-no" onclick="selLicores(false)">
+            <span class="nivel-nombre">Sin licores</span>
+          </button>
+          <button type="button" class="nivel-btn" id="lic-btn-si" onclick="selLicores(true)">
+            <span class="nivel-nombre">Agregar licores</span>
+          </button>
+        </div>
+        <div class="hab-grid" id="licor-grid" style="display:none;"></div>
+      </div>
+      <div class="opc-err" id="err-licor">Elige el nivel de licor.</div>
+
+      <div class="opc-grupo panel-condicional" id="grp-taquiza">
+        <p class="opc-tit">Taquiza<span class="opc-req">*</span></p>
+        <div class="hab-grid" id="taquiza-grid"></div>
+      </div>
+      <div class="opc-err" id="err-taquiza">Elige un combo de taquiza.</div>
+
+      <div class="opc-grupo panel-condicional" id="grp-extras-evento">
+        <p class="opc-tit">Extras</p>
+        <div class="hab-grid" id="extras-evento-grid"></div>
+      </div>
+
+      <div class="campo" style="margin-top:1.5rem;">
+        <label for="notas-evento">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
+        <textarea id="notas-evento" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
       </div>
     </div>
 
@@ -595,6 +680,14 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <h2 class="panel-title">Confirma tu <em>solicitud</em></h2>
     <p class="panel-sub">Verifica los detalles antes de enviar.</p>
     <div class="resumen-card" id="resumen"></div>
+    <!-- Qué áreas NO entran en el arrendamiento. Se enseña aquí, justo antes
+         de confirmar, para que el cliente lo vea antes de comprometerse. Solo
+         aparece si el propietario cargó el plano en el admin. -->
+    <div class="zonas" id="zonas-restringidas" style="display:none;">
+      <img id="zonas-img" src="" alt="">
+      <p>Las áreas marcadas no forman parte del arrendamiento y permanecen
+         cerradas durante tu evento.</p>
+    </div>
     <div class="consentimiento">
       <label class="cons-item">
         <input type="checkbox" id="acepta_legales">
@@ -651,12 +744,26 @@ let nivelPasadiaSel = 'BASICO';
 let precioNivelBasicoPasadia = null;
 let precioNivelPremiumPasadia = null;
 let noches = 1;
+// Catálogo cerrado de Eventos. `modalidadSel` decide todo el paso 3.
+let modalidadSel = 'ARRENDAMIENTO';
+let catalogoEventos = null;
+let paqueteEventoSel = null;
+let mobiliarioSel = null;
+let incluirLicores = false;
+let nivelLicorSel = null;
+let comboTaquizaSel = null;
+let extrasEventoSel = new Set();
 let pasoActual = 1;
 const totalPasos = 6;
 // Mismo tope que views_cotizador.py (HORAS_BASE_EVENTO + MAX_HORAS_EXTRA_EVENTO):
 // 6 horas incluidas + 3 de hora extra como máximo.
 const HORAS_BASE_EVENTO = 6;
 const HORAS_MAX_EVENTO = 9;
+// Mismos valores que comercial/reglas_eventos.py. El servidor vuelve a
+// validarlos: esto es para que el cliente no llegue a un rechazo evitable.
+const MAX_PERSONAS_EVENTO = 100;
+const MIN_PERSONAS_PAQUETE = 50;
+const PASO_PERSONAS_PAQUETE = 10;
 
 // Formatea un importe decimal que llega como string desde el servidor, sin
 // convertirlo a float (perdería el centavo en importes grandes).
@@ -720,6 +827,7 @@ function actualizarPanelSegunServicio() {
   toggle('blq-horario', esEvento);
   toggle('blq-noches', esHospedaje);
   toggle('blq-nivel-pasadia', esPasadia);
+  toggle('blq-modalidad-evento', esEvento);
 
   document.getElementById('hero-servicio').textContent =
     esPasadia ? 'pasadía' : esArr ? 'arrendamiento' : esHospedaje ? 'hospedaje' : 'evento';
@@ -749,8 +857,11 @@ function actualizarPanelSegunServicio() {
   // hubiera movido nada.
   var v = parseInt(slider.value);
   if (esEvento) {
-    slider.min = 50; slider.max = 200; slider.step = 10;
-    slider.value = v < 50 ? 50 : v;
+    // Tope duro de 100 en las dos modalidades, y paso de 1 porque "solo
+    // arrendamiento" no tiene mínimo: el redondeo al tramo de 10 solo aplica
+    // a la modalidad de paquete y lo resuelve aforoCotizable(), no el slider.
+    slider.min = 1; slider.max = MAX_PERSONAS_EVENTO; slider.step = 1;
+    slider.value = Math.min(v < 1 ? MIN_PERSONAS_PAQUETE : v, MAX_PERSONAS_EVENTO);
   } else if (esPasadia) {
     // Aforo base 20 (incluido en tarifa), aforo ampliado 21-30 con cargo
     // extra por persona (incluye mobiliario) — Reglamento Interno v1.2.
@@ -811,6 +922,7 @@ function configurarPaso3() {
   var sub       = document.getElementById('sub-paso3');
   var subPaq    = document.getElementById('sub-paquetes');
   var subPer    = document.getElementById('sub-personalizado');
+  var subEve    = document.getElementById('sub-evento');
 
   caminoSel  = null;
   paqueteSel = null;
@@ -818,8 +930,40 @@ function configurarPaso3() {
   document.getElementById('err-camino').style.display = 'none';
   subPaq.style.display = 'none';
   subPer.style.display = 'none';
+  subEve.style.display = 'none';
   toggle('blq-habitaciones', esHospedaje);
   mostrarNotaBase('');
+
+  // Evento pasa por el catálogo cerrado: ya no hay bifurcación
+  // paquete/personalizado ni catálogo abierto de extras.
+  if (servicioSel === 'EVENTO') {
+    pathGrid.style.display = 'none';
+    caminoSel = 'evento';
+    if (modalidadSel === 'PAQUETE') {
+      titulo.innerHTML = 'Arma tu <em>paquete</em>';
+      sub.textContent = 'Elige el paquete y los servicios que lo componen.';
+      subEve.style.display = 'block';
+      toggle('grp-paquete', true);
+      prepararPaso3Evento();
+    } else {
+      titulo.innerHTML = 'Solo el <em>espacio</em>';
+      sub.textContent = 'No hay nada más que elegir: cuéntanos lo que necesites en las notas.';
+      subEve.style.display = 'block';
+      // Sin paquete no hay opciones que ofrecer; queda solo el cuadro de notas.
+      ['grp-paquete','grp-mobiliario','grp-licores','grp-taquiza','grp-extras-evento'].forEach(function(id) {
+        toggle(id, false);
+      });
+      document.getElementById('incluido-paquete').innerHTML =
+        'Tu arrendamiento incluye:<ul>'
+        + '<li>Uso del inmueble por ' + HORAS_BASE_EVENTO + ' horas</li>'
+        + '<li>Jardines, alberca y estacionamiento interno</li>'
+        + '<li>Limpieza de sanitarios y acomodo vehicular</li>'
+        + '</ul>';
+      document.getElementById('incluido-paquete').style.display = 'block';
+    }
+    actualizarEtiquetaPaso3();
+    return;
+  }
 
   if (esPasadia) {
     pathGrid.style.display = 'none';
@@ -852,9 +996,265 @@ function configurarPaso3() {
   actualizarEtiquetaPaso3();
 }
 
+// ─── Catálogo cerrado de Eventos ────────────────────────────────────────────
+
+// Aforo que el servidor va a cotizar de verdad: en paquete sube al siguiente
+// tramo de 10 (mínimo 50). Réplica exacta de redondear_personas_paquete().
+function aforoCotizable() {
+  var el = document.getElementById('personas');
+  var n = Math.min(parseInt((el && el.value) || '50', 10), MAX_PERSONAS_EVENTO);
+  if (servicioSel !== 'EVENTO' || modalidadSel !== 'PAQUETE') return n;
+  if (n <= MIN_PERSONAS_PAQUETE) return MIN_PERSONAS_PAQUETE;
+  var escalones = Math.ceil((n - MIN_PERSONAS_PAQUETE) / PASO_PERSONAS_PAQUETE);
+  return Math.min(MIN_PERSONAS_PAQUETE + escalones * PASO_PERSONAS_PAQUETE, MAX_PERSONAS_EVENTO);
+}
+
+function selModalidad(val) {
+  modalidadSel = val;
+  document.getElementById('mod-btn-arrendamiento').classList.toggle('active', val === 'ARRENDAMIENTO');
+  document.getElementById('mod-btn-paquete').classList.toggle('active', val === 'PAQUETE');
+  actualizarModalidadEvento();
+}
+
+// El botón "Con paquete" solo se habilita a partir de 50 personas; por debajo
+// no hay tramo que cotizar, así que se desactiva en vez de dejar que el
+// cliente lo elija y el servidor lo rechace después.
+function actualizarModalidadEvento() {
+  if (servicioSel !== 'EVENTO') return;
+  var el = document.getElementById('personas');
+  var n = parseInt((el && el.value) || '50', 10);
+  var btnPaq = document.getElementById('mod-btn-paquete');
+  var permitePaquete = n >= MIN_PERSONAS_PAQUETE;
+
+  btnPaq.disabled = !permitePaquete;
+  document.getElementById('mod-paquete-sub').textContent =
+    permitePaquete ? 'Mobiliario, taquiza y más' : 'Desde ' + MIN_PERSONAS_PAQUETE + ' personas';
+
+  if (!permitePaquete && modalidadSel === 'PAQUETE') selModalidad('ARRENDAMIENTO');
+
+  var desc = document.getElementById('mod-desc');
+  if (modalidadSel === 'PAQUETE') {
+    var cotizado = aforoCotizable();
+    desc.textContent = cotizado !== n
+      ? 'Los paquetes se cotizan por tramos de ' + PASO_PERSONAS_PAQUETE
+        + ': el tuyo se calcula para ' + cotizado + ' personas.'
+      : 'Incluye el arrendamiento del espacio más los servicios que elijas.';
+  } else {
+    desc.textContent = 'Uso del inmueble, jardines, alberca y estacionamiento. '
+      + 'Sin mínimo de personas.';
+  }
+
+  var aviso = document.getElementById('aviso-aforo-evento');
+  var enTope = n >= MAX_PERSONAS_EVENTO;
+  aviso.style.display = enTope ? 'block' : 'none';
+  if (enTope) {
+    aviso.textContent = MAX_PERSONAS_EVENTO + ' personas es nuestro aforo máximo. '
+      + 'No operamos eventos más grandes.';
+  }
+}
+
+async function cargarCatalogoEventos() {
+  var grid = document.getElementById('paq-evento-grid');
+  grid.innerHTML = '<div class="paq-empty">Cargando paquetes...</div>';
+  try {
+    var r = await fetch('/api/cotizador/eventos/?personas=' + aforoCotizable());
+    var d = await r.json();
+    if (!d.ok) throw new Error('sin catálogo');
+    catalogoEventos = d;
+    renderPaquetesEvento();
+  } catch (e) {
+    catalogoEventos = null;
+    grid.innerHTML = '<div class="paq-empty">No pudimos cargar los paquetes. '
+      + 'Continúa y lo vemos contigo por WhatsApp.</div>';
+  }
+}
+
+function renderPaquetesEvento() {
+  var grid = document.getElementById('paq-evento-grid');
+  var paquetes = (catalogoEventos && catalogoEventos.paquetes) || [];
+  if (!paquetes.length) {
+    grid.innerHTML = '<div class="paq-empty">Todavía no hay paquetes configurados.</div>';
+    return;
+  }
+  var h = '';
+  for (var i = 0; i < paquetes.length; i++) {
+    var p = paquetes[i];
+    h += '<div class="paq-card" data-id="' + p.id + '" onclick="selPaqueteEvento(' + p.id + ',this)">';
+    h += '<span class="paq-nom">' + esc(p.nombre) + '</span>';
+    if (p.descripcion) h += '<span class="paq-desc">' + esc(p.descripcion) + '</span>';
+    h += '</div>';
+  }
+  grid.innerHTML = h;
+  // Si el cliente ya había elegido, se conserva al recargar por cambio de aforo.
+  if (paqueteEventoSel) {
+    var prev = grid.querySelector('[data-id="' + paqueteEventoSel + '"]');
+    if (prev) { prev.classList.add('selected'); aplicarPaqueteEvento(); }
+    else { paqueteEventoSel = null; }
+  }
+}
+
+function selPaqueteEvento(id, el) {
+  paqueteEventoSel = id;
+  document.querySelectorAll('#paq-evento-grid .paq-card').forEach(function(c) {
+    c.classList.remove('selected');
+  });
+  el.classList.add('selected');
+  document.getElementById('err-paquete-evento').style.display = 'none';
+  // Cambiar de paquete limpia lo que el anterior permitía y este quizá no.
+  mobiliarioSel = null; incluirLicores = false; nivelLicorSel = null;
+  comboTaquizaSel = null; extrasEventoSel.clear();
+  aplicarPaqueteEvento();
+  cargarTotal();
+}
+
+function paqueteEventoActual() {
+  var paquetes = (catalogoEventos && catalogoEventos.paquetes) || [];
+  for (var i = 0; i < paquetes.length; i++) {
+    if (paquetes[i].id === paqueteEventoSel) return paquetes[i];
+  }
+  return null;
+}
+
+// Qué pasos se muestran lo decide el paquete (banderas que manda el servidor),
+// no una lista fija en el JS: si el propietario cambia una casilla en el admin,
+// el cotizador la respeta sin tocar código.
+function aplicarPaqueteEvento() {
+  var paq = paqueteEventoActual();
+  var incluido = document.getElementById('incluido-paquete');
+  if (!paq) {
+    ['grp-mobiliario','grp-licores','grp-taquiza','grp-extras-evento'].forEach(function(id) {
+      toggle(id, false);
+    });
+    incluido.style.display = 'none';
+    return;
+  }
+
+  incluido.innerHTML = 'Ya incluido en tu paquete:<ul>'
+    + '<li>Arrendamiento del espacio (' + HORAS_BASE_EVENTO + ' horas)</li>'
+    + '<li>Jardines, alberca y estacionamiento</li>'
+    + '<li>Limpieza de sanitarios y acomodo vehicular</li>'
+    + '</ul>';
+  incluido.style.display = 'block';
+
+  toggle('grp-mobiliario', paq.requiere_mobiliario);
+  toggle('grp-licores', paq.permite_licores_opcional);
+  toggle('grp-taquiza', paq.requiere_taquiza);
+  toggle('grp-extras-evento', paq.permite_extras);
+
+  if (paq.requiere_mobiliario) renderOpciones('mobiliario-grid', catalogoEventos.mobiliario, 'selMobiliario', mobiliarioSel);
+  if (paq.permite_licores_opcional) { selLicores(incluirLicores); }
+  if (paq.requiere_taquiza) renderOpciones('taquiza-grid', catalogoEventos.combos_taquiza, 'selTaquiza', comboTaquizaSel);
+  if (paq.permite_extras) renderExtrasEvento();
+}
+
+// Lista de opción única (mobiliario, nivel de licor, combo de taquiza). Una
+// opción `sin_configurar` no se pinta: cobraría $0.00.
+function renderOpciones(gridId, opciones, handler, seleccionada) {
+  var grid = document.getElementById(gridId);
+  var disponibles = (opciones || []).filter(function(o) { return !o.sin_configurar; });
+  if (!disponibles.length) {
+    grid.innerHTML = '<div class="paq-empty">Todavía no hay opciones configuradas.</div>';
+    return;
+  }
+  var h = '';
+  for (var i = 0; i < disponibles.length; i++) {
+    var o = disponibles[i];
+    var sel = o.id === seleccionada ? ' selected' : '';
+    h += '<div class="hab-card' + sel + '" data-id="' + o.id + '" onclick="' + handler + '(' + o.id + ',this)">';
+    h += '<div class="hab-info"><span class="hab-nom">' + esc(o.nombre) + '</span>';
+    if (o.descripcion) h += '<span class="hab-sub">' + esc(o.descripcion) + '</span>';
+    h += '</div><span class="hab-precio">' + fmtMXN(o.precio) + '</span></div>';
+  }
+  grid.innerHTML = h;
+}
+
+function _selUnica(gridId, el, errId) {
+  document.getElementById(gridId).querySelectorAll('.hab-card').forEach(function(c) {
+    c.classList.remove('selected');
+  });
+  el.classList.add('selected');
+  if (errId) document.getElementById(errId).style.display = 'none';
+  cargarTotal();
+}
+
+function selMobiliario(id, el) { mobiliarioSel = id; _selUnica('mobiliario-grid', el, 'err-mobiliario'); }
+function selTaquiza(id, el)    { comboTaquizaSel = id; _selUnica('taquiza-grid', el, 'err-taquiza'); }
+function selNivelLicor(id, el) { nivelLicorSel = id; _selUnica('licor-grid', el, 'err-licor'); }
+
+function selLicores(activar) {
+  incluirLicores = !!activar;
+  document.getElementById('lic-btn-no').classList.toggle('active', !incluirLicores);
+  document.getElementById('lic-btn-si').classList.toggle('active', incluirLicores);
+  var grid = document.getElementById('licor-grid');
+  grid.style.display = incluirLicores ? '' : 'none';
+  if (incluirLicores) {
+    renderOpciones('licor-grid', catalogoEventos && catalogoEventos.niveles_licor, 'selNivelLicor', nivelLicorSel);
+  } else {
+    // Apagar el toggle limpia el nivel: el servidor rechaza un nivel elegido
+    // con los licores desactivados, y con razón.
+    nivelLicorSel = null;
+    document.getElementById('err-licor').style.display = 'none';
+  }
+  cargarTotal();
+}
+
+function renderExtrasEvento() {
+  var grid = document.getElementById('extras-evento-grid');
+  var extras = (catalogoEventos && catalogoEventos.extras) || [];
+  if (!extras.length) { grid.innerHTML = ''; return; }
+  var h = '';
+  for (var i = 0; i < extras.length; i++) {
+    var e = extras[i];
+    var sel = extrasEventoSel.has(e.id) ? ' selected' : '';
+    h += '<div class="hab-card' + sel + '" data-id="' + e.id + '" onclick="toggleExtraEvento(' + e.id + ',this)">';
+    h += '<div class="hab-check">✓</div><div class="hab-info"><span class="hab-nom">' + esc(e.nombre) + '</span>';
+    var sub = e.descripcion || '';
+    if (e.capacidad_maxima_simultanea) {
+      sub += (sub ? ' · ' : '') + 'Hasta ' + e.capacidad_maxima_simultanea + ' a la vez';
+    }
+    if (sub) h += '<span class="hab-sub">' + esc(sub) + '</span>';
+    h += '</div><span class="hab-precio">' + fmtMXN(e.precio) + '</span></div>';
+  }
+  grid.innerHTML = h;
+}
+
+function toggleExtraEvento(id, el) {
+  if (extrasEventoSel.has(id)) { extrasEventoSel.delete(id); el.classList.remove('selected'); }
+  else { extrasEventoSel.add(id); el.classList.add('selected'); }
+  cargarTotal();
+}
+
+// Cambiar el aforo cambia el precio de cada opción (todo escala por persona),
+// así que el catálogo se vuelve a pedir al entrar al paso 3.
+function prepararPaso3Evento() {
+  document.getElementById('err-paquete-evento').style.display = 'none';
+  ['err-mobiliario','err-licor','err-taquiza'].forEach(function(id) {
+    document.getElementById(id).style.display = 'none';
+  });
+  cargarCatalogoEventos();
+}
+
+function validarPaso3Evento() {
+  if (modalidadSel !== 'PAQUETE') return true;
+  var ok = true;
+  function marcar(id, malo) {
+    document.getElementById(id).style.display = malo ? 'block' : 'none';
+    if (malo) ok = false;
+  }
+  marcar('err-paquete-evento', !paqueteEventoSel);
+  var paq = paqueteEventoActual();
+  if (paq) {
+    marcar('err-mobiliario', paq.requiere_mobiliario && !mobiliarioSel);
+    marcar('err-taquiza', paq.requiere_taquiza && !comboTaquizaSel);
+    marcar('err-licor', incluirLicores && !nivelLicorSel);
+  }
+  return ok;
+}
+
 function actualizarEtiquetaPaso3() {
   var lbl = document.getElementById('steplbl-3');
-  if (servicioSel === 'HOSPEDAJE') lbl.textContent = 'Habitación';
+  if (servicioSel === 'EVENTO') lbl.textContent = modalidadSel === 'PAQUETE' ? 'Paquete' : 'Espacio';
+  else if (servicioSel === 'HOSPEDAJE') lbl.textContent = 'Habitación';
   else if (servicioSel === 'PASADIA' || servicioSel === 'ARRENDAMIENTO') lbl.textContent = 'Extras';
   else lbl.textContent = caminoSel === 'personalizado' ? 'Extras' : 'Paquete';
 }
@@ -1308,6 +1708,7 @@ function actualizarPersonas(val) {
   var pct = ((val - input.min) / (input.max - input.min)) * 100;
   input.style.background = 'linear-gradient(to right, var(--verde) ' + pct + '%, var(--borde) ' + pct + '%)';
   actualizarAvisoPersonaExtraPasadia();
+  actualizarModalidadEvento();
 }
 
 function cambiarPersonas(delta) {
@@ -1339,6 +1740,12 @@ function irA(paso) {
   // cliente cambió el número de huéspedes después de haber cargado las
   // habitaciones (no vuelve a pedirlas, solo recalcula con lo que ya hay).
   if (paso === 3 && servicioSel === 'HOSPEDAJE') actualizarAvisoPersonasExtra();
+  // La modalidad y el aforo se eligen en el paso 2, DESPUÉS de que
+  // `actualizarPanelSegunServicio` configuró el paso 3 al elegir el servicio.
+  // Sin rearmarlo aquí, el cliente que activa "Con paquete" llegaba al paso 3
+  // todavía configurado para "solo el espacio"; además el precio de cada
+  // opción depende del aforo, así que el catálogo se vuelve a pedir.
+  if (paso === 3 && servicioSel === 'EVENTO') configurarPaso3();
   pasoActual = paso;
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -1348,14 +1755,18 @@ function irA(paso) {
 // en el propio paso 3 — el paso 4 ahí solo repetiría un cuadro de notas
 // vacío, así que se salta directo al paso 5. Camino 'paquete' (solo Evento)
 // sí necesita el paso 4 para ofrecer extras adicionales al paquete elegido.
+// Evento arma todo en el paso 3 (opciones cerradas + notas), así que el paso 4
+// —extras del catálogo abierto— ya no aplica y se salta, igual que hacen
+// Pasadía/Arrendamiento/Hospedaje.
 function siguienteDesdePaso3() {
-  irA(caminoSel === 'personalizado' ? 5 : 4);
+  irA((caminoSel === 'personalizado' || caminoSel === 'evento') ? 5 : 4);
 }
 function atrasDesdePaso5() {
-  irA(caminoSel === 'personalizado' ? 3 : 4);
+  irA((caminoSel === 'personalizado' || caminoSel === 'evento') ? 3 : 4);
 }
 function obtenerNotas() {
-  var id = caminoSel === 'personalizado' ? 'notas-personalizado' : 'notas-paquete';
+  var id = caminoSel === 'evento' ? 'notas-evento'
+         : caminoSel === 'personalizado' ? 'notas-personalizado' : 'notas-paquete';
   var el = document.getElementById(id);
   return el ? el.value.trim() : '';
 }
@@ -1394,6 +1805,7 @@ function validarPaso(paso) {
     document.getElementById('err-horario').style.display = 'none';
   }
   if (paso === 3) {
+    if (servicioSel === 'EVENTO') return validarPaso3Evento();
     if (!caminoSel) {
       document.getElementById('err-camino').style.display = 'block'; return false;
     }
@@ -1439,7 +1851,29 @@ function mostrarErr(errId, inputId) {
   }, {once:true});
 }
 
+function actualizarZonasRestringidas() {
+  var caja = document.getElementById('zonas-restringidas');
+  var img = catalogoEventos && catalogoEventos.imagen_zonas_restringidas;
+  var aplica = servicioSel === 'EVENTO' && img;
+  caja.style.display = aplica ? 'block' : 'none';
+  if (aplica) {
+    document.getElementById('zonas-img').src = img.url;
+    document.getElementById('zonas-img').alt = img.alt;
+  }
+}
+
+// Cómo se llama la modalidad en el resumen. Evento tiene sus dos modalidades
+// propias (arrendamiento solo vs. paquete cerrado); el resto sigue usando la
+// bifurcación paquete/personalizado de siempre.
+function etiquetaModalidad() {
+  if (servicioSel !== 'EVENTO') return caminoSel === 'paquete' ? 'Paquete' : 'Personalizado';
+  if (modalidadSel !== 'PAQUETE') return 'Solo arrendamiento';
+  var paq = paqueteEventoActual();
+  return paq ? 'Paquete ' + paq.nombre : 'Con paquete';
+}
+
 function construirResumen() {
+  actualizarZonasRestringidas();
   var nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','ARRENDAMIENTO':'Arrendamiento de Mobiliario','HOSPEDAJE':'Hospedaje'};
   var fecha = document.getElementById('fecha').value;
   var fechaFmt = fecha
@@ -1492,9 +1926,17 @@ function construirResumen() {
     // Horario fijo de la pasadía; el backend lo impone igual (HORA_*_PASADIA).
     html += '<div class="resumen-item"><span class="resumen-key">Horario</span><span class="resumen-val">11:00 a.m. — 7:00 p.m.</span></div>';
   }
-  html += '<div class="resumen-item"><span class="resumen-key">' + (servicioSel === 'HOSPEDAJE' ? 'Huéspedes' : 'Personas') + '</span><span class="resumen-val">' + esc(personas) + '</span></div>';
+  // En un paquete de Evento el aforo que se cobra es el tramo de 10 hacia
+  // arriba, no el número exacto del slider: el resumen lo dice explícito para
+  // que el total exhibido no parezca no cuadrar con las personas capturadas.
+  var personasTxt = esc(personas);
+  if (servicioSel === 'EVENTO' && modalidadSel === 'PAQUETE') {
+    var tramo = aforoCotizable();
+    if (tramo !== Number(personas)) personasTxt += ' (se cotiza para ' + tramo + ')';
+  }
+  html += '<div class="resumen-item"><span class="resumen-key">' + (servicioSel === 'HOSPEDAJE' ? 'Huéspedes' : 'Personas') + '</span><span class="resumen-val">' + personasTxt + '</span></div>';
   html += (servicioSel === 'PASADIA' || servicioSel === 'HOSPEDAJE' ? ''
-        : '<div class="resumen-item"><span class="resumen-key">Modalidad</span><span class="resumen-val">' + (caminoSel === 'paquete' ? 'Paquete' : 'Personalizado') + '</span></div>')
+        : '<div class="resumen-item"><span class="resumen-key">Modalidad</span><span class="resumen-val">' + esc(etiquetaModalidad()) + '</span></div>')
     + '<div class="resumen-item"><span class="resumen-key">Nombre</span><span class="resumen-val">' + esc(nombre) + '</span></div>'
     + '<div class="resumen-item"><span class="resumen-key">Teléfono</span><span class="resumen-val">' + esc(tel) + '</span></div>';
   if (email) html += '<div class="resumen-item"><span class="resumen-key">Correo</span><span class="resumen-val">' + esc(email) + '</span></div>';
@@ -1550,6 +1992,18 @@ async function cargarTotal() {
   if (paqueteSel) params.set('paquete', paqueteSel);
   if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
   if (servicioSel === 'PASADIA') params.set('nivel_pasadia', nivelPasadiaSel);
+  if (servicioSel === 'EVENTO') {
+    // Mandar `modalidad` es lo que activa el catálogo cerrado en el servidor.
+    params.set('modalidad', modalidadSel);
+    if (paqueteEventoSel) params.set('paquete_evento', paqueteEventoSel);
+    if (mobiliarioSel) params.set('mobiliario', mobiliarioSel);
+    if (incluirLicores) {
+      params.set('incluir_licores', '1');
+      if (nivelLicorSel) params.set('nivel_licor', nivelLicorSel);
+    }
+    if (comboTaquizaSel) params.set('combo_taquiza', comboTaquizaSel);
+    if (extrasEventoSel.size) params.set('extras_evento', Array.from(extrasEventoSel).join(','));
+  }
   if (servicioSel === 'HOSPEDAJE') {
     params.set('noches', String(noches));
     if (selectedHabitaciones.size) params.set('habitaciones', Array.from(selectedHabitaciones).join(','));
@@ -1625,6 +2079,15 @@ async function enviarSolicitud() {
     habitaciones_ids: servicioSel === 'HOSPEDAJE' ? Array.from(selectedHabitaciones) : [],
     paquete_id:     paqueteSel,
     nivel_pasadia:  servicioSel === 'PASADIA' ? nivelPasadiaSel : '',
+    // Catálogo cerrado de Eventos. `modalidad` es la llave que lo activa en el
+    // servidor; sin ella, Evento seguiría por el camino viejo.
+    modalidad:        servicioSel === 'EVENTO' ? modalidadSel : '',
+    paquete_evento_id: servicioSel === 'EVENTO' ? paqueteEventoSel : null,
+    mobiliario_id:     servicioSel === 'EVENTO' ? mobiliarioSel : null,
+    incluir_licores:   servicioSel === 'EVENTO' && incluirLicores,
+    nivel_licor_id:    servicioSel === 'EVENTO' && incluirLicores ? nivelLicorSel : null,
+    combo_taquiza_id:  servicioSel === 'EVENTO' ? comboTaquizaSel : null,
+    extras_evento_ids: servicioSel === 'EVENTO' ? Array.from(extrasEventoSel) : [],
     requiere_factura: requiereFactura,
     acepta_legales: true,
     finalidades:    finalidades,
