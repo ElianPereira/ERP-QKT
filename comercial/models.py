@@ -9,6 +9,16 @@ from django.db.models import F, Sum
 from django.utils.timezone import now
 
 from comercial.choices import ModoDescuento, PosicionLanding
+from comercial.reglas_eventos import (
+    MAX_PERSONAS_EVENTO,
+    MIN_PERSONAS_PAQUETE,
+    MODALIDAD_ARRENDAMIENTO,
+    MODALIDAD_CHOICES,
+    MODALIDAD_PAQUETE,
+    PASO_PERSONAS_PAQUETE,
+    personas_validas_paquete,
+    resolver_cantidad,
+)
 from core_erp import impuestos
 from core_erp.storages_qkt import storage_privado
 from facturacion.choices import RegimenFiscal, UsoCFDI
@@ -2158,3 +2168,335 @@ class OpenpayTransaccion(models.Model):
 
     def __str__(self):
         return f"{self.openpay_id} - {self.metodo or self.event_type} [{'procesado' if self.procesado else 'pendiente'}]"
+
+
+# ==========================================
+# 12. COTIZADOR DE EVENTOS — CAPA DE ASIGNACIÓN
+# ==========================================
+# Ningún modelo de aquí guarda precios: cada tier/nivel/combo/extra apunta a
+# `Producto` (la fuente única del precio de venta, igual que el resto del
+# cotizador) y el importe de la línea sale de `producto.sugerencia_precio()`
+# por la cantidad que resuelve el aforo. Así el propietario reasigna qué
+# producto compone cada opción desde el admin, sin tocar código.
+
+
+class CatalogoEventoBase(models.Model):
+    """Cabecera común de las opciones cerradas del cotizador de eventos."""
+
+    codigo = models.SlugField(max_length=40, unique=True,
+                              help_text="Identificador estable. No lo cambies una vez publicado.")
+    nombre = models.CharField(max_length=100)
+    descripcion_corta = models.CharField(max_length=160, blank=True,
+                                         verbose_name="Descripción corta",
+                                         help_text="Texto que ve el cliente bajo el nombre.")
+    activo = models.BooleanField(default=True,
+                                 help_text="Desmarcar retira la opción del cotizador sin borrar nada.")
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', verbose_name="Creado por")
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', verbose_name="Actualizado por")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class AsignacionProductoBase(models.Model):
+    """Un `Producto` del catálogo con la cantidad que le corresponde por aforo.
+
+    Exactamente uno de los dos campos de cantidad va lleno: `cantidad_por_persona`
+    para lo que escala con los invitados (tacos, sillas, meseros) y
+    `cantidad_fija` para lo que no (un brincolín es uno, vengan 50 o 100).
+    """
+
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+',
+                                 verbose_name="Producto del catálogo",
+                                 help_text="De aquí sale el precio. No se captura ningún importe en esta pantalla.")
+    cantidad_por_persona = models.DecimalField(
+        max_digits=8, decimal_places=3, null=True, blank=True,
+        verbose_name="Cantidad por persona",
+        help_text="Ej: 8 = ocho por invitado · 0.05 = uno cada 20 invitados. Se redondea hacia arriba.",
+    )
+    cantidad_fija = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        verbose_name="Cantidad fija",
+        help_text="Unidades que no dependen del aforo. Deja vacío si usas 'Cantidad por persona'.",
+    )
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        abstract = True
+        ordering = ['orden', 'id']
+
+    def clean(self):
+        super().clean()
+        tiene_por_persona = self.cantidad_por_persona is not None
+        tiene_fija = self.cantidad_fija is not None
+        if tiene_por_persona == tiene_fija:
+            raise ValidationError(
+                "Captura exactamente una de las dos cantidades: 'por persona' "
+                "(escala con el aforo) o 'fija' (no escala)."
+            )
+        if tiene_por_persona and self.cantidad_por_persona <= 0:
+            raise ValidationError({'cantidad_por_persona': "Debe ser mayor a cero."})
+        if tiene_fija and self.cantidad_fija <= 0:
+            raise ValidationError({'cantidad_fija': "Debe ser mayor a cero."})
+
+    def cantidad_para(self, num_personas):
+        return resolver_cantidad(
+            cantidad_por_persona=self.cantidad_por_persona,
+            cantidad_fija=self.cantidad_fija,
+            num_personas=num_personas,
+        )
+
+    def __str__(self):
+        if self.cantidad_por_persona is not None:
+            return f"{self.producto.nombre} × {self.cantidad_por_persona}/persona"
+        return f"{self.producto.nombre} × {self.cantidad_fija}"
+
+
+class PaqueteEvento(CatalogoEventoBase):
+    """Esencial / QKT. Las banderas dicen qué pasos ve el cliente, no qué cuesta.
+
+    Lo que el paquete incluye de forma automática (refrescos, servicio de mesa)
+    son filas de `PaqueteEventoProducto`: si la fila existe, se cobra y se
+    muestra como línea informativa. El arrendamiento base y las horas extra NO
+    se declaran aquí — vienen de `Producto.rol_cotizador` ('BASE_EVENTO' /
+    'HORA_EXTRA'), que ya es la fuente única y la comparten las dos modalidades.
+    """
+
+    requiere_mobiliario = models.BooleanField(
+        default=True, verbose_name="Exige elegir mobiliario",
+        help_text="El cliente elige un tier de mobiliario (obligatorio).",
+    )
+    permite_licores_opcional = models.BooleanField(
+        default=False, verbose_name="Ofrece licores (opcional)",
+        help_text="Muestra el toggle de licores y, si se activa, el nivel.",
+    )
+    requiere_taquiza = models.BooleanField(
+        default=False, verbose_name="Exige elegir taquiza",
+        help_text="El cliente elige un combo cerrado (obligatorio).",
+    )
+    permite_extras = models.BooleanField(
+        default=False, verbose_name="Ofrece extras",
+        help_text="Muestra las casillas de extras (bolis, brincolín).",
+    )
+
+    class Meta(CatalogoEventoBase.Meta):
+        verbose_name = "Paquete de Evento"
+        verbose_name_plural = "Paquetes de Evento"
+
+
+class PaqueteEventoProducto(AsignacionProductoBase):
+    """Lo que el paquete incluye sin que el cliente lo elija ni lo pueda quitar."""
+
+    paquete = models.ForeignKey(PaqueteEvento, on_delete=models.CASCADE,
+                                related_name='productos_incluidos')
+    concepto = models.CharField(
+        max_length=150, verbose_name="Concepto",
+        help_text="Nombre de la línea tal como la ve el cliente. Genérico y "
+                  "reutilizable entre paquetes: 'Refrescos', 'Servicio de mesa'.",
+    )
+
+    class Meta(AsignacionProductoBase.Meta):
+        verbose_name = "Producto incluido en el paquete"
+        verbose_name_plural = "Productos incluidos en el paquete"
+        # El mismo producto dos veces en la misma opción se cobraría dos veces.
+        # Si hace falta más cantidad, se sube la cantidad de la fila que ya está.
+        unique_together = ('paquete', 'producto')
+
+
+class TipoMobiliario(CatalogoEventoBase):
+    """Tier de mobiliario. Selección única (radio), en los dos paquetes."""
+
+    class Meta(CatalogoEventoBase.Meta):
+        verbose_name = "Tipo de Mobiliario"
+        verbose_name_plural = "Tipos de Mobiliario"
+
+
+class TipoMobiliarioProducto(AsignacionProductoBase):
+    tipo_mobiliario = models.ForeignKey(TipoMobiliario, on_delete=models.CASCADE,
+                                        related_name='productos')
+
+    class Meta(AsignacionProductoBase.Meta):
+        verbose_name = "Producto del tipo de mobiliario"
+        verbose_name_plural = "Productos del tipo de mobiliario"
+        unique_together = ('tipo_mobiliario', 'producto')
+
+
+class NivelLicor(CatalogoEventoBase):
+    """Nacional / Premium. Solo se ofrece si el cliente activó el toggle."""
+
+    class Meta(CatalogoEventoBase.Meta):
+        verbose_name = "Nivel de Licor"
+        verbose_name_plural = "Niveles de Licor"
+
+
+class NivelLicorProducto(AsignacionProductoBase):
+    nivel = models.ForeignKey(NivelLicor, on_delete=models.CASCADE, related_name='productos')
+
+    class Meta(AsignacionProductoBase.Meta):
+        verbose_name = "Producto del nivel de licor"
+        verbose_name_plural = "Productos del nivel de licor"
+        unique_together = ('nivel', 'producto')
+
+
+class ComboTaquiza(CatalogoEventoBase):
+    """Combo cerrado de proteínas. No se mezclan proteínas entre combos.
+
+    Las proteínas son filas hijas y no dos FK fijas: un combo de tres (o de
+    una) no necesita migración de schema, y la cantidad por persona de cada
+    proteína se captura igual que en el resto de la capa de asignación.
+    """
+
+    class Meta(CatalogoEventoBase.Meta):
+        verbose_name = "Combo de Taquiza"
+        verbose_name_plural = "Combos de Taquiza"
+
+
+class ComboTaquizaProducto(AsignacionProductoBase):
+    combo = models.ForeignKey(ComboTaquiza, on_delete=models.CASCADE, related_name='productos')
+
+    class Meta(AsignacionProductoBase.Meta):
+        verbose_name = "Proteína del combo"
+        verbose_name_plural = "Proteínas del combo"
+        unique_together = ('combo', 'producto')
+
+
+class ExtraEvento(CatalogoEventoBase, AsignacionProductoBase):
+    """Casilla suelta del último paso: carrito de bolis, brincolín.
+
+    Es a la vez cabecera y asignación — un extra es siempre un solo producto,
+    así que una tabla hija con una única fila sería ceremonia sin uso.
+    """
+
+    capacidad_maxima_simultanea = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Capacidad máxima simultánea",
+        help_text="Solo informativo para el cliente (ej. brincolín: 5 niños). No afecta el precio.",
+    )
+
+    class Meta(CatalogoEventoBase.Meta):
+        verbose_name = "Extra de Evento"
+        verbose_name_plural = "Extras de Evento"
+
+    def __str__(self):
+        return self.nombre
+
+
+class ConfiguracionEventoCotizacion(models.Model):
+    """Lo que el cliente eligió en el cotizador, colgado de la `Cotizacion` real.
+
+    No duplica `num_personas`, `horas_servicio` ni `fecha_evento`: esos ya viven
+    en `Cotizacion` y de ahí los leen el portal, Openpay, la póliza contable, la
+    validación de fechas y los reportes. Aquí solo va la selección que hoy no
+    tiene dónde guardarse.
+    """
+
+    cotizacion = models.OneToOneField(Cotizacion, on_delete=models.CASCADE,
+                                      related_name='config_evento')
+    modalidad = models.CharField(max_length=15, choices=MODALIDAD_CHOICES)
+    paquete = models.ForeignKey(PaqueteEvento, on_delete=models.PROTECT, null=True, blank=True,
+                                related_name='cotizaciones')
+    tipo_mobiliario = models.ForeignKey(TipoMobiliario, on_delete=models.PROTECT,
+                                        null=True, blank=True, related_name='cotizaciones')
+    incluir_licores = models.BooleanField(default=False)
+    nivel_licor = models.ForeignKey(NivelLicor, on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='cotizaciones')
+    combo_taquiza = models.ForeignKey(ComboTaquiza, on_delete=models.PROTECT, null=True, blank=True,
+                                      related_name='cotizaciones')
+    extras = models.ManyToManyField(ExtraEvento, blank=True, related_name='cotizaciones')
+
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', verbose_name="Creado por")
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', verbose_name="Actualizado por")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración de Evento"
+        verbose_name_plural = "Configuraciones de Evento"
+
+    def clean(self):
+        """Rechaza cualquier combinación que el cotizador no debería haber armado.
+
+        Corre también desde el admin (`ModelForm.full_clean()`), así que una
+        captura manual inconsistente se frena por el mismo camino que una
+        petición del formulario público.
+        """
+        super().clean()
+        errores = {}
+
+        personas = getattr(self.cotizacion, 'num_personas', None) if self.cotizacion_id else None
+        if personas is not None:
+            if personas < 1 or personas > MAX_PERSONAS_EVENTO:
+                errores['modalidad'] = (
+                    f"El aforo debe estar entre 1 y {MAX_PERSONAS_EVENTO} personas. "
+                    f"No ofrecemos eventos de más de {MAX_PERSONAS_EVENTO}."
+                )
+            elif (self.modalidad == MODALIDAD_PAQUETE
+                    and personas not in personas_validas_paquete()):
+                errores['modalidad'] = (
+                    "En modalidad de paquete el aforo va de "
+                    f"{MIN_PERSONAS_PAQUETE} a {MAX_PERSONAS_EVENTO} en pasos de "
+                    f"{PASO_PERSONAS_PAQUETE}."
+                )
+
+        if self.modalidad == MODALIDAD_ARRENDAMIENTO:
+            if self.paquete_id:
+                errores['paquete'] = "El arrendamiento del espacio no lleva paquete."
+            if self.tipo_mobiliario_id:
+                errores['tipo_mobiliario'] = "El arrendamiento del espacio no incluye mobiliario."
+            if self.incluir_licores or self.nivel_licor_id:
+                errores['incluir_licores'] = "El arrendamiento del espacio no incluye licores."
+            if self.combo_taquiza_id:
+                errores['combo_taquiza'] = "El arrendamiento del espacio no incluye taquiza."
+
+        elif self.modalidad == MODALIDAD_PAQUETE:
+            if not self.paquete_id:
+                errores['paquete'] = "Elige un paquete."
+            else:
+                paq = self.paquete
+                if paq.requiere_mobiliario and not self.tipo_mobiliario_id:
+                    errores['tipo_mobiliario'] = "Elige un tipo de mobiliario."
+                if not paq.permite_licores_opcional and (self.incluir_licores or self.nivel_licor_id):
+                    errores['incluir_licores'] = f"El paquete {paq.nombre} no ofrece licores."
+                if paq.requiere_taquiza and not self.combo_taquiza_id:
+                    errores['combo_taquiza'] = "Elige un combo de taquiza."
+                if not paq.requiere_taquiza and self.combo_taquiza_id:
+                    errores['combo_taquiza'] = f"El paquete {paq.nombre} no incluye taquiza."
+
+            if self.incluir_licores and not self.nivel_licor_id:
+                errores['nivel_licor'] = "Elige el nivel de licor (nacional o premium)."
+            if not self.incluir_licores and self.nivel_licor_id:
+                errores['nivel_licor'] = "Hay un nivel de licor elegido pero los licores no están activados."
+
+        if errores:
+            raise ValidationError(errores)
+
+    def validar_extras(self, extras):
+        """Los extras son un M2M, que `clean()` no puede leer todavía en un alta.
+
+        Django solo escribe la tabla intermedia después del `save()`, así que la
+        regla "este paquete no ofrece extras" se comprueba aparte, con la
+        selección en la mano: la llaman el servicio que arma las líneas y el
+        formulario del admin, que son los dos únicos caminos de alta.
+        """
+        if not extras:
+            return
+        permitidos = (self.modalidad == MODALIDAD_PAQUETE
+                      and self.paquete_id and self.paquete.permite_extras)
+        if not permitidos:
+            nombre = self.paquete.nombre if self.paquete_id else "El arrendamiento del espacio"
+            raise ValidationError({'extras': f"{nombre} no ofrece extras."})
+
+    def __str__(self):
+        return f"COT-{self.cotizacion_id} · {self.get_modalidad_display()}"

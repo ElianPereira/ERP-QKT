@@ -1,5 +1,6 @@
 # Archivos de sistema y entorno virtual
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
