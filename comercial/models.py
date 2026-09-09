@@ -2435,7 +2435,15 @@ class ConfiguracionEventoCotizacion(models.Model):
         super().clean()
         errores = {}
 
-        personas = getattr(self.cotizacion, 'num_personas', None) if self.cotizacion_id else None
+        # Se lee la cotización aunque todavía no esté guardada: el cotizador
+        # valida la selección ANTES de crear nada, para no dejar una cotización
+        # huérfana en BORRADOR cuando la combinación se rechaza (mismo criterio
+        # que el simulador de pagos, que hace `full_clean()` en memoria).
+        try:
+            cotizacion = self.cotizacion
+        except Cotizacion.DoesNotExist:
+            cotizacion = None
+        personas = getattr(cotizacion, 'num_personas', None)
         if personas is not None:
             if personas < 1 or personas > MAX_PERSONAS_EVENTO:
                 errores['modalidad'] = (
