@@ -27,19 +27,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import (
-    ComboTaquiza,
-    ComboTaquizaProducto,
+    CatalogoEvento,
+    CatalogoEventoProducto,
     ConfiguracionEventoCotizacion,
     Cotizacion,
-    ExtraEvento,
     ImagenLanding,
-    NivelLicor,
-    NivelLicorProducto,
-    PaqueteEvento,
-    PaqueteEventoProducto,
     Producto,
-    TipoMobiliario,
-    TipoMobiliarioProducto,
 )
 from comercial.reglas_eventos import MODALIDAD_ARRENDAMIENTO, MODALIDAD_PAQUETE
 from comercial.services_eventos import lineas_evento, resolver_seleccion
@@ -67,12 +60,14 @@ def _catalogo_eventos():
                            visible_cotizador=True, cotizador_evento=True,
                            rol_cotizador='HORA_EXTRA')
 
-    esencial = PaqueteEvento.objects.create(
+    esencial = CatalogoEvento.objects.create(
+        tipo=CatalogoEvento.TIPO_PAQUETE,
         codigo='esencial', nombre='Esencial', orden=1,
         requiere_mobiliario=True, permite_licores_opcional=False,
         requiere_taquiza=False, permite_extras=False,
     )
-    qkt = PaqueteEvento.objects.create(
+    qkt = CatalogoEvento.objects.create(
+        tipo=CatalogoEvento.TIPO_PAQUETE,
         codigo='qkt', nombre='QKT', orden=2,
         requiere_mobiliario=True, permite_licores_opcional=True,
         requiere_taquiza=True, permite_extras=True,
@@ -81,37 +76,41 @@ def _catalogo_eventos():
     # QKT incluye refrescos y servicio de mesa sin que el cliente los elija.
     refresco = _producto('Refresco 2L', '30.00')
     mesero = _producto('Mesero por evento', '600.00')
-    PaqueteEventoProducto.objects.create(
-        paquete=qkt, producto=refresco, concepto='Refrescos',
+    CatalogoEventoProducto.objects.create(
+        opcion=qkt, producto=refresco, concepto='Refrescos',
         cantidad_por_persona=Decimal('1'), orden=1,
     )
-    PaqueteEventoProducto.objects.create(
-        paquete=qkt, producto=mesero, concepto='Servicio de mesa',
+    CatalogoEventoProducto.objects.create(
+        opcion=qkt, producto=mesero, concepto='Servicio de mesa',
         cantidad_por_persona=Decimal('0.05'), orden=2,  # 1 cada 20 invitados
     )
 
-    mobiliario = TipoMobiliario.objects.create(codigo='rustico', nombre='Rústico')
+    mobiliario = CatalogoEvento.objects.create(
+        tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico', nombre='Rústico')
     silla = _producto('Silla Tiffany', '25.00')
-    TipoMobiliarioProducto.objects.create(
-        tipo_mobiliario=mobiliario, producto=silla, cantidad_por_persona=Decimal('1'),
+    CatalogoEventoProducto.objects.create(
+        opcion=mobiliario, producto=silla, cantidad_por_persona=Decimal('1'),
     )
 
-    nivel = NivelLicor.objects.create(codigo='nacional', nombre='Nacional')
+    nivel = CatalogoEvento.objects.create(
+        tipo=CatalogoEvento.TIPO_LICOR, codigo='nacional', nombre='Nacional')
     botella = _producto('Botella nacional', '400.00')
-    NivelLicorProducto.objects.create(
-        nivel=nivel, producto=botella, cantidad_por_persona=Decimal('0.1'),
+    CatalogoEventoProducto.objects.create(
+        opcion=nivel, producto=botella, cantidad_por_persona=Decimal('0.1'),
     )
 
-    combo = ComboTaquiza.objects.create(codigo='combo_1', nombre='Pastor y Asado')
+    combo = CatalogoEvento.objects.create(
+        tipo=CatalogoEvento.TIPO_TAQUIZA, codigo='combo_1', nombre='Pastor y Asado')
     pastor = _producto('Taco de pastor', '12.00')
-    ComboTaquizaProducto.objects.create(
-        combo=combo, producto=pastor, cantidad_por_persona=Decimal('5'),
+    CatalogoEventoProducto.objects.create(
+        opcion=combo, producto=pastor, cantidad_por_persona=Decimal('5'),
     )
 
     bolis = _producto('Carrito de bolis', '40.00')
-    extra = ExtraEvento.objects.create(
-        codigo='carrito_bolis', nombre='Carrito de bolis',
-        producto=bolis, cantidad_por_persona=Decimal('1'),
+    extra = CatalogoEvento.objects.create(
+        tipo=CatalogoEvento.TIPO_EXTRA, codigo='carrito_bolis', nombre='Carrito de bolis')
+    CatalogoEventoProducto.objects.create(
+        opcion=extra, producto=bolis, cantidad_por_persona=Decimal('1'),
     )
 
     return {
@@ -217,7 +216,8 @@ class LineasEventoTest(TestCase):
         self.assertFalse(any('QKT' in d for d in descripciones))
 
     def test_una_opcion_sin_productos_asignados_no_rompe_ni_inventa_lineas(self):
-        vacio = TipoMobiliario.objects.create(codigo='vacio', nombre='Sin configurar')
+        vacio = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='vacio', nombre='Sin configurar')
         cantidades = self._por_producto(lineas_evento(num_personas=80, **self._seleccion(
             tipo_mobiliario=vacio,
         )))
@@ -485,7 +485,8 @@ class ApiCatalogoEventosTest(TestCase):
         self.assertEqual(cien, '2900.00')
 
     def test_una_opcion_sin_productos_se_marca_para_no_ofrecerla(self):
-        TipoMobiliario.objects.create(codigo='vacio', nombre='Sin configurar', orden=9)
+        CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_MOBILIARIO,
+            codigo='vacio', nombre='Sin configurar', orden=9)
         opciones = {m['codigo']: m['sin_configurar'] for m in self._catalogo(personas=80)['mobiliario']}
         self.assertFalse(opciones['rustico'])
         self.assertTrue(opciones['vacio'])

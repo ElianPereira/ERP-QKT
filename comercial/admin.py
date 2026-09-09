@@ -277,6 +277,8 @@ class ProductoPaqueteInline(admin.TabularInline):
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
+    # `ProductoEnCatalogoEventoInline` se anexa al final de este archivo, tras
+    # importar `admin_eventos` — importarlo aquí arriba sería circular.
     inlines = [ComponenteInline, ProductoPaqueteInline]
     list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_upgrade', 'badge_licor')
     list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'cotizador_hospedaje', 'es_paquete', 'es_upgrade', 'requiere_licor')
@@ -1964,3 +1966,10 @@ class OpenpayTransaccionAdmin(admin.ModelAdmin):
 # módulo (este archivo ya pasa de las 1.900 líneas); Django solo autodescubre
 # `admin.py`, así que se importa aquí para que se registre.
 from . import admin_eventos  # noqa: E402, F401
+
+# El catálogo del cotizador de Eventos se captura también desde el Producto (en
+# qué opciones entra), no solo desde la opción. Se anexa aquí y no en la clase
+# porque `admin_eventos` importa modelos que a su vez viven en este módulo: el
+# import tiene que ir al final, y el inline con él.
+ProductoAdmin.inlines = [*ProductoAdmin.inlines,
+                         admin_eventos.ProductoEnCatalogoEventoInline]

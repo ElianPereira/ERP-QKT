@@ -19,17 +19,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from comercial.models import (
+    CatalogoEvento,
+    CatalogoEventoProducto,
     Cliente,
-    ComboTaquiza,
-    ComboTaquizaProducto,
     ConfiguracionEventoCotizacion,
     Cotizacion,
-    ExtraEvento,
-    NivelLicor,
-    PaqueteEvento,
     Producto,
-    TipoMobiliario,
-    TipoMobiliarioProducto,
 )
 from comercial.reglas_eventos import (
     MAX_PERSONAS_EVENTO,
@@ -119,52 +114,68 @@ class AsignacionProductoTest(TestCase):
     def setUpTestData(cls):
         cls.producto = Producto.objects.create(nombre='Silla Tiffany',
                                                precio_venta_fijo=Decimal('25.00'))
-        cls.mobiliario = TipoMobiliario.objects.create(codigo='rustico', nombre='Rústico')
+        cls.mobiliario = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico', nombre='Rústico')
 
     def test_rechaza_una_asignacion_sin_ninguna_cantidad(self):
-        fila = TipoMobiliarioProducto(tipo_mobiliario=self.mobiliario, producto=self.producto)
+        fila = CatalogoEventoProducto(opcion=self.mobiliario, producto=self.producto)
         with self.assertRaises(ValidationError):
             fila.full_clean()
 
     def test_rechaza_una_asignacion_con_las_dos_cantidades(self):
-        fila = TipoMobiliarioProducto(
-            tipo_mobiliario=self.mobiliario, producto=self.producto,
+        fila = CatalogoEventoProducto(
+            opcion=self.mobiliario, producto=self.producto,
             cantidad_por_persona=Decimal('1'), cantidad_fija=Decimal('10'),
         )
         with self.assertRaises(ValidationError):
             fila.full_clean()
 
     def test_rechaza_una_cantidad_en_cero(self):
-        fila = TipoMobiliarioProducto(
-            tipo_mobiliario=self.mobiliario, producto=self.producto,
+        fila = CatalogoEventoProducto(
+            opcion=self.mobiliario, producto=self.producto,
             cantidad_por_persona=Decimal('0'),
         )
         with self.assertRaises(ValidationError):
             fila.full_clean()
 
     def test_acepta_solo_cantidad_por_persona(self):
-        fila = TipoMobiliarioProducto(
-            tipo_mobiliario=self.mobiliario, producto=self.producto,
+        fila = CatalogoEventoProducto(
+            opcion=self.mobiliario, producto=self.producto,
             cantidad_por_persona=Decimal('1'),
         )
         fila.full_clean()  # no lanza
 
-    def test_un_extra_hereda_la_misma_validacion_de_cantidad(self):
-        # ExtraEvento hereda de las DOS bases abstractas (es cabecera y
-        # asignación a la vez): comprobamos que el `clean()` de la asignación
-        # sigue corriendo y no se lo comió la herencia múltiple.
-        extra = ExtraEvento(codigo='brincolin', nombre='Brincolín', producto=self.producto)
+    def test_un_extra_usa_la_misma_validacion_de_cantidad(self):
+        # Un extra ya no es cabecera + asignación en la misma fila: es una
+        # opción normal con sus productos, así que hereda la validación por el
+        # mismo camino que el resto.
+        extra = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_EXTRA, codigo='brincolin', nombre='Brincolín')
+        fila = CatalogoEventoProducto(opcion=extra, producto=self.producto)
         with self.assertRaises(ValidationError):
-            extra.full_clean()
+            fila.full_clean()
 
-        extra.cantidad_fija = Decimal('1')
-        extra.full_clean()  # no lanza
+        fila.cantidad_fija = Decimal('1')
+        fila.full_clean()  # no lanza
+
+    def test_las_banderas_de_paquete_no_se_pueden_poner_en_otro_tipo(self):
+        # El precio de haber fusionado los cinco modelos: hay campos que solo
+        # aplican a un tipo, y el modelo lo dice en vez de dejarlos ambiguos.
+        opcion = CatalogoEvento(tipo=CatalogoEvento.TIPO_LICOR, codigo='x', nombre='X',
+                                requiere_taquiza=True)
+        with self.assertRaises(ValidationError):
+            opcion.full_clean()
+
+    def test_la_capacidad_simultanea_solo_aplica_a_un_extra(self):
+        opcion = CatalogoEvento(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='y', nombre='Y',
+                                capacidad_maxima_simultanea=5)
+        with self.assertRaises(ValidationError):
+            opcion.full_clean()
 
     def test_borrar_un_tier_no_puede_arrastrar_el_producto_del_catalogo(self):
         # PROTECT: el precio de venta vive en Producto y lo comparten otras
         # cotizaciones ya cobradas.
-        TipoMobiliarioProducto.objects.create(
-            tipo_mobiliario=self.mobiliario, producto=self.producto,
+        CatalogoEventoProducto.objects.create(
+            opcion=self.mobiliario, producto=self.producto,
             cantidad_por_persona=Decimal('1'),
         )
         from django.db.models import ProtectedError
@@ -178,24 +189,27 @@ class ConfiguracionEventoValidacionTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.cliente = Cliente.objects.create(nombre='Ana Ruiz', telefono='9995550001')
-        cls.esencial = PaqueteEvento.objects.create(
-            codigo='esencial', nombre='Esencial',
+        cls.esencial = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_PAQUETE, codigo='esencial', nombre='Esencial',
             requiere_mobiliario=True, permite_licores_opcional=False,
             requiere_taquiza=False, permite_extras=False,
         )
-        cls.qkt = PaqueteEvento.objects.create(
-            codigo='qkt', nombre='QKT',
+        cls.qkt = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_PAQUETE, codigo='qkt', nombre='QKT',
             requiere_mobiliario=True, permite_licores_opcional=True,
             requiere_taquiza=True, permite_extras=True,
         )
-        cls.mobiliario = TipoMobiliario.objects.create(codigo='rustico', nombre='Rústico')
-        cls.nivel = NivelLicor.objects.create(codigo='nacional', nombre='Nacional')
-        cls.combo = ComboTaquiza.objects.create(codigo='combo_1', nombre='Pastor y Asado')
+        cls.mobiliario = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico', nombre='Rústico')
+        cls.nivel = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_LICOR, codigo='nacional', nombre='Nacional')
+        cls.combo = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_TAQUIZA, codigo='combo_1', nombre='Pastor y Asado')
         producto_bolis = Producto.objects.create(nombre='Carrito de bolis',
                                                  precio_venta_fijo=Decimal('40.00'))
-        cls.extra = ExtraEvento.objects.create(
-            codigo='carrito_bolis', nombre='Carrito de bolis',
-            producto=producto_bolis, cantidad_por_persona=Decimal('1'),
+        cls.extra = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_EXTRA, codigo='carrito_bolis',
+            nombre='Carrito de bolis',
+        )
+        CatalogoEventoProducto.objects.create(
+            opcion=cls.extra, producto=producto_bolis, cantidad_por_persona=Decimal('1'),
         )
 
     def _cotizacion(self, personas):
@@ -358,9 +372,9 @@ class AislamientoPorTipoServicioTest(TestCase):
             cliente=cliente, tipo_servicio='PASADIA', nombre_evento='Pasadía',
             fecha_evento=fecha + timedelta(days=1), num_personas=20,
         )
-        paquete = PaqueteEvento.objects.create(codigo='qkt', nombre='QKT',
+        paquete = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='qkt', nombre='QKT',
                                                requiere_taquiza=False)
-        mobiliario = TipoMobiliario.objects.create(codigo='rustico', nombre='Rústico')
+        mobiliario = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico', nombre='Rústico')
         ConfiguracionEventoCotizacion.objects.create(
             cotizacion=evento, modalidad=MODALIDAD_PAQUETE,
             paquete=paquete, tipo_mobiliario=mobiliario,
@@ -387,10 +401,10 @@ class ComboTaquizaTest(TestCase):
                                          precio_venta_fijo=Decimal('12.00'))
         asado = Producto.objects.create(nombre='Taco de asado',
                                         precio_venta_fijo=Decimal('15.00'))
-        combo = ComboTaquiza.objects.create(codigo='combo_1', nombre='Pastor y Asado')
-        ComboTaquizaProducto.objects.create(combo=combo, producto=pastor,
+        combo = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_TAQUIZA, codigo='combo_1', nombre='Pastor y Asado')
+        CatalogoEventoProducto.objects.create(opcion=combo, producto=pastor,
                                             cantidad_por_persona=Decimal('5'))
-        ComboTaquizaProducto.objects.create(combo=combo, producto=asado,
+        CatalogoEventoProducto.objects.create(opcion=combo, producto=asado,
                                             cantidad_por_persona=Decimal('3'))
 
         cantidades = {p.producto.nombre: p.cantidad_para(80) for p in combo.productos.all()}
