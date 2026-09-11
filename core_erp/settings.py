@@ -516,6 +516,17 @@ JAZZMIN_SETTINGS = {
         "operaciones.TareaProgramada":       "fas fa-clock",
     },
 
+    # Modelos que siguen registrados en el admin (autocompletado, popups de
+    # alta "+" desde un inline) pero no aparecen como módulo propio en el
+    # menú: se administran por completo desde la pantalla de otro modelo.
+    "hide_models": [
+        # El catálogo de opciones del cotizador de Eventos (paquetes,
+        # mobiliario, licor, taquiza, extras) se administra desde Productos
+        # → pestaña "Cotizador de Eventos" (ProductoEnCatalogoEventoInline),
+        # con el "+" del campo "opción" para dar de alta una opción nueva.
+        "comercial.CatalogoEvento",
+    ],
+
     # ── TOP MENU ──────────────────────────────────────────────
     "topmenu_links": [
         {"name": "Inicio",             "url": "admin:index",            "permissions": ["auth.view_user"]},
