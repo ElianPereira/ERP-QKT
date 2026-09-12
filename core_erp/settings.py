@@ -525,6 +525,14 @@ JAZZMIN_SETTINGS = {
         # → pestaña "Cotizador de Eventos" (ProductoEnCatalogoEventoInline),
         # con el "+" del campo "opción" para dar de alta una opción nueva.
         "comercial.CatalogoEvento",
+        # Costeo por receta (Insumo → Subproducto → Producto): en la práctica
+        # casi todo se captura como "Precio de venta fijo" directo en
+        # Producto, así que este flujo casi no se usa y solo agrega ruido al
+        # menú. Sigue disponible desde la pestaña "SubProductos" de Producto
+        # (el "+" del campo abre el alta de un Subproducto/Insumo nuevo) para
+        # quien sí quiera costear por receta.
+        "comercial.Insumo",
+        "comercial.SubProducto",
     ],
 
     # ── TOP MENU ──────────────────────────────────────────────
