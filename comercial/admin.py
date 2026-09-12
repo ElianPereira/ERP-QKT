@@ -290,7 +290,11 @@ class ProductoAdmin(admin.ModelAdmin):
             'fields': ('es_paquete',),
             'description': (
                 '<strong>Producto Simple:</strong> Usa la sección "SubProductos" abajo.<br>'
-                '<strong>Paquete:</strong> Usa la sección "Productos Incluidos en este Paquete" abajo.'
+                '<strong>Paquete:</strong> Usa la sección "Productos Incluidos en este Paquete" abajo. '
+                'Solo afecta el <strong>costo</strong> de este producto (suma el costo de los productos '
+                'que lo componen) — ya no crea un paquete elegible por el cliente en el cotizador '
+                'público: eso se decide en "Cotizador Web" (Evento/Pasadía/Arrendamiento/Hospedaje) '
+                'y, para las opciones cerradas de Eventos, desde la pestaña "Cotizador de Eventos".'
             ),
         }),
         ('Herencia de Inventario', {
@@ -308,13 +312,18 @@ class ProductoAdmin(admin.ModelAdmin):
         ('Cotizador Web', {
             'fields': (
                 'visible_cotizador',
-                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
+                ('cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
                 'rol_cotizador', 'capacidad_base_hospedaje',
                 'grupo_cotizador', 'icono', 'descripcion_corta',
                 'orden_cotizador', 'grupo_exclusion',
                 ('cantidad_por_persona', 'factor_personas'),
             ),
-            'description': 'Configura cómo aparece este producto en el cotizador público.',
+            'description': (
+                'Configura cómo aparece este producto en el cotizador público de Pasadía, '
+                'Arrendamiento y Hospedaje. Para Eventos, la disponibilidad de un producto ya no '
+                'se marca aquí: se asigna desde la pestaña "Cotizador de Eventos" de este mismo '
+                'formulario (en qué paquete/mobiliario/licor/taquiza/extra entra).'
+            ),
         }),
     )
 
@@ -338,9 +347,10 @@ class ProductoAdmin(admin.ModelAdmin):
     def badge_cotizador(self, obj):
         if not obj.visible_cotizador:
             return mark_safe('<span style="color:#999;">—</span>')
+        # 'E' (Evento) no aparece aquí: la disponibilidad para Evento ya no la
+        # decide un flag del Producto, sino su asignación en CatalogoEventoProducto
+        # (pestaña "Cotizador de Eventos").
         servicios = []
-        if obj.cotizador_evento:
-            servicios.append('E')
         if obj.cotizador_pasadia:
             servicios.append('P')
         if obj.cotizador_arrendamiento:

@@ -996,44 +996,6 @@ def api_catalogo_eventos(request):
     })
 
 
-@rate_limit(key='api_paquetes_cotizador', limit=60, window=60)
-def api_paquetes_cotizador(request):
-    """GET /api/cotizador/paquetes/?servicio=EVENTO
-    Devuelve los paquetes (Producto con es_paquete=True) visibles en el
-    cotizador para ese servicio.
-
-    No filtra por número de personas: `Producto` no tiene rango de personas que
-    permita hacerlo. El parámetro `personas` que manda el navegador se ignora."""
-    servicio = (request.GET.get('servicio') or '').upper()
-
-    filtro = {'visible_cotizador': True, 'es_paquete': True}
-    if servicio == 'EVENTO':
-        filtro['cotizador_evento'] = True
-    elif servicio == 'PASADIA':
-        filtro['cotizador_pasadia'] = True
-    elif servicio == 'ARRENDAMIENTO':
-        filtro['cotizador_arrendamiento'] = True
-
-    paquetes = Producto.objects.filter(**filtro).order_by('orden_cotizador', 'nombre')
-
-    resultado = []
-    for paq in paquetes:
-        # Precio mostrado en el portal CON IVA (16%) incluido, para que
-        # coincida con el total del PDF. El item real se crea con el precio
-        # sin IVA (sugerencia_precio) y calcular_totales() le suma el 16%.
-        precio_con_iva = impuestos.con_iva(Decimal(str(paq.sugerencia_precio())))
-        resultado.append({
-            'id': paq.id,
-            'nombre': paq.nombre,
-            'icono': paq.icono,
-            'descripcion': paq.descripcion_corta,
-            'descripcion_larga': paq.descripcion,
-            'precio': str(precio_con_iva),
-        })
-
-    return JsonResponse({'ok': True, 'paquetes': resultado})
-
-
 @rate_limit(key='api_habitaciones_cotizador', limit=60, window=60)
 def api_habitaciones_cotizador(request):
     """GET /api/cotizador/habitaciones/
