@@ -15,9 +15,11 @@ subtotal completo.
 import logging
 from decimal import Decimal
 
+from django.db.models import Prefetch
+
 from core_erp import impuestos
 
-from .models import CatalogoEvento
+from .models import CatalogoEvento, CatalogoEventoProducto
 from .reglas_eventos import MODALIDAD_ARRENDAMIENTO, MODALIDAD_PAQUETE
 
 logger = logging.getLogger(__name__)
@@ -171,6 +173,27 @@ def _opcion(obj, num_personas, asignaciones):
     }
 
 
+def _prefetch_productos_activos(queryset):
+    """Adjunta los productos activos de cada opción en un solo query extra.
+
+    Sin esto, iterar el queryset y leer `obj.productos` dentro del loop dispara
+    un SELECT por opción (N+1): con el catálogo creciendo (más tipos de
+    mobiliario, niveles de licor, combos, extras) `catalogo_para_cotizador` es
+    la API pública que arma el navegador en cada paso del cotizador
+    (`api_catalogo_eventos`, hasta 60 veces/min por `@rate_limit`), así que el
+    costo escala con el tamaño del catálogo en vez de quedarse fijo.
+    `to_attr` deja la lista ya filtrada/ordenada en el objeto en vez de un
+    QuerySet cacheado, para no arriesgar un segundo hit si algo vuelve a
+    tocar `.productos` en lugar del atributo.
+    """
+    return queryset.prefetch_related(Prefetch(
+        'productos',
+        queryset=CatalogoEventoProducto.objects.filter(activo=True)
+            .select_related('producto').order_by('orden', 'id'),
+        to_attr='_productos_activos',
+    ))
+
+
 def catalogo_para_cotizador(num_personas):
     """Catálogo completo de opciones cerradas, ya valorizado para ese aforo.
 
@@ -181,15 +204,19 @@ def catalogo_para_cotizador(num_personas):
     """
     def _opciones_de(tipo):
         salida = []
-        for obj in CatalogoEvento.objects.filter(tipo=tipo, activo=True).order_by(
-                'orden', 'nombre'):
-            salida.append(_opcion(obj, num_personas, list(_activas(obj.productos))))
+        qs = _prefetch_productos_activos(
+            CatalogoEvento.objects.filter(tipo=tipo, activo=True)
+        ).order_by('orden', 'nombre')
+        for obj in qs:
+            salida.append(_opcion(obj, num_personas, obj._productos_activos))
         return salida
 
     paquetes = []
-    for paq in CatalogoEvento.objects.filter(
-            tipo=CatalogoEvento.TIPO_PAQUETE, activo=True).order_by('orden', 'nombre'):
-        datos = _opcion(paq, num_personas, list(_activas(paq.productos)))
+    qs_paquetes = _prefetch_productos_activos(
+        CatalogoEvento.objects.filter(tipo=CatalogoEvento.TIPO_PAQUETE, activo=True)
+    ).order_by('orden', 'nombre')
+    for paq in qs_paquetes:
+        datos = _opcion(paq, num_personas, paq._productos_activos)
         # Un paquete SIN productos incluidos es legítimo (Esencial solo lleva
         # mobiliario, que se elige aparte), así que aquí no significa "sin
         # configurar" como en el resto de las opciones.
@@ -203,9 +230,11 @@ def catalogo_para_cotizador(num_personas):
         paquetes.append(datos)
 
     extras = []
-    for extra in CatalogoEvento.objects.filter(
-            tipo=CatalogoEvento.TIPO_EXTRA, activo=True).order_by('orden', 'nombre'):
-        datos = _opcion(extra, num_personas, list(_activas(extra.productos)))
+    qs_extras = _prefetch_productos_activos(
+        CatalogoEvento.objects.filter(tipo=CatalogoEvento.TIPO_EXTRA, activo=True)
+    ).order_by('orden', 'nombre')
+    for extra in qs_extras:
+        datos = _opcion(extra, num_personas, extra._productos_activos)
         datos['capacidad_maxima_simultanea'] = extra.capacidad_maxima_simultanea
         extras.append(datos)
 

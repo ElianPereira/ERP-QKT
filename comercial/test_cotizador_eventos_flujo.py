@@ -22,7 +22,9 @@ from unittest.mock import patch
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -35,7 +37,7 @@ from comercial.models import (
     Producto,
 )
 from comercial.reglas_eventos import MODALIDAD_ARRENDAMIENTO, MODALIDAD_PAQUETE
-from comercial.services_eventos import lineas_evento, resolver_seleccion
+from comercial.services_eventos import catalogo_para_cotizador, lineas_evento, resolver_seleccion
 from comercial.views_cotizador import _lineas_cotizador
 from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
 
@@ -546,3 +548,45 @@ class ApiCatalogoEventosTest(TestCase):
             imagen=SimpleUploadedFile('zonas.png', _PNG_MINIMO, content_type='image/png'),
         )
         self.assertIsNone(self._catalogo(personas=80)['imagen_zonas_restringidas'])
+
+
+class CatalogoParaCotizadorQueriesTest(TestCase):
+    """`catalogo_para_cotizador` no debe hacer un query por opción del catálogo.
+
+    Antes de este fix, cada tipo (mobiliario/licor/taquiza/extras/paquetes) leía
+    `obj.productos` dentro del `for` sin prefetch: agregar opciones nuevas en el
+    admin sumaba un SELECT por cada una (N+1). Es la API pública que arma el
+    navegador en cada paso del cotizador (`api_catalogo_eventos`, hasta
+    60 veces/min por `@rate_limit`), así que el costo debía quedar fijo por
+    tipo, no escalar con el tamaño del catálogo.
+    """
+
+    def setUp(self):
+        self.cat = _catalogo_eventos()
+
+    def test_agregar_opciones_no_multiplica_las_queries(self):
+        with CaptureQueriesContext(connection) as antes:
+            catalogo_para_cotizador(80)
+        queries_antes = len(antes.captured_queries)
+
+        # Nueve tipos de mobiliario más, cada uno con su propio producto: con
+        # el N+1 original esto habría sumado 9 SELECT extra al total.
+        for i in range(9):
+            opcion = CatalogoEvento.objects.create(
+                tipo=CatalogoEvento.TIPO_MOBILIARIO,
+                codigo=f'extra_mob_{i}', nombre=f'Extra {i}',
+            )
+            producto = _producto(f'Silla extra {i}', '10.00')
+            CatalogoEventoProducto.objects.create(
+                opcion=opcion, producto=producto, cantidad_por_persona=Decimal('1'),
+            )
+
+        with CaptureQueriesContext(connection) as despues:
+            catalogo_para_cotizador(80)
+        queries_despues = len(despues.captured_queries)
+
+        self.assertEqual(
+            queries_antes, queries_despues,
+            f"{queries_despues - queries_antes} queries de más al agregar "
+            "9 opciones — el catálogo vuelve a hacer un query por opción.",
+        )
