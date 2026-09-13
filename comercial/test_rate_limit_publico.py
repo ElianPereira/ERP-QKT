@@ -122,9 +122,6 @@ class CotizadorApisRateLimitTest(TestCase):
     def test_api_total_cotizador_bloquea_tras_sesenta_peticiones(self):
         self._agota_y_verifica_429('api_total_cotizador')
 
-    def test_api_paquetes_cotizador_bloquea_tras_sesenta_peticiones(self):
-        self._agota_y_verifica_429('api_paquetes_cotizador')
-
 
 class OpenpayWebhookRateLimitTest(TestCase):
     """Orden 21 (parte 1 de 3): el webhook de Openpay, ~120/min.

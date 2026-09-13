@@ -83,24 +83,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .srv-nom{font-size:.8rem;font-weight:600;color:var(--verde-d);}
 .srv-desc{font-size:.67rem;font-weight:300;color:var(--texto-s);margin-top:.25rem;line-height:1.4;}
 
-/* Bifurcación — tarjetas de camino */
-.path-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.5rem;}
-.path-card{
-  border:2px solid var(--borde);border-radius:8px;
-  padding:1.5rem 1.2rem;text-align:center;cursor:pointer;
-  transition:all .3s;background:var(--blanco);user-select:none;
-  position:relative;overflow:hidden;
-}
-.path-card:hover{border-color:var(--verde);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.08);}
-.path-card.selected{border-color:var(--verde);background:#e8f5e9;box-shadow:0 0 0 3px rgba(46,125,50,.18);}
-.path-card.selected.path-custom{border-color:var(--morado);background:var(--morado-bg);box-shadow:0 0 0 3px rgba(123,31,162,.15);}
-.path-ico{font-size:2.2rem;display:block;margin-bottom:.7rem;}
-.path-nom{font-size:.95rem;font-weight:600;color:var(--verde-d);margin-bottom:.3rem;}
-.path-card.path-custom .path-nom{color:var(--morado);}
-.path-desc{font-size:.73rem;font-weight:300;color:var(--texto-s);line-height:1.5;}
-.path-badge{display:inline-block;margin-top:.7rem;font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .7rem;border-radius:20px;background:#e8f5e9;color:var(--verde);}
-.path-card.path-custom .path-badge{background:var(--morado-bg);color:var(--morado);}
-
 /* Paquetes */
 .paq-grid{display:grid;gap:1rem;margin-bottom:1.5rem;}
 .paq-card{
@@ -278,7 +260,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .medio-nom{font-size:.75rem;font-weight:500;color:var(--verde-d);line-height:1.2;}
 @media(max-width:520px){
   .srv-grid{grid-template-columns:1fr;}
-  .path-grid{grid-template-columns:1fr;}
   .extras-grid{grid-template-columns:1fr;}
   .campo-fila{grid-template-columns:1fr;}
   .medio-grid{grid-template-columns:repeat(4,1fr);}
@@ -480,36 +461,18 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     </div>
   </div>
 
-  <!-- PASO 3: Bifurcación — Paquete o Personalizado -->
+  <!-- PASO 3: opciones según el servicio elegido (configurarPaso3() decide
+       el contenido — Evento entra al catálogo cerrado, los demás van directo
+       a sus extras/habitaciones/mobiliario). -->
   <div class="step-panel" id="panel-3">
-    <h2 class="panel-title" id="titulo-paso3">Elige cómo <em>cotizar</em></h2>
-    <p class="panel-sub" id="sub-paso3">Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.</p>
+    <h2 class="panel-title" id="titulo-paso3">Personaliza tu <em>cotización</em></h2>
+    <p class="panel-sub" id="sub-paso3">Agrega lo que necesites.</p>
 
     <!-- Lo que ya va incluido por el solo hecho de elegir el servicio. Lo agrega
          el servidor (_lineas_cotizador), aquí solo se anuncia. -->
     <div id="nota-base" style="display:none;font-size:.82rem;line-height:1.7;color:var(--verde-d);
          background:rgba(46,125,50,.08);border-left:3px solid var(--verde);
          padding:.9rem 1rem;border-radius:0 6px 6px 0;margin-bottom:1.4rem;"></div>
-
-    <div class="path-grid" id="path-grid">
-      <div class="path-card" onclick="selCamino('paquete',this)">
-        <span class="path-nom">Elegir paquete</span>
-        <span class="path-desc">Paquetes prediseñados con todo incluido. Rápido y sencillo.</span>
-        <span class="path-badge">Recomendado</span>
-      </div>
-      <div class="path-card path-custom" onclick="selCamino('personalizado',this)">
-        <span class="path-nom">Personalizar</span>
-        <span class="path-desc">Arma tu cotización eligiendo cada servicio según tus necesidades.</span>
-        <span class="path-badge">Flexible</span>
-      </div>
-    </div>
-
-    <!-- Sub-panel: Paquetes -->
-    <div id="sub-paquetes" style="display:none;">
-      <div class="paq-grid" id="paq-grid">
-        <div class="paq-empty" id="paq-loading">Cargando paquetes...</div>
-      </div>
-    </div>
 
     <!-- Sub-panel: catálogo cerrado de Eventos (Etapa C).
          Todo lo que se puede elegir viene de /api/cotizador/eventos/; una
@@ -730,9 +693,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 <script>
 let servicioSel = '';
 let caminoSel = '';
-let paqueteSel = null;
 let medioSel = '';
-let paquetesData = [];
 let barraExtras = {};
 let selectedExtras = new Set();
 let extrasInfo = {};
@@ -910,25 +871,20 @@ function actualizarCheckout() {
   checkoutEl.textContent = salida.getDate() + ' ' + meses[salida.getMonth()] + ', 10:00 a.m.';
 }
 
-// El servicio decide qué ofrece el paso 3. La pasadía no tiene paquetes
-// prediseñados que elegir —su producto base lo agrega el servidor siempre, con
-// horario fijo—, así que la bifurcación sobra y se va directo a los extras.
+// El servicio decide qué ofrece el paso 3: cada uno entra directo a sus
+// propias opciones (catálogo cerrado, extras, habitaciones o mobiliario),
+// sin ninguna bifurcación previa que elegir.
 function configurarPaso3() {
   var esPasadia   = servicioSel === 'PASADIA';
   var esHospedaje = servicioSel === 'HOSPEDAJE';
   var esArr       = servicioSel === 'ARRENDAMIENTO';
-  var pathGrid  = document.getElementById('path-grid');
   var titulo    = document.getElementById('titulo-paso3');
   var sub       = document.getElementById('sub-paso3');
-  var subPaq    = document.getElementById('sub-paquetes');
   var subPer    = document.getElementById('sub-personalizado');
   var subEve    = document.getElementById('sub-evento');
 
   caminoSel  = null;
-  paqueteSel = null;
-  document.querySelectorAll('.path-card').forEach(function(c) { c.classList.remove('selected'); });
   document.getElementById('err-camino').style.display = 'none';
-  subPaq.style.display = 'none';
   subPer.style.display = 'none';
   subEve.style.display = 'none';
   toggle('blq-habitaciones', esHospedaje);
@@ -937,7 +893,6 @@ function configurarPaso3() {
   // Evento pasa por el catálogo cerrado: ya no hay bifurcación
   // paquete/personalizado ni catálogo abierto de extras.
   if (servicioSel === 'EVENTO') {
-    pathGrid.style.display = 'none';
     caminoSel = 'evento';
     if (modalidadSel === 'PAQUETE') {
       titulo.innerHTML = 'Arma tu <em>paquete</em>';
@@ -966,7 +921,6 @@ function configurarPaso3() {
   }
 
   if (esPasadia) {
-    pathGrid.style.display = 'none';
     titulo.innerHTML = 'Agrega <em>extras</em>';
     sub.textContent = 'Tu pasadía ya está incluida. Lo de abajo es opcional.';
     actualizarNotaPasadia();
@@ -974,7 +928,6 @@ function configurarPaso3() {
     subPer.style.display = 'block';
     cargarExtrasPersonalizado();
   } else if (esHospedaje) {
-    pathGrid.style.display = 'none';
     titulo.innerHTML = 'Elige tu <em>habitación</em>';
     sub.textContent = 'Solo hay dos disponibles en la Quinta. Elige una o ambas.';
     caminoSel = 'personalizado';
@@ -982,16 +935,11 @@ function configurarPaso3() {
     cargarHabitaciones();
     cargarExtrasPersonalizado();
   } else if (esArr) {
-    pathGrid.style.display = 'none';
     titulo.innerHTML = 'Elige tu <em>mobiliario</em>';
     sub.textContent = 'Selecciona lo que necesites, o descríbelo en las notas.';
     caminoSel = 'personalizado';
     subPer.style.display = 'block';
     cargarExtrasPersonalizado();
-  } else {
-    pathGrid.style.display = '';
-    titulo.innerHTML = 'Elige cómo <em>cotizar</em>';
-    sub.textContent = 'Puedes elegir un paquete prediseñado o armar tu cotización seleccionando servicios individuales.';
   }
   actualizarEtiquetaPaso3();
 }
@@ -1263,88 +1211,6 @@ function mostrarNotaBase(texto) {
   var nota = document.getElementById('nota-base');
   nota.textContent = texto;
   nota.style.display = texto ? 'block' : 'none';
-}
-
-function selCamino(camino, el) {
-  caminoSel = camino;
-  paqueteSel = null;
-  document.querySelectorAll('.path-card').forEach(function(c) { c.classList.remove('selected'); });
-  el.classList.add('selected');
-  document.getElementById('err-camino').style.display = 'none';
-
-  var subPaq = document.getElementById('sub-paquetes');
-  var subPer = document.getElementById('sub-personalizado');
-
-  if (camino === 'paquete') {
-    subPaq.style.display = 'block';
-    subPer.style.display = 'none';
-    // El paquete ya incluye el arrendamiento de la quinta: no se suma aparte.
-    mostrarNotaBase('');
-    cargarPaquetes();
-  } else {
-    subPaq.style.display = 'none';
-    subPer.style.display = 'block';
-    if (servicioSel === 'EVENTO') {
-      mostrarNotaBase('Tu cotización ya incluye el Paquete Esencial QKT: arrendamiento de la quinta '
-                    + '(6 horas; hasta 3 horas adicionales se cobran como hora extra). Lo de abajo es opcional.');
-    } else {
-      mostrarNotaBase('');
-    }
-    cargarExtrasPersonalizado();
-  }
-  actualizarEtiquetaPaso3();
-}
-
-async function cargarPaquetes() {
-  var grid = document.getElementById('paq-grid');
-  grid.innerHTML = '<div class="paq-empty" id="paq-loading">Cargando paquetes...</div>';
-  var personas = document.getElementById('personas').value;
-  try {
-    var resp = await fetch('/api/cotizador/paquetes/?servicio=' + encodeURIComponent(servicioSel) + '&personas=' + personas);
-    var data = await resp.json();
-    if (data.ok && data.paquetes.length) {
-      paquetesData = data.paquetes;
-      renderPaquetes(data.paquetes);
-    } else {
-      paquetesData = [];
-      // Sin paquetes configurados este camino no lleva a ningún lado: se cae a
-      // personalizado, que sí muestra extras y agrega la línea base del servicio.
-      grid.innerHTML = '';
-      var tarjetaCustom = document.querySelector('.path-card.path-custom');
-      if (tarjetaCustom) {
-        selCamino('personalizado', tarjetaCustom);
-      } else {
-        grid.innerHTML = '<div class="paq-empty">No hay paquetes disponibles para este servicio. Puedes armar tu cotización personalizada.</div>';
-      }
-    }
-  } catch(e) {
-    grid.innerHTML = '<div class="paq-empty">Error al cargar paquetes. Intenta de nuevo.</div>';
-  }
-}
-
-function renderPaquetes(paquetes) {
-  var grid = document.getElementById('paq-grid');
-  var html = '';
-  for (var i = 0; i < paquetes.length; i++) {
-    var p = paquetes[i];
-    var precioFmt = fmtMXN(p.precio);
-    html += '<div class="paq-card" data-paq-id="' + p.id + '" onclick="selPaquete(' + p.id + ',this)">';
-    html += '<div class="paq-header"><div class="paq-nombre">' + esc(p.nombre) + '</div>';
-    html += '<div style="text-align:right;"><div class="paq-precio">' + precioFmt + '</div>';
-    html += '<div class="paq-iva">Precios en MXN, IVA incluido</div></div></div>';
-    if (p.descripcion) html += '<div class="paq-desc">' + esc(p.descripcion) + '</div>';
-    if (p.descripcion_larga) {
-      html += '<div class="paq-detalle">' + esc(p.descripcion_larga).replace(/\n/g, '<br>') + '</div>';
-    }
-    html += '</div>';
-  }
-  grid.innerHTML = html;
-}
-
-function selPaquete(id, el) {
-  paqueteSel = id;
-  document.querySelectorAll('.paq-card').forEach(function(c) { c.classList.remove('selected'); });
-  el.classList.add('selected');
 }
 
 async function cargarHabitaciones() {
@@ -1809,11 +1675,6 @@ function validarPaso(paso) {
     if (!caminoSel) {
       document.getElementById('err-camino').style.display = 'block'; return false;
     }
-    if (caminoSel === 'paquete' && !paqueteSel && paquetesData.length > 0) {
-      document.getElementById('err-camino').style.display = 'block';
-      document.getElementById('err-camino').textContent = 'Selecciona un paquete para continuar.';
-      return false;
-    }
     if (caminoSel === 'personalizado' && servicioSel !== 'ARRENDAMIENTO' && selectedExtras.size === 0 && !Object.values(barraExtras).some(function(v){return v;})) {
       // Allow empty — it's optional
     }
@@ -1895,11 +1756,6 @@ function construirResumen() {
   var hf        = document.getElementById('hora_fin') ? document.getElementById('hora_fin').value : '';
 
   var tags = [];
-
-  if (caminoSel === 'paquete' && paqueteSel) {
-    var paqInfo = paquetesData.find(function(p) { return p.id === paqueteSel; });
-    if (paqInfo) tags.push(paqInfo.nombre);
-  }
 
   selectedExtras.forEach(function(id) {
     var info = extrasInfo[id];
@@ -1989,7 +1845,6 @@ async function cargarTotal() {
     tipo: (document.getElementById('tipo_evento') && servicioSel === 'EVENTO')
       ? document.getElementById('tipo_evento').value : '',
   });
-  if (paqueteSel) params.set('paquete', paqueteSel);
   if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
   if (servicioSel === 'PASADIA') params.set('nivel_pasadia', nivelPasadiaSel);
   if (servicioSel === 'EVENTO') {
@@ -2077,7 +1932,6 @@ async function enviarSolicitud() {
     extras_ids:     Array.from(selectedExtras),
     noches:         servicioSel === 'HOSPEDAJE' ? String(noches) : '',
     habitaciones_ids: servicioSel === 'HOSPEDAJE' ? Array.from(selectedHabitaciones) : [],
-    paquete_id:     paqueteSel,
     nivel_pasadia:  servicioSel === 'PASADIA' ? nivelPasadiaSel : '',
     // Catálogo cerrado de Eventos. `modalidad` es la llave que lo activa en el
     // servidor; sin ella, Evento seguiría por el camino viejo.

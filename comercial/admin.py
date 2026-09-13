@@ -285,36 +285,65 @@ class ProductoAdmin(admin.ModelAdmin):
     filter_horizontal = ('hereda_inventario_de',)
     search_fields = ('nombre',)
     fieldsets = (
-        (None, {'fields': ('nombre', 'descripcion', 'margen_ganancia', 'precio_venta_fijo', 'imagen_promocional')}),
-        ('Estructura del Producto', {
-            'fields': ('es_paquete',),
+        (None, {
+            'fields': ('nombre', 'descripcion', 'margen_ganancia', 'precio_venta_fijo', 'imagen_promocional'),
             'description': (
-                '<strong>Producto Simple:</strong> Usa la sección "SubProductos" abajo.<br>'
-                '<strong>Paquete:</strong> Usa la sección "Productos Incluidos en este Paquete" abajo.'
+                '<strong>Esto es todo lo que necesita casi cualquier producto:</strong> nombre y un '
+                'precio (captura "Precio de venta fijo" — así se factura la enorme mayoría del '
+                'catálogo hoy). Con eso ya puedes usarlo en una cotización manual desde '
+                'Ventas → Cotizaciones → agregar ítem.<br><br>'
+                '<strong>Para que además aparezca solo en el cotizador de la página web:</strong> '
+                've a la pestaña "Cotizador Web" (Pasadía/Arrendamiento/Hospedaje) o, si es para '
+                'Eventos, a la pestaña "Cotizador de Eventos" — asigna este producto a un paquete, '
+                'mobiliario, licor, taquiza o extra. Nada más marcarlo aquí arriba lo hace aparecer '
+                'solo.<br><br>'
+                'Las demás pestañas ("Estructura del Producto", "Herencia de Inventario", '
+                '"SubProductos", "Productos Incluidos en este Paquete") son para el caso poco común '
+                'de querer que el costo se calcule solo, sumando insumos o productos base — casi '
+                'nadie las necesita.'
             ),
-        }),
-        ('Herencia de Inventario', {
-            'fields': ('es_upgrade', 'hereda_inventario_de', 'requiere_licor'),
-            'description': (
-                'Configura si este producto es un upgrade de uno o varios productos base '
-                'para evitar duplicar subproductos al calcular el inventario de una cotización. '
-                '<strong>"Hereda inventario de"</strong> solo muestra productos base '
-                '(es_upgrade=False) y permite seleccionar varios. '
-                '<strong>"Requiere licor"</strong> obliga a que la cotización incluya '
-                'Licores Nacionales o Licores Premium.'
-            ),
-            'classes': ('collapse',),
         }),
         ('Cotizador Web', {
             'fields': (
                 'visible_cotizador',
-                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
+                ('cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
                 'rol_cotizador', 'capacidad_base_hospedaje',
                 'grupo_cotizador', 'icono', 'descripcion_corta',
                 'orden_cotizador', 'grupo_exclusion',
                 ('cantidad_por_persona', 'factor_personas'),
             ),
-            'description': 'Configura cómo aparece este producto en el cotizador público.',
+            'description': (
+                'Configura cómo aparece este producto en el cotizador público de Pasadía, '
+                'Arrendamiento y Hospedaje. Para Eventos, la disponibilidad de un producto ya no '
+                'se marca aquí: se asigna desde la pestaña "Cotizador de Eventos" de este mismo '
+                'formulario (en qué paquete/mobiliario/licor/taquiza/extra entra).'
+            ),
+        }),
+        ('Estructura del Producto', {
+            'fields': ('es_paquete',),
+            'description': (
+                '<strong>Avanzado, casi nunca necesario</strong> — deja esto sin marcar si ya '
+                'capturaste "Precio de venta fijo" arriba.<br>'
+                '<strong>Producto Simple:</strong> Usa la sección "SubProductos" abajo.<br>'
+                '<strong>Paquete:</strong> Usa la sección "Productos Incluidos en este Paquete" abajo. '
+                'Solo afecta el <strong>costo</strong> de este producto (suma el costo de los productos '
+                'que lo componen) — ya no crea un paquete elegible por el cliente en el cotizador '
+                'público: eso se decide en "Cotizador Web" (Evento/Pasadía/Arrendamiento/Hospedaje) '
+                'y, para las opciones cerradas de Eventos, desde la pestaña "Cotizador de Eventos".'
+            ),
+            'classes': ('collapse',),
+        }),
+        ('Herencia de Inventario', {
+            'fields': ('es_upgrade', 'hereda_inventario_de', 'requiere_licor'),
+            'description': (
+                '<strong>Avanzado.</strong> Configura si este producto es un upgrade de uno o varios '
+                'productos base para evitar duplicar subproductos al calcular el inventario de una '
+                'cotización. <strong>"Hereda inventario de"</strong> solo muestra productos base '
+                '(es_upgrade=False) y permite seleccionar varios. '
+                '<strong>"Requiere licor"</strong> obliga a que la cotización incluya '
+                'Licores Nacionales o Licores Premium.'
+            ),
+            'classes': ('collapse',),
         }),
     )
 
@@ -338,9 +367,10 @@ class ProductoAdmin(admin.ModelAdmin):
     def badge_cotizador(self, obj):
         if not obj.visible_cotizador:
             return mark_safe('<span style="color:#999;">—</span>')
+        # 'E' (Evento) no aparece aquí: la disponibilidad para Evento ya no la
+        # decide un flag del Producto, sino su asignación en CatalogoEventoProducto
+        # (pestaña "Cotizador de Eventos").
         servicios = []
-        if obj.cotizador_evento:
-            servicios.append('E')
         if obj.cotizador_pasadia:
             servicios.append('P')
         if obj.cotizador_arrendamiento:
@@ -1970,6 +2000,8 @@ from . import admin_eventos  # noqa: E402, F401
 # El catálogo del cotizador de Eventos se captura también desde el Producto (en
 # qué opciones entra), no solo desde la opción. Se anexa aquí y no en la clase
 # porque `admin_eventos` importa modelos que a su vez viven en este módulo: el
-# import tiene que ir al final, y el inline con él.
-ProductoAdmin.inlines = [*ProductoAdmin.inlines,
-                         admin_eventos.ProductoEnCatalogoEventoInline]
+# import tiene que ir al final, y el inline con él. Va PRIMERO en la lista (se
+# usa más que el costeo por receta) para que su pestaña salga antes que
+# "SubProductos"/"Productos Incluidos en este Paquete".
+ProductoAdmin.inlines = [admin_eventos.ProductoEnCatalogoEventoInline,
+                         *ProductoAdmin.inlines]
