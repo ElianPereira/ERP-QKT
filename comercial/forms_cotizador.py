@@ -22,7 +22,7 @@ TIPO_EVENTO_CHOICES = [(v, v) for v in (
     'Aniversario', 'Evento Corporativo', 'Otro',
 )]
 
-SERVICIO_CHOICES = [(v, v) for v in ('EVENTO', 'PASADIA', 'ARRENDAMIENTO', 'HOSPEDAJE')]
+SERVICIO_CHOICES = [(v, v) for v in ('EVENTO', 'PASADIA', 'HOSPEDAJE')]
 
 COMO_NOS_ENCONTRO_CHOICES = [(v, v) for v in (
     'Facebook', 'Instagram', 'TikTok', 'Google', 'Recomendación',
