@@ -2398,8 +2398,12 @@ class ConfiguracionEventoCotizacion(models.Model):
                                         null=True, blank=True,
                                         related_name='cotizaciones_como_mobiliario')
     incluir_licores = models.BooleanField(default=False)
-    nivel_licor = models.ForeignKey(CatalogoEvento, on_delete=models.PROTECT, null=True, blank=True,
-                                    related_name='cotizaciones_como_licor')
+    # M2M a propósito, no FK: el cliente puede combinar Cerveza + Nacional +
+    # Premium libremente, no elegir un solo nivel. Mismo motivo que `extras`
+    # (ver `validar_niveles_licor()`), `clean()` no puede comprobar su
+    # contenido antes del primer `save()`.
+    niveles_licor = models.ManyToManyField(CatalogoEvento, blank=True,
+                                           related_name='cotizaciones_como_licor')
     combo_taquiza = models.ForeignKey(CatalogoEvento, on_delete=models.PROTECT, null=True,
                                       blank=True, related_name='cotizaciones_como_taquiza')
     extras = models.ManyToManyField(CatalogoEvento, blank=True,
@@ -2454,7 +2458,7 @@ class ConfiguracionEventoCotizacion(models.Model):
                 errores['paquete'] = "El arrendamiento del espacio no lleva paquete."
             if self.tipo_mobiliario_id:
                 errores['tipo_mobiliario'] = "El arrendamiento del espacio no incluye mobiliario."
-            if self.incluir_licores or self.nivel_licor_id:
+            if self.incluir_licores:
                 errores['incluir_licores'] = "El arrendamiento del espacio no incluye licores."
             if self.combo_taquiza_id:
                 errores['combo_taquiza'] = "El arrendamiento del espacio no incluye taquiza."
@@ -2466,17 +2470,12 @@ class ConfiguracionEventoCotizacion(models.Model):
                 paq = self.paquete
                 if paq.requiere_mobiliario and not self.tipo_mobiliario_id:
                     errores['tipo_mobiliario'] = "Elige un tipo de mobiliario."
-                if not paq.permite_licores_opcional and (self.incluir_licores or self.nivel_licor_id):
+                if not paq.permite_licores_opcional and self.incluir_licores:
                     errores['incluir_licores'] = f"El paquete {paq.nombre} no ofrece licores."
                 if paq.requiere_taquiza and not self.combo_taquiza_id:
                     errores['combo_taquiza'] = "Elige un combo de taquiza."
                 if not paq.requiere_taquiza and self.combo_taquiza_id:
                     errores['combo_taquiza'] = f"El paquete {paq.nombre} no incluye taquiza."
-
-            if self.incluir_licores and not self.nivel_licor_id:
-                errores['nivel_licor'] = "Elige el nivel de licor (nacional o premium)."
-            if not self.incluir_licores and self.nivel_licor_id:
-                errores['nivel_licor'] = "Hay un nivel de licor elegido pero los licores no están activados."
 
         # Las cinco FK apuntan al mismo catálogo, así que nada a nivel de base de
         # datos impide poner un combo de taquiza en el campo de mobiliario. Es el
@@ -2485,7 +2484,6 @@ class ConfiguracionEventoCotizacion(models.Model):
         for campo, tipo_esperado in (
             ('paquete', CatalogoEvento.TIPO_PAQUETE),
             ('tipo_mobiliario', CatalogoEvento.TIPO_MOBILIARIO),
-            ('nivel_licor', CatalogoEvento.TIPO_LICOR),
             ('combo_taquiza', CatalogoEvento.TIPO_TAQUIZA),
         ):
             opcion = getattr(self, campo, None)
@@ -2519,6 +2517,25 @@ class ConfiguracionEventoCotizacion(models.Model):
         if ajenos:
             raise ValidationError(
                 {'extras': f"No son extras del cotizador: {', '.join(ajenos)}."})
+
+    def validar_niveles_licor(self, niveles):
+        """`niveles_licor` es M2M — mismo motivo que `validar_extras`: no se
+        puede leer antes del primer `save()`, así que se valida aparte con la
+        selección en la mano (cerveza/nacional/premium, cualquier combinación
+        no excluyente).
+        """
+        if self.incluir_licores and not niveles:
+            raise ValidationError({
+                'niveles_licor': "Elige al menos una opción de bebida (cerveza, nacional o premium).",
+            })
+        if not self.incluir_licores and niveles:
+            raise ValidationError({
+                'niveles_licor': "Hay bebidas elegidas pero los licores no están activados.",
+            })
+        ajenos = [n.nombre for n in niveles if n.tipo != CatalogoEvento.TIPO_LICOR]
+        if ajenos:
+            raise ValidationError(
+                {'niveles_licor': f"No son opciones de bebida: {', '.join(ajenos)}."})
 
     def __str__(self):
         return f"COT-{self.cotizacion_id} · {self.get_modalidad_display()}"

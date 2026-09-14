@@ -503,7 +503,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
         </div>
         <div class="hab-grid" id="licor-grid" style="display:none;"></div>
       </div>
-      <div class="opc-err" id="err-licor">Elige el nivel de licor.</div>
+      <div class="opc-err" id="err-licor">Elige al menos una opción de bebida.</div>
 
       <div class="opc-grupo panel-condicional" id="grp-taquiza">
         <p class="opc-tit">Taquiza<span class="opc-req">*</span></p>
@@ -707,7 +707,8 @@ let catalogoEventos = null;
 let paqueteEventoSel = null;
 let mobiliarioSel = null;
 let incluirLicores = false;
-let nivelLicorSel = null;
+// Cerveza/Nacional/Premium: no excluyentes, mismo patrón que extrasEventoSel.
+let nivelesLicorSel = new Set();
 let comboTaquizaSel = null;
 let extrasEventoSel = new Set();
 let pasoActual = 1;
@@ -718,7 +719,7 @@ const HORAS_BASE_EVENTO = 6;
 const HORAS_MAX_EVENTO = 9;
 // Mismos valores que comercial/reglas_eventos.py. El servidor vuelve a
 // validarlos: esto es para que el cliente no llegue a un rechazo evitable.
-const MAX_PERSONAS_EVENTO = 100;
+const MAX_PERSONAS_EVENTO = 150;
 const MIN_PERSONAS_PAQUETE = 50;
 const PASO_PERSONAS_PAQUETE = 10;
 
@@ -1045,7 +1046,7 @@ function selPaqueteEvento(id, el) {
   el.classList.add('selected');
   document.getElementById('err-paquete-evento').style.display = 'none';
   // Cambiar de paquete limpia lo que el anterior permitía y este quizá no.
-  mobiliarioSel = null; incluirLicores = false; nivelLicorSel = null;
+  mobiliarioSel = null; incluirLicores = false; nivelesLicorSel.clear();
   comboTaquizaSel = null; extrasEventoSel.clear();
   aplicarPaqueteEvento();
   cargarTotal();
@@ -1091,8 +1092,8 @@ function aplicarPaqueteEvento() {
   if (paq.permite_extras) renderExtrasEvento();
 }
 
-// Lista de opción única (mobiliario, nivel de licor, combo de taquiza). Una
-// opción `sin_configurar` no se pinta: cobraría $0.00.
+// Lista de opción única (mobiliario, combo de taquiza). Una opción
+// `sin_configurar` no se pinta: cobraría $0.00.
 function renderOpciones(gridId, opciones, handler, seleccionada) {
   var grid = document.getElementById(gridId);
   var disponibles = (opciones || []).filter(function(o) { return !o.sin_configurar; });
@@ -1123,7 +1124,36 @@ function _selUnica(gridId, el, errId) {
 
 function selMobiliario(id, el) { mobiliarioSel = id; _selUnica('mobiliario-grid', el, 'err-mobiliario'); }
 function selTaquiza(id, el)    { comboTaquizaSel = id; _selUnica('taquiza-grid', el, 'err-taquiza'); }
-function selNivelLicor(id, el) { nivelLicorSel = id; _selUnica('licor-grid', el, 'err-licor'); }
+
+// Cerveza/Nacional/Premium: selección múltiple no excluyente (mismo patrón
+// visual de tarjeta con ✓ que ya usan extras/habitaciones), a diferencia de
+// mobiliario y taquiza, que son de opción única.
+function renderNivelesLicor() {
+  var grid = document.getElementById('licor-grid');
+  var opciones = (catalogoEventos && catalogoEventos.niveles_licor) || [];
+  var disponibles = opciones.filter(function(o) { return !o.sin_configurar; });
+  if (!disponibles.length) {
+    grid.innerHTML = '<div class="paq-empty">Todavía no hay opciones configuradas.</div>';
+    return;
+  }
+  var h = '';
+  for (var i = 0; i < disponibles.length; i++) {
+    var o = disponibles[i];
+    var sel = nivelesLicorSel.has(o.id) ? ' selected' : '';
+    h += '<div class="hab-card' + sel + '" data-id="' + o.id + '" onclick="toggleNivelLicor(' + o.id + ',this)">';
+    h += '<div class="hab-check">✓</div><div class="hab-info"><span class="hab-nom">' + esc(o.nombre) + '</span>';
+    if (o.descripcion) h += '<span class="hab-sub">' + esc(o.descripcion) + '</span>';
+    h += '</div><span class="hab-precio">' + fmtMXN(o.precio) + '</span></div>';
+  }
+  grid.innerHTML = h;
+}
+
+function toggleNivelLicor(id, el) {
+  if (nivelesLicorSel.has(id)) { nivelesLicorSel.delete(id); el.classList.remove('selected'); }
+  else { nivelesLicorSel.add(id); el.classList.add('selected'); }
+  document.getElementById('err-licor').style.display = 'none';
+  cargarTotal();
+}
 
 function selLicores(activar) {
   incluirLicores = !!activar;
@@ -1132,11 +1162,11 @@ function selLicores(activar) {
   var grid = document.getElementById('licor-grid');
   grid.style.display = incluirLicores ? '' : 'none';
   if (incluirLicores) {
-    renderOpciones('licor-grid', catalogoEventos && catalogoEventos.niveles_licor, 'selNivelLicor', nivelLicorSel);
+    renderNivelesLicor();
   } else {
-    // Apagar el toggle limpia el nivel: el servidor rechaza un nivel elegido
-    // con los licores desactivados, y con razón.
-    nivelLicorSel = null;
+    // Apagar el toggle limpia la selección: el servidor rechaza bebidas
+    // elegidas con los licores desactivados, y con razón.
+    nivelesLicorSel.clear();
     document.getElementById('err-licor').style.display = 'none';
   }
   cargarTotal();
@@ -1190,7 +1220,7 @@ function validarPaso3Evento() {
   if (paq) {
     marcar('err-mobiliario', paq.requiere_mobiliario && !mobiliarioSel);
     marcar('err-taquiza', paq.requiere_taquiza && !comboTaquizaSel);
-    marcar('err-licor', incluirLicores && !nivelLicorSel);
+    marcar('err-licor', incluirLicores && nivelesLicorSel.size === 0);
   }
   return ok;
 }
@@ -1850,7 +1880,7 @@ async function cargarTotal() {
     if (mobiliarioSel) params.set('mobiliario', mobiliarioSel);
     if (incluirLicores) {
       params.set('incluir_licores', '1');
-      if (nivelLicorSel) params.set('nivel_licor', nivelLicorSel);
+      if (nivelesLicorSel.size) params.set('niveles_licor', Array.from(nivelesLicorSel).join(','));
     }
     if (comboTaquizaSel) params.set('combo_taquiza', comboTaquizaSel);
     if (extrasEventoSel.size) params.set('extras_evento', Array.from(extrasEventoSel).join(','));
@@ -1935,7 +1965,7 @@ async function enviarSolicitud() {
     paquete_evento_id: servicioSel === 'EVENTO' ? paqueteEventoSel : null,
     mobiliario_id:     servicioSel === 'EVENTO' ? mobiliarioSel : null,
     incluir_licores:   servicioSel === 'EVENTO' && incluirLicores,
-    nivel_licor_id:    servicioSel === 'EVENTO' && incluirLicores ? nivelLicorSel : null,
+    niveles_licor_ids: servicioSel === 'EVENTO' && incluirLicores ? Array.from(nivelesLicorSel) : [],
     combo_taquiza_id:  servicioSel === 'EVENTO' ? comboTaquizaSel : null,
     extras_evento_ids: servicioSel === 'EVENTO' ? Array.from(extrasEventoSel) : [],
     requiere_factura: requiereFactura,

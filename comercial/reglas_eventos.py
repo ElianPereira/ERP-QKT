@@ -9,8 +9,8 @@ el frontend podría ofrecer una combinación que el servidor luego rechaza
 from decimal import ROUND_CEILING, Decimal
 
 # Aforo. Tope duro en AMBAS modalidades — la Quinta no opera eventos de más
-# de 100 personas, no hay ruta alterna ni excepción por autorización.
-MAX_PERSONAS_EVENTO = 100
+# de 150 personas, no hay ruta alterna ni excepción por autorización.
+MAX_PERSONAS_EVENTO = 150
 
 # La modalidad de paquete arranca en 50 y avanza de 10 en 10: los tiers de
 # mobiliario/taquiza se cotizan por tramos, no persona a persona.

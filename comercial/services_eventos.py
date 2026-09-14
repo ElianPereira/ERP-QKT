@@ -59,13 +59,18 @@ def resolver_seleccion(datos):
             id=int(valor), tipo=tipo, activo=True).first()
 
     extras_ids = [int(x) for x in (datos.get('extras_evento_ids') or []) if _id_valido(x)]
+    # Cerveza/Nacional/Premium: no excluyentes, el cliente marca cualquier
+    # combinación — por eso es una lista de ids, no un solo valor como el
+    # resto de las selecciones de este catálogo.
+    niveles_licor_ids = [int(x) for x in (datos.get('niveles_licor_ids') or []) if _id_valido(x)]
 
     return {
         'modalidad': modalidad,
         'paquete': _uno(CatalogoEvento.TIPO_PAQUETE, 'paquete_evento_id'),
         'tipo_mobiliario': _uno(CatalogoEvento.TIPO_MOBILIARIO, 'mobiliario_id'),
         'incluir_licores': bool(datos.get('incluir_licores')),
-        'nivel_licor': _uno(CatalogoEvento.TIPO_LICOR, 'nivel_licor_id'),
+        'niveles_licor': list(CatalogoEvento.objects.filter(
+            id__in=niveles_licor_ids, tipo=CatalogoEvento.TIPO_LICOR, activo=True)),
         'combo_taquiza': _uno(CatalogoEvento.TIPO_TAQUIZA, 'combo_taquiza_id'),
         'extras': list(CatalogoEvento.objects.filter(
             id__in=extras_ids, tipo=CatalogoEvento.TIPO_EXTRA, activo=True)),
@@ -91,7 +96,7 @@ def _activas(relacion):
     return relacion.filter(activo=True).select_related('producto').order_by('orden', 'id')
 
 
-def lineas_evento(*, modalidad, paquete, tipo_mobiliario, incluir_licores, nivel_licor,
+def lineas_evento(*, modalidad, paquete, tipo_mobiliario, incluir_licores, niveles_licor,
                   combo_taquiza, extras, num_personas):
     """Líneas propias del paquete, sin el arrendamiento base ni las horas extra.
 
@@ -119,9 +124,10 @@ def lineas_evento(*, modalidad, paquete, tipo_mobiliario, incluir_licores, nivel
         lineas += _lineas_de(_activas(tipo_mobiliario.productos), num_personas,
                              f"{CONCEPTO_MOBILIARIO} {tipo_mobiliario.nombre}")
 
-    if incluir_licores and nivel_licor:
-        lineas += _lineas_de(_activas(nivel_licor.productos), num_personas,
-                             f"{CONCEPTO_LICOR} {nivel_licor.nombre}")
+    if incluir_licores:
+        for nivel in niveles_licor:
+            lineas += _lineas_de(_activas(nivel.productos), num_personas,
+                                 f"{CONCEPTO_LICOR} {nivel.nombre}")
 
     if combo_taquiza:
         lineas += _lineas_de(_activas(combo_taquiza.productos), num_personas,

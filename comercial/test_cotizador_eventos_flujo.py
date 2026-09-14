@@ -150,7 +150,7 @@ class LineasEventoTest(TestCase):
             'paquete': self.cat['qkt'],
             'tipo_mobiliario': self.cat['mobiliario'],
             'incluir_licores': False,
-            'nivel_licor': None,
+            'niveles_licor': [],
             'combo_taquiza': self.cat['combo'],
             'extras': [],
         }
@@ -163,7 +163,7 @@ class LineasEventoTest(TestCase):
     def test_arrendamiento_no_agrega_ninguna_linea_de_paquete(self):
         lineas = lineas_evento(
             modalidad=MODALIDAD_ARRENDAMIENTO, paquete=None, tipo_mobiliario=None,
-            incluir_licores=False, nivel_licor=None, combo_taquiza=None,
+            incluir_licores=False, niveles_licor=[], combo_taquiza=None,
             extras=[], num_personas=80,
         )
         self.assertEqual(lineas, [])
@@ -181,7 +181,7 @@ class LineasEventoTest(TestCase):
         self.assertNotIn('Botella nacional', sin)
 
         con = self._por_producto(lineas_evento(num_personas=80, **self._seleccion(
-            incluir_licores=True, nivel_licor=self.cat['nivel'],
+            incluir_licores=True, niveles_licor=[self.cat['nivel']],
         )))
         self.assertEqual(con['Botella nacional'], Decimal('8'))  # 0.1 × 80
 
@@ -189,9 +189,23 @@ class LineasEventoTest(TestCase):
         # El modelo ya rechaza esa combinación; aquí se comprueba que aunque
         # llegara, la línea no se compone.
         cantidades = self._por_producto(lineas_evento(num_personas=80, **self._seleccion(
-            incluir_licores=False, nivel_licor=self.cat['nivel'],
+            incluir_licores=False, niveles_licor=[self.cat['nivel']],
         )))
         self.assertNotIn('Botella nacional', cantidades)
+
+    def test_varios_niveles_de_licor_se_suman_sin_ser_excluyentes(self):
+        # Cerveza + Nacional + Premium: el cliente puede combinarlos.
+        premium = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_LICOR, codigo='premium', nombre='Premium')
+        botella_premium = _producto('Botella premium', '700.00')
+        CatalogoEventoProducto.objects.create(
+            opcion=premium, producto=botella_premium, cantidad_por_persona=Decimal('0.1'),
+        )
+        cantidades = self._por_producto(lineas_evento(num_personas=80, **self._seleccion(
+            incluir_licores=True, niveles_licor=[self.cat['nivel'], premium],
+        )))
+        self.assertEqual(cantidades['Botella nacional'], Decimal('8'))
+        self.assertEqual(cantidades['Botella premium'], Decimal('8'))
 
     def test_esencial_solo_agrega_su_mobiliario(self):
         cantidades = self._por_producto(lineas_evento(num_personas=80, **self._seleccion(
@@ -208,7 +222,7 @@ class LineasEventoTest(TestCase):
     def test_los_conceptos_son_genericos_y_no_llevan_el_nombre_del_paquete(self):
         descripciones = [desc for _, _, desc in lineas_evento(
             num_personas=80, **self._seleccion(
-                incluir_licores=True, nivel_licor=self.cat['nivel'],
+                incluir_licores=True, niveles_licor=[self.cat['nivel']],
             ))]
         self.assertIn('Mobiliario Rústico — Silla Tiffany', descripciones)
         self.assertIn('Licor Nacional — Botella nacional', descripciones)
@@ -357,10 +371,25 @@ class EnvioConCatalogoEventosTest(TestCase):
         config = ConfiguracionEventoCotizacion.objects.latest('id')
         self.assertEqual(list(config.extras.all()), [self.cat['extra']])
 
-    def test_mas_de_cien_personas_se_rechaza_sin_ruta_alterna(self):
-        respuesta = self._enviar(personas='150', **self._seleccion_qkt())
+    def test_las_bebidas_elegidas_quedan_guardadas_y_no_son_excluyentes(self):
+        premium = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_LICOR, codigo='premium', nombre='Premium')
+        respuesta = self._enviar(**self._seleccion_qkt(
+            incluir_licores=True,
+            niveles_licor_ids=[self.cat['nivel'].id, premium.id],
+        ))
+        self.assertEqual(respuesta.status_code, 200)
+        config = ConfiguracionEventoCotizacion.objects.latest('id')
+        self.assertTrue(config.incluir_licores)
+        self.assertEqual(
+            set(config.niveles_licor.values_list('id', flat=True)),
+            {self.cat['nivel'].id, premium.id},
+        )
+
+    def test_mas_del_tope_de_personas_se_rechaza_sin_ruta_alterna(self):
+        respuesta = self._enviar(personas='151', **self._seleccion_qkt())
         self.assertEqual(respuesta.status_code, 400)
-        self.assertIn('100', respuesta.json()['errores'][0])
+        self.assertIn('150', respuesta.json()['errores'][0])
         self.assertFalse(ConfiguracionEventoCotizacion.objects.exists())
 
     def test_un_aforo_intermedio_sube_al_siguiente_tramo_de_diez(self):
@@ -444,7 +473,7 @@ class ApiTotalEventosTest(TestCase):
         datos = self._total(personas='500', paquete_evento=self.cat['qkt'].id,
                             mobiliario=self.cat['mobiliario'].id,
                             combo_taquiza=self.cat['combo'].id)
-        self.assertEqual(datos['personas'], 100)
+        self.assertEqual(datos['personas'], 150)
 
     def test_los_conceptos_exhibidos_son_los_que_se_van_a_cobrar(self):
         datos = self._total(paquete_evento=self.cat['qkt'].id,
@@ -511,12 +540,13 @@ class ApiCatalogoEventosTest(TestCase):
 
     def test_expone_los_aforos_cotizables_del_paquete(self):
         datos = self._catalogo(personas=80)
-        self.assertEqual(datos['aforos_paquete'], [50, 60, 70, 80, 90, 100])
-        self.assertEqual(datos['max_personas'], 100)
+        self.assertEqual(datos['aforos_paquete'],
+                         [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150])
+        self.assertEqual(datos['max_personas'], 150)
 
     def test_un_aforo_fuera_de_rango_se_acota_en_vez_de_reventar(self):
         self.assertEqual(self._catalogo(personas='abc')['personas'], 50)
-        self.assertEqual(self._catalogo(personas=999)['personas'], 100)
+        self.assertEqual(self._catalogo(personas=999)['personas'], 150)
 
     def test_sin_plano_de_zonas_cargado_no_se_ofrece_ninguno(self):
         # El frontend se salta el bloque; vale más no mostrar nada que un hueco.

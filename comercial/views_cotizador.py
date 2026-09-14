@@ -340,13 +340,14 @@ def cotizador_enviar(request):
         # rechazada no debe dejar una cotización huérfana en BORRADOR. La
         # instancia es de memoria, nunca se guarda — mismo patrón que el
         # simulador de pagos del admin.
-        campos = {k: v for k, v in seleccion_evento.items() if k != 'extras'}
+        campos = {k: v for k, v in seleccion_evento.items() if k not in ('extras', 'niveles_licor')}
         previa = ConfiguracionEventoCotizacion(
             cotizacion=Cotizacion(num_personas=num_personas), **campos,
         )
         try:
             previa.full_clean(exclude=['cotizacion'], validate_unique=False)
             previa.validar_extras(seleccion_evento['extras'])
+            previa.validar_niveles_licor(seleccion_evento['niveles_licor'])
         except ValidationError as exc:
             return JsonResponse({'ok': False, 'errores': list(exc.messages)}, status=400)
 
@@ -486,9 +487,10 @@ def cotizador_enviar(request):
     if seleccion_evento is not None:
         config_evento = ConfiguracionEventoCotizacion.objects.create(
             cotizacion=cotizacion,
-            **{k: v for k, v in seleccion_evento.items() if k != 'extras'},
+            **{k: v for k, v in seleccion_evento.items() if k not in ('extras', 'niveles_licor')},
         )
         config_evento.extras.set(seleccion_evento['extras'])
+        config_evento.niveles_licor.set(seleccion_evento['niveles_licor'])
 
     # ── Paquete seleccionado (si aplica) ─────────────────────────────────────────────────────────
     # La validación real del paquete la hace _lineas_cotizador(); aquí solo se
@@ -929,7 +931,8 @@ def api_total_cotizador(request):
             'paquete_evento_id': request.GET.get('paquete_evento'),
             'mobiliario_id': request.GET.get('mobiliario'),
             'incluir_licores': request.GET.get('incluir_licores') in ('1', 'true', 'True'),
-            'nivel_licor_id': request.GET.get('nivel_licor'),
+            'niveles_licor_ids': [x for x in (request.GET.get('niveles_licor') or '').split(',')
+                                  if x.strip().isdigit()],
             'combo_taquiza_id': request.GET.get('combo_taquiza'),
             'extras_evento_ids': [x for x in (request.GET.get('extras_evento') or '').split(',')
                                   if x.strip().isdigit()],

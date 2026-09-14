@@ -39,8 +39,9 @@ from comercial.reglas_eventos import (
 class ReglasAforoTest(TestCase):
     """El aforo cotizable y el redondeo al tramo de paquete."""
 
-    def test_los_unicos_aforos_de_paquete_son_de_50_a_100_en_pasos_de_10(self):
-        self.assertEqual(personas_validas_paquete(), [50, 60, 70, 80, 90, 100])
+    def test_los_unicos_aforos_de_paquete_son_de_50_a_150_en_pasos_de_10(self):
+        self.assertEqual(personas_validas_paquete(),
+                         [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150])
 
     def test_49_personas_sube_al_minimo_de_paquete(self):
         self.assertEqual(redondear_personas_paquete(49), 50)
@@ -55,13 +56,13 @@ class ReglasAforoTest(TestCase):
     def test_51_personas_ya_sube_al_siguiente_tramo(self):
         self.assertEqual(redondear_personas_paquete(51), 60)
 
-    def test_100_personas_se_queda_en_el_tope(self):
-        self.assertEqual(redondear_personas_paquete(100), MAX_PERSONAS_EVENTO)
+    def test_150_personas_se_queda_en_el_tope(self):
+        self.assertEqual(redondear_personas_paquete(150), MAX_PERSONAS_EVENTO)
 
     def test_el_redondeo_nunca_pasa_del_tope_duro(self):
-        # 101 no es cotizable; la validación lo rechaza aparte. El redondeo,
-        # por si acaso, tampoco puede inventar un tramo de 110.
-        self.assertEqual(redondear_personas_paquete(101), MAX_PERSONAS_EVENTO)
+        # 151 no es cotizable; la validación lo rechaza aparte. El redondeo,
+        # por si acaso, tampoco puede inventar un tramo de 160.
+        self.assertEqual(redondear_personas_paquete(151), MAX_PERSONAS_EVENTO)
 
 
 class ResolverCantidadTest(TestCase):
@@ -244,19 +245,19 @@ class ConfiguracionEventoValidacionTest(TestCase):
         with self.assertRaises(ValidationError):
             self._paquete_completo(55).full_clean()
 
-    def test_paquete_con_100_personas_es_aceptado(self):
-        self._paquete_completo(100).full_clean()
+    def test_paquete_con_150_personas_es_aceptado(self):
+        self._paquete_completo(150).full_clean()
 
-    def test_paquete_con_101_personas_es_rechazado(self):
+    def test_paquete_con_151_personas_es_rechazado(self):
         with self.assertRaises(ValidationError):
-            self._paquete_completo(101).full_clean()
+            self._paquete_completo(151).full_clean()
 
-    def test_arrendamiento_con_100_personas_es_aceptado(self):
-        self._config(100, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
+    def test_arrendamiento_con_150_personas_es_aceptado(self):
+        self._config(150, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
 
-    def test_arrendamiento_con_101_personas_es_rechazado(self):
+    def test_arrendamiento_con_151_personas_es_rechazado(self):
         with self.assertRaises(ValidationError):
-            self._config(101, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
+            self._config(151, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
 
     def test_arrendamiento_sin_minimo_acepta_1_persona(self):
         self._config(1, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
@@ -266,23 +267,55 @@ class ConfiguracionEventoValidacionTest(TestCase):
             self._config(0, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
 
     # ── Licores ────────────────────────────────────────────────────────────
+    # `niveles_licor` es M2M, igual que `extras`: `clean()`/`full_clean()` no
+    # puede leerlo antes del primer `save()`, así que se valida aparte con
+    # `validar_niveles_licor()` — mismo patrón que ya usan las pruebas de
+    # `validar_extras` más abajo.
     def test_licores_activados_sin_nivel_es_rechazado(self):
+        config = self._paquete_completo(80, incluir_licores=True)
+        config.full_clean()
+        config.save()
         with self.assertRaises(ValidationError) as ctx:
-            self._paquete_completo(80, incluir_licores=True).full_clean()
-        self.assertIn('nivel_licor', ctx.exception.message_dict)
+            config.validar_niveles_licor([])
+        self.assertIn('niveles_licor', ctx.exception.message_dict)
 
     def test_nivel_de_licor_sin_activar_licores_es_rechazado(self):
+        config = self._paquete_completo(80, incluir_licores=False)
+        config.full_clean()
+        config.save()
         with self.assertRaises(ValidationError) as ctx:
-            self._paquete_completo(80, incluir_licores=False, nivel_licor=self.nivel).full_clean()
-        self.assertIn('nivel_licor', ctx.exception.message_dict)
+            config.validar_niveles_licor([self.nivel])
+        self.assertIn('niveles_licor', ctx.exception.message_dict)
 
     def test_licores_activados_con_nivel_es_aceptado(self):
-        self._paquete_completo(80, incluir_licores=True, nivel_licor=self.nivel).full_clean()
+        config = self._paquete_completo(80, incluir_licores=True)
+        config.full_clean()
+        config.save()
+        config.validar_niveles_licor([self.nivel])  # no lanza
+
+    def test_licores_activados_con_varios_niveles_es_aceptado(self):
+        # Cerveza + Nacional + Premium: no son excluyentes entre sí.
+        otro_nivel = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_LICOR, codigo='premium', nombre='Premium')
+        config = self._paquete_completo(80, incluir_licores=True)
+        config.full_clean()
+        config.save()
+        config.validar_niveles_licor([self.nivel, otro_nivel])  # no lanza
+
+    def test_un_extra_ajeno_en_niveles_licor_es_rechazado(self):
+        # Mismo motivo que `validar_extras`: el M2M acepta cualquier fila del
+        # catálogo, así que el tipo se verifica a mano.
+        config = self._paquete_completo(80, incluir_licores=True)
+        config.full_clean()
+        config.save()
+        with self.assertRaises(ValidationError) as ctx:
+            config.validar_niveles_licor([self.extra])
+        self.assertIn('niveles_licor', ctx.exception.message_dict)
 
     # ── Esencial no ofrece lo del QKT ──────────────────────────────────────
     def test_esencial_con_licores_es_rechazado(self):
         config = self._config(80, paquete=self.esencial, tipo_mobiliario=self.mobiliario,
-                              incluir_licores=True, nivel_licor=self.nivel)
+                              incluir_licores=True)
         with self.assertRaises(ValidationError) as ctx:
             config.full_clean()
         self.assertIn('incluir_licores', ctx.exception.message_dict)
