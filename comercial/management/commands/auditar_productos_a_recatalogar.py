@@ -57,16 +57,27 @@ NOMBRES_A_REVISAR = (
 
 ESTADOS_SIN_COBRO_REAL = ('BORRADOR', 'CANCELADA', 'EXPIRADA')
 
+# Comillas rectas y curvas (' ' ' `) — un nombre capturado a mano en el admin
+# puede traer cualquiera de las cuatro sin que se note a simple vista (p. ej.
+# "Ka'an" con apóstrofe curvo vs. el recto de esta lista), y `roles_cotizador
+# .normalizar()` solo quita acentos, no esto. Se quitan aparte, solo para
+# esta comparación — no se toca `normalizar()`, que otros módulos comparten.
+_COMILLAS = str.maketrans('', '', "'’‘`")
+
+
+def _clave(texto):
+    return normalizar(texto).translate(_COMILLAS)
+
 
 class Command(BaseCommand):
     help = "Audita, sin modificar nada, el riesgo real de desactivar/borrar cada producto de la lista."
 
     def handle(self, *args, **opciones):
-        objetivos = {normalizar(n) for n in NOMBRES_A_REVISAR}
+        objetivos = {_clave(n) for n in NOMBRES_A_REVISAR}
         productos = [p for p in Producto.objects.all().order_by('nombre')
-                     if normalizar(p.nombre) in objetivos]
+                     if _clave(p.nombre) in objetivos]
 
-        encontrados = {normalizar(p.nombre) for p in productos}
+        encontrados = {_clave(p.nombre) for p in productos}
         faltantes = objetivos - encontrados
         if faltantes:
             self.stdout.write(self.style.WARNING(
