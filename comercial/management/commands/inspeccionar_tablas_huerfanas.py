@@ -35,6 +35,13 @@ class Command(BaseCommand):
             return
 
         tablas_conocidas = {m._meta.db_table for m in apps.get_models()}
+        # Además de las tablas de modelo, cuenta las tablas M2M implícitas
+        # (ej. Producto.hereda_inventario_de) — Django las crea solo, no
+        # aparecen en apps.get_models(), y son tan legítimas como cualquier
+        # otra tabla de un ManyToManyField sin `through` explícito.
+        for modelo in apps.get_models():
+            for campo in modelo._meta.local_many_to_many:
+                tablas_conocidas.add(campo.remote_field.through._meta.db_table)
 
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -77,7 +84,7 @@ class Command(BaseCommand):
                 total = cursor.fetchone()[0]
                 self.stdout.write(f'  {tabla}: {total} registro(s)')
                 if total:
-                    cursor.execute(f'SELECT * FROM "{tabla}" LIMIT 5')  # noqa: S608
+                    cursor.execute(f'SELECT * FROM "{tabla}"')  # noqa: S608
                     columnas = [d[0] for d in cursor.description]
                     self.stdout.write(f'    columnas: {columnas}')
                     for fila in cursor.fetchall():
