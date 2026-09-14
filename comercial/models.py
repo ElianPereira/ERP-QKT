@@ -362,19 +362,6 @@ class Producto(models.Model):
         help_text='Marca esto si este producto está compuesto por otros PRODUCTOS (no subproductos)',
     )
 
-    hereda_inventario_de = models.ManyToManyField(
-        'self',
-        symmetrical=False,
-        blank=True,
-        related_name='upgrades',
-        verbose_name="Hereda inventario de",
-        help_text="Productos base cuyos subproductos NO se duplicarán al calcular inventario",
-    )
-    es_upgrade = models.BooleanField(
-        default=False,
-        verbose_name="¿Es un upgrade?",
-        help_text="Marca si este producto amplía a otros (sus subproductos base no se duplican en inventario)",
-    )
     requiere_licor = models.BooleanField(
         default=False,
         verbose_name="¿Requiere licor base en la cotización?",
@@ -402,24 +389,6 @@ class Producto(models.Model):
                 "Un paquete no puede tener subproductos directamente. "
                 "Usa 'Productos Incluidos' en la sección de paquetes."
             )
-        # Prevent inheritance cycles (A → B → A) across the M2M graph
-        if self.pk:
-            visitados = set()
-            stack = list(self.hereda_inventario_de.all())
-            while stack:
-                padre = stack.pop()
-                if padre.pk == self.pk:
-                    raise ValidationError({
-                        'hereda_inventario_de': (
-                            'Ciclo de herencia detectado: '
-                            'un producto no puede heredar de sí mismo ni crear un ciclo.'
-                        )
-                    })
-                if padre.pk in visitados:
-                    continue
-                visitados.add(padre.pk)
-                stack.extend(padre.hereda_inventario_de.all())
-
         # Un precio fijo por debajo del costo real (cuando lo hay) implica
         # margen negativo. Productos sin receta (costo=0) quedan exentos:
         # son justamente el caso que precio_venta_fijo existe para resolver.
@@ -820,66 +789,6 @@ class Cotizacion(models.Model):
         from datetime import timedelta
         fin = self.fecha_salida if self.fecha_salida else self.fecha_evento + timedelta(days=1)
         return self.fecha_evento, fin
-
-    def calcular_inventario_inteligente(self):
-        """
-        Calcula el inventario consolidado de la cotización evitando duplicados de
-        subproductos heredados de uno o varios productos base (herencia M2M).
-
-        Retorna: {subproducto_id: {'subproducto': SubProducto, 'cantidad': Decimal}}
-
-        Regla: Para cada producto cuyo M2M `hereda_inventario_de` tenga registros,
-        los subproductos de cada base se incluyen UNA SOLA VEZ aunque múltiples
-        upgrades referencien los mismos padres. Los upgrades sólo contribuyen sus
-        subproductos adicionales (no presentes en sus bases).
-        """
-        inventario = {}
-        bases_incluidas = set()
-
-        items = (
-            self.items
-            .filter(producto__isnull=False)
-            .select_related('producto')
-            .prefetch_related(
-                'producto__componentes__subproducto',
-                'producto__hereda_inventario_de__componentes__subproducto',
-            )
-        )
-
-        def acumular(sub_id, subproducto, cantidad):
-            if sub_id not in inventario:
-                inventario[sub_id] = {'subproducto': subproducto, 'cantidad': Decimal('0.00')}
-            inventario[sub_id]['cantidad'] += cantidad
-
-        for item in items:
-            producto = item.producto
-            item_qty = item.cantidad
-            bases = list(producto.hereda_inventario_de.all())
-
-            if bases:
-                # Collect sub_ids belonging to ANY base (to skip them on the upgrade)
-                base_sub_ids = set()
-                for base in bases:
-                    base_componentes = list(base.componentes.all())
-                    # Include each base's subproducts only once across the whole quote
-                    if base.pk not in bases_incluidas:
-                        bases_incluidas.add(base.pk)
-                        for comp in base_componentes:
-                            acumular(comp.subproducto_id, comp.subproducto, comp.cantidad * item_qty)
-                    base_sub_ids.update(c.subproducto_id for c in base_componentes)
-
-                # Only add subproducts unique to this upgrade (not present in any base)
-                for comp in producto.componentes.all():
-                    if comp.subproducto_id not in base_sub_ids:
-                        acumular(comp.subproducto_id, comp.subproducto, comp.cantidad * item_qty)
-            else:
-                # Normal/base product: mark as already-included so upgrades referencing
-                # it won't double-count, then include all its subproducts.
-                bases_incluidas.add(producto.pk)
-                for comp in producto.componentes.all():
-                    acumular(comp.subproducto_id, comp.subproducto, comp.cantidad * item_qty)
-
-        return inventario
 
     def calcular_totales(self):
         if not self.pk:

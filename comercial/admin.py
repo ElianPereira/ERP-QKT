@@ -280,9 +280,8 @@ class ProductoAdmin(admin.ModelAdmin):
     # `ProductoEnCatalogoEventoInline` se anexa al final de este archivo, tras
     # importar `admin_eventos` — importarlo aquí arriba sería circular.
     inlines = [ComponenteInline, ProductoPaqueteInline]
-    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_upgrade', 'badge_licor')
-    list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'cotizador_hospedaje', 'es_paquete', 'es_upgrade', 'requiere_licor')
-    filter_horizontal = ('hereda_inventario_de',)
+    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_licor')
+    list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'cotizador_hospedaje', 'es_paquete', 'requiere_licor')
     search_fields = ('nombre',)
     fieldsets = (
         (None, {
@@ -297,7 +296,7 @@ class ProductoAdmin(admin.ModelAdmin):
                 'Eventos, a la pestaña "Cotizador de Eventos" — asigna este producto a un paquete, '
                 'mobiliario, licor, taquiza o extra. Nada más marcarlo aquí arriba lo hace aparecer '
                 'solo.<br><br>'
-                'Las demás pestañas ("Estructura del Producto", "Herencia de Inventario", '
+                'Las demás pestañas ("Estructura del Producto", "Licor requerido", '
                 '"SubProductos", "Productos Incluidos en este Paquete") son para el caso poco común '
                 'de querer que el costo se calcule solo, sumando insumos o productos base — casi '
                 'nadie las necesita.'
@@ -333,15 +332,11 @@ class ProductoAdmin(admin.ModelAdmin):
             ),
             'classes': ('collapse',),
         }),
-        ('Herencia de Inventario', {
-            'fields': ('es_upgrade', 'hereda_inventario_de', 'requiere_licor'),
+        ('Licor requerido', {
+            'fields': ('requiere_licor',),
             'description': (
-                '<strong>Avanzado.</strong> Configura si este producto es un upgrade de uno o varios '
-                'productos base para evitar duplicar subproductos al calcular el inventario de una '
-                'cotización. <strong>"Hereda inventario de"</strong> solo muestra productos base '
-                '(es_upgrade=False) y permite seleccionar varios. '
-                '<strong>"Requiere licor"</strong> obliga a que la cotización incluya '
-                'Licores Nacionales o Licores Premium.'
+                '<strong>Avanzado.</strong> Marca esto si este producto obliga a que la cotización '
+                'incluya Licores Nacionales o Licores Premium.'
             ),
             'classes': ('collapse',),
         }),
@@ -398,28 +393,6 @@ class ProductoAdmin(admin.ModelAdmin):
         )
     badge_paquete.short_description = 'Tipo'
 
-    def badge_upgrade(self, obj):
-        if not obj.pk:
-            return mark_safe('<span style="color:#999;font-size:11px;">—</span>')
-        bases = list(obj.hereda_inventario_de.all()[:3])
-        if obj.es_upgrade and bases:
-            nombres_full = ', '.join(b.nombre for b in bases)
-            nombres_short = ' + '.join(b.nombre[:12] for b in bases)
-            return format_html(
-                '<span style="background:#E65100;color:white;padding:3px 8px;'
-                'border-radius:12px;font-size:10px;font-weight:600;" title="Hereda de: {}">'
-                'UPGRADE → {}</span>',
-                nombres_full,
-                nombres_short,
-            )
-        if obj.es_upgrade:
-            return mark_safe(
-                '<span style="background:#FF8F00;color:white;padding:3px 8px;'
-                'border-radius:12px;font-size:10px;font-weight:600;">UPGRADE</span>'
-            )
-        return mark_safe('<span style="color:#999;font-size:11px;">—</span>')
-    badge_upgrade.short_description = 'Upgrade'
-
     def badge_licor(self, obj):
         if obj.requiere_licor:
             return mark_safe(
@@ -428,11 +401,6 @@ class ProductoAdmin(admin.ModelAdmin):
             )
         return mark_safe('<span style="color:#999;font-size:11px;">—</span>')
     badge_licor.short_description = 'Licor'
-
-    def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == 'hereda_inventario_de':
-            kwargs['queryset'] = Producto.objects.all().order_by('nombre')
-        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     class Media:
         css = MEDIA_CONFIG['css']
