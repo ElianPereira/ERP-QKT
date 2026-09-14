@@ -10,24 +10,38 @@ el intento de borrar en bloque estos productos desde el admin lo bloqueó
 `ProductoComponente.producto_hijo` (PROTECT), porque siguen siendo
 componente de los paquetes "Paquete Básico/Premium/Lujo 50/100 Personas".
 
+Hay una SEGUNDA relación protegida, independiente de la anterior y más
+importante: `CatalogoEventoProducto.producto` (también PROTECT, del
+catálogo cerrado de Eventos armado en el PR #284 — `CatalogoEvento` +
+`CatalogoEventoProducto`). Es `related_name='+'` (sin accesor inverso
+navegable desde `Producto`), así que no aparece con un simple `.filter()`
+sobre el producto ni con ningún otro reporte previo de esta sesión — solo
+consultando el modelo directo. A diferencia de los "Paquete X Personas"
+(catálogo viejo, `es_paquete=True` + `ProductoComponente`, ya reemplazado),
+`CatalogoEventoProducto` es el catálogo ACTUALMENTE en uso: un producto
+protegido solo por ahí no es basura vieja, es un ingrediente de una opción
+de Evento que sigue vendiéndose hoy.
+
 Uso en Railway:
 
     python manage.py auditar_productos_a_recatalogar
 
 Para cada producto de la lista reporta: en qué servicios sigue apareciendo
-(evento/pasadía/hospedaje/arrendamiento), si sigue visible, si es
-componente de algún paquete (lo que bloquea un DELETE), y cuántas
-cotizaciones —y de esas, cuántas ya no son un simple borrador— lo usaron
-alguna vez. Esa última columna es la señal real de riesgo: un producto sin
-ningún uso fuera de BORRADOR se puede desactivar (o incluso borrar) sin
-perder ningún historial de verdad.
+(evento/pasadía/hospedaje/arrendamiento), si sigue visible, de qué paquete
+viejo y de qué opción del catálogo cerrado de Eventos es componente (las
+dos cosas que bloquean un DELETE), y cuántas cotizaciones —y de esas,
+cuántas ya no son un simple borrador— lo usaron alguna vez. Esa última
+columna es la señal real de riesgo: un producto sin ningún uso fuera de
+BORRADOR se puede desactivar (o incluso borrar, si además no es
+componente del catálogo cerrado vigente) sin perder ningún historial de
+verdad.
 """
 
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 
-from comercial.models import Cotizacion, ItemCotizacion, Producto
+from comercial.models import CatalogoEventoProducto, Cotizacion, ItemCotizacion, Producto
 from comercial.roles_cotizador import normalizar
 
 # Nombres tal como aparecían en la pantalla de "eliminar múltiples objetos"
@@ -112,12 +126,17 @@ class Command(BaseCommand):
         paquetes_que_lo_incluyen = list(
             p.incluido_en_paquetes.values_list('producto_padre__nombre', flat=True)
         )
+        opciones_catalogo_cerrado = list(
+            CatalogoEventoProducto.objects.filter(producto=p)
+            .values_list('opcion__nombre', flat=True)
+        )
 
         precio = (Decimal(str(p.precio_venta_fijo)) if p.precio_venta_fijo
                   else Decimal(str(p.sugerencia_precio())))
 
+        en_riesgo = usos_reales > 0 or bool(opciones_catalogo_cerrado)
         self.stdout.write('')
-        self.stdout.write(self.style.WARNING(p.nombre) if usos_reales else self.style.SUCCESS(p.nombre))
+        self.stdout.write(self.style.ERROR(p.nombre) if en_riesgo else self.style.SUCCESS(p.nombre))
         self.stdout.write(f'   visible_cotizador={p.visible_cotizador}  es_paquete={p.es_paquete}  precio={precio:,.2f}')
         self.stdout.write(f'   activo en: {servicios}')
         self.stdout.write(
@@ -126,26 +145,40 @@ class Command(BaseCommand):
         )
         if paquetes_que_lo_incluyen:
             self.stdout.write(
-                '   es componente de (esto bloquea un DELETE, no un desactivar): '
-                + ', '.join(paquetes_que_lo_incluyen)
+                '   es componente del paquete VIEJO (esto bloquea un DELETE, no un '
+                'desactivar): ' + ', '.join(paquetes_que_lo_incluyen)
             )
+        if opciones_catalogo_cerrado:
+            self.stdout.write(self.style.ERROR(
+                '   es ingrediente del catálogo cerrado de Eventos VIGENTE (opción/es): '
+                + ', '.join(opciones_catalogo_cerrado)
+            ))
         if p.es_paquete:
             n_hijos = p.productos_incluidos.count()
             self.stdout.write(f'   como paquete, incluye {n_hijos} producto(s)')
 
-        if usos_reales == 0 and not p.es_paquete:
-            self.stdout.write(self.style.SUCCESS(
-                '   -> sin uso real: desactivar (o incluso borrar, quitando antes el vínculo '
-                'del paquete que lo protege) es seguro.'
-            ))
-        elif usos_reales == 0 and p.es_paquete:
-            self.stdout.write(self.style.SUCCESS(
-                '   -> sin uso real: desactivar es seguro (borrarlo de una vez libera a sus '
-                'componentes de la protección, si a su vez no se usan en otro lado).'
-            ))
-        else:
+        if usos_reales > 0:
             self.stdout.write(self.style.ERROR(
                 '   -> tiene uso real: NO borrar (perdería la trazabilidad de esas '
                 'cotizaciones). Si ya no se vende, desactivar (visible_cotizador=False) en '
                 'vez de eliminar.'
+            ))
+        elif opciones_catalogo_cerrado:
+            self.stdout.write(self.style.ERROR(
+                '   -> sin uso real, PERO sigue siendo ingrediente del catálogo cerrado de '
+                'Eventos que está vigente hoy: NO borrar ni desactivar sin antes decidir qué '
+                'pasa con esa opción del catálogo (editarla para quitarlo, o descontinuar la '
+                'opción completa) — borrarlo tal cual rompería el precio/armado de esa opción.'
+            ))
+        elif p.es_paquete:
+            self.stdout.write(self.style.SUCCESS(
+                '   -> sin uso real y sin ingrediente del catálogo vigente: desactivar es '
+                'seguro (borrarlo de una vez libera a sus componentes de la protección, si a '
+                'su vez no se usan en otro lado).'
+            ))
+        else:
+            self.stdout.write(self.style.SUCCESS(
+                '   -> sin uso real y sin ingrediente del catálogo vigente: desactivar (o '
+                'incluso borrar, quitando antes el vínculo del paquete viejo que lo protege) '
+                'es seguro.'
             ))
