@@ -280,12 +280,16 @@ class ProductoAdmin(admin.ModelAdmin):
     # `ProductoEnCatalogoEventoInline` se anexa al final de este archivo, tras
     # importar `admin_eventos` — importarlo aquí arriba sería circular.
     inlines = [ComponenteInline, ProductoPaqueteInline]
-    list_display = ('nombre', 'costo_display', 'precio_display', 'badge_cotizador', 'badge_paquete', 'badge_licor')
+    list_display = ('miniatura', 'nombre', 'badge_grupo', 'costo_display', 'precio_display',
+                    'precio_iva_display', 'badge_cotizador', 'badge_paquete', 'badge_licor')
     list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'cotizador_hospedaje', 'es_paquete', 'requiere_licor')
     search_fields = ('nombre',)
+    ordering = ('grupo_cotizador', 'orden_cotizador', 'nombre')
+    readonly_fields = ('precio_con_iva_form',)
     fieldsets = (
         (None, {
-            'fields': ('nombre', 'descripcion', 'margen_ganancia', 'precio_venta_fijo', 'imagen_promocional'),
+            'fields': ('nombre', 'descripcion', 'margen_ganancia', 'precio_venta_fijo',
+                      'precio_con_iva_form', 'imagen_promocional'),
             'description': (
                 '<strong>Esto es todo lo que necesita casi cualquier producto:</strong> nombre y un '
                 'precio (captura "Precio de venta fijo" — así se factura la enorme mayoría del '
@@ -336,6 +340,39 @@ class ProductoAdmin(admin.ModelAdmin):
         }),
     )
 
+    # Color por grupo, para que el listado se pueda distinguir de un vistazo
+    # sin depender solo del texto — mismo criterio de badges que el resto del
+    # archivo (badge_cotizador, badge_paquete, etc.).
+    _COLOR_GRUPO = {
+        'PAQUETE': '#9C27B0', 'ENTRETENIMIENTO': '#F57C00', 'COMIDA': '#D84315',
+        'MOBILIARIO': '#1565C0', 'DECORACION': '#C2185B', 'INFANTIL': '#00897B',
+        'OTRO': '#607D8B',
+    }
+
+    def miniatura(self, obj):
+        if obj.imagen_promocional:
+            return format_html(
+                '<img src="{}" style="width:40px;height:40px;object-fit:cover;'
+                'border-radius:6px;border:1px solid #4a4845;">',
+                obj.imagen_promocional.url,
+            )
+        return mark_safe(
+            '<span style="display:inline-block;width:40px;height:40px;border-radius:6px;'
+            'background:#4a4845;"></span>'
+        )
+    miniatura.short_description = ''
+
+    def badge_grupo(self, obj):
+        if not obj.grupo_cotizador:
+            return mark_safe('<span style="color:#8a8780;">—</span>')
+        color = self._COLOR_GRUPO.get(obj.grupo_cotizador, '#607D8B')
+        return format_html(
+            '<span style="background:{};color:white;padding:3px 9px;border-radius:10px;'
+            'font-size:10px;font-weight:600;">{}</span>',
+            color, obj.get_grupo_cotizador_display(),
+        )
+    badge_grupo.short_description = 'Grupo'
+
     def costo_display(self, obj): return f"${obj.calcular_costo():,.2f}"
     costo_display.short_description = "Costo (sin IVA)"
     def precio_display(self, obj):
@@ -352,6 +389,23 @@ class ProductoAdmin(admin.ModelAdmin):
             f'{precio:,.2f}'
         )
     precio_display.short_description = "Precio sugerido (sin IVA)"
+
+    def precio_iva_display(self, obj):
+        precio = impuestos.con_iva(obj.sugerencia_precio())
+        return format_html('<strong style="color:#2E7D32;">${}</strong>', f'{precio:,.2f}')
+    precio_iva_display.short_description = "Precio con IVA"
+
+    def precio_con_iva_form(self, obj):
+        if not obj or not obj.pk:
+            return "Se calcula al guardar, a partir del costo × margen o del precio fijo capturado arriba."
+        precio = impuestos.con_iva(obj.sugerencia_precio())
+        return format_html(
+            '<strong style="font-size:1.15em;color:#2E7D32;">${} MXN</strong> '
+            '<span style="color:#8a8780;">— esto es lo que paga el cliente '
+            '(precio sin IVA arriba × 1.16, redondeado)</span>',
+            f'{precio:,.2f}',
+        )
+    precio_con_iva_form.short_description = "Precio final con IVA incluido"
 
     def badge_cotizador(self, obj):
         if not obj.visible_cotizador:

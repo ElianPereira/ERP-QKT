@@ -607,9 +607,14 @@ class ContratoService:
         }.get(self.tipo, self.tipo)
 
     def _servicios_incluidos(self):
+        """Lista de conceptos considerados en el precio total (Cláusula
+        Segunda del contrato) — en viñetas, sin monto por renglón: el
+        desglose por importe no se expone al cliente, solo el total final."""
         partes = []
         for item in self.cot.items.select_related('producto').all():
-            partes.append(item.descripcion or (item.producto.nombre if item.producto else ""))
+            nombre = item.descripcion or (item.producto.nombre if item.producto else "")
+            if nombre:
+                partes.append(nombre)
         barra = []
         if self.cot.incluye_refrescos:
             barra.append("Refrescos/Mezcladores")
@@ -625,7 +630,7 @@ class ContratoService:
             barra.append("Mixología")
         if barra:
             partes.append("Barra: " + ", ".join(barra))
-        return " | ".join(filter(None, partes)) or "Según cotización adjunta"
+        return partes or ["Según cotización adjunta"]
 
     def _numero_contrato(self):
         from .models import ContratoServicio

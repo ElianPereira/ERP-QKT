@@ -381,7 +381,6 @@
     <tr><td class="label">Horario</td><td>{{ hora_ini }} a {{ hora_fin }}</td></tr>
     <tr><td class="label">Número de personas</td><td>{{ cotizacion.num_personas }} personas (aforo máximo)</td></tr>
     {% endif %}
-    <tr><td class="label">Servicios incluidos</td><td>{{ servicios_incluidos }}</td></tr>
     {% if cotizacion.tipo_servicio != 'ARRENDAMIENTO' and cotizacion.tipo_servicio != 'HOSPEDAJE' %}
     <tr><td class="label">Hora extra adicional</td><td>Costo por acuerdo previo entre las partes, no incluido en este contrato</td></tr>
     {% endif %}
@@ -394,11 +393,16 @@
 <div class="seccion">
   <div class="seccion-titulo">Cláusula Segunda — Costo y Forma de Pago</div>
   <p>
-    El precio total que el arrendatario se obliga a pagar como contraprestación es el
-    siguiente, el cual contempla todas las cantidades y conceptos referentes al objeto del
-    presente Contrato. El arrendador se obliga a respetar en todo momento dicho costo
-    sin cobrar cantidad alguna no estipulada aquí.
+    El precio total que el arrendatario se obliga a pagar como contraprestación considera
+    los siguientes conceptos referentes al objeto del presente Contrato. El arrendador se
+    obliga a respetar en todo momento dicho costo sin cobrar cantidad alguna no
+    estipulada aquí.
   </p>
+  <div class="lista-obligaciones">
+    {% for concepto in servicios_incluidos %}
+    <div class="item">{{ concepto }}</div>
+    {% endfor %}
+  </div>
   <table class="tabla-campos">
     <tr><td class="label">Total del servicio (con IVA)</td><td><strong>{{ precio_total }}</strong></td></tr>
     <tr><td class="label">Anticipo pagado</td><td>{{ anticipo_str }}</td></tr>
