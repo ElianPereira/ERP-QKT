@@ -113,12 +113,38 @@ select, option, input[type="text"], input[type="number"], input[type="email"], i
     color: #ffffff !important;
 }
 
+/* Los iconos de Django (lápiz amarillo/más verde/ojo azul/bote rojo) son
+   PNG/SVG de colores saturados que no combinan con el resto del ERP — se
+   reemplazan por glifos de Font Awesome (ya cargado en todo el admin), en
+   un solo tono neutro, mismo criterio "simple" que el resto de botones. */
 .related-widget-wrapper-link {
-    margin-left: 8px;
-    opacity: 0.7;
+    margin-left: 6px;
+    width: 26px;
+    height: 26px;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--qkt-btn-radius);
+    color: var(--qkt-text-dim);
+    background: transparent;
+    transition: background-color .15s, color .15s;
 }
+.related-widget-wrapper-link img {
+    display: none;
+}
+.related-widget-wrapper-link::before {
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 13px;
+    line-height: 1;
+}
+.related-widget-wrapper-link.change-related::before { content: "\f304"; }
+.related-widget-wrapper-link.add-related::before { content: "\2b"; }
+.related-widget-wrapper-link.view-related::before { content: "\f06e"; }
+.related-widget-wrapper-link.delete-related::before { content: "\f1f8"; }
 .related-widget-wrapper-link:hover {
-    opacity: 1;
+    background-color: var(--qkt-border);
+    color: var(--qkt-green-text);
 }
 
 /* ── PAGINACIÓN ───────────────────────────────────────────── */
