@@ -7,7 +7,7 @@ desde ahí al final, que es lo que Django autodescubre.
 mobiliario, niveles de licor, combos de taquiza, extras) para un catálogo que
 el propietario ya administra desde Productos; ahora es un único modelo con un
 campo `tipo`. Y la asignación producto→opción se captura desde los dos lados:
-desde aquí (qué compone esta opción) y desde la pestaña "Cotizador Web" del
+desde aquí (qué compone esta opción) y desde la pestaña "Eventos" del
 propio Producto (en qué opciones entra este producto), que es donde el
 propietario ya trabaja.
 
@@ -62,10 +62,7 @@ class ProductoEnCatalogoEventoInline(admin.TabularInline):
     fields = ('opcion', 'cantidad_por_persona', 'cantidad_fija', 'concepto', 'activo', 'orden')
     autocomplete_fields = ['opcion']
     verbose_name = "Opción del cotizador de Eventos"
-    verbose_name_plural = (
-        "Cotizador de Eventos — en qué opciones entra este producto "
-        "(captura UNA de las dos cantidades)"
-    )
+    verbose_name_plural = "Eventos"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('opcion')

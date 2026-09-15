@@ -1,6 +1,7 @@
 import logging
 import secrets
 from datetime import timedelta
+from decimal import Decimal
 
 from django import forms
 from django.contrib import admin, messages
@@ -267,7 +268,7 @@ class ProductoPaqueteInline(admin.TabularInline):
     fk_name = 'producto_padre'
     raw_id_fields = ['producto_hijo']
     verbose_name = 'Producto Incluido'
-    verbose_name_plural = 'Productos Incluidos en este Paquete'
+    verbose_name_plural = 'Paquete'
     extra = 1
     fields = ('producto_hijo', 'cantidad')
 
@@ -275,10 +276,52 @@ class ProductoPaqueteInline(admin.TabularInline):
         return super().get_queryset(request).select_related('producto_hijo')
 
 
+class ProductoAdminForm(forms.ModelForm):
+    """Captura "Precio de venta fijo" con IVA incluido, guarda sin IVA.
+
+    `Producto.precio_venta_fijo` (el campo del modelo) sigue siendo la base
+    sin IVA que ya consumen `sugerencia_precio()`, `ItemCotizacion.
+    precio_unitario` y `Cotizacion.calcular_totales()` — nada de eso cambia.
+    Lo único que cambia es qué número escribe quien captura: antes tenía que
+    calcular a mano el sin-IVA (fuente de errores, ver Memoria 2026-09-04),
+    ahora escribe el precio final que va a cobrar y este form hace la
+    conversión con `impuestos.sin_iva()` antes de guardar — mismo criterio
+    de redondeo que ya se usó para Pasadía Básico/Premium.
+    """
+
+    precio_venta_fijo = forms.DecimalField(
+        required=False, max_digits=10, decimal_places=2, min_value=Decimal('0.01'),
+        label="Precio de venta fijo (con IVA incluido)",
+        help_text=(
+            "Precio final que paga el cliente, YA CON el 16% de IVA — no el "
+            "costo ni la base gravable. Se convierte solo a la base sin IVA "
+            "que usan cotizaciones y contabilidad. Vacío = se calcula solo "
+            "(costo × margen)."
+        ),
+    )
+
+    class Meta:
+        model = Producto
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        instance = kwargs.get('instance')
+        if instance and instance.pk and instance.precio_venta_fijo:
+            self.initial['precio_venta_fijo'] = impuestos.con_iva(instance.precio_venta_fijo)
+
+    def clean_precio_venta_fijo(self):
+        valor_con_iva = self.cleaned_data.get('precio_venta_fijo')
+        if valor_con_iva is None:
+            return None
+        return impuestos.sin_iva(valor_con_iva)
+
+
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
     # `ProductoEnCatalogoEventoInline` se anexa al final de este archivo, tras
     # importar `admin_eventos` — importarlo aquí arriba sería circular.
+    form = ProductoAdminForm
     inlines = [ComponenteInline, ProductoPaqueteInline]
     list_display = ('miniatura', 'nombre', 'badge_grupo', 'costo_display', 'precio_display',
                     'precio_iva_display', 'badge_cotizador', 'badge_paquete', 'badge_licor')
@@ -292,46 +335,48 @@ class ProductoAdmin(admin.ModelAdmin):
                       'precio_con_iva_form', 'imagen_promocional'),
             'description': (
                 '<strong>Esto es todo lo que necesita casi cualquier producto:</strong> nombre y un '
-                'precio (captura "Precio de venta fijo" — así se factura la enorme mayoría del '
+                'precio (captura "Precio de venta fijo" con el IVA ya incluido — el precio '
+                'final que va a pagar el cliente; así se factura la enorme mayoría del '
                 'catálogo hoy). Con eso ya puedes usarlo en una cotización manual desde '
                 'Ventas → Cotizaciones → agregar ítem.<br><br>'
                 '<strong>Para que además aparezca solo en el cotizador de la página web:</strong> '
-                've a la pestaña "Cotizador Web" (Pasadía/Arrendamiento/Hospedaje) o, si es para '
-                'Eventos, a la pestaña "Cotizador de Eventos" — asigna este producto a un paquete, '
+                've a la pestaña "Cotizador" (Pasadía/Arrendamiento/Hospedaje) o, si es para '
+                'Eventos, a la pestaña "Eventos" — asigna este producto a un paquete, '
                 'mobiliario, licor, taquiza o extra. Nada más marcarlo aquí arriba lo hace aparecer '
                 'solo.<br><br>'
-                'Las demás pestañas ("Estructura del Producto", "Licor requerido", '
-                '"SubProductos", "Productos Incluidos en este Paquete") son para el caso poco común '
+                'Las demás pestañas ("Avanzado", "SubProductos", "Paquete") son para el caso poco común '
                 'de querer que el costo se calcule solo, sumando insumos o productos base — casi '
                 'nadie las necesita.'
             ),
         }),
-        ('Cotizador Web', {
+        ('Cotizador', {
             'fields': (
-                ('visible_cotizador', 'cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
+                ('visible_cotizador', 'cotizador_pasadia', 'cotizador_hospedaje'),
                 ('rol_cotizador', 'capacidad_base_hospedaje'),
-                ('grupo_cotizador', 'icono'),
-                'descripcion_corta',
+                ('grupo_cotizador', 'descripcion_corta'),
                 ('orden_cotizador', 'grupo_exclusion'),
                 ('cantidad_por_persona', 'factor_personas'),
             ),
             'description': (
-                'Configura cómo aparece este producto en el cotizador público de Pasadía, '
-                'Arrendamiento y Hospedaje. Para Eventos, la disponibilidad de un producto ya no '
-                'se marca aquí: se asigna desde la pestaña "Cotizador de Eventos" de este mismo '
-                'formulario (en qué paquete/mobiliario/licor/taquiza/extra entra).'
+                'Configura cómo aparece este producto en el cotizador público de Pasadía '
+                'y Hospedaje. Para Eventos, la disponibilidad de un producto ya no '
+                'se marca aquí: se asigna desde la pestaña "Eventos" de este mismo '
+                'formulario (en qué paquete/mobiliario/licor/taquiza/extra entra). '
+                '"Arrendamiento de Mobiliario" ya no es un servicio que se ofrezca — el campo '
+                'del modelo sigue existiendo por compatibilidad con cotizaciones históricas, '
+                'pero no se captura aquí.'
             ),
         }),
-        ('Opciones avanzadas (poco usadas)', {
+        ('Avanzado', {
             'fields': (('es_paquete', 'requiere_licor'),),
             'description': (
                 '<strong>Casi nunca necesario</strong> — deja las dos sin marcar si ya capturaste '
                 '"Precio de venta fijo" arriba.<br><br>'
                 '<strong>¿Es un paquete?</strong> Solo afecta el <strong>costo</strong> de este producto '
-                '(suma el costo de los productos que lo componen, ver "Productos Incluidos en este '
-                'Paquete" abajo) — ya no crea un paquete elegible por el cliente en el cotizador '
-                'público: eso se decide en "Cotizador Web" (Evento/Pasadía/Arrendamiento/Hospedaje) '
-                'y, para las opciones cerradas de Eventos, desde la pestaña "Cotizador de Eventos". '
+                '(suma el costo de los productos que lo componen, ver "Paquete" '
+                'abajo) — ya no crea un paquete elegible por el cliente en el cotizador '
+                'público: eso se decide en "Cotizador" (Evento/Pasadía/Arrendamiento/Hospedaje) '
+                'y, para las opciones cerradas de Eventos, desde la pestaña "Eventos". '
                 'Sin marcar, usa la sección "SubProductos" abajo en su lugar.<br><br>'
                 '<strong>¿Requiere licor base en la cotización?</strong> Marca esto si este producto '
                 "obliga a que la cotización incluya Licores Nacionales o Licores Premium."
@@ -398,21 +443,22 @@ class ProductoAdmin(admin.ModelAdmin):
     def precio_con_iva_form(self, obj):
         if not obj or not obj.pk:
             return "Se calcula al guardar, a partir del costo × margen o del precio fijo capturado arriba."
-        precio = impuestos.con_iva(obj.sugerencia_precio())
+        precio = obj.sugerencia_precio()
         return format_html(
             '<strong style="font-size:1.15em;color:#2E7D32;">${} MXN</strong> '
-            '<span style="color:#8a8780;">— esto es lo que paga el cliente '
-            '(precio sin IVA arriba × 1.16, redondeado)</span>',
+            '<span style="color:#8a8780;">— esto es lo que usan las cotizaciones y '
+            'contabilidad (precio de arriba ÷ 1.16, redondeado). Confírmalo tras '
+            'guardar si capturaste un precio fijo nuevo.</span>',
             f'{precio:,.2f}',
         )
-    precio_con_iva_form.short_description = "Precio final con IVA incluido"
+    precio_con_iva_form.short_description = "Base sin IVA (uso interno/contable)"
 
     def badge_cotizador(self, obj):
         if not obj.visible_cotizador:
             return mark_safe('<span style="color:#999;">—</span>')
         # 'E' (Evento) no aparece aquí: la disponibilidad para Evento ya no la
         # decide un flag del Producto, sino su asignación en CatalogoEventoProducto
-        # (pestaña "Cotizador de Eventos").
+        # (pestaña "Eventos").
         servicios = []
         if obj.cotizador_pasadia:
             servicios.append('P')
@@ -2018,6 +2064,6 @@ from . import admin_eventos  # noqa: E402, F401
 # porque `admin_eventos` importa modelos que a su vez viven en este módulo: el
 # import tiene que ir al final, y el inline con él. Va PRIMERO en la lista (se
 # usa más que el costeo por receta) para que su pestaña salga antes que
-# "SubProductos"/"Productos Incluidos en este Paquete".
+# "SubProductos"/"Paquete".
 ProductoAdmin.inlines = [admin_eventos.ProductoEnCatalogoEventoInline,
                          *ProductoAdmin.inlines]

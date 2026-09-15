@@ -397,8 +397,9 @@ class Producto(models.Model):
             if costo_actual > 0 and self.precio_venta_fijo < costo_actual:
                 raise ValidationError({
                     'precio_venta_fijo': (
-                        f"El precio fijo (${self.precio_venta_fijo:,.2f}) es menor al "
-                        f"costo calculado (${costo_actual:,.2f}). Estarías vendiendo "
+                        f"El precio fijo (${impuestos.con_iva(self.precio_venta_fijo):,.2f} "
+                        f"con IVA incluido, ${self.precio_venta_fijo:,.2f} base) es menor al "
+                        f"costo calculado (${costo_actual:,.2f}, sin IVA). Estarías vendiendo "
                         f"con margen negativo. Corrige el precio o el costo antes de guardar."
                     )
                 })
