@@ -381,16 +381,17 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="panel-condicional campo-fila" id="blq-horario">
       <div class="campo">
         <label for="hora_inicio">Hora de inicio</label>
-        <input type="time" id="hora_inicio">
+        <input type="time" id="hora_inicio" step="3600" oninput="actualizarAvisoHorario()">
       </div>
       <div class="campo">
         <label for="hora_fin">Hora de fin</label>
-        <input type="time" id="hora_fin">
+        <input type="time" id="hora_fin" step="3600" oninput="actualizarAvisoHorario()">
       </div>
     </div>
     <div class="campo-error" id="err-horario" style="display:none;">
       El evento puede durar hasta 9 horas (6 incluidas + 3 de hora extra como máximo). Ajusta el horario.
     </div>
+    <div class="aforo-tope" id="aviso-horario-extra"></div>
 
     <div class="campo panel-condicional" id="blq-noches">
       <label>Noches</label>
@@ -1855,6 +1856,24 @@ function horasEvento() {
   // El total exhibido no debe insinuar un cobro que validarPaso(2) va a
   // rechazar antes de dejar avanzar: mismo tope que el backend.
   return Math.min(horas, HORAS_MAX_EVENTO);
+}
+
+// Aviso informativo (no bloqueante, a diferencia de err-horario) de que las
+// horas por encima de las HORAS_BASE_EVENTO incluidas se cobran aparte.
+function actualizarAvisoHorario() {
+  var aviso = document.getElementById('aviso-horario-extra');
+  var hi = document.getElementById('hora_inicio').value;
+  var hf = document.getElementById('hora_fin').value;
+  if (!hi || !hf) { aviso.style.display = 'none'; return; }
+  var extra = horasEvento() - HORAS_BASE_EVENTO;
+  if (extra > 0) {
+    aviso.textContent = 'Tu horario dura ' + (HORAS_BASE_EVENTO + extra) + ' horas: las primeras '
+      + HORAS_BASE_EVENTO + ' están incluidas, ' + extra
+      + (extra === 1 ? ' hora extra se cobra' : ' horas extra se cobran') + ' por separado.';
+    aviso.style.display = 'block';
+  } else {
+    aviso.style.display = 'none';
+  }
 }
 
 async function cargarTotal() {

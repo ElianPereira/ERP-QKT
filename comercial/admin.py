@@ -304,11 +304,11 @@ class ProductoAdmin(admin.ModelAdmin):
         }),
         ('Cotizador Web', {
             'fields': (
-                'visible_cotizador',
-                ('cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
-                'rol_cotizador', 'capacidad_base_hospedaje',
-                'grupo_cotizador', 'icono', 'descripcion_corta',
-                'orden_cotizador', 'grupo_exclusion',
+                ('visible_cotizador', 'cotizador_pasadia', 'cotizador_arrendamiento', 'cotizador_hospedaje'),
+                ('rol_cotizador', 'capacidad_base_hospedaje'),
+                ('grupo_cotizador', 'icono'),
+                'descripcion_corta',
+                ('orden_cotizador', 'grupo_exclusion'),
                 ('cantidad_por_persona', 'factor_personas'),
             ),
             'description': (
@@ -318,25 +318,19 @@ class ProductoAdmin(admin.ModelAdmin):
                 'formulario (en qué paquete/mobiliario/licor/taquiza/extra entra).'
             ),
         }),
-        ('Estructura del Producto', {
-            'fields': ('es_paquete',),
+        ('Opciones avanzadas (poco usadas)', {
+            'fields': (('es_paquete', 'requiere_licor'),),
             'description': (
-                '<strong>Avanzado, casi nunca necesario</strong> — deja esto sin marcar si ya '
-                'capturaste "Precio de venta fijo" arriba.<br>'
-                '<strong>Producto Simple:</strong> Usa la sección "SubProductos" abajo.<br>'
-                '<strong>Paquete:</strong> Usa la sección "Productos Incluidos en este Paquete" abajo. '
-                'Solo afecta el <strong>costo</strong> de este producto (suma el costo de los productos '
-                'que lo componen) — ya no crea un paquete elegible por el cliente en el cotizador '
+                '<strong>Casi nunca necesario</strong> — deja las dos sin marcar si ya capturaste '
+                '"Precio de venta fijo" arriba.<br><br>'
+                '<strong>¿Es un paquete?</strong> Solo afecta el <strong>costo</strong> de este producto '
+                '(suma el costo de los productos que lo componen, ver "Productos Incluidos en este '
+                'Paquete" abajo) — ya no crea un paquete elegible por el cliente en el cotizador '
                 'público: eso se decide en "Cotizador Web" (Evento/Pasadía/Arrendamiento/Hospedaje) '
-                'y, para las opciones cerradas de Eventos, desde la pestaña "Cotizador de Eventos".'
-            ),
-            'classes': ('collapse',),
-        }),
-        ('Licor requerido', {
-            'fields': ('requiere_licor',),
-            'description': (
-                '<strong>Avanzado.</strong> Marca esto si este producto obliga a que la cotización '
-                'incluya Licores Nacionales o Licores Premium.'
+                'y, para las opciones cerradas de Eventos, desde la pestaña "Cotizador de Eventos". '
+                'Sin marcar, usa la sección "SubProductos" abajo en su lugar.<br><br>'
+                '<strong>¿Requiere licor base en la cotización?</strong> Marca esto si este producto '
+                "obliga a que la cotización incluya Licores Nacionales o Licores Premium."
             ),
             'classes': ('collapse',),
         }),
