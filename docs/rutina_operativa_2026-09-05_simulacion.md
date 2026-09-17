@@ -52,7 +52,15 @@ Precio y desglose salen completos **sin una sola línea de impuesto al
 hospedaje**: el modelo no tiene dónde ponerlo. Capturas:
 [`r1a_hospedaje_2_resumen.png`](img/simulacion_2026-09-05/r1a_hospedaje_2_resumen.png).
 
-### R1b · Airbnb (póliza generada por el signal)
+### R1b · Airbnb (póliza generada por el signal) — **conclusión retirada**
+
+> **Corrección del 2026-09-17.** Lo que sigue describe correctamente lo que
+> hace el código, pero la conclusión que saqué de ello era falsa. El ISH de
+> Airbnb lo retiene y entera la plataforma (la columna del CSV es “Impuesto
+> liquidado **por Airbnb**”), así que no es un pasivo de la Quinta y **debe**
+> quedar fuera de la póliza. Además, los importes de abajo los inventé yo: en
+> ellos el ISH quedaba fuera del neto, de modo que la prueba solo reprodujo mi
+> propia premisa. Ver la corrección en `rutina_operativa_2026-09-05.md`.
 
 Se registró un `PagoAirbnb` con `impuesto_hospedaje = $100.00`. El signal emitió
 su póliza y quedó APLICADA y cuadrada — con estas seis líneas:

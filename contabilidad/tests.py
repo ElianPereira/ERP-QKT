@@ -133,6 +133,116 @@ class PolizaPagoClienteTest(TestCase):
         self.assertEqual(haber_otros_ingresos, Decimal('500.00'))
 
 
+class PolizaISHHospedajeTest(TestCase):
+    """
+    El ISH cobrado en hospedaje directo entra a la póliza como pasivo
+    (cuenta 208.04), no como ingreso: se le cobra al huésped para enterarlo
+    al estado. Sin esa línea el asiento descuadraría justo por ese importe.
+
+    El ISH de Airbnb NO entra aquí por diseño: lo retiene y entera la propia
+    plataforma (ver `_asiento_pago_airbnb`).
+    """
+
+    def setUp(self):
+        setup_contabilidad_minima()
+        cuenta_ish, _ = CuentaContable.objects.get_or_create(
+            codigo_sat='208.04',
+            defaults={'nombre': 'Impuesto estatal al hospedaje',
+                      'tipo': 'PASIVO', 'naturaleza': 'A'},
+        )
+        ConfiguracionContable.objects.get_or_create(
+            operacion='IMPUESTO_HOSPEDAJE',
+            defaults={'cuenta': cuenta_ish, 'activa': True},
+        )
+        self.cuenta_ish = cuenta_ish
+        self.user = User.objects.create_user('u', password='x')
+        self.cliente = Cliente.objects.create(nombre='Huésped', tipo_persona='FISICA')
+
+    def _cotizacion_hospedaje(self):
+        from comercial.models import ItemCotizacion, Producto
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, tipo_servicio='HOSPEDAJE',
+            nombre_evento='Hospedaje 2 noches',
+            fecha_evento=date.today() + timedelta(days=30),
+        )
+        producto = Producto.objects.create(
+            nombre='Habitación Ka\'an', precio_venta_fijo=Decimal('1000.00'))
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=producto, cantidad=1,
+            precio_unitario=Decimal('1000.00'),
+        )
+        cot.save()
+        cot.refresh_from_db()
+        return cot
+
+    @override_settings(TASA_ISH=Decimal('0.05'))
+    def test_el_pago_abona_el_ish_a_su_cuenta_y_la_poliza_cuadra(self):
+        cot = self._cotizacion_hospedaje()
+        self.assertEqual(cot.precio_final, Decimal('1210.00'))
+        Pago.objects.create(
+            cotizacion=cot, monto=Decimal('1210.00'),
+            metodo='TRANSFERENCIA', usuario=self.user,
+        )
+        p = Poliza.objects.filter(origen='PAGO_CLIENTE').first()
+        movimientos = list(p.movimientos.all())
+        debe = sum(m.debe for m in movimientos)
+        haber = sum(m.haber for m in movimientos)
+        self.assertEqual(debe, haber)
+        self.assertEqual(debe, Decimal('1210.00'))
+        haber_ish = sum(m.haber for m in movimientos
+                        if m.cuenta_id == self.cuenta_ish.pk)
+        self.assertEqual(haber_ish, Decimal('50.00'))
+
+    @override_settings(TASA_ISH=Decimal('0.05'))
+    def test_un_anticipo_parcial_abona_solo_su_parte_del_ish(self):
+        cot = self._cotizacion_hospedaje()
+        Pago.objects.create(
+            cotizacion=cot, monto=Decimal('605.00'),
+            metodo='TRANSFERENCIA', usuario=self.user,
+        )
+        p = Poliza.objects.filter(origen='PAGO_CLIENTE').first()
+        movimientos = list(p.movimientos.all())
+        self.assertEqual(sum(m.debe for m in movimientos),
+                         sum(m.haber for m in movimientos))
+        haber_ish = sum(m.haber for m in movimientos
+                        if m.cuenta_id == self.cuenta_ish.pk)
+        self.assertEqual(haber_ish, Decimal('25.00'))
+
+    @override_settings(TASA_ISH=Decimal('0.05'))
+    def test_el_reembolso_reversa_tambien_el_ish(self):
+        cot = self._cotizacion_hospedaje()
+        Pago.objects.create(
+            cotizacion=cot, monto=Decimal('1210.00'),
+            metodo='TRANSFERENCIA', usuario=self.user,
+        )
+        Pago.objects.create(
+            cotizacion=cot, monto=Decimal('1210.00'), tipo='REEMBOLSO',
+            metodo='TRANSFERENCIA', usuario=self.user,
+        )
+        p = Poliza.objects.filter(tipo='E', origen='PAGO_CLIENTE').first()
+        movimientos = list(p.movimientos.all())
+        self.assertEqual(sum(m.debe for m in movimientos),
+                         sum(m.haber for m in movimientos))
+        debe_ish = sum(m.debe for m in movimientos
+                       if m.cuenta_id == self.cuenta_ish.pk)
+        self.assertEqual(debe_ish, Decimal('50.00'))
+
+    @override_settings(TASA_ISH=Decimal('0'))
+    def test_sin_tasa_configurada_la_poliza_no_toca_la_cuenta_de_ish(self):
+        cot = self._cotizacion_hospedaje()
+        self.assertEqual(cot.precio_final, Decimal('1160.00'))
+        Pago.objects.create(
+            cotizacion=cot, monto=Decimal('1160.00'),
+            metodo='TRANSFERENCIA', usuario=self.user,
+        )
+        p = Poliza.objects.filter(origen='PAGO_CLIENTE').first()
+        movimientos = list(p.movimientos.all())
+        self.assertEqual(sum(m.debe for m in movimientos),
+                         sum(m.haber for m in movimientos))
+        self.assertFalse(any(m.cuenta_id == self.cuenta_ish.pk
+                             for m in movimientos))
+
+
 class ReembolsoClienteTest(TestCase):
 
     def setUp(self):

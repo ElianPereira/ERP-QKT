@@ -968,11 +968,23 @@ def api_total_cotizador(request):
 
     # Una sola conversión, sobre la suma de las bases (nunca por línea).
     total = impuestos.total_desde_bases(bases)
+
+    # ISH: mismo criterio que `Cotizacion.calcular_totales()` — solo hospedaje
+    # directo y solo con tasa configurada. Se suma al total exhibido, no se
+    # muestra aparte: la LFPC (art. 7 BIS) exige que el precio que ve el
+    # consumidor ya traiga todos los impuestos incluidos.
+    ish = Decimal('0.00')
+    if servicio == 'HOSPEDAJE' and impuestos.ish_aplica():
+        ish = impuestos.ish_de(sum(bases, Decimal('0')))
+        total = impuestos.centavos(total + ish)
+    leyenda = ('Precios en MXN, IVA e ISH incluidos' if ish
+               else 'Precios en MXN, IVA incluido')
+
     return JsonResponse({
         'ok': True,
         'total': str(total),
         'total_formateado': f"${total:,.2f}",
-        'leyenda': 'Precios en MXN, IVA incluido',
+        'leyenda': leyenda,
         'lineas': len(lineas),
         # Qué incluye el total, para que el cliente vea la línea base que el
         # cotizador agrega solo y no solo los extras que él marcó.

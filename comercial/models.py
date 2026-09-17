@@ -599,6 +599,16 @@ class Cotizacion(models.Model):
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    impuesto_hospedaje = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00,
+        verbose_name="Impuesto al hospedaje (ISH)",
+        help_text=(
+            "Impuesto estatal al hospedaje. Solo se calcula en cotizaciones de "
+            "HOSPEDAJE y solo si hay una tasa configurada (TASA_ISH). El "
+            "hospedaje de Airbnb no lleva: ese ISH lo retiene y entera la "
+            "propia plataforma."
+        ),
+    )
     retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     precio_final = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -840,8 +850,17 @@ class Cotizacion(models.Model):
         else:
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
+        # ISH: impuesto estatal, solo sobre hospedaje vendido directo y solo
+        # si hay tasa configurada. Se calcula sobre la misma base que el IVA
+        # (contraprestación sin IVA), nunca sobre el IVA. Con TASA_ISH en 0
+        # —el default— queda en cero y el precio final no cambia en nada.
+        if self.tipo_servicio == 'HOSPEDAJE' and impuestos.ish_aplica():
+            self.impuesto_hospedaje = impuestos.ish_de(base)
+        else:
+            self.impuesto_hospedaje = Decimal('0.00')
         self.precio_final = impuestos.centavos(
-            base + self.iva - self.retencion_isr - self.retencion_iva
+            base + self.iva + self.impuesto_hospedaje
+            - self.retencion_isr - self.retencion_iva
         )
     def clean(self):
         """Si la cotización está apartando una fecha (anticipo o superior),
@@ -892,6 +911,7 @@ class Cotizacion(models.Model):
             self.calcular_totales()
             Cotizacion.objects.filter(pk=self.pk).update(
                 subtotal=self.subtotal, iva=self.iva,
+                impuesto_hospedaje=self.impuesto_hospedaje,
                 retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
                 precio_final=self.precio_final
             )

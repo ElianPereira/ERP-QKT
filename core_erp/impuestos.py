@@ -153,6 +153,62 @@ def ret_isr_de(base) -> Decimal:
     return centavos(_exigir_decimal(base, 'base') * TASA_RET_ISR_RESICO)
 
 
+# --- ISH: Impuesto Sobre Hospedaje (estatal) -------------------------------
+#
+# A diferencia del IVA, el ISH NO es federal: su tasa y su causación las fija
+# la ley de hacienda de cada estado y cambian sin que este repo se entere. Por
+# eso la tasa NO se escribe aquí como constante, se lee de `settings.TASA_ISH`
+# (variable de entorno en Railway): cambiarla no requiere desplegar.
+#
+# Mientras esa variable valga 0 —su default— el ERP se comporta EXACTAMENTE
+# como antes: no calcula ISH, no lo exhibe y no lo contabiliza. Es deliberado.
+# Cobrarle al cliente un impuesto estatal con una tasa que el contador no ha
+# confirmado sería peor que no cobrarlo: el dinero entra y no hay a quién
+# enterarlo.
+#
+# Solo aplica al hospedaje vendido DIRECTO (Cotizacion.tipo_servicio ==
+# 'HOSPEDAJE'). Airbnb queda fuera por construcción: la plataforma retiene y
+# entera el ISH por su cuenta —la columna del CSV se llama literalmente
+# "Impuesto liquidado por Airbnb"— y ese importe nunca pasa por la cuenta
+# bancaria de la Quinta, así que no es un pasivo suyo. `PagoAirbnb.
+# impuesto_hospedaje` lo guarda como dato informativo de lo que la plataforma
+# enteró en su nombre, no como algo por pagar.
+
+def tasa_ish() -> Decimal:
+    """
+    Tasa vigente del ISH, como Decimal (0.05 = 5%). Cero = no se aplica.
+
+    Se lee de settings en cada llamada, no se cachea a nivel de módulo, para
+    que `override_settings` funcione en los tests y para que cambiar la
+    variable en Railway surta efecto al reiniciar sin tocar código.
+    """
+    from django.conf import settings
+    tasa = getattr(settings, 'TASA_ISH', Decimal('0'))
+    if not isinstance(tasa, Decimal):
+        tasa = Decimal(str(tasa))
+    if tasa < 0 or tasa > 1:
+        raise ValueError(
+            f"TASA_ISH fuera de rango: {tasa}. Se espera una proporción "
+            "(0.05 para 5%), no un porcentaje."
+        )
+    return tasa
+
+
+def ish_aplica() -> bool:
+    """¿Hay una tasa de ISH configurada? Si no, el ERP lo ignora por completo."""
+    return tasa_ish() > 0
+
+
+def ish_de(base) -> Decimal:
+    """
+    ISH correspondiente a una base ya redondeada.
+
+    La base del ISH es la contraprestación por el hospedaje SIN IVA — el
+    impuesto estatal no se calcula sobre el IVA federal.
+    """
+    return centavos(_exigir_decimal(base, 'base') * tasa_ish())
+
+
 def tipo_persona_por_rfc(rfc: str) -> Optional[str]:
     """
     Deduce 'FISICA'/'MORAL' de la longitud del RFC — regla del SAT, no una

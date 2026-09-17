@@ -1,5 +1,12 @@
 # Rutina Operativa/Contable — 2026-09-05
 
+> **Corrección publicada el 2026-09-17.** La mitad de R1 referida a Airbnb
+> (“el ISH se captura pero no se contabiliza”) **es incorrecta** y no debe
+> usarse como base de ningún cambio: el ISH de Airbnb lo retiene y lo entera
+> la propia plataforma, así que no es un pasivo de la Quinta y su ausencia en
+> la póliza es deliberada. El detalle está al final de la sección R1 y en la
+> Memoria de `CLAUDE.md`. El resto del documento se mantiene.
+
 Análisis **solo de estructura** (campos y métodos de los modelos de Cotizaciones,
 Cobranza, Reservas y Contabilidad). No se leyeron datos vivos ni se modificó
 código. Todo lo que sigue es sugerencia estratégica para revisión del
@@ -38,6 +45,33 @@ esta revisión añade que el hueco es **más amplio que Airbnb**.
 Decisión humana previa a cualquier implementación: confirmar con el contador si
 QKT es sujeto del ISH de Yucatán por hospedaje directo y a qué tasa. Es cálculo
 de impuestos → zona que requiere aprobación explícita.
+
+### Corrección (2026-09-17): la mitad de Airbnb de este hallazgo está mal
+
+Lo que este documento afirma sobre Airbnb —que el ISH capturado “no llega a la
+contabilidad” y que eso es un hueco— **es incorrecto**. La evidencia está en el
+propio repo y no la leí antes de escribirlo:
+
+- La columna del CSV que alimenta el campo se llama **“Impuesto liquidado por
+  Airbnb”** (`airbnb/services.py`): la plataforma lo retiene y lo entera ella.
+- `PagoAirbnb.diferencia_neto` lo dice explícito: *“El impuesto al hospedaje no
+  entra: ese lo retiene y entera la propia plataforma.”*
+- `_asiento_pago_airbnb` lo repite en su docstring: *“no aparece: … nunca pasa
+  por la cuenta bancaria.”*
+
+Como ese dinero no pasa por la cuenta de la Quinta, no es un pasivo suyo:
+abonarlo a la 208.04 habría creado un pasivo fantasma que después nadie podría
+pagar ni conciliar. `PagoAirbnb.impuesto_hospedaje` es informativo —cuánto
+enteró la plataforma en su nombre— y su ausencia en la póliza es correcta.
+
+La simulación del anexo no sirvió de control: los importes eran inventados por
+mí y, en ellos, el ISH sí quedaba fuera del neto. Una simulación construida
+sobre la propia premisa la confirma siempre.
+
+**Lo que sí era un hueco real, y quedó resuelto**: el hospedaje vendido
+**directo** no calculaba ISH en ningún lado, y ahí no hay plataforma que lo
+entere. Implementado el 2026-09-17 con la tasa en `settings.TASA_ISH`
+(apagada mientras valga 0). Ver la Memoria de `CLAUDE.md`.
 
 ### R2 — La retención de ISR asume RESICO sin consultar el régimen del emisor (fiscal)
 

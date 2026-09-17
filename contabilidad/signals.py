@@ -143,6 +143,7 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
     desglose = calcular_desglose_proporcional(monto, cotizacion)
     subtotal = desglose['subtotal']
     iva = desglose['iva']
+    impuesto_hospedaje = desglose.get('impuesto_hospedaje', Decimal('0.00'))
     retencion_isr = desglose['retencion_isr']
 
     # ─── Crear póliza ───────────────────────────────────────────
@@ -214,6 +215,40 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
             concepto=f"COT-{cotizacion.pk:03d} (IVA incluido)",
             referencia=pago.referencia or '',
         )
+
+    # ─── HABER: ISH cobrado al huésped (hospedaje directo) ──────
+    # Pasivo, no ingreso: se le cobra al huésped para enterarlo al estado.
+    # Solo existe en cotizaciones de HOSPEDAJE con tasa configurada; el ISH
+    # de Airbnb no pasa por aquí porque lo entera la plataforma.
+    if impuesto_hospedaje > 0:
+        cuenta_ish = get_cuenta('IMPUESTO_HOSPEDAJE')
+        if cuenta_ish:
+            MovimientoContable.objects.create(
+                poliza=poliza,
+                cuenta=cuenta_ish,
+                debe=Decimal('0.00'),
+                haber=impuesto_hospedaje,
+                concepto="Impuesto al hospedaje por enterar",
+                referencia=f"COT-{cotizacion.pk:03d}",
+            )
+        else:
+            # Sin cuenta configurada el asiento descuadraría por el importe
+            # del ISH. Se manda al mismo abono principal para no romper la
+            # partida doble, con el descuadre visible en el concepto y en el
+            # log para quien concilie.
+            logger.warning(
+                "Pago #%s: falta la cuenta IMPUESTO_HOSPEDAJE; el ISH de $%s "
+                "se abonó a %s en su lugar.", pago.pk, impuesto_hospedaje,
+                cuenta_abono,
+            )
+            MovimientoContable.objects.create(
+                poliza=poliza,
+                cuenta=cuenta_abono,
+                debe=Decimal('0.00'),
+                haber=impuesto_hospedaje,
+                concepto=f"COT-{cotizacion.pk:03d} (ISH sin cuenta configurada)",
+                referencia=pago.referencia or '',
+            )
 
     # ─── Comisión de terminal (TPV), si se capturó ──────────────
     if pago.metodo in ('TARJETA_CREDITO', 'TARJETA_DEBITO') and pago.comision_tpv:
@@ -539,6 +574,7 @@ def crear_poliza_reembolso_cliente(pago):
     desglose = calcular_desglose_proporcional(monto, cotizacion)
     subtotal = desglose['subtotal']
     iva = desglose['iva']
+    impuesto_hospedaje = desglose.get('impuesto_hospedaje', Decimal('0.00'))
     retencion_isr = desglose['retencion_isr']
 
     usuario = get_usuario_sistema()
@@ -575,6 +611,18 @@ def crear_poliza_reembolso_cliente(pago):
             poliza=poliza, cuenta=cuenta_isr_ret,
             debe=Decimal('0.00'), haber=retencion_isr,
             concepto="Reverso ISR retenido por cliente",
+            referencia=f"COT-{cotizacion.pk:03d}",
+        )
+    # El ISH devuelto también se reversa: si el huésped ya no se hospeda, el
+    # impuesto que se le cobró deja de deberse al estado. Sin esta línea el
+    # asiento de reembolso descuadra justo por ese importe.
+    if impuesto_hospedaje > 0:
+        cuenta_ish = get_cuenta('IMPUESTO_HOSPEDAJE')
+        MovimientoContable.objects.create(
+            poliza=poliza,
+            cuenta=cuenta_ish or cuenta_anticipo,
+            debe=impuesto_hospedaje, haber=Decimal('0.00'),
+            concepto="Reverso impuesto al hospedaje",
             referencia=f"COT-{cotizacion.pk:03d}",
         )
     MovimientoContable.objects.create(
