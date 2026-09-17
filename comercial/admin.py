@@ -351,17 +351,21 @@ class ProductoAdmin(admin.ModelAdmin):
         }),
         ('Cotizador', {
             'fields': (
-                ('visible_cotizador', 'cotizador_pasadia', 'cotizador_hospedaje'),
+                ('visible_cotizador', 'cotizador_evento', 'cotizador_pasadia', 'cotizador_hospedaje'),
                 ('rol_cotizador', 'capacidad_base_hospedaje'),
                 ('grupo_cotizador', 'descripcion_corta'),
                 ('orden_cotizador', 'grupo_exclusion'),
                 ('cantidad_por_persona', 'factor_personas'),
             ),
             'description': (
-                'Configura cómo aparece este producto en el cotizador público de Pasadía '
-                'y Hospedaje. Para Eventos, la disponibilidad de un producto ya no '
-                'se marca aquí: se asigna desde la pestaña "Eventos" de este mismo '
-                'formulario (en qué paquete/mobiliario/licor/taquiza/extra entra). '
+                'Marca aquí en qué servicios aparece este producto como "extra abierto" '
+                '(el cliente lo agrega él mismo, con checkbox — en Evento es el paso '
+                '"extras" que se suma al paquete que ya eligió). '
+                '<strong>"Disponible para Evento" es independiente de la pestaña "Eventos"</strong> '
+                'de este mismo formulario: la pestaña es para que este producto sea parte fija '
+                'de un paquete/mobiliario/licor/taquiza (catálogo cerrado, no lo marca el '
+                'cliente); este checkbox es para que se ofrezca como extra suelto. Un producto '
+                'puede tener las dos cosas, una sola, o ninguna. '
                 '"Arrendamiento de Mobiliario" ya no es un servicio que se ofrezca — el campo '
                 'del modelo sigue existiendo por compatibilidad con cotizaciones históricas, '
                 'pero no se captura aquí.'
@@ -456,16 +460,18 @@ class ProductoAdmin(admin.ModelAdmin):
     def badge_cotizador(self, obj):
         if not obj.visible_cotizador:
             return mark_safe('<span style="color:#999;">—</span>')
-        # 'E' (Evento) no aparece aquí: la disponibilidad para Evento ya no la
-        # decide un flag del Producto, sino su asignación en CatalogoEventoProducto
-        # (pestaña "Eventos").
+        # 'E' es el extra abierto (checkbox "Disponible para Evento"), no la
+        # asignación a un paquete/mobiliario/licor/taquiza — esa se ve en la
+        # pestaña "Eventos" del propio producto, no en este badge.
         servicios = []
+        if obj.cotizador_evento:
+            servicios.append('E')
         if obj.cotizador_pasadia:
             servicios.append('P')
-        if obj.cotizador_arrendamiento:
-            servicios.append('A')
         if obj.cotizador_hospedaje:
             servicios.append('H')
+        if obj.cotizador_arrendamiento:
+            servicios.append('A')
         txt = '/'.join(servicios) or '—'
         return format_html(
             '<span style="background:#2E7D32;color:white;padding:2px 8px;'
