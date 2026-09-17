@@ -415,22 +415,22 @@ class Producto(models.Model):
 class ProductoEventos(Producto):
     class Meta:
         proxy = True
-        verbose_name = 'Producto de Eventos'
-        verbose_name_plural = 'Eventos — Productos'
+        verbose_name = 'Productos — Eventos'
+        verbose_name_plural = 'Productos — Eventos'
 
 
 class ProductoPasadia(Producto):
     class Meta:
         proxy = True
-        verbose_name = 'Producto de Pasadía'
-        verbose_name_plural = 'Pasadía — Productos'
+        verbose_name = 'Productos — Pasadía'
+        verbose_name_plural = 'Productos — Pasadía'
 
 
 class ProductoHospedaje(Producto):
     class Meta:
         proxy = True
-        verbose_name = 'Producto de Hospedaje'
-        verbose_name_plural = 'Hospedaje — Productos'
+        verbose_name = 'Productos — Hospedaje'
+        verbose_name_plural = 'Productos — Hospedaje'
 
 
 class ComponenteProducto(models.Model):
