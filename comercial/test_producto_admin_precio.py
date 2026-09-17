@@ -32,10 +32,11 @@ class ProductoAdminFormTest(TestCase):
             'factor_personas': '1',
         })
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data['precio_venta_fijo'], impuestos.sin_iva(Decimal('3999.99')))
+        self.assertEqual(form.cleaned_data['precio_venta_fijo'], impuestos.sin_iva_preciso(Decimal('3999.99')))
         obj = form.save()
-        self.assertEqual(obj.precio_venta_fijo, Decimal('3448.27'))
-        # Round-trip: lo que el cliente paga coincide con lo capturado.
+        self.assertEqual(obj.precio_venta_fijo, Decimal('3448.2672'))
+        # Round-trip: lo que el cliente paga coincide exacto con lo capturado
+        # (4 decimales de precisión, no 2 — ver Memoria "me lo redondea a .99").
         self.assertEqual(impuestos.con_iva(obj.precio_venta_fijo), Decimal('3999.99'))
 
     def test_vacio_no_fija_precio(self):
@@ -105,5 +106,5 @@ class ProductoAdminVistaTest(TestCase):
         })
         self.assertEqual(response.status_code, 302, response.context['adminform'].form.errors if response.status_code == 200 else '')
         producto = Producto.objects.get(nombre='Paquete Premium QKT')
-        self.assertEqual(producto.precio_venta_fijo, Decimal('2586.21'))
+        self.assertEqual(producto.precio_venta_fijo, Decimal('2586.2069'))
         self.assertEqual(impuestos.con_iva(producto.precio_venta_fijo), Decimal('3000.00'))

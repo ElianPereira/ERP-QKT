@@ -125,6 +125,29 @@ def sin_iva(total) -> Decimal:
     return centavos(total / (Decimal('1') + TASA_IVA))
 
 
+PRECISION_EXTENDIDA = Decimal('0.0001')
+
+
+def sin_iva_preciso(total) -> Decimal:
+    """
+    Total con IVA incluido -> base, con 4 decimales en vez de 2.
+
+    Uso exclusivo: capturar un `Producto.precio_venta_fijo` a partir del
+    precio con IVA que teclea quien da de alta el producto en el admin.
+    Guardar la base con solo 2 decimales pierde la fracción de centavo que
+    la división por 1.16 no siempre produce exacta, y al reconvertir a
+    con-IVA para mostrarla el redondeo ya no reproduce el número que se
+    escribió (ej. $650.00 -> guarda 560.34 -> se exhibe 649.99). Con 4
+    decimales el round-trip `con_iva(sin_iva_preciso(x)) == x` se cumple
+    para cualquier importe capturado a centavos.
+
+    NUNCA usar para IVA fiscal/facturado: esa salida sigue siendo
+    exclusivamente `sin_iva()`/`centavos()` (2 decimales, tolerancia SAT).
+    """
+    total = _exigir_decimal(total, 'total')
+    return (total / (Decimal('1') + TASA_IVA)).quantize(PRECISION_EXTENDIDA, rounding=ROUND_HALF_UP)
+
+
 def ret_isr_de(base) -> Decimal:
     """Retención de ISR (RESICO) sobre una base. Solo aplica a persona moral."""
     return centavos(_exigir_decimal(base, 'base') * TASA_RET_ISR_RESICO)

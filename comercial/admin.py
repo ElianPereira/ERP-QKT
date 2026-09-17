@@ -285,8 +285,13 @@ class ProductoAdminForm(forms.ModelForm):
     Lo único que cambia es qué número escribe quien captura: antes tenía que
     calcular a mano el sin-IVA (fuente de errores, ver Memoria 2026-09-04),
     ahora escribe el precio final que va a cobrar y este form hace la
-    conversión con `impuestos.sin_iva()` antes de guardar — mismo criterio
-    de redondeo que ya se usó para Pasadía Básico/Premium.
+    conversión con `impuestos.sin_iva_preciso()` antes de guardar — 4
+    decimales, no 2, para que el redondeo de vuelta a con-IVA reproduzca
+    exacto lo capturado (ver Memoria: "Pongo 500 o 550 o 650 y me lo
+    redondea a .99"). `sugerencia_precio()` sigue cuantizando a 2
+    decimales para todo lo que cobra de verdad (cotizaciones, contabilidad),
+    así que esto no cambia ningún importe facturado, solo la precisión con
+    la que se guarda y se exhibe el precio fijo en el admin.
     """
 
     precio_venta_fijo = forms.DecimalField(
@@ -314,7 +319,7 @@ class ProductoAdminForm(forms.ModelForm):
         valor_con_iva = self.cleaned_data.get('precio_venta_fijo')
         if valor_con_iva is None:
             return None
-        return impuestos.sin_iva(valor_con_iva)
+        return impuestos.sin_iva_preciso(valor_con_iva)
 
 
 @admin.register(Producto)
@@ -440,7 +445,14 @@ class ProductoAdmin(admin.ModelAdmin):
     precio_display.short_description = "Precio sugerido (sin IVA)"
 
     def precio_iva_display(self, obj):
-        precio = impuestos.con_iva(obj.sugerencia_precio())
+        # Con precio fijo, con_iva() se calcula sobre precio_venta_fijo tal
+        # cual (4 decimales) en vez de sobre sugerencia_precio() (que ya lo
+        # cuantizó a 2) — así se exhibe el mismo importe que se capturó,
+        # no un redondeo-de-un-redondeo. Ver Memoria: "me lo redondea a .99".
+        if obj.precio_venta_fijo is not None and obj.precio_venta_fijo > 0:
+            precio = impuestos.con_iva(obj.precio_venta_fijo)
+        else:
+            precio = impuestos.con_iva(obj.sugerencia_precio())
         return format_html('<strong style="color:#2E7D32;">${}</strong>', f'{precio:,.2f}')
     precio_iva_display.short_description = "Precio con IVA"
 

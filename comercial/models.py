@@ -302,9 +302,11 @@ class Producto(models.Model):
     descripcion = models.TextField(blank=True)
     margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('0.30'))
     precio_venta_fijo = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True,
+        max_digits=10, decimal_places=4, null=True, blank=True,
         verbose_name="Precio de venta fijo",
-        help_text="Si se define (>0), sobreescribe el cálculo costo×margen. Para rentas de precio fijo (mobiliario).",
+        help_text="Si se define (>0), sobreescribe el cálculo costo×margen. Para rentas de precio fijo (mobiliario). "
+        "Se guarda con 4 decimales (aunque el admin captura el precio con IVA a centavos) para que el round-trip "
+        "con_iva(precio_venta_fijo) reproduzca exacto el importe capturado — ver core_erp/impuestos.py::sin_iva_preciso.",
     )
     imagen_promocional = models.ImageField(upload_to='productos/', blank=True, null=True)
     capacidad_base_hospedaje = models.PositiveIntegerField(
