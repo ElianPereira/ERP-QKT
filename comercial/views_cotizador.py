@@ -333,8 +333,15 @@ def cotizador_enviar(request):
                 "Escríbenos si necesitas algo distinto y lo vemos contigo."
             ]}, status=400)
 
-        num_personas = (redondear_personas_paquete(num_raw)
-                        if seleccion_evento['modalidad'] == MODALIDAD_PAQUETE else num_raw)
+        if seleccion_evento['modalidad'] == MODALIDAD_PAQUETE:
+            # Cada paquete tiene su propio mínimo/máximo/tramo (ver
+            # `CatalogoEvento.personas_validas()`); sin paquete resuelto todavía
+            # se usa la regla general como aproximación — `full_clean()` de abajo
+            # rechaza la solicitud con "Elige un paquete" de todas formas.
+            num_personas = (seleccion_evento['paquete'].redondear_personas(num_raw)
+                            if seleccion_evento['paquete'] else redondear_personas_paquete(num_raw))
+        else:
+            num_personas = num_raw
 
         # Se valida ANTES de crear Cliente/Cotización: una combinación
         # rechazada no debe dejar una cotización huérfana en BORRADOR. La
@@ -939,7 +946,11 @@ def api_total_cotizador(request):
         })
         num_personas = min(num_personas, MAX_PERSONAS_EVENTO)
         if seleccion_evento['modalidad'] == MODALIDAD_PAQUETE:
-            num_personas = redondear_personas_paquete(num_personas)
+            # Mismo criterio que en `cotizador_enviar`: el tramo lo decide el
+            # paquete elegido, no una regla única para todos.
+            num_personas = (seleccion_evento['paquete'].redondear_personas(num_personas)
+                            if seleccion_evento['paquete']
+                            else redondear_personas_paquete(num_personas))
 
     lineas = _lineas_cotizador(
         servicio=servicio,

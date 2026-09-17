@@ -97,6 +97,17 @@ class CatalogoEventoAdmin(admin.ModelAdmin):
                 'las dos modalidades.'
             ),
         }),
+        ('Solo si el tipo es Paquete: aforo que acepta', {
+            'fields': ('aforo_minimo', 'aforo_maximo', 'aforo_paso'),
+            'description': (
+                'Cada paquete puede tener su propio rango de personas — ya no es una sola regla '
+                'para todos. Deja los tres vacíos para usar el rango general del cotizador de '
+                'Eventos (50 a 150, de 10 en 10). Ejemplo: un paquete de solo arrendamiento sin '
+                'mínimo y hasta 100 personas lleva "Aforo mínimo" vacío, "Aforo máximo" en 100 y '
+                '"Tramo de aforo" en <strong>1</strong> (para que NO salte de 10 en 10 — vacío '
+                'aquí sí hereda el tramo de 10).'
+            ),
+        }),
         ('Solo si el tipo es Extra', {'fields': ('capacidad_maxima_simultanea',)}),
         ('Auditoría', {'fields': ('created_by', 'updated_by', 'created_at', 'updated_at'),
                        'classes': ('collapse',)}),

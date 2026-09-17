@@ -2313,6 +2313,22 @@ class CatalogoEvento(CatalogoEventoBase):
         default=False, verbose_name="Ofrece extras",
         help_text="Solo paquetes. Muestra las casillas de extras (bolis, brincolín).",
     )
+    aforo_minimo = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Aforo mínimo",
+        help_text="Solo paquetes. Vacío = sin mínimo propio (usa el mínimo general "
+                  "del cotizador de Eventos).",
+    )
+    aforo_maximo = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Aforo máximo",
+        help_text="Solo paquetes. Vacío = usa el máximo general del cotizador "
+                  "de Eventos (150).",
+    )
+    aforo_paso = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Tramo de aforo",
+        help_text="Solo paquetes. Vacío = tramo general (10, el cliente elige 50, 60, "
+                  "70...). Pon 1 para que no haya tramos: cualquier número de personas "
+                  "dentro del rango es válido.",
+    )
 
     # --- Solo para tipo EXTRA.
     capacidad_maxima_simultanea = models.PositiveSmallIntegerField(
@@ -2331,6 +2347,9 @@ class CatalogoEvento(CatalogoEventoBase):
         'requiere_mobiliario', 'permite_licores_opcional',
         'requiere_taquiza', 'permite_extras',
     )
+    # Campos de aforo: mismo criterio (solo paquete), pero con valor no-booleano
+    # así que se validan aparte de las banderas de arriba.
+    CAMPOS_AFORO_PAQUETE = ('aforo_minimo', 'aforo_maximo', 'aforo_paso')
 
     def clean(self):
         super().clean()
@@ -2342,10 +2361,59 @@ class CatalogoEvento(CatalogoEventoBase):
                         "Solo aplica a un paquete: define qué pasos ve el cliente "
                         "después de elegirlo."
                     )
+            for campo in self.CAMPOS_AFORO_PAQUETE:
+                if getattr(self, campo) is not None:
+                    errores[campo] = "Solo aplica a un paquete."
+        elif (self.aforo_minimo is not None and self.aforo_maximo is not None
+                and self.aforo_minimo > self.aforo_maximo):
+            errores['aforo_minimo'] = "El aforo mínimo no puede ser mayor al máximo."
         if self.tipo != self.TIPO_EXTRA and self.capacidad_maxima_simultanea is not None:
             errores['capacidad_maxima_simultanea'] = "Solo aplica a un extra."
         if errores:
             raise ValidationError(errores)
+
+    def aforo_minimo_efectivo(self):
+        """Mínimo real a aplicar: el propio si lo capturaron, si no el general."""
+        return self.aforo_minimo if self.aforo_minimo is not None else MIN_PERSONAS_PAQUETE
+
+    def aforo_maximo_efectivo(self):
+        return self.aforo_maximo if self.aforo_maximo is not None else MAX_PERSONAS_EVENTO
+
+    def aforo_paso_efectivo(self):
+        """Tramo real a aplicar: el propio si lo capturaron, si no el general.
+
+        Vacío = tramo general (10, igual que siempre). Para un paquete sin
+        tramos (cualquier número de personas, ej. uno de solo arrendamiento)
+        hay que capturar `aforo_paso=1` explícitamente, no dejarlo vacío.
+        """
+        return self.aforo_paso if self.aforo_paso is not None else PASO_PERSONAS_PAQUETE
+
+    def personas_validas(self):
+        """Aforos que este paquete concreto puede cotizar, ya resueltos.
+
+        Reemplaza a `personas_validas_paquete()` (la lista global) cuando ya se
+        sabe qué paquete eligió el cliente — cada uno puede tener su propio
+        mínimo/máximo/tramo (ej. Esencial sin mínimo y hasta 100; Premium de
+        50 a 150 de 10 en 10).
+        """
+        return list(range(self.aforo_minimo_efectivo(),
+                          self.aforo_maximo_efectivo() + 1,
+                          self.aforo_paso_efectivo()))
+
+    def redondear_personas(self, n):
+        """Sube `n` al siguiente aforo cotizable de ESTE paquete, sin pasar del máximo.
+
+        Mismo criterio que `redondear_personas_paquete()` (subir, nunca bajar:
+        quedarse corto de mobiliario/taquiza es peor que sobrar), pero con los
+        límites propios del paquete en vez de los generales del cotizador.
+        """
+        minimo, maximo, paso = (self.aforo_minimo_efectivo(), self.aforo_maximo_efectivo(),
+                                self.aforo_paso_efectivo())
+        n = int(n)
+        if n <= minimo:
+            return minimo
+        escalones = -(-(n - minimo) // paso)
+        return min(minimo + escalones * paso, maximo)
 
     def __str__(self):
         return f"{self.get_tipo_display()} · {self.nombre}"
@@ -2446,8 +2514,30 @@ class ConfiguracionEventoCotizacion(models.Model):
                     f"El aforo debe estar entre 1 y {MAX_PERSONAS_EVENTO} personas. "
                     f"No ofrecemos eventos de más de {MAX_PERSONAS_EVENTO}."
                 )
+            elif self.modalidad == MODALIDAD_PAQUETE and self.paquete_id:
+                # Cada paquete define su propio rango/tramo de aforo (ej. Esencial
+                # sin mínimo hasta 100; Premium de 50 a 150 de 10 en 10) — ya no
+                # es una sola regla para todos, ver `CatalogoEvento.personas_validas()`.
+                paquete = self.paquete
+                if personas not in paquete.personas_validas():
+                    if paquete.aforo_paso_efectivo() > 1:
+                        errores['modalidad'] = (
+                            f"El paquete {paquete.nombre} se cotiza de "
+                            f"{paquete.aforo_minimo_efectivo()} a "
+                            f"{paquete.aforo_maximo_efectivo()} personas, en tramos de "
+                            f"{paquete.aforo_paso_efectivo()}."
+                        )
+                    else:
+                        errores['modalidad'] = (
+                            f"El paquete {paquete.nombre} se cotiza de "
+                            f"{paquete.aforo_minimo_efectivo()} a "
+                            f"{paquete.aforo_maximo_efectivo()} personas."
+                        )
             elif (self.modalidad == MODALIDAD_PAQUETE
                     and personas not in personas_validas_paquete()):
+                # Sin paquete elegido todavía (el error de "Elige un paquete" sale
+                # más abajo): se valida contra el rango general como red de
+                # seguridad, para no dejar pasar un aforo absurdo antes de saberlo.
                 errores['modalidad'] = (
                     "En modalidad de paquete el aforo va de "
                     f"{MIN_PERSONAS_PAQUETE} a {MAX_PERSONAS_EVENTO} en pasos de "

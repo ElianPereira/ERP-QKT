@@ -65,6 +65,72 @@ class ReglasAforoTest(TestCase):
         self.assertEqual(redondear_personas_paquete(151), MAX_PERSONAS_EVENTO)
 
 
+class AforoPorPaqueteTest(TestCase):
+    """Cada paquete puede tener su propio mínimo/máximo/tramo de aforo.
+
+    Antes era una sola regla (`personas_validas_paquete()`) para cualquier
+    paquete; estos campos permiten, por ejemplo, un paquete de solo
+    arrendamiento sin mínimo y con tope de 100, junto a otro (mín 50, máx
+    150, de 10 en 10) que sigue el comportamiento general.
+    """
+
+    def test_sin_capturar_nada_hereda_las_reglas_generales(self):
+        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='qkt', nombre='QKT')
+        self.assertEqual(paquete.aforo_minimo_efectivo(), 50)
+        self.assertEqual(paquete.aforo_maximo_efectivo(), MAX_PERSONAS_EVENTO)
+        self.assertEqual(paquete.aforo_paso_efectivo(), 10)
+        self.assertEqual(paquete.personas_validas(), personas_validas_paquete())
+
+    def test_paquete_sin_minimo_y_maximo_100_sin_tramos(self):
+        # "Esencial": únicamente arrendamiento, sin mínimo, máx 100, cualquier
+        # número de personas (aforo_paso=1, no hereda el tramo de 10).
+        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='esencial',
+                                 nombre='Esencial', aforo_minimo=1, aforo_maximo=100,
+                                 aforo_paso=1)
+        self.assertEqual(paquete.personas_validas(), list(range(1, 101)))
+        self.assertEqual(paquete.redondear_personas(37), 37)
+        self.assertEqual(paquete.redondear_personas(150), 100)
+
+    def test_paquete_con_minimo_propio_y_tramo_general(self):
+        # Solo define el mínimo (80); máximo y tramo quedan en los generales.
+        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='premium',
+                                 nombre='Premium', aforo_minimo=80)
+        self.assertEqual(paquete.personas_validas(),
+                         [80, 90, 100, 110, 120, 130, 140, 150])
+        self.assertEqual(paquete.redondear_personas(40), 80)
+        self.assertEqual(paquete.redondear_personas(85), 90)
+
+    def test_minimo_mayor_al_maximo_no_pasa_clean(self):
+        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='raro',
+                                 nombre='Raro', aforo_minimo=100, aforo_maximo=50)
+        with self.assertRaises(ValidationError):
+            paquete.full_clean()
+
+    def test_los_campos_de_aforo_solo_aplican_a_paquete(self):
+        mobiliario = CatalogoEvento(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico',
+                                    nombre='Rústico', aforo_minimo=10)
+        with self.assertRaises(ValidationError):
+            mobiliario.full_clean()
+
+    def test_validacion_de_cotizacion_usa_el_aforo_del_paquete_elegido(self):
+        cliente = Cliente.objects.create(nombre='Ana Ruiz', telefono='9995550001')
+        esencial = CatalogoEvento.objects.create(
+            tipo=CatalogoEvento.TIPO_PAQUETE, codigo='esencial-aforo', nombre='Esencial',
+            aforo_minimo=1, aforo_maximo=100, aforo_paso=1,
+        )
+        cotizacion = Cotizacion(cliente=cliente, tipo_servicio='EVENTO', num_personas=37,
+                                fecha_evento=timezone.now() + timedelta(days=30))
+        cotizacion.save()
+        config = ConfiguracionEventoCotizacion(cotizacion=cotizacion,
+                                               modalidad=MODALIDAD_PAQUETE, paquete=esencial)
+        config.full_clean()  # 37 no es múltiplo de 10, pero Esencial no tiene tramos.
+
+        cotizacion.num_personas = 101
+        cotizacion.save()
+        with self.assertRaises(ValidationError):
+            config.full_clean()  # 101 pasa el máximo propio de Esencial (100).
+
+
 class ResolverCantidadTest(TestCase):
     """Cuántas unidades entran de cada producto asignado."""
 

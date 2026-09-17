@@ -205,6 +205,13 @@ def catalogo_para_cotizador(num_personas):
             'permite_licores_opcional': paq.permite_licores_opcional,
             'requiere_taquiza': paq.requiere_taquiza,
             'permite_extras': paq.permite_extras,
+            # Cada paquete puede tener su propio rango/tramo de aforo (ej.
+            # Esencial sin mínimo hasta 100; Premium de 50 a 150 de 10 en 10) —
+            # el frontend ajusta el selector de personas con esto al elegir
+            # este paquete, en vez de una sola regla para todos.
+            'aforo_minimo': paq.aforo_minimo_efectivo(),
+            'aforo_maximo': paq.aforo_maximo_efectivo(),
+            'aforo_paso': paq.aforo_paso_efectivo(),
         })
         paquetes.append(datos)
 
