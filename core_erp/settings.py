@@ -432,6 +432,9 @@ JAZZMIN_SETTINGS = {
         "comercial.Pago":                   "fas fa-credit-card",
         "comercial.Gasto":                  "fas fa-receipt",
         "comercial.Producto":               "fas fa-box-open",
+        "comercial.ProductoEventos":        "fas fa-glass-cheers",
+        "comercial.ProductoPasadia":        "fas fa-umbrella-beach",
+        "comercial.ProductoHospedaje":      "fas fa-bed",
         "comercial.SubProducto":            "fas fa-cubes",
         "comercial.Insumo":                 "fas fa-tools",
         "comercial.PlantillaBarra":         "fas fa-cocktail",
@@ -533,6 +536,11 @@ JAZZMIN_SETTINGS = {
         # quien sí quiera costear por receta.
         "comercial.Insumo",
         "comercial.SubProducto",
+        # El catálogo plano de Productos se reorganizó en 3 submódulos por
+        # línea de negocio (Eventos/Pasadía/Hospedaje, ver
+        # admin_lineas_negocio.py) — son proxies del mismo modelo/tabla, así
+        # que se oculta el "Producto" sin filtrar para no duplicar el menú.
+        "comercial.Producto",
     ],
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -552,6 +560,9 @@ JAZZMIN_SETTINGS = {
         "comercial.Cliente",
         "comercial.Pago",
         "comercial.Gasto",
+        "comercial.ProductoEventos",
+        "comercial.ProductoPasadia",
+        "comercial.ProductoHospedaje",
         "comercial.Producto",
         "comercial.SubProducto",
         "comercial.Insumo",

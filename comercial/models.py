@@ -406,6 +406,33 @@ class Producto(models.Model):
 
     def __str__(self): return self.nombre
 
+
+# Proxies de `Producto` para el admin: reorganización puramente visual por
+# línea de negocio (Memoria 2026-09-17, pedido del propietario) — mismo
+# modelo, misma tabla, cero campo ni dato nuevo. Cada uno filtra el
+# changelist en `admin_lineas_negocio.py`; el `Producto` "plano" se oculta
+# del menú (settings.py) igual que ya se hizo con `CatalogoEvento`.
+class ProductoEventos(Producto):
+    class Meta:
+        proxy = True
+        verbose_name = 'Producto de Eventos'
+        verbose_name_plural = 'Eventos — Productos'
+
+
+class ProductoPasadia(Producto):
+    class Meta:
+        proxy = True
+        verbose_name = 'Producto de Pasadía'
+        verbose_name_plural = 'Pasadía — Productos'
+
+
+class ProductoHospedaje(Producto):
+    class Meta:
+        proxy = True
+        verbose_name = 'Producto de Hospedaje'
+        verbose_name_plural = 'Hospedaje — Productos'
+
+
 class ComponenteProducto(models.Model):
     producto = models.ForeignKey(Producto, related_name='componentes', on_delete=models.CASCADE)
     subproducto = models.ForeignKey(SubProducto, on_delete=models.PROTECT)

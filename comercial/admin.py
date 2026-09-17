@@ -2067,3 +2067,8 @@ from . import admin_eventos  # noqa: E402, F401
 # "SubProductos"/"Paquete".
 ProductoAdmin.inlines = [admin_eventos.ProductoEnCatalogoEventoInline,
                          *ProductoAdmin.inlines]
+
+# Los 3 submódulos de Productos por línea de negocio (Eventos/Pasadía/
+# Hospedaje) heredan de `ProductoAdmin` ya completo (con el inline de arriba
+# incluido), así que se registran hasta el final por el mismo motivo.
+from . import admin_lineas_negocio  # noqa: E402, F401
