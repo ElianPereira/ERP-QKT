@@ -535,12 +535,6 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
       <div id="extras-dinamicos"></div>
 
-      <div class="panel-condicional" id="blq-extras-arrendamiento">
-        <p style="color:var(--texto-s);font-size:.88rem;font-weight:300;line-height:1.8;padding:1rem 0;">
-          Cuéntanos en las notas qué mobiliario o equipo necesitas y las fechas de entrega y devolución.
-        </p>
-      </div>
-
       <div class="campo" style="margin-top:1.5rem;">
         <label for="notas-personalizado">Notas adicionales <span style="font-weight:300;text-transform:none;letter-spacing:0;">(opcional)</span></label>
         <textarea id="notas-personalizado" placeholder="Cualquier detalle extra que quieras contarnos..."></textarea>
@@ -779,7 +773,6 @@ function selServicio(val, el) {
 function actualizarPanelSegunServicio() {
   var esEvento    = servicioSel === 'EVENTO';
   var esPasadia   = servicioSel === 'PASADIA';
-  var esArr       = servicioSel === 'ARRENDAMIENTO';
   var esHospedaje = servicioSel === 'HOSPEDAJE';
 
   toggle('blq-tipo-evento', esEvento);
@@ -789,17 +782,15 @@ function actualizarPanelSegunServicio() {
   toggle('blq-modalidad-evento', esEvento);
 
   document.getElementById('hero-servicio').textContent =
-    esPasadia ? 'pasadía' : esArr ? 'arrendamiento' : esHospedaje ? 'hospedaje' : 'evento';
+    esPasadia ? 'pasadía' : esHospedaje ? 'hospedaje' : 'evento';
 
   var lblFecha = document.getElementById('lbl-fecha');
   if (esPasadia) lblFecha.textContent = 'Fecha de la visita';
-  else if (esArr) lblFecha.textContent = 'Fecha de entrega';
   else if (esHospedaje) lblFecha.textContent = 'Fecha de entrada';
   else lblFecha.textContent = 'Fecha del evento';
 
   var subDet = document.getElementById('sub-detalles');
   if (esPasadia) subDet.textContent = 'Selecciona la fecha de tu visita y el número de personas.';
-  else if (esArr) subDet.textContent = 'Selecciona la fecha de entrega del mobiliario.';
   else if (esHospedaje) subDet.textContent = 'Fecha de entrada y cuántas noches te quedas.';
   else subDet.textContent = 'Fecha, horario y número de invitados del evento.';
 
@@ -875,7 +866,6 @@ function actualizarCheckout() {
 function configurarPaso3() {
   var esPasadia   = servicioSel === 'PASADIA';
   var esHospedaje = servicioSel === 'HOSPEDAJE';
-  var esArr       = servicioSel === 'ARRENDAMIENTO';
   var titulo    = document.getElementById('titulo-paso3');
   var sub       = document.getElementById('sub-paso3');
   var subPer    = document.getElementById('sub-personalizado');
@@ -931,12 +921,6 @@ function configurarPaso3() {
     caminoSel = 'personalizado';
     subPer.style.display = 'block';
     cargarHabitaciones();
-    cargarExtrasPersonalizado();
-  } else if (esArr) {
-    titulo.innerHTML = 'Elige tu <em>mobiliario</em>';
-    sub.textContent = 'Selecciona lo que necesites, o descríbelo en las notas.';
-    caminoSel = 'personalizado';
-    subPer.style.display = 'block';
     cargarExtrasPersonalizado();
   }
   actualizarEtiquetaPaso3();
@@ -1442,8 +1426,6 @@ function actualizarSubtotalesHabitaciones() {
 }
 
 function cargarExtrasPersonalizado() {
-  var esArr = servicioSel === 'ARRENDAMIENTO';
-  toggle('blq-extras-arrendamiento', esArr);
   cargarExtras(servicioSel, 'extras-dinamicos');
 }
 
@@ -1643,14 +1625,14 @@ function irA(paso) {
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
-// Camino 'personalizado' (Pasadía/Arrendamiento/Hospedaje siempre, Evento
-// cuando el cliente arma su propia cotización) ya muestra sus extras y notas
-// en el propio paso 3 — el paso 4 ahí solo repetiría un cuadro de notas
-// vacío, así que se salta directo al paso 5. Camino 'paquete' (solo Evento)
-// sí necesita el paso 4 para ofrecer extras adicionales al paquete elegido.
+// Camino 'personalizado' (Pasadía/Hospedaje siempre, Evento cuando el
+// cliente arma su propia cotización) ya muestra sus extras y notas en el
+// propio paso 3 — el paso 4 ahí solo repetiría un cuadro de notas vacío, así
+// que se salta directo al paso 5. Camino 'paquete' (solo Evento) sí necesita
+// el paso 4 para ofrecer extras adicionales al paquete elegido.
 // Evento arma todo en el paso 3 (opciones cerradas + notas), así que el paso 4
-// —extras del catálogo abierto— ya no aplica y se salta, igual que hacen
-// Pasadía/Arrendamiento/Hospedaje.
+// —extras del catálogo abierto— ya no aplica y se salta, igual que hace
+// Pasadía/Hospedaje.
 function siguienteDesdePaso3() {
   irA((caminoSel === 'personalizado' || caminoSel === 'evento') ? 5 : 4);
 }
@@ -1701,9 +1683,6 @@ function validarPaso(paso) {
     if (servicioSel === 'EVENTO') return validarPaso3Evento();
     if (!caminoSel) {
       document.getElementById('err-camino').style.display = 'block'; return false;
-    }
-    if (caminoSel === 'personalizado' && servicioSel !== 'ARRENDAMIENTO' && selectedExtras.size === 0 && !Object.values(barraExtras).some(function(v){return v;})) {
-      // Allow empty — it's optional
     }
     if (servicioSel === 'HOSPEDAJE' && selectedHabitaciones.size === 0) {
       document.getElementById('err-habitaciones').style.display = 'block';
@@ -1762,7 +1741,7 @@ function etiquetaModalidad() {
 
 function construirResumen() {
   actualizarZonasRestringidas();
-  var nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','ARRENDAMIENTO':'Arrendamiento de Mobiliario','HOSPEDAJE':'Hospedaje'};
+  var nombres = {'EVENTO':'Evento Social','PASADIA':'Pasadía','HOSPEDAJE':'Hospedaje'};
   var fecha = document.getElementById('fecha').value;
   var fechaFmt = fecha
     ? new Date(fecha+'T00:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})

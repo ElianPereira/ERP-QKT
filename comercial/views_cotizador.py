@@ -192,7 +192,7 @@ def cotizador_enviar(request):
     nombre    = limpio['nombre'].strip()
     telefono  = limpio['telefono'].strip()
     email     = limpio['email'].strip()
-    servicio  = limpio['servicio'].strip()      # EVENTO|PASADIA|ARRENDAMIENTO|HOSPEDAJE
+    servicio  = limpio['servicio'].strip()      # EVENTO|PASADIA|HOSPEDAJE
     fecha_str = limpio['fecha'].strip()
     personas  = limpio['personas'].strip()
     noches_str = limpio['noches'].strip()
@@ -656,7 +656,7 @@ def api_fechas_ocupadas(request):
 
 @rate_limit(key='api_productos_cotizador', limit=60, window=60)
 def api_productos_cotizador(request):
-    """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|ARRENDAMIENTO
+    """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|HOSPEDAJE
     Devuelve los productos visibles en el cotizador, agrupados por grupo_cotizador."""
     servicio = (request.GET.get('servicio') or '').upper()
 
@@ -665,8 +665,6 @@ def api_productos_cotizador(request):
         filtro['cotizador_evento'] = True
     elif servicio == 'PASADIA':
         filtro['cotizador_pasadia'] = True
-    elif servicio == 'ARRENDAMIENTO':
-        filtro['cotizador_arrendamiento'] = True
     elif servicio == 'HOSPEDAJE':
         filtro['cotizador_hospedaje'] = True
 
