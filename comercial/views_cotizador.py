@@ -798,7 +798,7 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
         if not base:
             es_premium = False
             base = _producto_por_rol('BASE_PASADIA_BASICO', 'Paquete Pasadía', 'Pasadia')
-        tope_incluido = 30 if es_premium else 20
+        tope_incluido = 20
         if base:
             lineas.append((base, 1,
                            f"{base.nombre} ({min(num_personas, tope_incluido)} Pax, {HORA_INICIO_PASADIA:%H:%M}"
@@ -808,10 +808,11 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
         # primeras 20 personas están incluidas en la tarifa base, cada
         # persona adicional se cobra aparte e incluye su mobiliario
         # correspondiente — no se crea una línea de mobiliario separada.
-        # Pasadía Premium ya trae ese mobiliario (para las 10 personas extra)
-        # incluido en su precio fijo, así que este cargo NO se duplica cuando
-        # el cliente eligió Premium.
-        if num_personas > 20 and not es_premium:
+        # Aplica igual en Básico y Premium (pedido del propietario): Premium
+        # ya no absorbe esas personas extra dentro de su precio fijo, se
+        # diferencia de Básico por brincolín, carrito de bolis y una segunda
+        # habitación, no por aforo incluido.
+        if num_personas > 20:
             extra_prod = _producto_por_rol('PERSONA_EXTRA_PASADIA', 'Persona Extra Pasadía')
             if extra_prod:
                 extra_qty = num_personas - 20

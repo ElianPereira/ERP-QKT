@@ -346,9 +346,11 @@ class PersonaExtraPasadiaTest(TestCase):
 @wa_settings()
 class NivelPasadiaTest(TestCase):
     """Toggle Básico/Premium de Pasadía (pedido directo del propietario,
-    2026-09-03): dos productos fijos por rol_cotizador, Básico por default,
-    y Premium reemplaza —no se suma a— el cargo de persona extra (21-30),
-    porque su precio fijo ya incluye ese mobiliario."""
+    2026-09-03, aforo unificado 2026-09-18): dos productos fijos por
+    rol_cotizador, Básico por default. Ambos niveles comparten el mismo
+    aforo base (20 personas) y el mismo cargo de persona extra (21-30) —
+    Premium ya no lo absorbe en su precio fijo, se diferencia de Básico por
+    brincolín, carrito de bolis y una segunda habitación, no por aforo."""
 
     def setUp(self):
         limpiar_cache_emisor()
@@ -382,15 +384,15 @@ class NivelPasadiaTest(TestCase):
         )
         self.assertEqual([prod for prod, _, _ in lineas], [self.premium])
 
-    def test_premium_no_duplica_el_cargo_de_persona_extra(self):
-        # Premium ya incluye mobiliario para las 10 personas extra (21-30)
-        # en su precio fijo — el cargo aparte no debe aparecer, aunque el
-        # producto de recargo sí exista en el catálogo.
+    def test_premium_tambien_cobra_el_cargo_de_persona_extra(self):
+        # Premium ya no absorbe las personas extra (21-30) en su precio
+        # fijo: el cargo aparte aplica igual que en Básico.
         lineas = _lineas_cotizador(
             servicio='PASADIA', paquete_id=None, extras_ids=[],
             num_personas=27, horas_evento=9, nivel_pasadia='PREMIUM',
         )
-        self.assertEqual([prod for prod, _, _ in lineas], [self.premium])
+        self.assertEqual([prod for prod, _, _ in lineas], [self.premium, self.persona_extra])
+        self.assertEqual(lineas[1][1], 7)
 
     def test_basico_si_cobra_el_cargo_de_persona_extra(self):
         lineas = _lineas_cotizador(
@@ -440,6 +442,8 @@ class NivelPasadiaTest(TestCase):
         self.assertEqual(respuesta.json()['total'], '3000.00')
 
     def test_cotizador_enviar_crea_la_cotizacion_con_premium(self):
+        from core_erp import impuestos
+
         with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()), \
              patch('comunicacion.services.numero_emisor_wa', return_value='5215555550003'):
             respuesta = self.client.post(
@@ -451,10 +455,13 @@ class NivelPasadiaTest(TestCase):
             )
         self.assertEqual(respuesta.status_code, 200)
         cotizacion = Cotizacion.objects.latest('id')
+        # 27 personas con Premium: la línea base más el cargo de las 7 extra
+        # (21-30) — Premium ya no absorbe ese cargo en su precio fijo.
         self.assertEqual(
-            [item.producto for item in cotizacion.items.all()], [self.premium],
+            [item.producto for item in cotizacion.items.all()], [self.premium, self.persona_extra],
         )
-        self.assertEqual(cotizacion.precio_final, Decimal('3000.00'))
+        subtotal = self.premium.precio_venta_fijo + self.persona_extra.precio_venta_fijo * 7
+        self.assertEqual(cotizacion.precio_final, impuestos.con_iva(subtotal))
 
 
 class CotizacionCreadaConLineasTest(TestCase):

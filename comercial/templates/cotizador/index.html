@@ -1364,9 +1364,10 @@ function actualizarAvisoPersonasExtra() {
   aviso.style.display = 'block';
 }
 
-// Aforo base: 20 personas incluidas en la tarifa. El cobro real por persona
-// extra (incluye mobiliario) lo aplica _lineas_cotizador() en el servidor,
-// tanto aquí como en cotizador_enviar — mismo criterio en los dos lados.
+// Aforo base: 20 personas incluidas en la tarifa, igual en Básico y Premium.
+// El cobro real por persona extra (incluye mobiliario) lo aplica
+// _lineas_cotizador() en el servidor, tanto aquí como en cotizador_enviar —
+// mismo criterio en los dos lados.
 function actualizarAvisoPersonaExtraPasadia() {
   var aviso = document.getElementById('aviso-persona-extra-pasadia');
   if (!aviso) return;
@@ -1375,17 +1376,6 @@ function actualizarAvisoPersonaExtraPasadia() {
   var extra = personas - 20;
   if (servicioSel !== 'PASADIA' || extra <= 0) {
     aviso.style.display = 'none';
-    return;
-  }
-  // Pasadía Premium ya incluye mobiliario para las 10 personas extra (21-30)
-  // dentro de su precio fijo — mismo criterio que el backend en
-  // _lineas_cotizador, que por eso no agrega el cargo aparte en este caso.
-  if (nivelPasadiaSel === 'PREMIUM') {
-    aviso.style.background = '#E8F5E9';
-    aviso.style.borderLeftColor = 'var(--verde)';
-    aviso.style.color = 'var(--verde-d)';
-    aviso.innerHTML = '✓ Tu Pasadía Premium ya incluye mobiliario para hasta 30 personas, sin costo adicional.';
-    aviso.style.display = 'block';
     return;
   }
   aviso.style.background = '#FFF3CD';
@@ -1410,8 +1400,8 @@ function actualizarAvisoPersonaExtraPasadia() {
 // cotizador); el texto de "qué incluye" es copy fijo del propietario, no
 // depende del servidor.
 var NIVEL_PASADIA_DESC = {
-  BASICO: 'Uso de instalaciones, mesas y sillas para 20 personas, 1 habitación y brincolín.',
-  PREMIUM: 'Todo lo de Básico, más mesas y sillas para 10 personas extra, 1 habitación adicional '
+  BASICO: 'Uso de instalaciones, mesas y sillas para 20 personas y 1 habitación.',
+  PREMIUM: 'Uso de instalaciones, mesas y sillas para 20 personas, 2 habitaciones, brincolín '
     + 'y carrito de bolis (30 piezas, sabores surtidos).',
 };
 
