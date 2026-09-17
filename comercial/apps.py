@@ -3,4 +3,4 @@ from django.apps import AppConfig
 
 class ComercialConfig(AppConfig):
     name = 'comercial'
-    verbose_name = "Ventas"
+    verbose_name = "Eventos"

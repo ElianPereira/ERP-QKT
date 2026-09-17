@@ -53,6 +53,15 @@ MODEL_SUBGROUPS = {
                         'comercial.contratoservicio',
                     },
                 },
+                {
+                    'name': 'Productos',
+                    'icon': 'fas fa-box-open',
+                    'model_strs': {
+                        'comercial.productoeventos',
+                        'comercial.productopasadia',
+                        'comercial.productohospedaje',
+                    },
+                },
             ],
         },
         {
