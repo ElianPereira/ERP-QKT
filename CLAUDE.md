@@ -200,12 +200,32 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   del cotizador). Se deja tachado en vez de borrado para no perder el
   historial de que se revisó y no era un bug real.
 - [ ] Precios sin IVA incluido en cualquier vista nueva.
-- [ ] Régimen fiscal (RESICO vs. arrendamiento) sin confirmar → no tocar
-  factor de retención 1.1475.
+- [x] ~~Régimen fiscal (RESICO vs. arrendamiento) sin confirmar~~ —
+  **confirmado por el propietario el 2026-09-17: es RESICO.** La retención
+  de 1.25% (art. 113-J LISR) que ya aplicaba `calcular_totales()` a persona
+  moral es la correcta, y el factor 1.1475 de `facturacion` queda validado.
+  No hizo falta cambiar código: lo que estaba en duda era la premisa, no la
+  implementación. Si algún día cambia el régimen, el punto a tocar es
+  `core_erp/impuestos.py` (fuente única) y hay que revisar de paso que
+  `UnidadNegocio.regimen_fiscal` —que hoy se captura pero ningún cálculo
+  lee— deje de ser un dato decorativo.
 - [ ] Migración Cloudinary → DigitalOcean Spaces (pendiente).
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
 - [ ] Registro PROFECO NOM-174 pendiente.
-- [ ] ISH Airbnb sin resolver.
+- [x] ~~ISH Airbnb sin resolver~~ — resuelto el 2026-09-17, y la premisa
+  era equivocada: el ISH de Airbnb **no es un pendiente de la Quinta**. La
+  columna del CSV se llama "Impuesto liquidado **por Airbnb**" y la propia
+  plataforma lo retiene y lo entera; ese importe nunca pasa por la cuenta
+  bancaria, así que `PagoAirbnb.impuesto_hospedaje` es un dato informativo
+  y su ausencia en la póliza es correcta, no un hueco (ver el docstring de
+  `_asiento_pago_airbnb`). El hueco real estaba en el **hospedaje vendido
+  directo**, que no calculaba ISH en absoluto: implementado ahora, con la
+  tasa en `settings.TASA_ISH`.
+- [ ] **Definir `TASA_ISH` en Railway** (hoy en 0 = ISH apagado). Sin esa
+  variable el hospedaje directo sigue sin cobrar ni enterar ISH. La tasa la
+  confirma el contador; al activarla, el precio que ve el cliente sube en
+  ese porcentaje salvo que se recapturen los `precio_venta_fijo` de las
+  habitaciones.
 - [ ] Módulo de depósito en garantía ausente.
 
 ## Memoria
@@ -249,6 +269,70 @@ salvo que queden obsoletas.
   calls para modelos sin razonamiento nativo — Sonnet 5 ya tiene extended
   thinking nativo sin ese costo extra de tokens, así que agregarlo iría
   contra el objetivo mismo de "no inflar el contexto".
+- 2026-09-17 — ISH (Impuesto Sobre Hospedaje) del hospedaje vendido directo,
+  y corrección de un hallazgo mío que estaba mal. **El error primero**: el
+  reporte de la Rutina del 2026-09-05 (PR #276, ya mergeado) afirmaba que el
+  ISH de Airbnb "se captura pero nunca llega a la contabilidad" y lo listaba
+  como riesgo fiscal. Es incorrecto y la evidencia estaba en el propio repo:
+  la columna del CSV es "Impuesto liquidado **por Airbnb**" (`airbnb/
+  services.py`), la plataforma lo retiene y lo entera, y tanto
+  `PagoAirbnb.diferencia_neto` como `_asiento_pago_airbnb` lo dicen en sus
+  docstrings — ese importe no pasa por la cuenta bancaria de la Quinta, así
+  que no es un pasivo suyo y su ausencia en la póliza es deliberada. Actuar
+  sobre ese "hallazgo" habría creado un pasivo fantasma. La simulación con
+  Playwright que lo "confirmó" no sirvió de control porque usé importes
+  inventados por mí, y ahí el ISH sí quedaba fuera del neto: **una
+  simulación con datos propios reproduce la premisa de quien la escribe, no
+  la realidad del negocio** — para un flujo con dinero real hay que partir
+  de un CSV/estado de cuenta real o del código que lo interpreta.
+  **El hueco real**, que sí existía: el hospedaje vendido DIRECTO (Ka'an,
+  Otoch por el cotizador) no calculaba ISH en ningún lado, y ahí no hay
+  plataforma que lo entere — lo causa la Quinta. Implementado:
+  `core_erp/impuestos.py` gana `tasa_ish()`/`ish_aplica()`/`ish_de()` como
+  fuente única, `Cotizacion.impuesto_hospedaje` (migración `0093`) entra en
+  `calcular_totales()` solo para `tipo_servicio='HOSPEDAJE'`, el desglose
+  proporcional reparte el ISH en cada abono parcial y el signal abona la
+  cuenta `IMPUESTO_HOSPEDAJE` (208.04, que ya existía desde la migración
+  `0005` sin que nadie la usara), con su reverso en el reembolso.
+  **La tasa NO se hardcodea**: vive en `settings.TASA_ISH` (variable de
+  Railway) porque es ley estatal, cambia sin que el repo se entere, y
+  cobrarle al cliente un impuesto con una tasa no confirmada por el contador
+  sería peor que no cobrarlo. Con el default de 0 el ERP se comporta
+  **idéntico** a antes —no calcula, no exhibe, no contabiliza—, lo cual es
+  también la garantía de que el deploy no mueve precios por sí solo; el
+  `test_sin_tasa_configurada_*` de cada capa fija justamente eso.
+  **Trampa encontrada al verificar una pregunta del propietario ("¿a qué te
+  refieres con que deja las cotizaciones en 0?"), no por los tests**: la
+  primera versión releía la tasa de settings en cada `calcular_totales()`,
+  así que encender `TASA_ISH` le subía el precio a toda cotización anterior
+  en cuanto alguien la reguardara —editarla en el admin o moverla a
+  EJECUTADA basta— y a una **ya pagada** le reabría saldo por el importe del
+  impuesto (reproducido: $1,160.00 pagada → $1,210.00 con $50.00 de saldo
+  fantasma). Corregido sellando la tasa en la propia cotización
+  (`tasa_ish_aplicada`, migración `0094`) al crearla, re-sellable solo
+  mientras siga en BORRADOR: a partir de COTIZADA el precio ya se le
+  presentó al cliente y no puede cambiar solo. Consecuencia aceptada: lo que
+  esté COTIZADA/CONFIRMADA al encender la tasa no cobrará ISH; para
+  cobrárselo hay que rehacer la cotización. Cubierto por
+  `TasaCongeladaTest` (5 casos, incluidos apagar la tasa y editar ítems con
+  la tasa sellada). Lección: un flag de configuración leído en vivo dentro
+  de un cálculo de precios es retroactivo por default, y en una ruta de
+  dinero eso reescribe acuerdos ya cerrados.
+  **Decisión de negocio que queda del lado del propietario**: al activar la
+  tasa, el ISH se SUMA al precio exhibido (art. 7 BIS LFPC: el precio al
+  consumidor lleva todos los impuestos incluidos), así que el cliente paga
+  ese porcentaje más. La alternativa —mantener el precio y absorber el ISH—
+  no requiere código: se recapturan los `precio_venta_fijo` de las
+  habitaciones en el admin. Tests nuevos en `comercial/test_ish.py` (16) y
+  `contabilidad/tests.py::PolizaISHHospedajeTest` (4).
+- 2026-09-17 — Régimen fiscal confirmado por el propietario: **RESICO**.
+  Cierra el pendiente de watchlist que llevaba abierto desde el 2026-07-31 y
+  que bloqueaba tocar el factor 1.1475. No hubo cambio de código: la
+  retención de 1.25% que `calcular_totales()` ya aplicaba a persona moral es
+  la correcta bajo ese régimen. Queda anotado que `UnidadNegocio.
+  regimen_fiscal` se captura pero ningún cálculo lo lee — hoy es inocuo
+  porque la premisa coincide, pero si alguna unidad dejara de ser RESICO el
+  ERP no se enteraría.
 - 2026-09-09 — Se levanta la prohibición absoluta de mergear a `main`
   (decisión explícita del propietario, sostenida en varias vueltas de la
   conversación al pedir el merge del PR #279: "quiero que tú lo hagas").

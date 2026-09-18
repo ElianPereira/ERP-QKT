@@ -113,22 +113,39 @@ def calcular_desglose_proporcional(monto_pago, cotizacion):
         cotizacion: Cotizacion - Objeto cotización con los totales
 
     Returns:
-        dict con keys: subtotal, iva, retencion_isr, retencion_iva
+        dict con keys: subtotal, iva, impuesto_hospedaje, retencion_isr,
+        retencion_iva
 
-    La fórmula es: monto_pago = subtotal + iva - retencion_isr - retencion_iva
+    La fórmula es:
+        monto_pago = subtotal + iva + impuesto_hospedaje
+                     - retencion_isr - retencion_iva
+
+    El ISH se separa PRIMERO y el resto se desglosa con la lógica de siempre.
+    Así el par base/IVA conserva intacta la invariante que el PAC valida
+    (`iva == base * tasa`, tolerancia de un centavo) sin que el impuesto
+    estatal se meta en esa cuenta. En una cotización sin ISH —toda la que no
+    sea hospedaje directo, y todas mientras TASA_ISH valga 0— el reparto es
+    exactamente el de antes.
     """
     precio_final = Decimal(str(cotizacion.precio_final))
+    cot_ish = Decimal(str(getattr(cotizacion, 'impuesto_hospedaje', 0) or 0))
 
     if precio_final <= 0:
         d = impuestos.desglosar(monto_pago)
         return {
             'subtotal': d['base'],
             'iva': d['iva'],
+            'impuesto_hospedaje': Decimal('0.00'),
             'retencion_isr': Decimal('0.00'),
             'retencion_iva': Decimal('0.00'),
         }
 
     proporcion = monto_pago / precio_final
+
+    ish = (cot_ish * proporcion).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    # Lo que queda tras apartar el impuesto estatal es lo que se desglosa en
+    # base + IVA - retenciones, igual que siempre.
+    monto_pago = Decimal(str(monto_pago)) - ish
 
     cot_subtotal = Decimal(str(cotizacion.subtotal)) - Decimal(str(cotizacion.descuento))
     if cot_subtotal < 0:
@@ -167,6 +184,7 @@ def calcular_desglose_proporcional(monto_pago, cotizacion):
     return {
         'subtotal': subtotal,
         'iva': iva,
+        'impuesto_hospedaje': ish,
         'retencion_isr': retencion_isr,
         'retencion_iva': retencion_iva,
     }

@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from pathlib import Path
 
 import dj_database_url
@@ -232,6 +233,16 @@ CACHES = {
 # fuente y los tests puedan sobreescribirlo con override_settings. Sin valor,
 # la vista responde 403: ver ICAL en airbnb/views.py::generar_ical_eventos.
 ICAL_PUBLIC_TOKEN = config('ICAL_PUBLIC_TOKEN', default='')
+
+# --- ISH: Impuesto Sobre Hospedaje (estatal, Yucatán) ---
+# Proporción, no porcentaje: 0.05 = 5%. El default de 0 mantiene el ERP
+# exactamente como estaba (no calcula ni exhibe ISH); definir la variable en
+# Railway es lo único que hace falta para activarlo, sin desplegar.
+#
+# La tasa la confirma el contador: es ley estatal, no federal, y cambia sin
+# que este repo se entere. Aplica solo a hospedaje vendido directo — el de
+# Airbnb lo retiene y entera la propia plataforma. Ver core_erp/impuestos.py.
+TASA_ISH = Decimal(config('TASA_ISH', default='0'))
 
 # --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
 ADMIN_LOGIN_VENTANA = config('ADMIN_LOGIN_VENTANA', default=900, cast=int)
