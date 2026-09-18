@@ -9,11 +9,11 @@ mano.
 
 El `Producto` "plano" sigue existiendo y registrado (autocompletado, popups
 "+" desde otros formularios), solo se oculta del menú (`hide_models` en
-settings.py), igual que ya se hizo con `CatalogoEvento`.
+settings.py).
 
 Arrendamiento de mobiliario a otras ubicaciones ya no se ofrece (Memoria
 2026-09-17): el mobiliario que hoy se subarrenda es solo un costo dentro de
-Eventos (vía `CatalogoEvento` tipo Mobiliario, admin_eventos.py), no una
+Eventos (categoría "Mobiliario" del catálogo abierto, ver Issue #287), no una
 línea de negocio propia — por eso no hay un cuarto submódulo aquí.
 `cotizador_arrendamiento` sigue en el modelo solo por compatibilidad con
 cotizaciones históricas.

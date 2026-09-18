@@ -1,511 +1,343 @@
 """
-Tests de la capa de asignación del cotizador de Eventos.
+Tests del rediseño de Evento en el cotizador público (Issue #287).
 
-Cubre las dos mitades que el catálogo nuevo tiene que garantizar:
-  1. La aritmética de cantidades (`reglas_eventos`), que decide cuántas
-     unidades de cada producto entran según el aforo.
-  2. Las reglas de combinación (`ConfiguracionEventoCotizacion.clean`), que
-     rechazan cualquier selección que el cotizador no debería haber armado —
-     también cuando la captura viene del admin y no del formulario público.
+Dos caminos únicos: "Elige un paquete" (`Producto(es_paquete=True)` con
+`ProductoComponente` reales) y "Arma tu propio evento" (catálogo abierto por
+categoría, mismo mecanismo que Pasadía/Hospedaje). El catálogo cerrado
+`CatalogoEvento`/`ConfiguracionEventoCotizacion` quedó retirado por completo
+— ver `comercial/models.py` y `comercial/views_cotizador.py`.
 
 Ejecutar: python manage.py test comercial.test_cotizador_eventos --verbosity=2
 """
-
+import json
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
-from comercial.models import (
-    CatalogoEvento,
-    CatalogoEventoProducto,
-    Cliente,
-    ConfiguracionEventoCotizacion,
-    Cotizacion,
-    Producto,
-)
-from comercial.reglas_eventos import (
-    MAX_PERSONAS_EVENTO,
-    MODALIDAD_ARRENDAMIENTO,
-    MODALIDAD_PAQUETE,
-    personas_validas_paquete,
-    redondear_personas_paquete,
-    resolver_cantidad,
-)
+from comercial.models import Cliente, Cotizacion, Producto, ProductoComponente
+from comercial.reglas_eventos import MAX_PERSONAS_EVENTO
+from comercial.views_cotizador import _agregar_item, _lineas_cotizador
+from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
 
 
-class ReglasAforoTest(TestCase):
-    """El aforo cotizable y el redondeo al tramo de paquete."""
-
-    def test_los_unicos_aforos_de_paquete_son_de_50_a_150_en_pasos_de_10(self):
-        self.assertEqual(personas_validas_paquete(),
-                         [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150])
-
-    def test_49_personas_sube_al_minimo_de_paquete(self):
-        self.assertEqual(redondear_personas_paquete(49), 50)
-
-    def test_50_personas_se_queda_en_50(self):
-        self.assertEqual(redondear_personas_paquete(50), 50)
-
-    def test_55_personas_sube_a_60_no_baja_a_50(self):
-        # Hacia abajo dejaría 5 invitados sin mobiliario.
-        self.assertEqual(redondear_personas_paquete(55), 60)
-
-    def test_51_personas_ya_sube_al_siguiente_tramo(self):
-        self.assertEqual(redondear_personas_paquete(51), 60)
-
-    def test_150_personas_se_queda_en_el_tope(self):
-        self.assertEqual(redondear_personas_paquete(150), MAX_PERSONAS_EVENTO)
-
-    def test_el_redondeo_nunca_pasa_del_tope_duro(self):
-        # 151 no es cotizable; la validación lo rechaza aparte. El redondeo,
-        # por si acaso, tampoco puede inventar un tramo de 160.
-        self.assertEqual(redondear_personas_paquete(151), MAX_PERSONAS_EVENTO)
+def _payload(**extra):
+    return {
+        'nombre': 'Ana Ruiz',
+        'telefono': '5215555550001',
+        'email': 'ana@example.com',
+        'servicio': 'EVENTO',
+        'fecha': (timezone.localdate() + timedelta(days=60)).strftime('%Y-%m-%d'),
+        'personas': '80',
+        'acepta_legales': True,
+        **extra,
+    }
 
 
-class AforoPorPaqueteTest(TestCase):
-    """Cada paquete puede tener su propio mínimo/máximo/tramo de aforo.
+def _crear_paquete(nombre='Paquete Premium QKT', precio_fijo='6000.00', **extra):
+    campos = {
+        'visible_cotizador': True, 'cotizador_evento': True, 'es_paquete': True,
+    }
+    campos.update(extra)
+    return Producto.objects.create(
+        nombre=nombre, precio_venta_fijo=Decimal(precio_fijo), **campos,
+    )
 
-    Antes era una sola regla (`personas_validas_paquete()`) para cualquier
-    paquete; estos campos permiten, por ejemplo, un paquete de solo
-    arrendamiento sin mínimo y con tope de 100, junto a otro (mín 50, máx
-    150, de 10 en 10) que sigue el comportamiento general.
-    """
 
-    def test_sin_capturar_nada_hereda_las_reglas_generales(self):
-        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='qkt', nombre='QKT')
-        self.assertEqual(paquete.aforo_minimo_efectivo(), 50)
-        self.assertEqual(paquete.aforo_maximo_efectivo(), MAX_PERSONAS_EVENTO)
-        self.assertEqual(paquete.aforo_paso_efectivo(), 10)
-        self.assertEqual(paquete.personas_validas(), personas_validas_paquete())
+class TopeAforoTest(TestCase):
+    """Tope duro de 150 personas, sin ruta alterna (Issue #287)."""
 
-    def test_paquete_sin_minimo_y_maximo_100_sin_tramos(self):
-        # "Esencial": únicamente arrendamiento, sin mínimo, máx 100, cualquier
-        # número de personas (aforo_paso=1, no hereda el tramo de 10).
-        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='esencial',
-                                 nombre='Esencial', aforo_minimo=1, aforo_maximo=100,
-                                 aforo_paso=1)
-        self.assertEqual(paquete.personas_validas(), list(range(1, 101)))
-        self.assertEqual(paquete.redondear_personas(37), 37)
-        self.assertEqual(paquete.redondear_personas(150), 100)
+    def setUp(self):
+        cache.clear()
 
-    def test_paquete_con_minimo_propio_y_tramo_general(self):
-        # Solo define el mínimo (80); máximo y tramo quedan en los generales.
-        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='premium',
-                                 nombre='Premium', aforo_minimo=80)
-        self.assertEqual(paquete.personas_validas(),
-                         [80, 90, 100, 110, 120, 130, 140, 150])
-        self.assertEqual(paquete.redondear_personas(40), 80)
-        self.assertEqual(paquete.redondear_personas(85), 90)
+    def test_mas_de_150_personas_se_rechaza_sin_crear_nada(self):
+        respuesta = self.client.post(
+            reverse('cotizador_enviar'),
+            data=json.dumps(_payload(personas='151')),
+            content_type='application/json',
+        )
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('150', respuesta.json()['errores'][0])
+        self.assertFalse(Cotizacion.objects.exists())
 
-    def test_minimo_mayor_al_maximo_no_pasa_clean(self):
-        paquete = CatalogoEvento(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='raro',
-                                 nombre='Raro', aforo_minimo=100, aforo_maximo=50)
+    def test_150_personas_exactas_se_acepta(self):
+        _crear_paquete()
+        respuesta = self.client.post(
+            reverse('cotizador_enviar'),
+            data=json.dumps(_payload(personas='150')),
+            content_type='application/json',
+        )
+        self.assertEqual(respuesta.status_code, 200)
+
+    def test_api_total_acota_el_aforo_exhibido_al_tope(self):
+        datos = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'EVENTO', 'personas': '999',
+        }).json()
+        self.assertEqual(datos['personas'], MAX_PERSONAS_EVENTO)
+
+
+class RedondeoAforoTest(TestCase):
+    """El aforo cotizado sube al siguiente bloque de 10 (mínimo 20)."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_un_aforo_intermedio_sube_al_siguiente_bloque_de_diez(self):
+        _crear_paquete()
+        self.client.post(
+            reverse('cotizador_enviar'),
+            data=json.dumps(_payload(personas='57')),
+            content_type='application/json',
+        )
+        cotizacion = Cotizacion.objects.latest('id')
+        self.assertEqual(cotizacion.num_personas, 60)
+
+    def test_un_aforo_menor_a_veinte_sube_al_minimo(self):
+        _crear_paquete()
+        self.client.post(
+            reverse('cotizador_enviar'),
+            data=json.dumps(_payload(personas='5')),
+            content_type='application/json',
+        )
+        cotizacion = Cotizacion.objects.latest('id')
+        self.assertEqual(cotizacion.num_personas, 20)
+
+
+class PaqueteEsProductoRealTest(TestCase):
+    """El paquete es un Producto(es_paquete=True) con ProductoComponente reales,
+    nunca un precio suelto — así el guard de `Producto.clean()` protege el
+    margen automáticamente, sin lógica nueva en el cotizador."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_un_paquete_no_puede_costar_menos_que_sus_componentes(self):
+        silla = Producto.objects.create(nombre='Silla Tiffany', precio_venta_fijo=Decimal('25.00'))
+        mesa = Producto.objects.create(nombre='Mesa redonda', precio_venta_fijo=Decimal('150.00'))
+        paquete = Producto.objects.create(
+            nombre='Paquete Rústico', es_paquete=True, precio_venta_fijo=Decimal('100.00'),
+        )
+        ProductoComponente.objects.create(producto_padre=paquete, producto_hijo=silla, cantidad=Decimal('10'))
+        ProductoComponente.objects.create(producto_padre=paquete, producto_hijo=mesa, cantidad=Decimal('1'))
+        # 10 × 25.00 + 1 × 150.00 = 400.00, muy por encima del precio fijo (100.00).
         with self.assertRaises(ValidationError):
             paquete.full_clean()
 
-    def test_los_campos_de_aforo_solo_aplican_a_paquete(self):
-        mobiliario = CatalogoEvento(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico',
-                                    nombre='Rústico', aforo_minimo=10)
-        with self.assertRaises(ValidationError):
-            mobiliario.full_clean()
+    def test_un_paquete_con_precio_suficiente_pasa_la_validacion(self):
+        silla = Producto.objects.create(nombre='Silla Tiffany', precio_venta_fijo=Decimal('25.00'))
+        paquete = Producto.objects.create(
+            nombre='Paquete Rústico', es_paquete=True, precio_venta_fijo=Decimal('300.00'),
+        )
+        ProductoComponente.objects.create(producto_padre=paquete, producto_hijo=silla, cantidad=Decimal('10'))
+        paquete.full_clean()  # no lanza: 300.00 > 10 × 25.00
 
-    def test_validacion_de_cotizacion_usa_el_aforo_del_paquete_elegido(self):
+
+class ApiPaquetesEventoTest(TestCase):
+    """GET /api/cotizador/paquetes-evento/ — el grid de 'Elige un paquete'."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_solo_lista_paquetes_visibles_para_evento(self):
+        visible = _crear_paquete(nombre='Visible')
+        _crear_paquete(nombre='Otro servicio', cotizador_evento=False)
+        _crear_paquete(nombre='No visible', visible_cotizador=False)
+        Producto.objects.create(
+            nombre='No es paquete', precio_venta_fijo=Decimal('500.00'),
+            visible_cotizador=True, cotizador_evento=True, es_paquete=False,
+        )
+        datos = self.client.get(reverse('api_paquetes_evento')).json()
+        nombres = [p['nombre'] for p in datos['paquetes']]
+        self.assertEqual(nombres, [visible.nombre])
+
+    def test_el_precio_incluye_iva(self):
+        _crear_paquete(nombre='Premium', precio_fijo='6000.00')
+        datos = self.client.get(reverse('api_paquetes_evento')).json()
+        # 6000.00 base × 1.16 = 6960.00
+        self.assertEqual(datos['paquetes'][0]['precio'], '6960.00')
+
+    def test_expone_el_tope_de_aforo(self):
+        datos = self.client.get(reverse('api_paquetes_evento')).json()
+        self.assertEqual(datos['max_personas'], MAX_PERSONAS_EVENTO)
+
+
+class LineasEventoConPaqueteTest(TestCase):
+    """`_lineas_cotizador` con un paquete elegido: solo el paquete, nunca
+    duplicado con la línea base ni con el catálogo abierto."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_paquete_elegido_es_la_unica_linea(self):
+        paquete = _crear_paquete()
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[],
+            num_personas=80, horas_evento=6,
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [paquete])
+
+    def test_un_paquete_mandado_tambien_en_extras_ids_no_se_duplica(self):
+        # Defensa en profundidad: nada impide que el cliente mande el mismo
+        # id como paquete_id y dentro de extras_ids.
+        paquete = _crear_paquete()
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[paquete.id],
+            num_personas=80, horas_evento=6,
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [paquete])
+
+    def test_un_paquete_inexistente_o_invisible_cae_al_camino_abierto(self):
+        base = Producto.objects.create(
+            nombre='Paquete Esencial QKT', precio_venta_fijo=Decimal('4000.00'),
+            visible_cotizador=True, cotizador_evento=True, rol_cotizador='BASE_EVENTO',
+        )
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=999999, extras_ids=[],
+            num_personas=80, horas_evento=6,
+        )
+        self.assertEqual([prod for prod, _, _ in lineas], [base])
+
+
+@wa_settings()
+class EnvioPaqueteEventoTest(TestCase):
+    """De punta a punta: el paquete elegido crea la cotización con ese único item."""
+
+    def setUp(self):
+        limpiar_cache_emisor()
+        cache.clear()
+
+    def _enviar(self, **extra):
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()), \
+             patch('comunicacion.services.numero_emisor_wa', return_value='5215555550003'):
+            return self.client.post(
+                reverse('cotizador_enviar'),
+                data=json.dumps(_payload(**extra)),
+                content_type='application/json',
+            )
+
+    def test_crea_la_cotizacion_con_el_paquete_elegido(self):
+        paquete = _crear_paquete()
+        respuesta = self._enviar(paquete_id=paquete.id)
+        self.assertEqual(respuesta.status_code, 200)
+
+        cotizacion = Cotizacion.objects.latest('id')
+        items = list(cotizacion.items.all())
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].producto, paquete)
+
+    def test_el_total_exhibido_coincide_con_el_que_se_cobra(self):
+        # Invariante del art. 7 BIS de la LFPC: lo anunciado y lo cobrado son
+        # lo mismo — ver la propia _lineas_cotizador().
+        paquete = _crear_paquete()
+        exhibido = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'EVENTO', 'personas': '80', 'paquete': paquete.id,
+        }).json()
+
+        self._enviar(paquete_id=paquete.id)
+        cotizacion = Cotizacion.objects.latest('id')
+        self.assertEqual(Decimal(exhibido['total']), cotizacion.precio_final)
+
+    def test_personalizado_sin_paquete_usa_el_camino_abierto(self):
+        base = Producto.objects.create(
+            nombre='Paquete Esencial QKT', precio_venta_fijo=Decimal('4000.00'),
+            visible_cotizador=True, cotizador_evento=True, rol_cotizador='BASE_EVENTO',
+        )
+        extra = Producto.objects.create(
+            nombre='Carrito de bolis', precio_venta_fijo=Decimal('500.00'),
+            visible_cotizador=True, cotizador_evento=True, grupo_cotizador='EXTRAS',
+        )
+        respuesta = self._enviar(extras_ids=[extra.id])
+        self.assertEqual(respuesta.status_code, 200)
+
+        cotizacion = Cotizacion.objects.latest('id')
+        nombres = {item.producto.nombre for item in cotizacion.items.all()}
+        self.assertEqual(nombres, {base.nombre, extra.nombre})
+
+
+class CosteoPorBloqueDeDiezTest(TestCase):
+    """`cantidad_por_persona` + `factor_personas=10`: costeo por bloque de 10,
+    no por persona — mecanismo del catálogo abierto, compartido con
+    Pasadía/Hospedaje, ahora usado también en 'Arma tu propio evento'."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_80_personas_cobra_8_unidades(self):
+        mesero = Producto.objects.create(
+            nombre='Mesero de servicio', precio_venta_fijo=Decimal('300.00'),
+            visible_cotizador=True, cotizador_evento=True, grupo_cotizador='SERVICIOS',
+            cantidad_por_persona=True, factor_personas=10,
+        )
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=None, extras_ids=[mesero.id],
+            num_personas=80, horas_evento=6,
+        )
+        cantidades = {prod.nombre: qty for prod, qty, _ in lineas}
+        self.assertEqual(cantidades['Mesero de servicio'], 8)
+
+    def test_una_fraccion_sobrante_redondea_hacia_arriba(self):
+        # 81 / 10 = 8.1 → 9, no 8: una fracción de bloque sigue siendo un
+        # bloque completo a cobrar.
+        mesero = Producto.objects.create(
+            nombre='Mesero de servicio', precio_venta_fijo=Decimal('300.00'),
+            visible_cotizador=True, cotizador_evento=True, grupo_cotizador='SERVICIOS',
+            cantidad_por_persona=True, factor_personas=10,
+        )
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=None, extras_ids=[mesero.id],
+            num_personas=81, horas_evento=6,
+        )
+        cantidades = {prod.nombre: qty for prod, qty, _ in lineas}
+        self.assertEqual(cantidades['Mesero de servicio'], 9)
+
+
+class GrupoExclusionTest(TestCase):
+    """Mobiliario (u otra categoría con `grupo_exclusion`) rechaza dos
+    productos del mismo grupo en la misma cotización — candado ya existente
+    de `ItemCotizacion.clean()`, corre en cada `_agregar_item` porque
+    `ItemCotizacion.save()` llama `full_clean()`."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_dos_productos_del_mismo_grupo_de_exclusion_se_rechazan(self):
         cliente = Cliente.objects.create(nombre='Ana Ruiz', telefono='9995550001')
-        esencial = CatalogoEvento.objects.create(
-            tipo=CatalogoEvento.TIPO_PAQUETE, codigo='esencial-aforo', nombre='Esencial',
-            aforo_minimo=1, aforo_maximo=100, aforo_paso=1,
+        cotizacion = Cotizacion.objects.create(
+            cliente=cliente, tipo_servicio='EVENTO',
+            fecha_evento=timezone.localdate() + timedelta(days=60), num_personas=80,
         )
-        cotizacion = Cotizacion(cliente=cliente, tipo_servicio='EVENTO', num_personas=37,
-                                fecha_evento=timezone.now() + timedelta(days=30))
-        cotizacion.save()
-        config = ConfiguracionEventoCotizacion(cotizacion=cotizacion,
-                                               modalidad=MODALIDAD_PAQUETE, paquete=esencial)
-        config.full_clean()  # 37 no es múltiplo de 10, pero Esencial no tiene tramos.
-
-        cotizacion.num_personas = 101
-        cotizacion.save()
+        mesa_redonda = Producto.objects.create(
+            nombre='Mesa redonda', precio_venta_fijo=Decimal('100.00'),
+            grupo_cotizador='MOBILIARIO', grupo_exclusion='MESAS',
+        )
+        mesa_rectangular = Producto.objects.create(
+            nombre='Mesa rectangular', precio_venta_fijo=Decimal('100.00'),
+            grupo_cotizador='MOBILIARIO', grupo_exclusion='MESAS',
+        )
+        _agregar_item(cotizacion, mesa_redonda, 1)
         with self.assertRaises(ValidationError):
-            config.full_clean()  # 101 pasa el máximo propio de Esencial (100).
+            _agregar_item(cotizacion, mesa_rectangular, 1)
 
 
-class ResolverCantidadTest(TestCase):
-    """Cuántas unidades entran de cada producto asignado."""
+class ImagenZonasRestringidasTest(TestCase):
+    """El plano de zonas restringidas solo se expone para Evento."""
 
-    def test_cantidad_fija_ignora_el_aforo(self):
-        self.assertEqual(
-            resolver_cantidad(cantidad_por_persona=None, cantidad_fija=Decimal('1'),
-                              num_personas=100),
-            Decimal('1'),
-        )
+    def setUp(self):
+        cache.clear()
 
-    def test_cantidad_por_persona_multiplica_por_el_aforo(self):
-        self.assertEqual(
-            resolver_cantidad(cantidad_por_persona=Decimal('8'), cantidad_fija=None,
-                              num_personas=60),
-            Decimal('480'),
-        )
+    def test_es_none_para_otro_servicio(self):
+        datos = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'PASADIA', 'personas': '10',
+        }).json()
+        self.assertIsNone(datos['imagen_zonas_restringidas'])
 
-    def test_un_mesero_cada_20_invitados_da_5_meseros_para_100(self):
-        self.assertEqual(
-            resolver_cantidad(cantidad_por_persona=Decimal('0.05'), cantidad_fija=None,
-                              num_personas=100),
-            Decimal('5'),
-        )
-
-    def test_una_fraccion_sobrante_redondea_hacia_arriba_no_hacia_el_par(self):
-        # 0.05 × 70 = 3.5 meseros → 4. Quedarse en 3 deja invitados sin servicio;
-        # ROUND_HALF_UP daría 4 aquí pero ROUND_HALF_EVEN daría 4 también, así
-        # que el caso que de verdad los separa es 3.2 → 4 (abajo).
-        self.assertEqual(
-            resolver_cantidad(cantidad_por_persona=Decimal('0.05'), cantidad_fija=None,
-                              num_personas=70),
-            Decimal('4'),
-        )
-
-    def test_cualquier_fraccion_por_pequena_que_sea_sube_una_unidad_entera(self):
-        # 0.04 × 80 = 3.2 → 4, no 3: media silla no existe.
-        self.assertEqual(
-            resolver_cantidad(cantidad_por_persona=Decimal('0.04'), cantidad_fija=None,
-                              num_personas=80),
-            Decimal('4'),
-        )
-
-
-class AsignacionProductoTest(TestCase):
-    """Una asignación lleva exactamente una de las dos cantidades."""
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.producto = Producto.objects.create(nombre='Silla Tiffany',
-                                               precio_venta_fijo=Decimal('25.00'))
-        cls.mobiliario = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico', nombre='Rústico')
-
-    def test_rechaza_una_asignacion_sin_ninguna_cantidad(self):
-        fila = CatalogoEventoProducto(opcion=self.mobiliario, producto=self.producto)
-        with self.assertRaises(ValidationError):
-            fila.full_clean()
-
-    def test_rechaza_una_asignacion_con_las_dos_cantidades(self):
-        fila = CatalogoEventoProducto(
-            opcion=self.mobiliario, producto=self.producto,
-            cantidad_por_persona=Decimal('1'), cantidad_fija=Decimal('10'),
-        )
-        with self.assertRaises(ValidationError):
-            fila.full_clean()
-
-    def test_rechaza_una_cantidad_en_cero(self):
-        fila = CatalogoEventoProducto(
-            opcion=self.mobiliario, producto=self.producto,
-            cantidad_por_persona=Decimal('0'),
-        )
-        with self.assertRaises(ValidationError):
-            fila.full_clean()
-
-    def test_acepta_solo_cantidad_por_persona(self):
-        fila = CatalogoEventoProducto(
-            opcion=self.mobiliario, producto=self.producto,
-            cantidad_por_persona=Decimal('1'),
-        )
-        fila.full_clean()  # no lanza
-
-    def test_un_extra_usa_la_misma_validacion_de_cantidad(self):
-        # Un extra ya no es cabecera + asignación en la misma fila: es una
-        # opción normal con sus productos, así que hereda la validación por el
-        # mismo camino que el resto.
-        extra = CatalogoEvento.objects.create(
-            tipo=CatalogoEvento.TIPO_EXTRA, codigo='brincolin', nombre='Brincolín')
-        fila = CatalogoEventoProducto(opcion=extra, producto=self.producto)
-        with self.assertRaises(ValidationError):
-            fila.full_clean()
-
-        fila.cantidad_fija = Decimal('1')
-        fila.full_clean()  # no lanza
-
-    def test_las_banderas_de_paquete_no_se_pueden_poner_en_otro_tipo(self):
-        # El precio de haber fusionado los cinco modelos: hay campos que solo
-        # aplican a un tipo, y el modelo lo dice en vez de dejarlos ambiguos.
-        opcion = CatalogoEvento(tipo=CatalogoEvento.TIPO_LICOR, codigo='x', nombre='X',
-                                requiere_taquiza=True)
-        with self.assertRaises(ValidationError):
-            opcion.full_clean()
-
-    def test_la_capacidad_simultanea_solo_aplica_a_un_extra(self):
-        opcion = CatalogoEvento(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='y', nombre='Y',
-                                capacidad_maxima_simultanea=5)
-        with self.assertRaises(ValidationError):
-            opcion.full_clean()
-
-    def test_borrar_un_tier_no_puede_arrastrar_el_producto_del_catalogo(self):
-        # PROTECT: el precio de venta vive en Producto y lo comparten otras
-        # cotizaciones ya cobradas.
-        CatalogoEventoProducto.objects.create(
-            opcion=self.mobiliario, producto=self.producto,
-            cantidad_por_persona=Decimal('1'),
-        )
-        from django.db.models import ProtectedError
-        with self.assertRaises(ProtectedError):
-            self.producto.delete()
-
-
-class ConfiguracionEventoValidacionTest(TestCase):
-    """Las combinaciones que el backend tiene que rechazar, venga de donde venga."""
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.cliente = Cliente.objects.create(nombre='Ana Ruiz', telefono='9995550001')
-        cls.esencial = CatalogoEvento.objects.create(
-            tipo=CatalogoEvento.TIPO_PAQUETE, codigo='esencial', nombre='Esencial',
-            requiere_mobiliario=True, permite_licores_opcional=False,
-            requiere_taquiza=False, permite_extras=False,
-        )
-        cls.qkt = CatalogoEvento.objects.create(
-            tipo=CatalogoEvento.TIPO_PAQUETE, codigo='qkt', nombre='QKT',
-            requiere_mobiliario=True, permite_licores_opcional=True,
-            requiere_taquiza=True, permite_extras=True,
-        )
-        cls.mobiliario = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico', nombre='Rústico')
-        cls.nivel = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_LICOR, codigo='nacional', nombre='Nacional')
-        cls.combo = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_TAQUIZA, codigo='combo_1', nombre='Pastor y Asado')
-        producto_bolis = Producto.objects.create(nombre='Carrito de bolis',
-                                                 precio_venta_fijo=Decimal('40.00'))
-        cls.extra = CatalogoEvento.objects.create(
-            tipo=CatalogoEvento.TIPO_EXTRA, codigo='carrito_bolis',
-            nombre='Carrito de bolis',
-        )
-        CatalogoEventoProducto.objects.create(
-            opcion=cls.extra, producto=producto_bolis, cantidad_por_persona=Decimal('1'),
-        )
-
-    def _cotizacion(self, personas):
-        return Cotizacion.objects.create(
-            cliente=self.cliente, tipo_servicio='EVENTO',
-            nombre_evento='Boda de prueba',
-            fecha_evento=timezone.localdate() + timedelta(days=60),
-            num_personas=personas,
-        )
-
-    def _config(self, personas, **campos):
-        campos.setdefault('modalidad', MODALIDAD_PAQUETE)
-        return ConfiguracionEventoCotizacion(cotizacion=self._cotizacion(personas), **campos)
-
-    def _paquete_completo(self, personas, **extra):
-        base = {'paquete': self.qkt, 'tipo_mobiliario': self.mobiliario,
-                'combo_taquiza': self.combo}
-        base.update(extra)
-        return self._config(personas, **base)
-
-    # ── Aforo ──────────────────────────────────────────────────────────────
-    def test_paquete_con_49_personas_es_rechazado(self):
-        with self.assertRaises(ValidationError):
-            self._paquete_completo(49).full_clean()
-
-    def test_paquete_con_50_personas_es_aceptado(self):
-        self._paquete_completo(50).full_clean()
-
-    def test_paquete_con_55_personas_es_rechazado_por_no_ser_multiplo_de_10(self):
-        # El redondeo lo hace el cotizador ANTES de llegar aquí; si un aforo sin
-        # redondear llega al modelo es que alguien se saltó ese paso.
-        with self.assertRaises(ValidationError):
-            self._paquete_completo(55).full_clean()
-
-    def test_paquete_con_150_personas_es_aceptado(self):
-        self._paquete_completo(150).full_clean()
-
-    def test_paquete_con_151_personas_es_rechazado(self):
-        with self.assertRaises(ValidationError):
-            self._paquete_completo(151).full_clean()
-
-    def test_arrendamiento_con_150_personas_es_aceptado(self):
-        self._config(150, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
-
-    def test_arrendamiento_con_151_personas_es_rechazado(self):
-        with self.assertRaises(ValidationError):
-            self._config(151, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
-
-    def test_arrendamiento_sin_minimo_acepta_1_persona(self):
-        self._config(1, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
-
-    def test_arrendamiento_con_0_personas_es_rechazado(self):
-        with self.assertRaises(ValidationError):
-            self._config(0, modalidad=MODALIDAD_ARRENDAMIENTO).full_clean()
-
-    # ── Licores ────────────────────────────────────────────────────────────
-    # `niveles_licor` es M2M, igual que `extras`: `clean()`/`full_clean()` no
-    # puede leerlo antes del primer `save()`, así que se valida aparte con
-    # `validar_niveles_licor()` — mismo patrón que ya usan las pruebas de
-    # `validar_extras` más abajo.
-    def test_licores_activados_sin_nivel_es_rechazado(self):
-        config = self._paquete_completo(80, incluir_licores=True)
-        config.full_clean()
-        config.save()
-        with self.assertRaises(ValidationError) as ctx:
-            config.validar_niveles_licor([])
-        self.assertIn('niveles_licor', ctx.exception.message_dict)
-
-    def test_nivel_de_licor_sin_activar_licores_es_rechazado(self):
-        config = self._paquete_completo(80, incluir_licores=False)
-        config.full_clean()
-        config.save()
-        with self.assertRaises(ValidationError) as ctx:
-            config.validar_niveles_licor([self.nivel])
-        self.assertIn('niveles_licor', ctx.exception.message_dict)
-
-    def test_licores_activados_con_nivel_es_aceptado(self):
-        config = self._paquete_completo(80, incluir_licores=True)
-        config.full_clean()
-        config.save()
-        config.validar_niveles_licor([self.nivel])  # no lanza
-
-    def test_licores_activados_con_varios_niveles_es_aceptado(self):
-        # Cerveza + Nacional + Premium: no son excluyentes entre sí.
-        otro_nivel = CatalogoEvento.objects.create(
-            tipo=CatalogoEvento.TIPO_LICOR, codigo='premium', nombre='Premium')
-        config = self._paquete_completo(80, incluir_licores=True)
-        config.full_clean()
-        config.save()
-        config.validar_niveles_licor([self.nivel, otro_nivel])  # no lanza
-
-    def test_un_extra_ajeno_en_niveles_licor_es_rechazado(self):
-        # Mismo motivo que `validar_extras`: el M2M acepta cualquier fila del
-        # catálogo, así que el tipo se verifica a mano.
-        config = self._paquete_completo(80, incluir_licores=True)
-        config.full_clean()
-        config.save()
-        with self.assertRaises(ValidationError) as ctx:
-            config.validar_niveles_licor([self.extra])
-        self.assertIn('niveles_licor', ctx.exception.message_dict)
-
-    # ── Esencial no ofrece lo del QKT ──────────────────────────────────────
-    def test_esencial_con_licores_es_rechazado(self):
-        config = self._config(80, paquete=self.esencial, tipo_mobiliario=self.mobiliario,
-                              incluir_licores=True)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('incluir_licores', ctx.exception.message_dict)
-
-    def test_esencial_con_taquiza_es_rechazado(self):
-        config = self._config(80, paquete=self.esencial, tipo_mobiliario=self.mobiliario,
-                              combo_taquiza=self.combo)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('combo_taquiza', ctx.exception.message_dict)
-
-    def test_esencial_con_extras_es_rechazado(self):
-        config = self._config(80, paquete=self.esencial, tipo_mobiliario=self.mobiliario)
-        config.full_clean()
-        config.save()
-        with self.assertRaises(ValidationError) as ctx:
-            config.validar_extras([self.extra])
-        self.assertIn('extras', ctx.exception.message_dict)
-
-    def test_qkt_con_extras_es_aceptado(self):
-        config = self._paquete_completo(80)
-        config.full_clean()
-        config.save()
-        config.validar_extras([self.extra])  # no lanza
-
-    def test_esencial_sin_nada_extra_es_aceptado(self):
-        self._config(80, paquete=self.esencial, tipo_mobiliario=self.mobiliario).full_clean()
-
-    # ── Obligatorios de cada paquete ───────────────────────────────────────
-    def test_paquete_sin_mobiliario_es_rechazado(self):
-        config = self._config(80, paquete=self.qkt, combo_taquiza=self.combo)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('tipo_mobiliario', ctx.exception.message_dict)
-
-    def test_qkt_sin_taquiza_es_rechazado(self):
-        config = self._config(80, paquete=self.qkt, tipo_mobiliario=self.mobiliario)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('combo_taquiza', ctx.exception.message_dict)
-
-    def test_modalidad_paquete_sin_paquete_es_rechazada(self):
-        config = self._config(80)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('paquete', ctx.exception.message_dict)
-
-    # ── Arrendamiento no arrastra nada del paquete ─────────────────────────
-    def test_arrendamiento_con_paquete_es_rechazado(self):
-        config = self._config(80, modalidad=MODALIDAD_ARRENDAMIENTO, paquete=self.qkt)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('paquete', ctx.exception.message_dict)
-
-    def test_arrendamiento_con_mobiliario_es_rechazado(self):
-        config = self._config(80, modalidad=MODALIDAD_ARRENDAMIENTO,
-                              tipo_mobiliario=self.mobiliario)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('tipo_mobiliario', ctx.exception.message_dict)
-
-    def test_arrendamiento_con_taquiza_es_rechazado(self):
-        config = self._config(80, modalidad=MODALIDAD_ARRENDAMIENTO, combo_taquiza=self.combo)
-        with self.assertRaises(ValidationError) as ctx:
-            config.full_clean()
-        self.assertIn('combo_taquiza', ctx.exception.message_dict)
-
-    def test_arrendamiento_con_extras_es_rechazado(self):
-        config = self._config(80, modalidad=MODALIDAD_ARRENDAMIENTO)
-        config.full_clean()
-        config.save()
-        with self.assertRaises(ValidationError):
-            config.validar_extras([self.extra])
-
-
-class AislamientoPorTipoServicioTest(TestCase):
-    """Una configuración de Evento no aparece en las consultas de otro servicio."""
-
-    def test_la_configuracion_solo_cuelga_de_cotizaciones_de_evento(self):
-        cliente = Cliente.objects.create(nombre='Ana Ruiz', telefono='9995550001')
-        fecha = timezone.localdate() + timedelta(days=60)
-        evento = Cotizacion.objects.create(
-            cliente=cliente, tipo_servicio='EVENTO', nombre_evento='Boda',
-            fecha_evento=fecha, num_personas=80,
-        )
-        pasadia = Cotizacion.objects.create(
-            cliente=cliente, tipo_servicio='PASADIA', nombre_evento='Pasadía',
-            fecha_evento=fecha + timedelta(days=1), num_personas=20,
-        )
-        paquete = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_PAQUETE, codigo='qkt', nombre='QKT',
-                                               requiere_taquiza=False)
-        mobiliario = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_MOBILIARIO, codigo='rustico', nombre='Rústico')
-        ConfiguracionEventoCotizacion.objects.create(
-            cotizacion=evento, modalidad=MODALIDAD_PAQUETE,
-            paquete=paquete, tipo_mobiliario=mobiliario,
-        )
-
-        self.assertEqual(
-            ConfiguracionEventoCotizacion.objects.filter(
-                cotizacion__tipo_servicio='EVENTO').count(),
-            1,
-        )
-        self.assertEqual(
-            ConfiguracionEventoCotizacion.objects.filter(
-                cotizacion__tipo_servicio='PASADIA').count(),
-            0,
-        )
-        self.assertIsNone(getattr(pasadia, 'config_evento', None))
-
-
-class ComboTaquizaTest(TestCase):
-    """El combo es cerrado: sus proteínas son filas hijas, no dos FK fijas."""
-
-    def test_un_combo_admite_dos_proteinas_con_su_propia_cantidad(self):
-        pastor = Producto.objects.create(nombre='Taco de pastor',
-                                         precio_venta_fijo=Decimal('12.00'))
-        asado = Producto.objects.create(nombre='Taco de asado',
-                                        precio_venta_fijo=Decimal('15.00'))
-        combo = CatalogoEvento.objects.create(tipo=CatalogoEvento.TIPO_TAQUIZA, codigo='combo_1', nombre='Pastor y Asado')
-        CatalogoEventoProducto.objects.create(opcion=combo, producto=pastor,
-                                            cantidad_por_persona=Decimal('5'))
-        CatalogoEventoProducto.objects.create(opcion=combo, producto=asado,
-                                            cantidad_por_persona=Decimal('3'))
-
-        cantidades = {p.producto.nombre: p.cantidad_para(80) for p in combo.productos.all()}
-        self.assertEqual(cantidades['Taco de pastor'], Decimal('400'))
-        self.assertEqual(cantidades['Taco de asado'], Decimal('240'))
+    def test_sin_plano_cargado_da_none_para_evento(self):
+        datos = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'EVENTO', 'personas': '80',
+        }).json()
+        self.assertIsNone(datos['imagen_zonas_restringidas'])
