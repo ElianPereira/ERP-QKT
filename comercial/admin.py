@@ -324,8 +324,6 @@ class ProductoAdminForm(forms.ModelForm):
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    # `ProductoEnCatalogoEventoInline` se anexa al final de este archivo, tras
-    # importar `admin_eventos` — importarlo aquí arriba sería circular.
     form = ProductoAdminForm
     inlines = [ComponenteInline, ProductoPaqueteInline]
     list_display = ('miniatura', 'nombre', 'badge_grupo', 'costo_display', 'precio_display',
@@ -336,59 +334,39 @@ class ProductoAdmin(admin.ModelAdmin):
     readonly_fields = ('precio_con_iva_form',)
     fieldsets = (
         (None, {
-            'fields': ('nombre', 'descripcion', 'margen_ganancia', 'precio_venta_fijo',
-                      'precio_con_iva_form', 'imagen_promocional'),
+            'fields': ('nombre', 'imagen_promocional', 'descripcion'),
+        }),
+        ('Precio', {
+            'fields': ('precio_venta_fijo', 'margen_ganancia', 'precio_con_iva_form'),
             'description': (
-                '<strong>Esto es todo lo que necesita casi cualquier producto:</strong> nombre y un '
-                'precio (captura "Precio de venta fijo" con el IVA ya incluido — el precio '
-                'final que va a pagar el cliente; así se factura la enorme mayoría del '
-                'catálogo hoy). Con eso ya puedes usarlo en una cotización manual desde '
-                'Ventas → Cotizaciones → agregar ítem.<br><br>'
-                '<strong>Para que además aparezca solo en el cotizador de la página web:</strong> '
-                've a la pestaña "Cotizador" (Pasadía/Arrendamiento/Hospedaje) o, si es para '
-                'Eventos, a la pestaña "Eventos" — asigna este producto a un paquete, '
-                'mobiliario, licor, taquiza o extra. Nada más marcarlo aquí arriba lo hace aparecer '
-                'solo.<br><br>'
-                'Las demás pestañas ("Avanzado", "SubProductos", "Paquete") son para el caso poco común '
-                'de querer que el costo se calcule solo, sumando insumos o productos base — casi '
-                'nadie las necesita.'
+                'Con "Precio de venta fijo" capturado (el caso normal) el margen no se usa: '
+                'solo entra en juego si lo dejas vacío, para calcular el precio solo a partir '
+                'del costo de sus SubProductos/Paquete.'
             ),
         }),
-        ('Cotizador', {
+        ('Cotizador público', {
             'fields': (
-                ('visible_cotizador', 'cotizador_evento', 'cotizador_pasadia', 'cotizador_hospedaje'),
-                ('rol_cotizador', 'capacidad_base_hospedaje'),
-                ('grupo_cotizador', 'descripcion_corta'),
-                ('orden_cotizador', 'grupo_exclusion'),
+                'visible_cotizador',
+                ('cotizador_evento', 'cotizador_pasadia', 'cotizador_hospedaje'),
+                ('grupo_cotizador', 'icono'),
+                ('descripcion_corta', 'orden_cotizador'),
+                'grupo_exclusion',
                 ('cantidad_por_persona', 'factor_personas'),
+                ('rol_cotizador', 'capacidad_base_hospedaje'),
             ),
             'description': (
-                'Marca aquí en qué servicios aparece este producto como "extra abierto" '
-                '(el cliente lo agrega él mismo, con checkbox — en Evento es el paso '
-                '"extras" que se suma al paquete que ya eligió). '
-                '<strong>"Disponible para Evento" es independiente de la pestaña "Eventos"</strong> '
-                'de este mismo formulario: la pestaña es para que este producto sea parte fija '
-                'de un paquete/mobiliario/licor/taquiza (catálogo cerrado, no lo marca el '
-                'cliente); este checkbox es para que se ofrezca como extra suelto. Un producto '
-                'puede tener las dos cosas, una sola, o ninguna. '
-                '"Arrendamiento de Mobiliario" ya no es un servicio que se ofrezca — el campo '
-                'del modelo sigue existiendo por compatibilidad con cotizaciones históricas, '
-                'pero no se captura aquí.'
+                '"Mostrar en cotizador web" + al menos un servicio marcado hace que el cliente '
+                'lo vea como extra elegible, agrupado por categoría. "Rol en el cotizador" es '
+                'solo para las piezas que el cotizador agrega o pide de forma especial '
+                '(el arrendamiento base, las habitaciones de Hospedaje) — vacío en el resto.'
             ),
         }),
         ('Avanzado', {
             'fields': (('es_paquete', 'requiere_licor'),),
             'description': (
-                '<strong>Casi nunca necesario</strong> — deja las dos sin marcar si ya capturaste '
-                '"Precio de venta fijo" arriba.<br><br>'
-                '<strong>¿Es un paquete?</strong> Solo afecta el <strong>costo</strong> de este producto '
-                '(suma el costo de los productos que lo componen, ver "Paquete" '
-                'abajo) — ya no crea un paquete elegible por el cliente en el cotizador '
-                'público: eso se decide en "Cotizador" (Evento/Pasadía/Arrendamiento/Hospedaje) '
-                'y, para las opciones cerradas de Eventos, desde la pestaña "Eventos". '
-                'Sin marcar, usa la sección "SubProductos" abajo en su lugar.<br><br>'
-                '<strong>¿Requiere licor base en la cotización?</strong> Marca esto si este producto '
-                "obliga a que la cotización incluya Licores Nacionales o Licores Premium."
+                '"¿Es un paquete?" solo afecta el costo calculado (suma el precio de venta de '
+                'los productos marcados en "Paquete" abajo) — no crea nada elegible por el '
+                'cliente por sí solo, eso lo decide "Cotizador público" arriba.'
             ),
             'classes': ('collapse',),
         }),
@@ -2072,21 +2050,8 @@ class OpenpayTransaccionAdmin(admin.ModelAdmin):
     borrar_transacciones_de_prueba.short_description = "Borrar transacción de prueba (y su Pago/póliza)"
 
 
-# El admin de la capa de asignación del cotizador de Eventos vive en su propio
-# módulo (este archivo ya pasa de las 1.900 líneas); Django solo autodescubre
-# `admin.py`, así que se importa aquí para que se registre.
-from . import admin_eventos  # noqa: E402, F401
-
-# El catálogo del cotizador de Eventos se captura también desde el Producto (en
-# qué opciones entra), no solo desde la opción. Se anexa aquí y no en la clase
-# porque `admin_eventos` importa modelos que a su vez viven en este módulo: el
-# import tiene que ir al final, y el inline con él. Va PRIMERO en la lista (se
-# usa más que el costeo por receta) para que su pestaña salga antes que
-# "SubProductos"/"Paquete".
-ProductoAdmin.inlines = [admin_eventos.ProductoEnCatalogoEventoInline,
-                         *ProductoAdmin.inlines]
-
 # Los 3 submódulos de Productos por línea de negocio (Eventos/Pasadía/
-# Hospedaje) heredan de `ProductoAdmin` ya completo (con el inline de arriba
-# incluido), así que se registran hasta el final por el mismo motivo.
+# Hospedaje) heredan de `ProductoAdmin` ya completo, así que se registran
+# hasta el final (Django solo autodescubre `admin.py`, así que se importan
+# aquí para que se registren).
 from . import admin_lineas_negocio  # noqa: E402, F401

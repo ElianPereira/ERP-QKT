@@ -37,21 +37,14 @@ from facturacion.choices import RegimenFiscal
 from .forms_cotizador import TIPO_EVENTO_CHOICES, CotizadorEnviarForm
 from .models import (
     Cliente,
-    ConfiguracionEventoCotizacion,
     Cotizacion,
+    ImagenLanding,
     ItemCotizacion,
     PortalCliente,
     Producto,
 )
-from .reglas_eventos import (
-    MAX_PERSONAS_EVENTO,
-    MIN_PERSONAS_PAQUETE,
-    MODALIDAD_PAQUETE,
-    personas_validas_paquete,
-    redondear_personas_paquete,
-)
+from .reglas_eventos import MAX_PERSONAS_EVENTO
 from .roles_cotizador import normalizar as _normalizar
-from .services_eventos import catalogo_para_cotizador, lineas_evento, resolver_seleccion
 
 logger = logging.getLogger(__name__)
 
@@ -318,45 +311,14 @@ def cotizador_enviar(request):
         num_raw = 50
     num_personas = _redondear_personas(num_raw, servicio)
 
-    # ── Catálogo cerrado de Eventos ─────────────────────────────────────────────────────
-    # Solo se activa si la solicitud trae `modalidad`; sin ella, Evento sigue
-    # por el camino de siempre (ver `_lineas_cotizador`).
-    seleccion_evento = None
-    if servicio == 'EVENTO' and data.get('modalidad'):
-        seleccion_evento = resolver_seleccion(data)
-
-        if num_raw > MAX_PERSONAS_EVENTO:
-            # Tope duro, sin ruta alterna: no se recorta la solicitud a 100 en
-            # silencio, porque el cliente pidió un evento que no operamos.
-            return JsonResponse({'ok': False, 'errores': [
-                f"No ofrecemos eventos de más de {MAX_PERSONAS_EVENTO} personas. "
-                "Escríbenos si necesitas algo distinto y lo vemos contigo."
-            ]}, status=400)
-
-        if seleccion_evento['modalidad'] == MODALIDAD_PAQUETE:
-            # Cada paquete tiene su propio mínimo/máximo/tramo (ver
-            # `CatalogoEvento.personas_validas()`); sin paquete resuelto todavía
-            # se usa la regla general como aproximación — `full_clean()` de abajo
-            # rechaza la solicitud con "Elige un paquete" de todas formas.
-            num_personas = (seleccion_evento['paquete'].redondear_personas(num_raw)
-                            if seleccion_evento['paquete'] else redondear_personas_paquete(num_raw))
-        else:
-            num_personas = num_raw
-
-        # Se valida ANTES de crear Cliente/Cotización: una combinación
-        # rechazada no debe dejar una cotización huérfana en BORRADOR. La
-        # instancia es de memoria, nunca se guarda — mismo patrón que el
-        # simulador de pagos del admin.
-        campos = {k: v for k, v in seleccion_evento.items() if k not in ('extras', 'niveles_licor')}
-        previa = ConfiguracionEventoCotizacion(
-            cotizacion=Cotizacion(num_personas=num_personas), **campos,
-        )
-        try:
-            previa.full_clean(exclude=['cotizacion'], validate_unique=False)
-            previa.validar_extras(seleccion_evento['extras'])
-            previa.validar_niveles_licor(seleccion_evento['niveles_licor'])
-        except ValidationError as exc:
-            return JsonResponse({'ok': False, 'errores': list(exc.messages)}, status=400)
+    # Tope duro de aforo en Evento (Issue #287): la Quinta no opera eventos de
+    # más de MAX_PERSONAS_EVENTO personas, sin ruta alterna — no se recorta la
+    # solicitud en silencio, porque el cliente pidió algo que no operamos.
+    if servicio == 'EVENTO' and num_raw > MAX_PERSONAS_EVENTO:
+        return JsonResponse({'ok': False, 'errores': [
+            f"No ofrecemos eventos de más de {MAX_PERSONAS_EVENTO} personas. "
+            "Escríbenos si necesitas algo distinto y lo vemos contigo."
+        ]}, status=400)
 
     # ── Habitaciones (solo HOSPEDAJE) ────────────────────────────────────────────────────
     # No hay línea base automática como en Evento/Pasadía: el cliente elige
@@ -487,18 +449,6 @@ def cotizador_enviar(request):
     )
     cotizacion.save()
 
-    # ── Selección del catálogo de Eventos ────────────────────────────────────────────────
-    # Ya validada arriba; aquí solo se persiste, junto a la cotización que
-    # describe. Guarda qué eligió el cliente, no cuánto costó: eso vive en los
-    # ItemCotizacion, que son el snapshot inmutable del precio.
-    if seleccion_evento is not None:
-        config_evento = ConfiguracionEventoCotizacion.objects.create(
-            cotizacion=cotizacion,
-            **{k: v for k, v in seleccion_evento.items() if k not in ('extras', 'niveles_licor')},
-        )
-        config_evento.extras.set(seleccion_evento['extras'])
-        config_evento.niveles_licor.set(seleccion_evento['niveles_licor'])
-
     # ── Paquete seleccionado (si aplica) ─────────────────────────────────────────────────────────
     # La validación real del paquete la hace _lineas_cotizador(); aquí solo se
     # pasa el id.
@@ -519,7 +469,6 @@ def cotizador_enviar(request):
         noches=noches or 1,
         habitaciones_ids=habitaciones_ids,
         nivel_pasadia=nivel_pasadia,
-        seleccion_evento=seleccion_evento,
     )
     for prod, qty, desc in lineas:
         _agregar_item(cotizacion, prod, qty, desc)
@@ -680,8 +629,11 @@ def api_productos_cotizador(request):
 
     NOMBRES_GRUPO = dict(Producto.GRUPO_COTIZADOR_CHOICES)
     ICONOS_GRUPO = {
-        'PAQUETE': '📦', 'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'MOBILIARIO': '🪑',
-        'DECORACION': '💐', 'INFANTIL': '🎪', 'OTRO': '✨',
+        'PAQUETE': '📦', 'MOBILIARIO': '🪑', 'ALIMENTOS': '🍽️', 'BEBIDAS': '🥤',
+        'SERVICIOS': '🧑‍🍳', 'EXTRAS': '✨', 'OTRO': '✨',
+        # Categorías obsoletas (ver GRUPO_COTIZADOR_CHOICES): un producto sin
+        # recategorizar todavía debe seguir mostrando un ícono razonable.
+        'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'DECORACION': '💐', 'INFANTIL': '🎪',
     }
 
     grupos_dict = {}
@@ -737,7 +689,7 @@ def api_productos_cotizador(request):
 
 def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_evento,
                       tipo_ev='Evento General', noches=1, habitaciones_ids=None,
-                      nivel_pasadia='BASICO', seleccion_evento=None):
+                      nivel_pasadia='BASICO'):
     """
     Lista de (producto, cantidad, descripcion) que compone una cotización del
     cotizador público.
@@ -748,19 +700,17 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     lista por separado, el total exhibido podría quedar por debajo del
     cobrado, que es justo lo que prohíbe el art. 7 BIS de la LFPC.
 
-    `seleccion_evento` activa el catálogo cerrado de Eventos (paquete Esencial/
-    QKT, mobiliario, licor, taquiza, extras). Cuando llega, manda por completo:
-    `paquete_id` y `extras_ids` —el catálogo abierto de siempre— se ignoran,
-    porque las opciones cerradas ya incluyen todo lo cotizable y admitir las
-    dos vías a la vez dejaría cobrar el mismo concepto dos veces. Mientras el
-    frontend nuevo no exista, las solicitudes de Evento siguen llegando sin
-    este parámetro y el camino de siempre se conserva intacto.
+    Evento tiene dos caminos, igual que Pasadía/Hospedaje (Issue #287):
+    `paquete_id` apunta a un `Producto(es_paquete=True)` con precio cerrado
+    (armado en el admin con `ProductoComponente` reales, nunca un precio
+    suelto), o —sin paquete— la línea base (`rol_cotizador='BASE_EVENTO'`)
+    más lo que el cliente marque en `extras_ids` del catálogo abierto,
+    agrupado por categoría (`Producto.grupo_cotizador`).
     """
     lineas = []
-    usa_catalogo_eventos = servicio == 'EVENTO' and seleccion_evento is not None
 
     paquete = None
-    if not usa_catalogo_eventos and paquete_id and str(paquete_id).isdigit():
+    if paquete_id and str(paquete_id).isdigit():
         paquete = Producto.objects.filter(
             id=int(paquete_id), es_paquete=True, visible_cotizador=True,
         ).first()
@@ -768,16 +718,7 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     # Línea base del servicio: el arrendamiento de la quinta, que va SIEMPRE.
     # Un paquete prediseñado ya lo lleva dentro, así que ahí no se agrega
     # aparte (se cobraría dos veces).
-    if usa_catalogo_eventos:
-        # El arrendamiento del espacio va en las DOS modalidades: es lo único
-        # que se cobra en "solo arrendamiento" y la base que el paquete hereda.
-        base = _producto_por_rol('BASE_EVENTO', 'Paquete Esencial')
-        if base:
-            lineas.append((base, 1,
-                           f"{base.nombre} — {tipo_ev} ({num_personas} Pax, {horas_evento}hrs)"))
-        lineas += lineas_evento(num_personas=num_personas, **seleccion_evento)
-
-    elif paquete:
+    if paquete:
         lineas.append((paquete, 1,
                        f"{paquete.nombre} ({num_personas} Pax, {horas_evento}hrs)"))
 
@@ -866,13 +807,15 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
             lineas.append((prod, extra,
                            f"Horas Extra de Arrendamiento ({extra} hrs adicionales)"))
 
-    if extras_ids and not usa_catalogo_eventos:
-        # Las líneas base nunca son elegibles como extra (ver
-        # `api_productos_cotizador`), pero se vuelve a filtrar aquí: los ids
-        # llegan del cliente y nada impide mandar uno a mano.
+    if extras_ids:
+        # Las líneas base y los paquetes nunca son elegibles como extra (ver
+        # `api_productos_cotizador`, que ya los excluye), pero se vuelve a
+        # filtrar aquí: los ids llegan del cliente y nada impide mandar uno a
+        # mano — sin el `exclude`, un `paquete_id` y su mismo id en
+        # `extras_ids` cobrarían el paquete dos veces.
         for prod in Producto.objects.filter(
             id__in=extras_ids, visible_cotizador=True, rol_cotizador='',
-        ):
+        ).exclude(es_paquete=True):
             qty = 1
             if prod.cantidad_por_persona and prod.factor_personas > 0:
                 qty = math.ceil(num_personas / prod.factor_personas)
@@ -927,29 +870,10 @@ def api_total_cotizador(request):
     if tipo_ev not in dict(TIPO_EVENTO_CHOICES):
         tipo_ev = 'Evento General'
 
-    # Mismo criterio que `cotizador_enviar`: el catálogo cerrado solo se activa
-    # si la petición trae `modalidad`, y entonces el aforo se ajusta con sus
-    # reglas en vez de las del camino viejo.
-    seleccion_evento = None
-    if servicio == 'EVENTO' and request.GET.get('modalidad'):
-        seleccion_evento = resolver_seleccion({
-            'modalidad': request.GET.get('modalidad'),
-            'paquete_evento_id': request.GET.get('paquete_evento'),
-            'mobiliario_id': request.GET.get('mobiliario'),
-            'incluir_licores': request.GET.get('incluir_licores') in ('1', 'true', 'True'),
-            'niveles_licor_ids': [x for x in (request.GET.get('niveles_licor') or '').split(',')
-                                  if x.strip().isdigit()],
-            'combo_taquiza_id': request.GET.get('combo_taquiza'),
-            'extras_evento_ids': [x for x in (request.GET.get('extras_evento') or '').split(',')
-                                  if x.strip().isdigit()],
-        })
+    # Mismo tope que `cotizador_enviar`: el total exhibido no debe insinuar un
+    # aforo que la solicitud real va a rechazar.
+    if servicio == 'EVENTO':
         num_personas = min(num_personas, MAX_PERSONAS_EVENTO)
-        if seleccion_evento['modalidad'] == MODALIDAD_PAQUETE:
-            # Mismo criterio que en `cotizador_enviar`: el tramo lo decide el
-            # paquete elegido, no una regla única para todos.
-            num_personas = (seleccion_evento['paquete'].redondear_personas(num_personas)
-                            if seleccion_evento['paquete']
-                            else redondear_personas_paquete(num_personas))
 
     lineas = _lineas_cotizador(
         servicio=servicio,
@@ -961,7 +885,6 @@ def api_total_cotizador(request):
         noches=noches,
         habitaciones_ids=habitaciones_ids,
         nivel_pasadia=nivel_pasadia,
-        seleccion_evento=seleccion_evento,
     )
     bases = [Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
              for prod, qty, _ in lineas]
@@ -981,32 +904,48 @@ def api_total_cotizador(request):
         # siguiente tramo de 10, y el cliente tiene que ver ese número, no el
         # que escribió.
         'personas': num_personas,
+        'imagen_zonas_restringidas': _imagen_zonas_restringidas() if servicio == 'EVENTO' else None,
     })
 
 
-@rate_limit(key='api_catalogo_eventos', limit=60, window=60)
-def api_catalogo_eventos(request):
-    """GET /api/cotizador/eventos/?personas=N
+def _imagen_zonas_restringidas():
+    """Plano de las áreas que NO entran en el arrendamiento, o `None`.
 
-    Opciones cerradas del cotizador de Eventos (paquetes, mobiliario, niveles
-    de licor, combos de taquiza y extras), ya valorizadas para ese aforo y con
-    IVA incluido. Una opción sin productos asignados en el admin viaja con
-    `sin_configurar: True` para que el frontend no la ofrezca.
+    El resumen del cotizador lo enseña justo antes de confirmar. Devuelve
+    `None` mientras el propietario no haya subido ninguna, y el frontend se
+    salta el bloque — vale más no mostrar nada que mostrar un hueco roto.
     """
-    try:
-        personas = int(request.GET.get('personas', MIN_PERSONAS_PAQUETE))
-    except (TypeError, ValueError):
-        personas = MIN_PERSONAS_PAQUETE
-    personas = max(1, min(personas, MAX_PERSONAS_EVENTO))
+    imagen = (ImagenLanding.objects
+              .filter(seccion='ZONAS_RESTRINGIDAS', activo=True)
+              .order_by('orden', 'id')
+              .first())
+    if not imagen or not imagen.imagen:
+        return None
+    return {'url': imagen.imagen.url, 'alt': imagen.alt_text or 'Zonas restringidas de la Quinta'}
 
-    return JsonResponse({
-        'ok': True,
-        'personas': personas,
-        'max_personas': MAX_PERSONAS_EVENTO,
-        'min_personas_paquete': MIN_PERSONAS_PAQUETE,
-        'aforos_paquete': personas_validas_paquete(),
-        **catalogo_para_cotizador(personas),
-    })
+
+@rate_limit(key='api_paquetes_evento', limit=60, window=60)
+def api_paquetes_evento(request):
+    """GET /api/cotizador/paquetes-evento/
+    Paquetes cerrados de Evento (`Producto(es_paquete=True)`, visibles y
+    marcados `cotizador_evento`), precio fijo con IVA incluido — mismo
+    criterio que `api_habitaciones_cotizador`. El "qué incluye" de cada
+    paquete es su `descripcion`, capturada en el admin junto al paquete."""
+    paquetes = Producto.objects.filter(
+        es_paquete=True, visible_cotizador=True, cotizador_evento=True,
+    ).order_by('orden_cotizador', 'nombre')
+
+    resultado = [{
+        'id': p.id,
+        'nombre': p.nombre,
+        'icono': p.icono,
+        'descripcion': p.descripcion_corta,
+        'incluye': p.descripcion,
+        'precio': str(impuestos.con_iva(Decimal(str(p.sugerencia_precio())))),
+        'imagen_url': p.imagen_promocional.url if p.imagen_promocional else None,
+    } for p in paquetes]
+
+    return JsonResponse({'ok': True, 'paquetes': resultado, 'max_personas': MAX_PERSONAS_EVENTO})
 
 
 @rate_limit(key='api_habitaciones_cotizador', limit=60, window=60)

@@ -19,10 +19,10 @@ from comercial.views import (
     ver_cartera_cxc,
 )
 from comercial.views_cotizador import (
-    api_catalogo_eventos,
     api_disponibilidad_fecha,
     api_fechas_ocupadas,
     api_habitaciones_cotizador,
+    api_paquetes_evento,
     api_productos_cotizador,
     api_total_cotizador,
     cotizador_enviar,
@@ -213,7 +213,7 @@ urlpatterns = [
     path('api/cotizador/productos/', api_productos_cotizador, name='api_productos_cotizador'),
     path('api/cotizador/habitaciones/', api_habitaciones_cotizador, name='api_habitaciones_cotizador'),
     path('api/cotizador/total/', api_total_cotizador, name='api_total_cotizador'),
-    path('api/cotizador/eventos/', api_catalogo_eventos, name='api_catalogo_eventos'),
+    path('api/cotizador/paquetes-evento/', api_paquetes_evento, name='api_paquetes_evento'),
 
     # --- WEBHOOK OPENPAY (público, protegido con Basic Auth) ---
     path('pagos/openpay/webhook/', openpay_webhook_view, name='openpay_webhook'),

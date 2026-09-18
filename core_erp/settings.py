@@ -459,8 +459,6 @@ JAZZMIN_SETTINGS = {
         "comercial.DescuentoAplicado":      "fas fa-history",
         "comercial.Temporada":              "fas fa-calendar-week",
         "comercial.GuiaTipoServicio":       "fas fa-book-open",
-        "comercial.CatalogoEvento":         "fas fa-swatchbook",
-        "comercial.ConfiguracionEventoCotizacion": "fas fa-sliders-h",
 
         # AIRBNB
         "airbnb":                           "fas fa-bed",
@@ -523,11 +521,6 @@ JAZZMIN_SETTINGS = {
     # alta "+" desde un inline) pero no aparecen como módulo propio en el
     # menú: se administran por completo desde la pantalla de otro modelo.
     "hide_models": [
-        # El catálogo de opciones del cotizador de Eventos (paquetes,
-        # mobiliario, licor, taquiza, extras) se administra desde Productos
-        # → pestaña "Cotizador de Eventos" (ProductoEnCatalogoEventoInline),
-        # con el "+" del campo "opción" para dar de alta una opción nueva.
-        "comercial.CatalogoEvento",
         # Costeo por receta (Insumo → Subproducto → Producto): en la práctica
         # casi todo se captura como "Precio de venta fijo" directo en
         # Producto, así que este flujo casi no se usa y solo agrega ruido al
