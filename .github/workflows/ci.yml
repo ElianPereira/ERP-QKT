@@ -58,7 +58,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.lock
-          pip install pip-audit
+          pip install pip-audit semgrep
 
       # Chequeo de seguridad de despliegue de Django (DEBUG, cookies seguras,
       # HSTS, SSL redirect, etc.). Se ejecuta con DEBUG=False para validar la
@@ -96,3 +96,12 @@ jobs:
 
       - name: Scan for secrets (gitleaks)
         run: gitleaks detect --no-git --source . --redact -v
+
+      # Análisis estático (SAST) más allá de lo que cubre ruff/S (bandit).
+      # Informativo por ahora: igual que pip-audit, no bloquea el pipeline
+      # hasta que se triage el primer barrido completo de hallazgos, mismo
+      # criterio ya aplicado a la orden 31 (ruleset S de ruff) antes de
+      # activarlo como gate real.
+      - name: Static analysis (semgrep)
+        run: semgrep scan --config auto --error .
+        continue-on-error: true

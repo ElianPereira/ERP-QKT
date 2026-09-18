@@ -19,10 +19,6 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-postgres", "${DATABASE_URL}"]
     },
-    "memory": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory"]
-    },
     "sentry": {
       "type": "http",
       "url": "https://mcp.sentry.dev/mcp"

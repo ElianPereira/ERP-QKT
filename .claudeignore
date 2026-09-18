@@ -17,9 +17,14 @@ __pycache__/
 # Build / artefactos generados
 dist/
 build/
+.next/
+out/
 staticfiles/
 media/
 cementerio/
+
+# Cobertura de tests
+coverage/
 
 # Bases de datos locales
 *.sqlite3
