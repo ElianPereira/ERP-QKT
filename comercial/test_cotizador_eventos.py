@@ -20,9 +20,9 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from comercial.models import Cotizacion, Producto, ProductoComponente
+from comercial.models import Cliente, Cotizacion, Producto, ProductoComponente
 from comercial.reglas_eventos import MAX_PERSONAS_EVENTO
-from comercial.views_cotizador import _lineas_cotizador
+from comercial.views_cotizador import _agregar_item, _lineas_cotizador
 from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
 
 
@@ -257,6 +257,71 @@ class EnvioPaqueteEventoTest(TestCase):
         cotizacion = Cotizacion.objects.latest('id')
         nombres = {item.producto.nombre for item in cotizacion.items.all()}
         self.assertEqual(nombres, {base.nombre, extra.nombre})
+
+
+class CosteoPorBloqueDeDiezTest(TestCase):
+    """`cantidad_por_persona` + `factor_personas=10`: costeo por bloque de 10,
+    no por persona — mecanismo del catálogo abierto, compartido con
+    Pasadía/Hospedaje, ahora usado también en 'Arma tu propio evento'."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_80_personas_cobra_8_unidades(self):
+        mesero = Producto.objects.create(
+            nombre='Mesero de servicio', precio_venta_fijo=Decimal('300.00'),
+            visible_cotizador=True, cotizador_evento=True, grupo_cotizador='SERVICIOS',
+            cantidad_por_persona=True, factor_personas=10,
+        )
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=None, extras_ids=[mesero.id],
+            num_personas=80, horas_evento=6,
+        )
+        cantidades = {prod.nombre: qty for prod, qty, _ in lineas}
+        self.assertEqual(cantidades['Mesero de servicio'], 8)
+
+    def test_una_fraccion_sobrante_redondea_hacia_arriba(self):
+        # 81 / 10 = 8.1 → 9, no 8: una fracción de bloque sigue siendo un
+        # bloque completo a cobrar.
+        mesero = Producto.objects.create(
+            nombre='Mesero de servicio', precio_venta_fijo=Decimal('300.00'),
+            visible_cotizador=True, cotizador_evento=True, grupo_cotizador='SERVICIOS',
+            cantidad_por_persona=True, factor_personas=10,
+        )
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=None, extras_ids=[mesero.id],
+            num_personas=81, horas_evento=6,
+        )
+        cantidades = {prod.nombre: qty for prod, qty, _ in lineas}
+        self.assertEqual(cantidades['Mesero de servicio'], 9)
+
+
+class GrupoExclusionTest(TestCase):
+    """Mobiliario (u otra categoría con `grupo_exclusion`) rechaza dos
+    productos del mismo grupo en la misma cotización — candado ya existente
+    de `ItemCotizacion.clean()`, corre en cada `_agregar_item` porque
+    `ItemCotizacion.save()` llama `full_clean()`."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_dos_productos_del_mismo_grupo_de_exclusion_se_rechazan(self):
+        cliente = Cliente.objects.create(nombre='Ana Ruiz', telefono='9995550001')
+        cotizacion = Cotizacion.objects.create(
+            cliente=cliente, tipo_servicio='EVENTO',
+            fecha_evento=timezone.localdate() + timedelta(days=60), num_personas=80,
+        )
+        mesa_redonda = Producto.objects.create(
+            nombre='Mesa redonda', precio_venta_fijo=Decimal('100.00'),
+            grupo_cotizador='MOBILIARIO', grupo_exclusion='MESAS',
+        )
+        mesa_rectangular = Producto.objects.create(
+            nombre='Mesa rectangular', precio_venta_fijo=Decimal('100.00'),
+            grupo_cotizador='MOBILIARIO', grupo_exclusion='MESAS',
+        )
+        _agregar_item(cotizacion, mesa_redonda, 1)
+        with self.assertRaises(ValidationError):
+            _agregar_item(cotizacion, mesa_rectangular, 1)
 
 
 class ImagenZonasRestringidasTest(TestCase):
