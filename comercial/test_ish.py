@@ -139,6 +139,80 @@ class CotizacionISHTest(TestCase):
         self.assertEqual(cot.precio_final, Decimal('968.00'))
 
 
+class TasaCongeladaTest(TestCase):
+    """
+    La tasa se sella en la cotización; no se relee de la configuración.
+
+    Sin esto, encender `TASA_ISH` le subía el precio a cotizaciones ya
+    aceptadas en cuanto alguien las reguardara (editarlas en el admin, o
+    moverlas a EJECUTADA), y a una ya pagada le reabría saldo por el
+    importe del impuesto.
+    """
+
+    def test_una_cotizacion_pagada_no_reabre_saldo_al_encender_la_tasa(self):
+        from comercial.models import Pago
+        with override_settings(TASA_ISH=Decimal('0')):
+            cot = _cotizacion('HOSPEDAJE')
+            self.assertEqual(cot.precio_final, Decimal('1160.00'))
+            Pago.objects.create(cotizacion=cot, monto=cot.precio_final,
+                                metodo='TRANSFERENCIA')
+            cot.refresh_from_db()
+            self.assertEqual(cot.saldo_pendiente(), Decimal('0.00'))
+            cot.cambiar_estado('COTIZADA')
+
+        # Meses después se enciende la tasa y alguien reguarda la cotización.
+        with override_settings(TASA_ISH=TASA_5):
+            cot.refresh_from_db()
+            cot.save()
+            cot.refresh_from_db()
+            self.assertEqual(cot.impuesto_hospedaje, Decimal('0.00'))
+            self.assertEqual(cot.precio_final, Decimal('1160.00'))
+            self.assertEqual(cot.saldo_pendiente(), Decimal('0.00'))
+
+    def test_una_cotizacion_nueva_si_toma_la_tasa_vigente(self):
+        with override_settings(TASA_ISH=TASA_5):
+            cot = _cotizacion('HOSPEDAJE')
+            self.assertEqual(cot.tasa_ish_aplicada, TASA_5)
+            self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
+
+    def test_un_borrador_toma_la_tasa_al_encenderla(self):
+        # El caso de la semana de transición: lo que sigue en borrador no se
+        # le ha presentado al cliente todavía, así que sí debe actualizarse.
+        with override_settings(TASA_ISH=Decimal('0')):
+            cot = _cotizacion('HOSPEDAJE')
+            self.assertEqual(cot.estado, 'BORRADOR')
+        with override_settings(TASA_ISH=TASA_5):
+            cot.save()
+            cot.refresh_from_db()
+            self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
+            self.assertEqual(cot.precio_final, Decimal('1210.00'))
+
+    def test_apagar_la_tasa_no_le_quita_el_ish_a_lo_ya_cotizado(self):
+        with override_settings(TASA_ISH=TASA_5):
+            cot = _cotizacion('HOSPEDAJE')
+            cot.cambiar_estado('COTIZADA')
+        with override_settings(TASA_ISH=Decimal('0')):
+            cot.refresh_from_db()
+            cot.save()
+            cot.refresh_from_db()
+            self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
+            self.assertEqual(cot.precio_final, Decimal('1210.00'))
+
+    @override_settings(TASA_ISH=TASA_5)
+    def test_cambiar_items_recalcula_el_ish_con_la_tasa_sellada(self):
+        cot = _cotizacion('HOSPEDAJE')
+        cot.cambiar_estado('COTIZADA')
+        producto = Producto.objects.create(
+            nombre='Habitación extra', precio_venta_fijo=Decimal('500.00'))
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=producto, cantidad=1,
+            precio_unitario=Decimal('500.00'))
+        cot.save()
+        cot.refresh_from_db()
+        # Base 1500 con la tasa sellada del 5%.
+        self.assertEqual(cot.impuesto_hospedaje, Decimal('75.00'))
+
+
 class DesgloseProporcionalISHTest(TestCase):
     """Cada abono parcial lleva su parte proporcional de ISH."""
 

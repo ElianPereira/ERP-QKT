@@ -227,6 +227,23 @@ salvo que queden obsoletas.
   **idéntico** a antes —no calcula, no exhibe, no contabiliza—, lo cual es
   también la garantía de que el deploy no mueve precios por sí solo; el
   `test_sin_tasa_configurada_*` de cada capa fija justamente eso.
+  **Trampa encontrada al verificar una pregunta del propietario ("¿a qué te
+  refieres con que deja las cotizaciones en 0?"), no por los tests**: la
+  primera versión releía la tasa de settings en cada `calcular_totales()`,
+  así que encender `TASA_ISH` le subía el precio a toda cotización anterior
+  en cuanto alguien la reguardara —editarla en el admin o moverla a
+  EJECUTADA basta— y a una **ya pagada** le reabría saldo por el importe del
+  impuesto (reproducido: $1,160.00 pagada → $1,210.00 con $50.00 de saldo
+  fantasma). Corregido sellando la tasa en la propia cotización
+  (`tasa_ish_aplicada`, migración `0094`) al crearla, re-sellable solo
+  mientras siga en BORRADOR: a partir de COTIZADA el precio ya se le
+  presentó al cliente y no puede cambiar solo. Consecuencia aceptada: lo que
+  esté COTIZADA/CONFIRMADA al encender la tasa no cobrará ISH; para
+  cobrárselo hay que rehacer la cotización. Cubierto por
+  `TasaCongeladaTest` (5 casos, incluidos apagar la tasa y editar ítems con
+  la tasa sellada). Lección: un flag de configuración leído en vivo dentro
+  de un cálculo de precios es retroactivo por default, y en una ruta de
+  dinero eso reescribe acuerdos ya cerrados.
   **Decisión de negocio que queda del lado del propietario**: al activar la
   tasa, el ISH se SUMA al precio exhibido (art. 7 BIS LFPC: el precio al
   consumidor lleva todos los impuestos incluidos), así que el cliente paga

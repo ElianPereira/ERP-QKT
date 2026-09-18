@@ -70,6 +70,27 @@ La tasa **la confirma el contador**: el ISH es ley estatal (Yucatán), cambia
 sin que este repositorio se entere, y por eso no está escrita en el código
 como sí lo está el 16% del IVA federal.
 
+### Encenderla no toca lo ya cotizado
+
+La tasa se **sella en cada cotización** (`Cotizacion.tasa_ish_aplicada`) al
+crearla, y se puede re-sellar mientras siga en BORRADOR. A partir de ahí el
+cálculo usa esa tasa sellada, no la de la configuración.
+
+Sin ese sello, encender `TASA_ISH` le habría subido el precio a cualquier
+cotización anterior en cuanto alguien la reguardara —editarla en el admin o
+moverla a EJECUTADA basta—, y a una **ya pagada** le habría reabierto saldo
+por el importe del impuesto:
+
+```
+ANTES    precio_final = 1,160.00 | ISH = 0.00  | saldo = 0.00   (pagada)
+DESPUÉS  precio_final = 1,210.00 | ISH = 50.00 | saldo = 50.00  (saldo fantasma)
+```
+
+Con el sello, esa misma cotización se queda en $1,160.00 y saldo cero para
+siempre. Consecuencia buscada: las cotizaciones que ya estaban COTIZADA o
+CONFIRMADA cuando se encienda la tasa **no** cobrarán ISH. Si hiciera falta
+cobrárselo a alguna, hay que rehacerla — no basta con reguardarla.
+
 ## La decisión que falta, y que no es técnica
 
 Al activar la tasa, el ISH **se suma** al precio que ve el cliente. Con una

@@ -609,6 +609,18 @@ class Cotizacion(models.Model):
             "propia plataforma."
         ),
     )
+    tasa_ish_aplicada = models.DecimalField(
+        max_digits=6, decimal_places=4, default=0,
+        verbose_name="Tasa de ISH aplicada",
+        help_text=(
+            "Tasa de ISH con la que se cotizó, congelada al crear la "
+            "cotización (o mientras siga en BORRADOR). No se relee de la "
+            "configuración al reguardar: si se releyera, encender la tasa "
+            "subiría el precio de cotizaciones ya aceptadas —y reabriría "
+            "saldo en las ya pagadas— con solo editarlas. Las cotizaciones "
+            "anteriores al ISH quedan en 0 y ahí se quedan."
+        ),
+    )
     retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     precio_final = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -850,12 +862,15 @@ class Cotizacion(models.Model):
         else:
             self.retencion_isr = Decimal('0.00')
             self.retencion_iva = Decimal('0.00')
-        # ISH: impuesto estatal, solo sobre hospedaje vendido directo y solo
-        # si hay tasa configurada. Se calcula sobre la misma base que el IVA
-        # (contraprestación sin IVA), nunca sobre el IVA. Con TASA_ISH en 0
-        # —el default— queda en cero y el precio final no cambia en nada.
-        if self.tipo_servicio == 'HOSPEDAJE' and impuestos.ish_aplica():
-            self.impuesto_hospedaje = impuestos.ish_de(base)
+        # ISH: impuesto estatal, solo sobre hospedaje vendido directo. Se
+        # calcula sobre la misma base que el IVA (contraprestación sin IVA),
+        # nunca sobre el IVA, y con la tasa CONGELADA en la cotización —no la
+        # de la configuración actual—: ver `tasa_ish_aplicada`. Con la tasa en
+        # 0 (el default, y el valor de toda cotización anterior al ISH) queda
+        # en cero y el precio final no cambia en nada.
+        tasa = self.tasa_ish_aplicada or Decimal('0')
+        if self.tipo_servicio == 'HOSPEDAJE' and tasa > 0:
+            self.impuesto_hospedaje = impuestos.centavos(base * tasa)
         else:
             self.impuesto_hospedaje = Decimal('0.00')
         self.precio_final = impuestos.centavos(
@@ -905,6 +920,15 @@ class Cotizacion(models.Model):
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
+            # La tasa de ISH se sella al crear la cotización y se puede
+            # re-sellar mientras siga en BORRADOR (para que al encender la
+            # tasa los borradores en curso la tomen). En cuanto la cotización
+            # sale de borrador el precio ya se le presentó al cliente, así que
+            # la tasa queda fija: reguardarla después —editarla en el admin,
+            # moverla a EJECUTADA— no le agrega un impuesto que no traía.
+            if self.tipo_servicio == 'HOSPEDAJE' and (
+                    self._state.adding or self.estado == 'BORRADOR'):
+                self.tasa_ish_aplicada = impuestos.tasa_ish()
             super().save(*args, **kwargs)
             from .services import actualizar_item_cotizacion
             actualizar_item_cotizacion(self)
