@@ -341,3 +341,79 @@ class ImagenZonasRestringidasTest(TestCase):
             'servicio': 'EVENTO', 'personas': '80',
         }).json()
         self.assertIsNone(datos['imagen_zonas_restringidas'])
+
+
+class CategoriasArmaTuEventoTest(TestCase):
+    """Orden de categorías de 'Arma tu propio evento' (pedido del
+    propietario): Mobiliario, Alimentos, Bebidas, Servicios, Extras, Otros —
+    no el orden alfabético del campo `grupo_cotizador`."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _crear(self, nombre, grupo, **extra):
+        return Producto.objects.create(
+            nombre=nombre, precio_venta_fijo=Decimal('100.00'),
+            visible_cotizador=True, cotizador_evento=True,
+            grupo_cotizador=grupo, **extra,
+        )
+
+    def test_las_categorias_salen_en_el_orden_de_negocio(self):
+        # Se crean a propósito en el orden alfabético inverso al deseado,
+        # para que el test no pase "por casualidad" si el orden real
+        # coincidiera con el de creación o con el de la base de datos.
+        self._crear('Producto otros', 'OTRO')
+        self._crear('Producto extras', 'EXTRAS')
+        self._crear('Producto servicios', 'SERVICIOS')
+        self._crear('Producto bebidas', 'BEBIDAS')
+        self._crear('Producto alimentos', 'ALIMENTOS')
+        self._crear('Producto mobiliario', 'MOBILIARIO')
+
+        datos = self.client.get(reverse('api_productos_cotizador'), {'servicio': 'EVENTO'}).json()
+        claves = [g['clave'] for g in datos['grupos']]
+        self.assertEqual(claves, ['MOBILIARIO', 'ALIMENTOS', 'BEBIDAS', 'SERVICIOS', 'EXTRAS', 'OTRO'])
+
+    def test_una_categoria_obsoleta_no_recategorizada_va_al_final(self):
+        self._crear('Producto extras', 'EXTRAS')
+        self._crear('Producto viejo', 'DECORACION')  # obsoleta, ver GRUPO_COTIZADOR_CHOICES
+        self._crear('Producto mobiliario', 'MOBILIARIO')
+
+        datos = self.client.get(reverse('api_productos_cotizador'), {'servicio': 'EVENTO'}).json()
+        claves = [g['clave'] for g in datos['grupos']]
+        self.assertEqual(claves, ['MOBILIARIO', 'EXTRAS', 'DECORACION'])
+
+
+class LicoresSeleccionablesJuntosTest(TestCase):
+    """Licores Nacionales y Premium ya no llegan marcados como excluyentes
+    entre sí en la respuesta de la API (antes se forzaba `grupo_exclusion=
+    'LICORES'` por nombre, sin importar lo que el admin hubiera capturado) —
+    el negocio sí permite cotizar ambos a la vez."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_ninguno_de_los_dos_trae_grupo_exclusion_forzado(self):
+        Producto.objects.create(
+            nombre='Licores Nacionales', precio_venta_fijo=Decimal('400.00'),
+            visible_cotizador=True, cotizador_evento=True, grupo_cotizador='BEBIDAS',
+        )
+        Producto.objects.create(
+            nombre='Licores Premium', precio_venta_fijo=Decimal('700.00'),
+            visible_cotizador=True, cotizador_evento=True, grupo_cotizador='BEBIDAS',
+        )
+        datos = self.client.get(reverse('api_productos_cotizador'), {'servicio': 'EVENTO'}).json()
+        bebidas = next(g for g in datos['grupos'] if g['clave'] == 'BEBIDAS')
+        for p in bebidas['productos']:
+            self.assertEqual(p['grupo_exclusion'], '')
+
+    def test_un_grupo_de_exclusion_capturado_a_mano_en_el_admin_si_se_respeta(self):
+        # El campo real del producto SÍ debe seguir viajando tal cual —
+        # solo se quitó el forzado especial por nombre.
+        Producto.objects.create(
+            nombre='Mesa redonda', precio_venta_fijo=Decimal('100.00'),
+            visible_cotizador=True, cotizador_evento=True,
+            grupo_cotizador='MOBILIARIO', grupo_exclusion='MESAS',
+        )
+        datos = self.client.get(reverse('api_productos_cotizador'), {'servicio': 'EVENTO'}).json()
+        mobiliario = next(g for g in datos['grupos'] if g['clave'] == 'MOBILIARIO')
+        self.assertEqual(mobiliario['productos'][0]['grupo_exclusion'], 'MESAS')
