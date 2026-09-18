@@ -18,7 +18,18 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
 - Ediciones quirúrgicas: no refactorices código no relacionado con la tarea.
 - Responde en español. Commits, nombres de variables y código siguen el
   estilo ya existente en el repo (mezcla ES/EN, no lo normalices).
-- No hagas `commit`/`push` sin que se pida explícitamente.
+- No hagas `commit`/`push` sin que se pida explícitamente — **excepto**
+  puntos de control automáticos: al cerrar una tarea atómica dentro de una
+  sesión larga, con los tests de la app tocada en verde y `ruff check .`
+  limpio, puedes hacer `commit` (mensaje descriptivo) y `push` a la rama de
+  trabajo actual sin pedir permiso cada vez. Es push, no solo commit local:
+  un commit sin pushear en un contenedor que puede reciclarse no cuenta
+  como hecho (ver Memoria 2026-08-14, dos sesiones perdieron el mismo
+  trabajo dos veces por esto). Esta excepción NO aplica a: merge a
+  `main`/`master` (sigue exigiendo pedido explícito de un PR concreto, ver
+  Memoria 2026-09-09), ni a tocar `comercial/views_openpay.py`/
+  `services_openpay.py`, `legal/` o `contabilidad/services.py` (siguen
+  exigiendo aprobación explícita antes de editarlos, con o sin checkpoint).
 
 ## Contexto del negocio
 
@@ -44,6 +55,35 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
 - IVA: conversión única sobre el subtotal, nunca por línea (tolerancia SAT
   PAC ±0.01/concepto).
 - Precios visibles al consumidor siempre IVA incluido (LFPC Art. 7 BIS).
+- Lectura dirigida: si una tarea toca varios archivos, ubica primero
+  firmas/interfaces (`grep` de `def `/`class `/imports) antes de leer una
+  implementación completa.
+- Para leer el contenido de un PDF (contrato, guía, estado de cuenta,
+  comprobante), usa el skill `extraer-pdf` (`.claude/skills/extraer-pdf/`)
+  en vez de cargar el binario completo como tokens de imagen.
+- Cero código ocioso: al tocar una función o módulo, elimina imports,
+  variables o código muerto que quede sin uso dentro del alcance editado —
+  no lo dejes "por si acaso" (distinto de la regla de ediciones quirúrgicas
+  de arriba, que es sobre no tocar código *fuera* del alcance).
+- Reutilización antes de crear: busca (`grep`/`glob`) si ya existe una
+  función/service equivalente en la app o en `core_erp/` antes de escribir
+  una nueva (mismo criterio ya aplicado de facto en Memoria, ej.
+  `RFC_UNIDAD_MAP` reusado entre `comercial` y `facturacion`).
+- Verificación obligatoria antes de dar una tarea por completada: corre
+  `ruff check .` y `python manage.py check` sobre lo tocado — los hooks de
+  `.claude/settings.json` los disparan solos, pero no sustituyen la
+  verificación consciente antes de reportar terminado.
+- Aislamiento de capas: la lógica de negocio vive en `services.py`/
+  `models.py` de cada app (ej. `contabilidad/services.py`,
+  `reportes/services/*.py`); vistas/admin/integraciones (`views*.py`,
+  `admin.py`, Openpay/WhatsApp/Cloudinary) son la capa de
+  infraestructura/UI y no deben contener reglas de negocio nuevas — este
+  repo no tiene un `/docs` de arquitectura formal, el criterio vigente es
+  este.
+- Nunca hardcodees secretos ni llaves API: todo vía `config()`/variables de
+  entorno, igual que en todo `settings.py`. Un literal de credencial fuera
+  de archivos de test bloquea el lint (`ruff` `S105`/`S106`/`S107`) y el
+  escaneo de `gitleaks` en CI.
 
 ## Contexto técnico
 
@@ -195,6 +235,40 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-18 — Excepción explícita a "no hagas commit/push sin que se pida"
+  (`## Reglas de respuesta`): checkpoints automáticos de tareas atómicas
+  dentro de una sesión larga, pedido directo del propietario tras revisar
+  el "Protocolo de Sesión para Evitar la Amnesia de Contexto". Antes el
+  gate era binario (nunca sin pedir) y chocaba con la idea de dejar avance
+  recuperable si la sesión se corta o el contenedor se recicla. La
+  excepción exige que el checkpoint sea real trabajo verificado (tests de
+  la app tocada en verde, `ruff check .` limpio) y que sea **push**, no
+  solo commit local — un commit que se queda solo en el contenedor no
+  resuelve nada, es exactamente el caso ya documentado en la entrada del
+  2026-08-14 (dos sesiones anteriores perdieron el mismo trabajo dos veces
+  por commitear sin pushear en un entorno efímero). Explícitamente
+  excluida del alcance de esta excepción: merge a `main`/`master` (sigue
+  atado a un pedido explícito del propietario para un PR concreto, ver
+  2026-09-09) y cualquier edición de los tres archivos de zona restringida
+  (Openpay, `legal/`, `contabilidad/services.py`) — esos siguen exigiendo
+  aprobación antes de tocarse, el checkpoint automático no crea una vía
+  paralela para saltárselo.
+- 2026-09-18 — Se retira el servidor `memory` (`@modelcontextprotocol/
+  server-memory`) de `.mcp.json`: es la misma idea que `claude-mem`, ya
+  rechazada en la entrada del 2026-07-26 por el mismo motivo — guarda
+  estado fuera del repo, en la máquina de quien corre la sesión, no
+  compartido con el equipo ni versionado. La sección `## Memoria` de este
+  archivo ya cumple esa función mejor (git-tracked, la ve todo el equipo).
+  Se agrega `semgrep` al job `security` de `ci.yml` como SAST adicional a
+  `ruff`/`S` — informativo por ahora (`continue-on-error: true`), mismo
+  criterio que se usó con `pip-audit` y que se usó con el ruleset `S` de
+  ruff (orden 31) antes de convertirlo en gate real: hace falta un primer
+  triage manual de hallazgos antes de bloquear el pipeline con una
+  herramienta nueva. Se evaluó también agregar un MCP de "Sequential
+  Thinking" y descartado: ese servidor da un cuaderno de pasos vía tool
+  calls para modelos sin razonamiento nativo — Sonnet 5 ya tiene extended
+  thinking nativo sin ese costo extra de tokens, así que agregarlo iría
+  contra el objetivo mismo de "no inflar el contexto".
 - 2026-09-17 — ISH (Impuesto Sobre Hospedaje) del hospedaje vendido directo,
   y corrección de un hallazgo mío que estaba mal. **El error primero**: el
   reporte de la Rutina del 2026-09-05 (PR #276, ya mergeado) afirmaba que el
