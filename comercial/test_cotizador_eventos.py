@@ -417,3 +417,67 @@ class LicoresSeleccionablesJuntosTest(TestCase):
         datos = self.client.get(reverse('api_productos_cotizador'), {'servicio': 'EVENTO'}).json()
         mobiliario = next(g for g in datos['grupos'] if g['clave'] == 'MOBILIARIO')
         self.assertEqual(mobiliario['productos'][0]['grupo_exclusion'], 'MESAS')
+
+
+class ExtrasTrasElegirPaqueteTest(TestCase):
+    """Reportado por el propietario: tras 'Elige un paquete', el paso de
+    extras volvía a mostrar el catálogo completo como si nada se hubiera
+    contratado — el cliente podía marcar y pagar de nuevo lo que el paquete
+    ya trae. `?paquete_id=N` excluye los `ProductoComponente` de ese paquete."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _crear(self, nombre, grupo, **extra):
+        return Producto.objects.create(
+            nombre=nombre, precio_venta_fijo=Decimal('100.00'),
+            visible_cotizador=True, cotizador_evento=True,
+            grupo_cotizador=grupo, **extra,
+        )
+
+    def test_sin_paquete_id_se_ve_el_catalogo_completo(self):
+        silla = self._crear('Silla Tiffany', 'MOBILIARIO')
+        paquete = _crear_paquete()
+        ProductoComponente.objects.create(producto_padre=paquete, producto_hijo=silla, cantidad=Decimal('10'))
+
+        datos = self.client.get(reverse('api_productos_cotizador'), {'servicio': 'EVENTO'}).json()
+        ids = {p['id'] for g in datos['grupos'] for p in g['productos']}
+        self.assertIn(silla.id, ids)
+
+    def test_con_paquete_id_no_repite_lo_ya_incluido(self):
+        silla = self._crear('Silla Tiffany', 'MOBILIARIO')
+        mesa = self._crear('Mesa redonda', 'MOBILIARIO')
+        extra_real = self._crear('Fuente de chocolate', 'EXTRAS')
+        paquete = _crear_paquete()
+        ProductoComponente.objects.create(producto_padre=paquete, producto_hijo=silla, cantidad=Decimal('10'))
+        ProductoComponente.objects.create(producto_padre=paquete, producto_hijo=mesa, cantidad=Decimal('1'))
+
+        datos = self.client.get(reverse('api_productos_cotizador'), {
+            'servicio': 'EVENTO', 'paquete_id': str(paquete.id),
+        }).json()
+        ids = {p['id'] for g in datos['grupos'] for p in g['productos']}
+        self.assertNotIn(silla.id, ids)
+        self.assertNotIn(mesa.id, ids)
+        self.assertIn(extra_real.id, ids)
+
+    def test_una_categoria_totalmente_incluida_desaparece_del_todo(self):
+        # SERVICIOS a propósito, no MOBILIARIO: la migración 0043 siembra
+        # mobiliario real ('Mobiliario Tiffany'/etc.) que seguiría apareciendo
+        # aunque se excluya el de este test, invalidando la aserción.
+        mesero = self._crear('Mesero de barra', 'SERVICIOS')
+        paquete = _crear_paquete()
+        ProductoComponente.objects.create(producto_padre=paquete, producto_hijo=mesero, cantidad=Decimal('1'))
+
+        datos = self.client.get(reverse('api_productos_cotizador'), {
+            'servicio': 'EVENTO', 'paquete_id': str(paquete.id),
+        }).json()
+        claves = [g['clave'] for g in datos['grupos']]
+        self.assertNotIn('SERVICIOS', claves)
+
+    def test_paquete_id_no_numerico_se_ignora_sin_reventar(self):
+        self._crear('Silla Tiffany', 'MOBILIARIO')
+        respuesta = self.client.get(reverse('api_productos_cotizador'), {
+            'servicio': 'EVENTO', 'paquete_id': 'no-es-un-id',
+        })
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(respuesta.json()['ok'])

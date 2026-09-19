@@ -1217,13 +1217,15 @@ function cargarExtrasPersonalizado() {
   cargarExtras(servicioSel, 'extras-dinamicos');
 }
 
-async function cargarExtras(servicio, targetId) {
+async function cargarExtras(servicio, targetId, paqueteId) {
   var container = document.getElementById(targetId);
   selectedExtras.clear();
   extrasInfo = {};
   container.innerHTML = '';
   try {
-    var resp = await fetch('/api/cotizador/productos/?servicio=' + encodeURIComponent(servicio));
+    var url = '/api/cotizador/productos/?servicio=' + encodeURIComponent(servicio);
+    if (paqueteId) url += '&paquete_id=' + encodeURIComponent(paqueteId);
+    var resp = await fetch(url);
     var data = await resp.json();
     if (data.ok && data.grupos.length) renderizarExtras(data.grupos, targetId);
     if (servicio === 'PASADIA') {
@@ -1432,7 +1434,10 @@ function obtenerNotas() {
 
 function prepararPaso4() {
   if (caminoSel === 'paquete') {
-    cargarExtras(servicioSel, 'extras-dinamicos-p4');
+    // Solo lo que el paquete NO trae incluido (ProductoComponente) — mostrar
+    // el catálogo completo otra vez dejaba marcar y pagar dos veces lo que
+    // ya está contratado.
+    cargarExtras(servicioSel, 'extras-dinamicos-p4', paqueteEventoSel);
     document.getElementById('sub-extras').innerHTML = '¿Necesitas algo más además del paquete? <span style="color:var(--verde);font-weight:500;">Todo es opcional.</span>';
   } else {
     document.getElementById('extras-dinamicos-p4').innerHTML = '';

@@ -605,8 +605,15 @@ def api_fechas_ocupadas(request):
 
 @rate_limit(key='api_productos_cotizador', limit=60, window=60)
 def api_productos_cotizador(request):
-    """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|HOSPEDAJE
-    Devuelve los productos visibles en el cotizador, agrupados por grupo_cotizador."""
+    """GET /api/cotizador/productos/?servicio=EVENTO|PASADIA|HOSPEDAJE[&paquete_id=N]
+    Devuelve los productos visibles en el cotizador, agrupados por grupo_cotizador.
+
+    `paquete_id` (opcional, solo aplica a Evento con paquete elegido): excluye
+    del catálogo los productos que ese `Producto(es_paquete=True)` ya trae
+    incluidos vía `ProductoComponente` — sin esto, el paso de extras tras
+    elegir un paquete repetía el catálogo completo (mobiliario, alimentos,
+    bebidas, servicios) como si nada se hubiera contratado todavía, dejando
+    que el cliente marcara y pagara dos veces lo que el paquete ya cubre."""
     servicio = (request.GET.get('servicio') or '').upper()
 
     filtro = {'visible_cotizador': True}
@@ -626,6 +633,10 @@ def api_productos_cotizador(request):
     productos = (Producto.objects.filter(**filtro, rol_cotizador='')
                  .exclude(es_paquete=True)
                  .order_by('grupo_cotizador', 'orden_cotizador', 'nombre'))
+
+    paquete_id = request.GET.get('paquete_id')
+    if paquete_id and str(paquete_id).isdigit():
+        productos = productos.exclude(incluido_en_paquetes__producto_padre_id=int(paquete_id))
 
     NOMBRES_GRUPO = dict(Producto.GRUPO_COTIZADOR_CHOICES)
     ICONOS_GRUPO = {
