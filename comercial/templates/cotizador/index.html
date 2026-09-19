@@ -381,63 +381,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
     <div class="panel-condicional campo-fila" id="blq-horario">
       <div class="campo">
         <label for="hora_inicio">Hora de inicio</label>
-        <select id="hora_inicio" onchange="actualizarAvisoHorario()">
-          <option value="" selected disabled>Selecciona una hora</option>
-          <option value="00:00">12:00 a.m.</option>
-          <option value="01:00">1:00 a.m.</option>
-          <option value="02:00">2:00 a.m.</option>
-          <option value="03:00">3:00 a.m.</option>
-          <option value="04:00">4:00 a.m.</option>
-          <option value="05:00">5:00 a.m.</option>
-          <option value="06:00">6:00 a.m.</option>
-          <option value="07:00">7:00 a.m.</option>
-          <option value="08:00">8:00 a.m.</option>
-          <option value="09:00">9:00 a.m.</option>
-          <option value="10:00">10:00 a.m.</option>
-          <option value="11:00">11:00 a.m.</option>
-          <option value="12:00">12:00 p.m.</option>
-          <option value="13:00">1:00 p.m.</option>
-          <option value="14:00">2:00 p.m.</option>
-          <option value="15:00">3:00 p.m.</option>
-          <option value="16:00">4:00 p.m.</option>
-          <option value="17:00">5:00 p.m.</option>
-          <option value="18:00">6:00 p.m.</option>
-          <option value="19:00">7:00 p.m.</option>
-          <option value="20:00">8:00 p.m.</option>
-          <option value="21:00">9:00 p.m.</option>
-          <option value="22:00">10:00 p.m.</option>
-          <option value="23:00">11:00 p.m.</option>
-        </select>
+        <input type="time" id="hora_inicio" step="3600" onchange="actualizarAvisoHorario()">
       </div>
       <div class="campo">
         <label for="hora_fin">Hora de fin</label>
-        <select id="hora_fin" onchange="actualizarAvisoHorario()">
-          <option value="" selected disabled>Selecciona una hora</option>
-          <option value="00:00">12:00 a.m.</option>
-          <option value="01:00">1:00 a.m.</option>
-          <option value="02:00">2:00 a.m.</option>
-          <option value="03:00">3:00 a.m.</option>
-          <option value="04:00">4:00 a.m.</option>
-          <option value="05:00">5:00 a.m.</option>
-          <option value="06:00">6:00 a.m.</option>
-          <option value="07:00">7:00 a.m.</option>
-          <option value="08:00">8:00 a.m.</option>
-          <option value="09:00">9:00 a.m.</option>
-          <option value="10:00">10:00 a.m.</option>
-          <option value="11:00">11:00 a.m.</option>
-          <option value="12:00">12:00 p.m.</option>
-          <option value="13:00">1:00 p.m.</option>
-          <option value="14:00">2:00 p.m.</option>
-          <option value="15:00">3:00 p.m.</option>
-          <option value="16:00">4:00 p.m.</option>
-          <option value="17:00">5:00 p.m.</option>
-          <option value="18:00">6:00 p.m.</option>
-          <option value="19:00">7:00 p.m.</option>
-          <option value="20:00">8:00 p.m.</option>
-          <option value="21:00">9:00 p.m.</option>
-          <option value="22:00">10:00 p.m.</option>
-          <option value="23:00">11:00 p.m.</option>
-        </select>
+        <input type="time" id="hora_fin" step="3600" onchange="actualizarAvisoHorario()">
       </div>
     </div>
     <div class="campo-error" id="err-horario" style="display:none;">

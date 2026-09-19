@@ -25,6 +25,7 @@ from comercial.models import (
     Pago,
     ParcialidadPago,
     PlanPago,
+    Producto,
 )
 from comercial.services import PlanPagosService
 from core_erp.test_utils import login_superuser_con_totp
@@ -120,6 +121,44 @@ class CotizacionTotalesTest(TestCase):
         # Base = 10000 - 2000 = 8000, IVA = 1280
         self.assertEqual(cot.iva, Decimal('1280.00'))
         self.assertEqual(cot.precio_final, Decimal('9280.00'))
+
+
+class LicoresNoExcluyentesTest(TestCase):
+    """Licores Nacionales y Premium ya NO son mutuamente excluyentes (pedido
+    del propietario: el negocio sí permite cotizar ambos a la vez, costeo
+    ponderado entre los dos) — antes `Cotizacion.clean()` rechazaba tenerlos
+    juntos en la misma cotización."""
+
+    def setUp(self):
+        self.cliente = Cliente.objects.create(nombre='Cliente Test', tipo_persona='FISICA')
+
+    def test_ambos_licores_en_la_misma_cotizacion_no_revienta_clean(self):
+        # `clean()` directo, no `full_clean()`: aísla la regla de negocio que
+        # se está probando de la validación genérica de todos los campos
+        # (que no es parte de lo que este test verifica).
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Test',
+            fecha_evento=date.today() + timedelta(days=90), num_personas=100,
+        )
+        nacional = Producto.objects.create(nombre='Licores Nacionales', precio_venta_fijo=Decimal('400.00'))
+        premium = Producto.objects.create(nombre='Licores Premium', precio_venta_fijo=Decimal('700.00'))
+        ItemCotizacion.objects.create(cotizacion=cot, producto=nacional, cantidad=1, precio_unitario=nacional.precio_venta_fijo)
+        ItemCotizacion.objects.create(cotizacion=cot, producto=premium, cantidad=1, precio_unitario=premium.precio_venta_fijo)
+        cot.clean()  # no lanza
+
+    def test_requiere_licor_sigue_exigiendo_al_menos_uno(self):
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Test',
+            fecha_evento=date.today() + timedelta(days=90), num_personas=100,
+        )
+        cocteleria = Producto.objects.create(
+            nombre='Coctelería De Autor Y Clásicos Por 3 Horas',
+            precio_venta_fijo=Decimal('3000.00'), requiere_licor=True,
+        )
+        ItemCotizacion.objects.create(cotizacion=cot, producto=cocteleria, cantidad=1,
+                                       precio_unitario=cocteleria.precio_venta_fijo)
+        with self.assertRaises(ValidationError):
+            cot.clean()
 
 
 class PagoValidacionTest(TestCase):

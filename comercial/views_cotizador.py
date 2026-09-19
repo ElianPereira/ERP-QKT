@@ -635,6 +635,11 @@ def api_productos_cotizador(request):
         # recategorizar todavía debe seguir mostrando un ícono razonable.
         'ENTRETENIMIENTO': '🎵', 'COMIDA': '🍽️', 'DECORACION': '💐', 'INFANTIL': '🎪',
     }
+    # Orden de negocio en que se despliegan las categorías (pedido explícito
+    # del propietario, no el orden alfabético del campo). Las obsoletas (ver
+    # GRUPO_COTIZADOR_CHOICES) no están en la lista y van al final, mientras
+    # el propietario las recategoriza.
+    ORDEN_GRUPOS = ['MOBILIARIO', 'ALIMENTOS', 'BEBIDAS', 'SERVICIOS', 'EXTRAS', 'OTRO']
 
     grupos_dict = {}
     for p in productos:
@@ -651,7 +656,11 @@ def api_productos_cotizador(request):
             'nombre': p.nombre,
             'icono': p.icono,
             'descripcion': p.descripcion_corta,
-            'grupo_exclusion': p.grupo_exclusion or ('LICORES' if p.nombre in ('Licores Nacionales', 'Licores Premium') else ''),
+            # Grupo de exclusión mutua: solo el que el propio producto declara
+            # en el admin. "Licores Nacionales"/"Licores Premium" ya NO se
+            # fuerzan como excluyentes entre sí — el negocio sí permite
+            # cotizar ambos a la vez (costeo ponderado entre los dos).
+            'grupo_exclusion': p.grupo_exclusion,
             'cantidad_por_persona': p.cantidad_por_persona,
             'factor_personas': p.factor_personas,
             'requiere_licor': p.requiere_licor,
@@ -660,7 +669,11 @@ def api_productos_cotizador(request):
             'es_base_refrescos': p.nombre in ('Refrescos y Mezcladores',),
         })
 
-    respuesta = {'ok': True, 'grupos': list(grupos_dict.values())}
+    grupos_ordenados = sorted(
+        grupos_dict.values(),
+        key=lambda g: ORDEN_GRUPOS.index(g['clave']) if g['clave'] in ORDEN_GRUPOS else len(ORDEN_GRUPOS),
+    )
+    respuesta = {'ok': True, 'grupos': grupos_ordenados}
 
     # El frontend necesita el importe real del recargo por aforo ampliado
     # ANTES de enviar (mismo criterio que api_habitaciones_cotizador con

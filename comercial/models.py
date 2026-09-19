@@ -896,7 +896,9 @@ class Cotizacion(models.Model):
             except Exception:
                 pass
 
-        # Validate mutually exclusive barra upgrades and licor requirement
+        # Validate licor requirement — Nacionales y Premium ya NO son mutuamente
+        # excluyentes (pedido del propietario: el negocio sí permite cotizar
+        # ambos a la vez, costeo ponderado entre los dos).
         if self.pk:
             items_prod = list(
                 self.items
@@ -905,12 +907,6 @@ class Cotizacion(models.Model):
             )
             nombres = {it.producto.nombre for it in items_prod}
             requiere_licor = any(getattr(it.producto, 'requiere_licor', False) for it in items_prod)
-
-            if 'Licores Nacionales' in nombres and 'Licores Premium' in nombres:
-                raise ValidationError(
-                    '"Licores Nacionales" y "Licores Premium" son mutuamente excluyentes '
-                    'y no pueden coexistir en la misma cotización.'
-                )
 
             if requiere_licor and not (nombres & {'Licores Nacionales', 'Licores Premium'}):
                 raise ValidationError(
