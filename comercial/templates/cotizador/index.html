@@ -407,9 +407,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
         <input type="hidden" id="hora_fin">
       </div>
     </div>
-    <div class="campo-error" id="err-horario" style="display:none;">
-      El evento puede durar hasta 9 horas (6 incluidas + 3 de hora extra como máximo). Ajusta el horario.
-    </div>
+    <div class="campo-error" id="err-horario" style="display:none;"></div>
     <div class="aforo-tope" id="aviso-horario-extra"></div>
 
     <div class="campo panel-condicional" id="blq-noches">
@@ -1453,20 +1451,30 @@ function validarPaso(paso) {
     if (!document.getElementById('fecha').value) {
       mostrarErr('err-fecha','fecha'); return false;
     }
-    if (servicioSel === 'EVENTO' && document.getElementById('hora_inicio').value
-        && document.getElementById('hora_fin').value) {
-      var a = document.getElementById('hora_inicio').value.split(':');
-      var b = document.getElementById('hora_fin').value.split(':');
+    if (servicioSel === 'EVENTO') {
+      var errHorario = document.getElementById('err-horario');
+      var hi = document.getElementById('hora_inicio').value;
+      var hf = document.getElementById('hora_fin').value;
+      if (!hi || !hf) {
+        errHorario.textContent = 'Selecciona la hora de inicio y la hora de fin del evento.';
+        errHorario.style.display = 'block';
+        return false;
+      }
+      var a = hi.split(':');
+      var b = hf.split(':');
       var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
       var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
       if (fin <= ini) fin += 24 * 60;
       var horas = Math.floor((fin - ini) / 60);
       if (horas > HORAS_MAX_EVENTO) {
-        document.getElementById('err-horario').style.display = 'block';
+        errHorario.textContent = 'El evento puede durar hasta ' + HORAS_MAX_EVENTO + ' horas ('
+          + HORAS_BASE_EVENTO + ' incluidas + ' + (HORAS_MAX_EVENTO - HORAS_BASE_EVENTO)
+          + ' de hora extra como máximo). Ajusta el horario.';
+        errHorario.style.display = 'block';
         return false;
       }
+      errHorario.style.display = 'none';
     }
-    document.getElementById('err-horario').style.display = 'none';
   }
   if (paso === 3) {
     if (servicioSel === 'EVENTO') return validarPaso3Evento();
@@ -1648,6 +1656,11 @@ function combinarHora(prefijo) {
   var h24 = parseInt(h, 10) % 12;
   if (ampm === 'pm') h24 += 12;
   oculto.value = String(h24).padStart(2, '0') + ':00';
+  // Limpia el error de "falta seleccionar hora"/"excede el máximo" en cuanto
+  // el cliente vuelve a tocar el selector — validarPaso(2) lo revalida en serio
+  // al intentar avanzar, esto es solo feedback inmediato.
+  var errHorario = document.getElementById('err-horario');
+  if (errHorario) errHorario.style.display = 'none';
   actualizarAvisoHorario();
 }
 
