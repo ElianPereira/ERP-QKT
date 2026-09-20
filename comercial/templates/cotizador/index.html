@@ -942,7 +942,16 @@ function selCaminoEvento(val) {
 }
 
 function actualizarCaminoEvento() {
-  if (servicioSel !== 'EVENTO') return;
+  if (servicioSel !== 'EVENTO') {
+    // Mismo criterio que actualizarAvisoPersonaExtraPasadia()/
+    // actualizarAvisoPersonasExtra(): el aviso de aforo de Evento vive en
+    // blq-personas, compartido por las 4 líneas de negocio — si no se oculta
+    // aquí, se queda pegado al cambiar de servicio (reportado: Evento a 150
+    // personas → cambiar a Pasadía seguía mostrando "150 personas es
+    // nuestro aforo máximo").
+    document.getElementById('aviso-aforo-evento').style.display = 'none';
+    return;
+  }
   var desc = document.getElementById('camino-evento-desc');
   var n = parseInt((document.getElementById('personas') || {}).value || '50', 10);
   var cotizado = aforoCotizable();
