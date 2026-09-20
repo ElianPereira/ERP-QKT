@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import Cliente, Cotizacion, Producto, ProductoComponente
-from comercial.reglas_eventos import MAX_PERSONAS_EVENTO
+from comercial.reglas_eventos import MAX_PERSONAS_EVENTO, MIN_PERSONAS_PERSONALIZADO_EVENTO
 from comercial.views_cotizador import _agregar_item, _lineas_cotizador
 from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
 
@@ -98,10 +98,13 @@ class RedondeoAforoTest(TestCase):
         self.assertEqual(cotizacion.num_personas, 60)
 
     def test_un_aforo_menor_a_veinte_sube_al_minimo(self):
-        _crear_paquete()
+        # Vía "Elige un paquete" (con paquete_id): el piso de
+        # MIN_PERSONAS_PERSONALIZADO_EVENTO solo aplica al camino
+        # personalizado, no a esta rama.
+        paquete = _crear_paquete()
         self.client.post(
             reverse('cotizador_enviar'),
-            data=json.dumps(_payload(personas='5')),
+            data=json.dumps(_payload(personas='5', paquete_id=paquete.id)),
             content_type='application/json',
         )
         cotizacion = Cotizacion.objects.latest('id')
@@ -257,6 +260,46 @@ class EnvioPaqueteEventoTest(TestCase):
         cotizacion = Cotizacion.objects.latest('id')
         nombres = {item.producto.nombre for item in cotizacion.items.all()}
         self.assertEqual(nombres, {base.nombre, extra.nombre})
+
+
+class MinimoPersonalizadoEventoTest(TestCase):
+    """"Arma tu propio evento" (sin paquete_id) exige
+    MIN_PERSONAS_PERSONALIZADO_EVENTO personas — pedido del propietario:
+    con un evento chico, solo se ofrece un paquete de precio fijo."""
+
+    def setUp(self):
+        limpiar_cache_emisor()
+        cache.clear()
+
+    def _enviar(self, **extra):
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()), \
+             patch('comunicacion.services.numero_emisor_wa', return_value='5215555550003'):
+            return self.client.post(
+                reverse('cotizador_enviar'),
+                data=json.dumps(_payload(**extra)),
+                content_type='application/json',
+            )
+
+    def test_personalizado_con_menos_del_minimo_se_rechaza(self):
+        respuesta = self._enviar(personas='30')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertFalse(Cotizacion.objects.exists())
+
+    def test_personalizado_justo_en_el_minimo_se_acepta(self):
+        Producto.objects.create(
+            nombre='Paquete Esencial QKT', precio_venta_fijo=Decimal('4000.00'),
+            visible_cotizador=True, cotizador_evento=True, rol_cotizador='BASE_EVENTO',
+        )
+        respuesta = self._enviar(personas=str(MIN_PERSONAS_PERSONALIZADO_EVENTO))
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(Cotizacion.objects.exists())
+
+    def test_un_paquete_elegido_no_exige_el_minimo(self):
+        # El piso solo aplica al catálogo abierto: con paquete_id, cualquier
+        # número de personas dentro del aforo normal sigue funcionando.
+        paquete = _crear_paquete()
+        respuesta = self._enviar(personas='30', paquete_id=paquete.id)
+        self.assertEqual(respuesta.status_code, 200)
 
 
 class CosteoPorBloqueDeDiezTest(TestCase):
