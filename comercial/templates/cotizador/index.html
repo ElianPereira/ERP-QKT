@@ -787,10 +787,15 @@ function actualizarPanelSegunServicio() {
   // hubiera movido nada.
   var v = parseInt(slider.value);
   if (esEvento) {
-    // Tope duro MAX_PERSONAS_EVENTO, paso de 1: el redondeo real al tramo de
-    // 10 lo resuelve aforoCotizable() (y el servidor), no el slider.
-    slider.min = 1; slider.max = MAX_PERSONAS_EVENTO; slider.step = 1;
-    slider.value = Math.min(v < 1 ? 20 : v, MAX_PERSONAS_EVENTO);
+    // Paso de 10 (10, 20, 30... hasta MAX_PERSONAS_EVENTO): los paquetes
+    // ahora se diseñan "por cada 10 personas" (Producto.cantidad_por_persona
+    // + factor_personas=10) y su precio escala con ese mismo múltiplo — el
+    // control ya no debe ofrecer un valor intermedio que el negocio no
+    // cotiza de forma exacta. Un valor heredado de otro servicio (Pasadía/
+    // Hospedaje, que no van en múltiplos de 10) se redondea al más cercano.
+    slider.min = 10; slider.max = MAX_PERSONAS_EVENTO; slider.step = 10;
+    var vRedondeado = v < 1 ? 20 : Math.round(v / 10) * 10;
+    slider.value = Math.min(Math.max(vRedondeado, 10), MAX_PERSONAS_EVENTO);
   } else if (esPasadia) {
     // Aforo base 20 (incluido en tarifa), aforo ampliado 21-30 con cargo
     // extra por persona (incluye mobiliario) — Reglamento Interno v1.2.
@@ -963,7 +968,15 @@ async function cargarPaquetesEvento() {
   grid.innerHTML = '<div class="paq-empty">Cargando paquetes...</div>';
   document.getElementById('err-paquete-evento').style.display = 'none';
   try {
-    var r = await fetch('/api/cotizador/paquetes-evento/');
+    // `personas` decide el TOTAL de cada paquete (server-side, ver
+    // api_paquetes_evento): un paquete diseñado "por cada 10 personas"
+    // escala con el aforo, así que hay que recargar el grid cada vez que se
+    // entra a este paso con un aforo distinto — configurarPaso3() ya llama
+    // a esta función en cada entrada a "paso 3" (irA), así que basta con
+    // leer el valor actual del slider aquí.
+    var personasEl = document.getElementById('personas');
+    var personasQs = (personasEl && personasEl.value) || '50';
+    var r = await fetch('/api/cotizador/paquetes-evento/?personas=' + encodeURIComponent(personasQs));
     var d = await r.json();
     if (!d.ok) throw new Error('sin paquetes');
     paquetesEvento = d.paquetes || [];
