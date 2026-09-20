@@ -235,6 +235,61 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-19 — Cotizador de Evento, ronda de pulido tras el rediseño del
+  Issue #287 (PRs #292/#293/#294, los tres pedidos directos del propietario
+  probando el flujo real, sin Issue previo). **(1)** Orden de categorías en
+  "Arma tu propio evento": `api_productos_cotizador` ordenaba por
+  `grupo_cotizador` alfabético; ahora sigue el orden de negocio fijo
+  (Mobiliario, Alimentos, Bebidas, Servicios, Extras, Otros —
+  `ORDEN_GRUPOS` en `views_cotizador.py`), con las categorías obsoletas sin
+  recategorizar al final. **(2)** Licores Nacionales/Premium dejaban de
+  poderse seleccionar juntos: la API forzaba `grupo_exclusion='LICORES'`
+  por nombre y `Cotizacion.clean()` tenía el mismo candado duplicado —
+  el negocio sí permite cotizar ambos a la vez (costeo ponderado), así que
+  se quitaron los dos; el `grupo_exclusion` real que cada producto declara
+  en el admin se sigue respetando igual. **(3)** Selector de hora de
+  inicio/fin de Evento, dos vueltas: primero pasó de un `<select>` de 24
+  `<option>` (ocupaba toda la pantalla al abrir) a `<input type="time"
+  step="3600">`; el propietario probándolo notó que el picker nativo
+  **sigue mostrando minutos** aunque `step` los restrinja — se reemplazó
+  por dos `<select>` compactos (hora 1-12 + a.m./p.m.) que combinan su
+  valor en un input oculto con el mismo formato `"HH:MM"` 24h que ya leen
+  `horasEvento()`/`validarPaso(2)`/el payload de envío
+  (`combinarHora()`/`poblarSelectoresHora()` en `cotizador/index.html`) —
+  cero cambios en esa lógica downstream. **(4)** Bug real encontrado por el
+  propietario en la misma prueba: con los selects de hora vacíos, el paso 2
+  dejaba avanzar igual hasta "Elige un paquete" —
+  `validarPaso(2)` solo comprobaba el tope de `HORAS_MAX_EVENTO` cuando
+  **ambos** campos ya tenían valor, nunca que existieran. Corregido para
+  exigir los dos antes de dejar seguir, con mensaje propio; el mensaje de
+  tope de horas se generó dinámico con las constantes en vez de texto fijo
+  en el HTML. El aviso informativo no bloqueante de horas extra
+  (`aviso-horario-extra`) no se tocó. **(5)** Extras repetía el catálogo
+  completo tras "Elige un paquete": paso 4 llamaba a
+  `api_productos_cotizador` sin decirle qué paquete se había elegido, así
+  que mostraba mobiliario/alimentos/bebidas/servicios como si nada
+  estuviera contratado — el cliente podía marcar y pagar dos veces lo que
+  el paquete ya trae. Cada paquete (`Producto(es_paquete=True)`) ya tiene
+  sus componentes reales en `ProductoComponente`
+  (`producto_padre`/`producto_hijo`, capturados en el admin bajo
+  "Productos Incluidos"), así que `api_productos_cotizador` ganó un
+  `paquete_id` opcional que excluye del catálogo los productos que ese
+  paquete ya incluye (`Producto.incluido_en_paquetes`); una categoría que
+  el paquete cubre por completo desaparece sola del listado, sin lógica
+  extra en el frontend. El branch de rama (`claude/nifty-euler-fcdk72`) se
+  reinició contra `origin/main` después de cada merge (mismo patrón ya
+  documentado en la entrada del 2026-08-14 sobre reuso de ramas
+  ya-mergeadas) — el clasificador de auto mode bloqueó dos veces un
+  `send_later` que mencionaba "mergéalo" en el texto (mismo patrón ya
+  documentado en la entrada del 2026-09-09 sobre el `git push` de este
+  archivo); la salida fue reformular el texto del recordatorio sin la
+  palabra, no forzar el permiso. **Aparte, sin cambio de código**: el
+  propietario preguntó por qué una cotización con "Cerveza Nacional"
+  mostraba también "Refrescos Y Mezcladores" como `Incluido` en el PDF —
+  no es un bug, es la receta real del producto (`Producto.componentes` vía
+  `ComponenteProducto`/`SubProducto`, capturada en
+  `Admin → Productos → Cerveza Nacional → Componentes`); el propietario
+  confirmó que esa receta está correcta tal como está.
 - 2026-09-18 — Excepción explícita a "no hagas commit/push sin que se pida"
   (`## Reglas de respuesta`): checkpoints automáticos de tareas atómicas
   dentro de una sesión larga, pedido directo del propietario tras revisar
