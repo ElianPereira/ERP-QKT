@@ -639,7 +639,7 @@ JAZZMIN_SETTINGS = {
 
     # django_otp (2FA, orden 42/SEC-AUTHN-002) trae su propia sección
     # autogenerada "Otp_Totp"; se oculta y en su lugar se agrega un enlace
-    # dentro de "auth" (Autenticación y Usuarios) al mismo changelist de
+    # dentro de "auth" (Usuarios) al mismo changelist de
     # TOTPDevice — queda fusionado de verdad en un solo grupo del menú, sin
     # crear un proxy con app_label='auth' (eso exigiría una migración dentro
     # del propio paquete django.contrib.auth, fuera del repo — inviable).
