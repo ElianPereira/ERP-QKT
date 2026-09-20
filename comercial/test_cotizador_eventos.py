@@ -302,6 +302,99 @@ class MinimoPersonalizadoEventoTest(TestCase):
         self.assertEqual(respuesta.status_code, 200)
 
 
+class PaqueteEscalaPorPersonasTest(TestCase):
+    """Un paquete con `cantidad_por_persona`/`factor_personas` (diseñado "por
+    cada N personas" en el admin, pedido del propietario) multiplica su
+    cantidad igual que ya hacían los extras del catálogo abierto — antes un
+    paquete se vendía con cantidad=1 siempre, precio fijo sin importar el
+    aforo real de la cotización."""
+
+    def setUp(self):
+        limpiar_cache_emisor()
+        cache.clear()
+
+    def _paquete_por_diez(self, **extra):
+        campos = dict(
+            nombre='Paquete Fiesta QKT', precio_venta_fijo=Decimal('1000.00'),
+            visible_cotizador=True, cotizador_evento=True, es_paquete=True,
+            cantidad_por_persona=True, factor_personas=10,
+        )
+        campos.update(extra)
+        return Producto.objects.create(**campos)
+
+    def _enviar(self, **extra):
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()), \
+             patch('comunicacion.services.numero_emisor_wa', return_value='5215555550003'):
+            return self.client.post(
+                reverse('cotizador_enviar'),
+                data=json.dumps(_payload(**extra)),
+                content_type='application/json',
+            )
+
+    def test_lineas_cotizador_multiplica_por_bloques_de_diez(self):
+        paquete = self._paquete_por_diez()
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[],
+            num_personas=120, horas_evento=6,
+        )
+        self.assertEqual(len(lineas), 1)
+        _, cantidad, _ = lineas[0]
+        self.assertEqual(cantidad, 12)
+
+    def test_una_fraccion_sobrante_redondea_hacia_arriba(self):
+        paquete = self._paquete_por_diez()
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[],
+            num_personas=111, horas_evento=6,
+        )
+        _, cantidad, _ = lineas[0]
+        self.assertEqual(cantidad, 12)
+
+    def test_un_paquete_sin_el_flag_sigue_en_cantidad_uno(self):
+        # Retrocompatibilidad explícita: un paquete de precio fijo real (el
+        # default, cantidad_por_persona=False) no cambia de comportamiento.
+        paquete = _crear_paquete()
+        lineas = _lineas_cotizador(
+            servicio='EVENTO', paquete_id=paquete.id, extras_ids=[],
+            num_personas=120, horas_evento=6,
+        )
+        _, cantidad, _ = lineas[0]
+        self.assertEqual(cantidad, 1)
+
+    def test_api_paquetes_evento_expone_el_total_no_el_unitario(self):
+        self._paquete_por_diez()
+        # 1000.00 base × 12 bloques = 12000.00 → con IVA: 13920.00 — nunca
+        # con_iva(1000.00) × 12 (348.18 vs 348.17 en el caso de tres líneas
+        # de 100.05 que documenta impuestos.total_desde_bases).
+        datos = self.client.get(
+            reverse('api_paquetes_evento'), {'personas': '120'},
+        ).json()
+        self.assertEqual(datos['paquetes'][0]['precio'], '13920.00')
+
+    def test_api_paquetes_evento_sin_personas_usa_default_seguro(self):
+        # Sin query param no debe reventar: cae al mismo default (50) que
+        # ya usan api_total_cotizador/aforoCotizable.
+        self._paquete_por_diez()
+        datos = self.client.get(reverse('api_paquetes_evento')).json()
+        # ceil(50/10) = 5 bloques → 5000.00 base → 5800.00 con IVA
+        self.assertEqual(datos['paquetes'][0]['precio'], '5800.00')
+
+    def test_envio_real_cobra_el_total_escalado_no_el_precio_de_lista(self):
+        paquete = self._paquete_por_diez()
+        respuesta = self._enviar(personas='120', paquete_id=paquete.id)
+        self.assertEqual(respuesta.status_code, 200)
+
+        cotizacion = Cotizacion.objects.latest('id')
+        item = cotizacion.items.get(producto=paquete)
+        self.assertEqual(item.cantidad, 12)
+        # El total exhibido antes de enviar tiene que ser exactamente el
+        # mismo que termina cobrado (art. 7 BIS LFPC) — no solo la cantidad.
+        exhibido = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'EVENTO', 'personas': '120', 'paquete': paquete.id,
+        }).json()
+        self.assertEqual(Decimal(exhibido['total']), cotizacion.precio_final)
+
+
 class CosteoPorBloqueDeDiezTest(TestCase):
     """`cantidad_por_persona` + `factor_personas=10`: costeo por bloque de 10,
     no por persona — mecanismo del catálogo abierto, compartido con

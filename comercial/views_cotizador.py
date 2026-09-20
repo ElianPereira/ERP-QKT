@@ -754,7 +754,17 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     # Un paquete prediseñado ya lo lleva dentro, así que ahí no se agrega
     # aparte (se cobraría dos veces).
     if paquete:
-        lineas.append((paquete, 1,
+        # Los paquetes se diseñan "por cada N personas" (mismo mecanismo que
+        # ya usan los extras del catálogo abierto: `cantidad_por_persona` +
+        # `factor_personas`, ej. 10) — sin esto el precio quedaba fijo sin
+        # importar cuántas personas se cotizaran, y un paquete armado para un
+        # aforo chico se vendía igual para 150 (pedido del propietario tras
+        # detectar el riesgo real: costo real de comida/mobiliario/personal
+        # muy por encima del precio cobrado en un evento grande).
+        qty_paquete = 1
+        if paquete.cantidad_por_persona and paquete.factor_personas > 0:
+            qty_paquete = math.ceil(num_personas / paquete.factor_personas)
+        lineas.append((paquete, qty_paquete,
                        f"{paquete.nombre} ({num_personas} Pax, {horas_evento}hrs)"))
 
     elif servicio == 'EVENTO':
@@ -973,24 +983,48 @@ def _imagen_zonas_restringidas():
 
 @rate_limit(key='api_paquetes_evento', limit=60, window=60)
 def api_paquetes_evento(request):
-    """GET /api/cotizador/paquetes-evento/
+    """GET /api/cotizador/paquetes-evento/?personas=N
     Paquetes cerrados de Evento (`Producto(es_paquete=True)`, visibles y
-    marcados `cotizador_evento`), precio fijo con IVA incluido — mismo
-    criterio que `api_habitaciones_cotizador`. El "qué incluye" de cada
-    paquete es su `descripcion`, capturada en el admin junto al paquete."""
+    marcados `cotizador_evento`), precio con IVA incluido — mismo criterio
+    que `api_habitaciones_cotizador`. El "qué incluye" de cada paquete es su
+    `descripcion`, capturada en el admin junto al paquete.
+
+    `precio` es el TOTAL para `personas` (unitario × cantidad), no el precio
+    unitario crudo: un paquete con `cantidad_por_persona`/`factor_personas`
+    activos (diseñado "por cada N personas", mismo mecanismo que ya usan los
+    extras del catálogo abierto) escala con el aforo — mostrar el unitario
+    solo sería un precio que el cliente nunca paga, justo lo que prohíbe el
+    art. 7 BIS de la LFPC. Un paquete sin ese flag (precio fijo de verdad)
+    devuelve su `precio_venta_fijo` tal cual, sin cambio de comportamiento."""
+    try:
+        num_personas = max(1, min(int(request.GET.get('personas', 50)), MAX_PERSONAS_EVENTO))
+    except (TypeError, ValueError):
+        num_personas = 50
+
     paquetes = Producto.objects.filter(
         es_paquete=True, visible_cotizador=True, cotizador_evento=True,
     ).order_by('orden_cotizador', 'nombre')
 
-    resultado = [{
-        'id': p.id,
-        'nombre': p.nombre,
-        'icono': p.icono,
-        'descripcion': p.descripcion_corta,
-        'incluye': p.descripcion,
-        'precio': str(impuestos.con_iva(Decimal(str(p.sugerencia_precio())))),
-        'imagen_url': p.imagen_promocional.url if p.imagen_promocional else None,
-    } for p in paquetes]
+    resultado = []
+    for p in paquetes:
+        qty = 1
+        if p.cantidad_por_persona and p.factor_personas > 0:
+            qty = math.ceil(num_personas / p.factor_personas)
+        # Una sola conversión de IVA sobre la base × cantidad, nunca
+        # con_iva(unitario) × cantidad — mismo criterio de `total_desde_bases`,
+        # para que este precio de vitrina coincida centavo a centavo con el
+        # que arma `api_total_cotizador` si el cliente elige justo este
+        # paquete solo.
+        base_total = Decimal(str(p.sugerencia_precio())) * qty
+        resultado.append({
+            'id': p.id,
+            'nombre': p.nombre,
+            'icono': p.icono,
+            'descripcion': p.descripcion_corta,
+            'incluye': p.descripcion,
+            'precio': str(impuestos.con_iva(base_total)),
+            'imagen_url': p.imagen_promocional.url if p.imagen_promocional else None,
+        })
 
     return JsonResponse({'ok': True, 'paquetes': resultado, 'max_personas': MAX_PERSONAS_EVENTO})
 
