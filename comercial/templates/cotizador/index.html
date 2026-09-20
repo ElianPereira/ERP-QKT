@@ -1493,16 +1493,9 @@ function validarPaso(paso) {
         errHorario.style.display = 'block';
         return false;
       }
-      var a = hi.split(':');
-      var b = hf.split(':');
-      var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
-      var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
-      if (fin <= ini) fin += 24 * 60;
-      var horas = Math.floor((fin - ini) / 60);
+      var horas = duracionHorarioEvento();
       if (horas > HORAS_MAX_EVENTO) {
-        errHorario.textContent = 'El evento puede durar hasta ' + HORAS_MAX_EVENTO + ' horas ('
-          + HORAS_BASE_EVENTO + ' incluidas + ' + (HORAS_MAX_EVENTO - HORAS_BASE_EVENTO)
-          + ' de hora extra como máximo). Ajusta el horario.';
+        errHorario.textContent = mensajeTopeHorasEvento();
         errHorario.style.display = 'block';
         return false;
       }
@@ -1646,6 +1639,29 @@ function construirResumen() {
   cargarTotal();
 }
 
+// Duración real capturada en hora_inicio/hora_fin, SIN acotar a ningún tope
+// — la usan validarPaso(2) (para saber si bloquea) y actualizarAvisoHorario()
+// (para avisar de inmediato, sin esperar a que el cliente dé "Siguiente").
+// null si todavía falta seleccionar alguna de las dos horas.
+function duracionHorarioEvento() {
+  var hi = document.getElementById('hora_inicio').value;
+  var hf = document.getElementById('hora_fin').value;
+  if (!hi || !hf) return null;
+  var a = hi.split(':'), b = hf.split(':');
+  var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
+  var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
+  if (fin <= ini) fin += 24 * 60;
+  return Math.floor((fin - ini) / 60);
+}
+
+// Mismo texto en validarPaso(2) y en el aviso inmediato de actualizarAvisoHorario():
+// una sola fuente para no desincronizar el mensaje de tope.
+function mensajeTopeHorasEvento() {
+  return 'El evento puede durar hasta ' + HORAS_MAX_EVENTO + ' horas ('
+    + HORAS_BASE_EVENTO + ' incluidas + ' + (HORAS_MAX_EVENTO - HORAS_BASE_EVENTO)
+    + ' de hora extra como máximo). Ajusta el horario.';
+}
+
 // El total SIEMPRE lo calcula el servidor. El navegador no suma importes: si
 // convirtiera cada línea a IVA incluido y las sumara, el resultado diferiría en
 // centavos del que produce calcular_totales() al crear la cotización.
@@ -1653,17 +1669,11 @@ function construirResumen() {
 // total exhibido incluya las horas extra que se van a cobrar.
 function horasEvento() {
   if (servicioSel === 'PASADIA') return 9;
-  var hi = document.getElementById('hora_inicio');
-  var hf = document.getElementById('hora_fin');
-  if (!hi || !hf || !hi.value || !hf.value) return HORAS_BASE_EVENTO;
-  var a = hi.value.split(':'), b = hf.value.split(':');
-  var ini = parseInt(a[0], 10) * 60 + parseInt(a[1], 10);
-  var fin = parseInt(b[0], 10) * 60 + parseInt(b[1], 10);
-  if (fin <= ini) fin += 24 * 60;
-  var horas = Math.max(HORAS_BASE_EVENTO, Math.floor((fin - ini) / 60));
+  var horas = duracionHorarioEvento();
+  if (horas === null) return HORAS_BASE_EVENTO;
   // El total exhibido no debe insinuar un cobro que validarPaso(2) va a
   // rechazar antes de dejar avanzar: mismo tope que el backend.
-  return Math.min(horas, HORAS_MAX_EVENTO);
+  return Math.min(Math.max(HORAS_BASE_EVENTO, horas), HORAS_MAX_EVENTO);
 }
 
 // Selector de hora compacto: solo horas en punto (sin minutos), 12h + a.m./p.m.
@@ -1689,29 +1699,38 @@ function combinarHora(prefijo) {
   var h24 = parseInt(h, 10) % 12;
   if (ampm === 'pm') h24 += 12;
   oculto.value = String(h24).padStart(2, '0') + ':00';
-  // Limpia el error de "falta seleccionar hora"/"excede el máximo" en cuanto
-  // el cliente vuelve a tocar el selector — validarPaso(2) lo revalida en serio
-  // al intentar avanzar, esto es solo feedback inmediato.
-  var errHorario = document.getElementById('err-horario');
-  if (errHorario) errHorario.style.display = 'none';
+  // actualizarAvisoHorario() decide abajo si el horario elegido queda dentro
+  // del tope (aviso informativo) o lo excede (mismo bloqueo de err-horario
+  // que validarPaso(2), pero mostrado de inmediato, sin esperar a "Siguiente").
   actualizarAvisoHorario();
 }
 
-// Aviso informativo (no bloqueante, a diferencia de err-horario) de que las
-// horas por encima de las HORAS_BASE_EVENTO incluidas se cobran aparte.
+// Feedback inmediato del horario elegido en el paso 2, en cuanto el cliente
+// toca los selectores — sin esperar a que dé "Siguiente" y dispare
+// validarPaso(2). Dentro del tope: aviso informativo (no bloqueante) de que
+// las horas por encima de HORAS_BASE_EVENTO se cobran aparte. Por encima del
+// tope: el mismo error bloqueante que usaría validarPaso(2), con el número
+// real de horas elegido (nunca acotado a HORAS_MAX_EVENTO como sí lo está
+// horasEvento(), que es para el total exhibido, no para este aviso).
 function actualizarAvisoHorario() {
   var aviso = document.getElementById('aviso-horario-extra');
-  var hi = document.getElementById('hora_inicio').value;
-  var hf = document.getElementById('hora_fin').value;
-  if (!hi || !hf) { aviso.style.display = 'none'; return; }
-  var extra = horasEvento() - HORAS_BASE_EVENTO;
-  if (extra > 0) {
-    aviso.textContent = 'Tu horario dura ' + (HORAS_BASE_EVENTO + extra) + ' horas: las primeras '
+  var errHorario = document.getElementById('err-horario');
+  var horas = duracionHorarioEvento();
+  if (horas === null) { aviso.style.display = 'none'; return; }
+  var extra = horas - HORAS_BASE_EVENTO;
+  if (horas > HORAS_MAX_EVENTO) {
+    aviso.style.display = 'none';
+    errHorario.textContent = mensajeTopeHorasEvento();
+    errHorario.style.display = 'block';
+  } else if (extra > 0) {
+    errHorario.style.display = 'none';
+    aviso.textContent = 'Tu horario dura ' + horas + ' horas: las primeras '
       + HORAS_BASE_EVENTO + ' están incluidas, ' + extra
       + (extra === 1 ? ' hora extra se cobra' : ' horas extra se cobran') + ' por separado.';
     aviso.style.display = 'block';
   } else {
     aviso.style.display = 'none';
+    errHorario.style.display = 'none';
   }
 }
 
