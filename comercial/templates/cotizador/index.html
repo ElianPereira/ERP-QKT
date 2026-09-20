@@ -179,6 +179,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 .btn-prev:hover{border-color:var(--verde);color:var(--verde);}
 .btn-next{background:var(--verde);color:var(--blanco);padding:.8rem 2rem;border-radius:40px;border:none;font-family:'IBM Plex Sans',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .25s;flex:1;}
 .btn-next:hover{background:var(--verde-h);transform:translateY(-1px);}
+.btn-next:disabled{background:#b9b9b3;color:#f0f0ec;cursor:not-allowed;}
+.btn-next:disabled:hover{background:#b9b9b3;transform:none;}
 .btn-submit{background:var(--amarillo);color:var(--verde-d);padding:.8rem 2rem;border-radius:40px;border:none;font-family:'IBM Plex Sans',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .25s;flex:1;}
 .btn-submit:hover{background:var(--amarillo-h);}
 .btn-submit:disabled{background:#ccc;color:#999;cursor:not-allowed;transform:none;}
@@ -475,7 +477,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
 
     <div class="btn-nav">
       <button class="btn-prev" onclick="irA(1)">← Atrás</button>
-      <button class="btn-next" onclick="irA(3)">Siguiente →</button>
+      <button class="btn-next" id="btn-siguiente-paso2" onclick="irA(3)">Siguiente →</button>
     </div>
   </div>
 
@@ -760,6 +762,18 @@ function actualizarPanelSegunServicio() {
   toggle('blq-noches', esHospedaje);
   toggle('blq-nivel-pasadia', esPasadia);
   toggle('blq-camino-evento', esEvento);
+
+  // El tope de HORAS_MAX_EVENTO solo aplica a Evento — si el cliente ya lo
+  // había excedido y cambia de servicio, no debe quedarse con "Siguiente"
+  // deshabilitado ni el aviso/error de horario visibles para otro servicio.
+  if (esEvento) {
+    actualizarAvisoHorario();
+  } else {
+    document.getElementById('err-horario').style.display = 'none';
+    document.getElementById('aviso-horario-extra').style.display = 'none';
+    var btnSiguientePaso2 = document.getElementById('btn-siguiente-paso2');
+    if (btnSiguientePaso2) btnSiguientePaso2.disabled = false;
+  }
 
   document.getElementById('hero-servicio').textContent =
     esPasadia ? 'pasadía' : esHospedaje ? 'hospedaje' : 'evento';
@@ -1715,6 +1729,7 @@ function combinarHora(prefijo) {
 function actualizarAvisoHorario() {
   var aviso = document.getElementById('aviso-horario-extra');
   var errHorario = document.getElementById('err-horario');
+  var btnSiguiente = document.getElementById('btn-siguiente-paso2');
   var horas = duracionHorarioEvento();
   if (horas === null) { aviso.style.display = 'none'; return; }
   var extra = horas - HORAS_BASE_EVENTO;
@@ -1722,15 +1737,18 @@ function actualizarAvisoHorario() {
     aviso.style.display = 'none';
     errHorario.textContent = mensajeTopeHorasEvento();
     errHorario.style.display = 'block';
+    if (btnSiguiente) btnSiguiente.disabled = true;
   } else if (extra > 0) {
     errHorario.style.display = 'none';
     aviso.textContent = 'Tu horario dura ' + horas + ' horas: las primeras '
       + HORAS_BASE_EVENTO + ' están incluidas, ' + extra
       + (extra === 1 ? ' hora extra se cobra' : ' horas extra se cobran') + ' por separado.';
     aviso.style.display = 'block';
+    if (btnSiguiente) btnSiguiente.disabled = false;
   } else {
     aviso.style.display = 'none';
     errHorario.style.display = 'none';
+    if (btnSiguiente) btnSiguiente.disabled = false;
   }
 }
 
