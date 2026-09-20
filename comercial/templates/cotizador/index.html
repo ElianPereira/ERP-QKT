@@ -695,6 +695,8 @@ const HORAS_MAX_EVENTO = 9;
 // Mismo valor que comercial/reglas_eventos.py. El servidor vuelve a
 // validarlo: esto es para que el cliente no llegue a un rechazo evitable.
 const MAX_PERSONAS_EVENTO = 150;
+// Idem: MIN_PERSONAS_PERSONALIZADO_EVENTO en reglas_eventos.py.
+const MIN_PERSONAS_PERSONALIZADO = 50;
 
 // Formatea un importe decimal que llega como string desde el servidor, sin
 // convertirlo a float (perdería el centavo en importes grandes).
@@ -911,6 +913,8 @@ function aforoCotizable() {
 }
 
 function selCaminoEvento(val) {
+  var n = parseInt((document.getElementById('personas') || {}).value || '0', 10);
+  if (val === 'PERSONALIZADO' && n < MIN_PERSONAS_PERSONALIZADO) return;
   caminoEventoSel = val;
   document.getElementById('camino-btn-paquete').classList.toggle('active', val === 'PAQUETE');
   document.getElementById('camino-btn-personalizado').classList.toggle('active', val === 'PERSONALIZADO');
@@ -925,9 +929,25 @@ function actualizarCaminoEvento() {
   var cotizado = aforoCotizable();
   var avisoTramo = cotizado !== n
     ? ' Se cotiza por bloques de 10: tu evento se calcula para ' + cotizado + ' personas.' : '';
-  desc.textContent = (caminoEventoSel === 'PAQUETE'
-    ? 'Precio cerrado, sin necesidad de elegir nada más.'
-    : 'Elige mobiliario, alimentos, bebidas, servicios y extras uno por uno.') + avisoTramo;
+
+  // "Arma tu propio evento" solo a partir de MIN_PERSONAS_PERSONALIZADO
+  // (pedido del propietario): con menos personas se fuerza de vuelta a
+  // "Elige un paquete", tanto el botón como el camino seleccionado.
+  var btnPersonalizado = document.getElementById('camino-btn-personalizado');
+  var personalizadoDisponible = n >= MIN_PERSONAS_PERSONALIZADO;
+  btnPersonalizado.disabled = !personalizadoDisponible;
+  if (!personalizadoDisponible && caminoEventoSel === 'PERSONALIZADO') {
+    caminoEventoSel = 'PAQUETE';
+    document.getElementById('camino-btn-paquete').classList.add('active');
+    btnPersonalizado.classList.remove('active');
+  }
+
+  desc.textContent = !personalizadoDisponible
+    ? '"Arma tu propio evento" está disponible a partir de ' + MIN_PERSONAS_PERSONALIZADO
+      + ' personas. Con menos, elige uno de nuestros paquetes de precio fijo.'
+    : (caminoEventoSel === 'PAQUETE'
+      ? 'Precio cerrado, sin necesidad de elegir nada más.'
+      : 'Elige mobiliario, alimentos, bebidas, servicios y extras uno por uno.') + avisoTramo;
 
   var aviso = document.getElementById('aviso-aforo-evento');
   var enTope = n >= MAX_PERSONAS_EVENTO;

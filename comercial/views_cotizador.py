@@ -43,7 +43,7 @@ from .models import (
     PortalCliente,
     Producto,
 )
-from .reglas_eventos import MAX_PERSONAS_EVENTO
+from .reglas_eventos import MAX_PERSONAS_EVENTO, MIN_PERSONAS_PERSONALIZADO_EVENTO
 from .roles_cotizador import normalizar as _normalizar
 
 logger = logging.getLogger(__name__)
@@ -318,6 +318,17 @@ def cotizador_enviar(request):
         return JsonResponse({'ok': False, 'errores': [
             f"No ofrecemos eventos de más de {MAX_PERSONAS_EVENTO} personas. "
             "Escríbenos si necesitas algo distinto y lo vemos contigo."
+        ]}, status=400)
+
+    # "Arma tu propio evento" (catálogo abierto) solo a partir de
+    # MIN_PERSONAS_PERSONALIZADO_EVENTO personas — pedido del propietario.
+    # `paquete_id` vacío es la misma señal que usa `_lineas_cotizador()` para
+    # distinguir el camino personalizado del de paquete cerrado.
+    if (servicio == 'EVENTO' and not data.get('paquete_id')
+            and num_raw < MIN_PERSONAS_PERSONALIZADO_EVENTO):
+        return JsonResponse({'ok': False, 'errores': [
+            f'"Arma tu propio evento" está disponible a partir de '
+            f'{MIN_PERSONAS_PERSONALIZADO_EVENTO} personas. Con menos, elige uno de nuestros paquetes.'
         ]}, status=400)
 
     # ── Habitaciones (solo HOSPEDAJE) ────────────────────────────────────────────────────
