@@ -529,3 +529,43 @@ class ReintentoEnvioPendienteCommandTest(TestCase):
         m_wa.assert_not_called()
         solicitud.refresh_from_db()
         self.assertEqual(solicitud.estado, 'PENDIENTE')
+
+
+class ContracargoNoDuplicaSolicitudTest(TestCase):
+    """
+    Issue #303: el Pago de reactivación que genera un contracargo ganado no
+    debe pedir una SolicitudFactura nueva (no es una venta nueva). El de
+    reversión sí, igual que cualquier reembolso.
+    """
+
+    def setUp(self):
+        self.cliente = Cliente.objects.create(nombre='Cliente contracargo')
+        self.cot = _crear_cotizacion(self.cliente, Decimal('5000.00'))
+
+    def test_pago_de_reversion_de_contracargo_si_genera_solicitud(self):
+        Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('1000.00'), metodo='TRANSFERENCIA',
+        )
+        pago = Pago(
+            cotizacion=self.cot, monto=Decimal('1000.00'),
+            metodo='OTRO', tipo='REEMBOLSO', concepto='VENTA',
+        )
+        pago._contracargo_reversion = True
+        pago.save()
+        self.assertTrue(SolicitudFactura.objects.filter(pago=pago).exists())
+
+    def test_pago_de_reactivacion_de_contracargo_no_genera_solicitud(self):
+        pago = Pago(
+            cotizacion=self.cot, monto=Decimal('1000.00'),
+            metodo='OTRO', tipo='INGRESO', concepto='VENTA',
+        )
+        pago._contracargo_reactivacion = True
+        pago.save()
+        self.assertFalse(SolicitudFactura.objects.filter(pago=pago).exists())
+
+    def test_un_ingreso_normal_sin_la_bandera_si_genera_solicitud(self):
+        """Control: sin la bandera transitoria, el comportamiento no cambió."""
+        pago = Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal('1000.00'), metodo='TRANSFERENCIA',
+        )
+        self.assertTrue(SolicitudFactura.objects.filter(pago=pago).exists())

@@ -6,9 +6,9 @@ from unittest.mock import patch
 from django.core import mail
 from django.test import TestCase
 
-from comercial.models import Cliente, Cotizacion, Pago
+from comercial.models import Cliente, Contracargo, Cotizacion, Pago
 from comunicacion.models import ComunicacionCliente
-from comunicacion.services_notificaciones import alertar_equipo_pago
+from comunicacion.services_notificaciones import alertar_equipo_contracargo, alertar_equipo_pago
 
 from .utils import (
     TEL_CLIENTE,
@@ -243,6 +243,63 @@ class ComunicacionSignalsTest(TestCase):
         self.assertEqual(wa.estado, 'FALLIDO')
         self.assertIn('WA_TEMPLATE_COTIZACION', wa.error)
 
+    # ─────────────────── Pagos generados por un contracargo ─────────────────
+
+    def test_pago_de_reversion_de_contracargo_no_notifica_al_cliente(self):
+        """
+        Mismo mecanismo que usa comercial.services_openpay al crear el Pago
+        de reversión: la bandera transitoria `_contracargo_reversion`, no la
+        relación inversa (que aún no existe cuando el signal corre).
+        """
+        with self._wa_ok(), self._emisor():
+            # Un REEMBOLSO no puede exceder lo cobrado (Pago.clean()): hace
+            # falta un INGRESO real primero, como en cualquier contracargo.
+            self._guardar(lambda: Pago.objects.create(
+                cotizacion=self.cot, monto=Decimal('1000.00'),
+                metodo='TRANSFERENCIA', tipo='INGRESO',
+            ))
+            mail.outbox = []
+            pago = self._guardar(lambda: self._crear_pago_contracargo(
+                tipo='REEMBOLSO', bandera='_contracargo_reversion',
+            ))
+        self.assertEqual(
+            ComunicacionCliente.objects.filter(pago=pago, tipo='REEMBOLSO').count(), 0
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_pago_de_reactivacion_de_contracargo_no_notifica_al_cliente(self):
+        mail.outbox = []
+        with self._wa_ok(), self._emisor():
+            pago = self._guardar(lambda: self._crear_pago_contracargo(
+                tipo='INGRESO', bandera='_contracargo_reactivacion',
+            ))
+        self.assertEqual(
+            ComunicacionCliente.objects.filter(pago=pago, tipo='CONFIRMACION_PAGO').count(), 0
+        )
+        self.assertEqual(
+            ComunicacionCliente.objects.filter(pago=pago, tipo='OTRO').count(), 0
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_un_ingreso_normal_sin_la_bandera_si_notifica(self):
+        """Control: un INGRESO real (sin la bandera transitoria) sigue notificando igual que siempre."""
+        mail.outbox = []
+        with self._wa_ok(), self._emisor():
+            self._guardar(lambda: Pago.objects.create(
+                cotizacion=self.cot, monto=Decimal('1000.00'),
+                metodo='TRANSFERENCIA', tipo='INGRESO',
+            ))
+        self.assertEqual(len(mail.outbox), 2)  # cliente + alerta interna de PR #302
+
+    def _crear_pago_contracargo(self, tipo, bandera):
+        pago = Pago(
+            cotizacion=self.cot, monto=Decimal('1000.00'),
+            metodo='OTRO', tipo=tipo, concepto='VENTA',
+        )
+        setattr(pago, bandera, True)
+        pago.save()
+        return pago
+
     @staticmethod
     def _cotizar(cot):
         cot.estado = 'COTIZADA'
@@ -336,4 +393,91 @@ class AlertaEquipoPagoTest(TestCase):
             )
         self.assertFalse(
             ComunicacionCliente.objects.filter(pago=reembolso, tipo='OTRO').exists()
+        )
+
+
+@wa_settings()
+class AlertaEquipoContracargoTest(TestCase):
+    """`alertar_equipo_contracargo` — Issue #303."""
+
+    def setUp(self):
+        limpiar_cache_emisor()
+        self.cliente = Cliente.objects.create(nombre='Perla García', telefono=TEL_CLIENTE)
+        self.cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Pasadía',
+            fecha_evento=date.today() + timedelta(days=3),
+            num_personas=20, precio_final=Decimal('2320.00'),
+        )
+        Cotizacion.objects.filter(pk=self.cot.pk).update(precio_final=Decimal('2320.00'))
+        self.cot.refresh_from_db()
+
+    def _contracargo(self, estado='EN_DISPUTA', openpay_id='cb_test', **extra):
+        return Contracargo.objects.create(
+            openpay_id=openpay_id, cotizacion=self.cot, estado=estado,
+            monto=Decimal('1000.00'), payload_crudo={}, **extra
+        )
+
+    def test_en_disputa_lleva_el_plazo_limite_en_el_mensaje(self):
+        contracargo = self._contracargo(
+            estado='EN_DISPUTA', fecha_limite_evidencia=date(2026, 9, 25),
+        )
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            alertar_equipo_contracargo(contracargo)
+        cuerpo = post.call_args.kwargs['json']['text']['body']
+        self.assertIn('25/09/2026', cuerpo)
+        self.assertIn('1,000.00', cuerpo)
+        self.assertIn('soporte@openpay.mx', cuerpo)
+
+    def test_ganado_y_perdido_llevan_el_resultado(self):
+        for estado, esperado in (('GANADO', 'ganado'), ('PERDIDO', 'perdido')):
+            contracargo = self._contracargo(estado=estado, openpay_id=f'cb_{estado}')
+            with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
+                 patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+                alertar_equipo_contracargo(contracargo)
+            cuerpo = post.call_args.kwargs['json']['text']['body']
+            self.assertIn(esperado, cuerpo.lower())
+
+    def test_sin_vinculacion_manual_lo_advierte_en_el_mensaje(self):
+        contracargo = Contracargo.objects.create(
+            openpay_id='cb_huerfano', estado='EN_DISPUTA', payload_crudo={},
+            requiere_vinculacion_manual=True,
+        )
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            alertar_equipo_contracargo(contracargo)
+        cuerpo = post.call_args.kwargs['json']['text']['body']
+        self.assertIn('vincular', cuerpo.lower())
+
+    @wa_settings(WA_TEMPLATE_ALERTA_CONTRACARGO='qkt_alerta_contracargo')
+    def test_con_plantilla_configurada_usa_plantilla(self):
+        contracargo = self._contracargo(estado='GANADO')
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            alertar_equipo_contracargo(contracargo)
+        enviado = post.call_args.kwargs['json']
+        self.assertEqual(enviado['type'], 'template')
+        self.assertEqual(enviado['template']['name'], 'qkt_alerta_contracargo')
+
+    @wa_settings(WA_NUMERO_NEGOCIO='')
+    def test_sin_numero_de_negocio_no_manda_whatsapp_pero_si_email(self):
+        contracargo = self._contracargo()
+        with patch('comunicacion.services.requests.post') as post, \
+             self.assertLogs('comunicacion.services_notificaciones', level='ERROR') as logs:
+            alertar_equipo_contracargo(contracargo)
+        post.assert_not_called()
+        self.assertTrue(
+            ComunicacionCliente.objects.filter(cotizacion=self.cot, tipo='OTRO', canal='EMAIL').exists()
+        )
+        self.assertIn('WA_NUMERO_NEGOCIO', '\n'.join(logs.output))
+
+    def test_no_duplica_si_se_dispara_dos_veces_con_el_mismo_estado(self):
+        contracargo = self._contracargo()
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()), \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
+            alertar_equipo_contracargo(contracargo)
+            alertar_equipo_contracargo(contracargo)
+        self.assertEqual(
+            ComunicacionCliente.objects.filter(cotizacion=self.cot, tipo='OTRO').count(),
+            2,  # un email + un WhatsApp, sin repetirse
         )

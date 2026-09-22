@@ -14,6 +14,7 @@ from django.urls import reverse
 
 from comercial.models import (
     Cliente,
+    Contracargo,
     Cotizacion,
     ItemCotizacion,
     OpenpayTransaccion,
@@ -25,10 +26,13 @@ from comercial.services_openpay import (
     procesar_cargo_efectivo,
     procesar_cargo_spei,
     procesar_cargo_tarjeta,
+    procesar_webhook_contracargo,
     procesar_webhook_openpay,
     reembolsar_cargo_openpay,
     transacciones_pendientes,
 )
+from contabilidad.models import Poliza
+from contabilidad.tests import setup_contabilidad_minima
 
 WEBHOOK_USER = 'openpay-test-user'
 WEBHOOK_PASSWORD = 'openpay-test-password'
@@ -912,7 +916,6 @@ class ComisionOpenpayTest(TestCase):
         }
 
     def test_webhook_con_fee_genera_poliza_de_comision(self):
-        from contabilidad.models import Poliza
         cotizacion = _crear_cotizacion()
         registro = procesar_webhook_openpay(self._webhook_con_fee(cotizacion))
         self.assertTrue(registro.procesado)
@@ -927,7 +930,6 @@ class ComisionOpenpayTest(TestCase):
         self.assertEqual(total_haber, Decimal('36.54'))
 
     def test_webhook_repetido_no_duplica_poliza_de_comision(self):
-        from contabilidad.models import Poliza
         cotizacion = _crear_cotizacion()
         payload = self._webhook_con_fee(cotizacion, openpay_id='txfee02')
         procesar_webhook_openpay(payload)
@@ -936,7 +938,6 @@ class ComisionOpenpayTest(TestCase):
         self.assertEqual(Poliza.objects.filter(origen='COMISION_OPENPAY', object_id=registro.pk).count(), 1)
 
     def test_webhook_sin_fee_no_genera_poliza_pero_si_pago(self):
-        from contabilidad.models import Poliza
         cotizacion = _crear_cotizacion()
         payload = self._webhook_con_fee(cotizacion, openpay_id='txsinfee')
         del payload['transaction']['fee']
@@ -947,7 +948,6 @@ class ComisionOpenpayTest(TestCase):
 
     @patch('comercial.services_openpay.requests.post')
     def test_cargo_tarjeta_con_fee_genera_poliza_de_comision(self, mock_post):
-        from contabilidad.models import Poliza
         mock_post.return_value = MagicMock(status_code=200, json=lambda: {
             'id': 'txfeecard', 'status': 'completed', 'amount': 500.00,
             'fee': {'amount': 17.0, 'tax': 2.72, 'currency': 'MXN'},
@@ -1377,3 +1377,125 @@ class Retorno3DSExtremoAExtremoTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('pago=error', response.url)
         self.assertFalse(Pago.objects.filter(cotizacion=self.cotizacion).exists())
+
+
+class ContracargoWebhookTest(TestCase):
+    """
+    Issue #303: procesar_webhook_contracargo. Catálogo de eventos confirmado
+    con soporte de Openpay (caso CS1234019) — chargeback.created=EN_DISPUTA,
+    chargeback.accepted=PERDIDO (a favor del cliente),
+    chargeback.rejected=GANADO (a favor del comercio).
+    """
+
+    def setUp(self):
+        setup_contabilidad_minima()
+
+    def _payload(self, event_type, chargeback_id, amount, cotizacion=None):
+        transaction_data = {'id': chargeback_id, 'amount': amount}
+        if cotizacion is not None:
+            transaction_data['order_id'] = f'COT-{cotizacion.id}-VENTA'
+        return {'type': event_type, 'transaction': transaction_data}
+
+    def _cotizacion_con_pago(self, monto_pago=Decimal('1000.00')):
+        cotizacion = _crear_cotizacion(monto_items=Decimal('2000.00'))
+        Pago.objects.create(
+            cotizacion=cotizacion, monto=monto_pago,
+            metodo='PLATAFORMA', tipo='INGRESO', referencia='tx_original',
+        )
+        return cotizacion
+
+    def test_chargeback_created_crea_contracargo_en_disputa_con_plazo(self):
+        cotizacion = self._cotizacion_con_pago()
+        contracargo = procesar_webhook_contracargo(
+            self._payload('chargeback.created', 'cb_01', 1000.00, cotizacion)
+        )
+        self.assertEqual(contracargo.estado, 'EN_DISPUTA')
+        self.assertEqual(contracargo.cotizacion, cotizacion)
+        self.assertIsNotNone(contracargo.fecha_limite_evidencia)
+        self.assertFalse(contracargo.requiere_vinculacion_manual)
+
+    def test_chargeback_created_reabre_el_saldo_pendiente(self):
+        cotizacion = self._cotizacion_con_pago()
+        self.assertEqual(cotizacion.saldo_pendiente(), Decimal('1320.00'))
+        procesar_webhook_contracargo(self._payload('chargeback.created', 'cb_02', 1000.00, cotizacion))
+        cotizacion.refresh_from_db()
+        self.assertEqual(cotizacion.saldo_pendiente(), Decimal('2320.00'))
+
+    def test_chargeback_created_genera_poliza_de_reversion(self):
+        cotizacion = self._cotizacion_con_pago()
+        procesar_webhook_contracargo(self._payload('chargeback.created', 'cb_03', 1000.00, cotizacion))
+        self.assertEqual(Poliza.objects.filter(tipo='E', origen='PAGO_CLIENTE').count(), 1)
+
+    def test_chargeback_rejected_gana_reactiva_saldo_y_genera_su_poliza(self):
+        cotizacion = self._cotizacion_con_pago()
+        procesar_webhook_contracargo(self._payload('chargeback.created', 'cb_04', 1000.00, cotizacion))
+        cotizacion.refresh_from_db()
+        self.assertEqual(cotizacion.saldo_pendiente(), Decimal('2320.00'))
+
+        contracargo = procesar_webhook_contracargo(
+            self._payload('chargeback.rejected', 'cb_04', 1000.00, cotizacion)
+        )
+        cotizacion.refresh_from_db()
+        self.assertEqual(contracargo.estado, 'GANADO')
+        self.assertIsNotNone(contracargo.pago_reactivacion)
+        self.assertEqual(cotizacion.saldo_pendiente(), Decimal('1320.00'))
+        self.assertEqual(Poliza.objects.filter(tipo='I', origen='PAGO_CLIENTE').count(), 2)  # original + reactivación
+        self.assertIsNotNone(contracargo.fecha_resolucion)
+
+    def test_chargeback_accepted_pierde_deja_el_saldo_reabierto(self):
+        cotizacion = self._cotizacion_con_pago()
+        procesar_webhook_contracargo(self._payload('chargeback.created', 'cb_05', 1000.00, cotizacion))
+
+        contracargo = procesar_webhook_contracargo(
+            self._payload('chargeback.accepted', 'cb_05', 1000.00, cotizacion)
+        )
+        cotizacion.refresh_from_db()
+        self.assertEqual(contracargo.estado, 'PERDIDO')
+        self.assertIsNone(contracargo.pago_reactivacion)
+        self.assertEqual(cotizacion.saldo_pendiente(), Decimal('2320.00'))
+        self.assertIsNotNone(contracargo.fecha_resolucion)
+
+    def test_chargeback_accepted_directo_sin_created_previo_igual_reversa(self):
+        """Si se pierde el webhook de created, accepted por sí solo debe reversar."""
+        cotizacion = self._cotizacion_con_pago()
+        contracargo = procesar_webhook_contracargo(
+            self._payload('chargeback.accepted', 'cb_06', 1000.00, cotizacion)
+        )
+        cotizacion.refresh_from_db()
+        self.assertEqual(contracargo.estado, 'PERDIDO')
+        self.assertIsNotNone(contracargo.pago_reversion)
+        self.assertEqual(cotizacion.saldo_pendiente(), Decimal('2320.00'))
+
+    def test_reintento_del_mismo_evento_no_duplica_nada(self):
+        cotizacion = self._cotizacion_con_pago()
+        payload = self._payload('chargeback.created', 'cb_07', 1000.00, cotizacion)
+        procesar_webhook_contracargo(payload)
+        procesar_webhook_contracargo(payload)  # simula reintento de Openpay
+        self.assertEqual(Contracargo.objects.filter(openpay_id='cb_07').count(), 1)
+        self.assertEqual(Pago.objects.filter(tipo='REEMBOLSO').count(), 1)
+
+    def test_sin_cotizacion_resoluble_queda_para_vinculacion_manual(self):
+        contracargo = procesar_webhook_contracargo(
+            self._payload('chargeback.created', 'cb_huerfano', 1000.00, cotizacion=None)
+        )
+        self.assertTrue(contracargo.requiere_vinculacion_manual)
+        self.assertIsNone(contracargo.pago_reversion)
+        self.assertIsNone(contracargo.cotizacion)
+
+    def test_evento_no_reconocido_no_rompe_y_se_deja_registrado(self):
+        payload = {'type': 'chargeback.something_new', 'transaction': {'id': 'cb_raro', 'amount': 500.00}}
+        contracargo = procesar_webhook_contracargo(payload)
+        self.assertIsNotNone(contracargo)
+        self.assertEqual(contracargo.event_type, 'chargeback.something_new')
+
+    def test_notificacion_sin_id_se_ignora(self):
+        self.assertIsNone(procesar_webhook_contracargo({'type': 'chargeback.created', 'transaction': {}}))
+        self.assertFalse(Contracargo.objects.exists())
+
+    def test_procesar_webhook_openpay_enruta_los_eventos_de_contracargo(self):
+        """El webhook general no debe tocar OpenpayTransaccion con un evento de contracargo."""
+        cotizacion = self._cotizacion_con_pago()
+        payload = self._payload('chargeback.created', 'cb_enrutado', 1000.00, cotizacion)
+        resultado = procesar_webhook_openpay(payload)
+        self.assertIsInstance(resultado, Contracargo)
+        self.assertFalse(OpenpayTransaccion.objects.filter(openpay_id='cb_enrutado').exists())

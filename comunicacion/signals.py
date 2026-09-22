@@ -33,6 +33,19 @@ def notificar_pago_cliente(sender, instance, created, **kwargs):
     if not cot or not cot.cliente:
         return
 
+    # Pago generado automáticamente por un contracargo (reversión o
+    # reactivación, ver comercial.services_openpay._asegurar_pago_*_contracargo):
+    # el cliente no debe recibir "Reembolso procesado" ni "Pago recibido" por
+    # esto — no es una cortesía ni una venta nueva, es la contabilidad
+    # reaccionando a lo que el banco del cliente ya decidió. El equipo se
+    # entera por la alerta interna dedicada (alertar_equipo_contracargo), no
+    # por este canal. Se marca con un atributo transitorio en vez de la
+    # relación inversa Contracargo.pago_* porque este signal corre antes de
+    # que el Contracargo quede guardado y enlazado.
+    if (getattr(pago, '_contracargo_reversion', False)
+            or getattr(pago, '_contracargo_reactivacion', False)):
+        return
+
     if pago.tipo == 'REEMBOLSO':
         # Los reembolsos conservan el comportamiento previo: solo email.
         def _enviar_reembolso():
