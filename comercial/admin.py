@@ -24,6 +24,7 @@ from .models import (
     ComponenteProducto,
     Compra,
     ConstanteSistema,
+    Contracargo,
     Cotizacion,
     Descuento,
     DescuentoAplicado,
@@ -2048,6 +2049,42 @@ class OpenpayTransaccionAdmin(admin.ModelAdmin):
             level=messages.SUCCESS,
         )
     borrar_transacciones_de_prueba.short_description = "Borrar transacción de prueba (y su Pago/póliza)"
+
+
+@admin.register(Contracargo)
+class ContracargoAdmin(admin.ModelAdmin):
+    """
+    Solo lectura salvo evidencia/notas: nace del webhook de Openpay
+    (`services_openpay.py::procesar_webhook_contracargo`), capturarlo a mano
+    rompería la idempotencia por la que se genera.
+    """
+    list_display = (
+        'openpay_id', 'estado_badge', 'cotizacion', 'monto',
+        'fecha_limite_evidencia', 'evidencia_enviada',
+        'requiere_vinculacion_manual', 'fecha_recibido',
+    )
+    list_filter = ('estado', 'evidencia_enviada', 'requiere_vinculacion_manual', 'fecha_recibido')
+    search_fields = ('openpay_id', 'cotizacion__nombre_evento', 'cotizacion__cliente__nombre', 'motivo')
+    readonly_fields = (
+        'openpay_id', 'event_type', 'estado', 'transaccion_openpay', 'cotizacion',
+        'pago_reversion', 'pago_reactivacion', 'monto', 'motivo', 'fecha_recibido',
+        'fecha_limite_evidencia', 'fecha_resolucion', 'requiere_vinculacion_manual',
+        'payload_crudo', 'created_at', 'updated_at',
+    )
+    fields = readonly_fields + ('evidencia_enviada', 'notas')
+
+    def has_add_permission(self, request):
+        return False  # solo se crean desde el webhook, nunca manual
+
+    def estado_badge(self, obj):
+        colores = {'EN_DISPUTA': '#b8860b', 'GANADO': '#2e7d32', 'PERDIDO': '#c62828'}
+        color = colores.get(obj.estado, '#616161')
+        return format_html(
+            '<span style="background:{}; color:#fff; padding:2px 8px; '
+            'border-radius:4px; font-size:11px;">{}</span>',
+            color, obj.get_estado_display(),
+        )
+    estado_badge.short_description = "Estado"
 
 
 # Los 3 submódulos de Productos por línea de negocio (Eventos/Pasadía/

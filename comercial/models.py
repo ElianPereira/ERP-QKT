@@ -2237,3 +2237,101 @@ class OpenpayTransaccion(models.Model):
     def __str__(self):
         return f"{self.openpay_id} - {self.metodo or self.event_type} [{'procesado' if self.procesado else 'pendiente'}]"
 
+
+class Contracargo(models.Model):
+    """
+    Contracargo (chargeback) reportado por Openpay vía webhook.
+
+    Ciclo de vida reportado por Openpay (confirmado con soporte, caso
+    CS1234019, 2026-09-22 — la nomenclatura es contraintuitiva):
+      - chargeback.created  → EN_DISPUTA: se inició la investigación con el
+        banco. Aún no se decide a favor de quién.
+      - chargeback.accepted → PERDIDO: el banco le dio la razón al
+        CLIENTE — se descontó el dinero de la cuenta del comercio.
+      - chargeback.rejected → GANADO: el banco le dio la razón al
+        COMERCIO — el dinero se abonó de vuelta.
+
+    No reinventa la reversión/reactivación contable: en vez de generar
+    pólizas propias, crea `Pago` normales (`tipo='REEMBOLSO'` al entrar en
+    disputa, `tipo='INGRESO'` si se gana) — el signal ya existente en
+    `contabilidad/signals.py::crear_poliza_pago_cliente` genera la póliza
+    correcta sola, con el mismo desglose fiscal proporcional que cualquier
+    otro pago. `comunicacion/signals.py` suprime el email/WhatsApp al
+    cliente para estos dos Pagos (no son un reembolso de cortesía ni un
+    pago nuevo real) y `facturacion/signals.py` no genera una
+    `SolicitudFactura` para el de reactivación (no es una venta nueva).
+    """
+    ESTADOS = [
+        ('EN_DISPUTA', 'En disputa'),
+        ('GANADO', 'Ganado (a favor del comercio)'),
+        ('PERDIDO', 'Perdido (a favor del cliente)'),
+    ]
+
+    openpay_id = models.CharField(
+        max_length=100, db_index=True, verbose_name="ID reportado por Openpay",
+        help_text="Identificador del contracargo tal como lo manda el webhook.",
+    )
+    event_type = models.CharField(max_length=50, blank=True, verbose_name="Último evento recibido")
+    estado = models.CharField(max_length=15, choices=ESTADOS, default='EN_DISPUTA')
+
+    transaccion_openpay = models.ForeignKey(
+        'OpenpayTransaccion', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='contracargos', verbose_name="Transacción original",
+    )
+    cotizacion = models.ForeignKey(
+        'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='contracargos',
+    )
+
+    pago_reversion = models.OneToOneField(
+        'Pago', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='contracargo_reversion',
+        help_text="Pago tipo REEMBOLSO generado automáticamente al recibirse el contracargo.",
+    )
+    pago_reactivacion = models.OneToOneField(
+        'Pago', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='contracargo_reactivacion',
+        help_text="Pago tipo INGRESO generado automáticamente si se gana la disputa.",
+    )
+
+    monto = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    motivo = models.CharField(max_length=255, blank=True, verbose_name="Motivo reportado por Openpay")
+
+    fecha_recibido = models.DateTimeField(auto_now_add=True)
+    fecha_limite_evidencia = models.DateField(
+        null=True, blank=True,
+        verbose_name="Límite para enviar evidencia",
+        help_text="3 días hábiles desde la notificación (chargeback.created). "
+                   "Pasada esta fecha, Openpay ya no puede disputar el contracargo.",
+    )
+    fecha_resolucion = models.DateTimeField(null=True, blank=True)
+
+    evidencia_enviada = models.BooleanField(
+        default=False,
+        help_text="Marcar manualmente al enviar la evidencia a soporte@openpay.mx.",
+    )
+    notas = models.TextField(blank=True)
+    requiere_vinculacion_manual = models.BooleanField(
+        default=False,
+        verbose_name="Requiere vinculación manual",
+        help_text="No se pudo resolver automáticamente la cotización/transacción "
+                   "original — revisar el payload crudo.",
+    )
+
+    payload_crudo = models.JSONField(verbose_name="Último JSON recibido de Openpay")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Contracargo"
+        verbose_name_plural = "Contracargos"
+        ordering = ['-fecha_recibido']
+        indexes = [
+            models.Index(fields=['openpay_id']),
+            models.Index(fields=['estado', 'fecha_recibido']),
+        ]
+
+    def __str__(self):
+        return f"Contracargo {self.openpay_id} [{self.get_estado_display()}]"
+

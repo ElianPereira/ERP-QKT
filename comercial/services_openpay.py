@@ -20,7 +20,7 @@ import requests
 from django.conf import settings
 from django.db import transaction
 
-from .models import Cotizacion, OpenpayTransaccion, Pago, ParcialidadPago
+from .models import Contracargo, Cotizacion, OpenpayTransaccion, Pago, ParcialidadPago
 
 logger = logging.getLogger(__name__)
 
@@ -760,6 +760,13 @@ def procesar_webhook_openpay(payload: dict):
     transaction_data = payload.get('transaction', payload)
     if not isinstance(transaction_data, dict):
         return None
+
+    if 'chargeback' in event_type.lower():
+        # Un contracargo no es un cargo: se procesa en su propio modelo
+        # (Contracargo), nunca en OpenpayTransaccion (esa tabla es
+        # específicamente de cargos, ver su docstring).
+        return procesar_webhook_contracargo(payload)
+
     openpay_id = transaction_data.get('id')
     if not openpay_id:
         return None  # notificación sin id de transacción (ej. verification_code) — se ignora aquí
@@ -828,3 +835,211 @@ def _resolver_cotizacion_desde_order_id(order_id: str):
         return Cotizacion.objects.get(pk=int(order_id.split('-')[1]))
     except (ValueError, IndexError, Cotizacion.DoesNotExist):
         return None
+
+
+# --- CONTRACARGOS (Issue #303) ---
+#
+# Ciclo de vida confirmado con soporte de Openpay (caso CS1234019,
+# 2026-09-22) — la nomenclatura es contraintuitiva, ver docstring de
+# Contracargo en models.py: chargeback.created = en disputa,
+# chargeback.accepted = perdido (a favor del cliente),
+# chargeback.rejected = ganado (a favor del comercio).
+#
+# No se reinventa la reversión/reactivación contable: se crean Pago
+# normales (tipo='REEMBOLSO' / tipo='INGRESO') y el signal ya existente en
+# contabilidad/signals.py genera la póliza sola.
+
+_EVENTO_CONTRACARGO_A_ESTADO = {
+    'chargeback.created': 'EN_DISPUTA',
+    'chargeback.accepted': 'PERDIDO',   # el banco le dio la razón al cliente
+    'chargeback.rejected': 'GANADO',    # el banco le dio la razón al comercio
+}
+
+
+def _sumar_dias_habiles(fecha_inicio, n):
+    """
+    `fecha_inicio` + `n` días hábiles (lunes-viernes). No considera el
+    calendario oficial de días festivos en México —no hay una fuente de
+    festivos en el repo—, es una aproximación conservadora, no un cálculo
+    legal exacto. Usado para el plazo de evidencia de un contracargo.
+    """
+    fecha = fecha_inicio
+    agregados = 0
+    while agregados < n:
+        fecha += timedelta(days=1)
+        if fecha.weekday() < 5:
+            agregados += 1
+    return fecha
+
+
+def _resolver_openpay_id_original(transaction_data, payload):
+    """
+    Candidatos plausibles de id del cargo original dentro de una
+    notificación de contracargo. Openpay no documenta el nombre exacto del
+    campo —se prueban varias claves conocidas en vez de adivinar una sola—.
+    """
+    candidatos = []
+    for fuente in (transaction_data, payload):
+        if not isinstance(fuente, dict):
+            continue
+        for clave in ('transaction_id', 'charge_id', 'original_transaction_id'):
+            valor = fuente.get(clave)
+            if valor:
+                candidatos.append(str(valor))
+        anidada = fuente.get('transaction')
+        if isinstance(anidada, dict) and anidada.get('id'):
+            candidatos.append(str(anidada['id']))
+    if transaction_data.get('id'):
+        candidatos.append(str(transaction_data['id']))
+    return candidatos
+
+
+def _resolver_contexto_contracargo(transaction_data, payload):
+    """
+    Intenta resolver la OpenpayTransaccion/Cotizacion original de un
+    contracargo. Si ninguna estrategia resuelve, se deja sin vincular en
+    vez de adivinar (ver Contracargo.requiere_vinculacion_manual).
+    """
+    transaccion = None
+    for candidato in _resolver_openpay_id_original(transaction_data, payload):
+        transaccion = OpenpayTransaccion.objects.filter(openpay_id=candidato).first()
+        if transaccion:
+            break
+    cotizacion = transaccion.cotizacion if transaccion else None
+    if cotizacion is None:
+        order_id = transaction_data.get('order_id') or payload.get('order_id') or ''
+        cotizacion = _resolver_cotizacion_desde_order_id(order_id)
+    return transaccion, cotizacion
+
+
+def _asegurar_pago_reversion_contracargo(contracargo, cotizacion, monto):
+    """
+    Crea el Pago tipo REEMBOLSO que dispara la póliza de reversión, una sola vez.
+
+    `_contracargo_reversion` es una bandera transitoria (no un campo del
+    modelo): el signal de `comunicacion` que decide si notificar al cliente
+    corre en el mismo `.save()`, ANTES de que este Pago quede enlazado al
+    Contracargo (eso pasa después, cuando el propio Contracargo se guarda) —
+    así que la supresión no puede depender de esa relación inversa todavía
+    inexistente. Marcar la instancia en memoria sí llega a tiempo al signal,
+    porque es el mismo objeto Python.
+    """
+    if contracargo.pago_reversion_id or cotizacion is None or monto is None:
+        return
+    pago = Pago(
+        cotizacion=cotizacion, tipo='REEMBOLSO', concepto='VENTA',
+        monto=monto, metodo='OTRO',
+        referencia=f"Contracargo {contracargo.openpay_id}",
+        notas="Reversión automática: contracargo reportado por Openpay.",
+    )
+    pago._contracargo_reversion = True
+    pago.save()
+    contracargo.pago_reversion = pago
+
+
+def _asegurar_pago_reactivacion_contracargo(contracargo):
+    """Crea el Pago tipo INGRESO que dispara la póliza de reactivación, si se ganó la disputa."""
+    if contracargo.pago_reactivacion_id or not contracargo.pago_reversion_id:
+        return
+    reversion = contracargo.pago_reversion
+    pago = Pago(
+        cotizacion=reversion.cotizacion, tipo='INGRESO', concepto='VENTA',
+        monto=reversion.monto, metodo='OTRO',
+        referencia=f"Contracargo {contracargo.openpay_id}",
+        notas="Reactivación automática: contracargo resuelto a favor del comercio.",
+    )
+    pago._contracargo_reactivacion = True
+    pago.save()
+    contracargo.pago_reactivacion = pago
+
+
+def _alertar_equipo_contracargo(contracargo):
+    """Nunca debe tumbar el webhook: cualquier fallo solo se loggea."""
+    try:
+        from comunicacion.services_notificaciones import alertar_equipo_contracargo
+        alertar_equipo_contracargo(contracargo)
+    except Exception:
+        logger.exception(
+            "No se pudo enviar la alerta interna del contracargo %s.",
+            contracargo.openpay_id,
+        )
+
+
+def procesar_webhook_contracargo(payload: dict):
+    """
+    Crea/actualiza el Contracargo correspondiente a una notificación
+    chargeback.* y aplica el efecto en saldo/contabilidad reutilizando el
+    mecanismo ya existente de Pago (ver docstring de Contracargo en
+    models.py). Nunca lanza: cualquier fallo queda registrado, la vista
+    siempre debe poder regresar 200 OK a Openpay.
+
+    Idempotente frente a reintentos de Openpay: solo dispara la alerta
+    interna cuando el estado realmente cambia (registro nuevo o transición
+    de estado), no en cada reentrega del mismo evento.
+    """
+    from django.utils import timezone
+
+    event_type = payload.get('type', '')
+    transaction_data = payload.get('transaction', payload)
+    if not isinstance(transaction_data, dict):
+        return None
+
+    chargeback_id = transaction_data.get('id') or payload.get('id')
+    if not chargeback_id:
+        return None
+
+    estado_nuevo = _EVENTO_CONTRACARGO_A_ESTADO.get(event_type)
+    if estado_nuevo is None:
+        logger.warning("Contracargo %s: event_type no reconocido %r", chargeback_id, event_type)
+
+    contracargo = Contracargo.objects.filter(openpay_id=str(chargeback_id)).first()
+    es_nuevo = contracargo is None
+    if contracargo is None:
+        contracargo = Contracargo(openpay_id=str(chargeback_id))
+    estado_previo = contracargo.estado if not es_nuevo else None
+
+    monto = _decimal_o_none(transaction_data.get('amount'))
+
+    try:
+        with transaction.atomic():
+            if es_nuevo:
+                transaccion_original, cotizacion = _resolver_contexto_contracargo(transaction_data, payload)
+                contracargo.transaccion_openpay = transaccion_original
+                contracargo.cotizacion = cotizacion
+                contracargo.requiere_vinculacion_manual = cotizacion is None
+
+            contracargo.event_type = event_type
+            if estado_nuevo:
+                contracargo.estado = estado_nuevo
+            if monto is not None:
+                contracargo.monto = monto
+            contracargo.motivo = (
+                transaction_data.get('reason') or transaction_data.get('description') or contracargo.motivo
+            )
+            contracargo.payload_crudo = payload
+
+            if contracargo.estado == 'EN_DISPUTA' and not contracargo.fecha_limite_evidencia:
+                contracargo.fecha_limite_evidencia = _sumar_dias_habiles(timezone.localdate(), 3)
+            if contracargo.estado in ('EN_DISPUTA', 'PERDIDO'):
+                _asegurar_pago_reversion_contracargo(contracargo, contracargo.cotizacion, contracargo.monto)
+            if contracargo.estado == 'GANADO':
+                _asegurar_pago_reactivacion_contracargo(contracargo)
+            if contracargo.estado in ('GANADO', 'PERDIDO') and not contracargo.fecha_resolucion:
+                contracargo.fecha_resolucion = timezone.now()
+
+            contracargo.save()
+    except Exception as e:
+        logger.exception("Error procesando contracargo %s (%s)", chargeback_id, event_type)
+        contracargo.notas = f"{contracargo.notas}\nError al procesar: {e}".strip()
+        try:
+            contracargo.save()
+        except Exception:
+            logger.exception("No se pudo ni siquiera guardar el contracargo %s tras el error.", chargeback_id)
+        return contracargo
+
+    if es_nuevo or contracargo.estado != estado_previo:
+        # Diferida a on_commit, igual que el resto de las comunicaciones del
+        # repo: no se avisa de un contracargo cuya transacción (Pago/póliza)
+        # todavía puede revertirse.
+        transaction.on_commit(lambda: _alertar_equipo_contracargo(contracargo))
+    return contracargo

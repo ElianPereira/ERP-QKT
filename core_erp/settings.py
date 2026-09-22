@@ -322,6 +322,10 @@ WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
 # otros parámetros — reusar la misma plantilla mandaría el texto equivocado a
 # un número real). Igual de opcional, mismo fallback a texto libre.
 WA_TEMPLATE_ALERTA_PAGO = config('WA_TEMPLATE_ALERTA_PAGO', default='')
+# Alerta interna de contracargo (Issue #303) — urgente, lleva el plazo límite
+# de 3 días hábiles para mandar evidencia a Openpay. Plantilla propia, mismo
+# fallback a texto libre que las anteriores.
+WA_TEMPLATE_ALERTA_CONTRACARGO = config('WA_TEMPLATE_ALERTA_CONTRACARGO', default='')
 # Solicitud de factura al contador (facturacion/services.py): a diferencia de
 # la guía, aquí SÍ se somete una plantilla tipo "documento" — el pedido
 # original es mandar el PDF adjunto, no un enlace. Ver

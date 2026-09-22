@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     """
     Crea una SolicitudFactura automáticamente cuando se registra un Pago.
-    Todos los pagos nuevos generan solicitud de factura.
+    Todos los pagos nuevos generan solicitud de factura, con una excepción.
 
     El desglose fiscal se calcula proporcionalmente basado en la cotización.
     """
@@ -32,6 +32,21 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         return
 
     pago = instance
+
+    # Excepción: el Pago de reactivación que genera un contracargo ganado
+    # (ver comercial.models.Contracargo) no es una venta nueva — es la
+    # reversión de la reversión que ya generó su propia SolicitudFactura al
+    # recibirse el contracargo. Pedir una factura nueva aquí confundiría al
+    # contador con un CFDI que no corresponde a ninguna venta real; el ajuste
+    # (nota de crédito/cancelación) lo maneja a mano contra la solicitud que
+    # ya existe. El Pago de reversión SÍ sigue el camino normal, igual que
+    # cualquier reembolso. Se marca con un atributo transitorio (no la
+    # relación inversa Contracargo.pago_reactivacion) porque este signal
+    # corre antes de que el Contracargo quede guardado y enlazado — ver
+    # comercial.services_openpay._asegurar_pago_reactivacion_contracargo.
+    if getattr(pago, '_contracargo_reactivacion', False):
+        return
+
     cotizacion = pago.cotizacion
     cliente = cotizacion.cliente
 

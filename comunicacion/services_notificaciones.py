@@ -582,3 +582,99 @@ def alertar_equipo_pago(pago):
         mensaje=cuerpo,
         clave_idempotencia=clave,
     )
+
+
+# ────────────────────────── Contracargo (chargeback) ────────────────────────
+
+def alertar_equipo_contracargo(contracargo):
+    """
+    Avisa al negocio de un contracargo de Openpay — mismo patrón que
+    `alertar_equipo_pago`/`alertar_equipo_nueva_cotizacion`. Se llama una vez
+    por cada transición de estado real (nunca por un reintento del mismo
+    evento — ver `services_openpay.py::procesar_webhook_contracargo`).
+
+    El mensaje cambia según el estado: `EN_DISPUTA` es urgente y lleva el
+    plazo límite para mandar evidencia a Openpay (3 días hábiles desde la
+    notificación, confirmado con soporte — sin eso, no hay nada que disputar
+    cuando se cumpla el plazo). `GANADO`/`PERDIDO` son el resultado final.
+    """
+    cotizacion = contracargo.cotizacion
+    folio = f"COT-{cotizacion.pk:03d}" if cotizacion else "sin vincular"
+    monto = _dinero(contracargo.monto) if contracargo.monto is not None else "—"
+    cliente = getattr(getattr(cotizacion, 'cliente', None), 'nombre', '') if cotizacion else ''
+
+    if contracargo.estado == 'EN_DISPUTA':
+        titulo = "🚨 Contracargo recibido — acción requerida"
+        limite = _fecha(contracargo.fecha_limite_evidencia) if contracargo.fecha_limite_evidencia else "—"
+        cuerpo_estado = (
+            f"Se abrió una disputa por ${monto}. Si quieren contestarla, hay que "
+            f"reunir evidencia y mandarla a soporte@openpay.mx antes del {limite} "
+            f"(3 días hábiles) — pasada esa fecha ya no se puede disputar."
+        )
+    elif contracargo.estado == 'GANADO':
+        titulo = "✅ Contracargo ganado"
+        cuerpo_estado = f"El banco falló a favor del comercio. Se regresaron ${monto}."
+    elif contracargo.estado == 'PERDIDO':
+        titulo = "❌ Contracargo perdido"
+        cuerpo_estado = f"El banco falló a favor del cliente. Se descontaron ${monto} de la cuenta."
+    else:
+        titulo = "⚠️ Evento de contracargo sin reconocer"
+        cuerpo_estado = (
+            f"Openpay mandó un evento de contracargo ({contracargo.event_type!r}) que no "
+            f"está en el catálogo conocido — revisar manualmente en el admin."
+        )
+
+    cuerpo = (
+        f"{titulo} ({folio})\n\n"
+        + (f"Cliente: {cliente}\n" if cliente else "")
+        + cuerpo_estado
+    )
+    if contracargo.requiere_vinculacion_manual:
+        cuerpo += (
+            "\n\n⚠️ No se pudo vincular automáticamente a una cotización — "
+            "revisar el payload crudo en /admin/comercial/contracargo/ y "
+            "enlazarlo a mano."
+        )
+
+    _seguro(
+        'enviar la copia por email de la alerta de contracargo',
+        alertar_equipo_email,
+        cotizacion,
+        asunto=f"{titulo} — {folio}",
+        cuerpo=cuerpo,
+        clave_idempotencia=f"contracargo:{contracargo.pk}:{contracargo.estado}:email",
+    )
+
+    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    if not destino:
+        logger.error(
+            "Contracargo %s: WA_NUMERO_NEGOCIO no está configurado; la alerta "
+            "interna de WhatsApp no se envía (el contracargo se registró igual)",
+            contracargo.openpay_id,
+        )
+        return
+
+    clave = f"contracargo:{contracargo.pk}:{contracargo.estado}:whatsapp"
+    plantilla = _plantilla('WA_TEMPLATE_ALERTA_CONTRACARGO')
+    if plantilla:
+        _seguro(
+            'enviar la alerta de contracargo por WhatsApp',
+            enviar_whatsapp_template,
+            cotizacion=cotizacion,
+            tipo='OTRO',
+            telefono=destino,
+            template_name=plantilla,
+            parametros=[folio, contracargo.get_estado_display(), monto],
+            clave_idempotencia=clave,
+        )
+        return
+
+    _seguro(
+        'enviar la alerta de contracargo por WhatsApp',
+        enviar_whatsapp,
+        cotizacion=cotizacion,
+        tipo='OTRO',
+        telefono=destino,
+        mensaje=cuerpo,
+        clave_idempotencia=clave,
+    )
