@@ -1,5 +1,6 @@
 """
-Signals que disparan comunicaciones automáticas con el cliente.
+Signals que disparan comunicaciones automáticas con el cliente y, en el caso
+de un pago acreditado, también una alerta interna al equipo.
 
 Aquí solo se decide *cuándo* notificar. El contenido, los canales y la
 idempotencia viven en `services_notificaciones.py`.
@@ -51,8 +52,9 @@ def notificar_pago_cliente(sender, instance, created, **kwargs):
         return
 
     def _notificar():
-        from .services_notificaciones import notificar_pago
+        from .services_notificaciones import alertar_equipo_pago, notificar_pago
         notificar_pago(pago)
+        alertar_equipo_pago(pago)
 
     transaction.on_commit(_notificar)
 

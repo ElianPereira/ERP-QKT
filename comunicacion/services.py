@@ -313,7 +313,7 @@ def alertar_equipo_fecha_chocada(cotizacion, mensaje: str) -> None:
         logger.exception("Error alertando equipo: %s", e)
 
 
-def alertar_equipo_email(cotizacion, *, asunto: str, cuerpo: str,
+def alertar_equipo_email(cotizacion, *, asunto: str, cuerpo: str, pago=None,
                          clave_idempotencia: Optional[str] = None) -> Optional[ComunicacionCliente]:
     """Copia por correo de una alerta interna, a los mismos destinatarios del equipo."""
     destinatarios = getattr(settings, 'ALERTAS_INTERNAS_EMAIL', None) or [
@@ -321,6 +321,7 @@ def alertar_equipo_email(cotizacion, *, asunto: str, cuerpo: str,
     ]
     comm = reservar_comunicacion(
         cotizacion=cotizacion,
+        pago=pago,
         canal='EMAIL',
         tipo='OTRO',
         trigger='SIGNAL',
