@@ -965,6 +965,23 @@ def _alertar_equipo_contracargo(contracargo):
         )
 
 
+def _armar_evidencia_contracargo(contracargo):
+    """
+    Arma el PDF de evidencia (Issue #305) al entrar en disputa, para que ya
+    esté listo cuando alguien le dé clic a "Enviar evidencia a Openpay" en el
+    admin — o para el envío automático de última instancia si nadie lo hace a
+    tiempo. Nunca debe tumbar el webhook: cualquier fallo solo se loggea.
+    """
+    try:
+        from .services_evidencia_contracargo import armar_evidencia
+        armar_evidencia(contracargo)
+    except Exception:
+        logger.exception(
+            "No se pudo armar la evidencia del contracargo %s.",
+            contracargo.openpay_id,
+        )
+
+
 def procesar_webhook_contracargo(payload: dict):
     """
     Crea/actualiza el Contracargo correspondiente a una notificación
@@ -1042,4 +1059,9 @@ def procesar_webhook_contracargo(payload: dict):
         # repo: no se avisa de un contracargo cuya transacción (Pago/póliza)
         # todavía puede revertirse.
         transaction.on_commit(lambda: _alertar_equipo_contracargo(contracargo))
+        if contracargo.estado == 'EN_DISPUTA':
+            # Issue #305: se arma sola, lista para el envío manual con un
+            # clic o el automático de última instancia — no hace falta
+            # esperar a que alguien entre al admin para empezar a juntarla.
+            transaction.on_commit(lambda: _armar_evidencia_contracargo(contracargo))
     return contracargo
