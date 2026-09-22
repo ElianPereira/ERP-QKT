@@ -234,6 +234,7 @@ class StoragePrivadoTest(TestCase):
             ('nomina', 'ReciboNomina', 'archivo_pdf'),
             ('contabilidad', 'EstadoCuentaBancario', 'archivo'),
             ('comercial', 'ContratoServicio', 'archivo'),
+            ('comercial', 'Contracargo', 'evidencia_pdf'),
         ]
         for app_label, model_name, campo in esperados:
             field = apps.get_model(app_label, model_name)._meta.get_field(campo)

@@ -2308,8 +2308,25 @@ class Contracargo(models.Model):
 
     evidencia_enviada = models.BooleanField(
         default=False,
-        help_text="Marcar manualmente al enviar la evidencia a soporte@openpay.mx.",
+        help_text="Se marca sola al enviar la evidencia a soporte@openpay.mx — "
+                   "con un clic desde el admin o, si nadie lo hizo a tiempo, por "
+                   "el envío automático de última instancia antes del plazo "
+                   "(ver comercial.services_evidencia_contracargo).",
     )
+    evidencia_pdf = models.FileField(
+        upload_to='contracargos/evidencia/', blank=True, null=True,
+        storage=storage_privado, verbose_name="PDF de evidencia armado",
+        help_text="Generado automáticamente al entrar en disputa: datos de la "
+                   "transacción, la cotización, los pagos y la bitácora de "
+                   "comunicación con el cliente.",
+    )
+    evidencia_enviada_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name="Evidencia enviada por",
+        help_text="Vacío si el envío fue automático (cron de última instancia, "
+                   "sin intervención manual).",
+    )
+    fecha_evidencia_enviada = models.DateTimeField(null=True, blank=True)
     notas = models.TextField(blank=True)
     requiere_vinculacion_manual = models.BooleanField(
         default=False,

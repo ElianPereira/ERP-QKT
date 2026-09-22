@@ -1,0 +1,127 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Evidencia contracargo {{ contracargo.openpay_id }}</title>
+    <style>
+        @page { size: letter; margin: 1.5cm; }
+        body { font-family: 'Helvetica', sans-serif; color: #333; margin: 0; padding: 0; font-size: 12px; }
+        .company-name { font-size: 16px; font-weight: bold; color: #2E7D32; margin-bottom: 2px; }
+        .company-details { font-size: 10px; color: #666; }
+        .doc-title { text-align: center; margin-top: 12px; margin-bottom: 16px; }
+        .doc-title h1 { margin: 0; color: #2c3e50; font-size: 18px; }
+        .doc-title p { margin: 2px 0 0 0; color: #7f8c8d; font-size: 10px; }
+        h2 { color: #2E7D32; font-size: 13px; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-top: 22px; margin-bottom: 8px; }
+        table.datos { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+        table.datos td { padding: 4px 6px; font-size: 11px; vertical-align: top; }
+        table.datos td.label { color: #555; width: 32%; font-weight: bold; }
+        table.lista { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 4px; }
+        table.lista th { background: #2E7D32; color: #fff; padding: 5px; text-align: left; font-weight: normal; }
+        table.lista td { padding: 5px; border-bottom: 1px solid #eee; }
+        .vacio { color: #999; font-style: italic; font-size: 10px; }
+        .footer-msg { margin-top: 30px; font-size: 8px; color: #999; border-top: 1px solid #eee; padding-top: 6px; }
+    </style>
+</head>
+<body>
+
+    <div class="company-name">Quinta Ko'ox Tanil</div>
+    <div class="company-details">
+        Ctra Tanil - Ticimul KM 1.920, Umán, Yucatán · quintakooxtanil@gmail.com
+    </div>
+
+    <div class="doc-title">
+        <h1>Evidencia de contracargo</h1>
+        <p>Contracargo Openpay: {{ contracargo.openpay_id }} · Generado el {{ generado_en|date:"d/m/Y H:i" }}</p>
+    </div>
+
+    <h2>Datos del contracargo</h2>
+    <table class="datos">
+        <tr><td class="label">Estado actual</td><td>{{ contracargo.get_estado_display }}</td></tr>
+        <tr><td class="label">Motivo reportado por Openpay</td><td>{{ contracargo.motivo|default:"No especificado" }}</td></tr>
+        <tr><td class="label">Monto en disputa</td><td>${{ contracargo.monto|default:"—"|floatformat:2|intcomma }} MXN</td></tr>
+        <tr><td class="label">Notificado</td><td>{{ contracargo.fecha_recibido|date:"d/m/Y H:i" }}</td></tr>
+        <tr><td class="label">Plazo límite para evidencia</td><td>{{ contracargo.fecha_limite_evidencia|date:"d/m/Y"|default:"—" }}</td></tr>
+    </table>
+
+    <h2>Transacción original</h2>
+    {% if transaccion %}
+    <table class="datos">
+        <tr><td class="label">ID de transacción Openpay</td><td>{{ transaccion.openpay_id }}</td></tr>
+        <tr><td class="label">Método</td><td>{{ transaccion.metodo|default:"—" }}</td></tr>
+        <tr><td class="label">Autorización</td><td>{{ transaccion.autorizacion|default:"—" }}</td></tr>
+        <tr><td class="label">Monto del cargo</td><td>${{ transaccion.monto|default:"—"|floatformat:2|intcomma }} MXN</td></tr>
+        <tr><td class="label">Fecha del cargo</td><td>{{ transaccion.created_at|date:"d/m/Y H:i" }}</td></tr>
+    </table>
+    {% else %}
+    <p class="vacio">No se pudo vincular automáticamente a la transacción original — ver payload crudo en el admin.</p>
+    {% endif %}
+
+    <h2>Cotización y cliente</h2>
+    {% if cotizacion %}
+    <table class="datos">
+        <tr><td class="label">Folio</td><td>COT-{{ cotizacion.id|stringformat:"03d" }}</td></tr>
+        <tr><td class="label">Servicio</td><td>{{ cotizacion.get_tipo_servicio_display }} — {{ cotizacion.nombre_evento }}</td></tr>
+        <tr><td class="label">Cliente</td><td>{{ cliente.nombre|default:"—" }}</td></tr>
+        <tr><td class="label">Email</td><td>{{ cliente.email|default:"—" }}</td></tr>
+        <tr><td class="label">Fecha del servicio</td><td>{{ cotizacion.fecha_evento|date:"d/m/Y"|default:"—" }}</td></tr>
+        <tr><td class="label">Precio total (IVA incluido)</td><td>${{ cotizacion.precio_final|default:"—"|floatformat:2|intcomma }} MXN</td></tr>
+    </table>
+    {% else %}
+    <p class="vacio">No se pudo vincular automáticamente a una cotización — ver payload crudo en el admin.</p>
+    {% endif %}
+
+    <h2>Historial de pagos de la cotización</h2>
+    {% if pagos %}
+    <table class="lista">
+        <thead>
+            <tr><th>Fecha</th><th>Tipo</th><th>Método</th><th>Referencia</th><th style="text-align:right;">Monto</th></tr>
+        </thead>
+        <tbody>
+            {% for pago in pagos %}
+            <tr>
+                <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+                <td>{{ pago.get_tipo_display }}</td>
+                <td>{{ pago.get_metodo_display }}</td>
+                <td>{{ pago.referencia|default:"—" }}</td>
+                <td style="text-align:right;">${{ pago.monto|floatformat:2|intcomma }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="vacio">Sin pagos registrados.</p>
+    {% endif %}
+
+    <h2>Bitácora de comunicación con el cliente</h2>
+    <p style="font-size:10px; color:#666; margin-top:-4px;">
+        Comunicaciones efectivamente entregadas o abiertas — evidencia de que el cliente recibió
+        y confirmó el servicio contratado.
+    </p>
+    {% if comunicaciones %}
+    <table class="lista">
+        <thead>
+            <tr><th>Fecha</th><th>Canal</th><th>Tipo</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+            {% for com in comunicaciones %}
+            <tr>
+                <td>{{ com.fecha_envio|date:"d/m/Y H:i" }}</td>
+                <td>{{ com.get_canal_display }}</td>
+                <td>{{ com.get_tipo_display }}</td>
+                <td>{{ com.get_estado_display }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="vacio">Sin comunicaciones entregadas/abiertas registradas.</p>
+    {% endif %}
+
+    <div class="footer-msg">
+        Documento generado automáticamente por el ERP de Quinta Ko'ox Tanil como evidencia interna
+        para disputar el contracargo {{ contracargo.openpay_id }} ante Openpay.
+    </div>
+
+</body>
+</html>

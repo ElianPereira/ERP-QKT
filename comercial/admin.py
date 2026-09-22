@@ -2069,12 +2069,39 @@ class ContracargoAdmin(admin.ModelAdmin):
         'openpay_id', 'event_type', 'estado', 'transaccion_openpay', 'cotizacion',
         'pago_reversion', 'pago_reactivacion', 'monto', 'motivo', 'fecha_recibido',
         'fecha_limite_evidencia', 'fecha_resolucion', 'requiere_vinculacion_manual',
+        'evidencia_pdf', 'evidencia_enviada_por', 'fecha_evidencia_enviada',
         'payload_crudo', 'created_at', 'updated_at',
     )
     fields = readonly_fields + ('evidencia_enviada', 'notas')
+    actions = ['enviar_evidencia_openpay']
 
     def has_add_permission(self, request):
         return False  # solo se crean desde el webhook, nunca manual
+
+    @confirmar_accion_destructiva(
+        "¿Enviar la evidencia armada a soporte@openpay.mx? Es un correo real "
+        "hacia Openpay para disputar el contracargo — no se puede deshacer, "
+        "y un contracargo ya marcado como enviado no se reenvía.",
+        # Doble confirmación (pedido explícito del propietario): además de esta
+        # página, un popup del navegador vuelve a preguntar antes del envío real
+        # — plantilla propia, no la compartida, para no afectar el resto de las
+        # acciones que usan confirmar_accion_destructiva.
+        template_name='admin/confirmar_envio_evidencia_contracargo.html',
+    )
+    def enviar_evidencia_openpay(self, request, queryset):
+        from .services_evidencia_contracargo import enviar_evidencia_a_openpay
+        ok, errores = 0, []
+        for contracargo in queryset:
+            enviado, mensaje = enviar_evidencia_a_openpay(contracargo, usuario=request.user)
+            if enviado:
+                ok += 1
+            else:
+                errores.append(f"Contracargo {contracargo.openpay_id}: {mensaje}")
+        if ok:
+            self.message_user(request, f"Evidencia enviada a Openpay para {ok} contracargo(s).", messages.SUCCESS)
+        for err in errores:
+            self.message_user(request, err, messages.ERROR)
+    enviar_evidencia_openpay.short_description = "Enviar evidencia a Openpay (soporte@openpay.mx)"
 
     def estado_badge(self, obj):
         colores = {'EN_DISPUTA': '#b8860b', 'GANADO': '#2e7d32', 'PERDIDO': '#c62828'}

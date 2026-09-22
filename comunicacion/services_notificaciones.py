@@ -678,3 +678,34 @@ def alertar_equipo_contracargo(contracargo):
         mensaje=cuerpo,
         clave_idempotencia=clave,
     )
+
+
+def alertar_equipo_evidencia_automatica(contracargo):
+    """
+    Avisa al negocio de que el ERP mandó solo la evidencia de un contracargo
+    a Openpay — el envío automático de última instancia (Issue #305), disparado
+    cuando faltan ≤24h para `fecha_limite_evidencia` y nadie lo había mandado a
+    mano. El propietario debe enterarse de que el sistema actuó por él, no
+    descubrirlo después. Solo email: es informativo, no urgente (la acción ya
+    se ejecutó), a diferencia de `alertar_equipo_contracargo`.
+    """
+    cotizacion = contracargo.cotizacion
+    folio = f"COT-{cotizacion.pk:03d}" if cotizacion else "sin vincular"
+    monto = _dinero(contracargo.monto) if contracargo.monto is not None else "—"
+
+    cuerpo = (
+        f"🤖 Evidencia enviada automáticamente ({folio})\n\n"
+        f"Nadie marcó como enviada la evidencia del contracargo {contracargo.openpay_id} "
+        f"y se acercaba el plazo límite ({_fecha(contracargo.fecha_limite_evidencia)}), así "
+        f"que el ERP la mandó solo a soporte@openpay.mx para no perder la disputa por no "
+        f"reaccionar a tiempo. Monto en disputa: ${monto}."
+    )
+
+    _seguro(
+        'enviar la alerta de evidencia automática de contracargo',
+        alertar_equipo_email,
+        cotizacion,
+        asunto=f"🤖 Evidencia de contracargo enviada automáticamente — {folio}",
+        cuerpo=cuerpo,
+        clave_idempotencia=f"contracargo:{contracargo.pk}:evidencia_auto:email",
+    )
