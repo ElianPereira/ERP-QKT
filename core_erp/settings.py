@@ -318,6 +318,10 @@ WA_TEMPLATE_GUIA = config('WA_TEMPLATE_GUIA', default='')
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
 WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
+# Alerta interna de pago acreditado (distinta de la de arriba: otro contenido,
+# otros parámetros — reusar la misma plantilla mandaría el texto equivocado a
+# un número real). Igual de opcional, mismo fallback a texto libre.
+WA_TEMPLATE_ALERTA_PAGO = config('WA_TEMPLATE_ALERTA_PAGO', default='')
 # Solicitud de factura al contador (facturacion/services.py): a diferencia de
 # la guía, aquí SÍ se somete una plantilla tipo "documento" — el pedido
 # original es mandar el PDF adjunto, no un enlace. Ver

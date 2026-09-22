@@ -504,3 +504,81 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
         mensaje=cuerpo,
         clave_idempotencia=clave,
     )
+
+
+def alertar_equipo_pago(pago):
+    """
+    Avisa al negocio de que se acreditó un pago (Openpay o registrado a mano).
+
+    Mismo patrón que `alertar_equipo_nueva_cotizacion`: copia por email a
+    `ALERTAS_INTERNAS_EMAIL` + WhatsApp a `WA_NUMERO_NEGOCIO`, sin fallback
+    hardcodeado. No dispara para reembolsos —es otro tipo de evento, esta
+    alerta es solo para pagos de ingreso ya acreditados.
+    """
+    cotizacion = getattr(pago, 'cotizacion', None)
+    if cotizacion is None:
+        return
+    cliente = getattr(cotizacion, 'cliente', None)
+
+    portal = url_portal(cotizacion)
+    folio = f"COT-{cotizacion.pk:03d}"
+    monto = _dinero(pago.monto)
+    saldo = cotizacion.saldo_pendiente()
+    saldo_texto = _dinero(saldo) if saldo > 0 else "0.00 — evento totalmente pagado"
+    nombre_cliente = getattr(cliente, 'nombre', '') or 'Cliente sin nombre'
+    metodo = pago.get_metodo_display()
+
+    cuerpo = (
+        f"💰 Pago acreditado ({folio})\n\n"
+        f"Cliente: {nombre_cliente}\n"
+        f"Evento: {cotizacion.nombre_evento}\n"
+        f"Monto pagado: ${monto} — {metodo}\n"
+        f"Saldo pendiente: ${saldo_texto}\n"
+        f"URL: {portal}"
+    )
+
+    _seguro(
+        'enviar la copia por email de la alerta de pago',
+        alertar_equipo_email,
+        cotizacion,
+        pago=pago,
+        asunto=f"Pago acreditado — {folio}",
+        cuerpo=cuerpo,
+        clave_idempotencia=f"pago:{pago.pk}:alerta_equipo:email",
+    )
+
+    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    if not destino:
+        logger.error(
+            "%s: WA_NUMERO_NEGOCIO no está configurado; la alerta interna de "
+            "pago no se envía por WhatsApp (el pago se registró correctamente)",
+            folio,
+        )
+        return
+
+    clave = f"pago:{pago.pk}:alerta_equipo:whatsapp"
+    plantilla = _plantilla('WA_TEMPLATE_ALERTA_PAGO')
+    if plantilla:
+        _seguro(
+            'enviar la alerta de pago por WhatsApp',
+            enviar_whatsapp_template,
+            cotizacion=cotizacion,
+            pago=pago,
+            tipo='OTRO',
+            telefono=destino,
+            template_name=plantilla,
+            parametros=[folio, nombre_cliente, monto, saldo_texto],
+            clave_idempotencia=clave,
+        )
+        return
+
+    _seguro(
+        'enviar la alerta de pago por WhatsApp',
+        enviar_whatsapp,
+        cotizacion=cotizacion,
+        pago=pago,
+        tipo='OTRO',
+        telefono=destino,
+        mensaje=cuerpo,
+        clave_idempotencia=clave,
+    )
