@@ -3,7 +3,7 @@
 **Versión 2.4 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
 *Sustituye a la versión 2.3 del 25 de agosto de 2026.*
 
-**[CONFIRMAR: esta versión solo quita la mención a Arrendamiento de Mobiliario en la Sección 2.e), por el retiro de esa línea de negocio (Eventos, Pasadía y Hospedaje siguen igual) — misma decisión que motiva la nueva versión de Términos y Condiciones. Ningún otro cambio.]**
+**[CONFIRMAR: cambios de esta versión respecto de la 2.3: (1) se quita la mención a Arrendamiento de Mobiliario en la Sección 2.e), por el retiro de esa línea de negocio; (2) se quita el domicilio del inmueble de hospedaje externo (Honey Sea House), que dejó de formar parte del portafolio: el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta; (3) la Sección 10 describe las cookies que el sitio usa hoy (solo las necesarias del portal, más el mapa y las tipografías de Google), en vez de cookies analíticas y publicitarias con un banner que no existe. Ningún otro cambio.]**
 
 ---
 
@@ -18,7 +18,6 @@ En cumplimiento de la **Ley Federal de Protección de Datos Personales en Posesi
 | **Nombre comercial** | Quinta Ko'ox Tanil |
 | **Domicilio del responsable** | Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán, México |
 | **Domicilio donde se presta el servicio de eventos** | Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390 |
-| **Domicilio del inmueble de hospedaje externo** | Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán |
 | **Correo electrónico** | quintakooxtanil@gmail.com |
 | **Teléfono / WhatsApp** | +52 999 445 7178 |
 | **Horario de atención** | Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro) |
@@ -176,15 +175,13 @@ Concluidos dichos plazos, los datos son bloqueados y posteriormente suprimidos c
 
 ## 10. Uso de cookies y tecnologías similares
 
-Nuestro sitio web y portal de clientes utilizan las siguientes categorías de cookies:
+**a) Cookies estrictamente necesarias.** El portal de clientes y el cotizador utilizan únicamente cookies indispensables para el funcionamiento de la sesión, la seguridad (protección contra falsificación de solicitudes) y la prevención de fraude. No requieren consentimiento y no pueden desactivarse sin impedir el uso de esas funciones.
 
-**a) Cookies estrictamente necesarias.** Indispensables para el funcionamiento de la sesión, la seguridad del portal de clientes y la prevención de fraude. No requieren consentimiento y no pueden desactivarse.
+**b) Contenido de terceros.** Nuestro sitio muestra un mapa de ubicación de Google Maps y utiliza tipografías de Google Fonts. Al cargarlos, su navegador se comunica directamente con Google, que puede recibir su dirección IP y datos técnicos del navegador y, en el caso del mapa, establecer sus propias cookies, conforme a su propio aviso de privacidad.
 
-**b) Cookies analíticas.** Nos permiten conocer de forma agregada cómo se utiliza el sitio para mejorarlo.
+**c) Cookies analíticas y publicitarias.** Actualmente **no utilizamos** cookies analíticas ni publicitarias. Si en el futuro incorporamos herramientas de medición o de publicidad, actualizaremos este Aviso de Privacidad y solo las activaremos después de obtener su consentimiento.
 
-**c) Cookies publicitarias y de terceros.** Utilizamos herramientas de medición y publicidad de plataformas de redes sociales que permiten medir la efectividad de nuestras campañas y mostrar anuncios a personas que han visitado nuestro sitio. Estas herramientas pueden recabar identificadores del dispositivo y de navegación, y los datos correspondientes son tratados por dichas plataformas conforme a sus propias políticas de privacidad.
-
-Las cookies de los incisos b) y c) **solo se activan si usted otorga su consentimiento** a través del banner que se muestra al ingresar al sitio. Puede modificar su elección en cualquier momento desde el mismo banner o configurando su navegador para rechazarlas, lo que podría limitar el acceso a determinadas funciones del portal.
+Puede configurar su navegador para rechazar o eliminar cookies; hacerlo podría limitar el acceso a determinadas funciones del portal.
 
 ---
 

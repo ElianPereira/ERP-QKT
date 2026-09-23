@@ -33,9 +33,13 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
 
 ## Contexto del negocio
 
-- **Negocio**: Quinta Ko'ox Tanil (QKT), Umán, Yucatán — eventos, pasadía,
-  hospedaje corto (Ka'an, Otoch, Honey Sea House). Unidades de negocio:
-  QUINTA, PASADÍA, AIRBNB.
+- **Negocio**: Quinta Ko'ox Tanil (QKT), Umán, Yucatán — eventos, pasadía
+  (con alberca) y hospedaje corto **solo en Ka'an Room y Otoch Room**, dentro
+  de la Quinta y por reserva directa. Aforo máximo de eventos: 150 personas.
+  **Airbnb y Honey Sea House ya no forman parte del portafolio** (ver Memoria
+  2026-09-23); la unidad AIRBNB y la app `airbnb/` se conservan solo por el
+  histórico contable/fiscal. Unidades de negocio: QUINTA, PASADÍA, AIRBNB
+  (histórica).
 - **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
   `clientes.quintakooxtanil.com` (portal cliente, Railway),
   `quintakooxtanil.com` (landing pública, Cloudflare Pages).
@@ -235,6 +239,29 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-23 — Revisión de cumplimiento del sitio público (privacidad,
+  términos, cookies, reembolsos, formularios, analytics, accesibilidad,
+  reseñas, copyright, leyes locales) + retiro de Airbnb/Honey Sea House del
+  portafolio (decisión del propietario). **Hallazgos corregidos**: la landing
+  anunciaba "Salón hasta 500 personas" contra el aforo de 150 del
+  Reglamento (publicidad engañosa, LFPC art. 32); el Aviso de Privacidad
+  §10 describía cookies analíticas/publicitarias y un banner de
+  consentimiento que **no existen** en ningún repo; el formulario de
+  contacto de `templates/landing/index.html` mandaba datos a WhatsApp sin
+  labels ni enlace al aviso; los documentos legales enlazan a
+  `quintakooxtanil.com/<documento>`, rutas que la landing estática
+  (Cloudflare Pages) no tiene — se resolvió con `_redirects` en QKT-Pages.
+  **Los cambios legales van como borradores, no publicados**: se ampliaron
+  los borradores ya pendientes (aviso v2.4, términos v2.2) y se crearon
+  `reglamento_v1.2.md` y `politica_cancelacion_v2.1.md`, todos con
+  `[CONFIRMAR: fecha de vigencia]`, así que el seed no los publica ni los
+  carga (`DOCUMENTOS` sigue apuntando a las versiones vigentes). Para
+  publicarlos: resolver cada `[CONFIRMAR:]`, apuntar `DOCUMENTOS` a la
+  versión nueva y correr `seed_documentos_legales --publicar`. Pendientes
+  sin código: registro del Pixel/analytics con banner (o Cloudflare Web
+  Analytics sin cookies), autorización guardada para publicar testimonios
+  (`TestimonioLanding` no la registra), marca en IMPI, RNT de hospedaje y
+  confirmar que el contrato de adhesión 9341-2023 cubre hospedaje.
 - 2026-09-23 — Simulación E2E del ciclo de vida de una cotización (cotizador
   web → portal → pago → evento → cierre), pedida por el propietario para
   encontrar caminos muertos; todos los cambios autorizados explícitamente,

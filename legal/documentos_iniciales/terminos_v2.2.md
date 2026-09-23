@@ -3,7 +3,7 @@
 **Versión 2.2 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
 *Sustituye a la versión 2.1 del 4 de agosto de 2026.*
 
-**[CONFIRMAR: esta versión retira el servicio de Arrendamiento de Mobiliario del catálogo, por decisión del propietario de dar de baja esa línea de negocio (solo se ofrecen Eventos, Pasadía y Hospedaje). Queda pendiente decidir qué hacer con el Registro Público de Contratos de Adhesión 9339-2023/Expediente PFC.B.E.7/009990-2023, dado de alta específicamente para arrendamiento de mobiliario — si se retira la mención, se solicita a PROFECO la baja del registro, o se conserva por los contratos de arrendamiento que sigan vigentes. No se resuelve en este borrador.]**
+**[CONFIRMAR: esta versión retira el servicio de Arrendamiento de Mobiliario del catálogo, por decisión del propietario de dar de baja esa línea de negocio (solo se ofrecen Eventos, Pasadía y Hospedaje). Queda pendiente decidir qué hacer con el Registro Público de Contratos de Adhesión 9339-2023/Expediente PFC.B.E.7/009990-2023, dado de alta específicamente para arrendamiento de mobiliario — si se retira la mención, se solicita a PROFECO la baja del registro, o se conserva por los contratos de arrendamiento que sigan vigentes. No se resuelve en este borrador. Además, esta versión retira el inmueble Honey Sea House del servicio de Hospedaje (dejó de formar parte del portafolio y ya no se renta por plataformas de terceros): el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta, y se elimina la regla de reservas por plataformas de terceros de la Sección 10.]**
 
 ---
 
@@ -22,7 +22,7 @@
 
 **Domicilios de prestación del servicio:**
 - **Eventos y pasadías:** Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390
-- **Hospedaje:** habitaciones dentro de Quinta Ko'ox Tanil y el inmueble denominado Honey Sea House, ubicado en Calle 124D núm. 375, entre 65B y 67, Fraccionamiento Yucalpetén, C.P. 97238, Mérida, Yucatán.
+- **Hospedaje:** las habitaciones Ka'an y Otoch, ubicadas dentro de Quinta Ko'ox Tanil: Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390
 
 El uso de este sitio web y del portal de clientes implica la aceptación plena de los presentes Términos y Condiciones. Si no está de acuerdo con ellos, le solicitamos abstenerse de utilizar estos servicios.
 
@@ -141,14 +141,13 @@ Cuando el contrato prevea un depósito en garantía:
 
 ## 10. Servicios de hospedaje
 
-Esta sección aplica exclusivamente a las reservas de hospedaje **contratadas directamente con Quinta Ko'ox Tanil** a través de este sitio o del portal de clientes.
+Esta sección aplica a las reservas de hospedaje en las habitaciones Ka'an y Otoch, ubicadas dentro de Quinta Ko'ox Tanil, contratadas con Quinta Ko'ox Tanil a través de este sitio o del portal de clientes.
 
-1. **Reservas por plataformas de terceros.** Las reservas realizadas a través de plataformas de hospedaje de terceros se rigen **íntegramente por los términos, condiciones y políticas de cancelación de dicha plataforma**, los cuales prevalecen sobre los presentes Términos y Condiciones.
-2. **Horarios.** Entrada a partir de las 14:00 h; salida a más tardar a las 10:00 h. Las salidas tardías no autorizadas generan un cargo equivalente a una noche adicional.
-3. **Ocupación máxima.** La reserva ampara únicamente el número de huéspedes declarado. El ingreso de personas no declaradas puede generar cargos adicionales o la terminación de la estancia sin reembolso.
-4. **Registro de huéspedes.** Podrá solicitarse identificación oficial del huésped titular al momento del ingreso.
-5. **Política de cancelación de hospedaje.** Se rige por la sección específica de la [Política de Cancelación y Reembolso](https://quintakooxtanil.com/politica-de-cancelacion), distinta de la aplicable a eventos.
-6. **Daños.** El huésped titular responde por los daños causados al inmueble, mobiliario y equipo durante la estancia, por sí o por sus acompañantes.
+1. **Horarios.** Entrada a partir de las 14:00 h; salida a más tardar a las 10:00 h. Las salidas tardías no autorizadas generan un cargo equivalente a una noche adicional.
+2. **Ocupación máxima.** La reserva ampara únicamente el número de huéspedes declarado. El ingreso de personas no declaradas puede generar cargos adicionales o la terminación de la estancia sin reembolso.
+3. **Registro de huéspedes.** Podrá solicitarse identificación oficial del huésped titular al momento del ingreso.
+4. **Política de cancelación de hospedaje.** Se rige por la sección específica de la [Política de Cancelación y Reembolso](https://quintakooxtanil.com/politica-de-cancelacion), distinta de la aplicable a eventos.
+5. **Daños.** El huésped titular responde por los daños causados al inmueble, mobiliario y equipo durante la estancia, por sí o por sus acompañantes.
 
 ---
 
