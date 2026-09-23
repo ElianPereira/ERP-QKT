@@ -411,6 +411,25 @@ class CotizadorEnviarHospedajeTest(TestCase):
         self.assertFalse(respuesta.json()['ok'])
         self.assertEqual(Cotizacion.objects.count(), 0)
 
+    def test_diez_huespedes_en_una_habitacion_se_aceptan(self):
+        # Capacidad base 4 + 6 extra con recargo = 10 por habitación.
+        respuesta = self._enviar(personas='10', habitaciones_ids=[self.kaan.id])
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+
+    def test_mas_de_diez_huespedes_por_habitacion_se_rechaza(self):
+        respuesta = self._enviar(personas='11', habitaciones_ids=[self.kaan.id])
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('como máximo 10 huéspedes', respuesta.json()['errores'][0])
+        self.assertEqual(Cotizacion.objects.count(), 0)
+
+    def test_el_tope_suma_por_habitacion(self):
+        ok = self._enviar(personas='20', habitaciones_ids=[self.kaan.id, self.otoch.id])
+        self.assertEqual(ok.status_code, 200, ok.content)
+        cache.clear()
+        excede = self._enviar(personas='21', habitaciones_ids=[self.kaan.id, self.otoch.id])
+        self.assertEqual(excede.status_code, 400)
+        self.assertIn('como máximo 20 huéspedes', excede.json()['errores'][0])
+
     def test_sin_noches_se_rechaza_desde_el_form(self):
         respuesta = self._enviar(noches='', habitaciones_ids=[self.kaan.id])
         self.assertEqual(respuesta.status_code, 400)

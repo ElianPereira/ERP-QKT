@@ -43,7 +43,11 @@ from .models import (
     PortalCliente,
     Producto,
 )
-from .reglas_eventos import MAX_PERSONAS_EVENTO, MIN_PERSONAS_PERSONALIZADO_EVENTO
+from .reglas_eventos import (
+    MAX_PERSONAS_EVENTO,
+    MAX_PERSONAS_EXTRA_POR_HABITACION,
+    MIN_PERSONAS_PERSONALIZADO_EVENTO,
+)
 from .roles_cotizador import normalizar as _normalizar
 
 logger = logging.getLogger(__name__)
@@ -142,10 +146,11 @@ def _redondear_personas(n, servicio=''):
     # Pasadía: tope simple, sin redondear a múltiplos de 10 (ese redondeo es
     # para los tramos de precio por 10 personas de Evento, que no aplican
     # aquí). Hospedaje **no tiene tope propio a propósito**: más huéspedes que
-    # la capacidad base de las habitaciones elegidas es válido, solo cobra el
+    # la capacidad base de las habitaciones elegidas es válido y cobra el
     # recargo de personas extra (ver PERSONA_EXTRA_HOSPEDAJE en
-    # `_lineas_cotizador`) — el único límite es el genérico de 1-200 que ya
-    # aplica antes de llamar a esta función.
+    # `_lineas_cotizador`); el tope real depende de cuántas habitaciones se
+    # eligieron y se valida en `cotizador_enviar`
+    # (MAX_PERSONAS_EXTRA_POR_HABITACION).
     if servicio == 'PASADIA':
         # Aforo base 20, aforo ampliado con cargo extra hasta el máximo
         # inexcedible de 30 (Reglamento Interno v1.2, sección 4).
@@ -338,14 +343,23 @@ def cotizador_enviar(request):
     # igual que las demás validaciones de CotizadorEnviarForm.
     habitaciones_ids = [int(x) for x in habitaciones_ids_raw if str(x).isdigit()]
     if servicio == 'HOSPEDAJE':
-        habitaciones_validas = Producto.objects.filter(
+        habitaciones_validas = list(Producto.objects.filter(
             id__in=habitaciones_ids, rol_cotizador='HABITACION_HOSPEDAJE', visible_cotizador=True,
-        ).count()
-        if habitaciones_validas == 0:
+        ).values_list('capacidad_base_hospedaje', flat=True))
+        if not habitaciones_validas:
             return JsonResponse({
                 'ok': False,
                 'errores': ["Selecciona al menos una habitación."],
             }, status=400)
+        # Tope duro por habitación: capacidad base (comodidad garantizada)
+        # + MAX_PERSONAS_EXTRA_POR_HABITACION con recargo. Igual que en
+        # Evento, no se recorta en silencio.
+        max_huespedes = sum(c + MAX_PERSONAS_EXTRA_POR_HABITACION for c in habitaciones_validas)
+        if num_personas > max_huespedes:
+            return JsonResponse({'ok': False, 'errores': [
+                f"Las habitaciones elegidas admiten como máximo {max_huespedes} huéspedes. "
+                "Elige otra habitación o reduce el número de huéspedes."
+            ]}, status=400)
 
     # ── Disponibilidad de fecha ────────────────────────────────────────────────────────────
     aviso_fecha = None
