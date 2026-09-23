@@ -19,6 +19,7 @@ from .models import OpenpayTransaccion, PortalCliente
 from .paynet import TIENDAS_PAYNET
 from .services_openpay import (
     consultar_y_confirmar_cargo,
+    monto_en_camino,
     procesar_cargo_efectivo,
     procesar_cargo_spei,
     procesar_cargo_tarjeta,
@@ -153,6 +154,18 @@ def portal_procesar_pago_openpay(request, token):
     saldo = cotizacion.saldo_pendiente()
     if monto > saldo + Decimal('0.50'):
         return JsonResponse({'ok': False, 'mensaje': f'El monto excede el saldo pendiente (${saldo:,.2f}).'})
+
+    # Una ficha de efectivo o una CLABE vigente es saldo ya comprometido: si se
+    # cobrara otra vez, al pagarla después el cliente pagaría de más.
+    en_camino = monto_en_camino(cotizacion)
+    if en_camino > 0 and monto > saldo - en_camino + Decimal('0.50'):
+        disponible = max(saldo - en_camino, Decimal('0.00'))
+        return JsonResponse({'ok': False, 'mensaje': (
+            f'Ya tienes una referencia de pago vigente por ${en_camino:,.2f}. '
+            + (f'Puedes pagar hasta ${disponible:,.2f} adicionales, ' if disponible > 0 else '')
+            + 'o paga la referencia que ya generaste (la ves arriba en esta página). '
+            'Si quieres cambiar de método, escríbenos.'
+        )})
 
     minimo = cotizacion.monto_minimo_pago()
     if monto < minimo - Decimal('0.50'):

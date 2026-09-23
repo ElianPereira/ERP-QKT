@@ -665,6 +665,12 @@ class Cotizacion(models.Model):
     )
     identificacion_revisada_en = models.DateTimeField(null=True, blank=True, verbose_name="Revisada el")
 
+    # Cuándo se revivió por última vez desde EXPIRADA/CANCELADA. El plazo de
+    # expiración se cuenta desde aquí: contarlo desde `created_at` hacía que el
+    # cron la volviera a expirar la misma noche en que se revivía.
+    fecha_reactivacion = models.DateTimeField(null=True, blank=True, editable=False,
+                                              verbose_name="Reactivada el")
+
     # Estados en los que la cotización ya no representa una venta viva: nadie
     # debería poder pagarla desde el portal. CANCELADA puede haber generado ya
     # una póliza de reversión y un reembolso; EXPIRADA nunca prosperó y su
@@ -804,9 +810,10 @@ class Cotizacion(models.Model):
             return 'fecha del evento ya pasada sin ningún pago'
 
         # `created_at` es auto_now_add, así que siempre existe salvo en una
-        # instancia sin guardar.
-        if self.created_at:
-            dias = (hoy - timezone.localtime(self.created_at).date()).days
+        # instancia sin guardar. Si se revivió, el plazo corre desde ahí.
+        inicio_plazo = self.fecha_reactivacion or self.created_at
+        if inicio_plazo:
+            dias = (hoy - timezone.localtime(inicio_plazo).date()).days
             if dias >= self.DIAS_EXPIRACION_SIN_PAGO:
                 return f'{dias} días sin ningún pago'
         return None
@@ -866,10 +873,18 @@ class Cotizacion(models.Model):
             self.motivo_cancelacion = ''
             self.cancelada_por = None
             self.fecha_cancelacion = None
+        self.marcar_reactivacion(estado_actual, nuevo_estado)
 
         self.estado = nuevo_estado
-        self.save(update_fields=['estado', 'motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion', 'updated_at'])
+        self.save(update_fields=['estado', 'motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion',
+                                 'fecha_reactivacion', 'updated_at'])
         return True, f"Estado cambiado a '{dict(self.ESTADOS).get(nuevo_estado)}'"
+
+    def marcar_reactivacion(self, estado_anterior, nuevo_estado):
+        """Sella `fecha_reactivacion` al revivir una cotización (fuente única
+        para `cambiar_estado()` y el admin)."""
+        if estado_anterior in ('EXPIRADA', 'CANCELADA') and nuevo_estado == 'BORRADOR':
+            self.fecha_reactivacion = now()
 
     def _get_porcentaje_anticipo_minimo(self):
         """Obtiene el porcentaje mínimo de anticipo desde ConstanteSistema."""
@@ -1125,7 +1140,7 @@ class Cotizacion(models.Model):
             minimo = programado_a_hoy - total_pagado
             motivo = 'Tienes pagos vencidos o próximos según tu plan de pagos.'
         elif total_pagado <= 0:
-            minimo = self.precio_final * Decimal('0.50')
+            minimo = impuestos.centavos(self.precio_final * self.PORCENTAJE_PRIMER_PAGO / 100)
             motivo = 'El primer pago debe ser al menos el 50% del total.'
         else:
             minimo = Decimal('0.00')

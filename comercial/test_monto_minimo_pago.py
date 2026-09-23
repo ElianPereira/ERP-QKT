@@ -223,3 +223,15 @@ class ValidacionServidorTest(TestCase):
         self.assertFalse(data['ok'])
         self.assertIn('mínimo', data['mensaje'].lower())
         self.assertEqual(Pago.objects.filter(cotizacion=cot).count(), 0)
+
+
+class MinimoRedondeadoTest(TestCase):
+    """El 50% de un total con centavos impares salía con 3-4 decimales."""
+
+    def test_el_minimo_siempre_trae_dos_decimales(self):
+        cot = _crear_cotizacion()
+        Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('11600.01'))
+        cot.refresh_from_db()
+        minimo = cot.monto_minimo_pago()
+        self.assertEqual(minimo, Decimal('5800.01'))
+        self.assertEqual(minimo.as_tuple().exponent, -2)
