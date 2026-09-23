@@ -688,6 +688,12 @@ class Cotizacion(models.Model):
     # (`monto_minimo_pago_detalle`), así ambas reglas no se separan.
     PORCENTAJE_PRIMER_PAGO = Decimal('50')
 
+    # Campos cuyo guardado aislado (`save(update_fields=...)`) no toca precios.
+    CAMPOS_SIN_EFECTO_EN_PRECIO = frozenset({
+        'estado', 'updated_at', 'motivo_cancelacion', 'cancelada_por',
+        'fecha_cancelacion', 'fecha_reactivacion', 'identificacion_oficial',
+    })
+
     def admite_pago_detalle(self):
         """¿Se puede cobrar esta cotización? -> (bool, motivo para el cliente).
 
@@ -1015,15 +1021,21 @@ class Cotizacion(models.Model):
                     self._state.adding or self.estado == 'BORRADOR'):
                 self.tasa_ish_aplicada = impuestos.tasa_ish()
             super().save(*args, **kwargs)
-            from .services import actualizar_item_cotizacion
-            actualizar_item_cotizacion(self)
-            self.calcular_totales()
-            Cotizacion.objects.filter(pk=self.pk).update(
-                subtotal=self.subtotal, iva=self.iva,
-                impuesto_hospedaje=self.impuesto_hospedaje,
-                retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
-                precio_final=self.precio_final
-            )
+            # Un guardado que solo cambia estado/auditoría no debe recalcular
+            # precios: `actualizar_item_cotizacion` recotiza la barra con los
+            # costos de HOY, y hacerlo al confirmar por pago, al cancelar o al
+            # subir la INE movía el precio de algo que el cliente ya aceptó.
+            update_fields = kwargs.get('update_fields')
+            if update_fields is None or not set(update_fields) <= self.CAMPOS_SIN_EFECTO_EN_PRECIO:
+                from .services import actualizar_item_cotizacion
+                actualizar_item_cotizacion(self)
+                self.calcular_totales()
+                Cotizacion.objects.filter(pk=self.pk).update(
+                    subtotal=self.subtotal, iva=self.iva,
+                    impuesto_hospedaje=self.impuesto_hospedaje,
+                    retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
+                    precio_final=self.precio_final
+                )
             try:
                 from .models import PortalCliente
                 PortalCliente.objects.get_or_create(

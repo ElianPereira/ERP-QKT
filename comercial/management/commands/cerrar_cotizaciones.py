@@ -8,6 +8,7 @@ Lógica, en este orden (importa):
      sigue libre (red de seguridad de `Pago.save()`: cubre las que se pagaron
      antes de que existiera la confirmación automática)
   1. CONFIRMADA / COTIZADA con fecha_evento < hoy → EJECUTADA (evento realizado)
+     y el anticipo cobrado se reconoce como ingreso (póliza de diario)
   2. EJECUTADA con fecha_evento < hoy y saldo ≤ $0.50  → CERRADA (pagada y lista)
 
 El paso 0 va ANTES del 1 a propósito: sin él, una cotización que nadie pagó y
@@ -27,6 +28,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from comercial.models import Cotizacion
+from contabilidad.signals import crear_poliza_reconocimiento_ingreso
 
 
 class Command(BaseCommand):
@@ -92,6 +94,10 @@ class Command(BaseCommand):
         for cot in pendientes_ejecutar:
             if not simular:
                 Cotizacion.objects.filter(pk=cot.pk).update(estado='EJECUTADA')
+                # El update() no dispara signals: el anticipo se pasa a
+                # ingreso aquí, igual que lo hace el signal en un cambio manual.
+                cot.estado = 'EJECUTADA'
+                crear_poliza_reconocimiento_ingreso(cot)
             ejecutadas += 1
             self.stdout.write(f'  EJECUTADA  COT-{cot.pk:03d} ({cot.nombre_evento[:50]})')
 
@@ -107,6 +113,10 @@ class Command(BaseCommand):
             if cot.saldo_pendiente() <= Decimal('0.50'):
                 if not simular:
                     Cotizacion.objects.filter(pk=cot.pk).update(estado='CERRADA')
+                    # Red de seguridad: un abono que entró como anticipo
+                    # después de ejecutarse (idempotente, no duplica nada).
+                    cot.estado = 'CERRADA'
+                    crear_poliza_reconocimiento_ingreso(cot)
                 cerradas += 1
                 self.stdout.write(f'  CERRADA    COT-{cot.pk:03d} ({cot.nombre_evento[:50]})')
 

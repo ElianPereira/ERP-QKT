@@ -160,11 +160,12 @@ def portal_procesar_pago_openpay(request, token):
     en_camino = monto_en_camino(cotizacion)
     if en_camino > 0 and monto > saldo - en_camino + Decimal('0.50'):
         disponible = max(saldo - en_camino, Decimal('0.00'))
+        opcion = (f'Puedes pagar hasta ${disponible:,.2f} adicionales o pagar'
+                  if disponible > 0 else 'Paga')
         return JsonResponse({'ok': False, 'mensaje': (
             f'Ya tienes una referencia de pago vigente por ${en_camino:,.2f}. '
-            + (f'Puedes pagar hasta ${disponible:,.2f} adicionales, ' if disponible > 0 else '')
-            + 'o paga la referencia que ya generaste (la ves arriba en esta página). '
-            'Si quieres cambiar de método, escríbenos.'
+            f'{opcion} la referencia que ya generaste (la ves en esta página). '
+            'Si quieres cambiar de método de pago, escríbenos.'
         )})
 
     minimo = cotizacion.monto_minimo_pago()

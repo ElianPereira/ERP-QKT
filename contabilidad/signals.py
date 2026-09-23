@@ -698,6 +698,115 @@ def crear_polizas_reversion_cancelacion(cotizacion, usuario=None, motivo=''):
 
 
 # ==========================================
+# RECONOCIMIENTO DEL INGRESO AL EJECUTARSE EL EVENTO
+# ==========================================
+ESTADOS_INGRESO_DEVENGADO = ('EJECUTADA', 'CERRADA')
+
+
+def _prefijo_reconocimiento(cotizacion):
+    return f"Reconocimiento de ingreso COT-{cotizacion.pk:03d}"
+
+
+def anticipo_por_reconocer(cotizacion):
+    """Lo que sigue en "Anticipo de clientes" para esta cotización.
+
+    Suma el saldo (haber − debe) de la cuenta de anticipos en las pólizas
+    APLICADAS ligadas a sus pagos —ingresos, reembolsos y reversiones— y le
+    resta lo ya reconocido. Positivo: falta pasarlo a ingreso.
+    """
+    from comercial.models import Pago
+
+    cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
+    if not cuenta_anticipo:
+        return Decimal('0.00')
+    pago_ct = ContentType.objects.get_for_model(Pago)
+    cot_ct = ContentType.objects.get_for_model(cotizacion)
+    movs = MovimientoContable.objects.filter(
+        cuenta=cuenta_anticipo, poliza__estado='APLICADA',
+    )
+    de_pagos = movs.filter(
+        poliza__content_type=pago_ct,
+        poliza__object_id__in=cotizacion.pagos.values_list('pk', flat=True),
+    )
+    reconocido = movs.filter(poliza__content_type=cot_ct, poliza__object_id=cotizacion.pk)
+    saldo = Decimal('0.00')
+    for m in list(de_pagos) + list(reconocido):
+        saldo += m.haber - m.debe
+    return saldo
+
+
+def crear_poliza_reconocimiento_ingreso(cotizacion, usuario=None):
+    """Pasa a ingreso lo cobrado como anticipo cuando el evento ya ocurrió.
+
+    Los pagos anteriores al evento se abonan a "Anticipo de clientes" (pasivo:
+    el servicio aún no se presta). Sin este asiento se quedaban ahí para
+    siempre, y el ingreso del evento nunca aparecía en los libros: el cron
+    mueve la cotización a EJECUTADA con un `update()` que no dispara nada.
+
+    Póliza de diario, fechada el día del evento (cuando se devenga el
+    ingreso). Idempotente: solo asienta la diferencia pendiente, así que
+    correrla de nuevo no duplica nada, y si un reembolso posterior dejó el
+    anticipo en negativo, emite el ajuste inverso.
+    """
+    if not signals_enabled() or cotizacion.estado not in ESTADOS_INGRESO_DEVENGADO:
+        return None
+    pendiente = anticipo_por_reconocer(cotizacion)
+    if pendiente == 0:
+        return None
+
+    cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
+    cuenta_ingreso = get_cuenta('INGRESO_EVENTOS')
+    unidad = get_unidad_negocio('QUINTA')
+    if not cuenta_ingreso or not unidad:
+        logger.warning(
+            "Reconocimiento de ingreso NO generado para COT-%s: falta cuenta "
+            "INGRESO_EVENTOS o UnidadNegocio QUINTA.", cotizacion.pk,
+        )
+        return None
+
+    importe = abs(pendiente)
+    fecha = cotizacion.fecha_evento
+    poliza = Poliza.objects.create(
+        tipo='D',
+        folio=Poliza.siguiente_folio('D', fecha),
+        fecha=fecha,
+        concepto=f"{_prefijo_reconocimiento(cotizacion)}: {cotizacion.nombre_evento}"[:500],
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='AJUSTE',
+        content_type=ContentType.objects.get_for_model(cotizacion),
+        object_id=cotizacion.pk,
+        created_by=usuario or get_usuario_sistema(),
+    )
+    # pendiente > 0: DEBE anticipo / HABER ingreso. Negativo: al revés.
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_anticipo,
+        debe=importe if pendiente > 0 else Decimal('0.00'),
+        haber=Decimal('0.00') if pendiente > 0 else importe,
+        concepto=f"COT-{cotizacion.pk:03d} anticipo aplicado",
+    )
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_ingreso,
+        debe=Decimal('0.00') if pendiente > 0 else importe,
+        haber=importe if pendiente > 0 else Decimal('0.00'),
+        concepto=f"COT-{cotizacion.pk:03d} ingreso devengado",
+    )
+    return poliza
+
+
+@receiver(post_save, sender='comercial.Cotizacion')
+def reconocer_ingreso_al_ejecutar(sender, instance, created, **kwargs):
+    """Cubre el cambio manual a EJECUTADA/CERRADA (admin o `cambiar_estado`);
+    el cron, que usa `update()`, llama a la función directamente."""
+    if created or instance.estado not in ESTADOS_INGRESO_DEVENGADO:
+        return
+    try:
+        crear_poliza_reconocimiento_ingreso(instance)
+    except Exception:
+        logger.exception("Error reconociendo el ingreso de COT-%s.", instance.pk)
+
+
+# ==========================================
 # SIGNAL: PAGO AIRBNB (airbnb.PagoAirbnb)
 # ==========================================
 def _cuenta_si_hay_importe(operacion, importe, faltantes):

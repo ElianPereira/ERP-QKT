@@ -235,6 +235,48 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-23 — Simulación E2E del ciclo de vida de una cotización (cotizador
+  web → portal → pago → evento → cierre), pedida por el propietario para
+  encontrar caminos muertos; todos los cambios autorizados explícitamente,
+  incluidos Openpay y contabilidad. **(1) Nada confirmaba una cotización
+  pagada**: nace en BORRADOR y ni el pago, ni el webhook, ni el cron la
+  movían, así que no apartaba la fecha (dos clientes pagaron el mismo día en
+  la simulación), no había contrato ni guía, y el cron nunca la ejecutaba ni
+  la cerraba. Ahora `Pago.save()` → `Cotizacion.confirmar_por_pago()`
+  confirma cuando lo pagado alcanza `porcentaje_anticipo_confirmacion()`
+  (PORCENTAJE_ANTICIPO_MINIMO o, si no está, el mismo 50% del primer pago del
+  portal); si la fecha ya está apartada, el pago se registra igual (el dinero
+  entró) y se alerta al equipo. `admite_pago_detalle()` rechaza cobrar una
+  fecha ya apartada por otra reservación, `cambiar_estado('CONFIRMADA')`
+  también valida la fecha, se permite BORRADOR → CONFIRMADA directo, y el
+  cron gana un paso 0b que confirma las pagadas heredadas. Una EXPIRADA con
+  pago tardío NO se revive sola: revivir es decisión de alguien. **Trampa
+  encontrada al revisar el diff, no por los tests**: `Cotizacion.save()`
+  llamaba a `actualizar_item_cotizacion()` en todo guardado, que recotiza la
+  barra con los costos de hoy — confirmar por pago (y, de antes, cancelar o
+  subir la INE) podía mover el precio de algo ya pagado. Ahora un
+  `save(update_fields=...)` limitado a `CAMPOS_SIN_EFECTO_EN_PRECIO` no
+  recalcula. **(2) Doble cobro**: con una ficha de efectivo vigente por el
+  total, el portal aceptaba además tarjeta; la ficha pagada después entraba
+  a Openpay sin Pago (rebasa el saldo) y nadie se enteraba.
+  `services_openpay.monto_en_camino()` (todas las referencias vigentes, no
+  solo la última por método) se descuenta del saldo cobrable, y un cobro que
+  el webhook no puede registrar alerta al equipo. **(3) Revivir no servía**:
+  el plazo de 15 días corría desde `created_at`, así que el cron la
+  re-expiraba esa misma noche → `Cotizacion.fecha_reactivacion` (migración
+  `0098`). **(4) El ingreso nunca se reconocía**: todo cobro previo al
+  evento se abona a Anticipo de clientes y el cron mueve a EJECUTADA con
+  `update()`, sin signals. `contabilidad.signals.crear_poliza_reconocimiento_
+  ingreso()` (póliza D fechada el día del evento, idempotente por diferencia
+  pendiente) la llaman el cron y un `post_save` para el cambio manual. El
+  histórico se regulariza aparte con `manage.py reconocer_ingresos_eventos
+  [--desde AAAA-MM-DD] [--aplicar]` (simula por defecto) — **pendiente de
+  correr en producción con el contador**, usando `--desde` para no tocar
+  periodos ya cerrados. **(5)** El mínimo del 50% salía con 3-4 decimales →
+  `impuestos.centavos()`. Correr los tests requiere `DEBUG=True
+  ALLOWED_HOSTS='*'` como en `ci.yml`: con `DEBUG=False`,
+  `SECURE_SSL_REDIRECT` responde 301 a todo y fallan ~40 tests que parecen
+  bugs y no lo son.
 - 2026-09-19 — Cotizador de Evento, ronda de pulido tras el rediseño del
   Issue #287 (PRs #292/#293/#294, los tres pedidos directos del propietario
   probando el flujo real, sin Issue previo). **(1)** Orden de categorías en

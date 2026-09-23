@@ -181,3 +181,21 @@ class CronConfirmaPagadasTest(TestCase):
         self.assertEqual(b.estado, 'BORRADOR')
         self.assertIn('SIN APARTAR', out.getvalue())
 
+
+
+class ConfirmarNoRecotizaTest(TestCase):
+    """Confirmar por pago no debe recotizar la barra con los costos de hoy."""
+
+    def test_guardar_solo_el_estado_no_recalcula_precios(self):
+        cot = _cotizacion()
+        with patch('comercial.services.actualizar_item_cotizacion') as recotizar:
+            _pagar(cot, '5800.00')
+        cot.refresh_from_db()
+        self.assertEqual(cot.estado, 'CONFIRMADA')
+        recotizar.assert_not_called()
+
+    def test_un_guardado_completo_si_recalcula(self):
+        cot = _cotizacion()
+        with patch('comercial.services.actualizar_item_cotizacion') as recotizar:
+            cot.save()
+        recotizar.assert_called_once()
