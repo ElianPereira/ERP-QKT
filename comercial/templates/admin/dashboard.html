@@ -26,13 +26,11 @@
 
     .kpi-box { background: #383632; border-radius: 8px; padding: 4px 20px; border: 1px solid #4a4845; margin-bottom: 18px; }
     .kpi-row { display: grid; grid-template-columns: 84px repeat(3, 1fr); align-items: center; gap: 14px; padding: 16px 0; }
-    .kpi-row + .kpi-row { border-top: 1px solid #4a4845; }
     .kpi-row-label {
         font-size: 13px; font-weight: 700; letter-spacing: 0.4px; text-align: center;
         padding: 5px 8px; border-radius: 6px; white-space: nowrap;
     }
     .kpi-row-label.qkt { color: #4CAF50; background: rgba(76, 175, 80, 0.12); }
-    .kpi-row-label.airbnb { color: #F5C518; background: rgba(245, 197, 24, 0.14); }
     .kpi-mini-title { font-size: 11px; color: #8a8780; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .kpi-mini-value { font-size: 21px; font-weight: 700; margin-top: 3px; color: #e0ddd4; }
 
@@ -85,10 +83,6 @@
             <div class="action-icon"><i class="fas fa-users"></i></div>
             <div class="action-label">Nómina</div>
         </a>
-        <a href="{% url 'reporte_pagos_airbnb' %}" class="action-btn">
-            <div class="action-icon" style="color:#F5C518;"><i class="fas fa-home"></i></div>
-            <div class="action-label">Airbnb</div>
-        </a>
     </div>
 
     <div class="kpi-box">
@@ -107,26 +101,11 @@
                 <div class="kpi-mini-value" style="color: #F5C518;">${{ utilidad_mes_quinta|floatformat:0|intcomma }}</div>
             </div>
         </div>
-        <div class="kpi-row">
-            <div class="kpi-row-label airbnb">AIRBNB</div>
-            <div class="kpi-mini">
-                <div class="kpi-mini-title">Ingresos</div>
-                <div class="kpi-mini-value" style="color: #F5C518;">${{ ingresos_mes_ruby|floatformat:0|intcomma }}</div>
-            </div>
-            <div class="kpi-mini">
-                <div class="kpi-mini-title">Gastos</div>
-                <div class="kpi-mini-value" style="color: #E67E22;">${{ gastos_mes_ruby|floatformat:0|intcomma }}</div>
-            </div>
-            <div class="kpi-mini">
-                <div class="kpi-mini-title">Utilidad</div>
-                <div class="kpi-mini-value" style="color: #F5C518;">${{ utilidad_mes_ruby|floatformat:0|intcomma }}</div>
-            </div>
-        </div>
     </div>
 
     <div class="main-grid">
         <div class="content-card">
-            <div class="card-title-text">Finanzas · QKT y AIRBNB</div>
+            <div class="card-title-text">Finanzas · QKT</div>
             <canvas id="financeChart" height="120"></canvas>
         </div>
 
@@ -158,8 +137,6 @@
 {{ chart_labels|json_script:"chart-labels" }}
 {{ chart_ventas_quinta|json_script:"chart-ventas-quinta" }}
 {{ chart_gastos_quinta|json_script:"chart-gastos-quinta" }}
-{{ chart_ingresos_ruby|json_script:"chart-ingresos-ruby" }}
-{{ chart_gastos_ruby|json_script:"chart-gastos-ruby" }}
 <script>
     var _dato = function (id) { return JSON.parse(document.getElementById(id).textContent); };
     new Chart(document.getElementById('financeChart').getContext('2d'), {
@@ -168,9 +145,7 @@
             labels: _dato('chart-labels'),
             datasets: [
                 { label: 'Ventas QKT', data: _dato('chart-ventas-quinta'), backgroundColor: 'rgba(46, 125, 50, 0.85)', borderRadius: 4 },
-                { label: 'Gastos QKT', data: _dato('chart-gastos-quinta'), backgroundColor: 'rgba(231, 76, 60, 0.7)', borderRadius: 4 },
-                { label: 'Ingresos AIRBNB', data: _dato('chart-ingresos-ruby'), backgroundColor: 'rgba(245, 197, 24, 0.9)', borderRadius: 4 },
-                { label: 'Gastos AIRBNB', data: _dato('chart-gastos-ruby'), backgroundColor: 'rgba(230, 126, 34, 0.85)', borderRadius: 4 }
+                { label: 'Gastos QKT', data: _dato('chart-gastos-quinta'), backgroundColor: 'rgba(231, 76, 60, 0.7)', borderRadius: 4 }
             ]
         },
         options: {

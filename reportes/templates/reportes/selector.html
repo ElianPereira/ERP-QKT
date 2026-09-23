@@ -33,7 +33,6 @@
     .seccion-header i { font-size: 16px; }
     .seccion-header.contabilidad { background: #2E7D32; }
     .seccion-header.comercial { background: #e67e22; }
-    .seccion-header.airbnb { background: #e74c3c; }
     .seccion-header.facturacion { background: #3498db; }
 
     .reporte-item {
@@ -330,7 +329,7 @@
     {% endif %}
 
     <!-- ============================================================ -->
-    <!-- COLUMNA DERECHA: COMERCIAL + AIRBNB + FACTURACIÓN             -->
+    <!-- COLUMNA DERECHA: COMERCIAL + FACTURACIÓN                      -->
     <!-- ============================================================ -->
     <div style="display:flex; flex-direction:column; gap:20px;">
 
@@ -376,69 +375,6 @@
                                 <option value="CONFIRMADA">Confirmada</option>
                                 <option value="EJECUTADA">Ejecutada</option>
                                 <option value="CANCELADA">Cancelada</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- AIRBNB -->
-        {% if puede_airbnb %}
-        <div class="seccion-reportes">
-            <div class="seccion-header airbnb">
-                <i class="fas fa-home"></i> Airbnb
-            </div>
-
-            <!-- 8. Ocupación -->
-            <div class="reporte-item">
-                <div class="reporte-titulo"><i class="fas fa-bed"></i> Ocupación por Listing</div>
-                <form method="get" action="{% url 'reportes:ocupacion' %}" target="_blank">
-                    <div class="filtros-row">
-                        <div class="filtro-grupo">
-                            <label>Desde</label>
-                            <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
-                        </div>
-                        <div class="filtro-grupo">
-                            <label>Hasta</label>
-                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
-                        </div>
-                        <div class="filtro-grupo">
-                            <label>Anuncio</label>
-                            <select name="anuncio_id">
-                                <option value="">Todos</option>
-                                {% for a in anuncios_airbnb %}
-                                <option value="{{ a.pk }}">{{ a.nombre }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- 9. Comparativo Mensual -->
-            <div class="reporte-item">
-                <div class="reporte-titulo"><i class="fas fa-chart-bar"></i> Comparativo Mensual</div>
-                <form method="get" action="{% url 'reportes:comparativo_airbnb' %}" target="_blank">
-                    <div class="filtros-row">
-                        <div class="filtro-grupo">
-                            <label>Desde</label>
-                            <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}">
-                        </div>
-                        <div class="filtro-grupo">
-                            <label>Hasta</label>
-                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}">
-                        </div>
-                        <div class="filtro-grupo">
-                            <label>Anuncio</label>
-                            <select name="anuncio_id">
-                                <option value="">Todos</option>
-                                {% for a in anuncios_airbnb %}
-                                <option value="{{ a.pk }}">{{ a.nombre }}</option>
-                                {% endfor %}
                             </select>
                         </div>
                         <button type="submit" class="btn-generar"><i class="fas fa-file-pdf"></i> PDF</button>

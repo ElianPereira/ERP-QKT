@@ -140,9 +140,9 @@ class CotizadorApisErrorGenericoTest(TestCase):
         cache.clear()
 
     def test_api_disponibilidad_fecha_no_filtra_el_detalle_pero_queda_en_el_log(self):
-        mensaje_interno = 'conexión perdida a la tabla airbnb_conflictocalendario'
+        mensaje_interno = 'conexión perdida a la tabla comercial_cotizacion'
         with patch(
-            'airbnb.validacion_fechas.verificar_disponibilidad_fecha',
+            'comercial.disponibilidad.verificar_disponibilidad_fecha',
             side_effect=RuntimeError(mensaje_interno),
         ), self.assertLogs('comercial.views_cotizador', level='ERROR') as logs:
             respuesta = self.client.get(
@@ -156,9 +156,9 @@ class CotizadorApisErrorGenericoTest(TestCase):
         self.assertIn(mensaje_interno, '\n'.join(logs.output))
 
     def test_api_fechas_ocupadas_no_filtra_el_detalle_pero_queda_en_el_log(self):
-        mensaje_interno = 'conexión perdida a la tabla airbnb_conflictocalendario'
+        mensaje_interno = 'conexión perdida a la tabla comercial_cotizacion'
         with patch(
-            'airbnb.validacion_fechas.obtener_fechas_bloqueadas',
+            'comercial.disponibilidad.obtener_fechas_bloqueadas',
             side_effect=RuntimeError(mensaje_interno),
         ), self.assertLogs('comercial.views_cotizador', level='ERROR') as logs:
             respuesta = self.client.get(reverse('api_fechas_ocupadas'))

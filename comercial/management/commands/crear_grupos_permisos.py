@@ -23,7 +23,7 @@ VERBOS_ESTANDAR = ('view', 'add', 'change', 'delete')
 
 # grupo -> apps completas a las que accede (todos los modelos, CRUD estándar)
 GRUPOS_APPS = {
-    'Ventas': ['comercial', 'airbnb', 'comunicacion'],
+    'Ventas': ['comercial', 'comunicacion'],
     'Contabilidad': ['contabilidad', 'facturacion'],
     'Nómina': ['nomina'],
 }

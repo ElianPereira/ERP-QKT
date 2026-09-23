@@ -1,7 +1,7 @@
 """
 Tests de la línea de negocio Hospedaje (Issue #230): rango de noches,
-exclusividad de fechas bidireccional (Hospedaje vs. Airbnb / Evento / Pasadía
-/ Arrendamiento / otro Hospedaje, y viceversa), selector de habitaciones del
+exclusividad de fechas bidireccional (Hospedaje vs. Evento / Pasadía /
+Arrendamiento / otro Hospedaje, y viceversa), selector de habitaciones del
 cotizador y formato de horas en a.m./p.m.
 
 Ejecutar: python manage.py test comercial.test_hospedaje --verbosity=2
@@ -17,8 +17,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from airbnb.models import AnuncioAirbnb, ReservaAirbnb
-from airbnb.validacion_fechas import (
+from comercial.disponibilidad import (
     verificar_disponibilidad_fecha,
     verificar_disponibilidad_hospedaje,
     verificar_disponibilidad_rango,
@@ -105,10 +104,6 @@ class DisponibilidadBidireccionalTest(TestCase):
 
     def setUp(self):
         self.cliente = Cliente.objects.create(nombre='C', tipo_persona='FISICA')
-        self.anuncio = AnuncioAirbnb.objects.create(
-            nombre='Casa Test', url_ical='https://www.airbnb.mx/calendar/ical/1.ics?s=x',
-            afecta_eventos_quinta=True,
-        )
 
     def _cot(self, tipo, fecha_evento, fecha_salida=None, estado='CONFIRMADA'):
         cot = Cotizacion.objects.create(
@@ -121,18 +116,6 @@ class DisponibilidadBidireccionalTest(TestCase):
         Cotizacion.objects.filter(pk=cot.pk).update(estado=estado)
         cot.refresh_from_db()
         return cot
-
-    def _reserva_airbnb(self, ini, fin, estado='CONFIRMADA'):
-        return ReservaAirbnb.objects.create(
-            anuncio=self.anuncio, uid_ical=f'uid-{ini}', fecha_inicio=ini, fecha_fin=fin,
-            estado=estado,
-        )
-
-    def test_hospedaje_vs_airbnb_se_traslapan(self):
-        self._reserva_airbnb(date(2026, 12, 10), date(2026, 12, 15))
-        disponible, msg = verificar_disponibilidad_hospedaje(date(2026, 12, 12), date(2026, 12, 14))
-        self.assertFalse(disponible)
-        self.assertIn('Fechas no disponibles', msg)
 
     def test_hospedaje_vs_evento_confirmado(self):
         self._cot('EVENTO', date(2026, 12, 12))
@@ -196,6 +179,38 @@ class DisponibilidadBidireccionalTest(TestCase):
         disponible, msg = verificar_disponibilidad_fecha(date(2026, 12, 12))
         self.assertTrue(disponible)
         self.assertIsNone(msg)
+
+
+class ApiFechasOcupadasTest(TestCase):
+    """El calendario público marca solo los días realmente ocupados: la
+    fecha fin de cada bloqueo es exclusiva (el día siguiente a un evento y el
+    checkout de un hospedaje quedan libres)."""
+
+    def setUp(self):
+        cache.clear()
+        self.cliente = Cliente.objects.create(nombre='C', tipo_persona='FISICA')
+        self.hoy = timezone.localdate()
+
+    def _confirmada(self, tipo, fecha_evento, fecha_salida=None):
+        cot = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='X', tipo_servicio=tipo,
+            fecha_evento=fecha_evento, fecha_salida=fecha_salida,
+        )
+        Cotizacion.objects.filter(pk=cot.pk).update(estado='CONFIRMADA')
+
+    def test_evento_ocupa_solo_su_dia_y_hospedaje_sus_noches(self):
+        evento = self.hoy + timedelta(days=10)
+        entrada = self.hoy + timedelta(days=20)
+        self._confirmada('EVENTO', evento)
+        self._confirmada('HOSPEDAJE', entrada, entrada + timedelta(days=2))
+
+        fechas = self.client.get(reverse('api_fechas_ocupadas')).json()['fechas_ocupadas']
+
+        self.assertEqual(fechas, [
+            evento.strftime('%Y-%m-%d'),
+            entrada.strftime('%Y-%m-%d'),
+            (entrada + timedelta(days=1)).strftime('%Y-%m-%d'),
+        ])
 
 
 class LineasHospedajeTest(TestCase):

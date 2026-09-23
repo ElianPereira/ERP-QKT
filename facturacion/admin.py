@@ -94,7 +94,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
     @admin.display(description="Línea", ordering="linea_negocio")
     def linea_negocio_display(self, obj):
-        colores = {'QUINTA': '#2E7D32', 'AIRBNB': '#FF5A5F'}
+        colores = {'QUINTA': '#2E7D32'}
         return format_html(
             '<span style="background:{}; color:#fff; padding:3px 10px; '
             'border-radius:10px; font-size:11px; font-weight:600;">{}</span>',

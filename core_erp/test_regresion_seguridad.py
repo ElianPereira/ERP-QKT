@@ -13,8 +13,8 @@ auditoría de esta orden encontró: `PublicSecurityHeadersMiddleware`
 expiración de sesión por inactividad tampoco.
 
 Índice de cobertura existente (órdenes 1-18):
-  - SEC-XSS-001 / 001b (1, 2)  → airbnb/test_seguridad.py::CalendarioAdminXssTest
-  - SEC-DATA-001 / 001b (5, 6) → airbnb/test_seguridad.py::FeedIcalTest
+  - SEC-XSS-001 / 001b (1, 2)  → comercial/test_calendario.py::CalendarioAdminXssTest
+  - SEC-DATA-001 / 001b (5, 6) → retirado junto con el feed iCal de Airbnb (Issue #311)
   - SEC-FILE-001b (8)          → core_erp/test_descargas.py
   - SEC-AUTHN-001a (9)         → core_erp/test_descargas.py (mensaje de error idéntico)
   - SEC-AUTHN-001b (10)        → comercial/test_seguridad_portal.py

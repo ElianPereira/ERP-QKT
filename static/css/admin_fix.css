@@ -327,7 +327,7 @@ input[type="submit"].default:hover {
     border-bottom: 1px solid var(--qkt-border) !important;
 }
 
-/* ── KPI BOXES en changelist (Pagos Airbnb) ───────────────── */
+/* ── KPI BOXES en changelist ─────────────────────────────── */
 #changelist .card,
 #changelist div[style*="background: #f8f9fa"],
 #changelist div[style*="background:#f8f9fa"] {
@@ -563,7 +563,7 @@ a:hover {
     border-top: 1px solid #4a4845 !important;
 }
 
-/* Tabs (Pagos Airbnb, etc) */
+/* Tabs */
 .nav-tabs .nav-link {
     color: #8a8780 !important;
     border-color: #4a4845 !important;
@@ -671,7 +671,7 @@ small.text-muted {
    dentro de Contabilidad, etc. viven al mismo nivel de anidación HTML
    que los modelos directos de su app padre, así que sin esto se ven
    con el mismo margen izquierdo que las pestañas de primer nivel
-   (Airbnb, Contabilidad...) que vienen justo debajo en la lista.
+   (Contabilidad...) que vienen justo debajo en la lista.
 
    OJO: el padding-left base de CUALQUIER .nav-link (de primer nivel o
    ya anidado dentro de un treeview) es 2rem (32px) — AdminLTE no

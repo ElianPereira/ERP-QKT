@@ -132,7 +132,7 @@ class UnidadNegocio(models.Model):
         max_length=20,
         unique=True,
         verbose_name="Clave",
-        help_text="Identificador corto (ej: QUINTA, AIRBNB)"
+        help_text="Identificador corto (ej: QUINTA)"
     )
     nombre = models.CharField(max_length=100, verbose_name="Nombre")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
@@ -270,7 +270,6 @@ class Poliza(models.Model):
     ORIGEN_CHOICES = [
         ('MANUAL', 'Captura manual'),
         ('PAGO_CLIENTE', 'Pago de cliente'),
-        ('PAGO_AIRBNB', 'Pago Airbnb'),
         ('COMPRA', 'Compra/Gasto'),
         ('NOMINA', 'Nómina'),
         ('COMISION_OPENPAY', 'Comisión Openpay'),
@@ -722,13 +721,9 @@ class ConfiguracionContable(models.Model):
         ('OTROS_INGRESOS_CLIENTE', 'Otros ingresos de cliente (propinas, comisiones, etc.)'),
 
         # ═══════════════════════════════════════════
-        # AIRBNB
+        # HOSPEDAJE DIRECTO
         # ═══════════════════════════════════════════
-        ('INGRESO_AIRBNB', 'Ingreso Airbnb'),
-        ('RETENCION_ISR_AIRBNB', 'Retención ISR Airbnb'),
-        ('RETENCION_IVA_AIRBNB', 'Retención IVA Airbnb'),
         ('IMPUESTO_HOSPEDAJE', 'Impuesto al hospedaje'),
-        ('COMISION_AIRBNB', 'Comisión Airbnb'),
 
         # ═══════════════════════════════════════════
         # COMPRAS/GASTOS - GENERALES

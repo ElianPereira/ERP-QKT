@@ -261,9 +261,8 @@ class EnviarWhatsappContadorPlantillaTest(TestCase):
 
 
 class LineaNegocioSolicitudFacturaTest(TestCase):
-    """Toda solicitud debe dejar claro bajo qué RFC propio se factura —
-    la empresa opera dos: PECE010202IA0 (Quinta, reservas directas) y
-    CERU580518QZ5 (Airbnb, no pasa por Cotizacion/Pago hoy)."""
+    """Toda solicitud debe dejar claro bajo qué RFC propio se factura
+    (PECE010202IA0, Quinta Ko'ox Tanil)."""
 
     def setUp(self):
         self.user = User.objects.create_user('u_linea', password='x')
@@ -278,16 +277,6 @@ class LineaNegocioSolicitudFacturaTest(TestCase):
         solicitud = SolicitudFactura.objects.get(pago=pago)
         self.assertEqual(solicitud.linea_negocio, 'QUINTA')
         self.assertEqual(solicitud.rfc_emisor, 'PECE010202IA0')
-
-    def test_airbnb_usa_su_propio_rfc_emisor(self):
-        solicitud = SolicitudFactura.objects.create(
-            cliente=self.cliente, linea_negocio='AIRBNB',
-            monto=Decimal('1000.00'), concepto='Ingreso Airbnb',
-            rfc='XAXX010101000', razon_social='PUBLICO EN GENERAL',
-            codigo_postal='97238', regimen_fiscal='616',
-        )
-        self.assertEqual(solicitud.rfc_emisor, 'CERU580518QZ5')
-        self.assertIn('CERU580518QZ5', solicitud.get_datos_para_contador())
 
     def test_pdf_muestra_el_rfc_emisor(self):
         pago = Pago.objects.create(

@@ -403,9 +403,8 @@ def sugerir_compras_pendientes(estado_cuenta: EstadoCuentaBancario, tolerancia_d
     definiciones distintas de "qué cuenta como match" en el módulo.
 
     No decide por sí sola en caso de ambigüedad: un cargo con más de una
-    Compra candidata del mismo importe/fecha se marca como ambiguo — mismo
-    principio que ya se aplicó en la conciliación de depósitos de Airbnb
-    (no adivinar cuál de varias, dejar la decisión a quien concilia).
+    Compra candidata del mismo importe/fecha se marca como ambiguo (no
+    adivinar cuál de varias, dejar la decisión a quien concilia).
 
     Devuelve {movimiento_estado_cuenta_id: {'candidata': Compra|None, 'ambiguas': [Compra,...]}}.
     Un cargo sin ninguna candidata simplemente no aparece en el dict.

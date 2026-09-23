@@ -320,7 +320,7 @@ jobs:
           ruff check . || echo "::warning::Ruff reportó deuda previa; el CI actual trata lint como informativo."
           python manage.py check
           python manage.py makemigrations --check --dry-run || echo "::warning::main ya contiene migraciones pendientes en facturacion/legal."
-          coverage run --source='.' manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp
+          coverage run --source='.' manage.py test comercial contabilidad facturacion nomina legal core_erp
           coverage report --skip-covered
 
       - name: Create scoped GitHub App token

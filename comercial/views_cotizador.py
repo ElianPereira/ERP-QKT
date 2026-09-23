@@ -365,10 +365,10 @@ def cotizador_enviar(request):
     aviso_fecha = None
     try:
         if servicio == 'HOSPEDAJE':
-            from airbnb.validacion_fechas import verificar_disponibilidad_hospedaje
+            from .disponibilidad import verificar_disponibilidad_hospedaje
             disponible, msg_disp = verificar_disponibilidad_hospedaje(fecha_evento, fecha_salida)
         else:
-            from airbnb.validacion_fechas import verificar_disponibilidad_fecha
+            from .disponibilidad import verificar_disponibilidad_fecha
             disponible, msg_disp = verificar_disponibilidad_fecha(fecha_evento)
         if not disponible:
             aviso_fecha = msg_disp
@@ -556,7 +556,7 @@ def cotizador_enviar(request):
 def api_disponibilidad_fecha(request):
     """GET /api/disponibilidad/?fecha=YYYY-MM-DD[&noches=N]
     Responde si la fecha (o, con `noches`, el rango completo de una estancia
-    de Hospedaje) está libre o ya apartada (Airbnb / cotización confirmada)."""
+    de Hospedaje) está libre o ya apartada por una cotización confirmada."""
     fecha_str = (request.GET.get('fecha') or '').strip()
     fecha = None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
@@ -570,7 +570,7 @@ def api_disponibilidad_fecha(request):
 
     noches_str = (request.GET.get('noches') or '').strip()
     try:
-        from airbnb.validacion_fechas import (
+        from .disponibilidad import (
             verificar_disponibilidad_fecha,
             verificar_disponibilidad_hospedaje,
         )
@@ -597,7 +597,7 @@ def api_disponibilidad_fecha(request):
 @rate_limit(key='api_fechas_ocupadas', limit=60, window=60)
 def api_fechas_ocupadas(request):
     """GET /api/fechas-ocupadas/?dias=365
-    Devuelve la lista de fechas no disponibles (Airbnb + cotizaciones apartadas)
+    Devuelve la lista de fechas no disponibles (cotizaciones apartadas)
     en el rango [hoy, hoy+dias] para pintar un calendario."""
     try:
         dias = int(request.GET.get('dias', '365'))
@@ -607,7 +607,7 @@ def api_fechas_ocupadas(request):
     hoy = timezone.now().date()
     fin = hoy + timedelta(days=dias)
     try:
-        from airbnb.validacion_fechas import obtener_fechas_bloqueadas
+        from .disponibilidad import obtener_fechas_bloqueadas
         bloqueos = obtener_fechas_bloqueadas(hoy, fin)
     except Exception:
         logger.exception("Error al obtener las fechas bloqueadas (%s a %s).", hoy, fin)
@@ -615,9 +615,11 @@ def api_fechas_ocupadas(request):
 
     fechas = set()
     for b in bloqueos:
+        # fecha_fin es EXCLUSIVA (día siguiente de un evento, checkout de un
+        # hospedaje): ese día queda libre.
         ini, f_fin = b['fecha_inicio'], b['fecha_fin']
         d = ini
-        while d <= f_fin:
+        while d < f_fin:
             fechas.add(d.strftime('%Y-%m-%d'))
             d += timedelta(days=1)
     return JsonResponse({

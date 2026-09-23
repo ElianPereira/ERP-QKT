@@ -14,7 +14,7 @@ from facturacion.choices import FormaPago, MetodoPago, RegimenFiscal, UsoCFDI
 # Mismo mapeo que ya usa Compra para detectar el RFC receptor de un XML de
 # compra (comercial/services.py) — aquí se usa al revés: de la clave de línea
 # de negocio a su RFC emisor propio, para que la solicitud de factura le diga
-# al contador bajo cuál de los dos RFC de la empresa debe timbrar.
+# al contador bajo qué RFC de la empresa debe timbrar.
 _RFC_POR_LINEA_NEGOCIO = {clave: rfc for rfc, clave in RFC_UNIDAD_MAP.items()}
 
 
@@ -64,14 +64,10 @@ class SolicitudFactura(models.Model):
         ('CANCELADA', 'Cancelada'),
     ]
 
-    # La empresa opera bajo dos RFC propios según el origen del ingreso — el
-    # contador necesita saber cuál usar para timbrar. QUINTA es el default:
-    # las solicitudes automáticas (señal desde comercial.Pago) siempre vienen
-    # de una Cotizacion de Evento/Pasadía/Hospedaje/Arrendamiento, que son
-    # reservas directas de la Quinta, nunca de Airbnb.
+    # RFC propio bajo el que el contador debe timbrar. Hoy la empresa solo
+    # factura como Quinta Ko'ox Tanil (Eventos, Pasadías y Hospedaje directo).
     LINEA_NEGOCIO_CHOICES = [
         ('QUINTA', "Quinta Ko'ox Tanil"),
-        ('AIRBNB', 'Airbnb'),
     ]
 
     # ─── Relaciones ───────────────────────────────────────────
@@ -112,9 +108,7 @@ class SolicitudFactura(models.Model):
         default='QUINTA',
         verbose_name="Línea de Negocio",
         help_text="Bajo qué RFC propio se debe timbrar: PECE010202IA0 para "
-                  "Quinta Ko'ox Tanil (Eventos, Pasadías y Hospedajes "
-                  "Directos) o CERU580518QZ5 para ingresos directos de "
-                  "Airbnb.",
+                  "Quinta Ko'ox Tanil (Eventos, Pasadías y Hospedaje directo).",
     )
 
     # Datos fiscales (copiados del cliente al crear, editables)

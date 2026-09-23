@@ -33,8 +33,6 @@ class Command(BaseCommand):
             ('108', 'IVA por acreditar', 'ACTIVO', 'D', 2, '100'),
             ('108.01', 'IVA acreditable del período', 'ACTIVO', 'D', 3, '108'),
             ('109', 'Pagos anticipados', 'ACTIVO', 'D', 2, '100'),
-            ('109.03', 'ISR retenido por Airbnb', 'ACTIVO', 'D', 3, '109'),
-            ('109.04', 'IVA retenido por Airbnb', 'ACTIVO', 'D', 3, '109'),
 
             # PASIVO
             ('200', 'Pasivo', 'PASIVO', 'A', 1, None),
@@ -58,7 +56,6 @@ class Command(BaseCommand):
             ('400', 'Ingresos', 'INGRESO', 'A', 1, None),
             ('401', 'Ingresos por actividades primarias', 'INGRESO', 'A', 2, '400'),
             ('401.01', 'Ingresos por servicios de eventos', 'INGRESO', 'A', 3, '401'),
-            ('401.02', 'Ingresos por hospedaje Airbnb', 'INGRESO', 'A', 3, '401'),
 
             # COSTOS
             ('500', 'Costos', 'COSTO', 'D', 1, None),
@@ -74,7 +71,6 @@ class Command(BaseCommand):
             ('601.01.08', 'Personal externo', 'GASTO', 'D', 4, '601.01'),
             ('601.02', 'Gastos de operación', 'GASTO', 'D', 3, '601'),
             ('601.04', 'Gastos de venta', 'GASTO', 'D', 3, '601'),
-            ('601.04.02', 'Comisiones Airbnb', 'GASTO', 'D', 4, '601.04'),
         ]
 
         cuentas_creadas = {}
@@ -105,7 +101,6 @@ class Command(BaseCommand):
     def _cargar_unidades_negocio(self):
         unidades = [
             ('QUINTA', 'Quinta Ko\'ox Tanil - Eventos', 'EMPRESARIAL'),
-            ('AIRBNB', 'Hospedaje Airbnb', 'PLATAFORMAS'),
             ('OTROS', 'Otros', 'MIXTO'),
         ]
 

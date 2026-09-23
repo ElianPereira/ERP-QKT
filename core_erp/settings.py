@@ -228,12 +228,6 @@ CACHES = {
     }
 }
 
-# --- FEED iCAL PÚBLICO (lo consume Airbnb para bloquear fechas) ---
-# Se lee aquí y no con config() dentro de la vista para que exista una sola
-# fuente y los tests puedan sobreescribirlo con override_settings. Sin valor,
-# la vista responde 403: ver ICAL en airbnb/views.py::generar_ical_eventos.
-ICAL_PUBLIC_TOKEN = config('ICAL_PUBLIC_TOKEN', default='')
-
 # Número de registro ante PROFECO del contrato de adhesión de Hospedaje. El
 # registro 9341-2023 solo ampara Evento y Pasadía: mientras esta variable
 # esté vacía, el contrato de Hospedaje sale sin leyenda de registro.
@@ -245,8 +239,8 @@ PROFECO_REGISTRO_HOSPEDAJE = config('PROFECO_REGISTRO_HOSPEDAJE', default='')
 # Railway es lo único que hace falta para activarlo, sin desplegar.
 #
 # La tasa la confirma el contador: es ley estatal, no federal, y cambia sin
-# que este repo se entere. Aplica solo a hospedaje vendido directo — el de
-# Airbnb lo retiene y entera la propia plataforma. Ver core_erp/impuestos.py.
+# que este repo se entere. Aplica al hospedaje vendido directo (Ka'an y
+# Otoch). Ver core_erp/impuestos.py.
 TASA_ISH = Decimal(config('TASA_ISH', default='0'))
 
 # --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
@@ -484,14 +478,6 @@ JAZZMIN_SETTINGS = {
         "comercial.Temporada":              "fas fa-calendar-week",
         "comercial.GuiaTipoServicio":       "fas fa-book-open",
 
-        # AIRBNB
-        "airbnb":                           "fas fa-bed",
-        "airbnb.ReservaAirbnb":             "fas fa-calendar-check",
-        "airbnb.PagoAirbnb":               "fas fa-money-bill-wave",
-        "airbnb.ConflictoCalendario":       "fas fa-exclamation-triangle",
-        "airbnb.AnuncioAirbnb":             "fas fa-home",
-        "airbnb.DepositoConciliado":        "fas fa-check-double",
-
         # CONTABILIDAD
         "contabilidad":                     "fas fa-calculator",
         "contabilidad.poliza":              "fas fa-file-invoice",
@@ -563,7 +549,7 @@ JAZZMIN_SETTINGS = {
     # ── TOP MENU ──────────────────────────────────────────────
     "topmenu_links": [
         {"name": "Inicio",             "url": "admin:index",            "permissions": ["auth.view_user"]},
-        {"name": "Calendario",         "url": "ver_calendario"},
+        {"name": "Calendario",         "url": "calendario_unificado"},
         {"name": "Compras",            "url": "generar_lista_compras"},
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},
@@ -600,13 +586,6 @@ JAZZMIN_SETTINGS = {
         "comercial.TestimonioLanding",
         "comercial.EspacioLanding",
         "comercial.PreguntaFrecuente",
-
-        # === AIRBNB & HOSPEDAJE ===
-        "airbnb",
-        "airbnb.ReservaAirbnb",
-        "airbnb.PagoAirbnb",
-        "airbnb.ConflictoCalendario",
-        "airbnb.AnuncioAirbnb",
 
         # === CONTABILIDAD ===
         "contabilidad",

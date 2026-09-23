@@ -10,8 +10,6 @@ Lo que fija este archivo, en orden de importancia:
    confirme la tasa.
 2. Con tasa configurada, solo el hospedaje directo lo causa — nunca evento,
    pasadía ni arrendamiento.
-3. Airbnb queda fuera por construcción: su ISH lo retiene y entera la
-   plataforma, así que no es un pasivo de la Quinta ni entra en su póliza.
 
 Ejecutar: python manage.py test comercial.test_ish --verbosity=2
 """

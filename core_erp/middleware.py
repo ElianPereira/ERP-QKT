@@ -121,7 +121,7 @@ PORTAL_CSP_REPORT_ONLY_POLICY = (
 
 # --- CSP objetivo del admin, SOLO Report-Only (no bloquea). Cubre lo que ya
 # se sabe que carga el admin: FullCalendar y Chart.js vía jsDelivn (calendario
-# unificado, dashboards de comercial/airbnb), Google Fonts (admin_fix.css) y
+# unificado, dashboard de comercial), Google Fonts (admin_fix.css) y
 # las imágenes del bucket público (miniaturas de ImagenLanding/Producto). Se
 # revisa y amplía con las violaciones reales antes de plantear una versión
 # bloqueante — ver docstring del módulo. ---

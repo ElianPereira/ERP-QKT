@@ -41,8 +41,6 @@ class ReporteGeneradoAdmin(admin.ModelAdmin):
             'AUXILIAR': '#1abc9c',
             'CXC_CARTERA': '#e67e22',
             'COT_PERIODO': '#F5C518',
-            'OCUPACION': '#e74c3c',
-            'COMPARATIVO': '#e74c3c',
             'FACTURAS': '#95a5a6',
         }
         color = colores.get(obj.tipo, '#95a5a6')

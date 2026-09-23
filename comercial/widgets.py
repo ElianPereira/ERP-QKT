@@ -8,7 +8,7 @@ from django.utils.safestring import mark_safe
 class TimeSlotWidget(forms.TimeInput):
     """
     Selector de hora con lista de franjas horarias buscable (patrón usado
-    por Google Calendar / Airbnb), pensado para funcionar igual en mouse,
+    por Google Calendar), pensado para funcionar igual en mouse,
     teclado y pantallas táctiles.
 
     Sustituye al AdminTimeWidget por defecto de Django, cuyo popover
