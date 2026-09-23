@@ -1,9 +1,7 @@
 # REGLAMENTO INTERNO
 
-**Versión 1.2 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 1.2 — Vigente a partir del 23 de septiembre de 2026**
 *Sustituye a la versión 1.1 del 4 de agosto de 2026.*
-
-**[CONFIRMAR: esta versión solo retira el inmueble Honey Sea House y las reservas por plataformas de terceros del hospedaje (Secciones 4 y 18): el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta. Además, la Sección 4 precisa el aforo ampliado de Pasadía (20 incluidas + 10 con costo extra = 30) y el de Hospedaje por habitación (4 con comodidad garantizada + 6 con costo extra = 10). Ningún otro cambio.]**
 
 ---
 

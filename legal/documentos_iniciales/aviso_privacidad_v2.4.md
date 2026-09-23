@@ -1,9 +1,7 @@
 # AVISO DE PRIVACIDAD INTEGRAL
 
-**Versión 2.4 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 2.4 — Vigente a partir del 23 de septiembre de 2026**
 *Sustituye a la versión 2.3 del 25 de agosto de 2026.*
-
-**[CONFIRMAR: cambios de esta versión respecto de la 2.3: (1) se quita la mención a Arrendamiento de Mobiliario en la Sección 2.e), por el retiro de esa línea de negocio; (2) se quita el domicilio del inmueble de hospedaje externo (Honey Sea House), que dejó de formar parte del portafolio: el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta; (3) la Sección 10 describe las cookies que el sitio usa hoy (solo las necesarias del portal, más el mapa y las tipografías de Google), en vez de cookies analíticas y publicitarias con un banner que no existe. Ningún otro cambio.]**
 
 ---
 

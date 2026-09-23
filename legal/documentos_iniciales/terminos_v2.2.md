@@ -1,9 +1,7 @@
 # TÉRMINOS Y CONDICIONES
 
-**Versión 2.2 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 2.2 — Vigente a partir del 23 de septiembre de 2026**
 *Sustituye a la versión 2.1 del 4 de agosto de 2026.*
-
-**[CONFIRMAR: esta versión retira el servicio de Arrendamiento de Mobiliario del catálogo, por decisión del propietario de dar de baja esa línea de negocio (solo se ofrecen Eventos, Pasadía y Hospedaje). Queda pendiente decidir qué hacer con el Registro Público de Contratos de Adhesión 9339-2023/Expediente PFC.B.E.7/009990-2023, dado de alta específicamente para arrendamiento de mobiliario — si se retira la mención, se solicita a PROFECO la baja del registro, o se conserva por los contratos de arrendamiento que sigan vigentes. No se resuelve en este borrador. Además, esta versión retira el inmueble Honey Sea House del servicio de Hospedaje (dejó de formar parte del portafolio y ya no se renta por plataformas de terceros): el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta, y se elimina la regla de reservas por plataformas de terceros de la Sección 10, que además precisa la ocupación por habitación (4 con comodidad garantizada + 6 con costo extra = 10).]**
 
 ---
 
@@ -18,7 +16,7 @@
 | **Correo electrónico** | quintakooxtanil@gmail.com |
 | **Teléfono / WhatsApp** | +52 999 445 7178 |
 | **Horario de atención** | Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro) |
-| **Registro Público de Contratos de Adhesión (PROFECO)** | 9341-2023 de fecha 31 de octubre de 2023 (Expediente PFC.B.E.7/009991-2023) para eventos y pasadías [CONFIRMAR: ¿qué hacer con el registro 9339-2023, Expediente PFC.B.E.7/009990-2023, dado de alta específicamente para arrendamiento de mobiliario?] |
+| **Registro Público de Contratos de Adhesión (PROFECO)** | 9341-2023 de fecha 31 de octubre de 2023 (Expediente PFC.B.E.7/009991-2023), para eventos y pasadías |
 
 **Domicilios de prestación del servicio:**
 - **Eventos y pasadías:** Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390
