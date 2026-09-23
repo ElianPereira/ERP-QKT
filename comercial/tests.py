@@ -258,9 +258,22 @@ class TransicionEstadosTest(TestCase):
         self.assertTrue(ok)
         self.assertEqual(self.cot.estado, 'COTIZADA')
 
-    def test_borrador_a_confirmada_directo_bloqueado(self):
+    def test_borrador_a_confirmada_directo_permitido(self):
+        # Una solicitud web nace en BORRADOR y se paga desde el portal sin
+        # pasar por COTIZADA: confirmarla no debe exigir el paso intermedio.
+        ok, msg = self.cot.cambiar_estado('CONFIRMADA', self.user)
+        self.assertTrue(ok, msg)
+        self.assertEqual(self.cot.estado, 'CONFIRMADA')
+
+    def test_confirmar_con_fecha_ya_apartada_bloqueado(self):
+        otra = Cotizacion.objects.create(
+            cliente=self.cliente, nombre_evento='Otra', fecha_evento=self.cot.fecha_evento,
+            incluye_refrescos=False,
+        )
+        Cotizacion.objects.filter(pk=otra.pk).update(estado='CONFIRMADA')
         ok, msg = self.cot.cambiar_estado('CONFIRMADA', self.user)
         self.assertFalse(ok)
+        self.assertIn('no disponibles', msg)
         self.assertEqual(self.cot.estado, 'BORRADOR')
 
     def test_cancelacion_requiere_motivo(self):
