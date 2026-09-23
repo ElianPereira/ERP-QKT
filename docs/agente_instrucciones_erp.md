@@ -1,10 +1,10 @@
 # Sistema de Mejora Continua e Inteligencia de Negocio — ERP-QKT
 
 ## 0. Contexto del Proyecto
-- **Negocio:** Quinta Ko'ox Tanil (QKT) — eventos, pasadía, hospedaje corto (Ka'an, Otoch, Honey Sea House). Unidades de negocio: QUINTA, PASADÍA, AIRBNB.
+- **Negocio:** Quinta Ko'ox Tanil (QKT) — eventos, pasadía, hospedaje corto directo (Ka'an, Otoch). Unidad de negocio: QUINTA. Airbnb y Honey Sea House se retiraron del portafolio y del ERP (Issue #311).
 - **Stack:** Django + PostgreSQL, Railway (`erp.quintakooxtanil.com`, `clientes.quintakooxtanil.com`), Cloudflare Pages (`quintakooxtanil.com`), Cloudinary (en evaluación → candidato DigitalOcean Spaces), Openpay/BBVA, WhatsApp Cloud API, GitHub.
 - **Apps relevantes:** ERP interno, portal cliente, landing pública.
-- **Cuentas bancarias:** BBVA Maestra PYME → QUINTA / BBVA Libretón Básico → AIRBNB (corte día 14).
+- **Cuentas bancarias:** BBVA Maestra PYME → QUINTA.
 - **Estándares de código obligatorios:**
   - `Decimal` + `ROUND_HALF_UP` en todo cálculo monetario. `float` en ruta de dinero = bug crítico, no sugerencia.
   - Modelos de auditoría inmutables: soft-deactivation, nunca `DELETE` físico.
@@ -23,7 +23,7 @@
 **Frecuencia:** semanal / por PR.
 
 1. **DB:** detectar N+1 en vistas de finanzas, cotizador y reservas; proponer `select_related`/`prefetch_related` e índices concretos.
-2. **Seguridad:** permisos por vista/endpoint, sanitización de inputs, XSS/CSRF/IDOR, aislamiento de datos entre unidades de negocio (QUINTA/PASADÍA/AIRBNB) y sus cuentas bancarias.
+2. **Seguridad:** permisos por vista/endpoint, sanitización de inputs, XSS/CSRF/IDOR, aislamiento de datos entre unidades de negocio (hoy solo QUINTA) y sus cuentas bancarias.
 3. **Cálculos monetarios:** auditar `Decimal`/`ROUND_HALF_UP` en todo el flujo de dinero; cualquier `float` se reporta como crítico.
 4. **Deuda técnica e infraestructura:** dependencias vulnerables, pipeline de estáticos, config Railway/Cloudflare.
 5. **Testing:** exigir cobertura en pagos (Openpay), cotizador, descuentos, conciliación bancaria — incluir casos límite de redondeo.
@@ -34,8 +34,8 @@
 ## 3. Agente Operativo, Empresarial y Contable
 **Frecuencia:** quincenal / mensual.
 
-1. **Cumplimiento fiscal/legal:** precios IVA-incluido, estado PROFECO (NOM-174), ISH en unidades Airbnb, vigencia de documentos legales (privacidad/T&C) y consentimientos.
-2. **Flujo de caja y cobranza:** modelos de cuentas por cobrar, automatización de recordatorios de pago, detectar transacciones mal clasificadas entre QUINTA/AIRBNB o cuenta bancaria incorrecta.
+1. **Cumplimiento fiscal/legal:** precios IVA-incluido, estado PROFECO (NOM-174), ISH del hospedaje directo (`TASA_ISH`), vigencia de documentos legales (privacidad/T&C) y consentimientos.
+2. **Flujo de caja y cobranza:** modelos de cuentas por cobrar, automatización de recordatorios de pago, detectar transacciones mal clasificadas o cuenta bancaria incorrecta.
 3. **Pricing y rentabilidad:** validar que descuentos, aforo ampliado y add-ons no erosionen margen; señalar inconsistencias en mezcla de negocio.
 4. **Logística/operación:** blindar validación de fechas (check-in 13:00 / check-out 10:00, ventanas de limpieza) para evitar sobreventas entre eventos y hospedaje.
 5. **KPIs sugeridos:** margen bruto por unidad de negocio, DSO, ocupación pasadía/hospedaje, ticket promedio, ventas mes vs. cotizaciones EJECUTADA/CERRADA.
@@ -70,7 +70,7 @@ Toda sugerencia estratégica se entrega como documento en `/docs/` — nunca se 
 - [ ] Migración Cloudinary → DigitalOcean Spaces (pendiente).
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
 - [ ] Registro PROFECO NOM-174 pendiente.
-- [ ] ISH Airbnb sin resolver.
+- [ ] Definir `TASA_ISH` en Railway (ISH del hospedaje directo).
 - [ ] Módulo de depósito en garantía ausente.
 
 ## 6. Ejecución y Configuración (Claude Code Routines)

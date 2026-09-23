@@ -69,7 +69,7 @@
           {
             "type": "command",
             "statusMessage": "Running the touched app's Django tests...",
-            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in comercial/migrations/*|*/comercial/migrations/*|contabilidad/migrations/*|*/contabilidad/migrations/*|airbnb/migrations/*|*/airbnb/migrations/*|facturacion/migrations/*|*/facturacion/migrations/*|nomina/migrations/*|*/nomina/migrations/*) app=\"\" ;; comercial/*.py|*/comercial/*.py) app=\"comercial\" ;; contabilidad/*.py|*/contabilidad/*.py) app=\"contabilidad\" ;; airbnb/*.py|*/airbnb/*.py) app=\"airbnb\" ;; facturacion/*.py|*/facturacion/*.py) app=\"facturacion\" ;; nomina/*.py|*/nomina/*.py) app=\"nomina\" ;; *) app=\"\" ;; esac; if [ -n \"$app\" ]; then cd \"${CLAUDE_PROJECT_DIR:-.}\" && python manage.py test \"$app\" --failfast 2>&1 | tail -30; fi; } || true",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in comercial/migrations/*|*/comercial/migrations/*|contabilidad/migrations/*|*/contabilidad/migrations/*|facturacion/migrations/*|*/facturacion/migrations/*|nomina/migrations/*|*/nomina/migrations/*) app=\"\" ;; comercial/*.py|*/comercial/*.py) app=\"comercial\" ;; contabilidad/*.py|*/contabilidad/*.py) app=\"contabilidad\" ;; facturacion/*.py|*/facturacion/*.py) app=\"facturacion\" ;; nomina/*.py|*/nomina/*.py) app=\"nomina\" ;; *) app=\"\" ;; esac; if [ -n \"$app\" ]; then cd \"${CLAUDE_PROJECT_DIR:-.}\" && python manage.py test \"$app\" --failfast 2>&1 | tail -30; fi; } || true",
             "timeout": 180
           }
         ]

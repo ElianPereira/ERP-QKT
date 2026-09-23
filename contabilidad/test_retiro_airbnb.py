@@ -14,7 +14,6 @@ from decimal import Decimal
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.test import TestCase
-from django.urls import reverse
 
 from comercial.models import Cliente, Compra
 from contabilidad.models import (
@@ -27,8 +26,7 @@ from contabilidad.models import (
     Poliza,
     UnidadNegocio,
 )
-from contabilidad.retiro_airbnb import ConflictosRetiroAirbnb, diagnostico, ejecutar
-from core_erp.test_utils import login_superuser_con_totp
+from contabilidad.retiro_airbnb import ConflictosRetiroAirbnb, ejecutar
 from facturacion.models import SolicitudFactura
 from reportes.models import ReporteGenerado
 
@@ -164,9 +162,6 @@ class RetiroAirbnbTest(TestCase):
         self._poliza('MANUAL', self.quinta, self.banco_libreton_contable,
                      CuentaContable.objects.get(codigo_sat='102.02.01'), Decimal('100.00'))
 
-        informe = diagnostico(apps)
-
-        self.assertEqual(len(informe['conflictos']), 1)
         with self.assertRaises(ConflictosRetiroAirbnb):
             ejecutar(apps)
 
@@ -176,31 +171,3 @@ class RetiroAirbnbTest(TestCase):
 
         with self.assertRaises(ConflictosRetiroAirbnb):
             ejecutar(apps)
-
-    def test_diagnostico_cuenta_sin_borrar(self):
-        informe = diagnostico(apps)
-
-        self.assertEqual(informe['conflictos'], {})
-        self.assertEqual(informe['alcance']['Unidades de negocio'], 1)
-        # 401.02, 401.02.01 y la Libretón, más las sembradas por migración
-        # mientras sigan existiendo.
-        self.assertGreaterEqual(informe['alcance']['Cuentas contables'], 3)
-        self.assertEqual(informe['alcance']['Pólizas'], 2)  # pago + compra
-        self.assertTrue(UnidadNegocio.objects.filter(clave='AIRBNB').exists())
-
-
-class RetiroAirbnbVistaTest(TestCase):
-
-    def test_solo_direccion(self):
-        staff = User.objects.create_user('staff_retiro', password='x', is_staff=True)
-        self.client.force_login(staff)
-        self.assertEqual(self.client.get(reverse('contabilidad:retiro_airbnb')).status_code, 403)
-
-    def test_direccion_ve_el_diagnostico(self):
-        jefe = User.objects.create_user('jefe_retiro', password='x', is_staff=True, is_superuser=True)
-        login_superuser_con_totp(self.client, jefe)
-
-        respuesta = self.client.get(reverse('contabilidad:retiro_airbnb'))
-
-        self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, 'Sin conflictos')

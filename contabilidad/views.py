@@ -251,27 +251,6 @@ def _a_decimal(texto):
 
 
 # ==========================================
-# DIAGNÓSTICO DEL RETIRO DE AIRBNB (Issue #311)
-# ==========================================
-
-@staff_member_required
-def retiro_airbnb_view(request):
-    """Solo lectura: qué borrará la migración de la fase 2 del retiro y qué
-    conflictos lo impiden. Se consulta en producción antes de mergear esa
-    migración."""
-    if not request.user.is_superuser:
-        raise PermissionDenied("Solo Dirección puede consultar el retiro de Airbnb.")
-    from django.apps import apps
-
-    from .retiro_airbnb import diagnostico
-    return render(request, 'admin/retiro_airbnb.html', {
-        **admin.site.each_context(request),
-        'title': "Retiro de Airbnb: diagnóstico",
-        'informe': diagnostico(apps),
-    })
-
-
-# ==========================================
 # CIERRE DEL HISTÓRICO CONTABLE
 # ==========================================
 

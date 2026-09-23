@@ -437,7 +437,7 @@ def cerrar_historico_contable(fecha_corte, usuario, aplicar=False):
     auditoría, pero queda fuera de todo saldo y todo reporte, porque en el ERP
     entero solo suma `estado='APLICADA'`. Borrarlas sí sería destructivo: los
     movimientos desaparecerían y las pólizas están ligadas por content_type a
-    pagos, compras, recibos de nómina y pagos de Airbnb que sí siguen vivos.
+    pagos, compras y recibos de nómina que sí siguen vivos.
 
     Para qué existe: cuando los periodos anteriores ya los cerró el contador
     fuera del ERP, las pólizas previas del sistema no son los libros — son

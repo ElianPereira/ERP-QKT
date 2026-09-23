@@ -5,14 +5,12 @@ La línea de negocio Airbnb salió del portafolio y el propietario decidió
 borrar todos sus datos del ERP, pólizas incluidas: la contabilidad oficial la
 lleva el contador fuera del ERP, así que aquí solo se replicaba.
 
-Este módulo recibe el registro de apps (`django.apps.apps` desde una vista, el
-histórico desde una migración) para que el mismo cálculo sirva a:
-
-- `diagnostico()`: solo lectura. Cuántos registros se borrarían y qué
-  conflictos lo impiden. Lo consulta Dirección en producción antes de
-  mergear la migración.
-- `ejecutar()`: borra. Lo llama la migración de la fase 2; si hay
-  conflictos no borra nada y lanza un error con el detalle.
+`ejecutar()` lo llama la migración `contabilidad.0020_retiro_airbnb_datos`
+con el registro histórico de apps. Producción ya la corrió (23/09/2026, tras
+revisar un diagnóstico de solo lectura que se retiró en la fase 3); sigue
+aquí porque en una BD nueva `contabilidad.0002`/`0005` siembran la unidad
+AIRBNB y sus cuentas, y esta migración las limpia. Si hay conflictos no
+borra nada y lanza un error con el detalle.
 
 Conflicto = un dato de la Quinta que usa algo de Airbnb (una póliza de la
 Quinta con movimientos en la cuenta Libretón o en una cuenta de Airbnb, una
@@ -36,9 +34,6 @@ OPERACIONES_CONFIG = (
 )
 LINEA_FACTURACION = 'AIRBNB'
 TIPOS_REPORTE = ('OCUPACION', 'COMPARATIVO')
-MODELOS_APP_AIRBNB = (
-    'DepositoConciliado', 'ConflictoCalendario', 'PagoAirbnb', 'ReservaAirbnb', 'AnuncioAirbnb',
-)
 
 
 class ConflictosRetiroAirbnb(RuntimeError):
@@ -93,13 +88,6 @@ def _alcance(apps):
         'Reportes generados': apps.get_model('reportes', 'ReporteGenerado').objects.filter(
             tipo__in=TIPOS_REPORTE),
     }
-    # La app airbnb deja de existir en la fase 3: en una BD nueva a partir de
-    # ahí sus modelos no están en el registro.
-    for nombre in MODELOS_APP_AIRBNB:
-        try:
-            alcance[f'airbnb.{nombre}'] = apps.get_model('airbnb', nombre).objects.all()
-        except LookupError:
-            pass
 
     conflictos = {
         'Pólizas de la Quinta con movimientos en cuentas de Airbnb o de la Libretón':
@@ -113,16 +101,6 @@ def _alcance(apps):
                 cuenta__in=cuentas_contables),
     }
     return alcance, conflictos
-
-
-def diagnostico(apps):
-    """{'alcance': {etiqueta: n}, 'conflictos': {etiqueta: [str, ...]}} — solo lectura."""
-    alcance, conflictos = _alcance(apps)
-    return {
-        'alcance': {etiqueta: qs.count() for etiqueta, qs in alcance.items()},
-        'conflictos': {etiqueta: [str(obj) for obj in qs[:50]]
-                       for etiqueta, qs in conflictos.items() if qs.exists()},
-    }
 
 
 def ejecutar(apps):
