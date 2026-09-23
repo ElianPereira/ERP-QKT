@@ -793,7 +793,6 @@ class ContratoService:
 # Mapeo de RFC receptor -> clave de UnidadNegocio
 RFC_UNIDAD_MAP = {
     'PECE010202IA0': 'QUINTA',  # Elian - Quinta Ko'ox Tanil
-    'CERU580518QZ5': 'AIRBNB',  # Ruby - Hospedaje Airbnb
 }
 RFCS_VALIDOS = set(RFC_UNIDAD_MAP.keys())
 

@@ -1,16 +1,14 @@
 """
-Modelos del módulo Airbnb
-=========================
-Gestión de anuncios, reservaciones y pagos de Airbnb.
-Separado contablemente del resto del ERP (régimen fiscal diferente).
+Modelos del módulo Airbnb — SOLO pendientes de borrado
+======================================================
+La línea de negocio Airbnb salió del portafolio (Issue #311). Toda la
+funcionalidad ya se retiró; estos modelos quedan únicamente para que la
+siguiente migración borre sus datos y tablas, y después se elimina la app.
 """
-import re
 from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Sum
-from django.utils.timezone import now
 
 
 class AnuncioAirbnb(models.Model):
@@ -57,18 +55,6 @@ class AnuncioAirbnb(models.Model):
     ultima_sincronizacion = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        # Extraer listing ID de la URL de iCal
-        # (https://www.airbnb.mx/calendar/ical/XXXXXX.ics?...). Que no coincida
-        # es normal —una URL de otro formato— y no debe impedir guardar el
-        # anuncio; el `except:` desnudo que había aquí además se habría tragado
-        # un KeyboardInterrupt.
-        if self.url_ical and not self.airbnb_listing_id:
-            encontrado = re.search(r'/ical/(\d+)\.ics', self.url_ical)
-            if encontrado:
-                self.airbnb_listing_id = encontrado.group(1)
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.nombre} ({self.get_tipo_display()})"
@@ -134,11 +120,6 @@ class ReservaAirbnb(models.Model):
     # Metadatos
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    @property
-    def noches(self):
-        """Calcula el número de noches de la reserva"""
-        return (self.fecha_fin - self.fecha_inicio).days
 
     def __str__(self):
         return f"{self.anuncio.nombre}: {self.fecha_inicio} → {self.fecha_fin}"
@@ -312,66 +293,6 @@ class PagoAirbnb(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    @property
-    def noches(self):
-        return (self.fecha_checkout - self.fecha_checkin).days
-
-    @property
-    def tarifa_por_noche(self):
-        if self.noches > 0:
-            return self.monto_bruto / self.noches
-        return Decimal('0.00')
-
-    def retenciones_esperadas(self, *, con_rfc: bool = True) -> dict:
-        """
-        Lo que la plataforma DEBERÍA haber retenido, según arts. 113-A LISR y
-        18-J LIVA. Es una referencia para detectar descuadres, no un
-        sustituto: fiscalmente valen las retenciones que Airbnb aplicó y que
-        constan en su constancia.
-        """
-        from core_erp.impuestos import retenciones_plataforma
-        return retenciones_plataforma(self.monto_bruto, con_rfc=con_rfc)
-
-    @property
-    def diferencia_neto(self) -> Decimal:
-        """
-        Cuánto se aparta el neto declarado de sus componentes.
-
-        La fórmula sale de reconstruir el payout real del CSV de Airbnb:
-
-            neto = base - comisión + IVA trasladado - ISR - IVA retenido
-
-        El IVA trasladado SUMA porque Airbnb lo cobra al huésped y lo
-        transfiere para que el anfitrión lo entere. El impuesto al hospedaje
-        no entra: ese lo retiene y entera la propia plataforma.
-
-        Distinto de cero significa que el CSV trae un concepto que no estamos
-        modelando (un ajuste, un reembolso parcial), y que conviene revisar el
-        pago antes de declararlo.
-        """
-        calculado = (
-            self.monto_bruto
-            - self.comision_airbnb
-            + self.iva_trasladado
-            - self.retencion_isr
-            - self.retencion_iva
-        )
-        return (self.monto_neto - calculado).quantize(Decimal('0.01'))
-
-    @property
-    def cuadra(self) -> bool:
-        # Un centavo de holgura por el redondeo de cada componente.
-        return abs(self.diferencia_neto) <= Decimal('0.01')
-
-    def save(self, *args, **kwargs):
-        # A diferencia de la versión anterior, aquí NO se recalculan las
-        # retenciones. Aquella condición ("si alguna viene en cero") pisaba los
-        # valores reales del CSV: cuando Airbnb no retenía IVA en una reserva,
-        # el sistema le inventaba un 8% que nunca ocurrió y recalculaba el
-        # neto, con lo que el ERP dejaba de cuadrar contra la constancia de
-        # retenciones y contra el depósito bancario.
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.codigo_confirmacion or 'Sin código'} - {self.huesped} (${self.monto_neto})"

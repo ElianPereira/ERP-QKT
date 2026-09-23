@@ -1,8 +1,7 @@
 """
 Tests del backlog de seguridad (Issue #190), órdenes 19-21 (SEC-RL-001a/b/c):
 rate limiting en descargas del portal, APIs públicas del cotizador y el
-webhook de Openpay. El feed iCal (airbnb) y el webhook de Jibble (nomina)
-se prueban en sus propias apps.
+webhook de Openpay. El webhook de Jibble (nomina) se prueba en su propia app.
 
 Ejecutar: python manage.py test comercial.test_rate_limit_publico --verbosity=2
 """

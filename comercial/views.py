@@ -42,11 +42,6 @@ try:
 except ImportError:
     SolicitudFactura = None
 
-try:
-    from airbnb.models import PagoAirbnb
-except ImportError:
-    PagoAirbnb = None
-
 logger = logging.getLogger(__name__)
 
 # Estados que representan una venta ya concretada (no un simple borrador o
@@ -481,24 +476,10 @@ def ver_dashboard_kpis(request):
     ventas_data_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year).annotate(mes=TruncMonth('fecha_evento')).values('mes').annotate(total=Sum('precio_final')).order_by('mes')
     gastos_data_quinta = Compra.objects.filter(unidad_negocio__clave='QUINTA', fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
 
-    # --- Ruby · Hospedaje Airbnb ---
-    ingresos_mes_ruby = 0
-    gastos_mes_ruby = 0
-    ingresos_data_ruby = []
-    if PagoAirbnb:
-        ingresos_mes_ruby = PagoAirbnb.objects.filter(estado='PAGADO', fecha_pago__year=hoy.year, fecha_pago__month=hoy.month).aggregate(total=Sum('monto_neto'))['total'] or 0
-        gastos_mes_ruby = Compra.objects.filter(unidad_negocio__clave='AIRBNB', fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
-        ingresos_data_ruby = PagoAirbnb.objects.filter(estado='PAGADO', fecha_pago__year=hoy.year).annotate(mes=TruncMonth('fecha_pago')).values('mes').annotate(total=Sum('monto_neto')).order_by('mes')
-    gastos_data_ruby = Compra.objects.filter(unidad_negocio__clave='AIRBNB', fecha_emision__year=hoy.year).annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total')).order_by('mes')
-    utilidad_mes_ruby = ingresos_mes_ruby - gastos_mes_ruby
-
-    # Un solo eje de meses para las 4 series (ambas líneas de negocio en la
-    # misma gráfica, con sus importes bien diferenciados por color/leyenda).
+    # Un solo eje de meses para ventas y gastos.
     chart_labels, series_grafica = _grafica_multi_series_ordenada([
         ('ventas_quinta', ventas_data_quinta),
         ('gastos_quinta', gastos_data_quinta),
-        ('ingresos_ruby', ingresos_data_ruby),
-        ('gastos_ruby', gastos_data_ruby),
     ])
 
     solicitudes_count = 0
@@ -509,15 +490,12 @@ def ver_dashboard_kpis(request):
 
     context.update({
         'ventas_mes_quinta': ventas_mes_quinta, 'gastos_mes_quinta': gastos_mes_quinta, 'utilidad_mes_quinta': utilidad_mes_quinta,
-        'ingresos_mes_ruby': ingresos_mes_ruby, 'gastos_mes_ruby': gastos_mes_ruby, 'utilidad_mes_ruby': utilidad_mes_ruby,
         # Sin json.dumps: la plantilla los serializa con |json_script. Hoy solo
         # llevan meses y cifras agregadas, pero el patrón |safe sobre json.dumps
-        # es el que abrió el XSS del calendario (ver airbnb/views.py).
+        # es el que abrió el XSS del calendario (ver comercial/views_calendario.py).
         'chart_labels': chart_labels,
         'chart_ventas_quinta': series_grafica['ventas_quinta'],
         'chart_gastos_quinta': series_grafica['gastos_quinta'],
-        'chart_ingresos_ruby': series_grafica['ingresos_ruby'],
-        'chart_gastos_ruby': series_grafica['gastos_ruby'],
         'solicitudes_count': solicitudes_count, 'ultimos_eventos': ultimos_eventos,
         'es_jefe': request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()
     })

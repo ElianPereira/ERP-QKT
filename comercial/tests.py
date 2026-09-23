@@ -671,9 +671,9 @@ class DashboardGraficaFinanzasSoloAnioActualTest(TestCase):
         self.assertEqual(labels, esperado)
 
 
-class DashboardSeparacionElianRubyTest(TestCase):
-    """Regresión: el dashboard debe separar ingresos/gastos/utilidad de
-    Elián (Quinta, eventos) y Ruby (Airbnb, hospedaje) sin mezclarlos."""
+class DashboardKpisQuintaTest(TestCase):
+    """Regresión: los KPIs del dashboard solo cuentan la unidad QUINTA; un
+    gasto cargado a otra unidad de negocio no se mezcla."""
 
     def setUp(self):
         from contabilidad.models import UnidadNegocio
@@ -683,12 +683,11 @@ class DashboardSeparacionElianRubyTest(TestCase):
         self.unidad_quinta, _ = UnidadNegocio.objects.get_or_create(
             clave='QUINTA', defaults={'nombre': "Quinta Ko'ox Tanil - Eventos"}
         )
-        self.unidad_airbnb, _ = UnidadNegocio.objects.get_or_create(
-            clave='AIRBNB', defaults={'nombre': 'Hospedaje Airbnb'}
+        self.unidad_otros, _ = UnidadNegocio.objects.get_or_create(
+            clave='OTROS', defaults={'nombre': 'Otros'}
         )
 
-    def test_venta_quinta_no_afecta_kpis_de_ruby(self):
-        from airbnb.models import PagoAirbnb
+    def test_gasto_de_otra_unidad_no_afecta_kpis_de_quinta(self):
         from comercial.models import Compra
 
         hoy = date.today()
@@ -705,16 +704,9 @@ class DashboardSeparacionElianRubyTest(TestCase):
             fecha_emision=hoy.replace(day=10), total=Decimal('500.00'),
             unidad_negocio=self.unidad_quinta,
         )
-
-        pago = PagoAirbnb.objects.create(
-            huesped='Huésped Test', fecha_checkin=hoy.replace(day=1),
-            fecha_checkout=hoy.replace(day=3), monto_bruto=Decimal('2000.00'),
-            monto_neto=Decimal('1800.00'), fecha_pago=hoy.replace(day=5),
-            estado='PAGADO',
-        )
         Compra.objects.create(
             fecha_emision=hoy.replace(day=12), total=Decimal('300.00'),
-            unidad_negocio=self.unidad_airbnb,
+            unidad_negocio=self.unidad_otros,
         )
 
         response = self.client.get('/admin/')
@@ -722,28 +714,7 @@ class DashboardSeparacionElianRubyTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['ventas_mes_quinta'], Decimal('4000.00'))
         self.assertEqual(response.context['gastos_mes_quinta'], Decimal('500.00'))
-        # monto_neto real: save() recalcula retenciones (ISR 4% / IVA 8% sobre
-        # monto_bruto) ya que no se pasaron explícitas, así que el neto real
-        # difiere del valor pasado a create().
-        pago.refresh_from_db()
-        self.assertEqual(response.context['ingresos_mes_ruby'], pago.monto_neto)
-        self.assertEqual(response.context['gastos_mes_ruby'], Decimal('300.00'))
-
-    def test_pago_airbnb_pendiente_no_cuenta_como_ingreso(self):
-        from airbnb.models import PagoAirbnb
-
-        hoy = date.today()
-        PagoAirbnb.objects.create(
-            huesped='Huésped Pendiente', fecha_checkin=hoy.replace(day=1),
-            fecha_checkout=hoy.replace(day=3), monto_bruto=Decimal('2000.00'),
-            monto_neto=Decimal('1800.00'), fecha_pago=hoy.replace(day=5),
-            estado='PENDIENTE',
-        )
-
-        response = self.client.get('/admin/')
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['ingresos_mes_ruby'], 0)
+        self.assertEqual(response.context['utilidad_mes_quinta'], Decimal('3500.00'))
 
     def test_mes_actual_se_calcula_en_hora_local_no_utc(self):
         """Regresión: el KPI del "mes actual" debe usar la fecha de Mérida.
@@ -776,18 +747,14 @@ class DashboardSeparacionElianRubyTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['ventas_mes_quinta'], Decimal('4000.00'))
 
-    def test_grafica_comparte_eje_de_meses_entre_quinta_y_ruby(self):
-        """Regresión: la gráfica combinada debe alinear las 4 series (ventas y
-        gastos de Elián, ingresos y gastos de Ruby) sobre el mismo eje de
-        meses. Un mes donde solo hubo actividad de una línea de negocio debe
-        seguir apareciendo en su lugar cronológico, con 0 en las series de la
-        otra línea (no debe faltarle el mes ni desalinearse con las demás)."""
-        from airbnb.models import PagoAirbnb
+    def test_grafica_comparte_eje_de_meses_entre_ventas_y_gastos(self):
+        """Regresión: ventas y gastos se alinean sobre el mismo eje de meses.
+        Un mes con solo gastos sigue apareciendo en su lugar cronológico, con
+        0 en ventas (no debe faltarle el mes ni desalinearse)."""
         from comercial.models import Compra
 
-        hoy = date.today()
-        anio = hoy.year
-        # Enero: solo Quinta (ventas + gastos). Marzo: solo Ruby (ingresos + gastos).
+        anio = date.today().year
+        # Enero: ventas + gastos. Marzo: solo gastos.
         cot = Cotizacion.objects.create(
             cliente=self.cliente, nombre_evento='Evento Enero',
             fecha_evento=date(anio, 1, 10), estado='BORRADOR',
@@ -797,16 +764,7 @@ class DashboardSeparacionElianRubyTest(TestCase):
         )
         Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('1000.00'), estado='CONFIRMADA')
         Compra.objects.create(fecha_emision=date(anio, 1, 12), total=Decimal('200.00'), unidad_negocio=self.unidad_quinta)
-
-        # Las retenciones se declaran, no se calculan: son las que Airbnb
-        # aplicó y reporta en su constancia. 500 - 20 - 40 = 440.
-        PagoAirbnb.objects.create(
-            huesped='Huésped Marzo', fecha_checkin=date(anio, 3, 1),
-            fecha_checkout=date(anio, 3, 3), monto_bruto=Decimal('500.00'),
-            retencion_isr=Decimal('20.00'), retencion_iva=Decimal('40.00'),
-            monto_neto=Decimal('440.00'), fecha_pago=date(anio, 3, 5), estado='PAGADO',
-        )
-        Compra.objects.create(fecha_emision=date(anio, 3, 8), total=Decimal('100.00'), unidad_negocio=self.unidad_airbnb)
+        Compra.objects.create(fecha_emision=date(anio, 3, 8), total=Decimal('100.00'), unidad_negocio=self.unidad_quinta)
 
         response = self.client.get('/admin/')
 
@@ -814,16 +772,8 @@ class DashboardSeparacionElianRubyTest(TestCase):
         labels = response.context['chart_labels']
         esperado = [date(anio, 1, 1).strftime('%B %Y'), date(anio, 3, 1).strftime('%B %Y')]
         self.assertEqual(labels, esperado)
-
-        ventas_quinta = response.context['chart_ventas_quinta']
-        gastos_quinta = response.context['chart_gastos_quinta']
-        ingresos_ruby = response.context['chart_ingresos_ruby']
-        gastos_ruby = response.context['chart_gastos_ruby']
-
-        self.assertEqual(ventas_quinta, [1000.0, 0])
-        self.assertEqual(gastos_quinta, [200.0, 0])
-        self.assertEqual(ingresos_ruby, [0, 440.0])
-        self.assertEqual(gastos_ruby, [0, 100.0])
+        self.assertEqual(response.context['chart_ventas_quinta'], [1000.0, 0])
+        self.assertEqual(response.context['chart_gastos_quinta'], [200.0, 100.0])
 
 
 def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid='',
@@ -870,6 +820,17 @@ class AnalizarXmlCompraTest(TestCase):
         )
         self.assertFalse(valido)
         self.assertFalse(es_duplicado)
+        self.assertIn('no pertenece al negocio', motivo)
+
+    def test_cfdi_a_nombre_del_rfc_retirado_ya_no_es_compra(self):
+        """CERU580518QZ5 era el RFC de una línea de negocio retirada del
+        portafolio (Issue #311): sus CFDI ya no entran como compra."""
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, rfc_r, tipo, uso, es_duplicado = analizar_xml_compra(
+            _construir_cfdi(rfc_receptor='CERU580518QZ5')
+        )
+        self.assertFalse(valido)
+        self.assertIsNone(unidad_clave)
         self.assertIn('no pertenece al negocio', motivo)
 
     def test_nota_de_credito_se_excluye_por_tipo(self):
@@ -958,14 +919,14 @@ class CompraDeteccionAutomaticaTest(TestCase):
         from contabilidad.models import UnidadNegocio
 
         UnidadNegocio.objects.get_or_create(clave='QUINTA', defaults={'nombre': "Quinta Test"})
-        airbnb, _ = UnidadNegocio.objects.get_or_create(clave='AIRBNB', defaults={'nombre': 'Airbnb Test'})
+        otros, _ = UnidadNegocio.objects.get_or_create(clave='OTROS', defaults={'nombre': 'Otros'})
 
         xml = SimpleUploadedFile(
             'factura.xml', _construir_cfdi(rfc_receptor='PECE010202IA0'), content_type='application/xml'
         )
-        compra = Compra.objects.create(archivo_xml=xml, unidad_negocio=airbnb)
+        compra = Compra.objects.create(archivo_xml=xml, unidad_negocio=otros)
 
-        self.assertEqual(compra.unidad_negocio.clave, 'AIRBNB')  # se respeta lo forzado manualmente
+        self.assertEqual(compra.unidad_negocio.clave, 'OTROS')  # se respeta lo forzado manualmente
 
     def test_crea_proveedor_en_catalogo_si_no_existe(self):
         from comercial.models import Proveedor

@@ -107,9 +107,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         cotizacion=cotizacion,
         pago=pago,
         # Toda solicitud automática viene de una Cotizacion (Evento/Pasadía/
-        # Hospedaje/Arrendamiento) — reserva directa de la Quinta, nunca de
-        # Airbnb (que no pasa por Cotizacion/Pago). El default del campo ya
-        # es 'QUINTA'; se deja explícito para documentar por qué.
+        # Hospedaje/Arrendamiento) — reserva directa de la Quinta.
         linea_negocio='QUINTA',
         monto=monto_pago,
         subtotal=subtotal,

@@ -8,8 +8,7 @@ pólizas anteriores del sistema no son los libros, son captura parcial, y lo
 **Cancela, no borra.** Una póliza CANCELADA conserva sus movimientos y su
 auditoría pero queda fuera de todo saldo y todo reporte, porque en el ERP entero
 solo suma `estado='APLICADA'`. Borrarlas sí sería destructivo: están ligadas por
-content_type a pagos, compras, recibos de nómina y pagos de Airbnb que siguen
-vivos.
+content_type a pagos, compras y recibos de nómina que siguen vivos.
 
 Simula por defecto. Uso:
     python manage.py cerrar_historico_contable --hasta 2026-06-30

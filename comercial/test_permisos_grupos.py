@@ -5,7 +5,7 @@ solo exigían `is_staff`.
 
 Vive en `comercial/` a propósito, no en `reportes/` ni repartido por app:
 el comando `manage.py test` documentado en CLAUDE.md y usado en CI no
-incluye `reportes`, y este archivo cruza comercial/airbnb/contabilidad/
+incluye `reportes`, y este archivo cruza comercial/contabilidad/
 facturacion/nomina/reportes/comunicacion. `comercial` sí corre en CI, así
 que poner las pruebas aquí es lo único que garantiza que se ejecuten.
 
@@ -45,11 +45,7 @@ VISTAS_PROTEGIDAS = [
     ('plan_pagos_pdf', {'cotizacion_id': 99999}),
     ('cotizacion_contrato', {'cotizacion_id': 99999}),
     ('contrato_email', {'contrato_id': 99999}),
-    ('ver_calendario', {}),
-    ('reporte_pagos_airbnb', {}),
-    ('bloquear_en_airbnb', {'cotizacion_id': 99999}),
-    ('reporte_fiscal_airbnb', {}),
-    ('conciliacion_depositos_airbnb', {}),
+    ('calendario_unificado', {}),
     ('contabilidad:balanza', {}),
     ('contabilidad:estado_resultados', {}),
     ('cargar_nomina', {}),
@@ -63,8 +59,6 @@ VISTAS_PROTEGIDAS = [
     ('reportes:auxiliar', {}),
     ('reportes:cxc', {}),
     ('reportes:cotizaciones', {}),
-    ('reportes:ocupacion', {}),
-    ('reportes:comparativo_airbnb', {}),
     ('reportes:facturas', {}),
 ]
 
@@ -124,8 +118,7 @@ class PermisosPorGrupoTest(TestCase):
 
     def test_ventas_accede_a_lo_suyo(self):
         self.client.force_login(self.ventas)
-        for nombre_url in ('cartera_cxc', 'ver_calendario', 'reportes:cxc', 'reportes:cotizaciones',
-                           'reportes:ocupacion', 'reportes:comparativo_airbnb'):
+        for nombre_url in ('cartera_cxc', 'calendario_unificado', 'reportes:cxc', 'reportes:cotizaciones'):
             with self.subTest(vista=nombre_url):
                 respuesta = self.client.get(reverse(nombre_url))
                 self.assertEqual(respuesta.status_code, 200)
@@ -147,7 +140,7 @@ class PermisosPorGrupoTest(TestCase):
 
     def test_contabilidad_no_accede_a_ventas_ni_nomina(self):
         self.client.force_login(self.contabilidad)
-        for nombre_url in ('cartera_cxc', 'ver_calendario', 'cargar_nomina', 'reportes:cxc'):
+        for nombre_url in ('cartera_cxc', 'calendario_unificado', 'cargar_nomina', 'reportes:cxc'):
             with self.subTest(vista=nombre_url):
                 respuesta = self.client.get(reverse(nombre_url))
                 self.assertEqual(respuesta.status_code, 403)

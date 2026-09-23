@@ -71,12 +71,10 @@ def _render_pdf(request, template, context, filename):
 @staff_member_required
 def selector_reportes(request):
     """Página principal del centro de reportes."""
-    from airbnb.models import AnuncioAirbnb
     from contabilidad.models import CuentaContable, UnidadNegocio
 
     puede_contabilidad = request.user.has_perm('contabilidad.view_movimientocontable')
     puede_comercial = request.user.has_perm('comercial.view_cotizacion')
-    puede_airbnb = request.user.has_perm('airbnb.view_reservaairbnb')
     puede_facturacion = request.user.has_perm('facturacion.view_solicitudfactura')
 
     context = {
@@ -88,12 +86,10 @@ def selector_reportes(request):
         'cuentas_movimiento': CuentaContable.objects.filter(
             activa=True, permite_movimientos=True
         ).order_by('codigo_sat'),
-        'anuncios_airbnb': AnuncioAirbnb.objects.filter(activo=True),
         'hoy': timezone.now().date(),
         'inicio_anio': date(timezone.now().year, 1, 1),
         'puede_contabilidad': puede_contabilidad,
         'puede_comercial': puede_comercial,
-        'puede_airbnb': puede_airbnb,
         'puede_facturacion': puede_facturacion,
     }
     return render(request, 'reportes/selector.html', context)
@@ -358,64 +354,6 @@ def reporte_cotizaciones(request):
 
     filename = f"Cotizaciones_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
     return _render_pdf(request, 'reportes/pdf_cotizaciones.html', datos, filename)
-
-
-# ==========================================
-# 8. OCUPACIÓN AIRBNB
-# ==========================================
-
-@staff_member_required
-@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
-def reporte_ocupacion(request):
-    """Genera reporte de ocupación Airbnb por listing/mes en PDF."""
-    from .services.airbnb import OcupacionService
-
-    fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
-    fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
-    anuncio_id = request.GET.get('anuncio_id') or None
-
-    datos = OcupacionService.generar(
-        fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin,
-        anuncio_id=int(anuncio_id) if anuncio_id else None,
-    )
-    datos['titulo'] = 'Ocupación por Listing'
-
-    _registrar_reporte(request, 'OCUPACION', fecha_inicio, fecha_fin, parametros={
-        'anuncio_id': anuncio_id,
-    })
-
-    filename = f"Ocupacion_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
-    return _render_pdf(request, 'reportes/pdf_ocupacion.html', datos, filename)
-
-
-# ==========================================
-# 9. COMPARATIVO MENSUAL AIRBNB
-# ==========================================
-
-@staff_member_required
-@permission_required('airbnb.view_reservaairbnb', raise_exception=True)
-def reporte_comparativo_airbnb(request):
-    """Genera comparativo mensual de ingresos Airbnb en PDF."""
-    from .services.airbnb import ComparativoMensualService
-
-    fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
-    fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
-    anuncio_id = request.GET.get('anuncio_id') or None
-
-    datos = ComparativoMensualService.generar(
-        fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin,
-        anuncio_id=int(anuncio_id) if anuncio_id else None,
-    )
-    datos['titulo'] = 'Comparativo Mensual Airbnb'
-
-    _registrar_reporte(request, 'COMPARATIVO', fecha_inicio, fecha_fin, parametros={
-        'anuncio_id': anuncio_id,
-    })
-
-    filename = f"ComparativoAirbnb_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
-    return _render_pdf(request, 'reportes/pdf_comparativo_airbnb.html', datos, filename)
 
 
 # ==========================================

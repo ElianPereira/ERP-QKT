@@ -9,7 +9,7 @@ from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
 # pestañas — el selector de fecha del admin (DateTimeShortcuts.js) posiciona
 # su caja sumando offsetLeft/offsetTop de los padres, cálculo que no
 # contempla pestañas ni transform, y la deja anclada fuera de la pantalla o
-# bloqueada (mismo bug ya resuelto en comercial/airbnb/reportes). El fix
+# bloqueada (mismo bug ya resuelto en comercial/reportes). El fix
 # vive en static/js/tabs_fix.js, sin tocar el JS de Django. Este admin no
 # tiene ningún DateField hoy, pero se deja cableado por si se agrega uno.
 MEDIA_CONFIG = {

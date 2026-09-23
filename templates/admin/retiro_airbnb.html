@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Retiro de Airbnb{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="background:rgba(52,152,219,.10);border-left:4px solid #3498db;border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;line-height:1.6;">
+  Esta pantalla <strong>no borra nada</strong>. Muestra lo que borrará la migración
+  del retiro de Airbnb (Issue #311) al desplegarse, para revisarlo antes de autorizar
+  ese deploy. El borrado es definitivo: saca antes una copia de la base de datos en Railway.
+</div>
+
+{% if informe.conflictos %}
+<div style="background:rgba(231,76,60,.12);border-left:4px solid #e74c3c;border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;line-height:1.6;">
+  <strong>⚠ Hay datos de la Quinta que usan algo de Airbnb.</strong> Con esto pendiente,
+  la migración falla sin borrar nada. Corrígelos en el admin (por ejemplo, cambia la
+  cuenta de pago de la compra o cancela y rehaz la póliza con la cuenta correcta) y
+  vuelve a revisar esta pantalla.
+  {% for etiqueta, registros in informe.conflictos.items %}
+    <h3 style="margin:14px 0 6px;">{{ etiqueta }} ({{ registros|length }})</h3>
+    <ul style="margin:0;">{% for r in registros %}<li>{{ r }}</li>{% endfor %}</ul>
+  {% endfor %}
+</div>
+{% else %}
+<div style="background:rgba(46,125,50,.14);border-left:4px solid #2E7D32;border-radius:4px;padding:16px;margin-bottom:20px;max-width:64em;line-height:1.6;">
+  <strong>✓ Sin conflictos.</strong> Ningún dato de la Quinta depende de Airbnb: la
+  migración puede borrar todo lo de abajo.
+</div>
+{% endif %}
+
+<table style="max-width:40em;">
+  <thead><tr><th>Se borrará</th><th style="text-align:right;">Registros</th></tr></thead>
+  <tbody>
+  {% for etiqueta, n in informe.alcance.items %}
+    <tr><td>{{ etiqueta }}</td><td style="text-align:right;">{{ n }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

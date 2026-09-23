@@ -24,10 +24,6 @@ urlpatterns = [
     path('cxc/', views.reporte_cxc, name='cxc'),
     path('cotizaciones/', views.reporte_cotizaciones, name='cotizaciones'),
 
-    # Airbnb
-    path('ocupacion/', views.reporte_ocupacion, name='ocupacion'),
-    path('comparativo-airbnb/', views.reporte_comparativo_airbnb, name='comparativo_airbnb'),
-
     # Facturación
     path('facturas/', views.reporte_facturas, name='facturas'),
 ]

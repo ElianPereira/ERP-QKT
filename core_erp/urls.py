@@ -8,7 +8,6 @@ from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import include, path
 
-from airbnb.views import conciliacion_depositos_airbnb, reporte_fiscal_airbnb
 from comercial.views import (
     descargar_plan_pagos_pdf,
     enviar_contrato_email,
@@ -18,6 +17,7 @@ from comercial.views import (
     migrar_archivos_privados_view,
     ver_cartera_cxc,
 )
+from comercial.views_calendario import calendario_unificado, calendario_unificado_eventos
 from comercial.views_cotizador import (
     api_disponibilidad_fecha,
     api_fechas_ocupadas,
@@ -48,16 +48,6 @@ from comercial.views_portal import (
 from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
 from core_erp.views_totp import totp_activar_view, totp_verificar_view
-
-try:
-    from airbnb.views import (
-        bloquear_en_airbnb,
-        calendario_unificado,
-        calendario_unificado_eventos,
-        reporte_pagos_airbnb,
-    )
-except ImportError:
-    calendario_unificado = calendario_unificado_eventos = reporte_pagos_airbnb = bloquear_en_airbnb = None
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +118,6 @@ urlpatterns = [
     path('admin/2fa/activar/', totp_activar_view, name='totp_activar'),
     path('admin/2fa/verificar/', totp_verificar_view, name='totp_verificar'),
 
-    path('airbnb/', include('airbnb.urls')),
-
     # --- 2. EL DASHBOARD (Tu página principal del admin) ---
     path('admin/', ver_dashboard_kpis, name='admin_dashboard'),
 
@@ -143,7 +131,8 @@ urlpatterns = [
     path('admin/comercial/configurar-plantilla-barra/', configurar_plantilla_barra, name='configurar_plantilla_barra'),
 
     # Reportes y Herramientas
-    path('admin/calendario/', calendario_unificado, name='ver_calendario'),
+    path('admin/calendario/', calendario_unificado, name='calendario_unificado'),
+    path('admin/calendario/eventos/', calendario_unificado_eventos, name='calendario_unificado_eventos'),
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
     path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),
@@ -155,13 +144,6 @@ urlpatterns = [
     path('admin/nomina/sync-jibble/', sync_jibble_view, name='sync_jibble'),
     path('admin/nomina/jibble-diagnostico/', jibble_diagnostico_view, name='jibble_diagnostico'),
     path('api/nomina/sync-jibble/', webhook_sync_jibble, name='webhook_sync_jibble'),
-
-    # --- 5.MÓDULO AIRBNB ---
-
-    path('admin/airbnb/calendario/', calendario_unificado, name='calendario_unificado'),
-    path('admin/airbnb/calendario/eventos/', calendario_unificado_eventos, name='calendario_unificado_eventos'),
-    path('admin/airbnb/reportes/pagos/', reporte_pagos_airbnb, name='reporte_pagos_airbnb'),
-    path('admin/airbnb/bloquear/<int:cotizacion_id>/', bloquear_en_airbnb, name='bloquear_en_airbnb'),
 
     #---- CXC VISUALIZACION---
     path('admin/cartera/', ver_cartera_cxc, name='cartera_cxc'),
@@ -181,13 +163,6 @@ urlpatterns = [
     #---Contrato de prestacion de servicios---
     path('cotizacion/<int:cotizacion_id>/contrato/generar/', generar_contrato,    name='cotizacion_contrato'),
     path('contrato/<int:contrato_id>/email/', enviar_contrato_email, name='contrato_email'),
-
-    #---Reporte contbale airbnb---
-    path('admin/airbnb/reporte-fiscal/', reporte_fiscal_airbnb, name='reporte_fiscal_airbnb'),
-
-    #---Conciliación de depósitos Airbnb contra el banco---
-    path('admin/airbnb/conciliacion-depositos/', conciliacion_depositos_airbnb,
-         name='conciliacion_depositos_airbnb'),
 
     # --- MÓDULO REPORTES ---
     path('admin/reportes/', include('reportes.urls')),

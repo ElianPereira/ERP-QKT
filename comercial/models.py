@@ -572,8 +572,8 @@ class Cotizacion(models.Model):
         null=True, blank=True, verbose_name="Fecha de salida (checkout)",
         help_text=(
             "Solo aplica a HOSPEDAJE: fecha de checkout, EXCLUSIVA (la última "
-            "noche ocupada es fecha_salida - 1 día), mismo criterio que "
-            "ReservaAirbnb.fecha_fin. Vacía en cualquier otro tipo de servicio."
+            "noche ocupada es fecha_salida - 1 día). Vacía en cualquier "
+            "otro tipo de servicio."
         ),
     )
     hora_inicio = models.TimeField(null=True, blank=True)
@@ -609,9 +609,7 @@ class Cotizacion(models.Model):
         verbose_name="Impuesto al hospedaje (ISH)",
         help_text=(
             "Impuesto estatal al hospedaje. Solo se calcula en cotizaciones de "
-            "HOSPEDAJE y solo si hay una tasa configurada (TASA_ISH). El "
-            "hospedaje de Airbnb no lleva: ese ISH lo retiene y entera la "
-            "propia plataforma."
+            "HOSPEDAJE y solo si hay una tasa configurada (TASA_ISH)."
         ),
     )
     tasa_ish_aplicada = models.DecimalField(
@@ -679,7 +677,7 @@ class Cotizacion(models.Model):
     ESTADOS_SIN_COBRO = ('CANCELADA', 'EXPIRADA')
 
     # Estados que todavía no apartan la fecha: el rango solo se bloquea en
-    # CONFIRMADA (ver `airbnb.validacion_fechas`).
+    # CONFIRMADA (ver `comercial.disponibilidad`).
     ESTADOS_SIN_APARTAR = ('BORRADOR', 'COTIZADA')
 
     # Porcentaje del total que confirma la cotización en automático al entrar
@@ -723,7 +721,7 @@ class Cotizacion(models.Model):
         """
         if not self.fecha_evento:
             return True, None
-        from airbnb.validacion_fechas import verificar_disponibilidad_rango
+        from .disponibilidad import verificar_disponibilidad_rango
         inicio, fin = self.rango_ocupado()
         return verificar_disponibilidad_rango(inicio, fin, cotizacion_id=self.pk)
 
@@ -930,10 +928,10 @@ class Cotizacion(models.Model):
     def rango_ocupado(self):
         """(fecha_inicio, fecha_fin_exclusiva) que esta cotización ocupa.
 
-        `fecha_fin` es EXCLUSIVA, mismo criterio que `ReservaAirbnb.fecha_fin`:
+        `fecha_fin` es EXCLUSIVA (el checkout no cuenta como noche ocupada):
         para HOSPEDAJE es el checkout real (`fecha_salida`); para cualquier otro
         tipo de servicio es un solo día (`fecha_evento` al día siguiente). Es la
-        fuente única que usa `airbnb.validacion_fechas` para overlap de rangos,
+        fuente única que usa `comercial.disponibilidad` para overlap de rangos,
         así una Cotizacion de un día y una de varias noches se comparan con la
         misma aritmética.
         """
@@ -978,7 +976,7 @@ class Cotizacion(models.Model):
         )
     def clean(self):
         """Si la cotización está apartando una fecha (anticipo o superior),
-        valida que no choque con Airbnb u otra cotización ya apartada."""
+        valida que no choque con otra cotización ya apartada."""
         super().clean()
         if self.fecha_evento and self.estado == 'CONFIRMADA':
             try:
@@ -1381,7 +1379,7 @@ class ContratoServicio(models.Model):
 # --- COMPRA Y GASTO ---
 
 def _detectar_unidad_negocio_por_rfc(rfc_receptor):
-    """Detecta la UnidadNegocio (QUINTA/AIRBNB) a partir del RFC receptor de
+    """Detecta la UnidadNegocio a partir del RFC receptor de
     un CFDI, usando el mismo mapeo que la carga masiva de XML — así una
     Compra creada desde 'Compras > Añadir' con un XML adjunto también se
     clasifica sola, sin depender de esa herramienta en específico."""
@@ -1456,7 +1454,7 @@ class Compra(models.Model):
         blank=True,
         related_name='compras',
         verbose_name="Unidad de negocio",
-        help_text="¿Este gasto es de Eventos (QUINTA) o de Hospedaje (AIRBNB)? "
+        help_text="Unidad de negocio a la que se carga el gasto. "
                    "Sin este dato la póliza queda en BORRADOR y no se aplica."
     )
     cuenta_pago = models.ForeignKey(

@@ -2,8 +2,8 @@
 Pasa a ingreso el anticipo de los eventos que ya se ejecutaron antes de que
 existiera el reconocimiento automático (`crear_poliza_reconocimiento_ingreso`).
 
-Simula por defecto (mismo criterio que `corregir_polizas_airbnb_iva` y
-`cerrar_historico_contable`); `--aplicar` escribe. Idempotente: una cotización
+Simula por defecto (mismo criterio que `cerrar_historico_contable`);
+`--aplicar` escribe. Idempotente: una cotización
 ya reconocida no genera nada. `--desde` acota por fecha del evento, para no
 tocar periodos que el contador ya cerró fuera del ERP.
 

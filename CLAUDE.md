@@ -37,15 +37,14 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
   (con alberca) y hospedaje corto **solo en Ka'an Room y Otoch Room**, dentro
   de la Quinta y por reserva directa. Aforo máximo de eventos: 150 personas.
   **Airbnb y Honey Sea House ya no forman parte del portafolio** (ver Memoria
-  2026-09-23); la unidad AIRBNB y la app `airbnb/` se conservan solo por el
-  histórico contable/fiscal. Unidades de negocio: QUINTA, PASADÍA, AIRBNB
-  (histórica).
+  2026-09-23): se retiran del ERP por completo, datos incluidos (Issue #311).
+  La contabilidad oficial la lleva el contador fuera del ERP, por eso borrar
+  el registro de Airbnb no pierde nada. Unidad de negocio: QUINTA.
 - **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
   `clientes.quintakooxtanil.com` (portal cliente, Railway),
   `quintakooxtanil.com` (landing pública, Cloudflare Pages).
-- **Cuentas bancarias**: BBVA Maestra PYME → QUINTA / BBVA Libretón Básico →
-  AIRBNB (corte día 14). No mezclar movimientos de una unidad con la cuenta
-  de la otra al conciliar o reportar.
+- **Cuenta bancaria**: BBVA Maestra PYME → QUINTA. La BBVA Libretón Básico
+  (antes AIRBNB) sale del ERP con el Issue #311.
 
 ## Estándares de código (obligatorio, sin excepción)
 
@@ -100,7 +99,7 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp comunicacion reportes` |
+| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
@@ -242,6 +241,31 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-23 — Retiro total de Airbnb (Issue #311), **fase 1 de 3**
+  (desacople sin borrar datos). Decisión del propietario: borrar todo,
+  pólizas incluidas, porque la contabilidad oficial la lleva el contador
+  fuera del ERP (excepción explícita a la regla de soft-deactivation). La
+  disponibilidad de fechas pasa a `comercial/disponibilidad.py` y el
+  calendario a `comercial/views_calendario.py` (URL `admin/calendario/`,
+  permiso `comercial.view_cotizacion`); se retiran el feed iCal
+  (`ICAL_PUBLIC_TOKEN` ya se puede borrar de Railway), el botón "Bloquear
+  Airbnb", el bloque Ruby del dashboard, los reportes de Ocupación y
+  Comparativo, el signal de pólizas `PagoAirbnb`, las tasas de plataformas de
+  `impuestos.py` y el RFC `CERU580518QZ5` de `RFC_UNIDAD_MAP` (un XML a su
+  nombre ya no entra como compra). **No había Cron Job de Airbnb en Railway**:
+  la sincronización de entrada era el botón manual del admin. La app
+  `airbnb/` queda reducida a `models.py` + migraciones, solo para que la fase
+  2 borre datos y tablas (pólizas `PAGO_AIRBNB`/unidad AIRBNB, compras
+  AIRBNB, Libretón con estados de cuenta y conciliaciones, cuentas 401.02 y
+  401.02.01-03, 109.03, 109.04, 601.04.02, `ReporteGenerado` de Ocupación/
+  Comparativo) y la fase 3 elimine la app. Entre fase 1 y 2, las pólizas y
+  reportes viejos muestran la clave cruda (`PAGO_AIRBNB`) porque su choice
+  ya no existe. **Bug preexistente corregido de paso**: `api_fechas_ocupadas`
+  recorría `while d <= fecha_fin` con una fecha fin exclusiva, así que el
+  calendario público marcaba ocupado el día siguiente a cada evento y el
+  checkout de cada hospedaje. Probar en navegador aquí requiere servir
+  FullCalendar/Chart.js desde npm con `page.route`: jsDelivr lo bloquea la
+  política de red del contenedor.
 - 2026-09-23 — Documentos legales publicados (PR #309, vigencia 23/09/2026:
   aviso v2.4, términos v2.2, reglamento v1.2, cancelación v2.1) y
   **Arrendamiento de Mobiliario dado de baja como actividad** (decisión del

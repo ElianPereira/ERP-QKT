@@ -23,9 +23,6 @@ class ReporteGenerado(models.Model):
         # Comercial
         ('CXC_CARTERA', 'CxC / Antigüedad de Saldos'),
         ('COT_PERIODO', 'Cotizaciones por Período'),
-        # Airbnb
-        ('OCUPACION', 'Ocupación por Listing'),
-        ('COMPARATIVO', 'Comparativo Mensual Airbnb'),
         # Facturación
         ('FACTURAS', 'Facturas Emitidas'),
     ]
