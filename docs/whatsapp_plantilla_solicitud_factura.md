@@ -28,9 +28,9 @@ tarda un poco más en aprobarse que una de solo texto.
    descargar una con el botón "PDF" de `/admin/facturacion/solicitudfactura/`).
 6. Cuerpo del mensaje — usa **exactamente estas tres variables**, en este
    orden (el código ya manda `{{1}}` = folio, `{{2}}` = nombre del cliente y
-   `{{3}}` = línea de negocio — "Quinta Ko'ox Tanil" o "Airbnb", así el
-   contador sabe de inmediato bajo cuál de los dos RFC de la empresa debe
-   timbrar sin tener que abrir el PDF):
+   `{{3}}` = línea de negocio — hoy siempre "Quinta Ko'ox Tanil"; Airbnb
+   se retiró en el Issue #311, pero la variable se conserva para no
+   reenviar la plantilla a aprobación de Meta):
 
    ```
    Nueva solicitud de factura {{1}} — {{2}} ({{3}}).

@@ -12,7 +12,7 @@ Request. Lee también `CLAUDE.md` y `PROJECT_CONTEXT.md` antes de trabajar.
   cotizador público; es el núcleo funcional.
 - `contabilidad/` gestiona cuentas, pólizas y conciliación. Las pólizas se
   generan mediante señales, no directamente desde `comercial/`.
-- `airbnb/`, `nomina/`, `facturacion/`, `comunicacion/`, `reportes/` y `legal/`
+- `nomina/`, `facturacion/`, `comunicacion/`, `reportes/` y `legal/`
   contienen sus respectivos dominios. Los reportes PDF/Excel se concentran en
   `reportes/services/`.
 - `core_erp/impuestos.py` es la única fuente para IVA y retenciones.
@@ -32,7 +32,7 @@ python -m pip install ruff coverage
 ruff check .
 SECRET_KEY=local-check-key DEBUG=True ALLOWED_HOSTS='*' python manage.py check
 SECRET_KEY=local-check-key DEBUG=True ALLOWED_HOSTS='*' python manage.py makemigrations --check --dry-run
-SECRET_KEY=local-test-key DEBUG=True ALLOWED_HOSTS='*' python manage.py test comercial contabilidad airbnb facturacion nomina legal core_erp
+SECRET_KEY=local-test-key DEBUG=True ALLOWED_HOSTS='*' python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones
 docker build -t erp-qkt .
 ```
 

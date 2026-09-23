@@ -37,14 +37,14 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
   (con alberca) y hospedaje corto **solo en Ka'an Room y Otoch Room**, dentro
   de la Quinta y por reserva directa. Aforo máximo de eventos: 150 personas.
   **Airbnb y Honey Sea House ya no forman parte del portafolio** (ver Memoria
-  2026-09-23): se retiran del ERP por completo, datos incluidos (Issue #311).
+  2026-09-23): se retiraron del ERP por completo, datos incluidos (Issue #311).
   La contabilidad oficial la lleva el contador fuera del ERP, por eso borrar
   el registro de Airbnb no pierde nada. Unidad de negocio: QUINTA.
 - **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
   `clientes.quintakooxtanil.com` (portal cliente, Railway),
   `quintakooxtanil.com` (landing pública, Cloudflare Pages).
 - **Cuenta bancaria**: BBVA Maestra PYME → QUINTA. La BBVA Libretón Básico
-  (antes AIRBNB) sale del ERP con el Issue #311.
+  (antes AIRBNB) ya salió del ERP (Issue #311).
 
 ## Estándares de código (obligatorio, sin excepción)
 
@@ -106,13 +106,13 @@ pre-commit · CI en GitHub Actions.
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 | Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
-**Estructura clave** (9 apps Django):
+**Estructura clave** (9 apps Django propias):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
   desde `comercial`), conciliación bancaria.
-- `airbnb/`, `nomina/`, `facturacion/`, `comunicacion/`, `reportes/` — un
-  dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
+- `nomina/`, `facturacion/`, `comunicacion/`, `reportes/`, `operaciones/` —
+  un dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -240,6 +240,20 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-09-23 — Retiro total de Airbnb, **fase 3 (cierre)**. La fase 2 corrió
+  en producción ese mismo día (`contabilidad.0020` y `airbnb.0008` en OK,
+  con backup previo de Postgres). El diagnóstico de producción encontró un
+  conflicto real: una comisión BBVA de $15.08 capturada como compra de la
+  Quinta pero pagada desde la Libretón; el propietario la pasó a la unidad
+  AIRBNB y se borró con el resto. La app `airbnb` sale de `INSTALLED_APPS` y
+  del repo, y `contabilidad.0021` borra sus ContentType/Permission huérfanos
+  (Django no los limpia al retirar una app). Se retira también la vista de
+  diagnóstico. **`contabilidad/retiro_airbnb.py` se queda a propósito**: lo
+  importa la migración `0020`, que en una BD nueva sigue limpiando lo que
+  siembran `contabilidad.0002`/`0005`. Los documentos de `docs/security/` y
+  las rutinas fechadas mencionan Airbnb como registro histórico y no se
+  tocaron.
 
 - 2026-09-23 — Retiro total de Airbnb, **fase 2**: `contabilidad.0020_
   retiro_airbnb_datos` borra los datos (lógica en `contabilidad/

@@ -11,7 +11,7 @@
 # ──────────────────────────────────────────────────────────────
 # Agregar 'reportes' después de 'contabilidad':
 #
-#     'airbnb',
+#     'anymail',
 #     'contabilidad',
 #     'reportes',          # <-- AGREGAR
 # ]

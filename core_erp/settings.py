@@ -86,7 +86,6 @@ INSTALLED_APPS = [
     'facturacion',
     'weasyprint',
     'anymail',
-    'airbnb',
     'contabilidad',
     'reportes',
     'comunicacion',

@@ -6,9 +6,9 @@ Projects — ver `.claudeignore` para lo que se excluye de lectura.
 
 ## Qué es
 
-ERP interno de **Quinta Ko'ox Tanil** (organización de eventos / renta de
-espacio + hospedaje vía Airbnb), construido sobre **Django 6** con el admin
-de Django (tema **Jazzmin**) como interfaz principal — no hay frontend
+ERP interno de **Quinta Ko'ox Tanil** (eventos, pasadía y hospedaje
+directo en Ka'an/Otoch Room; Airbnb se retiró en 2026-09, Issue #311),
+construido sobre **Django 6** con el admin de Django (tema **Jazzmin**) como interfaz principal — no hay frontend
 separado tipo SPA. Incluye además un cotizador público y un portal de
 cliente, ambos servidos con templates Django normales.
 
@@ -33,7 +33,6 @@ cliente, ambos servidos con templates Django normales.
 |---|---|
 | `comercial` | Núcleo del negocio: cotizaciones, clientes, productos/inventario, pagos, portal de cliente, cotizador público, landing, descuentos. La app más grande con diferencia. |
 | `contabilidad` | Catálogo de cuentas, pólizas, movimientos contables, conciliación bancaria, estados de cuenta. |
-| `airbnb` | Reservas, pagos y calendario del hospedaje en Airbnb; sincronización iCal. |
 | `nomina` | Empleados y recibos de nómina; integración con Jibble (checador). |
 | `facturacion` | Solicitudes de factura y configuración del contador. |
 | `comunicacion` | Registro/envío de comunicaciones al cliente (emails transaccionales, recordatorios). |
@@ -68,10 +67,6 @@ cliente, ambos servidos con templates Django normales.
 Las pólizas se generan automáticamente vía signals cuando se registran
 `Pago`s, comisiones de Openpay, etc. (ver `contabilidad/signals.py`).
 
-### `airbnb`
-
-`AnuncioAirbnb`, `ReservaAirbnb`, `PagoAirbnb`, `ConflictoCalendario`.
-
 ### `nomina`
 
 `Empleado`, `ReciboNomina`.
@@ -87,7 +82,7 @@ Las pólizas se generan automáticamente vía signals cuando se registran
 ### `reportes`
 
 `ReporteGenerado` (registro de reportes exportados; la lógica de cada
-reporte vive en `reportes/services/{airbnb,comercial,contabilidad,facturacion}.py`).
+reporte vive en `reportes/services/{comercial,contabilidad,facturacion}.py`).
 
 ## Rutas / arquitectura clave
 
@@ -111,15 +106,14 @@ completo). Grupos principales:
   Ver `comercial/views_openpay.py` + `comercial/services_openpay.py`.
 - **Reportes** — `/admin/reportes/...` (`reportes/urls.py`, namespace
   `reportes`): selector + un endpoint por tipo de reporte (balanza, estado
-  de resultados, CxC, ocupación Airbnb, facturas, etc.), todos exportan PDF.
+  de resultados, CxC, facturas, etc.), todos exportan PDF.
 - **Contabilidad** — `/admin/contabilidad/reportes/...` (namespace
   `contabilidad`): balanza y estado de resultados con filtros propios
   (fuera del módulo genérico de reportes).
-- **Airbnb** — `/airbnb/...` (namespace `airbnb`): iCal público para
-  sincronización de calendario + bloqueo manual de fechas. Vistas
-  adicionales de Airbnb (calendario unificado, reportes de pago, reporte
-  fiscal) están montadas directamente en `core_erp/urls.py`, no en el
-  namespace.
+- **Calendario unificado** — `/admin/calendario/` (+ `eventos/` por AJAX,
+  acotado a `start`/`end`): cotizaciones, asignaciones de espacio y de
+  personal (`comercial/views_calendario.py`). La disponibilidad de fechas
+  vive en `comercial/disponibilidad.py`.
 - **Nómina / Facturación** — rutas puntuales montadas en `core_erp/urls.py`
   (carga de nómina, sync con Jibble, alta de solicitud de factura); ambas
   apps también se anidan como submenú de "Contabilidad" en el sidebar (ver

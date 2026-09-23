@@ -5,15 +5,15 @@ activarlo y qué decisión de negocio queda pendiente.
 
 ## Resumen en tres líneas
 
-1. **Airbnb no requiere nada**: la plataforma retiene y entera el ISH por su
-   cuenta. El ERP solo lo guarda como dato informativo.
+1. **Airbnb ya no aplica**: la línea se retiró del ERP (Issue #311). Mientras
+   operó, la plataforma retenía y enteraba el ISH por su cuenta.
 2. **El hospedaje vendido directo sí lo causa** y hasta ahora no lo cobraba.
    Ya está implementado, pero **apagado** hasta que se defina la tasa.
 3. Para encenderlo: definir `TASA_ISH` en Railway. Nada más.
 
 ---
 
-## Por qué Airbnb queda fuera
+## Por qué Airbnb quedaba fuera (histórico, retirado en el Issue #311)
 
 La columna del CSV de Airbnb se llama literalmente **"Impuesto liquidado por
 Airbnb"** (`Taxes withheld by Airbnb`). Ese importe:
@@ -22,14 +22,13 @@ Airbnb"** (`Taxes withheld by Airbnb`). Ese importe:
 - lo retiene y lo entera Airbnb al estado,
 - **no llega al depósito** que Airbnb hace a la cuenta de la Quinta.
 
-Por eso `PagoAirbnb.impuesto_hospedaje` es informativo —cuánto enteró la
-plataforma a nombre de la Quinta— y **no** se contabiliza como pasivo: si se
+Por eso `PagoAirbnb.impuesto_hospedaje` era informativo —cuánto enteró la
+plataforma a nombre de la Quinta— y **no** se contabilizaba como pasivo: si se
 abonara a la cuenta 208.04 se crearía una deuda con el estado que en realidad
 ya está pagada, y que nadie podría conciliar después.
 
-Esto ya era así antes de este cambio y sigue igual; está documentado en
-`airbnb/models.py::diferencia_neto` y en
-`contabilidad/signals.py::_asiento_pago_airbnb`.
+La app `airbnb`, `PagoAirbnb` y su póliza (`_asiento_pago_airbnb`) ya no
+existen en el ERP.
 
 ## Qué cambió: el hospedaje directo
 

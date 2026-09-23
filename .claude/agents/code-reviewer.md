@@ -48,9 +48,7 @@ tests and lint don't.
    Flag obvious new N+1s, especially in `reportes/services/*.py` (these run
    over date ranges and can iterate many rows).
 
-6. **Bare `except` and swallowed errors.** This repo already has bare
-   `except:` in `airbnb/` (admin.py, models.py, services.py, views.py) —
-   don't add more. New exception handling should catch a specific exception
+6. **Bare `except` and swallowed errors.** Don't add bare `except:`. New exception handling should catch a specific exception
    type, or at minimum `except Exception` with a `logger.exception` call,
    not a silent `pass`.
 
