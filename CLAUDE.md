@@ -215,7 +215,10 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   lee— deje de ser un dato decorativo.
 - [ ] Migración Cloudinary → DigitalOcean Spaces (pendiente).
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
-- [ ] Registro PROFECO NOM-174 pendiente.
+- [ ] Registro PROFECO del **contrato de Hospedaje** pendiente (el 9341-2023
+  solo cubre Evento/Pasadía). Al tener el número, definir
+  `PROFECO_REGISTRO_HOSPEDAJE` en Railway; el modelo PROFECO pide además
+  RNT y seguro de responsabilidad civil, que el contrato hoy no declara.
 - [x] ~~ISH Airbnb sin resolver~~ — resuelto el 2026-09-17, y la premisa
   era equivocada: el ISH de Airbnb **no es un pendiente de la Quinta**. La
   columna del CSV se llama "Impuesto liquidado **por Airbnb**" y la propia
@@ -239,6 +242,24 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-23 — Documentos legales publicados (PR #309, vigencia 23/09/2026:
+  aviso v2.4, términos v2.2, reglamento v1.2, cancelación v2.1) y
+  **Arrendamiento de Mobiliario dado de baja como actividad** (decisión del
+  propietario): fuera de los documentos y del registro PROFECO 9339-2023; en
+  código se retira de la generación de contratos (`ContratoService.TIPOS`,
+  formulario del admin) pero se conserva el choice `ARRENDAMIENTO` de
+  `Cotizacion`, que sostiene cotizaciones históricas (mismo criterio que
+  `airbnb/`). **Hospedaje tiene contrato propio**
+  (`contratos/contrato_hospedaje_pdf.html`, basado en el modelo PROFECO de
+  servicios de hospedaje): antes salía con la plantilla de salón y la
+  leyenda "registrado 9341-2023", que no lo cubre. La leyenda de registro
+  solo aparece con `settings.PROFECO_REGISTRO_HOSPEDAJE`. Del modelo PROFECO
+  se dejaron fuera, por no poder afirmarlos, RNT, seguro de RC y la pena
+  convencional recíproca del 20%; la pena por cancelación imputable al
+  prestador (10%) replica la del contrato de eventos. Los estilos de ambos
+  contratos viven en `contratos/_estilos_contrato.html`. Ojo: la plantilla
+  de salón usaba `{% if tipo_servicio == ... %}` sin que `tipo_servicio`
+  llegara al contexto — esas ramas nunca se evaluaban; se eliminaron.
 - 2026-09-23 — Revisión de cumplimiento del sitio público (privacidad,
   términos, cookies, reembolsos, formularios, analytics, accesibilidad,
   reseñas, copyright, leyes locales) + retiro de Airbnb/Honey Sea House del

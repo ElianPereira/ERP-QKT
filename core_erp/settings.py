@@ -234,6 +234,11 @@ CACHES = {
 # la vista responde 403: ver ICAL en airbnb/views.py::generar_ical_eventos.
 ICAL_PUBLIC_TOKEN = config('ICAL_PUBLIC_TOKEN', default='')
 
+# Número de registro ante PROFECO del contrato de adhesión de Hospedaje. El
+# registro 9341-2023 solo ampara Evento y Pasadía: mientras esta variable
+# esté vacía, el contrato de Hospedaje sale sin leyenda de registro.
+PROFECO_REGISTRO_HOSPEDAJE = config('PROFECO_REGISTRO_HOSPEDAJE', default='')
+
 # --- ISH: Impuesto Sobre Hospedaje (estatal, Yucatán) ---
 # Proporción, no porcentaje: 0.05 = 5%. El default de 0 mantiene el ERP
 # exactamente como estaba (no calcula ni exhibe ISH); definir la variable en

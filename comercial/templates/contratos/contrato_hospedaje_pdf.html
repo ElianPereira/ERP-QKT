@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  {% include 'contratos/_estilos_contrato.html' %}
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     ENCABEZADO
+     Estructura basada en el modelo de PROFECO para "Contrato de
+     prestación de servicios individuales de hospedaje", adaptada a las
+     condiciones publicadas en Términos y Condiciones, Reglamento Interno y
+     Política de Cancelación vigentes.
+══════════════════════════════════════════════════════════ -->
+<div class="header">
+  {% if logo_url %}
+  <img src="{{ logo_url }}" class="logo" alt="Logo">
+  {% endif %}
+  <div class="titulo">Contrato de Prestación de Servicios de Hospedaje</div>
+  <div class="subtitulo">Quinta Ko'ox Tanil &mdash; Umán, Yucatán, México</div>
+  <div class="folio-bar">
+    <strong>Contrato No.:</strong> {{ numero }} &nbsp;|&nbsp;
+    <strong>Folio Cotización:</strong> {{ folio }} &nbsp;|&nbsp;
+    <strong>Fecha:</strong> {{ fecha_doc }}
+  </div>
+  {% if registro_profeco %}
+  <div class="profeco-bar">
+    Contrato registrado ante PROFECO bajo el número <strong>{{ registro_profeco }}</strong>
+    &mdash; Cumple NOM-174-SCFI-2007
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     PROEMIO
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <p>
+    Contrato de prestación de servicios de hospedaje que celebran por una parte
+    <strong>ELIAN DE JESUS PEREIRA CEH</strong>, con nombre comercial Quinta Ko'ox Tanil,
+    a quien en lo sucesivo se denominará <strong>"EL PRESTADOR"</strong>, y por la otra
+    <strong>{{ nombre_fiscal|upper }}</strong>, a quien en lo sucesivo se denominará
+    <strong>"EL HUÉSPED"</strong>, a quienes de manera conjunta se les denominará
+    <strong>"LAS PARTES"</strong>, al tenor de las siguientes declaraciones y cláusulas:
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     DECLARACIONES
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Declaraciones</div>
+
+  <div class="decl-bloque">
+    <div class="decl-titulo">I. Declara EL PRESTADOR:</div>
+    <div class="decl-inciso">a) Es una persona física de nacionalidad mexicana con capacidad legal para obligarse en los términos del presente Contrato.</div>
+    <div class="decl-inciso">b) El servicio de hospedaje se presta en las habitaciones Ka'an y Otoch, ubicadas dentro de Quinta Ko'ox Tanil: <strong>Carretera Tanil &ndash; Ticimul KM 1.920, Umán, Yucatán, C.P. 97390</strong>.</div>
+    <div class="decl-inciso">c) Se encuentra inscrito en el Registro Federal de Contribuyentes con la clave <strong>PECE010202IA0</strong>.</div>
+    <div class="decl-inciso">d) Cuenta con la infraestructura, los recursos y el personal necesarios para cumplir sus obligaciones conforme al presente Contrato.</div>
+    <div class="decl-inciso">e) Para la atención de dudas, aclaraciones, quejas o reclamaciones pone a disposición el correo electrónico <strong>quintakooxtanil@gmail.com</strong> y el teléfono/WhatsApp <strong>+52 999 445 7178</strong>, con horario de atención de lunes a viernes de 8:00 a 14:00 horas (Tiempo del Centro).</div>
+  </div>
+
+  <div class="decl-bloque">
+    <div class="decl-titulo">II. Declara EL HUÉSPED:</div>
+    <div class="decl-inciso">a) Llamarse <strong>{{ nombre_fiscal }}</strong>, con RFC/CURP: <strong>{{ rfc_curp }}</strong>, y contar con capacidad legal y económica para obligarse en los términos del presente Contrato.</div>
+    <div class="decl-inciso">b) Que sus datos de contacto son: teléfono <strong>{{ telefono }}</strong>, correo electrónico <strong>{{ email }}</strong>.</div>
+    <div class="decl-inciso">c) Que conoce y acepta los Términos y Condiciones, el Reglamento Interno y la Política de Cancelación y Reembolso publicados en quintakooxtanil.com.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA PRIMERA — CONSENTIMIENTO Y OBJETO
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Primera — Consentimiento y Objeto</div>
+  <p>
+    Las partes manifiestan su voluntad de celebrar el presente Contrato, cuyo objeto es la
+    prestación del servicio de hospedaje: EL PRESTADOR se obliga a poner a disposición de
+    EL HUÉSPED las habitaciones que se señalan a continuación, en las fechas pactadas, y
+    EL HUÉSPED se obliga a pagar el precio cierto y determinado estipulado en este Contrato.
+  </p>
+  <table class="tabla-campos">
+    <tr><td class="label">Reserva</td><td>{{ cotizacion.nombre_evento }}</td></tr>
+    <tr><td class="label">Llegada (check-in)</td><td>{{ fecha_evento }}, a partir de las {{ hora_ini }}</td></tr>
+    <tr><td class="label">Salida (check-out)</td><td>{{ fecha_salida }}, a más tardar a las {{ hora_fin }}</td></tr>
+    <tr><td class="label">Noches</td><td>{{ noches }}</td></tr>
+    <tr><td class="label">Huéspedes declarados</td><td>{{ cotizacion.num_personas }}</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA SEGUNDA — OCUPACIÓN
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Segunda — Ocupación por Habitación</div>
+  <p>
+    Cada habitación garantiza comodidad y espacio para <strong>{{ capacidad_base }} personas</strong>.
+    Se admiten hasta <strong>{{ extra_max }} personas adicionales por habitación</strong>, con el costo
+    extra por persona y por noche señalado en la Cláusula Tercera y <strong>sin garantía de comodidad
+    ni espacio</strong>, hasta un máximo de <strong>{{ maximo_habitacion }} personas por habitación</strong>.
+    La reserva ampara únicamente el número de huéspedes declarado; el ingreso de personas no declaradas
+    o por encima del máximo puede generar cargos adicionales o la terminación de la estancia sin reembolso.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA TERCERA — PRECIO
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Tercera — Precio del Servicio</div>
+  <p>
+    El precio total que EL HUÉSPED se obliga a pagar como contraprestación del servicio de
+    hospedaje comprende los siguientes conceptos. EL PRESTADOR se obliga a respetar en todo
+    momento dicho precio, sin cobrar cantidad alguna no estipulada aquí ni condicionar el
+    servicio a la adquisición de otro no solicitado por EL HUÉSPED.
+  </p>
+  <div class="lista-obligaciones">
+    {% for concepto in servicios_incluidos %}
+    <div class="item">{{ concepto }}</div>
+    {% endfor %}
+  </div>
+  <table class="tabla-campos">
+    <tr><td class="label">Precio total (impuestos incluidos)</td><td><strong>{{ precio_total }}</strong></td></tr>
+    {% if ish_str %}
+    <tr><td class="label">De los cuales, Impuesto Sobre Hospedaje</td><td>{{ ish_str }}</td></tr>
+    {% endif %}
+    <tr><td class="label">Anticipo pagado</td><td>{{ anticipo_str }}</td></tr>
+    <tr><td class="label">Total pagado a la fecha</td><td>{{ total_pagado_str }}</td></tr>
+    <tr><td class="label">Saldo pendiente</td><td><strong>{{ saldo_str }}</strong></td></tr>
+    {% if tiene_deposito %}
+    <tr><td class="label">Depósito en garantía</td><td>{{ deposito_str }}</td></tr>
+    {% endif %}
+  </table>
+  <p class="small">
+    El servicio de hospedaje no incluye alimentos, bebidas ni otros servicios que no aparezcan en la
+    lista anterior. Cualquier servicio adicional solo podrá cobrarse con el consentimiento previo de
+    EL HUÉSPED.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA CUARTA — FORMA DE PAGO
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Cuarta — Forma y Plazo de Pago</div>
+  <p>
+    El pago se realiza en moneda nacional a través del portal de clientes (tarjeta de crédito o
+    débito, transferencia SPEI o efectivo en tiendas de conveniencia) o por transferencia bancaria a
+    la cuenta CLABE <strong>012910004895703146</strong> (BBVA, titular Elian Pereira Ceh).
+    El saldo deberá quedar liquidado a más tardar <strong>{{ dias_pago_total }} días naturales antes
+    de la fecha de llegada</strong>; si la reserva se hace dentro de ese plazo, el pago es total al reservar.
+  </p>
+  <p>
+    EL PRESTADOR emitirá el comprobante fiscal (CFDI) correspondiente cuando EL HUÉSPED lo solicite
+    con sus datos fiscales, conforme a los Términos y Condiciones.
+  </p>
+  {% if tiene_deposito %}
+  <p class="small">
+    El depósito en garantía se devuelve dentro de los 5 (cinco) días hábiles posteriores a la salida,
+    por el mismo medio de pago; solo se descuentan los daños documentados, con desglose por escrito,
+    evidencia fotográfica y valuación, conforme al Reglamento Interno.
+  </p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA QUINTA — LLEGADA Y SALIDA
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Quinta — Llegada y Salida</div>
+  <p>
+    EL PRESTADOR pondrá las habitaciones a disposición de EL HUÉSPED a partir de las
+    <strong>{{ hora_ini }}</strong> del día de llegada. EL HUÉSPED deberá desocuparlas a más tardar a las
+    <strong>{{ hora_fin }}</strong> del día de salida. Las salidas tardías no autorizadas generan un cargo
+    equivalente a una noche adicional. Podrá solicitarse identificación oficial del huésped titular al
+    momento del ingreso.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA SEXTA — OBLIGACIONES
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Sexta — Obligaciones de las Partes</div>
+
+  <p class="bold">6.1 EL PRESTADOR se obliga a:</p>
+  <div class="lista-obligaciones">
+    <div class="item">Cumplir lo establecido en el presente Contrato y entregar a EL HUÉSPED la constancia de su reserva.</div>
+    <div class="item">Entregar las habitaciones limpias y en las condiciones pactadas, en las fechas y horarios acordados.</div>
+    <div class="item">Informar a EL HUÉSPED los precios, condiciones, características y costo total del servicio, así como cualquier restricción aplicable dentro de las instalaciones.</div>
+    <div class="item">No realizar ningún cobro ajeno al estipulado en el presente Contrato.</div>
+    <div class="item">Atender quejas o reclamaciones en un plazo no mayor a <strong>48 horas</strong> a partir de su recepción.</div>
+  </div>
+
+  <p class="bold">6.2 EL HUÉSPED se obliga a:</p>
+  <div class="lista-obligaciones">
+    <div class="item">Pagar el precio en los términos y plazos pactados.</div>
+    <div class="item">No exceder el número de huéspedes declarado ni el máximo por habitación de la Cláusula Segunda.</div>
+    <div class="item">Respetar y hacer que sus acompañantes respeten el Reglamento Interno, anexo al presente Contrato.</div>
+    <div class="item">No realizar eventos, fiestas ni reuniones ajenas a los huéspedes declarados dentro de las áreas de hospedaje.</div>
+    <div class="item">Responder por los daños causados al inmueble, mobiliario y equipo durante la estancia, por sí o por sus acompañantes, debidamente comprobados.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA SÉPTIMA — CANCELACIÓN
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Séptima — Cancelación</div>
+  <p>
+    EL HUÉSPED cuenta con un plazo de <strong>5 (cinco) días hábiles</strong> posteriores a la firma del
+    presente Contrato para cancelarlo sin responsabilidad ni penalización alguna; en ese caso
+    EL PRESTADOR reintegrará el 100% de las cantidades entregadas dentro de los
+    <strong>5 (cinco) días naturales</strong> siguientes.
+  </p>
+  <p>Transcurrido ese plazo, la cancelación por parte de EL HUÉSPED se sujeta a lo siguiente:</p>
+  <table class="tabla-cancel">
+    <thead>
+      <tr><th>Anticipación de la cancelación</th><th>Reembolso a EL HUÉSPED</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Más de 15 días naturales antes de la llegada</td><td class="verde">100%</td></tr>
+      <tr><td>De 7 a 15 días naturales antes de la llegada</td><td class="verde">50%</td></tr>
+      <tr><td>Menos de 7 días naturales o no presentación</td><td class="rojo">0%</td></tr>
+      <tr><td>Caso fortuito o fuerza mayor documentado</td><td class="verde">100%</td></tr>
+    </tbody>
+  </table>
+  <p class="small">
+    La cancelación deberá hacerse por escrito, por el mismo medio en que se hizo la reserva o al correo
+    electrónico de EL PRESTADOR, tomando como fecha de cancelación la de su recepción. Los reembolsos se
+    realizan por el mismo medio de pago, en los plazos de la Política de Cancelación y Reembolso.
+    Si la cancelación es imputable a EL PRESTADOR, éste devolverá el 100% de los montos recibidos más una
+    pena convencional del <strong>10%</strong> del precio total pactado, en un plazo no mayor a 5 días naturales.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA OCTAVA — CASO FORTUITO
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Octava — Caso Fortuito y Fuerza Mayor</div>
+  <p>
+    Cuando el servicio de hospedaje no pueda prestarse por caso fortuito o fuerza mayor, EL HUÉSPED
+    tendrá derecho a la devolución total de los pagos realizados. Si el servicio se prestó
+    parcialmente, EL HUÉSPED tendrá derecho al reembolso de la parte proporcional no prestada.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA NOVENA — PRIVACIDAD
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Novena — Aviso de Privacidad</div>
+  <p>
+    Previo a la firma del presente Contrato, EL PRESTADOR hizo del conocimiento de EL HUÉSPED su
+    Aviso de Privacidad, disponible en <strong>quintakooxtanil.com/aviso-de-privacidad</strong>, así como
+    el procedimiento para ejercer los derechos de acceso, rectificación, cancelación y oposición
+    (derechos ARCO) al tratamiento de sus datos personales.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA DÉCIMA — FIRMA ELECTRÓNICA
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Décima — Contratación por Medios Electrónicos</div>
+  <p>
+    Las partes acuerdan que, en lugar de firma autógrafa, este contrato podrá firmarse por medios
+    electrónicos, digitales o cualquier otra forma equivalente, con la misma fuerza y consecuencias
+    que la firma autógrafa, conforme a la <strong>NOM-151-SCFI-2016</strong>. Los documentos firmados
+    de tal modo serán conservados y estarán a disposición de EL HUÉSPED.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLÁUSULA DÉCIMA PRIMERA — JURISDICCIÓN
+══════════════════════════════════════════════════════════ -->
+<div class="seccion">
+  <div class="seccion-titulo">Cláusula Décima Primera — Jurisdicción</div>
+  <p>
+    Para todo lo relativo a la interpretación y cumplimiento del presente Contrato, las partes se
+    someten en la vía administrativa a la <strong>Procuraduría Federal del Consumidor (PROFECO)</strong>
+    y, en caso de subsistir diferencias, a los tribunales competentes de <strong>Mérida, Yucatán</strong>.
+    EL HUÉSPED conserva íntegro su derecho a elegir el fuero de su domicilio.
+  </p>
+  <p>
+    Leído que fue el presente Contrato por las partes, comprendiendo su alcance legal, lo suscriben
+    a los {{ fecha_doc }}.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     FIRMAS
+══════════════════════════════════════════════════════════ -->
+<div class="firmas">
+  <div class="firmas-grid">
+    <div class="firma-col">
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">ELIAN DE JESUS PEREIRA CEH</div>
+      <div class="firma-rol">EL PRESTADOR</div>
+      <div class="firma-rfc">RFC: PECE010202IA0</div>
+    </div>
+    <div class="firma-col">
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">{{ nombre_fiscal|upper }}</div>
+      <div class="firma-rol">EL HUÉSPED</div>
+      <div class="firma-rfc">RFC/CURP: {{ rfc_curp }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     AUTORIZACIÓN MERCADOTECNIA
+══════════════════════════════════════════════════════════ -->
+<div class="autorizacion-box" style="margin-top: 18px;">
+  <p class="bold">Autorización para la utilización de información con fines mercadotécnicos o publicitarios</p>
+  <p>EL HUÉSPED:</p>
+  <div class="check-row">
+    Si ( &nbsp; ) &nbsp; No ( &nbsp; ) &mdash; acepta que EL PRESTADOR ceda o transmita a terceros,
+    con fines mercadotécnicos o publicitarios, la información proporcionada con motivo del presente Contrato.
+  </div>
+  <div class="check-row">
+    Si ( &nbsp; ) &nbsp; No ( &nbsp; ) &mdash; acepta que EL PRESTADOR le envíe publicidad sobre bienes y servicios.
+  </div>
+  <div style="margin-top: 24px; text-align: center;">
+    <div style="border-top: 1px solid #333; width: 60%; margin: 0 auto;"></div>
+    <div style="font-size: 9pt; font-weight: bold; margin-top: 4px;">
+      Firma de autorización de EL HUÉSPED
+    </div>
+  </div>
+</div>
+
+{% if registro_profeco %}
+<p class="small italic" style="margin-top: 10px; text-align: center;">
+  Este contrato fue aprobado y registrado por la Procuraduría Federal del Consumidor
+  bajo el número <strong>{{ registro_profeco }}</strong>.
+  Cualquier variación del presente contrato en perjuicio de EL HUÉSPED,
+  frente al contrato de adhesión registrado, se tendrá por no puesta.
+</p>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════
+     ANEXO — REGLAMENTO INTERNO (HOSPEDAJE)
+══════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<div class="header" style="margin-bottom: 12px;">
+  {% if logo_url %}
+  <img src="{{ logo_url }}" class="logo" alt="Logo">
+  {% endif %}
+  <div class="titulo">Reglamento Interno &mdash; Hospedaje</div>
+  <div class="subtitulo">Quinta Ko'ox Tanil &mdash; Anexo al Contrato {{ numero }}</div>
+</div>
+
+<p style="margin-bottom: 10px; text-align: justify;">
+  El presente anexo forma parte integral del Contrato y reproduce las reglas de hospedaje del
+  Reglamento Interno vigente, publicado íntegro en quintakooxtanil.com/reglamento. Es de observancia
+  obligatoria para EL HUÉSPED y sus acompañantes.
+</p>
+
+<ol class="reglamento">
+  <li>Entrada a partir de las {{ hora_ini }}; salida a más tardar a las {{ hora_fin }}. Las salidas tardías no autorizadas generan un cargo equivalente a una noche adicional.</li>
+  <li>Cada habitación garantiza comodidad y espacio para {{ capacidad_base }} personas; se admiten hasta {{ extra_max }} adicionales con costo extra y sin esa garantía, con un máximo de {{ maximo_habitacion }} por habitación.</li>
+  <li>La reserva ampara únicamente el número de huéspedes declarado. El ingreso de personas no declaradas puede generar cargos adicionales o la terminación de la estancia sin reembolso.</li>
+  <li>Puede solicitarse identificación oficial del huésped titular al momento del ingreso.</li>
+  <li>El huésped titular responde por los daños causados al inmueble, mobiliario y equipo durante la estancia, por sí o por sus acompañantes.</li>
+  <li>No se permite realizar eventos, fiestas ni reuniones ajenas a los huéspedes declarados dentro de las áreas de hospedaje.</li>
+  <li>Rige el horario de silencio de 22:00 a 8:00 horas.</li>
+  <li>El ingreso de mascotas requiere aviso previo y se rige por el Reglamento Interno, incluido el cargo por limpieza extraordinaria.</li>
+  <li>Queda estrictamente prohibido el ingreso y uso de cualquier tipo de arma dentro de las instalaciones.</li>
+  <li>EL PRESTADOR no se hace responsable por objetos de valor olvidados en las habitaciones o áreas comunes.</li>
+</ol>
+
+<div class="firmas" style="margin-top: 24px;">
+  <div class="firmas-grid">
+    <div class="firma-col">
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">ELIAN DE JESUS PEREIRA CEH</div>
+      <div class="firma-rol">El Prestador</div>
+    </div>
+    <div class="firma-col">
+      <div class="firma-linea"></div>
+      <div class="firma-nombre">{{ nombre_fiscal|upper }}</div>
+      <div class="firma-rol">El Huésped &mdash; De conformidad con el Reglamento</div>
+    </div>
+  </div>
+</div>
+
+<p class="small italic" style="text-align:center; margin-top: 14px;">
+  Quinta Ko'ox Tanil &mdash; Contrato {{ numero }} &mdash; {{ fecha_doc }} &mdash; DOCUMENTO CONFIDENCIAL
+</p>
+
+</body>
+</html>

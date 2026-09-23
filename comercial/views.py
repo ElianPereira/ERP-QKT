@@ -1014,6 +1014,9 @@ def generar_contrato(request, cotizacion_id):
 
     tipo     = request.GET.get('tipo_servicio', 'EVENTO')
     deposito = Decimal(request.GET.get('deposito', '0') or '0')
+    if tipo not in ContratoService.TIPOS:
+        messages.error(request, " Tipo de contrato no disponible.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
     try:
         servicio  = ContratoService(cotizacion, tipo_servicio=tipo, deposito=deposito)
