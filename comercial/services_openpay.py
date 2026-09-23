@@ -633,29 +633,18 @@ def datos_referencia_pendiente(transaccion: OpenpayTransaccion) -> dict:
     return base
 
 
-def transacciones_pendientes(cotizacion: Cotizacion) -> list:
-    """
-    Referencias de efectivo/SPEI ya generadas, vigentes y aún sin pagar — la
-    más reciente por método (store/bank_account).
-
-    Cada clic en "pagar" con estos dos métodos genera una referencia NUEVA
-    sin cancelar la anterior; un cliente que reintenta sin saber esto termina
-    con varias referencias válidas a la vez y no sabe cuál usar (caso real:
-    2 CLABEs SPEI + 1 ficha de efectivo en 17 minutos). El portal usa esto
-    para mostrárselas de entrada en vez de dejarlo generar otra a ciegas.
-    """
+def _referencias_vigentes(cotizacion: Cotizacion) -> list:
+    """Referencias de efectivo/SPEI generadas, sin pagar y sin vencer (todas,
+    de la más reciente a la más vieja)."""
     from django.utils import timezone
 
     ahora = timezone.localtime()
-    vistos = set()
-    resultado = []
+    vigentes = []
     qs = OpenpayTransaccion.objects.filter(
         cotizacion=cotizacion, metodo__in=('store', 'bank_account'),
         procesado=False, estado_openpay='in_progress',
     ).order_by('-created_at')
     for t in qs:
-        if t.metodo in vistos:
-            continue
         data = t.payload_crudo or {}
         pm = data.get('payment_method', {}) or data.get('store', {}) or {}
         due = pm.get('due_date') or data.get('due_date')
@@ -668,9 +657,40 @@ def transacciones_pendientes(cotizacion: Cotizacion) -> list:
                     continue
             except (ValueError, TypeError):
                 pass
+        vigentes.append(t)
+    return vigentes
+
+
+def transacciones_pendientes(cotizacion: Cotizacion) -> list:
+    """
+    Referencias de efectivo/SPEI ya generadas, vigentes y aún sin pagar — la
+    más reciente por método (store/bank_account).
+
+    Cada clic en "pagar" con estos dos métodos genera una referencia NUEVA
+    sin cancelar la anterior; un cliente que reintenta sin saber esto termina
+    con varias referencias válidas a la vez y no sabe cuál usar (caso real:
+    2 CLABEs SPEI + 1 ficha de efectivo en 17 minutos). El portal usa esto
+    para mostrárselas de entrada en vez de dejarlo generar otra a ciegas.
+    """
+    vistos = set()
+    resultado = []
+    for t in _referencias_vigentes(cotizacion):
+        if t.metodo in vistos:
+            continue
         vistos.add(t.metodo)
         resultado.append(datos_referencia_pendiente(t))
     return resultado
+
+
+def monto_en_camino(cotizacion: Cotizacion) -> Decimal:
+    """Suma de TODAS las referencias vigentes sin pagar: cualquiera de ellas
+    puede pagarse en la tienda o por SPEI en cualquier momento, así que es
+    saldo ya comprometido. Sin descontarlo, el portal dejaba cobrar el mismo
+    saldo con tarjeta y la ficha pagada después rebasaba el total."""
+    return sum(
+        (t.monto for t in _referencias_vigentes(cotizacion) if t.monto is not None),
+        Decimal('0.00'),
+    )
 
 
 # --- REEMBOLSOS (llama al refund real de Openpay, no solo el registro interno) ---
@@ -824,8 +844,33 @@ def procesar_webhook_openpay(payload: dict):
     except Exception as e:
         registro.error_detalle = f"Error al crear Pago: {e}"
         registro.save(update_fields=['event_type', 'cotizacion', 'error_detalle'])
+        _alertar_equipo_cobro_sin_registrar(registro, monto)
 
     return registro
+
+
+def _alertar_equipo_cobro_sin_registrar(registro, monto):
+    """El dinero ya entró a Openpay pero no se pudo registrar como Pago (lo
+    típico: rebasa el saldo porque el cliente pagó dos veces). Sin esta
+    alerta solo quedaba el error en la transacción, sin que nadie se
+    enterara de que hay que reembolsar o aplicar el excedente. Nunca debe
+    tumbar el webhook."""
+    try:
+        from comunicacion.services import alertar_equipo_email
+        cot = registro.cotizacion
+        alertar_equipo_email(
+            cot,
+            asunto=f"⚠️ Cobro de Openpay sin registrar — COT-{cot.id:03d}",
+            cuerpo=(
+                f"Openpay confirmó un cobro de ${monto:,.2f} (transacción "
+                f"{registro.openpay_id}) para COT-{cot.id:03d} ({cot.cliente}), pero "
+                f"no se pudo registrar como pago.\n\nDetalle: {registro.error_detalle}\n\n"
+                "Revisa la transacción en el admin y reembolsa o aplica el excedente."
+            ),
+            clave_idempotencia=f"openpay_sin_registrar:{registro.openpay_id}",
+        )
+    except Exception:
+        logger.exception("No se pudo alertar del cobro sin registrar %s.", registro.openpay_id)
 
 
 def _resolver_cotizacion_desde_order_id(order_id: str):

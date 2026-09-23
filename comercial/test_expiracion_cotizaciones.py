@@ -151,6 +151,29 @@ class TransicionesExpiradaTest(TestCase):
         self.assertFalse(ok)
         self.assertIn('No se puede cambiar', mensaje)
 
+    def test_revivida_no_vuelve_a_expirar_esa_misma_noche(self):
+        # Antes el plazo se contaba desde `created_at`: una cotización de hace
+        # 30 días revivida hoy volvía a EXPIRADA en la siguiente corrida.
+        cot = _cotizacion(dias_de_antiguedad=30)
+        self._expirar(cot)
+        Cotizacion.objects.get(pk=cot.pk).cambiar_estado('BORRADOR')
+        call_command('cerrar_cotizaciones', stdout=StringIO())
+        self.assertEqual(Cotizacion.objects.get(pk=cot.pk).estado, 'BORRADOR')
+
+    def test_revivida_expira_de_nuevo_si_pasa_otro_plazo_sin_pago(self):
+        cot = _cotizacion(dias_de_antiguedad=30)
+        self._expirar(cot)
+        Cotizacion.objects.get(pk=cot.pk).cambiar_estado('BORRADOR')
+        Cotizacion.objects.filter(pk=cot.pk).update(
+            fecha_reactivacion=timezone.now() - timedelta(days=Cotizacion.DIAS_EXPIRACION_SIN_PAGO))
+        self._expirar(cot)
+
+    def test_revivir_una_cancelada_tambien_reinicia_el_plazo(self):
+        cot = _cotizacion(dias_de_antiguedad=30)
+        Cotizacion.objects.filter(pk=cot.pk).update(estado='CANCELADA')
+        Cotizacion.objects.get(pk=cot.pk).cambiar_estado('BORRADOR')
+        self.assertIsNone(Cotizacion.objects.get(pk=cot.pk).motivo_expiracion())
+
     def _expirar(self, cot):
         call_command('cerrar_cotizaciones', stdout=StringIO())
         self.assertEqual(Cotizacion.objects.get(pk=cot.pk).estado, 'EXPIRADA')

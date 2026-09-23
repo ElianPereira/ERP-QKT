@@ -514,7 +514,11 @@ class Cotizacion(models.Model):
     # cuántas se cerraron), que se perdería si todo lo no vendido se
     # amontonara en CANCELADA.
     TRANSICIONES_PERMITIDAS = {
-        'BORRADOR': ['COTIZADA', 'CANCELADA', 'EXPIRADA'],
+        # BORRADOR -> CONFIRMADA directo: una solicitud del cotizador web nace
+        # en BORRADOR y el cliente la paga desde el portal sin que nadie la
+        # "cotice" a mano; exigir el paso intermedio solo dejaba al staff con
+        # dos guardados para apartar una fecha ya pagada.
+        'BORRADOR': ['COTIZADA', 'CONFIRMADA', 'CANCELADA', 'EXPIRADA'],
         'COTIZADA': ['CONFIRMADA', 'CANCELADA', 'EXPIRADA'],
         'CONFIRMADA': ['EJECUTADA', 'CANCELADA'],
         'EJECUTADA': ['CERRADA'],
@@ -661,12 +665,34 @@ class Cotizacion(models.Model):
     )
     identificacion_revisada_en = models.DateTimeField(null=True, blank=True, verbose_name="Revisada el")
 
+    # Cuándo se revivió por última vez desde EXPIRADA/CANCELADA. El plazo de
+    # expiración se cuenta desde aquí: contarlo desde `created_at` hacía que el
+    # cron la volviera a expirar la misma noche en que se revivía.
+    fecha_reactivacion = models.DateTimeField(null=True, blank=True, editable=False,
+                                              verbose_name="Reactivada el")
+
     # Estados en los que la cotización ya no representa una venta viva: nadie
     # debería poder pagarla desde el portal. CANCELADA puede haber generado ya
     # una póliza de reversión y un reembolso; EXPIRADA nunca prosperó y su
     # precio es de hace semanas. Cobrar en cualquiera de los dos casos deja
     # dinero entrando contra una venta que no existe.
     ESTADOS_SIN_COBRO = ('CANCELADA', 'EXPIRADA')
+
+    # Estados que todavía no apartan la fecha: el rango solo se bloquea en
+    # CONFIRMADA (ver `airbnb.validacion_fechas`).
+    ESTADOS_SIN_APARTAR = ('BORRADOR', 'COTIZADA')
+
+    # Porcentaje del total que confirma la cotización en automático al entrar
+    # un pago (`confirmar_por_pago`) cuando PORCENTAJE_ANTICIPO_MINIMO no está
+    # configurado. Es el mismo 50% que el portal exige en el primer pago
+    # (`monto_minimo_pago_detalle`), así ambas reglas no se separan.
+    PORCENTAJE_PRIMER_PAGO = Decimal('50')
+
+    # Campos cuyo guardado aislado (`save(update_fields=...)`) no toca precios.
+    CAMPOS_SIN_EFECTO_EN_PRECIO = frozenset({
+        'estado', 'updated_at', 'motivo_cancelacion', 'cancelada_por',
+        'fecha_cancelacion', 'fecha_reactivacion', 'identificacion_oficial',
+    })
 
     def admite_pago_detalle(self):
         """¿Se puede cobrar esta cotización? -> (bool, motivo para el cliente).
@@ -680,6 +706,66 @@ class Cotizacion(models.Model):
                 f"Esta cotización está {self.get_estado_display().lower()} y ya no "
                 "admite pagos. Escríbenos si necesitas retomarla."
             )
+        # Si otra reservación ya apartó la fecha, cobrar aquí sería vender dos
+        # veces el mismo día. No se dice quién la apartó: es dato de otro cliente.
+        if self.estado in self.ESTADOS_SIN_APARTAR and not self.fecha_disponible_detalle()[0]:
+            return False, (
+                "La fecha de tu reservación ya no está disponible. Escríbenos "
+                "antes de pagar y buscamos otra fecha contigo."
+            )
+        return True, ''
+
+    def fecha_disponible_detalle(self):
+        """¿El rango de esta cotización sigue libre? -> (bool, mensaje).
+
+        Fuente única que usan `clean()`, `admite_pago_detalle()`,
+        `cambiar_estado()` y `confirmar_por_pago()`.
+        """
+        if not self.fecha_evento:
+            return True, None
+        from airbnb.validacion_fechas import verificar_disponibilidad_rango
+        inicio, fin = self.rango_ocupado()
+        return verificar_disponibilidad_rango(inicio, fin, cotizacion_id=self.pk)
+
+    def porcentaje_anticipo_confirmacion(self):
+        """Porcentaje pagado con el que un pago confirma la cotización solo."""
+        configurado = Decimal(str(self._get_porcentaje_anticipo_minimo()))
+        return configurado if configurado > 0 else self.PORCENTAJE_PRIMER_PAGO
+
+    def motivo_no_confirmable_por_pago(self):
+        """Por qué los pagos recibidos NO confirman la cotización, o `None`.
+
+        Fuente única de la regla de `confirmar_por_pago()` y del cron (que la
+        usa también en simulación, sin escribir nada).
+        """
+        if self.estado not in self.ESTADOS_SIN_APARTAR:
+            return 'no está en borrador ni cotizada'
+        pagado = self.total_pagado()
+        if pagado <= 0 or self.precio_final <= 0:
+            return 'sin pagos'
+        if (pagado / self.precio_final) * 100 < self.porcentaje_anticipo_confirmacion():
+            return 'el anticipo pagado no alcanza el mínimo'
+        if not self.items.exists():
+            return 'sin conceptos'
+        disponible, msg = self.fecha_disponible_detalle()
+        if not disponible:
+            return msg or 'fecha no disponible'
+        return None
+
+    def confirmar_por_pago(self):
+        """Aparta la fecha en automático cuando lo pagado alcanza el anticipo.
+
+        Sin esto una cotización pagada desde el portal se quedaba en BORRADOR:
+        no apartaba la fecha (otro cliente podía pagarla también), no había
+        contrato ni guía, y el cron nunca la ejecutaba ni la cerraba.
+
+        Devuelve (confirmada: bool, motivo) — motivo explica por qué no.
+        """
+        motivo = self.motivo_no_confirmable_por_pago()
+        if motivo:
+            return False, motivo
+        self.estado = 'CONFIRMADA'
+        self.save(update_fields=['estado', 'updated_at'])
         return True, ''
 
     def admite_pago(self):
@@ -730,9 +816,10 @@ class Cotizacion(models.Model):
             return 'fecha del evento ya pasada sin ningún pago'
 
         # `created_at` es auto_now_add, así que siempre existe salvo en una
-        # instancia sin guardar.
-        if self.created_at:
-            dias = (hoy - timezone.localtime(self.created_at).date()).days
+        # instancia sin guardar. Si se revivió, el plazo corre desde ahí.
+        inicio_plazo = self.fecha_reactivacion or self.created_at
+        if inicio_plazo:
+            dias = (hoy - timezone.localtime(inicio_plazo).date()).days
             if dias >= self.DIAS_EXPIRACION_SIN_PAGO:
                 return f'{dias} días sin ningún pago'
         return None
@@ -761,6 +848,9 @@ class Cotizacion(models.Model):
                 porcentaje_pagado = (pagado / self.precio_final) * 100
                 if porcentaje_pagado < porcentaje_minimo:
                     return False, f"Se requiere al menos {porcentaje_minimo}% de anticipo para confirmar. Pagado: {porcentaje_pagado:.1f}% (${pagado:,.2f} de ${self.precio_final:,.2f})"
+            disponible, msg_fecha = self.fecha_disponible_detalle()
+            if not disponible:
+                return False, msg_fecha
 
         # Validación: pagos completos para CERRAR
         if nuevo_estado == 'CERRADA':
@@ -789,10 +879,18 @@ class Cotizacion(models.Model):
             self.motivo_cancelacion = ''
             self.cancelada_por = None
             self.fecha_cancelacion = None
+        self.marcar_reactivacion(estado_actual, nuevo_estado)
 
         self.estado = nuevo_estado
-        self.save(update_fields=['estado', 'motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion', 'updated_at'])
+        self.save(update_fields=['estado', 'motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion',
+                                 'fecha_reactivacion', 'updated_at'])
         return True, f"Estado cambiado a '{dict(self.ESTADOS).get(nuevo_estado)}'"
+
+    def marcar_reactivacion(self, estado_anterior, nuevo_estado):
+        """Sella `fecha_reactivacion` al revivir una cotización (fuente única
+        para `cambiar_estado()` y el admin)."""
+        if estado_anterior in ('EXPIRADA', 'CANCELADA') and nuevo_estado == 'BORRADOR':
+            self.fecha_reactivacion = now()
 
     def _get_porcentaje_anticipo_minimo(self):
         """Obtiene el porcentaje mínimo de anticipo desde ConstanteSistema."""
@@ -884,11 +982,7 @@ class Cotizacion(models.Model):
         super().clean()
         if self.fecha_evento and self.estado == 'CONFIRMADA':
             try:
-                from airbnb.validacion_fechas import verificar_disponibilidad_rango
-                inicio, fin = self.rango_ocupado()
-                disponible, msg = verificar_disponibilidad_rango(
-                    inicio, fin, cotizacion_id=self.pk
-                )
+                disponible, msg = self.fecha_disponible_detalle()
                 if not disponible:
                     raise ValidationError({'fecha_evento': msg})
             except ValidationError:
@@ -927,15 +1021,21 @@ class Cotizacion(models.Model):
                     self._state.adding or self.estado == 'BORRADOR'):
                 self.tasa_ish_aplicada = impuestos.tasa_ish()
             super().save(*args, **kwargs)
-            from .services import actualizar_item_cotizacion
-            actualizar_item_cotizacion(self)
-            self.calcular_totales()
-            Cotizacion.objects.filter(pk=self.pk).update(
-                subtotal=self.subtotal, iva=self.iva,
-                impuesto_hospedaje=self.impuesto_hospedaje,
-                retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
-                precio_final=self.precio_final
-            )
+            # Un guardado que solo cambia estado/auditoría no debe recalcular
+            # precios: `actualizar_item_cotizacion` recotiza la barra con los
+            # costos de HOY, y hacerlo al confirmar por pago, al cancelar o al
+            # subir la INE movía el precio de algo que el cliente ya aceptó.
+            update_fields = kwargs.get('update_fields')
+            if update_fields is None or not set(update_fields) <= self.CAMPOS_SIN_EFECTO_EN_PRECIO:
+                from .services import actualizar_item_cotizacion
+                actualizar_item_cotizacion(self)
+                self.calcular_totales()
+                Cotizacion.objects.filter(pk=self.pk).update(
+                    subtotal=self.subtotal, iva=self.iva,
+                    impuesto_hospedaje=self.impuesto_hospedaje,
+                    retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
+                    precio_final=self.precio_final
+                )
             try:
                 from .models import PortalCliente
                 PortalCliente.objects.get_or_create(
@@ -1052,7 +1152,7 @@ class Cotizacion(models.Model):
             minimo = programado_a_hoy - total_pagado
             motivo = 'Tienes pagos vencidos o próximos según tu plan de pagos.'
         elif total_pagado <= 0:
-            minimo = self.precio_final * Decimal('0.50')
+            minimo = impuestos.centavos(self.precio_final * self.PORCENTAJE_PRIMER_PAGO / 100)
             motivo = 'El primer pago debe ser al menos el 50% del total.'
         else:
             minimo = Decimal('0.00')
@@ -1197,6 +1297,43 @@ class Pago(models.Model):
                 Cotizacion.objects.select_for_update().get(pk=self.cotizacion_id)
             self.full_clean()
             super().save(*args, **kwargs)
+            if self.tipo == 'INGRESO' and self.concepto == 'VENTA':
+                self._confirmar_cotizacion()
+
+    def _confirmar_cotizacion(self):
+        """Un pago que alcanza el anticipo aparta la fecha (ver
+        `Cotizacion.confirmar_por_pago`). Si la fecha ya la apartó otra
+        reservación el dinero se registra igual —ya entró— y se avisa al
+        equipo para resolverlo con el cliente."""
+        # Instancia fresca: la de `self.cotizacion` puede venir del formulario
+        # del admin con campos aún sin guardar.
+        cot = Cotizacion.objects.get(pk=self.cotizacion_id)
+        if cot.estado not in Cotizacion.ESTADOS_SIN_APARTAR:
+            return
+        confirmada, _ = cot.confirmar_por_pago()
+        if confirmada:
+            self.cotizacion.estado = cot.estado
+            return
+        disponible, msg_fecha = cot.fecha_disponible_detalle()
+        if disponible:
+            return
+        pago_pk = self.pk
+
+        def _alertar():
+            from comunicacion.services import alertar_equipo_email
+            alertar_equipo_email(
+                cot,
+                asunto=f"⚠️ Pago recibido con fecha ocupada — COT-{cot.id:03d}",
+                cuerpo=(
+                    f"Entró un pago de ${self.monto:,.2f} para COT-{cot.id:03d} "
+                    f"({cot.cliente}), pero la fecha ya está apartada por otra "
+                    f"reservación, así que NO se confirmó.\n\nDetalle: {msg_fecha}\n\n"
+                    "Contacta al cliente para mover la fecha o reembolsar."
+                ),
+                pago=self,
+                clave_idempotencia=f"pago_fecha_ocupada:{pago_pk}",
+            )
+        transaction.on_commit(_alertar)
 
     def __str__(self): return f"${self.monto}"
 

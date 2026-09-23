@@ -4,7 +4,11 @@ Avanza solo el estado de las cotizaciones según lo que ya ocurrió.
 Lógica, en este orden (importa):
   0. BORRADOR / COTIZADA sin NINGÚN pago → EXPIRADA, cuando la fecha del
      evento ya pasó o llevan DIAS_EXPIRACION_SIN_PAGO días sin cobrar nada.
+  0b. BORRADOR / COTIZADA con el anticipo ya pagado → CONFIRMADA, si la fecha
+     sigue libre (red de seguridad de `Pago.save()`: cubre las que se pagaron
+     antes de que existiera la confirmación automática)
   1. CONFIRMADA / COTIZADA con fecha_evento < hoy → EJECUTADA (evento realizado)
+     y el anticipo cobrado se reconoce como ingreso (póliza de diario)
   2. EJECUTADA con fecha_evento < hoy y saldo ≤ $0.50  → CERRADA (pagada y lista)
 
 El paso 0 va ANTES del 1 a propósito: sin él, una cotización que nadie pagó y
@@ -24,6 +28,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from comercial.models import Cotizacion
+from contabilidad.signals import crear_poliza_reconocimiento_ingreso
 
 
 class Command(BaseCommand):
@@ -42,6 +47,7 @@ class Command(BaseCommand):
 
         hoy = timezone.localdate()
         expiradas = 0
+        confirmadas = 0
         ejecutadas = 0
         cerradas = 0
 
@@ -61,6 +67,24 @@ class Command(BaseCommand):
             expiradas += 1
             self.stdout.write(f'  EXPIRADA   COT-{cot.pk:03d} ({motivo})')
 
+        # Paso 0b: pagadas pero nunca confirmadas. Las recién expiradas no
+        # tienen pagos, así que nunca caen aquí.
+        por_confirmar = Cotizacion.objects.filter(
+            estado__in=Cotizacion.ESTADOS_SIN_APARTAR,
+            pagos__tipo='INGRESO', pagos__concepto='VENTA',
+        ).distinct().order_by('created_at')
+        for cot in por_confirmar:
+            motivo = cot.motivo_no_confirmable_por_pago()
+            if motivo:
+                if 'disponible' in motivo:
+                    self.stdout.write(self.style.WARNING(
+                        f'  SIN APARTAR COT-{cot.pk:03d} pagada, pero {motivo}'))
+                continue
+            if not simular:
+                cot.confirmar_por_pago()
+            confirmadas += 1
+            self.stdout.write(f'  CONFIRMADA COT-{cot.pk:03d} ({cot.nombre_evento[:50]})')
+
         # Paso 1: eventos realizados que siguen como CONFIRMADA o COTIZADA.
         # Las recién expiradas ya salieron de estos estados, así que no entran.
         pendientes_ejecutar = Cotizacion.objects.filter(
@@ -70,6 +94,10 @@ class Command(BaseCommand):
         for cot in pendientes_ejecutar:
             if not simular:
                 Cotizacion.objects.filter(pk=cot.pk).update(estado='EJECUTADA')
+                # El update() no dispara signals: el anticipo se pasa a
+                # ingreso aquí, igual que lo hace el signal en un cambio manual.
+                cot.estado = 'EJECUTADA'
+                crear_poliza_reconocimiento_ingreso(cot)
             ejecutadas += 1
             self.stdout.write(f'  EJECUTADA  COT-{cot.pk:03d} ({cot.nombre_evento[:50]})')
 
@@ -85,10 +113,15 @@ class Command(BaseCommand):
             if cot.saldo_pendiente() <= Decimal('0.50'):
                 if not simular:
                     Cotizacion.objects.filter(pk=cot.pk).update(estado='CERRADA')
+                    # Red de seguridad: un abono que entró como anticipo
+                    # después de ejecutarse (idempotente, no duplica nada).
+                    cot.estado = 'CERRADA'
+                    crear_poliza_reconocimiento_ingreso(cot)
                 cerradas += 1
                 self.stdout.write(f'  CERRADA    COT-{cot.pk:03d} ({cot.nombre_evento[:50]})')
 
         self.stdout.write(self.style.SUCCESS(
-            f'\nResultado: {expiradas} → EXPIRADA, {ejecutadas} → EJECUTADA, '
+            f'\nResultado: {expiradas} → EXPIRADA, {confirmadas} → CONFIRMADA, '
+            f'{ejecutadas} → EJECUTADA, '
             f'{cerradas} → CERRADA'
         ))

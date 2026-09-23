@@ -950,6 +950,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                     obj.cancelada_por = request.user
                     from django.utils.timezone import now
                     obj.fecha_cancelacion = now()
+                obj.marcar_reactivacion(old_estado, obj.estado)
 
         if not obj.pk:
             obj.usuario = request.user
