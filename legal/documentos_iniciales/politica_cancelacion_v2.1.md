@@ -1,10 +1,8 @@
 # POLÍTICA DE CANCELACIÓN Y REEMBOLSO
 
 **Quinta Ko'ox Tanil — Elian de Jesús Pereira Ceh**
-**Versión 2.1 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 2.1 — Vigente a partir del 23 de septiembre de 2026**
 *Sustituye a la versión 2.0 del 31 de julio de 2026.*
-
-**[CONFIRMAR: esta versión solo ajusta la Sección 8: el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta y ya no se ofrece por plataformas de terceros. Ningún otro cambio.]**
 
 > Esta política forma parte integrante de los [Términos y Condiciones](https://quintakooxtanil.com/terminos-y-condiciones). En caso de discrepancia con el contrato de prestación de servicios firmado, prevalecerá **la disposición más favorable al consumidor**.
 
