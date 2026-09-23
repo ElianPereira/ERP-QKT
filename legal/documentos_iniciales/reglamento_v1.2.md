@@ -3,7 +3,7 @@
 **Versión 1.2 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
 *Sustituye a la versión 1.1 del 4 de agosto de 2026.*
 
-**[CONFIRMAR: esta versión solo retira el inmueble Honey Sea House y las reservas por plataformas de terceros del hospedaje (Secciones 4 y 18): el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta. Ningún otro cambio.]**
+**[CONFIRMAR: esta versión solo retira el inmueble Honey Sea House y las reservas por plataformas de terceros del hospedaje (Secciones 4 y 18): el hospedaje es únicamente en las habitaciones Ka'an y Otoch dentro de la Quinta. Además, la Sección 4 precisa el aforo ampliado de Pasadía (20 incluidas + 10 con costo extra = 30) y el de Hospedaje por habitación (4 con comodidad garantizada + 6 con costo extra = 10). Ningún otro cambio.]**
 
 ---
 
@@ -42,8 +42,8 @@ Las indicaciones que nuestro personal dirija a esa persona se tienen por comunic
 | Servicio | Aforo máximo |
 |---|---|
 | **Eventos** | 150 personas |
-| **Pasadía** | 20 personas |
-| **Hospedaje** | El número de huéspedes declarado en la reserva |
+| **Pasadía** | 20 personas incluidas; hasta 10 personas adicionales con costo extra por persona, para un máximo de 30 |
+| **Hospedaje** | Por habitación: 4 personas con comodidad y espacio garantizados; hasta 6 personas adicionales con costo extra por persona, sin garantía de comodidad ni espacio, para un máximo de 10 |
 
 1. El aforo máximo es **inexcedible**: responde a la capacidad real de las instalaciones y a las condiciones de seguridad del inmueble. No se autorizan excepciones el día del evento.
 2. El cliente debe **confirmar el número final de personas con al menos 10 (diez) días naturales de anticipación**.

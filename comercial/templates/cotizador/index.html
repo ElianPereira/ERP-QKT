@@ -699,6 +699,8 @@ const HORAS_MAX_EVENTO = 9;
 const MAX_PERSONAS_EVENTO = 150;
 // Idem: MIN_PERSONAS_PERSONALIZADO_EVENTO en reglas_eventos.py.
 const MIN_PERSONAS_PERSONALIZADO = 50;
+// Idem: MAX_PERSONAS_EXTRA_POR_HABITACION (Hospedaje, sobre la capacidad base).
+const MAX_PERSONAS_EXTRA_POR_HABITACION = 6;
 
 // Formatea un importe decimal que llega como string desde el servidor, sin
 // convertirlo a float (perdería el centavo en importes grandes).
@@ -819,10 +821,9 @@ function actualizarPanelSegunServicio() {
     slider.min = 1; slider.max = 30; slider.step = 1;
     slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
   } else if (esHospedaje) {
-    // Sin tope duro de huéspedes (pedido explícito del propietario): más de
-    // la capacidad base de las habitaciones elegidas es válido, solo cobra
-    // el recargo de persona extra — el 20 es un límite generoso del control,
-    // no una regla de negocio.
+    // El tope real depende de las habitaciones elegidas (capacidad base +
+    // MAX_PERSONAS_EXTRA_POR_HABITACION por habitación, ver
+    // excedeTopeHospedaje()); 20 es el máximo con las dos habitaciones.
     slider.min = 1; slider.max = 20; slider.step = 1;
     slider.value = v > 20 ? 20 : (v < 1 ? 1 : v);
   } else {
@@ -1127,10 +1128,29 @@ function toggleHabitacion(id, el) {
   actualizarAvisoPersonasExtra();
 }
 
-// Personas extra sobre la capacidad base de las habitaciones elegidas (pedido
-// explícito del propietario, sin tope duro de huéspedes): informativo, el
-// cobro real lo aplica _lineas_cotizador() en el servidor, tanto aquí como en
-// cotizador_enviar — mismo criterio en los dos lados.
+// Capacidad base y tope de huéspedes de las habitaciones elegidas. Mismo
+// criterio que cotizador_enviar, que vuelve a validarlo.
+function capacidadHospedaje() {
+  var base = 0, tope = 0;
+  habitacionesData.forEach(function(h) {
+    if (selectedHabitaciones.has(h.id)) {
+      base += (h.capacidad || 0);
+      tope += (h.capacidad || 0) + MAX_PERSONAS_EXTRA_POR_HABITACION;
+    }
+  });
+  return {base: base, tope: tope};
+}
+function personasSeleccionadas() {
+  var el = document.getElementById('personas');
+  return el ? parseInt(el.value, 10) || 0 : 0;
+}
+function excedeTopeHospedaje() {
+  return servicioSel === 'HOSPEDAJE' && selectedHabitaciones.size > 0
+    && personasSeleccionadas() > capacidadHospedaje().tope;
+}
+
+// Personas extra sobre la capacidad base de las habitaciones elegidas:
+// informativo, el cobro real lo aplica _lineas_cotizador() en el servidor.
 function actualizarAvisoPersonasExtra() {
   var aviso = document.getElementById('aviso-personas-extra');
   if (!aviso) return;
@@ -1138,15 +1158,20 @@ function actualizarAvisoPersonasExtra() {
     aviso.style.display = 'none';
     return;
   }
-  var capacidadTotal = 0;
-  habitacionesData.forEach(function(h) {
-    if (selectedHabitaciones.has(h.id)) capacidadTotal += (h.capacidad || 0);
-  });
-  var personasEl = document.getElementById('personas');
-  var personas = personasEl ? parseInt(personasEl.value, 10) || 0 : 0;
+  var cap = capacidadHospedaje();
+  var capacidadTotal = cap.base;
+  var personas = personasSeleccionadas();
   var extra = personas - capacidadTotal;
   if (extra <= 0) {
     aviso.style.display = 'none';
+    return;
+  }
+  if (personas > cap.tope) {
+    aviso.innerHTML = '⛔ Las habitaciones seleccionadas admiten como máximo <b>' + cap.tope
+      + '</b> huéspedes (' + capacidadTotal + ' con comodidad y espacio garantizados, más '
+      + MAX_PERSONAS_EXTRA_POR_HABITACION + ' extra con costo adicional por habitación). '
+      + 'Elige otra habitación o reduce el número de huéspedes.';
+    aviso.style.display = 'block';
     return;
   }
   var texto = '⚠️ Elegiste <b>' + personas + '</b> huéspedes para una capacidad de <b>' + capacidadTotal
@@ -1532,6 +1557,10 @@ function validarPaso(paso) {
     }
     if (servicioSel === 'HOSPEDAJE' && selectedHabitaciones.size === 0) {
       document.getElementById('err-habitaciones').style.display = 'block';
+      return false;
+    }
+    if (excedeTopeHospedaje()) {
+      actualizarAvisoPersonasExtra();
       return false;
     }
   }
