@@ -1,0 +1,221 @@
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      color: #1A1A1A;
+      line-height: 1.55;
+    }
+
+    @page {
+      size: letter;
+      margin: 2cm 2.5cm 2.5cm 2.5cm;
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 8pt;
+        color: #888;
+      }
+    }
+
+    /* ── Encabezado ───────────────────────────────────────── */
+    .header { text-align: center; margin-bottom: 14px; }
+    .logo   { height: 58px; margin-bottom: 6px; }
+    .titulo {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1B5E20;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .subtitulo { font-size: 9pt; color: #555; margin-top: 3px; }
+    .folio-bar {
+      font-size: 8pt;
+      color: #666;
+      margin-top: 5px;
+      border-top: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+      padding: 3px 0;
+    }
+    .profeco-bar {
+      background: #F1F8E9;
+      border: 1px solid #A5D6A7;
+      border-radius: 3px;
+      padding: 5px 10px;
+      font-size: 8pt;
+      color: #2E7D32;
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* ── Secciones ────────────────────────────────────────── */
+    .seccion { margin-top: 13px; margin-bottom: 5px; }
+    .seccion-titulo {
+      font-size: 9.5pt;
+      font-weight: bold;
+      color: #1B5E20;
+      text-transform: uppercase;
+      border-bottom: 2px solid #2E7D32;
+      padding-bottom: 2px;
+      margin-bottom: 7px;
+    }
+
+    /* ── Glosario ─────────────────────────────────────────── */
+    .glosario-item {
+      margin-bottom: 4px;
+      font-size: 9.5pt;
+    }
+    .glosario-item strong { color: #1B5E20; }
+
+    /* ── Declaraciones ────────────────────────────────────── */
+    .decl-bloque {
+      margin-bottom: 8px;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+    .decl-titulo {
+      font-weight: bold;
+      text-decoration: underline;
+      margin-bottom: 5px;
+    }
+    /* Lista de incisos con letras explícitas — WeasyPrint no respeta ol type="a" */
+    .decl-inciso {
+      margin-bottom: 3px;
+      margin-left: 12px;
+      font-size: 9.5pt;
+      text-align: justify;
+    }
+
+    /* ── Tablas de campos ─────────────────────────────────── */
+    .tabla-campos {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 8px;
+      font-size: 9.5pt;
+    }
+    .tabla-campos td {
+      border: 1px solid #C8C8C8;
+      padding: 4px 8px;
+      vertical-align: top;
+    }
+    .tabla-campos td.label {
+      background: #F5F5F5;
+      font-weight: bold;
+      width: 33%;
+      color: #333;
+    }
+
+    /* ── Cláusulas ────────────────────────────────────────── */
+    .clausula {
+      margin-bottom: 8px;
+      font-size: 9.5pt;
+      text-align: justify;
+    }
+    .clausula-titulo { font-weight: bold; }
+
+    /* ── Tabla de cancelaciones ───────────────────────────── */
+    .tabla-cancel {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin: 6px 0 8px 0;
+    }
+    .tabla-cancel th {
+      background: #2E7D32;
+      color: #fff;
+      padding: 5px 8px;
+      text-align: center;
+      font-weight: bold;
+    }
+    .tabla-cancel td {
+      border: 1px solid #C8C8C8;
+      padding: 4px 8px;
+      text-align: center;
+    }
+    .tabla-cancel tr:nth-child(even) td { background: #F9F9F9; }
+    .tabla-cancel td:first-child { text-align: left; }
+    .verde { color: #2E7D32; font-weight: bold; }
+    .rojo  { color: #C62828; font-weight: bold; }
+
+    /* ── Párrafos ─────────────────────────────────────────── */
+    p   { margin-bottom: 5px; font-size: 9.5pt; text-align: justify; }
+    .bold  { font-weight: bold; }
+    .small { font-size: 8.5pt; color: #444; }
+    .italic { font-style: italic; }
+
+    /* ── Listas de obligaciones — sin bullets dobles ─────── */
+    .lista-obligaciones {
+      margin-left: 14px;
+      margin-bottom: 6px;
+    }
+    .lista-obligaciones .item {
+      margin-bottom: 3px;
+      font-size: 9.5pt;
+      text-align: justify;
+      padding-left: 10px;
+      text-indent: -10px;
+    }
+    .lista-obligaciones .item::before {
+      content: "— ";
+      color: #1B5E20;
+      font-weight: bold;
+    }
+
+    /* ── Aviso ────────────────────────────────────────────── */
+    .aviso {
+      background: #E8F5E9;
+      border-left: 4px solid #2E7D32;
+      padding: 7px 11px;
+      margin: 8px 0;
+      font-size: 9pt;
+    }
+
+    /* ── Autorización mercadotecnia ───────────────────────── */
+    .autorizacion-box {
+      border: 1px solid #C8C8C8;
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-top: 10px;
+      font-size: 9pt;
+    }
+    .check-row { margin: 5px 0; }
+
+    /* ── Firmas ───────────────────────────────────────────── */
+    .firmas { margin-top: 28px; page-break-inside: avoid; }
+    .firmas-grid { display: table; width: 100%; }
+    .firma-col {
+      display: table-cell;
+      width: 48%;
+      text-align: center;
+      padding: 0 10px;
+      vertical-align: bottom;
+    }
+    .firma-linea {
+      border-top: 1px solid #333;
+      margin-bottom: 4px;
+      margin-top: 38px;
+    }
+    .firma-nombre { font-size: 9pt; font-weight: bold; }
+    .firma-rol    { font-size: 8pt; color: #555; }
+    .firma-rfc    { font-size: 8pt; color: #777; font-style: italic; }
+
+    /* ── Separador de página ──────────────────────────────── */
+    .page-break { page-break-after: always; }
+
+    /* ── Reglamento ───────────────────────────────────────── */
+    .reglamento-titulo {
+      font-size: 12pt;
+      font-weight: bold;
+      text-align: center;
+      text-transform: uppercase;
+      color: #1B5E20;
+      margin-bottom: 8px;
+      border-bottom: 2px solid #2E7D32;
+      padding-bottom: 4px;
+    }
+    ol.reglamento { margin-left: 20px; }
+    ol.reglamento li {
+      margin-bottom: 5px;
+      font-size: 9.5pt;
+      text-align: justify;
+    }
+  </style>

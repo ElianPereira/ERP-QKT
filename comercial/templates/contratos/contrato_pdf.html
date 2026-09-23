@@ -2,227 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: Arial, sans-serif;
-      font-size: 10pt;
-      color: #1A1A1A;
-      line-height: 1.55;
-    }
-
-    @page {
-      size: letter;
-      margin: 2cm 2.5cm 2.5cm 2.5cm;
-      @bottom-right {
-        content: "Página " counter(page) " de " counter(pages);
-        font-size: 8pt;
-        color: #888;
-      }
-    }
-
-    /* ── Encabezado ───────────────────────────────────────── */
-    .header { text-align: center; margin-bottom: 14px; }
-    .logo   { height: 58px; margin-bottom: 6px; }
-    .titulo {
-      font-size: 13pt;
-      font-weight: bold;
-      color: #1B5E20;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .subtitulo { font-size: 9pt; color: #555; margin-top: 3px; }
-    .folio-bar {
-      font-size: 8pt;
-      color: #666;
-      margin-top: 5px;
-      border-top: 1px solid #ddd;
-      border-bottom: 1px solid #ddd;
-      padding: 3px 0;
-    }
-    .profeco-bar {
-      background: #F1F8E9;
-      border: 1px solid #A5D6A7;
-      border-radius: 3px;
-      padding: 5px 10px;
-      font-size: 8pt;
-      color: #2E7D32;
-      margin-top: 6px;
-      text-align: center;
-    }
-
-    /* ── Secciones ────────────────────────────────────────── */
-    .seccion { margin-top: 13px; margin-bottom: 5px; }
-    .seccion-titulo {
-      font-size: 9.5pt;
-      font-weight: bold;
-      color: #1B5E20;
-      text-transform: uppercase;
-      border-bottom: 2px solid #2E7D32;
-      padding-bottom: 2px;
-      margin-bottom: 7px;
-    }
-
-    /* ── Glosario ─────────────────────────────────────────── */
-    .glosario-item {
-      margin-bottom: 4px;
-      font-size: 9.5pt;
-    }
-    .glosario-item strong { color: #1B5E20; }
-
-    /* ── Declaraciones ────────────────────────────────────── */
-    .decl-bloque {
-      margin-bottom: 8px;
-      font-size: 9.5pt;
-      page-break-inside: avoid;
-    }
-    .decl-titulo {
-      font-weight: bold;
-      text-decoration: underline;
-      margin-bottom: 5px;
-    }
-    /* Lista de incisos con letras explícitas — WeasyPrint no respeta ol type="a" */
-    .decl-inciso {
-      margin-bottom: 3px;
-      margin-left: 12px;
-      font-size: 9.5pt;
-      text-align: justify;
-    }
-
-    /* ── Tablas de campos ─────────────────────────────────── */
-    .tabla-campos {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 8px;
-      font-size: 9.5pt;
-    }
-    .tabla-campos td {
-      border: 1px solid #C8C8C8;
-      padding: 4px 8px;
-      vertical-align: top;
-    }
-    .tabla-campos td.label {
-      background: #F5F5F5;
-      font-weight: bold;
-      width: 33%;
-      color: #333;
-    }
-
-    /* ── Cláusulas ────────────────────────────────────────── */
-    .clausula {
-      margin-bottom: 8px;
-      font-size: 9.5pt;
-      text-align: justify;
-    }
-    .clausula-titulo { font-weight: bold; }
-
-    /* ── Tabla de cancelaciones ───────────────────────────── */
-    .tabla-cancel {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 9pt;
-      margin: 6px 0 8px 0;
-    }
-    .tabla-cancel th {
-      background: #2E7D32;
-      color: #fff;
-      padding: 5px 8px;
-      text-align: center;
-      font-weight: bold;
-    }
-    .tabla-cancel td {
-      border: 1px solid #C8C8C8;
-      padding: 4px 8px;
-      text-align: center;
-    }
-    .tabla-cancel tr:nth-child(even) td { background: #F9F9F9; }
-    .tabla-cancel td:first-child { text-align: left; }
-    .verde { color: #2E7D32; font-weight: bold; }
-    .rojo  { color: #C62828; font-weight: bold; }
-
-    /* ── Párrafos ─────────────────────────────────────────── */
-    p   { margin-bottom: 5px; font-size: 9.5pt; text-align: justify; }
-    .bold  { font-weight: bold; }
-    .small { font-size: 8.5pt; color: #444; }
-    .italic { font-style: italic; }
-
-    /* ── Listas de obligaciones — sin bullets dobles ─────── */
-    .lista-obligaciones {
-      margin-left: 14px;
-      margin-bottom: 6px;
-    }
-    .lista-obligaciones .item {
-      margin-bottom: 3px;
-      font-size: 9.5pt;
-      text-align: justify;
-      padding-left: 10px;
-      text-indent: -10px;
-    }
-    .lista-obligaciones .item::before {
-      content: "— ";
-      color: #1B5E20;
-      font-weight: bold;
-    }
-
-    /* ── Aviso ────────────────────────────────────────────── */
-    .aviso {
-      background: #E8F5E9;
-      border-left: 4px solid #2E7D32;
-      padding: 7px 11px;
-      margin: 8px 0;
-      font-size: 9pt;
-    }
-
-    /* ── Autorización mercadotecnia ───────────────────────── */
-    .autorizacion-box {
-      border: 1px solid #C8C8C8;
-      border-radius: 4px;
-      padding: 10px 14px;
-      margin-top: 10px;
-      font-size: 9pt;
-    }
-    .check-row { margin: 5px 0; }
-
-    /* ── Firmas ───────────────────────────────────────────── */
-    .firmas { margin-top: 28px; page-break-inside: avoid; }
-    .firmas-grid { display: table; width: 100%; }
-    .firma-col {
-      display: table-cell;
-      width: 48%;
-      text-align: center;
-      padding: 0 10px;
-      vertical-align: bottom;
-    }
-    .firma-linea {
-      border-top: 1px solid #333;
-      margin-bottom: 4px;
-      margin-top: 38px;
-    }
-    .firma-nombre { font-size: 9pt; font-weight: bold; }
-    .firma-rol    { font-size: 8pt; color: #555; }
-    .firma-rfc    { font-size: 8pt; color: #777; font-style: italic; }
-
-    /* ── Separador de página ──────────────────────────────── */
-    .page-break { page-break-after: always; }
-
-    /* ── Reglamento ───────────────────────────────────────── */
-    .reglamento-titulo {
-      font-size: 12pt;
-      font-weight: bold;
-      text-align: center;
-      text-transform: uppercase;
-      color: #1B5E20;
-      margin-bottom: 8px;
-      border-bottom: 2px solid #2E7D32;
-      padding-bottom: 4px;
-    }
-    ol.reglamento { margin-left: 20px; }
-    ol.reglamento li {
-      margin-bottom: 5px;
-      font-size: 9.5pt;
-      text-align: justify;
-    }
-  </style>
+  {% include 'contratos/_estilos_contrato.html' %}
 </head>
 <body>
 
@@ -234,11 +14,9 @@
   <img src="{{ logo_url }}" class="logo" alt="Logo">
   {% endif %}
   <div class="titulo">
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-      Contrato de Arrendamiento de Bienes Muebles para Eventos Sociales
-    {% else %}
+    
       Contrato de Arrendamiento de Salón para Eventos Sociales
-    {% endif %}
+    
   </div>
   <div class="subtitulo">Quinta Ko'ox Tanil &mdash; Mérida, Yucatán, México</div>
   <div class="folio-bar">
@@ -247,13 +25,10 @@
     <strong>Fecha:</strong> {{ fecha_doc }}
   </div>
   <div class="profeco-bar">
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-      Contrato registrado ante PROFECO bajo el número <strong>9339-2023</strong>
-      de fecha 31 de octubre de 2023 &mdash; Expediente PFC.B.E.7/009990-2023
-    {% else %}
+    
       Contrato registrado ante PROFECO bajo el número <strong>9341-2023</strong>
       de fecha 31 de octubre de 2023 &mdash; Expediente PFC.B.E.7/009991-2023
-    {% endif %}
+    
     &mdash; Cumple NOM-174-SCFI-2007
   </div>
 </div>
@@ -263,20 +38,13 @@
 ══════════════════════════════════════════════════════════ -->
 <div class="seccion">
   <p>
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-      Contrato de arrendamiento de bienes muebles para eventos sociales que celebran
-      por una parte el Proveedor <strong>ELIAN DE JESUS PEREIRA CEH</strong>, a quien en lo sucesivo
-      se denominará <strong>"EL ARRENDADOR"</strong>, y en contraparte el Consumidor
-      <strong>{{ nombre_fiscal|upper }}</strong>, a quien en lo sucesivo se denominará
-      <strong>"EL ARRENDATARIO"</strong>, mismos que manifiestan su voluntad para obligarse
-      conforme al siguiente glosario, declaraciones y cláusulas:
-    {% else %}
+    
       Contrato de arrendamiento de salón para eventos sociales que celebran por una parte
       <strong>ELIAN DE JESUS PEREIRA CEH</strong>, a quien en lo sucesivo se denominará
       <strong>"EL ARRENDADOR"</strong>, y por la otra <strong>{{ nombre_fiscal|upper }}</strong>,
       a quien en lo sucesivo se denominará <strong>"EL ARRENDATARIO"</strong>, al tenor
       del siguiente glosario, declaraciones y cláusulas:
-    {% endif %}
+    
   </p>
 </div>
 
@@ -287,23 +55,19 @@
   <div class="seccion-titulo">Glosario</div>
   <div class="glosario-item">
     <strong>a) Arrendador.</strong> ELIAN DE JESUS PEREIRA CEH, proveedor que ofrece
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-      el uso y goce temporal de bienes muebles para eventos sociales
-    {% else %}
+    
       el uso y disfrute del salón para eventos sociales
-    {% endif %}
+    
     mediante el cobro de un precio cierto y determinado.
   </div>
   <div class="glosario-item">
     <strong>b) Arrendatario.</strong> El consumidor que adquiere el derecho de usar
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-      los bienes muebles para eventos sociales
-    {% else %}
+    
       el salón para eventos sociales
-    {% endif %}
+    
     a cambio del pago de un precio cierto y determinado.
   </div>
-  {% if tipo_servicio != 'ARRENDAMIENTO' %}
+  
   <div class="glosario-item">
     <strong>c) Salón.</strong> El bien inmueble destinado a la celebración de eventos sociales
     que el arrendador pone a disposición del arrendatario, ubicado en Quinta Ko'ox Tanil,
@@ -314,13 +78,7 @@
     reglas de uso y comportamiento que el arrendatario y/o sus invitados se obligan a cumplir
     en el salón del arrendador.
   </div>
-  {% else %}
-  <div class="glosario-item">
-    <strong>c) Bienes muebles.</strong> Aquellos bienes que por su constitución presentan
-    movilidad natural, mismos que se describen en el objeto de este contrato y serán utilizados
-    para el evento social del arrendatario.
-  </div>
-  {% endif %}
+  
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -338,7 +96,7 @@
     <div class="decl-inciso">d) Cuenta con la infraestructura, recursos técnicos y humanos suficientes para cumplir sus obligaciones conforme al presente Contrato.</div>
     <div class="decl-inciso">e) Cumple con las licencias, permisos, avisos y autorizaciones previstas en las disposiciones legales y normas vigentes.</div>
     <div class="decl-inciso">f) Para atención de dudas, aclaraciones o reclamaciones relacionadas con este contrato, pone a disposición el correo electrónico: <strong>quintakooxtanil@gmail.com</strong> con horario de atención de 09:00 a 20:00 horas.</div>
-    <div class="decl-inciso">g) Informó al arrendatario los alcances y efectos jurídicos del presente contrato, así como las restricciones de uso del {% if tipo_servicio == 'ARRENDAMIENTO' %}bien mueble{% else %}salón{% endif %} objeto del mismo.</div>
+    <div class="decl-inciso">g) Informó al arrendatario los alcances y efectos jurídicos del presente contrato, así como las restricciones de uso del salón objeto del mismo.</div>
   </div>
 
   <!-- Declaración II -->
@@ -358,32 +116,24 @@
   <p>
     Las partes de común acuerdo consienten que el objeto del presente Contrato es
     el arrendamiento de
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-      los bienes muebles descritos a continuación, para uso exclusivo del evento social
-      del arrendatario.
-    {% else %}
+    
       el salón para eventos sociales de Quinta Ko'ox Tanil, ubicado en Mérida, Yucatán,
       con capacidad para <strong>{{ cotizacion.num_personas }}</strong> personas.
-    {% endif %}
+    
     Por lo que el arrendador se obliga a conceder su uso y disfrute en la fecha acordada,
     y el arrendatario se obliga a pagar la contraprestación estipulada.
   </p>
   <table class="tabla-campos">
     <tr><td class="label">Tipo de servicio</td><td>{{ tipo_marca }}</td></tr>
     <tr><td class="label">Nombre del evento</td><td>{{ cotizacion.nombre_evento }}</td></tr>
-    {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
-    <tr><td class="label">Check-in</td><td>{{ fecha_evento }}, {{ hora_ini }}</td></tr>
-    <tr><td class="label">Check-out</td><td>{{ fecha_salida }}, {{ hora_fin }}</td></tr>
-    <tr><td class="label">Noches</td><td>{{ noches }}</td></tr>
-    <tr><td class="label">Huéspedes</td><td>{{ cotizacion.num_personas }} (aforo declarado)</td></tr>
-    {% else %}
+    
     <tr><td class="label">Fecha del evento</td><td>{{ fecha_evento }}</td></tr>
     <tr><td class="label">Horario</td><td>{{ hora_ini }} a {{ hora_fin }}</td></tr>
     <tr><td class="label">Número de personas</td><td>{{ cotizacion.num_personas }} personas (aforo máximo)</td></tr>
-    {% endif %}
-    {% if cotizacion.tipo_servicio != 'ARRENDAMIENTO' and cotizacion.tipo_servicio != 'HOSPEDAJE' %}
+    
+    
     <tr><td class="label">Hora extra adicional</td><td>Costo por acuerdo previo entre las partes, no incluido en este contrato</td></tr>
-    {% endif %}
+    
   </table>
 </div>
 
@@ -470,15 +220,12 @@
 
   <p class="bold">4.1 EL ARRENDADOR se obliga a:</p>
   <div class="lista-obligaciones">
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-    <div class="item">Entregar los bienes muebles en el lugar, fecha y horario acordado en este Contrato.</div>
-    <div class="item">Responder por el incumplimiento en el arrendamiento de los bienes, aun cuando subcontrate con terceros.</div>
-    {% else %}
+    
     <div class="item">Entregar el salón limpio y en las condiciones acordadas en el horario pactado.</div>
     <div class="item">Proporcionar al arrendatario el uso y disfrute del salón conforme a lo estipulado.</div>
     <div class="item">Tener en óptimo estado el salón para el evento.</div>
     <div class="item">Designar, de entre su personal, a una persona que durante el evento atienda los asuntos relacionados con el arrendamiento.</div>
-    {% endif %}
+    
     <div class="item">Proporcionar los servicios descritos en la Cláusula Primera.</div>
     <div class="item">No hacer ningún cobro extraordinario ajeno al señalado en el presente Contrato.</div>
     <div class="item">Informar oportunamente cualquier situación que impida el cumplimiento del contrato.</div>
@@ -489,21 +236,18 @@
   <div class="lista-obligaciones">
     <div class="item">Pagar íntegramente los importes en los términos y plazos pactados.</div>
     <div class="item">Respetar el horario acordado. Las horas adicionales tienen costo extra previo acuerdo.</div>
-    {% if tipo_servicio != 'ARRENDAMIENTO' %}
+    
     <div class="item">No exceder el aforo de <strong>{{ cotizacion.num_personas }}</strong> personas.</div>
     <div class="item">Designar a una persona de confianza que durante el evento trate los asuntos relacionados con el arrendamiento.</div>
     <div class="item">Abstenerse de dar instrucciones al personal del arrendador ajenas al objeto del contrato.</div>
-    {% endif %}
+    
     <div class="item">Hacerse responsable del comportamiento de sus invitados y proveedores externos.</div>
-    <div class="item">No utilizar el {% if tipo_servicio == 'ARRENDAMIENTO' %}bien mueble{% else %}salón{% endif %} para fines distintos a los estipulados en este Contrato.</div>
-    {% if tipo_servicio != 'ARRENDAMIENTO' %}
+    <div class="item">No utilizar el salón para fines distintos a los estipulados en este Contrato.</div>
+    
     <div class="item">No instalar infraestructura (toldos, templetes, generadores) sin autorización escrita previa.</div>
-    {% endif %}
+    
     <div class="item">Respetar el Reglamento Interno (se adjunta al presente contrato).</div>
-    {% if tipo_servicio == 'ARRENDAMIENTO' %}
-    <div class="item">Devolver los bienes muebles en las mismas condiciones que los recibió.</div>
-    <div class="item">Devolver los bienes en la fecha y hora pactadas.</div>
-    {% endif %}
+    
   </div>
 </div>
 
@@ -527,7 +271,7 @@
 <div class="seccion">
   <div class="seccion-titulo">Cláusula Sexta — Daños y Gastos de Reparación</div>
   <p>
-    En caso de que el {% if tipo_servicio == 'ARRENDAMIENTO' %}bien mueble{% else %}salón{% endif %}
+    En caso de que el salón
     sufriera un menoscabo por culpa o negligencia debidamente comprobada del arrendatario
     o de sus invitados, éste se obliga a cubrir los gastos de reparación o reposición dentro
     de los <strong>10 (diez) días naturales</strong> siguientes al evento. El costo se calculará
@@ -641,13 +385,10 @@
 </div>
 
 <p class="small italic" style="margin-top: 10px; text-align: center;">
-  {% if tipo_servicio == 'ARRENDAMIENTO' %}
-    Este contrato fue aprobado y registrado por la Procuraduría Federal del Consumidor
-    bajo el número <strong>9339-2023</strong> de fecha 31 de octubre de 2023.
-  {% else %}
+  
     Este contrato fue aprobado y registrado por la Procuraduría Federal del Consumidor
     bajo el número <strong>9341-2023</strong> de fecha 31 de octubre de 2023.
-  {% endif %}
+  
   Cualquier variación del presente contrato en perjuicio del arrendatario,
   frente al contrato de adhesión registrado, se tendrá por no puesta.
 </p>
@@ -670,22 +411,7 @@
   obligatoria para ambas partes y para todos los invitados del Arrendatario.
 </p>
 
-{% if tipo_servicio == 'ARRENDAMIENTO' %}
-<ol class="reglamento">
-  <li>Al momento de recibir los bienes muebles, el arrendatario deberá revisarlos con el personal del arrendador, señalando cualquier deterioro existente en ese momento.</li>
-  <li>Los bienes muebles arrendados estarán a disposición únicamente durante el tiempo estipulado en el Contrato.</li>
-  <li>Está prohibido utilizar los bienes muebles para fines distintos a los estipulados en el Contrato.</li>
-  <li>Los bienes deberán devolverse en las mismas condiciones en que fueron recibidos, en el lugar, fecha y hora pactados.</li>
-  <li>El arrendatario es responsable del cuidado y uso adecuado de los bienes durante todo el período de arrendamiento.</li>
-  <li>Queda prohibido subarrendar o ceder el uso de los bienes a terceros sin autorización escrita del arrendador.</li>
-  <li>Check-in y check-out en los horarios acordados y señalados en el Contrato.</li>
-  <li>Prohibido organizar eventos o reuniones adicionales sin contrato independiente.</li>
-  <li>Fumar dentro de las habitaciones o áreas cerradas genera cargo de limpieza extraordinaria.</li>
-  <li>Prohibido el ingreso de personas no registradas después de las 23:00 horas.</li>
-  <li>El arrendador no se hace responsable del extravío de objetos del arrendatario o sus invitados que no hayan sido resguardados adecuadamente.</li>
-  <li>El arrendatario se responsabiliza de respetar y hacer respetar el presente Reglamento. En caso de daño, cubrirá el costo de reparación o reposición.</li>
-</ol>
-{% else %}
+
 <ol class="reglamento">
   <li>Antes de dar inicio al evento, el arrendatario recorrerá las instalaciones con el personal del arrendador para revisar las condiciones generales del salón.</li>
   <li>El salón estará a disposición únicamente el tiempo estipulado en el Contrato. Se otorgarán <strong>30 minutos de tolerancia</strong> para desocupar el salón al final del evento.</li>
@@ -702,7 +428,7 @@
   <li>No se permite el aforo mayor al contratado. La entrada de personas adicionales deberá ser previamente autorizada y podrá implicar un costo adicional.</li>
   <li>El arrendatario se responsabiliza de respetar y hacer respetar el presente Reglamento con sus invitados. En caso de daño, cubrirá el costo de su reparación o reposición según lo estipulado en el Contrato.</li>
 </ol>
-{% endif %}
+
 
 <div class="firmas" style="margin-top: 24px;">
   <div class="firmas-grid">

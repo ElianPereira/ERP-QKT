@@ -594,7 +594,17 @@ class ContratoService:
     """
     Genera el contrato como PDF usando WeasyPrint + template HTML.
     Mismo patrón que la cotización y nómina.
+
+    Evento y Pasadía usan el contrato de arrendamiento de salón registrado
+    ante PROFECO (9341-2023). Hospedaje tiene contrato propio, basado en el
+    modelo de PROFECO de servicios de hospedaje: el registro 9341-2023 no lo
+    cubre, así que la leyenda de registro solo aparece cuando
+    `settings.PROFECO_REGISTRO_HOSPEDAJE` tiene el número asignado.
+    Arrendamiento de Mobiliario se retiró como actividad (2026-09-23): ya no
+    se generan contratos de ese tipo.
     """
+
+    TIPOS = ('EVENTO', 'PASADIA', 'HOSPEDAJE')
 
     def __init__(self, cotizacion, tipo_servicio='EVENTO', deposito=Decimal('0.00')):
         self.cot  = cotizacion
@@ -620,8 +630,7 @@ class ContratoService:
 
     def _tipo_display(self):
         return {
-            "EVENTO": "Evento", "PASADIA": "Pasadía",
-            "ARRENDAMIENTO": "Arrendamiento de Mobiliario", "HOSPEDAJE": "Hospedaje",
+            "EVENTO": "Evento", "PASADIA": "Pasadía", "HOSPEDAJE": "Hospedaje",
         }.get(self.tipo, self.tipo)
 
     def _servicios_incluidos(self):
@@ -675,22 +684,34 @@ class ContratoService:
                 "al Reglamento Interno.",
                 "No se permite el acceso de proveedores externos sin notificación previa.",
             ],
-            'ARRENDAMIENTO': [
-                "Los bienes muebles serán entregados en el lugar y fecha acordados.",
-                "Cualquier daño o extravío de los bienes será responsabilidad del arrendatario.",
-                "La devolución de los bienes debe realizarse en las mismas condiciones de entrega.",
-                "No se permite subarrendar o ceder el uso de los bienes sin autorización escrita.",
-            ],
-            'HOSPEDAJE': [
-                f"Entrada a partir de las {hora_ini}; salida a más tardar a las {hora_fin}. "
-                "Las salidas tardías no autorizadas generan un cargo equivalente a una noche adicional.",
-                "La reserva ampara únicamente el número de huéspedes declarado.",
-                "EL HUÉSPED TITULAR responde por los daños causados al inmueble, mobiliario y equipo "
-                "durante la estancia, por sí o por sus acompañantes.",
-                "La cancelación de esta reserva se rige por la sección de hospedaje de la Política de "
-                "Cancelación y Reembolso, distinta de la aplicable a eventos.",
-            ],
         }.get(self.tipo, [])
+
+    def _contexto_hospedaje(self):
+        """Datos propios del contrato de Hospedaje (ocupación, ISH, plazo)."""
+        from .models import Cotizacion, Producto
+        from .reglas_eventos import MAX_PERSONAS_EXTRA_POR_HABITACION
+
+        # Capacidad base de las habitaciones contratadas; si la cotización
+        # no trae ninguna (captura manual), la del catálogo.
+        capacidades = {
+            i.producto.capacidad_base_hospedaje
+            for i in self.cot.items.select_related('producto')
+            if i.producto and i.producto.rol_cotizador == 'HABITACION_HOSPEDAJE'
+        } or set(Producto.objects.filter(
+            rol_cotizador='HABITACION_HOSPEDAJE',
+        ).values_list('capacidad_base_hospedaje', flat=True))
+        capacidad = max(capacidades) if capacidades else Producto._meta.get_field(
+            'capacidad_base_hospedaje').default
+        ish = self.cot.impuesto_hospedaje or Decimal('0.00')
+        return {
+            'capacidad_base':    capacidad,
+            'extra_max':         MAX_PERSONAS_EXTRA_POR_HABITACION,
+            'maximo_habitacion': capacidad + MAX_PERSONAS_EXTRA_POR_HABITACION,
+            'ish_str':           self._fmt_money(ish) if ish > 0 else None,
+            'dias_pago_total':   Cotizacion.DIAS_PAGO_TOTAL['HOSPEDAJE'],
+            'tiene_deposito':    self.dep > 0,
+            'registro_profeco':  settings.PROFECO_REGISTRO_HOSPEDAJE,
+        }
 
     def generar(self):
         """
@@ -720,11 +741,9 @@ class ContratoService:
             anticipo_str = "Pendiente"
 
         tipo_marca = {
-            'EVENTO':         '☑ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario   ☐ Hospedaje',
-            'PASADIA':        '☐ Evento   ☑ Pasadía   ☐ Arrend. Mobiliario   ☐ Hospedaje',
-            'ARRENDAMIENTO':  '☐ Evento   ☐ Pasadía   ☑ Arrend. Mobiliario   ☐ Hospedaje',
-            'HOSPEDAJE':      '☐ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario   ☑ Hospedaje',
-        }.get(self.tipo, '☐ Evento   ☐ Pasadía   ☐ Arrend. Mobiliario   ☐ Hospedaje')
+            'EVENTO':  '☑ Evento   ☐ Pasadía',
+            'PASADIA': '☐ Evento   ☑ Pasadía',
+        }.get(self.tipo, '☐ Evento   ☐ Pasadía')
 
         ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
         logo_url  = f"file://{ruta_logo}" if os.name != 'nt' else f"file:///{ruta_logo.replace(os.sep, '/')}"
@@ -743,8 +762,7 @@ class ContratoService:
             'fecha_evento':      self._fmt_fecha(self.cot.fecha_evento),
             'hora_ini':          self._fmt_hora(self.cot.hora_inicio),
             'hora_fin':          self._fmt_hora(self.cot.hora_fin),
-            # Solo HOSPEDAJE: check-out real y noches, para la fila condicional
-            # del PDF (ver contrato_pdf.html). None en el resto de los tipos.
+            # Solo HOSPEDAJE: check-out real y noches (contrato_hospedaje_pdf.html).
             'fecha_salida':      self._fmt_fecha(self.cot.fecha_salida) if self.cot.fecha_salida else None,
             'noches':            self.cot.noches,
             'servicios_incluidos': self._servicios_incluidos(),
@@ -757,7 +775,12 @@ class ContratoService:
             'logo_url':          logo_url,
         }
 
-        html_string = render_to_string('contratos/contrato_pdf.html', context)
+        if self.tipo == 'HOSPEDAJE':
+            context.update(self._contexto_hospedaje())
+            plantilla = 'contratos/contrato_hospedaje_pdf.html'
+        else:
+            plantilla = 'contratos/contrato_pdf.html'
+        html_string = render_to_string(plantilla, context)
         pdf_bytes   = HTML(string=html_string).write_pdf()
 
         return pdf_bytes, numero
