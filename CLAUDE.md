@@ -241,6 +241,18 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-23 — Retiro total de Airbnb, **fase 2**: `contabilidad.0020_
+  retiro_airbnb_datos` borra los datos (lógica en `contabilidad/
+  retiro_airbnb.py`, la misma del diagnóstico de solo lectura en
+  `/admin/contabilidad/reportes/retiro-airbnb/`) y `airbnb.0008` borra las
+  tablas. Vive en `contabilidad` y no en `airbnb` a propósito: en una BD
+  nueva, `contabilidad.0002`/`0005` siguen sembrando la unidad AIRBNB y sus
+  cuentas, y esta migración las limpia aunque la app `airbnb` ya no exista.
+  Si algún dato de la Quinta depende de Airbnb (póliza sobre la Libretón o
+  una cuenta de Airbnb, compra pagada desde la Libretón, `BANCO_PRINCIPAL`
+  apuntando a ella), **la migración falla sin borrar nada y tumba el
+  deploy** (`migrate && gunicorn`): por eso el diagnóstico se desplegó antes
+  (PR #312) y se revisa en producción antes de mergear esta fase.
 - 2026-09-23 — Retiro total de Airbnb (Issue #311), **fase 1 de 3**
   (desacople sin borrar datos). Decisión del propietario: borrar todo,
   pólizas incluidas, porque la contabilidad oficial la lleva el contador
