@@ -6,6 +6,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib import admin, messages
 from django.db import models as db_models
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import NoReverseMatch, path, reverse
@@ -1050,6 +1051,13 @@ class CotizacionAdmin(admin.ModelAdmin):
                     descuento = get_object_or_404(Descuento, id=request.POST.get('descuento_id'))
                     DescuentoService.aplicar(cotizacion, descuento, usuario=request.user, modo='MANUAL')
                     messages.success(request, f'Descuento "{descuento.nombre}" aplicado.')
+                    if cotizacion.precio_final <= 0:
+                        if cotizacion.estado == 'CONFIRMADA':
+                            messages.info(request, 'Cortesía total: la cotización quedó CONFIRMADA y aparta la fecha.')
+                        elif cotizacion.estado in Cotizacion.ESTADOS_SIN_APARTAR:
+                            messages.warning(
+                                request, 'Cortesía total, pero no se pudo confirmar: '
+                                f'{cotizacion.motivo_no_confirmable_por_pago()}.')
                 elif accion == 'aplicar_automaticos':
                     aplicados = DescuentoService.aplicar_automaticos(cotizacion, usuario=request.user)
                     if aplicados:
@@ -1256,7 +1264,6 @@ class PagoAdmin(admin.ModelAdmin):
         from decimal import Decimal, InvalidOperation
 
         from django.core.exceptions import ValidationError
-        from django.db.models import Q
 
         from .services import calcular_desglose_proporcional
 
@@ -1909,6 +1916,7 @@ class DescuentoAdmin(admin.ModelAdmin):
     list_filter = ('activo', 'modo', 'es_cortesia', 'acumulable', 'tipo_valor', 'temporada')
     search_fields = ('nombre', 'descripcion')
     filter_horizontal = ('tipos_evento',)
+    autocomplete_fields = ('productos',)
     readonly_fields = ('usos', 'created_by', 'created_at', 'updated_by', 'updated_at')
     fieldsets = (
         (None, {'fields': ('nombre', 'descripcion', 'activo', 'es_cortesia')}),
@@ -1916,8 +1924,11 @@ class DescuentoAdmin(admin.ModelAdmin):
         ('Aplicación', {'fields': ('modo', 'acumulable', 'prioridad', 'max_usos', 'usos')}),
         ('Condiciones (opcionales, se evalúan con AND)', {
             'fields': ('monto_minimo', 'fecha_inicio', 'fecha_fin', 'temporada',
-                       'tipos_evento', 'tipos_servicio'),
-            'description': 'Deja en blanco lo que no aplique. tipos_servicio: lista JSON con EVENTO, PASADIA y/o ARRENDAMIENTO.',
+                       'tipos_evento', 'tipos_servicio', 'productos'),
+            'description': 'Deja en blanco lo que no aplique. tipos_servicio: lista JSON con '
+                           'EVENTO, PASADIA, HOSPEDAJE y/o ARRENDAMIENTO. productos: acota el '
+                           'descuento a esos conceptos (un paquete cuenta como un concepto; '
+                           'sus componentes internos no).',
         }),
         ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_by', 'updated_at'), 'classes': ('collapse',)}),
     )
@@ -1968,9 +1979,18 @@ class DescuentoAdmin(admin.ModelAdmin):
         return "Sin restricción"
     vigencia.short_description = 'Vigencia'
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(usos_confirmados=Count(
+            'aplicaciones', filter=Q(
+                aplicaciones__activo=True,
+                aplicaciones__cotizacion__estado__in=Descuento.ESTADOS_QUE_CUENTAN_USO,
+            ),
+        ))
+
     def usos_display(self, obj):
-        return f"{obj.usos}/{obj.max_usos}" if obj.max_usos is not None else f"{obj.usos} (∞)"
-    usos_display.short_description = 'Usos'
+        usos = obj.usos_confirmados
+        return f"{usos}/{obj.max_usos}" if obj.max_usos is not None else f"{usos} (∞)"
+    usos_display.short_description = 'Usos (ventas confirmadas)'
 
     def save_model(self, request, obj, form, change):
         if not change:

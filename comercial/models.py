@@ -730,6 +730,16 @@ class Cotizacion(models.Model):
         configurado = Decimal(str(self._get_porcentaje_anticipo_minimo()))
         return configurado if configurado > 0 else self.PORCENTAJE_PRIMER_PAGO
 
+    def cubierta_por_cortesia(self):
+        """True si un descuento aplicado A MANO por el equipo deja la cotización
+        en $0: está 100% cubierta sin que vaya a entrar ningún pago, así que se
+        confirma igual que una pagada. Un descuento automático (cotizador web)
+        nunca aparta una fecha por sí solo."""
+        return (
+            self.precio_final <= 0 and self.subtotal > 0
+            and self.descuentos_aplicados.filter(activo=True, modo_aplicacion='MANUAL').exists()
+        )
+
     def motivo_no_confirmable_por_pago(self):
         """Por qué los pagos recibidos NO confirman la cotización, o `None`.
 
@@ -738,11 +748,12 @@ class Cotizacion(models.Model):
         """
         if self.estado not in self.ESTADOS_SIN_APARTAR:
             return 'no está en borrador ni cotizada'
-        pagado = self.total_pagado()
-        if pagado <= 0 or self.precio_final <= 0:
-            return 'sin pagos'
-        if (pagado / self.precio_final) * 100 < self.porcentaje_anticipo_confirmacion():
-            return 'el anticipo pagado no alcanza el mínimo'
+        if not self.cubierta_por_cortesia():
+            pagado = self.total_pagado()
+            if pagado <= 0 or self.precio_final <= 0:
+                return 'sin pagos'
+            if (pagado / self.precio_final) * 100 < self.porcentaje_anticipo_confirmacion():
+                return 'el anticipo pagado no alcanza el mínimo'
         if not self.items.exists():
             return 'sin conceptos'
         disponible, msg = self.fecha_disponible_detalle()
@@ -755,7 +766,8 @@ class Cotizacion(models.Model):
 
         Sin esto una cotización pagada desde el portal se quedaba en BORRADOR:
         no apartaba la fecha (otro cliente podía pagarla también), no había
-        contrato ni guía, y el cron nunca la ejecutaba ni la cerraba.
+        contrato ni guía, y el cron nunca la ejecutaba ni la cerraba. También
+        confirma una cortesía total (`cubierta_por_cortesia`), que no tendrá pago.
 
         Devuelve (confirmada: bool, motivo) — motivo explica por qué no.
         """
@@ -793,7 +805,7 @@ class Cotizacion(models.Model):
         """
         if self.estado not in ('BORRADOR', 'COTIZADA'):
             return None
-        if self.total_pagado() > Decimal('0.00'):
+        if self.total_pagado() > Decimal('0.00') or self.cubierta_por_cortesia():
             return None
 
         # Una referencia de efectivo/SPEI ya generada y todavía vigente es
@@ -1027,13 +1039,7 @@ class Cotizacion(models.Model):
             if update_fields is None or not set(update_fields) <= self.CAMPOS_SIN_EFECTO_EN_PRECIO:
                 from .services import actualizar_item_cotizacion
                 actualizar_item_cotizacion(self)
-                self.calcular_totales()
-                Cotizacion.objects.filter(pk=self.pk).update(
-                    subtotal=self.subtotal, iva=self.iva,
-                    impuesto_hospedaje=self.impuesto_hospedaje,
-                    retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
-                    precio_final=self.precio_final
-                )
+                self.persistir_totales()
             try:
                 from .models import PortalCliente
                 PortalCliente.objects.get_or_create(
@@ -1042,6 +1048,26 @@ class Cotizacion(models.Model):
                 )
             except Exception:
                 pass
+
+    def persistir_totales(self):
+        """Recalcula descuentos y totales con los conceptos actuales y los guarda.
+
+        Fuente única para todo cambio que mueve el precio (guardar la
+        cotización, agregar/editar/borrar un concepto, aplicar o revertir un
+        descuento): así un descuento en porcentaje sigue siendo ese porcentaje
+        aunque cambien los conceptos. `descuento` se relee de la BD porque es
+        ahí donde `aplicar`/`revertir` lo ajustan de forma atómica.
+        """
+        from .services_descuentos import DescuentoService
+        self.descuento = Cotizacion.objects.filter(pk=self.pk).values_list('descuento', flat=True).get()
+        DescuentoService.recalcular(self)
+        self.calcular_totales()
+        Cotizacion.objects.filter(pk=self.pk).update(
+            descuento=self.descuento, subtotal=self.subtotal, iva=self.iva,
+            impuesto_hospedaje=self.impuesto_hospedaje,
+            retencion_isr=self.retencion_isr, retencion_iva=self.retencion_iva,
+            precio_final=self.precio_final,
+        )
 
     def total_pagado(self):
         """Total neto cobrado (ingresos - reembolsos)."""
@@ -1213,14 +1239,15 @@ class ItemCotizacion(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
         if self.cotizacion.pk:
-            self.cotizacion.calcular_totales()
-            Cotizacion.objects.filter(pk=self.cotizacion.pk).update(
-                subtotal=self.cotizacion.subtotal,
-                iva=self.cotizacion.iva,
-                retencion_isr=self.cotizacion.retencion_isr,
-                retencion_iva=self.cotizacion.retencion_iva,
-                precio_final=self.cotizacion.precio_final
-            )
+            self.cotizacion.persistir_totales()
+
+    def delete(self, *args, **kwargs):
+        resultado = super().delete(*args, **kwargs)
+        # Sin esto, quitar un concepto dejaba subtotal, descuento y total
+        # con el importe de la línea borrada.
+        if Cotizacion.objects.filter(pk=self.cotizacion_id).exists():
+            self.cotizacion.persistir_totales()
+        return resultado
 
     def subtotal(self): return self.cantidad * self.precio_unitario
 
@@ -2206,7 +2233,14 @@ class Descuento(models.Model):
     )
     tipos_servicio = models.JSONField(
         default=list, blank=True, verbose_name="Tipos de servicio",
-        help_text="Lista de: EVENTO, PASADIA, ARRENDAMIENTO. Vacío = todos.",
+        help_text="Lista de: EVENTO, PASADIA, HOSPEDAJE, ARRENDAMIENTO. Vacío = todos.",
+    )
+    productos = models.ManyToManyField(
+        'Producto', blank=True, related_name='descuentos_especificos',
+        verbose_name="Productos / paquetes",
+        help_text="Vacío = toda la cotización. Si eliges productos o paquetes, el "
+                  "descuento se calcula solo sobre esos conceptos y solo aplica si "
+                  "la cotización incluye al menos uno.",
     )
 
     acumulable = models.BooleanField(
@@ -2219,9 +2253,9 @@ class Descuento(models.Model):
     )
     max_usos = models.PositiveIntegerField(
         null=True, blank=True, verbose_name="Máximo de usos",
-        help_text="Tope de aplicaciones. Vacío = ilimitado.",
+        help_text="Tope de ventas confirmadas con este descuento. Vacío = ilimitado. "
+                  "Una cotización que nunca se confirma no gasta usos.",
     )
-    usos = models.PositiveIntegerField(default=0, verbose_name="Usos aplicados")
 
     # ── Auditoría ───────────────────────────────────────────────────────
     created_by = models.ForeignKey(
@@ -2258,8 +2292,19 @@ class Descuento(models.Model):
             invalidos = [t for t in self.tipos_servicio if t not in self.TIPOS_SERVICIO_VALIDOS]
             if invalidos:
                 raise ValidationError({
-                    'tipos_servicio': f'Valores inválidos: {invalidos}. Usa EVENTO, PASADIA, ARRENDAMIENTO.'
+                    'tipos_servicio': f'Valores inválidos: {invalidos}. Usa EVENTO, PASADIA, HOSPEDAJE, ARRENDAMIENTO.'
                 })
+
+    # Una aplicación cuenta como uso solo cuando la venta se concretó: así una
+    # cotización abandonada no agota una promoción de "primeros N".
+    ESTADOS_QUE_CUENTAN_USO = ('CONFIRMADA', 'EJECUTADA', 'CERRADA')
+
+    @property
+    def usos(self):
+        """Ventas confirmadas con este descuento activo."""
+        return self.aplicaciones.filter(
+            activo=True, cotizacion__estado__in=self.ESTADOS_QUE_CUENTAN_USO,
+        ).count()
 
     def usos_disponibles(self):
         """True si aún puede aplicarse (max_usos no alcanzado)."""
