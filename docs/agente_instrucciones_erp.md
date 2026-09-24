@@ -2,7 +2,7 @@
 
 ## 0. Contexto del Proyecto
 - **Negocio:** Quinta Ko'ox Tanil (QKT) — eventos, pasadía, hospedaje corto directo (Ka'an, Otoch). Unidad de negocio: QUINTA. Airbnb y Honey Sea House se retiraron del portafolio y del ERP (Issue #311).
-- **Stack:** Django + PostgreSQL, Railway (`erp.quintakooxtanil.com`, `clientes.quintakooxtanil.com`), Cloudflare Pages (`quintakooxtanil.com`), Cloudinary (en evaluación → candidato DigitalOcean Spaces), Openpay/BBVA, WhatsApp Cloud API, GitHub.
+- **Stack:** Django + PostgreSQL, Railway (`erp.quintakooxtanil.com`, `clientes.quintakooxtanil.com`), Cloudflare Pages (`quintakooxtanil.com`), Cloudflare R2 (storage de archivos), Openpay/BBVA, WhatsApp Cloud API, GitHub.
 - **Apps relevantes:** ERP interno, portal cliente, landing pública.
 - **Cuentas bancarias:** BBVA Maestra PYME → QUINTA.
 - **Estándares de código obligatorios:**
@@ -67,7 +67,7 @@ Toda sugerencia estratégica se entrega como documento en `/docs/` — nunca se 
 - [x] ~~Horario pasadía hardcodeado "10am–7pm"~~ — verificado en sesión: ya no existe en el código actual (`comercial/views_cotizador.py` usa 11:00 a.m.–7:00 p.m.). Ver detalle en `CLAUDE.md`.
 - [ ] Precios sin IVA incluido en cualquier vista nueva.
 - [ ] Régimen fiscal (RESICO vs. arrendamiento) sin confirmar → no tocar factor de retención 1.1475.
-- [ ] Migración Cloudinary → DigitalOcean Spaces (pendiente).
+- [x] ~~Migración Cloudinary → DigitalOcean Spaces~~ — obsoleto: el storage ya es Cloudflare R2.
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
 - [ ] Registro PROFECO NOM-174 pendiente.
 - [ ] Definir `TASA_ISH` en Railway (ISH del hospedaje directo).

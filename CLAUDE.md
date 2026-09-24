@@ -91,7 +91,7 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
 ## Contexto técnico
 
 **Stack**: Django 6 · PostgreSQL (prod, Railway) / SQLite (dev) · admin
-Jazzmin (sin frontend SPA) · WeasyPrint (PDFs) · Cloudinary (storage) ·
+Jazzmin (sin frontend SPA) · WeasyPrint (PDFs) · Cloudflare R2 (storage) ·
 django-anymail/Brevo (email) · Openpay vía REST directo, sin SDK · ruff +
 pre-commit · CI en GitHub Actions.
 
@@ -212,7 +212,9 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   `core_erp/impuestos.py` (fuente única) y hay que revisar de paso que
   `UnidadNegocio.regimen_fiscal` —que hoy se captura pero ningún cálculo
   lee— deje de ser un dato decorativo.
-- [ ] Migración Cloudinary → DigitalOcean Spaces (pendiente).
+- [x] ~~Migración Cloudinary → DigitalOcean Spaces~~ — obsoleto: el
+  storage ya es Cloudflare R2 (`STORAGES` en `core_erp/settings.py`), no
+  hay migración pendiente. Ver Memoria 2026-09-24.
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
 - [ ] Registro PROFECO del **contrato de Hospedaje** pendiente (el 9341-2023
   solo cubre Evento/Pasadía). Al tener el número, definir
@@ -240,6 +242,19 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-09-24 — El pendiente "Migración Cloudinary → DigitalOcean Spaces"
+  estaba obsoleto: el storage activo es Cloudflare R2 desde hace tiempo
+  (bucket público `qkt-media` + privado, ver entradas del 2026-08-12). Se
+  corrigió la documentación (`CLAUDE.md`, `PROJECT_CONTEXT.md`,
+  `docs/agente_instrucciones_erp.md`). **Lo que queda de Cloudinary en el
+  código es deliberado, no residuo**: `cloudinary`/`django-cloudinary-
+  storage` siguen en `requirements.txt` porque migraciones históricas de
+  `comercial`/`facturacion` importan `cloudinary_storage.storage` (quitarlas
+  rompe el grafo de migraciones; eliminarlas exigiría reescribir esas
+  migraciones), `CLOUDINARY_STORAGE` en `settings.py` existe solo para que
+  esas importaciones carguen, y el filtro `cldn` (`templatetags/
+  cloudinary_opt.py`) es un no-op que conserva las referencias de la landing.
 
 - 2026-09-24 — Descuentos: revisión pedida por el propietario y 5 cambios
   autorizados explícitamente. **(1)** El cotizador público exhibía el total
