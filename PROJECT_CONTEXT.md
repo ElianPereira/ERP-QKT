@@ -18,7 +18,10 @@ cliente, ambos servidos con templates Django normales.
   anida modelos sueltos en carpetas sintéticas (ej. "Ventas", "Pagos") no
   soportadas nativamente por Jazzmin.
 - **PDFs**: `weasyprint` (contratos, cotizaciones, planes de pago, reportes).
-- **Storage de archivos**: Cloudinary (`django-cloudinary-storage`).
+- **Storage de archivos**: Cloudflare R2 vía `django-storages` (S3; bucket
+  público + bucket privado con URLs firmadas, ver `STORAGES` en
+  `core_erp/settings.py`). `cloudinary`/`django-cloudinary-storage` siguen
+  instalados solo porque migraciones históricas los importan.
 - **Email**: `django-anymail`.
 - **Pagos en línea**: integración directa con la API REST de Openpay
   (tarjeta, efectivo/Paynet, SPEI) — sin SDK, requests HTTP directas
