@@ -1805,6 +1805,9 @@ async function cargarTotal() {
       ? document.getElementById('tipo_evento').value : '',
   });
   if (selectedExtras.size) params.set('extras', Array.from(selectedExtras).join(','));
+  // La fecha decide si aplica una promoción con vigencia o temporada.
+  var fechaEl = document.getElementById('fecha');
+  if (fechaEl && fechaEl.value) params.set('fecha', fechaEl.value);
   if (servicioSel === 'PASADIA') params.set('nivel_pasadia', nivelPasadiaSel);
   if (servicioSel === 'EVENTO' && caminoEventoSel === 'PAQUETE' && paqueteEventoSel) {
     params.set('paquete', paqueteEventoSel);
@@ -1817,7 +1820,16 @@ async function cargarTotal() {
     var r = await fetch('/api/cotizador/total/?' + params.toString());
     var d = await r.json();
     if (!d.ok) throw new Error('sin total');
-    var h = '<div style="display:flex;justify-content:space-between;align-items:baseline;">';
+    var h = '';
+    // Promoción automática: la calcula el servidor con la misma regla que
+    // aplicará al crear la cotización. Se exhibe el precio anterior tachado.
+    if (d.descuentos && d.descuentos.length) {
+      h += '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:.8rem;color:var(--texto-s);">';
+      h += '<span>Precio regular</span><s>' + d.total_sin_descuento_formateado + '</s></div>';
+      h += '<div style="font-size:.78rem;color:#c0392b;font-weight:500;margin:.2rem 0 .4rem;">';
+      h += 'Promoción: ' + esc(d.descuentos.join(', ')) + ' — ahorras ' + d.ahorro_formateado + '</div>';
+    }
+    h += '<div style="display:flex;justify-content:space-between;align-items:baseline;">';
     h += '<span style="font-size:.85rem;color:var(--verde-d);font-weight:500;">Total estimado</span>';
     h += '<span style="font-family:Cormorant Garamond,serif;font-size:1.6rem;color:var(--verde);font-weight:400;">' + d.total_formateado + '</span>';
     h += '</div>';

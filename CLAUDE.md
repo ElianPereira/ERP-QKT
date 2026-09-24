@@ -241,6 +241,40 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-24 — Descuentos: revisión pedida por el propietario y 5 cambios
+  autorizados explícitamente. **(1)** El cotizador público exhibía el total
+  SIN los descuentos automáticos que luego aplicaba al crear la cotización;
+  ahora `api_total_cotizador` simula con `DescuentoService.
+  simular_automaticos(ContextoDescuento)` —la misma evaluación que
+  `aplicar_automaticos`, sin escribir— y el resumen muestra precio regular
+  tachado + promoción + ahorro (todo IVA incluido). El JS manda la `fecha`
+  para evaluar vigencias/temporadas. De paso, `cotizador_enviar` nunca
+  guardaba `tipo_evento` (FK a `TipoEvento`), así que un descuento acotado a
+  "Boda" jamás aplicaba a una solicitud web: se resuelve por nombre con
+  `_tipo_evento_catalogo()`. **(2)** El descuento en % se guardaba en pesos y
+  no se movía al cambiar conceptos (10% de $10k seguía en $1,000 tras subir a
+  $20k). `Cotizacion.persistir_totales()` es ahora la fuente única de
+  "recalcular y guardar": la usan `Cotizacion.save`, `ItemCotizacion.save`,
+  el nuevo `ItemCotizacion.delete` (antes borrar un concepto no recalculaba
+  nada) y aplicar/revertir. `DescuentoService.recalcular()` reajusta cada
+  `DescuentoAplicado` activo en su orden de aplicación y anota el cambio en
+  `notas` (se sigue sin borrar nada); lo capturado a mano en
+  `Cotizacion.descuento` que no viene de un aplicado se respeta (delta). Por
+  eso `descuento` se relee de la BD en `persistir_totales`: aplicar/revertir
+  lo ajustan con `F()`. De paso ya persiste `impuesto_hospedaje` al tocar
+  conceptos (el `update()` viejo de `ItemCotizacion` lo omitía). **(3)**
+  Cortesía al 100%: sin pago nunca se confirmaba. `cubierta_por_cortesia()`
+  (precio $0 + descuento MANUAL activo) confirma al aplicar, no expira y el
+  cron 0b la recoge; un automático al 100% NO aparta fecha. **(4)**
+  `Descuento.usos` deja de ser campo (migración `0100`): es una propiedad que
+  cuenta aplicaciones activas en CONFIRMADA/EJECUTADA/CERRADA, así una
+  solicitud abandonada no gasta la promo. Riesgo aceptado: cotizaciones
+  abiertas que ya tenían la promo la conservan al confirmar aunque el tope se
+  haya llenado. **(5)** `Descuento.productos` (M2M, opcional): acota la base
+  del descuento a esos conceptos; un paquete cuenta como un concepto, sus
+  componentes internos no. Contabilidad no cambió: el ingreso se registra
+  neto de descuento vía `calcular_desglose_proporcional`.
+
 - 2026-09-23 — Retiro total de Airbnb, **fase 3 (cierre)**. La fase 2 corrió
   en producción ese mismo día (`contabilidad.0020` y `airbnb.0008` en OK,
   con backup previo de Postgres). El diagnóstico de producción encontró un

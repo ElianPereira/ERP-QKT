@@ -6,7 +6,7 @@ Lógica, en este orden (importa):
      evento ya pasó o llevan DIAS_EXPIRACION_SIN_PAGO días sin cobrar nada.
   0b. BORRADOR / COTIZADA con el anticipo ya pagado → CONFIRMADA, si la fecha
      sigue libre (red de seguridad de `Pago.save()`: cubre las que se pagaron
-     antes de que existiera la confirmación automática)
+     antes de que existiera la confirmación automática) o cortesía al 100%
   1. CONFIRMADA / COTIZADA con fecha_evento < hoy → EJECUTADA (evento realizado)
      y el anticipo cobrado se reconoce como ingreso (póliza de diario)
   2. EJECUTADA con fecha_evento < hoy y saldo ≤ $0.50  → CERRADA (pagada y lista)
@@ -25,6 +25,7 @@ Cron: configurar en Railway como cron job diario.
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
+from django.db.models import Q
 from django.utils import timezone
 
 from comercial.models import Cotizacion
@@ -67,11 +68,11 @@ class Command(BaseCommand):
             expiradas += 1
             self.stdout.write(f'  EXPIRADA   COT-{cot.pk:03d} ({motivo})')
 
-        # Paso 0b: pagadas pero nunca confirmadas. Las recién expiradas no
-        # tienen pagos, así que nunca caen aquí.
+        # Paso 0b: pagadas (o cortesías al 100%) pero nunca confirmadas. Las
+        # recién expiradas no tienen pagos ni son cortesía, así que no caen aquí.
         por_confirmar = Cotizacion.objects.filter(
+            Q(pagos__tipo='INGRESO', pagos__concepto='VENTA') | Q(precio_final__lte=0),
             estado__in=Cotizacion.ESTADOS_SIN_APARTAR,
-            pagos__tipo='INGRESO', pagos__concepto='VENTA',
         ).distinct().order_by('created_at')
         for cot in por_confirmar:
             motivo = cot.motivo_no_confirmable_por_pago()

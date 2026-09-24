@@ -42,6 +42,7 @@ from .models import (
     ItemCotizacion,
     PortalCliente,
     Producto,
+    TipoEvento,
 )
 from .reglas_eventos import (
     MAX_PERSONAS_EVENTO,
@@ -49,6 +50,7 @@ from .reglas_eventos import (
     MIN_PERSONAS_PERSONALIZADO_EVENTO,
 )
 from .roles_cotizador import normalizar as _normalizar
+from .services_descuentos import ContextoDescuento, DescuentoService
 
 logger = logging.getLogger(__name__)
 
@@ -455,6 +457,9 @@ def cotizador_enviar(request):
         # del campo), y de ahí dependen el mínimo a pagar en el portal y los
         # descuentos acotados por tipo de servicio.
         tipo_servicio=servicio,
+        # Igual con el tipo de evento: sin él, los descuentos acotados a "Boda",
+        # "XV Años", etc. nunca aplicaban a una solicitud web.
+        tipo_evento=_tipo_evento_catalogo(servicio, tipo_ev),
         nombre_evento=nombre_evento[:200],
         fecha_evento=fecha_evento,
         fecha_salida=fecha_salida,
@@ -503,7 +508,6 @@ def cotizador_enviar(request):
     # AUTOMATICO: gana un solo no-acumulable + todos los acumulables.
     descuentos_txt = ""
     try:
-        from .services_descuentos import DescuentoService
         aplicados = DescuentoService.aplicar_automaticos(cotizacion, usuario=None)
         if aplicados:
             partes_desc = [f"{a.descuento.nombre} (-${a.monto_aplicado:,.2f})" for a in aplicados]
@@ -886,6 +890,14 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     return lineas
 
 
+def _tipo_evento_catalogo(servicio, tipo_ev):
+    """`TipoEvento` del catálogo que corresponde al tipo elegido en el
+    cotizador (mismo nombre), o `None`. Solo aplica a Evento."""
+    if servicio != 'EVENTO' or not tipo_ev:
+        return None
+    return TipoEvento.objects.filter(nombre__iexact=tipo_ev, activo=True).first()
+
+
 @rate_limit(key='api_total_cotizador', limit=60, window=60)
 def api_total_cotizador(request):
     """GET /api/cotizador/total/?servicio=&paquete=&extras=&personas=&horas=
@@ -950,24 +962,50 @@ def api_total_cotizador(request):
     bases = [Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
              for prod, qty, _ in lineas]
 
+    # Descuentos automáticos: la misma evaluación que `cotizador_enviar`
+    # aplicará al crear la cotización, sin guardar nada. La fecha es opcional:
+    # sin ella, las promociones con vigencia o temporada no se exhiben.
+    try:
+        fecha = datetime.strptime(request.GET.get('fecha') or '', '%Y-%m-%d').date()
+    except ValueError:
+        fecha = None
+    tipo_evento = _tipo_evento_catalogo(servicio, tipo_ev)
+    promociones = DescuentoService.simular_automaticos(ContextoDescuento(
+        lineas=[(prod.id, base) for (prod, _, _), base in zip(lineas, bases)],
+        fecha=fecha,
+        tipo_evento_id=tipo_evento.id if tipo_evento else None,
+        tipo_servicio=servicio,
+    ))
+    base_neta = max(sum(bases, Decimal('0')) - sum((m for _, m in promociones), Decimal('0')),
+                    Decimal('0'))
+
     # Una sola conversión, sobre la suma de las bases (nunca por línea).
-    total = impuestos.total_desde_bases(bases)
+    total_sin_descuento = impuestos.total_desde_bases(bases)
+    total = impuestos.total_desde_bases([base_neta])
 
     # ISH: mismo criterio que `Cotizacion.calcular_totales()` — solo hospedaje
-    # directo y solo con tasa configurada. Se suma al total exhibido, no se
-    # muestra aparte: la LFPC (art. 7 BIS) exige que el precio que ve el
-    # consumidor ya traiga todos los impuestos incluidos.
+    # directo y solo con tasa configurada, sobre la base ya descontada. Se
+    # suma al total exhibido, no se muestra aparte: la LFPC (art. 7 BIS) exige
+    # que el precio que ve el consumidor ya traiga todos los impuestos incluidos.
     ish = Decimal('0.00')
     if servicio == 'HOSPEDAJE' and impuestos.ish_aplica():
-        ish = impuestos.ish_de(sum(bases, Decimal('0')))
+        ish = impuestos.ish_de(base_neta)
         total = impuestos.centavos(total + ish)
+        total_sin_descuento = impuestos.centavos(
+            total_sin_descuento + impuestos.ish_de(sum(bases, Decimal('0'))))
     leyenda = ('Precios en MXN, IVA e ISH incluidos' if ish
                else 'Precios en MXN, IVA incluido')
+    ahorro = total_sin_descuento - total if promociones else Decimal('0.00')
 
     return JsonResponse({
         'ok': True,
         'total': str(total),
         'total_formateado': f"${total:,.2f}",
+        # Promoción exhibida ANTES de enviar: el cliente ve el precio con y sin
+        # descuento (ambos con IVA incluido) y el nombre de la promoción.
+        'descuentos': [d.nombre for d, m in promociones if m > 0],
+        'total_sin_descuento_formateado': f"${total_sin_descuento:,.2f}",
+        'ahorro_formateado': f"${ahorro:,.2f}",
         'leyenda': leyenda,
         'lineas': len(lineas),
         # Qué incluye el total, para que el cliente vea la línea base que el

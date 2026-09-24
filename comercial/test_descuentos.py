@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from comercial.models import (
     Cliente,
@@ -15,6 +15,7 @@ from comercial.models import (
     Descuento,
     DescuentoAplicado,
     ItemCotizacion,
+    Producto,
     Temporada,
     TipoEvento,
 )
@@ -162,18 +163,36 @@ class AcumulableTest(DescuentoBaseTest):
 
 class MaxUsosTest(DescuentoBaseTest):
 
-    def test_max_usos_agotado_no_sugiere(self):
-        d = Descuento.objects.create(
+    def _una_vez(self):
+        return Descuento.objects.create(
             nombre='Una vez', tipo_valor='MONTO_FIJO', valor=Decimal('500.00'),
             modo='AUTOMATICO', activo=True, max_usos=1,
         )
+
+    def test_max_usos_agotado_no_sugiere(self):
+        d = self._una_vez()
         cot1 = self._cotizacion('20000.00')
         DescuentoService.aplicar(cot1, d, modo='AUTOMATICO')
-        d.refresh_from_db()
+        Cotizacion.objects.filter(pk=cot1.pk).update(estado='CONFIRMADA')
         self.assertEqual(d.usos, 1)
 
         cot2 = self._cotizacion('20000.00')
         self.assertEqual(DescuentoService.evaluar_automaticos(cot2), [])
+
+    def test_cotizacion_sin_confirmar_no_gasta_usos(self):
+        # Una solicitud web abandonada no agota una promoción de "primeros N".
+        d = self._una_vez()
+        DescuentoService.aplicar(self._cotizacion('20000.00'), d, modo='AUTOMATICO')
+        self.assertEqual(d.usos, 0)
+        self.assertEqual(DescuentoService.evaluar_automaticos(self._cotizacion('20000.00')), [d])
+
+    def test_descuento_revertido_no_cuenta_como_uso(self):
+        d = self._una_vez()
+        cot = self._cotizacion('20000.00')
+        aplicado = DescuentoService.aplicar(cot, d, modo='AUTOMATICO')
+        Cotizacion.objects.filter(pk=cot.pk).update(estado='CONFIRMADA')
+        DescuentoService.revertir(aplicado)
+        self.assertEqual(d.usos, 0)
 
 
 class VigenciaTest(DescuentoBaseTest):
@@ -298,3 +317,166 @@ class TiposCondicionTest(DescuentoBaseTest):
         cot_evt = self._cotizacion('20000.00', tipo_servicio='EVENTO')
         self.assertEqual(DescuentoService.evaluar_automaticos(cot_arr), [d])
         self.assertEqual(DescuentoService.evaluar_automaticos(cot_evt), [])
+
+
+class RecalculoPorCambioDeConceptosTest(DescuentoBaseTest):
+    """Un descuento en porcentaje sigue siendo ese porcentaje aunque cambien
+    los conceptos después de aplicarlo."""
+
+    def _diez_por_ciento(self):
+        return Descuento.objects.create(
+            nombre='10%', tipo_valor='PORCENTAJE', valor=Decimal('10'), modo='MANUAL')
+
+    def _agregar(self, cot, importe):
+        return ItemCotizacion.objects.create(
+            cotizacion=cot, descripcion='Extra',
+            cantidad=Decimal('1'), precio_unitario=Decimal(importe),
+        )
+
+    def test_porcentaje_se_reajusta_al_agregar_un_concepto(self):
+        cot = self._cotizacion('10000.00')
+        aplicado = DescuentoService.aplicar(cot, self._diez_por_ciento(), usuario=self.user)
+        self._agregar(cot, '10000.00')
+        cot.refresh_from_db()
+        aplicado.refresh_from_db()
+        self.assertEqual(cot.descuento, Decimal('2000.00'))
+        self.assertEqual(aplicado.monto_aplicado, Decimal('2000.00'))
+        self.assertEqual(aplicado.porcentaje_equivalente, Decimal('10.00'))
+        self.assertIn('recalculado $1,000.00 → $2,000.00', aplicado.notas)
+        self.assertEqual(cot.precio_final, Decimal('20880.00'))  # 18,000 + IVA
+
+    def test_porcentaje_se_reajusta_al_borrar_un_concepto(self):
+        cot = self._cotizacion('10000.00')
+        extra = self._agregar(cot, '10000.00')
+        DescuentoService.aplicar(cot, self._diez_por_ciento(), usuario=self.user)
+        extra.delete()
+        cot.refresh_from_db()
+        self.assertEqual(cot.subtotal, Decimal('10000.00'))
+        self.assertEqual(cot.descuento, Decimal('1000.00'))
+        self.assertEqual(cot.precio_final, Decimal('10440.00'))
+
+    def test_monto_fijo_topado_recupera_su_valor_si_crece_la_base(self):
+        d = Descuento.objects.create(
+            nombre='Fijo', tipo_valor='MONTO_FIJO', valor=Decimal('3000'), modo='MANUAL')
+        cot = self._cotizacion('1000.00')
+        DescuentoService.aplicar(cot, d, usuario=self.user)
+        cot.refresh_from_db()
+        self.assertEqual(cot.descuento, Decimal('1000.00'))
+        self._agregar(cot, '9000.00')
+        cot.refresh_from_db()
+        self.assertEqual(cot.descuento, Decimal('3000.00'))
+
+    def test_respeta_el_descuento_capturado_a_mano(self):
+        cot = self._cotizacion('10000.00')
+        Cotizacion.objects.filter(pk=cot.pk).update(descuento=Decimal('500.00'))
+        DescuentoService.aplicar(cot, self._diez_por_ciento(), usuario=self.user)
+        self._agregar(cot, '10000.00')
+        cot.refresh_from_db()
+        self.assertEqual(cot.descuento, Decimal('2500.00'))
+
+    def test_descuento_revertido_no_se_recalcula(self):
+        cot = self._cotizacion('10000.00')
+        DescuentoService.revertir(
+            DescuentoService.aplicar(cot, self._diez_por_ciento(), usuario=self.user))
+        self._agregar(cot, '10000.00')
+        cot.refresh_from_db()
+        self.assertEqual(cot.descuento, Decimal('0.00'))
+
+
+class CortesiaConfirmaTest(DescuentoBaseTest):
+
+    def _cortesia(self, modo='MANUAL'):
+        return Descuento.objects.create(
+            nombre='Cortesía', tipo_valor='PORCENTAJE', valor=Decimal('100'),
+            modo=modo, es_cortesia=True)
+
+    def test_cortesia_manual_total_confirma_la_cotizacion(self):
+        cot = self._cotizacion('5000.00')
+        DescuentoService.aplicar(cot, self._cortesia(), usuario=self.user)
+        cot.refresh_from_db()
+        self.assertEqual(cot.precio_final, Decimal('0.00'))
+        self.assertEqual(cot.estado, 'CONFIRMADA')
+
+    def test_descuento_automatico_total_no_aparta_fecha(self):
+        cot = self._cotizacion('5000.00')
+        DescuentoService.aplicar(cot, self._cortesia('AUTOMATICO'), modo='AUTOMATICO')
+        cot.refresh_from_db()
+        self.assertEqual(cot.estado, 'BORRADOR')
+
+    def test_cortesia_no_confirma_si_la_fecha_ya_esta_apartada(self):
+        fecha = date.today() + timedelta(days=60)
+        otra = self._cotizacion('5000.00', fecha=fecha)
+        Cotizacion.objects.filter(pk=otra.pk).update(estado='CONFIRMADA')
+        cot = self._cotizacion('5000.00', fecha=fecha)
+        DescuentoService.aplicar(cot, self._cortesia(), usuario=self.user)
+        cot.refresh_from_db()
+        self.assertEqual(cot.estado, 'BORRADOR')
+
+    def test_cortesia_no_expira_por_falta_de_pago(self):
+        cot = self._cotizacion('5000.00')
+        DescuentoService.aplicar(cot, self._cortesia(), usuario=self.user)
+        cot.refresh_from_db()
+        Cotizacion.objects.filter(pk=cot.pk).update(estado='BORRADOR')
+        cot.refresh_from_db()
+        self.assertIsNone(cot.motivo_expiracion())
+
+
+class DescuentoPorProductoTest(DescuentoBaseTest):
+
+    def setUp(self):
+        super().setUp()
+        self.barra = Producto.objects.create(nombre='Barra Premium', precio_venta_fijo=Decimal('1000'))
+        self.promo = Descuento.objects.create(
+            nombre='50% barra', tipo_valor='PORCENTAJE', valor=Decimal('50'),
+            modo='AUTOMATICO', activo=True)
+        self.promo.productos.add(self.barra)
+
+    def test_se_calcula_solo_sobre_el_producto(self):
+        cot = self._cotizacion('9000.00')
+        ItemCotizacion.objects.create(
+            cotizacion=cot, producto=self.barra, descripcion='Barra',
+            cantidad=Decimal('2'), precio_unitario=Decimal('1000.00'))
+        aplicados = DescuentoService.aplicar_automaticos(cot)
+        self.assertEqual([a.monto_aplicado for a in aplicados], [Decimal('1000.00')])
+
+    def test_no_aplica_sin_el_producto(self):
+        cot = self._cotizacion('9000.00')
+        self.assertEqual(DescuentoService.evaluar_automaticos(cot), [])
+
+
+@override_settings(DEBUG=True, ALLOWED_HOSTS=['*'])
+class PromocionEnCotizadorTest(DescuentoBaseTest):
+    """El total exhibido en el cotizador público ya trae la promoción."""
+
+    def setUp(self):
+        super().setUp()
+        Producto.objects.create(
+            nombre='Paquete Esencial QKT', precio_venta_fijo=Decimal('4000.00'),
+            visible_cotizador=True, cotizador_evento=True, rol_cotizador='BASE_EVENTO')
+        self.boda, _ = TipoEvento.objects.get_or_create(nombre='Boda')
+        self.promo = Descuento.objects.create(
+            nombre='Bodas 10%', tipo_valor='PORCENTAJE', valor=Decimal('10'),
+            modo='AUTOMATICO', activo=True, tipos_servicio=['EVENTO'])
+        self.promo.tipos_evento.add(self.boda)
+
+    def _total(self, **params):
+        base = {'servicio': 'EVENTO', 'personas': '50', 'horas': '6'}
+        return self.client.get('/api/cotizador/total/', {**base, **params}).json()
+
+    def test_exhibe_la_promocion_y_el_total_con_descuento(self):
+        d = self._total(tipo='Boda')
+        self.assertEqual(d['descuentos'], ['Bodas 10%'])
+        self.assertEqual(d['total'], '4176.00')  # 3,600 + IVA
+        self.assertEqual(d['total_sin_descuento_formateado'], '$4,640.00')
+        self.assertEqual(d['ahorro_formateado'], '$464.00')
+
+    def test_sin_promocion_aplicable_no_exhibe_nada(self):
+        d = self._total(tipo='XV Años')
+        self.assertEqual(d['descuentos'], [])
+        self.assertEqual(d['total'], '4640.00')
+
+    def test_vigencia_se_evalua_con_la_fecha_elegida(self):
+        self.promo.fecha_inicio = date(2027, 1, 1)
+        self.promo.save()
+        self.assertEqual(self._total(tipo='Boda', fecha='2026-12-31')['descuentos'], [])
+        self.assertEqual(self._total(tipo='Boda', fecha='2027-01-05')['descuentos'], ['Bodas 10%'])
