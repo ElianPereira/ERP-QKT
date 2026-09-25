@@ -506,13 +506,6 @@ def ver_dashboard_kpis(request):
 # ==========================================
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
-def generar_lista_compras(request):
-    if request.method == 'POST':
-        return render(request, 'comercial/reporte_form.html', {'titulo': 'Reporte Masivo en Construcción'})
-    return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Lista de Compras'})
-
-@staff_member_required
-@permission_required('comercial.view_cotizacion', raise_exception=True)
 def descargar_lista_compras_pdf(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
     lista_insumos = generar_lista_compras_barra(cotizacion)

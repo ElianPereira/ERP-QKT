@@ -33,7 +33,6 @@ STORAGES_PRUEBA = {
 # así que un pk inexistente sigue devolviendo 403 para un usuario sin grupo.
 VISTAS_PROTEGIDAS = [
     ('configurar_plantilla_barra', {}),
-    ('generar_lista_compras', {}),
     ('cotizacion_lista_compras', {'cotizacion_id': 99999}),
     ('cotizacion_pdf', {'cotizacion_id': 99999}),
     ('cotizacion_email', {'cotizacion_id': 99999}),
