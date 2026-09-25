@@ -233,11 +233,9 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   `_asiento_pago_airbnb`). El hueco real estaba en el **hospedaje vendido
   directo**, que no calculaba ISH en absoluto: implementado ahora, con la
   tasa en `settings.TASA_ISH`.
-- [ ] **Definir `TASA_ISH` en Railway** (hoy en 0 = ISH apagado). Sin esa
-  variable el hospedaje directo sigue sin cobrar ni enterar ISH. La tasa la
-  confirma el contador; al activarla, el precio que ve el cliente sube en
-  ese porcentaje salvo que se recapturen los `precio_venta_fijo` de las
-  habitaciones.
+- [x] ~~Definir `TASA_ISH` en Railway~~ — activada el 2026-09-25 en 4.5%
+  (`TASA_ISH=0.045`, ver Memoria). La Quinta absorbe el ISH: el cliente
+  sigue pagando $1,000.00 por noche.
 - [x] ~~Módulo de depósito en garantía ausente~~ — implementado (Issue #318,
   fase 3): `DepositoGarantia` + `MovimientoDeposito`, cobro por Openpay o
   manual, pasivo en 205.03. Pendiente confirmar con el contador el trato de
@@ -249,6 +247,19 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-09-25 — ISH activado: `TASA_ISH=0.045` (4.5%, tasa dada por el
+  propietario) en Railway, en `web` **y en los 4 servicios cron**. Tienen
+  que coincidir: el cron que confirma cotizaciones pagadas reguarda
+  borradores, y en BORRADOR la tasa se vuelve a sellar con la del proceso
+  que guarda. Decisión del propietario: **la Quinta absorbe el ISH**, el
+  cliente sigue pagando $1,000.00 por noche. Ka'an/Otoch se recapturaron en
+  el admin a **$962.66**. Ese campo ya lleva IVA incluido pero no ISH, y
+  guarda la base de $829.88 (+ IVA $132.78 + ISH $37.34 = $1,000.00). Como
+  el IVA y el ISH se calculan una sola vez sobre el subtotal, en estancias
+  largas el total sube unos centavos (7 noches = $7,000.04). Para
+  revertir: `TASA_ISH=0` en los 5 servicios y los productos de nuevo a
+  $1,000.00.
 
 - 2026-09-25 — Contratos propios **activos** para los tres servicios (el
   abogado validó el texto). `CONTRATO_PROPIO_ACTIVO` pasa a default `True`
