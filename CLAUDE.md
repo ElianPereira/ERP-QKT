@@ -281,8 +281,11 @@ salvo que queden obsoletas.
   `.qkt-accion-btn`); el resto de módulos se migra en fases siguientes.
   **Fase 2** (mismo día): todas las listas de `comercial`, `contabilidad`,
   `facturacion`, `nomina`, `reportes`, `operaciones` y `comunicacion`
-  pasaron a los componentes; `legal/` no se tocó (zona restringida, falta
-  aprobación). Dos hallazgos: **(1)** el filtro de fecha estándar de Django
+  pasaron a los componentes; `legal/` se migró después con aprobación
+  explícita del propietario (solo `admin.py`, sin tocar modelos ni reglas:
+  la columna de plazo ARCO deja de alarmar cuando la solicitud ya está
+  PROCEDENTE/IMPROCEDENTE, porque el plazo de 20 días hábiles ya se
+  cumplió). Dos hallazgos: **(1)** el filtro de fecha estándar de Django
   manda dos parámetros (`__gte` y `__lt`) y el `jazzmin_list_filter` solo
   asigna el primero, así que "Últimos 7 días" filtraba "desde hace 7 días
   hasta siempre" — todo `list_filter` sobre un campo de fecha va con

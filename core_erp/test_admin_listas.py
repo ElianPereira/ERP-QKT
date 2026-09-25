@@ -17,7 +17,7 @@ from comunicacion.models import ComunicacionCliente
 from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.test_utils import login_superuser_con_totp
 
-APPS_PROPIAS = ('comercial', 'contabilidad', 'facturacion', 'nomina', 'reportes', 'operaciones', 'comunicacion')
+APPS_PROPIAS = ('comercial', 'contabilidad', 'facturacion', 'nomina', 'reportes', 'operaciones', 'comunicacion', 'legal')
 
 
 class TodasLasListasCarganTest(TestCase):
