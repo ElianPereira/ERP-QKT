@@ -96,3 +96,32 @@ def notificar_cotizacion_enviada(sender, instance, created, update_fields=None, 
         notificar_cotizacion(cot, origen='ERP')
 
     transaction.on_commit(_notificar)
+
+
+@receiver(post_save, sender='comercial.Cotizacion')
+def enviar_guia_si_confirma_dentro_de_ventana(sender, instance, **kwargs):
+    """
+    Una cotización que se confirma con el evento ya dentro de la ventana de la
+    guía (≤ 3 días) la recibe de inmediato, sin esperar a la corrida del cron.
+    Mismo criterio de "estado final + idempotencia" que el signal de arriba.
+    """
+    if not _signals_enabled():
+        return
+    cot = instance
+    if cot.estado != 'CONFIRMADA' or not cot.cliente:
+        return
+
+    from django.utils import timezone
+
+    from .services_notificaciones import cotizaciones_en_ventana_guia, guia_ya_enviada
+
+    if not cotizaciones_en_ventana_guia(timezone.localdate()).filter(pk=cot.pk).exists():
+        return
+    if guia_ya_enviada(cot):
+        return
+
+    def _notificar():
+        from .services_notificaciones import notificar_guia_evento
+        notificar_guia_evento(cot)
+
+    transaction.on_commit(_notificar)

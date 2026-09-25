@@ -333,6 +333,44 @@ MAPS_URL_QKT = (
 )
 
 
+# La guía sale en cuanto la cotización confirmada entra a esta ventana antes de
+# fecha_evento (check-in en Hospedaje), no en un solo día exacto: una venta
+# confirmada con menos anticipación, o un día sin cron, antes se quedaba sin
+# guía para siempre.
+DIAS_ANTICIPACION_GUIA = 3
+
+# Arrendamiento de Mobiliario no tiene un sitio físico al que llegar el día
+# del evento, así que no le aplica ninguna guía.
+TIPOS_CON_GUIA = ('EVENTO', 'PASADIA', 'HOSPEDAJE')
+
+
+def cotizaciones_en_ventana_guia(hoy):
+    """Confirmadas con guía cuyo evento cae entre `hoy` y hoy + la anticipación."""
+    from datetime import timedelta
+
+    from comercial.models import Cotizacion
+
+    return Cotizacion.objects.filter(
+        estado='CONFIRMADA',
+        tipo_servicio__in=TIPOS_CON_GUIA,
+        fecha_evento__range=(hoy, hoy + timedelta(days=DIAS_ANTICIPACION_GUIA)),
+    )
+
+
+def guia_ya_enviada(cotizacion) -> bool:
+    """True si ya se intentó mandar la guía al cliente por algún canal.
+
+    Evita releer el PDF del storage en cada corrida del cron o cada guardado de
+    la cotización mientras siga en la ventana; la idempotencia real sigue
+    siendo la clave de `notificar_guia_evento`.
+    """
+    from .models import ComunicacionCliente
+
+    return ComunicacionCliente.objects.filter(
+        clave_idempotencia__in=[f"guia:{cotizacion.pk}:email", f"guia:{cotizacion.pk}:whatsapp"],
+    ).exists()
+
+
 def notificar_guia_evento(cotizacion):
     """
     Guía informativa (PDF) antes de un Evento/Pasadía/Hospedaje confirmado.

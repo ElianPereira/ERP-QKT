@@ -243,6 +243,17 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-25 — Guía pre-evento que nunca llegaba (caso real: pasadía del
+  26/09 pagada el 22/09, antes de que existiera la confirmación por pago, y
+  confirmada después de su día −3). `enviar_guias` filtraba
+  `fecha_evento == hoy + 3` exacto: una cotización confirmada con menos
+  anticipación, o un día sin cron, se quedaba sin guía para siempre y sin
+  rastro en el historial. Ahora el cron cubre la ventana `hoy … hoy+3`
+  (`cotizaciones_en_ventana_guia`) y un `post_save` de `Cotizacion` la manda
+  al confirmar si ya está dentro de esa ventana. `guia_ya_enviada()` salta lo
+  ya intentado para no releer el PDF de R2 en cada corrida/guardado; un
+  envío FALLIDO sigue sin reintentarse solo (mismo criterio de siempre).
+
 - 2026-09-25 — Cierre del flujo de facturación del cliente web (revisión
   pedida por el propietario). Se factura **por cada pago, no global**
   (confirmado por él): por eso `requiere_factura=True` fijo y una solicitud a
