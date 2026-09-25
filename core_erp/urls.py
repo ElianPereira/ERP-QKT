@@ -90,7 +90,6 @@ try:
         exportar_cierre_excel,
         exportar_reporte_cotizaciones,
         exportar_reporte_pagos,
-        generar_lista_compras,
         generar_pdf_cotizacion,
         ver_dashboard_kpis,
     )
@@ -138,7 +137,6 @@ urlpatterns = [
     path('admin/calendario/eventos/', calendario_unificado_eventos, name='calendario_unificado_eventos'),
     path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
     path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
-    path('admin/lista-compras/', generar_lista_compras, name='generar_lista_compras'),
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
 
     # --- 4. MÓDULOS EXTRA ---

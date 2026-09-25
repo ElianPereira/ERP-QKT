@@ -559,7 +559,6 @@ JAZZMIN_SETTINGS = {
     "topmenu_links": [
         {"name": "Inicio",             "url": "admin:index",            "permissions": ["auth.view_user"]},
         {"name": "Calendario",         "url": "calendario_unificado"},
-        {"name": "Compras",            "url": "generar_lista_compras"},
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},
         {"name": "Cerrar sesión",      "url": "/admin/logout/",          "new_window": False},
