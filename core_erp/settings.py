@@ -232,15 +232,14 @@ CACHES = {
 # esté vacía, el contrato de Hospedaje sale sin leyenda de registro.
 PROFECO_REGISTRO_HOSPEDAJE = config('PROFECO_REGISTRO_HOSPEDAJE', default='')
 
-# Contratos propios (marco + anexo por servicio, Issue #318). Apagado, se
-# siguen emitiendo los contratos basados en el modelo PROFECO; encenderlo
-# solo después de la validación legal del texto.
-CONTRATO_PROPIO_ACTIVO = config('CONTRATO_PROPIO_ACTIVO', default=False, cast=bool)
+# Contratos propios (marco + anexo por servicio, Issue #318). Encendido desde
+# la validación legal del texto (2026-09-25); False vuelve a los contratos
+# basados en el modelo PROFECO sin desplegar.
+CONTRATO_PROPIO_ACTIVO = config('CONTRATO_PROPIO_ACTIVO', default=True, cast=bool)
 
 # Registro PROFECO del contrato propio de Evento/Pasadía. La NOM-174-SCFI-2007
-# (numeral 5.1) obliga a registrar los contratos de adhesión de eventos
-# sociales: sin este número, Evento y Pasadía siguen con el contrato
-# registrado 9341-2023 aunque CONTRATO_PROPIO_ACTIVO esté encendido.
+# (numeral 5.1) obliga a registrarlo; el propietario decidió emitirlo mientras
+# el registro está en trámite. Vacío = el contrato sale sin leyenda.
 PROFECO_REGISTRO_EVENTOS = config('PROFECO_REGISTRO_EVENTOS', default='')
 
 # --- ISH: Impuesto Sobre Hospedaje (estatal, Yucatán) ---

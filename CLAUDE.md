@@ -218,10 +218,11 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
 - [ ] **Registrar ante PROFECO el contrato propio de Evento/Pasadía**
   (Issue #318): la NOM-174-SCFI-2007, numeral 5.1, obliga a registrar los
-  contratos de adhesión de eventos sociales. Al tener el número, definir
-  `PROFECO_REGISTRO_EVENTOS` en Railway; sin él, Evento y Pasadía siguen
-  con el contrato registrado 9341-2023 aunque `CONTRATO_PROPIO_ACTIVO`
-  esté encendido. El registro de **Hospedaje** es voluntario (no está en
+  contratos de adhesión de eventos sociales. **Desde el 2026-09-25 se emite
+  sin registro** (decisión del propietario, informado del riesgo LFPC): al
+  tener el número, definir `PROFECO_REGISTRO_EVENTOS` en Railway —aparece
+  la leyenda en el contrato— y actualizar el renglón PROFECO de los TyC
+  (hoy "en proceso de registro") con una versión nueva. El registro de **Hospedaje** es voluntario (no está en
   el numeral 5.1): `PROFECO_REGISTRO_HOSPEDAJE` solo si se decide registrar.
 - [x] ~~ISH Airbnb sin resolver~~ — resuelto el 2026-09-17, y la premisa
   era equivocada: el ISH de Airbnb **no es un pendiente de la Quinta**. La
@@ -248,6 +249,17 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-09-25 — Contratos propios **activos** para los tres servicios (el
+  abogado validó el texto). `CONTRATO_PROPIO_ACTIVO` pasa a default `True`
+  (`False` en Railway vuelve a los contratos PROFECO sin desplegar) y
+  Evento/Pasadía ya no esperan `PROFECO_REGISTRO_EVENTOS`: el propietario
+  eligió emitir mientras registra, informado de que la NOM-174 exige el
+  registro previo (riesgo: infracción LFPC y cláusulas no oponibles). Sin
+  número, el contrato sale sin leyenda. Se publican con el deploy (seed
+  `--publicar` del `CMD`) Reglamento v1.3, Política v2.2 y TyC v2.3, vigentes
+  desde el 25/09/2026; el renglón PROFECO de los TyC dice "en proceso de
+  registro".
 
 - 2026-09-25 — Contratos propios, fase 1 de 3 (Issue #318). El propietario
   deja los contratos basados en el modelo PROFECO por un contrato marco + un

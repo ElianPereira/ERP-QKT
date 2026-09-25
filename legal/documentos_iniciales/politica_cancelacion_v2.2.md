@@ -1,7 +1,7 @@
 # POLÍTICA DE CANCELACIÓN Y REEMBOLSO
 
 **Quinta Ko'ox Tanil — Elian de Jesús Pereira Ceh**
-**Versión 2.2 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 2.2 — Vigente a partir del 25 de septiembre de 2026**
 *Sustituye a la versión 2.1 del 23 de septiembre de 2026.*
 
 > Esta política forma parte integrante de los [Términos y Condiciones](https://quintakooxtanil.com/terminos-y-condiciones). En caso de discrepancia con el contrato de prestación de servicios firmado, prevalecerá **la disposición más favorable al consumidor**.

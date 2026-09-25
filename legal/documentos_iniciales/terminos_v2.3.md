@@ -1,6 +1,6 @@
 # TÉRMINOS Y CONDICIONES
 
-**Versión 2.3 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 2.3 — Vigente a partir del 25 de septiembre de 2026**
 *Sustituye a la versión 2.2 del 23 de septiembre de 2026.*
 
 ---
@@ -16,7 +16,7 @@
 | **Correo electrónico** | quintakooxtanil@gmail.com |
 | **Teléfono / WhatsApp** | +52 999 445 7178 |
 | **Horario de atención** | Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro) |
-| **Registro Público de Contratos de Adhesión (PROFECO)** | [CONFIRMAR: número de registro del contrato de eventos y pasadías, obligatorio conforme a la NOM-174-SCFI-2007] |
+| **Registro Público de Contratos de Adhesión (PROFECO)** | Contrato de eventos y pasadías en proceso de registro conforme a la NOM-174-SCFI-2007; el número se publicará en esta sección al asignarse |
 
 **Domicilios de prestación del servicio:**
 - **Eventos y pasadías:** Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390

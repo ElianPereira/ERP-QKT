@@ -64,6 +64,7 @@ class DepositoSugeridoTest(ContratoPropioBase):
 
 
 class PlantillaContratoTest(ContratoPropioBase):
+    @override_settings(CONTRATO_PROPIO_ACTIVO=False)
     def test_apagado_sigue_emitiendo_el_contrato_actual(self):
         html = _html(self._cot('EVENTO'))
         self.assertIn('9341-2023', html)
@@ -107,12 +108,13 @@ class PlantillaContratoTest(ContratoPropioBase):
         self.assertNotIn('9341-2023', html)
 
     @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='')
-    def test_evento_sin_registro_sigue_con_el_contrato_registrado(self):
-        # NOM-174-SCFI-2007: el contrato de eventos sociales debe estar registrado.
-        for tipo in ('EVENTO', 'PASADIA'):
+    def test_evento_sin_registro_emite_el_propio_sin_leyenda(self):
+        # Decisión del propietario (2026-09-25): se emite con el registro en trámite.
+        for tipo, anexo in (('EVENTO', 'Anexo Evento'), ('PASADIA', 'Anexo Pasadía')):
             html = _html(self._cot(tipo))
-            self.assertIn('9341-2023', html)
-            self.assertNotIn('Anexo Evento', html)
+            self.assertIn(anexo, html)
+            self.assertNotIn('9341-2023', html)
+            self.assertNotIn('Registro PROFECO', html)
 
     @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='')
     def test_hospedaje_no_requiere_registro(self):

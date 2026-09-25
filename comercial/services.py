@@ -595,18 +595,19 @@ class ContratoService:
     Genera el contrato como PDF usando WeasyPrint + template HTML.
     Mismo patrón que la cotización y nómina.
 
-    Evento y Pasadía usan el contrato de arrendamiento de salón registrado
-    ante PROFECO (9341-2023). Hospedaje tiene contrato propio, basado en el
-    modelo de PROFECO de servicios de hospedaje: el registro 9341-2023 no lo
-    cubre, así que la leyenda de registro solo aparece cuando
-    `settings.PROFECO_REGISTRO_HOSPEDAJE` tiene el número asignado.
+    Con `settings.CONTRATO_PROPIO_ACTIVO` apagado, Evento y Pasadía usan el
+    contrato de arrendamiento de salón registrado ante PROFECO (9341-2023) y
+    Hospedaje el suyo, basado en el modelo de PROFECO de servicios de
+    hospedaje (leyenda de registro solo con
+    `settings.PROFECO_REGISTRO_HOSPEDAJE`).
     Arrendamiento de Mobiliario se retiró como actividad (2026-09-23): ya no
     se generan contratos de ese tipo.
 
     Contratos propios (Issue #318): contrato marco + anexo por servicio en
     `contratos/propio/`, con la identidad de los documentos legales. Se
-    emiten solo con `settings.CONTRATO_PROPIO_ACTIVO`; mientras esté apagado,
-    `vista_previa=True` los genera con marca de agua para revisarlos. El tipo
+    emiten con `settings.CONTRATO_PROPIO_ACTIVO` (encendido por default desde
+    la validación legal del 2026-09-25); `vista_previa=True` los genera con
+    marca de agua sin guardar nada. El tipo
     de contrato sale siempre de la cotización: elegirlo a mano permitía
     emitir, por ejemplo, un contrato de Evento para una Pasadía.
     """
@@ -620,9 +621,7 @@ class ContratoService:
         self.cli  = cotizacion.cliente
         self.tipo = cotizacion.tipo_servicio
         self.vista_previa = vista_previa
-        self.propio = vista_previa or (
-            settings.CONTRATO_PROPIO_ACTIVO and self._registro_propio() is not None
-        )
+        self.propio = vista_previa or settings.CONTRATO_PROPIO_ACTIVO
         # Un depósito ya cobrado (aunque sea en parte) fija el monto: el
         # contrato no puede pedir otra cantidad de la que se está cobrando.
         existente = getattr(cotizacion, 'deposito_garantia', None)
@@ -734,17 +733,16 @@ class ContratoService:
         }
 
     def _registro_propio(self):
-        """Número de registro PROFECO que ampara el contrato propio de este
-        tipo, '' si no lo requiere, o None si lo requiere y falta.
+        """Número de registro PROFECO del contrato propio de este tipo, o ''.
 
-        La NOM-174-SCFI-2007 (numeral 5.1) obliga a registrar los contratos de
-        adhesión de eventos sociales, así que Evento y Pasadía no pueden salir
-        con el contrato propio hasta tener su número; Hospedaje no está en esa
-        lista y el registro es voluntario.
+        La NOM-174-SCFI-2007 (numeral 5.1) obliga a registrar el contrato de
+        adhesión de eventos sociales. El propietario decidió emitirlo mientras
+        el registro está en trámite (2026-09-25), así que sin número el
+        contrato sale sin leyenda; Hospedaje no está en esa lista.
         """
         if self.tipo == 'HOSPEDAJE':
             return settings.PROFECO_REGISTRO_HOSPEDAJE
-        return settings.PROFECO_REGISTRO_EVENTOS or None
+        return settings.PROFECO_REGISTRO_EVENTOS
 
     def _contexto_propio(self):
         """Datos que solo usan los contratos propios (marco + anexos)."""

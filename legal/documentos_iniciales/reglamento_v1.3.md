@@ -1,6 +1,6 @@
 # REGLAMENTO INTERNO
 
-**Versión 1.3 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 1.3 — Vigente a partir del 25 de septiembre de 2026**
 *Sustituye a la versión 1.2 del 23 de septiembre de 2026.*
 
 ---
