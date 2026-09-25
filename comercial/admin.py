@@ -2,6 +2,7 @@ import logging
 import secrets
 from datetime import timedelta
 from decimal import Decimal
+from urllib.parse import quote
 
 from django import forms
 from django.contrib import admin, messages
@@ -9,14 +10,29 @@ from django.db import models as db_models
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
-from django.urls import NoReverseMatch, path, reverse
+from django.urls import path, reverse
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.html import format_html, format_html_join, mark_safe
 
+from core_erp import admin_ui as ui
 from core_erp import impuestos
+from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
 
+from .admin_filtros import (
+    CfdiCompraFilter,
+    ConComisionTPVFilter,
+    EstadoCotizacionDelPagoFilter,
+    FacturacionPagoFilter,
+    FechaEventoFilter,
+    IdentificacionFilter,
+    PagoCotizacionFilter,
+    PaqueteBarraFilter,
+    PolizaCompraFilter,
+    ServicioProductoFilter,
+)
 from .choices import PosicionLanding
 from .models import (
     AsignacionEspacio,
@@ -58,20 +74,6 @@ from .services import CalculadoraBarraService
 from .widgets import TimeSlotWidget
 
 logger = logging.getLogger(__name__)
-
-# Estilo estandarizado para botones
-
-BTN = '<a href="{url}" {target} class="btn btn-sm" style="background:{bg}; color:{fg}; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; text-decoration:none; display:inline-block; font-family:IBM Plex Sans,sans-serif;" {extra}>{label}</a>'
-
-# Variante compacta de BTN: misma estructura, para columnas con muchos
-# botones en una sola fila (ver CotizacionAdmin.acciones_display).
-BTN_SM = '<a href="{url}" {target} class="btn btn-sm qkt-accion-btn" style="background:{bg}; color:{fg}; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:600; text-decoration:none; display:inline-block; white-space:nowrap; font-family:IBM Plex Sans,sans-serif;" {extra}>{label}</a>'
-
-# Colores estándar para usar con BTN:
-# Verde primario (acciones principales): bg='#2E7D32', fg='white'
-# Amarillo marca (documentos especiales): bg='#F5C518', fg='#333'
-# Rojo (peligro/cancelar):               bg='#e74c3c', fg='white'
-# Gris (neutral/inactivo):               bg='#95a5a6', fg='white'
 
 MEDIA_CONFIG = {
     'css': { 'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css') },
@@ -330,8 +332,11 @@ class ProductoAdmin(admin.ModelAdmin):
     inlines = [ComponenteInline, ProductoPaqueteInline]
     list_display = ('miniatura', 'nombre', 'badge_grupo', 'costo_display', 'precio_display',
                     'precio_iva_display', 'badge_cotizador', 'badge_paquete', 'badge_licor')
-    list_filter = ('visible_cotizador', 'grupo_cotizador', 'rol_cotizador', 'cotizador_hospedaje', 'es_paquete', 'requiere_licor')
+    list_filter = (('grupo_cotizador', con_titulo('Grupo')), ('visible_cotizador', con_titulo('Visible en cotizador')),
+                   ServicioProductoFilter, ('es_paquete', con_titulo('Tipo')),
+                   ('rol_cotizador', con_titulo('Rol en el cotizador')), ('requiere_licor', con_titulo('Requiere licor')))
     search_fields = ('nombre',)
+    search_help_text = 'Nombre del producto'
     ordering = ('grupo_cotizador', 'orden_cotizador', 'nombre')
     readonly_fields = ('precio_con_iva_form',)
     fieldsets = (
@@ -374,55 +379,27 @@ class ProductoAdmin(admin.ModelAdmin):
         }),
     )
 
-    # Color por grupo, para que el listado se pueda distinguir de un vistazo
-    # sin depender solo del texto — mismo criterio de badges que el resto del
-    # archivo (badge_cotizador, badge_paquete, etc.).
-    _COLOR_GRUPO = {
-        'PAQUETE': '#9C27B0', 'ENTRETENIMIENTO': '#F57C00', 'COMIDA': '#D84315',
-        'MOBILIARIO': '#1565C0', 'DECORACION': '#C2185B', 'INFANTIL': '#00897B',
-        'OTRO': '#607D8B',
-    }
-
+    @admin.display(description='')
     def miniatura(self, obj):
         if obj.imagen_promocional:
-            return format_html(
-                '<img src="{}" style="width:40px;height:40px;object-fit:cover;'
-                'border-radius:6px;border:1px solid #4a4845;">',
-                obj.imagen_promocional.url,
-            )
-        return mark_safe(
-            '<span style="display:inline-block;width:40px;height:40px;border-radius:6px;'
-            'background:#4a4845;"></span>'
-        )
-    miniatura.short_description = ''
+            return format_html('<img src="{}" class="qkt-thumb" alt="">', obj.imagen_promocional.url)
+        return mark_safe('<span class="qkt-thumb" aria-hidden="true"></span>')
 
+    @admin.display(description='Grupo', ordering='grupo_cotizador')
     def badge_grupo(self, obj):
         if not obj.grupo_cotizador:
-            return mark_safe('<span style="color:#8a8780;">—</span>')
-        color = self._COLOR_GRUPO.get(obj.grupo_cotizador, '#607D8B')
-        return format_html(
-            '<span style="background:{};color:white;padding:3px 9px;border-radius:10px;'
-            'font-size:10px;font-weight:600;">{}</span>',
-            color, obj.get_grupo_cotizador_display(),
-        )
-    badge_grupo.short_description = 'Grupo'
+            return ui.vacio()
+        return ui.badge(obj.get_grupo_cotizador_display(), ui.NEUTRO, categoria=True)
 
-    def costo_display(self, obj): return f"${obj.calcular_costo():,.2f}"
-    costo_display.short_description = "Costo (sin IVA)"
+    @admin.display(description='Costo (sin IVA)')
+    def costo_display(self, obj):
+        return ui.monto(obj.calcular_costo())
+
+    @admin.display(description='Precio (sin IVA)')
     def precio_display(self, obj):
-        precio = obj.sugerencia_precio()
-        if obj.precio_venta_fijo is not None and obj.precio_venta_fijo > 0:
-            return format_html(
-                '${} <span style="background:#1565C0;color:white;padding:2px 7px;'
-                'border-radius:10px;font-size:9px;font-weight:600;margin-left:4px;">FIJO</span>',
-                f'{precio:,.2f}'
-            )
-        return format_html(
-            '${} <span style="background:#607D8B;color:white;padding:2px 7px;'
-            'border-radius:10px;font-size:9px;font-weight:600;margin-left:4px;">CALC.</span>',
-            f'{precio:,.2f}'
-        )
-    precio_display.short_description = "Precio sugerido (sin IVA)"
+        fijo = obj.precio_venta_fijo is not None and obj.precio_venta_fijo > 0
+        return format_html('{} {}', ui.monto(obj.sugerencia_precio()),
+                           ui.badge('Fijo' if fijo else 'Calc.', ui.INFO if fijo else ui.NEUTRO, categoria=True))
 
     def precio_iva_display(self, obj):
         # Con precio fijo, con_iva() se calcula sobre precio_venta_fijo tal
@@ -433,7 +410,7 @@ class ProductoAdmin(admin.ModelAdmin):
             precio = impuestos.con_iva(obj.precio_venta_fijo)
         else:
             precio = impuestos.con_iva(obj.sugerencia_precio())
-        return format_html('<strong style="color:#2E7D32;">${}</strong>', f'{precio:,.2f}')
+        return ui.monto(precio)
     precio_iva_display.short_description = "Precio con IVA"
 
     def precio_con_iva_form(self, obj):
@@ -449,50 +426,24 @@ class ProductoAdmin(admin.ModelAdmin):
         )
     precio_con_iva_form.short_description = "Base sin IVA (uso interno/contable)"
 
+    @admin.display(description='Cotizador', ordering='visible_cotizador')
     def badge_cotizador(self, obj):
         if not obj.visible_cotizador:
-            return mark_safe('<span style="color:#999;">—</span>')
-        # 'E' es el extra abierto (checkbox "Disponible para Evento"), no la
-        # asignación a un paquete/mobiliario/licor/taquiza — esa se ve en la
-        # pestaña "Eventos" del propio producto, no en este badge.
-        servicios = []
-        if obj.cotizador_evento:
-            servicios.append('E')
-        if obj.cotizador_pasadia:
-            servicios.append('P')
-        if obj.cotizador_hospedaje:
-            servicios.append('H')
-        if obj.cotizador_arrendamiento:
-            servicios.append('A')
-        txt = '/'.join(servicios) or '—'
-        return format_html(
-            '<span style="background:#2E7D32;color:white;padding:2px 8px;'
-            'border-radius:4px;font-size:11px;font-weight:600;">'
-            '{} {}</span>',
-            obj.icono, txt,
-        )
-    badge_cotizador.short_description = "Cotizador"
+            return ui.badge('Oculto', ui.NEUTRO)
+        # Servicios donde se ofrece como extra: E(vento), P(asadía), H(ospedaje), A(rrendamiento)
+        servicios = [letra for letra, activo in (('E', obj.cotizador_evento), ('P', obj.cotizador_pasadia),
+                                                 ('H', obj.cotizador_hospedaje), ('A', obj.cotizador_arrendamiento))
+                     if activo]
+        return ui.badge(f"Visible · {'/'.join(servicios)}" if servicios else 'Visible', ui.EXITO)
 
+    @admin.display(description='Tipo', ordering='es_paquete')
     def badge_paquete(self, obj):
-        if obj.es_paquete:
-            return mark_safe(
-                '<span style="background:#9C27B0;color:white;padding:4px 12px;'
-                'border-radius:12px;font-size:11px;font-weight:600;">PAQUETE</span>'
-            )
-        return mark_safe(
-            '<span style="background:#607D8B;color:white;padding:4px 12px;'
-            'border-radius:12px;font-size:11px;font-weight:600;">SIMPLE</span>'
-        )
-    badge_paquete.short_description = 'Tipo'
+        return ui.badge('Paquete' if obj.es_paquete else 'Simple', ui.INFO if obj.es_paquete else ui.NEUTRO,
+                        categoria=True)
 
+    @admin.display(description='Licor', ordering='requiere_licor')
     def badge_licor(self, obj):
-        if obj.requiere_licor:
-            return mark_safe(
-                '<span style="background:#7B1FA2;color:white;padding:3px 8px;'
-                'border-radius:12px;font-size:10px;font-weight:600;">REQ LICOR</span>'
-            )
-        return mark_safe('<span style="color:#999;font-size:11px;">—</span>')
-    badge_licor.short_description = 'Licor'
+        return ui.badge('Requiere licor', ui.INFO, categoria=True) if obj.requiere_licor else ui.vacio()
 
     class Media:
         css = MEDIA_CONFIG['css']
@@ -723,9 +674,13 @@ def autocompletar_cotizacion_nueva(obj):
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
-    list_display = ('folio_cotizacion', 'nombre_evento', 'cliente', 'fecha_evento', 'get_nivel_paquete', 'estado_badge', 'pago_badge', 'identificacion_badge', 'precio_final', 'acciones_display')
-    list_filter = ('estado', 'fecha_evento', 'clima', 'incluye_licor_nacional', 'incluye_licor_premium')
+    list_display = ('folio_cotizacion', 'evento_display', 'fecha_display', 'servicio_badge', 'estado_badge',
+                    'pago_badge', 'identificacion_badge', 'total_display', 'saldo_display', 'acciones_display')
+    list_filter = (FechaEventoFilter, ('tipo_servicio', con_titulo('Servicio')), 'estado', PagoCotizacionFilter,
+                   IdentificacionFilter, PaqueteBarraFilter)
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
+    search_help_text = 'Folio, cliente, RFC o nombre del evento'
+    columnas_texto = ('evento_display',)
     raw_id_fields = ['cliente', 'insumo_hielo', 'insumo_refresco', 'insumo_agua', 'insumo_alcohol_basico', 'insumo_alcohol_premium', 'insumo_barman', 'insumo_auxiliar']
     ordering = ['-fecha_evento', '-id']
     formfield_overrides = {
@@ -763,137 +718,80 @@ class CotizacionAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en')
 
-    # --- BADGES CORTOS (Punto 3) ---
+    # --- COLUMNAS DE LA LISTA (Issue #322: componentes de core_erp/admin_ui) ---
+    TONOS_ESTADO = {
+        'BORRADOR': ui.NEUTRO, 'COTIZADA': ui.INFO, 'CONFIRMADA': ui.EXITO,
+        'EJECUTADA': ui.INFO, 'CERRADA': ui.EXITO, 'EXPIRADA': ui.ALERTA,
+        'CANCELADA': ui.ERROR,
+    }
+    ETIQUETAS_ESTADO = {
+        'BORRADOR': 'Borrador', 'COTIZADA': 'Cotizada', 'CONFIRMADA': 'Confirmada',
+        'EJECUTADA': 'Ejecutada', 'CERRADA': 'Cerrada', 'EXPIRADA': 'Expirada',
+        'CANCELADA': 'Cancelada',
+    }
+
+    def get_queryset(self, request):
+        # `pagado_neto` en una sola consulta: antes cada fila hacía dos
+        # agregados propios para pintar la columna "Pagado".
+        qs = super().get_queryset(request).select_related('cliente')
+        return Cotizacion.anotar_pagado_neto(qs)
+
+    @staticmethod
+    def _pagado(obj):
+        pagado = getattr(obj, 'pagado_neto', None)
+        return obj.total_pagado() if pagado is None else pagado
+
+    @admin.display(description='Folio', ordering='id')
+    def folio_cotizacion(self, obj):
+        return f"COT-{obj.id:03d}"
+
+    @admin.display(description='Evento', ordering='nombre_evento')
+    def evento_display(self, obj):
+        return format_html('{}<div class="qkt-sub">{}</div>', obj.nombre_evento or '—', obj.cliente)
+
+    @admin.display(description='Fecha', ordering='fecha_evento')
+    def fecha_display(self, obj):
+        return date_format(obj.fecha_evento, 'd M Y') if obj.fecha_evento else ui.vacio()
+
+    @admin.display(description='Servicio', ordering='tipo_servicio')
+    def servicio_badge(self, obj):
+        return ui.badge(obj.get_tipo_servicio_display(), ui.INFO, categoria=True)
+
+    @admin.display(description='Estado', ordering='estado')
     def estado_badge(self, obj):
-        colores = {
-            'BORRADOR': '#95a5a6', 'COTIZADA': '#3498db',
-            'CONFIRMADA': '#2E7D32', 'EJECUTADA': '#1B5E20',
-            'CERRADA': '#1abc9c', 'EXPIRADA': '#7f8c8d',
-            'CANCELADA': '#e74c3c',
-        }
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO,
+                                  self.ETIQUETAS_ESTADO.get(obj.estado, obj.get_estado_display()))
 
-        etiquetas = {
-            'BORRADOR': 'Borrador', 'COTIZADA': 'Cotizada',
-            'CONFIRMADA': 'Confirmada', 'EJECUTADA': 'Ejecutada',
-            'CERRADA': 'Cerrada', 'EXPIRADA': 'Expirada',
-            'CANCELADA': 'Cancelada',
-        }
-        color = colores.get(obj.estado, '#666')
-        label = etiquetas.get(obj.estado, obj.get_estado_display())
-        return format_html('<span style="background:{}; color:white; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:bold;">{}</span>', color, label)
-    estado_badge.short_description = "Estado"
-    estado_badge.admin_order_field = 'estado'
-
+    @admin.display(description='Pagado')
     def pago_badge(self, obj):
-        pct = obj.porcentaje_pagado
-        if pct >= 100:
-            color = '#27ae60'
-        elif pct >= 50:
-            color = '#f39c12'
-        elif pct > 0:
-            color = '#e67e22'
-        else:
-            color = '#e74c3c'
-        return format_html('<span style="color:{}; font-weight:bold;">{}%</span>', color, pct)
-    pago_badge.short_description = "Pagado"
+        if obj.precio_final <= 0:
+            return ui.avance(100)
+        return ui.avance(self._pagado(obj) / obj.precio_final * 100)
 
+    @admin.display(description='INE')
     def identificacion_badge(self, obj):
-        # Las tres cadenas son estáticas (sin interpolar datos de usuario).
         if not obj.identificacion_oficial:
-            return mark_safe('<span style="color:#999;">—</span>')  # noqa: S308
+            return ui.vacio()
         if obj.identificacion_revisada:
-            return mark_safe('<span style="color:#27ae60; font-weight:bold;">Revisada</span>')  # noqa: S308
-        return mark_safe('<span style="color:#e67e22; font-weight:bold;">Sin revisar</span>')  # noqa: S308
-    identificacion_badge.short_description = "INE"
+            return ui.badge('Revisada', ui.EXITO)
+        return ui.badge('Sin revisar', ui.ALERTA)
 
-    def get_nivel_paquete(self, obj):
-        checks = sum([obj.incluye_refrescos, obj.incluye_cerveza, obj.incluye_licor_nacional, obj.incluye_licor_premium, obj.incluye_cocteleria_basica, obj.incluye_cocteleria_premium])
-        if checks == 0:
-            return "Sin Barra"
-        if checks <= 2:
-            return "Básico"
-        if checks <= 4:
-            return "Plus"
-        return "Premium"
-    get_nivel_paquete.short_description = "Paquete"
+    @admin.display(description='Total', ordering='precio_final')
+    def total_display(self, obj):
+        return ui.monto(obj.precio_final)
 
-    # --- BOTONES ESTANDARIZADOS (Punto 4, sin emojis) ---
-    def ver_plan_pagos(self, obj, compact=False):
-        """Botón Plan con opciones de parcialidades."""
-        btn_tpl = BTN_SM if compact else BTN
-        # Si ya tiene plan activo → botón morado que abre PDF
-        try:
-            plan = obj.plan_pago
-            if plan and plan.activo:
-                url_pdf = reverse('plan_pagos_pdf', args=[obj.id])
-                pagadas = plan.parcialidades_pagadas()
-                total = plan.parcialidades.count()
-                return format_html(btn_tpl, url=url_pdf, target='target="_blank"', bg='#2E7D32', fg='white', label=f'{pagadas}/{total}', extra='')
-        except PlanPago.DoesNotExist:
-            pass
+    @admin.display(description='Saldo')
+    def saldo_display(self, obj):
+        saldo = obj.precio_final - self._pagado(obj)
+        if obj.estado in ('CANCELADA', 'EXPIRADA') or saldo <= 0:
+            return ui.monto(max(saldo, Decimal('0.00')), tono=None)
+        return ui.monto(saldo, tono=ui.ALERTA)
 
-        # Si no tiene plan → dropdown con opciones
-        if obj.precio_final > 0:
-            url_auto = reverse('generar_plan_pagos', args=[obj.id])
-            uid = f'pp-{obj.id}'
-            btn_padding = '2px 6px' if compact else '4px 10px'
-            btn_font = '10px' if compact else '11px'
-            btn_clase = 'qkt-accion-btn' if compact else ''
-            return format_html(
-                '<div style="position:relative; display:inline-block;">'
-                  '<button type="button" class="' + btn_clase + '" onclick="document.getElementById(\'{uid}\').style.display = document.getElementById(\'{uid}\').style.display === \'block\' ? \'none\' : \'block\'" '
-                  'style="background:#2E7D32; color:white; padding:' + btn_padding + '; border-radius:3px; font-size:' + btn_font + '; font-weight:600; border:none; cursor:pointer; white-space:nowrap;">'
-                  '+ Plan</button>'
-                  '<div id="{uid}" style="display:none; position:absolute; top:28px; left:0; z-index:999; background:#383632; border:1px solid #4a4845; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.3); min-width:130px; padding:4px 0;">'
-                    '<a href="{url_auto}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none; font-weight:600;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
-                    '<a href="{url_2}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
-                    '<a href="{url_3}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
-                    '<a href="{url_4}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">Auto</a>'
-                    '<a href="{url_5}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">5 pagos</a>'
-                    '<a href="{url_6}" style="display:block; padding:6px 14px; font-size:12px; color:#d4d1c8; text-decoration:none;" '
-                      'onmouseover="this.style.background=\'#4a4845\'" onmouseout="this.style.background=\'transparent\'">6 pagos</a>'
-                  '</div>'
-                '</div>',
-                uid=uid,
-                url_auto=url_auto,
-                url_2=f'{url_auto}?parcialidades=2',
-                url_3=f'{url_auto}?parcialidades=3',
-                url_4=f'{url_auto}?parcialidades=4',
-                url_5=f'{url_auto}?parcialidades=5',
-                url_6=f'{url_auto}?parcialidades=6',
-            )
-        return '-'
-    ver_plan_pagos.short_description = "Plan"
-
-    def ver_pdf(self, obj, compact=False):
-        try:
-            url = reverse('cotizacion_pdf', args=[obj.id])
-            return format_html(BTN_SM if compact else BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='PDF', extra='')
-        except NoReverseMatch:
+    def enviar_email_btn(self, obj):
+        if not obj.pk:
             return "-"
-    ver_pdf.short_description = "PDF"
-
-    def ver_lista_compras(self, obj, compact=False):
-        try:
-            url = reverse('cotizacion_lista_compras', args=[obj.id])
-            return format_html(BTN_SM if compact else BTN, url=url, target='target="_blank"', bg='#2E7D32', fg='white', label='Lista', extra='')
-        except NoReverseMatch:
-            return "-"
-    ver_lista_compras.short_description = "Compras"
-
-    def enviar_email_btn(self, obj, compact=False):
-        if obj.pk:
-            try:
-                url = reverse('cotizacion_email', args=[obj.id])
-                return format_html(BTN_SM if compact else BTN, url=url, target='', bg='#2E7D32', fg='white', label='Email', extra='onclick="return confirm(\'¿Enviar cotización por email?\')"')
-            except NoReverseMatch:
-                return "-"
-        return "-"
+        return ui.boton('Enviar por email', reverse('cotizacion_email', args=[obj.id]), 'secundario',
+                        icono='envelope', confirmar='¿Enviar cotización por email?', compacto=False)
     enviar_email_btn.short_description = "Email"
 
     def resumen_barra_html(self, obj):
@@ -957,8 +855,6 @@ class CotizacionAdmin(admin.ModelAdmin):
             autocompletar_cotizacion_nueva(obj)
         super().save_model(request, obj, form, change)
 
-    def folio_cotizacion(self, obj): return f"COT-{obj.id:03d}"
-
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for obj in formset.deleted_objects:
@@ -977,46 +873,59 @@ class CotizacionAdmin(admin.ModelAdmin):
                 precio_final=cot.precio_final
             )
 
-    def ver_contrato(self, obj, compact=False):
+    def ver_contrato(self, obj):
+        # Va al formulario intermedio (no genera nada todavía) — ahí se ven
+        # los contratos ya generados y solo se sube un PDF nuevo si el
+        # usuario lo pide explícitamente. Antes apuntaba directo a
+        # generar_contrato, que subía un PDF nuevo en CADA clic.
         if obj.id and obj.estado == 'CONFIRMADA':
-            # Va al formulario intermedio (no genera nada todavía) — ahí se
-            # ven los contratos ya generados (con su PDF) para solo
-            # consultarlos, y solo se sube un PDF nuevo a Cloudinary si el
-            # usuario decide explícitamente generar uno. Antes este botón
-            # apuntaba directo a generar_contrato, que creaba y subía un
-            # ContratoServicio + PDF nuevos en CADA clic —incluida cada vez
-            # que alguien solo quería volver a ver el contrato— sin borrar
-            # nunca los anteriores, inflando el uso de Cloudinary.
-            url = reverse('admin:cotizacion_contrato_form', args=[obj.id])
-            padding = '2px 6px' if compact else '4px 10px'
-            font_size = '10px' if compact else '11px'
-            clase = 'btn btn-info btn-sm qkt-accion-btn' if compact else 'btn btn-info btn-sm'
-            return format_html(
-                '<a href="{}" class="' + clase + '" '
-                'style="background:#F5C518;color:#333;border:none;padding:' + padding + ';border-radius:3px;'
-                'font-size:' + font_size + ';font-weight:600;text-decoration:none;display:inline-block;white-space:nowrap;">Contrato</a>',
-                url
-            )
-        return mark_safe(f'<span style="color:#95a5a6;font-size:{"10px" if compact else "11px"};">—</span>')  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
+            return ui.boton_icono(reverse('admin:cotizacion_contrato_form', args=[obj.id]),
+                                  'file-signature', 'Contrato')
+        return ui.hueco_icono()
     ver_contrato.short_description = "Contrato"
 
-    @admin.display(description="Acciones")
+    def _items_menu(self, obj):
+        items = []
+        plan = PlanPago.objects.filter(cotizacion=obj, activo=True).first()
+        if plan:
+            items.append({'texto': f'Plan de pagos ({plan.parcialidades_pagadas()}/{plan.parcialidades.count()})',
+                          'url': reverse('plan_pagos_pdf', args=[obj.id]), 'icono': 'calendar-check',
+                          'nueva_pestana': True})
+        elif obj.precio_final > 0:
+            url_plan = reverse('generar_plan_pagos', args=[obj.id])
+            items.append({'texto': 'Plan de pagos automático', 'url': url_plan, 'icono': 'calendar-plus'})
+            items += [{'texto': f'Plan en {n} pagos', 'url': f'{url_plan}?parcialidades={n}', 'icono': 'calendar-plus'}
+                      for n in range(2, 7)]
+        items.append({'separador': True})
+        items.append({'texto': 'Lista de compras', 'url': reverse('cotizacion_lista_compras', args=[obj.id]),
+                      'icono': 'basket-shopping', 'nueva_pestana': True})
+        portal = getattr(obj, 'portal', None)
+        if portal and portal.activo:
+            url = portal.get_full_url()
+            tel = ''.join(filter(str.isdigit, obj.cliente.telefono or ''))
+            texto = f"Hola {obj.cliente.nombre}, aquí puedes ver los detalles de tu evento: {url}"
+            items.append({'separador': True})
+            items.append({'texto': 'Enviar portal por WhatsApp', 'url': f"https://wa.me/{tel}?text={quote(texto)}",
+                          'icono': 'comment', 'nueva_pestana': True})
+            items.append({'texto': 'Copiar enlace del portal', 'copiar': url, 'icono': 'link'})
+        return items
+
+    @admin.display(description="")
     def acciones_display(self, obj):
-        """Agrupa Plan/PDF/Compras/Email/Contrato/Portal en una sola columna,
-        en una sola fila (antes cada botón tenía su propia columna, lo que se
-        veía apretado y desalineado). Botones en tamaño compacto para que
-        quepan todos sin partirse a una segunda línea."""
-        partes = ''.join(str(parte) for parte in [
-            self.ver_plan_pagos(obj, compact=True),
-            self.ver_pdf(obj, compact=True),
-            self.ver_lista_compras(obj, compact=True),
-            self.enviar_email_btn(obj, compact=True),
-            self.ver_contrato(obj, compact=True),
-            self.ver_portal(obj, compact=True),
-        ])
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<div style="display:flex; flex-wrap:nowrap; align-items:center; gap:3px; '
-            'overflow-x:auto; max-width:100%;">' + partes + '</div>'
+        """PDF, email, contrato y portal a la vista; lo demás en el menú "⋯".
+        Antes eran 8 botones de texto que no cabían en la fila."""
+        portal = getattr(obj, 'portal', None)
+        boton_portal = (ui.boton_icono(portal.get_full_url(), 'arrow-up-right-from-square', 'Portal del cliente',
+                                       nueva_pestana=True)
+                        if portal and portal.activo else ui.hueco_icono())
+        return ui.acciones(
+            ui.boton_icono(reverse('cotizacion_pdf', args=[obj.id]), 'file-pdf', 'PDF de la cotización',
+                           nueva_pestana=True),
+            ui.boton_icono(reverse('cotizacion_email', args=[obj.id]), 'envelope', 'Enviar por email',
+                           confirmar='¿Enviar cotización por email?'),
+            self.ver_contrato(obj),
+            boton_portal,
+            ui.menu_acciones(self._items_menu(obj)),
         )
 
     def get_urls(self):
@@ -1134,43 +1043,15 @@ class CotizacionAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/comercial/cotizacion/contrato_form.html', context)
 
-    def ver_portal(self, obj, compact=False):
-        from .models import PortalCliente
-        padding = '2px 6px' if compact else '4px 8px'
-        font_size = '10px' if compact else '11px'
-        gap = '2px' if compact else '3px'
-        btn_style = f'padding:{padding};border-radius:3px;font-size:{font_size};font-weight:600;text-decoration:none;white-space:nowrap;'
-        clase = 'qkt-accion-btn' if compact else ''
-        try:
-            portal = obj.portal
-            if portal and portal.activo:
-                url = portal.get_full_url()
-                tel = ''.join(filter(str.isdigit, obj.cliente.telefono or ''))
-                wa_url = (
-                    f"https://wa.me/{tel}"
-                    f"?text=Hola%20{obj.cliente.nombre}%2C%20aqu%C3%AD%20puedes%20ver%20"
-                    f"los%20detalles%20de%20tu%20evento%3A%20{url}"
-                )
-                copy_id = f"portal-url-{obj.pk}"
-                return format_html(
-                    '<span style="display:inline-flex; align-items:center; gap:' + gap + ';">'
-                    '<a href="{}" target="_blank" class="' + clase + '" style="background:#2E7D32;color:white;' + btn_style + '">Portal</a>'
-                    '<a href="{}" target="_blank" class="' + clase + '" style="background:#25D366;color:white;' + btn_style + '">WA</a>'
-                    '<span id="{}" style="display:none">{}</span>'
-                    '<button class="' + clase + '" onclick="(function(){{var el=document.getElementById(\'{}\');navigator.clipboard.writeText(el.textContent).then(function(){{var b=event.target;var t=b.textContent;b.textContent=\'Copiado!\';b.style.background=\'#27ae60\';setTimeout(function(){{b.textContent=t;b.style.background=\'#607d8b\';}},1500);}});}})();return false;" style="background:#607d8b;color:white;border:none;cursor:pointer;' + btn_style + '">Copiar</button>'
-                    '</span>',
-                    url, wa_url, copy_id, url, copy_id
-                )
-        except Exception:
-            pass
-        return mark_safe(f'<span style="color:#95a5a6;font-size:{font_size};">Sin portal</span>')  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-    ver_portal.short_description = "Portal"
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
     change_list_template = "admin/comercial/pago/change_list.html"
-    list_display = ('cotizacion', 'tipo_badge', 'concepto', 'fecha_pago', 'monto', 'metodo', 'comision_tpv', 'referencia', 'usuario', 'created_at')
-    list_filter = ('tipo', 'concepto', 'metodo', 'fecha_pago')
+    list_display = ('cotizacion', 'tipo_badge', 'concepto_display', 'fecha_display', 'monto_display', 'metodo',
+                    'comision_display', 'referencia', 'registro_display')
+    list_filter = (filtro_periodo('fecha_pago', 'Fecha de pago'), 'tipo', ('metodo', con_titulo('Método')),
+                   FacturacionPagoFilter, EstadoCotizacionDelPagoFilter, ConComisionTPVFilter, 'concepto')
     search_fields = ('cotizacion__cliente__nombre', 'referencia', 'cotizacion__nombre_evento')
+    search_help_text = 'Cliente, evento o referencia'
     readonly_fields = ('usuario', 'created_at', 'updated_at')
     date_hierarchy = 'fecha_pago'
     actions = ['registrar_reembolso', 'reembolsar_en_openpay']
@@ -1191,13 +1072,36 @@ class PagoAdmin(admin.ModelAdmin):
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cotizacion', 'cotizacion__cliente', 'usuario')
+
+    @admin.display(description='Tipo', ordering='tipo')
     def tipo_badge(self, obj):
-        color = '#e74c3c' if obj.tipo == 'REEMBOLSO' else '#2E7D32'
-        return format_html(
-            '<span style="background:{};color:white;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;">{}</span>',
-            color, obj.get_tipo_display()
-        )
-    tipo_badge.short_description = 'Tipo'
+        return ui.badge(obj.get_tipo_display(), ui.ERROR if obj.tipo == 'REEMBOLSO' else ui.EXITO)
+
+    @admin.display(description='Concepto', ordering='concepto')
+    def concepto_display(self, obj):
+        # "Pago de la venta" / "Ingreso adicional (…)": en la lista basta la palabra clave
+        return 'Venta' if obj.concepto == 'VENTA' else 'Extra'
+
+    @admin.display(description='Fecha', ordering='fecha_pago')
+    def fecha_display(self, obj):
+        return date_format(obj.fecha_pago, 'd M Y') if obj.fecha_pago else ui.vacio()
+
+    @admin.display(description='Monto', ordering='monto')
+    def monto_display(self, obj):
+        if obj.tipo == 'REEMBOLSO':
+            return ui.monto(-obj.monto, tono=ui.ERROR)
+        return ui.monto(obj.monto)
+
+    @admin.display(description='Comisión TPV', ordering='comision_tpv')
+    def comision_display(self, obj):
+        return ui.monto(obj.comision_tpv) if obj.comision_tpv else ui.vacio()
+
+    @admin.display(description='Registró', ordering='created_at')
+    def registro_display(self, obj):
+        cuando = date_format(timezone.localtime(obj.created_at), 'd M Y H:i') if obj.created_at else ''
+        return format_html('{}<div class="qkt-sub">{}</div>', obj.usuario or '—', cuando)
 
     def save_model(self, request, obj, form, change):
         if not obj.pk:
@@ -1366,9 +1270,12 @@ class GastoInline(admin.TabularInline):
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
     change_list_template = "comercial/compra_change_list.html"
-    list_display = ('fecha_emision', 'proveedor', 'total_format', 'unidad_negocio', 'cuenta_pago', 'es_deducible', 'uuid', 'ver_pdf')
+    list_display = ('fecha_display', 'proveedor_display', 'total_format', 'cuenta_pago', 'es_deducible',
+                    'cfdi_display', 'ver_pdf')
     list_editable = ('es_deducible',)
-    list_filter = ('fecha_emision', 'unidad_negocio', 'cuenta_pago', 'es_deducible')
+    list_filter = (('es_deducible', con_titulo('Fiscal')), CfdiCompraFilter, PolizaCompraFilter, 'cuenta_pago')
+    filtros_visibles = 3
+    columnas_texto = ('proveedor_display',)
     search_fields = ('proveedor__nombre', 'proveedor_nombre', 'uuid', 'rfc_emisor')
     date_hierarchy = 'fecha_emision'
     autocomplete_fields = ['proveedor']
@@ -1497,13 +1404,33 @@ class CompraAdmin(admin.ModelAdmin):
             'title': 'Carga Masiva de XML',
             'unidades': unidades,
         })
-    def total_format(self, obj): return f"${obj.total:,.2f}"
-    total_format.short_description = "Total"
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('proveedor', 'cuenta_pago')
+
+    @admin.display(description='Fecha', ordering='fecha_emision')
+    def fecha_display(self, obj):
+        return date_format(obj.fecha_emision, 'd M Y') if obj.fecha_emision else ui.vacio()
+
+    @admin.display(description='Proveedor', ordering='proveedor__nombre')
+    def proveedor_display(self, obj):
+        return obj.proveedor or obj.proveedor_nombre or ui.vacio()
+
+    @admin.display(description='Total', ordering='total')
+    def total_format(self, obj):
+        return ui.monto(obj.total)
+
+    @admin.display(description='CFDI', ordering='uuid')
+    def cfdi_display(self, obj):
+        if not obj.uuid:
+            return ui.badge('Sin CFDI', ui.ALERTA)
+        return format_html('<span class="qkt-num" title="{}">{}…</span>', obj.uuid, obj.uuid[:8])
+
+    @admin.display(description='')
     def ver_pdf(self, obj):
         if obj.archivo_pdf:
-            return format_html('<a href="{}" target="_blank">Ver</a>', url_descarga(obj, 'archivo_pdf'))
-        return "-"
-    ver_pdf.short_description = "PDF"
+            return ui.acciones(ui.boton_icono(url_descarga(obj, 'archivo_pdf'), 'file-pdf', 'PDF de la factura',
+                                              nueva_pestana=True))
+        return ui.acciones(ui.hueco_icono())
 
 from .models import ContratoServicio, DepositoGarantia, FirmaContrato, MovimientoDeposito
 

@@ -13,9 +13,12 @@ from django.db.models import Q, Sum
 from django.forms.models import BaseInlineFormSet
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
+from core_erp import admin_ui as ui
+from core_erp.admin_filtros import con_titulo
 from core_erp.admin_utils import confirmar_accion_destructiva
 
 from .models import (
@@ -143,9 +146,13 @@ class CuentaBancariaAdmin(admin.ModelAdmin):
 
 @admin.register(Poliza)
 class PolizaAdmin(admin.ModelAdmin):
-    list_display = ['folio_display', 'tipo_display', 'fecha', 'concepto_display', 'unidad_negocio', 'total_display', 'estado_display']
-    list_filter = ['tipo', 'estado', 'unidad_negocio', 'origen', 'fecha']
+    list_display = ['folio_display', 'fecha_display', 'tipo_display', 'concepto_display', 'origen_display',
+                    'total_display', 'estado_display']
+    list_filter = ['estado', 'origen', ('tipo', con_titulo('Tipo')), 'unidad_negocio']
+    filtros_visibles = 3
     search_fields = ['folio', 'concepto']
+    search_help_text = 'Folio o concepto'
+    columnas_texto = ('concepto_display',)
     date_hierarchy = 'fecha'
     ordering = ['-fecha', '-folio']
     readonly_fields = ['created_by', 'created_at', 'cancelada_por', 'fecha_cancelacion',
@@ -169,62 +176,52 @@ class PolizaAdmin(admin.ModelAdmin):
         }),
     )
 
+    TONOS_ESTADO = {'BORRADOR': ui.NEUTRO, 'APLICADA': ui.EXITO, 'CANCELADA': ui.ERROR}
+
+    def get_list_filter(self, request):
+        # Con una sola unidad de negocio activa (hoy, QUINTA) el filtro no
+        # separa nada: se oculta hasta que exista otra.
+        filtros = list(super().get_list_filter(request))
+        if UnidadNegocio.objects.filter(activa=True).count() <= 1:
+            filtros.remove('unidad_negocio')
+        return filtros
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('unidad_negocio')
+
     @admin.display(description="Folio", ordering="folio")
     def folio_display(self, obj):
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:#4CAF50; font-weight:700;">{}-{}</span>'.format(
-                obj.tipo, str(obj.folio).zfill(4)
-            )
-        )
+        return f"{obj.tipo}-{str(obj.folio).zfill(4)}"
+
+    @admin.display(description="Fecha", ordering="fecha")
+    def fecha_display(self, obj):
+        return date_format(obj.fecha, 'd M Y') if obj.fecha else ui.vacio()
 
     @admin.display(description="Tipo", ordering="tipo")
     def tipo_display(self, obj):
-        colores = {
-            'I': '#27ae60',
-            'E': '#e74c3c',
-            'D': '#3498db'
-        }
-        color = colores.get(obj.tipo, '#95a5a6')
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
-                color, obj.get_tipo_display()
-            )
-        )
+        return ui.badge(obj.get_tipo_display(), ui.INFO, categoria=True)
 
     @admin.display(description="Concepto")
     def concepto_display(self, obj):
         concepto = obj.concepto
-        if len(concepto) > 45:
-            concepto = concepto[:45] + "..."
+        if len(concepto) > 60:
+            concepto = concepto[:60] + "…"
         return concepto
+
+    @admin.display(description="Origen", ordering="origen")
+    def origen_display(self, obj):
+        return obj.get_origen_display()
 
     @admin.display(description="Total")
     def total_display(self, obj):
-        total = obj.total_debe
-        cuadra = obj.esta_cuadrada
-        if cuadra:
-            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-                '<span style="color:#27ae60; font-weight:600;">${:,.2f}</span>'.format(float(total))
-            )
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:#e74c3c; font-weight:600;">${:,.2f} !</span>'.format(float(total))
-        )
+        if obj.esta_cuadrada:
+            return ui.monto(obj.total_debe)
+        return format_html('<span title="La póliza no cuadra: debe ≠ haber">{}</span>',
+                           ui.monto(obj.total_debe, tono=ui.ERROR, sufijo=' !'))
 
     @admin.display(description="Estado", ordering="estado")
     def estado_display(self, obj):
-        colores = {
-            'BORRADOR': '#e67e22',
-            'APLICADA': '#27ae60',
-            'CANCELADA': '#95a5a6'
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
-                color, obj.get_estado_display()
-            )
-        )
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
 
     def save_model(self, request, obj, form, change):
         if not change:
