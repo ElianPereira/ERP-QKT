@@ -136,9 +136,30 @@ class EnviarGuiasCommandTest(TestCase):
         self.assertEqual(ComunicacionCliente.objects.filter(tipo='EVENTO_PROXIMO').count(), 2)
 
     def test_no_avisa_en_dias_fuera_del_calendario(self):
-        _crear_cotizacion(self.cliente, 'EVENTO', self.hoy + timedelta(days=7))
+        _crear_cotizacion(self.cliente, 'EVENTO', self.hoy + timedelta(days=4))
+        _crear_cotizacion(self.cliente, 'EVENTO', self.hoy - timedelta(days=1))
         self._correr()
         self.assertEqual(ComunicacionCliente.objects.filter(tipo='EVENTO_PROXIMO').count(), 0)
+
+    def test_recupera_la_confirmada_despues_de_su_dia_menos_tres(self):
+        # Caso real: pasadía del 26/09 confirmada después del 23/09 — el filtro
+        # de día exacto la dejaba sin guía para siempre.
+        for dias in (0, 1, 2):
+            _crear_cotizacion(self.cliente, 'PASADIA', self.hoy + timedelta(days=dias))
+        salida, _ = self._correr()
+        self.assertIn('Guías procesadas: 3', salida)
+        self.assertEqual(ComunicacionCliente.objects.filter(tipo='EVENTO_PROXIMO').count(), 6)
+
+    def test_no_reenvia_en_los_dias_siguientes_de_la_ventana(self):
+        cot = _crear_cotizacion(self.cliente, 'PASADIA', self.hoy + timedelta(days=3))
+        self._correr()
+        mail.outbox = []
+        with patch('django.utils.timezone.localdate', return_value=self.hoy + timedelta(days=1)):
+            salida, post = self._correr()
+        self.assertIn('Guías procesadas: 0', salida)
+        post.assert_not_called()
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(ComunicacionCliente.objects.filter(cotizacion=cot, tipo='EVENTO_PROXIMO').count(), 2)
 
     def test_cotizacion_no_confirmada_no_recibe_guia(self):
         _crear_cotizacion(self.cliente, 'EVENTO', self.hoy + timedelta(days=3), estado='COTIZADA')
@@ -180,3 +201,54 @@ class EnviarGuiasCommandTest(TestCase):
         # nunca ninguna comunicación tipo EVENTO_PROXIMO al cliente.
         self.assertEqual(ComunicacionCliente.objects.filter(tipo='EVENTO_PROXIMO').count(), 0)
         self.assertEqual(len(mail.outbox), 1)
+
+
+@wa_settings(WA_TEMPLATE_GUIA='qkt_guia_evento', EMAIL_FROM_RESERVAS='reservas@qkt.mx')
+@override_settings(STORAGES=STORAGES_PRUEBA)
+class GuiaAlConfirmarTest(TestCase):
+    """Confirmar con el evento a ≤ 3 días manda la guía de inmediato, sin esperar al cron."""
+
+    def setUp(self):
+        limpiar_cache_emisor()
+        self.hoy = timezone.localdate()
+        self.cliente = Cliente.objects.create(
+            nombre='Ana Ruiz', email='ana@example.com', telefono=TEL_CLIENTE,
+        )
+        GuiaTipoServicio.objects.create(tipo_servicio='PASADIA', archivo_pdf=_pdf())
+
+    def _confirmar(self, cot):
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
+             patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR), \
+             self.captureOnCommitCallbacks(execute=True):
+            cot.estado = 'CONFIRMADA'
+            cot.save(update_fields=['estado', 'updated_at'])
+        return post
+
+    def _guias(self, cot):
+        return ComunicacionCliente.objects.filter(cotizacion=cot, tipo='EVENTO_PROXIMO')
+
+    def test_confirmar_dentro_de_la_ventana_manda_la_guia(self):
+        cot = _crear_cotizacion(self.cliente, 'PASADIA', self.hoy + timedelta(days=1), estado='BORRADOR')
+        mail.outbox = []
+        self._confirmar(cot)
+        self.assertEqual(self._guias(cot).count(), 2)
+        self.assertTrue(any(m.attachments for m in mail.outbox))
+
+    def test_confirmar_fuera_de_la_ventana_espera_al_cron(self):
+        cot = _crear_cotizacion(self.cliente, 'PASADIA', self.hoy + timedelta(days=10), estado='BORRADOR')
+        self._confirmar(cot)
+        self.assertEqual(self._guias(cot).count(), 0)
+
+    def test_reguardar_una_confirmada_no_reenvia(self):
+        cot = _crear_cotizacion(self.cliente, 'PASADIA', self.hoy + timedelta(days=2), estado='BORRADOR')
+        self._confirmar(cot)
+        mail.outbox = []
+        post = self._confirmar(cot)
+        post.assert_not_called()
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(self._guias(cot).count(), 2)
+
+    def test_arrendamiento_no_recibe_guia_al_confirmar(self):
+        cot = _crear_cotizacion(self.cliente, 'ARRENDAMIENTO', self.hoy + timedelta(days=1), estado='BORRADOR')
+        self._confirmar(cot)
+        self.assertEqual(self._guias(cot).count(), 0)
