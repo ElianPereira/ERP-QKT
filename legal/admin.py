@@ -1,27 +1,55 @@
 from django.contrib import admin, messages
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.html import format_html
 
+from core_erp import admin_ui as ui
+from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.admin_utils import confirmar_accion_destructiva
 
 from .models import (
     AceptacionLegal,
     DocumentoLegal,
+    EstadoARCO,
     Finalidad,
     SolicitudARCO,
 )
 
+TONO_ESTADO_ARCO = {
+    EstadoARCO.RECIBIDA: ui.INFO,
+    EstadoARCO.EN_TRAMITE: ui.ALERTA,
+    EstadoARCO.PREVENCION: ui.ALERTA,
+    EstadoARCO.PROCEDENTE: ui.EXITO,
+    EstadoARCO.IMPROCEDENTE: ui.NEUTRO,
+}
+# Con respuesta dada, el plazo de 20 días hábiles ya se cumplió: la cuenta
+# regresiva deja de ser una alerta.
+ESTADOS_ARCO_RESPONDIDOS = (EstadoARCO.PROCEDENTE, EstadoARCO.IMPROCEDENTE)
+
 
 @admin.register(DocumentoLegal)
 class DocumentoLegalAdmin(admin.ModelAdmin):
-    list_display = ('tipo', 'version', 'vigente', 'vigente_desde', 'hash_corto_display')
-    list_filter = ('tipo', 'vigente')
+    list_display = ('tipo_display', 'version', 'vigente_display', 'vigente_desde_display', 'hash_corto_display')
+    list_filter = ('tipo', ('vigente', con_titulo('Vigente')))
     search_fields = ('titulo', 'version')
     actions = ['publicar_version']
 
+    @admin.display(description='Documento', ordering='tipo')
+    def tipo_display(self, obj):
+        return obj.get_tipo_display()
+
+    @admin.display(description='Estado', ordering='vigente')
+    def vigente_display(self, obj):
+        return ui.badge('Vigente', ui.EXITO) if obj.vigente else ui.badge('Histórica', ui.NEUTRO)
+
+    @admin.display(description='Vigente desde', ordering='vigente_desde')
+    def vigente_desde_display(self, obj):
+        return date_format(obj.vigente_desde, 'd M Y') if obj.vigente_desde else ui.vacio()
+
+    @admin.display(description='SHA-256')
     def hash_corto_display(self, obj):
-        return obj.hash_corto
-    hash_corto_display.short_description = 'SHA-256'
+        return format_html('<span class="qkt-codigo">{}</span>', obj.hash_corto)
 
     def get_readonly_fields(self, request, obj=None):
         # El contenido es inmutable una vez creado el documento.
@@ -65,18 +93,41 @@ class DocumentoLegalAdmin(admin.ModelAdmin):
 
 @admin.register(Finalidad)
 class FinalidadAdmin(admin.ModelAdmin):
-    list_display = ('clave', 'nombre', 'requiere_consentimiento', 'activa', 'orden')
-    list_filter = ('requiere_consentimiento', 'activa')
+    list_display = ('clave_display', 'nombre', 'consentimiento_display', 'activa_display', 'orden')
+    list_filter = (('requiere_consentimiento', con_titulo('Requiere consentimiento')),
+                   ('activa', con_titulo('Activa')))
+
+    @admin.display(description='Clave', ordering='clave')
+    def clave_display(self, obj):
+        return format_html('<span class="qkt-codigo">{}</span>', obj.clave)
+
+    @admin.display(description='Consentimiento', ordering='requiere_consentimiento')
+    def consentimiento_display(self, obj):
+        if obj.requiere_consentimiento:
+            return ui.badge('Requiere', ui.INFO, categoria=True)
+        return ui.badge('No requiere', ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Estado', ordering='activa')
+    def activa_display(self, obj):
+        return ui.badge('Activa', ui.EXITO) if obj.activa else ui.badge('Inactiva', ui.NEUTRO)
 
 
 @admin.register(AceptacionLegal)
 class AceptacionLegalAdmin(admin.ModelAdmin):
     """Evidencia: solo lectura total."""
-    list_display = ('id', 'correo', 'cliente', 'origen', 'aceptado_en')
-    list_filter = ('origen', 'aceptado_en')
+    list_display = ('id', 'correo', 'cliente', 'origen_display', 'aceptado_en_display')
+    list_filter = ('origen', filtro_periodo('aceptado_en', 'Fecha'))
     search_fields = ('correo',)
     list_select_related = ('cliente',)
     date_hierarchy = 'aceptado_en'
+
+    @admin.display(description='Origen', ordering='origen')
+    def origen_display(self, obj):
+        return ui.badge(obj.get_origen_display(), ui.INFO, categoria=True)
+
+    @admin.display(description='Aceptado', ordering='aceptado_en')
+    def aceptado_en_display(self, obj):
+        return date_format(timezone.localtime(obj.aceptado_en), 'd M Y H:i')
 
     def has_add_permission(self, request):
         return False
@@ -93,8 +144,8 @@ class AceptacionLegalAdmin(admin.ModelAdmin):
 
 @admin.register(SolicitudARCO)
 class SolicitudARCOAdmin(admin.ModelAdmin):
-    list_display = ('folio', 'tipo', 'titular_nombre', 'estado', 'fecha_limite',
-                    'dias_restantes_display')
+    list_display = ('folio_display', 'tipo_display', 'titular_nombre', 'estado_display',
+                    'fecha_limite_display', 'dias_restantes_display')
     list_filter = ('tipo', 'estado')
     search_fields = ('folio', 'titular_nombre', 'correo')
     readonly_fields = ('folio', 'recibida_en', 'fecha_limite')
@@ -123,13 +174,29 @@ class SolicitudARCOAdmin(admin.ModelAdmin):
         url = reverse('legal:descargar_identificacion_arco', args=[obj.pk])
         return format_html('<a href="{}" target="_blank" rel="noopener">Ver identificación</a>', url)
 
+    @admin.display(description='Folio', ordering='folio')
+    def folio_display(self, obj):
+        return format_html('<span class="qkt-codigo">{}</span>', obj.folio)
+
+    @admin.display(description='Derecho', ordering='tipo')
+    def tipo_display(self, obj):
+        return ui.badge(obj.get_tipo_display(), ui.INFO, categoria=True)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_display(self, obj):
+        return ui.badge_por_valor(obj.estado, TONO_ESTADO_ARCO, obj.get_estado_display())
+
+    @admin.display(description='Fecha límite', ordering='fecha_limite')
+    def fecha_limite_display(self, obj):
+        return date_format(obj.fecha_limite, 'd M Y') if obj.fecha_limite else ui.vacio()
+
+    @admin.display(description='Plazo', ordering='fecha_limite')
     def dias_restantes_display(self, obj):
+        if obj.estado in ESTADOS_ARCO_RESPONDIDOS:
+            return ui.badge('Respondida', ui.NEUTRO)
         dias = obj.dias_restantes
         if dias < 0:
-            return format_html('<span style="color:#c62828;font-weight:700;">'
-                               'VENCIDA ({} días)</span>', abs(dias))
+            return ui.badge(f'Vencida hace {abs(dias)} d', ui.ERROR)
         if dias < 5:
-            return format_html('<span style="color:#c62828;font-weight:700;">{}</span>',
-                               dias)
-        return dias
-    dias_restantes_display.short_description = 'Días restantes'
+            return ui.badge(f'{dias} d', ui.ERROR)
+        return ui.badge(f'{dias} d', ui.EXITO if dias >= 10 else ui.ALERTA)
