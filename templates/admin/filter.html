@@ -1,0 +1,18 @@
+{% comment %}
+Un filtro de la barra de listas (Issue #322): "Etiqueta: valor" en una sola
+caja. Sustituye al filter.html de Jazzmin, que usaba el título como opción
+vacía y no dejaba ver qué filtro estaba aplicado. El <select> conserva la
+clase `search-filter` y `data-name`: jazzmin/js/change_list.js le monta
+select2 y le asigna el `name` al elegir.
+{% endcomment %}
+<div class="qkt-filtro">
+    <span class="qkt-filtro__label">{{ title|capfirst }}:</span>
+    <select class="search-filter" data-name="{{ field_name }}" aria-label="{{ title|capfirst }}">
+        <option value="">Todos</option>
+        {% for choice in choices %}
+            {% if choice.name %}
+                <option data-name="{{ choice.name }}" value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.display }}</option>
+            {% endif %}
+        {% endfor %}
+    </select>
+</div>

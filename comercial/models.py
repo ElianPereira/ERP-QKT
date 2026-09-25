@@ -1074,6 +1074,22 @@ class Cotizacion(models.Model):
         """Total neto cobrado (ingresos - reembolsos)."""
         return self.total_pagado_neto()
 
+    @staticmethod
+    def anotar_pagado_neto(queryset):
+        """Añade `pagado_neto` a cada cotización del queryset, con la misma
+        regla que `total_pagado_neto()` (ingresos de VENTA − reembolsos) pero
+        calculado en la base de datos, para filtrar listas sin recorrerlas."""
+        from django.db.models import Q
+        from django.db.models.functions import Coalesce
+
+        cero = models.Value(Decimal('0.00'), output_field=models.DecimalField(max_digits=12, decimal_places=2))
+        return queryset.annotate(
+            pagado_neto=(
+                Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='INGRESO', pagos__concepto='VENTA')), cero)
+                - Coalesce(Sum('pagos__monto', filter=Q(pagos__tipo='REEMBOLSO')), cero)
+            ),
+        )
+
     def total_pagado_neto(self, excluir_pk=None):
         qs = self.pagos.all()
         if excluir_pk:

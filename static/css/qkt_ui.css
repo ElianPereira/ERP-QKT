@@ -1,0 +1,487 @@
+/* static/css/qkt_ui.css
+   ============================================================
+   QKT ERP — Componentes del admin (Issue #322)
+   Guía aprobada: tokens, badges, botones, tabla de listas y barra de
+   filtros. Se carga después de admin_fix.css (templates/admin/base.html),
+   así que gana en empates de especificidad. Los !important que quedan
+   aquí existen solo para vencer reglas globales de admin_fix.css.
+   ============================================================ */
+
+:root {
+    --ui-bg: #2c2b28;
+    --ui-surface: #383632;
+    --ui-surface-2: #33312e;
+    --ui-hover: #3d3b37;
+    --ui-line: #4a4845;
+    --ui-line-soft: #403e3a;
+    --ui-text: #e0ddd4;
+    --ui-text-2: #b5b1a6;
+    --ui-text-3: #8a8780;
+
+    --ui-green: #2E7D32;
+    --ui-green-hover: #388E3C;
+    --ui-green-text: #6BBF6F;
+    --ui-yellow: #F5C518;
+
+    --ui-exito: #5DBB63;   --ui-exito-bg: rgba(93, 187, 99, .14);
+    --ui-alerta: #E3A33B;  --ui-alerta-bg: rgba(227, 163, 59, .15);
+    --ui-error: #E8675A;   --ui-error-bg: rgba(232, 103, 90, .14);
+    --ui-info: #5AA7E6;    --ui-info-bg: rgba(90, 167, 230, .14);
+    --ui-neutro: #A19D93;  --ui-neutro-bg: rgba(161, 157, 147, .13);
+
+    --ui-r-sm: 4px;
+    --ui-r-md: 6px;
+    --ui-h-sm: 26px;
+    --ui-h-md: 32px;
+    --ui-row: 40px;
+    --ui-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+/* ── BADGE ─────────────────────────────────────────────────── */
+.qkt-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: var(--ui-r-sm);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--ui-neutro);
+    background: var(--ui-neutro-bg);
+}
+.qkt-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.qkt-badge--categoria::before { display: none; }
+.qkt-badge--exito  { color: var(--ui-exito);  background: var(--ui-exito-bg); }
+.qkt-badge--alerta { color: var(--ui-alerta); background: var(--ui-alerta-bg); }
+.qkt-badge--error  { color: var(--ui-error);  background: var(--ui-error-bg); }
+.qkt-badge--info   { color: var(--ui-info);   background: var(--ui-info-bg); }
+.qkt-badge--neutro { color: var(--ui-neutro); background: var(--ui-neutro-bg); }
+
+.qkt-vacio { color: var(--ui-text-3); }
+
+/* Miniatura de imagen en listas (productos) */
+.qkt-thumb {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: var(--ui-r-sm);
+    background: var(--ui-line);
+    border: 1px solid var(--ui-line) !important;
+    vertical-align: middle;
+}
+
+/* ── CIFRAS ────────────────────────────────────────────────── */
+.qkt-num {
+    font-family: var(--ui-mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.qkt-num--exito  { color: var(--ui-exito); }
+.qkt-num--alerta { color: var(--ui-alerta); }
+.qkt-num--error  { color: var(--ui-error); }
+/* La celda que contiene un monto se alinea a la derecha; el encabezado lo
+   alinea qkt_ui.js (un <th> no puede saber qué hay en su columna). */
+#result_list td:has(> .qkt-num),
+#result_list th.qkt-col-num { text-align: right !important; }
+
+.qkt-avance { display: inline-flex; align-items: center; gap: 8px; }
+.qkt-avance__barra {
+    display: block;
+    width: 44px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--ui-line);
+    overflow: hidden;
+}
+.qkt-avance__barra > span { display: block; height: 100%; background: var(--ui-exito); }
+.qkt-avance--alerta .qkt-avance__barra > span { background: var(--ui-alerta); }
+.qkt-avance__pct {
+    min-width: 34px;
+    text-align: right;
+    font-family: var(--ui-mono);
+    font-size: 12px;
+    color: var(--ui-text-2);
+}
+
+/* ── BOTONES ───────────────────────────────────────────────── */
+.qkt-btn,
+#result_list td a.qkt-btn,
+.qkt-object-tools a.qkt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--ui-h-md);
+    padding: 0 14px;
+    border-radius: var(--ui-r-md);
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 500 !important;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: background-color .12s, border-color .12s, color .12s;
+}
+.qkt-btn--sm { height: var(--ui-h-sm); padding: 0 10px; font-size: 12px; }
+.qkt-btn i { font-size: 12px; }
+.qkt-btn--primario,
+#result_list td a.qkt-btn--primario,
+.qkt-object-tools a.qkt-btn--primario { background: var(--ui-green); color: #fff !important; }
+.qkt-btn--primario:hover { background: var(--ui-green-hover); }
+.qkt-btn--secundario,
+#result_list td a.qkt-btn--secundario,
+.qkt-object-tools a.qkt-btn--secundario {
+    background: transparent !important;
+    color: var(--ui-text) !important;
+    border-color: var(--ui-line) !important;
+}
+.qkt-btn--secundario:hover { background: var(--ui-surface-2) !important; border-color: var(--ui-text-3) !important; }
+.qkt-btn--peligro,
+#result_list td a.qkt-btn--peligro {
+    background: transparent !important;
+    color: var(--ui-error) !important;
+    border-color: rgba(232, 103, 90, .45) !important;
+}
+.qkt-btn--peligro:hover { background: var(--ui-error-bg) !important; }
+.qkt-btn--enlace,
+#result_list td a.qkt-btn--enlace { background: none; color: var(--ui-green-text) !important; padding: 0 4px; height: auto; }
+.qkt-btn--enlace:hover { text-decoration: underline !important; }
+
+.qkt-btn--icono,
+#result_list td a.qkt-btn--icono,
+#result_list td .qkt-btn--icono {
+    width: var(--ui-h-sm);
+    height: var(--ui-h-sm);
+    padding: 0;
+    background: transparent;
+    color: var(--ui-text-2) !important;
+    border-color: var(--ui-line) !important;
+    list-style: none;
+}
+.qkt-btn--icono:hover,
+#result_list td a.qkt-btn--icono:hover,
+#result_list td .qkt-btn--icono:hover { color: var(--ui-text) !important; border-color: var(--ui-text-3) !important; background: var(--ui-surface-2); }
+.qkt-btn--hueco { visibility: hidden; }
+.qkt-btn:focus-visible,
+.qkt-menu__item:focus-visible,
+.qkt-filtro:focus-within,
+.qkt-chip a:focus-visible { outline: 2px solid var(--ui-yellow); outline-offset: 2px; }
+
+.qkt-acciones { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
+
+/* Menú "más acciones" */
+.qkt-menu { position: relative; display: inline-block; }
+.qkt-menu > summary::-webkit-details-marker { display: none; }
+.qkt-menu[open] > summary { color: var(--ui-text) !important; border-color: var(--ui-text-3) !important; background: var(--ui-surface-2); }
+.qkt-menu__panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 1000;
+    min-width: 190px;
+    padding: 4px 0;
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+}
+.qkt-menu__item,
+#result_list td a.qkt-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 14px;
+    border: 0;
+    background: none;
+    color: var(--ui-text) !important;
+    font: 400 13px var(--font-principal, inherit) !important;
+    text-align: left;
+    text-decoration: none !important;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.qkt-menu__item i { width: 14px; color: var(--ui-text-3); text-align: center; }
+.qkt-menu__item:hover { background: var(--ui-line-soft); }
+.qkt-menu__sep { margin: 4px 0; border: 0; border-top: 1px solid var(--ui-line-soft); }
+
+/* ── ENCABEZADO DE LA LISTA (herramientas junto al título) ─── */
+.qkt-object-tools {
+    clear: both;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 10px;
+}
+/* El botón Agregar de Jazzmin (change_list_object_tools.html) siempre al
+   final: es el primario de la pantalla. */
+.qkt-object-tools > a.btn-success,
+.qkt-object-tools > .btn-success {
+    order: 2;
+    float: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: var(--ui-h-md);
+    padding: 0 14px !important;
+    border-radius: var(--ui-r-md) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+
+/* ── BARRA DE CONTROLES ────────────────────────────────────── */
+#change-list-filters.qkt-barra { padding-bottom: 12px !important; }
+.qkt-barra__caja {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-line) !important;
+    border-radius: var(--ui-r-md);
+}
+.qkt-barra form#changelist-search {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.qkt-busqueda {
+    flex: 1 1 260px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: var(--ui-h-md);
+    padding: 0 4px 0 10px;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-line) !important;
+    border-radius: var(--ui-r-md);
+    color: var(--ui-text-3);
+}
+.qkt-busqueda:focus-within { border-color: var(--ui-green) !important; }
+.qkt-busqueda input#searchbar {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0 !important;
+    background: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: var(--ui-text) !important;
+    font-size: 13px;
+    outline: none;
+}
+.qkt-busqueda .qkt-btn { height: 24px; }
+
+/* Cada filtro: "Etiqueta: valor" en una sola caja */
+.qkt-filtro {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: var(--ui-h-md);
+    padding-left: 10px;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-line) !important;
+    border-radius: var(--ui-r-md);
+    font-size: 13px;
+    white-space: nowrap;
+}
+.qkt-filtro__label { color: var(--ui-text-2); }
+.qkt-filtro.is-activo {
+    border-color: rgba(107, 191, 111, .55) !important;
+    background: rgba(46, 125, 50, .14);
+}
+.qkt-filtro .select2-container { flex: 0 1 auto; min-width: 70px; width: auto !important; }
+.qkt-filtro .select2-container .select2-selection--single {
+    height: calc(var(--ui-h-md) - 2px) !important;
+    background: transparent !important;
+    border: 0 !important;
+    display: flex;
+    align-items: center;
+}
+.qkt-filtro .select2-selection__rendered {
+    padding: 0 26px 0 0 !important;
+    color: var(--ui-text) !important;
+    font-weight: 500;
+    line-height: normal !important;
+}
+.qkt-filtro.is-activo .select2-selection__rendered { color: var(--ui-green-text) !important; }
+.qkt-filtro .select2-selection__arrow { height: 100% !important; }
+/* Mientras select2 no inicializa: el select nativo, sin fondo propio */
+.qkt-filtro select.search-filter {
+    height: 100%;
+    background: transparent !important;
+    border: 0 !important;
+    color: var(--ui-text) !important;
+}
+
+.qkt-mas-filtros[aria-expanded="true"] { background: var(--ui-surface-2) !important; }
+.qkt-mas-filtros__n {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--ui-green);
+    color: #fff;
+    font-size: 11px;
+}
+.qkt-filtros-extra {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    padding-top: 10px;
+    border-top: 1px dashed var(--ui-line) !important;
+}
+.qkt-conteo { margin-left: auto; font-size: 12px; color: var(--ui-text-3); white-space: nowrap; }
+.qkt-conteo a { color: var(--ui-green-text); }
+
+/* Navegación por periodo (date_hierarchy) */
+.qkt-periodos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 12px !important; }
+.qkt-periodos__label { margin-right: 4px; font-size: 12px; color: var(--ui-text-3); }
+.qkt-periodos .qkt-btn--secundario { color: var(--ui-text-2) !important; }
+
+/* Chips de filtros activos */
+.qkt-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--ui-text-3); }
+.qkt-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 4px 0 10px;
+    border-radius: 12px;
+    background: var(--ui-surface-2);
+    border: 1px solid var(--ui-line) !important;
+    color: var(--ui-text-2);
+}
+.qkt-chip b { color: var(--ui-text); font-weight: 500; }
+.qkt-chip a {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    color: var(--ui-text-3) !important;
+    text-decoration: none !important;
+    font-size: 14px;
+    line-height: 1;
+}
+.qkt-chip a:hover { background: var(--ui-line); color: var(--ui-text) !important; }
+.qkt-chips__limpiar { color: var(--ui-green-text) !important; }
+
+/* ── ACCIONES MASIVAS: solo con registros seleccionados ────── */
+body.change-list .change-list-actions { padding-bottom: 12px !important; }
+body.change-list .change-list-actions .actions {
+    display: none;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--ui-r-md);
+    background: rgba(46, 125, 50, .16) !important;
+    border: 1px solid rgba(107, 191, 111, .35) !important;
+}
+body.change-list .change-list-actions .actions.is-visible { display: flex; }
+body.change-list .actions label { margin: 0; }
+body.change-list .actions .select2-container { min-width: 260px; }
+body.change-list .actions button[name="index"] {
+    margin: 0 !important;
+    height: var(--ui-h-sm);
+    padding: 0 12px;
+    font-size: 12px;
+    border-radius: var(--ui-r-md);
+}
+body.change-list .actions .action-counter { color: var(--ui-text); font-weight: 600; font-size: 13px; }
+
+/* ── TABLA DE LA LISTA ─────────────────────────────────────── */
+body.change-list #result_list {
+    border: 1px solid var(--ui-line) !important;
+    border-radius: var(--ui-r-md);
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    font-size: 13px;
+}
+body.change-list #result_list thead th {
+    height: 36px;
+    padding: 0 8px !important;
+    vertical-align: middle;
+    background: var(--ui-surface-2) !important;
+    color: var(--ui-text-3) !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--ui-line) !important;
+}
+body.change-list #result_list thead th a { color: inherit !important; font-weight: 600 !important; }
+body.change-list #result_list thead th.sorted a,
+body.change-list #result_list thead th.sorted { color: var(--ui-text-2) !important; }
+body.change-list #result_list tbody tr,
+body.change-list #result_list tbody tr:nth-of-type(odd),
+body.change-list #result_list tbody tr:nth-of-type(even) { background-color: var(--ui-surface) !important; }
+body.change-list #result_list tbody tr:hover { background-color: var(--ui-hover) !important; }
+body.change-list #result_list tbody tr.selected { background-color: rgba(46, 125, 50, .12) !important; }
+body.change-list #result_list tbody td,
+body.change-list #result_list tbody th {
+    height: var(--ui-row);
+    padding: 6px 8px !important;
+    vertical-align: middle !important;
+    border-top: 0 !important;
+    border-bottom: 1px solid var(--ui-line-soft) !important;
+    white-space: nowrap;
+}
+body.change-list #result_list tbody tr:last-child td,
+body.change-list #result_list tbody tr:last-child th { border-bottom: 0 !important; }
+body.change-list #result_list .action-checkbox,
+body.change-list #result_list .action-checkbox-column { width: 36px; }
+body.change-list #result_list input.action-select,
+body.change-list #result_list #action-toggle { accent-color: var(--ui-green); width: 15px; height: 15px; }
+/* Texto libre largo (nombres, conceptos): puede partirse en dos líneas */
+body.change-list #result_list td.qkt-col-texto { white-space: normal; min-width: 160px; }
+/* Folios (columnas folio_*): monoespaciados */
+body.change-list #result_list [class*="field-folio"],
+body.change-list #result_list [class*="field-folio"] a { font-family: var(--ui-mono); font-size: 12.5px; font-weight: 500 !important; }
+/* Dato secundario bajo el principal (cliente bajo el evento) */
+.qkt-sub { font-size: 12px; color: var(--ui-text-3); line-height: 1.3; }
+
+/* La tabla se desplaza sola en pantallas angostas, no la página. El menú
+   "⋯" necesita escapar de ese recorte: se abre hacia arriba-izquierda y
+   el contenedor deja ver lo que sobresale en vertical. */
+body.change-list .results { overflow-x: auto; }
+body.change-list #changelist { padding: 0 !important; background: transparent !important; }
+body.change-list #changelist .row { margin: 0; }
+body.change-list #changelist .row > .col-12 { padding: 0; }
+body.change-list #changelist .card { background: transparent !important; border: 0 !important; margin: 0; }
+body.change-list #changelist .card-body.table-responsive { padding: 0 !important; background: transparent !important; }
+
+/* ── MÓVIL ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .qkt-object-tools { justify-content: flex-start; }
+    .qkt-barra form#changelist-search > .qkt-filtro { flex: 1 1 calc(50% - 4px); }
+    .qkt-filtro .select2-container { flex: 1 1 auto; }
+    .qkt-conteo { margin-left: 0; width: 100%; }
+    .qkt-periodos { flex-wrap: nowrap; overflow-x: auto; }
+    body.change-list .actions .select2-container { min-width: 0; width: 100% !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .qkt-btn { transition: none; }
+}

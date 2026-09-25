@@ -248,6 +248,38 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-25 — Sistema de diseño del admin, fase 1 (Issue #322, guía
+  visual aprobada por el propietario). **Toda columna de lista usa
+  `core_erp/admin_ui.py`** (`badge`/`badge_por_valor` con 5 tonos,
+  `monto` en Decimal, `avance`, `boton_icono`, `menu_acciones`, `acciones`)
+  y `static/css/qkt_ui.css`; nada de `style=` en línea en `list_display`
+  nuevos. `qkt_ui.css`/`qkt_ui.js` se cargan en `templates/admin/base.html`
+  (después del custom_css de Jazzmin, para ganarle); ahí también van las
+  fuentes con `<link>`, porque el `@import` de Google Fonts de
+  `admin_fix.css` está después de otras reglas y el navegador lo ignoraba.
+  `templates/admin/change_list.html` extiende la de Jazzmin (Django salta la
+  propia al resolver el extends) y solo reemplaza `search` (barra con
+  búsqueda, `filtros_visibles` filtros —4 por default—, "Más filtros" y
+  chips) y `page_actions` (herramientas junto al título). Las
+  `change_list.html` propias siguen extendiendo `admin/change_list.html` y
+  heredan todo. Atributos nuevos opcionales en un ModelAdmin:
+  `filtros_visibles` y `columnas_texto` (columnas que pueden partirse en dos
+  líneas; el resto va en una). Filtros: `comercial/admin_filtros.py`
+  (negocio) y `core_erp/admin_filtros.py` (`filtro_periodo`, `con_titulo`
+  para renombrar un filtro de campo sin perder su tipo). Los filtros se
+  aplican al elegir (sin "Buscar"): el JS escucha `select2:select` y no
+  `change`, porque Jazzmin lanza un `change` sintético al iniciar que
+  provocaría un bucle de envíos. Las acciones masivas solo aparecen con
+  registros seleccionados. En Cotizaciones, `pagado_neto` se anota en el
+  queryset (`Cotizacion.anotar_pagado_neto`, misma regla que
+  `total_pagado_neto`) en vez de 2 agregados por fila, y los 8 botones por
+  fila pasaron a 4 íconos + menú "⋯" (`<details>`, posicionado fijo por JS
+  para que el `overflow-x` de la tabla no lo recorte). De paso: el menú de
+  plan de pagos decía "Auto" en las opciones de 2, 3 y 4 pagos, y
+  `PolizaAdmin` formateaba montos con `float`. `admin_fix.css` perdió solo
+  duplicados y reglas muertas (`#changelist-filter`, que Jazzmin no pinta;
+  `.qkt-accion-btn`); el resto de módulos se migra en fases siguientes.
+
 - 2026-09-25 — ISH activado: `TASA_ISH=0.045` (4.5%, tasa dada por el
   propietario) en Railway, en `web` **y en los 4 servicios cron**. Tienen
   que coincidir: el cron que confirma cotizaciones pagadas reguarda

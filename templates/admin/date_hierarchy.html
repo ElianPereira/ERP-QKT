@@ -1,0 +1,20 @@
+{% comment %}
+Navegación por año/mes/día (date_hierarchy) con los botones compactos de la
+guía visual (Issue #322). Sustituye a la de Jazzmin, que pintaba cada fecha
+como un botón primario grande.
+{% endcomment %}
+{% if show %}
+<div class="col-12 qkt-periodos" id="change-list-date-hierarchy">
+    <span class="qkt-periodos__label"><i class="fas fa-calendar-days" aria-hidden="true"></i> Periodo</span>
+    {% if back %}
+        <a class="qkt-btn qkt-btn--secundario qkt-btn--sm" href="{{ back.link }}">&lsaquo; {{ back.title }}</a>
+    {% endif %}
+    {% for choice in choices %}
+        {% if choice.link %}
+            <a class="qkt-btn qkt-btn--secundario qkt-btn--sm" href="{{ choice.link }}">{{ choice.title }}</a>
+        {% else %}
+            <span class="qkt-btn qkt-btn--primario qkt-btn--sm" aria-current="true">{{ choice.title }}</span>
+        {% endif %}
+    {% endfor %}
+</div>
+{% endif %}

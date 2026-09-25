@@ -1,0 +1,86 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_list jazzmin qkt_admin_ui %}
+
+{% comment %}
+Lista estándar de todo el ERP (Issue #322). Extiende la de Jazzmin (Django
+salta esta misma plantilla al resolver el extends) y solo reemplaza dos
+bloques:
+  - page_actions: los botones de herramientas (Agregar, Reporte PDF…) suben
+    junto al título en vez de ir en una fila propia.
+  - search: una sola barra con búsqueda, los primeros `filtros_visibles`
+    filtros, "Más filtros" para el resto y chips de lo que está aplicado.
+Las plantillas propias de cada modelo siguen extendiendo "admin/change_list.html"
+y sobrescribiendo `object-tools-items`, así que heredan esto solas.
+Si Jazzmin cambia su change_list.html, revisar que ambos bloques sigan existiendo.
+{% endcomment %}
+
+{% block page_actions %}
+    <div class="qkt-object-tools">
+        {% block object-tools %}
+            {% block object-tools-items %}
+                {% change_list_object_tools %}
+            {% endblock %}
+        {% endblock %}
+    </div>
+{% endblock %}
+
+{% block search %}
+    {% qkt_filtros_visibles cl as visibles %}
+    {% qkt_filtros_activos cl as activos %}
+    <div class="col-12 qkt-barra" id="change-list-filters" data-qkt-texto="{{ cl.model_admin.columnas_texto|join:',' }}">
+        {% if cl.search_fields or cl.has_filters %}
+        <div class="qkt-barra__caja">
+            <form id="changelist-search" method="GET" role="search">
+                {% if cl.search_fields %}
+                    <label class="qkt-busqueda">
+                        <i class="fas fa-search" aria-hidden="true"></i>
+                        <input type="text" name="q" value="{{ cl.query }}" id="searchbar"
+                               placeholder="{{ cl.search_help_text|default:'Buscar…' }}" aria-label="Buscar">
+                        <button type="submit" class="qkt-btn qkt-btn--secundario qkt-btn--sm">{% trans 'Search' %}</button>
+                    </label>
+                {% endif %}
+
+                {% if cl.has_filters %}
+                    {% for spec in cl.filter_specs %}
+                        {% if forloop.counter <= visibles %}{% jazzmin_list_filter cl spec %}{% endif %}
+                    {% endfor %}
+                    {% if cl.filter_specs|length > visibles %}
+                        <button type="button" class="qkt-btn qkt-btn--secundario qkt-mas-filtros" aria-expanded="false" aria-controls="qkt-filtros-extra">
+                            Más filtros <span class="qkt-mas-filtros__n" hidden></span>
+                        </button>
+                        <div class="qkt-filtros-extra" id="qkt-filtros-extra" hidden>
+                            {% for spec in cl.filter_specs %}
+                                {% if forloop.counter > visibles %}{% jazzmin_list_filter cl spec %}{% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endif %}
+
+                {% if show_result_count %}
+                    <span class="qkt-conteo">
+                        {% blocktrans count counter=cl.result_count %}{{ counter }} result{% plural %}{{ counter }} results{% endblocktrans %}
+                        · <a href="?{% if cl.is_popup %}_popup=1{% endif %}">{% blocktrans with full_result_count=cl.full_result_count %}{{ full_result_count }} total{% endblocktrans %}</a>
+                    </span>
+                {% else %}
+                    <span class="qkt-conteo">{{ cl.result_count }} {% if cl.result_count == 1 %}{{ cl.opts.verbose_name }}{% else %}{{ cl.opts.verbose_name_plural }}{% endif %}</span>
+                {% endif %}
+
+                {% admin_extra_filters cl as extra_filters %}
+                {% for pair in extra_filters.items %}
+                    {% if pair.0 != "q" %}<input type="hidden" name="{{ pair.0 }}" value="{{ pair.1 }}">{% endif %}
+                {% endfor %}
+            </form>
+
+            {% if activos %}
+                <div class="qkt-chips">
+                    <span>Filtrando por</span>
+                    {% for chip in activos %}
+                        <span class="qkt-chip">{{ chip.titulo|capfirst }}: <b>{{ chip.valor }}</b><a href="{{ chip.quitar }}" aria-label="Quitar filtro {{ chip.titulo }}" title="Quitar">&times;</a></span>
+                    {% endfor %}
+                    <a class="qkt-chips__limpiar" href="?{% if cl.is_popup %}_popup=1{% endif %}">Limpiar filtros</a>
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+{% endblock %}

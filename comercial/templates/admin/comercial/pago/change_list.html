@@ -2,10 +2,6 @@
 {% load i18n %}
 
 {% block object-tools-items %}
+    <a href="simular/" class="qkt-btn qkt-btn--secundario"><i class="fas fa-calculator" aria-hidden="true"></i> Simular pago</a>
     {{ block.super }}
-    <li>
-        <a href="simular/" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
-            Simular pago
-        </a>
-    </li>
 {% endblock %}
