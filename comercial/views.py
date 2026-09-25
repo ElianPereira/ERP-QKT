@@ -990,14 +990,17 @@ def generar_contrato(request, cotizacion_id):
         messages.error(request, " Solo se pueden generar contratos para cotizaciones CONFIRMADAS.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
-    tipo     = request.GET.get('tipo_servicio', 'EVENTO')
-    deposito = Decimal(request.GET.get('deposito', '0') or '0')
+    # El tipo sale de la cotización, nunca de la URL: así no puede emitirse
+    # un contrato de Evento para una Pasadía.
+    tipo = cotizacion.tipo_servicio
+    deposito = request.GET.get('deposito')
+    deposito = Decimal(deposito) if deposito else None
     if tipo not in ContratoService.TIPOS:
         messages.error(request, " Tipo de contrato no disponible.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
     try:
-        servicio  = ContratoService(cotizacion, tipo_servicio=tipo, deposito=deposito)
+        servicio  = ContratoService(cotizacion, deposito=deposito)
         pdf_bytes, numero = servicio.generar()
 
         filename = f"Contrato_{numero}.pdf"
@@ -1006,11 +1009,15 @@ def generar_contrato(request, cotizacion_id):
             cotizacion=cotizacion,
             numero=numero,
             tipo_servicio=tipo,
-            deposito_garantia=deposito,
+            deposito_garantia=servicio.dep,
             generado_por=request.user,
         )
         contrato.archivo.save(filename, ContentFile(pdf_bytes), save=False)
         contrato.save()
+
+        # El depósito del contrato queda registrado para cobrarlo en el portal.
+        from .services_deposito import asegurar_deposito
+        asegurar_deposito(cotizacion, servicio.dep, usuario=request.user)
 
         cotizacion.archivo_contrato.save(filename, ContentFile(pdf_bytes), save=False)
         Cotizacion.objects.filter(pk=cotizacion.pk).update(
@@ -1026,6 +1033,25 @@ def generar_contrato(request, cotizacion_id):
     except Exception as e:
         messages.error(request, f" Error al generar el contrato: {e}")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
+
+@staff_member_required
+@permission_required('comercial.view_contratoservicio', raise_exception=True)
+def vista_previa_contrato_propio(request, cotizacion_id):
+    """PDF del contrato propio (Issue #318) con marca de agua, para revisarlo
+    con datos reales antes de activarlo. No guarda nada: no crea
+    ContratoServicio ni toca el archivo de la cotización."""
+    from .services import ContratoService
+
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+    if cotizacion.tipo_servicio not in ContratoService.TIPOS:
+        messages.error(request, " Tipo de contrato no disponible.")
+        return redirect(request.META.get('HTTP_REFERER', '/admin/'))
+
+    pdf_bytes, numero = ContratoService(cotizacion, vista_previa=True).generar()
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="Contrato_{numero}.pdf"'
+    return response
 
 
 @staff_member_required

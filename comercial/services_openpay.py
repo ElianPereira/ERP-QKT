@@ -274,19 +274,51 @@ def _due_date_referencia(cotizacion: Cotizacion):
     return vence.strftime('%Y-%m-%dT%H:%M:%S')
 
 
-def _payload_cargo_base(cotizacion: Cotizacion, monto: Decimal, metodo: str):
+# Marca en el order_id de los cargos de depósito en garantía: permite saber el
+# destino de un cargo aunque el registro local lo cree el webhook.
+MARCA_DEPOSITO = 'DEP'
+
+
+def _payload_cargo_base(cotizacion: Cotizacion, monto: Decimal, metodo: str, destino: str = 'SERVICIO'):
+    es_deposito = destino == 'DEPOSITO'
+    concepto = 'Depósito en garantía' if es_deposito else cotizacion.nombre_evento
+    marca = MARCA_DEPOSITO if es_deposito else ''
     return {
         "method": metodo,
         "amount": float(monto),
         "currency": "MXN",
-        "description": f"COT-{cotizacion.id:03d} - {cotizacion.nombre_evento}",
+        "description": f"COT-{cotizacion.id:03d} - {concepto}",
         # uuid4 en vez de un contador basado en OpenpayTransaccion: los cargos
         # de efectivo/SPEI que Openpay rechaza (400) no dejan registro local,
         # así que un contador reintenta el mismo order_id ya usado y Openpay
         # responde "the order_id has already been processed".
-        "order_id": f"COT-{cotizacion.id}-{uuid.uuid4().hex[:12]}",
+        "order_id": f"COT-{cotizacion.id}-{marca}{uuid.uuid4().hex[:12]}",
         "customer": _datos_customer(cotizacion.cliente),
     }
+
+
+def _destino_desde_order_id(order_id: str) -> str:
+    partes = (order_id or '').split('-')
+    return 'DEPOSITO' if len(partes) > 2 and partes[2].startswith(MARCA_DEPOSITO) else 'SERVICIO'
+
+
+def _cobro_ya_registrado(registro) -> bool:
+    """Un cargo confirmado queda como Pago (servicio) o como MovimientoDeposito."""
+    if not registro.procesado:
+        return False
+    if registro.destino == 'DEPOSITO':
+        return hasattr(registro, 'movimiento_deposito')
+    return bool(registro.pago_id)
+
+
+def _registrar_cobro(registro, cotizacion, monto, metodo):
+    """Registra el cobro según su destino. Debe correr dentro de un atomic()."""
+    if registro.destino == 'DEPOSITO':
+        from .services_deposito import registrar_recepcion_openpay
+        registro.cotizacion = cotizacion
+        registrar_recepcion_openpay(registro, monto)
+    else:
+        registro.pago = _crear_pago_desde_cargo(cotizacion, monto, registro.openpay_id, metodo)
 
 
 def _crear_pago_desde_cargo(cotizacion, monto, openpay_id, metodo):
@@ -318,16 +350,15 @@ def _confirmar_cargo_completado(registro, cotizacion, monto, data, metodo):
     de tarjeta y por el retorno de 3D Secure, para que ambos terminen igual.
     Idempotente: si el registro ya venía procesado, no duplica el Pago.
     """
-    if registro.procesado and registro.pago_id:
+    if _cobro_ya_registrado(registro):
         return {'ok': True, 'mensaje': 'Pago realizado con éxito.'}
     try:
         with transaction.atomic():
-            pago = _crear_pago_desde_cargo(cotizacion, monto, registro.openpay_id, metodo)
-            registro.pago = pago
+            _registrar_cobro(registro, cotizacion, monto, metodo)
             registro.procesado = True
             registro.estado_openpay = 'completed'
             registro.error_detalle = ''
-            registro.save(update_fields=['pago', 'procesado', 'estado_openpay', 'error_detalle'])
+            registro.save(update_fields=['cotizacion', 'pago', 'procesado', 'estado_openpay', 'error_detalle'])
         _registrar_comision_openpay(registro, data.get('fee'))
     except Exception as e:
         # El cargo YA se cobró en Openpay; si el registro interno falla, queda
@@ -346,7 +377,7 @@ def _confirmar_cargo_completado(registro, cotizacion, monto, data, metodo):
 
 def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str,
                            device_session_id: str, redirect_url: str = '',
-                           use_card_points: bool = False):
+                           use_card_points: bool = False, destino: str = 'SERVICIO'):
     """
     Crea el cargo con tarjeta usando 3D Secure.
 
@@ -360,7 +391,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
     `use_card_points` solo llega en true si el token indicó que la tarjeta
     admite puntos y el cliente los aceptó en el portal.
     """
-    payload = _payload_cargo_base(cotizacion, monto, 'card')
+    payload = _payload_cargo_base(cotizacion, monto, 'card', destino)
     payload["source_id"] = token_id
     payload["device_session_id"] = device_session_id
     if use_card_points:
@@ -378,7 +409,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
         OpenpayTransaccion.objects.create(
             openpay_id=data.get('id') or f"error-{cotizacion.id}-{data.get('request_id', monto)}",
             metodo='card', estado_openpay=str(data.get('error_code', 'error')),
-            monto=monto, cotizacion=cotizacion, payload_crudo=data,
+            monto=monto, cotizacion=cotizacion, payload_crudo=data, destino=destino,
             autorizacion=data.get('authorization') or '',
             error_detalle="[{}] {} | {}".format(
                 codigo,
@@ -391,7 +422,7 @@ def procesar_cargo_tarjeta(cotizacion: Cotizacion, monto: Decimal, token_id: str
     estado = data.get('status')
     registro = OpenpayTransaccion.objects.create(
         openpay_id=data['id'], metodo='card', estado_openpay=estado or '',
-        monto=monto, cotizacion=cotizacion, payload_crudo=data,
+        monto=monto, cotizacion=cotizacion, payload_crudo=data, destino=destino,
         autorizacion=data.get('authorization') or '',
         procesado=(estado == 'completed'),
     )
@@ -452,7 +483,7 @@ def consultar_y_confirmar_cargo(cotizacion: Cotizacion, openpay_id: str):
     recarga de la página de retorno), no duplica el Pago.
     """
     registro = OpenpayTransaccion.objects.filter(openpay_id=openpay_id).first()
-    if registro and registro.procesado and registro.pago_id:
+    if registro and _cobro_ya_registrado(registro):
         return {'ok': True, 'mensaje': 'Pago realizado con éxito.'}
 
     url = f"{_charges_url()}/{openpay_id}"
@@ -475,6 +506,7 @@ def consultar_y_confirmar_cargo(cotizacion: Cotizacion, openpay_id: str):
             openpay_id=openpay_id, metodo='card', estado_openpay=estado or '',
             monto=monto, cotizacion=cotizacion, payload_crudo=data,
             autorizacion=data.get('authorization') or '',
+            destino=_destino_desde_order_id(data.get('order_id', '')),
         )
     else:
         registro.estado_openpay = estado or registro.estado_openpay
@@ -517,7 +549,7 @@ def consultar_y_confirmar_cargo(cotizacion: Cotizacion, openpay_id: str):
 
 # --- EFECTIVO (asíncrono: se muestra referencia, se confirma por webhook) ---
 
-def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
+def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal, destino: str = 'SERVICIO'):
     if monto > MONTO_MAXIMO_EFECTIVO:
         return {
             'ok': False,
@@ -528,7 +560,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
             ),
         }
 
-    payload = _payload_cargo_base(cotizacion, monto, 'store')
+    payload = _payload_cargo_base(cotizacion, monto, 'store', destino)
     payload["due_date"] = _due_date_referencia(cotizacion)
     response = requests.post(_charges_url(), json=payload, auth=_auth(), timeout=20)
     data = response.json()
@@ -546,7 +578,7 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
         openpay_id=data['id'],
         defaults=dict(
             metodo='store', estado_openpay=data.get('status', ''),
-            monto=monto, cotizacion=cotizacion, payload_crudo=data,
+            monto=monto, cotizacion=cotizacion, payload_crudo=data, destino=destino,
             referencia_pago=store.get('reference', ''),
             autorizacion=data.get('authorization') or '',
         ),
@@ -568,8 +600,8 @@ def procesar_cargo_efectivo(cotizacion: Cotizacion, monto: Decimal):
 
 # --- SPEI / TRANSFERENCIA (asíncrono, igual que efectivo) ---
 
-def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
-    payload = _payload_cargo_base(cotizacion, monto, 'bank_account')
+def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal, destino: str = 'SERVICIO'):
+    payload = _payload_cargo_base(cotizacion, monto, 'bank_account', destino)
     payload["due_date"] = _due_date_referencia(cotizacion)
     response = requests.post(_charges_url(), json=payload, auth=_auth(), timeout=20)
     data = response.json()
@@ -585,7 +617,7 @@ def procesar_cargo_spei(cotizacion: Cotizacion, monto: Decimal):
         openpay_id=data['id'],
         defaults=dict(
             metodo='bank_account', estado_openpay=data.get('status', ''),
-            monto=monto, cotizacion=cotizacion, payload_crudo=data,
+            monto=monto, cotizacion=cotizacion, payload_crudo=data, destino=destino,
             referencia_pago=pm.get('clabe', ''),
             autorizacion=data.get('authorization') or '',
         ),
@@ -633,15 +665,16 @@ def datos_referencia_pendiente(transaccion: OpenpayTransaccion) -> dict:
     return base
 
 
-def _referencias_vigentes(cotizacion: Cotizacion) -> list:
+def _referencias_vigentes(cotizacion: Cotizacion, destino: str = 'SERVICIO') -> list:
     """Referencias de efectivo/SPEI generadas, sin pagar y sin vencer (todas,
-    de la más reciente a la más vieja)."""
+    de la más reciente a la más vieja). Las del depósito en garantía van
+    aparte: no son saldo del servicio."""
     from django.utils import timezone
 
     ahora = timezone.localtime()
     vigentes = []
     qs = OpenpayTransaccion.objects.filter(
-        cotizacion=cotizacion, metodo__in=('store', 'bank_account'),
+        cotizacion=cotizacion, metodo__in=('store', 'bank_account'), destino=destino,
         procesado=False, estado_openpay='in_progress',
     ).order_by('-created_at')
     for t in qs:
@@ -661,7 +694,7 @@ def _referencias_vigentes(cotizacion: Cotizacion) -> list:
     return vigentes
 
 
-def transacciones_pendientes(cotizacion: Cotizacion) -> list:
+def transacciones_pendientes(cotizacion: Cotizacion, destino: str = 'SERVICIO') -> list:
     """
     Referencias de efectivo/SPEI ya generadas, vigentes y aún sin pagar — la
     más reciente por método (store/bank_account).
@@ -674,7 +707,7 @@ def transacciones_pendientes(cotizacion: Cotizacion) -> list:
     """
     vistos = set()
     resultado = []
-    for t in _referencias_vigentes(cotizacion):
+    for t in _referencias_vigentes(cotizacion, destino):
         if t.metodo in vistos:
             continue
         vistos.add(t.metodo)
@@ -682,13 +715,13 @@ def transacciones_pendientes(cotizacion: Cotizacion) -> list:
     return resultado
 
 
-def monto_en_camino(cotizacion: Cotizacion) -> Decimal:
+def monto_en_camino(cotizacion: Cotizacion, destino: str = 'SERVICIO') -> Decimal:
     """Suma de TODAS las referencias vigentes sin pagar: cualquiera de ellas
     puede pagarse en la tienda o por SPEI en cualquier momento, así que es
     saldo ya comprometido. Sin descontarlo, el portal dejaba cobrar el mismo
     saldo con tarjeta y la ficha pagada después rebasaba el total."""
     return sum(
-        (t.monto for t in _referencias_vigentes(cotizacion) if t.monto is not None),
+        (t.monto for t in _referencias_vigentes(cotizacion, destino) if t.monto is not None),
         Decimal('0.00'),
     )
 
@@ -714,6 +747,22 @@ def reembolsar_cargo_openpay(pago: Pago):
             detalle = response.json().get('description', '')
         except ValueError:
             detalle = ''
+        return {'ok': False, 'mensaje': detalle or 'No se pudo procesar el reembolso en Openpay.'}
+    return {'ok': True, 'mensaje': 'Reembolso procesado en Openpay.'}
+
+
+def reembolsar_monto_openpay(transaccion: OpenpayTransaccion, monto: Decimal):
+    """Reembolsa `monto` (total o parcial) de un cargo con tarjeta. Lo usa la
+    devolución del depósito en garantía; Openpay solo reembolsa tarjetas."""
+    url = f"{_charges_url()}/{transaccion.openpay_id}/refund"
+    payload = {'description': 'Devolución de depósito en garantía', 'amount': float(monto)}
+    response = requests.post(url, json=payload, auth=_auth(), timeout=20)
+    if response.status_code >= 400:
+        try:
+            detalle = response.json().get('description', '')
+        except ValueError:
+            detalle = ''
+        logger.warning("Openpay: reembolso de %s por %s rechazado: %s", transaccion.openpay_id, monto, detalle)
         return {'ok': False, 'mensaje': detalle or 'No se pudo procesar el reembolso en Openpay.'}
     return {'ok': True, 'mensaje': 'Reembolso procesado en Openpay.'}
 
@@ -800,6 +849,7 @@ def procesar_webhook_openpay(payload: dict):
             'monto': _decimal_o_none(transaction_data.get('amount')),
             'payload_crudo': payload,
             'autorizacion': transaction_data.get('authorization') or '',
+            'destino': _destino_desde_order_id(transaction_data.get('order_id', '')),
         }
     )
 
@@ -832,8 +882,7 @@ def procesar_webhook_openpay(payload: dict):
 
     try:
         with transaction.atomic():
-            pago = _crear_pago_desde_cargo(registro.cotizacion, monto, openpay_id, registro.metodo or 'webhook')
-            registro.pago = pago
+            _registrar_cobro(registro, registro.cotizacion, monto, registro.metodo or 'webhook')
             registro.monto = monto
             registro.procesado = True
             registro.estado_openpay = 'completed'

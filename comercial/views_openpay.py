@@ -151,26 +151,41 @@ def portal_procesar_pago_openpay(request, token):
     if monto <= 0:
         return JsonResponse({'ok': False, 'mensaje': 'Monto inválido.'})
 
-    saldo = cotizacion.saldo_pendiente()
-    if monto > saldo + Decimal('0.50'):
-        return JsonResponse({'ok': False, 'mensaje': f'El monto excede el saldo pendiente (${saldo:,.2f}).'})
+    destino = 'DEPOSITO' if request.POST.get('destino') == 'DEPOSITO' else 'SERVICIO'
+    if destino == 'DEPOSITO':
+        # El depósito en garantía no es saldo del servicio: se paga completo
+        # (lo que falte de él) y no cuenta para mínimos ni planes de pago.
+        deposito = getattr(cotizacion, 'deposito_garantia', None)
+        pendiente = deposito.por_recibir if deposito and not deposito.liquidado else Decimal('0.00')
+        pendiente -= monto_en_camino(cotizacion, 'DEPOSITO')
+        if pendiente <= 0:
+            return JsonResponse({'ok': False, 'mensaje': (
+                'No hay depósito en garantía pendiente de pago. Si generaste una '
+                'referencia, la ves en esta página.'
+            )})
+        if abs(monto - pendiente) > Decimal('0.50'):
+            return JsonResponse({'ok': False, 'mensaje': f'El depósito pendiente es de ${pendiente:,.2f}.'})
+    else:
+        saldo = cotizacion.saldo_pendiente()
+        if monto > saldo + Decimal('0.50'):
+            return JsonResponse({'ok': False, 'mensaje': f'El monto excede el saldo pendiente (${saldo:,.2f}).'})
 
-    # Una ficha de efectivo o una CLABE vigente es saldo ya comprometido: si se
-    # cobrara otra vez, al pagarla después el cliente pagaría de más.
-    en_camino = monto_en_camino(cotizacion)
-    if en_camino > 0 and monto > saldo - en_camino + Decimal('0.50'):
-        disponible = max(saldo - en_camino, Decimal('0.00'))
-        opcion = (f'Puedes pagar hasta ${disponible:,.2f} adicionales o pagar'
-                  if disponible > 0 else 'Paga')
-        return JsonResponse({'ok': False, 'mensaje': (
-            f'Ya tienes una referencia de pago vigente por ${en_camino:,.2f}. '
-            f'{opcion} la referencia que ya generaste (la ves en esta página). '
-            'Si quieres cambiar de método de pago, escríbenos.'
-        )})
+        # Una ficha de efectivo o una CLABE vigente es saldo ya comprometido: si se
+        # cobrara otra vez, al pagarla después el cliente pagaría de más.
+        en_camino = monto_en_camino(cotizacion)
+        if en_camino > 0 and monto > saldo - en_camino + Decimal('0.50'):
+            disponible = max(saldo - en_camino, Decimal('0.00'))
+            opcion = (f'Puedes pagar hasta ${disponible:,.2f} adicionales o pagar'
+                      if disponible > 0 else 'Paga')
+            return JsonResponse({'ok': False, 'mensaje': (
+                f'Ya tienes una referencia de pago vigente por ${en_camino:,.2f}. '
+                f'{opcion} la referencia que ya generaste (la ves en esta página). '
+                'Si quieres cambiar de método de pago, escríbenos.'
+            )})
 
-    minimo = cotizacion.monto_minimo_pago()
-    if monto < minimo - Decimal('0.50'):
-        return JsonResponse({'ok': False, 'mensaje': f'El monto mínimo para este pago es ${minimo:,.2f}.'})
+        minimo = cotizacion.monto_minimo_pago()
+        if monto < minimo - Decimal('0.50'):
+            return JsonResponse({'ok': False, 'mensaje': f'El monto mínimo para este pago es ${minimo:,.2f}.'})
 
     if request.POST.get('acepta_legales') not in ('1', 'true', 'True', 'on'):
         return JsonResponse({
@@ -220,11 +235,12 @@ def portal_procesar_pago_openpay(request, token):
             resultado = procesar_cargo_tarjeta(
                 cotizacion, monto, token_id, device_session_id, redirect_url=redirect_url,
                 use_card_points=bool(request.POST.get('use_card_points')),
+                destino=destino,
             )
         elif metodo == 'store':
-            resultado = procesar_cargo_efectivo(cotizacion, monto)
+            resultado = procesar_cargo_efectivo(cotizacion, monto, destino=destino)
         elif metodo == 'bank_account':
-            resultado = procesar_cargo_spei(cotizacion, monto)
+            resultado = procesar_cargo_spei(cotizacion, monto, destino=destino)
         else:
             resultado = {'ok': False, 'mensaje': 'Método de pago no reconocido.'}
     except Exception:

@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import NoReverseMatch, path, reverse
 from django.utils import timezone
-from django.utils.html import format_html, mark_safe
+from django.utils.html import format_html, format_html_join, mark_safe
 
 from core_erp import impuestos
 from core_erp.admin_utils import confirmar_accion_destructiva
@@ -1116,15 +1116,19 @@ class CotizacionAdmin(admin.ModelAdmin):
         contratos_previos = ContratoServicio.objects.filter(cotizacion=cotizacion).order_by('-generado_en')
 
         if request.method == 'POST':
-            from django.urls import reverse as _reverse
             return redirect(f"/cotizacion/{cotizacion_id}/contrato/generar/?"
-                        f"tipo_servicio={request.POST.get('tipo_servicio','EVENTO')}"
-                        f"&deposito={request.POST.get('deposito_garantia','0')}")
+                        f"deposito={request.POST.get('deposito_garantia','0')}")
 
+        from django.conf import settings
+
+        from .reglas_contrato import deposito_sugerido
         context = {
             **self.admin_site.each_context(request),
             'title': f'Generar Contrato — {cotizacion}',
             'cotizacion': cotizacion,
+            'contrato_propio_activo': settings.CONTRATO_PROPIO_ACTIVO,
+            'deposito_sugerido': deposito_sugerido(cotizacion),
+            'deposito_existente': getattr(cotizacion, 'deposito_garantia', None),
             'contratos_previos': contratos_previos,
             'opts': self.model._meta,
         }
@@ -1501,13 +1505,13 @@ class CompraAdmin(admin.ModelAdmin):
         return "-"
     ver_pdf.short_description = "PDF"
 
-from .models import ContratoServicio
+from .models import ContratoServicio, DepositoGarantia, FirmaContrato, MovimientoDeposito
 
 
 @admin.register(ContratoServicio)
 class ContratoServicioAdmin(admin.ModelAdmin):
     list_display  = ('numero', 'cotizacion', 'tipo_servicio', 'deposito_garantia',
-                     'generado_en', 'generado_por', 'enviado_email', 'descargar_btn', 'enviar_btn')
+                     'generado_en', 'generado_por', 'enviado_email', 'firma_badge', 'descargar_btn', 'enviar_btn')
     list_filter   = ('tipo_servicio', 'enviado_email', 'generado_en')
     search_fields = ('numero', 'cotizacion__cliente__nombre')
     readonly_fields = ('numero', 'generado_por', 'generado_en', 'enviado_email')
@@ -1530,6 +1534,181 @@ class ContratoServicioAdmin(admin.ModelAdmin):
         return format_html(
             '<a href="{}" style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Enviar</a>',
             url)
+
+    @admin.display(description="Firma")
+    def firma_badge(self, obj):
+        firma = getattr(obj, 'firma', None)
+        if firma and firma.firmado:
+            return format_html(
+                '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 10px;'
+                'border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Firmado {}</a>',
+                url_descarga(firma, 'archivo_firmado'), firma.firmado_en.strftime('%d/%m/%Y'))
+        return "—"
+
+
+@admin.register(FirmaContrato)
+class FirmaContratoAdmin(admin.ModelAdmin):
+    """Evidencia de firma electrónica: solo lectura, nunca se edita ni se borra."""
+    list_display = ('contrato', 'nombre_firmante', 'firmado_en', 'codigo_destino', 'ip', 'pdf_firmado')
+    list_filter = ('firmado_en',)
+    search_fields = ('contrato__numero', 'nombre_firmante', 'contrato__cotizacion__cliente__nombre')
+    exclude = ('codigo_hash', 'imagen_firma', 'archivo_firmado')
+    readonly_fields = (
+        'contrato', 'nombre_firmante', 'firmado_en', 'codigo_canal', 'codigo_destino',
+        'codigo_enviado_en', 'intentos', 'ip', 'user_agent', 'acepta_publicidad',
+        'acepta_transmision', 'hash_documento', 'hash_firmado', 'pdf_firmado',
+        'created_at', 'updated_at',
+    )
+
+    @admin.display(description="PDF firmado")
+    def pdf_firmado(self, obj):
+        url = url_descarga(obj, 'archivo_firmado')
+        return format_html('<a href="{}" target="_blank">Descargar</a>', url) if url else "—"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class RecepcionDepositoForm(forms.Form):
+    monto = forms.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'))
+    metodo = forms.ChoiceField(choices=[
+        c for c in MovimientoDeposito.METODOS if c[0] not in ('PLATAFORMA', 'NO_APLICA')
+    ])
+    referencia = forms.CharField(max_length=100, required=False)
+    fecha = forms.DateField(initial=timezone.localdate, widget=forms.DateInput(attrs={'type': 'date'}))
+
+
+class LiquidacionDepositoForm(forms.Form):
+    retencion_danos = forms.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal('0'), initial=Decimal('0'),
+        label="Retención por daños (sin IVA)")
+    retencion_servicio = forms.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal('0'), initial=Decimal('0'),
+        label="Retención por tiempo extra o limpieza (IVA incluido)")
+    desglose = forms.CharField(
+        widget=forms.Textarea(attrs={'rows': 4}), required=False,
+        label="Desglose (obligatorio si se retiene: qué, evidencia y valuación)")
+    reembolsar_openpay = forms.BooleanField(
+        required=False, label="Devolver en Openpay (solo lo pagado con tarjeta)")
+    metodo_devolucion = forms.ChoiceField(
+        choices=[c for c in MovimientoDeposito.METODOS if c[0] in ('TRANSFERENCIA', 'EFECTIVO')],
+        label="Si no es por Openpay, ¿cómo se devuelve?")
+    referencia = forms.CharField(max_length=100, required=False, label="Referencia de la devolución")
+    confirmar = forms.BooleanField(label="Confirmo la liquidación: no se puede deshacer")
+
+
+class MovimientoDepositoInline(admin.TabularInline):
+    model = MovimientoDeposito
+    extra = 0
+    can_delete = False
+    fields = ('fecha', 'tipo', 'monto', 'metodo', 'referencia', 'desglose', 'created_by')
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(DepositoGarantia)
+class DepositoGarantiaAdmin(admin.ModelAdmin):
+    """Depósito en garantía (Issue #318). Los importes salen de sus movimientos;
+    se opera con las pantallas de recepción y liquidación, nunca editando."""
+    list_display = ('cotizacion', 'monto', 'recibido_col', 'estado_col', 'fecha_limite_devolucion', 'acciones')
+    search_fields = ('cotizacion__cliente__nombre', 'cotizacion__nombre_evento')
+    readonly_fields = ('cotizacion', 'monto', 'recibido_col', 'estado_col', 'fecha_limite_devolucion',
+                       'created_by', 'created_at', 'updated_by', 'updated_at')
+    fields = readonly_fields + ('notas',)
+    inlines = [MovimientoDepositoInline]
+
+    def has_add_permission(self, request):
+        return False  # nace al generar el contrato con depósito
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Recibido")
+    def recibido_col(self, obj):
+        return f"${obj.recibido:,.2f}"
+
+    @admin.display(description="Estado")
+    def estado_col(self, obj):
+        estado = obj.estado
+        vencido = (estado == 'EN_CUSTODIA' and obj.fecha_limite_devolucion
+                   and obj.fecha_limite_devolucion < timezone.localdate())
+        color = '#c0392b' if vencido else {'PENDIENTE': '#e67e22', 'PARCIAL': '#e67e22',
+                                           'EN_CUSTODIA': '#1565C0', 'LIQUIDADO': '#2E7D32'}[estado]
+        texto = 'Devolución vencida' if vencido else obj.get_estado_display()
+        return format_html('<span style="color:{};font-weight:600;">{}</span>', color, texto)
+
+    @admin.display(description="")
+    def acciones(self, obj):
+        if obj.liquidado:
+            return "—"
+        enlaces = []
+        if obj.por_recibir > 0:
+            enlaces.append(('Registrar recibido', reverse('admin:deposito_recepcion', args=[obj.pk])))
+        if obj.en_custodia > 0:
+            enlaces.append(('Liquidar', reverse('admin:deposito_liquidar', args=[obj.pk])))
+        return format_html_join(' · ', '<a href="{}">{}</a>', ((url, texto) for texto, url in enlaces))
+
+    def get_urls(self):
+        propias = [
+            path('<int:pk>/recepcion/', self.admin_site.admin_view(self.recepcion_view), name='deposito_recepcion'),
+            path('<int:pk>/liquidar/', self.admin_site.admin_view(self.liquidar_view), name='deposito_liquidar'),
+        ]
+        return propias + super().get_urls()
+
+    def _pantalla(self, request, deposito, form, titulo):
+        return render(request, 'admin/comercial/depositogarantia/operacion.html', {
+            **self.admin_site.each_context(request),
+            'title': titulo, 'deposito': deposito, 'form': form, 'opts': self.model._meta,
+        })
+
+    def recepcion_view(self, request, pk):
+        from .services_deposito import DepositoError, registrar_recepcion
+
+        if not request.user.has_perm('comercial.change_depositogarantia'):
+            messages.error(request, "No tienes permiso para operar depósitos.")
+            return redirect('admin:comercial_depositogarantia_changelist')
+        deposito = get_object_or_404(DepositoGarantia, pk=pk)
+        form = RecepcionDepositoForm(request.POST or None, initial={'monto': deposito.por_recibir})
+        if request.method == 'POST' and form.is_valid():
+            try:
+                registrar_recepcion(deposito, usuario=request.user, **form.cleaned_data)
+                messages.success(request, "Depósito recibido registrado.")
+                return redirect('admin:comercial_depositogarantia_change', pk)
+            except DepositoError as e:
+                form.add_error(None, str(e))
+        return self._pantalla(request, deposito, form, f"Registrar depósito recibido — {deposito}")
+
+    def liquidar_view(self, request, pk):
+        from .services_deposito import DepositoError, liquidar
+
+        if not request.user.has_perm('comercial.change_depositogarantia'):
+            messages.error(request, "No tienes permiso para operar depósitos.")
+            return redirect('admin:comercial_depositogarantia_changelist')
+        deposito = get_object_or_404(DepositoGarantia, pk=pk)
+        form = LiquidacionDepositoForm(request.POST or None)
+        if request.method == 'POST' and form.is_valid():
+            datos = dict(form.cleaned_data)
+            datos.pop('confirmar')
+            try:
+                resultado = liquidar(deposito, usuario=request.user, **datos)
+                messages.success(request, "Depósito liquidado: devuelto ${:,.2f}, retenido ${:,.2f}.".format(
+                    resultado['devuelto'], resultado['retenido']))
+                return redirect('admin:comercial_depositogarantia_change', pk)
+            except DepositoError as e:
+                form.add_error(None, str(e))
+        return self._pantalla(request, deposito, form, f"Liquidar depósito — {deposito}")
+
 
 @admin.register(RecordatorioPago)
 class RecordatorioPagoAdmin(admin.ModelAdmin):

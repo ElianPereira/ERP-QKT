@@ -216,10 +216,14 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   storage ya es Cloudflare R2 (`STORAGES` en `core_erp/settings.py`), no
   hay migración pendiente. Ver Memoria 2026-09-24.
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
-- [ ] Registro PROFECO del **contrato de Hospedaje** pendiente (el 9341-2023
-  solo cubre Evento/Pasadía). Al tener el número, definir
-  `PROFECO_REGISTRO_HOSPEDAJE` en Railway; el modelo PROFECO pide además
-  RNT y seguro de responsabilidad civil, que el contrato hoy no declara.
+- [ ] **Registrar ante PROFECO el contrato propio de Evento/Pasadía**
+  (Issue #318): la NOM-174-SCFI-2007, numeral 5.1, obliga a registrar los
+  contratos de adhesión de eventos sociales. **Desde el 2026-09-25 se emite
+  sin registro** (decisión del propietario, informado del riesgo LFPC): al
+  tener el número, definir `PROFECO_REGISTRO_EVENTOS` en Railway —aparece
+  la leyenda en el contrato— y actualizar el renglón PROFECO de los TyC
+  (hoy "en proceso de registro") con una versión nueva. El registro de **Hospedaje** es voluntario (no está en
+  el numeral 5.1): `PROFECO_REGISTRO_HOSPEDAJE` solo si se decide registrar.
 - [x] ~~ISH Airbnb sin resolver~~ — resuelto el 2026-09-17, y la premisa
   era equivocada: el ISH de Airbnb **no es un pendiente de la Quinta**. La
   columna del CSV se llama "Impuesto liquidado **por Airbnb**" y la propia
@@ -234,7 +238,10 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   confirma el contador; al activarla, el precio que ve el cliente sube en
   ese porcentaje salvo que se recapturen los `precio_venta_fijo` de las
   habitaciones.
-- [ ] Módulo de depósito en garantía ausente.
+- [x] ~~Módulo de depósito en garantía ausente~~ — implementado (Issue #318,
+  fase 3): `DepositoGarantia` + `MovimientoDeposito`, cobro por Openpay o
+  manual, pasivo en 205.03. Pendiente confirmar con el contador el trato de
+  las retenciones (daños sin IVA, servicio con IVA).
 
 ## Memoria
 
@@ -242,6 +249,72 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-09-25 — Contratos propios **activos** para los tres servicios (el
+  abogado validó el texto). `CONTRATO_PROPIO_ACTIVO` pasa a default `True`
+  (`False` en Railway vuelve a los contratos PROFECO sin desplegar) y
+  Evento/Pasadía ya no esperan `PROFECO_REGISTRO_EVENTOS`: el propietario
+  eligió emitir mientras registra, informado de que la NOM-174 exige el
+  registro previo (riesgo: infracción LFPC y cláusulas no oponibles). Sin
+  número, el contrato sale sin leyenda. Se publican con el deploy (seed
+  `--publicar` del `CMD`) Reglamento v1.3, Política v2.2 y TyC v2.3, vigentes
+  desde el 25/09/2026; el renglón PROFECO de los TyC dice "en proceso de
+  registro".
+
+- 2026-09-25 — Contratos propios, fase 1 de 3 (Issue #318). El propietario
+  deja los contratos basados en el modelo PROFECO por un contrato marco + un
+  anexo por servicio (`comercial/templates/contratos/propio/`), con la
+  identidad de los documentos legales: las fuentes van incrustadas desde
+  `static/fonts/` porque WeasyPrint no debe depender de Google Fonts al
+  generar. Las reglas (depósito, recargos, salida tardía, tablas de
+  cancelación) viven en `comercial/reglas_contrato.py`; las tablas deben
+  coincidir con la Política vigente. **Se emiten solo con
+  `CONTRATO_PROPIO_ACTIVO=True`** (apagado por default hasta la validación
+  legal); mientras tanto, el admin ofrece una vista previa con marca de agua
+  que no guarda nada. El tipo de contrato sale siempre de
+  `cotizacion.tipo_servicio`: antes se elegía a mano y se podía emitir un
+  contrato de Evento para una Pasadía. El contrato de salón viejo decía "no
+  se permite la entrada de animales" contra el Reglamento pet friendly. Los
+  borradores Reglamento v1.3, Política v2.2 y TyC v2.3 llevan `[CONFIRMAR:]`,
+  incluida la fila del registro 9341-2023 de los TyC. **Registro PROFECO**:
+  la NOM-174-SCFI-2007 (5.1) obliga a registrar el contrato de adhesión de
+  eventos sociales, así que Evento/Pasadía solo salen con el contrato propio
+  si `PROFECO_REGISTRO_EVENTOS` tiene número; Hospedaje no lo requiere.
+  **Fase 2, firma electrónica** (`comercial/services_firma.py`,
+  `FirmaContrato`, migración `0101`): código de 6 dígitos por correo (se
+  guarda hasheado y **nunca en la bitácora de comunicaciones**: si quedara en
+  claro, alguien del equipo con el token del portal podría firmar por el
+  cliente), trazo en canvas validado como PNG real y no vacío, y PDF firmado =
+  contrato original intacto + hoja de constancia unidos con `pypdfium2` (ya
+  instalado vía `pdfplumber`), con la SHA-256 del original y del resultado.
+  El intento fallido se guarda **fuera** del `atomic()` antes de lanzar el
+  error; si no, el rollback lo deshace y el tope de 5 intentos no sirve.
+  `portal_descargar_contrato` lleva `xframe_options_sameorigin` porque el
+  visor de la pantalla de firma lo embebe y producción usa `X_FRAME_OPTIONS=
+  'DENY'`. Funciona también con el contrato PROFECO actual (su cláusula de
+  medios electrónicos lo permite).
+  **Fase 3, depósito en garantía** (`services_deposito.py`, migraciones
+  `comercial.0102` y `contabilidad.0022/0023`, esta última solo choices):
+  **no es un Pago** — si lo fuera, sumaría a `total_pagado()`, movería el
+  saldo, confirmaría la cotización y generaría factura e ingreso. Vive en
+  `DepositoGarantia` y sus importes salen de `MovimientoDeposito`
+  (recepción, devolución, retención por daños, retención por servicio),
+  inmutables, cada uno con su póliza vía signal: recepción/devolución contra
+  el pasivo nuevo 205.03 (`DEPOSITOS_GARANTIA`), daños a Otros ingresos sin
+  IVA (indemnización) y servicio a Ingreso + IVA — criterio del propietario,
+  **pendiente de confirmar con el contador**. Nace al generar el contrato con
+  depósito (`asegurar_deposito`); su monto queda fijo en cuanto se recibe
+  algo. Openpay (autorizado explícitamente): `OpenpayTransaccion.destino`
+  SERVICIO/DEPOSITO y marca `DEP` en el `order_id` para que el webhook sepa
+  el destino aunque el registro lo cree él; un cargo de depósito crea
+  movimiento, no Pago, y sus fichas/CLABE **no cuentan en
+  `monto_en_camino()`** (si contaran, bloquearían pagar el saldo). La
+  devolución por Openpay solo aplica a lo cobrado con tarjeta (reembolso
+  parcial con `amount`); SPEI/efectivo se devuelven por transferencia y solo
+  se registran. `liquidar()` corre bajo `select_for_update` durante los
+  reembolsos: un doble clic no reembolsa dos veces. No se tocó el flujo de
+  contracargos: un contracargo sobre un cargo de depósito hoy se trataría
+  como uno de servicio (riesgo conocido, poco probable).
 
 - 2026-09-25 — Guía pre-evento que nunca llegaba (caso real: pasadía del
   26/09 pagada el 22/09, antes de que existiera la confirmación por pago, y

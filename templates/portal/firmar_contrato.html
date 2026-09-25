@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Firmar contrato — {{ cotizacion.nombre_evento }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f3ef; color: #2c2b28; }
+        .header { background: #2E7D32; color: white; padding: 20px; text-align: center; }
+        .header img { max-height: 50px; margin-bottom: 8px; }
+        .header h1 { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; }
+        .header .folio { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .card-title { font-size: 16px; font-weight: 700; color: #2E7D32; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+        .paso { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #2E7D32; color: #fff; font-size: 13px; }
+        p { font-size: 14px; line-height: 1.6; margin-bottom: 10px; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 11px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; font-family: inherit; border: none; cursor: pointer; }
+        .btn-green { background: #2E7D32; color: white; }
+        .btn-outline { background: white; color: #2E7D32; border: 2px solid #2E7D32; }
+        .btn-link { background: none; color: #8a8780; padding: 6px 0; font-weight: 500; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .visor { width: 100%; height: 480px; border: 1px solid #e4e0d8; border-radius: 8px; margin-bottom: 12px; }
+        label.campo { display: block; font-size: 12px; font-weight: 600; color: #5a5852; text-transform: uppercase; letter-spacing: .5px; margin: 14px 0 6px; }
+        input[type=text] { width: 100%; padding: 11px 12px; border: 1px solid #d6d2c9; border-radius: 8px; font-size: 15px; font-family: inherit; }
+        input.codigo { letter-spacing: 6px; font-size: 20px; text-align: center; max-width: 220px; }
+        .lienzo-wrap { position: relative; border: 2px dashed #b9b4a8; border-radius: 8px; background: #fbfaf8; }
+        canvas { display: block; width: 100%; height: 180px; touch-action: none; cursor: crosshair; }
+        .lienzo-guia { position: absolute; left: 16px; right: 16px; bottom: 36px; border-top: 1px solid #d6d2c9; pointer-events: none; }
+        .check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; margin-top: 12px; line-height: 1.5; }
+        .check input { margin-top: 4px; width: 17px; height: 17px; accent-color: #2E7D32; flex-shrink: 0; }
+        .aviso { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+        .aviso-ok { background: #E8F5E9; color: #1B5E20; border-left: 4px solid #2E7D32; }
+        .aviso-error { background: #FFEBEE; color: #b71c1c; border-left: 4px solid #e74c3c; }
+        .pequeno { font-size: 12px; color: #8a8780; }
+        .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #aaa; }
+        /* En móvil los navegadores no muestran PDFs dentro de la página: se abre aparte. */
+        @media (max-width: 600px) { .visor { display: none; } .btn { width: 100%; justify-content: center; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="/static/img/logo.png" alt="Quinta Ko'ox Tanil">
+        <h1>Firma de contrato</h1>
+        <div class="folio">Contrato {{ contrato.numero }} — {{ cotizacion.nombre_evento }}</div>
+    </div>
+
+    <div class="container">
+        <p><a href="{% url 'portal_evento' portal.token %}" style="color:#2E7D32;text-decoration:none;font-weight:600;"><i class="fas fa-arrow-left"></i> Volver a mi evento</a></p>
+
+        {% if error %}<div class="aviso aviso-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>{% endif %}
+        {% if aviso %}<div class="aviso aviso-ok" role="status"><i class="fas fa-envelope"></i> {{ aviso }}</div>{% endif %}
+
+        {% if firma and firma.firmado %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-check-circle"></i> Contrato firmado</div>
+            <p>Firmaste este contrato el <strong>{{ firma.firmado_en|date:"d/m/Y" }} a las {{ firma.firmado_en|date:"H:i" }}</strong> como
+               <strong>{{ firma.nombre_firmante }}</strong>. Te enviamos una copia por correo.</p>
+            <a href="{% url 'portal_descargar_contrato' portal.token %}" class="btn btn-green" target="_blank">
+                <i class="fas fa-file-signature"></i> Descargar contrato firmado
+            </a>
+        </div>
+        {% else %}
+
+        <div class="card">
+            <div class="card-title"><span class="paso">1</span> Lee tu contrato</div>
+            <iframe class="visor" src="{% url 'portal_descargar_contrato' portal.token %}" title="Contrato {{ contrato.numero }}"></iframe>
+            <a href="{% url 'portal_descargar_contrato' portal.token %}" class="btn btn-outline" target="_blank">
+                <i class="fas fa-external-link-alt"></i> Abrir el contrato completo
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="paso">2</span> Recibe tu código de verificación</div>
+            <p>Te lo mandamos al correo <strong>{{ cotizacion.cliente.email|default:"registrado" }}</strong>. Confirma que eres tú quien firma.</p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="codigo">
+                <button type="submit" class="btn {% if codigo_enviado %}btn-link{% else %}btn-green{% endif %}">
+                    <i class="fas fa-paper-plane"></i> {% if codigo_enviado %}Reenviar código{% else %}Enviarme el código{% endif %}
+                </button>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="paso">3</span> Firma</div>
+            <form method="post" id="form-firma">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="firmar">
+                <input type="hidden" name="firma" id="firma-data">
+
+                <label class="campo" for="nombre">Nombre completo</label>
+                <input type="text" id="nombre" name="nombre" autocomplete="name" required
+                       value="{{ request.POST.nombre|default:cotizacion.cliente.nombre }}">
+
+                <label class="campo" for="codigo">Código de verificación</label>
+                <input type="text" id="codigo" name="codigo" class="codigo" inputmode="numeric" autocomplete="one-time-code"
+                       pattern="[0-9]{6}" maxlength="6" required>
+
+                <label class="campo">Tu firma</label>
+                <div class="lienzo-wrap">
+                    <canvas id="lienzo" aria-label="Recuadro para trazar tu firma"></canvas>
+                    <div class="lienzo-guia"></div>
+                </div>
+                <button type="button" class="btn btn-link" id="btn-limpiar"><i class="fas fa-eraser"></i> Borrar y volver a firmar</button>
+
+                <label class="check"><input type="checkbox" name="acepto" value="si" required>
+                    <span>Leí el contrato <strong>{{ contrato.numero }}</strong> y su anexo, y acepto firmarlo por medios electrónicos, con la misma validez que mi firma autógrafa.</span></label>
+                <label class="check"><input type="checkbox" name="publicidad" value="si">
+                    <span>Acepto que Quinta Ko'ox Tanil me envíe publicidad sobre sus servicios. <span class="pequeno">(Opcional)</span></span></label>
+                <label class="check"><input type="checkbox" name="transmision" value="si">
+                    <span>Acepto que mis datos se compartan con terceros con fines publicitarios. <span class="pequeno">(Opcional)</span></span></label>
+
+                <p class="pequeno" style="margin-top:14px;">Al firmar guardamos la fecha y hora, tu dirección IP y la huella digital del contrato como constancia.</p>
+                <button type="submit" class="btn btn-green" id="btn-firmar" style="margin-top:6px;">
+                    <i class="fas fa-file-signature"></i> Firmar contrato
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="footer">Quinta Ko'ox Tanil · Umán, Yucatán</div>
+
+    {% if not firma.firmado %}
+    <script>
+    (function () {
+        var lienzo = document.getElementById('lienzo');
+        if (!lienzo) return;
+        var ctx = lienzo.getContext('2d');
+        var trazado = false, dibujando = false, anchoPrevio = 0;
+
+        function ajustar() {
+            // En móvil, mostrar u ocultar la barra del navegador dispara
+            // resize sin cambiar el ancho: redimensionar ahí borraría el trazo.
+            if (lienzo.clientWidth === anchoPrevio) return;
+            anchoPrevio = lienzo.clientWidth;
+            // Resolución real del dispositivo para que el trazo no salga borroso.
+            var r = lienzo.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+            lienzo.width = r.width * dpr; lienzo.height = r.height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a1a1a';
+            trazado = false;
+        }
+        function punto(e) { var r = lienzo.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; }
+
+        lienzo.addEventListener('pointerdown', function (e) {
+            dibujando = true; lienzo.setPointerCapture(e.pointerId);
+            var p = punto(e); ctx.beginPath(); ctx.moveTo(p.x, p.y);
+        });
+        lienzo.addEventListener('pointermove', function (e) {
+            if (!dibujando) return;
+            var p = punto(e); ctx.lineTo(p.x, p.y); ctx.stroke(); trazado = true;
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+            lienzo.addEventListener(ev, function () { dibujando = false; });
+        });
+        document.getElementById('btn-limpiar').addEventListener('click', function () {
+            ctx.clearRect(0, 0, lienzo.width, lienzo.height); trazado = false;
+        });
+        document.getElementById('form-firma').addEventListener('submit', function (e) {
+            if (!trazado) { e.preventDefault(); alert('Traza tu firma en el recuadro.'); return; }
+            document.getElementById('firma-data').value = lienzo.toDataURL('image/png');
+            document.getElementById('btn-firmar').disabled = true;
+        });
+        ajustar();
+        window.addEventListener('resize', ajustar);
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>

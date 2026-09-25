@@ -33,6 +33,11 @@ GRUPOS_APPS = {
 # precios de referencia, pero cambiarlos queda reservado a superusuario).
 EXCEPCIONES = {
     ('comercial', 'constantesistema'): ('view',),
+    # La firma de un contrato es evidencia: nadie la edita ni la borra.
+    ('comercial', 'firmacontrato'): ('view',),
+    # Los movimientos del depósito son evidencia contable: se crean desde
+    # las pantallas de recepción y liquidación, nunca a mano.
+    ('comercial', 'movimientodeposito'): ('view',),
 }
 
 

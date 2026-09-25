@@ -1,0 +1,13 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Código para firmar tu contrato</h2>
+
+<p>Hola {{ cotizacion.cliente.nombre }}, este es tu código para firmar el contrato <strong>{{ contrato.numero }}</strong>
+de <strong>{{ cotizacion.nombre_evento }}</strong>:</p>
+
+<p style="text-align:center;margin:28px 0;font-size:32px;letter-spacing:8px;font-weight:bold;color:#2E7D32;">{{ codigo }}</p>
+
+<p>Vence en {{ minutos }} minutos y solo sirve una vez. Escríbelo en tu portal, en la pantalla de firma.</p>
+
+<p style="color:#888;font-size:13px;">Si no pediste este código, ignora este correo y avísanos: nadie puede firmar tu contrato sin él.</p>
+{% endblock %}

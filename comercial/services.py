@@ -595,21 +595,40 @@ class ContratoService:
     Genera el contrato como PDF usando WeasyPrint + template HTML.
     Mismo patrón que la cotización y nómina.
 
-    Evento y Pasadía usan el contrato de arrendamiento de salón registrado
-    ante PROFECO (9341-2023). Hospedaje tiene contrato propio, basado en el
-    modelo de PROFECO de servicios de hospedaje: el registro 9341-2023 no lo
-    cubre, así que la leyenda de registro solo aparece cuando
-    `settings.PROFECO_REGISTRO_HOSPEDAJE` tiene el número asignado.
+    Con `settings.CONTRATO_PROPIO_ACTIVO` apagado, Evento y Pasadía usan el
+    contrato de arrendamiento de salón registrado ante PROFECO (9341-2023) y
+    Hospedaje el suyo, basado en el modelo de PROFECO de servicios de
+    hospedaje (leyenda de registro solo con
+    `settings.PROFECO_REGISTRO_HOSPEDAJE`).
     Arrendamiento de Mobiliario se retiró como actividad (2026-09-23): ya no
     se generan contratos de ese tipo.
+
+    Contratos propios (Issue #318): contrato marco + anexo por servicio en
+    `contratos/propio/`, con la identidad de los documentos legales. Se
+    emiten con `settings.CONTRATO_PROPIO_ACTIVO` (encendido por default desde
+    la validación legal del 2026-09-25); `vista_previa=True` los genera con
+    marca de agua sin guardar nada. El tipo
+    de contrato sale siempre de la cotización: elegirlo a mano permitía
+    emitir, por ejemplo, un contrato de Evento para una Pasadía.
     """
 
     TIPOS = ('EVENTO', 'PASADIA', 'HOSPEDAJE')
 
-    def __init__(self, cotizacion, tipo_servicio='EVENTO', deposito=Decimal('0.00')):
+    def __init__(self, cotizacion, deposito=None, vista_previa=False):
+        from .reglas_contrato import deposito_sugerido
+
         self.cot  = cotizacion
         self.cli  = cotizacion.cliente
-        self.tipo = tipo_servicio
+        self.tipo = cotizacion.tipo_servicio
+        self.vista_previa = vista_previa
+        self.propio = vista_previa or settings.CONTRATO_PROPIO_ACTIVO
+        # Un depósito ya cobrado (aunque sea en parte) fija el monto: el
+        # contrato no puede pedir otra cantidad de la que se está cobrando.
+        existente = getattr(cotizacion, 'deposito_garantia', None)
+        if existente is not None and (deposito is None or existente.movimientos.exists()):
+            deposito = existente.monto
+        elif deposito is None:
+            deposito = deposito_sugerido(cotizacion) if self.propio else Decimal('0.00')
         self.dep  = deposito
 
     def _fmt_fecha(self, d):
@@ -713,6 +732,56 @@ class ContratoService:
             'registro_profeco':  settings.PROFECO_REGISTRO_HOSPEDAJE,
         }
 
+    def _registro_propio(self):
+        """Número de registro PROFECO del contrato propio de este tipo, o ''.
+
+        La NOM-174-SCFI-2007 (numeral 5.1) obliga a registrar el contrato de
+        adhesión de eventos sociales. El propietario decidió emitirlo mientras
+        el registro está en trámite (2026-09-25), así que sin número el
+        contrato sale sin leyenda; Hospedaje no está en esa lista.
+        """
+        if self.tipo == 'HOSPEDAJE':
+            return settings.PROFECO_REGISTRO_HOSPEDAJE
+        return settings.PROFECO_REGISTRO_EVENTOS
+
+    def _contexto_propio(self):
+        """Datos que solo usan los contratos propios (marco + anexos)."""
+        import os
+
+        from . import reglas_contrato as rc
+        from .models import Cotizacion
+        from .reglas_eventos import MAX_PERSONAS_EVENTO, MAX_PERSONAS_PASADIA
+
+        habitaciones = sorted({
+            i.producto.nombre for i in self.cot.items.select_related('producto')
+            if i.producto and i.producto.rol_cotizador == 'HABITACION_HOSPEDAJE'
+        })
+        tabla = 'HOSPEDAJE' if self.tipo == 'HOSPEDAJE' else 'SERVICIO'
+        return {
+            'vista_previa':                 self.vista_previa,
+            'version_modelo':               rc.VERSION_MODELO,
+            'fuentes_dir':                  f"file://{os.path.join(settings.BASE_DIR, 'static', 'fonts')}",
+            'domicilio_inmueble':           'Carretera Tanil – Ticimul KM 1.920, C.P. 97390, Umán, Yucatán',
+            'dias_pago_total':              Cotizacion.DIAS_PAGO_TOTAL.get(self.tipo, 15),
+            'tiene_deposito':               self.dep > 0,
+            'dias_devolucion_deposito':     rc.DIAS_DEVOLUCION_DEPOSITO,
+            'porcentaje_deposito_evento':   int(rc.PORCENTAJE_DEPOSITO_EVENTO * 100),
+            'deposito_por_habitacion_str':  self._fmt_money(rc.DEPOSITO_POR_HABITACION),
+            'deposito_mascota_str':         self._fmt_money(rc.DEPOSITO_POR_MASCOTA),
+            'recargo_persona_no_declarada': rc.RECARGO_PERSONA_NO_DECLARADA,
+            'dias_registro_proveedores':    rc.DIAS_REGISTRO_PROVEEDORES,
+            'aforo_maximo_evento':          MAX_PERSONAS_EVENTO,
+            'aforo_maximo_pasadia':         MAX_PERSONAS_PASADIA,
+            'dias_reprogramacion_clima':    rc.DIAS_REPROGRAMACION_CLIMA,
+            'tolerancia_salida_min':        rc.TOLERANCIA_SALIDA_MIN,
+            'cargo_hora_salida_tardia':     rc.CARGO_HORA_SALIDA_TARDIA,
+            'hora_noche_completa':          rc.HORA_NOCHE_COMPLETA,
+            'habitaciones':                 ', '.join(habitaciones) or '—',
+            'tabla_cancelacion':            rc.TABLA_CANCELACION[tabla],
+            'registro_profeco':             self._registro_propio(),
+            'registro_obligatorio':         self.tipo != 'HOSPEDAJE',
+        }
+
     def generar(self):
         """
         Genera el PDF del contrato y retorna (pdf_bytes, numero_contrato).
@@ -777,6 +846,12 @@ class ContratoService:
 
         if self.tipo == 'HOSPEDAJE':
             context.update(self._contexto_hospedaje())
+        if self.propio:
+            context.update(self._contexto_propio())
+            if self.vista_previa:
+                context['numero'] = numero = f"VP-{folio}"
+            plantilla = 'contratos/propio/contrato.html'
+        elif self.tipo == 'HOSPEDAJE':
             plantilla = 'contratos/contrato_hospedaje_pdf.html'
         else:
             plantilla = 'contratos/contrato_pdf.html'

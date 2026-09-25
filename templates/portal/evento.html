@@ -294,6 +294,24 @@
         </div>
         {% endif %}
         
+        {% if deposito %}
+        <!-- Depósito en garantía (Issue #318): aparte del saldo, se devuelve tras el servicio. -->
+        <div class="card" id="card-deposito">
+            <div class="card-title"><i class="fas fa-shield-alt"></i> Depósito en garantía</div>
+            <div class="kpi-grid">
+                <div class="kpi"><div class="valor">${{ deposito.monto|floatformat:2 }}</div><div class="label">Depósito</div></div>
+                <div class="kpi {% if deposito.por_recibir > 0 %}orange{% else %}green{% endif %}">
+                    <div class="valor">${{ deposito.recibido|floatformat:2 }}</div><div class="label">Recibido</div></div>
+                <div class="kpi"><div class="valor" style="font-size:16px;">{{ deposito.get_estado_display }}</div><div class="label">Estado</div></div>
+            </div>
+            <p style="font-size:13px; color:#8a8780; margin:0;">
+                No forma parte del precio. {% if deposito.por_recibir > 0 and deposito.fecha_limite_pago %}Págalo junto con tu saldo, a más tardar el
+                <strong>{{ deposito.fecha_limite_pago|date:"d/m/Y" }}</strong>. {% endif %}Te lo devolvemos a más tardar el
+                <strong>{{ deposito.fecha_limite_devolucion|date:"d/m/Y" }}</strong>, descontando solo daños o cargos documentados.
+            </p>
+        </div>
+        {% endif %}
+
         {% if not admite_pago %}
         <!-- La cotización ya no admite pagos (cancelada o expirada). Se explica
              en vez de simplemente no pintar nada: el cliente llegó aquí con un
@@ -304,7 +322,7 @@
         </div>
         {% endif %}
 
-        {% if openpay_habilitado and saldo_pendiente > 0 and admite_pago %}
+        {% if puede_pagar_en_linea %}
 
         {% if pagos_pendientes_openpay %}
         <!-- Referencias de efectivo/SPEI de un intento anterior, aún vigentes:
@@ -355,6 +373,18 @@
                 <br><strong>Precios en MXN, IVA incluido.</strong>
             </p>
 
+            {% if deposito_por_pagar > 0 %}
+            <div style="margin-bottom:14px;">
+                <div style="font-size:12px; font-weight:600; color:#555; margin-bottom:6px;">¿Qué quieres pagar?</div>
+                <div class="btn-grid" id="destino-selector">
+                    {% if saldo_pendiente > 0 %}
+                    <button type="button" class="btn btn-outline metodo-activo" id="btn-destino-SERVICIO" data-destino="SERVICIO"><i class="fas fa-receipt"></i> Saldo del servicio</button>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline{% if saldo_pendiente <= 0 %} metodo-activo{% endif %}" id="btn-destino-DEPOSITO" data-destino="DEPOSITO"><i class="fas fa-shield-alt"></i> Depósito en garantía (${{ deposito_por_pagar|floatformat:2 }})</button>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="btn-grid" id="metodo-selector" style="margin-bottom:14px;">
                 <button type="button" class="btn btn-outline" id="btn-metodo-card" onclick="mostrarMetodo('card')"><i class="fas fa-credit-card"></i> Tarjeta Bancaria</button>
                 <button type="button" class="btn btn-outline" id="btn-metodo-store" onclick="mostrarMetodo('store')"><i class="fas fa-store"></i> Depósito en Efectivo</button>
@@ -370,7 +400,9 @@
                     <input type="text" inputmode="decimal" id="monto-pago" name="monto" placeholder="Importe"
                            data-max="{{ saldo_pendiente|stringformat:'0.2f' }}"
                            data-min="{{ monto_minimo_pago|stringformat:'0.2f' }}"
+                           data-deposito="{{ deposito_por_pagar|stringformat:'0.2f' }}"
                            style="width:100%; padding:10px; border:1px solid #e8e6e0; border-radius:8px; font-family:inherit; font-size:14px;">
+                    <div id="ayudas-saldo">
                     <div style="display:flex; gap:8px; margin-top:6px;">
                         {% if monto_minimo_pago > 0 %}
                         <button type="button" id="btn-monto-minimo" class="btn btn-outline" style="padding:5px 12px; font-size:12px; cursor:pointer;">Pagar el mínimo</button>
@@ -384,6 +416,8 @@
                     {% else %}
                     <div style="font-size:11px; color:#8a8780; margin-top:4px;">Máximo ${{ saldo_pendiente|floatformat:2 }} (tu saldo pendiente) — puedes abonar el monto que prefieras</div>
                     {% endif %}
+                    </div>
+                    <div id="ayuda-deposito" style="display:none; font-size:11px; color:#8a8780; margin-top:4px;">El depósito se paga completo. No forma parte del precio y se devuelve después del servicio.</div>
                 </div>
 
                 <div id="campos-tarjeta" style="display:none;">
@@ -486,9 +520,15 @@
                 </a>
                 {% endif %}
                 {% if contrato %}
+                {% if contrato.firma.firmado %}
                 <a href="{% url 'portal_descargar_contrato' portal.token %}" class="btn btn-outline" target="_blank">
-                    <i class="fas fa-file-contract"></i> Contrato PDF
+                    <i class="fas fa-file-signature"></i> Contrato firmado PDF
                 </a>
+                {% else %}
+                <a href="{% url 'portal_firmar_contrato' portal.token %}" class="btn btn-yellow">
+                    <i class="fas fa-pen-nib"></i> Revisar y firmar contrato
+                </a>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -568,7 +608,7 @@
         </div>
     </div>
 
-    {% if openpay_habilitado and saldo_pendiente > 0 and admite_pago %}
+    {% if puede_pagar_en_linea %}
     {% comment %}
     Origen documentado por Openpay. El bucket de S3 que se usaba antes
     sirve los mismos archivos pero no aparece en la documentación: si lo
@@ -586,8 +626,12 @@
 
     // --- Monto: formato de moneda MXN mientras se escribe, sin exceder el saldo pendiente ---
     var montoInput = document.getElementById('monto-pago');
-    var montoMax = parseFloat(montoInput.dataset.max) || 0;
-    var montoMin = parseFloat(montoInput.dataset.min) || 0;
+    var saldoMax = parseFloat(montoInput.dataset.max) || 0;
+    var saldoMin = parseFloat(montoInput.dataset.min) || 0;
+    var depositoPendiente = parseFloat(montoInput.dataset.deposito) || 0;
+    var montoMax = saldoMax;
+    var montoMin = saldoMin;
+    var destinoActual = saldoMax > 0 ? 'SERVICIO' : 'DEPOSITO';
 
     function parsearMonto(texto) {
         var limpio = (texto || '').replace(/[^0-9.]/g, '');
@@ -627,6 +671,26 @@
     // si no, el saldo completo — el cliente puede editarlo hacia abajo hasta
     // el mínimo, o dejarlo para pagar de más (abono) si no hay mínimo.
     montoInput.value = formatearMoneda(montoMin > 0 ? montoMin : montoMax);
+
+    // Saldo del servicio o depósito en garantía: el depósito se paga completo,
+    // así que su importe queda fijo.
+    function elegirDestino(destino) {
+        destinoActual = destino;
+        var esDeposito = destino === 'DEPOSITO';
+        montoMax = esDeposito ? depositoPendiente : saldoMax;
+        montoMin = esDeposito ? depositoPendiente : saldoMin;
+        montoInput.readOnly = esDeposito;
+        montoInput.value = formatearMoneda(montoMin > 0 ? montoMin : montoMax);
+        document.getElementById('ayudas-saldo').style.display = esDeposito ? 'none' : 'block';
+        document.getElementById('ayuda-deposito').style.display = esDeposito ? 'block' : 'none';
+        document.querySelectorAll('#destino-selector .btn').forEach(function(btn) {
+            btn.classList.toggle('metodo-activo', btn.dataset.destino === destino);
+        });
+    }
+    document.querySelectorAll('#destino-selector .btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { elegirDestino(btn.dataset.destino); });
+    });
+    if (destinoActual === 'DEPOSITO') { elegirDestino('DEPOSITO'); }
 
     var btnMontoMinimo = document.getElementById('btn-monto-minimo');
     if (btnMontoMinimo) {
@@ -784,6 +848,7 @@
             monto: parsearMonto(document.getElementById('monto-pago').value).toFixed(2),
             acepta_legales: document.getElementById('acepta-legales').checked ? '1' : '',
             use_card_points: usarPuntos ? '1' : '',
+            destino: destinoActual,
             csrfmiddlewaretoken: form.querySelector('[name=csrfmiddlewaretoken]').value,
         });
 
@@ -898,6 +963,7 @@
                    '<span style="font-weight:700; font-size:15px; color:#2E7D32;">' +
                    '<i class="fas ' + (esEfectivo ? 'fa-store' : 'fa-university') + '"></i> ' +
                    (esEfectivo ? 'Ficha para pago en efectivo' : 'Datos para transferencia SPEI') +
+                   (data.es_deposito ? ' — depósito en garantía' : '') +
                    '</span><span style="flex:1"></span>' +
                    (esEfectivo
                         ? '<img src="/static/img/pagos/paynet.png" alt="Paynet by Openpay" style="height:22px; width:auto;">'

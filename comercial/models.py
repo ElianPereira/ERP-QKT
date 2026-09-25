@@ -1,4 +1,5 @@
 import secrets
+from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 import defusedxml.ElementTree as ET
@@ -1403,6 +1404,204 @@ class ContratoServicio(models.Model):
         verbose_name_plural = "Contratos"
         ordering = ['-generado_en']
 
+
+class FirmaContrato(models.Model):
+    """Firma electrónica de un contrato desde el portal del cliente (Issue #318).
+
+    Evidencia de la firma: la huella SHA-256 del PDF que el cliente vio, el
+    código de verificación que recibió, su trazo, la IP, el navegador y la
+    hora. El PDF firmado es el contrato original sin tocar más una hoja de
+    constancia con esos datos; su propia huella queda en `hash_firmado`.
+    Nunca se borra: es la prueba de la aceptación.
+    """
+    contrato = models.OneToOneField(
+        ContratoServicio, on_delete=models.PROTECT, related_name='firma',
+    )
+    hash_documento = models.CharField(
+        max_length=64, blank=True, verbose_name="SHA-256 del contrato mostrado",
+    )
+    codigo_hash = models.CharField(max_length=128, blank=True)
+    codigo_enviado_en = models.DateTimeField(null=True, blank=True)
+    codigo_canal = models.CharField(max_length=10, blank=True, verbose_name="Canal del código")
+    codigo_destino = models.CharField(max_length=200, blank=True, verbose_name="Destino del código")
+    intentos = models.PositiveSmallIntegerField(default=0)
+
+    nombre_firmante = models.CharField(max_length=200, blank=True)
+    imagen_firma = models.FileField(
+        upload_to='firmas_contrato/', blank=True, storage=storage_privado,
+    )
+    firmado_en = models.DateTimeField(null=True, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    acepta_publicidad = models.BooleanField(default=False)
+    acepta_transmision = models.BooleanField(default=False)
+    archivo_firmado = models.FileField(
+        upload_to='contratos_firmados/', blank=True, storage=storage_privado,
+        verbose_name="PDF firmado",
+    )
+    hash_firmado = models.CharField(
+        max_length=64, blank=True, verbose_name="SHA-256 del PDF firmado",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Firma de contrato"
+        verbose_name_plural = "Firmas de contrato"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        estado = 'firmado' if self.firmado else 'pendiente'
+        return f"{self.contrato.numero} — {estado}"
+
+    @property
+    def firmado(self):
+        return self.firmado_en is not None
+
+
+class DepositoGarantia(models.Model):
+    """Depósito en garantía de una cotización (Issue #318, fase 3).
+
+    No es un Pago: no forma parte del precio, no suma a `total_pagado()`, no
+    genera factura ni ingreso. Contablemente es un pasivo (dinero del cliente
+    en custodia) hasta que se devuelve o se retiene con desglose. Los importes
+    salen de sus movimientos, que nunca se editan ni se borran.
+    """
+    ESTADOS = [
+        ('PENDIENTE', 'Pendiente de recibir'),
+        ('PARCIAL', 'Recibido en parte'),
+        ('EN_CUSTODIA', 'En custodia'),
+        ('LIQUIDADO', 'Liquidado'),
+    ]
+
+    cotizacion = models.OneToOneField(
+        Cotizacion, on_delete=models.PROTECT, related_name='deposito_garantia',
+    )
+    monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto del depósito")
+    notas = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Depósito en garantía"
+        verbose_name_plural = "Depósitos en garantía"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Depósito COT-{self.cotizacion_id:03d} — ${self.monto:,.2f}"
+
+    def _suma(self, *tipos):
+        total = self.movimientos.filter(tipo__in=tipos).aggregate(t=models.Sum('monto'))['t']
+        return total or Decimal('0.00')
+
+    @property
+    def recibido(self):
+        return self._suma('RECEPCION')
+
+    @property
+    def devuelto(self):
+        return self._suma('DEVOLUCION')
+
+    @property
+    def retenido(self):
+        return self._suma('RETENCION_DANOS', 'RETENCION_SERVICIO')
+
+    @property
+    def por_recibir(self):
+        return max(self.monto - self.recibido, Decimal('0.00'))
+
+    @property
+    def en_custodia(self):
+        return self.recibido - self.devuelto - self.retenido
+
+    @property
+    def liquidado(self):
+        return self.movimientos.filter(tipo='DEVOLUCION').exists() or (
+            self.recibido > 0 and self.en_custodia <= 0
+        )
+
+    @property
+    def estado(self):
+        if self.liquidado:
+            return 'LIQUIDADO'
+        recibido = self.recibido
+        if recibido <= 0:
+            return 'PENDIENTE'
+        return 'PARCIAL' if recibido < self.monto else 'EN_CUSTODIA'
+
+    def get_estado_display(self):
+        return dict(self.ESTADOS)[self.estado]
+
+    @property
+    def fin_servicio(self):
+        cot = self.cotizacion
+        return cot.fecha_salida or cot.fecha_evento
+
+    @property
+    def fecha_limite_pago(self):
+        """Se cobra junto con el saldo: mismo plazo que la liquidación."""
+        cot = self.cotizacion
+        if not cot.fecha_evento:
+            return None
+        return cot.fecha_evento - timedelta(days=Cotizacion.DIAS_PAGO_TOTAL.get(cot.tipo_servicio, 15))
+
+    @property
+    def fecha_limite_devolucion(self):
+        from .reglas_contrato import DIAS_DEVOLUCION_DEPOSITO
+
+        fin = self.fin_servicio
+        return fin + timedelta(days=DIAS_DEVOLUCION_DEPOSITO) if fin else None
+
+
+class MovimientoDeposito(models.Model):
+    """Recepción, devolución o retención de un depósito en garantía.
+
+    Cada movimiento genera su póliza (contabilidad.signals). Es evidencia:
+    no se edita ni se borra; un error se corrige con otro movimiento.
+    """
+    TIPOS = [
+        ('RECEPCION', 'Recepción'),
+        ('DEVOLUCION', 'Devolución'),
+        ('RETENCION_DANOS', 'Retención por daños'),
+        ('RETENCION_SERVICIO', 'Retención por servicio (tiempo extra, limpieza)'),
+    ]
+    METODOS = [
+        ('PLATAFORMA', 'Openpay'),
+        ('TRANSFERENCIA', 'Transferencia'),
+        ('EFECTIVO', 'Efectivo'),
+        ('TARJETA', 'Terminal / tarjeta'),
+        ('NO_APLICA', 'No aplica (retención)'),
+    ]
+
+    deposito = models.ForeignKey(DepositoGarantia, on_delete=models.PROTECT, related_name='movimientos')
+    tipo = models.CharField(max_length=20, choices=TIPOS)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha = models.DateField(default=now)
+    metodo = models.CharField(max_length=15, choices=METODOS)
+    referencia = models.CharField(max_length=100, blank=True)
+    desglose = models.TextField(blank=True, verbose_name="Desglose / motivo")
+    transaccion_openpay = models.OneToOneField(
+        'OpenpayTransaccion', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='movimiento_deposito',
+    )
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Movimiento de depósito"
+        verbose_name_plural = "Movimientos de depósito"
+        ordering = ['fecha', 'pk']
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} ${self.monto:,.2f} — COT-{self.deposito.cotizacion_id:03d}"
+
 # --- COMPRA Y GASTO ---
 
 def _detectar_unidad_negocio_por_rfc(rfc_receptor):
@@ -2392,6 +2591,10 @@ class OpenpayTransaccion(models.Model):
         'Pago', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='transaccion_openpay'
     )
+    # Un cargo de depósito en garantía no crea Pago: se registra como
+    # MovimientoDeposito (Issue #318, fase 3).
+    DESTINOS = [('SERVICIO', 'Pago del servicio'), ('DEPOSITO', 'Depósito en garantía')]
+    destino = models.CharField(max_length=10, choices=DESTINOS, default='SERVICIO')
 
     referencia_pago = models.CharField(
         max_length=100, blank=True,
