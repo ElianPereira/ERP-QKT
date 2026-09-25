@@ -17,6 +17,9 @@ from facturacion.choices import FormaPago, MetodoPago, RegimenFiscal, UsoCFDI
 # al contador bajo qué RFC de la empresa debe timbrar.
 _RFC_POR_LINEA_NEGOCIO = {clave: rfc for rfc, clave in RFC_UNIDAD_MAP.items()}
 
+# RFC genérico del SAT para ventas a Público en General.
+RFC_PUBLICO_GENERAL = 'XAXX010101000'
+
 
 class ConfiguracionContador(models.Model):
     """
@@ -98,6 +101,12 @@ class SolicitudFactura(models.Model):
     monto = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Monto a Facturar")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Subtotal")
     iva = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="IVA")
+    # Impuesto estatal (no va en el nodo federal del CFDI): el contador lo
+    # timbra con el complemento de impuestos locales. Solo hospedaje directo
+    # y solo con settings.TASA_ISH > 0; sin él, monto ≠ subtotal + IVA.
+    impuesto_hospedaje = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0, verbose_name="ISH (impuesto local)",
+    )
     retencion_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Retención ISR")
     retencion_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Retención IVA")
     concepto = models.TextField(verbose_name="Concepto / Descripción")
@@ -248,6 +257,21 @@ class SolicitudFactura(models.Model):
         return bool(self.archivo_zip or (self.archivo_pdf and self.archivo_xml))
 
     @property
+    def desglose_cuadra(self):
+        """¿El desglose guardado suma el monto?
+
+        Lo calcula el signal al crear la solicitud; el admin no lo expone, así
+        que una solicitud capturada a mano (solo monto) o con el monto editado
+        después deja de cuadrar y hay que recalcularlo desde el monto.
+        """
+        if not self.subtotal:
+            return False
+        return (
+            self.subtotal + self.iva + self.impuesto_hospedaje
+            - self.retencion_isr - self.retencion_iva
+        ) == self.monto
+
+    @property
     def rfc_emisor(self):
         """RFC propio de la empresa bajo el que se debe timbrar esta
         solicitud — no confundir con self.rfc, que es el RFC del cliente
@@ -297,6 +321,14 @@ class SolicitudFactura(models.Model):
             "",
             "💰 DATOS DEL PAGO:",
             f"   Monto: ${monto:,.2f} MXN",
+        ]
+        if self.desglose_cuadra:
+            lineas.append(f"   Subtotal: ${self.subtotal:,.2f} · IVA: ${self.iva:,.2f}")
+            if self.impuesto_hospedaje:
+                lineas.append(f"   ISH (impuesto local): ${self.impuesto_hospedaje:,.2f}")
+            if self.retencion_isr:
+                lineas.append(f"   Retención ISR: ${self.retencion_isr:,.2f}")
+        lineas += [
             f"   Concepto: {self.concepto}",
             f"   Forma de Pago: {self.get_forma_pago_display()}",
             f"   Método de Pago: {self.get_metodo_pago_display()}",

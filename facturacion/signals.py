@@ -19,6 +19,50 @@ from comercial.services import calcular_desglose_proporcional
 
 logger = logging.getLogger(__name__)
 
+# Concepto que ve el contador (y termina en el CFDI) por tipo de servicio.
+# Antes era "Servicio De Evento En General" para todo, también Pasadía y
+# Hospedaje.
+CONCEPTO_POR_SERVICIO = {
+    'EVENTO': 'Servicio De Evento En General',
+    'PASADIA': 'Servicio De Pasadía',
+    'HOSPEDAJE': 'Servicio De Hospedaje',
+    'ARRENDAMIENTO': 'Arrendamiento De Mobiliario',
+}
+
+
+def _forma_pago_openpay(pago):
+    """Forma de pago SAT real de un cobro de Openpay, o None si no lo es.
+
+    Todo cobro de Openpay se registra como Pago(metodo='PLATAFORMA'), que a
+    secas se mapeaba a 03 Transferencia aunque fuera tarjeta o efectivo en
+    tienda. El método real vive en la OpenpayTransaccion (el Pago guarda su
+    openpay_id en `referencia`), que siempre existe antes de crear el Pago.
+    """
+    if pago.metodo != 'PLATAFORMA' or not pago.referencia:
+        return None
+    from comercial.models import OpenpayTransaccion
+    from facturacion.choices import FormaPago
+
+    registro = OpenpayTransaccion.objects.filter(openpay_id=pago.referencia).first()
+    if registro is None:
+        return None
+    if registro.metodo == 'store':
+        return FormaPago.EFECTIVO
+    if registro.metodo == 'bank_account':
+        return FormaPago.TRANSFERENCIA
+    if registro.metodo == 'card':
+        # El cargo síncrono guarda la respuesta del cargo; el webhook, el
+        # evento completo con el cargo bajo 'transaction'.
+        crudo = registro.payload_crudo or {}
+        cargo = crudo.get('transaction') or crudo
+        tipo = ((cargo.get('card') or {}).get('type') or '').lower()
+        if tipo == 'debit':
+            return FormaPago.TARJETA_DEBITO
+        # 'credit', o tipo desconocido: 99 "Por definir" no es válido con
+        # PUE, así que se asume crédito y el contador lo ve en la solicitud.
+        return FormaPago.TARJETA_CREDITO
+    return None
+
 
 @receiver(post_save, sender='comercial.Pago')
 def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
@@ -51,8 +95,8 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     cliente = cotizacion.cliente
 
     # Importar aquí para evitar circular imports
-    from facturacion.choices import FormaPago
-    from facturacion.models import SolicitudFactura
+    from facturacion.choices import FormaPago, uso_cfdi_compatible
+    from facturacion.models import RFC_PUBLICO_GENERAL, SolicitudFactura
 
     # ─── Idempotencia: no crear duplicados ──────────────────────
     if SolicitudFactura.objects.filter(pago=pago).exists():
@@ -71,9 +115,11 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         regimen_fiscal = cliente.regimen_fiscal or (
             '601' if cliente.tipo_persona == 'MORAL' else '616'
         )
-        uso_cfdi = cliente.uso_cfdi or 'G03'
+        # 616 (el default de Cliente) con G03 (también default) es una
+        # combinación que el PAC rechaza: se ajusta el uso al régimen.
+        uso_cfdi = uso_cfdi_compatible(regimen_fiscal, cliente.uso_cfdi)
     else:
-        rfc = 'XAXX010101000'
+        rfc = RFC_PUBLICO_GENERAL
         razon_social = 'PUBLICO EN GENERAL'
         codigo_postal = '97238'
         regimen_fiscal = '616'
@@ -84,6 +130,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     desglose = calcular_desglose_proporcional(monto_pago, cotizacion)
     subtotal = desglose['subtotal']
     iva = desglose['iva']
+    impuesto_hospedaje = desglose['impuesto_hospedaje']
     retencion_isr = desglose['retencion_isr']
     retencion_iva = desglose['retencion_iva']
 
@@ -99,7 +146,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         'OTRO': FormaPago.POR_DEFINIR,
     }
 
-    forma_pago = mapeo_forma_pago.get(pago.metodo, FormaPago.TRANSFERENCIA)
+    forma_pago = _forma_pago_openpay(pago) or mapeo_forma_pago.get(pago.metodo, FormaPago.TRANSFERENCIA)
 
     # ─── Crear la solicitud ─────────────────────────────────────
     solicitud = SolicitudFactura.objects.create(
@@ -112,9 +159,13 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         monto=monto_pago,
         subtotal=subtotal,
         iva=iva,
+        impuesto_hospedaje=impuesto_hospedaje,
         retencion_isr=retencion_isr,
         retencion_iva=retencion_iva,
-        concepto="COT-{} Servicio De Evento En General".format(str(cotizacion.id).zfill(4)),
+        concepto="COT-{} {}".format(
+            str(cotizacion.id).zfill(4),
+            CONCEPTO_POR_SERVICIO.get(cotizacion.tipo_servicio, CONCEPTO_POR_SERVICIO['EVENTO']),
+        ),
         rfc=rfc,
         razon_social=razon_social,
         codigo_postal=codigo_postal,
@@ -141,3 +192,23 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
             )
 
     transaction.on_commit(_enviar_automatico)
+
+
+@receiver(post_save, sender='facturacion.SolicitudFactura')
+def enviar_factura_al_cliente(sender, instance, **kwargs):
+    """
+    En cuanto el contador sube la factura (la solicitud pasa sola a FACTURADA
+    en `SolicitudFactura.save()`), se le manda al cliente. Idempotente por la
+    clave de `notificar_factura`: reguardar la solicitud no reenvía.
+    """
+    if instance.estado != 'FACTURADA' or not instance.tiene_factura:
+        return
+
+    def _enviar():
+        from comunicacion.services_notificaciones import notificar_factura
+        try:
+            notificar_factura(instance)
+        except Exception:
+            logger.exception("Envío de la factura SOL-%s al cliente falló", instance.pk)
+
+    transaction.on_commit(_enviar)

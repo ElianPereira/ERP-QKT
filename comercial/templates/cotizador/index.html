@@ -601,11 +601,35 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       </div>
       <div class="campo">
         <label for="razon_social">Razón social</label>
-        <input type="text" id="razon_social" placeholder="Nombre o razón social para facturación">
+        <input type="text" id="razon_social" placeholder="Tal como aparece en tu constancia fiscal">
+        <div class="campo-error" id="err-razon_social">Ingresa tu nombre o razón social.</div>
       </div>
       <div class="campo">
         <label for="cp_fiscal">Código postal fiscal</label>
-        <input type="text" id="cp_fiscal" placeholder="Ej: 97000" maxlength="5">
+        <input type="text" id="cp_fiscal" placeholder="Ej: 97000" maxlength="5" inputmode="numeric">
+        <div class="campo-error" id="err-cp_fiscal">El código postal debe tener 5 dígitos.</div>
+      </div>
+      <div class="campo">
+        <label for="regimen_fiscal">Régimen fiscal</label>
+        <!-- data-tipo: 12 caracteres de RFC = moral, 13 = física (regla del
+             SAT). El servidor valida lo mismo en CotizadorEnviarForm. -->
+        <select id="regimen_fiscal">
+          <option value="">Selecciona tu régimen</option>
+          <optgroup label="Persona física (RFC de 13 caracteres)">
+            <option value="612" data-tipo="F">612 - Actividades Empresariales y Profesionales</option>
+            <option value="626" data-tipo="FM">626 - Régimen Simplificado de Confianza (RESICO)</option>
+            <option value="606" data-tipo="F">606 - Arrendamiento</option>
+            <option value="605" data-tipo="F">605 - Sueldos y Salarios</option>
+            <option value="625" data-tipo="F">625 - Plataformas Tecnológicas</option>
+            <option value="621" data-tipo="F">621 - Incorporación Fiscal</option>
+            <option value="616" data-tipo="F">616 - Sin obligaciones fiscales</option>
+          </optgroup>
+          <optgroup label="Persona moral (RFC de 12 caracteres)">
+            <option value="601" data-tipo="M">601 - General de Ley Personas Morales</option>
+            <option value="603" data-tipo="M">603 - Personas Morales con Fines no Lucrativos</option>
+          </optgroup>
+        </select>
+        <div class="campo-error" id="err-regimen_fiscal">Selecciona un régimen que corresponda a tu RFC.</div>
       </div>
     </div>
 
@@ -1575,8 +1599,20 @@ function validarPaso(paso) {
     }
     if (requiereFactura) {
       var rfc = document.getElementById('rfc').value.trim();
-      if (rfc.length < 12 || rfc.length > 13) {
+      if (!/^[A-Za-z0-9&Ññ]{12,13}$/.test(rfc)) {
         mostrarErr('err-rfc','rfc'); ok=false;
+      }
+      if (!document.getElementById('razon_social').value.trim()) {
+        mostrarErr('err-razon_social','razon_social'); ok=false;
+      }
+      if (!/^\d{5}$/.test(document.getElementById('cp_fiscal').value.trim())) {
+        mostrarErr('err-cp_fiscal','cp_fiscal'); ok=false;
+      }
+      var selReg = document.getElementById('regimen_fiscal');
+      var tipoReg = selReg.value ? selReg.options[selReg.selectedIndex].getAttribute('data-tipo') : '';
+      var tipoRfc = rfc.length === 12 ? 'M' : 'F';
+      if (!tipoReg || tipoReg.indexOf(tipoRfc) === -1) {
+        mostrarErr('err-regimen_fiscal','regimen_fiscal'); ok=false;
       }
     }
     if (!ok) return false;
@@ -1908,6 +1944,7 @@ async function enviarSolicitud() {
     payload.rfc = (document.getElementById('rfc').value || '').trim().toUpperCase();
     payload.razon_social = (document.getElementById('razon_social').value || '').trim();
     payload.cp_fiscal = (document.getElementById('cp_fiscal').value || '').trim();
+    payload.regimen_fiscal = document.getElementById('regimen_fiscal').value;
   }
 
   try {

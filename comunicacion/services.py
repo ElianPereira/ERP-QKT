@@ -65,6 +65,7 @@ _REMITENTE_POR_TIPO = {
     # Guía pre-evento (Issue #234): contenido cliente-facing antes del
     # evento/pasadía/hospedaje, mismo remitente que COTIZACION.
     'EVENTO_PROXIMO': 'EMAIL_FROM_RESERVAS',
+    'FACTURA': 'EMAIL_FROM_PAGOS',
 }
 
 

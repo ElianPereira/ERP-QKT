@@ -69,3 +69,41 @@ class FormaPago(models.TextChoices):
 class MetodoPago(models.TextChoices):
     PUE = 'PUE', 'PUE - Pago en una sola exhibición'
     PPD = 'PPD', 'PPD - Pago en parcialidades o diferido'
+
+
+# ─── Compatibilidad régimen ↔ persona ↔ uso de CFDI (CFDI 4.0) ─────────────
+# Tomado de los catálogos del SAT (c_RegimenFiscal columnas Física/Moral y
+# c_UsoCFDI columna "Régimen Fiscal Receptor"). El PAC rechaza un CFDI cuyo
+# receptor combine un régimen y un uso que el catálogo no permite — p. ej.
+# 616 (Sin obligaciones) con G03: 616 solo admite S01/CP01.
+REGIMENES_PERSONA_FISICA = frozenset({
+    '605', '606', '607', '608', '610', '611', '612', '614', '615', '616',
+    '621', '622', '625', '626', '629', '630',
+})
+REGIMENES_PERSONA_MORAL = frozenset({
+    '601', '603', '607', '609', '610', '620', '622', '623', '624', '626', '628',
+})
+_REGIMENES_ADMITEN_G03 = frozenset({
+    '601', '603', '606', '612', '620', '621', '622', '623', '624', '625', '626',
+})
+
+
+def regimen_valido_para_persona(regimen, tipo_persona):
+    """¿El régimen existe para ese tipo de persona ('FISICA'/'MORAL')?"""
+    permitidos = REGIMENES_PERSONA_MORAL if tipo_persona == 'MORAL' else REGIMENES_PERSONA_FISICA
+    return regimen in permitidos
+
+
+def uso_cfdi_compatible(regimen, uso=None):
+    """Uso de CFDI válido para el régimen del receptor.
+
+    Respeta `uso` si el catálogo lo admite para ese régimen (solo se valida
+    G03, el único uso que el ERP asigna por default); si no, cae a G03
+    cuando el régimen lo permite, y a S01 —válido con cualquier régimen—
+    en el resto de los casos.
+    """
+    if uso and uso != UsoCFDI.GASTOS_EN_GENERAL:
+        return uso
+    if regimen in _REGIMENES_ADMITEN_G03:
+        return UsoCFDI.GASTOS_EN_GENERAL
+    return UsoCFDI.SIN_EFECTOS_FISCALES

@@ -32,7 +32,7 @@ from django.views.decorators.http import require_http_methods
 from core_erp import impuestos
 from core_erp.horarios import formato_hora_ampm
 from core_erp.ratelimit import rate_limit
-from facturacion.choices import RegimenFiscal
+from facturacion.choices import uso_cfdi_compatible
 
 from .forms_cotizador import TIPO_EVENTO_CHOICES, CotizadorEnviarForm
 from .models import (
@@ -239,6 +239,7 @@ def cotizador_enviar(request):
     rfc_raw        = limpio['rfc'].strip().upper()
     razon_social   = limpio['razon_social'].strip()
     cp_fiscal      = limpio['cp_fiscal'].strip()
+    regimen_fiscal = limpio['regimen_fiscal']
 
     tel_d = ''.join(filter(str.isdigit, telefono))
 
@@ -406,33 +407,22 @@ def cotizador_enviar(request):
         )
 
     if req_factura and rfc_raw:
+        # CotizadorEnviarForm ya exigió RFC, razón social, C.P. y un régimen
+        # coherente con el tipo de persona. El tipo se deduce de la longitud
+        # del RFC (regla del SAT): sin esto una empresa se quedaba en 'FISICA'
+        # (el default) y nunca le aplicaba la retención de ISR.
         cliente.es_cliente_fiscal = True
         cliente.rfc = rfc_raw[:13]
-        if razon_social:
-            cliente.razon_social = razon_social[:200]
-        if cp_fiscal:
-            cliente.codigo_postal_fiscal = cp_fiscal[:5]
-        # El cotizador público nunca pregunta "¿física o moral?" — la
-        # longitud del RFC (regla del SAT) es la señal fiable, no algo que
-        # dependa de que el visitante lo sepa marcar. Sin esto todo cliente
-        # que entra por aquí se quedaba en 'FISICA' (el default del campo),
-        # así que una empresa nunca disparaba la retención de ISR que le
-        # corresponde en `Cotizacion.calcular_totales()`.
-        tipo_detectado = impuestos.tipo_persona_por_rfc(cliente.rfc)
-        campos_actualizados = ['es_cliente_fiscal', 'rfc', 'razon_social', 'codigo_postal_fiscal']
-        if tipo_detectado and cliente.tipo_persona != tipo_detectado:
-            cliente.tipo_persona = tipo_detectado
-            if (tipo_detectado == 'MORAL'
-                    and cliente.regimen_fiscal in (None, '', RegimenFiscal.SIN_OBLIGACIONES_FISCALES)):
-                # El régimen 616 ("Sin obligaciones fiscales") es exclusivo
-                # de persona física — dejarlo así en una persona moral
-                # produciría un CFDI inválido. 601 (General de Ley Personas
-                # Morales) es el régimen real más común; el contador lo
-                # corrige en el admin si la empresa tributa distinto.
-                cliente.regimen_fiscal = RegimenFiscal.GRAL_LEY_PERSONAS_MORALES
-                campos_actualizados.append('regimen_fiscal')
-            campos_actualizados.append('tipo_persona')
-        cliente.save(update_fields=campos_actualizados)
+        cliente.razon_social = razon_social[:200]
+        cliente.codigo_postal_fiscal = cp_fiscal[:5]
+        cliente.tipo_persona = impuestos.tipo_persona_por_rfc(cliente.rfc)
+        cliente.regimen_fiscal = regimen_fiscal
+        # 616 o 605 no admiten G03: el PAC rechazaría el CFDI.
+        cliente.uso_cfdi = uso_cfdi_compatible(regimen_fiscal, cliente.uso_cfdi)
+        cliente.save(update_fields=[
+            'es_cliente_fiscal', 'rfc', 'razon_social', 'codigo_postal_fiscal',
+            'tipo_persona', 'regimen_fiscal', 'uso_cfdi',
+        ])
 
     # ── Nombre del evento ──────────────────────────────────────────────────────────────
     if servicio == 'EVENTO':

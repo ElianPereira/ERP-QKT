@@ -47,10 +47,21 @@ def generar_pdf_solicitud(solicitud):
         logo_url = f"file://{ruta_logo}"
 
     total = Decimal(str(solicitud.monto))
-    _d = impuestos.desglosar(
-        total, con_retencion_isr=(getattr(cliente, 'tipo_persona', None) == 'MORAL'),
-    )
-    subtotal, iva, ret_isr = _d['base'], _d['iva'], _d['ret_isr']
+    if solicitud.desglose_cuadra:
+        # Desglose ya calculado al crear la solicitud (proporcional a la
+        # cotización, ISH incluido). Recalcularlo desde el monto trataría el
+        # ISH como base gravada.
+        subtotal = solicitud.subtotal
+        iva = solicitud.iva
+        ish = solicitud.impuesto_hospedaje
+        ret_isr = solicitud.retencion_isr
+    else:
+        # Solicitud capturada a mano (solo monto) o monto editado después.
+        _d = impuestos.desglosar(
+            total, con_retencion_isr=(getattr(cliente, 'tipo_persona', None) == 'MORAL'),
+        )
+        subtotal, iva, ret_isr = _d['base'], _d['iva'], _d['ret_isr']
+        ish = Decimal('0.00')
 
     context = {
         'solicitud':    solicitud,
@@ -60,6 +71,7 @@ def generar_pdf_solicitud(solicitud):
         'calc_subtotal':subtotal,
         'calc_iva':     iva,
         'calc_ret_isr': ret_isr,
+        'calc_ish':     ish,
         'calc_total':   total,
         'linea_negocio_color': '#2E7D32' if solicitud.linea_negocio == 'QUINTA' else '#FF5A5F',
     }

@@ -243,6 +243,34 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-25 — Cierre del flujo de facturación del cliente web (revisión
+  pedida por el propietario). Se factura **por cada pago, no global**
+  (confirmado por él): por eso `requiere_factura=True` fijo y una solicitud a
+  Público en General por pago sin RFC son correctos, y PUE por pago también.
+  **(1)** La forma de pago de Openpay salía siempre 03: todo cobro es
+  `Pago(metodo='PLATAFORMA')`. El signal la resuelve ahora desde la
+  `OpenpayTransaccion` (`referencia` = openpay_id; siempre existe antes del
+  Pago): tarjeta débito 28, crédito 04 (tipo desconocido → 04, porque 99 no
+  vale con PUE), tienda 01, SPEI 03 — **sin tocar los archivos de Openpay**.
+  **(2)** CFDI inválidos: `Cliente` nace con 616 + G03 (sus defaults) y el
+  SAT solo admite S01 con 616. `facturacion.choices.uso_cfdi_compatible()`
+  ajusta el uso al régimen en el signal y en la web; la web ahora **pide el
+  régimen** (select curado) y exige razón social y C.P. de 5 dígitos, que
+  antes eran opcionales: con RFC pero sin razón social el signal caía en
+  silencio a Público en General. El régimen se valida contra el tipo de
+  persona que da la longitud del RFC (`regimen_valido_para_persona`).
+  **(3)** El cliente nunca recibía su factura: un `post_save` de
+  `SolicitudFactura` en FACTURADA manda email con PDF+XML (o ZIP),
+  `ComunicacionCliente.tipo='FACTURA'` (migración `comunicacion.0003`),
+  idempotente por `factura:<pk>:email` — igual que la guía, un envío FALLIDO
+  no se reintenta solo. No se manda a Público en General. El portal lista las
+  facturas y las sirve por `portal_descargar_factura` (token del portal,
+  solo FACTURADA de esa cotización). **(4)** Concepto por tipo de servicio
+  (`CONCEPTO_POR_SERVICIO`). **(5)** `SolicitudFactura.impuesto_hospedaje`
+  (migración `facturacion.0010`): el PDF recalculaba el desglose desde el
+  monto y habría tratado el ISH como base gravada; ahora usa el desglose
+  guardado si `desglose_cuadra` y solo recalcula si alguien editó el monto.
+
 - 2026-09-24 — El pendiente "Migración Cloudinary → DigitalOcean Spaces"
   estaba obsoleto: el storage activo es Cloudflare R2 desde hace tiempo
   (bucket público `qkt-media` + privado, ver entradas del 2026-08-12). Se

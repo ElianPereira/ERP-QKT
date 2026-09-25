@@ -21,6 +21,7 @@ class ComunicacionCliente(models.Model):
         ('CONTRATO', 'Contrato'),
         ('EVENTO_PROXIMO', 'Evento próximo'),
         ('CANCELACION', 'Cancelación'),
+        ('FACTURA', 'Factura emitida'),
         ('OTRO', 'Otro'),
     ]
     ESTADO_CHOICES = [

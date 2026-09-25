@@ -210,6 +210,8 @@ def portal_evento(request, token):
     from comunicacion.services import normalizar_telefono_wa
     wa_numero = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', ''))
 
+    facturas = cotizacion.solicitudes_factura.filter(estado='FACTURADA').order_by('fecha_pago', 'pk')
+
     from .services_openpay import transacciones_pendientes
     pagos_pendientes_openpay = transacciones_pendientes(cotizacion) if saldo_pendiente > 0 else []
 
@@ -222,6 +224,7 @@ def portal_evento(request, token):
         'plan': plan,
         'parcialidades': parcialidades,
         'contrato': contrato,
+        'facturas': facturas,
         'total_pagado': total_pagado,
         'saldo_pendiente': saldo_pendiente,
         'porcentaje': porcentaje,
@@ -356,6 +359,49 @@ def portal_descargar_guia(request, token):
         as_attachment=False,
         filename=f'Guia_{cotizacion.get_tipo_servicio_display()}.pdf',
         content_type='application/pdf',
+    )
+    respuesta['Cache-Control'] = 'private, no-store'
+    return respuesta
+
+
+_FORMATOS_FACTURA = {
+    'pdf': ('archivo_pdf', 'application/pdf'),
+    'xml': ('archivo_xml', 'application/xml'),
+    'zip': ('archivo_zip', 'application/zip'),
+}
+
+
+@_rate_limit(key='portal_descargar_factura', limit=10, window=60)
+def portal_descargar_factura(request, token, solicitud_id, formato):
+    """Sirve el PDF/XML/ZIP de una factura ya emitida de esta cotización.
+
+    Mismo criterio que el contrato: el archivo pasa por aquí (el token del
+    portal es el control de acceso) en vez de exponer la URL del storage, y
+    solo se sirven solicitudes FACTURADA de la cotización del propio portal.
+    """
+    portal = _portal_vigente_o_404(token)
+    if formato not in _FORMATOS_FACTURA:
+        raise Http404("Formato no disponible.")
+    campo_nombre, content_type = _FORMATOS_FACTURA[formato]
+
+    solicitud = portal.cotizacion.solicitudes_factura.filter(
+        pk=solicitud_id, estado='FACTURADA',
+    ).first()
+    campo = getattr(solicitud, campo_nombre, None) if solicitud else None
+    if not campo:
+        raise Http404("La factura no está disponible.")
+
+    try:
+        archivo = campo.open('rb')
+    except (FileNotFoundError, OSError):
+        raise Http404("La factura no está disponible en este momento.") from None
+
+    folio = solicitud.uuid_factura or f"SOL-{solicitud.pk:04d}"
+    respuesta = FileResponse(
+        archivo,
+        as_attachment=(formato != 'pdf'),
+        filename=f'Factura_{folio}.{formato}',
+        content_type=content_type,
     )
     respuesta['Cache-Control'] = 'private, no-store'
     return respuesta

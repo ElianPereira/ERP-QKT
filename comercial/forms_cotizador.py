@@ -15,7 +15,12 @@ test que compara el string exacto de la falta de consentimiento). Lo que el
 Field añade es tipo, longitud máxima y choices cerradas donde antes
 cualquier string pasaba sin límite.
 """
+import re
+
 from django import forms
+
+from core_erp import impuestos
+from facturacion.choices import RegimenFiscal, regimen_valido_para_persona
 
 TIPO_EVENTO_CHOICES = [(v, v) for v in (
     'Boda', 'XV Años', 'Graduación', 'Cumpleaños', 'Bautizo',
@@ -53,6 +58,7 @@ class CotizadorEnviarForm(forms.Form):
     rfc = forms.CharField(max_length=50, required=False)
     razon_social = forms.CharField(max_length=300, required=False)
     cp_fiscal = forms.CharField(max_length=20, required=False)
+    regimen_fiscal = forms.ChoiceField(choices=RegimenFiscal.choices, required=False)
 
     def clean(self):
         cleaned = super().clean()
@@ -78,6 +84,9 @@ class CotizadorEnviarForm(forms.Form):
             except ValueError:
                 errores.append("Indica cuántas noches te vas a quedar.")
 
+        if cleaned.get('requiere_factura'):
+            errores.extend(self._errores_fiscales(cleaned))
+
         if not cleaned.get('acepta_legales'):
             errores.append(
                 "Debes aceptar el Aviso de Privacidad y los Términos y Condiciones."
@@ -86,3 +95,26 @@ class CotizadorEnviarForm(forms.Form):
         if errores:
             raise forms.ValidationError(errores)
         return cleaned
+
+    @staticmethod
+    def _errores_fiscales(cleaned):
+        """CFDI 4.0 exige RFC, nombre, C.P. y régimen del receptor tal como
+        vienen en su constancia; sin alguno de ellos el signal de facturación
+        caía en silencio a "Público en General" o armaba un CFDI que el PAC
+        rechaza (p. ej. régimen de persona física en un RFC de empresa)."""
+        errores = []
+        rfc = (cleaned.get('rfc') or '').strip().upper()
+        tipo_persona = impuestos.tipo_persona_por_rfc(rfc)
+        if not tipo_persona or not re.fullmatch(r'[A-ZÑ&0-9]+', rfc):
+            errores.append("Ingresa un RFC válido (12 o 13 caracteres).")
+        if not (cleaned.get('razon_social') or '').strip():
+            errores.append("La razón social es requerida para facturar.")
+        if not re.fullmatch(r'\d{5}', (cleaned.get('cp_fiscal') or '').strip()):
+            errores.append("El código postal fiscal debe tener 5 dígitos.")
+        regimen = cleaned.get('regimen_fiscal')
+        if not regimen:
+            errores.append("Selecciona tu régimen fiscal.")
+        elif tipo_persona and not regimen_valido_para_persona(regimen, tipo_persona):
+            persona = 'moral (RFC de 12 caracteres)' if tipo_persona == 'MORAL' else 'física (RFC de 13 caracteres)'
+            errores.append(f"El régimen fiscal elegido no corresponde a una persona {persona}.")
+        return errores
