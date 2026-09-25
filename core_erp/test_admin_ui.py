@@ -42,8 +42,10 @@ class MontoTest(SimpleTestCase):
         self.assertIn('-$150.50', html)
         self.assertIn('qkt-num--error', html)
 
-    def test_none_es_vacio(self):
-        self.assertIn('qkt-vacio', str(ui.monto(None)))
+    def test_none_es_vacio_alineado_como_cifra(self):
+        html = str(ui.monto(None))
+        self.assertIn('qkt-vacio', html)
+        self.assertIn('qkt-num', html)
 
 
 class AvanceTest(SimpleTestCase):

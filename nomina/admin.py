@@ -2,9 +2,9 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.contrib import admin, messages
-from django.utils.html import format_html
 from django.utils.timezone import now
 
+from core_erp import admin_ui as ui
 from core_erp.descargas import url_descarga
 
 from .models import Empleado, ReciboNomina
@@ -17,7 +17,11 @@ except ImportError:
 
 @admin.register(Empleado)
 class EmpleadoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'puesto', 'tarifa_base', 'telefono', 'activo')
+    list_display = ('nombre', 'puesto', 'tarifa_display', 'telefono', 'activo')
+
+    @admin.display(description='Tarifa base', ordering='tarifa_base')
+    def tarifa_display(self, obj):
+        return ui.monto(obj.tarifa_base)
     list_filter = ('puesto', 'activo')
     search_fields = ('nombre',)
 
@@ -26,8 +30,8 @@ class EmpleadoAdmin(admin.ModelAdmin):
 class ReciboNominaAdmin(admin.ModelAdmin):
     change_list_template = 'admin/nomina/recibonomina/change_list.html'
 
-    list_display = ('folio_custom', 'empleado', 'periodo', 'total_pagado', 'estado', 'ver_pdf')
-    list_filter = ('periodo', 'empleado', 'estado')
+    list_display = ('folio_custom', 'empleado', 'periodo', 'total_display', 'estado_badge', 'ver_pdf')
+    list_filter = ('estado', 'periodo', 'empleado')
     actions = ['marcar_como_pagado']
 
     def marcar_como_pagado(self, request, queryset):
@@ -43,20 +47,29 @@ class ReciboNominaAdmin(admin.ModelAdmin):
         self.message_user(request, f"{exitosos} recibo(s) marcado(s) como pagados (administrativo, sin impacto contable).", level=messages.SUCCESS)
     marcar_como_pagado.short_description = "Marcar como pagado en efectivo (solo administrativo)"
 
+    TONOS_ESTADO = {'CALCULADO': ui.ALERTA, 'PAGADO': ui.EXITO, 'CANCELADO': ui.ERROR}
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('empleado')
+
+    @admin.display(description='Folio', ordering='id')
     def folio_custom(self, obj):
         return f"NOM-{obj.id:03d}"
-    folio_custom.short_description = "Folio"
 
+    @admin.display(description='Total', ordering='total_pagado')
+    def total_display(self, obj):
+        return ui.monto(obj.total_pagado)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='')
     def ver_pdf(self, obj):
         if obj.archivo_pdf:
-            return format_html(
-                '<a href="{}" target="_blank" style="background:#2E7D32; color:white; '
-                'padding:4px 10px; border-radius:4px; text-decoration:none; '
-                'font-size:11px; font-weight:600;">PDF</a>',
-                url_descarga(obj, 'archivo_pdf')
-            )
-        return "-"
-    ver_pdf.short_description = "Recibo"
+            return ui.acciones(ui.boton_icono(url_descarga(obj, 'archivo_pdf'), 'file-pdf', 'Recibo PDF',
+                                              nueva_pestana=True))
+        return ui.acciones(ui.hueco_icono())
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}

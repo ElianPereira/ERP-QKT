@@ -101,15 +101,17 @@ class ProveedorAdmin(admin.ModelAdmin):
         ('Información Adicional', {'fields': ('notas', 'activo')}),
     )
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_n_insumos=Count('insumo'))
+
+    @admin.display(description='Insumos vinculados', ordering='_n_insumos')
     def total_insumos(self, obj):
-        count = obj.insumo_set.count()
+        count = getattr(obj, '_n_insumos', None)
+        if count is None:
+            count = obj.insumo_set.count()
         if count > 0:
-            return format_html(
-                '<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px;">{} insumos</span>',
-                count
-            )
-        return mark_safe('<span style="color:#999;">Sin insumos</span>')
-    total_insumos.short_description = "Insumos Vinculados"
+            return ui.badge(f'{count} insumos', ui.INFO, categoria=True)
+        return ui.vacio()
 
     class Media:
         css = MEDIA_CONFIG['css']
@@ -134,13 +136,13 @@ class InsumoAdmin(admin.ModelAdmin):
         ('Opciones', {'fields': ('crear_como_subproducto',), 'classes': ('collapse',)}),
     )
 
+    @admin.display(description='Estado')
     def badge_stock(self, obj):
         if obj.stock_minimo > 0 and obj.cantidad_stock < obj.stock_minimo:
-            return mark_safe('<span style="background:#e74c3c; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">BAJO</span>')
-        elif obj.cantidad_stock > 0:
-            return mark_safe('<span style="background:#27ae60; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">OK</span>')
-        return mark_safe('<span style="background:#95a5a6; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">Sin stock</span>')
-    badge_stock.short_description = "Estado"
+            return ui.badge('Bajo', ui.ERROR)
+        if obj.cantidad_stock > 0:
+            return ui.badge('OK', ui.EXITO)
+        return ui.badge('Sin stock', ui.NEUTRO)
 
     class Media:
         css = MEDIA_CONFIG['css']
@@ -153,7 +155,7 @@ class InsumoAdmin(admin.ModelAdmin):
 @admin.register(MovimientoInventario)
 class MovimientoInventarioAdmin(admin.ModelAdmin):
     list_display = ('created_at', 'insumo', 'tipo_badge', 'cantidad', 'stock_anterior', 'stock_posterior', 'nota_corta', 'created_by')
-    list_filter = ('tipo', 'created_at', 'insumo')
+    list_filter = (('tipo', con_titulo('Tipo')), filtro_periodo('created_at', 'Fecha'), 'insumo')
     search_fields = ('insumo__nombre', 'nota')
     raw_id_fields = ['insumo', 'compra', 'cotizacion']
     readonly_fields = ('stock_anterior', 'stock_posterior', 'created_at', 'created_by')
@@ -166,19 +168,13 @@ class MovimientoInventarioAdmin(admin.ModelAdmin):
         ('Auditoría', {'fields': ('stock_anterior', 'stock_posterior', 'created_by', 'created_at')}),
     )
 
+    TONOS_TIPO = {'ENTRADA': ui.EXITO, 'SALIDA': ui.ERROR, 'AJUSTE_POS': ui.INFO,
+                  'AJUSTE_NEG': ui.ALERTA, 'DEVOLUCION': ui.NEUTRO}
+
+    @admin.display(description='Tipo', ordering='tipo')
     def tipo_badge(self, obj):
-        colores = {
-            'ENTRADA': '#27ae60', 'SALIDA': '#e74c3c',
-            'AJUSTE_POS': '#3498db', 'AJUSTE_NEG': '#e67e22', 'DEVOLUCION': '#9b59b6',
-        }
-        color = colores.get(obj.tipo, '#666')
-        signo = '+' if obj.tipo in ('ENTRADA', 'AJUSTE_POS') else '-'
-        return format_html(
-            '<span style="background:{}; color:white; padding:2px 8px; border-radius:4px; font-size:11px;">{} {}</span>',
-            color, signo, obj.get_tipo_display()
-        )
-    tipo_badge.short_description = "Tipo"
-    tipo_badge.admin_order_field = 'tipo'
+        signo = '+' if obj.tipo in ('ENTRADA', 'AJUSTE_POS') else '−'
+        return ui.badge_por_valor(obj.tipo, self.TONOS_TIPO, f'{signo} {obj.get_tipo_display()}')
 
     def nota_corta(self, obj):
         return (obj.nota[:50] + '...') if obj.nota and len(obj.nota) > 50 else (obj.nota or '-')
@@ -210,7 +206,7 @@ class MovimientoInventarioAdmin(admin.ModelAdmin):
 class PlantillaBarraAdmin(admin.ModelAdmin):
     list_display = ('categoria_display', 'grupo_display', 'insumo_nombre', 'insumo_presentacion', 'proveedor_insumo', 'costo_insumo', 'proporcion', 'activo')
     list_editable = ('proporcion', 'activo')
-    list_filter = ('grupo', 'activo')
+    list_filter = (('grupo', con_titulo('Grupo')), 'activo')
     search_fields = ('insumo__nombre', 'insumo__proveedor__nombre')
     raw_id_fields = ['insumo']
     list_per_page = 30
@@ -221,12 +217,9 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     categoria_display.short_description = "Concepto"
     categoria_display.admin_order_field = 'categoria'
 
+    @admin.display(description='Grupo', ordering='grupo')
     def grupo_display(self, obj):
-        colores = {'ALCOHOL_NACIONAL': '#e67e22', 'ALCOHOL_PREMIUM': '#9b59b6', 'CERVEZA': '#f1c40f', 'MEZCLADOR': '#3498db', 'HIELO': '#ecf0f1', 'COCTELERIA': '#2ecc71', 'CONSUMIBLE': '#95a5a6'}
-        color = colores.get(obj.grupo, '#666')
-        return format_html('<span style="background:{}; padding:2px 8px; border-radius:4px; color:#fff; font-size:11px;">{}</span>', color, obj.get_grupo_display())
-    grupo_display.short_description = "Grupo"
-    grupo_display.admin_order_field = 'grupo'
+        return ui.badge(obj.get_grupo_display(), ui.NEUTRO, categoria=True)
 
     def insumo_nombre(self, obj): return obj.insumo.nombre
     insumo_nombre.short_description = "Insumo"
@@ -235,8 +228,9 @@ class PlantillaBarraAdmin(admin.ModelAdmin):
     insumo_presentacion.short_description = "Presentación"
     def proveedor_insumo(self, obj): return obj.insumo.proveedor.nombre if obj.insumo.proveedor else "Sin proveedor"
     proveedor_insumo.short_description = "Proveedor"
-    def costo_insumo(self, obj): return f"${obj.insumo.costo_unitario:,.2f}"
-    costo_insumo.short_description = "Costo"
+    @admin.display(description='Costo')
+    def costo_insumo(self, obj):
+        return ui.monto(obj.insumo.costo_unitario)
 
     class Media:
         css = MEDIA_CONFIG['css']
@@ -254,8 +248,11 @@ class SubProductoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'costo_display')
     inlines = [RecetaInline]
     search_fields = ('nombre',)
-    def costo_display(self, obj): return f"${obj.costo_insumos():,.2f}"
-    costo_display.short_description = "Costo Insumos"
+
+    @admin.display(description='Costo insumos')
+    def costo_display(self, obj):
+        return ui.monto(obj.costo_insumos())
+
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
@@ -453,7 +450,7 @@ class ProductoAdmin(admin.ModelAdmin):
 class ClienteAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'tipo_persona', 'alerta_tipo_persona', 'es_cliente_fiscal',
                     'rfc', 'email', 'telefono')
-    list_filter = ('tipo_persona', 'es_cliente_fiscal', 'origen')
+    list_filter = (('tipo_persona', con_titulo('Tipo de persona')), ('es_cliente_fiscal', con_titulo('Datos fiscales')), 'origen')
     search_fields = ('nombre', 'rfc', 'razon_social')
     fieldsets = (
         ('Datos Generales', {'fields': ('nombre', 'email', 'telefono', 'origen', 'fecha_registro')}),
@@ -472,9 +469,8 @@ class ClienteAdmin(admin.ModelAdmin):
         esperado = impuestos.tipo_persona_por_rfc(obj.rfc)
         if esperado and esperado != obj.tipo_persona:
             return format_html(
-                '<span style="color:#c62828;" title="RFC de {} caracteres, '
-                'típico de persona {}">⚠ revisar</span>',
-                len((obj.rfc or '').strip()), esperado.lower(),
+                '<span title="RFC de {} caracteres, típico de persona {}">{}</span>',
+                len((obj.rfc or '').strip()), esperado.lower(), ui.badge('Revisar', ui.ALERTA),
             )
         return ''
     alerta_tipo_persona.short_description = 'Tipo vs. RFC'
@@ -504,41 +500,45 @@ class PlanPagoAdmin(admin.ModelAdmin):
     readonly_fields = ('cotizacion', 'generado_por', 'fecha_generacion')
     inlines = [ParcialidadInline]
 
-    def cotizacion_folio(self, obj): return f"COT-{obj.cotizacion.id:03d}"
-    cotizacion_folio.short_description = "Folio"
-    def cliente(self, obj): return obj.cotizacion.cliente.nombre
-    cliente.short_description = "Cliente"
-    def monto_total(self, obj): return f"${obj.cotizacion.precio_final:,.2f}"
-    monto_total.short_description = "Total"
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cotizacion__cliente')
+
+    @admin.display(description='Folio', ordering='cotizacion_id')
+    def cotizacion_folio(self, obj):
+        return f"COT-{obj.cotizacion.id:03d}"
+
+    @admin.display(description='Cliente', ordering='cotizacion__cliente__nombre')
+    def cliente(self, obj):
+        return obj.cotizacion.cliente.nombre
+
+    @admin.display(description='Total')
+    def monto_total(self, obj):
+        return ui.monto(obj.cotizacion.precio_final)
 
     def num_parcialidades(self, obj):
         return f"{obj.parcialidades_pagadas()}/{obj.parcialidades.count()}"
     num_parcialidades.short_description = "Pagadas"
 
+    @admin.display(description='Progreso')
     def progreso_badge(self, obj):
-        pagadas = obj.parcialidades_pagadas()
         total = obj.parcialidades.count()
         if total == 0:
-            return '-'
-        pct = int((pagadas / total) * 100)
-        color = '#27ae60' if pct >= 100 else '#f39c12' if pct >= 50 else '#e74c3c'
-        return format_html(
-            '<div style="width:80px; background:#ecf0f1; border-radius:10px; height:12px; overflow:hidden; display:inline-block;">'
-            '<div style="width:{}%; background:{}; height:100%; border-radius:10px;"></div>'
-            '</div> <small style="color:{};">{}%</small>', pct, color, color, pct)
-    progreso_badge.short_description = "Progreso"
+            return ui.vacio()
+        return ui.avance(obj.parcialidades_pagadas() / total * 100)
 
+    @admin.display(description='Próximo pago')
     def siguiente_pago_info(self, obj):
         sig = obj.siguiente_pago()
         if not sig:
-            return mark_safe('<span style="color:#27ae60; font-weight:bold;">Liquidado</span>')
+            return ui.badge('Liquidado', ui.EXITO)
         dias = sig.dias_restantes
         if dias < 0:
-            return format_html('<span style="color:#e74c3c; font-weight:bold;">${} vencido hace {} días</span>', f"{sig.monto:,.2f}", abs(dias))
+            nota, tono = f'vencido hace {abs(dias)} días', ui.ERROR
         elif dias <= 7:
-            return format_html('<span style="color:#f39c12; font-weight:bold;">${} en {} días</span>', f"{sig.monto:,.2f}", dias)
-        return format_html('<span style="color:#3498db;">${} el {}</span>', f"{sig.monto:,.2f}", sig.fecha_limite.strftime('%d/%m/%Y'))
-    siguiente_pago_info.short_description = "Próximo Pago"
+            nota, tono = f'en {dias} días', ui.ALERTA
+        else:
+            nota, tono = date_format(sig.fecha_limite, 'd M Y'), None
+        return format_html('{}<div class="qkt-sub">{}</div>', ui.monto(sig.monto, tono=tono), nota)
 
     class Media:
         css = MEDIA_CONFIG['css']
@@ -550,25 +550,28 @@ class PortalClienteAdmin(admin.ModelAdmin):
         'cotizacion_folio', 'cliente', 'activo', 'expira_en', 'visitas',
         'ultima_visita', 'link_portal',
     )
-    list_filter = ('activo',)
+    list_filter = (('activo', con_titulo('Activo')),)
     readonly_fields = (
         'token', 'expira_en', 'visitas', 'ultima_visita', 'created_at', 'created_by',
     )
     raw_id_fields = ('cotizacion',)
     actions = ['regenerar_token']
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cotizacion__cliente')
+
+    @admin.display(description='Folio', ordering='cotizacion_id')
     def cotizacion_folio(self, obj):
         return f"COT-{obj.cotizacion.id:03d}"
-    cotizacion_folio.short_description = "Folio"
 
+    @admin.display(description='Cliente', ordering='cotizacion__cliente__nombre')
     def cliente(self, obj):
         return obj.cotizacion.cliente.nombre
-    cliente.short_description = "Cliente"
 
+    @admin.display(description='')
     def link_portal(self, obj):
-        url = obj.get_full_url()
-        return format_html('<a href="{}" target="_blank" style="color:#2E7D32;">Abrir portal</a>', url)
-    link_portal.short_description = "Link"
+        return ui.acciones(ui.boton_icono(obj.get_full_url(), 'arrow-up-right-from-square', 'Abrir portal',
+                                          nueva_pestana=True))
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -1096,7 +1099,7 @@ class PagoAdmin(admin.ModelAdmin):
 
     @admin.display(description='Comisión TPV', ordering='comision_tpv')
     def comision_display(self, obj):
-        return ui.monto(obj.comision_tpv) if obj.comision_tpv else ui.vacio()
+        return ui.monto(obj.comision_tpv) if obj.comision_tpv else ui.vacio(numerico=True)
 
     @admin.display(description='Registró', ordering='created_at')
     def registro_display(self, obj):
@@ -1423,7 +1426,7 @@ class CompraAdmin(admin.ModelAdmin):
     def cfdi_display(self, obj):
         if not obj.uuid:
             return ui.badge('Sin CFDI', ui.ALERTA)
-        return format_html('<span class="qkt-num" title="{}">{}…</span>', obj.uuid, obj.uuid[:8])
+        return format_html('<span class="qkt-codigo" title="{}">{}…</span>', obj.uuid, obj.uuid[:8])
 
     @admin.display(description='')
     def ver_pdf(self, obj):
@@ -1437,47 +1440,60 @@ from .models import ContratoServicio, DepositoGarantia, FirmaContrato, Movimient
 
 @admin.register(ContratoServicio)
 class ContratoServicioAdmin(admin.ModelAdmin):
-    list_display  = ('numero', 'cotizacion', 'tipo_servicio', 'deposito_garantia',
-                     'generado_en', 'generado_por', 'enviado_email', 'firma_badge', 'descargar_btn', 'enviar_btn')
-    list_filter   = ('tipo_servicio', 'enviado_email', 'generado_en')
+    list_display  = ('numero', 'cotizacion', 'servicio_badge', 'deposito_display',
+                     'generado_display', 'enviado_badge', 'firma_badge', 'acciones_display')
+    list_filter   = (('tipo_servicio', con_titulo('Servicio')), ('enviado_email', con_titulo('Enviado por email')),
+                     filtro_periodo('generado_en', 'Generado'))
     search_fields = ('numero', 'cotizacion__cliente__nombre')
     readonly_fields = ('numero', 'generado_por', 'generado_en', 'enviado_email')
 
-    @admin.display(description="Descargar")
-    def descargar_btn(self, obj):
-        if obj.archivo:
-            return format_html(
-                '<a href="{}" target="_blank" class="btn btn-primary">PDF</a>',
-                url_descarga(obj, 'archivo')
-            )
-        return "—"
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cotizacion__cliente', 'generado_por', 'firma')
 
-    @admin.display(description="Email")
-    def enviar_btn(self, obj):
-        url = reverse('contrato_email', args=[obj.id])
-        if obj.enviado_email:
-            return mark_safe(
-                '<span style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;">Enviado</span>')
-        return format_html(
-            '<a href="{}" style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Enviar</a>',
-            url)
+    @admin.display(description='Servicio', ordering='tipo_servicio')
+    def servicio_badge(self, obj):
+        return ui.badge(obj.get_tipo_servicio_display(), ui.INFO, categoria=True)
+
+    @admin.display(description='Depósito', ordering='deposito_garantia')
+    def deposito_display(self, obj):
+        return ui.monto(obj.deposito_garantia) if obj.deposito_garantia else ui.vacio(numerico=True)
+
+    @admin.display(description='Generado', ordering='generado_en')
+    def generado_display(self, obj):
+        cuando = date_format(timezone.localtime(obj.generado_en), 'd M Y H:i') if obj.generado_en else ''
+        return format_html('{}<div class="qkt-sub">{}</div>', cuando, obj.generado_por or '—')
+
+    @admin.display(description='Email', ordering='enviado_email')
+    def enviado_badge(self, obj):
+        return ui.badge('Enviado', ui.EXITO) if obj.enviado_email else ui.badge('Sin enviar', ui.NEUTRO)
 
     @admin.display(description="Firma")
     def firma_badge(self, obj):
         firma = getattr(obj, 'firma', None)
         if firma and firma.firmado:
-            return format_html(
-                '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 10px;'
-                'border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Firmado {}</a>',
-                url_descarga(firma, 'archivo_firmado'), firma.firmado_en.strftime('%d/%m/%Y'))
-        return "—"
+            return ui.badge(f"Firmado {date_format(firma.firmado_en, 'd M Y')}", ui.EXITO)
+        return ui.badge('Sin firmar', ui.NEUTRO)
+
+    @admin.display(description='')
+    def acciones_display(self, obj):
+        firma = getattr(obj, 'firma', None)
+        return ui.acciones(
+            ui.boton_icono(url_descarga(obj, 'archivo'), 'file-pdf', 'PDF del contrato', nueva_pestana=True)
+            if obj.archivo else ui.hueco_icono(),
+            ui.boton_icono(url_descarga(firma, 'archivo_firmado'), 'file-signature', 'PDF firmado',
+                           nueva_pestana=True)
+            if firma and firma.firmado else ui.hueco_icono(),
+            ui.boton_icono(reverse('contrato_email', args=[obj.id]), 'envelope',
+                           'Reenviar por email' if obj.enviado_email else 'Enviar por email',
+                           confirmar='¿Enviar el contrato por email al cliente?'),
+        )
 
 
 @admin.register(FirmaContrato)
 class FirmaContratoAdmin(admin.ModelAdmin):
     """Evidencia de firma electrónica: solo lectura, nunca se edita ni se borra."""
-    list_display = ('contrato', 'nombre_firmante', 'firmado_en', 'codigo_destino', 'ip', 'pdf_firmado')
-    list_filter = ('firmado_en',)
+    list_display = ('contrato', 'nombre_firmante', 'firmado_display', 'codigo_destino', 'ip', 'pdf_firmado')
+    list_filter = (filtro_periodo('firmado_en', 'Firmado'),)
     search_fields = ('contrato__numero', 'nombre_firmante', 'contrato__cotizacion__cliente__nombre')
     exclude = ('codigo_hash', 'imagen_firma', 'archivo_firmado')
     readonly_fields = (
@@ -1487,10 +1503,16 @@ class FirmaContratoAdmin(admin.ModelAdmin):
         'created_at', 'updated_at',
     )
 
+    @admin.display(description='Firmado', ordering='firmado_en')
+    def firmado_display(self, obj):
+        return date_format(timezone.localtime(obj.firmado_en), 'd M Y H:i') if obj.firmado_en else ui.vacio()
+
     @admin.display(description="PDF firmado")
     def pdf_firmado(self, obj):
         url = url_descarga(obj, 'archivo_firmado')
-        return format_html('<a href="{}" target="_blank">Descargar</a>', url) if url else "—"
+        if not url:
+            return ui.vacio()
+        return ui.acciones(ui.boton_icono(url, 'file-signature', 'Descargar PDF firmado', nueva_pestana=True))
 
     def has_add_permission(self, request):
         return False
@@ -1561,30 +1583,31 @@ class DepositoGarantiaAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+    TONOS_ESTADO = {'PENDIENTE': ui.ALERTA, 'PARCIAL': ui.ALERTA, 'EN_CUSTODIA': ui.INFO, 'LIQUIDADO': ui.EXITO}
+
     @admin.display(description="Recibido")
     def recibido_col(self, obj):
-        return f"${obj.recibido:,.2f}"
+        return ui.monto(obj.recibido)
 
     @admin.display(description="Estado")
     def estado_col(self, obj):
         estado = obj.estado
         vencido = (estado == 'EN_CUSTODIA' and obj.fecha_limite_devolucion
                    and obj.fecha_limite_devolucion < timezone.localdate())
-        color = '#c0392b' if vencido else {'PENDIENTE': '#e67e22', 'PARCIAL': '#e67e22',
-                                           'EN_CUSTODIA': '#1565C0', 'LIQUIDADO': '#2E7D32'}[estado]
-        texto = 'Devolución vencida' if vencido else obj.get_estado_display()
-        return format_html('<span style="color:{};font-weight:600;">{}</span>', color, texto)
+        if vencido:
+            return ui.badge('Devolución vencida', ui.ERROR)
+        return ui.badge_por_valor(estado, self.TONOS_ESTADO, obj.get_estado_display())
 
     @admin.display(description="")
     def acciones(self, obj):
         if obj.liquidado:
-            return "—"
-        enlaces = []
+            return ui.vacio()
+        botones = []
         if obj.por_recibir > 0:
-            enlaces.append(('Registrar recibido', reverse('admin:deposito_recepcion', args=[obj.pk])))
+            botones.append(ui.boton('Registrar recibido', reverse('admin:deposito_recepcion', args=[obj.pk])))
         if obj.en_custodia > 0:
-            enlaces.append(('Liquidar', reverse('admin:deposito_liquidar', args=[obj.pk])))
-        return format_html_join(' · ', '<a href="{}">{}</a>', ((url, texto) for texto, url in enlaces))
+            botones.append(ui.boton('Liquidar', reverse('admin:deposito_liquidar', args=[obj.pk])))
+        return ui.acciones(*botones)
 
     def get_urls(self):
         propias = [
@@ -1643,7 +1666,7 @@ class RecordatorioPagoAdmin(admin.ModelAdmin):
         'parcialidad_info', 'cliente', 'fecha_envio',
         'estado_badge', 'monto_parcialidad'
     )
-    list_filter = ('estado', 'fecha_envio')
+    list_filter = ('estado', filtro_periodo('fecha_envio', 'Fecha de envío'))
     search_fields = (
         'parcialidad__plan__cotizacion__cliente__nombre',
         'parcialidad__plan__cotizacion__nombre_evento',
@@ -1655,32 +1678,28 @@ class RecordatorioPagoAdmin(admin.ModelAdmin):
     date_hierarchy = 'fecha_envio'
     ordering = ['-fecha_envio']
 
+    TONOS_ESTADO = {'ENVIADO': ui.EXITO, 'FALLIDO': ui.ERROR, 'OMITIDO': ui.NEUTRO}
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('parcialidad__plan__cotizacion__cliente')
+
+    @admin.display(description='Parcialidad')
     def parcialidad_info(self, obj):
         cot = obj.parcialidad.plan.cotizacion
-        return f"COT-{cot.id:03d} — {obj.parcialidad.concepto}"
-    parcialidad_info.short_description = "Parcialidad"
+        return format_html('<span class="qkt-codigo">COT-{:03d}</span><div class="qkt-sub">{}</div>',
+                           cot.id, obj.parcialidad.concepto)
 
+    @admin.display(description='Cliente')
     def cliente(self, obj):
         return obj.parcialidad.plan.cotizacion.cliente.nombre
-    cliente.short_description = "Cliente"
 
+    @admin.display(description='Monto')
     def monto_parcialidad(self, obj):
-        return f"${obj.parcialidad.monto:,.2f}"
-    monto_parcialidad.short_description = "Monto"
+        return ui.monto(obj.parcialidad.monto)
 
+    @admin.display(description='Estado', ordering='estado')
     def estado_badge(self, obj):
-        colores = {
-            'ENVIADO': ('#2E7D32', 'white'),
-            'FALLIDO': ('#e74c3c', 'white'),
-            'OMITIDO': ('#95a5a6', 'white'),
-        }
-        bg, fg = colores.get(obj.estado, ('#333', 'white'))
-        return format_html(
-            '<span style="background:{};color:{};padding:2px 8px;'
-            'border-radius:4px;font-size:11px;font-weight:600;">{}</span>',
-            bg, fg, obj.get_estado_display()
-        )
-    estado_badge.short_description = "Estado"
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
 
     def has_add_permission(self, request): return False
     def has_delete_permission(self, request, obj=None): return False
@@ -1712,7 +1731,7 @@ class AsignacionPersonalInline(admin.TabularInline):
 @admin.register(AsignacionEspacio)
 class AsignacionEspacioAdmin(admin.ModelAdmin):
     list_display = ('espacio', 'cotizacion', 'fecha', 'hora_inicio', 'hora_fin')
-    list_filter = ('espacio', 'fecha')
+    list_filter = ('espacio', filtro_periodo('fecha', 'Fecha'))
     search_fields = ('cotizacion__nombre_evento', 'cotizacion__cliente__nombre', 'espacio__nombre')
     date_hierarchy = 'fecha'
     autocomplete_fields = ('cotizacion',)
@@ -1721,7 +1740,7 @@ class AsignacionEspacioAdmin(admin.ModelAdmin):
 @admin.register(AsignacionPersonal)
 class AsignacionPersonalAdmin(admin.ModelAdmin):
     list_display = ('empleado', 'rol', 'cotizacion', 'fecha', 'hora_inicio', 'hora_fin')
-    list_filter = ('rol', 'fecha')
+    list_filter = ('rol', filtro_periodo('fecha', 'Fecha'))
     search_fields = ('empleado__nombre', 'cotizacion__nombre_evento', 'cotizacion__cliente__nombre')
     date_hierarchy = 'fecha'
     autocomplete_fields = ('cotizacion',)
@@ -1785,7 +1804,7 @@ class DesactivarSinArchivoMixin:
 @admin.register(ImagenLanding)
 class ImagenLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
     list_display = ('preview_mini', 'seccion', 'categoria_galeria', 'mostrar_en_galeria', 'titulo', 'orden', 'activo')
-    list_filter = ('seccion', 'categoria_galeria', 'mostrar_en_galeria', 'activo')
+    list_filter = ('seccion', ('categoria_galeria', con_titulo('Categoría')), ('mostrar_en_galeria', con_titulo('En galería')), 'activo')
     list_editable = ('orden', 'activo')
     list_display_links = ('preview_mini', 'seccion')
     actions = ['desactivar_sin_archivo']
@@ -1909,11 +1928,8 @@ class ImagenLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
     @admin.display(description="Preview")
     def preview_mini(self, obj):
         if obj.imagen:
-            return format_html(
-                '<img src="{}" style="width:80px;height:55px;object-fit:cover;border-radius:4px;">',
-                obj.imagen.url
-            )
-        return "—"
+            return format_html('<img src="{}" class="qkt-thumb qkt-thumb--ancha" alt="">', obj.imagen.url)
+        return mark_safe('<span class="qkt-thumb qkt-thumb--ancha" aria-hidden="true"></span>')
 
     @admin.display(description="Vista previa")
     def preview_grande(self, obj):
@@ -1932,15 +1948,13 @@ class ImagenLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
 @admin.register(TestimonioLanding)
 class TestimonioLandingAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'evento', 'estrellas_display', 'texto_corto', 'activo')
-    list_filter = ('activo', 'estrellas')
+    list_filter = ('activo', ('estrellas', con_titulo('Estrellas')))
     list_editable = ('activo',)
 
     @admin.display(description="Estrellas")
     def estrellas_display(self, obj):
-        return format_html(
-            '<span style="color:#F5C518;font-size:1.1em;">{}</span>',
-            '★' * obj.estrellas + '☆' * (5 - obj.estrellas)
-        )
+        return format_html('<span class="qkt-estrellas" aria-label="{} de 5">{}</span>',
+                           obj.estrellas, '★' * obj.estrellas + '☆' * (5 - obj.estrellas))
 
     @admin.display(description="Testimonio")
     def texto_corto(self, obj):
@@ -1961,11 +1975,8 @@ class EspacioLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
     @admin.display(description="Preview")
     def preview_mini(self, obj):
         if obj.imagen:
-            return format_html(
-                '<img src="{}" style="width:80px;height:55px;object-fit:cover;border-radius:4px;">',
-                obj.imagen.url
-            )
-        return "—"
+            return format_html('<img src="{}" class="qkt-thumb qkt-thumb--ancha" alt="">', obj.imagen.url)
+        return mark_safe('<span class="qkt-thumb qkt-thumb--ancha" aria-hidden="true"></span>')
 
 
 @admin.register(PreguntaFrecuente)
@@ -2019,7 +2030,8 @@ class DescuentoAdmin(admin.ModelAdmin):
         'nombre', 'tipo_valor_badge', 'valor_display', 'modo_badge',
         'cortesia_badge', 'activo', 'vigencia', 'acumulable', 'prioridad', 'usos_display',
     )
-    list_filter = ('activo', 'modo', 'es_cortesia', 'acumulable', 'tipo_valor', 'temporada')
+    list_filter = ('activo', ('modo', con_titulo('Modo')), ('es_cortesia', con_titulo('Cortesía')), 'temporada', ('acumulable', con_titulo('Acumulable')),
+                   ('tipo_valor', con_titulo('Tipo')))
     search_fields = ('nombre', 'descripcion')
     filter_horizontal = ('tipos_evento',)
     autocomplete_fields = ('productos',)
@@ -2043,47 +2055,33 @@ class DescuentoAdmin(admin.ModelAdmin):
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
 
+    @admin.display(description='Tipo', ordering='tipo_valor')
     def tipo_valor_badge(self, obj):
-        color = '#3498db' if obj.tipo_valor == 'PORCENTAJE' else '#9b59b6'
-        return format_html(
-            '<span style="background:{};color:white;padding:2px 8px;border-radius:4px;font-size:11px;">{}</span>',
-            color, obj.get_tipo_valor_display()
-        )
-    tipo_valor_badge.short_description = 'Tipo'
-    tipo_valor_badge.admin_order_field = 'tipo_valor'
+        return ui.badge(obj.get_tipo_valor_display(), ui.NEUTRO, categoria=True)
 
+    @admin.display(description='Modo', ordering='modo')
     def modo_badge(self, obj):
-        color = '#2E7D32' if obj.modo == 'AUTOMATICO' else '#95a5a6'
-        return format_html(
-            '<span style="background:{};color:white;padding:2px 8px;border-radius:4px;font-size:11px;">{}</span>',
-            color, obj.get_modo_display()
-        )
-    modo_badge.short_description = 'Modo'
-    modo_badge.admin_order_field = 'modo'
+        return ui.badge(obj.get_modo_display(), ui.INFO if obj.modo == 'AUTOMATICO' else ui.NEUTRO, categoria=True)
 
+    @admin.display(description='Cortesía', ordering='es_cortesia')
     def cortesia_badge(self, obj):
-        if not obj.es_cortesia:
-            return '—'
-        return format_html(
-            '<span style="background:#e91e63;color:white;padding:2px 8px;border-radius:4px;font-size:11px;">🎁 Cortesía</span>'
-        )
-    cortesia_badge.short_description = 'Cortesía'
-    cortesia_badge.admin_order_field = 'es_cortesia'
+        return ui.badge('Cortesía', ui.INFO) if obj.es_cortesia else ui.vacio()
 
+    @admin.display(description='Valor', ordering='valor')
     def valor_display(self, obj):
-        return f"{obj.valor}%" if obj.tipo_valor == 'PORCENTAJE' else f"${obj.valor:,.2f}"
-    valor_display.short_description = 'Valor'
-    valor_display.admin_order_field = 'valor'
+        if obj.tipo_valor == 'PORCENTAJE':
+            return format_html('<span class="qkt-num">{}%</span>', obj.valor)
+        return ui.monto(obj.valor)
 
+    @admin.display(description='Vigencia')
     def vigencia(self, obj):
         if obj.temporada:
             return f"Temporada: {obj.temporada.nombre}"
         if obj.fecha_inicio or obj.fecha_fin:
-            ini = obj.fecha_inicio.strftime('%d/%m/%Y') if obj.fecha_inicio else '—'
-            fin = obj.fecha_fin.strftime('%d/%m/%Y') if obj.fecha_fin else '—'
+            ini = date_format(obj.fecha_inicio, 'd M Y') if obj.fecha_inicio else '—'
+            fin = date_format(obj.fecha_fin, 'd M Y') if obj.fecha_fin else '—'
             return f"{ini} → {fin}"
         return "Sin restricción"
-    vigencia.short_description = 'Vigencia'
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(usos_confirmados=Count(
@@ -2110,10 +2108,11 @@ class DescuentoAdmin(admin.ModelAdmin):
 class DescuentoAplicadoAdmin(admin.ModelAdmin):
     """Auditoría inmutable: solo lectura, sin borrado."""
     list_display = (
-        'fecha_aplicacion', 'cotizacion', 'descuento', 'es_cortesia_display', 'monto_aplicado',
+        'fecha_aplicacion', 'cotizacion', 'descuento', 'es_cortesia_display', 'monto_display',
         'porcentaje_equivalente', 'modo_aplicacion', 'aplicado_por', 'activo',
     )
-    list_filter = ('activo', 'modo_aplicacion', 'descuento__es_cortesia', 'descuento', 'fecha_aplicacion')
+    list_filter = (filtro_periodo('fecha_aplicacion', 'Fecha'), 'descuento', ('modo_aplicacion', con_titulo('Modo')),
+                   ('descuento__es_cortesia', con_titulo('Cortesía')), 'activo')
     search_fields = ('cotizacion__id', 'cotizacion__nombre_evento', 'descuento__nombre')
     date_hierarchy = 'fecha_aplicacion'
     readonly_fields = (
@@ -2124,10 +2123,13 @@ class DescuentoAplicadoAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('cotizacion', 'descuento', 'aplicado_por')
 
+    @admin.display(description='Monto', ordering='monto_aplicado')
+    def monto_display(self, obj):
+        return ui.monto(obj.monto_aplicado)
+
+    @admin.display(description='Cortesía', ordering='descuento__es_cortesia')
     def es_cortesia_display(self, obj):
-        return '🎁 Sí' if obj.descuento.es_cortesia else 'No'
-    es_cortesia_display.short_description = 'Cortesía'
-    es_cortesia_display.admin_order_field = 'descuento__es_cortesia'
+        return ui.badge('Cortesía', ui.INFO) if obj.descuento.es_cortesia else ui.vacio()
 
     def has_add_permission(self, request):
         return False
@@ -2141,11 +2143,24 @@ class DescuentoAplicadoAdmin(admin.ModelAdmin):
 
 @admin.register(OpenpayTransaccion)
 class OpenpayTransaccionAdmin(admin.ModelAdmin):
-    list_display = ('openpay_id', 'metodo', 'event_type', 'estado_openpay', 'monto', 'cotizacion', 'autorizacion', 'pago', 'procesado', 'created_at')
-    list_filter = ('procesado', 'metodo', 'event_type', 'created_at')
+    list_display = ('openpay_id', 'metodo', 'event_type', 'estado_openpay', 'monto_display', 'cotizacion', 'autorizacion',
+                    'pago', 'procesado', 'fecha_display')
+    list_filter = ('procesado', ('metodo', con_titulo('Método')), ('event_type', con_titulo('Evento')),
+                   filtro_periodo('created_at', 'Fecha'))
     search_fields = ('openpay_id', 'referencia_pago', 'autorizacion', 'cotizacion__nombre_evento')
     readonly_fields = ('openpay_id', 'event_type', 'metodo', 'estado_openpay', 'monto', 'cotizacion', 'autorizacion', 'pago', 'referencia_pago', 'payload_crudo', 'procesado', 'error_detalle', 'created_at')
     actions = ['borrar_transacciones_de_prueba']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cotizacion', 'pago')
+
+    @admin.display(description='Monto', ordering='monto')
+    def monto_display(self, obj):
+        return ui.monto(obj.monto)
+
+    @admin.display(description='Fecha', ordering='created_at')
+    def fecha_display(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M Y H:i') if obj.created_at else ui.vacio()
 
     def has_add_permission(self, request):
         return False  # solo se crean desde el webhook, nunca manual
@@ -2185,11 +2200,13 @@ class ContracargoAdmin(admin.ModelAdmin):
     rompería la idempotencia por la que se genera.
     """
     list_display = (
-        'openpay_id', 'estado_badge', 'cotizacion', 'monto',
+        'openpay_id', 'estado_badge', 'cotizacion', 'monto_display',
         'fecha_limite_evidencia', 'evidencia_enviada',
         'requiere_vinculacion_manual', 'fecha_recibido',
     )
-    list_filter = ('estado', 'evidencia_enviada', 'requiere_vinculacion_manual', 'fecha_recibido')
+    list_filter = ('estado', ('evidencia_enviada', con_titulo('Evidencia enviada')),
+                   ('requiere_vinculacion_manual', con_titulo('Vinculación manual')),
+                   filtro_periodo('fecha_recibido', 'Recibido'))
     search_fields = ('openpay_id', 'cotizacion__nombre_evento', 'cotizacion__cliente__nombre', 'motivo')
     readonly_fields = (
         'openpay_id', 'event_type', 'estado', 'transaccion_openpay', 'cotizacion',
@@ -2229,15 +2246,14 @@ class ContracargoAdmin(admin.ModelAdmin):
             self.message_user(request, err, messages.ERROR)
     enviar_evidencia_openpay.short_description = "Enviar evidencia a Openpay (soporte@openpay.mx)"
 
+    @admin.display(description='Monto', ordering='monto')
+    def monto_display(self, obj):
+        return ui.monto(obj.monto)
+
+    @admin.display(description='Estado', ordering='estado')
     def estado_badge(self, obj):
-        colores = {'EN_DISPUTA': '#b8860b', 'GANADO': '#2e7d32', 'PERDIDO': '#c62828'}
-        color = colores.get(obj.estado, '#616161')
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:2px 8px; '
-            'border-radius:4px; font-size:11px;">{}</span>',
-            color, obj.get_estado_display(),
-        )
-    estado_badge.short_description = "Estado"
+        tonos = {'EN_DISPUTA': ui.ALERTA, 'GANADO': ui.EXITO, 'PERDIDO': ui.ERROR}
+        return ui.badge_por_valor(obj.estado, tonos, obj.get_estado_display())
 
 
 # Los 3 submódulos de Productos por línea de negocio (Eventos/Pasadía/

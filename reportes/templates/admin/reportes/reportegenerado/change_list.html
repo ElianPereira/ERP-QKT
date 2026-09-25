@@ -2,10 +2,6 @@
 {% load i18n %}
 
 {% block object-tools-items %}
+    <a href="{% url 'reportes:selector' %}" class="qkt-btn qkt-btn--secundario"><i class="fas fa-chart-bar" aria-hidden="true"></i> Centro de reportes</a>
     {{ block.super }}
-    <li>
-        <a href="{% url 'reportes:selector' %}" style="background:#2E7D32; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:12px;">
-            Centro de Reportes
-        </a>
-    </li>
 {% endblock %}

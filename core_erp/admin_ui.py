@@ -43,8 +43,11 @@ def badge_por_valor(valor, tonos, etiqueta, *, categoria=False):
     return badge(etiqueta, tonos.get(valor, NEUTRO), categoria=categoria)
 
 
-def vacio():
-    """Guion para celdas sin dato, en el mismo gris en todas las listas."""
+def vacio(*, numerico=False):
+    """Guion para celdas sin dato, en el mismo gris en todas las listas.
+    `numerico=True` lo alinea a la derecha, como las cifras de su columna."""
+    if numerico:
+        return mark_safe('<span class="qkt-vacio qkt-num">—</span>')
     return mark_safe('<span class="qkt-vacio">—</span>')
 
 
@@ -52,7 +55,7 @@ def monto(valor, *, tono=None, sufijo=''):
     """Importe en pesos con 2 decimales, alineado a la derecha por la tabla.
     `Decimal` + ROUND_HALF_UP: nunca pasa por float."""
     if valor is None:
-        return vacio()
+        return vacio(numerico=True)
     importe = Decimal(valor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     clase = 'qkt-num'
     if tono in TONOS:

@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.db import models as db_models
 
 from comercial.widgets import TimeSlotWidget
+from core_erp import admin_ui as ui
+from core_erp.admin_filtros import con_titulo
 
 from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
 
@@ -59,9 +61,24 @@ class PlantillaChecklistAdmin(admin.ModelAdmin):
 class TareaProgramadaAdmin(admin.ModelAdmin):
     list_display = [
         'fecha', 'plantilla', 'responsable', 'hora_entrada', 'hora_limite',
-        'requiere_tiempo_extra', 'estado_operativo', 'estado_resumen_propietario',
+        'requiere_tiempo_extra', 'operativo_badge', 'resumen_badge',
     ]
-    list_filter = ['plantilla__tipo', 'responsable', 'estado_operativo', 'requiere_tiempo_extra']
+    list_filter = [('estado_operativo', con_titulo('Checklist enviado')), ('plantilla__tipo', con_titulo('Tipo')),
+                   'responsable', ('requiere_tiempo_extra', con_titulo('Tiempo extra'))]
+
+    TONOS_ENVIO = {'NO_APLICA': ui.NEUTRO, 'PENDIENTE': ui.ALERTA, 'ENVIADO': ui.EXITO, 'FALLIDO': ui.ERROR}
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('plantilla', 'responsable')
+
+    @admin.display(description='Checklist', ordering='estado_operativo')
+    def operativo_badge(self, obj):
+        return ui.badge_por_valor(obj.estado_operativo, self.TONOS_ENVIO, obj.get_estado_operativo_display())
+
+    @admin.display(description='Resumen', ordering='estado_resumen_propietario')
+    def resumen_badge(self, obj):
+        return ui.badge_por_valor(obj.estado_resumen_propietario, self.TONOS_ENVIO,
+                                  obj.get_estado_resumen_propietario_display())
     date_hierarchy = 'fecha'
     autocomplete_fields = ['cotizacion', 'responsable']
     readonly_fields = [
