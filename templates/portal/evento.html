@@ -492,6 +492,32 @@
                 {% endif %}
             </div>
         </div>
+
+        {% if facturas %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-file-invoice"></i> Facturas</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Fecha de pago</th><th style="text-align:right;">Monto</th><th>Archivos</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for f in facturas %}
+                        <tr>
+                            <td>{{ f.fecha_pago|date:"d/m/Y"|default:"—" }}</td>
+                            <td style="text-align:right; font-weight:600;">${{ f.monto|floatformat:2 }}</td>
+                            <td>
+                                {% if f.archivo_pdf %}<a href="{% url 'portal_descargar_factura' portal.token f.pk 'pdf' %}" target="_blank">PDF</a>{% endif %}
+                                {% if f.archivo_xml %}{% if f.archivo_pdf %} · {% endif %}<a href="{% url 'portal_descargar_factura' portal.token f.pk 'xml' %}">XML</a>{% endif %}
+                                {% if f.archivo_zip and not f.archivo_pdf and not f.archivo_xml %}<a href="{% url 'portal_descargar_factura' portal.token f.pk 'zip' %}">ZIP</a>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
         
         {% if comunicaciones %}
         <div class="card" style="margin-top:20px;">

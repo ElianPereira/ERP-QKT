@@ -189,6 +189,13 @@
                 </div>
                 {% endif %}
 
+                {% if calc_ish > 0 %}
+                <div class="total-row" style="color: #666;">
+                    <span>(+) ISH (impuesto local):</span>
+                    <span>${{ calc_ish|floatformat:2|intcomma }}</span>
+                </div>
+                {% endif %}
+
                 {% if calc_ret_isr > 0 %}
                 <div class="total-row" style="color: #c0392b;">
                     <span>(-) Ret. ISR:</span>

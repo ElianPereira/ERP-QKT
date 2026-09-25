@@ -434,6 +434,80 @@ def notificar_guia_evento(cotizacion):
     )
 
 
+def _leer_archivo(campo):
+    """Bytes de un FileField, o None si no hay archivo o no se puede leer."""
+    if not campo:
+        return None
+    try:
+        with campo.open('rb') as f:
+            return f.read()
+    except Exception:
+        logger.exception("No se pudo leer %s", campo.name)
+        return None
+
+
+def notificar_factura(solicitud):
+    """
+    Manda al cliente su factura (PDF + XML, o el ZIP) en cuanto el contador la
+    sube y la solicitud pasa a FACTURADA.
+
+    Una sola vez por solicitud: la clave de idempotencia no lleva fecha, así
+    que reguardar la solicitud no reenvía. Solo email: WhatsApp no puede
+    adjuntar archivos sin una plantilla tipo documento aprobada por Meta, y
+    la factura también queda descargable desde el portal. Las facturas a
+    Público en General no se envían: el cliente no puede deducirlas y no
+    pidió factura.
+    """
+    from comunicacion.models import ComunicacionCliente
+    from facturacion.models import RFC_PUBLICO_GENERAL
+
+    cliente = solicitud.cliente
+    if not cliente or not cliente.email or solicitud.rfc == RFC_PUBLICO_GENERAL:
+        return None
+    clave = f"factura:{solicitud.pk}:email"
+    # Atajo antes de bajar los archivos del storage en cada reguardado; la
+    # garantía real contra duplicados es la reserva de `enviar_email`.
+    if ComunicacionCliente.objects.filter(clave_idempotencia=clave).exists():
+        return None
+
+    folio = solicitud.uuid_factura or f"SOL-{solicitud.pk:04d}"
+    adjuntos = []
+    for campo, extension, mime in (
+        (solicitud.archivo_pdf, 'pdf', 'application/pdf'),
+        (solicitud.archivo_xml, 'xml', 'application/xml'),
+    ):
+        contenido = _leer_archivo(campo)
+        if contenido:
+            adjuntos.append((f"Factura_{folio}.{extension}", contenido, mime))
+    if not adjuntos:
+        contenido = _leer_archivo(solicitud.archivo_zip)
+        if contenido:
+            adjuntos.append((f"Factura_{folio}.zip", contenido, 'application/zip'))
+    if not adjuntos:
+        logger.warning("SOL-%s FACTURADA sin archivos legibles; no se envía al cliente", solicitud.pk)
+        return None
+
+    cotizacion = solicitud.cotizacion
+    return _seguro(
+        'enviar la factura al cliente',
+        enviar_email,
+        cotizacion=cotizacion,
+        pago=solicitud.pago,
+        tipo='FACTURA',
+        destinatario=cliente.email,
+        asunto=f"Tu factura — {cotizacion.nombre_evento}" if cotizacion else "Tu factura",
+        template='comunicacion/email/factura.html',
+        context={
+            'solicitud': solicitud,
+            'cliente': cliente,
+            'portal_url': url_portal(cotizacion) if cotizacion else '',
+            'wa_numero': normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', '')),
+        },
+        adjuntos=adjuntos,
+        clave_idempotencia=clave,
+    )
+
+
 # ─────────────────────────── Alerta interna al equipo ───────────────────────
 
 def alertar_equipo_nueva_cotizacion(cotizacion):

@@ -1,0 +1,28 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Tu factura</h2>
+
+<p>Hola {{ cliente.nombre }}, te adjuntamos la factura de tu pago{% if solicitud.cotizacion %} de <strong>{{ solicitud.cotizacion.nombre_evento }}</strong>{% endif %}.</p>
+
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">RFC:</td><td style="padding:8px;"><strong>{{ solicitud.rfc }}</strong></td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Monto:</td><td style="padding:8px;"><strong>${{ solicitud.monto|floatformat:2 }}</strong></td></tr>
+  {% if solicitud.fecha_pago %}
+  <tr><td style="padding:8px;background:#f9f9f9;">Fecha de pago:</td><td style="padding:8px;">{{ solicitud.fecha_pago|date:"d/m/Y" }}</td></tr>
+  {% endif %}
+  {% if solicitud.uuid_factura %}
+  <tr><td style="padding:8px;background:#f9f9f9;">Folio fiscal:</td><td style="padding:8px;">{{ solicitud.uuid_factura }}</td></tr>
+  {% endif %}
+</table>
+
+{% if portal_url %}
+<p>También puedes descargarla cuando quieras desde tu portal:</p>
+<p style="text-align:center;margin:25px 0;">
+  <a href="{{ portal_url }}" style="background:#2E7D32;color:#F5C518;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:bold;">Ver mi evento</a>
+</p>
+{% endif %}
+
+{% if wa_numero %}
+<p>¿Algún dato no coincide con tu constancia fiscal? Escríbenos por WhatsApp: <a href="https://wa.me/{{ wa_numero }}">+{{ wa_numero }}</a></p>
+{% endif %}
+{% endblock %}
