@@ -1403,6 +1403,61 @@ class ContratoServicio(models.Model):
         verbose_name_plural = "Contratos"
         ordering = ['-generado_en']
 
+
+class FirmaContrato(models.Model):
+    """Firma electrónica de un contrato desde el portal del cliente (Issue #318).
+
+    Evidencia de la firma: la huella SHA-256 del PDF que el cliente vio, el
+    código de verificación que recibió, su trazo, la IP, el navegador y la
+    hora. El PDF firmado es el contrato original sin tocar más una hoja de
+    constancia con esos datos; su propia huella queda en `hash_firmado`.
+    Nunca se borra: es la prueba de la aceptación.
+    """
+    contrato = models.OneToOneField(
+        ContratoServicio, on_delete=models.PROTECT, related_name='firma',
+    )
+    hash_documento = models.CharField(
+        max_length=64, blank=True, verbose_name="SHA-256 del contrato mostrado",
+    )
+    codigo_hash = models.CharField(max_length=128, blank=True)
+    codigo_enviado_en = models.DateTimeField(null=True, blank=True)
+    codigo_canal = models.CharField(max_length=10, blank=True, verbose_name="Canal del código")
+    codigo_destino = models.CharField(max_length=200, blank=True, verbose_name="Destino del código")
+    intentos = models.PositiveSmallIntegerField(default=0)
+
+    nombre_firmante = models.CharField(max_length=200, blank=True)
+    imagen_firma = models.FileField(
+        upload_to='firmas_contrato/', blank=True, storage=storage_privado,
+    )
+    firmado_en = models.DateTimeField(null=True, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    acepta_publicidad = models.BooleanField(default=False)
+    acepta_transmision = models.BooleanField(default=False)
+    archivo_firmado = models.FileField(
+        upload_to='contratos_firmados/', blank=True, storage=storage_privado,
+        verbose_name="PDF firmado",
+    )
+    hash_firmado = models.CharField(
+        max_length=64, blank=True, verbose_name="SHA-256 del PDF firmado",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Firma de contrato"
+        verbose_name_plural = "Firmas de contrato"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        estado = 'firmado' if self.firmado else 'pendiente'
+        return f"{self.contrato.numero} — {estado}"
+
+    @property
+    def firmado(self):
+        return self.firmado_en is not None
+
 # --- COMPRA Y GASTO ---
 
 def _detectar_unidad_negocio_por_rfc(rfc_receptor):

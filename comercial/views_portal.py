@@ -19,6 +19,7 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 from weasyprint import HTML
 
@@ -299,6 +300,68 @@ def portal_descargar_plan(request, token):
     return response
 
 
+@_rate_limit(key='portal_firmar_contrato', limit=20, window=60)
+def portal_firmar_contrato(request, token):
+    """Pantalla de firma electrónica del contrato (Issue #318, fase 2).
+
+    POST `accion=codigo` envía el código de verificación; `accion=firmar`
+    valida código y trazo y genera el PDF firmado. La lógica vive en
+    `services_firma`; aquí solo se traduce a mensajes para el cliente.
+    """
+    from core_erp.ratelimit import _client_ip
+
+    from .services_firma import (
+        VIGENCIA_CODIGO,
+        FirmaError,
+        contrato_vigente,
+        firmar,
+        solicitar_codigo,
+    )
+
+    portal = _portal_vigente_o_404(token)
+    cotizacion = portal.cotizacion
+    contrato = contrato_vigente(cotizacion)
+    if not contrato:
+        raise Http404("No hay contrato disponible.")
+
+    error = aviso = None
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'codigo':
+                destino = solicitar_codigo(contrato)
+                minutos = int(VIGENCIA_CODIGO.total_seconds() // 60)
+                aviso = f"Te enviamos un código a {destino}. Vence en {minutos} minutos."
+            elif accion == 'firmar':
+                if request.POST.get('acepto') != 'si':
+                    raise FirmaError("Confirma que leíste y aceptas el contrato.")
+                firmar(
+                    contrato,
+                    codigo=request.POST.get('codigo', ''),
+                    firma_data_url=request.POST.get('firma', ''),
+                    nombre=request.POST.get('nombre', ''),
+                    ip=_client_ip(request),
+                    user_agent=request.META.get('HTTP_USER_AGENT', ''),
+                    acepta_publicidad=request.POST.get('publicidad') == 'si',
+                    acepta_transmision=request.POST.get('transmision') == 'si',
+                )
+                return redirect(f"{request.path}?firmado=1")
+        except FirmaError as e:
+            error = str(e)
+
+    firma = getattr(contrato, 'firma', None)
+    return render(request, 'portal/firmar_contrato.html', {
+        'portal': portal,
+        'cotizacion': cotizacion,
+        'contrato': contrato,
+        'firma': firma,
+        'codigo_enviado': bool(firma and firma.codigo_hash and not firma.firmado),
+        'error': error,
+        'aviso': aviso,
+    })
+
+
+@xframe_options_sameorigin  # la pantalla de firma lo muestra en un visor
 @_rate_limit(key='portal_descargar_contrato', limit=10, window=60)
 def portal_descargar_contrato(request, token):
     """Sirve el contrato PDF desde el portal, sin revelar la URL del storage.
@@ -315,9 +378,12 @@ def portal_descargar_contrato(request, token):
     contrato = cotizacion.contratos.filter(archivo__isnull=False).order_by('-generado_en').first()
     if not contrato or not contrato.archivo:
         raise Http404("No hay contrato disponible.")
+    # Firmado, el cliente descarga la versión con la constancia de firma.
+    firma = getattr(contrato, 'firma', None)
+    campo = firma.archivo_firmado if firma and firma.firmado and firma.archivo_firmado else contrato.archivo
 
     try:
-        archivo = contrato.archivo.open('rb')
+        archivo = campo.open('rb')
     except (FileNotFoundError, OSError):
         # Heredado de Cloudinary y dado por perdido (la cuenta quedó
         # deshabilitada; ver Memoria en CLAUDE.md).

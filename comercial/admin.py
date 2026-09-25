@@ -1504,13 +1504,13 @@ class CompraAdmin(admin.ModelAdmin):
         return "-"
     ver_pdf.short_description = "PDF"
 
-from .models import ContratoServicio
+from .models import ContratoServicio, FirmaContrato
 
 
 @admin.register(ContratoServicio)
 class ContratoServicioAdmin(admin.ModelAdmin):
     list_display  = ('numero', 'cotizacion', 'tipo_servicio', 'deposito_garantia',
-                     'generado_en', 'generado_por', 'enviado_email', 'descargar_btn', 'enviar_btn')
+                     'generado_en', 'generado_por', 'enviado_email', 'firma_badge', 'descargar_btn', 'enviar_btn')
     list_filter   = ('tipo_servicio', 'enviado_email', 'generado_en')
     search_fields = ('numero', 'cotizacion__cliente__nombre')
     readonly_fields = ('numero', 'generado_por', 'generado_en', 'enviado_email')
@@ -1533,6 +1533,46 @@ class ContratoServicioAdmin(admin.ModelAdmin):
         return format_html(
             '<a href="{}" style="background:#2E7D32;color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Enviar</a>',
             url)
+
+    @admin.display(description="Firma")
+    def firma_badge(self, obj):
+        firma = getattr(obj, 'firma', None)
+        if firma and firma.firmado:
+            return format_html(
+                '<a href="{}" target="_blank" style="background:#2E7D32;color:white;padding:4px 10px;'
+                'border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;">Firmado {}</a>',
+                url_descarga(firma, 'archivo_firmado'), firma.firmado_en.strftime('%d/%m/%Y'))
+        return "—"
+
+
+@admin.register(FirmaContrato)
+class FirmaContratoAdmin(admin.ModelAdmin):
+    """Evidencia de firma electrónica: solo lectura, nunca se edita ni se borra."""
+    list_display = ('contrato', 'nombre_firmante', 'firmado_en', 'codigo_destino', 'ip', 'pdf_firmado')
+    list_filter = ('firmado_en',)
+    search_fields = ('contrato__numero', 'nombre_firmante', 'contrato__cotizacion__cliente__nombre')
+    exclude = ('codigo_hash', 'imagen_firma', 'archivo_firmado')
+    readonly_fields = (
+        'contrato', 'nombre_firmante', 'firmado_en', 'codigo_canal', 'codigo_destino',
+        'codigo_enviado_en', 'intentos', 'ip', 'user_agent', 'acepta_publicidad',
+        'acepta_transmision', 'hash_documento', 'hash_firmado', 'pdf_firmado',
+        'created_at', 'updated_at',
+    )
+
+    @admin.display(description="PDF firmado")
+    def pdf_firmado(self, obj):
+        url = url_descarga(obj, 'archivo_firmado')
+        return format_html('<a href="{}" target="_blank">Descargar</a>', url) if url else "—"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(RecordatorioPago)
 class RecordatorioPagoAdmin(admin.ModelAdmin):

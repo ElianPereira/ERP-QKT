@@ -486,9 +486,15 @@
                 </a>
                 {% endif %}
                 {% if contrato %}
+                {% if contrato.firma.firmado %}
                 <a href="{% url 'portal_descargar_contrato' portal.token %}" class="btn btn-outline" target="_blank">
-                    <i class="fas fa-file-contract"></i> Contrato PDF
+                    <i class="fas fa-file-signature"></i> Contrato firmado PDF
                 </a>
+                {% else %}
+                <a href="{% url 'portal_firmar_contrato' portal.token %}" class="btn btn-yellow">
+                    <i class="fas fa-pen-nib"></i> Revisar y firmar contrato
+                </a>
+                {% endif %}
                 {% endif %}
             </div>
         </div>

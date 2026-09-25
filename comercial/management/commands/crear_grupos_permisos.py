@@ -33,6 +33,8 @@ GRUPOS_APPS = {
 # precios de referencia, pero cambiarlos queda reservado a superusuario).
 EXCEPCIONES = {
     ('comercial', 'constantesistema'): ('view',),
+    # La firma de un contrato es evidencia: nadie la edita ni la borra.
+    ('comercial', 'firmacontrato'): ('view',),
 }
 
 

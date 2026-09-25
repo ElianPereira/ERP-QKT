@@ -66,6 +66,8 @@ _REMITENTE_POR_TIPO = {
     # evento/pasadía/hospedaje, mismo remitente que COTIZACION.
     'EVENTO_PROXIMO': 'EMAIL_FROM_RESERVAS',
     'FACTURA': 'EMAIL_FROM_PAGOS',
+    # Firma del contrato en el portal (Issue #318): código y copia firmada.
+    'CONTRATO': 'EMAIL_FROM_RESERVAS',
 }
 
 

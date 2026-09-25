@@ -45,6 +45,7 @@ from comercial.views_portal import (
     portal_descargar_guia,
     portal_descargar_plan,
     portal_evento,
+    portal_firmar_contrato,
     portal_subir_identificacion,
 )
 from core_erp.descargas import descargar_archivo_privado
@@ -177,6 +178,7 @@ urlpatterns = [
     path('mi-evento/<str:token>/cotizacion.pdf', portal_descargar_cotizacion, name='portal_descargar_cotizacion'),
     path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
     path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),
+    path('mi-evento/<str:token>/contrato/firmar/', portal_firmar_contrato, name='portal_firmar_contrato'),
     path('mi-evento/<str:token>/guia.pdf', portal_descargar_guia, name='portal_descargar_guia'),
     path('mi-evento/<str:token>/factura/<int:solicitud_id>.<str:formato>', portal_descargar_factura, name='portal_descargar_factura'),
     path('mi-evento/<str:token>/identificacion/', portal_subir_identificacion, name='portal_subir_identificacion'),

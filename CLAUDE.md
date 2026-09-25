@@ -261,8 +261,23 @@ salvo que queden obsoletas.
   contrato de Evento para una Pasadía. El contrato de salón viejo decía "no
   se permite la entrada de animales" contra el Reglamento pet friendly. Los
   borradores Reglamento v1.3, Política v2.2 y TyC v2.3 llevan `[CONFIRMAR:]`,
-  incluida la fila del registro 9341-2023 de los TyC. Pendientes: firma
-  electrónica (fase 2) y depósito en garantía como pasivo (fase 3).
+  incluida la fila del registro 9341-2023 de los TyC. **Registro PROFECO**:
+  la NOM-174-SCFI-2007 (5.1) obliga a registrar el contrato de adhesión de
+  eventos sociales, así que Evento/Pasadía solo salen con el contrato propio
+  si `PROFECO_REGISTRO_EVENTOS` tiene número; Hospedaje no lo requiere.
+  **Fase 2, firma electrónica** (`comercial/services_firma.py`,
+  `FirmaContrato`, migración `0101`): código de 6 dígitos por correo (se
+  guarda hasheado y **nunca en la bitácora de comunicaciones**: si quedara en
+  claro, alguien del equipo con el token del portal podría firmar por el
+  cliente), trazo en canvas validado como PNG real y no vacío, y PDF firmado =
+  contrato original intacto + hoja de constancia unidos con `pypdfium2` (ya
+  instalado vía `pdfplumber`), con la SHA-256 del original y del resultado.
+  El intento fallido se guarda **fuera** del `atomic()` antes de lanzar el
+  error; si no, el rollback lo deshace y el tope de 5 intentos no sirve.
+  `portal_descargar_contrato` lleva `xframe_options_sameorigin` porque el
+  visor de la pantalla de firma lo embebe y producción usa `X_FRAME_OPTIONS=
+  'DENY'`. Funciona también con el contrato PROFECO actual (su cláusula de
+  medios electrónicos lo permite). Pendiente: depósito en garantía (fase 3).
 
 - 2026-09-25 — Cierre del flujo de facturación del cliente web (revisión
   pedida por el propietario). Se factura **por cada pago, no global**

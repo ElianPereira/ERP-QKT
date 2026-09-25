@@ -34,6 +34,8 @@ from django.urls import reverse
 # puede descargar por esta vía.
 ARCHIVOS_PROTEGIDOS = {
     ('comercial', 'contratoservicio', 'archivo'),
+    ('comercial', 'firmacontrato', 'archivo_firmado'),
+    ('comercial', 'firmacontrato', 'imagen_firma'),
     ('comercial', 'cotizacion', 'archivo_contrato'),
     ('comercial', 'cotizacion', 'archivo_pdf'),
     ('comercial', 'compra', 'archivo_pdf'),

@@ -1,0 +1,14 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Tu contrato firmado</h2>
+
+<p>Hola {{ cotizacion.cliente.nombre }}, gracias por firmar. Te adjuntamos tu contrato <strong>{{ firma.contrato.numero }}</strong>
+de <strong>{{ cotizacion.nombre_evento }}</strong>, con la constancia de firma en la última hoja.</p>
+
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  <tr><td style="padding:8px;background:#f9f9f9;">Firmado por:</td><td style="padding:8px;"><strong>{{ firma.nombre_firmante }}</strong></td></tr>
+  <tr><td style="padding:8px;background:#f9f9f9;">Fecha y hora:</td><td style="padding:8px;">{{ firma.firmado_en|date:"d/m/Y H:i" }} (hora de Mérida)</td></tr>
+</table>
+
+<p>También puedes descargarlo cuando quieras desde tu portal.</p>
+{% endblock %}
