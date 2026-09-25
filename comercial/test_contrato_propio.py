@@ -73,7 +73,7 @@ class PlantillaContratoTest(ContratoPropioBase):
         html = _html(self._cot('EVENTO'), vista_previa=True)
         self.assertIn('Anexo Evento', html)
         self.assertIn('BORRADOR', html)
-        self.assertNotIn('9341-2023', html)
+        self.assertNotIn('Arrendamiento de Salón', html)
         # El contrato viejo contradecía al Reglamento (pet friendly).
         self.assertNotIn('No se permite la entrada de animales', html)
 
@@ -95,14 +95,36 @@ class PlantillaContratoTest(ContratoPropioBase):
         self.assertIn('no requiere depósito en garantía', html)
         self.assertNotIn('Cuarta. Depósito en garantía', html)
 
-    @override_settings(CONTRATO_PROPIO_ACTIVO=True)
-    def test_activo_emite_sin_marca_de_agua_y_con_deposito_sugerido(self):
+    @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='1234-2026')
+    def test_activo_emite_sin_marca_de_agua_con_registro_y_deposito(self):
         cot = self._cot('EVENTO')
         Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('20000.00'))
         cot.refresh_from_db()
         html = _html(cot)
         self.assertNotIn('marca-agua">BORRADOR', html)
         self.assertIn('$2,000.00 MXN', html)
+        self.assertIn('1234-2026', html)
+        self.assertNotIn('9341-2023', html)
+
+    @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='')
+    def test_evento_sin_registro_sigue_con_el_contrato_registrado(self):
+        # NOM-174-SCFI-2007: el contrato de eventos sociales debe estar registrado.
+        for tipo in ('EVENTO', 'PASADIA'):
+            html = _html(self._cot(tipo))
+            self.assertIn('9341-2023', html)
+            self.assertNotIn('Anexo Evento', html)
+
+    @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='')
+    def test_hospedaje_no_requiere_registro(self):
+        cot = self._cot('HOSPEDAJE', fecha_salida=date(2026, 12, 7))
+        html = _html(cot)
+        self.assertIn('Anexo Hospedaje', html)
+        self.assertNotIn('Registro PROFECO', html)
+
+    def test_vista_previa_avisa_registro_pendiente(self):
+        self.assertIn('Pendiente de registro ante PROFECO', _html(self._cot('EVENTO'), vista_previa=True))
+        cot = self._cot('HOSPEDAJE', fecha_salida=date(2026, 12, 7))
+        self.assertNotIn('Pendiente de registro', _html(cot, vista_previa=True))
 
 
 class VistasContratoTest(ContratoPropioBase):

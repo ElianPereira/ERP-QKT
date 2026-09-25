@@ -216,10 +216,13 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   storage ya es Cloudflare R2 (`STORAGES` en `core_erp/settings.py`), no
   hay migración pendiente. Ver Memoria 2026-09-24.
 - [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
-- [ ] Registro PROFECO del **contrato de Hospedaje** pendiente (el 9341-2023
-  solo cubre Evento/Pasadía). Al tener el número, definir
-  `PROFECO_REGISTRO_HOSPEDAJE` en Railway; el modelo PROFECO pide además
-  RNT y seguro de responsabilidad civil, que el contrato hoy no declara.
+- [ ] **Registrar ante PROFECO el contrato propio de Evento/Pasadía**
+  (Issue #318): la NOM-174-SCFI-2007, numeral 5.1, obliga a registrar los
+  contratos de adhesión de eventos sociales. Al tener el número, definir
+  `PROFECO_REGISTRO_EVENTOS` en Railway; sin él, Evento y Pasadía siguen
+  con el contrato registrado 9341-2023 aunque `CONTRATO_PROPIO_ACTIVO`
+  esté encendido. El registro de **Hospedaje** es voluntario (no está en
+  el numeral 5.1): `PROFECO_REGISTRO_HOSPEDAJE` solo si se decide registrar.
 - [x] ~~ISH Airbnb sin resolver~~ — resuelto el 2026-09-17, y la premisa
   era equivocada: el ISH de Airbnb **no es un pendiente de la Quinta**. La
   columna del CSV se llama "Impuesto liquidado **por Airbnb**" y la propia

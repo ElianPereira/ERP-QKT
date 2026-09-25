@@ -20,6 +20,7 @@
     <span>Cotización {{ folio }}</span>
     <span>{{ fecha_doc }}</span>
     <span>Modelo v{{ version_modelo }}</span>
+    {% if registro_profeco %}<span>Registro PROFECO <strong>{{ registro_profeco }}</strong></span>{% endif %}
   </div>
 </div>
 
@@ -27,6 +28,10 @@
 <div class="nota">
   <p><strong>Vista previa para revisión.</strong> Este documento no es un contrato emitido ni tiene
   efectos entre las partes. Su texto está sujeto a validación legal.</p>
+  {% if registro_obligatorio and not registro_profeco %}
+  <p><strong>Pendiente de registro ante PROFECO.</strong> La NOM-174-SCFI-2007 obliga a registrar este
+  contrato antes de usarlo; mientras tanto se sigue emitiendo el contrato registrado 9341-2023.</p>
+  {% endif %}
 </div>
 {% endif %}
 
@@ -247,6 +252,13 @@
   <span class="casilla"></span>Sí <span class="casilla"></span>No — acepto que LA QUINTA me envíe publicidad sobre sus servicios.<br>
   <span class="casilla"></span>Sí <span class="casilla"></span>No — acepto que LA QUINTA transmita mis datos a terceros con fines mercadotécnicos o publicitarios.
 </p>
+{% if registro_profeco %}
+<p class="pequeno" style="text-align: center; margin-top: 10px;">
+  Este contrato está registrado ante la Procuraduría Federal del Consumidor con el número
+  <strong>{{ registro_profeco }}</strong>. Cualquier variación en perjuicio de EL CLIENTE frente al contrato
+  registrado se tendrá por no puesta.
+</p>
+{% endif %}
 </div>
 
 <div class="salto"></div>

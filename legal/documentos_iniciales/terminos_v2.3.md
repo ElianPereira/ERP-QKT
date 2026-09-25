@@ -16,7 +16,7 @@
 | **Correo electrónico** | quintakooxtanil@gmail.com |
 | **Teléfono / WhatsApp** | +52 999 445 7178 |
 | **Horario de atención** | Lunes a viernes, 8:00 a 14:00 h (Tiempo del Centro) |
-| **Registro Público de Contratos de Adhesión (PROFECO)** | [CONFIRMAR: con el abogado si esta fila se retira al emitir los contratos propios, que no son el modelo registrado 9341-2023] |
+| **Registro Público de Contratos de Adhesión (PROFECO)** | [CONFIRMAR: número de registro del contrato de eventos y pasadías, obligatorio conforme a la NOM-174-SCFI-2007] |
 
 **Domicilios de prestación del servicio:**
 - **Eventos y pasadías:** Carretera Tanil – Ticimul KM 1.920, Umán, Yucatán, C.P. 97390

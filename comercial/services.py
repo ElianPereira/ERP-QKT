@@ -620,7 +620,9 @@ class ContratoService:
         self.cli  = cotizacion.cliente
         self.tipo = cotizacion.tipo_servicio
         self.vista_previa = vista_previa
-        self.propio = vista_previa or settings.CONTRATO_PROPIO_ACTIVO
+        self.propio = vista_previa or (
+            settings.CONTRATO_PROPIO_ACTIVO and self._registro_propio() is not None
+        )
         if deposito is None:
             deposito = deposito_sugerido(cotizacion) if self.propio else Decimal('0.00')
         self.dep  = deposito
@@ -726,6 +728,19 @@ class ContratoService:
             'registro_profeco':  settings.PROFECO_REGISTRO_HOSPEDAJE,
         }
 
+    def _registro_propio(self):
+        """Número de registro PROFECO que ampara el contrato propio de este
+        tipo, '' si no lo requiere, o None si lo requiere y falta.
+
+        La NOM-174-SCFI-2007 (numeral 5.1) obliga a registrar los contratos de
+        adhesión de eventos sociales, así que Evento y Pasadía no pueden salir
+        con el contrato propio hasta tener su número; Hospedaje no está en esa
+        lista y el registro es voluntario.
+        """
+        if self.tipo == 'HOSPEDAJE':
+            return settings.PROFECO_REGISTRO_HOSPEDAJE
+        return settings.PROFECO_REGISTRO_EVENTOS or None
+
     def _contexto_propio(self):
         """Datos que solo usan los contratos propios (marco + anexos)."""
         import os
@@ -760,6 +775,8 @@ class ContratoService:
             'hora_noche_completa':          rc.HORA_NOCHE_COMPLETA,
             'habitaciones':                 ', '.join(habitaciones) or '—',
             'tabla_cancelacion':            rc.TABLA_CANCELACION[tabla],
+            'registro_profeco':             self._registro_propio(),
+            'registro_obligatorio':         self.tipo != 'HOSPEDAJE',
         }
 
     def generar(self):

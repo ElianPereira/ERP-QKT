@@ -237,6 +237,12 @@ PROFECO_REGISTRO_HOSPEDAJE = config('PROFECO_REGISTRO_HOSPEDAJE', default='')
 # solo después de la validación legal del texto.
 CONTRATO_PROPIO_ACTIVO = config('CONTRATO_PROPIO_ACTIVO', default=False, cast=bool)
 
+# Registro PROFECO del contrato propio de Evento/Pasadía. La NOM-174-SCFI-2007
+# (numeral 5.1) obliga a registrar los contratos de adhesión de eventos
+# sociales: sin este número, Evento y Pasadía siguen con el contrato
+# registrado 9341-2023 aunque CONTRATO_PROPIO_ACTIVO esté encendido.
+PROFECO_REGISTRO_EVENTOS = config('PROFECO_REGISTRO_EVENTOS', default='')
+
 # --- ISH: Impuesto Sobre Hospedaje (estatal, Yucatán) ---
 # Proporción, no porcentaje: 0.05 = 5%. El default de 0 mantiene el ERP
 # exactamente como estaba (no calcula ni exhibe ISH); definir la variable en
