@@ -1,102 +1,33 @@
 {% extends "admin/change_list.html" %}
 {% load i18n admin_urls %}
 
+{% comment %}
+Carga de nómina junto a las herramientas del título: desde el Excel que
+exporta Jibble o, si hay credenciales, directo de la API de Jibble.
+Estilos en static/css/qkt_ui.css (.qkt-carga).
+{% endcomment %}
 {% block object-tools-items %}
-    {# Mantiene los botones originales de Django #}
-    {{ block.super }}
-
-    {# ===== BOTÓN 1: CARGA DESDE EXCEL ===== #}
     {% if boton_carga %}
-    <li>
-        <style>
-            .inputfile {
-                width: 0.1px; height: 0.1px; opacity: 0;
-                overflow: hidden; position: absolute; z-index: -1;
-            }
-            .btn-upload-label {
-                font-size: 13px; font-weight: 600; color: white !important;
-                background-color: #2E7D32; display: inline-block;
-                padding: 7px 12px; cursor: pointer; border-radius: 4px;
-                transition: background-color 0.3s; margin-right: 3px;
-            }
-            .btn-upload-label:hover { background-color: #388E3C; }
-            .btn-upload-label i { margin-right: 5px; }
-            .btn-submit-excel {
-                font-size: 13px; padding: 7px 12px; background: #2E7D32;
-                color: white; border: none; border-radius: 4px; cursor: pointer;
-            }
-            .btn-submit-excel:hover { background: #388E3C; }
-            .upload-form-container {
-                display: flex; align-items: center; gap: 5px;
-            }
-
-            /* ===== ESTILOS JIBBLE ===== */
-            .jibble-form-container {
-                display: flex; align-items: center; gap: 5px; margin-top: 8px;
-            }
-            .btn-jibble {
-                font-size: 13px; font-weight: 600; color: white !important;
-                background-color: #1565C0; display: inline-block;
-                padding: 7px 12px; cursor: pointer; border-radius: 4px;
-                transition: background-color 0.3s; border: none;
-                text-decoration: none;
-            }
-            .btn-jibble:hover { background-color: #1976D2; }
-            .btn-jibble i { margin-right: 5px; }
-            .jibble-input {
-                font-size: 12px; padding: 5px 8px; border: 1px solid #ccc;
-                border-radius: 4px; width: 130px;
-            }
-            .divider-nomina {
-                border-top: 1px solid #ddd; margin: 8px 0; padding-top: 5px;
-            }
-            .source-label {
-                font-size: 10px; color: #999; text-transform: uppercase;
-                letter-spacing: 0.5px; font-weight: 600; margin-bottom: 3px;
-            }
-        </style>
-
-        {# --- EXCEL --- #}
-        <div class="source-label">
-            <i class="fas fa-file-excel" style="color:#2E7D32;"></i> Desde Excel (Jibble Export)
-        </div>
-        <form action="{% url 'cargar_nomina' %}" method="post" enctype="multipart/form-data" class="upload-form-container">
+        <form action="{% url 'cargar_nomina' %}" method="post" enctype="multipart/form-data" class="qkt-carga">
             {% csrf_token %}
-            <input type="file" name="archivo_excel" id="file-input" class="inputfile" required accept=".xlsx" onchange="actualizarNombre()">
-            <label for="file-input" class="btn-upload-label" id="label-file">
-                <i class="fas fa-upload"></i> <span id="file-name-text">Elegir archivo</span>
+            <span class="qkt-carga__label"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel de Jibble</span>
+            <label class="qkt-btn qkt-btn--secundario qkt-btn--sm" for="qkt-archivo-nomina">
+                <span id="qkt-archivo-nomina-nombre">Elegir archivo</span>
             </label>
-            <button type="submit" class="btn-submit-excel">
-                <i class="fas fa-cogs"></i> Procesar
-            </button>
+            <input type="file" name="archivo_excel" id="qkt-archivo-nomina" class="qkt-carga__archivo" required accept=".xlsx"
+                   onchange="document.getElementById('qkt-archivo-nomina-nombre').textContent = this.files.length ? this.files[0].name : 'Elegir archivo'">
+            <button type="submit" class="qkt-btn qkt-btn--secundario qkt-btn--sm"><i class="fas fa-cogs" aria-hidden="true"></i> Procesar</button>
         </form>
-
-        {# --- JIBBLE API --- #}
         {% if jibble_configurado %}
-        <div class="divider-nomina"></div>
-        <div class="source-label">
-            <i class="fas fa-cloud-download-alt" style="color:#1565C0;"></i> Desde Jibble API (Automático)
-        </div>
-        <form action="{% url 'sync_jibble' %}" method="post" class="jibble-form-container">
-            {% csrf_token %}
-            <input type="date" name="fecha_inicio" class="jibble-input" value="{{ jibble_fecha_inicio }}" required>
-            <span style="color:#999;">→</span>
-            <input type="date" name="fecha_fin" class="jibble-input" value="{{ jibble_fecha_fin }}" required>
-            <button type="submit" class="btn-jibble">
-                <i class="fas fa-sync-alt"></i> Sync Jibble
-            </button>
-        </form>
+            <form action="{% url 'sync_jibble' %}" method="post" class="qkt-carga">
+                {% csrf_token %}
+                <span class="qkt-carga__label"><i class="fas fa-cloud-download-alt" aria-hidden="true"></i> API de Jibble</span>
+                <input type="date" name="fecha_inicio" class="qkt-carga__fecha" value="{{ jibble_fecha_inicio }}" required aria-label="Desde">
+                <span class="qkt-carga__label">→</span>
+                <input type="date" name="fecha_fin" class="qkt-carga__fecha" value="{{ jibble_fecha_fin }}" required aria-label="Hasta">
+                <button type="submit" class="qkt-btn qkt-btn--secundario qkt-btn--sm"><i class="fas fa-sync-alt" aria-hidden="true"></i> Sincronizar</button>
+            </form>
         {% endif %}
-
-        <script>
-            function actualizarNombre() {
-                const input = document.getElementById('file-input');
-                const label = document.getElementById('file-name-text');
-                if (input.files.length > 0) {
-                    label.textContent = input.files[0].name;
-                }
-            }
-        </script>
-    </li>
     {% endif %}
+    {{ block.super }}
 {% endblock %}

@@ -279,6 +279,21 @@ salvo que queden obsoletas.
   `PolizaAdmin` formateaba montos con `float`. `admin_fix.css` perdió solo
   duplicados y reglas muertas (`#changelist-filter`, que Jazzmin no pinta;
   `.qkt-accion-btn`); el resto de módulos se migra en fases siguientes.
+  **Fase 2** (mismo día): todas las listas de `comercial`, `contabilidad`,
+  `facturacion`, `nomina`, `reportes`, `operaciones` y `comunicacion`
+  pasaron a los componentes; `legal/` no se tocó (zona restringida, falta
+  aprobación). Dos hallazgos: **(1)** el filtro de fecha estándar de Django
+  manda dos parámetros (`__gte` y `__lt`) y el `jazzmin_list_filter` solo
+  asigna el primero, así que "Últimos 7 días" filtraba "desde hace 7 días
+  hasta siempre" — todo `list_filter` sobre un campo de fecha va con
+  `filtro_periodo`, que detecta solo si el campo es `DateTimeField` (compara
+  `__date`). **(2)** `static/contabilidad/conciliacion.css` tenía su propia
+  `.qkt-badge` (otro estilo, mismo nombre) que chocaba con el componente;
+  se quitó y la situación de los movimientos usa `ui.badge`. `qkt-num` es
+  solo para cifras (la celda se alinea a la derecha); para cuentas SAT,
+  folios y UUID va `qkt-codigo`. `comercial/templates/comercial/
+  gasto_change_list.html` no lo usaba ningún admin y se borró.
+  `core_erp/test_admin_listas.py` carga todas las listas de las 7 apps.
 
 - 2026-09-25 — ISH activado: `TASA_ISH=0.045` (4.5%, tasa dada por el
   propietario) en Railway, en `web` **y en los 4 servicios cron**. Tienen

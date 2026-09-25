@@ -68,7 +68,7 @@
 
 .qkt-vacio { color: var(--ui-text-3); }
 
-/* Miniatura de imagen en listas (productos) */
+/* Miniatura de imagen en listas (productos, landing) */
 .qkt-thumb {
     display: inline-block;
     width: 32px;
@@ -79,12 +79,20 @@
     border: 1px solid var(--ui-line) !important;
     vertical-align: middle;
 }
+.qkt-thumb--ancha { width: 64px; height: 40px; }
+.qkt-estrellas { color: var(--ui-yellow); letter-spacing: 1px; white-space: nowrap; }
 
 /* ── CIFRAS ────────────────────────────────────────────────── */
 .qkt-num {
     font-family: var(--ui-mono);
     font-size: 12.5px;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* Códigos (cuentas SAT, folios, UUID): monoespaciados pero alineados como texto */
+.qkt-codigo {
+    font-family: var(--ui-mono);
+    font-size: 12.5px;
     white-space: nowrap;
 }
 .qkt-num--exito  { color: var(--ui-exito); }
@@ -241,6 +249,21 @@
     font-size: 13px !important;
     font-weight: 500 !important;
 }
+
+/* Formularios de carga junto al título (nómina desde Excel/Jibble) */
+.qkt-carga {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px dashed var(--ui-line) !important;
+    border-radius: var(--ui-r-md);
+}
+.qkt-carga__label { font-size: 12px; color: var(--ui-text-3); white-space: nowrap; }
+.qkt-carga__archivo { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.qkt-carga__fecha { height: var(--ui-h-sm); padding: 0 6px !important; font-size: 12px; border-radius: var(--ui-r-sm); }
+.qkt-carga label.qkt-btn { margin: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── BARRA DE CONTROLES ────────────────────────────────────── */
 #change-list-filters.qkt-barra { padding-bottom: 12px !important; }

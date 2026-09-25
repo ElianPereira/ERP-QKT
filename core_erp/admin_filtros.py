@@ -3,6 +3,7 @@ from calendar import monthrange
 from datetime import timedelta
 
 from django.contrib import admin
+from django.db import models
 from django.utils import timezone
 
 
@@ -12,7 +13,7 @@ def _mes(fecha):
 
 def filtro_periodo(campo, titulo):
     """SimpleListFilter "Este mes / Mes pasado / Últimos 7 días" sobre un
-    DateField. Complementa a `date_hierarchy` (navegar por año/mes) con los
+    DateField o DateTimeField. Complementa a `date_hierarchy` (navegar por año/mes) con los
     atajos del día a día, que el filtro de fecha de Django parte en dos
     parámetros y Jazzmin no sabe enviar completos."""
 
@@ -25,13 +26,18 @@ def filtro_periodo(campo, titulo):
 
         def queryset(self, request, queryset):
             hoy = timezone.localdate()
-            if self.value() == 'mes':
-                return queryset.filter(**{f'{campo}__range': _mes(hoy)})
-            if self.value() == 'anterior':
-                return queryset.filter(**{f'{campo}__range': _mes(hoy.replace(day=1) - timedelta(days=1))})
-            if self.value() == '7d':
-                return queryset.filter(**{f'{campo}__range': (hoy - timedelta(days=7), hoy)})
-            return queryset
+            rangos = {
+                'mes': _mes(hoy),
+                'anterior': _mes(hoy.replace(day=1) - timedelta(days=1)),
+                '7d': (hoy - timedelta(days=7), hoy),
+            }
+            rango = rangos.get(self.value())
+            if rango is None:
+                return queryset
+            # En un DateTimeField se compara la fecha local, no el instante
+            es_fecha_hora = isinstance(queryset.model._meta.get_field(campo), models.DateTimeField)
+            lookup = f'{campo}__date__range' if es_fecha_hora else f'{campo}__range'
+            return queryset.filter(**{lookup: rango})
 
     FiltroPeriodo.__name__ = f'FiltroPeriodo_{campo}'
     return FiltroPeriodo

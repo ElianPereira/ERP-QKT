@@ -8,9 +8,12 @@ import logging
 from django.contrib import admin, messages
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.urls import path, reverse
+from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
 
+from core_erp import admin_ui as ui
+from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
 
@@ -40,7 +43,8 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         'folio_display', 'cliente_display', 'linea_negocio_display', 'monto_display',
         'forma_pago', 'fecha_display', 'estado_display', 'acciones_display',
     ]
-    list_filter    = ['linea_negocio', 'estado', 'forma_pago', 'fecha_solicitud']
+    list_filter    = ['estado', filtro_periodo('fecha_solicitud', 'Fecha de solicitud'), ('forma_pago', con_titulo('Forma de pago')),
+                      ('linea_negocio', con_titulo('Línea de negocio'))]
     search_fields  = ['cliente__nombre', 'rfc', 'razon_social', 'concepto']
     date_hierarchy = 'fecha_solicitud'
     ordering       = ['-fecha_solicitud']
@@ -74,104 +78,61 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
 
     # ─── Display methods ──────────────────────────────────────
 
+    TONOS_ESTADO = {'PENDIENTE': ui.ALERTA, 'ENVIADA': ui.INFO, 'FACTURADA': ui.EXITO, 'CANCELADA': ui.ERROR}
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cliente')
+
     @admin.display(description="Folio", ordering="id")
     def folio_display(self, obj):
-        if not obj.id:
-            return "-"
-        return format_html(
-            '<span style="color:#4CAF50; font-weight:600;">SOL-{}</span>',
-            str(obj.id).zfill(4)
-        )
+        return f"SOL-{str(obj.id).zfill(4)}" if obj.id else ui.vacio()
 
     @admin.display(description="Cliente", ordering="cliente__nombre")
     def cliente_display(self, obj):
         if not obj.cliente:
-            return "-"
-        nombre = obj.cliente.nombre
-        if len(nombre) > 35:
-            nombre = nombre[:35] + "..."
-        return format_html('<span style="color:#d4d1c8;">{}</span>', nombre)
+            return ui.vacio()
+        return format_html('{}<div class="qkt-sub">{}</div>', obj.cliente.nombre, obj.rfc or 'Público en general')
 
     @admin.display(description="Línea", ordering="linea_negocio")
     def linea_negocio_display(self, obj):
-        colores = {'QUINTA': '#2E7D32'}
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:3px 10px; '
-            'border-radius:10px; font-size:11px; font-weight:600;">{}</span>',
-            colores.get(obj.linea_negocio, '#95a5a6'), obj.get_linea_negocio_display()
-        )
+        return ui.badge(obj.get_linea_negocio_display(), ui.NEUTRO, categoria=True)
 
     @admin.display(description="Monto", ordering="monto")
     def monto_display(self, obj):
-        if not obj.monto:
-            return "-"
-        return format_html(
-            '<span style="font-weight:600; color:#d4d1c8;">{}</span>',
-            "${:,.2f}".format(float(obj.monto))
-        )
+        return ui.monto(obj.monto) if obj.monto else ui.vacio(numerico=True)
 
     @admin.display(description="Fecha", ordering="fecha_solicitud")
     def fecha_display(self, obj):
         if not obj.fecha_solicitud:
-            return "-"
-        return obj.fecha_solicitud.strftime('%d/%m/%Y')
+            return ui.vacio()
+        return date_format(timezone.localtime(obj.fecha_solicitud), 'd M Y')
 
     @admin.display(description="Estado", ordering="estado")
     def estado_display(self, obj):
-        colores = {
-            'PENDIENTE': '#e67e22', 'ENVIADA': '#3498db',
-            'FACTURADA': '#27ae60', 'CANCELADA': '#95a5a6',
-        }
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
-            colores.get(obj.estado, '#95a5a6'), obj.get_estado_display()
-        )
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
 
-    @admin.display(description="Acciones")
+    @admin.display(description="")
     def acciones_display(self, obj):
         if not obj.id:
-            return "-"
-
-        obj_id = int(obj.id)
-
+            return ui.vacio()
         if obj.estado == 'FACTURADA':
             if obj.archivo_zip:
-                return format_html(
-                    '<a href="{}" target="_blank" style="background:#27ae60; color:#fff; '
-                    'padding:4px 10px; border-radius:4px; font-size:11px; '
-                    'text-decoration:none; font-weight:600;">Descargar ZIP</a>',
-                    url_descarga(obj, 'archivo_zip')
-                )
-            elif obj.archivo_pdf:
-                return format_html(
-                    '<a href="{}" target="_blank" style="background:#27ae60; color:#fff; '
-                    'padding:4px 10px; border-radius:4px; font-size:11px; '
-                    'text-decoration:none; font-weight:600;">Descargar PDF</a>',
-                    url_descarga(obj, 'archivo_pdf')
-                )
-            return mark_safe('<span style="color:#27ae60; font-weight:600;">Facturada</span>')
-
+                return ui.acciones(ui.boton_icono(url_descarga(obj, 'archivo_zip'), 'file-zipper', 'Descargar ZIP',
+                                                  nueva_pestana=True))
+            if obj.archivo_pdf:
+                return ui.acciones(ui.boton_icono(url_descarga(obj, 'archivo_pdf'), 'file-pdf', 'Descargar factura',
+                                                  nueva_pestana=True))
+            return ui.vacio()
         if obj.estado == 'CANCELADA':
-            return mark_safe('<span style="color:#95a5a6;">Cancelada</span>')
-
-        btn = '<a href="{url}" {extra} style="background:{bg}; color:{fg}; padding:4px 10px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; margin-right:4px;">{label}</a>'
-
-        html_parts = [
-            btn.format(
-                url=f'/admin/facturacion/solicitudfactura/{obj_id}/generar_pdf/',
-                extra='target="_blank"', bg='#8e44ad', fg='#fff', label='PDF'
-            ),
-            btn.format(
-                url=f'/admin/facturacion/solicitudfactura/{obj_id}/enviar_whatsapp/',
-                extra='', bg='#25D366', fg='#fff', label='WhatsApp'
-            ),
-            btn.format(
-                url=f'/admin/facturacion/solicitudfactura/{obj_id}/enviar_email/',
-                extra='', bg='#3498db', fg='#fff', label='Email'
-            ),
-        ]
-        return mark_safe(''.join(html_parts))  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
+            return ui.vacio()
+        return ui.acciones(
+            ui.boton_icono(reverse('admin:solicitudfactura_generar_pdf', args=[obj.id]), 'file-pdf',
+                           'PDF de la solicitud', nueva_pestana=True),
+            ui.boton_icono(reverse('admin:solicitudfactura_enviar_whatsapp', args=[obj.id]), 'comment',
+                           'Enviar al contador por WhatsApp'),
+            ui.boton_icono(reverse('admin:solicitudfactura_enviar_email', args=[obj.id]), 'envelope',
+                           'Enviar al contador por email'),
+        )
 
     # ─── Custom URLs ──────────────────────────────────────────
 

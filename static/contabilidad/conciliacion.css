@@ -161,22 +161,6 @@
 .qkt-entrada { color: #27ae60; }
 .qkt-salida  { color: #e74c3c; }
 
-/* ---------- Etiquetas de situación ---------- */
-
-.qkt-badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: 600;
-    color: #fff;
-    white-space: nowrap;
-    cursor: help;
-}
-.qkt-badge-ok       { background: #27ae60; }
-.qkt-badge-sugerido { background: #e67e22; }
-.qkt-badge-falta    { background: #e74c3c; }
-
 .qkt-muted { color: #95a5a6; font-size: 12px; }
 
 /* ---------- Panel de ayuda en pantalla ---------- */

@@ -7,7 +7,11 @@ Sistema de Diseño QKT v2.0
 from django.contrib import admin
 from django.shortcuts import render
 from django.urls import path, reverse
-from django.utils.html import format_html
+from django.utils import timezone
+from django.utils.formats import date_format
+
+from core_erp import admin_ui as ui
+from core_erp.admin_filtros import con_titulo, filtro_periodo
 
 from .models import ReporteGenerado
 
@@ -15,8 +19,8 @@ from .models import ReporteGenerado
 @admin.register(ReporteGenerado)
 class ReporteGeneradoAdmin(admin.ModelAdmin):
     change_list_template = 'admin/reportes/reportegenerado/change_list.html'
-    list_display = ('tipo_badge', 'formato_badge', 'fecha_inicio', 'fecha_fin', 'created_by', 'created_at')
-    list_filter = ('tipo', 'formato', 'created_at')
+    list_display = ('tipo_badge', 'formato_badge', 'fecha_inicio', 'fecha_fin', 'created_by', 'generado_display')
+    list_filter = (('tipo', con_titulo('Tipo')), 'formato', filtro_periodo('created_at', 'Generado'))
     date_hierarchy = 'created_at'
     list_per_page = 30
     readonly_fields = ('tipo', 'formato', 'fecha_inicio', 'fecha_fin', 'parametros', 'created_by', 'created_at')
@@ -33,32 +37,15 @@ class ReporteGeneradoAdmin(admin.ModelAdmin):
 
     @admin.display(description="Tipo", ordering="tipo")
     def tipo_badge(self, obj):
-        colores = {
-            'BALANZA': '#3498db',
-            'EDO_RESULTADOS': '#27ae60',
-            'BALANCE_GRAL': '#2E7D32',
-            'LIBRO_MAYOR': '#9b59b6',
-            'AUXILIAR': '#1abc9c',
-            'CXC_CARTERA': '#e67e22',
-            'COT_PERIODO': '#F5C518',
-            'FACTURAS': '#95a5a6',
-        }
-        color = colores.get(obj.tipo, '#95a5a6')
-        text_color = '#333' if obj.tipo == 'COT_PERIODO' else '#fff'
-        return format_html(
-            '<span style="background:{}; color:{}; padding:4px 10px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>',
-            color, text_color, obj.get_tipo_display()
-        )
+        return ui.badge(obj.get_tipo_display(), ui.NEUTRO, categoria=True)
 
-    @admin.display(description="Formato")
+    @admin.display(description="Formato", ordering="formato")
     def formato_badge(self, obj):
-        color = '#e74c3c' if obj.formato == 'PDF' else '#3498db'
-        return format_html(
-            '<span style="background:{}; color:#fff; padding:3px 8px; '
-            'border-radius:12px; font-size:10px; font-weight:600;">{}</span>',
-            color, obj.formato
-        )
+        return ui.badge(obj.formato, ui.INFO, categoria=True)
+
+    @admin.display(description="Generado", ordering="created_at")
+    def generado_display(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M Y H:i') if obj.created_at else ui.vacio()
 
     def get_urls(self):
         custom_urls = [

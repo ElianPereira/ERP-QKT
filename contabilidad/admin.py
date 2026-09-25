@@ -18,7 +18,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from core_erp import admin_ui as ui
-from core_erp.admin_filtros import con_titulo
+from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.admin_utils import confirmar_accion_destructiva
 
 from .models import (
@@ -69,7 +69,7 @@ class SubcuentaInline(admin.TabularInline):
 @admin.register(CuentaContable)
 class CuentaContableAdmin(admin.ModelAdmin):
     list_display = ['codigo_sat', 'nombre', 'tipo_display', 'naturaleza_display', 'nivel', 'permite_movimientos', 'activa']
-    list_filter = ['tipo', 'naturaleza', 'nivel', 'activa', 'permite_movimientos']
+    list_filter = ['tipo', 'naturaleza', ('nivel', con_titulo('Nivel')), 'activa', ('permite_movimientos', con_titulo('Permite movimientos'))]
     search_fields = ['codigo_sat', 'nombre']
     ordering = ['codigo_sat']
     list_per_page = 50
@@ -78,34 +78,17 @@ class CuentaContableAdmin(admin.ModelAdmin):
 
     @admin.display(description="Tipo", ordering="tipo")
     def tipo_display(self, obj):
-        colores = {
-            'ACTIVO': '#3498db',
-            'PASIVO': '#9b59b6',
-            'CAPITAL': '#2E7D32',
-            'INGRESO': '#27ae60',
-            'COSTO': '#e67e22',
-            'GASTO': '#e74c3c',
-            'ORDEN': '#95a5a6',
-        }
-        color = colores.get(obj.tipo, '#95a5a6')
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="background:{}; color:#fff; padding:4px 10px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
-                color, obj.tipo
-            )
-        )
+        return ui.badge(obj.get_tipo_display(), ui.NEUTRO, categoria=True)
 
-    @admin.display(description="Nat.", ordering="naturaleza")
+    @admin.display(description="Naturaleza", ordering="naturaleza")
     def naturaleza_display(self, obj):
-        if obj.naturaleza == 'D':
-            return mark_safe('<span style="color:#3498db; font-weight:600;">D</span>')
-        return mark_safe('<span style="color:#9b59b6; font-weight:600;">A</span>')
+        return 'Deudora' if obj.naturaleza == 'D' else 'Acreedora'
 
 
 @admin.register(UnidadNegocio)
 class UnidadNegocioAdmin(admin.ModelAdmin):
     list_display = ['clave', 'nombre', 'regimen_display', 'activa']
-    list_filter = ['regimen_fiscal', 'activa']
+    list_filter = [('regimen_fiscal', con_titulo('Régimen fiscal')), 'activa']
     search_fields = ['clave', 'nombre']
 
     @admin.display(description="Régimen Fiscal")
@@ -113,9 +96,7 @@ class UnidadNegocioAdmin(admin.ModelAdmin):
         texto = obj.get_regimen_fiscal_display()
         if len(texto) > 50:
             texto = texto[:50] + '...'
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:#d4d1c8; font-size:12px;">{}</span>'.format(texto)
-        )
+        return texto
 
 
 @admin.register(CuentaBancaria)
@@ -127,21 +108,13 @@ class CuentaBancariaAdmin(admin.ModelAdmin):
     @admin.display(description="CLABE")
     def clabe_display(self, obj):
         if obj.clabe:
-            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-                '<span style="color:#95a5a6;">****{}</span>'.format(obj.clabe[-4:])
-            )
-        return "-"
+            return format_html('<span class="qkt-codigo">•••• {}</span>', obj.clabe[-4:])
+        return ui.vacio()
 
     @admin.display(description="Saldo")
     def saldo_display(self, obj):
         saldo = obj.saldo_actual
-        if saldo >= 0:
-            color = '#27ae60'
-        else:
-            color = '#e74c3c'
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:{}; font-weight:600;">${:,.2f}</span>'.format(color, float(saldo))
-        )
+        return ui.monto(saldo, tono=ui.ERROR if saldo < 0 else None)
 
 
 @admin.register(Poliza)
@@ -333,7 +306,7 @@ class PolizaAdmin(admin.ModelAdmin):
 @admin.register(ConciliacionBancaria)
 class ConciliacionBancariaAdmin(admin.ModelAdmin):
     list_display = [
-        'cuenta_bancaria', 'periodo_display', 'saldo_segun_banco', 'saldo_segun_libros',
+        'cuenta_bancaria', 'periodo_display', 'banco_display', 'libros_display',
         'arrastrada_display', 'diferencia_display', 'estado_display',
     ]
     list_filter = ['estado', 'cuenta_bancaria', 'anio']
@@ -594,85 +567,63 @@ class ConciliacionBancariaAdmin(admin.ModelAdmin):
             mark_safe(enlace),  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
         )
 
+    MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    TONOS_ESTADO = {'PENDIENTE': ui.ALERTA, 'EN_PROCESO': ui.INFO, 'CONCILIADA': ui.EXITO}
+
+    @admin.display(description="Banco", ordering="saldo_segun_banco")
+    def banco_display(self, obj):
+        return ui.monto(obj.saldo_segun_banco)
+
+    @admin.display(description="Libros", ordering="saldo_segun_libros")
+    def libros_display(self, obj):
+        return ui.monto(obj.saldo_segun_libros)
+
     @admin.display(description="Arrastrada")
     def arrastrada_display(self, obj):
         if abs(obj.diferencia_arrastrada) < Decimal('0.01'):
-            return mark_safe('<span class="qkt-muted">—</span>')
+            return ui.vacio()
         return format_html(
-            '<span title="Descuadre heredado de periodos anteriores, ajeno a este '
-            'estado de cuenta." style="color:#e67e22; font-weight:600;">${}</span>',
-            '{:,.2f}'.format(float(obj.diferencia_arrastrada)),
+            '<span title="Descuadre heredado de periodos anteriores, ajeno a este estado de cuenta.">{}</span>',
+            ui.monto(obj.diferencia_arrastrada, tono=ui.ALERTA),
         )
 
-    @admin.display(description="Período")
+    @admin.display(description="Período", ordering="anio")
     def periodo_display(self, obj):
-        meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-                 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:#F5C518; font-weight:600;">{} {}</span>'.format(
-                meses[obj.mes], obj.anio
-            )
-        )
+        return f"{self.MESES[obj.mes]} {obj.anio}"
 
     @admin.display(description="Diferencia")
     def diferencia_display(self, obj):
         if abs(obj.diferencia) < Decimal('0.01'):
-            return mark_safe(
-                '<span style="color:#27ae60; font-weight:600;">$0.00</span>'
-            )
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:#e74c3c; font-weight:600;">${:,.2f}</span>'.format(
-                float(obj.diferencia)
-            )
-        )
+            return ui.monto(Decimal('0'), tono=ui.EXITO)
+        return ui.monto(obj.diferencia, tono=ui.ERROR)
 
-    @admin.display(description="Estado")
+    @admin.display(description="Estado", ordering="estado")
     def estado_display(self, obj):
-        colores = {
-            'PENDIENTE': '#e67e22',
-            'EN_PROCESO': '#3498db',
-            'CONCILIADA': '#27ae60'
-        }
-        color = colores.get(obj.estado, '#95a5a6')
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="background:{}; color:#fff; padding:4px 12px; '
-            'border-radius:12px; font-size:11px; font-weight:600;">{}</span>'.format(
-                color, obj.get_estado_display()
-            )
-        )
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
 
 
 @admin.register(ConfiguracionContable)
 class ConfiguracionContableAdmin(admin.ModelAdmin):
     list_display = ['operacion_display', 'cuenta_display', 'descripcion', 'activa']
+    columnas_texto = ('operacion_display', 'cuenta_display', 'descripcion')
     list_filter = ['activa']
     search_fields = ['operacion', 'cuenta__codigo_sat', 'descripcion']
     autocomplete_fields = ['cuenta']
 
     @admin.display(description="Operación", ordering="operacion")
     def operacion_display(self, obj):
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:#4CAF50; font-weight:600;">{}</span>'.format(
-                obj.get_operacion_display()
-            )
-        )
+        return obj.get_operacion_display()
 
     @admin.display(description="Cuenta")
     def cuenta_display(self, obj):
-        nombre = obj.cuenta.nombre
-        if len(nombre) > 30:
-            nombre = nombre[:30] + '...'
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<span style="color:#d4d1c8;">{} - {}</span>'.format(
-                obj.cuenta.codigo_sat, nombre
-            )
-        )
+        return format_html('<span class="qkt-codigo">{}</span> {}', obj.cuenta.codigo_sat, obj.cuenta.nombre)
 
 
 @admin.register(MovimientoContable)
 class MovimientoContableAdmin(admin.ModelAdmin):
     list_display = ['poliza_display', 'cuenta', 'concepto', 'debe_display', 'haber_display', 'referencia']
-    list_filter = ['poliza__tipo', 'poliza__estado', 'cuenta__tipo']
+    list_filter = [('poliza__estado', con_titulo('Estado de la póliza')), ('poliza__tipo', con_titulo('Tipo de póliza')),
+                   ('cuenta__tipo', con_titulo('Tipo de cuenta'))]
     search_fields = ['cuenta__codigo_sat', 'cuenta__nombre', 'concepto', 'poliza__concepto']
     autocomplete_fields = ['cuenta']
 
@@ -700,34 +651,22 @@ class MovimientoContableAdmin(admin.ModelAdmin):
             queryset = queryset | self.get_queryset(request).filter(pk__in=base.values('pk'))
         return queryset.select_related('poliza', 'cuenta'), use_distinct
 
-    @admin.display(description="Póliza")
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('poliza', 'cuenta')
+
+    @admin.display(description="Póliza", ordering="poliza__folio")
     def poliza_display(self, obj):
-        return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-            '<a href="/admin/contabilidad/poliza/{}/change/" '
-            'style="color:#4CAF50; font-weight:600;">{}-{}</a>'.format(
-                obj.poliza.pk, obj.poliza.tipo, str(obj.poliza.folio).zfill(4)
-            )
-        )
+        return format_html('<a href="{}" class="qkt-codigo">{}-{}</a>',
+                           reverse('admin:contabilidad_poliza_change', args=[obj.poliza.pk]),
+                           obj.poliza.tipo, str(obj.poliza.folio).zfill(4))
 
-    @admin.display(description="Debe")
+    @admin.display(description="Debe", ordering="debe")
     def debe_display(self, obj):
-        if obj.debe > 0:
-            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-                '<span style="color:#3498db; font-weight:600;">${:,.2f}</span>'.format(
-                    float(obj.debe)
-                )
-            )
-        return mark_safe('<span style="color:#95a5a6;">-</span>')
+        return ui.monto(obj.debe) if obj.debe > 0 else ui.vacio(numerico=True)
 
-    @admin.display(description="Haber")
+    @admin.display(description="Haber", ordering="haber")
     def haber_display(self, obj):
-        if obj.haber > 0:
-            return mark_safe(  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
-                '<span style="color:#9b59b6; font-weight:600;">${:,.2f}</span>'.format(
-                    float(obj.haber)
-                )
-            )
-        return mark_safe('<span style="color:#95a5a6;">-</span>')
+        return ui.monto(obj.haber) if obj.haber > 0 else ui.vacio(numerico=True)
 
     def has_add_permission(self, request):
         return False
@@ -748,8 +687,12 @@ class MovimientoContableAdmin(admin.ModelAdmin):
 
 @admin.register(SaldoApertura)
 class SaldoAperturaAdmin(admin.ModelAdmin):
-    list_display = ['cuenta_bancaria', 'fecha_corte', 'saldo_certificado', 'aplicado', 'certificado_por']
-    list_filter = ['aplicado', 'fecha_corte']
+    list_display = ['cuenta_bancaria', 'fecha_corte', 'saldo_display', 'aplicado', 'certificado_por']
+    list_filter = ['aplicado', filtro_periodo('fecha_corte', 'Fecha de corte')]
+
+    @admin.display(description='Saldo certificado', ordering='saldo_certificado')
+    def saldo_display(self, obj):
+        return ui.monto(obj.saldo_certificado)
     readonly_fields = ['aplicado', 'poliza']
     actions = ['aplicar_saldo']
 
@@ -937,30 +880,23 @@ class MovimientoEstadoCuentaInline(admin.TabularInline):
     @admin.display(description="Situación")
     def situacion_display(self, obj):
         if not obj.movimiento_contable_id:
-            return mark_safe(
-                '<span class="qkt-badge qkt-badge-falta" '
-                'title="Este movimiento del banco no tiene asiento contable. '
-                'Búscalo en la columna anterior o registra la póliza que falta.">'
-                'Sin asiento</span>')
-        if obj.confirmado:
-            return mark_safe(
-                '<span class="qkt-badge qkt-badge-ok" '
-                'title="Ya revisaste este emparejamiento.">Confirmado</span>')
-        if obj.match_automatico:
-            return mark_safe(
-                '<span class="qkt-badge qkt-badge-sugerido" '
-                'title="El sistema lo emparejó por importe y fecha. '
-                'Revísalo y marca «Confirmado» si es correcto.">Por revisar</span>')
-        return mark_safe(
-            '<span class="qkt-badge qkt-badge-sugerido" '
-            'title="Emparejado a mano, falta confirmarlo.">Por confirmar</span>')
+            texto, tono, ayuda = ('Sin asiento', ui.ERROR, 'Este movimiento del banco no tiene asiento contable. '
+                                  'Búscalo en la columna anterior o registra la póliza que falta.')
+        elif obj.confirmado:
+            texto, tono, ayuda = 'Confirmado', ui.EXITO, 'Ya revisaste este emparejamiento.'
+        elif obj.match_automatico:
+            texto, tono, ayuda = ('Por revisar', ui.ALERTA, 'El sistema lo emparejó por importe y fecha. '
+                                  'Revísalo y marca «Confirmado» si es correcto.')
+        else:
+            texto, tono, ayuda = 'Por confirmar', ui.ALERTA, 'Emparejado a mano, falta confirmarlo.'
+        return format_html('<span title="{}">{}</span>', ayuda, ui.badge(texto, tono))
 
 
 @admin.register(EstadoCuentaBancario)
 class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
     list_display = [
         'cuenta_bancaria', 'periodo_display', 'estado_display',
-        'saldo_final_estado', 'avance_display', 'origen',
+        'saldo_final_display', 'avance_display', 'origen',
     ]
     list_filter = ['estado', 'cuenta_bancaria', 'periodo_anio']
     inlines = [MovimientoEstadoCuentaInline]
@@ -1005,23 +941,21 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
 
     @admin.display(description="Estado", ordering="estado")
     def estado_display(self, obj):
-        colores = {'CARGADO': '#e67e22', 'PROCESADO': '#27ae60', 'ERROR': '#e74c3c'}
-        return format_html(
-            '<span class="qkt-badge" style="background:{}">{}</span>',
-            colores.get(obj.estado, '#95a5a6'), obj.get_estado_display(),
-        )
+        tonos = {'CARGADO': ui.ALERTA, 'PROCESADO': ui.EXITO, 'ERROR': ui.ERROR}
+        return ui.badge_por_valor(obj.estado, tonos, obj.get_estado_display())
+
+    @admin.display(description="Saldo final", ordering="saldo_final_estado")
+    def saldo_final_display(self, obj):
+        return ui.monto(obj.saldo_final_estado)
 
     @admin.display(description="Emparejados")
     def avance_display(self, obj):
         total = obj.movimientos.count()
         if not total:
-            return mark_safe('<span class="qkt-muted">sin procesar</span>')
+            return ui.badge('Sin procesar', ui.NEUTRO)
         con_asiento = obj.movimientos.filter(movimiento_contable__isnull=False).count()
-        color = '#27ae60' if con_asiento == total else '#e67e22'
-        return format_html(
-            '<span style="color:{}; font-weight:600;">{} de {}</span>',
-            color, con_asiento, total,
-        )
+        return format_html('{}<div class="qkt-sub">{} de {}</div>', ui.avance(con_asiento / total * 100),
+                           con_asiento, total)
 
     @admin.display(description="Cómo se usa esta pantalla")
     def resumen_display(self, obj):
