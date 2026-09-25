@@ -11,20 +11,17 @@
 
   <hr>
   <form method="POST" target="_blank">{% csrf_token %}
-    <div class="form-row" style="margin-bottom:16px;">
-      <label><strong>Tipo de servicio</strong></label><br>
-      <select name="tipo_servicio" class="form-control">
-        <option value="EVENTO" {% if cotizacion.tipo_servicio == "EVENTO" %}selected{% endif %}>Evento</option>
-        <option value="PASADIA" {% if cotizacion.tipo_servicio == "PASADIA" %}selected{% endif %}>Pasadía</option>
-        <option value="HOSPEDAJE" {% if cotizacion.tipo_servicio == "HOSPEDAJE" %}selected{% endif %}>Hospedaje</option>
-      </select>
-    </div>
+    <p><strong>Tipo de contrato:</strong> {{ cotizacion.get_tipo_servicio_display }}
+       <small style="color:#888;">(sale del tipo de servicio de la cotización)</small></p>
     <div class="form-row" style="margin-bottom:20px;">
       <label><strong>Depósito en garantía (MXN)</strong></label><br>
       <input type="number" name="deposito_garantia" class="form-control"
-             value="0" min="0" step="100" style="max-width:200px;">
+             value="{% if contrato_propio_activo %}{{ deposito_sugerido|stringformat:".2f" }}{% else %}0{% endif %}"
+             min="0" step="0.01" style="max-width:200px;">
+      <small style="color:#888;">Sugerido según el contrato propio: ${{ deposito_sugerido|floatformat:2|intcomma }}</small>
     </div>
     <button type="submit" class="btn" style="background:#2E7D32;color:white;border:none;padding:8px 20px;border-radius:4px;font-weight:600;">Generar contrato</button>
+    <a href="{% url 'cotizacion_contrato_vista_previa' cotizacion.id %}" target="_blank" class="btn btn-secondary" style="margin-left:10px;">Vista previa del contrato propio</a>
     <a href="{% url 'admin:comercial_cotizacion_changelist' %}" class="btn btn-secondary" style="margin-left:10px;">Cancelar</a>
   </form>
 

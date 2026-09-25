@@ -1,0 +1,68 @@
+<div class="portada">
+  <h1>Anexo Hospedaje</h1>
+  <div class="servicio">Condiciones particulares · Contrato {{ numero }}</div>
+</div>
+
+<p>
+  Este Anexo forma parte del contrato {{ numero }} y precisa las condiciones de la estancia en las habitaciones Ka'an y Otoch,
+  ubicadas dentro de Quinta Ko'ox Tanil. En lo no previsto rige el Reglamento Interno.
+</p>
+
+<h3>1. Estancia</h3>
+<table>
+  <tbody>
+    <tr><td class="dato">Llegada (check-in)</td><td>{{ fecha_evento }}, a partir de las {{ hora_ini }}</td></tr>
+    <tr><td class="dato">Salida (check-out)</td><td>{{ fecha_salida }}, a más tardar a las {{ hora_fin }}</td></tr>
+    <tr><td class="dato">Noches</td><td>{{ noches }}</td></tr>
+    <tr><td class="dato">Habitaciones</td><td>{{ habitaciones }}</td></tr>
+    <tr><td class="dato">Huéspedes declarados</td><td>{{ cotizacion.num_personas }}</td></tr>
+    {% if ish_str %}<tr><td class="dato">Impuesto Sobre Hospedaje incluido</td><td>{{ ish_str }}</td></tr>{% endif %}
+  </tbody>
+</table>
+<p>Puede solicitarse identificación oficial del huésped titular al momento del ingreso.</p>
+
+<h3>2. Ocupación</h3>
+<ol>
+  <li>Cada habitación garantiza comodidad y espacio para <strong>{{ capacidad_base }} personas</strong>. Se admiten hasta <strong>{{ extra_max }} personas adicionales por habitación</strong>, con el costo extra por persona y por noche señalado en la cotización y sin esa garantía, hasta un máximo de <strong>{{ maximo_habitacion }} personas por habitación</strong>.</li>
+  <li>Solo pueden pernoctar los huéspedes declarados. Las personas no declaradas se cobran a la tarifa de persona adicional más un <strong>{{ recargo_persona_no_declarada }}%</strong> por noche; por encima del máximo por habitación, LA QUINTA negará el acceso.</li>
+  <li>No se permiten eventos, fiestas ni reuniones con personas ajenas a los huéspedes declarados.</li>
+</ol>
+
+<h3>3. Salida tardía</h3>
+<table>
+  <thead><tr><th>Hora de salida</th><th>Cargo</th></tr></thead>
+  <tbody>
+    <tr><td>Hasta {{ tolerancia_salida_min }} minutos después de las {{ hora_fin }}</td><td>Sin cargo</td></tr>
+    <tr><td>Después de la tolerancia y antes de la {{ hora_noche_completa }}</td><td>{{ cargo_hora_salida_tardia }}% de la tarifa por noche de la habitación, por cada hora o fracción</td></tr>
+    <tr><td>A partir de la {{ hora_noche_completa }}</td><td>Una noche adicional</td></tr>
+  </tbody>
+</table>
+<p class="pequeno">Una salida posterior puede autorizarse por escrito, sujeta a disponibilidad; en ese caso aplica el cargo pactado.</p>
+
+<h3>4. Convivencia</h3>
+<ol>
+  <li>Rige un horario de silencio de 22:00 a 8:00 h: volumen de conversación y sin música amplificada en exteriores.</li>
+  <li>No se permite fumar dentro de las habitaciones.</li>
+  <li>Las mascotas se admiten con aviso previo, conforme al Reglamento Interno, y no pueden subir a camas ni muebles tapizados.</li>
+</ol>
+
+<h3>5. Inventario y daños</h3>
+<p>
+  EL CLIENTE recibe las habitaciones con su mobiliario, lencería, aire acondicionado y llaves, y responde por su pérdida o daño
+  durante la estancia, por sí o por sus acompañantes. La pérdida de una llave se cobra al costo de reposición de la chapa o la llave.
+</p>
+
+<h3>6. Terminación de la estancia</h3>
+<p>
+  LA QUINTA puede dar por terminada la estancia, sin reembolso de las noches no aprovechadas, cuando se presenten conductas
+  violentas, se introduzcan armas o se rebase el máximo de personas por habitación, conforme a la Cláusula Décima primera.
+</p>
+
+{% if tiene_deposito %}
+<h3>7. Depósito en garantía</h3>
+<p>
+  El depósito es de <strong>{{ deposito_por_habitacion_str }} por habitación</strong> ({{ deposito_str }} en esta reserva), más
+  <strong>{{ deposito_mascota_str }}</strong> si se ingresa con mascota. Se devuelve dentro de los {{ dias_devolucion_deposito }} días naturales
+  siguientes a la salida, en los términos de la Cláusula Cuarta.
+</p>
+{% endif %}

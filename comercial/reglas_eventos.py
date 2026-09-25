@@ -9,6 +9,10 @@ combinación que el servidor luego rechaza.
 # personas, no hay ruta alterna ni excepción por autorización.
 MAX_PERSONAS_EVENTO = 150
 
+# Pasadía: 20 personas incluidas y hasta 10 adicionales con cargo, para un
+# máximo inexcedible de 30 (Reglamento Interno v1.2, sección 4).
+MAX_PERSONAS_PASADIA = 30
+
 # Piso de personas para "Arma tu propio evento" (catálogo abierto por
 # categoría). Por debajo, solo se ofrece un paquete de precio fijo —
 # decisión del propietario, 2026-09-20.

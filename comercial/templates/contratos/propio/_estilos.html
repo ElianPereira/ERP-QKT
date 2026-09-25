@@ -1,0 +1,112 @@
+  {# Misma identidad que legal/documento.html (Aviso, TyC, Política, Reglamento), adaptada a PDF. #}
+  <style>
+    @font-face { font-family: 'IBM Plex Sans'; font-weight: 400; font-style: normal; src: url('{{ fuentes_dir }}/IBMPlexSans-400.woff'); }
+    @font-face { font-family: 'IBM Plex Sans'; font-weight: 400; font-style: italic; src: url('{{ fuentes_dir }}/IBMPlexSans-400-italic.woff'); }
+    @font-face { font-family: 'IBM Plex Sans'; font-weight: 600; font-style: normal; src: url('{{ fuentes_dir }}/IBMPlexSans-600.woff'); }
+    @font-face { font-family: 'IBM Plex Sans'; font-weight: 700; font-style: normal; src: url('{{ fuentes_dir }}/IBMPlexSans-700.woff'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; font-style: normal; src: url('{{ fuentes_dir }}/CormorantGaramond-600.woff'); }
+
+    @page {
+      size: letter;
+      margin: 2cm 2.2cm 2.2cm 2.2cm;
+      @bottom-left {
+        content: "Quinta Ko'ox Tanil · Contrato {{ numero }}";
+        font-family: 'IBM Plex Sans', sans-serif; font-size: 7.5pt; color: #8a8780;
+      }
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-family: 'IBM Plex Sans', sans-serif; font-size: 7.5pt; color: #8a8780;
+      }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'IBM Plex Sans', Arial, sans-serif;
+      font-size: 9.5pt; line-height: 1.6; color: #2c2b28;
+    }
+
+    /* Portada */
+    .barra { display: table; width: 100%; padding-bottom: 10px; border-bottom: 1px solid #e4e0d8; }
+    .barra img { height: 34px; vertical-align: middle; }
+    .barra .marca {
+      font-family: 'Cormorant Garamond', serif; font-size: 15pt; font-weight: 600;
+      color: #1B5E20; vertical-align: middle; margin-left: 8px;
+    }
+    .portada { text-align: center; margin: 22px 0 18px; }
+    .portada h1 {
+      font-family: 'Cormorant Garamond', serif; font-size: 24pt; font-weight: 600;
+      color: #1B5E20; line-height: 1.15; margin-bottom: 4px;
+    }
+    .portada .servicio {
+      font-size: 8.5pt; font-weight: 700; color: #2E7D32;
+      text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px;
+    }
+    .sello {
+      display: inline-block; font-size: 8pt; color: #5a5852;
+      border-top: 1px solid #e4e0d8; border-bottom: 1px solid #e4e0d8; padding: 6px 14px;
+    }
+    .sello span { margin: 0 7px; }
+
+    /* Encabezados */
+    h2 {
+      font-family: 'Cormorant Garamond', serif; font-size: 15pt; font-weight: 600;
+      color: #1B5E20; margin: 20px 0 8px; padding-bottom: 4px;
+      border-bottom: 2px solid #2E7D32; page-break-after: avoid;
+    }
+    h3 {
+      font-size: 10pt; font-weight: 700; color: #1B5E20;
+      margin: 14px 0 5px; page-break-after: avoid;
+    }
+    h4 {
+      font-size: 8.5pt; font-weight: 700; color: #2c2b28; text-transform: uppercase;
+      letter-spacing: .5px; margin: 10px 0 4px; page-break-after: avoid;
+    }
+
+    p { margin: 0 0 7px; text-align: justify; }
+    strong { font-weight: 600; }
+    em { color: #5a5852; }
+    ol, ul { margin: 0 0 8px 18px; }
+    li { margin-bottom: 4px; }
+    li::marker { color: #2E7D32; font-weight: 600; }
+    ol.incisos { list-style-type: lower-alpha; }
+
+    /* Tablas: mismo trato que las del sitio */
+    table { width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 9pt; border: 1px solid #e4e0d8; page-break-inside: avoid; }
+    thead th {
+      background: #f8f7f4; color: #1B5E20; font-weight: 700; font-size: 7.5pt;
+      text-transform: uppercase; letter-spacing: .5px; padding: 6px 8px; text-align: left;
+      border-bottom: 2px solid #e4e0d8;
+    }
+    tbody td { padding: 5px 8px; border-bottom: 1px solid #f0ede8; vertical-align: top; }
+    tbody tr:nth-child(even) { background: #fbfaf8; }
+    td.dato { width: 36%; font-weight: 600; color: #1B5E20; }
+    td.num { text-align: right; white-space: nowrap; }
+
+    /* Nota destacada: el blockquote de los documentos legales */
+    .nota {
+      border-left: 3px solid #2E7D32; background: #f6faf6;
+      padding: 8px 12px; margin: 4px 0 10px; font-size: 9pt; page-break-inside: avoid;
+    }
+    .nota p:last-child { margin-bottom: 0; }
+
+    .pequeno { font-size: 8pt; color: #5a5852; }
+    .salto { page-break-before: always; }
+    .cierre { page-break-inside: avoid; }
+
+    /* Firmas */
+    .firmas { display: table; width: 100%; margin-top: 30px; page-break-inside: avoid; }
+    .firma { display: table-cell; width: 50%; text-align: center; padding: 0 14px; vertical-align: bottom; }
+    .firma .espacio { height: 46px; }
+    .firma .linea { border-top: 1px solid #2c2b28; margin-bottom: 4px; }
+    .firma .nombre { font-weight: 700; font-size: 8.5pt; }
+    .firma .rol { font-size: 7.5pt; color: #5a5852; text-transform: uppercase; letter-spacing: .5px; }
+
+    .casilla { display: inline-block; width: 9px; height: 9px; border: 1px solid #5a5852; margin: 0 3px -1px 0; }
+
+    /* Vista previa: no es un contrato emitido */
+    .marca-agua {
+      position: fixed; top: 42%; left: 0; width: 100%; text-align: center;
+      font-family: 'Cormorant Garamond', serif; font-size: 90pt; font-weight: 600;
+      color: rgba(198, 40, 40, .09); transform: rotate(-30deg); z-index: -1;
+    }
+  </style>

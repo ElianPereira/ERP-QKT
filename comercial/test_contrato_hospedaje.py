@@ -16,11 +16,11 @@ from comercial.services import ContratoService
 from core_erp.test_utils import login_superuser_con_totp
 
 
-def _html_del_contrato(cot, tipo):
+def _html_del_contrato(cot):
     """HTML que ContratoService manda a WeasyPrint, sin generar el PDF."""
     with patch('weasyprint.HTML') as html:
         html.return_value.write_pdf.return_value = b'%PDF'
-        ContratoService(cot, tipo_servicio=tipo).generar()
+        ContratoService(cot).generar()
     return html.call_args.kwargs['string']
 
 
@@ -38,31 +38,31 @@ class ContratoHospedajeTest(TestCase):
         ItemCotizacion.objects.create(cotizacion=self.cot, producto=kaan, cantidad=2)
 
     def test_usa_la_plantilla_de_hospedaje(self):
-        html = _html_del_contrato(self.cot, 'HOSPEDAJE')
+        html = _html_del_contrato(self.cot)
         self.assertIn('Contrato de Prestación de Servicios de Hospedaje', html)
         self.assertIn('EL HUÉSPED', html)
         self.assertNotIn('Arrendamiento de Salón', html)
 
     def test_no_se_ampara_en_el_registro_de_eventos(self):
         # El 9341-2023 solo cubre Evento y Pasadía.
-        html = _html_del_contrato(self.cot, 'HOSPEDAJE')
+        html = _html_del_contrato(self.cot)
         self.assertNotIn('9341-2023', html)
         self.assertNotIn('registrado por la Procuraduría', html)
 
     @override_settings(PROFECO_REGISTRO_HOSPEDAJE='1234-2026')
     def test_muestra_el_registro_cuando_se_configura(self):
-        html = _html_del_contrato(self.cot, 'HOSPEDAJE')
+        html = _html_del_contrato(self.cot)
         self.assertIn('1234-2026', html)
         self.assertIn('registrado por la Procuraduría', html)
 
     def test_ocupacion_por_habitacion(self):
-        html = _html_del_contrato(self.cot, 'HOSPEDAJE')
+        html = _html_del_contrato(self.cot)
         self.assertIn('4 personas</strong>', html)
         self.assertIn('6 personas adicionales por habitación', html)
         self.assertIn('10 personas por habitación', html)
 
     def test_plazo_de_pago_sale_del_modelo(self):
-        html = _html_del_contrato(self.cot, 'HOSPEDAJE')
+        html = _html_del_contrato(self.cot)
         self.assertIn(f"{Cotizacion.DIAS_PAGO_TOTAL['HOSPEDAJE']} días naturales antes", html)
 
 
@@ -75,7 +75,7 @@ class ContratoEventoSinArrendamientoTest(TestCase):
         )
 
     def test_evento_conserva_su_registro_y_sin_mobiliario(self):
-        html = _html_del_contrato(self.cot, 'EVENTO')
+        html = _html_del_contrato(self.cot)
         self.assertIn('9341-2023', html)
         self.assertNotIn('9339-2023', html)
         self.assertNotIn('Mobiliario', html)
@@ -88,14 +88,12 @@ class GenerarContratoArrendamientoTest(TestCase):
         login_superuser_con_totp(self.client, self.admin)
         cliente = Cliente.objects.create(nombre='C', tipo_persona='FISICA')
         self.cot = Cotizacion.objects.create(
-            cliente=cliente, nombre_evento='X', tipo_servicio='EVENTO',
+            cliente=cliente, nombre_evento='X', tipo_servicio='ARRENDAMIENTO',
             fecha_evento=date(2026, 12, 5),
         )
         Cotizacion.objects.filter(pk=self.cot.pk).update(estado='CONFIRMADA')
 
     def test_arrendamiento_ya_no_genera_contrato(self):
-        respuesta = self.client.get(
-            f'/cotizacion/{self.cot.pk}/contrato/generar/?tipo_servicio=ARRENDAMIENTO',
-        )
+        respuesta = self.client.get(f'/cotizacion/{self.cot.pk}/contrato/generar/')
         self.assertEqual(respuesta.status_code, 302)
         self.assertFalse(ContratoServicio.objects.exists())

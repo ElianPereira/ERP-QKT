@@ -232,6 +232,11 @@ CACHES = {
 # esté vacía, el contrato de Hospedaje sale sin leyenda de registro.
 PROFECO_REGISTRO_HOSPEDAJE = config('PROFECO_REGISTRO_HOSPEDAJE', default='')
 
+# Contratos propios (marco + anexo por servicio, Issue #318). Apagado, se
+# siguen emitiendo los contratos basados en el modelo PROFECO; encenderlo
+# solo después de la validación legal del texto.
+CONTRATO_PROPIO_ACTIVO = config('CONTRATO_PROPIO_ACTIVO', default=False, cast=bool)
+
 # --- ISH: Impuesto Sobre Hospedaje (estatal, Yucatán) ---
 # Proporción, no porcentaje: 0.05 = 5%. El default de 0 mantiene el ERP
 # exactamente como estaba (no calcula ni exhibe ISH); definir la variable en

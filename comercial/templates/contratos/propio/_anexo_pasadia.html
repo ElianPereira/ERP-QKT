@@ -1,0 +1,53 @@
+<div class="portada">
+  <h1>Anexo Pasadía</h1>
+  <div class="servicio">Condiciones particulares · Contrato {{ numero }}</div>
+</div>
+
+<p>
+  Este Anexo forma parte del contrato {{ numero }} y precisa las condiciones de la pasadía. En lo no previsto rige el
+  Reglamento Interno.
+</p>
+
+<h3>1. Fecha, horario y alcance</h3>
+<table>
+  <tbody>
+    <tr><td class="dato">Fecha</td><td>{{ fecha_evento }}</td></tr>
+    <tr><td class="dato">Horario</td><td>De {{ hora_ini }} a {{ hora_fin }}. No incluye pernocta.</td></tr>
+    <tr><td class="dato">Personas declaradas</td><td>{{ cotizacion.num_personas }}</td></tr>
+  </tbody>
+</table>
+<p>
+  La pasadía incluye el uso diurno de las áreas y los servicios señalados en la Cláusula Segunda del contrato. Las habitaciones
+  incluidas en el paquete son de uso diurno y se entregan desocupadas al terminar el horario.
+</p>
+
+<h3>2. Aforo</h3>
+<ol>
+  <li>La pasadía ampara a <strong>{{ cotizacion.num_personas }} personas</strong>. Solo pueden ingresar las personas declaradas.</li>
+  <li>Las personas que ingresen sin haberse declarado se cobran a la tarifa de persona adicional vigente más un <strong>{{ recargo_persona_no_declarada }}%</strong>.</li>
+  <li>El máximo es de <strong>{{ aforo_maximo_pasadia }} personas</strong> y es inexcedible: por encima de él, LA QUINTA negará el acceso.</li>
+</ol>
+
+<h3>3. Alberca y áreas recreativas</h3>
+<ol>
+  <li>La alberca se usa bajo la responsabilidad de cada persona: <strong>no hay servicio de salvavidas</strong>.</li>
+  <li>Los menores de edad deben estar en todo momento bajo la supervisión de un adulto responsable, en especial en la alberca y el área de juegos.</li>
+  <li>No pueden usar la alberca personas bajo el efecto del alcohol, y no se permiten envases de vidrio en ella ni en su perímetro.</li>
+</ol>
+
+<h3>4. Alimentos, bebidas y residuos</h3>
+<p>
+  EL CLIENTE puede introducir alimentos y bebidas propios sin cargo, y es responsable de su calidad e inocuidad. Al terminar, los
+  residuos deben quedar en los contenedores que indique el personal. La limpieza extraordinaria se cobra conforme al Reglamento Interno.
+</p>
+
+<h3>5. Mal clima</h3>
+<p>
+  Si el día de la pasadía se presentan lluvia intensa o tormenta que impidan disfrutar de las instalaciones, EL CLIENTE puede
+  reprogramar <strong>una vez y sin costo</strong> a una fecha disponible dentro de los <strong>{{ dias_reprogramacion_clima }} días naturales</strong>
+  siguientes, avisando antes de la hora de inicio. Esta opción sustituye al reembolso, salvo que se trate de un caso fortuito o de fuerza
+  mayor en los términos de la Cláusula Décima.
+</p>
+
+<h3>6. Depósito</h3>
+<p>La pasadía no requiere depósito en garantía. Los daños se cobran conforme a la Cláusula Cuarta.</p>

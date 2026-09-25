@@ -47,6 +47,7 @@ from .models import (
 from .reglas_eventos import (
     MAX_PERSONAS_EVENTO,
     MAX_PERSONAS_EXTRA_POR_HABITACION,
+    MAX_PERSONAS_PASADIA,
     MIN_PERSONAS_PERSONALIZADO_EVENTO,
 )
 from .roles_cotizador import normalizar as _normalizar
@@ -154,9 +155,7 @@ def _redondear_personas(n, servicio=''):
     # eligieron y se valida en `cotizador_enviar`
     # (MAX_PERSONAS_EXTRA_POR_HABITACION).
     if servicio == 'PASADIA':
-        # Aforo base 20, aforo ampliado con cargo extra hasta el máximo
-        # inexcedible de 30 (Reglamento Interno v1.2, sección 4).
-        return min(int(n), 30)
+        return min(int(n), MAX_PERSONAS_PASADIA)
     if servicio == 'HOSPEDAJE':
         return int(n)
     return max(20, math.ceil(int(n) / 10) * 10)

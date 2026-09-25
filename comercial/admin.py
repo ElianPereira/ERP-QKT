@@ -1116,15 +1116,18 @@ class CotizacionAdmin(admin.ModelAdmin):
         contratos_previos = ContratoServicio.objects.filter(cotizacion=cotizacion).order_by('-generado_en')
 
         if request.method == 'POST':
-            from django.urls import reverse as _reverse
             return redirect(f"/cotizacion/{cotizacion_id}/contrato/generar/?"
-                        f"tipo_servicio={request.POST.get('tipo_servicio','EVENTO')}"
-                        f"&deposito={request.POST.get('deposito_garantia','0')}")
+                        f"deposito={request.POST.get('deposito_garantia','0')}")
 
+        from django.conf import settings
+
+        from .reglas_contrato import deposito_sugerido
         context = {
             **self.admin_site.each_context(request),
             'title': f'Generar Contrato — {cotizacion}',
             'cotizacion': cotizacion,
+            'contrato_propio_activo': settings.CONTRATO_PROPIO_ACTIVO,
+            'deposito_sugerido': deposito_sugerido(cotizacion),
             'contratos_previos': contratos_previos,
             'opts': self.model._meta,
         }

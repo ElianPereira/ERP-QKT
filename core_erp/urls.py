@@ -16,6 +16,7 @@ from comercial.views import (
     importar_historico_view,
     migrar_archivos_privados_view,
     ver_cartera_cxc,
+    vista_previa_contrato_propio,
 )
 from comercial.views_calendario import calendario_unificado, calendario_unificado_eventos
 from comercial.views_cotizador import (
@@ -163,6 +164,8 @@ urlpatterns = [
 
     #---Contrato de prestacion de servicios---
     path('cotizacion/<int:cotizacion_id>/contrato/generar/', generar_contrato,    name='cotizacion_contrato'),
+    path('cotizacion/<int:cotizacion_id>/contrato/vista-previa/', vista_previa_contrato_propio,
+         name='cotizacion_contrato_vista_previa'),
     path('contrato/<int:contrato_id>/email/', enviar_contrato_email, name='contrato_email'),
 
     # --- MÓDULO REPORTES ---

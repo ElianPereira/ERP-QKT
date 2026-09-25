@@ -243,6 +243,24 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-25 — Contratos propios, fase 1 de 3 (Issue #318). El propietario
+  deja los contratos basados en el modelo PROFECO por un contrato marco + un
+  anexo por servicio (`comercial/templates/contratos/propio/`), con la
+  identidad de los documentos legales: las fuentes van incrustadas desde
+  `static/fonts/` porque WeasyPrint no debe depender de Google Fonts al
+  generar. Las reglas (depósito, recargos, salida tardía, tablas de
+  cancelación) viven en `comercial/reglas_contrato.py`; las tablas deben
+  coincidir con la Política vigente. **Se emiten solo con
+  `CONTRATO_PROPIO_ACTIVO=True`** (apagado por default hasta la validación
+  legal); mientras tanto, el admin ofrece una vista previa con marca de agua
+  que no guarda nada. El tipo de contrato sale siempre de
+  `cotizacion.tipo_servicio`: antes se elegía a mano y se podía emitir un
+  contrato de Evento para una Pasadía. El contrato de salón viejo decía "no
+  se permite la entrada de animales" contra el Reglamento pet friendly. Los
+  borradores Reglamento v1.3, Política v2.2 y TyC v2.3 llevan `[CONFIRMAR:]`,
+  incluida la fila del registro 9341-2023 de los TyC. Pendientes: firma
+  electrónica (fase 2) y depósito en garantía como pasivo (fase 3).
+
 - 2026-09-25 — Cierre del flujo de facturación del cliente web (revisión
   pedida por el propietario). Se factura **por cada pago, no global**
   (confirmado por él): por eso `requiere_factura=True` fijo y una solicitud a

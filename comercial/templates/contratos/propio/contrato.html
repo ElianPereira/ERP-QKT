@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Contrato {{ numero }} — Quinta Ko'ox Tanil</title>
+  {% include 'contratos/propio/_estilos.html' %}
+</head>
+<body>
+{% if vista_previa %}<div class="marca-agua">BORRADOR</div>{% endif %}
+
+<div class="barra">
+  {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}<span class="marca">Quinta Ko'ox Tanil</span>
+</div>
+
+<div class="portada">
+  <h1>Contrato de Prestación de Servicios</h1>
+  <div class="servicio">Anexo {{ tipo_display }}</div>
+  <div class="sello">
+    <span>Contrato <strong>{{ numero }}</strong></span>
+    <span>Cotización {{ folio }}</span>
+    <span>{{ fecha_doc }}</span>
+    <span>Modelo v{{ version_modelo }}</span>
+  </div>
+</div>
+
+{% if vista_previa %}
+<div class="nota">
+  <p><strong>Vista previa para revisión.</strong> Este documento no es un contrato emitido ni tiene
+  efectos entre las partes. Su texto está sujeto a validación legal.</p>
+</div>
+{% endif %}
+
+<table>
+  <thead><tr><th colspan="2">Resumen del servicio contratado</th></tr></thead>
+  <tbody>
+    <tr><td class="dato">Cliente</td><td>{{ nombre_fiscal }}</td></tr>
+    <tr><td class="dato">Servicio</td><td>{{ tipo_display }} — {{ cotizacion.nombre_evento }}</td></tr>
+    {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+    <tr><td class="dato">Llegada</td><td>{{ fecha_evento }}, a partir de las {{ hora_ini }}</td></tr>
+    <tr><td class="dato">Salida</td><td>{{ fecha_salida }}, a más tardar a las {{ hora_fin }} ({{ noches }} noche{{ noches|pluralize }})</td></tr>
+    <tr><td class="dato">Huéspedes declarados</td><td>{{ cotizacion.num_personas }}</td></tr>
+    {% else %}
+    <tr><td class="dato">Fecha</td><td>{{ fecha_evento }}</td></tr>
+    <tr><td class="dato">Horario contratado</td><td>{{ hora_ini }} a {{ hora_fin }}</td></tr>
+    <tr><td class="dato">Personas declaradas</td><td>{{ cotizacion.num_personas }}</td></tr>
+    {% endif %}
+    <tr><td class="dato">Precio total (IVA incluido)</td><td><strong>{{ precio_total }}</strong></td></tr>
+    <tr><td class="dato">Pagado a la fecha</td><td>{{ total_pagado_str }}</td></tr>
+    <tr><td class="dato">Saldo pendiente</td><td><strong>{{ saldo_str }}</strong></td></tr>
+    {% if tiene_deposito %}
+    <tr><td class="dato">Depósito en garantía</td><td>{{ deposito_str }} (reembolsable, no forma parte del precio)</td></tr>
+    {% endif %}
+    <tr><td class="dato">Lugar de prestación</td><td>{{ domicilio_inmueble }}</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Contrato de prestación de servicios que celebran, por una parte, <strong>ELIAN DE JESÚS PEREIRA CEH</strong>,
+  con nombre comercial Quinta Ko'ox Tanil, a quien en lo sucesivo se denominará <strong>"LA QUINTA"</strong>, y
+  por la otra <strong>{{ nombre_fiscal|upper }}</strong>, a quien en lo sucesivo se denominará
+  <strong>"EL CLIENTE"</strong>, y a ambos en conjunto <strong>"LAS PARTES"</strong>, al tenor de las siguientes
+  declaraciones y cláusulas.
+</p>
+
+<h2>Declaraciones</h2>
+
+<h3>I. Declara LA QUINTA:</h3>
+<ol class="incisos">
+  <li>Ser persona física de nacionalidad mexicana, con capacidad legal para obligarse, inscrita en el Registro Federal de Contribuyentes con la clave <strong>PECE010202IA0</strong>.</li>
+  <li>Prestar sus servicios en el inmueble ubicado en <strong>{{ domicilio_inmueble }}</strong>, y contar con la infraestructura, el personal y los recursos necesarios para cumplir este contrato.</li>
+  <li>Que para dudas, aclaraciones, quejas o reclamaciones pone a disposición el correo <strong>quintakooxtanil@gmail.com</strong> y el teléfono/WhatsApp <strong>+52 999 445 7178</strong>, de lunes a viernes de 8:00 a 14:00 h (Tiempo del Centro).</li>
+  <li>Que antes de la firma informó a EL CLIENTE el precio total, las condiciones y las restricciones del servicio.</li>
+</ol>
+
+<h3>II. Declara EL CLIENTE:</h3>
+<ol class="incisos">
+  <li>Llamarse <strong>{{ nombre_fiscal }}</strong>, con RFC/CURP <strong>{{ rfc_curp }}</strong>, ser mayor de edad y tener capacidad legal para obligarse.</li>
+  <li>Que sus datos de contacto son: teléfono <strong>{{ telefono }}</strong> y correo electrónico <strong>{{ email }}</strong>, en los que acepta recibir las comunicaciones relativas a este contrato.</li>
+  <li>Que conoce y acepta el Reglamento Interno, la Política de Cancelación y Reembolso, los Términos y Condiciones y el Aviso de Privacidad publicados en <strong>quintakooxtanil.com</strong>.</li>
+</ol>
+
+<h2>Cláusulas</h2>
+
+<h3>Primera. Objeto</h3>
+<p>
+  LA QUINTA se obliga a prestar a EL CLIENTE el servicio de <strong>{{ tipo_display|lower }}</strong> descrito en el
+  resumen y en el <strong>Anexo {{ tipo_display }}</strong>, que incluye el uso temporal de las instalaciones
+  señaladas en él, en la fecha y el horario pactados. EL CLIENTE se obliga a pagar el precio convenido.
+  Este contrato es de prestación de servicios: no constituye arrendamiento ni otorga a EL CLIENTE la posesión
+  del inmueble.
+</p>
+
+<h3>Segunda. Precio</h3>
+<p>El precio total es de <strong>{{ precio_total }}</strong>, con IVA incluido, y comprende los siguientes conceptos:</p>
+<ul>
+  {% for concepto in servicios_incluidos %}<li>{{ concepto }}</li>{% endfor %}
+</ul>
+<p>
+  LA QUINTA no cobrará cantidad alguna distinta de la pactada. Los cargos adicionales previstos en el Anexo y en el
+  Reglamento Interno (horas extra, personas adicionales, limpieza extraordinaria, daños) solo proceden en los supuestos
+  ahí descritos, con su desglose por escrito, y los servicios nuevos requieren la autorización previa de EL CLIENTE.
+</p>
+
+<h3>Tercera. Forma y plazo de pago</h3>
+<p>
+  Los pagos se realizan en moneda nacional por los medios del portal de clientes (tarjeta de crédito o débito,
+  transferencia SPEI o efectivo en tiendas afiliadas). <strong>La fecha queda reservada solo con el pago del anticipo
+  pactado.</strong> El saldo debe liquidarse a más tardar <strong>{{ dias_pago_total }} días naturales antes</strong> de la
+  fecha del servicio; si la contratación ocurre dentro de ese plazo, el pago es total al contratar. Los planes de pago
+  y la pena por mora se rigen por los Términos y Condiciones. LA QUINTA emitirá el CFDI de cada pago conforme a los
+  datos fiscales que EL CLIENTE proporcione.
+</p>
+
+{% if tiene_deposito %}
+<h3>Cuarta. Depósito en garantía</h3>
+<p>
+  EL CLIENTE entrega un depósito en garantía de <strong>{{ deposito_str }}</strong>{% if cotizacion.tipo_servicio == 'HOSPEDAJE' %},
+  más <strong>{{ deposito_mascota_str }}</strong> si ingresa con mascota{% endif %}, que no forma parte del precio y debe
+  cubrirse junto con el saldo del servicio. LA QUINTA lo devolverá dentro de los
+  <strong>{{ dias_devolucion_deposito }} días naturales</strong> siguientes a la conclusión del servicio, por el mismo medio de pago.
+  Solo podrá descontar los daños documentados, la limpieza extraordinaria y el tiempo excedente previstos en el Anexo y
+  en el Reglamento Interno, acompañando desglose por escrito, evidencia fotográfica y valuación conforme al valor actual
+  del bien y su depreciación por uso. Si el importe de los daños supera el depósito, EL CLIENTE cubrirá la diferencia
+  dentro de los 10 días naturales siguientes a la entrega del desglose.
+</p>
+{% else %}
+<h3>Cuarta. Daños</h3>
+<p>
+  Este servicio no requiere depósito en garantía. Los daños documentados, la limpieza extraordinaria y el tiempo
+  excedente previstos en el Anexo y en el Reglamento Interno se cobrarán a EL CLIENTE con desglose por escrito,
+  evidencia fotográfica y valuación, y deberán cubrirse dentro de los 10 días naturales siguientes a su entrega.
+</p>
+{% endif %}
+
+<h3>Quinta. Documentos que integran el contrato</h3>
+<p>
+  Forman parte de este contrato el Anexo {{ tipo_display }}, el Reglamento Interno, la Política de Cancelación y
+  Reembolso y los Términos y Condiciones, en la versión vigente al momento de su firma. Si existe discrepancia entre
+  ellos, prevalecerá la disposición <strong>más favorable al consumidor</strong>.
+</p>
+
+<h3>Sexta. Obligaciones de LA QUINTA</h3>
+<ol>
+  <li>Entregar las instalaciones limpias, en buen estado y en las condiciones pactadas, en la fecha y el horario acordados.</li>
+  <li>Prestar los servicios incluidos en el precio y designar a una persona de su personal que atienda a EL CLIENTE durante el servicio.</li>
+  <li>Informar oportunamente cualquier situación que impida o modifique la prestación del servicio.</li>
+  <li>Atender quejas o reclamaciones dentro de las <strong>48 horas</strong> siguientes a su recepción.</li>
+</ol>
+
+<h3>Séptima. Obligaciones de EL CLIENTE</h3>
+<ol>
+  <li>Pagar el precio en los montos y plazos pactados.</li>
+  <li>Respetar el horario contratado y el número de personas declarado, conforme al Anexo.</li>
+  <li>Designar a una persona responsable, mayor de edad, presente durante todo el servicio.</li>
+  <li>Cumplir y hacer cumplir el Reglamento Interno a sus invitados, acompañantes, organizador y proveedores, y comunicárselo antes del servicio.</li>
+  <li>Supervisar en todo momento a los menores de edad que asistan por su cuenta.</li>
+  <li>Responder por los daños que él, sus invitados, acompañantes o proveedores causen a las instalaciones, el mobiliario, el equipo y las áreas verdes.</li>
+</ol>
+
+<h3>Octava. Responsabilidad</h3>
+<p>
+  LA QUINTA responde por los daños que se deriven de su incumplimiento, de su negligencia o del mal estado de sus
+  instalaciones. No responde por los daños que resulten del incumplimiento del Reglamento Interno por parte de EL CLIENTE,
+  sus invitados, acompañantes o proveedores; del uso de la alberca, que <strong>no cuenta con servicio de salvavidas</strong>;
+  de la falta de supervisión de menores; de alimentos y bebidas que no suministre ella; ni por los objetos personales o
+  vehículos que queden bajo el resguardo de sus propietarios. Estas limitaciones no aplican a los daños causados por dolo o
+  negligencia inexcusable de LA QUINTA, ni restringen los derechos irrenunciables que la Ley Federal de Protección al
+  Consumidor otorga a EL CLIENTE.
+</p>
+
+<h3>Novena. Cancelación y cambios de fecha</h3>
+<p>
+  EL CLIENTE puede cancelar sin responsabilidad alguna dentro de los <strong>5 (cinco) días hábiles</strong> siguientes a la
+  firma de este contrato; LA QUINTA le reintegrará el 100% de lo pagado dentro de los 5 días naturales siguientes. Este
+  derecho es irrenunciable. Transcurrido ese plazo, aplica lo siguiente, calculado sobre el precio total:
+</p>
+<table>
+  <thead><tr><th>Anticipación de la cancelación</th><th>Penalización</th><th>Reembolso</th></tr></thead>
+  <tbody>
+    {% for fila in tabla_cancelacion %}
+    <tr><td>{{ fila.0 }}</td><td class="num">{{ fila.1 }}</td><td class="num"><strong>{{ fila.2 }}</strong></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>
+  La cancelación debe solicitarse por escrito al correo o WhatsApp de LA QUINTA y surte efecto el día de su recepción. Los
+  cambios de fecha y el procedimiento de reembolso se rigen por la Política de Cancelación y Reembolso. Si LA QUINTA cancela
+  por causa que le sea imputable, devolverá el 100% de lo recibido más una pena convencional del <strong>10%</strong> del precio
+  total, dentro de los 5 días naturales siguientes, o, a elección de EL CLIENTE, reprogramará sin costo dentro de los 12 meses siguientes.
+</p>
+
+<h3>Décima. Caso fortuito y fuerza mayor</h3>
+<p>
+  Si por caso fortuito o fuerza mayor no es posible prestar el servicio, ninguna de LAS PARTES incurre en incumplimiento y
+  EL CLIENTE podrá elegir entre la reprogramación sin costo dentro de los 12 meses siguientes, sujeta a disponibilidad, o la
+  devolución del 100% de lo pagado dentro de los 5 días naturales siguientes. Si el servicio se prestó en parte, se reembolsará
+  la parte proporcional no prestada.
+</p>
+
+<h3>Décima primera. Terminación anticipada del servicio</h3>
+<p>
+  LA QUINTA podrá dar por terminado el servicio en curso, previo aviso a la persona responsable, cuando se introduzcan o
+  usen armas, se presenten conductas violentas, se rebase el aforo máximo o se incumpla el Reglamento Interno de forma que
+  ponga en riesgo la seguridad de las personas o del inmueble. En esos casos no procede reembolso del servicio no aprovechado,
+  sin perjuicio de los derechos que la Ley Federal de Protección al Consumidor otorga a EL CLIENTE.
+</p>
+
+<h3>Décima segunda. Datos personales</h3>
+<p>
+  Los datos personales de EL CLIENTE se tratan conforme al Aviso de Privacidad publicado en
+  <strong>quintakooxtanil.com/aviso-de-privacidad</strong>, donde se describe el procedimiento para ejercer los derechos ARCO.
+</p>
+
+<h3>Décima tercera. Firma por medios electrónicos</h3>
+<p>
+  LAS PARTES aceptan firmar este contrato por medios electrónicos, conforme a los artículos 89 y siguientes del Código de
+  Comercio y 1803 y 1834 bis del Código Civil Federal. La firma electrónica tiene la misma validez que la autógrafa. El
+  documento firmado se conserva íntegro, con la huella digital (SHA-256) del contrato, la fecha y hora, la dirección IP y el
+  medio de verificación utilizados, y queda a disposición de EL CLIENTE en su portal.
+</p>
+
+<h3>Décima cuarta. Jurisdicción</h3>
+<p>
+  EL CLIENTE puede acudir en cualquier momento a la <strong>Procuraduría Federal del Consumidor (PROFECO)</strong> en la vía
+  conciliatoria. Para la interpretación y el cumplimiento de este contrato, LAS PARTES se someten a los tribunales competentes de
+  <strong>Mérida, Yucatán</strong>, sin perjuicio del derecho de EL CLIENTE a acudir a los de su domicilio.
+</p>
+
+<div class="cierre">
+<p>Leído y entendido su alcance legal, LAS PARTES firman este contrato el {{ fecha_doc }}.</p>
+
+<div class="firmas">
+  <div class="firma">
+    <div class="espacio"></div><div class="linea"></div>
+    <div class="nombre">ELIAN DE JESÚS PEREIRA CEH</div>
+    <div class="rol">LA QUINTA · RFC PECE010202IA0</div>
+  </div>
+  <div class="firma">
+    <div class="espacio"></div><div class="linea"></div>
+    <div class="nombre">{{ nombre_fiscal|upper }}</div>
+    <div class="rol">EL CLIENTE · RFC/CURP {{ rfc_curp }}</div>
+  </div>
+</div>
+
+<h4 style="margin-top: 22px;">Autorización de uso de datos con fines publicitarios</h4>
+<p class="pequeno">
+  <span class="casilla"></span>Sí <span class="casilla"></span>No — acepto que LA QUINTA me envíe publicidad sobre sus servicios.<br>
+  <span class="casilla"></span>Sí <span class="casilla"></span>No — acepto que LA QUINTA transmita mis datos a terceros con fines mercadotécnicos o publicitarios.
+</p>
+</div>
+
+<div class="salto"></div>
+{% if cotizacion.tipo_servicio == 'EVENTO' %}
+  {% include 'contratos/propio/_anexo_evento.html' %}
+{% elif cotizacion.tipo_servicio == 'PASADIA' %}
+  {% include 'contratos/propio/_anexo_pasadia.html' %}
+{% elif cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+  {% include 'contratos/propio/_anexo_hospedaje.html' %}
+{% endif %}
+
+<div class="firmas">
+  <div class="firma">
+    <div class="espacio"></div><div class="linea"></div>
+    <div class="nombre">ELIAN DE JESÚS PEREIRA CEH</div>
+    <div class="rol">LA QUINTA</div>
+  </div>
+  <div class="firma">
+    <div class="espacio"></div><div class="linea"></div>
+    <div class="nombre">{{ nombre_fiscal|upper }}</div>
+    <div class="rol">EL CLIENTE — de conformidad con el Anexo</div>
+  </div>
+</div>
+
+</body>
+</html>

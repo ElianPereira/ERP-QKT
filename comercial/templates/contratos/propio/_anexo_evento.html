@@ -1,0 +1,63 @@
+<div class="portada">
+  <h1>Anexo Evento</h1>
+  <div class="servicio">Condiciones particulares · Contrato {{ numero }}</div>
+</div>
+
+<p>
+  Este Anexo forma parte del contrato {{ numero }} y precisa las condiciones del evento. En lo no previsto rige el
+  Reglamento Interno.
+</p>
+
+<h3>1. Horarios</h3>
+<table>
+  <tbody>
+    <tr><td class="dato">Montaje</td><td>El {{ fecha_evento }}, desde temprano, en el horario que acuerden LAS PARTES. El montaje el día anterior es posible solo si la agenda lo permite y LA QUINTA lo confirma por escrito.</td></tr>
+    <tr><td class="dato">Evento</td><td>{{ fecha_evento }}, de {{ hora_ini }} a {{ hora_fin }}</td></tr>
+    <tr><td class="dato">Música y sonido</td><td>Terminan a las {{ hora_fin }}, hora de fin contratada.</td></tr>
+    <tr><td class="dato">Desmontaje y desalojo</td><td>30 minutos después de la hora de fin.</td></tr>
+  </tbody>
+</table>
+<p>
+  Las horas extra solo pueden contratarse por escrito y antes de que termine el horario pactado, a la tarifa vigente
+  informada a EL CLIENTE. No se otorgan prórrogas verbales. El tiempo excedente no autorizado se cobra por hora completa a esa
+  tarifa y puede descontarse del depósito en garantía, previa notificación.
+</p>
+
+<h3>2. Aforo</h3>
+<ol>
+  <li>El evento ampara a <strong>{{ cotizacion.num_personas }} personas</strong>. El número final debe confirmarse con al menos 10 días naturales de anticipación.</li>
+  <li>Las personas que ingresen sin haberse declarado se cobran a la tarifa de persona adicional vigente más un <strong>{{ recargo_persona_no_declarada }}%</strong>.</li>
+  <li>El aforo máximo del inmueble es de <strong>{{ aforo_maximo_evento }} personas</strong> y es inexcedible: por encima de él, LA QUINTA negará el acceso, sin derecho a reembolso por el excedente no admitido.</li>
+</ol>
+
+<h3>3. Proveedores externos</h3>
+<ol>
+  <li>EL CLIENTE debe registrar a sus proveedores (nombre, teléfono, servicio y horario de llegada) con al menos <strong>{{ dias_registro_proveedores }} días naturales</strong> de anticipación. Un proveedor no registrado puede no ser admitido.</li>
+  <li>Los proveedores quedan sujetos al Reglamento Interno, deben retirar sus residuos y su equipo dentro del margen de desmontaje, y EL CLIENTE responde por los daños que causen.</li>
+  <li>La instalación de toldos, templetes, generadores o estructuras requiere autorización previa y por escrito de LA QUINTA.</li>
+</ol>
+
+<h3>4. Alimentos y bebidas</h3>
+<p>
+  EL CLIENTE puede introducir alimentos y bebidas propios o de sus proveedores sin cargo por descorche. Quien los prepara,
+  suministra o introduce es responsable de su calidad e inocuidad, conforme a la NOM-251-SSA1-2009 y al Reglamento Interno. No se
+  permite vender bebidas alcohólicas dentro del inmueble, servirlas a menores de edad ni introducir envases de vidrio a la alberca
+  o a su perímetro.
+</p>
+
+<h3>5. Reglas de uso</h3>
+<ol>
+  <li>No se permite arrojar confeti, diamantina, arroz, chispas frías ni espuma sobre la alberca, los jardines o las áreas verdes.</li>
+  <li>La pirotecnia solo se permite con el permiso vigente de la autoridad competente, exhibido antes del evento; su uso es responsabilidad de EL CLIENTE y de su proveedor.</li>
+  <li>No se permite clavar, perforar, pintar ni adherir elementos que dañen muros, techos, pisos o árboles.</li>
+  <li>La alberca se usa bajo la responsabilidad de cada persona: no hay salvavidas, y no pueden usarla personas bajo el efecto del alcohol.</li>
+  <li>Las mascotas se admiten con aviso previo y conforme a la sección de mascotas del Reglamento Interno.</li>
+</ol>
+
+{% if tiene_deposito %}
+<h3>6. Depósito en garantía</h3>
+<p>
+  El depósito equivale al <strong>{{ porcentaje_deposito_evento }}%</strong> del precio total: <strong>{{ deposito_str }}</strong>. Se devuelve
+  dentro de los {{ dias_devolucion_deposito }} días naturales siguientes al evento, en los términos de la Cláusula Cuarta.
+</p>
+{% endif %}
