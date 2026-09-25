@@ -16,8 +16,11 @@
     <div class="form-row" style="margin-bottom:20px;">
       <label><strong>Depósito en garantía (MXN)</strong></label><br>
       <input type="number" name="deposito_garantia" class="form-control"
-             value="{% if contrato_propio_activo %}{{ deposito_sugerido|stringformat:".2f" }}{% else %}0{% endif %}"
+             value="{% if deposito_existente %}{{ deposito_existente.monto|stringformat:".2f" }}{% elif contrato_propio_activo %}{{ deposito_sugerido|stringformat:".2f" }}{% else %}0{% endif %}"
              min="0" step="0.01" style="max-width:200px;">
+      {% if deposito_existente and deposito_existente.recibido > 0 %}
+      <small style="color:#c0392b;">Ya se recibieron ${{ deposito_existente.recibido|floatformat:2 }} de este depósito: su monto ya no cambia.</small><br>
+      {% endif %}
       <small style="color:#888;">Sugerido según el contrato propio: ${{ deposito_sugerido|floatformat:2|intcomma }}</small>
     </div>
     <button type="submit" class="btn" style="background:#2E7D32;color:white;border:none;padding:8px 20px;border-radius:4px;font-weight:600;">Generar contrato</button>

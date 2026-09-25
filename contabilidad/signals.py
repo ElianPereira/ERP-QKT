@@ -806,6 +806,78 @@ def reconocer_ingreso_al_ejecutar(sender, instance, created, **kwargs):
 
 
 # ==========================================
+# DEPÓSITO EN GARANTÍA (comercial.MovimientoDeposito, Issue #318)
+# ==========================================
+@receiver(post_save, sender='comercial.MovimientoDeposito')
+def crear_poliza_movimiento_deposito(sender, instance, created, **kwargs):
+    """
+    El depósito es un pasivo: dinero del cliente en custodia, nunca ingreso
+    ni anticipo. Solo lo retenido se vuelve ingreso, con el criterio que
+    decidió el propietario (confirmar con el contador):
+
+        RECEPCION           DEBE Bancos/Caja            HABER Depósitos en garantía
+        DEVOLUCION          DEBE Depósitos en garantía  HABER Bancos/Caja
+        RETENCION_DANOS     DEBE Depósitos en garantía  HABER Otros ingresos (indemnización, sin IVA)
+        RETENCION_SERVICIO  DEBE Depósitos en garantía  HABER Ingreso por eventos + IVA trasladado
+    """
+    if not signals_enabled() or not created:
+        return
+
+    mov = instance
+    cotizacion = mov.deposito.cotizacion
+    monto = Decimal(str(mov.monto))
+    cuenta_deposito = get_cuenta('DEPOSITOS_GARANTIA')
+    cuenta_banco = get_cuenta('CAJA') if mov.metodo == 'EFECTIVO' else get_cuenta('BANCO_PRINCIPAL')
+    unidad = get_unidad_negocio('QUINTA')
+    if not cuenta_deposito or not unidad or monto <= 0:
+        logger.warning(
+            "Póliza NO generada para el movimiento de depósito #%s: falta DEPOSITOS_GARANTIA o la unidad QUINTA.",
+            mov.pk,
+        )
+        return
+
+    ref = f"COT-{cotizacion.pk:03d}"
+    if mov.tipo == 'RECEPCION':
+        tipo_poliza, concepto = 'I', f"Depósito en garantía recibido: {cotizacion.cliente.nombre} ({ref})"
+        lineas = [(cuenta_banco, monto, Decimal('0.00')), (cuenta_deposito, Decimal('0.00'), monto)]
+    elif mov.tipo == 'DEVOLUCION':
+        tipo_poliza, concepto = 'E', f"Devolución de depósito en garantía: {cotizacion.cliente.nombre} ({ref})"
+        lineas = [(cuenta_deposito, monto, Decimal('0.00')), (cuenta_banco, Decimal('0.00'), monto)]
+    elif mov.tipo == 'RETENCION_DANOS':
+        tipo_poliza, concepto = 'D', f"Retención de depósito por daños ({ref})"
+        lineas = [(cuenta_deposito, monto, Decimal('0.00')),
+                  (get_cuenta('OTROS_INGRESOS_CLIENTE'), Decimal('0.00'), monto)]
+    else:  # RETENCION_SERVICIO: el importe retenido ya trae el IVA incluido.
+        desglose = impuestos.desglosar(monto)
+        tipo_poliza, concepto = 'D', f"Retención de depósito por servicio ({ref})"
+        lineas = [(cuenta_deposito, monto, Decimal('0.00')),
+                  (get_cuenta('INGRESO_EVENTOS'), Decimal('0.00'), desglose['base']),
+                  (get_cuenta('IVA_TRASLADADO'), Decimal('0.00'), desglose['iva'])]
+
+    if any(cuenta is None for cuenta, _, _ in lineas):
+        logger.warning("Póliza NO generada para el movimiento de depósito #%s: falta configuración contable.", mov.pk)
+        return
+
+    poliza = Poliza.objects.create(
+        tipo=tipo_poliza,
+        folio=Poliza.siguiente_folio(tipo_poliza, mov.fecha),
+        fecha=mov.fecha,
+        concepto=concepto,
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='DEPOSITO_GARANTIA',
+        content_type=ContentType.objects.get_for_model(mov),
+        object_id=mov.pk,
+        created_by=mov.created_by or get_usuario_sistema(),
+    )
+    for cuenta, debe, haber in lineas:
+        MovimientoContable.objects.create(
+            poliza=poliza, cuenta=cuenta, debe=debe, haber=haber,
+            concepto=mov.get_tipo_display(), referencia=mov.referencia or ref,
+        )
+
+
+# ==========================================
 # MAPEO DE CATEGORÍAS DE GASTO A CUENTAS
 # ==========================================
 MAPEO_CATEGORIA_CUENTA = {

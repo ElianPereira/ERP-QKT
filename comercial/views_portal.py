@@ -213,8 +213,23 @@ def portal_evento(request, token):
 
     facturas = cotizacion.solicitudes_factura.filter(estado='FACTURADA').order_by('fecha_pago', 'pk')
 
-    from .services_openpay import transacciones_pendientes
+    from .services_openpay import monto_en_camino, transacciones_pendientes
     pagos_pendientes_openpay = transacciones_pendientes(cotizacion) if saldo_pendiente > 0 else []
+
+    # Depósito en garantía: se cobra aparte del saldo (Issue #318).
+    deposito = getattr(cotizacion, 'deposito_garantia', None)
+    deposito_por_pagar = Decimal('0.00')
+    if deposito and not deposito.liquidado:
+        deposito_por_pagar = max(
+            deposito.por_recibir - monto_en_camino(cotizacion, 'DEPOSITO'), Decimal('0.00'),
+        )
+        for ref in transacciones_pendientes(cotizacion, 'DEPOSITO'):
+            ref['es_deposito'] = True
+            pagos_pendientes_openpay.append(ref)
+    openpay_habilitado = bool(settings.OPENPAY_MERCHANT_ID and settings.OPENPAY_PUBLIC_KEY)
+    puede_pagar_en_linea = openpay_habilitado and admite_pago and (
+        saldo_pendiente > 0 or deposito_por_pagar > 0
+    )
 
     context = {
         'portal': portal,
@@ -231,8 +246,11 @@ def portal_evento(request, token):
         'porcentaje': porcentaje,
         'wa_numero': wa_numero,
         'comunicaciones': comunicaciones,
+        'deposito': deposito,
+        'deposito_por_pagar': deposito_por_pagar,
+        'puede_pagar_en_linea': puede_pagar_en_linea,
         # Checkout Openpay (solo si hay credenciales configuradas)
-        'openpay_habilitado': bool(settings.OPENPAY_MERCHANT_ID and settings.OPENPAY_PUBLIC_KEY),
+        'openpay_habilitado': openpay_habilitado,
         'openpay_merchant_id': settings.OPENPAY_MERCHANT_ID,
         'openpay_public_key': settings.OPENPAY_PUBLIC_KEY,
         'openpay_sandbox': settings.OPENPAY_MODE == 'sandbox',

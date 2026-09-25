@@ -237,7 +237,10 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   confirma el contador; al activarla, el precio que ve el cliente sube en
   ese porcentaje salvo que se recapturen los `precio_venta_fijo` de las
   habitaciones.
-- [ ] Módulo de depósito en garantía ausente.
+- [x] ~~Módulo de depósito en garantía ausente~~ — implementado (Issue #318,
+  fase 3): `DepositoGarantia` + `MovimientoDeposito`, cobro por Openpay o
+  manual, pasivo en 205.03. Pendiente confirmar con el contador el trato de
+  las retenciones (daños sin IVA, servicio con IVA).
 
 ## Memoria
 
@@ -277,7 +280,29 @@ salvo que queden obsoletas.
   `portal_descargar_contrato` lleva `xframe_options_sameorigin` porque el
   visor de la pantalla de firma lo embebe y producción usa `X_FRAME_OPTIONS=
   'DENY'`. Funciona también con el contrato PROFECO actual (su cláusula de
-  medios electrónicos lo permite). Pendiente: depósito en garantía (fase 3).
+  medios electrónicos lo permite).
+  **Fase 3, depósito en garantía** (`services_deposito.py`, migraciones
+  `comercial.0102` y `contabilidad.0022/0023`, esta última solo choices):
+  **no es un Pago** — si lo fuera, sumaría a `total_pagado()`, movería el
+  saldo, confirmaría la cotización y generaría factura e ingreso. Vive en
+  `DepositoGarantia` y sus importes salen de `MovimientoDeposito`
+  (recepción, devolución, retención por daños, retención por servicio),
+  inmutables, cada uno con su póliza vía signal: recepción/devolución contra
+  el pasivo nuevo 205.03 (`DEPOSITOS_GARANTIA`), daños a Otros ingresos sin
+  IVA (indemnización) y servicio a Ingreso + IVA — criterio del propietario,
+  **pendiente de confirmar con el contador**. Nace al generar el contrato con
+  depósito (`asegurar_deposito`); su monto queda fijo en cuanto se recibe
+  algo. Openpay (autorizado explícitamente): `OpenpayTransaccion.destino`
+  SERVICIO/DEPOSITO y marca `DEP` en el `order_id` para que el webhook sepa
+  el destino aunque el registro lo cree él; un cargo de depósito crea
+  movimiento, no Pago, y sus fichas/CLABE **no cuentan en
+  `monto_en_camino()`** (si contaran, bloquearían pagar el saldo). La
+  devolución por Openpay solo aplica a lo cobrado con tarjeta (reembolso
+  parcial con `amount`); SPEI/efectivo se devuelven por transferencia y solo
+  se registran. `liquidar()` corre bajo `select_for_update` durante los
+  reembolsos: un doble clic no reembolsa dos veces. No se tocó el flujo de
+  contracargos: un contracargo sobre un cargo de depósito hoy se trataría
+  como uno de servicio (riesgo conocido, poco probable).
 
 - 2026-09-25 — Cierre del flujo de facturación del cliente web (revisión
   pedida por el propietario). Se factura **por cada pago, no global**

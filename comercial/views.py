@@ -1015,6 +1015,10 @@ def generar_contrato(request, cotizacion_id):
         contrato.archivo.save(filename, ContentFile(pdf_bytes), save=False)
         contrato.save()
 
+        # El depósito del contrato queda registrado para cobrarlo en el portal.
+        from .services_deposito import asegurar_deposito
+        asegurar_deposito(cotizacion, servicio.dep, usuario=request.user)
+
         cotizacion.archivo_contrato.save(filename, ContentFile(pdf_bytes), save=False)
         Cotizacion.objects.filter(pk=cotizacion.pk).update(
             archivo_contrato=cotizacion.archivo_contrato.name

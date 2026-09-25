@@ -274,6 +274,7 @@ class Poliza(models.Model):
         ('NOMINA', 'Nómina'),
         ('COMISION_OPENPAY', 'Comisión Openpay'),
         ('COMISION_TPV', 'Comisión terminal (TPV)'),
+        ('DEPOSITO_GARANTIA', 'Depósito en garantía'),
         ('AJUSTE', 'Ajuste contable'),
         ('APERTURA', 'Saldo de apertura'),
     ]
@@ -719,6 +720,7 @@ class ConfiguracionContable(models.Model):
         ('ANTICIPO_CLIENTES', 'Anticipo de clientes'),
         ('ISR_RETENIDO_CLIENTES', 'ISR retenido por clientes'),
         ('OTROS_INGRESOS_CLIENTE', 'Otros ingresos de cliente (propinas, comisiones, etc.)'),
+        ('DEPOSITOS_GARANTIA', 'Depósitos en garantía de clientes'),
 
         # ═══════════════════════════════════════════
         # HOSPEDAJE DIRECTO

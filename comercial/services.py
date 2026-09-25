@@ -623,7 +623,12 @@ class ContratoService:
         self.propio = vista_previa or (
             settings.CONTRATO_PROPIO_ACTIVO and self._registro_propio() is not None
         )
-        if deposito is None:
+        # Un depósito ya cobrado (aunque sea en parte) fija el monto: el
+        # contrato no puede pedir otra cantidad de la que se está cobrando.
+        existente = getattr(cotizacion, 'deposito_garantia', None)
+        if existente is not None and (deposito is None or existente.movimientos.exists()):
+            deposito = existente.monto
+        elif deposito is None:
             deposito = deposito_sugerido(cotizacion) if self.propio else Decimal('0.00')
         self.dep  = deposito
 

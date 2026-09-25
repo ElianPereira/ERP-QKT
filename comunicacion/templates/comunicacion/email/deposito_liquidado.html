@@ -1,0 +1,20 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Tu depósito en garantía</h2>
+
+<p>Hola {{ cotizacion.cliente.nombre }}, gracias por elegirnos. Este es el cierre de tu depósito en garantía de
+<strong>{{ cotizacion.nombre_evento }}</strong> (${{ deposito.monto|floatformat:2 }}):</p>
+
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+  {% for m in movimientos %}
+  <tr><td style="padding:8px;background:#f9f9f9;">{{ m.get_tipo_display }}:</td><td style="padding:8px;"><strong>${{ m.monto|floatformat:2 }}</strong>{% if m.tipo == 'DEVOLUCION' %} — {{ m.get_metodo_display }}{% endif %}</td></tr>
+  {% endfor %}
+</table>
+
+{% with movimientos.first as primero %}{% if primero and primero.desglose %}
+<p><strong>Desglose:</strong><br>{{ primero.desglose|linebreaksbr }}</p>
+{% endif %}{% endwith %}
+
+<p>Las devoluciones con tarjeta pueden tardar de 5 a 15 días hábiles en reflejarse, según tu banco.
+Si tienes dudas sobre algún cargo, respóndenos este correo.</p>
+{% endblock %}
