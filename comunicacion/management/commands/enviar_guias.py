@@ -6,22 +6,14 @@ Uso:
     python manage.py enviar_guias
     python manage.py enviar_guias --dry-run
 """
-from datetime import timedelta
-
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from comercial.models import Cotizacion
-from comunicacion.services_notificaciones import notificar_guia_evento
-
-# Un solo aviso, 3 días antes de fecha_evento (check-in en el caso de
-# Hospedaje). A diferencia de los recordatorios de pago, la guía no se repite
-# en varios cortes: un solo elemento en esta lista es suficiente.
-DIAS_AVISO = (3,)
-
-# Arrendamiento de Mobiliario no tiene un sitio físico al que llegar el día
-# del evento, así que no le aplica ninguna guía.
-TIPOS_CON_GUIA = ('EVENTO', 'PASADIA', 'HOSPEDAJE')
+from comunicacion.services_notificaciones import (
+    cotizaciones_en_ventana_guia,
+    guia_ya_enviada,
+    notificar_guia_evento,
+)
 
 
 class Command(BaseCommand):
@@ -40,18 +32,18 @@ class Command(BaseCommand):
         # (now().date() da la fecha UTC y corre el envío un día entre las
         # 18:00 y la medianoche de Mérida).
         hoy = timezone.localdate()
-        objetivos = [hoy + timedelta(days=d) for d in DIAS_AVISO]
 
-        cotizaciones = Cotizacion.objects.filter(
-            estado='CONFIRMADA',
-            tipo_servicio__in=TIPOS_CON_GUIA,
-            fecha_evento__in=objetivos,
-        ).select_related('cliente')
+        # Toda la ventana (hoy … hoy+3), no solo el día −3: una cotización
+        # confirmada tarde o un día en que el cron no corrió se recupera en la
+        # siguiente corrida. La que ya la recibió se salta.
+        cotizaciones = cotizaciones_en_ventana_guia(hoy).select_related('cliente')
 
         enviadas = 0
         for cot in cotizaciones:
             cliente = cot.cliente
             if not cliente or (not cliente.email and not cliente.telefono):
+                continue
+            if guia_ya_enviada(cot):
                 continue
 
             if dry_run:
@@ -62,9 +54,6 @@ class Command(BaseCommand):
                 enviadas += 1
                 continue
 
-            # La idempotencia es responsabilidad del servicio (clave por
-            # cotización + canal, sin fecha de ejecución), así que correr el
-            # cron dos veces el mismo día no duplica.
             notificar_guia_evento(cot)
             enviadas += 1
 
