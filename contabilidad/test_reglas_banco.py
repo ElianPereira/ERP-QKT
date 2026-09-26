@@ -444,6 +444,7 @@ class CuentasSembradasTest(TestCase):
             'GASTO_NO_DEDUCIBLE': '601.05', 'PARTIDAS_POR_IDENTIFICAR': '205.04',
             'GASTO_MANTENIMIENTO': '601.02.05', 'GASTO_PUBLICIDAD': '601.04.01',
             'GASTO_VEHICULOS': '601.02.10',
+            'GASTO_INSUMOS': '501.04', 'GASTO_IMPUESTOS': '601.03.06',
         }
         for operacion, codigo in esperado.items():
             with self.subTest(operacion=operacion):
