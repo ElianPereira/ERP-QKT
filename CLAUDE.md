@@ -277,6 +277,18 @@ salvo que queden obsoletas.
   debe llevar `{{ static_v }}`. De paso se equilibró la escala: título de
   página 20 px, texto 14 px, etiquetas 13 px.
 
+- 2026-09-26 — Compras clasificadas por proveedor. **Hallazgo**: `Compra` no
+  tenía campo `categoria`; `crear_poliza_compra` hacía `getattr(compra,
+  'categoria', None)` y **toda** compra caía en GASTOS_GENERALES —
+  `MAPEO_CATEGORIA_CUENTA` era código inalcanzable para compras (el PR #333
+  lo daba por vivo). Ahora `Compra.categoria` (choices compartidas
+  `CATEGORIAS_GASTO`) nace de `Proveedor.categoria_gasto`; la cuenta sale de
+  `cuenta_gasto_de_compra()` (cuenta exacta del proveedor > categoría).
+  Clasificar una compra en el admin reapunta la línea de gasto de su póliza
+  (`contabilidad/services_compras.py`, sin cancelar: importes y cuadre no
+  cambian) y el proveedor aprende la categoría si no tenía. Una compra sin
+  clasificar que sustituye un asiento provisional de palabra clave hereda su
+  cuenta.
 - 2026-09-25 — Sistema de diseño del admin, fase 1 (Issue #322, guía
   visual aprobada por el propietario). **Toda columna de lista usa
   `core_erp/admin_ui.py`** (`badge`/`badge_por_valor` con 5 tonos,

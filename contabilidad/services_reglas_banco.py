@@ -30,6 +30,7 @@ from .models import (
     UnidadNegocio,
     normalizar_texto_banco,
 )
+from .services_compras import reclasificar_compra
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,13 @@ def sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario):
             mov.match_automatico = False
             mov.confirmado = False
             mov.save(update_fields=['movimiento_contable', 'match_automatico', 'confirmado'])
+            # Sin clasificación propia, la Compra hereda la cuenta de la palabra
+            # clave (INS, MANT…) en vez de caer en Gastos generales.
+            if compra.categoria == 'SIN_CLASIFICAR' and not (compra.proveedor_id and compra.proveedor.cuenta_gasto_id):
+                linea_gasto = poliza.movimientos.exclude(cuenta=cuenta_banco).filter(
+                    cuenta__tipo__in=TIPOS_PROVISIONALES,
+                ).first()
+                reclasificar_compra(compra, cuenta=linea_gasto.cuenta)
         liberados.append(mov)
     return liberados
 

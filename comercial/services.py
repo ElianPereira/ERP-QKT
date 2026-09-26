@@ -930,7 +930,13 @@ def analizar_xml_compra(xml_content):
         return False, f"RFC receptor '{rfc_receptor}' no pertenece al negocio", None, rfc_receptor, tipo, uso_cfdi, False
 
     if uso_cfdi in USOS_CFDI_PERSONALES:
-        return False, f"Uso CFDI '{uso_cfdi}' es deducción personal (no del negocio)", None, rfc_receptor, tipo, uso_cfdi, False
+        if uso_cfdi == 'S01':
+            motivo = "Uso CFDI 'S01' es sin efectos fiscales (no deducible)"
+        elif uso_cfdi == 'CP01':
+            motivo = "Uso CFDI 'CP01' es de pagos, no una compra"
+        else:
+            motivo = f"Uso CFDI '{uso_cfdi}' es deducción personal (no del negocio)"
+        return False, motivo, None, rfc_receptor, tipo, uso_cfdi, False
 
     uuid = ''
     complemento = root.find('cfdi:Complemento', ns)
