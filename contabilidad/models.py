@@ -6,6 +6,8 @@ múltiples unidades de negocio y conciliación bancaria.
 
 ERP Quinta Ko'ox Tanil
 """
+import functools
+import re
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -1090,18 +1092,20 @@ class ReglaConciliacion(models.Model):
         if self.cuenta_id and not self.cuenta.permite_movimientos:
             raise ValidationError({'cuenta': "La cuenta debe ser de detalle (permitir movimientos)."})
 
-    @property
+    @functools.cached_property
     def lista_patrones(self):
         return [normalizar_texto_banco(p) for p in self.patrones.split('|') if p.strip()]
 
     @staticmethod
+    @functools.lru_cache(maxsize=256)
     def _regex_patron(patron):
         """Palabra completa, o prefijo si termina en «*». Las abreviaciones
         cortas (INS, PUB, NOM) no pueden buscarse como texto suelto: «INS»
         calzaría con «INSURGENTES» o con el nombre de un cliente. El límite
         solo mira letras: BBVA pega el concepto a los dígitos de la referencia
-        («0595539TRASPASO A QKT»)."""
-        import re
+        («0595539TRASPASO A QKT»). Cacheada: `aplicar_reglas()` evalúa cada
+        regla contra cada movimiento pendiente del estado de cuenta, y sin
+        caché recompilaba el mismo patrón una vez por movimiento."""
         if patron.endswith('*') and len(patron) > 1:
             return re.compile(r'(?<![A-Z])' + re.escape(patron[:-1]))
         return re.compile(r'(?<![A-Z])' + re.escape(patron) + r'(?![A-Z])')

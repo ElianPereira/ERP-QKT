@@ -69,7 +69,11 @@ def _vincular_linea(movimiento, linea):
     return True
 
 
-def crear_poliza_desde_movimiento(movimiento, cuenta_contrapartida, usuario, *, aplicar=True, concepto=''):
+_SIN_CONSULTAR = object()
+
+
+def crear_poliza_desde_movimiento(movimiento, cuenta_contrapartida, usuario, *, aplicar=True, concepto='',
+                                   poliza_existente=_SIN_CONSULTAR):
     """
     Póliza de un movimiento del banco contra `cuenta_contrapartida`:
 
@@ -80,6 +84,10 @@ def crear_poliza_desde_movimiento(movimiento, cuenta_contrapartida, usuario, *, 
     devuelve sin crear otra. Si `aplicar`, la aplica y empareja el movimiento
     con su línea de bancos; si no, queda en BORRADOR y el movimiento sigue sin
     asiento hasta que alguien la aplique (lo recoge `vincular_polizas_propias`).
+
+    `poliza_existente`: si el llamador ya consultó `_poliza_del_movimiento()`
+    para este mismo movimiento (como hace `aplicar_reglas` en su bucle),
+    pásala aquí para no repetir la misma consulta por cada movimiento.
     """
     cuenta_bancaria = movimiento.estado_cuenta.cuenta_bancaria
     cuenta_banco = cuenta_bancaria.cuenta_contable
@@ -88,7 +96,7 @@ def crear_poliza_desde_movimiento(movimiento, cuenta_contrapartida, usuario, *, 
     if cuenta_contrapartida == cuenta_banco:
         raise ValueError("La contrapartida no puede ser la misma cuenta de bancos.")
 
-    existente = _poliza_del_movimiento(movimiento)
+    existente = _poliza_del_movimiento(movimiento) if poliza_existente is _SIN_CONSULTAR else poliza_existente
     if existente:
         if existente.estado == 'APLICADA' and not movimiento.movimiento_contable_id:
             _vincular(movimiento, existente, cuenta_banco)
@@ -185,6 +193,7 @@ def aplicar_reglas(estado_cuenta, usuario=None):
         try:
             poliza = crear_poliza_desde_movimiento(
                 mov, cuenta, usuario, aplicar=regla.aplicar_automaticamente, concepto=regla.nombre,
+                poliza_existente=existente,
             )
         except Exception as e:  # una regla rota no debe frenar las demás
             logger.warning("No se pudo asentar el movimiento %s con la regla «%s»: %s", mov.pk, regla, e)

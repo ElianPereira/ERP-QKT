@@ -141,6 +141,26 @@ class ReglasDeSistemaTest(ReglasBancoBase):
         mov.refresh_from_db()
         self.assertIsNotNone(mov.movimiento_contable_id)
 
+    def test_aplicar_reglas_no_repite_la_consulta_de_poliza_existente(self):
+        """`aplicar_reglas` ya sabe si el movimiento tiene póliza BANCO antes
+        de llamar a `crear_poliza_desde_movimiento`; antes de este fix, esa
+        función volvía a consultarlo (misma condición) por cada movimiento
+        pendiente, duplicando una consulta que ya se tenía en memoria."""
+        from unittest import mock
+
+        from . import services_reglas_banco as reglas_banco
+
+        self._mov(CARGO_TRASPASO, cargo='450.00')
+        self._mov(COMISION, cargo='71.50')
+        self._mov(IVA_COMISION, cargo='11.44')
+
+        original = reglas_banco._poliza_del_movimiento
+        with mock.patch.object(reglas_banco, '_poliza_del_movimiento', wraps=original) as espia:
+            resumen = reglas_banco.aplicar_reglas(self.estado, usuario=self.usuario)
+
+        self.assertEqual(len(resumen['aplicadas']), 3)
+        self.assertEqual(espia.call_count, 3)
+
     def test_movimiento_con_asiento_existente_no_recibe_poliza_de_regla(self):
         """Lo existente (Pago, Compra, póliza manual) siempre gana."""
         mov = self._mov(CARGO_TRASPASO, cargo='450.00')
