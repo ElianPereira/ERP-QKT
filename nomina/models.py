@@ -17,7 +17,7 @@ class Empleado(models.Model):
 
     nombre = models.CharField(max_length=200, help_text="Debe coincidir con el nombre en el Excel si usas carga masiva")
     puesto = models.CharField(max_length=20, choices=PUESTOS, default='MESERO')
-    telefono = models.CharField(max_length=20, blank=True)
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')
     tarifa_base = models.DecimalField(max_digits=10, decimal_places=2, default=50.00)
     activo = models.BooleanField(default=True)
 
@@ -32,7 +32,7 @@ class ReciboNomina(models.Model):
     ]
 
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE)
-    fecha_generacion = models.DateTimeField(auto_now_add=True)
+    fecha_generacion = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de generación')
 
     # Datos leídos del Excel
     periodo = models.CharField(max_length=100)
@@ -54,6 +54,7 @@ class ReciboNomina(models.Model):
     # El archivo PDF generado
     archivo_pdf = models.FileField(
         upload_to='nominas_pdf/', blank=True, null=True, storage=storage_privado,
+        verbose_name='Archivo PDF',
     )
 
     class Meta:

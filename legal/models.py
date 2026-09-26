@@ -45,11 +45,11 @@ class DocumentoLegal(models.Model):
     """
 
     tipo = models.CharField(max_length=32, choices=TipoDocumento.choices, db_index=True)
-    version = models.CharField(max_length=16, help_text="Ej. '2.0'")
-    titulo = models.CharField(max_length=200)
+    version = models.CharField(max_length=16, help_text="Ej. '2.0'", verbose_name='Versión')
+    titulo = models.CharField(max_length=200, verbose_name='Título')
     contenido_md = models.TextField(
-        help_text="Contenido en Markdown. Inmutable una vez guardado.")
-    hash_contenido = models.CharField(max_length=64, editable=False, db_index=True)
+        help_text="Contenido en Markdown. Inmutable una vez guardado.", verbose_name='Contenido (Markdown)')
+    hash_contenido = models.CharField(max_length=64, editable=False, db_index=True, verbose_name='Hash del contenido')
     vigente_desde = models.DateField()
     vigente = models.BooleanField(default=False, db_index=True)
 
@@ -165,7 +165,7 @@ class Finalidad(models.Model):
 
     clave = models.SlugField(max_length=40, unique=True)
     nombre = models.CharField(max_length=200)
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
     requiere_consentimiento = models.BooleanField(default=True)
     orden = models.PositiveSmallIntegerField(default=0)
     activa = models.BooleanField(default=True)
@@ -204,14 +204,15 @@ class AceptacionLegal(models.Model):
     snapshot_documentos = models.JSONField(
         default=list,
         help_text="[{'tipo':..., 'version':..., 'hash':...}] congelado al aceptar.",
+        verbose_name='Copia de los documentos aceptados',
     )
     finalidades_aceptadas = models.JSONField(
         default=list, help_text="Claves de Finalidad consentidas.")
     finalidades_rechazadas = models.JSONField(default=list)
 
     origen = models.CharField(max_length=24, choices=OrigenAceptacion.choices)
-    ip = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP')
+    user_agent = models.TextField(blank=True, verbose_name='Navegador (user agent)')
     aceptado_en = models.DateTimeField(default=timezone.now, editable=False,
                                        db_index=True)
 
@@ -262,16 +263,17 @@ class SolicitudARCO(models.Model):
     tipo = models.CharField(max_length=16, choices=TipoARCO.choices)
     titular_nombre = models.CharField(max_length=200)
     correo = models.EmailField()
-    telefono = models.CharField(max_length=20, blank=True)
-    descripcion = models.TextField()
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')
+    descripcion = models.TextField(verbose_name='Descripción')
     identificacion = models.FileField(
         upload_to='arco/identificaciones/', blank=True, storage=storage_privado,
+        verbose_name='Identificación',
     )
 
     estado = models.CharField(max_length=16, choices=EstadoARCO.choices,
                               default=EstadoARCO.RECIBIDA)
     recibida_en = models.DateTimeField(default=timezone.now, editable=False)
-    fecha_limite = models.DateField(editable=False)
+    fecha_limite = models.DateField(editable=False, verbose_name='Fecha límite')
     respondida_en = models.DateTimeField(null=True, blank=True)
     respuesta = models.TextField(blank=True)
     atendida_por = models.ForeignKey(
@@ -331,7 +333,7 @@ class AccesoIdentificacionARCO(models.Model):
         related_name='accesos_identificacion_arco',
     )
     fecha = models.DateTimeField(auto_now_add=True, db_index=True)
-    ip = models.GenericIPAddressField(null=True, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP')
 
     class Meta:
         verbose_name = 'Acceso a identificación ARCO'

@@ -61,11 +61,13 @@ class PlantillaChecklist(models.Model):
         max_digits=4, decimal_places=1, default=2.0,
         help_text="Solo turnover: cuánto antes de la hora límite debe entrar el "
                    "colaborador a preparar.",
+                   verbose_name='Duración estimada (horas)',
     )
     hora_limite_default = models.TimeField(
         null=True, blank=True,
         help_text="Solo mantenimiento recurrente: hora límite del día. Turnover usa "
                    "la hora de inicio real del servicio.",
+                   verbose_name='Hora límite por defecto',
     )
     cadencia = models.CharField(
         max_length=10, choices=CADENCIA_CHOICES, blank=True,
@@ -73,10 +75,12 @@ class PlantillaChecklist(models.Model):
     )
     dia_semana = models.IntegerField(
         null=True, blank=True, choices=DIAS_SEMANA, help_text="Solo cadencia semanal.",
+        verbose_name='Día de la semana',
     )
     dia_mes = models.IntegerField(
         null=True, blank=True,
         help_text="Solo cadencia mensual (1-28, para evitar meses cortos).",
+        verbose_name='Día del mes',
     )
     activa = models.BooleanField(default=True)
 
@@ -128,6 +132,7 @@ class TareaProgramada(models.Model):
         'comercial.Cotizacion', on_delete=models.CASCADE, null=True, blank=True,
         related_name='tareas_operativas',
         help_text="Solo turnover: la cotización cuyo servicio se está preparando.",
+        verbose_name='Cotización',
     )
     responsable = models.ForeignKey(
         'nomina.Empleado', on_delete=models.SET_NULL, null=True, blank=True,
@@ -135,7 +140,7 @@ class TareaProgramada(models.Model):
     )
     fecha = models.DateField(help_text="Día en que se ejecuta la tarea.")
     hora_entrada = models.TimeField(help_text="Hora de entrada del colaborador ese día.")
-    hora_limite = models.TimeField(help_text="Hora límite para tener todo listo.")
+    hora_limite = models.TimeField(help_text="Hora límite para tener todo listo.", verbose_name='Hora límite')
     requiere_tiempo_extra = models.BooleanField(default=False)
 
     # Tres envíos independientes por tarea: el aviso de horario especial (solo
@@ -145,7 +150,7 @@ class TareaProgramada(models.Model):
     estado_operativo = models.CharField(max_length=10, choices=ESTADO_ENVIO, default='PENDIENTE')
     estado_resumen_propietario = models.CharField(max_length=10, choices=ESTADO_ENVIO, default='PENDIENTE')
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:
         verbose_name = "Tarea programada"

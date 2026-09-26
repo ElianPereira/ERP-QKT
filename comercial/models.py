@@ -21,7 +21,7 @@ from facturacion.choices import RegimenFiscal, UsoCFDI
 class ConstanteSistema(models.Model):
     clave = models.CharField(max_length=50, unique=True, help_text="Ej: PRECIO_HIELO_20KG")
     valor = models.DecimalField(max_digits=10, decimal_places=2)
-    descripcion = models.CharField(max_length=200, blank=True)
+    descripcion = models.CharField(max_length=200, blank=True, verbose_name='Descripción')
 
     def __str__(self): return f"{self.clave}: ${self.valor}"
     class Meta:
@@ -36,7 +36,7 @@ class Proveedor(models.Model):
     rfc = models.CharField(max_length=13, blank=True, db_index=True, verbose_name="RFC",
                             help_text="Se usa para emparejar automáticamente las facturas (XML) de Compras con este proveedor.")
     contacto = models.CharField(max_length=200, blank=True, verbose_name="Persona de Contacto")
-    telefono = models.CharField(max_length=20, blank=True)
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')
     email = models.EmailField(blank=True)
     notas = models.TextField(blank=True, verbose_name="Notas",
                              help_text="Horarios, condiciones de pago, dirección, etc.")
@@ -66,7 +66,7 @@ class Insumo(models.Model):
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
                                         verbose_name="Stock Mínimo",
                                         help_text="Alerta cuando el stock baje de este nivel")
-    categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE')
+    categoria = models.CharField(max_length=20, choices=TIPOS, default='CONSUMIBLE', verbose_name='Categoría')
     crear_como_subproducto = models.BooleanField(default=False, verbose_name="¿Crear también como Subproducto?")
 
     # CAMPO LEGACY — se eliminará después de migrar datos
@@ -140,7 +140,7 @@ class MovimientoInventario(models.Model):
 
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                     verbose_name="Registrado por")
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:
         verbose_name = "Inventario"
@@ -256,9 +256,13 @@ class PlantillaBarra(models.Model):
 # ==========================================
 class SubProducto(models.Model):
     nombre = models.CharField(max_length=200)
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
     def costo_insumos(self): return sum(r.subtotal_costo() for r in self.receta.all())
     def __str__(self): return self.nombre
+
+    class Meta:
+        verbose_name = 'Subproducto'
+        verbose_name_plural = 'Subproductos'
 
 class RecetaSubProducto(models.Model):
     subproducto = models.ForeignKey(SubProducto, related_name='receta', on_delete=models.CASCADE)
@@ -301,7 +305,7 @@ class Producto(models.Model):
     ]
 
     nombre = models.CharField(max_length=200)
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
     margen_ganancia = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('0.30'))
     precio_venta_fijo = models.DecimalField(
         max_digits=10, decimal_places=4, null=True, blank=True,
@@ -480,16 +484,16 @@ class ProductoComponente(models.Model):
 class Cliente(models.Model):
     nombre = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
-    telefono = models.CharField(max_length=20, blank=True)
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')
     fecha_registro = models.DateTimeField(auto_now_add=True)
     origen = models.CharField(max_length=50, choices=[('Instagram','Instagram'), ('Facebook','Facebook'), ('Google','Google'), ('Recomendacion','Recomendación'), ('Otro','Otro')], default='Otro')
     es_cliente_fiscal = models.BooleanField(default=False, verbose_name="¿Datos Fiscales?")
     tipo_persona = models.CharField(max_length=10, choices=[('FISICA','Física'), ('MORAL','Moral')], default='FISICA')
     rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
-    razon_social = models.CharField(max_length=200, blank=True, null=True)
-    codigo_postal_fiscal = models.CharField(max_length=5, blank=True, null=True)
-    regimen_fiscal = models.CharField(max_length=3, choices=RegimenFiscal.choices, blank=True, null=True, default=RegimenFiscal.SIN_OBLIGACIONES_FISCALES)
-    uso_cfdi = models.CharField(max_length=4, choices=UsoCFDI.choices, blank=True, null=True, default=UsoCFDI.GASTOS_EN_GENERAL)
+    razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name='Razón social')
+    codigo_postal_fiscal = models.CharField(max_length=5, blank=True, null=True, verbose_name='Código postal fiscal')
+    regimen_fiscal = models.CharField(max_length=3, choices=RegimenFiscal.choices, blank=True, null=True, default=RegimenFiscal.SIN_OBLIGACIONES_FISCALES, verbose_name='Régimen fiscal')
+    uso_cfdi = models.CharField(max_length=4, choices=UsoCFDI.choices, blank=True, null=True, default=UsoCFDI.GASTOS_EN_GENERAL, verbose_name='Uso de CFDI')
     def __str__(self): return f"{self.nombre} ({self.razon_social})" if self.razon_social else self.nombre
 
 # ==========================================
@@ -604,7 +608,7 @@ class Cotizacion(models.Model):
     requiere_factura = models.BooleanField(default=False)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name='IVA')
     impuesto_hospedaje = models.DecimalField(
         max_digits=10, decimal_places=2, default=0.00,
         verbose_name="Impuesto al hospedaje (ISH)",
@@ -625,8 +629,8 @@ class Cotizacion(models.Model):
             "anteriores al ISH quedan en 0 y ahí se quedan."
         ),
     )
-    retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    retencion_isr = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name='Retención ISR')
+    retencion_iva = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name='Retención IVA')
     precio_final = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     estado = models.CharField(max_length=20, choices=ESTADOS, default='BORRADOR')
@@ -635,12 +639,12 @@ class Cotizacion(models.Model):
     motivo_cancelacion = models.TextField(blank=True, verbose_name="Motivo de Cancelación")
     cancelada_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='cotizaciones_canceladas', verbose_name="Cancelada por")
-    fecha_cancelacion = models.DateTimeField(null=True, blank=True)
+    fecha_cancelacion = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de cancelación')
 
     # Auditoría
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
+    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, verbose_name='Archivo PDF')
     archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF")
     identificacion_oficial = models.FileField(
         upload_to='cotizaciones/identificaciones/', blank=True, null=True,
@@ -1218,10 +1222,10 @@ class Cotizacion(models.Model):
         ]
 
 class ItemCotizacion(models.Model):
-    cotizacion = models.ForeignKey(Cotizacion, related_name='items', on_delete=models.CASCADE)
+    cotizacion = models.ForeignKey(Cotizacion, related_name='items', on_delete=models.CASCADE, verbose_name='Cotización')
     producto = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True, blank=True)
     insumo = models.ForeignKey(Insumo, on_delete=models.SET_NULL, null=True, blank=True)
-    descripcion = models.CharField(max_length=255, blank=True)
+    descripcion = models.CharField(max_length=255, blank=True, verbose_name='Descripción')
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
                                           verbose_name="Precio unitario (sin IVA)",
@@ -1282,12 +1286,12 @@ class Pago(models.Model):
                    "su cierre — úsalo para propinas, comisiones u otros cobros ligados al "
                    "cliente/evento pero ajenos al precio de la venta.",
     )
-    cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE)
+    cotizacion = models.ForeignKey(Cotizacion, related_name='pagos', on_delete=models.CASCADE, verbose_name='Cotización')
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                  verbose_name="Registrado por")
     fecha_pago = models.DateField(default=now, verbose_name="Fecha de Pago")
     monto = models.DecimalField(max_digits=10, decimal_places=2)
-    metodo = models.CharField(max_length=20, choices=METODOS)
+    metodo = models.CharField(max_length=20, choices=METODOS, verbose_name='Método')
     referencia = models.CharField(max_length=100, blank=True)
     comision_tpv = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True, default=Decimal('0.00'),
@@ -1306,7 +1310,7 @@ class Pago(models.Model):
 
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas")
 
     def clean(self):
@@ -1399,7 +1403,7 @@ class ContratoServicio(models.Model):
     """
     TIPO_CHOICES = Cotizacion.TIPO_SERVICIO_CHOICES
 
-    cotizacion   = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='contratos')
+    cotizacion   = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='contratos', verbose_name='Cotización')
     numero       = models.CharField(max_length=30, unique=True, verbose_name="Número de Contrato")
     tipo_servicio = models.CharField(max_length=20, choices=TIPO_CHOICES, default='EVENTO')
     deposito_garantia = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
@@ -1436,8 +1440,8 @@ class FirmaContrato(models.Model):
     hash_documento = models.CharField(
         max_length=64, blank=True, verbose_name="SHA-256 del contrato mostrado",
     )
-    codigo_hash = models.CharField(max_length=128, blank=True)
-    codigo_enviado_en = models.DateTimeField(null=True, blank=True)
+    codigo_hash = models.CharField(max_length=128, blank=True, verbose_name='Hash del código')
+    codigo_enviado_en = models.DateTimeField(null=True, blank=True, verbose_name='Código enviado el')
     codigo_canal = models.CharField(max_length=10, blank=True, verbose_name="Canal del código")
     codigo_destino = models.CharField(max_length=200, blank=True, verbose_name="Destino del código")
     intentos = models.PositiveSmallIntegerField(default=0)
@@ -1447,10 +1451,10 @@ class FirmaContrato(models.Model):
         upload_to='firmas_contrato/', blank=True, storage=storage_privado,
     )
     firmado_en = models.DateTimeField(null=True, blank=True)
-    ip = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.CharField(max_length=300, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP')
+    user_agent = models.CharField(max_length=300, blank=True, verbose_name='Navegador (user agent)')
     acepta_publicidad = models.BooleanField(default=False)
-    acepta_transmision = models.BooleanField(default=False)
+    acepta_transmision = models.BooleanField(default=False, verbose_name='Acepta transmisión')
     archivo_firmado = models.FileField(
         upload_to='contratos_firmados/', blank=True, storage=storage_privado,
         verbose_name="PDF firmado",
@@ -1459,8 +1463,8 @@ class FirmaContrato(models.Model):
         max_length=64, blank=True, verbose_name="SHA-256 del PDF firmado",
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Firma de contrato"
@@ -1493,17 +1497,20 @@ class DepositoGarantia(models.Model):
 
     cotizacion = models.OneToOneField(
         Cotizacion, on_delete=models.PROTECT, related_name='deposito_garantia',
+        verbose_name='Cotización',
     )
     monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto del depósito")
     notas = models.TextField(blank=True)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Creado por',
     )
     updated_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Actualizado por',
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Depósito en garantía"
@@ -1596,19 +1603,20 @@ class MovimientoDeposito(models.Model):
         ('NO_APLICA', 'No aplica (retención)'),
     ]
 
-    deposito = models.ForeignKey(DepositoGarantia, on_delete=models.PROTECT, related_name='movimientos')
+    deposito = models.ForeignKey(DepositoGarantia, on_delete=models.PROTECT, related_name='movimientos', verbose_name='Depósito')
     tipo = models.CharField(max_length=20, choices=TIPOS)
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     fecha = models.DateField(default=now)
-    metodo = models.CharField(max_length=15, choices=METODOS)
+    metodo = models.CharField(max_length=15, choices=METODOS, verbose_name='Método')
     referencia = models.CharField(max_length=100, blank=True)
     desglose = models.TextField(blank=True, verbose_name="Desglose / motivo")
     transaccion_openpay = models.OneToOneField(
         'OpenpayTransaccion', on_delete=models.PROTECT, null=True, blank=True,
         related_name='movimiento_deposito',
+        verbose_name='Transacción Openpay',
     )
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Creado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:
         verbose_name = "Movimiento de depósito"
@@ -1677,18 +1685,18 @@ class Compra(models.Model):
                   "por RFC o nombre al guardar. Puedes corregirlo a mano si el "
                   "emparejamiento automático no fue el correcto."
     )
-    rfc_emisor = models.CharField(max_length=13, blank=True)
-    fecha_emision = models.DateField(blank=True, null=True)
+    rfc_emisor = models.CharField(max_length=13, blank=True, verbose_name='RFC emisor')
+    fecha_emision = models.DateField(blank=True, null=True, verbose_name='Fecha de emisión')
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     descuento = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='IVA')
+    ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Retención ISR')
+    ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Retención IVA')
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True)
-    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True)
-    uuid = models.CharField(max_length=36, blank=True, null=True, unique=True)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True, verbose_name='Archivo XML')
+    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, verbose_name='Archivo PDF')
+    uuid = models.CharField(max_length=36, blank=True, null=True, unique=True, verbose_name='UUID')
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='Subido el')
     unidad_negocio = models.ForeignKey(
         'contabilidad.UnidadNegocio',
         on_delete=models.PROTECT,
@@ -1839,18 +1847,18 @@ class Compra(models.Model):
 class Gasto(models.Model):
     CATEGORIAS = [('SIN_CLASIFICAR', 'Sin Clasificar'), ('SERVICIO_EXTERNO', 'Servicio Externo'), ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'), ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'), ('LIMPIEZA', 'Limpieza Y Desechables'), ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'), ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'), ('NOMINA_EXT', 'Servicios Staff Externo'), ('IMPUESTOS', 'Pago De Impuestos'), ('PUBLICIDAD', 'Publicidad Y Marketing'), ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'), ('OTRO', 'Otros Gastos')]
     compra = models.ForeignKey(Compra, related_name='gastos', on_delete=models.CASCADE)
-    descripcion = models.CharField(max_length=255)
+    descripcion = models.CharField(max_length=255, verbose_name='Descripción')
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_linea = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='SIN_CLASIFICAR')
+    categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='SIN_CLASIFICAR', verbose_name='Categoría')
     evento_relacionado = models.ForeignKey('Cotizacion', on_delete=models.SET_NULL, null=True, blank=True)
-    clave_sat = models.CharField(max_length=20, blank=True)
+    clave_sat = models.CharField(max_length=20, blank=True, verbose_name='Clave SAT')
     unidad_medida = models.CharField(max_length=20, blank=True)
     fecha_gasto = models.DateField(blank=True, null=True, db_index=True)
     proveedor = models.CharField(max_length=200, blank=True)
-    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True)
-    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True)
+    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, verbose_name='Archivo XML')
+    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, verbose_name='Archivo PDF')
     def __str__(self): return f"{self.descripcion} (${self.total_linea})"
 
 # ==========================================
@@ -1865,7 +1873,7 @@ class PlanPago(models.Model):
         verbose_name="Cotización"
     )
 
-    fecha_generacion = models.DateTimeField(auto_now_add=True)
+    fecha_generacion = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de generación')
     generado_por = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name="Generado por"
@@ -1957,12 +1965,12 @@ class RecordatorioPago(models.Model):
         related_name='recordatorios',
         verbose_name="Parcialidad"
     )
-    fecha_envio = models.DateTimeField(auto_now_add=True)
+    fecha_envio = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de envío')
     estado = models.CharField(max_length=10, choices=ESTADOS, default='ENVIADO')
     mensaje_enviado = models.TextField(blank=True, verbose_name="Mensaje enviado")
     respuesta_api = models.TextField(blank=True, verbose_name="Respuesta API WhatsApp")
     error_detalle = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:
         verbose_name = "Recordatorio de Pago"
@@ -1999,10 +2007,10 @@ class PortalCliente(models.Model):
                   "acción «Regenerar token y extender acceso 90 días».",
     )
     visitas = models.PositiveIntegerField(default=0, verbose_name="Visitas")
-    ultima_visita = models.DateTimeField(null=True, blank=True)
+    ultima_visita = models.DateTimeField(null=True, blank=True, verbose_name='Última visita')
 
     # Auditoría
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name="Creado por"
@@ -2082,7 +2090,7 @@ class Espacio(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='OTRO')
     capacidad_max = models.PositiveIntegerField(default=50, verbose_name="Capacidad máxima")
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -2102,14 +2110,14 @@ def _rangos_solapados(a_ini, a_fin, b_ini, b_fin):
 class AsignacionEspacio(models.Model):
     """Reserva de un espacio para una cotización en una franja horaria."""
     cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE,
-                                    related_name='espacios_asignados')
+                                    related_name='espacios_asignados', verbose_name='Cotización')
     espacio = models.ForeignKey(Espacio, on_delete=models.PROTECT,
                                  related_name='asignaciones')
     fecha = models.DateField()
     hora_inicio = models.TimeField()
     hora_fin = models.TimeField()
     notas = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:
         verbose_name = "Asignación de espacio"
@@ -2165,7 +2173,7 @@ class AsignacionPersonal(models.Model):
         ('OTRO', 'Otro'),
     ]
     cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE,
-                                    related_name='personal_asignado')
+                                    related_name='personal_asignado', verbose_name='Cotización')
     empleado = models.ForeignKey('nomina.Empleado', on_delete=models.PROTECT,
                                   related_name='asignaciones')
     rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='OTRO')
@@ -2173,7 +2181,7 @@ class AsignacionPersonal(models.Model):
     hora_inicio = models.TimeField()
     hora_fin = models.TimeField()
     notas = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:
         verbose_name = "Asignación de personal"
@@ -2477,12 +2485,12 @@ class Descuento(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='descuentos_creados', verbose_name="Creado por",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
     updated_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='descuentos_actualizados', verbose_name="Actualizado por",
     )
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Descuento"
@@ -2601,7 +2609,8 @@ class OpenpayTransaccion(models.Model):
 
     cotizacion = models.ForeignKey(
         'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='transacciones_openpay'
+        related_name='transacciones_openpay',
+        verbose_name='Cotización',
     )
     pago = models.OneToOneField(
         'Pago', on_delete=models.SET_NULL, null=True, blank=True,
@@ -2626,7 +2635,7 @@ class OpenpayTransaccion(models.Model):
     payload_crudo = models.JSONField(verbose_name="JSON recibido de Openpay")
     procesado = models.BooleanField(default=False)
     error_detalle = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:
         verbose_name = "Transacción Openpay"
@@ -2680,17 +2689,20 @@ class Contracargo(models.Model):
     cotizacion = models.ForeignKey(
         'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='contracargos',
+        verbose_name='Cotización',
     )
 
     pago_reversion = models.OneToOneField(
         'Pago', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='contracargo_reversion',
         help_text="Pago tipo REEMBOLSO generado automáticamente al recibirse el contracargo.",
+        verbose_name='Pago de reversión',
     )
     pago_reactivacion = models.OneToOneField(
         'Pago', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='contracargo_reactivacion',
         help_text="Pago tipo INGRESO generado automáticamente si se gana la disputa.",
+        verbose_name='Pago de reactivación',
     )
 
     monto = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -2703,7 +2715,7 @@ class Contracargo(models.Model):
         help_text="3 días hábiles desde la notificación (chargeback.created). "
                    "Pasada esta fecha, Openpay ya no puede disputar el contracargo.",
     )
-    fecha_resolucion = models.DateTimeField(null=True, blank=True)
+    fecha_resolucion = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de resolución')
 
     evidencia_enviada = models.BooleanField(
         default=False,
@@ -2736,8 +2748,8 @@ class Contracargo(models.Model):
 
     payload_crudo = models.JSONField(verbose_name="Último JSON recibido de Openpay")
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Contracargo"

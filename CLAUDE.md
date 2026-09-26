@@ -297,6 +297,14 @@ salvo que queden obsoletas.
   folios y UUID va `qkt-codigo`. `comercial/templates/comercial/
   gasto_change_list.html` no lo usaba ningún admin y se borró.
   `core_erp/test_admin_listas.py` carga todas las listas de las 7 apps.
+  **Ortografía** (misma fase, pedido del propietario): 126 campos sin
+  `verbose_name` salían con la etiqueta que Django arma del nombre del
+  campo ("descripcion", "telefono", "created at", "version"), en listas,
+  filtros y formularios. Se les puso `verbose_name` en los modelos de 7
+  apps; las migraciones (`comercial.0103`, `comunicacion.0004`,
+  `contabilidad.0024`, `facturacion.0011`, `legal.0005`, `nomina.0005`,
+  `operaciones.0003`) son solo de estado: `sqlmigrate` no genera SQL. Todo
+  campo nuevo debe llevar `verbose_name` con acentos desde el inicio.
 
 - 2026-09-25 — ISH activado: `TASA_ISH=0.045` (4.5%, tasa dada por el
   propietario) en Railway, en `web` **y en los 4 servicios cron**. Tienen

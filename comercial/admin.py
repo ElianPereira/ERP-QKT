@@ -1570,9 +1570,9 @@ class MovimientoDepositoInline(admin.TabularInline):
 class DepositoGarantiaAdmin(admin.ModelAdmin):
     """Depósito en garantía (Issue #318). Los importes salen de sus movimientos;
     se opera con las pantallas de recepción y liquidación, nunca editando."""
-    list_display = ('cotizacion', 'monto', 'recibido_col', 'estado_col', 'fecha_limite_devolucion', 'acciones')
+    list_display = ('cotizacion', 'monto', 'recibido_col', 'estado_col', 'limite_devolucion_col', 'acciones')
     search_fields = ('cotizacion__cliente__nombre', 'cotizacion__nombre_evento')
-    readonly_fields = ('cotizacion', 'monto', 'recibido_col', 'estado_col', 'fecha_limite_devolucion',
+    readonly_fields = ('cotizacion', 'monto', 'recibido_col', 'estado_col', 'limite_devolucion_col',
                        'created_by', 'created_at', 'updated_by', 'updated_at')
     fields = readonly_fields + ('notas',)
     inlines = [MovimientoDepositoInline]
@@ -1588,6 +1588,11 @@ class DepositoGarantiaAdmin(admin.ModelAdmin):
     @admin.display(description="Recibido")
     def recibido_col(self, obj):
         return ui.monto(obj.recibido)
+
+    @admin.display(description="Límite de devolución")
+    def limite_devolucion_col(self, obj):
+        fecha = obj.fecha_limite_devolucion
+        return date_format(fecha, 'd M Y') if fecha else ui.vacio()
 
     @admin.display(description="Estado")
     def estado_col(self, obj):
@@ -1925,7 +1930,7 @@ class ImagenLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
             messages.error(request, f"{errores} archivo(s) fallaron al subir por un error técnico.")
         return redirect('..')
 
-    @admin.display(description="Preview")
+    @admin.display(description="Vista previa")
     def preview_mini(self, obj):
         if obj.imagen:
             return format_html('<img src="{}" class="qkt-thumb qkt-thumb--ancha" alt="">', obj.imagen.url)
@@ -1972,7 +1977,7 @@ class EspacioLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
         ('Opciones', {'fields': ('orden', 'activo')}),
     )
 
-    @admin.display(description="Preview")
+    @admin.display(description="Vista previa")
     def preview_mini(self, obj):
         if obj.imagen:
             return format_html('<img src="{}" class="qkt-thumb qkt-thumb--ancha" alt="">', obj.imagen.url)
