@@ -2,44 +2,41 @@
 {% load static %}
 
 {% block content %}
-<div class="col-md-6 offset-md-3" style="margin-top: 40px;">
-    <div class="card">
-        <div class="card-header" style="background-color: #2E7D32; color: white;">
-            <h3 class="card-title mb-0">{{ titulo|default:"Generar reporte" }}</h3>
-        </div>
-        <div class="card-body">
-            <form method="post" action="" target="_blank">
-                {% csrf_token %}
-
-                <div class="form-group">
-                    <label>Fecha inicial</label>
-                    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Fecha final</label>
-                    <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Filtrar por estado</label>
-                    <select name="estado" class="form-control">
-                        <option value="TODAS">-- Todos los estados --</option>
-                        <option value="CONFIRMADA">Confirmadas</option>
-                        <option value="BORRADOR">Borradores</option>
-                        <option value="CANCELADA">Canceladas</option>
-                    </select>
-                </div>
-
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-block btn-lg" style="background:#2E7D32; color:white; border:none;">
-                        Generar documento
-                    </button>
-                    <a href="{% url 'admin:index' %}" class="btn btn-block" style="background:#4a4845; color:#d4d1c8; border:none; margin-top:8px;">Cancelar</a>
-                </div>
-            </form>
-        </div>
+<div class="qkt-pagina qkt-pagina--angosta">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-file-pdf" aria-hidden="true"></i> {{ titulo|default:"Generar reporte" }}</h1>
     </div>
+
+    <form method="post" action="" target="_blank" class="qkt-panel">
+        <div class="qkt-panel__cuerpo">
+            {% csrf_token %}
+
+            <div class="qkt-campo">
+                <label for="fecha_inicio">Fecha inicial</label>
+                <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required>
+            </div>
+
+            <div class="qkt-campo">
+                <label for="fecha_fin">Fecha final</label>
+                <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required>
+            </div>
+
+            <div class="qkt-campo">
+                <label for="estado">Filtrar por estado</label>
+                <select name="estado" id="estado" class="form-control">
+                    <option value="TODAS">Todos los estados</option>
+                    <option value="CONFIRMADA">Confirmadas</option>
+                    <option value="BORRADOR">Borradores</option>
+                    <option value="CANCELADA">Canceladas</option>
+                </select>
+            </div>
+
+            <div class="qkt-botonera">
+                <button type="submit" class="qkt-btn qkt-btn--primario">Generar documento</button>
+                <a href="{% url 'admin:index' %}" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+            </div>
+        </div>
+    </form>
 </div>
 
 <script>

@@ -5,126 +5,67 @@
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<style>
-    .dashboard-container { max-width: 1200px; margin: 20px auto; font-family: 'IBM Plex Sans', sans-serif; }
-
-    .actions-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-        gap: 10px;
-        margin-bottom: 18px;
-    }
-    .action-btn {
-        background: #383632; border-radius: 8px; padding: 12px 10px; text-align: center;
-        text-decoration: none; color: #d4d1c8; border: 1px solid #4a4845;
-        display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px;
-        transition: transform 0.2s, border-color 0.2s;
-    }
-    .action-btn:hover { transform: translateY(-2px); border-color: #2E7D32; color: #e0ddd4; }
-    .action-icon { font-size: 22px; margin-bottom: 6px; color: #4CAF50; }
-    .action-label { font-size: 11px; font-weight: 600; line-height: 1.2; }
-
-    .kpi-box { background: #383632; border-radius: 8px; padding: 4px 20px; border: 1px solid #4a4845; margin-bottom: 18px; }
-    .kpi-row { display: grid; grid-template-columns: 84px repeat(3, 1fr); align-items: center; gap: 14px; padding: 16px 0; }
-    .kpi-row-label {
-        font-size: 13px; font-weight: 700; letter-spacing: 0.4px; text-align: center;
-        padding: 5px 8px; border-radius: 6px; white-space: nowrap;
-    }
-    .kpi-row-label.qkt { color: #4CAF50; background: rgba(76, 175, 80, 0.12); }
-    .kpi-mini-title { font-size: 11px; color: #8a8780; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .kpi-mini-value { font-size: 21px; font-weight: 700; margin-top: 3px; color: #e0ddd4; }
-
-    .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
-    .content-card { background: #383632; border-radius: 8px; padding: 18px; border: 1px solid #4a4845; }
-    .card-title-text { font-weight: 600; margin-bottom: 12px; color: #d4d1c8; font-size: 13px; }
-
-    .agenda-item { padding: 10px 0; border-bottom: 1px solid #4a4845; display: flex; align-items: center; }
-    .agenda-item:last-child { border-bottom: none; }
-    .agenda-date { background: #2E7D32; color: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; margin-right: 10px; min-width: 50px; text-align: center; }
-    .agenda-info { font-size: 12px; color: #d4d1c8; }
-    .agenda-sub { font-size: 11px; color: #8a8780; }
-
-    @media (max-width: 900px) {
-        .main-grid { grid-template-columns: 1fr; }
-        .kpi-row { grid-template-columns: 1fr 1fr; row-gap: 12px; }
-        .kpi-row-label { grid-column: 1 / -1; text-align: left; }
-    }
-</style>
-
-<div class="dashboard-container">
-    <h2 style="margin-bottom: 20px; color: #e0ddd4; font-size: 20px; font-weight: 600;">Tablero de control</h2>
-
-    <div class="actions-grid">
-        <a href="{% url 'admin:comercial_cotizacion_add' %}" class="action-btn">
-            <div class="action-icon"><i class="fas fa-plus-circle"></i></div>
-            <div class="action-label">Cotización</div>
-        </a>
-        <a href="{% url 'reporte_pagos' %}" class="action-btn">
-            <div class="action-icon"><i class="fas fa-cash-register"></i></div>
-            <div class="action-label">Pagos</div>
-        </a>
-        <a href="{% url 'exportar_reporte_cotizaciones' %}" class="action-btn">
-            <div class="action-icon"><i class="fas fa-chart-line"></i></div>
-            <div class="action-label">Financiero</div>
-        </a>
-        <a href="{% url 'crear_solicitud' %}" class="action-btn">
-            <div class="action-icon"><i class="fas fa-file-invoice-dollar"></i></div>
-            <div class="action-label">Facturar</div>
-        </a>
-        <a href="{% url 'admin:comercial_compra_changelist' %}" class="action-btn">
-            <div class="action-icon" style="color:#e74c3c;"><i class="fas fa-receipt"></i></div>
-            <div class="action-label">Gastos</div>
-        </a>
-        <a href="{% url 'admin:nomina_recibonomina_changelist' %}" class="action-btn">
-            <div class="action-icon"><i class="fas fa-users"></i></div>
-            <div class="action-label">Nómina</div>
-        </a>
+<div class="qkt-pagina qkt-pagina--ancha">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo">Tablero de control</h1>
     </div>
 
-    <div class="kpi-box">
-        <div class="kpi-row">
-            <div class="kpi-row-label qkt">QKT</div>
-            <div class="kpi-mini">
-                <div class="kpi-mini-title">Ventas</div>
-                <div class="kpi-mini-value" style="color: #4CAF50;">${{ ventas_mes_quinta|floatformat:0|intcomma }}</div>
-            </div>
-            <div class="kpi-mini">
-                <div class="kpi-mini-title">Gastos</div>
-                <div class="kpi-mini-value" style="color: #e74c3c;">${{ gastos_mes_quinta|floatformat:0|intcomma }}</div>
-            </div>
-            <div class="kpi-mini">
-                <div class="kpi-mini-title">Utilidad</div>
-                <div class="kpi-mini-value" style="color: #F5C518;">${{ utilidad_mes_quinta|floatformat:0|intcomma }}</div>
-            </div>
+    <nav class="qkt-atajos" aria-label="Accesos rápidos">
+        <a href="{% url 'admin:comercial_cotizacion_add' %}" class="qkt-atajo"><i class="fas fa-plus-circle" aria-hidden="true"></i> Cotización</a>
+        <a href="{% url 'reporte_pagos' %}" class="qkt-atajo"><i class="fas fa-cash-register" aria-hidden="true"></i> Pagos</a>
+        <a href="{% url 'exportar_reporte_cotizaciones' %}" class="qkt-atajo"><i class="fas fa-chart-line" aria-hidden="true"></i> Financiero</a>
+        <a href="{% url 'crear_solicitud' %}" class="qkt-atajo"><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i> Facturar</a>
+        <a href="{% url 'admin:comercial_compra_changelist' %}" class="qkt-atajo"><i class="fas fa-receipt" aria-hidden="true"></i> Gastos</a>
+        <a href="{% url 'admin:nomina_recibonomina_changelist' %}" class="qkt-atajo"><i class="fas fa-users" aria-hidden="true"></i> Nómina</a>
+    </nav>
+
+    <div class="qkt-kpis">
+        <div class="qkt-kpi qkt-kpi--exito">
+            <div class="qkt-kpi__label">Ventas del mes</div>
+            <div class="qkt-kpi__valor">${{ ventas_mes_quinta|floatformat:0|intcomma }}</div>
+        </div>
+        <div class="qkt-kpi qkt-kpi--error">
+            <div class="qkt-kpi__label">Gastos del mes</div>
+            <div class="qkt-kpi__valor">${{ gastos_mes_quinta|floatformat:0|intcomma }}</div>
+        </div>
+        <div class="qkt-kpi{% if utilidad_mes_quinta < 0 %} qkt-kpi--error{% endif %}">
+            <div class="qkt-kpi__label">Utilidad del mes</div>
+            <div class="qkt-kpi__valor">${{ utilidad_mes_quinta|floatformat:0|intcomma }}</div>
         </div>
     </div>
 
-    <div class="main-grid">
-        <div class="content-card">
-            <div class="card-title-text">Finanzas · QKT</div>
-            <canvas id="financeChart" height="120"></canvas>
+    <div class="qkt-tablero">
+        <div class="qkt-panel">
+            <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">Finanzas · QKT</h2></div>
+            <div class="qkt-panel__cuerpo"><canvas id="financeChart" height="120"></canvas></div>
         </div>
 
-        <div class="content-card">
-            <div class="card-title-text">Agenda</div>
+        <div class="qkt-panel">
+            <div class="qkt-panel__cab">
+                <h2 class="qkt-panel__titulo">Agenda</h2>
+                <a href="{% url 'calendario_unificado' %}" class="qkt-btn qkt-btn--enlace">Ver todo</a>
+            </div>
+            <div class="qkt-panel__cuerpo">
             {% if ultimos_eventos %}
+                <ul class="qkt-resultados qkt-resultados--pegado">
                 {% for evento in ultimos_eventos %}
-                <div class="agenda-item">
-                    <div class="agenda-date">{{ evento.fecha_evento|date:"d M" }}</div>
-                    <div>
-                        <div class="agenda-info">{{ evento.nombre_evento|truncatechars:25 }}</div>
-                        <div class="agenda-sub">{{ evento.cliente.nombre|truncatechars:20 }}</div>
-                    </div>
-                    <div style="margin-left: auto;">
-                        <a href="/admin/comercial/cotizacion/{{ evento.id }}/change/" style="color:#8a8780;"><i class="fas fa-chevron-right"></i></a>
-                    </div>
-                </div>
+                    <li>
+                        <a href="/admin/comercial/cotizacion/{{ evento.id }}/change/">
+                            <span class="qkt-agenda">
+                                <span class="qkt-agenda__fecha">{{ evento.fecha_evento|date:"d M" }}</span>
+                                <span>
+                                    {{ evento.nombre_evento|truncatechars:25 }}
+                                    <span class="qkt-sub">{{ evento.cliente.nombre|truncatechars:20 }}</span>
+                                </span>
+                            </span>
+                            <i class="fas fa-chevron-right qkt-vacio" aria-hidden="true"></i>
+                        </a>
+                    </li>
                 {% endfor %}
+                </ul>
             {% else %}
-                <p style="color:#8a8780; text-align:center; font-size:13px;">Sin eventos próximos</p>
+                <p class="qkt-vacio">Sin eventos próximos</p>
             {% endif %}
-            <div style="margin-top:12px; text-align:center;">
-                <a href="{% url 'calendario_unificado' %}" style="color: #4CAF50; font-size: 12px; font-weight: 600;">Ver todo</a>
             </div>
         </div>
     </div>
@@ -135,21 +76,24 @@
 {{ chart_gastos_quinta|json_script:"chart-gastos-quinta" }}
 <script>
     var _dato = function (id) { return JSON.parse(document.getElementById(id).textContent); };
+    // Colores del sistema de diseño (static/css/qkt_ui.css), no literales
+    var _css = getComputedStyle(document.documentElement);
+    var _token = function (nombre) { return _css.getPropertyValue(nombre).trim(); };
     new Chart(document.getElementById('financeChart').getContext('2d'), {
         type: 'bar',
         data: {
             labels: _dato('chart-labels'),
             datasets: [
-                { label: 'Ventas QKT', data: _dato('chart-ventas-quinta'), backgroundColor: 'rgba(46, 125, 50, 0.85)', borderRadius: 4 },
-                { label: 'Gastos QKT', data: _dato('chart-gastos-quinta'), backgroundColor: 'rgba(231, 76, 60, 0.7)', borderRadius: 4 }
+                { label: 'Ventas QKT', data: _dato('chart-ventas-quinta'), backgroundColor: _token('--ui-green'), borderRadius: 4 },
+                { label: 'Gastos QKT', data: _dato('chart-gastos-quinta'), backgroundColor: _token('--ui-error'), borderRadius: 4 }
             ]
         },
         options: {
             responsive: true,
-            plugins: { legend: { position: 'bottom', labels: { color: '#8a8780', font: { family: 'IBM Plex Sans' } } } },
+            plugins: { legend: { position: 'bottom', labels: { color: _token('--ui-text-3'), font: { family: 'IBM Plex Sans' } } } },
             scales: {
-                y: { beginAtZero: true, grid: { color: '#3d3b38' }, ticks: { color: '#8a8780' } },
-                x: { grid: { display: false }, ticks: { color: '#8a8780' } }
+                y: { beginAtZero: true, grid: { color: _token('--ui-line-soft') }, ticks: { color: _token('--ui-text-3') } },
+                x: { grid: { display: false }, ticks: { color: _token('--ui-text-3') } }
             }
         }
     });

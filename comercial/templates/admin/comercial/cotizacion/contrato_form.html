@@ -2,53 +2,69 @@
 {% load humanize %}
 
 {% block content %}
-<div class="card" style="max-width:600px; margin:20px auto; padding:24px;">
-  <h2>Generar contrato</h2>
-  <p><strong>Cliente:</strong> {{ cotizacion.cliente.nombre }}<br>
-     <strong>Evento:</strong> {{ cotizacion.nombre_evento }}<br>
-     <strong>Fecha:</strong> {{ cotizacion.fecha_evento|date:"d/m/Y" }}<br>
-     <strong>Total:</strong> ${{ cotizacion.precio_final|floatformat:2 }} MXN</p>
+<div class="qkt-pagina qkt-pagina--angosta">
+  <div class="qkt-pagina__cabecera">
+    <h1 class="qkt-pagina__titulo"><i class="fas fa-file-signature" aria-hidden="true"></i> Generar contrato</h1>
+  </div>
 
-  <hr>
-  <form method="POST" target="_blank">{% csrf_token %}
-    <p><strong>Tipo de contrato:</strong> {{ cotizacion.get_tipo_servicio_display }}
-       <small style="color:#888;">(sale del tipo de servicio de la cotización)</small></p>
-    <div class="form-row" style="margin-bottom:20px;">
-      <label><strong>Depósito en garantía (MXN)</strong></label><br>
-      <input type="number" name="deposito_garantia" class="form-control"
-             value="{% if deposito_existente %}{{ deposito_existente.monto|stringformat:".2f" }}{% elif contrato_propio_activo %}{{ deposito_sugerido|stringformat:".2f" }}{% else %}0{% endif %}"
-             min="0" step="0.01" style="max-width:200px;">
-      {% if deposito_existente and deposito_existente.recibido > 0 %}
-      <small style="color:#c0392b;">Ya se recibieron ${{ deposito_existente.recibido|floatformat:2 }} de este depósito: su monto ya no cambia.</small><br>
-      {% endif %}
-      <small style="color:#888;">Sugerido según el contrato propio: ${{ deposito_sugerido|floatformat:2|intcomma }}</small>
+  <div class="qkt-panel">
+    <div class="qkt-panel__cuerpo">
+      <div class="qkt-datos">
+        <div class="qkt-dato"><span class="qkt-dato__label">Cliente</span><span class="qkt-dato__valor">{{ cotizacion.cliente.nombre }}</span></div>
+        <div class="qkt-dato"><span class="qkt-dato__label">Evento</span><span class="qkt-dato__valor">{{ cotizacion.nombre_evento }}</span></div>
+        <div class="qkt-dato"><span class="qkt-dato__label">Fecha</span><span class="qkt-dato__valor">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</span></div>
+        <div class="qkt-dato"><span class="qkt-dato__label">Total</span><span class="qkt-dato__valor qkt-num">${{ cotizacion.precio_final|floatformat:2 }} MXN</span></div>
+      </div>
+
+      <form method="POST" target="_blank">{% csrf_token %}
+        <div class="qkt-campo">
+          <span class="qkt-campo__label">Tipo de contrato</span>
+          <span>{{ cotizacion.get_tipo_servicio_display }}</span>
+          <span class="qkt-campo__ayuda">Sale del tipo de servicio de la cotización.</span>
+        </div>
+        <div class="qkt-campo qkt-campo--chico">
+          <label for="id_deposito_garantia">Depósito en garantía (MXN)</label>
+          <input type="number" name="deposito_garantia" id="id_deposito_garantia" class="form-control"
+                 value="{% if deposito_existente %}{{ deposito_existente.monto|stringformat:".2f" }}{% elif contrato_propio_activo %}{{ deposito_sugerido|stringformat:".2f" }}{% else %}0{% endif %}"
+                 min="0" step="0.01">
+          {% if deposito_existente and deposito_existente.recibido > 0 %}
+          <span class="qkt-campo__error">Ya se recibieron ${{ deposito_existente.recibido|floatformat:2 }} de este depósito: su monto ya no cambia.</span>
+          {% endif %}
+          <span class="qkt-campo__ayuda">Sugerido según el contrato propio: ${{ deposito_sugerido|floatformat:2|intcomma }}</span>
+        </div>
+        <div class="qkt-botonera">
+          <button type="submit" class="qkt-btn qkt-btn--primario">Generar contrato</button>
+          <a href="{% url 'cotizacion_contrato_vista_previa' cotizacion.id %}" target="_blank" class="qkt-btn qkt-btn--secundario">Vista previa del contrato propio</a>
+          <a href="{% url 'admin:comercial_cotizacion_changelist' %}" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+        </div>
+      </form>
     </div>
-    <button type="submit" class="btn" style="background:#2E7D32;color:white;border:none;padding:8px 20px;border-radius:4px;font-weight:600;">Generar contrato</button>
-    <a href="{% url 'cotizacion_contrato_vista_previa' cotizacion.id %}" target="_blank" class="btn btn-secondary" style="margin-left:10px;">Vista previa del contrato propio</a>
-    <a href="{% url 'admin:comercial_cotizacion_changelist' %}" class="btn btn-secondary" style="margin-left:10px;">Cancelar</a>
-  </form>
+  </div>
 
   {% if contratos_previos %}
-  <hr>
-  <h4>Contratos anteriores</h4>
-  <table class="table table-sm">
-    <thead><tr><th>N°</th><th>Tipo</th><th>Depósito</th><th>Generado</th><th>Email</th><th></th></tr></thead>
-    <tbody>
-    {% for c in contratos_previos %}
-    <tr>
-      <td>{{ c.numero }}</td>
-      <td>{{ c.get_tipo_servicio_display }}</td>
-      <td>${{ c.deposito_garantia|floatformat:2 }}</td>
-      <td>{{ c.generado_en|date:"d/m/Y H:i" }}</td>
-      <td>{% if c.enviado_email %}<span style="color:#2E7D32;font-weight:bold;">Si</span>{% else %}—{% endif %}</td>
-      <td>
-        {% if c.archivo %}<a href="{{ c.archivo.url }}" class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-size:11px;">PDF</a>{% endif %}
-        <a href="{% url 'contrato_email' c.id %}" class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-size:11px;">Email</a>
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <div class="qkt-panel">
+    <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">Contratos anteriores</h2></div>
+    <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+      <table class="qkt-tabla">
+        <thead><tr><th>N°</th><th>Tipo</th><th class="qkt-der">Depósito</th><th>Generado</th><th>Email</th><th></th></tr></thead>
+        <tbody>
+        {% for c in contratos_previos %}
+        <tr>
+          <td class="qkt-codigo">{{ c.numero }}</td>
+          <td>{{ c.get_tipo_servicio_display }}</td>
+          <td class="qkt-der"><span class="qkt-num">${{ c.deposito_garantia|floatformat:2 }}</span></td>
+          <td>{{ c.generado_en|date:"d/m/Y H:i" }}</td>
+          <td>{% if c.enviado_email %}<span class="qkt-badge qkt-badge--exito">Enviado</span>{% else %}<span class="qkt-vacio">—</span>{% endif %}</td>
+          <td class="qkt-der">
+            {% if c.archivo %}<a href="{{ c.archivo.url }}" class="qkt-btn qkt-btn--secundario qkt-btn--sm"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</a>{% endif %}
+            <a href="{% url 'contrato_email' c.id %}" class="qkt-btn qkt-btn--secundario qkt-btn--sm"><i class="fas fa-envelope" aria-hidden="true"></i> Email</a>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
   {% endif %}
 </div>
-{% endblock %}  
+{% endblock %}

@@ -248,6 +248,27 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-26 — Sistema de diseño del admin, **fase 3**: páginas propias
+  (fuera de las listas). 22 plantillas pasaron a componentes de página de
+  `qkt_ui.css` (`qkt-pagina`, `qkt-panel`, `qkt-aviso--{tono}`, `qkt-campo`,
+  `qkt-zona-carga`, `qkt-tabla`, `qkt-kpis`, `qkt-datos`, `qkt-botonera`,
+  `qkt-filtros-pagina`); nada de `style=`, `<style>` propio ni colores
+  literales en una página nueva del admin. Varias eran ilegibles en el tema
+  oscuro (fondos `#f9f9f9`/`#fff8e1`/`#e3f2fd` con texto claro: carga masiva
+  de XML e imágenes, migrar al bucket privado, importar histórico, balanza,
+  descuentos) y el Centro de Reportes forzaba inputs blancos. **Trampa**:
+  `admin_fix.css` tiene `* { border-color: #4a4845 !important }`, así que
+  todo color de borde de acento (avisos, KPIs, paneles) necesita
+  `!important` o sale gris. `qkt_ui.js` cuenta los archivos de
+  `.qkt-zona-carga` y acepta soltarlos encima (antes, un `onchange` en línea
+  por página). Las confirmaciones en línea (`onsubmit="return confirm"`)
+  pasaron a `data-qkt-confirmar`. Se borró `admin/dashboard_kpi.html` y el
+  templatetag `mis_kpis` (sin referencias). Quedan fuera a propósito: los
+  PDF (papel, fondo claro), el calendario (ya usa los tokens `--qkt-*`) y
+  las pantallas de 2FA (estilo del login). Probar en local: el código TOTP
+  no se acepta dos veces en la misma ventana de 30 s y los fallos activan
+  el throttling del dispositivo (`throttling_failure_count`).
+
 - 2026-09-25 — Sistema de diseño del admin, fase 1 (Issue #322, guía
   visual aprobada por el propietario). **Toda columna de lista usa
   `core_erp/admin_ui.py`** (`badge`/`badge_por_valor` con 5 tonos,

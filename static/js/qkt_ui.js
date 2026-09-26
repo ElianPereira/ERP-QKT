@@ -62,6 +62,40 @@
         document.querySelectorAll('details.qkt-menu[open]').forEach(function (d) { d.removeAttribute('open'); });
     });
 
+    // Zona de carga de archivos: cuenta los elegidos y acepta soltarlos encima
+    function contarArchivos(input) {
+        var zona = input.closest('.qkt-zona-carga');
+        var salida = zona && zona.querySelector('.qkt-zona-carga__conteo');
+        if (!salida) return;
+        var n = input.files.length;
+        salida.textContent = n === 0 ? '' : (n === 1 ? '1 archivo seleccionado' : n + ' archivos seleccionados');
+    }
+    document.addEventListener('change', function (e) {
+        if (e.target.matches('.qkt-zona-carga input[type="file"]')) contarArchivos(e.target);
+    });
+    ['dragenter', 'dragover'].forEach(function (tipo) {
+        document.addEventListener(tipo, function (e) {
+            var zona = e.target.closest && e.target.closest('.qkt-zona-carga');
+            if (!zona) return;
+            e.preventDefault();
+            zona.classList.add('is-arrastrando');
+        });
+    });
+    ['dragleave', 'drop'].forEach(function (tipo) {
+        document.addEventListener(tipo, function (e) {
+            var zona = e.target.closest && e.target.closest('.qkt-zona-carga');
+            if (!zona) return;
+            zona.classList.remove('is-arrastrando');
+            if (tipo !== 'drop') return;
+            e.preventDefault();
+            var input = zona.querySelector('input[type="file"]');
+            if (input && e.dataTransfer && e.dataTransfer.files.length) {
+                input.files = e.dataTransfer.files;
+                contarArchivos(input);
+            }
+        });
+    });
+
     function iniciarLista() {
         var tabla = document.getElementById('result_list');
         if (tabla) {

@@ -164,7 +164,7 @@
 }
 .qkt-btn--peligro:hover { background: var(--ui-error-bg) !important; }
 .qkt-btn--enlace,
-#result_list td a.qkt-btn--enlace { background: none; color: var(--ui-green-text) !important; padding: 0 4px; height: auto; }
+#result_list td a.qkt-btn--enlace { background: none; color: var(--ui-green-text) !important; border-color: transparent !important; padding: 0 4px; height: auto; }
 .qkt-btn--enlace:hover { text-decoration: underline !important; }
 
 .qkt-btn--icono,
@@ -495,8 +495,370 @@ body.change-list #changelist .row > .col-12 { padding: 0; }
 body.change-list #changelist .card { background: transparent !important; border: 0 !important; margin: 0; }
 body.change-list #changelist .card-body.table-responsive { padding: 0 !important; background: transparent !important; }
 
+/* ============================================================
+   PÁGINAS PROPIAS DEL ADMIN (fase 3): cargas masivas, simuladores,
+   reportes en pantalla, confirmaciones. Nada de fondos claros ni
+   style= en línea: todo sale de estos componentes y de los tokens.
+   ============================================================ */
+.qkt-pagina { max-width: 72em; color: var(--ui-text); }
+.qkt-pagina--angosta { max-width: 46em; }
+.qkt-pagina--ancha { max-width: 1400px; }
+.qkt-pagina__cabecera { margin-bottom: 20px; }
+.qkt-pagina__titulo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 6px !important;
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    line-height: 1.3 !important;
+    color: var(--ui-text) !important;
+}
+.qkt-pagina__titulo i { font-size: 17px; color: var(--ui-green-text); }
+.qkt-pagina__intro { margin: 0; max-width: 62em; font-size: 13px; line-height: 1.6; color: var(--ui-text-2); }
+
+/* Panel: bloque con cabecera opcional */
+.qkt-panel {
+    margin-bottom: 18px;
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+    overflow: hidden;
+}
+.qkt-panel__cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 12px 18px;
+    background: var(--ui-surface-2);
+    border-bottom: 1px solid var(--ui-line);
+}
+.qkt-panel__titulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--ui-text) !important;
+}
+.qkt-panel__titulo i { color: var(--ui-text-3); }
+/* Cabecera con título y una línea de explicación debajo */
+.qkt-panel__cab--apilada { flex-direction: column; align-items: flex-start; gap: 2px; }
+.qkt-panel__cuerpo { padding: 16px 18px; }
+.qkt-panel__cuerpo--tabla { padding: 0; overflow-x: auto; }
+.qkt-panel__cuerpo + .qkt-panel__cuerpo { border-top: 1px solid var(--ui-line-soft); }
+/* Título de un bloque dentro de un panel (un reporte, un paso) */
+.qkt-reporte__titulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--ui-text) !important;
+}
+.qkt-reporte__titulo i { width: 16px; text-align: center; color: var(--ui-green-text); }
+/* Acento de color a la izquierda (grupos, secciones por área). Los colores
+   de borde llevan !important porque admin_fix.css fuerza
+   `* { border-color: … !important }` en todo el admin. */
+.qkt-panel--exito  { border-left: 3px solid var(--ui-exito) !important; }
+.qkt-panel--alerta { border-left: 3px solid var(--ui-alerta) !important; }
+.qkt-panel--error  { border-left: 3px solid var(--ui-error) !important; }
+.qkt-panel--info   { border-left: 3px solid var(--ui-info) !important; }
+
+/* Subtítulo de sección dentro de un panel o página */
+.qkt-seccion {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 24px 0 14px !important;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--ui-line-soft);
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--ui-text) !important;
+}
+.qkt-seccion:first-child { margin-top: 0 !important; }
+.qkt-seccion i { color: var(--ui-green-text); }
+
+/* Aviso: texto con acento de color, sin fondo claro */
+.qkt-aviso {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border-left: 3px solid var(--ui-neutro);
+    border-left-color: var(--ui-neutro) !important;
+    border-radius: var(--ui-r-sm);
+    background: var(--ui-neutro-bg);
+    color: var(--ui-text);
+    font-size: 13px;
+    line-height: 1.6;
+}
+.qkt-aviso > :last-child { margin-bottom: 0; }
+.qkt-aviso p { margin: 0 0 8px; }
+.qkt-aviso ul { margin: 6px 0 0; padding-left: 18px; }
+.qkt-aviso li { margin-bottom: 2px; }
+.qkt-aviso code { color: inherit; background: rgba(0, 0, 0, .2); padding: 0 4px; border-radius: 3px; }
+.qkt-aviso a { color: var(--ui-green-text); text-decoration: underline; }
+.qkt-aviso__titulo { display: block; margin-bottom: 4px; font-weight: 600; }
+.qkt-aviso--exito  { border-left-color: var(--ui-exito) !important;  background: var(--ui-exito-bg); }
+.qkt-aviso--alerta { border-left-color: var(--ui-alerta) !important; background: var(--ui-alerta-bg); }
+.qkt-aviso--error  { border-left-color: var(--ui-error) !important;  background: var(--ui-error-bg); }
+.qkt-aviso--info   { border-left-color: var(--ui-info) !important;   background: var(--ui-info-bg); }
+.qkt-aviso--exito  .qkt-aviso__titulo { color: var(--ui-exito); }
+.qkt-aviso--alerta .qkt-aviso__titulo { color: var(--ui-alerta); }
+.qkt-aviso--error  .qkt-aviso__titulo { color: var(--ui-error); }
+.qkt-aviso--info   .qkt-aviso__titulo { color: var(--ui-info); }
+
+/* Campos de formulario: etiqueta arriba, ayuda abajo */
+.qkt-campo { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+.qkt-campo > label,
+.qkt-campo__label {
+    margin: 0 !important;
+    font-size: 12px;
+    font-weight: 600 !important;
+    color: var(--ui-text-2) !important;
+}
+.qkt-campo .form-control,
+.qkt-campo > select,
+.qkt-campo > input:not([type="checkbox"]):not([type="radio"]),
+.qkt-campo > .input-group { width: 100%; max-width: 28em; }
+.qkt-campo--chico .form-control,
+.qkt-campo--chico > select,
+.qkt-campo--chico > input { max-width: 12em; }
+.qkt-campo__ayuda { font-size: 12px; line-height: 1.5; color: var(--ui-text-3); }
+/* Controles sin .form-control (formularios de Django, filtros de reportes) */
+.qkt-campo > input:not([type="checkbox"]):not([type="radio"]):not(.form-control),
+.qkt-campo > select:not(.form-control) { height: var(--ui-h-md); padding: 0 10px; border-radius: var(--ui-r-sm); }
+.qkt-campo > textarea:not(.form-control) { padding: 8px 10px; border-radius: var(--ui-r-sm); }
+.qkt-campo__error,
+.qkt-campo .errorlist { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--ui-error); }
+.qkt-check {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px !important;
+    font-size: 13px;
+    font-weight: 400 !important;
+    color: var(--ui-text) !important;
+    cursor: pointer;
+}
+.qkt-check input { margin: 0; accent-color: var(--ui-green); width: 15px; height: 15px; }
+
+/* Fila de filtros de una página (fechas, unidad, botón) */
+.qkt-filtros-pagina { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 18px; }
+.qkt-filtros-pagina .qkt-campo { margin-bottom: 0; }
+.qkt-filtros-pagina .qkt-campo .form-control,
+.qkt-filtros-pagina .qkt-campo > select,
+.qkt-filtros-pagina .qkt-campo > input { width: auto; min-width: 150px; height: var(--ui-h-md); }
+
+/* Formulario a dos columnas */
+.qkt-rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.qkt-rejilla .qkt-campo .form-control,
+.qkt-rejilla .qkt-campo > select,
+.qkt-rejilla .qkt-campo > input,
+.qkt-rejilla .qkt-campo > .input-group { max-width: none; }
+.qkt-rejilla__completo { grid-column: 1 / -1; }
+
+/* Zona para elegir o soltar archivos (qkt_ui.js cuenta los elegidos) */
+.qkt-zona-carga {
+    position: relative;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 16px !important;
+    padding: 28px 16px;
+    border: 1px dashed var(--ui-line);
+    border-radius: var(--ui-r-md);
+    background: var(--ui-surface-2);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .12s, background-color .12s;
+}
+.qkt-zona-carga:hover,
+.qkt-zona-carga.is-arrastrando { border-color: var(--ui-green) !important; background: rgba(46, 125, 50, .08); }
+.qkt-zona-carga:focus-within { outline: 2px solid var(--ui-yellow); outline-offset: 2px; }
+.qkt-zona-carga input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.qkt-zona-carga__icono { font-size: 28px; color: var(--ui-text-3); }
+.qkt-zona-carga__titulo { font-size: 14px; font-weight: 600; color: var(--ui-text) !important; }
+.qkt-zona-carga__sub { font-size: 12px; font-weight: 400; color: var(--ui-text-3) !important; }
+.qkt-zona-carga__conteo { font-size: 13px; font-weight: 600; color: var(--ui-exito) !important; }
+.qkt-zona-carga__conteo:empty { display: none; }
+
+/* Botones al pie de un formulario (o arriba, como accesos rápidos) */
+.qkt-botonera { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 20px; }
+.qkt-botonera--arriba { margin: 0 0 18px; }
+.qkt-botonera form { display: inline; margin: 0; }
+
+/* Tabla de contenido de página (no la de las listas) */
+.qkt-tabla { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--ui-text); }
+.qkt-tabla th,
+.qkt-tabla td {
+    padding: 9px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--ui-line-soft);
+    background: transparent !important;
+    color: inherit;
+    text-align: left;
+    vertical-align: middle;
+}
+.qkt-tabla thead th {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--ui-text-3);
+    border-bottom-color: var(--ui-line);
+}
+.qkt-tabla tbody tr:hover { background: var(--ui-hover); }
+.qkt-tabla tbody tr:last-child td,
+.qkt-tabla tbody tr:last-child th { border-bottom: 0; }
+.qkt-tabla tfoot td,
+.qkt-tabla tfoot th { font-weight: 600; border-top: 1px solid var(--ui-line); border-bottom: 0; }
+.qkt-tabla tbody th { font-weight: 500; color: var(--ui-text-2); }
+.qkt-tabla .qkt-der { text-align: right; }
+.qkt-tabla .qkt-centro { text-align: center; }
+.qkt-tabla__vacio td { padding: 24px 12px; text-align: center; color: var(--ui-text-3); }
+.qkt-tabla tr.is-inactivo { opacity: .55; }
+.qkt-tabla .qkt-tabla__grupo th {
+    padding-top: 7px;
+    padding-bottom: 7px;
+    background: var(--ui-surface-2) !important;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--ui-text-3);
+}
+.qkt-tabla .qkt-tabla__destacado td { color: var(--ui-green-text); font-size: 14px; }
+.qkt-tabla--fija { table-layout: fixed; }
+.qkt-tabla .qkt-col-20 { width: 20%; }
+.qkt-tabla .qkt-col-30 { width: 30%; }
+.qkt-tabla--compacta th,
+.qkt-tabla--compacta td { padding: 6px 10px; }
+
+/* Indicadores (KPIs) */
+.qkt-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.qkt-kpi {
+    padding: 14px 16px;
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-line);
+    border-left: 3px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+}
+.qkt-kpi__label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-text-3); }
+.qkt-kpi__valor {
+    margin-top: 4px;
+    font-family: var(--ui-mono);
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: var(--ui-text);
+}
+.qkt-kpi__sub { margin-top: 3px; font-size: 12px; color: var(--ui-text-3); }
+.qkt-kpi--exito  { border-left-color: var(--ui-exito) !important; }
+.qkt-kpi--alerta { border-left-color: var(--ui-alerta) !important; }
+.qkt-kpi--error  { border-left-color: var(--ui-error) !important; }
+.qkt-kpi--info   { border-left-color: var(--ui-info) !important; }
+.qkt-kpi--exito  .qkt-kpi__valor { color: var(--ui-exito); }
+.qkt-kpi--alerta .qkt-kpi__valor { color: var(--ui-alerta); }
+.qkt-kpi--error  .qkt-kpi__valor { color: var(--ui-error); }
+.qkt-kpi--info   .qkt-kpi__valor { color: var(--ui-info); }
+
+/* Datos clave en línea (etiqueta sobre valor) */
+.qkt-datos { display: flex; flex-wrap: wrap; gap: 12px 32px; margin-bottom: 16px; }
+.qkt-dato { display: flex; flex-direction: column; gap: 2px; }
+.qkt-dato__label { font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--ui-text-3); }
+.qkt-dato__valor { font-size: 14px; font-weight: 600; color: var(--ui-text); }
+.qkt-dato__valor.qkt-num { font-size: 15px; }
+
+/* Salida de texto (logs, rutas de archivo) */
+.qkt-bloque-codigo {
+    max-height: 280px;
+    margin: 0 0 16px;
+    padding: 12px;
+    overflow: auto;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+    color: var(--ui-text-2);
+    font: 12px/1.5 var(--ui-mono);
+    white-space: pre-wrap;
+}
+.qkt-lista-objetos {
+    max-height: 320px;
+    margin: 0 0 16px;
+    padding: 10px 14px 10px 32px;
+    overflow: auto;
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+    font-size: 13px;
+    line-height: 1.7;
+}
+/* Tablero: accesos rápidos, rejilla gráfica + agenda */
+.qkt-atajos { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.qkt-atajo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 76px;
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+    color: var(--ui-text) !important;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none !important;
+    transition: border-color .12s, background-color .12s;
+}
+.qkt-atajo i { font-size: 20px; color: var(--ui-green-text); }
+.qkt-atajo:hover { border-color: var(--ui-green) !important; background: var(--ui-hover); }
+.qkt-atajo:focus-visible { outline: 2px solid var(--ui-yellow); outline-offset: 2px; }
+.qkt-tablero { display: grid; grid-template-columns: 2fr 1fr; gap: 0 16px; }
+@media (max-width: 900px) { .qkt-tablero { grid-template-columns: 1fr; } }
+.qkt-agenda { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.qkt-agenda .qkt-sub { display: block; }
+.qkt-agenda__fecha {
+    min-width: 52px;
+    padding: 4px 6px;
+    border-radius: var(--ui-r-sm);
+    background: var(--ui-green);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* Lista de resultados de búsqueda (enlace por renglón) */
+.qkt-resultados { margin: 14px 0 0; padding: 0; list-style: none; }
+.qkt-resultados li + li { border-top: 1px solid var(--ui-line-soft); }
+.qkt-resultados a {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 4px;
+    color: var(--ui-text) !important;
+    text-decoration: none !important;
+}
+.qkt-resultados a:hover { color: var(--ui-green-text) !important; }
+.qkt-resultados--pegado { margin-top: 0; }
+.qkt-texto-2 { color: var(--ui-text-2); }
+.qkt-mayusculas { text-transform: uppercase; }
+
 /* ── MÓVIL ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
+    .qkt-rejilla { grid-template-columns: 1fr; }
+    .qkt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .qkt-panel__cuerpo { padding: 14px; }
+    .qkt-botonera .qkt-btn { flex: 1 1 auto; }
     .qkt-object-tools { justify-content: flex-start; }
     .qkt-barra form#changelist-search > .qkt-filtro { flex: 1 1 calc(50% - 4px); }
     .qkt-filtro .select2-container { flex: 1 1 auto; }
@@ -506,5 +868,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .qkt-btn { transition: none; }
+    .qkt-btn,
+    .qkt-atajo,
+    .qkt-zona-carga { transition: none; }
 }

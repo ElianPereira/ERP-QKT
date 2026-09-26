@@ -801,7 +801,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         calc = CalculadoraBarraService(obj)
         datos = calc.calcular()
         if not datos:
-            return mark_safe('<div style="padding:15px; color:#666;">Seleccione servicios y guarde para calcular.</div>')
+            return mark_safe('<p class="qkt-vacio">Seleccione servicios y guarde para calcular.</p>')
         return mark_safe(render_to_string('admin/comercial/resumen_barra_partial.html', {'datos': datos}))  # noqa: S308 -- revisado: solo interpola choices/numeros/HTML fijo, sin texto libre de usuario
     resumen_barra_html.short_description = "Reporte Ejecutivo"
 
