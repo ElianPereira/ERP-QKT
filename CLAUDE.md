@@ -268,6 +268,14 @@ salvo que queden obsoletas.
   las pantallas de 2FA (estilo del login). Probar en local: el código TOTP
   no se acepta dos veces en la misma ventana de 30 s y los fallos activan
   el throttling del dispositivo (`throttling_failure_count`).
+  **Primer deploy**: el HTML nuevo llegó pero el `qkt_ui.css` viejo siguió
+  en caché (el storage es `CompressedStaticFilesStorage`, sin hash en el
+  nombre), y el tablero salió sin estilos. Desde entonces `base.html` añade
+  `?v=<commit>` a `qkt_ui.css/js` e `idle_logout.js` con
+  `STATIC_VERSION` (= `RAILWAY_GIT_COMMIT_SHA`) vía el context processor
+  `version_estaticos`. Todo estático propio nuevo que cargue `base.html`
+  debe llevar `{{ static_v }}`. De paso se equilibró la escala: título de
+  página 20 px, texto 14 px, etiquetas 13 px.
 
 - 2026-09-25 — Sistema de diseño del admin, fase 1 (Issue #322, guía
   visual aprobada por el propietario). **Toda columna de lista usa
