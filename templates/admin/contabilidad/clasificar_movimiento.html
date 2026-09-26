@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Clasificar movimiento del banco{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="qkt-ayuda" style="max-width:64em;">
+  <b>{{ movimiento.fecha|date:"d/m/Y" }}</b> ·
+  {% if movimiento.cargo > 0 %}Sale <b>${{ movimiento.cargo|floatformat:2 }}</b>{% else %}Entra <b>${{ movimiento.abono|floatformat:2 }}</b>{% endif %}
+  <br>{{ movimiento.descripcion }}
+  <br><br>
+  Se crea y aplica la póliza contra la cuenta que elijas.
+  {% if clave %}
+    Si marcas «Recordar», los movimientos con <b>{{ clave.etiqueta }}</b> se asentarán solos contra esa misma cuenta.
+  {% else %}
+    Este concepto no tiene una clave estable (RFC, cuenta o comercio) para recordarlo: si se repite, crea la regla a mano.
+  {% endif %}
+  {% if movimiento.abono > 0 %}
+    <br><br><b>¿Es el depósito de un cliente?</b> No lo clasifiques aquí: regístralo como Pago en su
+    cotización (así cuenta para su saldo y su factura) y luego usa «Volver a emparejar y aplicar reglas».
+    Aquí solo van depósitos que no son ventas, como traspasos desde tus cuentas.
+  {% endif %}
+</div>
+
+<form method="post" style="max-width:64em;margin-top:16px;">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  {% for campo in form %}
+    <div class="form-row" style="margin-bottom:12px;">
+      {{ campo.errors }}
+      <label for="{{ campo.id_for_label }}"><b>{{ campo.label }}</b></label><br>
+      {{ campo }}
+      {% if campo.help_text %}<div class="help">{{ campo.help_text }}</div>{% endif %}
+    </div>
+  {% endfor %}
+  <button type="submit" class="btn btn-success">Asentar</button>
+  <a href="{{ volver }}" class="btn btn-secondary" style="margin-left:8px;">Cancelar</a>
+</form>
+{% endblock %}

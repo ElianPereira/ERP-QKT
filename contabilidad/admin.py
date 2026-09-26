@@ -30,6 +30,7 @@ from .models import (
     MovimientoContable,
     MovimientoEstadoCuenta,
     Poliza,
+    ReglaConciliacion,
     SaldoApertura,
     UnidadNegocio,
 )
@@ -40,6 +41,7 @@ from .services import (
 )
 from .services_estados_cuenta import (
     aplicar_sugerencias_compras,
+    emparejar_y_asentar,
     generar_conciliacion_preliminar,
     procesar_estado_cuenta,
 )
@@ -833,6 +835,18 @@ class MovimientoEstadoCuentaInline(admin.TabularInline):
             'movimiento_contable__poliza', 'movimiento_contable__cuenta'
         )
 
+    def get_formset(self, request, obj=None, **kwargs):
+        # Una consulta para todas las filas: qué movimientos sin asiento ya
+        # tienen su póliza de regla esperando en borrador.
+        self._con_poliza_borrador = set()
+        if obj:
+            self._con_poliza_borrador = set(Poliza.objects.filter(
+                content_type=ContentType.objects.get_for_model(MovimientoEstadoCuenta),
+                object_id__in=obj.movimientos.values('pk'),
+                origen='BANCO', estado='BORRADOR',
+            ).values_list('object_id', flat=True))
+        return super().get_formset(request, obj, **kwargs)
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == 'movimiento_contable':
             estado_cuenta = getattr(request, '_estado_cuenta_en_edicion', None)
@@ -880,8 +894,21 @@ class MovimientoEstadoCuentaInline(admin.TabularInline):
     @admin.display(description="Situación")
     def situacion_display(self, obj):
         if not obj.movimiento_contable_id:
-            texto, tono, ayuda = ('Sin asiento', ui.ERROR, 'Este movimiento del banco no tiene asiento contable. '
-                                  'Búscalo en la columna anterior o registra la póliza que falta.')
+            if obj.pk in getattr(self, '_con_poliza_borrador', set()):
+                return format_html(
+                    '<span title="{}">{}</span>',
+                    'Una regla ya creó su póliza, pero quedó en borrador. Aplícala en Pólizas '
+                    'y usa «Volver a emparejar y aplicar reglas».',
+                    ui.badge('Póliza en borrador', ui.ALERTA),
+                )
+            url = reverse('contabilidad:clasificar_movimiento', args=[obj.pk])
+            return format_html(
+                '<span title="{}">{}</span> {}',
+                'Ninguna regla reconoció este movimiento. Búscale el asiento en la columna '
+                'anterior o clasifícalo: el ERP lo recordará para los próximos meses.',
+                ui.badge('Sin asiento', ui.ERROR),
+                ui.boton('Clasificar', url),
+            )
         elif obj.confirmado:
             texto, tono, ayuda = 'Confirmado', ui.EXITO, 'Ya revisaste este emparejamiento.'
         elif obj.match_automatico:
@@ -900,7 +927,7 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
     ]
     list_filter = ['estado', 'cuenta_bancaria', 'periodo_anio']
     inlines = [MovimientoEstadoCuentaInline]
-    actions = ['procesar', 'generar_conciliacion', 'sugerir_y_aplicar_compras']
+    actions = ['procesar', 'reemparejar', 'generar_conciliacion', 'sugerir_y_aplicar_compras']
     readonly_fields = ['resumen_display', 'saldo_inicial_estado', 'saldo_final_estado',
                        'fecha_corte_real', 'estado', 'error_detalle', 'conciliacion']
     fieldsets = [
@@ -1039,6 +1066,28 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
             self.message_user(request, err, level=messages.ERROR)
     procesar.short_description = "Procesar (extraer movimientos y emparejar)"
 
+    @admin.action(description="Volver a emparejar y aplicar reglas (sin releer el PDF)")
+    def reemparejar(self, request, queryset):
+        for ec in queryset.filter(estado='PROCESADO').select_related('cuenta_bancaria'):
+            antes = ec.movimientos.filter(movimiento_contable__isnull=False).count()
+            resumen = emparejar_y_asentar(ec, usuario=request.user)
+            despues = ec.movimientos.filter(movimiento_contable__isnull=False).count()
+            total = ec.movimientos.count()
+            self.message_user(
+                request,
+                f"{ec}: {despues - antes} movimiento(s) nuevos con asiento ({despues} de {total}). "
+                f"Reglas: {len(resumen['aplicadas'])} aplicadas, {len(resumen['borrador'])} en borrador, "
+                f"{len(resumen['sin_regla'])} sin regla.",
+                level=messages.SUCCESS,
+            )
+            if resumen['sin_cuenta']:
+                self.message_user(
+                    request,
+                    f"{ec}: {len(resumen['sin_cuenta'])} movimiento(s) calzan con una regla cuya operación "
+                    "no tiene cuenta en Configuración contable. Asígnala y vuelve a correr esta acción.",
+                    level=messages.WARNING,
+                )
+
     def generar_conciliacion(self, request, queryset):
         ok, errores = 0, []
         for ec in queryset.filter(estado='PROCESADO'):
@@ -1086,3 +1135,68 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
             if not (aplicadas or ambiguas or sin_candidata):
                 self.message_user(request, f"{ec}: no hay cargos sin emparejar.", level=messages.INFO)
     sugerir_y_aplicar_compras.short_description = "Sugerir y aplicar Compras pendientes"
+
+
+@admin.register(ReglaConciliacion)
+class ReglaConciliacionAdmin(admin.ModelAdmin):
+    """Reglas que asientan solos los movimientos del banco sin documento
+    (traspasos del dueño, comisiones, gastos con tarjeta). Nunca se borran:
+    se desactivan, para no perder de qué regla salió cada póliza."""
+    list_display = ['nombre', 'tipo_display', 'clave_display', 'contrapartida_display',
+                    'aplica_display', 'origen_display', 'activa']
+    columnas_texto = ('nombre', 'clave_display', 'contrapartida_display')
+    list_filter = ['activa', 'origen', 'tipo_movimiento', 'aplicar_automaticamente']
+    search_fields = ['nombre', 'patrones', 'cuenta_tercero', 'cuenta__codigo_sat', 'cuenta__nombre']
+    autocomplete_fields = ['cuenta']
+    readonly_fields = ['origen', 'created_by', 'updated_by', 'created_at', 'updated_at']
+    fieldsets = [
+        ("Cuándo aplica", {
+            'fields': ['nombre', 'tipo_movimiento', 'patrones', 'cuenta_tercero', 'prioridad', 'activa'],
+        }),
+        ("Qué asiento crea", {
+            'fields': ['operacion', 'cuenta', 'aplicar_automaticamente'],
+            'description': "La otra mitad del asiento; la de bancos sale de la cuenta bancaria del estado de cuenta.",
+        }),
+        ("Auditoría", {'fields': ['origen', 'created_by', 'updated_by', 'created_at', 'updated_at']}),
+    ]
+
+    TONOS_ORIGEN = {'SISTEMA': ui.INFO, 'APRENDIDA': ui.EXITO, 'MANUAL': ui.NEUTRO}
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    @admin.display(description="Aplica a", ordering="tipo_movimiento")
+    def tipo_display(self, obj):
+        return obj.get_tipo_movimiento_display()
+
+    @admin.display(description="Reconoce")
+    def clave_display(self, obj):
+        partes = []
+        if obj.patrones:
+            partes.append(format_html('<span class="qkt-codigo">{}</span>', obj.patrones))
+        if obj.cuenta_tercero:
+            partes.append(format_html('cuenta <span class="qkt-codigo">{}</span>', obj.cuenta_tercero))
+        return mark_safe(' + '.join(partes)) if partes else ui.vacio()  # noqa: S308 -- partes ya escapadas con format_html
+
+    @admin.display(description="Contrapartida")
+    def contrapartida_display(self, obj):
+        cuenta = obj.cuenta_contrapartida()
+        if not cuenta:
+            return ui.badge('Sin cuenta configurada', ui.ERROR)
+        return format_html('<span class="qkt-codigo">{}</span> {}', cuenta.codigo_sat, cuenta.nombre)
+
+    @admin.display(description="Póliza", ordering="aplicar_automaticamente")
+    def aplica_display(self, obj):
+        if obj.aplicar_automaticamente:
+            return ui.badge('Se aplica sola', ui.EXITO)
+        return ui.badge('Queda en borrador', ui.ALERTA)
+
+    @admin.display(description="Origen", ordering="origen")
+    def origen_display(self, obj):
+        return ui.badge_por_valor(obj.origen, self.TONOS_ORIGEN, obj.get_origen_display())

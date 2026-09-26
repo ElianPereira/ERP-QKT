@@ -14,4 +14,9 @@ urlpatterns = [
     ),
     path('cerrar-historico/', views.cerrar_historico_view, name='cerrar_historico'),
     path('panel-cobertura/', views.panel_cobertura, name='panel_cobertura'),
+    path(
+        'movimiento-banco/<int:movimiento_id>/clasificar/',
+        views.clasificar_movimiento_view,
+        name='clasificar_movimiento',
+    ),
 ]

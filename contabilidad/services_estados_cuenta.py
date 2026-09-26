@@ -118,8 +118,22 @@ def procesar_estado_cuenta(estado_cuenta: EstadoCuentaBancario):
         estado_cuenta.error_detalle = ''
         estado_cuenta.save(update_fields=['saldo_inicial_estado', 'saldo_final_estado', 'fecha_corte_real', 'estado', 'error_detalle'])
 
-    _emparejar_automaticamente(estado_cuenta)
+    emparejar_y_asentar(estado_cuenta)
     return estado_cuenta
+
+
+def emparejar_y_asentar(estado_cuenta, usuario=None):
+    """
+    Primero lo que ya existe (pólizas BANCO aplicadas después, luego cualquier
+    asiento de bancos por importe y fecha) y solo después las reglas: un
+    movimiento que ya tiene asiento nunca recibe una póliza de regla.
+    Devuelve el resumen de `aplicar_reglas`.
+    """
+    from .services_reglas_banco import aplicar_reglas, vincular_polizas_propias
+
+    vincular_polizas_propias(estado_cuenta)
+    _emparejar_automaticamente(estado_cuenta)
+    return aplicar_reglas(estado_cuenta, usuario=usuario)
 
 
 def _to_decimal(texto):
