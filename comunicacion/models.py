@@ -39,7 +39,8 @@ class ComunicacionCliente(models.Model):
 
     cotizacion = models.ForeignKey(
         'comercial.Cotizacion', on_delete=models.CASCADE,
-        related_name='comunicaciones', null=True, blank=True
+        related_name='comunicaciones', null=True, blank=True,
+        verbose_name='Cotización',
     )
     pago = models.ForeignKey(
         'comercial.Pago', on_delete=models.SET_NULL,
@@ -48,19 +49,19 @@ class ComunicacionCliente(models.Model):
     canal = models.CharField(max_length=15, choices=CANAL_CHOICES)
     tipo = models.CharField(max_length=25, choices=TIPO_CHOICES)
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='PENDIENTE')
-    trigger = models.CharField(max_length=10, choices=TRIGGER_CHOICES, default='MANUAL')
+    trigger = models.CharField(max_length=10, choices=TRIGGER_CHOICES, default='MANUAL', verbose_name='Disparador')
 
     destinatario = models.CharField(max_length=200, help_text="Email, teléfono o URL")
     asunto = models.CharField(max_length=255, blank=True)
     cuerpo = models.TextField(blank=True)
     error = models.TextField(blank=True)
 
-    fecha_envio = models.DateTimeField(default=timezone.now)
+    fecha_envio = models.DateTimeField(default=timezone.now, verbose_name='Fecha de envío')
     fecha_entrega = models.DateTimeField(null=True, blank=True)
     fecha_apertura = models.DateTimeField(null=True, blank=True)
 
     proveedor_id = models.CharField(max_length=100, blank=True,
-                                     help_text="ID externo (Brevo, WhatsApp, etc.)")
+                                     help_text="ID externo (Brevo, WhatsApp, etc.)", verbose_name='ID del proveedor')
 
     # Identifica de forma única el par (evento de negocio, canal). El índice
     # único es la reserva: se inserta la fila ANTES de enviar y un IntegrityError

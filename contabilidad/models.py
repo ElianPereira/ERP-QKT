@@ -82,8 +82,8 @@ class CuentaContable(models.Model):
     activa = models.BooleanField(default=True, verbose_name="Activa")
 
     # Metadatos
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Cuenta contable"
@@ -208,8 +208,8 @@ class CuentaBancaria(models.Model):
     activa = models.BooleanField(default=True)
 
     # Metadatos
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Cuenta bancaria"
@@ -328,8 +328,8 @@ class Poliza(models.Model):
         related_name='polizas_creadas',
         verbose_name="Creado por"
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
     cancelada_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -338,7 +338,7 @@ class Poliza(models.Model):
         related_name='polizas_canceladas',
         verbose_name="Cancelada por"
     )
-    fecha_cancelacion = models.DateTimeField(null=True, blank=True)
+    fecha_cancelacion = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de cancelación')
     motivo_cancelacion = models.TextField(blank=True, verbose_name="Motivo de cancelación")
     aplicada_por = models.ForeignKey(
         User,
@@ -349,7 +349,7 @@ class Poliza(models.Model):
         verbose_name="Aplicada por",
         help_text="Quién autorizó el paso de borrador a definitiva."
     )
-    fecha_aplicacion = models.DateTimeField(null=True, blank=True)
+    fecha_aplicacion = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de aplicación')
 
     class Meta:
         verbose_name = "Póliza contable"
@@ -641,9 +641,9 @@ class ConciliacionBancaria(models.Model):
         blank=True,
         verbose_name="Conciliada por"
     )
-    fecha_conciliacion = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    fecha_conciliacion = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de conciliación')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Conciliación bancaria"
@@ -843,8 +843,8 @@ class SaldoApertura(models.Model):
         'Poliza', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='saldo_apertura', verbose_name="Póliza de apertura"
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Saldo de apertura"
@@ -910,12 +910,13 @@ class EstadoCuentaBancario(models.Model):
     error_detalle = models.TextField(blank=True, verbose_name="Detalle del error de procesamiento")
 
     cargado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     conciliacion = models.OneToOneField(
         'ConciliacionBancaria', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='estado_cuenta_origen'
+        related_name='estado_cuenta_origen',
+        verbose_name='Conciliación',
     )
 
     class Meta:
@@ -940,7 +941,7 @@ class MovimientoEstadoCuenta(models.Model):
         EstadoCuentaBancario, on_delete=models.CASCADE, related_name='movimientos'
     )
     fecha = models.DateField()
-    descripcion = models.CharField(max_length=300, blank=True)
+    descripcion = models.CharField(max_length=300, blank=True, verbose_name='Descripción')
     referencia = models.CharField(max_length=100, blank=True)
     cargo = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
     abono = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))

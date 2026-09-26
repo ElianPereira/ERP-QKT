@@ -36,8 +36,8 @@ class ConfiguracionContador(models.Model):
     notas = models.TextField(blank=True, verbose_name="Notas / Instrucciones")
     activo = models.BooleanField(default=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Configuración del Contador"
@@ -230,8 +230,8 @@ class SolicitudFactura(models.Model):
         related_name='solicitudes_creadas',
         verbose_name="Creada por"
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
 
     class Meta:
         verbose_name = "Solicitud de Factura"
