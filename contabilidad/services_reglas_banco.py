@@ -41,7 +41,7 @@ CLABE_RE = re.compile(r'\b00(\d{18})\b')
 MARCA_TARJETA = '******'
 
 
-def _usuario_sistema():
+def usuario_sistema():
     from .signals import get_usuario_sistema
     return get_usuario_sistema()
 
@@ -56,7 +56,10 @@ def _poliza_del_movimiento(movimiento):
 
 
 def _vincular(movimiento, poliza, cuenta_banco):
-    linea = poliza.movimientos.filter(cuenta=cuenta_banco).first()
+    return _vincular_linea(movimiento, poliza.movimientos.filter(cuenta=cuenta_banco).first())
+
+
+def _vincular_linea(movimiento, linea):
     if not linea:
         return False
     movimiento.movimiento_contable = linea
@@ -159,7 +162,7 @@ def aplicar_reglas(estado_cuenta, usuario=None):
     if not estado_cuenta.cuenta_bancaria.cuenta_contable:
         return resumen
 
-    usuario = usuario or _usuario_sistema()
+    usuario = usuario or usuario_sistema()
     reglas = list(ReglaConciliacion.objects.filter(activa=True).select_related('cuenta'))
 
     pendientes = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True).order_by('fecha', 'id')
@@ -189,6 +192,79 @@ def aplicar_reglas(estado_cuenta, usuario=None):
             continue
         resumen['aplicadas' if poliza.estado == 'APLICADA' else 'borrador'].append(mov)
     return resumen
+
+
+TIPOS_PROVISIONALES = ('GASTO', 'COSTO')
+
+
+def sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario):
+    """
+    Un cargo asentado por palabra clave contra una cuenta de gasto es
+    provisional: no lleva IVA acreditable porque aún no hay factura. Cuando
+    su CFDI se carga después (carga masiva de XML), la Compra es el asiento
+    bueno. Se cancela la póliza provisional —se conserva, no se borra— y se
+    libera el movimiento para que el paso siguiente lo empareje con la Compra.
+    Sin esto, una Compra que se marca pagada sola (unidad con una única cuenta
+    bancaria) dejaría el mismo dinero asentado dos veces en bancos.
+    Solo con exactamente una Compra candidata: con varias no se adivina.
+    Traspasos, inversiones o nómina nunca se tocan. Devuelve los liberados.
+    """
+    from .services_estados_cuenta import compras_candidatas
+
+    cuenta_bancaria = estado_cuenta.cuenta_bancaria
+    unidad = cuenta_bancaria.unidad_negocio
+    cuenta_banco = cuenta_bancaria.cuenta_contable
+    if not unidad or not cuenta_banco:
+        return []
+
+    liberados = []
+    enlazados = estado_cuenta.movimientos.filter(
+        cargo__gt=0, movimiento_contable__poliza__origen='BANCO',
+        movimiento_contable__poliza__estado='APLICADA',
+    ).select_related('movimiento_contable__poliza')
+    for mov in enlazados:
+        poliza = mov.movimiento_contable.poliza
+        es_provisional = poliza.movimientos.exclude(cuenta=cuenta_banco).filter(
+            cuenta__tipo__in=TIPOS_PROVISIONALES,
+        ).exists()
+        if not es_provisional:
+            continue
+        candidatas = compras_candidatas(mov, unidad, cuenta_bancaria=cuenta_bancaria)
+        if len(candidatas) != 1:
+            continue
+        compra = candidatas[0]
+        with transaction.atomic():
+            poliza.cancelar(usuario, f"Sustituida por el CFDI de la Compra #{compra.pk} ({compra.uuid or 'sin UUID'})")
+            mov.movimiento_contable = None
+            mov.match_automatico = False
+            mov.confirmado = False
+            mov.save(update_fields=['movimiento_contable', 'match_automatico', 'confirmado'])
+        liberados.append(mov)
+    return liberados
+
+
+def emparejar_compras_ya_pagadas(estado_cuenta):
+    """
+    Cargos sin asiento contra Compras que ya se marcaron pagadas desde esta
+    cuenta. `_emparejar_automaticamente` ya cubre importe + fecha ±5 días de
+    la póliza (fechada con la emisión del CFDI); esto agrega la factura pagada
+    semanas después cuando BBVA imprime el RFC del comercio. Devuelve cuántos.
+    """
+    from .services_estados_cuenta import compras_candidatas, linea_banco_de_compra
+
+    cuenta_bancaria = estado_cuenta.cuenta_bancaria
+    unidad = cuenta_bancaria.unidad_negocio
+    if not unidad or not cuenta_bancaria.cuenta_contable_id:
+        return 0
+    emparejados = 0
+    for mov in estado_cuenta.movimientos.filter(movimiento_contable__isnull=True, cargo__gt=0):
+        pagadas = [c for c in compras_candidatas(mov, unidad, cuenta_bancaria=cuenta_bancaria) if c.cuenta_pago_id]
+        if len(pagadas) != 1:
+            continue
+        linea = linea_banco_de_compra(pagadas[0], cuenta_bancaria)
+        if linea and _vincular_linea(mov, linea):
+            emparejados += 1
+    return emparejados
 
 
 def clave_aprendizaje(movimiento):

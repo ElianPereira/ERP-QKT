@@ -776,6 +776,7 @@ class ConfiguracionContable(models.Model):
         # ═══════════════════════════════════════════
         ('RETIROS_DUENO', 'Retiros del dueño (traspasos a cuentas propias)'),
         ('APORTACIONES_DUENO', 'Aportaciones del dueño (traspasos desde cuentas propias)'),
+        ('INVERSIONES', 'Inversiones (dinero enviado a o recuperado de una inversión)'),
         ('GASTO_NO_DEDUCIBLE', 'Gastos no deducibles (sin CFDI)'),
         ('PARTIDAS_POR_IDENTIFICAR', 'Partidas bancarias por identificar'),
     ]

@@ -30,7 +30,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from .models import ConciliacionBancaria, EstadoCuentaBancario, MovimientoContable, MovimientoEstadoCuenta
 
@@ -124,15 +124,31 @@ def procesar_estado_cuenta(estado_cuenta: EstadoCuentaBancario):
 
 def emparejar_y_asentar(estado_cuenta, usuario=None):
     """
-    Primero lo que ya existe (pólizas BANCO aplicadas después, luego cualquier
-    asiento de bancos por importe y fecha) y solo después las reglas: un
-    movimiento que ya tiene asiento nunca recibe una póliza de regla.
+    Orden de precedencia (lo más documentado gana, nunca se asienta dos veces):
+    1. Asiento que ya existe: pólizas BANCO aplicadas después, luego cualquier
+       asiento de bancos por importe y fecha (Pago, Compra, manual).
+    2. CFDI que llegó después de un asiento provisional por palabra clave: el
+       provisional se cancela y lo sustituye la Compra (IVA correcto).
+    3. CFDI cargado (carga masiva de XML) que calza con el cargo: ya marcado
+       pagado desde esta cuenta (se liga su línea de bancos) o sin cuenta de
+       pago (se completa y aplica su póliza).
+    4. Reglas por texto del concepto o cuenta del tercero.
     Devuelve el resumen de `aplicar_reglas`.
     """
-    from .services_reglas_banco import aplicar_reglas, vincular_polizas_propias
+    from .services_reglas_banco import (
+        aplicar_reglas,
+        emparejar_compras_ya_pagadas,
+        sustituir_asientos_provisionales_por_cfdi,
+        usuario_sistema,
+        vincular_polizas_propias,
+    )
 
+    usuario = usuario or usuario_sistema()
     vincular_polizas_propias(estado_cuenta)
     _emparejar_automaticamente(estado_cuenta)
+    sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario)
+    emparejar_compras_ya_pagadas(estado_cuenta)
+    aplicar_sugerencias_compras(estado_cuenta, usuario)
     return aplicar_reglas(estado_cuenta, usuario=usuario)
 
 
@@ -433,22 +449,72 @@ def sugerir_compras_pendientes(estado_cuenta: EstadoCuentaBancario, tolerancia_d
 
     sugerencias = {}
     for mov_banco in pendientes:
-        rango_inicio = mov_banco.fecha - timedelta(days=tolerancia_dias)
-        rango_fin = mov_banco.fecha + timedelta(days=tolerancia_dias)
-        candidatas = list(
-            Compra.objects.filter(
-                unidad_negocio=unidad,
-                cuenta_pago__isnull=True,
-                total=mov_banco.cargo,
-                fecha_emision__gte=rango_inicio,
-                fecha_emision__lte=rango_fin,
-            )
-        )
+        candidatas = compras_candidatas(mov_banco, unidad, tolerancia_dias=tolerancia_dias)
         if len(candidatas) == 1:
             sugerencias[mov_banco.id] = {'candidata': candidatas[0], 'ambiguas': []}
         elif len(candidatas) > 1:
             sugerencias[mov_banco.id] = {'candidata': None, 'ambiguas': candidatas}
     return sugerencias
+
+
+RFC_EN_CONCEPTO_RE = re.compile(r'RFC: ?([A-Z&]{3,4}) ?(\d{6}[A-Z0-9]{3})')
+TOLERANCIA_DIAS_CON_RFC = 45
+
+
+def compras_candidatas(mov_banco, unidad, tolerancia_dias=5, cuenta_bancaria=None):
+    """
+    Compras (CFDI cargado) que pueden ser este cargo del banco. Si BBVA
+    imprimió el RFC del comercio (pagos con tarjeta), RFC + importe exacto
+    identifican la factura aunque se haya pagado semanas después de emitida;
+    sin RFC solo queda importe + fecha cercana, el criterio de siempre.
+
+    Sin `cuenta_bancaria`: solo las que aún no tienen cuenta de pago (póliza
+    en BORRADOR). Con `cuenta_bancaria`: también las que ya se marcaron
+    pagadas desde esa cuenta —`Compra.save()` la asigna sola cuando la unidad
+    tiene una única cuenta activa— y cuya línea de bancos todavía no está
+    emparejada con ningún movimiento del banco.
+    """
+    from comercial.models import Compra
+
+    base = Compra.objects.filter(unidad_negocio=unidad, total=mov_banco.cargo)
+    if cuenta_bancaria is None:
+        base = base.filter(cuenta_pago__isnull=True)
+    else:
+        base = base.filter(Q(cuenta_pago__isnull=True) | Q(cuenta_pago=cuenta_bancaria))
+
+    rfc = RFC_EN_CONCEPTO_RE.search((mov_banco.descripcion or '').upper())
+    if rfc:
+        dias = timedelta(days=TOLERANCIA_DIAS_CON_RFC)
+        base = base.filter(rfc_emisor__iexact=rfc.group(1) + rfc.group(2))
+    else:
+        dias = timedelta(days=tolerancia_dias)
+    candidatas = base.filter(fecha_emision__gte=mov_banco.fecha - dias, fecha_emision__lte=mov_banco.fecha + dias)
+
+    resultado = []
+    for compra in candidatas:
+        if compra.cuenta_pago_id:
+            linea = linea_banco_de_compra(compra, cuenta_bancaria)
+            if not linea or linea.movimientos_banco_emparejados.exists():
+                continue
+        resultado.append(compra)
+    return resultado
+
+
+def linea_banco_de_compra(compra, cuenta_bancaria):
+    """Línea de bancos de la póliza APLICADA de una Compra ya pagada."""
+    from django.contrib.contenttypes.models import ContentType
+
+    from .models import Poliza
+
+    if not cuenta_bancaria or not cuenta_bancaria.cuenta_contable_id:
+        return None
+    poliza = Poliza.objects.filter(
+        content_type=ContentType.objects.get_for_model(compra), object_id=compra.pk,
+        origen='COMPRA', estado='APLICADA',
+    ).first()
+    if not poliza:
+        return None
+    return poliza.movimientos.filter(cuenta_id=cuenta_bancaria.cuenta_contable_id, haber=compra.total).first()
 
 
 def aplicar_sugerencias_compras(estado_cuenta: EstadoCuentaBancario, usuario, tolerancia_dias=5):

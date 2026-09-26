@@ -93,7 +93,7 @@ class ReglasBancoBase(TestCase):
 class ReglasDeSistemaTest(ReglasBancoBase):
 
     def test_las_reglas_de_sistema_vienen_sembradas(self):
-        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 4)
+        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 11)
 
     def test_traspaso_a_cuenta_propia_se_asienta_y_empareja_solo(self):
         mov = self._mov(CARGO_TRASPASO, cargo='450.00')
@@ -279,3 +279,110 @@ class ClasificarVistaTest(ReglasBancoBase):
             {'action': 'reemparejar', '_selected_action': [self.estado.pk]}, follow=True,
         )
         self.assertContains(respuesta, '1 de 2')
+
+
+class MixCfdiYPalabrasClaveTest(ReglasBancoBase):
+    """Carga masiva de CFDI + palabras clave del concepto, sin doble registro."""
+
+    def setUp(self):
+        super().setUp()
+        ConfiguracionContable.objects.update_or_create(
+            operacion='GASTO_INSUMOS', defaults={'cuenta': self.gasto, 'activa': True},
+        )
+
+    def _compra(self, total, fecha, rfc=''):
+        from comercial.models import Compra
+        return Compra.objects.create(
+            proveedor_nombre='Proveedor CFDI', subtotal=Decimal(total), total=Decimal(total),
+            fecha_emision=fecha, rfc_emisor=rfc, unidad_negocio=self.cuenta_bancaria.unidad_negocio,
+        )
+
+    def test_cfdi_cargado_antes_gana_a_la_palabra_clave(self):
+        compra = self._compra('359.60', date(2026, 8, 7))
+        mov = self._mov('PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 INSUMOS bolis', cargo='359.60', dia=8)
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+
+        mov.refresh_from_db()
+        compra.refresh_from_db()
+        self.assertEqual(compra.cuenta_pago, self.cuenta_bancaria)
+        self.assertEqual(mov.movimiento_contable.poliza.origen, 'COMPRA')
+        self.assertFalse(self._polizas_banco(mov).exists())
+
+    def test_rfc_impreso_empareja_factura_pagada_semanas_despues(self):
+        compra = self._compra('127.60', date(2026, 7, 20), rfc='LEMW821126M4A')
+        mov = self._mov('TALL LLANTERA EL FENIX ******3288 RFC: LEMW821126M4A 20:43 AUT: 260599',
+                        cargo='127.60', dia=25)
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        mov.refresh_from_db()
+        self.assertEqual(mov.movimiento_contable.poliza.object_id, compra.pk)
+
+    def test_palabra_clave_asienta_provisional_y_el_cfdi_tardio_lo_sustituye(self):
+        mov = self._mov('PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 INSUMOS bolis', cargo='359.60', dia=8)
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        provisional = self._polizas_banco(mov).get()
+        self.assertEqual(provisional.estado, 'APLICADA')
+        self.assertTrue(provisional.movimientos.filter(cuenta=self.gasto, debe=Decimal('359.60')).exists())
+
+        compra = self._compra('359.60', date(2026, 8, 7))  # llega el XML por carga masiva
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+
+        provisional.refresh_from_db()
+        mov.refresh_from_db()
+        self.assertEqual(provisional.estado, 'CANCELADA')
+        self.assertIn(f"Compra #{compra.pk}", provisional.motivo_cancelacion)
+        self.assertEqual(mov.movimiento_contable.poliza.origen, 'COMPRA')
+        # Una sola póliza vigente sobre ese dinero.
+        self.assertEqual(
+            MovimientoContable.objects.filter(
+                cuenta=self.cuenta_banco, haber=Decimal('359.60'), poliza__estado='APLICADA',
+            ).count(), 1,
+        )
+
+    def test_un_traspaso_nunca_se_sustituye_por_una_compra(self):
+        mov = self._mov(CARGO_TRASPASO, cargo='450.00')
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        self._compra('450.00', date(2026, 8, 9))
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        self.assertEqual(self._polizas_banco(mov).get().estado, 'APLICADA')
+
+    def test_con_dos_facturas_posibles_no_adivina(self):
+        mov = self._mov('PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 INSUMOS bolis', cargo='359.60', dia=8)
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        self._compra('359.60', date(2026, 8, 7))
+        self._compra('359.60', date(2026, 8, 9))
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        self.assertEqual(self._polizas_banco(mov).get().estado, 'APLICADA')
+
+    def test_inversion_va_a_activo_en_ambos_sentidos(self):
+        inversiones = CuentaContable.objects.create(
+            codigo_sat='199.95', nombre='Inversiones', tipo='ACTIVO', naturaleza='D', nivel=3,
+        )
+        ConfiguracionContable.objects.update_or_create(
+            operacion='INVERSIONES', defaults={'cuenta': inversiones, 'activa': True},
+        )
+        sale = self._mov('PAGO CUENTA DE TERCERO 0000000003 BNET 9998887776 INVERSION cetes', cargo='5000.00')
+        regresa = self._mov('SPEI RECIBIDO 0000000004 INVERSION rendimiento', abono='5040.00', dia=20)
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        self.assertTrue(self._polizas_banco(sale).get().movimientos.filter(
+            cuenta=inversiones, debe=Decimal('5000.00')).exists())
+        self.assertTrue(self._polizas_banco(regresa).get().movimientos.filter(
+            cuenta=inversiones, haber=Decimal('5040.00')).exists())
+
+    def test_cfdi_sin_cuenta_de_pago_sustituye_al_provisional(self):
+        """Con dos cuentas activas la Compra nace sin cuenta de pago (póliza en
+        borrador): la sustitución la completa desde esta cuenta."""
+        CuentaBancaria.objects.create(
+            nombre='Otra cuenta', banco='BBVA', clabe='012345678901234888',
+            unidad_negocio=self.cuenta_bancaria.unidad_negocio,
+        )
+        mov = self._mov('PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 INSUMOS bolis', cargo='359.60', dia=8)
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        compra = self._compra('359.60', date(2026, 8, 7))
+        self.assertIsNone(compra.cuenta_pago_id)
+
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        mov.refresh_from_db()
+        compra.refresh_from_db()
+        self.assertEqual(compra.cuenta_pago, self.cuenta_bancaria)
+        self.assertEqual(mov.movimiento_contable.poliza.object_id, compra.pk)
+        self.assertEqual(self._polizas_banco(mov).get().estado, 'CANCELADA')
