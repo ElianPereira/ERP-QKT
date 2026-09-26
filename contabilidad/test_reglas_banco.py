@@ -433,3 +433,26 @@ class AbreviacionesTest(ReglasBancoBase):
         ):
             with self.subTest(concepto=concepto):
                 self.assertIsNone(self._regla_de(concepto))
+
+
+class CuentasSembradasTest(TestCase):
+    """Migración 0027: las reglas de sistema tienen cuenta desde el deploy."""
+
+    def test_operaciones_de_las_reglas_quedan_configuradas(self):
+        esperado = {
+            'RETIROS_DUENO': '301.04', 'APORTACIONES_DUENO': '301.03', 'INVERSIONES': '103.01',
+            'GASTO_NO_DEDUCIBLE': '601.05', 'PARTIDAS_POR_IDENTIFICAR': '205.04',
+            'GASTO_MANTENIMIENTO': '601.02.05', 'GASTO_PUBLICIDAD': '601.04.01',
+            'GASTO_VEHICULOS': '601.02.10',
+        }
+        for operacion, codigo in esperado.items():
+            with self.subTest(operacion=operacion):
+                cuenta = ConfiguracionContable.obtener_cuenta(operacion)
+                self.assertEqual(cuenta.codigo_sat, codigo)
+                self.assertTrue(cuenta.permite_movimientos)
+
+    def test_retiros_es_capital_deudora_y_aportaciones_acreedora(self):
+        retiros = CuentaContable.objects.get(codigo_sat='301.04')
+        aportaciones = CuentaContable.objects.get(codigo_sat='301.03')
+        self.assertEqual((retiros.tipo, retiros.naturaleza), ('CAPITAL', 'D'))
+        self.assertEqual((aportaciones.tipo, aportaciones.naturaleza), ('CAPITAL', 'A'))
