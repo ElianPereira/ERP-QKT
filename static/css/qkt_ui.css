@@ -515,7 +515,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     color: var(--ui-text) !important;
 }
 .qkt-pagina__titulo i { font-size: 17px; color: var(--ui-green-text); }
-.qkt-pagina__intro { margin: 0; max-width: 62em; font-size: 13px; line-height: 1.6; color: var(--ui-text-2); }
+.qkt-pagina__intro { margin: 0; max-width: 62em; font-size: 14px; line-height: 1.6; color: var(--ui-text-2); }
 
 /* Panel: bloque con cabecera opcional */
 .qkt-panel {
@@ -540,7 +540,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     align-items: center;
     gap: 8px;
     margin: 0 !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
     font-weight: 600 !important;
     color: var(--ui-text) !important;
 }
@@ -556,7 +556,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     align-items: center;
     gap: 8px;
     margin: 0 0 10px !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
     font-weight: 600 !important;
     color: var(--ui-text) !important;
 }
@@ -577,7 +577,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     margin: 24px 0 14px !important;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--ui-line-soft);
-    font-size: 13px !important;
+    font-size: 14px !important;
     font-weight: 600 !important;
     color: var(--ui-text) !important;
 }
@@ -593,7 +593,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     border-radius: var(--ui-r-sm);
     background: var(--ui-neutro-bg);
     color: var(--ui-text);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.6;
 }
 .qkt-aviso > :last-child { margin-bottom: 0; }
@@ -617,7 +617,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 .qkt-campo > label,
 .qkt-campo__label {
     margin: 0 !important;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600 !important;
     color: var(--ui-text-2) !important;
 }
@@ -628,7 +628,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 .qkt-campo--chico .form-control,
 .qkt-campo--chico > select,
 .qkt-campo--chico > input { max-width: 12em; }
-.qkt-campo__ayuda { font-size: 12px; line-height: 1.5; color: var(--ui-text-3); }
+.qkt-campo__ayuda { font-size: 13px; line-height: 1.5; color: var(--ui-text-3); }
 /* Controles sin .form-control (formularios de Django, filtros de reportes) */
 .qkt-campo > input:not([type="checkbox"]):not([type="radio"]):not(.form-control),
 .qkt-campo > select:not(.form-control) { height: var(--ui-h-md); padding: 0 10px; border-radius: var(--ui-r-sm); }
@@ -640,7 +640,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     align-items: center;
     gap: 8px;
     margin: 0 0 16px !important;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 400 !important;
     color: var(--ui-text) !important;
     cursor: pointer;
@@ -683,8 +683,8 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 .qkt-zona-carga:focus-within { outline: 2px solid var(--ui-yellow); outline-offset: 2px; }
 .qkt-zona-carga input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 .qkt-zona-carga__icono { font-size: 28px; color: var(--ui-text-3); }
-.qkt-zona-carga__titulo { font-size: 14px; font-weight: 600; color: var(--ui-text) !important; }
-.qkt-zona-carga__sub { font-size: 12px; font-weight: 400; color: var(--ui-text-3) !important; }
+.qkt-zona-carga__titulo { font-size: 15px; font-weight: 600; color: var(--ui-text) !important; }
+.qkt-zona-carga__sub { font-size: 13px; font-weight: 400; color: var(--ui-text-3) !important; }
 .qkt-zona-carga__conteo { font-size: 13px; font-weight: 600; color: var(--ui-exito) !important; }
 .qkt-zona-carga__conteo:empty { display: none; }
 
@@ -694,7 +694,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 .qkt-botonera form { display: inline; margin: 0; }
 
 /* Tabla de contenido de página (no la de las listas) */
-.qkt-tabla { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--ui-text); }
+.qkt-tabla { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--ui-text); }
 .qkt-tabla th,
 .qkt-tabla td {
     padding: 9px 12px;
@@ -706,7 +706,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     vertical-align: middle;
 }
 .qkt-tabla thead th {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: .03em;
     text-transform: uppercase;
@@ -750,17 +750,17 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     border-left: 3px solid var(--ui-line);
     border-radius: var(--ui-r-md);
 }
-.qkt-kpi__label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-text-3); }
+.qkt-kpi__label { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-text-3); }
 .qkt-kpi__valor {
     margin-top: 4px;
     font-family: var(--ui-mono);
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
     line-height: 1.2;
     font-variant-numeric: tabular-nums;
     color: var(--ui-text);
 }
-.qkt-kpi__sub { margin-top: 3px; font-size: 12px; color: var(--ui-text-3); }
+.qkt-kpi__sub { margin-top: 3px; font-size: 13px; color: var(--ui-text-3); }
 .qkt-kpi--exito  { border-left-color: var(--ui-exito) !important; }
 .qkt-kpi--alerta { border-left-color: var(--ui-alerta) !important; }
 .qkt-kpi--error  { border-left-color: var(--ui-error) !important; }
@@ -773,7 +773,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 /* Datos clave en línea (etiqueta sobre valor) */
 .qkt-datos { display: flex; flex-wrap: wrap; gap: 12px 32px; margin-bottom: 16px; }
 .qkt-dato { display: flex; flex-direction: column; gap: 2px; }
-.qkt-dato__label { font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--ui-text-3); }
+.qkt-dato__label { font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--ui-text-3); }
 .qkt-dato__valor { font-size: 14px; font-weight: 600; color: var(--ui-text); }
 .qkt-dato__valor.qkt-num { font-size: 15px; }
 
@@ -798,7 +798,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     background: var(--ui-surface);
     border: 1px solid var(--ui-line);
     border-radius: var(--ui-r-md);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
 }
 /* Tablero: accesos rápidos, rejilla gráfica + agenda */
@@ -814,7 +814,7 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
     border: 1px solid var(--ui-line);
     border-radius: var(--ui-r-md);
     color: var(--ui-text) !important;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     text-decoration: none !important;
     transition: border-color .12s, background-color .12s;

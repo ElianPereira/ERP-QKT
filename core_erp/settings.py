@@ -141,6 +141,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core_erp.context_processors.session_idle',
+                'core_erp.context_processors.version_estaticos',
             ],
         },
     },
@@ -282,6 +283,11 @@ THOUSAND_SEPARATOR = ','
 # --- RUTA ESTÁTICA ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Versión de los estáticos propios del admin (qkt_ui.css/js) para la URL:
+# CompressedStaticFilesStorage no pone hash en el nombre, así que sin esto el
+# navegador o Cloudflare siguen sirviendo la hoja anterior tras un deploy.
+# Railway expone el commit desplegado; en local queda vacío.
+STATIC_VERSION = config('RAILWAY_GIT_COMMIT_SHA', default='')[:12]
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 # --- CORREO ---

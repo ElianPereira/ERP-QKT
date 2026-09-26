@@ -1,9 +1,10 @@
 """Tests de los componentes visuales del admin (Issue #322)."""
 from decimal import Decimal
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
 from core_erp import admin_ui as ui
+from core_erp.context_processors import version_estaticos
 
 
 class BadgeTest(SimpleTestCase):
@@ -85,3 +86,16 @@ class BotonesTest(SimpleTestCase):
     def test_acciones_ignora_partes_vacias(self):
         html = str(ui.acciones(ui.hueco_icono(), None, ''))
         self.assertEqual(html.count('qkt-btn--hueco'), 1)
+
+
+class VersionEstaticosTest(SimpleTestCase):
+    """qkt_ui.css/js no llevan hash en el nombre: la versión en la URL es lo
+    que obliga al navegador y a Cloudflare a descargarlos tras un deploy."""
+
+    def test_con_version_agrega_el_sufijo(self):
+        with override_settings(STATIC_VERSION='aee387d30945'):
+            self.assertEqual(version_estaticos(None), {'static_v': '?v=aee387d30945'})
+
+    def test_sin_version_no_agrega_nada(self):
+        with override_settings(STATIC_VERSION=''):
+            self.assertEqual(version_estaticos(None), {'static_v': ''})

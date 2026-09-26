@@ -10,3 +10,10 @@ def session_idle(request):
     """
     timeout = getattr(settings, 'SESSION_IDLE_TIMEOUT', 1800)
     return {'session_idle_minutes': max(1, int(timeout) // 60)}
+
+
+def version_estaticos(request):
+    """Sufijo `?v=<commit>` para los estáticos propios del admin (ver
+    STATIC_VERSION en settings): cada deploy los descarga de nuevo."""
+    version = getattr(settings, 'STATIC_VERSION', '')
+    return {'static_v': f'?v={version}' if version else ''}

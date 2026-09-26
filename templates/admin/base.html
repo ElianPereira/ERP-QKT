@@ -15,10 +15,10 @@ servidor; este script solo redirige la pestaña desatendida al logout.
     admin_fix.css está después de otras reglas y el navegador lo ignora.
     {% endcomment %}
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="{% static 'css/qkt_ui.css' %}">
-    <script src="{% static 'js/qkt_ui.js' %}" defer></script>
+    <link rel="stylesheet" href="{% static 'css/qkt_ui.css' %}{{ static_v }}">
+    <script src="{% static 'js/qkt_ui.js' %}{{ static_v }}" defer></script>
     <script>window.QKT_IDLE_MINUTES = {{ session_idle_minutes|default:30 }};</script>
-    <script src="{% static 'js/idle_logout.js' %}"></script>
+    <script src="{% static 'js/idle_logout.js' %}{{ static_v }}"></script>
 {% endblock %}
 
 {% comment %}
