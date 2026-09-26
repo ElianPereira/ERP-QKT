@@ -7,7 +7,8 @@ aprenden desde «Clasificar» o se capturan en el admin, nunca en el repo.
 Las palabras clave de gasto son asientos provisionales: cuando llega el CFDI
 del mismo cargo, la Compra lo sustituye (ver
 `sustituir_asientos_provisionales_por_cfdi`). Ninguna usa «PAGO»: BBVA lo
-imprime en toda transferencia («PAGO CUENTA DE TERCERO»).
+imprime en toda transferencia («PAGO CUENTA DE TERCERO»). Las abreviaciones
+(INS, MANT, PUB…) se buscan como palabra completa; «*» final = prefijo.
 
 Las reglas apuntan a una operación de ConfiguracionContable: mientras esa
 operación no tenga cuenta asignada, la regla calza pero no asienta nada (el
@@ -16,17 +17,17 @@ movimiento queda pendiente y la acción lo avisa).
 from django.db import migrations
 
 REGLAS = [
-    ('IVA de comisión bancaria', 'CARGO', 'IVA COM', 'IVA_ACREDITABLE', 10),
-    ('Comisión bancaria', 'CARGO', 'SERV BANCA INTERNET|COM SERV BCA INTERNET|COMISION', 'GASTO_BANCARIOS', 20),
-    ('Traspaso a cuenta propia (retiro del dueño)', 'CARGO', 'TRASPAS|RETIRO', 'RETIROS_DUENO', 90),
-    ('Traspaso desde cuenta propia (aportación del dueño)', 'ABONO', 'TRASPAS', 'APORTACIONES_DUENO', 90),
-    ('Palabra clave: INVERSION', 'AMBOS', 'INVERSION', 'INVERSIONES', 60),
-    ('Palabra clave: INSUMOS', 'CARGO', 'INSUMOS', 'GASTO_INSUMOS', 60),
-    ('Palabra clave: MANTENIMIENTO', 'CARGO', 'MANTENIMIENTO', 'GASTO_MANTENIMIENTO', 60),
-    ('Palabra clave: PUBLICIDAD', 'CARGO', 'PUBLICIDAD', 'GASTO_PUBLICIDAD', 60),
-    ('Palabra clave: GASOLINA', 'CARGO', 'GASOLINA|COMBUSTIBLE', 'GASTO_VEHICULOS', 60),
-    ('Palabra clave: IMPUESTOS', 'CARGO', 'IMPUESTOS', 'GASTO_IMPUESTOS', 60),
-    ('Palabra clave: NOMINA', 'CARGO', 'NOMINA', 'SUELDOS_SALARIOS', 60),
+    ('IVA de comisión bancaria', 'CARGO', 'IVA COM*', 'IVA_ACREDITABLE', 10),
+    ('Comisión bancaria', 'CARGO', 'SERV BANCA INTERNET|COM SERV BCA INTERNET|COMISION*', 'GASTO_BANCARIOS', 20),
+    ('Traspaso a cuenta propia (retiro del dueño)', 'CARGO', 'TRASPAS*|RETIRO*', 'RETIROS_DUENO', 90),
+    ('Traspaso desde cuenta propia (aportación del dueño)', 'ABONO', 'TRASPAS*', 'APORTACIONES_DUENO', 90),
+    ('Palabra clave: INV / INVERSION', 'AMBOS', 'INVERSION*|INV', 'INVERSIONES', 60),
+    ('Palabra clave: INS / INSUMOS', 'CARGO', 'INSUMO*|INS', 'GASTO_INSUMOS', 60),
+    ('Palabra clave: MANT / MTTO / MANTENIMIENTO', 'CARGO', 'MANTENIMIENTO*|MANT|MTTO', 'GASTO_MANTENIMIENTO', 60),
+    ('Palabra clave: PUB / PUBLICIDAD', 'CARGO', 'PUBLICIDAD|PUB', 'GASTO_PUBLICIDAD', 60),
+    ('Palabra clave: GAS / GASOLINA', 'CARGO', 'GASOLINA|COMBUSTIBLE|GAS', 'GASTO_VEHICULOS', 60),
+    ('Palabra clave: IMP / IMPUESTOS', 'CARGO', 'IMPUESTO*|IMP', 'GASTO_IMPUESTOS', 60),
+    ('Palabra clave: NOM / NOMINA', 'CARGO', 'NOMINA*|NOM', 'SUELDOS_SALARIOS', 60),
 ]
 
 

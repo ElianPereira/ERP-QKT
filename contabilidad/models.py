@@ -1033,8 +1033,11 @@ class ReglaConciliacion(models.Model):
     )
     patrones = models.CharField(
         max_length=300, blank=True, verbose_name="Textos a buscar",
-        help_text="Separados por «|». Basta con que el concepto del banco contenga uno "
-                  "(sin distinguir mayúsculas ni acentos). Ej: TRASPAS|RETIRO",
+        help_text="Separados por «|». Basta con que el concepto del banco contenga uno, "
+                  "como palabra completa (sin distinguir mayúsculas ni acentos): «INS» calza con "
+                  "«INS bolis» pero no con «INSURGENTES». Termina en * para aceptar cualquier "
+                  "final de la palabra: «TRASPAS*» calza con TRASPASO y con Traspasi. "
+                  "Ej: INSUMO*|INS",
     )
     cuenta_tercero = models.CharField(
         max_length=20, blank=True, verbose_name="Cuenta o CLABE del tercero",
@@ -1091,6 +1094,18 @@ class ReglaConciliacion(models.Model):
     def lista_patrones(self):
         return [normalizar_texto_banco(p) for p in self.patrones.split('|') if p.strip()]
 
+    @staticmethod
+    def _regex_patron(patron):
+        """Palabra completa, o prefijo si termina en «*». Las abreviaciones
+        cortas (INS, PUB, NOM) no pueden buscarse como texto suelto: «INS»
+        calzaría con «INSURGENTES» o con el nombre de un cliente. El límite
+        solo mira letras: BBVA pega el concepto a los dígitos de la referencia
+        («0595539TRASPASO A QKT»)."""
+        import re
+        if patron.endswith('*') and len(patron) > 1:
+            return re.compile(r'(?<![A-Z])' + re.escape(patron[:-1]))
+        return re.compile(r'(?<![A-Z])' + re.escape(patron) + r'(?![A-Z])')
+
     def coincide(self, movimiento):
         if self.tipo_movimiento == 'CARGO' and not movimiento.cargo > 0:
             return False
@@ -1100,7 +1115,7 @@ class ReglaConciliacion(models.Model):
         if self.cuenta_tercero.strip() and self.cuenta_tercero.strip() not in texto:
             return False
         patrones = self.lista_patrones
-        return not patrones or any(p in texto for p in patrones)
+        return not patrones or any(self._regex_patron(p).search(texto) for p in patrones)
 
     def cuenta_contrapartida(self):
         """La cuenta explícita manda; si no, la configurada para la operación."""

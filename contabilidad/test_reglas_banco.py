@@ -165,7 +165,7 @@ class ReglasDeSistemaTest(ReglasBancoBase):
         self.assertFalse(self._polizas_banco(mov).exists())
 
     def test_regla_en_borrador_se_vincula_cuando_la_aplican(self):
-        ReglaConciliacion.objects.filter(patrones='TRASPAS|RETIRO').update(aplicar_automaticamente=False)
+        ReglaConciliacion.objects.filter(patrones='TRASPAS*|RETIRO*').update(aplicar_automaticamente=False)
         mov = self._mov(CARGO_TRASPASO, cargo='450.00')
         resumen = emparejar_y_asentar(self.estado, usuario=self.usuario)
         self.assertEqual(resumen['borrador'], [mov])
@@ -386,3 +386,50 @@ class MixCfdiYPalabrasClaveTest(ReglasBancoBase):
         self.assertEqual(compra.cuenta_pago, self.cuenta_bancaria)
         self.assertEqual(mov.movimiento_contable.poliza.object_id, compra.pk)
         self.assertEqual(self._polizas_banco(mov).get().estado, 'CANCELADA')
+
+
+class AbreviacionesTest(ReglasBancoBase):
+    """Palabras clave cortas en el concepto, sin falsos positivos."""
+
+    def setUp(self):
+        super().setUp()
+        for operacion in ('GASTO_INSUMOS', 'GASTO_MANTENIMIENTO', 'GASTO_PUBLICIDAD',
+                          'GASTO_VEHICULOS', 'GASTO_IMPUESTOS', 'SUELDOS_SALARIOS'):
+            ConfiguracionContable.objects.update_or_create(
+                operacion=operacion, defaults={'cuenta': self.gasto, 'activa': True},
+            )
+
+    def _regla_de(self, concepto, cargo='100.00'):
+        mov = self._mov(concepto, cargo=cargo)
+        return next((r for r in ReglaConciliacion.objects.filter(activa=True) if r.coincide(mov)), None)
+
+    def test_abreviaciones_calzan_como_palabra(self):
+        casos = {
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 INS bolis': 'INS / INSUMOS',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 Mtto alberca': 'MANT / MTTO',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 mant jardin': 'MANT / MTTO',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 PUB facebook': 'PUB / PUBLICIDAD',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 gas camioneta': 'GAS / GASOLINA',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 IMP predial': 'IMP / IMPUESTOS',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 Nóm semana 35': 'NOM / NOMINA',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 INV cetes': 'INV / INVERSION',
+        }
+        for concepto, esperado in casos.items():
+            with self.subTest(concepto=concepto):
+                self.assertIn(esperado, self._regla_de(concepto).nombre)
+
+    def test_concepto_pegado_a_la_referencia_sigue_calzando(self):
+        mov = self._mov('SPEI RECIBIDOSANTANDER 0174899148 014 0595539TRASPASO A QKT', abono='300.00')
+        emparejar_y_asentar(self.estado, usuario=self.usuario)
+        self.assertTrue(self._polizas_banco(mov).get().movimientos.filter(cuenta=self.aportaciones).exists())
+
+    def test_la_abreviacion_no_calza_dentro_de_otra_palabra(self):
+        for concepto in (
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 INSURGENTES renta',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 PUBLICO general',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 NOMBRE cliente',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 GASTON perez',
+            'PAGO CUENTA DE TERCERO 0089101760 BNET 0467646666 IMPRESIONES lona',
+        ):
+            with self.subTest(concepto=concepto):
+                self.assertIsNone(self._regla_de(concepto))
