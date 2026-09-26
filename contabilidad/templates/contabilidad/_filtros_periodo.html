@@ -1,0 +1,20 @@
+<form method="get" class="qkt-filtros-pagina">
+  <div class="qkt-campo">
+    <label for="f_desde">Desde</label>
+    <input type="date" id="f_desde" name="desde" class="form-control" value="{{ desde|date:'Y-m-d' }}">
+  </div>
+  <div class="qkt-campo">
+    <label for="f_hasta">Hasta</label>
+    <input type="date" id="f_hasta" name="hasta" class="form-control" value="{{ hasta|date:'Y-m-d' }}">
+  </div>
+  <div class="qkt-campo">
+    <label for="f_unidad">Unidad</label>
+    <select id="f_unidad" name="unidad" class="form-control">
+      <option value="">Todas</option>
+      {% for u in unidades %}
+        <option value="{{ u.id }}" {% if unidad_id|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.nombre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="qkt-btn qkt-btn--secundario"><i class="fas fa-filter" aria-hidden="true"></i> Filtrar</button>
+</form>

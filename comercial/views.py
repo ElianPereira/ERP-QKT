@@ -302,19 +302,19 @@ def configurar_plantilla_barra(request):
     from django.contrib import admin as django_admin
 
     GRUPO_CONFIG = {
-        'ALCOHOL_NACIONAL': {'nombre': 'Licores Nacionales', 'color': '#e67e22', 'icono': '',
+        'ALCOHOL_NACIONAL': {'nombre': 'Licores Nacionales',
                              'categorias': ['TEQUILA_NAC', 'WHISKY_NAC', 'RON_NAC', 'VODKA_NAC']},
-        'ALCOHOL_PREMIUM': {'nombre': 'Licores Premium', 'color': '#9b59b6', 'icono': '',
+        'ALCOHOL_PREMIUM': {'nombre': 'Licores Premium',
                             'categorias': ['TEQUILA_PREM', 'WHISKY_PREM', 'GIN_PREM']},
-        'CERVEZA': {'nombre': 'Cerveza', 'color': '#f39c12', 'icono': '',
+        'CERVEZA': {'nombre': 'Cerveza',
                     'categorias': ['CERVEZA']},
-        'MEZCLADOR': {'nombre': 'Bebidas y Mezcladores', 'color': '#3498db', 'icono': '',
+        'MEZCLADOR': {'nombre': 'Bebidas y Mezcladores',
                       'categorias': ['REFRESCO_COLA', 'REFRESCO_TORONJA', 'AGUA_MINERAL', 'AGUA_NATURAL']},
-        'HIELO': {'nombre': 'Hielo', 'color': '#1abc9c', 'icono': '',
+        'HIELO': {'nombre': 'Hielo',
                   'categorias': ['HIELO']},
-        'COCTELERIA': {'nombre': 'Frutas y Verduras (Coctelería)', 'color': '#27ae60', 'icono': '',
+        'COCTELERIA': {'nombre': 'Frutas y Verduras (Coctelería)',
                        'categorias': ['LIMON', 'HIERBABUENA', 'JARABE', 'FRUTOS_ROJOS', 'CAFE']},
-        'CONSUMIBLE': {'nombre': 'Abarrotes y Consumibles', 'color': '#95a5a6', 'icono': '',
+        'CONSUMIBLE': {'nombre': 'Abarrotes y Consumibles',
                        'categorias': ['SERVILLETAS']},
     }
 
@@ -405,8 +405,6 @@ def configurar_plantilla_barra(request):
         grupos.append({
             'key': g_key,
             'nombre': g_conf['nombre'],
-            'color': g_conf['color'],
-            'icono': g_conf['icono'],
             'categorias': categorias_grupo,
         })
 

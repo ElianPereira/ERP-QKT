@@ -2,76 +2,57 @@
 {% load i18n static %}
 
 {% block content %}
-<div class="card card-primary card-outline">
-    <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-file-upload"></i> Carga Masiva de XML (SAT)</h3>
-    </div>
-    <div class="card-body">
-        <p class="text-muted">
+<div class="qkt-pagina qkt-pagina--angosta">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-file-code" aria-hidden="true"></i> Carga masiva de XML (SAT)</h1>
+        <p class="qkt-pagina__intro">
             Selecciona todos los archivos XML de tu carpeta de descargas del SAT.
             El sistema procesará cada uno, creará la Compra y desglosará los Gastos automáticamente.
         </p>
+    </div>
 
-        <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" class="qkt-panel">
+        <div class="qkt-panel__cuerpo">
             {% csrf_token %}
 
-            <div class="form-group mb-4">
-                <label for="id_unidad" style="font-weight: bold; color: #2E7D32;">
-                    <i class="fas fa-building"></i> Unidad de Negocio
-                </label>
-                <select name="unidad_negocio" id="id_unidad" class="form-control" style="max-width: 400px;">
-                    <option value="">-- Auto-detectar por RFC del receptor --</option>
+            <div class="qkt-campo">
+                <label for="id_unidad">Unidad de negocio</label>
+                <select name="unidad_negocio" id="id_unidad" class="form-control">
+                    <option value="">Auto-detectar por RFC del receptor</option>
                     {% for unidad in unidades %}
                     <option value="{{ unidad.id }}">{{ unidad.clave }} - {{ unidad.nombre }}</option>
                     {% endfor %}
                 </select>
-                <small class="form-text text-muted">
-                    Si seleccionas "Auto-detectar", el sistema asignará la unidad según el RFC del receptor en cada XML.
-                </small>
+                <span class="qkt-campo__ayuda">Con «Auto-detectar», el sistema asigna la unidad según el RFC del receptor de cada XML.</span>
             </div>
 
-            <div class="form-group" style="padding: 20px; border: 2px dashed #ccc; text-align: center; background: #f9f9f9; border-radius: 10px;">
-                <label for="id_xmls" style="cursor: pointer; font-size: 1.2rem; color: #2E7D32;">
-                    <i class="fas fa-cloud-upload-alt fa-3x"></i><br><br>
-                    <strong>Haz clic aquí para seleccionar tus archivos XML</strong>
-                    <br><span style="font-size: 0.9rem; color: #777;">(Puedes seleccionar múltiples archivos a la vez)</span>
-                </label>
-                <input type="file" name="xml_files" id="id_xmls" multiple accept=".xml" style="display: none;" onchange="mostrarConteo()">
-                <div id="file-count" style="margin-top: 15px; font-weight: bold; color: #28a745;"></div>
-            </div>
+            <label class="qkt-zona-carga" for="id_xmls">
+                <i class="fas fa-cloud-upload-alt qkt-zona-carga__icono" aria-hidden="true"></i>
+                <span class="qkt-zona-carga__titulo">Elige o arrastra aquí tus archivos XML</span>
+                <span class="qkt-zona-carga__sub">Puedes seleccionar varios a la vez</span>
+                <span class="qkt-zona-carga__conteo" aria-live="polite"></span>
+                <input type="file" name="xml_files" id="id_xmls" multiple accept=".xml">
+            </label>
 
-            <div class="form-group mt-3" style="background:#fff8e1; padding:12px; border-left:4px solid #f5c518; border-radius:4px;">
-                <strong>Filtros automáticos activos:</strong>
-                <ul style="margin:8px 0 8px 20px; font-size:0.9rem;">
-                    <li>Solo CFDI tipo <b>Ingreso</b> (excluye Nómina, Pagos, Egresos, Traslados)</li>
-                    <li>Solo receptor: <b>PECE010202IA0</b> (Quinta Ko'ox Tanil)</li>
-                    <li>Excluye Usos CFDI personales: D01–D10 (médicos, colegiaturas, donativos…), CP01, S01</li>
+            <div class="qkt-aviso qkt-aviso--alerta">
+                <span class="qkt-aviso__titulo">Filtros automáticos activos</span>
+                <ul>
+                    <li>Solo CFDI tipo <b>Ingreso</b> (excluye Nómina, Pagos, Egresos, Traslados).</li>
+                    <li>Solo receptor <b class="qkt-codigo">PECE010202IA0</b> (Quinta Ko'ox Tanil).</li>
+                    <li>Excluye usos CFDI personales: D01–D10 (médicos, colegiaturas, donativos…), CP01, S01.</li>
                 </ul>
-                <label style="font-size:0.9rem;">
-                    <input type="checkbox" name="ignorar_filtros" value="1">
-                    Ignorar filtros y subir todo (no recomendado)
-                </label>
             </div>
 
-            <div class="mt-4">
-                <button type="submit" class="btn btn-lg btn-block" style="background-color: #2E7D32; border-color: #2E7D32; color:white;">
-                    <i class="fas fa-cogs"></i> Procesar archivos
-                </button>
-                <a href="../" class="btn btn-secondary btn-block">Cancelar</a>
+            <label class="qkt-check">
+                <input type="checkbox" name="ignorar_filtros" value="1">
+                Ignorar filtros y subir todo (no recomendado)
+            </label>
+
+            <div class="qkt-botonera">
+                <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-cogs" aria-hidden="true"></i> Procesar archivos</button>
+                <a href="../" class="qkt-btn qkt-btn--secundario">Cancelar</a>
             </div>
-        </form>
-    </div>
+        </div>
+    </form>
 </div>
-
-<script>
-    function mostrarConteo() {
-        var input = document.getElementById('id_xmls');
-        var output = document.getElementById('file-count');
-        if (input.files.length > 0) {
-            output.innerHTML = "<i class='fas fa-check-circle'></i> " + input.files.length + " archivos seleccionados listos para subir.";
-        } else {
-            output.innerHTML = "";
-        }
-    }
-</script>
 {% endblock %}

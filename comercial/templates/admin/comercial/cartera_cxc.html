@@ -4,141 +4,98 @@
 {% block title %}Cartera — CxC{% endblock %}
 
 {% block content %}
-<style>
-    .cxc-container { max-width: 1400px; margin: 0 auto; padding: 15px; font-family: 'IBM Plex Sans', sans-serif; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
-    .kpi-card { background: #383632; border-radius: 8px; padding: 18px; text-align: center; border-left: 4px solid #4a4845; }
-    .kpi-card.vencido { border-left-color: #e74c3c; }
-    .kpi-card.urgente { border-left-color: #e67e22; }
-    .kpi-card.proximo { border-left-color: #F5C518; }
-    .kpi-card.ok { border-left-color: #2E7D32; }
-    .kpi-value { font-size: 26px; font-weight: 700; color: #e0ddd4; margin-bottom: 4px; }
-    .kpi-label { font-size: 11px; color: #8a8780; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-    .kpi-count { font-size: 12px; color: #6a6760; margin-top: 3px; }
+<div class="qkt-pagina qkt-pagina--ancha">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> Cartera de clientes — Cuentas por cobrar</h1>
+    </div>
 
-    .cartera-table { width: 100%; border-collapse: collapse; background: #383632; border-radius: 8px; overflow: hidden; }
-    .cartera-table th { background: #33312e; color: #4CAF50; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-    .cartera-table td { padding: 10px 12px; border-bottom: 1px solid #4a4845; font-size: 13px; color: #d4d1c8; }
-    .cartera-table tr:hover { background: #3d3b38; }
-
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; color: white; }
-    .badge-vencido { background: #e74c3c; }
-    .badge-urgente { background: #e67e22; }
-    .badge-proximo { background: #F5C518; color: #333; }
-    .badge-ok { background: #2E7D32; }
-
-    .progress-bar-container { width: 100%; background: #4a4845; border-radius: 10px; height: 8px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; border-radius: 10px; transition: width 0.3s; }
-
-    .btn-action { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; text-decoration: none; margin: 1px; font-weight: 600; }
-    .btn-whatsapp { background: #2E7D32; color: white; }
-    .btn-email { background: #2E7D32; color: white; }
-    .btn-ver { background: #2E7D32; color: white; }
-
-    .section-title { font-size: 18px; font-weight: 600; color: #e0ddd4; margin-bottom: 18px; }
-    .empty-state { text-align: center; padding: 40px; color: #8a8780; font-size: 14px; }
-
-    @media (max-width: 768px) {
-        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-        .cartera-table { display: block; overflow-x: auto; }
-    }
-</style>
-
-<div class="cxc-container">
-    <div class="section-title">Cartera de clientes — Cuentas por cobrar</div>
-
-    <div class="kpi-grid">
-        <div class="kpi-card">
-            <div class="kpi-value">${{ total_por_cobrar|floatformat:0|intcomma }}</div>
-            <div class="kpi-label">Total por cobrar</div>
-            <div class="kpi-count">{{ count_total }} cotizaciones</div>
+    <div class="qkt-kpis">
+        <div class="qkt-kpi">
+            <div class="qkt-kpi__label">Total por cobrar</div>
+            <div class="qkt-kpi__valor">${{ total_por_cobrar|floatformat:0|intcomma }}</div>
+            <div class="qkt-kpi__sub">{{ count_total }} cotizaciones</div>
         </div>
-        <div class="kpi-card vencido">
-            <div class="kpi-value" style="color:#e74c3c;">${{ total_vencido|floatformat:0|intcomma }}</div>
-            <div class="kpi-label">Vencido</div>
-            <div class="kpi-count">{{ count_vencido }} eventos pasados</div>
+        <div class="qkt-kpi qkt-kpi--error">
+            <div class="qkt-kpi__label">Vencido</div>
+            <div class="qkt-kpi__valor">${{ total_vencido|floatformat:0|intcomma }}</div>
+            <div class="qkt-kpi__sub">{{ count_vencido }} eventos pasados</div>
         </div>
-        <div class="kpi-card urgente">
-            <div class="kpi-value" style="color:#e67e22;">${{ total_por_vencer|floatformat:0|intcomma }}</div>
-            <div class="kpi-label">Por vencer (30 días)</div>
-            <div class="kpi-count">{{ count_7d }} en 7 días · {{ count_30d }} en 30 días</div>
+        <div class="qkt-kpi qkt-kpi--alerta">
+            <div class="qkt-kpi__label">Por vencer (30 días)</div>
+            <div class="qkt-kpi__valor">${{ total_por_vencer|floatformat:0|intcomma }}</div>
+            <div class="qkt-kpi__sub">{{ count_7d }} en 7 días · {{ count_30d }} en 30 días</div>
         </div>
-        <div class="kpi-card ok">
-            <div class="kpi-value" style="color:#4CAF50;">{{ count_al_dia }}</div>
-            <div class="kpi-label">Al día</div>
-            <div class="kpi-count">Eventos a más de 30 días</div>
+        <div class="qkt-kpi qkt-kpi--exito">
+            <div class="qkt-kpi__label">Al día</div>
+            <div class="qkt-kpi__valor">{{ count_al_dia }}</div>
+            <div class="qkt-kpi__sub">Eventos a más de 30 días</div>
         </div>
     </div>
 
-    {% if cartera %}
-    <table class="cartera-table">
-        <thead>
-            <tr>
-                <th>Folio</th>
-                <th>Cliente</th>
-                <th>Evento</th>
-                <th>Fecha</th>
-                <th>Total</th>
-                <th>Pagado</th>
-                <th>Saldo</th>
-                <th>% Pago</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in cartera %}
-            <tr>
-                <td style="color:#4CAF50; font-weight:600;">{{ item.folio }}</td>
-                <td>{{ item.cliente }}</td>
-                <td>{{ item.evento }}</td>
-                <td>
-                    {{ item.cotizacion.fecha_evento|date:"d/M/Y" }}
-                    <br><small style="color:#8a8780;">
-                        {% if item.dias_evento < 0 %}
-                            Hace {{ item.dias_evento|floatformat:0 }} días
-                        {% else %}
-                            En {{ item.dias_evento }} días
-                        {% endif %}
-                    </small>
-                </td>
-                <td>${{ item.precio_final|floatformat:2|intcomma }}</td>
-                <td>${{ item.total_pagado|floatformat:2|intcomma }}</td>
-                <td><strong style="color: #e74c3c;">${{ item.saldo|floatformat:2|intcomma }}</strong></td>
-                <td>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar-fill" style="width: {{ item.porcentaje_pagado }}%; background: {% if item.porcentaje_pagado >= 80 %}#2E7D32{% elif item.porcentaje_pagado >= 50 %}#F5C518{% else %}#e74c3c{% endif %};"></div>
-                    </div>
-                    <small>{{ item.porcentaje_pagado }}%</small>
-                </td>
-                <td>
-                    {% if item.antiguedad == 'VENCIDO' %}
-                        <span class="badge badge-vencido">Vencido</span>
-                    {% elif item.antiguedad == 'URGENTE' %}
-                        <span class="badge badge-urgente">Urgente</span>
-                    {% elif item.antiguedad == 'PROXIMO' %}
-                        <span class="badge badge-proximo">Próximo</span>
-                    {% else %}
-                        <span class="badge badge-ok">Al día</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="/admin/comercial/cotizacion/{{ item.cotizacion.id }}/change/" class="btn-action btn-ver">Ver</a>
-                    {% if item.telefono %}
-                    <a href="https://wa.me/52{{ item.telefono }}?text=Hola%20{{ item.cliente|urlencode }},%20le%20recordamos%20que%20tiene%20un%20saldo%20pendiente%20de%20${{ item.saldo|floatformat:2 }}%20para%20el%20evento%20{{ item.evento|urlencode }}." target="_blank" class="btn-action btn-whatsapp">WA</a>
-                    {% endif %}
-                    {% if item.email %}
-                    <a href="mailto:{{ item.email }}?subject=Recordatorio%20de%20pago%20-%20{{ item.folio }}&body=Estimado(a)%20{{ item.cliente|urlencode }},%0A%0ALe%20recordamos%20que%20tiene%20un%20saldo%20pendiente%20de%20${{ item.saldo|floatformat:2 }}%20para%20el%20evento%20{{ item.evento|urlencode }}." class="btn-action btn-email">Email</a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div class="empty-state">
-        No hay saldos pendientes. Todas las cotizaciones están al corriente.
+    <div class="qkt-panel">
+        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead>
+                    <tr>
+                        <th>Folio</th>
+                        <th>Cliente</th>
+                        <th>Evento</th>
+                        <th>Fecha</th>
+                        <th class="qkt-der">Total</th>
+                        <th class="qkt-der">Pagado</th>
+                        <th class="qkt-der">Saldo</th>
+                        <th>Avance</th>
+                        <th>Estado</th>
+                        <th class="qkt-der">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in cartera %}
+                    <tr>
+                        <td><a href="/admin/comercial/cotizacion/{{ item.cotizacion.id }}/change/" class="qkt-codigo">{{ item.folio }}</a></td>
+                        <td>{{ item.cliente }}</td>
+                        <td>{{ item.evento }}</td>
+                        <td>
+                            {{ item.cotizacion.fecha_evento|date:"d/M/Y" }}
+                            <div class="qkt-sub">
+                                {% if item.dias_evento < 0 %}Hace {{ item.dias_evento|floatformat:0 }} días{% else %}En {{ item.dias_evento }} días{% endif %}
+                            </div>
+                        </td>
+                        <td class="qkt-der"><span class="qkt-num">${{ item.precio_final|floatformat:2|intcomma }}</span></td>
+                        <td class="qkt-der"><span class="qkt-num">${{ item.total_pagado|floatformat:2|intcomma }}</span></td>
+                        <td class="qkt-der"><strong class="qkt-num qkt-num--error">${{ item.saldo|floatformat:2|intcomma }}</strong></td>
+                        <td>
+                            <span class="qkt-avance qkt-avance--alerta"><span class="qkt-avance__barra"><span style="width:{{ item.porcentaje_pagado|stringformat:'.0f' }}%"></span></span><span class="qkt-avance__pct">{{ item.porcentaje_pagado|floatformat:0 }}%</span></span>
+                        </td>
+                        <td>
+                            {% if item.antiguedad == 'VENCIDO' %}
+                                <span class="qkt-badge qkt-badge--error">Vencido</span>
+                            {% elif item.antiguedad == 'URGENTE' %}
+                                <span class="qkt-badge qkt-badge--alerta">Urgente</span>
+                            {% elif item.antiguedad == 'PROXIMO' %}
+                                <span class="qkt-badge qkt-badge--info">Próximo</span>
+                            {% else %}
+                                <span class="qkt-badge qkt-badge--exito">Al día</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="qkt-acciones">
+                                <a href="/admin/comercial/cotizacion/{{ item.cotizacion.id }}/change/" class="qkt-btn qkt-btn--icono" title="Ver cotización" aria-label="Ver cotización"><i class="fas fa-eye" aria-hidden="true"></i></a>
+                                {% if item.telefono %}
+                                <a href="https://wa.me/52{{ item.telefono }}?text=Hola%20{{ item.cliente|urlencode }},%20le%20recordamos%20que%20tiene%20un%20saldo%20pendiente%20de%20${{ item.saldo|floatformat:2 }}%20para%20el%20evento%20{{ item.evento|urlencode }}." target="_blank" rel="noopener" class="qkt-btn qkt-btn--icono" title="Recordar por WhatsApp" aria-label="Recordar por WhatsApp"><i class="fab fa-whatsapp" aria-hidden="true"></i></a>
+                                {% endif %}
+                                {% if item.email %}
+                                <a href="mailto:{{ item.email }}?subject=Recordatorio%20de%20pago%20-%20{{ item.folio }}&body=Estimado(a)%20{{ item.cliente|urlencode }},%0A%0ALe%20recordamos%20que%20tiene%20un%20saldo%20pendiente%20de%20${{ item.saldo|floatformat:2 }}%20para%20el%20evento%20{{ item.evento|urlencode }}." class="qkt-btn qkt-btn--icono" title="Recordar por correo" aria-label="Recordar por correo"><i class="fas fa-envelope" aria-hidden="true"></i></a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="qkt-tabla__vacio"><td colspan="10">No hay saldos pendientes. Todas las cotizaciones están al corriente.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
-    {% endif %}
 </div>
 {% endblock %}

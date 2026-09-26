@@ -206,12 +206,13 @@ class EnviarEvidenciaOpenpayAdminAccionTest(TestCase):
         """Doble confirmación pedida por el propietario: además de esta página,
         un `confirm()` del navegador vuelve a preguntar antes del POST real —
         plantilla propia (`confirmar_envio_evidencia_contracargo.html`), no la
-        compartida con el resto de las acciones destructivas del admin."""
+        compartida con el resto de las acciones destructivas del admin. El
+        `confirm()` lo lanza `qkt_ui.js` sobre `data-qkt-confirmar`."""
         respuesta = self.client.post(self.url, {
             'action': 'enviar_evidencia_openpay',
             '_selected_action': [str(self.contracargo.pk)],
         }, follow=True)
-        self.assertContains(respuesta, 'onsubmit="return confirm(')
+        self.assertContains(respuesta, 'data-qkt-confirmar="¿Estás seguro de enviar la evidencia')
         self.assertContains(respuesta, 'soporte@openpay.mx')
 
     def test_con_confirmar_si_manda_y_marca_quien_lo_envio(self):

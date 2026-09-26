@@ -1,33 +1,47 @@
 {% extends "admin/base_site.html" %}
 {% block content %}
-<div class="card" style="max-width:640px; margin:20px auto; padding:24px;">
-  <h2>{{ title }}</h2>
-  <table class="table table-sm" style="margin:12px 0 18px;">
-    <tr><th>Cliente</th><td>{{ deposito.cotizacion.cliente.nombre }} — COT-{{ deposito.cotizacion.id|stringformat:"03d" }}</td></tr>
-    <tr><th>Depósito</th><td>${{ deposito.monto|floatformat:2 }}</td></tr>
-    <tr><th>Recibido</th><td>${{ deposito.recibido|floatformat:2 }}</td></tr>
-    <tr><th>En custodia</th><td><strong>${{ deposito.en_custodia|floatformat:2 }}</strong></td></tr>
-    {% if deposito.fecha_limite_devolucion %}
-    <tr><th>Devolver a más tardar</th><td>{{ deposito.fecha_limite_devolucion|date:"d/m/Y" }}</td></tr>
-    {% endif %}
-  </table>
+<div class="qkt-pagina qkt-pagina--angosta">
+  <div class="qkt-pagina__cabecera">
+    <h1 class="qkt-pagina__titulo">{{ title }}</h1>
+  </div>
 
-  <form method="post">
-    {% csrf_token %}
-    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-    {% for campo in form %}
-    <div class="form-group" style="margin-bottom:14px;">
-      {% if campo.field.widget.input_type == 'checkbox' %}
-        <label>{{ campo }} {{ campo.label }}</label>
-      {% else %}
-        <label for="{{ campo.id_for_label }}"><strong>{{ campo.label }}</strong></label>
-        {{ campo }}
-      {% endif %}
-      {% if campo.errors %}<div style="color:#c0392b;">{{ campo.errors }}</div>{% endif %}
+  <div class="qkt-panel">
+    <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+      <table class="qkt-tabla">
+        <tbody>
+          <tr><th scope="row">Cliente</th><td>{{ deposito.cotizacion.cliente.nombre }} — <span class="qkt-codigo">COT-{{ deposito.cotizacion.id|stringformat:"03d" }}</span></td></tr>
+          <tr><th scope="row">Depósito</th><td class="qkt-der"><span class="qkt-num">${{ deposito.monto|floatformat:2 }}</span></td></tr>
+          <tr><th scope="row">Recibido</th><td class="qkt-der"><span class="qkt-num">${{ deposito.recibido|floatformat:2 }}</span></td></tr>
+          <tr><th scope="row">En custodia</th><td class="qkt-der"><strong class="qkt-num">${{ deposito.en_custodia|floatformat:2 }}</strong></td></tr>
+          {% if deposito.fecha_limite_devolucion %}
+          <tr><th scope="row">Devolver a más tardar</th><td class="qkt-der">{{ deposito.fecha_limite_devolucion|date:"d/m/Y" }}</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
     </div>
-    {% endfor %}
-    <button type="submit" class="btn" style="background:#2E7D32;color:white;border:none;padding:8px 20px;border-radius:4px;font-weight:600;">Guardar</button>
-    <a href="{% url 'admin:comercial_depositogarantia_change' deposito.pk %}" class="btn btn-secondary" style="margin-left:10px;">Cancelar</a>
+  </div>
+
+  <form method="post" class="qkt-panel">
+    <div class="qkt-panel__cuerpo">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="qkt-aviso qkt-aviso--error">{{ form.non_field_errors }}</div>{% endif %}
+      {% for campo in form %}
+        {% if campo.field.widget.input_type == 'checkbox' %}
+          <label class="qkt-check">{{ campo }} {{ campo.label }}</label>
+          {% if campo.errors %}<div class="qkt-campo__error">{{ campo.errors }}</div>{% endif %}
+        {% else %}
+          <div class="qkt-campo">
+            <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.errors %}<div class="qkt-campo__error">{{ campo.errors }}</div>{% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+      <div class="qkt-botonera">
+        <button type="submit" class="qkt-btn qkt-btn--primario">Guardar</button>
+        <a href="{% url 'admin:comercial_depositogarantia_change' deposito.pk %}" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+      </div>
+    </div>
   </form>
 </div>
 {% endblock %}
