@@ -174,7 +174,12 @@ def _candidatos_asiento_bancario(estado_cuenta, tolerancia_dias=5):
     movimientos = estado_cuenta.movimientos.order_by('fecha')
     primero = movimientos.first()
     ultimo = movimientos.last()
-    desde = (primero.fecha if primero else estado_cuenta.fecha_corte_real) - timedelta(days=tolerancia_dias)
+    referencia = primero.fecha if primero else estado_cuenta.fecha_corte_real
+    if referencia is None:
+        # Subido pero sin procesar: sin movimientos ni fecha de corte no hay
+        # periodo que acotar, y la pantalla de edición debe abrir igual.
+        return MovimientoContable.objects.none()
+    desde = referencia - timedelta(days=tolerancia_dias)
     hasta = (estado_cuenta.fecha_corte_real or (ultimo.fecha if ultimo else desde)) + timedelta(days=tolerancia_dias)
 
     ya_emparejados = MovimientoEstadoCuenta.objects.filter(

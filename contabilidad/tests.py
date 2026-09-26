@@ -1489,6 +1489,19 @@ class AutocompleteAsientoBancarioTest(TestCase):
         self.assertEqual(por_importe, {str(objetivo.pk)})
         self.assertEqual(por_concepto, {str(objetivo.pk)})
 
+    def test_estado_sin_procesar_no_revienta(self):
+        """Subido sin procesar: sin movimientos ni fecha de corte. Antes daba
+        500 (None - timedelta) al abrir su pantalla de edición."""
+        self._movimiento(self.cuenta_banco)
+        sin_procesar = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA',
+            periodo_mes=8, periodo_anio=2026, formato='PDF', estado='SUBIDO',
+        )
+        self.client.force_login(self.staff)
+        respuesta = self.client.get(self.url, {'estado_cuenta': sin_procesar.pk})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(self._ids(respuesta), set())
+
     def test_sin_permiso_de_lectura_no_lista_asientos(self):
         sin_permiso = User.objects.create_user('staff_pelado', password='x', is_staff=True)
         self.client.force_login(sin_permiso)
