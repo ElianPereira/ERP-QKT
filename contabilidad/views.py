@@ -4,17 +4,20 @@ Vistas de reportes contables.
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q, Sum
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from .models import (
     ConciliacionBancaria,
+    CuentaContable,
     EstadoCuentaBancario,
     MovimientoContable,
     MovimientoEstadoCuenta,
@@ -22,6 +25,7 @@ from .models import (
     UnidadNegocio,
 )
 from .services import cerrar_historico_contable
+from .services_reglas_banco import clasificar_movimiento, clave_aprendizaje
 
 
 def _parse_periodo(request):
@@ -412,3 +416,85 @@ def panel_cobertura(request):
         'total_pendiente': total_pendiente,
     }
     return render(request, 'admin/contabilidad/panel_cobertura.html', context)
+
+
+# ==========================================
+# CLASIFICAR UN MOVIMIENTO DEL BANCO (Issue #329)
+# ==========================================
+
+class ClasificarMovimientoForm(forms.Form):
+    cuenta = forms.ModelChoiceField(
+        queryset=CuentaContable.objects.none(), label="Cuenta contrapartida",
+        help_text="A dónde va la otra mitad del asiento (gasto, retiro del dueño, ingreso…).",
+    )
+    nombre = forms.CharField(
+        max_length=120, required=False, label="Nombre de la regla",
+        help_text="Opcional. Ej: «Hosting Railway».",
+    )
+    recordar = forms.BooleanField(
+        required=False, initial=True, label="Recordar para los próximos meses",
+    )
+
+    def __init__(self, *args, cuenta_banco=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        qs = CuentaContable.objects.filter(activa=True, permite_movimientos=True).order_by('codigo_sat')
+        if cuenta_banco:
+            qs = qs.exclude(pk=cuenta_banco.pk)
+        self.fields['cuenta'].queryset = qs
+        self.fields['cuenta'].label_from_instance = lambda c: f"{c.codigo_sat} — {c.nombre}"
+
+
+@staff_member_required
+@permission_required('contabilidad.add_poliza', raise_exception=True)
+def clasificar_movimiento_view(request, movimiento_id):
+    """
+    Asienta a mano un movimiento del estado de cuenta que ninguna regla
+    reconoció y, con «recordar», enseña al ERP a hacerlo solo el mes siguiente.
+    """
+    movimiento = get_object_or_404(
+        MovimientoEstadoCuenta.objects.select_related('estado_cuenta__cuenta_bancaria__cuenta_contable'),
+        pk=movimiento_id,
+    )
+    estado_cuenta = movimiento.estado_cuenta
+    volver = reverse('admin:contabilidad_estadocuentabancario_change', args=[estado_cuenta.pk])
+    if movimiento.movimiento_contable_id:
+        messages.info(request, "Ese movimiento ya tiene asiento contable.")
+        return redirect(volver)
+
+    cuenta_banco = estado_cuenta.cuenta_bancaria.cuenta_contable
+    # En un abono, recordar enseñaría al ERP a asentar solos los depósitos de
+    # ese ordenante: bien para una cuenta propia, mal para un cliente, cuyo
+    # dinero tiene que entrar como Pago de su cotización (factura, saldo).
+    form = ClasificarMovimientoForm(
+        request.POST or None, cuenta_banco=cuenta_banco,
+        initial={'recordar': movimiento.cargo > 0},
+    )
+    clave = clave_aprendizaje(movimiento)
+
+    if request.method == 'POST' and form.is_valid():
+        try:
+            _, regla = clasificar_movimiento(
+                movimiento, form.cleaned_data['cuenta'], request.user,
+                recordar=form.cleaned_data['recordar'], nombre_regla=form.cleaned_data['nombre'],
+            )
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, str(e))
+        else:
+            if regla:
+                messages.success(request, f"Movimiento asentado. Regla «{regla}» guardada para los próximos meses.")
+            elif form.cleaned_data['recordar']:
+                messages.warning(request, "Movimiento asentado, pero su concepto no tiene una clave estable "
+                                          "para recordarlo: crea la regla a mano si se repite.")
+            else:
+                messages.success(request, "Movimiento asentado.")
+            return redirect(volver)
+
+    context = {
+        **admin.site.each_context(request),
+        'title': "Clasificar movimiento del banco",
+        'movimiento': movimiento,
+        'form': form,
+        'clave': clave,
+        'volver': volver,
+    }
+    return render(request, 'admin/contabilidad/clasificar_movimiento.html', context)

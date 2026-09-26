@@ -275,6 +275,7 @@ class Poliza(models.Model):
         ('COMISION_OPENPAY', 'Comisión Openpay'),
         ('COMISION_TPV', 'Comisión terminal (TPV)'),
         ('DEPOSITO_GARANTIA', 'Depósito en garantía'),
+        ('BANCO', 'Movimiento bancario (regla de conciliación)'),
         ('AJUSTE', 'Ajuste contable'),
         ('APERTURA', 'Saldo de apertura'),
     ]
@@ -769,6 +770,15 @@ class ConfiguracionContable(models.Model):
         # REGULARIZACIÓN / APERTURA
         # ═══════════════════════════════════════════
         ('AJUSTE_APERTURA', 'Ajuste de apertura / resultados de ejercicios anteriores'),
+
+        # ═══════════════════════════════════════════
+        # MOVIMIENTOS BANCARIOS SIN DOCUMENTO (reglas de conciliación)
+        # ═══════════════════════════════════════════
+        ('RETIROS_DUENO', 'Retiros del dueño (traspasos a cuentas propias)'),
+        ('APORTACIONES_DUENO', 'Aportaciones del dueño (traspasos desde cuentas propias)'),
+        ('INVERSIONES', 'Inversiones (dinero enviado a o recuperado de una inversión)'),
+        ('GASTO_NO_DEDUCIBLE', 'Gastos no deducibles (sin CFDI)'),
+        ('PARTIDAS_POR_IDENTIFICAR', 'Partidas bancarias por identificar'),
     ]
 
     operacion = models.CharField(
@@ -982,3 +992,133 @@ class MovimientoEstadoCuenta(models.Model):
     def clean(self):
         if self.cargo > 0 and self.abono > 0:
             raise ValidationError("Un movimiento de estado de cuenta no puede tener cargo y abono simultáneamente.")
+
+
+# ==========================================
+# 9. REGLAS DE CONCILIACIÓN (asientos desde el estado de cuenta)
+# ==========================================
+def normalizar_texto_banco(texto):
+    """Mayúsculas, sin acentos y con espacios colapsados: el PDF de BBVA y lo
+    que captura una persona no escriben igual «Traspaso» / «TRASPASO»."""
+    import unicodedata
+    sin_acentos = unicodedata.normalize('NFKD', texto or '').encode('ascii', 'ignore').decode('ascii')
+    return ' '.join(sin_acentos.upper().split())
+
+
+class ReglaConciliacion(models.Model):
+    """
+    Regla que convierte un movimiento del estado de cuenta sin asiento en una
+    póliza: «si el concepto del banco dice X (y/o va a la cuenta Y), la otra
+    mitad del asiento es la cuenta Z».
+
+    Existe porque buena parte de la actividad bancaria no tiene documento en el
+    ERP que genere su póliza (traspasos del dueño, comisiones de BBVA, gastos
+    con tarjeta sin CFDI). Las reglas de origen SISTEMA vienen sembradas; las
+    APRENDIDAS nacen al clasificar un movimiento a mano con «recordar».
+    """
+    TIPO_CHOICES = [
+        ('CARGO', 'Cargos (sale dinero)'),
+        ('ABONO', 'Abonos (entra dinero)'),
+        ('AMBOS', 'Cargos y abonos'),
+    ]
+    ORIGEN_CHOICES = [
+        ('SISTEMA', 'Sistema'),
+        ('APRENDIDA', 'Aprendida al clasificar'),
+        ('MANUAL', 'Capturada a mano'),
+    ]
+
+    nombre = models.CharField(max_length=120, verbose_name="Nombre")
+    tipo_movimiento = models.CharField(
+        max_length=5, choices=TIPO_CHOICES, default='AMBOS', verbose_name="Aplica a",
+    )
+    patrones = models.CharField(
+        max_length=300, blank=True, verbose_name="Textos a buscar",
+        help_text="Separados por «|». Basta con que el concepto del banco contenga uno, "
+                  "como palabra completa (sin distinguir mayúsculas ni acentos): «INS» calza con "
+                  "«INS bolis» pero no con «INSURGENTES». Termina en * para aceptar cualquier "
+                  "final de la palabra: «TRASPAS*» calza con TRASPASO y con Traspasi. "
+                  "Ej: INSUMO*|INS",
+    )
+    cuenta_tercero = models.CharField(
+        max_length=20, blank=True, verbose_name="Cuenta o CLABE del tercero",
+        help_text="Número de cuenta que aparece en el concepto (destino u origen). "
+                  "Más confiable que el texto: no depende de cómo se escriba el concepto.",
+    )
+    operacion = models.CharField(
+        max_length=50, blank=True, choices=ConfiguracionContable.OPERACION_CHOICES,
+        verbose_name="Operación contable",
+        help_text="La cuenta sale de la Configuración contable. Usa esto o «Cuenta contrapartida».",
+    )
+    cuenta = models.ForeignKey(
+        CuentaContable, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='reglas_conciliacion', verbose_name="Cuenta contrapartida",
+    )
+    prioridad = models.PositiveSmallIntegerField(
+        default=100, verbose_name="Prioridad", help_text="Se evalúan de menor a mayor.",
+    )
+    aplicar_automaticamente = models.BooleanField(
+        default=True, verbose_name="Aplicar sola",
+        help_text="Si no, la póliza queda en borrador para revisión.",
+    )
+    origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, default='MANUAL', verbose_name="Origen")
+    activa = models.BooleanField(default=True, verbose_name="Activa")
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='reglas_conciliacion_creadas', verbose_name="Creada por",
+    )
+    updated_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='reglas_conciliacion_editadas', verbose_name="Editada por",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creada")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizada")
+
+    class Meta:
+        verbose_name = "Regla de conciliación"
+        verbose_name_plural = "Reglas de conciliación"
+        ordering = ['prioridad', 'id']
+
+    def __str__(self):
+        return self.nombre
+
+    def clean(self):
+        if not self.patrones.strip() and not self.cuenta_tercero.strip():
+            raise ValidationError("Indica al menos un texto a buscar o la cuenta del tercero.")
+        if not self.operacion and not self.cuenta_id:
+            raise ValidationError("Indica la operación contable o la cuenta contrapartida.")
+        if self.cuenta_id and not self.cuenta.permite_movimientos:
+            raise ValidationError({'cuenta': "La cuenta debe ser de detalle (permitir movimientos)."})
+
+    @property
+    def lista_patrones(self):
+        return [normalizar_texto_banco(p) for p in self.patrones.split('|') if p.strip()]
+
+    @staticmethod
+    def _regex_patron(patron):
+        """Palabra completa, o prefijo si termina en «*». Las abreviaciones
+        cortas (INS, PUB, NOM) no pueden buscarse como texto suelto: «INS»
+        calzaría con «INSURGENTES» o con el nombre de un cliente. El límite
+        solo mira letras: BBVA pega el concepto a los dígitos de la referencia
+        («0595539TRASPASO A QKT»)."""
+        import re
+        if patron.endswith('*') and len(patron) > 1:
+            return re.compile(r'(?<![A-Z])' + re.escape(patron[:-1]))
+        return re.compile(r'(?<![A-Z])' + re.escape(patron) + r'(?![A-Z])')
+
+    def coincide(self, movimiento):
+        if self.tipo_movimiento == 'CARGO' and not movimiento.cargo > 0:
+            return False
+        if self.tipo_movimiento == 'ABONO' and not movimiento.abono > 0:
+            return False
+        texto = normalizar_texto_banco(f"{movimiento.descripcion} {movimiento.referencia}")
+        if self.cuenta_tercero.strip() and self.cuenta_tercero.strip() not in texto:
+            return False
+        patrones = self.lista_patrones
+        return not patrones or any(self._regex_patron(p).search(texto) for p in patrones)
+
+    def cuenta_contrapartida(self):
+        """La cuenta explícita manda; si no, la configurada para la operación."""
+        if self.cuenta_id:
+            return self.cuenta
+        return ConfiguracionContable.obtener_cuenta(self.operacion) if self.operacion else None
