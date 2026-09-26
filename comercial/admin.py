@@ -91,15 +91,29 @@ class ConstanteSistemaAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(Proveedor)
 class ProveedorAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'rfc', 'contacto', 'telefono', 'email', 'total_insumos', 'activo')
-    list_filter = ('activo',)
-    list_editable = ('activo',)
+    list_display = ('nombre', 'rfc', 'categoria_gasto', 'cuenta_gasto', 'contacto', 'telefono', 'total_insumos', 'activo')
+    list_filter = ('activo', 'categoria_gasto')
+    list_editable = ('categoria_gasto', 'activo')
     search_fields = ('nombre', 'rfc', 'contacto', 'telefono', 'email')
+    autocomplete_fields = ['cuenta_gasto']
     list_per_page = 25
     fieldsets = (
         (None, {'fields': ('nombre', 'rfc', 'contacto', 'telefono', 'email')}),
+        ('Clasificación de sus compras', {
+            'fields': ('categoria_gasto', 'cuenta_gasto'),
+            'description': 'Sus facturas entran ya clasificadas. Al guardar un cambio aquí se '
+                           'reclasifican sus compras sin clasificar o de esta categoría.',
+        }),
         ('Información Adicional', {'fields': ('notas', 'activo')}),
     )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if change and {'categoria_gasto', 'cuenta_gasto'} & set(form.changed_data):
+            from contabilidad.services_compras import aplicar_clasificacion_proveedor
+            n = aplicar_clasificacion_proveedor(obj)
+            if n:
+                messages.info(request, f"{obj}: {n} compra(s) reclasificada(s) con la nueva configuración.")
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(_n_insumos=Count('insumo'))
@@ -1273,11 +1287,11 @@ class GastoInline(admin.TabularInline):
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
     change_list_template = "comercial/compra_change_list.html"
-    list_display = ('fecha_display', 'proveedor_display', 'total_format', 'cuenta_pago', 'es_deducible',
+    list_display = ('fecha_display', 'proveedor_display', 'total_format', 'categoria', 'cuenta_pago', 'es_deducible',
                     'cfdi_display', 'ver_pdf')
-    list_editable = ('es_deducible',)
-    list_filter = (('es_deducible', con_titulo('Fiscal')), CfdiCompraFilter, PolizaCompraFilter, 'cuenta_pago')
-    filtros_visibles = 3
+    list_editable = ('categoria', 'es_deducible')
+    list_filter = (('es_deducible', con_titulo('Fiscal')), CfdiCompraFilter, PolizaCompraFilter, 'categoria', 'cuenta_pago')
+    filtros_visibles = 4
     columnas_texto = ('proveedor_display',)
     search_fields = ('proveedor__nombre', 'proveedor_nombre', 'uuid', 'rfc_emisor')
     date_hierarchy = 'fecha_emision'
@@ -1297,8 +1311,9 @@ class CompraAdmin(admin.ModelAdmin):
                             'corregirlo con el buscador, o dar de alta uno nuevo con el botón "+".',
         }),
         ('Contabilidad', {
-            'fields': ('unidad_negocio', 'cuenta_pago', 'es_deducible'),
-            'description': 'Sin unidad de negocio y cuenta de pago, la póliza generada queda en BORRADOR '
+            'fields': ('categoria', 'unidad_negocio', 'cuenta_pago', 'es_deducible'),
+            'description': 'La categoría sale del proveedor; si la cambias, se reclasifica la póliza y el '
+                            'proveedor la recuerda. Sin unidad de negocio y cuenta de pago, la póliza generada queda en BORRADOR '
                             'y no se aplica. "Deducible" se fuerza a No automáticamente si no hay UUID '
                             '(factura sin timbrar / sin CFDI).',
         }),
@@ -1334,7 +1349,7 @@ class CompraAdmin(admin.ModelAdmin):
 
             ignorar_filtros = request.POST.get('ignorar_filtros') == '1'
 
-            exitos = errores = excluidas = duplicadas = 0
+            exitos = errores = excluidas = duplicadas = clasificadas = 0
             motivos_excluidas = []
             motivos_duplicadas = []
             for f in files:
@@ -1367,8 +1382,10 @@ class CompraAdmin(admin.ModelAdmin):
                         size=len(file_content),
                         charset=None
                     )
-                    Compra.objects.create(archivo_xml=new_file, unidad_negocio=unidad_fija)
+                    compra = Compra.objects.create(archivo_xml=new_file, unidad_negocio=unidad_fija)
                     exitos += 1
+                    if compra.categoria != 'SIN_CLASIFICAR':
+                        clasificadas += 1
                 except Exception as e:
                     errores += 1
                     print(f"Error subiendo {f.name}: {e}")
@@ -1376,12 +1393,14 @@ class CompraAdmin(admin.ModelAdmin):
             if exitos > 0:
                 messages.success(
                     request,
-                    f"{exitos} factura(s) del negocio procesada(s) correctamente. Sus líneas de gasto "
-                    "quedaron en categoría 'Sin Clasificar' — revísalas y asigna la categoría correcta "
-                    "en cada Compra para que los reportes por categoría salgan bien. Las que pertenecen "
-                    "a una unidad de negocio con una sola cuenta bancaria activa ya quedaron aplicadas "
-                    "solas; el resto se queda en BORRADOR hasta que subas el estado de cuenta del mes y "
-                    "uses ahí la acción «Sugerir y aplicar Compras pendientes»."
+                    f"{exitos} factura(s) del negocio procesada(s) correctamente; {clasificadas} ya "
+                    "clasificada(s) por su proveedor. "
+                    + (f"{exitos - clasificadas} quedaron 'Sin Clasificar': asígnales categoría en la "
+                       "lista de Compras y el proveedor la recordará para sus próximas facturas. "
+                       if exitos > clasificadas else "")
+                    + "Las que pertenecen a una unidad de negocio con una sola cuenta bancaria activa ya "
+                    "quedaron aplicadas solas; el resto se queda en BORRADOR hasta que subas el estado de "
+                    "cuenta del mes y uses ahí la acción «Sugerir y aplicar Compras pendientes»."
                 )
             if duplicadas > 0:
                 resumen_dup = "; ".join(motivos_duplicadas[:5])
@@ -1409,6 +1428,16 @@ class CompraAdmin(admin.ModelAdmin):
         })
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('proveedor', 'cuenta_pago')
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if change and 'categoria' in form.changed_data:
+            from contabilidad.services_compras import reclasificar_compra, recordar_en_proveedor
+            reclasificar_compra(obj)
+            otras = recordar_en_proveedor(obj)
+            if otras:
+                messages.info(request, f"{obj.proveedor} recordará «{obj.get_categoria_display()}»: "
+                                       f"{otras} compra(s) más suya(s) quedaron clasificadas.")
 
     @admin.display(description='Fecha', ordering='fecha_emision')
     def fecha_display(self, obj):

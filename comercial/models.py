@@ -31,6 +31,25 @@ class ConstanteSistema(models.Model):
 # ==========================================
 # 0.5 PROVEEDORES
 # ==========================================
+# Categorías de gasto de una Compra y de sus líneas (Gasto). La cuenta contable
+# que le corresponde a cada una vive en `contabilidad.signals.MAPEO_CATEGORIA_CUENTA`.
+CATEGORIAS_GASTO = [
+    ('SIN_CLASIFICAR', 'Sin Clasificar'),
+    ('INSUMOS', 'Insumos para eventos'),
+    ('SERVICIO_EXTERNO', 'Servicio Externo'),
+    ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'),
+    ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'),
+    ('LIMPIEZA', 'Limpieza Y Desechables'),
+    ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'),
+    ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'),
+    ('NOMINA_EXT', 'Servicios Staff Externo'),
+    ('IMPUESTOS', 'Pago De Impuestos'),
+    ('PUBLICIDAD', 'Publicidad Y Marketing'),
+    ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'),
+    ('OTRO', 'Otros Gastos'),
+]
+
+
 class Proveedor(models.Model):
     nombre = models.CharField(max_length=200, unique=True, verbose_name="Nombre / Razón Social")
     rfc = models.CharField(max_length=13, blank=True, db_index=True, verbose_name="RFC",
@@ -41,6 +60,18 @@ class Proveedor(models.Model):
     notas = models.TextField(blank=True, verbose_name="Notas",
                              help_text="Horarios, condiciones de pago, dirección, etc.")
     activo = models.BooleanField(default=True)
+    categoria_gasto = models.CharField(
+        max_length=20, choices=CATEGORIAS_GASTO, blank=True, verbose_name='Categoría de gasto',
+        help_text="Las facturas nuevas de este proveedor entran con esta categoría. Se llena sola "
+                  "la primera vez que clasificas una de sus compras.",
+    )
+    cuenta_gasto = models.ForeignKey(
+        'contabilidad.CuentaContable', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='proveedores', verbose_name='Cuenta contable de gasto',
+        limit_choices_to={'tipo__in': ('GASTO', 'COSTO'), 'permite_movimientos': True, 'activa': True},
+        help_text="Opcional. Cuenta exacta para sus compras (ej. CFE → Energía eléctrica). "
+                  "Sin ella, la cuenta sale de la categoría.",
+    )
 
     def __str__(self): return self.nombre
     class Meta:
@@ -1725,6 +1756,12 @@ class Compra(models.Model):
                   "sin comprobante fiscal no es deducible de impuestos, pero sí "
                   "se registra en la contabilidad."
     )
+    categoria = models.CharField(
+        max_length=20, choices=CATEGORIAS_GASTO, default='SIN_CLASIFICAR', db_index=True,
+        verbose_name='Categoría de gasto',
+        help_text="Define la cuenta contable del gasto. Al cambiarla se reclasifica la póliza y "
+                  "el proveedor la recuerda para sus próximas facturas.",
+    )
 
     def save(self, *args, **kwargs):
         if self.archivo_xml and not self.pk:
@@ -1788,6 +1825,10 @@ class Compra(models.Model):
         # captura usado.
         if not self.proveedor_id and self.proveedor_nombre:
             self.proveedor = _resolver_o_crear_proveedor(self.proveedor_nombre, self.rfc_emisor)
+        # Categoría: la que el proveedor ya tiene configurada (o aprendida).
+        if not self.pk and self.categoria == 'SIN_CLASIFICAR' and self.proveedor_id \
+                and self.proveedor.categoria_gasto:
+            self.categoria = self.proveedor.categoria_gasto
         # Cuenta de pago: igual que unidad_negocio, se asigna sola solo si no
         # hay ambigüedad posible — una única cuenta bancaria activa para esa
         # unidad de negocio. Con dos o más cuentas activas (o ninguna) se deja
@@ -1831,7 +1872,7 @@ class Compra(models.Model):
                                             iva_linea += Decimal(t.attrib.get('Importe', 0))
                                         except Exception:
                                             iva_linea = impuestos.iva_de(importe)
-                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor_nombre, categoria='SIN_CLASIFICAR')
+                            Gasto.objects.create(compra=self, descripcion=descripcion, cantidad=cantidad, precio_unitario=valor_unitario, total_linea=importe + iva_linea, clave_sat=clave_sat, unidad_medida=unidad, fecha_gasto=self.fecha_emision, proveedor=self.proveedor_nombre, categoria=self.categoria)
             except Exception as e:
                 print(f"Error procesando conceptos: {e}")
 
@@ -1845,7 +1886,7 @@ class Compra(models.Model):
     def __str__(self): return f"{self.proveedor_display} - ${self.total}"
 
 class Gasto(models.Model):
-    CATEGORIAS = [('SIN_CLASIFICAR', 'Sin Clasificar'), ('SERVICIO_EXTERNO', 'Servicio Externo'), ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'), ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'), ('LIMPIEZA', 'Limpieza Y Desechables'), ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'), ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'), ('NOMINA_EXT', 'Servicios Staff Externo'), ('IMPUESTOS', 'Pago De Impuestos'), ('PUBLICIDAD', 'Publicidad Y Marketing'), ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'), ('OTRO', 'Otros Gastos')]
+    CATEGORIAS = CATEGORIAS_GASTO
     compra = models.ForeignKey(Compra, related_name='gastos', on_delete=models.CASCADE)
     descripcion = models.CharField(max_length=255, verbose_name='Descripción')
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)

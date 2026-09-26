@@ -915,6 +915,15 @@ MAPEO_CATEGORIA_CUENTA = {
     'BANCARIOS': 'GASTO_BANCARIOS',
     'COMISIONES': 'GASTO_BANCARIOS',
     'OTROS': 'GASTOS_GENERALES',
+    # Claves de `comercial.models.CATEGORIAS_GASTO` que no calzan arriba.
+    'BEBIDAS_SIN_ALCOHOL': 'GASTO_INSUMOS',
+    'BEBIDAS_CON_ALCOHOL': 'GASTO_INSUMOS',
+    'MOBILIARIO_EQ': 'GASTO_EQUIPO',
+    'NOMINA_EXT': 'GASTOS_NOMINA_EXT',
+    'SERVICIO_EXTERNO': 'GASTOS_GENERALES',
+    'SERVICIOS_ADMON': 'GASTOS_GENERALES',
+    'SIN_CLASIFICAR': 'GASTOS_GENERALES',
+    'OTRO': 'GASTOS_GENERALES',
 }
 
 
@@ -950,6 +959,20 @@ def get_cuenta_por_categoria(categoria):
     return get_cuenta('GASTOS_GENERALES')
 
 
+def cuenta_gasto_de_compra(compra):
+    """
+    Cuenta de gasto de una Compra: la cuenta exacta del proveedor si la tiene
+    y la compra está en la categoría del proveedor (o sin clasificar); si no,
+    la de su categoría. Una compra que alguien clasificó distinto a lo habitual
+    del proveedor manda sobre la cuenta del proveedor.
+    """
+    proveedor = compra.proveedor if compra.proveedor_id else None
+    if proveedor and proveedor.cuenta_gasto_id and proveedor.cuenta_gasto.activa \
+            and compra.categoria in ('SIN_CLASIFICAR', proveedor.categoria_gasto):
+        return proveedor.cuenta_gasto
+    return get_cuenta_por_categoria(compra.categoria)
+
+
 # ==========================================
 # SIGNAL: COMPRA/GASTO (comercial.Compra)
 # ==========================================
@@ -975,8 +998,8 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
         return
 
     cuenta_iva = get_cuenta('IVA_ACREDITABLE')
-    categoria = getattr(compra, 'categoria', None)
-    cuenta_gasto = get_cuenta_por_categoria(categoria)
+    categoria = compra.get_categoria_display() if compra.categoria != 'SIN_CLASIFICAR' else None
+    cuenta_gasto = cuenta_gasto_de_compra(compra)
 
     if not cuenta_gasto:
         logger.warning("Póliza NO generada para Compra #%s: falta cuenta de gasto", compra.pk)
