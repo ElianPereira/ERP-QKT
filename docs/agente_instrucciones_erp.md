@@ -37,11 +37,11 @@
 1. **Cumplimiento fiscal/legal:** precios IVA-incluido, estado PROFECO (NOM-174), ISH del hospedaje directo (`TASA_ISH`), vigencia de documentos legales (privacidad/T&C) y consentimientos.
 2. **Flujo de caja y cobranza:** modelos de cuentas por cobrar, automatización de recordatorios de pago, detectar transacciones mal clasificadas o cuenta bancaria incorrecta.
 3. **Pricing y rentabilidad:** validar que descuentos, aforo ampliado y add-ons no erosionen margen; señalar inconsistencias en mezcla de negocio.
-4. **Logística/operación:** blindar validación de fechas (check-in 13:00 / check-out 10:00, ventanas de limpieza) para evitar sobreventas entre eventos y hospedaje.
+4. **Logística/operación:** blindar validación de fechas (check-in 14:00 / check-out 10:00, ventanas de limpieza) para evitar sobreventas entre eventos y hospedaje.
 5. **KPIs sugeridos:** margen bruto por unidad de negocio, DSO, ocupación pasadía/hospedaje, ticket promedio, ventas mes vs. cotizaciones EJECUTADA/CERRADA.
 
 **Prompt disparador:**
-> "Inicia Rutina Operativa/Contable. Analiza solo estructura (campos y métodos, NO datos vivos) de modelos de Cotizaciones, Cobranza, Reservas y Contabilidad. Entrega reporte breve en markdown: 3 riesgos fiscales/legales detectados + 3 recomendaciones de negocio viables en software. Guarda en `/docs/`."
+> Ver el texto completo en "Routine 2 — QKT Rutina Operativa/Contable" (abajo). Clave: hasta 3 hallazgos (no una cuota), cada uno con archivo:línea y marcado VERIFICADO o A CONFIRMAR, sin repetir lo ya resuelto en la Watchlist/Memoria, y reporte en `docs/rutinas/`.
 
 ## 4. God Mode + Human-in-the-Loop
 
@@ -117,11 +117,31 @@ contabilidad/services.py, ni migraciones. Sin teoría, solo hallazgos y código.
 - Trigger: Scheduled, mensual (o quincenal)
 - Instructions:
 ```
-Ejecuta la Rutina Operativa/Contable: analiza solo estructura (campos y métodos, NO datos vivos) de
-los modelos de Cotizaciones, Cobranza, Reservas y Contabilidad. Detecta riesgos fiscales/legales (IVA,
-ISH, PROFECO, vigencia de documentos legales) y oportunidades de negocio (margen, descuentos, KPIs
-faltantes). Esto es solo análisis, no toques código. Entrega un reporte breve en markdown con 3
-riesgos + 3 recomendaciones, guárdalo en /docs/ y ábrelo como Pull Request para revisión.
+Ejecuta la Rutina Operativa/Contable sobre ERP-QKT. Solo análisis: no toques código ni datos vivos.
+
+Antes de analizar, lee en CLAUDE.md la Watchlist y la Memoria, y los reportes previos en
+docs/rutinas/. Todo lo que ya esté resuelto, decidido por el propietario o reportado antes no se
+vuelve a reportar, salvo que el código haya cambiado y lo contradiga.
+
+Analiza la estructura (campos, métodos, signals, services) de: Cotizacion/ItemCotizacion (evento,
+pasadía y hospedaje directo), Pago/cobranza, DepositoGarantia, descuentos, facturacion y contabilidad
+(pólizas, conciliación). Busca:
+- Riesgos fiscales/legales: IVA incluido al consumidor, ISH del hospedaje directo, retenciones,
+  CFDI, PROFECO/contratos, vigencia de documentos legales y consentimientos.
+- Oportunidades de negocio viables en software: margen, descuentos, cobranza, KPIs faltantes.
+
+Reglas de evidencia:
+- Cada hallazgo cita archivo:línea y explica el mecanismo concreto en el código.
+- Clasifícalo como VERIFICADO (el código lo demuestra) o A CONFIRMAR (depende de una norma o
+  criterio del contador/abogado); en los A CONFIRMAR, formula la pregunta exacta para ellos.
+- Prohibido simular con importes inventados o citar artículos de ley sin estar seguro.
+
+Entrega hasta 3 riesgos y hasta 3 recomendaciones, ordenados por impacto en dinero o riesgo legal.
+Si hay menos, entrega menos: mejor 1 hallazgo real que 3 de relleno. Si no hay nada nuevo, escribe
+"Sin hallazgos nuevos" y no abras PR.
+
+Formato: un solo archivo docs/rutinas/operativa_<AAAA-MM-DD>.md, máximo 80 líneas, en español.
+Ábrelo como Pull Request en borrador contra main. Nunca hagas merge.
 ```
 
 Ambas rutinas entregan vía Pull Request — tú apruebas el merge a `main`. Ese PR es tu punto de control humano, ya que el Routine en sí no pausa a preguntar.
