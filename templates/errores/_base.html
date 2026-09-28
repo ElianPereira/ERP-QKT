@@ -5,29 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block titulo %}Quinta Ko'ox Tanil{% endblock %}</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    {% comment %}
+    CSS en línea a propósito: 500.html se renderiza sin request ni context
+    processors (sin static_v), y la página no debe depender de nada que
+    pueda estar caído. Los valores son los tokens --ui-* de
+    static/css/qkt_ui.css y la tarjeta replica la del login: si cambian
+    allá, actualízalos aquí.
+    {% endcomment %}
     <style>
+        :root {
+            --ui-bg: #2c2b28; --ui-surface: #383632; --ui-surface-2: #33312e;
+            --ui-line: #4a4845; --ui-text: #e0ddd4; --ui-text-2: #b5b1a6; --ui-text-3: #8a8780;
+            --ui-green: #2E7D32; --ui-green-hover: #388E3C; --ui-green-text: #6BBF6F;
+            --ui-yellow: #F5C518; --ui-alerta: #E3A33B; --ui-alerta-bg: rgba(227, 163, 59, .15);
+            --ui-r-md: 6px;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f3ef; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        body { font-family: 'IBM Plex Sans', system-ui, sans-serif; background: var(--ui-bg); color: var(--ui-text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
 
-        .error-container { width: 100%; max-width: 460px; }
+        .error-container { width: 100%; max-width: 400px; }
 
-        .logo-section { background: #F5C518; border-radius: 16px 16px 0 0; padding: 30px; text-align: center; }
-        .logo-section img { max-width: 160px; height: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15)); }
+        .logo-section { background: var(--ui-yellow); border-radius: 10px 10px 0 0; padding: 22px; text-align: center; line-height: 0; }
+        .logo-section img { width: 55%; max-width: 150px; height: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.18)); }
 
-        .content-section { background: white; border-radius: 0 0 16px 16px; padding: 36px 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center; }
-        .codigo { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: #b3a86a; text-transform: uppercase; margin-bottom: 10px; }
-        .titulo { font-size: 21px; font-weight: 700; color: #2c2b28; margin-bottom: 10px; }
-        .mensaje { font-size: 14px; color: #6b6a64; line-height: 1.6; margin-bottom: 26px; }
+        .content-section { background: var(--ui-surface); border: 1px solid var(--ui-line); border-top: 0; border-radius: 0 0 10px 10px; padding: 26px 28px 28px; box-shadow: 0 16px 40px rgba(0,0,0,.3); text-align: center; }
+        .codigo { display: inline-block; margin-bottom: 12px; padding: 4px 9px; border-radius: 4px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--ui-alerta); background: var(--ui-alerta-bg); }
+        .titulo { font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 8px; }
+        .mensaje { font-size: 14px; color: var(--ui-text-2); line-height: 1.6; margin-bottom: 24px; }
 
-        .acciones { display: flex; flex-direction: column; gap: 10px; }
-        .btn { display: block; width: 100%; padding: 13px; border-radius: 8px; font-size: 14px; font-weight: 700; text-decoration: none; font-family: 'IBM Plex Sans', sans-serif; transition: background 0.2s, opacity 0.2s; }
-        .btn-primary { background: #2E7D32; color: white; }
-        .btn-primary:hover { background: #388E3C; }
-        .btn-secundario { background: transparent; color: #6b6a64; border: 1px solid #ddd; }
-        .btn-secundario:hover { background: #f5f3ef; }
+        .acciones { display: flex; flex-direction: column; gap: 8px; }
+        .btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 40px; border-radius: var(--ui-r-md); border: 1px solid transparent; font-size: 14px; font-weight: 600; text-decoration: none; font-family: inherit; transition: background-color .12s, border-color .12s; }
+        .btn-primary { background: var(--ui-green); color: #fff; }
+        .btn-primary:hover { background: var(--ui-green-hover); }
+        .btn-secundario { background: transparent; color: var(--ui-text); border-color: var(--ui-line); }
+        .btn-secundario:hover { background: var(--ui-surface-2); border-color: var(--ui-text-3); }
+        .btn:focus-visible { outline: 2px solid var(--ui-yellow); outline-offset: 2px; }
 
-        .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #aaa; }
-        .footer a { color: #2E7D32; text-decoration: none; font-weight: 600; }
+        .footer { text-align: center; margin-top: 16px; font-size: 12px; color: var(--ui-text-3); }
+        @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
     </style>
 </head>
 <body>
@@ -38,7 +53,7 @@
 
         <div class="content-section">
             <div class="codigo">{% block codigo %}Error{% endblock %}</div>
-            <div class="titulo">{% block titulo_mensaje %}Algo no salió como esperábamos{% endblock %}</div>
+            <h1 class="titulo">{% block titulo_mensaje %}Algo no salió como esperábamos{% endblock %}</h1>
             <div class="mensaje">{% block descripcion %}Inténtalo de nuevo en unos minutos.{% endblock %}</div>
 
             <div class="acciones">
@@ -50,7 +65,7 @@
                 viendo la pantalla de login del ERP.
                 {% endcomment %}
                 <a href="https://quintakooxtanil.com/" class="btn btn-primary">Ir al inicio</a>
-                <a href="https://wa.me/529994457178" target="_blank" class="btn btn-secundario">Escríbenos por WhatsApp</a>
+                <a href="https://wa.me/529994457178" target="_blank" rel="noopener" class="btn btn-secundario">Escríbenos por WhatsApp</a>
             </div>
         </div>
 

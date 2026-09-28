@@ -853,8 +853,148 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 .qkt-texto-2 { color: var(--ui-text-2); }
 .qkt-mayusculas { text-transform: uppercase; }
 
+/* ── ACCESO (login y 2FA) ──────────────────────────────────
+   templates/registration/base.html carga este archivo en las pantallas de
+   acceso. Los !important vencen a adminlte.css y a las reglas globales de
+   admin_fix.css (fondo de .login-page y `* { border-color }`).
+   ============================================================ */
+body.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px 16px;
+    color: var(--ui-text);
+}
+body.login-page .login-box { width: 100%; max-width: 400px; margin: 0; padding: 0; }
+body.login-page .login-logo {
+    margin: 0 !important;
+    padding: 22px;
+    background: var(--ui-yellow);
+    border: 1px solid var(--ui-yellow);
+    border-color: var(--ui-yellow) !important;
+    border-bottom: 0;
+    border-radius: 10px 10px 0 0 !important;
+    text-align: center;
+    line-height: 0;
+}
+body.login-page .login-logo img {
+    width: 55% !important;
+    max-width: 150px !important;
+    height: auto !important;
+    margin: 0 auto;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .18));
+}
+/* Jazzmin pinta el mismo logo dos veces (claro/oscuro) y oculta una u otra
+   según el tema: se muestra siempre la primera. */
+body.login-page .login-logo img:first-child { display: block !important; }
+body.login-page .login-logo img + img { display: none !important; }
+body.login-page .login-box .card {
+    margin: 0;
+    background: var(--ui-surface) !important;
+    border: 1px solid var(--ui-line);
+    border-top: 0;
+    border-radius: 0 0 10px 10px !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .3);
+}
+body.login-page .login-card-body { padding: 26px 28px 28px; background: transparent !important; color: var(--ui-text); }
+body.login-page .login-card-body a { color: var(--ui-green-text); }
+body.login-page footer,
+body.login-page .main-footer { display: none; }
+
+.qkt-acceso__cabecera { margin-bottom: 20px; text-align: center; }
+.qkt-acceso__icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: var(--ui-exito-bg);
+    color: var(--ui-exito);
+    font-size: 20px;
+}
+.qkt-acceso__titulo {
+    margin: 0 0 4px !important;
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    line-height: 1.3 !important;
+    color: var(--ui-text) !important;
+}
+.qkt-acceso__intro { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ui-text-2); }
+.qkt-acceso__form .qkt-campo .form-control {
+    max-width: none;
+    height: 40px;
+    padding: 0 12px;
+    font-size: 15px;
+    color: var(--ui-text) !important;
+    background: var(--ui-surface-2) !important;
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+    box-shadow: none !important;
+}
+.qkt-acceso__form .qkt-campo .form-control:focus {
+    border-color: var(--ui-green) !important;
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, .25) !important;
+}
+.qkt-acceso__enlace { margin: 16px 0 0; font-size: 13px; text-align: center; }
+.qkt-btn--bloque { display: flex; width: 100%; height: 40px; font-size: 14px; font-weight: 600 !important; }
+.qkt-acceso__form .qkt-btn--bloque { margin-top: 8px; }
+
+/* 2FA: QR, clave manual y las 6 casillas del código */
+.qkt-2fa__qr {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
+    padding: 14px;
+    background: #fff;
+    border-radius: var(--ui-r-md);
+}
+.qkt-2fa__qr img { width: 180px; height: 180px; }
+.qkt-2fa__manual {
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    background: var(--ui-surface-2);
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+}
+.qkt-2fa__manual summary { font-size: 13px; color: var(--ui-text-2); cursor: pointer; }
+.qkt-2fa__manual-fila { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.qkt-2fa__manual-fila code {
+    flex: 1;
+    font-family: var(--ui-mono);
+    font-size: 14px;
+    letter-spacing: .08em;
+    word-break: break-all;
+    color: var(--ui-text);
+    background: transparent;
+}
+.qkt-2fa__codigo { display: flex; justify-content: center; gap: 8px; margin-bottom: 18px; }
+.qkt-2fa__codigo input {
+    width: 44px;
+    height: 50px;
+    padding: 0;
+    text-align: center;
+    font-family: var(--ui-mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--ui-text);
+    background: var(--ui-surface-2);
+    border: 1px solid var(--ui-line);
+    border-radius: var(--ui-r-md);
+}
+.qkt-2fa__codigo input:focus {
+    outline: 0;
+    border-color: var(--ui-green) !important;
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, .25);
+}
+
 /* ── MÓVIL ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
+    body.login-page .login-card-body { padding: 22px 18px 24px; }
+    .qkt-2fa__codigo { gap: 6px; }
+    .qkt-2fa__codigo input { width: 40px; height: 46px; }
     .qkt-rejilla { grid-template-columns: 1fr; }
     .qkt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .qkt-panel__cuerpo { padding: 14px; }
