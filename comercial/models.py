@@ -1499,7 +1499,7 @@ class FirmaContrato(models.Model):
 
     class Meta:
         verbose_name = "Firma de contrato"
-        verbose_name_plural = "Firmas de contrato"
+        verbose_name_plural = "Firmas"
         ordering = ['-created_at']
 
     def __str__(self):
@@ -1545,7 +1545,7 @@ class DepositoGarantia(models.Model):
 
     class Meta:
         verbose_name = "Depósito en garantía"
-        verbose_name_plural = "Depósitos en garantía"
+        verbose_name_plural = "Depósitos"
         ordering = ['-created_at']
 
     def __str__(self):
@@ -2408,7 +2408,7 @@ class GuiaTipoServicio(models.Model):
 
     class Meta:
         verbose_name = "Guía por tipo de servicio"
-        verbose_name_plural = "Guías por tipo de servicio"
+        verbose_name_plural = "Guías"
 
     def __str__(self):
         return f"Guía — {self.get_tipo_servicio_display()}"
