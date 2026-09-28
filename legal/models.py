@@ -61,7 +61,7 @@ class DocumentoLegal(models.Model):
 
     class Meta:
         verbose_name = 'Documento legal'
-        verbose_name_plural = 'Documentos legales'
+        verbose_name_plural = 'Documentos'
         ordering = ['tipo', '-vigente_desde']
         constraints = [
             models.UniqueConstraint(fields=['tipo', 'version'],
@@ -172,7 +172,7 @@ class Finalidad(models.Model):
 
     class Meta:
         verbose_name = 'Finalidad del tratamiento'
-        verbose_name_plural = 'Finalidades del tratamiento'
+        verbose_name_plural = 'Finalidades'
         ordering = ['orden', 'clave']
 
     def __str__(self):
@@ -218,7 +218,7 @@ class AceptacionLegal(models.Model):
 
     class Meta:
         verbose_name = 'Aceptación legal'
-        verbose_name_plural = 'Aceptaciones legales'
+        verbose_name_plural = 'Aceptaciones'
         ordering = ['-aceptado_en']
         indexes = [
             models.Index(fields=['cliente', '-aceptado_en']),
@@ -283,7 +283,7 @@ class SolicitudARCO(models.Model):
 
     class Meta:
         verbose_name = 'Solicitud ARCO'
-        verbose_name_plural = 'Solicitudes ARCO'
+        verbose_name_plural = 'ARCO'
         ordering = ['-recibida_en']
         indexes = [models.Index(fields=['estado', 'fecha_limite'])]
         permissions = [
