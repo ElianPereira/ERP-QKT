@@ -507,6 +507,7 @@ JAZZMIN_SETTINGS = {
         "contabilidad.configuracioncontable":   "fas fa-cogs",
         "contabilidad.saldoapertura":       "fas fa-hourglass-start",
         "contabilidad.estadocuentabancario":    "fas fa-file-alt",
+        "contabilidad.reglaconciliacion":   "fas fa-magic",
 
         # LEGAL
         "legal":                            "fas fa-gavel",
@@ -658,13 +659,13 @@ JAZZMIN_SETTINGS = {
     "hide_apps": ["otp_totp"],
     "custom_links": {
         "auth": [{
-            "name": "Auth 2FA",
+            "name": "2FA",
             "url": "admin:otp_totp_totpdevice_changelist",
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
         }],
         "contabilidad": [{
-            "name": "Panel de cobertura",
+            "name": "Cobertura",
             "url": "contabilidad:panel_cobertura",
             "icon": "fas fa-clipboard-check",
             "permissions": ["contabilidad.view_movimientocontable"],

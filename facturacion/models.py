@@ -41,7 +41,7 @@ class ConfiguracionContador(models.Model):
 
     class Meta:
         verbose_name = "Configuración del Contador"
-        verbose_name_plural = "Configuración del Contador"
+        verbose_name_plural = "Contador"
 
     def __str__(self):
         return f"{self.nombre} - {self.email}"
@@ -235,7 +235,7 @@ class SolicitudFactura(models.Model):
 
     class Meta:
         verbose_name = "Solicitud de Factura"
-        verbose_name_plural = "Solicitudes de Factura"
+        verbose_name_plural = "Solicitudes"
         ordering = ['-fecha_solicitud']
         indexes = [
             models.Index(fields=['estado', '-fecha_solicitud']),
