@@ -1,6 +1,6 @@
 # Simulación de los 6 casos del reporte — 2026-09-05
 
-Anexo de `rutina_operativa_2026-09-05.md`. Cada riesgo y cada oportunidad de
+Anexo de `operativa_2026-09-05.md`. Cada riesgo y cada oportunidad de
 ese reporte se reprodujo **contra el ERP corriendo de verdad**
 (`manage.py runserver` + Chromium vía Playwright), no leyendo código: el
 cotizador público se llenó y se envió como lo haría un cliente, y el admin se
@@ -60,7 +60,7 @@ hospedaje**: el modelo no tiene dónde ponerlo. Capturas:
 > liquidado **por Airbnb**”), así que no es un pasivo de la Quinta y **debe**
 > quedar fuera de la póliza. Además, los importes de abajo los inventé yo: en
 > ellos el ISH quedaba fuera del neto, de modo que la prueba solo reprodujo mi
-> propia premisa. Ver la corrección en `rutina_operativa_2026-09-05.md`.
+> propia premisa. Ver la corrección en `operativa_2026-09-05.md`.
 
 Se registró un `PagoAirbnb` con `impuesto_hospedaje = $100.00`. El signal emitió
 su póliza y quedó APLICADA y cuadrada — con estas seis líneas:

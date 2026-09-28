@@ -29,7 +29,7 @@
 5. **Testing:** exigir cobertura en pagos (Openpay), cotizador, descuentos, conciliación bancaria — incluir casos límite de redondeo.
 
 **Prompt disparador:**
-> "Inicia Rutina Técnica. Revisa `git diff` de los últimos 3 commits. Reporta solo: (1) N+1 o queries ineficientes, (2) cualquier `float` en cálculos monetarios, (3) deuda técnica crítica. Si hay corrección clara y de bajo riesgo, crea rama `opt/mejora-[fecha]` con el fix y tests. Sin teoría, solo hallazgos y código."
+> Ver el texto completo en "Routine 1 — QKT Rutina Técnica" (abajo). Clave: ventana de 7 días, y solo abre PR si hay un hallazgo de impacto ALTO; los de impacto BAJO se reportan sin tocar código.
 
 ## 3. Agente Operativo, Empresarial y Contable
 **Frecuencia:** quincenal / mensual.
@@ -37,11 +37,11 @@
 1. **Cumplimiento fiscal/legal:** precios IVA-incluido, estado PROFECO (NOM-174), ISH del hospedaje directo (`TASA_ISH`), vigencia de documentos legales (privacidad/T&C) y consentimientos.
 2. **Flujo de caja y cobranza:** modelos de cuentas por cobrar, automatización de recordatorios de pago, detectar transacciones mal clasificadas o cuenta bancaria incorrecta.
 3. **Pricing y rentabilidad:** validar que descuentos, aforo ampliado y add-ons no erosionen margen; señalar inconsistencias en mezcla de negocio.
-4. **Logística/operación:** blindar validación de fechas (check-in 13:00 / check-out 10:00, ventanas de limpieza) para evitar sobreventas entre eventos y hospedaje.
+4. **Logística/operación:** blindar validación de fechas (check-in 14:00 / check-out 10:00, ventanas de limpieza) para evitar sobreventas entre eventos y hospedaje.
 5. **KPIs sugeridos:** margen bruto por unidad de negocio, DSO, ocupación pasadía/hospedaje, ticket promedio, ventas mes vs. cotizaciones EJECUTADA/CERRADA.
 
 **Prompt disparador:**
-> "Inicia Rutina Operativa/Contable. Analiza solo estructura (campos y métodos, NO datos vivos) de modelos de Cotizaciones, Cobranza, Reservas y Contabilidad. Entrega reporte breve en markdown: 3 riesgos fiscales/legales detectados + 3 recomendaciones de negocio viables en software. Guarda en `/docs/`."
+> Ver el texto completo en "Routine 2 — QKT Rutina Operativa/Contable" (abajo). Clave: hasta 3 hallazgos (no una cuota), cada uno con archivo:línea y marcado VERIFICADO o A CONFIRMAR, sin repetir lo ya resuelto en la Watchlist/Memoria, y reporte en `docs/rutinas/`.
 
 ## 4. God Mode + Human-in-the-Loop
 
@@ -87,11 +87,28 @@ Estas dos rutinas se implementan como **Routines** de Claude Code (`claude.ai/co
 - Trigger: Scheduled, semanal
 - Instructions:
 ```
-Ejecuta la Rutina Técnica: revisa el git diff de los últimos 3 commits. Reporta solo (1) N+1 o
-queries ineficientes, (2) cualquier float en cálculos monetarios, (3) deuda técnica crítica. Si hay
-corrección clara y de bajo riesgo, crea rama opt/mejora-<fecha> con el fix y tests, y abre un Pull
-Request contra main. Nunca hagas merge directo ni edites comercial/views_openpay.py,
-comercial/services_openpay.py, legal/ o contabilidad/services.py. Sin teoría, solo hallazgos y código.
+Ejecuta la Rutina Técnica sobre ERP-QKT: revisa el git diff de los commits de main de los últimos 7 días.
+Busca solo (1) N+1 o queries ineficientes, (2) float en cálculos monetarios, (3) deuda técnica crítica
+(bug latente, error silenciado en una ruta de dinero, código muerto que confunde).
+
+Criterio de impacto — antes de reportar un hallazgo, estima su costo real con el volumen del negocio
+(decenas de cotizaciones y ~60 movimientos bancarios al mes). Clasifícalo:
+- ALTO: float en dinero; query que crece por fila en una vista que carga el cliente o el staff en cada
+  visita (listas del admin, portal, cotizador, APIs públicas) con más de 20 queries extra por request;
+  bug que produce un resultado incorrecto.
+- BAJO: todo lo demás (procesos manuales o mensuales, ahorro de milisegundos, micro-optimizaciones,
+  cachés de regex —el módulo re de Python ya cachea—).
+
+Solo si hay al menos un hallazgo ALTO con corrección clara y de bajo riesgo: crea la rama
+opt/mejora-<fecha>, aplica el fix mínimo con un test que falle antes y pase después (para N+1, usa
+assertNumQueries), corre `python manage.py test <app>` y `ruff check .`, y abre un Pull Request en
+borrador contra main. Los hallazgos BAJO nunca abren PR: solo se listan en el reporte.
+
+Si no hay hallazgos ALTO, no crees rama ni PR: responde "Sin hallazgos de impacto" más la lista breve
+de los BAJO (una línea cada uno, con archivo:línea).
+
+Nunca hagas merge ni edites comercial/views_openpay.py, comercial/services_openpay.py, legal/ o
+contabilidad/services.py, ni migraciones. Sin teoría, solo hallazgos y código.
 ```
 
 **Routine 2 — QKT Rutina Operativa/Contable**
@@ -100,11 +117,31 @@ comercial/services_openpay.py, legal/ o contabilidad/services.py. Sin teoría, s
 - Trigger: Scheduled, mensual (o quincenal)
 - Instructions:
 ```
-Ejecuta la Rutina Operativa/Contable: analiza solo estructura (campos y métodos, NO datos vivos) de
-los modelos de Cotizaciones, Cobranza, Reservas y Contabilidad. Detecta riesgos fiscales/legales (IVA,
-ISH, PROFECO, vigencia de documentos legales) y oportunidades de negocio (margen, descuentos, KPIs
-faltantes). Esto es solo análisis, no toques código. Entrega un reporte breve en markdown con 3
-riesgos + 3 recomendaciones, guárdalo en /docs/ y ábrelo como Pull Request para revisión.
+Ejecuta la Rutina Operativa/Contable sobre ERP-QKT. Solo análisis: no toques código ni datos vivos.
+
+Antes de analizar, lee en CLAUDE.md la Watchlist y la Memoria, y los reportes previos en
+docs/rutinas/. Todo lo que ya esté resuelto, decidido por el propietario o reportado antes no se
+vuelve a reportar, salvo que el código haya cambiado y lo contradiga.
+
+Analiza la estructura (campos, métodos, signals, services) de: Cotizacion/ItemCotizacion (evento,
+pasadía y hospedaje directo), Pago/cobranza, DepositoGarantia, descuentos, facturacion y contabilidad
+(pólizas, conciliación). Busca:
+- Riesgos fiscales/legales: IVA incluido al consumidor, ISH del hospedaje directo, retenciones,
+  CFDI, PROFECO/contratos, vigencia de documentos legales y consentimientos.
+- Oportunidades de negocio viables en software: margen, descuentos, cobranza, KPIs faltantes.
+
+Reglas de evidencia:
+- Cada hallazgo cita archivo:línea y explica el mecanismo concreto en el código.
+- Clasifícalo como VERIFICADO (el código lo demuestra) o A CONFIRMAR (depende de una norma o
+  criterio del contador/abogado); en los A CONFIRMAR, formula la pregunta exacta para ellos.
+- Prohibido simular con importes inventados o citar artículos de ley sin estar seguro.
+
+Entrega hasta 3 riesgos y hasta 3 recomendaciones, ordenados por impacto en dinero o riesgo legal.
+Si hay menos, entrega menos: mejor 1 hallazgo real que 3 de relleno. Si no hay nada nuevo, escribe
+"Sin hallazgos nuevos" y no abras PR.
+
+Formato: un solo archivo docs/rutinas/operativa_<AAAA-MM-DD>.md, máximo 80 líneas, en español.
+Ábrelo como Pull Request en borrador contra main. Nunca hagas merge.
 ```
 
 Ambas rutinas entregan vía Pull Request — tú apruebas el merge a `main`. Ese PR es tu punto de control humano, ya que el Routine en sí no pausa a preguntar.
