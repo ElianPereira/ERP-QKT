@@ -29,7 +29,7 @@
 5. **Testing:** exigir cobertura en pagos (Openpay), cotizador, descuentos, conciliación bancaria — incluir casos límite de redondeo.
 
 **Prompt disparador:**
-> "Inicia Rutina Técnica. Revisa `git diff` de los últimos 3 commits. Reporta solo: (1) N+1 o queries ineficientes, (2) cualquier `float` en cálculos monetarios, (3) deuda técnica crítica. Si hay corrección clara y de bajo riesgo, crea rama `opt/mejora-[fecha]` con el fix y tests. Sin teoría, solo hallazgos y código."
+> Ver el texto completo en "Routine 1 — QKT Rutina Técnica" (abajo). Clave: ventana de 7 días, y solo abre PR si hay un hallazgo de impacto ALTO; los de impacto BAJO se reportan sin tocar código.
 
 ## 3. Agente Operativo, Empresarial y Contable
 **Frecuencia:** quincenal / mensual.
@@ -87,11 +87,28 @@ Estas dos rutinas se implementan como **Routines** de Claude Code (`claude.ai/co
 - Trigger: Scheduled, semanal
 - Instructions:
 ```
-Ejecuta la Rutina Técnica: revisa el git diff de los últimos 3 commits. Reporta solo (1) N+1 o
-queries ineficientes, (2) cualquier float en cálculos monetarios, (3) deuda técnica crítica. Si hay
-corrección clara y de bajo riesgo, crea rama opt/mejora-<fecha> con el fix y tests, y abre un Pull
-Request contra main. Nunca hagas merge directo ni edites comercial/views_openpay.py,
-comercial/services_openpay.py, legal/ o contabilidad/services.py. Sin teoría, solo hallazgos y código.
+Ejecuta la Rutina Técnica sobre ERP-QKT: revisa el git diff de los commits de main de los últimos 7 días.
+Busca solo (1) N+1 o queries ineficientes, (2) float en cálculos monetarios, (3) deuda técnica crítica
+(bug latente, error silenciado en una ruta de dinero, código muerto que confunde).
+
+Criterio de impacto — antes de reportar un hallazgo, estima su costo real con el volumen del negocio
+(decenas de cotizaciones y ~60 movimientos bancarios al mes). Clasifícalo:
+- ALTO: float en dinero; query que crece por fila en una vista que carga el cliente o el staff en cada
+  visita (listas del admin, portal, cotizador, APIs públicas) con más de 20 queries extra por request;
+  bug que produce un resultado incorrecto.
+- BAJO: todo lo demás (procesos manuales o mensuales, ahorro de milisegundos, micro-optimizaciones,
+  cachés de regex —el módulo re de Python ya cachea—).
+
+Solo si hay al menos un hallazgo ALTO con corrección clara y de bajo riesgo: crea la rama
+opt/mejora-<fecha>, aplica el fix mínimo con un test que falle antes y pase después (para N+1, usa
+assertNumQueries), corre `python manage.py test <app>` y `ruff check .`, y abre un Pull Request en
+borrador contra main. Los hallazgos BAJO nunca abren PR: solo se listan en el reporte.
+
+Si no hay hallazgos ALTO, no crees rama ni PR: responde "Sin hallazgos de impacto" más la lista breve
+de los BAJO (una línea cada uno, con archivo:línea).
+
+Nunca hagas merge ni edites comercial/views_openpay.py, comercial/services_openpay.py, legal/ o
+contabilidad/services.py, ni migraciones. Sin teoría, solo hallazgos y código.
 ```
 
 **Routine 2 — QKT Rutina Operativa/Contable**
