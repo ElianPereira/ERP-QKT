@@ -248,6 +248,24 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-28 — Sistema de diseño del admin, **fase 4**: login, 2FA y
+  páginas de error. El login y el 2FA extienden `registration/base.html` de
+  Jazzmin, que **no pasa por `templates/admin/base.html`**: `qkt_ui.css`
+  nunca les llegaba. Ahora `templates/registration/base.html` (extiende la
+  de Jazzmin con el mismo truco que `change_list.html`) carga fuentes y
+  `qkt_ui.css{{ static_v }}`; `templates/admin/login.html` es propio
+  (etiquetas visibles, `autocomplete`, errores con `qkt-aviso`) y los
+  estilos viven en `qkt_ui.css`, sección ACCESO. **Había dos bloques de
+  login viejos** con `!important`: en `admin_fix.css` y en
+  `mobile_fix_v4.css` (que `admin_fix.css` importa); se borraron los dos.
+  Trampa: Jazzmin pinta el logo dos veces (`logo-light`/`logo-dark`) y en
+  tema oscuro oculta `logo-light`; ocultar además `logo-dark` deja el login
+  sin logo, por eso se muestra siempre la primera imagen. Las páginas de
+  error siguen con CSS en línea (el 500 se renderiza sin request, sin
+  `static_v`) pero con los tokens `--ui-*` copiados y la tarjeta del login;
+  si cambian los tokens, actualizar `templates/errores/_base.html`. Test:
+  `core_erp/test_pantallas_acceso.py`.
+
 - 2026-09-26 — Sistema de diseño del admin, **fase 3**: páginas propias
   (fuera de las listas). 22 plantillas pasaron a componentes de página de
   `qkt_ui.css` (`qkt-pagina`, `qkt-panel`, `qkt-aviso--{tono}`, `qkt-campo`,
