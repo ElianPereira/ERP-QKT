@@ -1,79 +1,55 @@
 {% extends "registration/base.html" %}
-{% load static %}
-
-{% block extrastyle %}
-<style>
-  .login-box{max-width:440px}
-  .totp-icon{width:56px;height:56px;border-radius:50%;background:rgba(40,167,69,.15);
-    display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.5rem;color:#28a745}
-  .totp-lead{text-align:center;color:var(--bs-secondary-color,#8a8a8a);margin-bottom:20px;font-size:.92rem}
-  .totp-qr-wrap{background:#fff;border-radius:10px;padding:16px;display:flex;justify-content:center;margin-bottom:16px}
-  .totp-qr-wrap img{width:190px;height:190px}
-  .totp-manual{background:rgba(255,255,255,.05);border-radius:8px;padding:12px 14px;margin-bottom:22px}
-  .totp-manual summary{cursor:pointer;font-size:.85rem;color:var(--bs-secondary-color,#8a8a8a)}
-  .totp-manual-row{display:flex;align-items:center;gap:8px;margin-top:10px}
-  .totp-manual-row code{flex:1;font-size:.95rem;letter-spacing:.08em;word-break:break-all;background:transparent}
-  .totp-copy-btn{border:1px solid rgba(255,255,255,.15);background:transparent;color:inherit;
-    border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;white-space:nowrap}
-  .totp-copy-btn:hover{background:rgba(255,255,255,.08)}
-  .totp-code-boxes{display:flex;gap:8px;justify-content:center;margin-bottom:20px}
-  .totp-code-boxes input{width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:600;
-    border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.04);color:inherit}
-  .totp-code-boxes input:focus{outline:0;border-color:#28a745;box-shadow:0 0 0 .2rem rgba(40,167,69,.25)}
-  .totp-footer-link{text-align:center;margin-top:16px;font-size:.85rem}
-</style>
-{% endblock %}
 
 {% block content %}
-<div class="totp-icon"><i class="fas fa-shield-alt"></i></div>
-<p class="login-box-msg" style="margin-bottom:4px;">Protege tu cuenta con 2FA</p>
-<p class="totp-lead">
+<div class="qkt-acceso__cabecera">
+  <div class="qkt-acceso__icono"><i class="fas fa-shield-alt"></i></div>
+  <h1 class="qkt-acceso__titulo">Protege tu cuenta con 2FA</h1>
+  <p class="qkt-acceso__intro">
   Tu cuenta tiene privilegios de superusuario y requiere un segundo factor.
   Escanea el código con tu app de autenticación (Google Authenticator,
   Authy, 1Password…) y confirma el código de 6 dígitos.
-</p>
+  </p>
+</div>
 
 {% if messages %}
   {% for message in messages %}
-    <div class="callout callout-danger"><p>{{ message }}</p></div>
+    <div class="qkt-aviso qkt-aviso--error" role="alert">{{ message }}</div>
   {% endfor %}
 {% endif %}
 
-<div class="totp-qr-wrap">
+<div class="qkt-2fa__qr">
   <img src="{{ qr_data_uri }}" alt="Código QR para activar la autenticación en dos pasos">
 </div>
 
-<details class="totp-manual">
+<details class="qkt-2fa__manual">
   <summary>¿No puedes escanear el código? Ingresa la clave manualmente</summary>
-  <div class="totp-manual-row">
+  <div class="qkt-2fa__manual-fila">
     <code id="totp-secreto">{{ secreto_manual }}</code>
-    <button type="button" class="totp-copy-btn" onclick="totpCopiarSecreto()">Copiar</button>
+    <button type="button" class="qkt-btn qkt-btn--secundario qkt-btn--sm" id="totp-copiar">Copiar</button>
   </div>
 </details>
 
 <form method="post" id="totp-form">
   {% csrf_token %}
   <input type="hidden" name="codigo" id="codigo">
-  <div class="totp-code-boxes">
-    <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" autofocus>
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
+  <div class="qkt-2fa__codigo">
+    <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Dígito 1 del código" autofocus>
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 2 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 3 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 4 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 5 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 6 del código">
   </div>
-  <div class="d-grid">
-    <button type="submit" class="btn btn-success">Activar</button>
-  </div>
+  <button type="submit" class="qkt-btn qkt-btn--primario qkt-btn--bloque">Activar</button>
 </form>
 
-<div class="totp-footer-link">
+<div class="qkt-acceso__enlace">
   <a href="{% url 'logout' %}">Cerrar sesión</a>
 </div>
 
 <script>
 (function() {
-  var boxes = document.querySelectorAll('.totp-code-boxes input');
+  var boxes = document.querySelectorAll('.qkt-2fa__codigo input');
   var hidden = document.getElementById('codigo');
 
   function sync() {
@@ -102,11 +78,11 @@
   });
 
   document.getElementById('totp-form').addEventListener('submit', sync);
-})();
 
-function totpCopiarSecreto() {
-  var texto = document.getElementById('totp-secreto').textContent.trim();
-  navigator.clipboard && navigator.clipboard.writeText(texto);
-}
+  document.getElementById('totp-copiar').addEventListener('click', function() {
+    var texto = document.getElementById('totp-secreto').textContent.trim();
+    navigator.clipboard && navigator.clipboard.writeText(texto);
+  });
+})();
 </script>
 {% endblock %}

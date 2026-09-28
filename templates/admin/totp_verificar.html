@@ -1,53 +1,39 @@
 {% extends "registration/base.html" %}
 
-{% block extrastyle %}
-<style>
-  .login-box{max-width:400px}
-  .totp-icon{width:56px;height:56px;border-radius:50%;background:rgba(40,167,69,.15);
-    display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.5rem;color:#28a745}
-  .totp-lead{text-align:center;color:var(--bs-secondary-color,#8a8a8a);margin-bottom:24px;font-size:.92rem}
-  .totp-code-boxes{display:flex;gap:8px;justify-content:center;margin-bottom:20px}
-  .totp-code-boxes input{width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:600;
-    border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.04);color:inherit}
-  .totp-code-boxes input:focus{outline:0;border-color:#28a745;box-shadow:0 0 0 .2rem rgba(40,167,69,.25)}
-  .totp-footer-link{text-align:center;margin-top:16px;font-size:.85rem}
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="totp-icon"><i class="fas fa-mobile-alt"></i></div>
-<p class="login-box-msg" style="margin-bottom:4px;">Verifica tu identidad</p>
-<p class="totp-lead">Ingresa el código de 6 dígitos de tu app de autenticación.</p>
+<div class="qkt-acceso__cabecera">
+  <div class="qkt-acceso__icono"><i class="fas fa-mobile-alt"></i></div>
+  <h1 class="qkt-acceso__titulo">Verifica tu identidad</h1>
+  <p class="qkt-acceso__intro">Ingresa el código de 6 dígitos de tu app de autenticación.</p>
+</div>
 
 {% if messages %}
   {% for message in messages %}
-    <div class="callout callout-danger"><p>{{ message }}</p></div>
+    <div class="qkt-aviso qkt-aviso--error" role="alert">{{ message }}</div>
   {% endfor %}
 {% endif %}
 
 <form method="post" id="totp-form">
   {% csrf_token %}
   <input type="hidden" name="codigo" id="codigo">
-  <div class="totp-code-boxes">
-    <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" autofocus>
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
-    <input type="text" inputmode="numeric" maxlength="1">
+  <div class="qkt-2fa__codigo">
+    <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Dígito 1 del código" autofocus>
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 2 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 3 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 4 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 5 del código">
+    <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 6 del código">
   </div>
-  <div class="d-grid">
-    <button type="submit" class="btn btn-success">Verificar</button>
-  </div>
+  <button type="submit" class="qkt-btn qkt-btn--primario qkt-btn--bloque">Verificar</button>
 </form>
 
-<div class="totp-footer-link">
+<div class="qkt-acceso__enlace">
   <a href="{% url 'logout' %}">Cerrar sesión</a>
 </div>
 
 <script>
 (function() {
-  var boxes = document.querySelectorAll('.totp-code-boxes input');
+  var boxes = document.querySelectorAll('.qkt-2fa__codigo input');
   var hidden = document.getElementById('codigo');
 
   function sync() {

@@ -1,0 +1,14 @@
+{% extends "registration/base.html" %}
+{% load static %}
+
+{% comment %}
+Base de las pantallas de acceso (login y 2FA). Extiende la de Jazzmin
+(Django salta esta misma plantilla al resolver el extends) y le añade lo que
+templates/admin/base.html carga en el resto del admin: fuentes y
+qkt_ui.css, que antes nunca llegaban aquí porque la base de Jazzmin para
+estas pantallas no pasa por admin/base.html.
+{% endcomment %}
+{% block extrahead %}{{ block.super }}
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="{% static 'css/qkt_ui.css' %}{{ static_v }}">
+{% endblock %}
