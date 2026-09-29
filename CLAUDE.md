@@ -250,6 +250,19 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-29 — **Dirección puede borrar pólizas** (excepción explícita a la
+  soft-deactivation, pedida por el propietario para limpiar pólizas de
+  nómina anteriores al 13/07, cuando se retiró ese signal). El borrado
+  estándar de Django en `PolizaAdmin` queda cerrado para todos
+  (`has_delete_permission=False`; chocaba con el candado de
+  `MovimientoContable`). La acción «Borrar definitivamente (solo
+  Dirección)» solo aparece a `is_superuser`, pide confirmación y motivo, y
+  `services_polizas.eliminar_polizas()` borra póliza + movimientos en un
+  `atomic()` dejando una foto completa en `PolizaEliminada` (migración
+  `contabilidad.0034`), bitácora de solo lectura. Los renglones del estado
+  de cuenta ligados quedan sin asignar (SET_NULL). Para todo lo demás, sigue
+  siendo cancelar.
+
 - 2026-09-29 — **Se retira Revolut / cuenta pagadora** (decisión del
   propietario horas después del PR #342: una sola cuenta, BBVA PYME, para
   todo). Se revirtió el código de #342 (rol de cuenta, importador CSV,

@@ -519,6 +519,33 @@ class MovimientoContable(models.Model):
             raise ValidationError(f"La cuenta {self.cuenta} no permite movimientos directos.")
 
 
+class PolizaEliminada(models.Model):
+    """Bitácora de pólizas borradas por Dirección (excepción explícita a la
+    soft-deactivation). Guarda una foto completa de la póliza y sus
+    movimientos al momento de borrarla; es inmutable desde el admin."""
+    tipo = models.CharField(max_length=1, verbose_name="Tipo de póliza")
+    folio = models.PositiveIntegerField(verbose_name="Folio")
+    fecha = models.DateField(verbose_name="Fecha de póliza")
+    concepto = models.CharField(max_length=500, verbose_name="Concepto")
+    origen = models.CharField(max_length=20, verbose_name="Origen")
+    estado = models.CharField(max_length=10, verbose_name="Estado al borrarse")
+    total = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="Total (debe)")
+    detalle = models.JSONField(verbose_name="Detalle", help_text="Póliza y movimientos tal como estaban.")
+    motivo = models.TextField(verbose_name="Motivo")
+    eliminada_por = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='polizas_eliminadas', verbose_name="Eliminada por",
+    )
+    eliminada_el = models.DateTimeField(auto_now_add=True, verbose_name="Eliminada el")
+
+    class Meta:
+        verbose_name = "Póliza eliminada"
+        verbose_name_plural = "Pólizas eliminadas"
+        ordering = ['-eliminada_el']
+
+    def __str__(self):
+        return f"{self.tipo}-{str(self.folio).zfill(4)} | {self.fecha} | {self.concepto[:50]}"
+
+
 # ==========================================
 # 6. CONCILIACIÓN BANCARIA
 # ==========================================
