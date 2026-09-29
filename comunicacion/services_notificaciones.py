@@ -406,8 +406,8 @@ def notificar_guia_evento(cotizacion):
             cuerpo=(
                 f"La cotización COT-{cotizacion.pk:03d} ({cotizacion.get_tipo_servicio_display()}) "
                 f"tiene fecha de evento el {cotizacion.fecha_evento} y le tocaba recibir "
-                f"la guía automática, pero no hay un PDF configurado en Guías por tipo de "
-                f"servicio. Súbelo desde el admin para que el próximo caso sí se envíe."
+                f"la guía automática, pero no hay un PDF configurado en Eventos → Guías. "
+                f"Súbelo desde el admin para que el próximo caso sí se envíe."
             ),
             clave_idempotencia=f"guia:{cotizacion.pk}:falta_config",
         )

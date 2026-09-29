@@ -26,6 +26,7 @@ class ConstanteSistema(models.Model):
     def __str__(self): return f"{self.clave}: ${self.valor}"
     class Meta:
         verbose_name = "Constante del Sistema"
+        verbose_name_plural = "Constantes"
 
 
 # ==========================================
@@ -274,7 +275,7 @@ class PlantillaBarra(models.Model):
 
     class Meta:
         verbose_name = "Plantilla de Barra"
-        verbose_name_plural = "Plantilla de Barra"
+        verbose_name_plural = "Barra"
         ordering = ['grupo', 'orden', 'categoria']
         unique_together = ['categoria', 'insumo']
 
@@ -1422,7 +1423,7 @@ class Pago(models.Model):
 
     class Meta:
         verbose_name = "Pago Aprobado"
-        verbose_name_plural = "Pagos Aprobados"
+        verbose_name_plural = "Pagos"
         indexes = [
             models.Index(fields=['fecha_pago']),
             models.Index(fields=['cotizacion', 'fecha_pago']),
@@ -1499,7 +1500,7 @@ class FirmaContrato(models.Model):
 
     class Meta:
         verbose_name = "Firma de contrato"
-        verbose_name_plural = "Firmas de contrato"
+        verbose_name_plural = "Firmas"
         ordering = ['-created_at']
 
     def __str__(self):
@@ -1545,7 +1546,7 @@ class DepositoGarantia(models.Model):
 
     class Meta:
         verbose_name = "Depósito en garantía"
-        verbose_name_plural = "Depósitos en garantía"
+        verbose_name_plural = "Depósitos"
         ordering = ['-created_at']
 
     def __str__(self):
@@ -1940,7 +1941,7 @@ class PlanPago(models.Model):
 
     class Meta:
         verbose_name = "Plan de Pago"
-        verbose_name_plural = "Planes de Pago"
+        verbose_name_plural = "Planes"
 
 
 class ParcialidadPago(models.Model):
@@ -2015,7 +2016,7 @@ class RecordatorioPago(models.Model):
 
     class Meta:
         verbose_name = "Recordatorio de Pago"
-        verbose_name_plural = "Recordatorios de Pago"
+        verbose_name_plural = "Recordatorios"
         ordering = ['-fecha_envio']
 
     def __str__(self):
@@ -2113,7 +2114,7 @@ class PortalCliente(models.Model):
 
     class Meta:
         verbose_name = "Portal del Cliente"
-        verbose_name_plural = "Portales de Clientes"
+        verbose_name_plural = "Portales"
 
 # ==========================================
 # 5. ESPACIOS Y ASIGNACIONES (Fase 4)
@@ -2162,7 +2163,7 @@ class AsignacionEspacio(models.Model):
 
     class Meta:
         verbose_name = "Asignación de espacio"
-        verbose_name_plural = "Asignaciones de espacios"
+        verbose_name_plural = "Ocupación"
         indexes = [
             models.Index(fields=['espacio', 'fecha']),
         ]
@@ -2226,7 +2227,7 @@ class AsignacionPersonal(models.Model):
 
     class Meta:
         verbose_name = "Asignación de personal"
-        verbose_name_plural = "Asignaciones de personal"
+        verbose_name_plural = "Personal"
         indexes = [
             models.Index(fields=['empleado', 'fecha']),
         ]
@@ -2353,7 +2354,7 @@ class EspacioLanding(models.Model):
     class Meta:
         ordering = ['orden']
         verbose_name = "Espacio"
-        verbose_name_plural = "Espacios (Página Web)"
+        verbose_name_plural = "Instalaciones"
 
     def __str__(self):
         return f"{self.nombre} ({self.capacidad})"
@@ -2368,7 +2369,7 @@ class PreguntaFrecuente(models.Model):
     class Meta:
         ordering = ['orden']
         verbose_name = "Pregunta frecuente"
-        verbose_name_plural = "Preguntas Frecuentes"
+        verbose_name_plural = "Preguntas"
 
     def __str__(self):
         return self.pregunta
@@ -2386,7 +2387,7 @@ class TipoEvento(models.Model):
 
     class Meta:
         verbose_name = "Tipo de Evento"
-        verbose_name_plural = "Tipos de Evento"
+        verbose_name_plural = "Tipos"
         ordering = ['orden', 'nombre']
 
     def __str__(self):
@@ -2408,7 +2409,7 @@ class GuiaTipoServicio(models.Model):
 
     class Meta:
         verbose_name = "Guía por tipo de servicio"
-        verbose_name_plural = "Guías por tipo de servicio"
+        verbose_name_plural = "Guías"
 
     def __str__(self):
         return f"Guía — {self.get_tipo_servicio_display()}"
@@ -2535,7 +2536,7 @@ class Descuento(models.Model):
 
     class Meta:
         verbose_name = "Descuento"
-        verbose_name_plural = "Reglas de Descuento"
+        verbose_name_plural = "Reglas"
         ordering = ['-prioridad', 'nombre']
 
     def clean(self):
@@ -2617,7 +2618,7 @@ class DescuentoAplicado(models.Model):
 
     class Meta:
         verbose_name = "Descuento Aplicado"
-        verbose_name_plural = "Aplicados (auditoría)"
+        verbose_name_plural = "Aplicados"
         ordering = ['-fecha_aplicacion']
 
     def __str__(self):
@@ -2680,7 +2681,7 @@ class OpenpayTransaccion(models.Model):
 
     class Meta:
         verbose_name = "Transacción Openpay"
-        verbose_name_plural = "Transacciones Openpay"
+        verbose_name_plural = "Transacciones"
         ordering = ['-created_at']
 
     def __str__(self):

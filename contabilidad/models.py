@@ -87,7 +87,7 @@ class CuentaContable(models.Model):
 
     class Meta:
         verbose_name = "Cuenta contable"
-        verbose_name_plural = "Catálogo de cuentas"
+        verbose_name_plural = "Catálogo"
         ordering = ['codigo_sat']
         indexes = [
             models.Index(fields=['codigo_sat']),
@@ -148,7 +148,7 @@ class UnidadNegocio(models.Model):
 
     class Meta:
         verbose_name = "Unidad de negocio"
-        verbose_name_plural = "Unidades de negocio"
+        verbose_name_plural = "Unidades"
         ordering = ['clave']
 
     def __str__(self):
@@ -213,7 +213,7 @@ class CuentaBancaria(models.Model):
 
     class Meta:
         verbose_name = "Cuenta bancaria"
-        verbose_name_plural = "Cuentas bancarias"
+        verbose_name_plural = "Bancos"
         ordering = ['banco', 'nombre']
 
     def __str__(self):
@@ -648,7 +648,7 @@ class ConciliacionBancaria(models.Model):
 
     class Meta:
         verbose_name = "Conciliación bancaria"
-        verbose_name_plural = "Conciliaciones bancarias"
+        verbose_name_plural = "Conciliaciones"
         unique_together = ['cuenta_bancaria', 'mes', 'anio']
         ordering = ['-anio', '-mes']
 
@@ -858,7 +858,7 @@ class SaldoApertura(models.Model):
 
     class Meta:
         verbose_name = "Saldo de apertura"
-        verbose_name_plural = "Saldos de apertura"
+        verbose_name_plural = "Apertura"
         unique_together = ['cuenta_bancaria', 'fecha_corte']
         ordering = ['-fecha_corte']
 
@@ -931,7 +931,7 @@ class EstadoCuentaBancario(models.Model):
 
     class Meta:
         verbose_name = "Estado de cuenta bancario"
-        verbose_name_plural = "Estados de cuenta bancarios"
+        verbose_name_plural = "Estados"
         unique_together = ['cuenta_bancaria', 'periodo_mes', 'periodo_anio']
         ordering = ['-periodo_anio', '-periodo_mes']
 
@@ -1076,7 +1076,7 @@ class ReglaConciliacion(models.Model):
 
     class Meta:
         verbose_name = "Regla de conciliación"
-        verbose_name_plural = "Reglas de conciliación"
+        verbose_name_plural = "Reglas"
         ordering = ['prioridad', 'id']
 
     def __str__(self):

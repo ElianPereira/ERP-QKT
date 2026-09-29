@@ -54,7 +54,7 @@ cliente, ambos servidos con templates Django normales.
   grande del proyecto, ~400 líneas), `ItemCotizacion`, `ContratoServicio`,
   `Espacio`, `AsignacionEspacio`, `AsignacionPersonal`, `TipoEvento`,
   `Temporada`, `Descuento`/`DescuentoAplicado`.
-- **Pagos**: `Pago` ("Pagos Aprobados" en el admin — ya reflejados en
+- **Pagos**: `Pago` ("Pagos" en el admin — ya reflejados en
   cuenta), `PlanPago`/`ParcialidadPago`, `RecordatorioPago`,
   `OpenpayTransaccion` (log de cada cargo/webhook de Openpay),
   `PortalCliente` (token de acceso del portal público).

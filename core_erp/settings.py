@@ -492,6 +492,9 @@ JAZZMIN_SETTINGS = {
         "comercial.DescuentoAplicado":      "fas fa-history",
         "comercial.Temporada":              "fas fa-calendar-week",
         "comercial.GuiaTipoServicio":       "fas fa-book-open",
+        "comercial.FirmaContrato":          "fas fa-pen-nib",
+        "comercial.DepositoGarantia":       "fas fa-lock",
+        "comercial.Contracargo":            "fas fa-undo-alt",
 
         # CONTABILIDAD
         "contabilidad":                     "fas fa-calculator",
@@ -504,6 +507,7 @@ JAZZMIN_SETTINGS = {
         "contabilidad.configuracioncontable":   "fas fa-cogs",
         "contabilidad.saldoapertura":       "fas fa-hourglass-start",
         "contabilidad.estadocuentabancario":    "fas fa-file-alt",
+        "contabilidad.reglaconciliacion":   "fas fa-magic",
 
         # LEGAL
         "legal":                            "fas fa-gavel",
@@ -590,12 +594,15 @@ JAZZMIN_SETTINGS = {
         "comercial.PortalCliente",
         "comercial.ConstanteSistema",
         "comercial.ContratoServicio",
+        "comercial.FirmaContrato",
         "comercial.Espacio",
         "comercial.AsignacionEspacio",
         "comercial.AsignacionPersonal",
         "comercial.PlanPago",
         "comercial.RecordatorioPago",
         "comercial.OpenpayTransaccion",
+        "comercial.DepositoGarantia",
+        "comercial.Contracargo",
         "comercial.ImagenLanding",
         "comercial.TestimonioLanding",
         "comercial.EspacioLanding",
@@ -652,13 +659,13 @@ JAZZMIN_SETTINGS = {
     "hide_apps": ["otp_totp"],
     "custom_links": {
         "auth": [{
-            "name": "Auth 2FA",
+            "name": "2FA",
             "url": "admin:otp_totp_totpdevice_changelist",
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
         }],
         "contabilidad": [{
-            "name": "Panel de cobertura",
+            "name": "Cobertura",
             "url": "contabilidad:panel_cobertura",
             "icon": "fas fa-clipboard-check",
             "permissions": ["contabilidad.view_movimientocontable"],

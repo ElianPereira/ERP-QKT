@@ -51,6 +51,7 @@ MODEL_SUBGROUPS = {
                         'comercial.cliente',
                         'comercial.portalcliente',
                         'comercial.contratoservicio',
+                        'comercial.firmacontrato',
                     },
                 },
                 {
@@ -72,6 +73,8 @@ MODEL_SUBGROUPS = {
                 'comercial.planpago',
                 'comercial.recordatoriopago',
                 'comercial.openpaytransaccion',
+                'comercial.depositogarantia',
+                'comercial.contracargo',
             },
         },
         {

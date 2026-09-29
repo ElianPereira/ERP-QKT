@@ -79,7 +79,7 @@ class ComunicacionCliente(models.Model):
 
     class Meta:
         verbose_name = "Comunicación con cliente"
-        verbose_name_plural = "Comunicaciones con clientes"
+        verbose_name_plural = "Bitácora"
         ordering = ['-fecha_envio']
         indexes = [
             models.Index(fields=['cotizacion', '-fecha_envio']),
