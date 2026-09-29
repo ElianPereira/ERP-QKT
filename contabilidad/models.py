@@ -539,7 +539,7 @@ class PolizaEliminada(models.Model):
 
     class Meta:
         verbose_name = "Póliza eliminada"
-        verbose_name_plural = "Pólizas eliminadas"
+        verbose_name_plural = "Eliminadas"
         ordering = ['-eliminada_el']
 
     def __str__(self):

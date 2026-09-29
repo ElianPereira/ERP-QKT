@@ -85,6 +85,11 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
   infraestructura/UI y no deben contener reglas de negocio nuevas — este
   repo no tiene un `/docs` de arquitectura formal, el criterio vigente es
   este.
+- Apartado nuevo en el admin (modelo registrado): `verbose_name_plural` de
+  **una sola palabra** con acentos (así se lee en el menú lateral:
+  "Pólizas", "Reglas", "Eliminadas") e **ícono propio** en
+  `JAZZMIN_SETTINGS['icons']`, además de su lugar en
+  `order_with_respect_to`. Lo vigila `core_erp/test_menu_admin.py`.
 - Nunca hardcodees secretos ni llaves API: todo vía `config()`/variables de
   entorno, igual que en todo `settings.py`. Un literal de credencial fuera
   de archivos de test bloquea el lint (`ruff` `S105`/`S106`/`S107`) y el

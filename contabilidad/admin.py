@@ -323,7 +323,7 @@ class PolizaAdmin(admin.ModelAdmin):
         "Se borran la póliza y todos sus movimientos; no se puede deshacer. Si "
         "estaba aplicada, deja de contar en saldos y reportes, y los renglones "
         "del estado de cuenta ligados a ella quedan sin asignar. Queda registro "
-        "en «Pólizas eliminadas» con quién, cuándo, el motivo y una copia completa.",
+        "en Contabilidad → Eliminadas con quién, cuándo, el motivo y una copia completa.",
         template_name='admin/contabilidad/confirmar_eliminar_polizas.html',
     )
     def eliminar_polizas(self, request, queryset):
@@ -334,7 +334,7 @@ class PolizaAdmin(admin.ModelAdmin):
         except (PermissionDenied, ValidationError) as e:
             self.message_user(request, ' '.join(getattr(e, 'messages', [str(e)])), level=messages.ERROR)
             return
-        self.message_user(request, f"{borradas} póliza(s) borrada(s); quedaron en «Pólizas eliminadas».")
+        self.message_user(request, f"{borradas} póliza(s) borrada(s); quedaron en Contabilidad → Eliminadas.")
 
 
 @admin.register(PolizaEliminada)
