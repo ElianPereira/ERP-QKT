@@ -1831,9 +1831,9 @@ class Compra(models.Model):
                 and self.proveedor.categoria_gasto:
             self.categoria = self.proveedor.categoria_gasto
         # Cuenta de pago: igual que unidad_negocio, se asigna sola solo si no
-        # hay ambigüedad posible — una única cuenta bancaria activa para esa
-        # unidad de negocio. Con dos o más cuentas activas (o ninguna) se deja
-        # en blanco, exactamente como hoy: nunca se adivina cuál de varias.
+        # hay ambigüedad posible — la cuenta pagadora de la unidad o, si no hay,
+        # su única cuenta bancaria activa. Con varias y ninguna pagadora se deja
+        # en blanco: nunca se adivina cuál de varias.
         if not self.pk and self.unidad_negocio_id and not self.cuenta_pago_id:
             from contabilidad.models import CuentaBancaria
             cuentas_activas = list(
@@ -1841,8 +1841,10 @@ class Compra(models.Model):
                     unidad_negocio_id=self.unidad_negocio_id, activa=True
                 )[:2]
             )
-            if len(cuentas_activas) == 1:
-                self.cuenta_pago = cuentas_activas[0]
+            self.cuenta_pago = (
+                CuentaBancaria.pagadora(self.unidad_negocio_id)
+                or (cuentas_activas[0] if len(cuentas_activas) == 1 else None)
+            )
         super().save(*args, **kwargs)
         if self.archivo_xml and self.pk:
             try:

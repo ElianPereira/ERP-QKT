@@ -33,7 +33,7 @@ CARGO_TRASPASO_TYPO = 'PAGO CUENTA DE TERCERO 0081158420 BNET 1112223334 Traspas
 ABONO_TRASPASO = 'SPEI RECIBIDOSANTANDER 0174899148 014 0595539TRASPASO A QKT 00014910569118634338'
 COMISION = 'SERV BANCA INTERNET OPS SERV BCA IN'
 IVA_COMISION = 'IVA COM SERV BCA INTERNET'
-TARJETA_USD = 'RAILWAY ******3288 USD 6.30TC017.3587AUT: 879462'
+TARJETA_USD = 'VERCEL ******3288 USD 6.30TC017.3587AUT: 879462'
 TARJETA_RFC = 'FACEBOOK MEXICO S DE R ******3288 RFC: FME 120803935 10:55 AUT: 958680'
 DEPOSITO_CLIENTE = 'SPEI RECIBIDOHSBC 0119876101 021 0090826Transferencia SPEI 00021919063875963188 CLIENTE PRUEBA'
 
@@ -93,7 +93,7 @@ class ReglasBancoBase(TestCase):
 class ReglasDeSistemaTest(ReglasBancoBase):
 
     def test_las_reglas_de_sistema_vienen_sembradas(self):
-        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 11)
+        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 16)
 
     def test_traspaso_a_cuenta_propia_se_asienta_y_empareja_solo(self):
         mov = self._mov(CARGO_TRASPASO, cargo='450.00')
@@ -186,7 +186,7 @@ class AprendizajeTest(ReglasBancoBase):
             (TARJETA_RFC, {'patrones': 'RFC: FME 120803935', 'cuenta_tercero': ''}),
             (CARGO_TRASPASO_TYPO, {'patrones': '', 'cuenta_tercero': '1112223334'}),
             (ABONO_TRASPASO, {'patrones': '', 'cuenta_tercero': '014910569118634338'}),
-            (TARJETA_USD, {'patrones': 'RAILWAY', 'cuenta_tercero': ''}),
+            (TARJETA_USD, {'patrones': 'VERCEL', 'cuenta_tercero': ''}),
             ('ANTHROPIC* CLAUDE SUB ******3288 USD 20.00', {'patrones': 'ANTHROPIC', 'cuenta_tercero': ''}),
             ('SMARTPY*SESSERVKANASIN ******3288', {'patrones': 'SMARTPY*SESSERVKANASIN', 'cuenta_tercero': ''}),
         ]
@@ -198,7 +198,7 @@ class AprendizajeTest(ReglasBancoBase):
 
     def test_lo_clasificado_se_asienta_solo_el_mes_siguiente(self):
         agosto = self._mov(TARJETA_USD, cargo='109.36')
-        poliza, regla = clasificar_movimiento(agosto, self.gasto, self.usuario, nombre_regla='Hosting Railway')
+        poliza, regla = clasificar_movimiento(agosto, self.gasto, self.usuario, nombre_regla='Hosting Vercel')
 
         agosto.refresh_from_db()
         self.assertEqual(poliza.estado, 'APLICADA')
@@ -207,7 +207,7 @@ class AprendizajeTest(ReglasBancoBase):
         self.assertEqual(regla.created_by, self.usuario)
 
         septiembre = self._estado(9)
-        otro = self._mov('RAILWAY ******3288 USD 7.80TC017.1487AUT: 807041', cargo='133.76', estado=septiembre)
+        otro = self._mov('VERCEL ******3288 USD 7.80TC017.1487AUT: 807041', cargo='133.76', estado=septiembre)
         emparejar_y_asentar(septiembre, usuario=self.usuario)
         otro.refresh_from_db()
         self.assertTrue(self._polizas_banco(otro).get().movimientos.filter(cuenta=self.gasto).exists())
@@ -255,11 +255,11 @@ class ClasificarVistaTest(ReglasBancoBase):
 
     def test_clasificar_asienta_y_recuerda(self):
         self.assertEqual(self.client.get(self.url).status_code, 200)
-        respuesta = self.client.post(self.url, {'cuenta': self.gasto.pk, 'recordar': 'on', 'nombre': 'Railway'})
+        respuesta = self.client.post(self.url, {'cuenta': self.gasto.pk, 'recordar': 'on', 'nombre': 'Vercel'})
         self.assertEqual(respuesta.status_code, 302)
         self.mov.refresh_from_db()
         self.assertIsNotNone(self.mov.movimiento_contable_id)
-        self.assertTrue(ReglaConciliacion.objects.filter(patrones='RAILWAY', origen='APRENDIDA').exists())
+        self.assertTrue(ReglaConciliacion.objects.filter(patrones='VERCEL', origen='APRENDIDA').exists())
 
     def test_no_permite_la_cuenta_de_bancos_como_contrapartida(self):
         respuesta = self.client.post(self.url, {'cuenta': self.cuenta_banco.pk})
