@@ -248,6 +248,15 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-29 — **`list_editable` nunca guardaba en todo el ERP** (reportado
+  con la categoría de gasto en Proveedores: se elegía y al recargar volvía).
+  `templates/admin/pagination.html` es propia y sustituye a la de Jazzmin,
+  que es donde vive el botón `_save`; sin ese botón el formset nunca se
+  envía. Ahora lo trae, y `qkt_ui.js` lo hace flotar abajo a la derecha
+  ("Cambios sin guardar") en cuanto se toca un campo de la tabla. Es
+  `position: fixed`, no `sticky`: el padre del paginador solo mide su fila.
+  Test: `core_erp/test_admin_listas.py::ListaEditableGuardaTest`.
+
 - 2026-09-28 — Sistema de diseño del admin, **fase 4**: login, 2FA y
   páginas de error. El login y el 2FA extienden `registration/base.html` de
   Jazzmin, que **no pasa por `templates/admin/base.html`**: `qkt_ui.css`
