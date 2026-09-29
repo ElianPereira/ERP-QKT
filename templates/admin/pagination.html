@@ -1,6 +1,12 @@
 {% load admin_list %}
 {% load i18n %}
 
+{% comment %}
+Sustituye a la de Jazzmin. El botón `_save` no es opcional: sin él, los campos
+de `list_editable` (categoría del proveedor, activo, orden…) se pueden cambiar
+pero nunca se envían, y al recargar vuelven a su valor. qkt_ui.js lo deja
+flotando a la vista en cuanto hay un cambio sin guardar.
+{% endcomment %}
 <p class="paginator">
 {% if pagination_required %}
 {% for i in page_range %}
@@ -8,4 +14,10 @@
 {% endfor %}
 {% endif %}
 {{ cl.result_count }} {% if cl.result_count == 1 %}{% translate "entry" %}{% else %}{% translate "entries" %}{% endif %}
+{% if cl.formset and cl.result_count %}
+    <span class="qkt-guardar-lista">
+        <span class="qkt-guardar-lista__aviso" hidden>Cambios sin guardar</span>
+        <button type="submit" name="_save" class="qkt-btn qkt-btn--primario qkt-btn--sm">Guardar cambios</button>
+    </span>
+{% endif %}
 </p>

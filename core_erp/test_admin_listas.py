@@ -64,3 +64,32 @@ class ConTituloTest(TestCase):
         spec = con_titulo('INE revisada')(campo, None, {}, Cotizacion, None, 'identificacion_revisada')
         self.assertIsInstance(spec, BooleanFieldListFilter)
         self.assertEqual(spec.title, 'INE revisada')
+
+
+class ListaEditableGuardaTest(TestCase):
+    """El botón `_save` vive en admin/pagination.html (propia): sin él, lo
+    que se cambia en una columna de `list_editable` nunca se envía."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('dir', 'dir@example.com', 'x-segura-123')
+        login_superuser_con_totp(self.client, self.admin)
+
+    def test_lista_editable_trae_boton_guardar(self):
+        from comercial.models import Proveedor
+        Proveedor.objects.create(nombre='Ferretería')
+        html = self.client.get(reverse('admin:comercial_proveedor_changelist')).content.decode()
+        self.assertIn('name="_save"', html)
+
+    def test_cambiar_categoria_del_proveedor_desde_la_lista_se_guarda(self):
+        from comercial.models import Proveedor
+        prov = Proveedor.objects.create(nombre='Ferretería')
+        url = reverse('admin:comercial_proveedor_changelist')
+        response = self.client.post(url, {
+            'form-TOTAL_FORMS': '1', 'form-INITIAL_FORMS': '1',
+            'form-MIN_NUM_FORMS': '0', 'form-MAX_NUM_FORMS': '1000',
+            'form-0-id': str(prov.pk), 'form-0-categoria_gasto': 'MANTENIMIENTO', 'form-0-activo': 'on',
+            '_save': 'Guardar cambios',
+        })
+        self.assertEqual(response.status_code, 302)
+        prov.refresh_from_db()
+        self.assertEqual(prov.categoria_gasto, 'MANTENIMIENTO')

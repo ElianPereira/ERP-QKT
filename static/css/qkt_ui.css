@@ -432,6 +432,22 @@ body.change-list .actions button[name="index"] {
 }
 body.change-list .actions .action-counter { color: var(--ui-text); font-weight: 600; font-size: 13px; }
 
+/* ── GUARDAR list_editable: flotante con cambios pendientes ── */
+/* Fijo y no sticky: el padre del paginador solo mide su propia fila. */
+.qkt-guardar-lista { display: inline-flex; align-items: center; gap: 10px; margin-left: 8px; }
+.qkt-guardar-lista__aviso { color: var(--ui-text); font-weight: 600; }
+.qkt-guardar-lista.is-pendiente {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1040;
+    padding: 10px 14px;
+    border-radius: var(--ui-r-md);
+    background: var(--ui-surface) !important;
+    border: 1px solid rgba(107, 191, 111, .55) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+}
+
 /* ── TABLA DE LA LISTA ─────────────────────────────────────── */
 body.change-list #result_list {
     border: 1px solid var(--ui-line) !important;

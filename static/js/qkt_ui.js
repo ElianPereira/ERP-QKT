@@ -135,6 +135,20 @@
             sincronizar();
         }
 
+        // list_editable: con un cambio pendiente, el botón Guardar flota a la
+        // vista para que no quede escondido al final de una lista larga
+        var guardar = document.querySelector('.qkt-guardar-lista');
+        if (guardar && tabla) {
+            var marcarPendiente = function (e) {
+                if (!e.target.matches('input.action-select, #action-toggle')) {
+                    guardar.classList.add('is-pendiente');
+                    guardar.querySelector('.qkt-guardar-lista__aviso').hidden = false;
+                }
+            };
+            tabla.addEventListener('change', marcarPendiente);
+            tabla.addEventListener('input', marcarPendiente);
+        }
+
         // "Más filtros"
         var boton = document.querySelector('.qkt-mas-filtros');
         var extra = document.getElementById('qkt-filtros-extra');
