@@ -43,8 +43,11 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
 - **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
   `clientes.quintakooxtanil.com` (portal cliente, Railway),
   `quintakooxtanil.com` (landing pública, Cloudflare Pages).
-- **Cuenta bancaria**: BBVA Maestra PYME → QUINTA. La BBVA Libretón Básico
-  (antes AIRBNB) ya salió del ERP (Issue #311).
+- **Cuentas bancarias** (Issue #341): BBVA Maestra PYME → QUINTA **solo
+  recibe** (Openpay, terminal, SPEI de clientes); **Revolut (MXN) paga
+  todo** (`CuentaBancaria.rol='PAGO'`) y guarda el excedente en su ahorro.
+  Lo personal del propietario va en otra cuenta que no entra al ERP. La BBVA
+  Libretón Básico (antes AIRBNB) ya salió del ERP (Issue #311).
 
 ## Estándares de código (obligatorio, sin excepción)
 
@@ -247,6 +250,37 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-09-29 — **Revolut como cuenta pagadora** (Issue #341, decisión del
+  propietario: la tarjeta de BBVA no sirve para cobros recurrentes en línea
+  y la cuenta no da rendimiento). `CuentaBancaria.rol` (`AMBOS`/`COBRO`/
+  `PAGO`): `CuentaBancaria.pagadora()` es la fuente única de "de dónde sale
+  el dinero" — la usan `Compra.save()` (antes solo asignaba con una única
+  cuenta activa) y `signals.get_cuenta_egreso()` para reembolsos y
+  devoluciones de depósito por transferencia; los reversos de Openpay y
+  terminal siguen en `BANCO_PRINCIPAL`, porque salen de donde entró el
+  cobro. **Importador CSV** (`_parsear_csv_revolut`, calibrado con el export
+  real de agosto): un archivo trae dos productos (`Current` y el ahorro) que
+  se importan como una sola cuenta; se descartan los pares que no sacan
+  dinero de Revolut (paso entre productos = mismo `Started Date` e importe
+  contrario; envío SPEI devuelto = `Refund` del mismo importe); los
+  intereses diarios se suman en un abono al mes y lo retenido en un cargo;
+  `Balance = anterior + Amount − Fee` por producto y un saldo que no cuadra
+  rechaza el archivo. No trae fecha de corte: es el último día del periodo
+  y un movimiento de otro mes rechaza el archivo. **Traspasos entre cuentas
+  propias** (`emparejar_traspasos_propios`): solo con las dos puntas
+  cargadas —cargo en una, abono igual en la otra, ±3 días— y el concepto de
+  cada lado calzando con los `textos_traspaso` de su propia cuenta (BBVA
+  imprime lo de Revolut como `RECIBIDOSTP`, de ahí el `*` inicial nuevo en
+  los patrones). Con una sola punta no se adivina: un cliente que paga
+  desde una fintech también llega "por STP". Póliza D banco↔banco; si una
+  punta ya estaba como retiro/aportación del dueño (el otro estado de cuenta
+  llegó después), esa póliza se cancela y la sustituye el traspaso.
+  `clave_aprendizaje` aprende el comercio de Revolut tal cual (no trae RFC
+  ni `******`). Suscripciones sin CFDI (Railway, Anthropic, Cloudflare) van
+  a Gastos no deducibles hasta que el contador indique otra cuenta;
+  intereses a `INGRESOS_FINANCIEROS` (402.01). La `CuentaBancaria` de
+  Revolut (CLABE) se da de alta en el admin, no por migración.
 
 - 2026-09-29 — **`list_editable` nunca guardaba en todo el ERP** (reportado
   con la categoría de gasto en Proveedores: se elegía y al recargar volvía).

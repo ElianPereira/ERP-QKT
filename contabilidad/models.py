@@ -206,6 +206,22 @@ class CuentaBancaria(models.Model):
         verbose_name="Fecha del saldo inicial"
     )
     activa = models.BooleanField(default=True)
+    ROL_CHOICES = [
+        ('AMBOS', 'Cobros y pagos'),
+        ('COBRO', 'Solo cobros'),
+        ('PAGO', 'Cuenta pagadora'),
+    ]
+    rol = models.CharField(
+        max_length=5, choices=ROL_CHOICES, default='AMBOS', verbose_name="Uso",
+        help_text="La cuenta pagadora es la que asientan solas las compras nuevas y los "
+                  "reembolsos por transferencia. Los cobros siguen en el Banco principal.",
+    )
+    textos_traspaso = models.CharField(
+        max_length=200, blank=True, verbose_name="Textos de traspaso entre cuentas propias",
+        help_text="Cómo aparece EN ESTE estado de cuenta un envío a (o desde) otra cuenta "
+                  "propia, separado por «|». Ej. BBVA: *STP|REVOLUT; Revolut: BBVA MEXICO. "
+                  "Un «*» al inicio acepta texto pegado antes (BBVA imprime «RECIBIDOSTP»).",
+    )
 
     # Metadatos
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
@@ -218,6 +234,28 @@ class CuentaBancaria(models.Model):
 
     def __str__(self):
         return f"{self.banco} - {self.nombre}"
+
+    # Cómo imprime cada banco un SPEI de/para la otra cuenta propia: Revolut
+    # liquida por STP y BBVA lo pega al tipo («SPEI RECIBIDOSTP»).
+    TEXTOS_TRASPASO_POR_BANCO = {'BBVA': '*STP|REVOLUT', 'REVOLUT': 'BBVA MEXICO'}
+
+    def save(self, *args, **kwargs):
+        if not self.textos_traspaso:
+            banco = (self.banco or '').upper()
+            self.textos_traspaso = next(
+                (textos for clave, textos in self.TEXTOS_TRASPASO_POR_BANCO.items() if clave in banco), '',
+            )
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def pagadora(cls, unidad_negocio_id=None):
+        """La única cuenta pagadora activa (de la unidad, si se indica), o None:
+        con dos o ninguna no se adivina."""
+        qs = cls.objects.filter(activa=True, rol='PAGO')
+        if unidad_negocio_id:
+            qs = qs.filter(unidad_negocio_id=unidad_negocio_id)
+        cuentas = list(qs[:2])
+        return cuentas[0] if len(cuentas) == 1 else None
 
     @property
     def saldo_actual(self):
@@ -779,6 +817,7 @@ class ConfiguracionContable(models.Model):
         ('INVERSIONES', 'Inversiones (dinero enviado a o recuperado de una inversión)'),
         ('GASTO_NO_DEDUCIBLE', 'Gastos no deducibles (sin CFDI)'),
         ('PARTIDAS_POR_IDENTIFICAR', 'Partidas bancarias por identificar'),
+        ('INGRESOS_FINANCIEROS', 'Ingresos financieros (intereses de la cuenta)'),
     ]
 
     operacion = models.CharField(
@@ -886,6 +925,7 @@ class EstadoCuentaBancario(models.Model):
     FORMATO_CHOICES = [
         ('PDF', 'PDF'),
         ('XML', 'XML'),
+        ('CSV', 'CSV (Revolut)'),
     ]
     ESTADO_CHOICES = [
         ('SUBIDO', 'Subido, sin procesar'),
@@ -1005,6 +1045,26 @@ def normalizar_texto_banco(texto):
     return ' '.join(sin_acentos.upper().split())
 
 
+def _regex_patron(patron):
+    """Palabra completa; prefijo si termina en «*», sufijo si empieza con «*».
+    Las abreviaciones cortas (INS, PUB, NOM) no pueden buscarse como texto
+    suelto: «INS» calzaría con «INSURGENTES» o con el nombre de un cliente. El
+    límite solo mira letras: BBVA pega el concepto a los dígitos de la
+    referencia («0595539TRASPASO A QKT») y el banco al tipo («RECIBIDOSTP»)."""
+    import re
+    inicio = r'(?<![A-Z])'
+    if patron.startswith('*') and len(patron) > 1:
+        inicio, patron = '', patron[1:]
+    if patron.endswith('*') and len(patron) > 1:
+        return re.compile(inicio + re.escape(patron[:-1]))
+    return re.compile(inicio + re.escape(patron) + r'(?![A-Z])')
+
+
+def texto_calza(texto_normalizado, patrones):
+    """¿El texto (ya normalizado) contiene alguno de los patrones?"""
+    return any(_regex_patron(p).search(texto_normalizado) for p in patrones)
+
+
 class ReglaConciliacion(models.Model):
     """
     Regla que convierte un movimiento del estado de cuenta sin asiento en una
@@ -1094,18 +1154,6 @@ class ReglaConciliacion(models.Model):
     def lista_patrones(self):
         return [normalizar_texto_banco(p) for p in self.patrones.split('|') if p.strip()]
 
-    @staticmethod
-    def _regex_patron(patron):
-        """Palabra completa, o prefijo si termina en «*». Las abreviaciones
-        cortas (INS, PUB, NOM) no pueden buscarse como texto suelto: «INS»
-        calzaría con «INSURGENTES» o con el nombre de un cliente. El límite
-        solo mira letras: BBVA pega el concepto a los dígitos de la referencia
-        («0595539TRASPASO A QKT»)."""
-        import re
-        if patron.endswith('*') and len(patron) > 1:
-            return re.compile(r'(?<![A-Z])' + re.escape(patron[:-1]))
-        return re.compile(r'(?<![A-Z])' + re.escape(patron) + r'(?![A-Z])')
-
     def coincide(self, movimiento):
         if self.tipo_movimiento == 'CARGO' and not movimiento.cargo > 0:
             return False
@@ -1115,7 +1163,7 @@ class ReglaConciliacion(models.Model):
         if self.cuenta_tercero.strip() and self.cuenta_tercero.strip() not in texto:
             return False
         patrones = self.lista_patrones
-        return not patrones or any(self._regex_patron(p).search(texto) for p in patrones)
+        return not patrones or texto_calza(texto, patrones)
 
     def cuenta_contrapartida(self):
         """La cuenta explícita manda; si no, la configurada para la operación."""
