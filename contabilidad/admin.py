@@ -103,7 +103,7 @@ class UnidadNegocioAdmin(admin.ModelAdmin):
 
 @admin.register(CuentaBancaria)
 class CuentaBancariaAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'banco', 'rol', 'clabe_display', 'cuenta_contable', 'saldo_display', 'activa']
+    list_display = ['nombre', 'banco', 'clabe_display', 'cuenta_contable', 'saldo_display', 'activa']
     list_filter = ['banco', 'activa']
     search_fields = ['nombre', 'banco', 'clabe']
 
@@ -991,7 +991,7 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
         if not obj or not obj.pk:
             return mark_safe(
                 '<div class="qkt-ayuda">'
-                '<b>Paso 1.</b> Elige la cuenta bancaria y el período, sube el PDF (BBVA) o el CSV (Revolut) que '
+                '<b>Paso 1.</b> Elige la cuenta bancaria y el período, sube el PDF que '
                 'te da el banco y guarda.<br>'
                 '<b>Paso 2.</b> Desde el listado, aplica la acción '
                 '«Procesar»: el sistema lee el PDF, extrae los movimientos y propone '
