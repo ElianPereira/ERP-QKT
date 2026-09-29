@@ -29,7 +29,6 @@ from .models import (
     ReglaConciliacion,
     UnidadNegocio,
     normalizar_texto_banco,
-    texto_calza,
 )
 from .services_compras import reclasificar_compra
 
@@ -252,128 +251,6 @@ def sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario):
     return liberados
 
 
-DIAS_TRASPASO = 3
-OPERACIONES_DUENO = ('RETIROS_DUENO', 'APORTACIONES_DUENO')
-
-
-def _patrones_traspaso(cuenta_bancaria):
-    return [normalizar_texto_banco(p) for p in cuenta_bancaria.textos_traspaso.split('|') if p.strip()]
-
-
-def _es_texto_traspaso(mov, patrones):
-    return bool(patrones) and texto_calza(normalizar_texto_banco(f"{mov.descripcion} {mov.referencia}"), patrones)
-
-
-def _poliza_dueno_provisional(mov, cuentas_dueno):
-    """La póliza BANCO de retiro/aportación del dueño de este movimiento, si
-    es lo único que lo asienta: se asentó así porque el otro estado de cuenta
-    todavía no estaba cargado."""
-    linea = mov.movimiento_contable
-    if not linea or linea.poliza.origen != 'BANCO' or linea.poliza.estado != 'APLICADA':
-        return None
-    otras = linea.poliza.movimientos.exclude(pk=linea.pk)
-    if otras.exists() and all(m.cuenta_id in cuentas_dueno for m in otras):
-        return linea.poliza
-    return None
-
-
-def emparejar_traspasos_propios(estado_cuenta, usuario):
-    """
-    Traspaso entre dos cuentas bancarias propias (BBVA → Revolut): no es
-    gasto ni retiro del dueño. Se reconoce solo con las dos puntas: un cargo
-    en una cuenta y un abono del mismo importe en la otra (±3 días), y el
-    concepto de cada lado dice que es un traspaso según los `textos_traspaso`
-    de su propia cuenta. Con una sola punta cargada no se adivina: un cliente
-    que paga por SPEI desde una fintech también llega «por STP».
-
-    Póliza D: DEBE banco destino / HABER banco origen, ligada a los dos
-    movimientos. Si una punta ya se había asentado como retiro/aportación del
-    dueño (regla TRASPAS* o clasificación a mano, con el otro estado de cuenta
-    aún sin cargar), esa póliza se cancela y la sustituye el traspaso.
-    Solo con exactamente una contraparte posible. Devuelve cuántos emparejó.
-    """
-    from datetime import timedelta
-
-    from django.db.models import Q
-
-    from .models import ConfiguracionContable, CuentaBancaria
-
-    propia = estado_cuenta.cuenta_bancaria
-    patrones_propios = _patrones_traspaso(propia)
-    if not patrones_propios or not propia.cuenta_contable_id:
-        return 0
-    otras = {
-        c.pk: c for c in CuentaBancaria.objects.filter(activa=True, cuenta_contable__isnull=False)
-        .exclude(pk=propia.pk).exclude(textos_traspaso='')
-    }
-    if not otras:
-        return 0
-    cuentas_dueno = {
-        c.pk for c in (ConfiguracionContable.obtener_cuenta(op) for op in OPERACIONES_DUENO) if c
-    }
-
-    def libre(mov):
-        return mov.movimiento_contable_id is None or _poliza_dueno_provisional(mov, cuentas_dueno)
-
-    emparejados = 0
-    for mov in estado_cuenta.movimientos.select_related('movimiento_contable__poliza').order_by('fecha', 'id'):
-        if not libre(mov) or not _es_texto_traspaso(mov, patrones_propios):
-            continue
-        es_cargo = mov.cargo > 0
-        importe = mov.cargo if es_cargo else mov.abono
-        filtro_importe = Q(abono=importe) if es_cargo else Q(cargo=importe)
-        candidatas = [
-            c for c in MovimientoEstadoCuenta.objects.filter(
-                filtro_importe,
-                estado_cuenta__cuenta_bancaria_id__in=otras,
-                fecha__range=(mov.fecha - timedelta(days=DIAS_TRASPASO), mov.fecha + timedelta(days=DIAS_TRASPASO)),
-            ).select_related('estado_cuenta', 'movimiento_contable__poliza')
-            if libre(c) and _es_texto_traspaso(c, _patrones_traspaso(otras[c.estado_cuenta.cuenta_bancaria_id]))
-        ]
-        if len(candidatas) != 1:
-            continue
-        contraparte = candidatas[0]
-        origen, destino = (mov, contraparte) if es_cargo else (contraparte, mov)
-        _asentar_traspaso(origen, destino, importe, usuario)
-        emparejados += 1
-    return emparejados
-
-
-def _asentar_traspaso(origen, destino, importe, usuario):
-    banco_origen = origen.estado_cuenta.cuenta_bancaria
-    banco_destino = destino.estado_cuenta.cuenta_bancaria
-    concepto = f"Traspaso entre cuentas propias: {banco_origen} → {banco_destino}"
-    cero = Decimal('0.00')
-    with transaction.atomic():
-        for mov in (origen, destino):
-            if mov.movimiento_contable_id:
-                mov.movimiento_contable.poliza.cancelar(usuario, f"Sustituida por el {concepto.lower()}")
-        poliza = Poliza.objects.create(
-            tipo='D',
-            folio=Poliza.siguiente_folio('D', origen.fecha),
-            fecha=origen.fecha,
-            concepto=concepto[:500],
-            unidad_negocio=banco_origen.unidad_negocio or UnidadNegocio.objects.filter(clave='QUINTA').first(),
-            estado='BORRADOR',
-            origen='BANCO',
-            content_type=ContentType.objects.get_for_model(MovimientoEstadoCuenta),
-            object_id=origen.pk,
-            created_by=usuario,
-        )
-        linea_destino = MovimientoContable.objects.create(
-            poliza=poliza, cuenta=banco_destino.cuenta_contable, debe=importe, haber=cero,
-            concepto=(destino.descripcion or concepto)[:300], referencia=(destino.referencia or '')[:100],
-        )
-        linea_origen = MovimientoContable.objects.create(
-            poliza=poliza, cuenta=banco_origen.cuenta_contable, debe=cero, haber=importe,
-            concepto=(origen.descripcion or concepto)[:300], referencia=(origen.referencia or '')[:100],
-        )
-        poliza.aplicar(usuario)
-        _vincular_linea(origen, linea_origen)
-        _vincular_linea(destino, linea_destino)
-    return poliza
-
-
 def emparejar_compras_ya_pagadas(estado_cuenta):
     """
     Cargos sin asiento contra Compras que ya se marcaron pagadas desde esta
@@ -421,9 +298,6 @@ def clave_aprendizaje(movimiento):
                 comercio = f"{comercio} {palabras[1].rstrip('*')}"
             if len(comercio) >= 4:
                 return {'patrones': comercio, 'cuenta_tercero': '', 'etiqueta': comercio}
-    if movimiento.estado_cuenta.formato == 'CSV' and len(texto) >= 4 and '|' not in texto:
-        # Revolut trae el comercio limpio («Railway», «Facebook»): es la clave.
-        return {'patrones': texto, 'cuenta_tercero': '', 'etiqueta': texto}
     return None
 
 

@@ -24,7 +24,7 @@ from core_erp import impuestos
 
 logger = logging.getLogger(__name__)
 
-from .models import ConfiguracionContable, CuentaBancaria, MovimientoContable, Poliza, UnidadNegocio
+from .models import ConfiguracionContable, MovimientoContable, Poliza, UnidadNegocio
 
 
 def signals_enabled():
@@ -52,19 +52,6 @@ def get_cuenta(operacion):
         return config.cuenta
     except ConfiguracionContable.DoesNotExist:
         return None
-
-
-def get_cuenta_egreso():
-    """Banco del que sale una devolución por transferencia: la cuenta
-    pagadora si existe, si no el banco principal. Los reversos de Openpay o
-    de la terminal no pasan por aquí: salen de donde entró el cobro."""
-    pagadora = CuentaBancaria.pagadora()
-    if pagadora and pagadora.cuenta_contable_id:
-        return pagadora.cuenta_contable
-    return get_cuenta('BANCO_PRINCIPAL')
-
-
-METODOS_REVERSO_EN_COBRO = ('PLATAFORMA', 'TARJETA', 'TARJETA_CREDITO', 'TARJETA_DEBITO')
 
 
 def get_unidad_negocio(clave):
@@ -565,10 +552,8 @@ def crear_poliza_reembolso_cliente(pago):
 
     if pago.metodo == 'EFECTIVO':
         cuenta_banco = get_cuenta('CAJA')
-    elif pago.metodo in METODOS_REVERSO_EN_COBRO:
-        cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
     else:
-        cuenta_banco = get_cuenta_egreso()
+        cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
 
     cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
     cuenta_iva = get_cuenta('IVA_TRASLADADO')
@@ -842,12 +827,7 @@ def crear_poliza_movimiento_deposito(sender, instance, created, **kwargs):
     cotizacion = mov.deposito.cotizacion
     monto = Decimal(str(mov.monto))
     cuenta_deposito = get_cuenta('DEPOSITOS_GARANTIA')
-    if mov.metodo == 'EFECTIVO':
-        cuenta_banco = get_cuenta('CAJA')
-    elif mov.tipo == 'DEVOLUCION' and mov.metodo not in METODOS_REVERSO_EN_COBRO:
-        cuenta_banco = get_cuenta_egreso()
-    else:
-        cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+    cuenta_banco = get_cuenta('CAJA') if mov.metodo == 'EFECTIVO' else get_cuenta('BANCO_PRINCIPAL')
     unidad = get_unidad_negocio('QUINTA')
     if not cuenta_deposito or not unidad or monto <= 0:
         logger.warning(

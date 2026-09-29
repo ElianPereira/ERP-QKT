@@ -87,10 +87,6 @@ def procesar_estado_cuenta(estado_cuenta: EstadoCuentaBancario):
             movimientos, saldo_inicial, saldo_final, numero_cuenta_pdf, fecha_corte_real = _parsear_pdf_bbva(contenido)
         elif estado_cuenta.formato == 'XML':
             movimientos, saldo_inicial, saldo_final, numero_cuenta_pdf, fecha_corte_real = _parsear_xml_bbva(contenido)
-        elif estado_cuenta.formato == 'CSV':
-            movimientos, saldo_inicial, saldo_final = _parsear_csv_revolut(contenido)
-            numero_cuenta_pdf = None
-            fecha_corte_real = _validar_periodo(movimientos, estado_cuenta.periodo_anio, estado_cuenta.periodo_mes)
         else:
             raise ValueError(f"Formato no soportado: {estado_cuenta.formato}")
 
@@ -136,14 +132,12 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     3. CFDI cargado (carga masiva de XML) que calza con el cargo: ya marcado
        pagado desde esta cuenta (se liga su línea de bancos) o sin cuenta de
        pago (se completa y aplica su póliza).
-    4. Traspaso entre cuentas propias, con sus dos puntas cargadas.
-    5. Reglas por texto del concepto o cuenta del tercero.
+    4. Reglas por texto del concepto o cuenta del tercero.
     Devuelve el resumen de `aplicar_reglas`.
     """
     from .services_reglas_banco import (
         aplicar_reglas,
         emparejar_compras_ya_pagadas,
-        emparejar_traspasos_propios,
         sustituir_asientos_provisionales_por_cfdi,
         usuario_sistema,
         vincular_polizas_propias,
@@ -155,7 +149,6 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario)
     emparejar_compras_ya_pagadas(estado_cuenta)
     aplicar_sugerencias_compras(estado_cuenta, usuario)
-    emparejar_traspasos_propios(estado_cuenta, usuario)
     return aplicar_reglas(estado_cuenta, usuario=usuario)
 
 
@@ -358,137 +351,6 @@ def _parsear_pdf_bbva(archivo):
         })
 
     return resultado, saldo_inicial, saldo_final, numero_cuenta, fecha_corte_real
-
-
-COLUMNAS_REVOLUT = ('Type', 'Product', 'Completed Date', 'Description', 'Amount', 'Fee', 'Currency', 'State', 'Balance')
-DESCRIPCION_INTERESES = 'Revolut intereses netos del ahorro'
-DESCRIPCION_RETENCION_INTERESES = 'Revolut retencion sobre intereses'
-
-
-def _parsear_csv_revolut(archivo):
-    """
-    Estado de cuenta de Revolut exportado en CSV (en inglés). Calibrado contra
-    el export real de agosto 2026. Devuelve (movimientos, saldo_inicial,
-    saldo_final) de la cuenta completa: el dinero de «Current» y el del ahorro
-    («Instant Access Savings») es el mismo dinero de la Quinta.
-
-    - `Balance` = saldo anterior + Amount − Fee, por producto y en el orden del
-      archivo. Si la secuencia no cuadra se rechaza: un saldo falso es peor que
-      no importar.
-    - Solo filas COMPLETED (REVERTED/PENDING/DECLINED no movieron dinero).
-    - Se descartan los pares que no sacan dinero de Revolut: movimientos entre
-      productos (mismo instante, importe contrario) y el envío SPEI que el banco
-      devolvió (Refund del mismo importe).
-    - Los intereses diarios se suman en un abono al mes, y lo retenido en un
-      cargo: 31 renglones de centavos no le sirven a nadie.
-    - Una comisión (Fee) de cualquier otro movimiento va como cargo aparte.
-    """
-    import csv
-    from datetime import datetime
-
-    texto = archivo.read().decode('utf-8-sig')
-    lector = csv.DictReader(io.StringIO(texto))
-    faltantes = [c for c in COLUMNAS_REVOLUT if c not in (lector.fieldnames or [])]
-    if faltantes:
-        raise ValueError(
-            "No parece un estado de cuenta de Revolut en CSV (faltan las columnas "
-            f"{', '.join(faltantes)}). Descárgalo desde la app en formato CSV y en inglés."
-        )
-
-    filas = []
-    saldo_inicial_producto, saldo_producto = {}, {}
-    for n, fila in enumerate(lector, start=2):
-        if fila['State'] != 'COMPLETED':
-            continue
-        if fila['Currency'] != 'MXN':
-            raise ValueError(f"Renglón {n}: moneda {fila['Currency']}. La cuenta se concilia solo en pesos (MXN).")
-        importe, comision = Decimal(fila['Amount']), Decimal(fila['Fee'] or '0')
-        balance = Decimal(fila['Balance'])
-        producto = fila['Product']
-        anterior = saldo_producto.get(producto)
-        if anterior is None:
-            saldo_inicial_producto[producto] = anterior = balance - importe + comision
-        if anterior + importe - comision != balance:
-            raise ValueError(
-                f"Renglón {n}: el saldo de «{producto}» no cuadra ({anterior} + {importe} − {comision} ≠ "
-                f"{balance}). ¿Se editó el archivo?"
-            )
-        saldo_producto[producto] = balance
-        filas.append({
-            'n': n, 'tipo': fila['Type'], 'producto': producto, 'inicio': fila.get('Started Date', ''),
-            'fecha': datetime.strptime(fila['Completed Date'], '%Y-%m-%d %H:%M:%S').date(),
-            'descripcion': ' '.join(fila['Description'].split()), 'importe': importe, 'comision': comision,
-        })
-
-    # Pares que no sacan dinero de la cuenta.
-    descartadas = set()
-    for i, a in enumerate(filas):
-        if i in descartadas:
-            continue
-        for j in range(i + 1, len(filas)):
-            b = filas[j]
-            if j in descartadas or a['importe'] != -b['importe']:
-                continue
-            entre_productos = a['producto'] != b['producto'] and a['inicio'] == b['inicio']
-            devuelto = ('Refund' in (a['tipo'], b['tipo']) and a['producto'] == b['producto']
-                        and abs((a['fecha'] - b['fecha']).days) <= 3)
-            if entre_productos or devuelto:
-                descartadas.update((i, j))
-                break
-
-    cero = Decimal('0.00')
-    movimientos = []
-    intereses, retenciones, fecha_intereses = cero, cero, None
-
-    def _mov(fecha, descripcion, referencia, importe):
-        return {
-            'fecha': fecha, 'descripcion': descripcion[:300], 'referencia': referencia[:100],
-            'cargo': -importe if importe < 0 else cero, 'abono': importe if importe > 0 else cero,
-            'saldo_parcial': None,
-        }
-
-    for i, f in enumerate(filas):
-        if i in descartadas:
-            continue
-        if f['tipo'] == 'Interest':
-            intereses += f['importe']
-            retenciones += f['comision']
-            fecha_intereses = max(fecha_intereses or f['fecha'], f['fecha'])
-            continue
-        if f['importe']:
-            movimientos.append(_mov(f['fecha'], f['descripcion'], f['tipo'], f['importe']))
-        if f['comision']:
-            movimientos.append(_mov(f['fecha'], f"Revolut comision {f['descripcion']}", 'Fee', -f['comision']))
-    if intereses:
-        movimientos.append(_mov(fecha_intereses, DESCRIPCION_INTERESES, 'Interest', intereses))
-    if retenciones:
-        movimientos.append(_mov(fecha_intereses, DESCRIPCION_RETENCION_INTERESES, 'Interest', -retenciones))
-    movimientos.sort(key=lambda m: m['fecha'])
-
-    saldo_inicial = sum(saldo_inicial_producto.values(), cero)
-    saldo_final = sum(saldo_producto.values(), cero)
-    corrido = saldo_inicial
-    for m in movimientos:
-        corrido += m['abono'] - m['cargo']
-        m['saldo_parcial'] = corrido
-    if corrido != saldo_final:  # los pares descartados netean cero; si no, algo se leyó mal
-        raise ValueError(f"Los movimientos suman {corrido} pero el saldo final del archivo es {saldo_final}.")
-    return movimientos, saldo_inicial, saldo_final
-
-
-def _validar_periodo(movimientos, anio, mes):
-    """El CSV no trae fecha de corte: el corte es el último día del periodo
-    elegido, y un archivo con movimientos de otro mes se rechaza (el mismo
-    papel que la validación del número de cuenta del PDF de BBVA)."""
-    import calendar
-
-    fuera = [m['fecha'] for m in movimientos if (m['fecha'].year, m['fecha'].month) != (anio, mes)]
-    if fuera:
-        raise ValueError(
-            f"El archivo trae movimientos fuera de {mes:02d}/{anio} (ej. {min(fuera):%d/%m/%Y}). "
-            "Exporta desde Revolut solo el mes que vas a conciliar."
-        )
-    return date(anio, mes, calendar.monthrange(anio, mes)[1])
 
 
 def _parsear_xml_bbva(archivo):

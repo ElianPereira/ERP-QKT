@@ -43,11 +43,10 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
 - **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
   `clientes.quintakooxtanil.com` (portal cliente, Railway),
   `quintakooxtanil.com` (landing pública, Cloudflare Pages).
-- **Cuentas bancarias** (Issue #341): BBVA Maestra PYME → QUINTA **solo
-  recibe** (Openpay, terminal, SPEI de clientes); **Revolut (MXN) paga
-  todo** (`CuentaBancaria.rol='PAGO'`) y guarda el excedente en su ahorro.
-  Lo personal del propietario va en otra cuenta que no entra al ERP. La BBVA
-  Libretón Básico (antes AIRBNB) ya salió del ERP (Issue #311).
+- **Cuenta bancaria**: una sola, BBVA Maestra PYME → QUINTA, para cobros y
+  para gastos con y sin factura. Revolut como cuenta pagadora se probó y se
+  retiró el mismo día (ver Memoria 2026-09-29). La BBVA Libretón Básico
+  (antes AIRBNB) ya salió del ERP (Issue #311).
 
 ## Estándares de código (obligatorio, sin excepción)
 
@@ -250,6 +249,20 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-09-29 — **Se retira Revolut / cuenta pagadora** (decisión del
+  propietario horas después del PR #342: una sola cuenta, BBVA PYME, para
+  todo). Se revirtió el código de #342 (rol de cuenta, importador CSV,
+  traspasos entre cuentas propias, patrón con `*` inicial, cuenta de egreso)
+  y `contabilidad.0033` quita los campos; **0031/0032 se quedan en el repo**
+  porque ya corrieron en producción. 0033 no borra nada con historia:
+  desactiva la 102.02.03 y cualquier cuenta bancaria con rol pagadora
+  (avisando en el log del deploy si ya tenían compras o movimientos), borra
+  la configuración `INGRESOS_FINANCIEROS` que sembró 0032 y desactiva la
+  regla de intereses. Se conservan las reglas de Railway/Anthropic/
+  Cloudflare (Gastos no deducibles) y Meta (Publicidad): también clasifican
+  esos cargos en el estado de cuenta de BBVA. La entrada de abajo queda como
+  histórico del diseño por si se retoma.
 
 - 2026-09-29 — **Revolut como cuenta pagadora** (Issue #341, decisión del
   propietario: la tarjeta de BBVA no sirve para cobros recurrentes en línea
