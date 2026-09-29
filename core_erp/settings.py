@@ -508,6 +508,7 @@ JAZZMIN_SETTINGS = {
         "contabilidad.saldoapertura":       "fas fa-hourglass-start",
         "contabilidad.estadocuentabancario":    "fas fa-file-alt",
         "contabilidad.reglaconciliacion":   "fas fa-magic",
+        "contabilidad.polizaeliminada":     "fas fa-trash-alt",
 
         # LEGAL
         "legal":                            "fas fa-gavel",
@@ -611,6 +612,7 @@ JAZZMIN_SETTINGS = {
         # === CONTABILIDAD ===
         "contabilidad",
         "contabilidad.poliza",
+        "contabilidad.polizaeliminada",
         "contabilidad.cuentacontable",
         "contabilidad.movimientocontable",
         "contabilidad.conciliacionbancaria",
