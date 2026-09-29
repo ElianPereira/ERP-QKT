@@ -167,6 +167,13 @@ class ProcesarConversacionTest(TestCase):
             enviar = self._procesar(cliente)
         enviar.assert_called_once()
 
+    def test_no_le_contesta_al_numero_del_propietario(self):
+        cliente = _cliente_falso()
+        with self.settings(WA_NUMERO_NEGOCIO=TEL_CLIENTE[-10:]):
+            enviar = self._procesar(cliente)
+        cliente.beta.messages.create.assert_not_called()
+        enviar.assert_not_called()
+
     def test_en_pausa_por_respuesta_humana_no_contesta(self):
         self.conv.pausado_hasta = timezone.now() + timedelta(hours=2)
         self.conv.save()
@@ -282,3 +289,55 @@ class HerramientasTest(TestCase):
         salida, error = herramientas_agente.ejecutar('borrar_todo', {})
         self.assertTrue(error)
         self.assertIn('desconocida', salida)
+
+
+@wa_settings(**AGENTE)
+class ResponderComoPersonaTest(TestCase):
+    """Sin coexistencia, el equipo contesta desde Conversaciones en el admin."""
+
+    def setUp(self):
+        cache.clear()
+        from django.contrib.auth.models import User
+
+        from core_erp.test_utils import login_superuser_con_totp
+        self.usuario = User.objects.create_superuser('direccion', 'd@qkt.test', 'x')
+        login_superuser_con_totp(self.client, self.usuario)
+        self.conv = services_agente.recibir_mensaje(
+            telefono=TEL_CLIENTE, nombre='Ana', texto='¿Me atiende alguien?', wamid='w1')
+        self.url = reverse('admin:comunicacion_conversacionwhatsapp_change', args=[self.conv.pk])
+
+    def _guardar(self, texto):
+        return self.client.post(self.url, {
+            'cliente': '', 'responder': texto, 'requiere_humano': 'on', 'motivo_humano': '',
+            'pausado_hasta_0': '', 'pausado_hasta_1': '',
+            'mensajes-TOTAL_FORMS': '1', 'mensajes-INITIAL_FORMS': '1',
+            'mensajes-MIN_NUM_FORMS': '0', 'mensajes-MAX_NUM_FORMS': '1000',
+            'mensajes-0-id': str(self.conv.mensajes.get().pk), 'mensajes-0-conversacion': str(self.conv.pk),
+        }, follow=True)
+
+    def test_responder_desde_el_admin_manda_whatsapp_y_pausa_al_agente(self):
+        with patch.object(services_agente, 'enviar_whatsapp',
+                          return_value=SimpleNamespace(estado='ENVIADO', proveedor_id='wamid.h1')) as enviar:
+            r = self._guardar('Hola Ana, soy Elián. Te ayudo.')
+        self.assertEqual(r.status_code, 200)
+        enviar.assert_called_once()
+        self.assertEqual(enviar.call_args.kwargs['mensaje'], 'Hola Ana, soy Elián. Te ayudo.')
+        respuesta = self.conv.mensajes.get(direccion='HUMANO')
+        self.assertEqual(respuesta.enviado_por, self.usuario)
+        self.conv.refresh_from_db()
+        self.assertTrue(self.conv.agente_en_pausa())
+
+    def test_ventana_de_24_horas_cerrada_no_manda_nada(self):
+        self.conv.mensajes.update(created_at=timezone.now() - timedelta(hours=25))
+        with patch.object(services_agente, 'enviar_whatsapp') as enviar:
+            r = self._guardar('¿Sigues ahí?')
+        enviar.assert_not_called()
+        self.assertContains(r, 'No se envió la respuesta')
+        self.assertFalse(self.conv.mensajes.filter(direccion='HUMANO').exists())
+
+    def test_si_meta_rechaza_no_se_registra_como_enviada(self):
+        with patch.object(services_agente, 'enviar_whatsapp',
+                          return_value=SimpleNamespace(estado='FALLIDO', error='Meta 131047', proveedor_id='')):
+            r = self._guardar('Hola')
+        self.assertContains(r, 'Meta 131047')
+        self.assertFalse(self.conv.mensajes.filter(direccion='HUMANO').exists())

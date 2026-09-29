@@ -1,10 +1,12 @@
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
 from django.utils import timezone
 from django.utils.formats import date_format
 
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 
+from . import services_agente
 from .models import ComunicacionCliente, ConversacionWhatsApp, MensajeWhatsApp
 
 
@@ -44,7 +46,7 @@ class MensajeWhatsAppInline(admin.TabularInline):
     model = MensajeWhatsApp
     extra = 0
     can_delete = False
-    fields = ('created_at', 'direccion', 'texto')
+    fields = ('created_at', 'direccion', 'texto', 'enviado_por')
     readonly_fields = fields
     ordering = ('created_at', 'id')
 
@@ -52,14 +54,29 @@ class MensajeWhatsAppInline(admin.TabularInline):
         return False
 
 
+class ConversacionWhatsAppForm(forms.ModelForm):
+    responder = forms.CharField(
+        label='Responder', required=False, max_length=4000,
+        widget=forms.Textarea(attrs={'rows': 3}),
+        help_text='Se manda por WhatsApp al guardar y pausa al agente en esta conversación. '
+                  'Solo funciona si el cliente escribió en las últimas 24 h.',
+    )
+
+    class Meta:
+        model = ConversacionWhatsApp
+        fields = '__all__'
+
+
 @admin.register(ConversacionWhatsApp)
 class ConversacionWhatsAppAdmin(admin.ModelAdmin):
     """Conversaciones del agente de WhatsApp (Issue #346). Nacen solas desde el
-    webhook; aquí solo se leen y se decide si el agente sigue contestando."""
+    webhook; aquí se leen, se contesta como persona y se decide si el agente
+    sigue contestando."""
+    form = ConversacionWhatsAppForm
     list_display = ('ultimo_display', 'nombre', 'telefono', 'estado_badge', 'cliente')
     list_filter = ('requiere_humano',)
     search_fields = ('telefono', 'nombre', 'cliente__nombre', 'mensajes__texto')
-    fields = ('nombre', 'telefono', 'cliente', 'requiere_humano', 'motivo_humano',
+    fields = ('nombre', 'telefono', 'cliente', 'responder', 'requiere_humano', 'motivo_humano',
               'pausado_hasta', 'ultimo_mensaje')
     readonly_fields = ('nombre', 'telefono', 'ultimo_mensaje')
     autocomplete_fields = ('cliente',)
@@ -80,6 +97,18 @@ class ConversacionWhatsAppAdmin(admin.ModelAdmin):
         if obj.agente_en_pausa():
             return ui.badge('En pausa', ui.ALERTA)
         return ui.badge('Contestando', ui.EXITO)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        texto = form.cleaned_data.get('responder')
+        if not texto:
+            return
+        try:
+            services_agente.responder_como_persona(obj, texto, request.user)
+        except (services_agente.VentanaCerrada, ValueError) as e:
+            self.message_user(request, f'No se envió la respuesta: {e}', level=messages.ERROR)
+        else:
+            self.message_user(request, 'Respuesta enviada por WhatsApp; el agente queda en pausa.')
 
     @admin.action(description='Reactivar el agente en las seleccionadas')
     def reactivar_agente(self, request, queryset):

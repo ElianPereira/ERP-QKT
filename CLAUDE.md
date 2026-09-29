@@ -270,9 +270,16 @@ salvo que queden obsoletas.
   `WA_AGENTE_ACTIVO=False` (default), si el número no está en
   `WA_AGENTE_NUMEROS_PRUEBA`, si pidió humano (`requiere_humano`) o si el
   propietario contestó desde la app (eco `smb_message_echoes` → pausa
-  `WA_AGENTE_PAUSA_HUMANO_HORAS`). Fuera de alcance: crear cotizaciones y
-  consultar saldos (fases 2 y 3). **Pendiente antes de abrirlo al público**:
-  coexistencia del número en Meta, variables en Railway y mencionar el
+  `WA_AGENTE_PAUSA_HUMANO_HORAS`). **Sin coexistencia** (decisión del
+  propietario): Meta solo la activa vía Embedded Signup de un proveedor
+  (BSP/Tech Provider) y el ERP usa la Cloud API directa. El agente vive en el
+  número de la API (**999 169 9191**) y el propietario sigue en la app con el
+  **999 445 7178**; por eso el equipo contesta desde el campo «Responder» de
+  Conversaciones (`responder_como_persona`, solo dentro de la ventana de
+  24 h) y el agente nunca le contesta a `WA_NUMERO_NEGOCIO`. Los ecos
+  `smb_message_echoes` quedan cableados por si algún día se activa. Fuera de
+  alcance: crear cotizaciones y consultar saldos (fases 2 y 3). **Pendiente
+  antes de abrirlo al público**: variables en Railway y mencionar el
   procesamiento con IA en el Aviso de Privacidad (`legal/`, con abogado).
 
 - 2026-09-29 — **Dirección puede borrar pólizas** (excepción explícita a la

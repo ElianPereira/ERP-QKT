@@ -129,6 +129,39 @@ def registrar_respuesta_humana(*, telefono, texto, wamid):
     conv.save(update_fields=['pausado_hasta', 'ultimo_mensaje', 'updated_at'])
 
 
+class VentanaCerrada(Exception):
+    """El cliente no escribe desde hace más de 24 h: Meta rechaza el texto libre."""
+
+
+def responder_como_persona(conv, texto: str, usuario) -> MensajeWhatsApp:
+    """Respuesta escrita por alguien del equipo desde el admin.
+
+    Sin coexistencia el número del agente no está en la app de WhatsApp, así
+    que esta es la única vía para que una persona conteste. Pausa al agente en
+    esa conversación igual que un eco de la app, para que no se encimen.
+    """
+    texto = (texto or '').strip()[:LIMITE_WHATSAPP]
+    if not texto:
+        raise ValueError('La respuesta está vacía.')
+    ultima_entrada = conv.mensajes.filter(direccion='ENTRADA').order_by('-created_at').first()
+    if not ultima_entrada or timezone.now() - ultima_entrada.created_at > REINICIO_TRAS:
+        raise VentanaCerrada(
+            'El cliente no ha escrito en las últimas 24 h y WhatsApp no permite mandarle '
+            'texto libre. Contáctalo por otro medio o espera a que vuelva a escribir.')
+    comm = enviar_whatsapp(tipo='OTRO', telefono=conv.telefono, mensaje=texto, trigger='MANUAL')
+    if comm is None or comm.estado == 'FALLIDO':
+        raise ValueError(f"WhatsApp no aceptó el mensaje: {getattr(comm, 'error', '') or 'sin detalle'}")
+    mensaje = MensajeWhatsApp.objects.create(
+        conversacion=conv, direccion='HUMANO', texto=texto, procesado=True,
+        wamid=comm.proveedor_id or None, enviado_por=usuario,
+    )
+    horas = getattr(settings, 'WA_AGENTE_PAUSA_HUMANO_HORAS', 12)
+    conv.pausado_hasta = timezone.now() + timedelta(hours=horas)
+    conv.ultimo_mensaje = timezone.now()
+    conv.save(update_fields=['pausado_hasta', 'ultimo_mensaje', 'updated_at'])
+    return mensaje
+
+
 # ─────────────────────────── Procesamiento ───────────────────────────────
 
 def agente_contesta_a(conv) -> bool:
@@ -137,6 +170,10 @@ def agente_contesta_a(conv) -> bool:
     prueba = {normalizar_telefono_wa(n) for n in getattr(settings, 'WA_AGENTE_NUMEROS_PRUEBA', []) if n}
     prueba.discard('')
     if prueba and conv.telefono not in prueba:
+        return False
+    # El número del propietario (destino de las alertas internas) le escribe
+    # al de la API para abrir la ventana de 24 h; el agente no le contesta.
+    if conv.telefono == normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', '')):
         return False
     return not conv.agente_en_pausa()
 
@@ -235,8 +272,8 @@ def _pasar_a_humano(conv, motivo: str) -> None:
         cuerpo=(f"El agente de WhatsApp pasó la conversación a una persona.\n\n"
                 f"Cliente: {conv.nombre or '—'} ({conv.telefono})\nMotivo: {conv.motivo_humano}\n\n"
                 f"Últimos mensajes:\n{resumen}\n\n"
-                "Contesta desde la app de WhatsApp. Para que el agente vuelva a contestar, "
-                "desmarca «Requiere humano» en Admin → Comunicación → Conversaciones."),
+                "Contesta desde Admin → Comunicación → Conversaciones (campo «Responder»). "
+                "Para que el agente vuelva a contestar, desmarca «Requiere humano»."),
     )
 
 

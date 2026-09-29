@@ -2,6 +2,7 @@
 Modelo unificado de comunicaciones salientes con clientes.
 Registra cada email/WhatsApp/SMS/notificación enviado.
 """
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -138,7 +139,7 @@ class MensajeWhatsApp(models.Model):
     DIRECCION_CHOICES = [
         ('ENTRADA', 'Cliente'),
         ('AGENTE', 'Agente IA'),
-        ('HUMANO', 'Persona (app)'),
+        ('HUMANO', 'Persona del equipo'),
     ]
     conversacion = models.ForeignKey(
         ConversacionWhatsApp, on_delete=models.CASCADE, related_name='mensajes',
@@ -150,6 +151,11 @@ class MensajeWhatsApp(models.Model):
     # no debe contestarse dos veces.
     wamid = models.CharField(max_length=191, null=True, blank=True, unique=True, verbose_name='ID de Meta')
     procesado = models.BooleanField(default=False, verbose_name='Procesado')
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name='Enviado por',
+        help_text='Quién contestó desde el ERP (vacío si fue el cliente, el agente o la app).',
+    )
     created_at = models.DateTimeField(default=timezone.now, verbose_name='Fecha')
 
     class Meta:
