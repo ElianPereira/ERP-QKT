@@ -255,6 +255,33 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-09-29 — **Agente de WhatsApp con IA, fase 1** (Issue #346; se evaluó
+  Meta One y se descartó: su agente no se conecta a sistemas externos).
+  Webhook `/api/whatsapp/webhook/` (`comunicacion/views_whatsapp.py`, firma
+  `X-Hub-Signature-256` con `WA_APP_SECRET`, fail-closed; dedupe por
+  `wamid` único) → `services_agente` contesta en un hilo (Meta reintenta si
+  tarda) con Claude + herramientas **de solo lectura**
+  (`herramientas_agente.py`). El precio sale de
+  `views_cotizador.estimar_total()`, extraída de `api_total_cotizador` para
+  que web y WhatsApp den el mismo total. `ConversacionWhatsApp.historial` es
+  **append-only** (el modelo invalida su razonamiento si se edita un turno
+  enviado): la fecha va en cada mensaje, nunca en el system prompt, y tras
+  24 h se reinicia entero en vez de recortarse. Se calla si
+  `WA_AGENTE_ACTIVO=False` (default), si el número no está en
+  `WA_AGENTE_NUMEROS_PRUEBA`, si pidió humano (`requiere_humano`) o si el
+  propietario contestó desde la app (eco `smb_message_echoes` → pausa
+  `WA_AGENTE_PAUSA_HUMANO_HORAS`). **Sin coexistencia** (decisión del
+  propietario): Meta solo la activa vía Embedded Signup de un proveedor
+  (BSP/Tech Provider) y el ERP usa la Cloud API directa. El agente vive en el
+  número de la API (**999 169 9191**) y el propietario sigue en la app con el
+  **999 445 7178**; por eso el equipo contesta desde el campo «Responder» de
+  Conversaciones (`responder_como_persona`, solo dentro de la ventana de
+  24 h) y el agente nunca le contesta a `WA_NUMERO_NEGOCIO`. Los ecos
+  `smb_message_echoes` quedan cableados por si algún día se activa. Fuera de
+  alcance: crear cotizaciones y consultar saldos (fases 2 y 3). **Pendiente
+  antes de abrirlo al público**: variables en Railway y mencionar el
+  procesamiento con IA en el Aviso de Privacidad (`legal/`, con abogado).
+
 - 2026-09-29 — **Dirección puede borrar pólizas** (excepción explícita a la
   soft-deactivation, pedida por el propietario para limpiar pólizas de
   nómina anteriores al 13/07, cuando se retiró ese signal). El borrado

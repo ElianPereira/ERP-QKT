@@ -355,6 +355,23 @@ WA_TEMPLATE_SOLICITUD_FACTURA = config('WA_TEMPLATE_SOLICITUD_FACTURA', default=
 # abierta — mismo criterio que el resto de mensajería interna sin plantilla.
 WA_TEMPLATE_OPERACIONES = config('WA_TEMPLATE_OPERACIONES', default='')
 
+# --- AGENTE DE WHATSAPP CON IA (Issue #346) ---
+# Webhook entrante: el token lo inventa quien da de alta el webhook en Meta;
+# el App Secret firma cada entrega (X-Hub-Signature-256). Sin él, toda
+# entrega se rechaza (fail-closed), igual que el feed iCal.
+WA_WEBHOOK_VERIFY_TOKEN = config('WA_WEBHOOK_VERIFY_TOKEN', default='')
+WA_APP_SECRET = config('WA_APP_SECRET', default='')
+# Apagado por default: el deploy solo registra los mensajes entrantes. Para
+# probar, definir WA_AGENTE_NUMEROS_PRUEBA (lista separada por comas) y
+# encenderlo; con la lista vacía contesta a todos.
+WA_AGENTE_ACTIVO = config('WA_AGENTE_ACTIVO', default=False, cast=bool)
+WA_AGENTE_NUMEROS_PRUEBA = config('WA_AGENTE_NUMEROS_PRUEBA', default='', cast=Csv())
+WA_AGENTE_MODELO = config('WA_AGENTE_MODELO', default='claude-opus-5-5')
+# Cuánto se calla el agente en una conversación después de que el propietario
+# contesta desde la app de WhatsApp Business (coexistencia).
+WA_AGENTE_PAUSA_HUMANO_HORAS = config('WA_AGENTE_PAUSA_HUMANO_HORAS', default=12, cast=int)
+# La llave de Anthropic la lee el SDK de la variable ANTHROPIC_API_KEY.
+
 # --- STORAGES (Cloudflare R2, S3-compatible) ---
 STORAGES = {
     "default": {
@@ -531,6 +548,7 @@ JAZZMIN_SETTINGS = {
         # COMUNICACIÓN
         "comunicacion":                     "fas fa-comments",
         "comunicacion.ComunicacionCliente": "fas fa-paper-plane",
+        "comunicacion.ConversacionWhatsApp": "fab fa-whatsapp",
 
         # AUTH
         "auth":                             "fas fa-shield-alt",
@@ -634,6 +652,7 @@ JAZZMIN_SETTINGS = {
         # === COMUNICACIÓN ===
         "comunicacion",
         "comunicacion.ComunicacionCliente",
+        "comunicacion.ConversacionWhatsApp",
 
         # === REPORTES ===
         "reportes",

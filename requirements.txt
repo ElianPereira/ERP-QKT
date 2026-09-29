@@ -33,3 +33,5 @@ nh3
 defusedxml
 django-otp
 qrcode
+# Agente de WhatsApp con IA (Issue #346): SDK oficial de la API de Claude.
+anthropic

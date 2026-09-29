@@ -48,6 +48,7 @@ from comercial.views_portal import (
     portal_firmar_contrato,
     portal_subir_identificacion,
 )
+from comunicacion.views_whatsapp import whatsapp_webhook
 from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
 from core_erp.views_totp import totp_activar_view, totp_verificar_view
@@ -145,6 +146,7 @@ urlpatterns = [
     path('admin/nomina/sync-jibble/', sync_jibble_view, name='sync_jibble'),
     path('admin/nomina/jibble-diagnostico/', jibble_diagnostico_view, name='jibble_diagnostico'),
     path('api/nomina/sync-jibble/', webhook_sync_jibble, name='webhook_sync_jibble'),
+    path('api/whatsapp/webhook/', whatsapp_webhook, name='whatsapp_webhook'),
 
     #---- CXC VISUALIZACION---
     path('admin/cartera/', ver_cartera_cxc, name='cartera_cxc'),
