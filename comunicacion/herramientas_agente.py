@@ -1,0 +1,371 @@
+"""
+Herramientas del agente de WhatsApp (Issue #346, fase 1: solo lectura).
+
+Cada herramienta es una consulta al ERP que el modelo puede pedir; nada de lo
+que está aquí escribe en la base. Los precios salen de
+`comercial.views_cotizador.estimar_total`, la misma función que exhibe el
+total del cotizador web: el agente nunca calcula ni redondea importes.
+
+El resultado de cada herramienta es un dict serializable que se le devuelve
+al modelo como JSON. Los errores de captura (fecha mal escrita, servicio que
+no existe) se devuelven como `{"error": ...}` para que el modelo le pida el
+dato al cliente en vez de adivinarlo.
+"""
+import json
+import logging
+from datetime import date, datetime, timedelta
+
+from django.utils import timezone
+
+from comercial.disponibilidad import verificar_disponibilidad_rango
+from comercial.models import PreguntaFrecuente, Producto
+from comercial.reglas_eventos import (
+    MAX_PERSONAS_EVENTO,
+    MAX_PERSONAS_EXTRA_POR_HABITACION,
+    MAX_PERSONAS_PASADIA,
+    MIN_PERSONAS_PERSONALIZADO_EVENTO,
+)
+from comercial.views_cotizador import (
+    HORAS_BASE_EVENTO,
+    HORAS_MAX_EVENTO,
+    NOCHES_HOSPEDAJE_MAX,
+    estimar_total,
+)
+
+logger = logging.getLogger(__name__)
+
+URL_COTIZADOR = 'https://clientes.quintakooxtanil.com/cotizar/'
+SERVICIOS = ('EVENTO', 'PASADIA', 'HOSPEDAJE')
+
+HERRAMIENTAS = [
+    {
+        'name': 'consultar_disponibilidad',
+        'description': (
+            'Revisa en el ERP si una fecha (o una estancia de hospedaje de varias noches) '
+            'está libre. Úsala siempre antes de decir que una fecha está disponible. '
+            'Una fecha libre NO queda apartada: se aparta al pagar el anticipo.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'fecha': {'type': 'string', 'description': 'Fecha de inicio, formato AAAA-MM-DD.'},
+                'noches': {
+                    'type': 'integer',
+                    'description': 'Solo hospedaje: número de noches. Omitir para evento o pasadía.',
+                },
+            },
+            'required': ['fecha'],
+            'additionalProperties': False,
+        },
+    },
+    {
+        'name': 'ver_opciones',
+        'description': (
+            'Lista lo que se puede contratar de un servicio, con precio total IVA incluido '
+            'y lo que incluye cada opción, tal como está capturado en el ERP: paquetes de '
+            'evento, niveles de pasadía (Básico/Premium) o habitaciones de hospedaje.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'servicio': {'type': 'string', 'enum': list(SERVICIOS)},
+                'personas': {
+                    'type': 'integer',
+                    'description': 'Número de personas, si el cliente ya lo dijo (cambia el precio de paquetes).',
+                },
+            },
+            'required': ['servicio'],
+            'additionalProperties': False,
+        },
+    },
+    {
+        'name': 'cotizar_estimado',
+        'description': (
+            'Calcula el total estimado (IVA incluido, con promociones automáticas vigentes) '
+            'de una selección concreta, con el mismo cálculo del cotizador web. Úsala para '
+            'cualquier precio que vayas a decir. Para Evento hace falta paquete_id (sale de '
+            'ver_opciones); un evento armado a la medida se cotiza en el cotizador web.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'servicio': {'type': 'string', 'enum': list(SERVICIOS)},
+                'personas': {'type': 'integer'},
+                'fecha': {'type': 'string', 'description': 'AAAA-MM-DD, si el cliente la dio.'},
+                'paquete_id': {'type': 'integer', 'description': 'Evento: id del paquete.'},
+                'horas': {
+                    'type': 'integer',
+                    'description': f'Evento: duración total en horas ({HORAS_BASE_EVENTO} incluidas, '
+                                   f'máximo {HORAS_MAX_EVENTO}).',
+                },
+                'nivel_pasadia': {'type': 'string', 'enum': ['BASICO', 'PREMIUM']},
+                'habitaciones_ids': {
+                    'type': 'array', 'items': {'type': 'integer'},
+                    'description': 'Hospedaje: ids de las habitaciones (salen de ver_opciones).',
+                },
+                'noches': {'type': 'integer', 'description': 'Hospedaje: número de noches.'},
+            },
+            'required': ['servicio', 'personas'],
+            'additionalProperties': False,
+        },
+    },
+    {
+        'name': 'preguntas_frecuentes',
+        'description': (
+            'Devuelve las preguntas frecuentes vigentes del negocio con su respuesta oficial '
+            '(reglas, qué se permite, políticas). Consúltala antes de responder cualquier duda '
+            'que no sea de precio o fecha.'
+        ),
+        'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+    },
+    {
+        'name': 'pasar_a_humano',
+        'description': (
+            'Pasa la conversación a una persona del equipo y deja de contestar. Úsala si el '
+            'cliente lo pide, si hay una queja, una negociación de precio, un caso que tus '
+            'herramientas no cubren, o si ya quiere reservar con algo fuera del cotizador web.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'motivo': {'type': 'string', 'description': 'Una línea para el equipo: qué necesita el cliente.'},
+            },
+            'required': ['motivo'],
+            'additionalProperties': False,
+        },
+    },
+]
+
+
+def _fecha(valor):
+    """Fecha AAAA-MM-DD a `date`, o un mensaje de error para el modelo."""
+    try:
+        f = datetime.strptime(str(valor or '').strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return None, 'Fecha no válida: pídesela al cliente y usa el formato AAAA-MM-DD.'
+    if f < timezone.localdate():
+        return None, 'La fecha ya pasó: confirma con el cliente la fecha correcta.'
+    return f, None
+
+
+def _entero(valor, defecto=None):
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return defecto
+
+
+def _formato(monto):
+    return f"${monto:,.2f}"
+
+
+def _disponibilidad(inicio: date, noches: int = 0) -> dict:
+    fin = inicio + timedelta(days=max(noches, 1))
+    libre, _ = verificar_disponibilidad_rango(inicio, fin)
+    # El mensaje de disponibilidad del ERP menciona el folio y el servicio de
+    # la otra reservación: al cliente solo le importa si está libre o no.
+    return {
+        'fecha': inicio.isoformat(),
+        'noches': noches or None,
+        'disponible': libre,
+        'nota': ('Libre por ahora; se aparta al pagar el anticipo.' if libre
+                 else 'Ocupada: sugiere otra fecha.'),
+    }
+
+
+def consultar_disponibilidad(fecha=None, noches=None):
+    inicio, error = _fecha(fecha)
+    if error:
+        return {'error': error}
+    noches = _entero(noches, 0) or 0
+    if noches > NOCHES_HOSPEDAJE_MAX:
+        return {'error': f'Máximo {NOCHES_HOSPEDAJE_MAX} noches por reservación.'}
+    return _disponibilidad(inicio, noches)
+
+
+def ver_opciones(servicio=None, personas=None):
+    servicio = str(servicio or '').upper()
+    personas = _entero(personas)
+
+    if servicio == 'EVENTO':
+        n = min(max(personas or 50, 1), MAX_PERSONAS_EVENTO)
+        paquetes = Producto.objects.filter(
+            es_paquete=True, visible_cotizador=True, cotizador_evento=True,
+        ).order_by('orden_cotizador', 'nombre')
+        return {
+            'servicio': 'EVENTO',
+            'personas_cotizadas': n,
+            'paquetes': [{
+                'paquete_id': p.id,
+                'nombre': p.nombre,
+                'precio_total': _formato(estimar_total(
+                    servicio='EVENTO', paquete_id=p.id, num_personas=n,
+                    horas_evento=HORAS_BASE_EVENTO)['total']),
+                'incluye': p.descripcion or p.descripcion_corta,
+            } for p in paquetes],
+            'reglas': (
+                f'{HORAS_BASE_EVENTO} horas incluidas y hasta {HORAS_MAX_EVENTO - HORAS_BASE_EVENTO} '
+                f'horas extra con costo. Aforo máximo {MAX_PERSONAS_EVENTO} personas. '
+                f'Un evento armado a la medida (desde {MIN_PERSONAS_PERSONALIZADO_EVENTO} personas) '
+                'se cotiza en el cotizador web.'
+            ),
+            'cotizador_web': f'{URL_COTIZADOR}?servicio=EVENTO',
+        }
+
+    if servicio == 'PASADIA':
+        n = min(max(personas or 20, 1), MAX_PERSONAS_PASADIA)
+        niveles = []
+        for nivel, rol in (('BASICO', 'BASE_PASADIA_BASICO'), ('PREMIUM', 'BASE_PASADIA_PREMIUM')):
+            prod = Producto.objects.filter(rol_cotizador=rol).first()
+            if not prod:
+                continue
+            niveles.append({
+                'nivel': nivel,
+                'nombre': prod.nombre,
+                'precio_total': _formato(estimar_total(
+                    servicio='PASADIA', nivel_pasadia=nivel, num_personas=n)['total']),
+                'incluye': prod.descripcion or prod.descripcion_corta,
+            })
+        return {
+            'servicio': 'PASADIA',
+            'personas_cotizadas': n,
+            'niveles': niveles,
+            'reglas': (
+                'Horario 11:00 a.m. a 7:00 p.m. 20 personas incluidas; de 21 a '
+                f'{MAX_PERSONAS_PASADIA} con cargo por persona. No incluye pernocta.'
+            ),
+            'cotizador_web': f'{URL_COTIZADOR}?servicio=PASADIA',
+        }
+
+    if servicio == 'HOSPEDAJE':
+        habitaciones = Producto.objects.filter(
+            rol_cotizador='HABITACION_HOSPEDAJE', visible_cotizador=True,
+        ).order_by('orden_cotizador', 'nombre')
+        return {
+            'servicio': 'HOSPEDAJE',
+            'habitaciones': [{
+                'habitacion_id': h.id,
+                'nombre': h.nombre,
+                'precio_por_noche': _formato(estimar_total(
+                    servicio='HOSPEDAJE', habitaciones_ids=[h.id], noches=1,
+                    num_personas=h.capacidad_base_hospedaje or 1)['total']),
+                'capacidad_incluida': h.capacidad_base_hospedaje,
+                'descripcion': h.descripcion or h.descripcion_corta,
+            } for h in habitaciones],
+            'reglas': (
+                'Check-in 2:00 p.m., check-out 10:00 a.m. Por habitación se admiten hasta '
+                f'{MAX_PERSONAS_EXTRA_POR_HABITACION} personas extra sobre su capacidad, con cargo por noche.'
+            ),
+            'cotizador_web': f'{URL_COTIZADOR}?servicio=HOSPEDAJE',
+        }
+
+    return {'error': 'Servicio no válido: EVENTO, PASADIA u HOSPEDAJE.'}
+
+
+def cotizar_estimado(servicio=None, personas=None, fecha=None, paquete_id=None, horas=None,
+                     nivel_pasadia=None, habitaciones_ids=None, noches=None):
+    """Mismas validaciones de aforo que `cotizador_enviar`, y el total de `estimar_total`."""
+    servicio = str(servicio or '').upper()
+    if servicio not in SERVICIOS:
+        return {'error': 'Servicio no válido: EVENTO, PASADIA u HOSPEDAJE.'}
+    personas = _entero(personas)
+    if not personas or personas < 1:
+        return {'error': 'Falta el número de personas: pídeselo al cliente.'}
+
+    inicio = None
+    if fecha:
+        inicio, error = _fecha(fecha)
+        if error:
+            return {'error': error}
+
+    horas_ev = _entero(horas, HORAS_BASE_EVENTO) or HORAS_BASE_EVENTO
+    noches_n = _entero(noches, 1) or 1
+    hab_ids = [i for i in (_entero(x) for x in (habitaciones_ids or [])) if i]
+
+    if servicio == 'EVENTO':
+        if personas > MAX_PERSONAS_EVENTO:
+            return {'error': f'No hay eventos de más de {MAX_PERSONAS_EVENTO} personas.'}
+        if horas_ev > HORAS_MAX_EVENTO:
+            return {'error': f'Un evento dura como máximo {HORAS_MAX_EVENTO} horas.'}
+        paquete = Producto.objects.filter(
+            id=_entero(paquete_id) or 0, es_paquete=True, visible_cotizador=True,
+        ).first()
+        if not paquete:
+            return {'error': 'Falta elegir paquete (usa ver_opciones). Un evento a la medida '
+                             f'se cotiza en {URL_COTIZADOR}?servicio=EVENTO'}
+    elif servicio == 'PASADIA':
+        if personas > MAX_PERSONAS_PASADIA:
+            return {'error': f'La pasadía admite como máximo {MAX_PERSONAS_PASADIA} personas; '
+                             'para más, ofrece un evento.'}
+    elif servicio == 'HOSPEDAJE':
+        habitaciones = list(Producto.objects.filter(
+            id__in=hab_ids, rol_cotizador='HABITACION_HOSPEDAJE', visible_cotizador=True,
+        ).values_list('capacidad_base_hospedaje', flat=True))
+        if not habitaciones:
+            return {'error': 'Falta elegir habitación (usa ver_opciones).'}
+        tope = sum(c + MAX_PERSONAS_EXTRA_POR_HABITACION for c in habitaciones)
+        if personas > tope:
+            return {'error': f'Esas habitaciones admiten como máximo {tope} huéspedes.'}
+        if noches_n > NOCHES_HOSPEDAJE_MAX:
+            return {'error': f'Máximo {NOCHES_HOSPEDAJE_MAX} noches por reservación.'}
+
+    r = estimar_total(
+        servicio=servicio,
+        num_personas=personas,
+        horas_evento=horas_ev,
+        paquete_id=paquete_id,
+        noches=noches_n,
+        habitaciones_ids=hab_ids,
+        nivel_pasadia=nivel_pasadia or 'BASICO',
+        fecha=inicio,
+    )
+    resultado = {
+        'servicio': servicio,
+        'personas': r['personas'],
+        'conceptos': r['conceptos'],
+        'total': _formato(r['total']),
+        'leyenda': r['leyenda'],
+        'es_estimado': True,
+        'cotizador_web': f'{URL_COTIZADOR}?servicio={servicio}',
+    }
+    if r['descuentos']:
+        resultado['promociones'] = r['descuentos']
+        resultado['precio_regular'] = _formato(r['total_sin_descuento'])
+    if inicio:
+        resultado['disponibilidad'] = _disponibilidad(
+            inicio, r['noches'] if servicio == 'HOSPEDAJE' else 0)
+    return resultado
+
+
+def preguntas_frecuentes():
+    return {'preguntas': [
+        {'pregunta': p.pregunta, 'respuesta': p.respuesta}
+        for p in PreguntaFrecuente.objects.filter(activo=True).order_by('orden', 'id')
+    ]}
+
+
+_EJECUTORES = {
+    'consultar_disponibilidad': consultar_disponibilidad,
+    'ver_opciones': ver_opciones,
+    'cotizar_estimado': cotizar_estimado,
+    'preguntas_frecuentes': preguntas_frecuentes,
+}
+
+
+def ejecutar(nombre: str, entrada: dict) -> tuple[str, bool]:
+    """Ejecuta una herramienta de consulta. Devuelve (json, es_error).
+
+    `pasar_a_humano` no vive aquí: cambia el estado de la conversación y lo
+    resuelve `services_agente`, que sí la conoce.
+    """
+    funcion = _EJECUTORES.get(nombre)
+    if funcion is None:
+        return json.dumps({'error': f'Herramienta desconocida: {nombre}'}), True
+    try:
+        resultado = funcion(**(entrada or {}))
+    except TypeError:
+        return json.dumps({'error': 'Parámetros no válidos para la herramienta.'}), True
+    except Exception:
+        logger.exception("Agente WhatsApp: falló la herramienta %s", nombre)
+        return json.dumps({'error': 'No se pudo consultar el ERP; ofrece pasar con una persona.'}), True
+    return json.dumps(resultado, ensure_ascii=False, default=str), 'error' in resultado

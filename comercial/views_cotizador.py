@@ -905,9 +905,63 @@ def api_total_cotizador(request):
         except (TypeError, ValueError):
             return defecto
 
-    num_personas = max(1, _entero('personas', 50))
-    horas_evento = max(1, _entero('horas', HORAS_BASE_EVENTO))
-    servicio = (request.GET.get('servicio') or '').upper()
+    try:
+        fecha = datetime.strptime(request.GET.get('fecha') or '', '%Y-%m-%d').date()
+    except ValueError:
+        fecha = None
+    resultado = estimar_total(
+        servicio=(request.GET.get('servicio') or '').upper(),
+        num_personas=_entero('personas', 50),
+        horas_evento=_entero('horas', HORAS_BASE_EVENTO),
+        paquete_id=request.GET.get('paquete'),
+        extras_ids=[int(x) for x in (request.GET.get('extras') or '').split(',')
+                    if x.strip().isdigit()],
+        noches=_entero('noches', 1),
+        habitaciones_ids=[int(x) for x in (request.GET.get('habitaciones') or '').split(',')
+                          if x.strip().isdigit()],
+        nivel_pasadia=request.GET.get('nivel_pasadia') or 'BASICO',
+        tipo_ev=request.GET.get('tipo') or '',
+        fecha=fecha,
+    )
+    total = resultado['total']
+    total_sin_descuento = resultado['total_sin_descuento']
+    return JsonResponse({
+        'ok': True,
+        'total': str(total),
+        'total_formateado': f"${total:,.2f}",
+        # Promoción exhibida ANTES de enviar: el cliente ve el precio con y sin
+        # descuento (ambos con IVA incluido) y el nombre de la promoción.
+        'descuentos': resultado['descuentos'],
+        'total_sin_descuento_formateado': f"${total_sin_descuento:,.2f}",
+        'ahorro_formateado': f"${resultado['ahorro']:,.2f}",
+        'leyenda': resultado['leyenda'],
+        'lineas': len(resultado['conceptos']),
+        # Qué incluye el total, para que el cliente vea la línea base que el
+        # cotizador agrega solo y no solo los extras que él marcó.
+        'conceptos': resultado['conceptos'],
+        # Aforo realmente cotizado: en modalidad de paquete el servidor sube al
+        # siguiente tramo de 10, y el cliente tiene que ver ese número, no el
+        # que escribió.
+        'personas': resultado['personas'],
+        'imagen_zonas_restringidas': (
+            _imagen_zonas_restringidas() if resultado['servicio'] == 'EVENTO' else None
+        ),
+    })
+
+
+def estimar_total(*, servicio, num_personas=50, horas_evento=HORAS_BASE_EVENTO, paquete_id=None,
+                  extras_ids=None, noches=1, habitaciones_ids=None, nivel_pasadia='BASICO',
+                  tipo_ev='', fecha=None):
+    """Total con IVA (e ISH si aplica) de una selección del cotizador, sin guardar nada.
+
+    Fuente única del precio exhibido antes de cotizar: la usan
+    `api_total_cotizador` (cotizador web) y el agente de WhatsApp, con los
+    mismos topes que aplica `cotizador_enviar`, para que ningún canal exhiba
+    un precio distinto del que se cobrará.
+    """
+    servicio = (servicio or '').upper()
+    num_personas = max(1, int(num_personas or 1))
+    horas_evento = max(1, int(horas_evento or HORAS_BASE_EVENTO))
     if servicio == 'PASADIA':
         horas_evento = HORAS_PASADIA
         # El total exhibido no debe insinuar un cobro que la solicitud real
@@ -917,18 +971,13 @@ def api_total_cotizador(request):
         # Mismo tope que cotizador_enviar: el total exhibido no debe insinuar
         # un cobro que la solicitud real va a rechazar.
         horas_evento = min(horas_evento, HORAS_MAX_EVENTO)
-    extras_ids = [int(x) for x in (request.GET.get('extras') or '').split(',')
-                  if x.strip().isdigit()]
-    noches = max(NOCHES_HOSPEDAJE_MIN, min(_entero('noches', 1), NOCHES_HOSPEDAJE_MAX))
-    habitaciones_ids = [int(x) for x in (request.GET.get('habitaciones') or '').split(',')
-                        if x.strip().isdigit()]
-    nivel_pasadia = (request.GET.get('nivel_pasadia') or 'BASICO').upper()
+    noches = max(NOCHES_HOSPEDAJE_MIN, min(int(noches or 1), NOCHES_HOSPEDAJE_MAX))
+    nivel_pasadia = str(nivel_pasadia or 'BASICO').upper()
     if nivel_pasadia not in ('BASICO', 'PREMIUM'):
         nivel_pasadia = 'BASICO'
 
     # Solo alimenta el texto del concepto que se exhibe; se acota a las mismas
-    # opciones del formulario en vez de aceptar el texto libre de la query.
-    tipo_ev = request.GET.get('tipo') or ''
+    # opciones del formulario en vez de aceptar texto libre.
     if tipo_ev not in dict(TIPO_EVENTO_CHOICES):
         tipo_ev = 'Evento General'
 
@@ -939,8 +988,8 @@ def api_total_cotizador(request):
 
     lineas = _lineas_cotizador(
         servicio=servicio,
-        paquete_id=request.GET.get('paquete'),
-        extras_ids=extras_ids,
+        paquete_id=paquete_id,
+        extras_ids=extras_ids or [],
         num_personas=num_personas,
         horas_evento=horas_evento,
         tipo_ev=tipo_ev,
@@ -954,10 +1003,6 @@ def api_total_cotizador(request):
     # Descuentos automáticos: la misma evaluación que `cotizador_enviar`
     # aplicará al crear la cotización, sin guardar nada. La fecha es opcional:
     # sin ella, las promociones con vigencia o temporada no se exhiben.
-    try:
-        fecha = datetime.strptime(request.GET.get('fecha') or '', '%Y-%m-%d').date()
-    except ValueError:
-        fecha = None
     tipo_evento = _tipo_evento_catalogo(servicio, tipo_ev)
     promociones = DescuentoService.simular_automaticos(ContextoDescuento(
         lineas=[(prod.id, base) for (prod, _, _), base in zip(lineas, bases)],
@@ -986,26 +1031,18 @@ def api_total_cotizador(request):
                else 'Precios en MXN, IVA incluido')
     ahorro = total_sin_descuento - total if promociones else Decimal('0.00')
 
-    return JsonResponse({
-        'ok': True,
-        'total': str(total),
-        'total_formateado': f"${total:,.2f}",
-        # Promoción exhibida ANTES de enviar: el cliente ve el precio con y sin
-        # descuento (ambos con IVA incluido) y el nombre de la promoción.
+    return {
+        'servicio': servicio,
+        'total': total,
+        'total_sin_descuento': total_sin_descuento,
+        'ahorro': ahorro,
         'descuentos': [d.nombre for d, m in promociones if m > 0],
-        'total_sin_descuento_formateado': f"${total_sin_descuento:,.2f}",
-        'ahorro_formateado': f"${ahorro:,.2f}",
         'leyenda': leyenda,
-        'lineas': len(lineas),
-        # Qué incluye el total, para que el cliente vea la línea base que el
-        # cotizador agrega solo y no solo los extras que él marcó.
         'conceptos': [desc or prod.nombre for prod, _, desc in lineas],
-        # Aforo realmente cotizado: en modalidad de paquete el servidor sube al
-        # siguiente tramo de 10, y el cliente tiene que ver ese número, no el
-        # que escribió.
         'personas': num_personas,
-        'imagen_zonas_restringidas': _imagen_zonas_restringidas() if servicio == 'EVENTO' else None,
-    })
+        'horas': horas_evento,
+        'noches': noches,
+    }
 
 
 def _imagen_zonas_restringidas():
