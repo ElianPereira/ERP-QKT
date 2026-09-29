@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q, Sum
 from django.forms.models import BaseInlineFormSet
 from django.urls import reverse
@@ -30,6 +30,7 @@ from .models import (
     MovimientoContable,
     MovimientoEstadoCuenta,
     Poliza,
+    PolizaEliminada,
     ReglaConciliacion,
     SaldoApertura,
     UnidadNegocio,
@@ -204,7 +205,8 @@ class PolizaAdmin(admin.ModelAdmin):
             obj.folio = Poliza.siguiente_folio(obj.tipo, obj.fecha)
         super().save_model(request, obj, form, change)
 
-    actions = ['aplicar_polizas', 'cancelar_polizas', 'generar_compra_retroactiva_action', 'completar_polizas_compra_action']
+    actions = ['aplicar_polizas', 'cancelar_polizas', 'generar_compra_retroactiva_action', 'completar_polizas_compra_action',
+               'eliminar_polizas']
 
     @admin.action(description="Completar con la cuenta de pago de la Compra (pólizas BORRADOR incompletas)")
     def completar_polizas_compra_action(self, request, queryset):
@@ -303,6 +305,62 @@ class PolizaAdmin(admin.ModelAdmin):
             motivo_cancelacion='Cancelación masiva desde admin'
         )
         self.message_user(request, "{} póliza(s) cancelada(s)".format(canceladas))
+
+    # El borrado estándar de Django queda cerrado para todos (chocaba con el
+    # candado de MovimientoContable). Dirección borra con su propia acción,
+    # que pide motivo y deja bitácora en PolizaEliminada.
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_actions(self, request):
+        acciones = super().get_actions(request)
+        if not request.user.is_superuser:
+            acciones.pop('eliminar_polizas', None)
+        return acciones
+
+    @admin.action(description="Borrar definitivamente (solo Dirección)")
+    @confirmar_accion_destructiva(
+        "Se borran la póliza y todos sus movimientos; no se puede deshacer. Si "
+        "estaba aplicada, deja de contar en saldos y reportes, y los renglones "
+        "del estado de cuenta ligados a ella quedan sin asignar. Queda registro "
+        "en «Pólizas eliminadas» con quién, cuándo, el motivo y una copia completa.",
+        template_name='admin/contabilidad/confirmar_eliminar_polizas.html',
+    )
+    def eliminar_polizas(self, request, queryset):
+        from .services_polizas import eliminar_polizas
+
+        try:
+            borradas = eliminar_polizas(queryset, request.user, request.POST.get('motivo'))
+        except (PermissionDenied, ValidationError) as e:
+            self.message_user(request, ' '.join(getattr(e, 'messages', [str(e)])), level=messages.ERROR)
+            return
+        self.message_user(request, f"{borradas} póliza(s) borrada(s); quedaron en «Pólizas eliminadas».")
+
+
+@admin.register(PolizaEliminada)
+class PolizaEliminadaAdmin(admin.ModelAdmin):
+    list_display = ['folio_display', 'fecha', 'concepto', 'origen', 'estado', 'total_display',
+                    'eliminada_por', 'eliminada_el']
+    list_filter = [filtro_periodo('eliminada_el', 'Eliminada'), 'origen']
+    search_fields = ['concepto', 'motivo']
+    readonly_fields = [f.name for f in PolizaEliminada._meta.fields]
+
+    @admin.display(description="Folio", ordering="folio")
+    def folio_display(self, obj):
+        return f"{obj.tipo}-{str(obj.folio).zfill(4)}"
+
+    @admin.display(description="Total")
+    def total_display(self, obj):
+        return ui.monto(obj.total)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ConciliacionBancaria)

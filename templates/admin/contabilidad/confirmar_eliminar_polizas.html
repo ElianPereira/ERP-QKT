@@ -1,0 +1,36 @@
+{% extends "admin/confirmar_accion_destructiva.html" %}
+{% load admin_urls %}
+
+{% block content %}
+<div class="qkt-pagina qkt-pagina--angosta">
+  <div class="qkt-pagina__cabecera">
+    <h1 class="qkt-pagina__titulo">¿Borrar definitivamente estas pólizas?</h1>
+  </div>
+
+  <div class="qkt-aviso qkt-aviso--error">{{ mensaje }}</div>
+
+  <p class="qkt-texto-2">Se borrarán {{ queryset|length }} póliza(s) con todos sus movimientos:</p>
+  <ul class="qkt-lista-objetos">
+    {% for obj in queryset %}
+      <li>{{ obj }} — {{ obj.get_estado_display }}</li>
+    {% endfor %}
+  </ul>
+
+  <form method="post">
+    {% csrf_token %}
+    {% for obj in queryset %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="confirmar" value="si">
+    <div class="qkt-campo">
+      <label for="id_motivo">Motivo (queda en la bitácora)</label>
+      <textarea name="motivo" id="id_motivo" rows="3" required></textarea>
+    </div>
+    <div class="qkt-botonera">
+      <button type="submit" class="qkt-btn qkt-btn--peligro">Sí, borrar definitivamente</button>
+      <a href="{% url opts|admin_urlname:'changelist' %}" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
