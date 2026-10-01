@@ -39,6 +39,18 @@
         color: var(--qkt-text-bright);
     }
 
+    .calendario-acciones {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .calendario-ayuda {
+        font-size: 13px;
+        color: var(--qkt-text);
+    }
+
     /* Leyenda */
     .leyenda-container {
         background: var(--qkt-bg-card);
@@ -235,6 +247,12 @@
 
     <div class="calendario-header">
         <h1>Calendario unificado</h1>
+        {% if bloqueo_url %}
+        <div class="calendario-acciones">
+            <span class="calendario-ayuda">Selecciona uno o varios días para bloquearlos.</span>
+            <a class="button" href="{{ bloqueo_url }}?desde=calendario">⛔ Bloquear fechas</a>
+        </div>
+        {% endif %}
     </div>
 
     <div class="leyenda-container">
@@ -246,6 +264,10 @@
             <div class="leyenda-item">
                 <div class="leyenda-color" style="background: #95a5a6;"></div>
                 Evento Borrador
+            </div>
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background: #c0392b;"></div>
+                Fecha bloqueada
             </div>
             <div class="leyenda-item">
                 <div class="leyenda-color" style="background: #9b59b6;"></div>
@@ -264,13 +286,42 @@
 </div>
 
 {{ eventos_url|json_script:"eventos-url" }}
+{{ bloqueo_url|json_script:"bloqueo-url" }}
+{{ fecha_inicial|json_script:"fecha-inicial" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
     var eventosUrl = JSON.parse(document.getElementById('eventos-url').textContent);
+    var bloqueoUrl = JSON.parse(document.getElementById('bloqueo-url').textContent);
+    var fechaInicial = JSON.parse(document.getElementById('fecha-inicial').textContent);
+
+    // YYYY-MM-DD en hora local (toISOString() pasaría a UTC y podría correr el día).
+    function isoLocal(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+            + '-' + String(d.getDate()).padStart(2, '0');
+    }
 
     var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
+        initialDate: fechaInicial || undefined,
+
+        // Seleccionar días abre el alta del bloqueo con esas fechas. Solo
+        // si el usuario puede crear bloqueos (bloqueoUrl es null si no).
+        selectable: !!bloqueoUrl,
+        select: function(info) {
+            var desde = info.start;
+            var hasta = new Date(info.end.getTime());
+            // 'end' es exclusivo en días completos; en la vista de semana la
+            // selección es de horas dentro del mismo día.
+            if (info.allDay) hasta.setDate(hasta.getDate() - 1);
+            else hasta = desde;
+            var desdeStr = isoLocal(desde), hastaStr = isoLocal(hasta);
+            var texto = desdeStr === hastaStr ? 'el ' + desdeStr : 'del ' + desdeStr + ' al ' + hastaStr;
+            if (window.confirm('¿Bloquear ' + texto + '? Las fechas dejarán de estar disponibles en el cotizador.')) {
+                window.location.href = bloqueoUrl + '?desde=calendario&fecha_inicio=' + desdeStr + '&fecha_fin=' + hastaStr;
+            }
+            calendar.unselect();
+        },
         locale: 'es',
         height: 'auto',
         firstDay: 1,

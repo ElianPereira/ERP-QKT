@@ -255,6 +255,25 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-01 — **Bloqueo de fechas sin contratación** (mantenimiento,
+  reparaciones, uso propio). `comercial.BloqueoFecha` (migración `0107`,
+  «Bloqueos» en el menú) con `fecha_fin` **inclusiva** (último día cerrado;
+  `rango_ocupado()` la pasa a exclusiva como `Cotizacion`). Se integra en
+  `comercial/disponibilidad.py` —`verificar_disponibilidad_rango` y
+  `obtener_fechas_bloqueadas`—, así que cierra la fecha en todo lo que ya
+  pasaba por ahí sin tocar cada consumidor: cotizador público (flatpickr vía
+  `/api/fechas-ocupadas/`), `/api/disponibilidad/`, portal
+  (`admite_pago_detalle`), confirmación manual y por pago, cron 0b y agente de
+  WhatsApp. El mensaje al cliente **no dice el motivo** ni las notas. Se crea
+  desde el calendario seleccionando días (solo con `add_bloqueofecha`; alta
+  prellenada por GET y regreso al mes del bloqueo con `?desde=calendario`) y
+  se pinta en rojo. No se puede bloquear encima de una CONFIRMADA (`clean()`,
+  también al reactivar); las BORRADOR/COTIZADA del rango se avisan al guardar
+  porque ya no podrán pagarse. Nunca se borra: acción «Liberar fechas». Un
+  Hospedaje que sale el primer día bloqueado sí cabe (mismo criterio de fin
+  exclusivo que entre reservaciones). QKT-Pages no consulta disponibilidad:
+  enlaza al cotizador del ERP, no requirió cambios.
+
 - 2026-09-29 — **Agente de WhatsApp con IA, fase 1** (Issue #346; se evaluó
   Meta One y se descartó: su agente no se conecta a sistemas externos).
   Webhook `/api/whatsapp/webhook/` (`comunicacion/views_whatsapp.py`, firma

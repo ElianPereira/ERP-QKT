@@ -1404,8 +1404,8 @@ class Pago(models.Model):
                 asunto=f"⚠️ Pago recibido con fecha ocupada — COT-{cot.id:03d}",
                 cuerpo=(
                     f"Entró un pago de ${self.monto:,.2f} para COT-{cot.id:03d} "
-                    f"({cot.cliente}), pero la fecha ya está apartada por otra "
-                    f"reservación, así que NO se confirmó.\n\nDetalle: {msg_fecha}\n\n"
+                    f"({cot.cliente}), pero la fecha ya no está disponible (otra "
+                    f"reservación o un bloqueo), así que NO se confirmó.\n\nDetalle: {msg_fecha}\n\n"
                     "Contacta al cliente para mover la fecha o reembolsar."
                 ),
                 pago=self,
@@ -2413,6 +2413,85 @@ class GuiaTipoServicio(models.Model):
 
     def __str__(self):
         return f"Guía — {self.get_tipo_servicio_display()}"
+
+
+class BloqueoFecha(models.Model):
+    """Días en que la Quinta no se renta sin que exista una contratación:
+    mantenimiento, reparaciones, uso propio. Bloquea igual que una cotización
+    CONFIRMADA (cotizador, portal, agente de WhatsApp, admin) vía
+    `comercial.disponibilidad`. El motivo y las notas son internos: al cliente
+    solo se le dice que la fecha no está disponible.
+
+    Nunca se borra: se desactiva para liberar las fechas."""
+    MOTIVO_CHOICES = [
+        ('MANTENIMIENTO', 'Mantenimiento'),
+        ('REPARACION', 'Reparación'),
+        ('USO_PROPIO', 'Uso propio'),
+        ('OTRO', 'Otro'),
+    ]
+
+    fecha_inicio = models.DateField(verbose_name="Desde")
+    fecha_fin = models.DateField(
+        verbose_name="Hasta",
+        help_text="Último día bloqueado (incluido). Para un solo día, la misma fecha que «Desde».",
+    )
+    motivo = models.CharField(max_length=15, choices=MOTIVO_CHOICES, default='MANTENIMIENTO',
+                              verbose_name="Motivo")
+    notas = models.TextField(blank=True, verbose_name="Notas internas",
+                             help_text="Solo las ve el equipo; nunca se muestran al cliente.")
+    activo = models.BooleanField(default=True, verbose_name="Activo",
+                                 help_text="Desmárcalo para liberar las fechas (el registro se conserva).")
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='bloqueos_creados', verbose_name="Creado por",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='bloqueos_actualizados', verbose_name="Actualizado por",
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
+
+    class Meta:
+        verbose_name = "Bloqueo de fecha"
+        verbose_name_plural = "Bloqueos"
+        ordering = ['-fecha_inicio']
+
+    def __str__(self):
+        return f"{self.get_motivo_display()} — {self.periodo_display()}"
+
+    def periodo_display(self):
+        if not self.fecha_inicio:
+            return ''
+        if not self.fecha_fin or self.fecha_fin == self.fecha_inicio:
+            return self.fecha_inicio.strftime('%d/%m/%Y')
+        return f"{self.fecha_inicio.strftime('%d/%m/%Y')} al {self.fecha_fin.strftime('%d/%m/%Y')}"
+
+    def rango_ocupado(self):
+        """[inicio, fin) con fin EXCLUSIVO, igual que `Cotizacion.rango_ocupado()`."""
+        return self.fecha_inicio, self.fecha_fin + timedelta(days=1)
+
+    def clean(self):
+        super().clean()
+        if not (self.fecha_inicio and self.fecha_fin):
+            return
+        if self.fecha_fin < self.fecha_inicio:
+            raise ValidationError({'fecha_fin': "«Hasta» no puede ser anterior a «Desde»."})
+        if not self.activo:
+            return
+        # Bloquear sobre una reservación ya apartada dejaría a un cliente que
+        # pagó sin su fecha: primero se mueve o cancela la cotización.
+        from .disponibilidad import cotizaciones_apartadas
+        choques = list(cotizaciones_apartadas(*self.rango_ocupado()).order_by('fecha_evento')[:5])
+        if choques:
+            folios = ', '.join(
+                f"COT-{c.id:03d} ({c.fecha_evento.strftime('%d/%m/%Y')})" for c in choques
+            )
+            raise ValidationError(
+                f"Ya hay reservaciones confirmadas en esas fechas: {folios}. "
+                "Muévelas o cancélalas antes de bloquear."
+            )
 
 
 class Temporada(models.Model):
