@@ -2,7 +2,10 @@
 Disponibilidad de fechas de la Quinta
 =====================================
 Verifica si un rango de fechas está libre cruzando las Cotizacion ya
-apartadas (Evento, Pasadía, Arrendamiento, Hospedaje).
+apartadas (Evento, Pasadía, Arrendamiento, Hospedaje) y los `BloqueoFecha`
+activos (mantenimiento, reparaciones, uso propio). Todo lo que pregunta por
+disponibilidad pasa por aquí: cotizador público, portal, admin, confirmación
+por pago y agente de WhatsApp.
 
 Todo se expresa como [fecha_inicio, fecha_fin) — fecha_fin EXCLUSIVA (el
 checkout no cuenta como noche ocupada). Un servicio de un solo día
@@ -16,7 +19,7 @@ from typing import List, Optional, Tuple
 from django.db.models import Q
 
 
-def _cotizaciones_apartadas(fecha_inicio: date, fecha_fin: date):
+def cotizaciones_apartadas(fecha_inicio: date, fecha_fin: date):
     """Cotizaciones CONFIRMADA cuyo rango ocupado traslapa [fecha_inicio, fecha_fin).
 
     c.rango_ocupado() = [fecha_evento, fecha_salida o fecha_evento+1día); traslapa
@@ -25,12 +28,24 @@ def _cotizaciones_apartadas(fecha_inicio: date, fecha_fin: date):
     bloquea: solo apartar la fecha (CONFIRMADA) lo hace."""
     from .models import Cotizacion
 
-    return Cotizacion.objects.filter(
-        estado='CONFIRMADA',
-        fecha_evento__lt=fecha_fin,
-    ).filter(
+    return rango_traslapa(Cotizacion.objects.filter(estado='CONFIRMADA'), fecha_inicio, fecha_fin)
+
+
+def rango_traslapa(qs, fecha_inicio: date, fecha_fin: date):
+    """Filtra un queryset de Cotizacion a las que traslapan [fecha_inicio, fecha_fin)."""
+    return qs.filter(fecha_evento__lt=fecha_fin).filter(
         Q(fecha_salida__gt=fecha_inicio)
         | Q(fecha_salida__isnull=True, fecha_evento__gte=fecha_inicio)
+    )
+
+
+def bloqueos_activos(fecha_inicio: date, fecha_fin: date):
+    """BloqueoFecha activos que traslapan [fecha_inicio, fecha_fin).
+    El `fecha_fin` del bloqueo es INCLUSIVO (último día cerrado)."""
+    from .models import BloqueoFecha
+
+    return BloqueoFecha.objects.filter(
+        activo=True, fecha_inicio__lt=fecha_fin, fecha_fin__gte=fecha_inicio,
     )
 
 
@@ -39,16 +54,25 @@ def verificar_disponibilidad_rango(
 ) -> Tuple[bool, Optional[str]]:
     """
     Verifica si el rango [fecha_inicio, fecha_fin) está disponible contra
-    cualquier otra Cotizacion CONFIRMADA (de cualquier tipo de servicio).
+    cualquier otra Cotizacion CONFIRMADA (de cualquier tipo de servicio) y
+    contra los bloqueos activos. El mensaje de un bloqueo no dice el motivo:
+    llega al cliente por el cotizador y el portal.
 
     Returns:
         Tuple (disponible: bool, mensaje_error: str o None)
     """
-    qs = _cotizaciones_apartadas(fecha_inicio, fecha_fin)
+    qs = cotizaciones_apartadas(fecha_inicio, fecha_fin)
     if cotizacion_id:
         qs = qs.exclude(pk=cotizacion_id)
     cot = qs.first()
     if not cot:
+        bloqueo = bloqueos_activos(fecha_inicio, fecha_fin).order_by('fecha_inicio').first()
+        if bloqueo:
+            return False, (
+                f"Fechas no disponibles: la Quinta no recibe reservaciones "
+                f"{'el' if bloqueo.fecha_inicio == bloqueo.fecha_fin else 'del'} "
+                f"{bloqueo.periodo_display()}."
+            )
         return True, None
 
     inicio_cot, fin_cot = cot.rango_ocupado()
@@ -81,11 +105,12 @@ def verificar_disponibilidad_hospedaje(
 
 def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]:
     """
-    Bloqueos (cotizaciones apartadas) que traslapan [fecha_inicio, fecha_fin),
-    cada uno con su rango real — `fecha_fin` de cada bloqueo es EXCLUSIVA.
+    Bloqueos (cotizaciones apartadas y BloqueoFecha activos) que traslapan
+    [fecha_inicio, fecha_fin), cada uno con su rango real — `fecha_fin` de
+    cada bloqueo es EXCLUSIVA.
     """
     bloqueos = []
-    for c in _cotizaciones_apartadas(fecha_inicio, fecha_fin):
+    for c in cotizaciones_apartadas(fecha_inicio, fecha_fin):
         inicio_c, fin_c = c.rango_ocupado()
         bloqueos.append({
             'fecha_inicio': inicio_c,
@@ -95,4 +120,7 @@ def obtener_fechas_bloqueadas(fecha_inicio: date, fecha_fin: date) -> List[dict]
                 else f"Evento COT-{c.id:03d}"
             ),
         })
+    for b in bloqueos_activos(fecha_inicio, fecha_fin):
+        inicio_b, fin_b = b.rango_ocupado()
+        bloqueos.append({'fecha_inicio': inicio_b, 'fecha_fin': fin_b, 'titulo': 'No disponible'})
     return bloqueos

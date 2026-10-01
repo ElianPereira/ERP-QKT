@@ -37,6 +37,7 @@ from .choices import PosicionLanding
 from .models import (
     AsignacionEspacio,
     AsignacionPersonal,
+    BloqueoFecha,
     Cliente,
     ComponenteProducto,
     Compra,
@@ -1778,6 +1779,71 @@ class AsignacionPersonalAdmin(admin.ModelAdmin):
     search_fields = ('empleado__nombre', 'cotizacion__nombre_evento', 'cotizacion__cliente__nombre')
     date_hierarchy = 'fecha'
     autocomplete_fields = ('cotizacion',)
+
+
+@admin.register(BloqueoFecha)
+class BloqueoFechaAdmin(admin.ModelAdmin):
+    """Cierra fechas sin contratación (mantenimiento, reparaciones). Se crea
+    también desde el calendario seleccionando los días. Nunca se borra: se
+    desactiva para liberar las fechas."""
+    list_display = ('periodo', 'motivo', 'estado', 'notas', 'created_by')
+    list_filter = ('activo', ('motivo', con_titulo('Motivo')), filtro_periodo('fecha_inicio', 'Desde'))
+    search_fields = ('notas',)
+    date_hierarchy = 'fecha_inicio'
+    fields = ('fecha_inicio', 'fecha_fin', 'motivo', 'notas', 'activo')
+    actions = ['liberar_fechas']
+
+    @admin.display(description='Fechas', ordering='fecha_inicio')
+    def periodo(self, obj):
+        return obj.periodo_display()
+
+    @admin.display(description='Estado', ordering='activo')
+    def estado(self, obj):
+        return ui.badge('Bloqueada', ui.ERROR) if obj.activo else ui.badge('Liberada', ui.NEUTRO)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+        if obj.activo:
+            self._avisar_cotizaciones_abiertas(request, obj)
+
+    def _avisar_cotizaciones_abiertas(self, request, obj):
+        """Las BORRADOR/COTIZADA de esas fechas ya no podrán pagarse ni
+        confirmarse (`admite_pago_detalle`): que el equipo lo sepa."""
+        from .disponibilidad import rango_traslapa
+        inicio, fin = obj.rango_ocupado()
+        abiertas = list(rango_traslapa(
+            Cotizacion.objects.filter(estado__in=Cotizacion.ESTADOS_SIN_APARTAR), inicio, fin,
+        ).order_by('fecha_evento')[:10])
+        if abiertas:
+            folios = ', '.join(f"COT-{c.id:03d}" for c in abiertas)
+            messages.warning(request, (
+                f"Hay cotizaciones abiertas en esas fechas que ya no podrán pagarse "
+                f"ni confirmarse mientras siga el bloqueo: {folios}. Avísales a los clientes."
+            ))
+
+    def response_add(self, request, obj, post_url_continue=None):
+        # Alta desde el calendario: volver a él, en el mes del bloqueo.
+        if request.GET.get('desde') == 'calendario' and '_addanother' not in request.POST \
+                and '_continue' not in request.POST:
+            messages.success(request, f"Fechas bloqueadas: {obj.periodo_display()}.")
+            return redirect(f"{reverse('calendario_unificado')}?fecha={obj.fecha_inicio.isoformat()}")
+        return super().response_add(request, obj, post_url_continue)
+
+    @admin.action(description='Liberar fechas (desactivar bloqueo)')
+    def liberar_fechas(self, request, queryset):
+        n = 0
+        for bloqueo in queryset.filter(activo=True):
+            bloqueo.activo = False
+            bloqueo.updated_by = request.user
+            bloqueo.save(update_fields=['activo', 'updated_by', 'updated_at'])
+            n += 1
+        messages.success(request, f"{n} bloqueo(s) liberado(s).")
 
 
 # ==========================================
