@@ -316,11 +316,22 @@ document.addEventListener('DOMContentLoaded', function() {
             if (info.allDay) hasta.setDate(hasta.getDate() - 1);
             else hasta = desde;
             var desdeStr = isoLocal(desde), hastaStr = isoLocal(hasta);
-            var texto = desdeStr === hastaStr ? 'el ' + desdeStr : 'del ' + desdeStr + ' al ' + hastaStr;
-            if (window.confirm('¿Bloquear ' + texto + '? Las fechas dejarán de estar disponibles en el cotizador.')) {
-                window.location.href = bloqueoUrl + '?desde=calendario&fecha_inicio=' + desdeStr + '&fecha_fin=' + hastaStr;
-            }
+            var largo = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+            var texto = desdeStr === hastaStr
+                ? 'el ' + desde.toLocaleDateString('es-MX', largo)
+                : 'del ' + desde.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+                  + ' al ' + hasta.toLocaleDateString('es-MX', largo);
             calendar.unselect();
+            QKT.confirmar({
+                titulo: desdeStr === hastaStr ? 'Bloquear fecha' : 'Bloquear fechas',
+                mensaje: 'Se bloqueará ' + texto + '. Dejará de estar disponible en el cotizador '
+                    + 'y en el portal hasta que se libere.',
+                aceptar: 'Continuar'
+            }).then(function (ok) {
+                if (ok) {
+                    window.location.href = bloqueoUrl + '?desde=calendario&fecha_inicio=' + desdeStr + '&fecha_fin=' + hastaStr;
+                }
+            });
         },
         locale: 'es',
         height: 'auto',

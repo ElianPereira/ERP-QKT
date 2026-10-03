@@ -255,6 +255,14 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-03 — **Confirmaciones con el estilo del ERP** (el `confirm()` nativo
+  del navegador se veía fuera de lugar al bloquear fechas). `QKT.confirmar()`
+  en `qkt_ui.js` (`<dialog>` nativo, promesa → true/false; Esc o clic en el
+  fondo cancelan) con estilos `.qkt-dialogo` en `qkt_ui.css`. Lo usan el
+  calendario y todo `data-qkt-confirmar`: el clic se detiene, se pregunta y,
+  si acepta, **se repite el mismo clic** (así un submit sigue enviando su
+  `name`/`value`). Nada de `window.confirm` en páginas nuevas del admin.
+
 - 2026-10-01 — **Bloqueo de fechas sin contratación** (mantenimiento,
   reparaciones, uso propio). `comercial.BloqueoFecha` (migración `0107`,
   «Bloqueos» en el menú) con `fecha_fin` **inclusiva** (último día cerrado;
