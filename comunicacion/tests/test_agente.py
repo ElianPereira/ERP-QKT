@@ -361,6 +361,11 @@ class HerramientasTest(TestCase):
             servicio='PASADIA', fecha=cerca)['paga_total_desde_el_inicio'])
         self.assertIn('error', herramientas_agente.condiciones_de_pago(servicio='BODA'))
 
+    def test_las_preguntas_frecuentes_sembradas_llegan_al_agente(self):
+        preguntas = {p['pregunta'] for p in herramientas_agente.preguntas_frecuentes()['preguntas']}
+        self.assertIn('¿Puedo llevar a mi mascota?', preguntas)
+        self.assertIn('¿Incluyen hielo?', preguntas)
+
     def test_ejecutar_herramienta_desconocida_es_error(self):
         salida, error = herramientas_agente.ejecutar('borrar_todo', {})
         self.assertTrue(error)
