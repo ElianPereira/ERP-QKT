@@ -265,6 +265,32 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-03 — **Variables de los 4 Cron Jobs de Railway alineadas con `web`**
+  (revisión pedida por el propietario; sin cambio de código). Los crons se
+  crearon duplicando servicios y arrastraban huecos que fallaban en silencio:
+  el de Recordatorio de Pagos no tenía `WA_CLOUD_API_TOKEN`/
+  `WA_PHONE_NUMBER_ID`/`WA_TEMPLATE_RECORDATORIO` (todo WhatsApp de
+  recordatorio quedaba `FALLIDO`), el de Operaciones no tenía
+  `WA_NUMERO_NEGOCIO` (el resumen nocturno nunca salía) y ninguno tenía
+  `PORTAL_URL` (los enlaces caían al default `erp.`). **Convención desde
+  ahora**: un cron nunca lleva un valor copiado, lleva una referencia
+  `${{web.VARIABLE}}` — así rotar un token en `web` lo rota en todos.
+  **Trampa**: `web` **no tiene `DEFAULT_FROM_EMAIL`**, así que
+  `${{web.DEFAULT_FROM_EMAIL}}` resuelve a vacío y, como los `EMAIL_FROM_*`
+  caen a él, los correos salen sin remitente. En cada cron
+  `DEFAULT_FROM_EMAIL` apunta al remitente propio de ese cron: Mensajes →
+  `${{web.EMAIL_FROM_RESERVAS}}`, Pagos → `${{web.EMAIL_FROM_PAGOS}}`,
+  Facturas y Operaciones → `${{web.EMAIL_FROM_NOTIFICACIONES}}`; todos
+  llevan además `EMAIL_FROM_NOTIFICACIONES` para las alertas internas. Una
+  referencia a un servicio con espacios en el nombre ("Cron De …") no se usó
+  por no poder verificarla: `WA_TEMPLATE_OPERACIONES=aviso_operaciones`
+  (plantilla ya aprobada en Meta) se capturó a mano en `web`. Se borraron
+  las `CLOUDINARY_*` de los crons (residuo; solo las migraciones viejas
+  importan el paquete, no las credenciales). Verificado en el log del cron
+  de Operaciones: 2 checklists enviados tras capturar el teléfono de los
+  responsables en `nomina.Empleado` (antes: "sin teléfono de responsable").
+  Al agregar una variable nueva al ERP, revisar qué cron la necesita.
+
 - 2026-10-03 — **Confirmaciones con el estilo del ERP** (el `confirm()` nativo
   del navegador se veía fuera de lugar al bloquear fechas). `QKT.confirmar()`
   en `qkt_ui.js` (`<dialog>` nativo, promesa → true/false; Esc o clic en el
