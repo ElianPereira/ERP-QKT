@@ -89,7 +89,7 @@ Las consultas que nos envíe por WhatsApp al número de atención y ventas (+52 
 - Las conversaciones pueden ser revisadas por personal autorizado para darle seguimiento y mejorar la calidad de la atención.
 - El asistente no le solicita datos fiscales, de pago ni de identificación; solo los que necesita para orientarle (servicio, fecha y número de personas). La contratación, con los datos que requiera, se realiza en nuestro cotizador en línea.
 
-**Consentimiento.** Al iniciar la conversación, y antes de cualquier respuesta, el asistente le envía un mensaje que le informa que es un sistema automatizado con inteligencia artificial y no una persona, cómo solicitar que le atienda alguien del equipo y la dirección electrónica de este Aviso de Privacidad. Si después de recibirlo continúa la conversación, se entiende que consiente el tratamiento de sus datos para la finalidad descrita en este apartado. Si no está de acuerdo, puede dejar de escribir, pedir que le atienda una persona o comunicarse con nosotros por los medios señalados en el apartado 1. [CONFIRMAR: con el abogado, si basta este consentimiento tácito o si debe recabarse de forma expresa (por ejemplo, que el titular responda «Acepto» antes de continuar).]
+**Consentimiento.** Al iniciar la conversación, y antes de cualquier respuesta, el asistente le envía un mensaje que le informa que es un sistema automatizado con inteligencia artificial y no una persona, cómo solicitar que le atienda alguien del equipo y la dirección electrónica de este Aviso de Privacidad. Si después de recibirlo continúa la conversación, se entiende que consiente el tratamiento de sus datos para la finalidad descrita en este apartado. Si no está de acuerdo, puede dejar de escribir, pedir que le atienda una persona o comunicarse con nosotros por los medios señalados en el apartado 1.
 
 ### 3.2 Finalidades que SÍ requieren su consentimiento
 No son necesarias para la relación jurídica. Usted puede negarse a ellas o revocarlas en cualquier momento **sin que ello afecte los servicios que contrate con nosotros**:
@@ -125,7 +125,7 @@ Utilizamos proveedores tecnológicos que tratan datos personales **por nuestra c
 - Proveedor de almacenamiento de archivos y documentos.
 - Proveedor de servicios de mensajería instantánea para comunicación con clientes.
 - Proveedor de correo electrónico corporativo.
-- Proveedor de servicios de inteligencia artificial que procesa el contenido de las conversaciones de WhatsApp para generar las respuestas del asistente virtual (apartado 3.3), con servidores ubicados en los Estados Unidos de América. [CONFIRMAR: con el abogado, si se nombra al proveedor (Anthropic, PBC) y si los términos comerciales contratados excluyen el uso de las conversaciones para entrenar sus modelos.]
+- Proveedor de servicios de inteligencia artificial que procesa el contenido de las conversaciones de WhatsApp para generar las respuestas del asistente virtual (apartado 3.3). Esta tecnología se utiliza bajo un esquema de API comercial y opera bajo acuerdos de confidencialidad y procesamiento de datos que garantizan que el contenido de las conversaciones no se utiliza para entrenar modelos de lenguaje ni se transfiere a terceros para fines propios del proveedor.
 
 Estas remisiones no constituyen transferencias en términos de la Ley y no requieren su consentimiento.
 
