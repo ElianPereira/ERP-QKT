@@ -869,6 +869,27 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 .qkt-texto-2 { color: var(--ui-text-2); }
 .qkt-mayusculas { text-transform: uppercase; }
 
+/* ── DIÁLOGO DE CONFIRMACIÓN (QKT.confirmar en qkt_ui.js) ─── */
+.qkt-dialogo {
+    width: min(440px, calc(100vw - 32px));
+    padding: 22px 22px 18px;
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-line) !important;
+    border-top: 3px solid var(--ui-yellow) !important;
+    border-radius: 10px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .5);
+}
+.qkt-dialogo::backdrop { background: rgba(15, 14, 12, .62); }
+.qkt-dialogo[open] { animation: qkt-dialogo-entrar .14s ease-out; }
+@keyframes qkt-dialogo-entrar {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+.qkt-dialogo__titulo { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--ui-text); }
+.qkt-dialogo__mensaje { margin: 0 0 20px; font-size: 14px; line-height: 1.5; color: var(--ui-text-2); white-space: pre-line; }
+.qkt-dialogo__botones { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
 /* ── ACCESO (login y 2FA) ──────────────────────────────────
    templates/registration/base.html carga este archivo en las pantallas de
    acceso. Los !important vencen a adminlte.css y a las reglas globales de

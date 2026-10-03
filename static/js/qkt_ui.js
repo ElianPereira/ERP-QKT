@@ -3,13 +3,72 @@
 (function () {
     'use strict';
 
-    // Botones con confirmación (antes: onclick="return confirm(...)" en línea)
+    // Diálogo de confirmación con el estilo del ERP (sustituye a window.confirm).
+    // QKT.confirmar({titulo, mensaje, aceptar, tono: 'primario'|'peligro'})
+    // devuelve una promesa que se resuelve en true (aceptó) o false.
+    function confirmar(opciones) {
+        var o = opciones || {};
+        return new Promise(function (resolver) {
+            var dialogo = document.createElement('dialog');
+            dialogo.className = 'qkt-dialogo';
+            dialogo.setAttribute('aria-labelledby', 'qkt-dialogo-titulo');
+            dialogo.innerHTML =
+                '<h2 class="qkt-dialogo__titulo" id="qkt-dialogo-titulo"></h2>' +
+                '<p class="qkt-dialogo__mensaje"></p>' +
+                '<div class="qkt-dialogo__botones">' +
+                '<button type="button" class="qkt-btn qkt-btn--secundario" data-r="0">Cancelar</button>' +
+                '<button type="button" class="qkt-btn" data-r="1"></button>' +
+                '</div>';
+            // textContent: el mensaje puede traer datos capturados por usuarios.
+            dialogo.querySelector('.qkt-dialogo__titulo').textContent = o.titulo || 'Confirmar acción';
+            dialogo.querySelector('.qkt-dialogo__mensaje').textContent = o.mensaje || '';
+            var aceptar = dialogo.querySelector('[data-r="1"]');
+            aceptar.textContent = o.aceptar || 'Continuar';
+            aceptar.classList.add(o.tono === 'peligro' ? 'qkt-btn--peligro' : 'qkt-btn--primario');
+
+            var resultado = false;
+            dialogo.addEventListener('click', function (e) {
+                var boton = e.target.closest('[data-r]');
+                if (boton) {
+                    resultado = boton.getAttribute('data-r') === '1';
+                    dialogo.close();
+                } else if (e.target === dialogo) {
+                    dialogo.close();  // clic en el fondo = cancelar
+                }
+            });
+            // Esc también cierra (evento 'close' nativo del <dialog>).
+            dialogo.addEventListener('close', function () {
+                dialogo.remove();
+                resolver(resultado);
+            });
+            document.body.appendChild(dialogo);
+            dialogo.showModal();
+            aceptar.focus();
+        });
+    }
+    window.QKT = window.QKT || {};
+    window.QKT.confirmar = confirmar;
+
+    // Botones y enlaces con confirmación (antes: onclick="return confirm(...)").
+    // Se detiene el clic, se pregunta y, si acepta, se repite el mismo clic:
+    // así un botón submit sigue mandando su name/value con el formulario.
     document.addEventListener('click', function (e) {
         var el = e.target.closest('[data-qkt-confirmar]');
-        if (el && !window.confirm(el.getAttribute('data-qkt-confirmar'))) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
+        if (!el) return;
+        if (el.dataset.qktConfirmado) {
+            delete el.dataset.qktConfirmado;
+            return;
         }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        confirmar({
+            mensaje: el.getAttribute('data-qkt-confirmar'),
+            tono: el.classList.contains('qkt-btn--peligro') ? 'peligro' : 'primario'
+        }).then(function (ok) {
+            if (!ok) return;
+            el.dataset.qktConfirmado = '1';
+            el.click();
+        });
     }, true);
 
     // Copiar al portapapeles (enlace del portal, etc.)

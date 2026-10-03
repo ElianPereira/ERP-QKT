@@ -1983,8 +1983,8 @@ class ParcialidadPago(models.Model):
         return 'PENDIENTE'
 
     def __str__(self):
-        estado = "" if self.pagada else "⏳"
-        return f"{estado} #{self.numero} - ${self.monto:,.2f} - {self.fecha_limite}"
+        estado = "Pagada" if self.pagada else "Pendiente"
+        return f"#{self.numero} - ${self.monto:,.2f} - {self.fecha_limite} ({estado})"
 
     class Meta:
         verbose_name = "Parcialidad"

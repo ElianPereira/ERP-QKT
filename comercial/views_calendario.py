@@ -44,7 +44,7 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
     # exclusivo, de ahí `rango_ocupado()`).
     for b in bloqueos_activos(fecha_inicio, fecha_fin):
         inicio_b, fin_b = b.rango_ocupado()
-        titulo = f"⛔ Bloqueado: {b.get_motivo_display()}"
+        titulo = f"Bloqueado: {b.get_motivo_display()}"
         if b.notas:
             titulo += f" — {b.notas[:60]}"
         eventos_lista.append({
@@ -62,7 +62,7 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
     ).select_related('espacio', 'cotizacion__cliente')
     for a in asignaciones_esp:
         eventos_lista.append({
-            'title': f"📍 {a.espacio.nombre}: COT-{a.cotizacion_id:03d}",
+            'title': f"{a.espacio.nombre}: COT-{a.cotizacion_id:03d}",
             'start': f"{a.fecha.strftime('%Y-%m-%d')}T{a.hora_inicio.strftime('%H:%M:%S')}",
             'end': f"{a.fecha.strftime('%Y-%m-%d')}T{a.hora_fin.strftime('%H:%M:%S')}" if a.hora_fin > a.hora_inicio else None,
             'color': '#9b59b6',
@@ -75,7 +75,7 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
     ).select_related('empleado')
     for a in asignaciones_per:
         eventos_lista.append({
-            'title': f"👤 {a.empleado.nombre} ({a.get_rol_display()})",
+            'title': f"{a.empleado.nombre} ({a.get_rol_display()})",
             'start': f"{a.fecha.strftime('%Y-%m-%d')}T{a.hora_inicio.strftime('%H:%M:%S')}",
             'color': '#16a085',
             'url': f'/admin/comercial/asignacionpersonal/{a.id}/change/',
