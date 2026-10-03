@@ -378,10 +378,15 @@ def condiciones_de_pago(servicio=None, fecha=None):
     # portal (el % configurado en ConstanteSistema y los días por servicio).
     referencia = Cotizacion(tipo_servicio=servicio)
     dias = Cotizacion.DIAS_PAGO_TOTAL[servicio]
+    primer_pago = Cotizacion.PORCENTAJE_PRIMER_PAGO
+    # Si el % que aparta la fecha no pasa del mínimo del primer pago, todo
+    # primer pago la aparta: decir dos porcentajes distintos solo confunde.
+    aparta = referencia.porcentaje_anticipo_confirmacion()
     resultado = {
         'servicio': servicio,
-        'primer_pago_minimo': f'{Cotizacion.PORCENTAJE_PRIMER_PAGO:.0f}% del total',
-        'aparta_la_fecha_al_pagar': f'{referencia.porcentaje_anticipo_confirmacion():.0f}% del total',
+        'primer_pago_minimo': f'{primer_pago:.0f}% del total',
+        'aparta_la_fecha': ('Con el primer pago.' if aparta <= primer_pago
+                            else f'Al llevar pagado el {aparta:.0f}% del total.'),
         'liquidar': f'El saldo completo a más tardar {dias} días antes de la fecha.',
         'si_faltan_menos_dias': f'Con menos de {dias} días de anticipación se paga el total en un solo pago.',
         'como_se_paga': ('En línea desde el portal del cliente, que recibe al cotizar en el cotizador web: '

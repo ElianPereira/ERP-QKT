@@ -15,7 +15,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from comercial.models import Cotizacion, Producto, ProductoComponente
+from comercial.models import ConstanteSistema, Cotizacion, Producto, ProductoComponente
 from comunicacion import herramientas_agente, services_agente
 from comunicacion.models import ConversacionWhatsApp, MensajeWhatsApp
 
@@ -348,6 +348,7 @@ class HerramientasTest(TestCase):
     def test_condiciones_de_pago_salen_de_las_reglas_del_erp(self):
         r = herramientas_agente.condiciones_de_pago(servicio='EVENTO')
         self.assertEqual(r['primer_pago_minimo'], '50% del total')
+        self.assertEqual(r['aparta_la_fecha'], 'Con el primer pago.')
         self.assertIn(f"{Cotizacion.DIAS_PAGO_TOTAL['EVENTO']} días", r['liquidar'])
 
         lejos = timezone.localdate() + timedelta(days=60)
@@ -360,6 +361,19 @@ class HerramientasTest(TestCase):
         self.assertTrue(herramientas_agente.condiciones_de_pago(
             servicio='PASADIA', fecha=cerca)['paga_total_desde_el_inicio'])
         self.assertIn('error', herramientas_agente.condiciones_de_pago(servicio='BODA'))
+
+    def test_el_apartado_no_contradice_el_minimo_del_primer_pago(self):
+        # Un % de apartado menor al 50% del primer pago (dato viejo en producción)
+        # no debe llegarle al cliente como una cifra distinta.
+        constante = ConstanteSistema.objects.create(clave='PORCENTAJE_ANTICIPO_MINIMO', valor=Decimal('30'))
+        r = herramientas_agente.condiciones_de_pago(servicio='EVENTO')
+        self.assertEqual(r['aparta_la_fecha'], 'Con el primer pago.')
+        self.assertNotIn('30%', json.dumps(r, ensure_ascii=False))
+
+        constante.valor = Decimal('70')
+        constante.save()
+        r = herramientas_agente.condiciones_de_pago(servicio='EVENTO')
+        self.assertEqual(r['aparta_la_fecha'], 'Al llevar pagado el 70% del total.')
 
     def test_las_preguntas_frecuentes_sembradas_llegan_al_agente(self):
         preguntas = {p['pregunta'] for p in herramientas_agente.preguntas_frecuentes()['preguntas']}
