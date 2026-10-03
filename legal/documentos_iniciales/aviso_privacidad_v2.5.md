@@ -181,7 +181,9 @@ Conservamos sus datos personales durante la vigencia de la relación contractual
 | Contratos y expedientes de servicio | 5 años posteriores a la conclusión del servicio |
 | Identificación oficial de quien contrata | 5 años posteriores a la conclusión del servicio, mismo criterio que el expediente de contratación del que forma parte |
 | Imágenes de videovigilancia | 14 días naturales, salvo que se requieran para una investigación o procedimiento |
-| Conversaciones por WhatsApp con el asistente virtual | [CONFIRMAR: plazo, p. ej. 12 meses desde el último mensaje], salvo que formen parte del expediente de un servicio contratado, en cuyo caso siguen el plazo de este |
+| Conversaciones por WhatsApp: consultas, cotizaciones y prospección que no se concretaron | **1 año** desde el último mensaje |
+| Conversaciones por WhatsApp en las que intervino una persona del equipo (aclaraciones, incidencias o reclamos) | **2 años** desde el último mensaje, para la atención de aclaraciones y reclamaciones ante la PROFECO |
+| Conversaciones por WhatsApp de clientes que contrataron o pagaron un servicio | **5 años** desde el último mensaje, por su carácter de mensaje de datos relativo a una operación comercial, conforme al artículo 30 del Código Fiscal de la Federación y al Código de Comercio |
 | Datos de contacto para fines promocionales | Hasta que usted revoque su consentimiento |
 
 Concluidos dichos plazos, los datos son bloqueados y posteriormente suprimidos conforme a la normativa vigente.

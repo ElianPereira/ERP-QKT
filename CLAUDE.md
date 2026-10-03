@@ -318,6 +318,23 @@ salvo que queden obsoletas.
   exclusivo que entre reservaciones). QKT-Pages no consulta disponibilidad:
   enlaza al cotizador del ERP, no requirió cambios.
 
+- 2026-10-03 — **Conservación de las conversaciones del agente de WhatsApp**
+  (plazos del abogado del propietario, Aviso de Privacidad v2.5 §9, aún
+  borrador). `comunicacion/services_retencion.py` clasifica cada
+  conversación por el teléfono, no por el FK `cliente` (que solo se fija al
+  crearla): **5 años** si hay una cotización CONFIRMADA/EJECUTADA/CERRADA o con
+  pagos de un cliente con ese número; **2 años** si intervino una persona
+  (mensaje HUMANO o `motivo_humano`); **1 año** lo demás, incluidas
+  cotizaciones que no se concretaron. Contado desde `ultimo_mensaje`. Borra
+  conversación, mensajes y **las copias del texto en `ComunicacionCliente`**
+  (`AGENTE_IA` y `OTRO`+`MANUAL` de `responder_como_persona`, sin
+  cotización); si no las borrara, el plazo no se cumpliría. Borrado físico a
+  propósito (excepción a la soft-deactivation: el aviso promete supresión).
+  Comando `purgar_conversaciones_whatsapp [--aplicar]` (simula por defecto);
+  **pendiente darlo de alta como Cron Job diario en Railway** con
+  `--aplicar`. Fuera de su alcance: los correos de alerta al equipo, que
+  llevan un resumen de la conversación y viven en el buzón.
+
 - 2026-10-03 — **Paquetes con conceptos fijos por evento** (aprobado por el
   propietario). El Paquete Fiesta se cobra por bloque de 10 personas
   (`cantidad_por_persona`/`factor_personas`) y su precio fijo por bloque
