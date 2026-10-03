@@ -318,6 +318,22 @@ salvo que queden obsoletas.
   exclusivo que entre reservaciones). QKT-Pages no consulta disponibilidad:
   enlaza al cotizador del ERP, no requirió cambios.
 
+- 2026-10-03 — **Paquetes con conceptos fijos por evento** (aprobado por el
+  propietario). El Paquete Fiesta se cobra por bloque de 10 personas
+  (`cantidad_por_persona`/`factor_personas`) y su precio fijo por bloque
+  llevaba dentro la renta de la Quinta ($4,000 con IVA) y la habitación
+  Ka'an: un evento de 120 pagaba 12 rentas (~$125k contra ~$70k).
+  `ProductoComponente.fijo_por_evento` (migración `comercial.0109`, default
+  False = sin cambio) saca un componente del bloque y lo cobra **una vez,
+  a su propio precio, en su propia línea** (`_lineas_paquete`, compartida
+  por `_lineas_cotizador` y la vitrina `api_paquetes_evento`). El costo del
+  paquete (`calcular_costo`, que alimenta la validación de margen negativo)
+  ya no cuenta lo fijo. Las cotizaciones ya creadas no cambian: sus
+  `ItemCotizacion` guardan el precio. **Orden al aplicarlo en el admin**:
+  marcar primero los componentes fijos y guardar, luego bajar el precio por
+  bloque; al revés, `clean()` corre antes que el inline y el margen negativo
+  bloquea el guardado.
+
 - 2026-10-03 — Agente de WhatsApp, ajustes tras la primera prueba real del
   propietario. `ver_opciones` ahora trae `incluye.productos_incluidos`
   (`ProductoComponente`, **sin cantidad**: en paquetes por persona es por

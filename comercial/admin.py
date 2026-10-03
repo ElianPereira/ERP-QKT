@@ -286,7 +286,7 @@ class ProductoPaqueteInline(admin.TabularInline):
     verbose_name = 'Producto Incluido'
     verbose_name_plural = 'Paquete'
     extra = 1
-    fields = ('producto_hijo', 'cantidad')
+    fields = ('producto_hijo', 'cantidad', 'fijo_por_evento')
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('producto_hijo')

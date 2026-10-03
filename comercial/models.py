@@ -410,7 +410,8 @@ class Producto(models.Model):
 
     def calcular_costo(self):
         if self.es_paquete:
-            return sum(pc.subtotal_costo() for pc in self.productos_incluidos.all())
+            # Lo fijo por evento se cobra aparte, no dentro del precio del paquete.
+            return sum(pc.subtotal_costo() for pc in self.productos_incluidos.filter(fijo_por_evento=False))
         return sum(c.subtotal_costo() for c in self.componentes.all())
 
     def sugerencia_precio(self):
@@ -496,6 +497,13 @@ class ProductoComponente(models.Model):
         max_digits=10, decimal_places=2,
         verbose_name='Cantidad',
         help_text='Cuántas unidades de este producto se incluyen en el paquete',
+    )
+    fijo_por_evento = models.BooleanField(
+        default=False, verbose_name='Una vez por evento',
+        help_text=(
+            'Se cobra una sola vez por evento, a su propio precio y aparte del precio del paquete '
+            '(ej. renta de la Quinta). Sin marcar, va dentro del precio de cada bloque de personas.'
+        ),
     )
 
     class Meta:

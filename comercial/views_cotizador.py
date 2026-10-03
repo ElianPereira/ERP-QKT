@@ -731,6 +731,31 @@ def api_productos_cotizador(request):
     return JsonResponse(respuesta)
 
 
+def _lineas_paquete(paquete, num_personas, horas_evento):
+    """Líneas que cobra un paquete de Evento: el paquete por bloque de personas
+    más, una sola vez, sus componentes marcados `fijo_por_evento`.
+
+    Los paquetes se diseñan "por cada N personas" (`cantidad_por_persona` +
+    `factor_personas`, ej. 10): sin eso un paquete armado para un aforo chico
+    se vendía igual para 150. Pero la renta de la Quinta o una habitación se
+    usan una vez por evento; si vivieran dentro del precio por bloque, un
+    evento de 120 personas las pagaría 12 veces (caso real del Paquete
+    Fiesta). Por eso van aparte, a su propio precio, en una línea propia.
+    La usan `_lineas_cotizador` y la vitrina `api_paquetes_evento`, para que
+    el precio exhibido y el cobrado sean el mismo.
+    """
+    qty_paquete = 1
+    if paquete.cantidad_por_persona and paquete.factor_personas > 0:
+        qty_paquete = math.ceil(num_personas / paquete.factor_personas)
+    lineas = [(paquete, qty_paquete, f"{paquete.nombre} ({num_personas} Pax, {horas_evento}hrs)")]
+    fijos = (paquete.productos_incluidos.filter(fijo_por_evento=True)
+             .select_related('producto_hijo').order_by('id'))
+    for pc in fijos:
+        lineas.append((pc.producto_hijo, pc.cantidad,
+                       f"{pc.producto_hijo.nombre} (incluido en {paquete.nombre}, una vez por evento)"))
+    return lineas
+
+
 def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_evento,
                       tipo_ev='Evento General', noches=1, habitaciones_ids=None,
                       nivel_pasadia='BASICO'):
@@ -763,18 +788,7 @@ def _lineas_cotizador(*, servicio, paquete_id, extras_ids, num_personas, horas_e
     # Un paquete prediseñado ya lo lleva dentro, así que ahí no se agrega
     # aparte (se cobraría dos veces).
     if paquete:
-        # Los paquetes se diseñan "por cada N personas" (mismo mecanismo que
-        # ya usan los extras del catálogo abierto: `cantidad_por_persona` +
-        # `factor_personas`, ej. 10) — sin esto el precio quedaba fijo sin
-        # importar cuántas personas se cotizaran, y un paquete armado para un
-        # aforo chico se vendía igual para 150 (pedido del propietario tras
-        # detectar el riesgo real: costo real de comida/mobiliario/personal
-        # muy por encima del precio cobrado en un evento grande).
-        qty_paquete = 1
-        if paquete.cantidad_por_persona and paquete.factor_personas > 0:
-            qty_paquete = math.ceil(num_personas / paquete.factor_personas)
-        lineas.append((paquete, qty_paquete,
-                       f"{paquete.nombre} ({num_personas} Pax, {horas_evento}hrs)"))
+        lineas.extend(_lineas_paquete(paquete, num_personas, horas_evento))
 
     elif servicio == 'EVENTO':
         base = _producto_por_rol('BASE_EVENTO', 'Paquete Esencial')
@@ -1087,15 +1101,13 @@ def api_paquetes_evento(request):
 
     resultado = []
     for p in paquetes:
-        qty = 1
-        if p.cantidad_por_persona and p.factor_personas > 0:
-            qty = math.ceil(num_personas / p.factor_personas)
-        # Una sola conversión de IVA sobre la base × cantidad, nunca
+        # Una sola conversión de IVA sobre la suma de bases, nunca
         # con_iva(unitario) × cantidad — mismo criterio de `total_desde_bases`,
         # para que este precio de vitrina coincida centavo a centavo con el
         # que arma `api_total_cotizador` si el cliente elige justo este
-        # paquete solo.
-        base_total = Decimal(str(p.sugerencia_precio())) * qty
+        # paquete solo (incluidas sus líneas fijas por evento).
+        base_total = sum(Decimal(str(prod.sugerencia_precio())) * Decimal(qty)
+                         for prod, qty, _ in _lineas_paquete(p, num_personas, HORAS_BASE_EVENTO))
         resultado.append({
             'id': p.id,
             'nombre': p.nombre,
