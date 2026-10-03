@@ -1,6 +1,6 @@
 # AVISO DE PRIVACIDAD INTEGRAL
 
-**Versión 2.5 — Vigente a partir del [CONFIRMAR: fecha de vigencia]**
+**Versión 2.5 — Vigente a partir del 3 de octubre de 2026**
 *Sustituye a la versión 2.4 del 23 de septiembre de 2026.*
 
 ---

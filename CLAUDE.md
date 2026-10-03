@@ -265,6 +265,18 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-03 — **Lanzamiento del agente de WhatsApp al público** (PR #355 +
+  QKT-Pages#17). Aviso de Privacidad v2.5 publicado (vigente 03/10/2026) con
+  el criterio del abogado: el asistente es finalidad necesaria (§3.1/§3.3),
+  **consentimiento tácito** (art. 8 LFPDPPP) vía el mensaje fijo
+  `AVISO_INICIAL` —IA, opción de persona y enlace al aviso—, que se manda una
+  vez por conversación antes de la primera respuesta y queda como evidencia;
+  el proveedor de IA va como encargado **sin nombrarlo** (§4.2) para no
+  versionar el aviso si cambia. Si algún día el agente pide datos de pago o
+  cierra ventas en el chat, ahí hace falta **consentimiento expreso** (botón)
+  antes de ese paso. Tras el deploy: vaciar `WA_AGENTE_NUMEROS_PRUEBA` y dar
+  de alta el Cron diario `purgar_conversaciones_whatsapp --aplicar`.
+
 - 2026-10-03 — **Variables de los 4 Cron Jobs de Railway alineadas con `web`**
   (revisión pedida por el propietario; sin cambio de código). Los crons se
   crearon duplicando servicios y arrastraban huecos que fallaban en silencio:
