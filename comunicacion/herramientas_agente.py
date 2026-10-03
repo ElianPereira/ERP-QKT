@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 from django.utils import timezone
 
 from comercial.disponibilidad import verificar_disponibilidad_rango
-from comercial.models import PreguntaFrecuente, Producto
+from comercial.models import Cotizacion, PreguntaFrecuente, Producto
 from comercial.reglas_eventos import (
     MAX_PERSONAS_EVENTO,
     MAX_PERSONAS_EXTRA_POR_HABITACION,
@@ -110,6 +110,23 @@ HERRAMIENTAS = [
         },
     },
     {
+        'name': 'condiciones_de_pago',
+        'description': (
+            'Reglas de pago del ERP: cuánto se paga para apartar, cuándo se liquida y cómo se '
+            'paga. Úsala para cualquier pregunta de anticipo, liquidación o formas de pago. '
+            'Con la fecha del cliente da también su fecha límite para liquidar.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'servicio': {'type': 'string', 'enum': list(SERVICIOS)},
+                'fecha': {'type': 'string', 'description': 'AAAA-MM-DD, si el cliente la dio.'},
+            },
+            'required': ['servicio'],
+            'additionalProperties': False,
+        },
+    },
+    {
         'name': 'preguntas_frecuentes',
         'description': (
             'Devuelve las preguntas frecuentes vigentes del negocio con su respuesta oficial '
@@ -159,6 +176,21 @@ def _formato(monto):
     return f"${monto:,.2f}"
 
 
+def _incluye(producto) -> dict:
+    """Lo que trae un paquete o nivel según el ERP: su descripción y los
+    productos capturados en «Productos incluidos». Van sin cantidad a
+    propósito: en los paquetes por persona la cantidad es por invitado y
+    leída suelta («1 x Silla») engañaría al cliente."""
+    componentes = list(
+        producto.productos_incluidos.select_related('producto_hijo')
+        .order_by('producto_hijo__nombre').values_list('producto_hijo__nombre', flat=True)
+    )
+    return {
+        'descripcion': producto.descripcion or producto.descripcion_corta or '',
+        'productos_incluidos': componentes,
+    }
+
+
 def _disponibilidad(inicio: date, noches: int = 0) -> dict:
     fin = inicio + timedelta(days=max(noches, 1))
     libre, _ = verificar_disponibilidad_rango(inicio, fin)
@@ -201,7 +233,7 @@ def ver_opciones(servicio=None, personas=None):
                 'precio_total': _formato(estimar_total(
                     servicio='EVENTO', paquete_id=p.id, num_personas=n,
                     horas_evento=HORAS_BASE_EVENTO)['total']),
-                'incluye': p.descripcion or p.descripcion_corta,
+                'incluye': _incluye(p),
             } for p in paquetes],
             'reglas': (
                 f'{HORAS_BASE_EVENTO} horas incluidas y hasta {HORAS_MAX_EVENTO - HORAS_BASE_EVENTO} '
@@ -224,7 +256,7 @@ def ver_opciones(servicio=None, personas=None):
                 'nombre': prod.nombre,
                 'precio_total': _formato(estimar_total(
                     servicio='PASADIA', nivel_pasadia=nivel, num_personas=n)['total']),
-                'incluye': prod.descripcion or prod.descripcion_corta,
+                'incluye': _incluye(prod),
             })
         return {
             'servicio': 'PASADIA',
@@ -337,6 +369,34 @@ def cotizar_estimado(servicio=None, personas=None, fecha=None, paquete_id=None, 
     return resultado
 
 
+def condiciones_de_pago(servicio=None, fecha=None):
+    """Reglas de anticipo y liquidación tal como las aplica el portal de pago."""
+    servicio = str(servicio or '').upper()
+    if servicio not in SERVICIOS:
+        return {'error': 'Servicio no válido: EVENTO, PASADIA u HOSPEDAJE.'}
+    # Instancia sin guardar: solo para leer las mismas reglas que usa el
+    # portal (el % configurado en ConstanteSistema y los días por servicio).
+    referencia = Cotizacion(tipo_servicio=servicio)
+    dias = Cotizacion.DIAS_PAGO_TOTAL[servicio]
+    resultado = {
+        'servicio': servicio,
+        'primer_pago_minimo': f'{Cotizacion.PORCENTAJE_PRIMER_PAGO:.0f}% del total',
+        'aparta_la_fecha_al_pagar': f'{referencia.porcentaje_anticipo_confirmacion():.0f}% del total',
+        'liquidar': f'El saldo completo a más tardar {dias} días antes de la fecha.',
+        'si_faltan_menos_dias': f'Con menos de {dias} días de anticipación se paga el total en un solo pago.',
+        'como_se_paga': ('En línea desde el portal del cliente, que recibe al cotizar en el cotizador web: '
+                         'tarjeta de crédito o débito, transferencia SPEI o efectivo en tiendas.'),
+    }
+    if fecha:
+        inicio, error = _fecha(fecha)
+        if error:
+            return {'error': error}
+        limite = inicio - timedelta(days=dias)
+        resultado['fecha_limite_para_liquidar'] = limite.isoformat()
+        resultado['paga_total_desde_el_inicio'] = limite <= timezone.localdate()
+    return resultado
+
+
 def preguntas_frecuentes():
     return {'preguntas': [
         {'pregunta': p.pregunta, 'respuesta': p.respuesta}
@@ -348,6 +408,7 @@ _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
     'cotizar_estimado': cotizar_estimado,
+    'condiciones_de_pago': condiciones_de_pago,
     'preguntas_frecuentes': preguntas_frecuentes,
 }
 

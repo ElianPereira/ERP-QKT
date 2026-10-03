@@ -16,6 +16,9 @@ Reglas que no son obvias:
   ventana de 24 h de Meta para texto libre).
 - Nunca contesta si el agente está apagado, el número no está en la lista de
   prueba, alguien pidió humano o el propietario contestó desde la app.
+- Mientras espera a una persona, el cliente que sigue escribiendo recibe
+  `AVISO_ESPERA` (texto fijo, sin IA). Si en `REINICIO_TRAS` nadie del equipo
+  le escribe, «requiere humano» se apaga solo y el agente vuelve a contestar.
 """
 import json
 import logging
@@ -46,12 +49,18 @@ CANDADO_SEGUNDOS = 300
 
 MENSAJE_HUMANO = ('Gracias por tu paciencia. Le paso tu mensaje a una persona del equipo '
                   'y te contesta por aquí en cuanto pueda.')
+# Mientras una conversación espera a una persona, el cliente que sigue
+# escribiendo recibe esto (sin pasar por la IA) como máximo cada AVISO_ESPERA_CADA.
+AVISO_ESPERA = ('Recibí tu mensaje 🙌 Ya le avisé al equipo y una persona te contesta '
+                'por aquí en cuanto pueda.')
+AVISO_ESPERA_CADA = timedelta(hours=3)
 
 SYSTEM_PROMPT = f"""Eres el asistente virtual por WhatsApp de Quinta Ko'ox Tanil (QKT), una quinta \
 en Umán, Yucatán, para eventos (hasta 150 personas), pasadías con alberca y hospedaje corto en dos \
 habitaciones (Ka'an Room y Otoch Room). Contestas a clientes y posibles clientes en español de México, \
 con trato cálido y cercano, en mensajes cortos propios de WhatsApp (sin tablas ni encabezados; \
-listas cortas con guiones cuando ayuden).
+listas cortas con guiones cuando ayuden). Responde solo lo que te preguntaron, en 2 a 5 líneas \
+cuando se pueda; no repitas datos que ya diste en la conversación.
 
 Cómo trabajas:
 - Todo dato de fechas, precios, paquetes, habitaciones o reglas sale de tus herramientas. Si una \
@@ -61,8 +70,13 @@ horarios, políticas ni disponibilidad.
 aclarando que es un estimado con IVA incluido. No hagas cuentas por tu cuenta ni ofrezcas descuentos.
 - Antes de decir que una fecha está libre, usa consultar_disponibilidad. Aclara que la fecha no queda \
 apartada hasta pagar el anticipo.
+- Cuando te pregunten qué incluye un paquete o nivel, usa lo que trae ver_opciones en «incluye» \
+(descripción y productos incluidos); si viene vacío, dilo y ofrece pasar con una persona.
+- Para anticipo, liquidación o formas de pago usa condiciones_de_pago; con la fecha del cliente, \
+dale su fecha límite para liquidar.
 - Para reservar, manda al cotizador web ({URL_COTIZADOR}): ahí el cliente elige, acepta el aviso de \
-privacidad y recibe su portal para pagar. Tú no creas reservaciones, no cobras ni firmas contratos.
+privacidad y recibe su portal para pagar. Comparte el enlace cuando el cliente ya tiene servicio y \
+fecha o pide cómo reservar, no en cada mensaje. Tú no creas reservaciones, no cobras ni firmas contratos.
 - Si el cliente pide hablar con una persona, se queja, quiere negociar, pregunta por un pago o \
 reservación que ya tiene, o su caso no lo cubren tus herramientas, usa pasar_a_humano y avísale que \
 alguien del equipo le contestará por este mismo chat.
@@ -164,7 +178,8 @@ def responder_como_persona(conv, texto: str, usuario) -> MensajeWhatsApp:
 
 # ─────────────────────────── Procesamiento ───────────────────────────────
 
-def agente_contesta_a(conv) -> bool:
+def _numero_habilitado(conv) -> bool:
+    """¿El sistema le escribe a este número? (agente encendido, lista de prueba, no es el propietario)."""
     if not getattr(settings, 'WA_AGENTE_ACTIVO', False):
         return False
     prueba = {normalizar_telefono_wa(n) for n in getattr(settings, 'WA_AGENTE_NUMEROS_PRUEBA', []) if n}
@@ -173,9 +188,51 @@ def agente_contesta_a(conv) -> bool:
         return False
     # El número del propietario (destino de las alertas internas) le escribe
     # al de la API para abrir la ventana de 24 h; el agente no le contesta.
-    if conv.telefono == normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', '')):
+    return conv.telefono != normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+
+
+def agente_contesta_a(conv) -> bool:
+    return _numero_habilitado(conv) and not conv.agente_en_pausa()
+
+
+def _ultima_salida(conv):
+    """Último mensaje que le mandó el sistema o el equipo, sin contar los avisos de espera.
+
+    Los avisos se excluyen para que un cliente que sigue escribiendo no
+    mantenga viva para siempre una conversación que nadie del equipo atendió.
+    """
+    return (conv.mensajes.filter(direccion__in=('AGENTE', 'HUMANO')).exclude(texto=AVISO_ESPERA)
+            .order_by('-created_at', '-id').first())
+
+
+def _reactivar_si_nadie_atendio(conv) -> None:
+    """Pasado `REINICIO_TRAS` desde el último mensaje del equipo o del agente,
+    un «requiere humano» sin atender se apaga solo: el cliente que vuelve al día
+    siguiente con otra pregunta merece respuesta, no silencio."""
+    if not conv.requiere_humano:
+        return
+    ultima = _ultima_salida(conv)
+    if ultima and timezone.now() - ultima.created_at <= REINICIO_TRAS:
+        return
+    conv.requiere_humano = False
+    conv.motivo_humano = ''
+    conv.save(update_fields=['requiere_humano', 'motivo_humano', 'updated_at'])
+    logger.info("Agente WhatsApp: %s se reactivó solo tras 24 h sin atención", conv.telefono)
+
+
+def _toca_aviso_espera(conv) -> bool:
+    """Un mensaje sin IA para quien espera a una persona, como máximo cada `AVISO_ESPERA_CADA`.
+
+    Solo con «requiere humano»: si alguien del equipo está contestando
+    (pausa por respuesta humana), el aviso sobraría.
+    """
+    if not conv.requiere_humano or not _numero_habilitado(conv):
         return False
-    return not conv.agente_en_pausa()
+    if conv.pausado_hasta and conv.pausado_hasta > timezone.now():
+        return False
+    ultimo = (conv.mensajes.filter(direccion__in=('AGENTE', 'HUMANO'))
+              .order_by('-created_at', '-id').first())
+    return not ultimo or timezone.now() - ultimo.created_at > AVISO_ESPERA_CADA
 
 
 def lanzar_procesamiento(conversacion_id: int) -> None:
@@ -217,7 +274,10 @@ def _atender_pendientes(conversacion_id: int) -> None:
     if not pendientes:
         return
     MensajeWhatsApp.objects.filter(pk__in=[m.pk for m in pendientes]).update(procesado=True)
+    _reactivar_si_nadie_atendio(conv)
     if not agente_contesta_a(conv):
+        if _toca_aviso_espera(conv):
+            _enviar(conv, AVISO_ESPERA)
         return
 
     texto = _texto_desde_ultima_respuesta(conv)
@@ -236,7 +296,8 @@ def _texto_desde_ultima_respuesta(conv) -> str:
     el intercambio completo con quién dijo qué, para que no repita ni
     contradiga lo que ya se le respondió al cliente.
     """
-    ultima = conv.mensajes.filter(direccion='AGENTE').order_by('-created_at', '-id').first()
+    ultima = (conv.mensajes.filter(direccion='AGENTE').exclude(texto=AVISO_ESPERA)
+              .order_by('-created_at', '-id').first())
     desde = timezone.now() - REINICIO_TRAS
     if ultima and ultima.created_at > desde:
         desde = ultima.created_at
@@ -273,7 +334,8 @@ def _pasar_a_humano(conv, motivo: str) -> None:
                 f"Cliente: {conv.nombre or '—'} ({conv.telefono})\nMotivo: {conv.motivo_humano}\n\n"
                 f"Últimos mensajes:\n{resumen}\n\n"
                 "Contesta desde Admin → Comunicación → Conversaciones (campo «Responder»). "
-                "Para que el agente vuelva a contestar, desmarca «Requiere humano»."),
+                "Para que el agente vuelva a contestar, desmarca «Requiere humano» "
+                "(se reactiva solo si en 24 h nadie le escribe al cliente)."),
     )
 
 
@@ -299,7 +361,7 @@ def responder(conv, texto_cliente: str):
     """Corre el agente sobre el historial y devuelve el texto a enviar (o None)."""
     ahora = timezone.localtime()
     historial = list(conv.historial or [])
-    ultima = conv.mensajes.filter(direccion__in=('AGENTE', 'HUMANO')).order_by('-created_at').first()
+    ultima = _ultima_salida(conv)
     if (not ultima or ahora - ultima.created_at > REINICIO_TRAS
             or len(json.dumps(historial)) > MAX_HISTORIAL_CARACTERES):
         historial = []

@@ -318,6 +318,22 @@ salvo que queden obsoletas.
   exclusivo que entre reservaciones). QKT-Pages no consulta disponibilidad:
   enlaza al cotizador del ERP, no requirió cambios.
 
+- 2026-10-03 — Agente de WhatsApp, ajustes tras la primera prueba real del
+  propietario. `ver_opciones` ahora trae `incluye.productos_incluidos`
+  (`ProductoComponente`, **sin cantidad**: en paquetes por persona es por
+  invitado y suelta engaña) y hay una herramienta `condiciones_de_pago` que
+  lee `Cotizacion.DIAS_PAGO_TOTAL`, `PORCENTAJE_PRIMER_PAGO` y
+  `porcentaje_anticipo_confirmacion()` (instancia sin guardar) en vez de
+  depender de una FAQ que se desfasa. «Requiere humano» ya no deja al
+  cliente en silencio: recibe `AVISO_ESPERA` (texto fijo, sin IA, máx. cada
+  3 h) y si en 24 h nadie del equipo le escribe, se apaga solo. Los avisos se
+  excluyen al medir esas 24 h (`_ultima_salida`); si contaran, un cliente que
+  insiste mantendría la conversación bloqueada para siempre. Sin migración.
+  Los totales de pasadía con centavos ($2,100.02) **no son bug**: el IVA va
+  una sola vez sobre el subtotal, y un precio por persona sale exacto para
+  cualquier cantidad solo si con IVA es múltiplo de $0.29 (ej. $87, $116,
+  $174).
+
 - 2026-09-29 — **Agente de WhatsApp con IA, fase 1** (Issue #346; se evaluó
   Meta One y se descartó: su agente no se conecta a sistemas externos).
   Webhook `/api/whatsapp/webhook/` (`comunicacion/views_whatsapp.py`, firma

@@ -15,7 +15,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from comercial.models import Producto
+from comercial.models import Cotizacion, Producto, ProductoComponente
 from comunicacion import herramientas_agente, services_agente
 from comunicacion.models import ConversacionWhatsApp, MensajeWhatsApp
 
@@ -216,6 +216,57 @@ class ProcesarConversacionTest(TestCase):
         otro.beta.messages.create.assert_not_called()
         enviar.assert_not_called()
 
+    def _pasado_a_humano_hace(self, horas):
+        """Conversación que el agente pasó a una persona hace `horas`."""
+        self.conv.mensajes.update(procesado=True)
+        self.conv.requiere_humano = True
+        self.conv.save()
+        salida = MensajeWhatsApp.objects.create(
+            conversacion=self.conv, direccion='AGENTE', texto='Te comunico con alguien.', procesado=True)
+        MensajeWhatsApp.objects.filter(pk=salida.pk).update(
+            created_at=timezone.now() - timedelta(hours=horas))
+        services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='¿Siguen ahí?',
+                                        wamid=f'w-espera-{horas}')
+
+    def test_quien_espera_a_una_persona_recibe_aviso_sin_gastar_ia(self):
+        self._pasado_a_humano_hace(4)
+        cliente = _cliente_falso()
+        enviar = self._procesar(cliente)
+        cliente.beta.messages.create.assert_not_called()
+        self.assertEqual(enviar.call_args.kwargs['mensaje'], services_agente.AVISO_ESPERA)
+
+        # Un segundo mensaje enseguida no repite el aviso.
+        services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='?', wamid='w-otra')
+        self._procesar(cliente).assert_not_called()
+
+    def test_recien_pasado_a_humano_no_manda_aviso(self):
+        self._pasado_a_humano_hace(1)
+        self._procesar(_cliente_falso()).assert_not_called()
+
+    def test_sin_atencion_en_24_h_el_agente_se_reactiva_solo(self):
+        self._pasado_a_humano_hace(25)
+        # Un aviso de espera reciente no cuenta como atención del equipo.
+        aviso = MensajeWhatsApp.objects.create(
+            conversacion=self.conv, direccion='AGENTE', texto=services_agente.AVISO_ESPERA, procesado=True)
+        MensajeWhatsApp.objects.filter(pk=aviso.pk).update(created_at=timezone.now() - timedelta(hours=5))
+        cliente = _cliente_falso(_respuesta(_texto('¡Hola de nuevo! ¿En qué te ayudo?')))
+        enviar = self._procesar(cliente)
+        self.conv.refresh_from_db()
+        self.assertFalse(self.conv.requiere_humano)
+        self.assertEqual(enviar.call_args.kwargs['mensaje'], '¡Hola de nuevo! ¿En qué te ayudo?')
+        self.assertIn('¿Siguen ahí?', cliente.enviados[0][-1]['content'][0]['text'])
+
+    def test_si_el_equipo_contesto_no_se_reactiva_ni_avisa(self):
+        self._pasado_a_humano_hace(30)
+        MensajeWhatsApp.objects.create(
+            conversacion=self.conv, direccion='HUMANO', texto='Te marco en un rato', procesado=True)
+        self.conv.pausado_hasta = timezone.now() + timedelta(hours=12)
+        self.conv.save()
+        cliente = _cliente_falso()
+        self._procesar(cliente).assert_not_called()
+        self.conv.refresh_from_db()
+        self.assertTrue(self.conv.requiere_humano)
+
     def test_error_de_la_api_pasa_a_humano_sin_romper(self):
         import anthropic
         cliente = MagicMock()
@@ -282,8 +333,33 @@ class HerramientasTest(TestCase):
 
     def test_ver_opciones_lista_niveles_con_su_descripcion_del_admin(self):
         r = herramientas_agente.ver_opciones(servicio='PASADIA')
-        self.assertEqual(r['niveles'][0]['incluye'], 'Alberca y mesas')
+        self.assertEqual(r['niveles'][0]['incluye']['descripcion'], 'Alberca y mesas')
         self.assertEqual(r['niveles'][0]['precio_total'], '$2,000.00')
+
+    def test_ver_opciones_dice_que_productos_trae_cada_paquete(self):
+        for nombre in ('Sillas Tiffany', 'Mesero'):
+            ProductoComponente.objects.create(
+                producto_padre=self.paquete, cantidad=Decimal('1'),
+                producto_hijo=Producto.objects.create(nombre=nombre, precio_venta_fijo=Decimal('10')),
+            )
+        paquete = herramientas_agente.ver_opciones(servicio='EVENTO', personas=50)['paquetes'][0]
+        self.assertEqual(paquete['incluye']['productos_incluidos'], ['Mesero', 'Sillas Tiffany'])
+
+    def test_condiciones_de_pago_salen_de_las_reglas_del_erp(self):
+        r = herramientas_agente.condiciones_de_pago(servicio='EVENTO')
+        self.assertEqual(r['primer_pago_minimo'], '50% del total')
+        self.assertIn(f"{Cotizacion.DIAS_PAGO_TOTAL['EVENTO']} días", r['liquidar'])
+
+        lejos = timezone.localdate() + timedelta(days=60)
+        r = herramientas_agente.condiciones_de_pago(servicio='PASADIA', fecha=lejos.isoformat())
+        self.assertEqual(r['fecha_limite_para_liquidar'],
+                         (lejos - timedelta(days=Cotizacion.DIAS_PAGO_TOTAL['PASADIA'])).isoformat())
+        self.assertFalse(r['paga_total_desde_el_inicio'])
+
+        cerca = (timezone.localdate() + timedelta(days=3)).isoformat()
+        self.assertTrue(herramientas_agente.condiciones_de_pago(
+            servicio='PASADIA', fecha=cerca)['paga_total_desde_el_inicio'])
+        self.assertIn('error', herramientas_agente.condiciones_de_pago(servicio='BODA'))
 
     def test_ejecutar_herramienta_desconocida_es_error(self):
         salida, error = herramientas_agente.ejecutar('borrar_todo', {})
