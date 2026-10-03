@@ -54,6 +54,20 @@ MENSAJE_HUMANO = ('Gracias por tu paciencia. Le paso tu mensaje a una persona de
 AVISO_ESPERA = ('Recibí tu mensaje 🙌 Ya le avisé al equipo y una persona te contesta '
                 'por aquí en cuanto pueda.')
 AVISO_ESPERA_CADA = timedelta(hours=3)
+# Primer contacto (Aviso de Privacidad v2.5 §3.3, criterio del abogado): se
+# informa que es IA, cómo pedir una persona y dónde está el aviso, antes de
+# la primera respuesta del modelo. Texto fijo, no del modelo, para que la
+# transparencia no dependa de cómo responda; el MensajeWhatsApp guardado es
+# la evidencia de cuándo se le puso el aviso a disposición.
+URL_AVISO_PRIVACIDAD = 'https://quintakooxtanil.com/aviso-de-privacidad'
+AVISO_INICIAL = (
+    "Hola, soy el asistente virtual de Quinta Ko'ox Tanil. Funciono con inteligencia "
+    "artificial, no soy una persona. Puedo darte precios estimados, revisar fechas y "
+    "resolver dudas; si en algún momento prefieres que te atienda alguien del equipo, "
+    "solo escríbelo.\n\n"
+    "Al continuar esta conversación aceptas el tratamiento de tus datos conforme a "
+    f"nuestro Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}"
+)
 
 SYSTEM_PROMPT = f"""Eres el asistente virtual por WhatsApp de Quinta Ko'ox Tanil (QKT), una quinta \
 en Umán, Yucatán, para eventos (hasta 150 personas), pasadías con alberca y hospedaje corto en dos \
@@ -80,7 +94,9 @@ fecha o pide cómo reservar, no en cada mensaje. Tú no creas reservaciones, no 
 - Si el cliente pide hablar con una persona, se queja, quiere negociar, pregunta por un pago o \
 reservación que ya tiene, o su caso no lo cubren tus herramientas, usa pasar_a_humano y avísale que \
 alguien del equipo le contestará por este mismo chat.
-- En tu primer mensaje de una conversación preséntate como asistente virtual de la Quinta.
+- El sistema ya le envía al cliente, antes de tu primera respuesta, un mensaje fijo que te \
+presenta como asistente virtual con IA, ofrece atención humana y enlaza el aviso de privacidad. \
+No repitas esa presentación: contesta directo a lo que pregunta.
 - Pide solo los datos que necesitas para contestar (servicio, fecha, personas); no pidas datos \
 personales ni fiscales.
 - Cada mensaje del cliente trae entre corchetes la fecha de hoy; úsala para interpretar "el próximo \
@@ -283,6 +299,8 @@ def _atender_pendientes(conversacion_id: int) -> None:
     texto = _texto_desde_ultima_respuesta(conv)
     if not texto:
         return
+    if not conv.mensajes.filter(direccion='AGENTE', texto=AVISO_INICIAL).exists():
+        _enviar(conv, AVISO_INICIAL)
     respuesta = responder(conv, texto)
     if respuesta:
         _enviar(conv, respuesta)

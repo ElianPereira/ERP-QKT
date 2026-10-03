@@ -265,6 +265,18 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-03 — **Lanzamiento del agente de WhatsApp al público** (PR #355 +
+  QKT-Pages#17). Aviso de Privacidad v2.5 publicado (vigente 03/10/2026) con
+  el criterio del abogado: el asistente es finalidad necesaria (§3.1/§3.3),
+  **consentimiento tácito** (art. 8 LFPDPPP) vía el mensaje fijo
+  `AVISO_INICIAL` —IA, opción de persona y enlace al aviso—, que se manda una
+  vez por conversación antes de la primera respuesta y queda como evidencia;
+  el proveedor de IA va como encargado **sin nombrarlo** (§4.2) para no
+  versionar el aviso si cambia. Si algún día el agente pide datos de pago o
+  cierra ventas en el chat, ahí hace falta **consentimiento expreso** (botón)
+  antes de ese paso. Tras el deploy: vaciar `WA_AGENTE_NUMEROS_PRUEBA` y dar
+  de alta el Cron diario `purgar_conversaciones_whatsapp --aplicar`.
+
 - 2026-10-03 — **Variables de los 4 Cron Jobs de Railway alineadas con `web`**
   (revisión pedida por el propietario; sin cambio de código). Los crons se
   crearon duplicando servicios y arrastraban huecos que fallaban en silencio:
@@ -317,6 +329,23 @@ salvo que queden obsoletas.
   Hospedaje que sale el primer día bloqueado sí cabe (mismo criterio de fin
   exclusivo que entre reservaciones). QKT-Pages no consulta disponibilidad:
   enlaza al cotizador del ERP, no requirió cambios.
+
+- 2026-10-03 — **Conservación de las conversaciones del agente de WhatsApp**
+  (plazos del abogado del propietario, Aviso de Privacidad v2.5 §9, aún
+  borrador). `comunicacion/services_retencion.py` clasifica cada
+  conversación por el teléfono, no por el FK `cliente` (que solo se fija al
+  crearla): **5 años** si hay una cotización CONFIRMADA/EJECUTADA/CERRADA o con
+  pagos de un cliente con ese número; **2 años** si intervino una persona
+  (mensaje HUMANO o `motivo_humano`); **1 año** lo demás, incluidas
+  cotizaciones que no se concretaron. Contado desde `ultimo_mensaje`. Borra
+  conversación, mensajes y **las copias del texto en `ComunicacionCliente`**
+  (`AGENTE_IA` y `OTRO`+`MANUAL` de `responder_como_persona`, sin
+  cotización); si no las borrara, el plazo no se cumpliría. Borrado físico a
+  propósito (excepción a la soft-deactivation: el aviso promete supresión).
+  Comando `purgar_conversaciones_whatsapp [--aplicar]` (simula por defecto);
+  **pendiente darlo de alta como Cron Job diario en Railway** con
+  `--aplicar`. Fuera de su alcance: los correos de alerta al equipo, que
+  llevan un resumen de la conversación y viven en el buzón.
 
 - 2026-10-03 — **Paquetes con conceptos fijos por evento** (aprobado por el
   propietario). El Paquete Fiesta se cobra por bloque de 10 personas

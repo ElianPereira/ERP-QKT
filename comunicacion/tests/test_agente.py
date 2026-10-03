@@ -165,7 +165,7 @@ class ProcesarConversacionTest(TestCase):
         cliente = _cliente_falso(_respuesta(_texto('¡Hola! Soy el asistente virtual.')))
         with self.settings(WA_AGENTE_NUMEROS_PRUEBA=[TEL_CLIENTE[-10:]]):
             enviar = self._procesar(cliente)
-        enviar.assert_called_once()
+        self.assertEqual(enviar.call_count, 2)  # aviso inicial + respuesta
 
     def test_no_le_contesta_al_numero_del_propietario(self):
         cliente = _cliente_falso()
@@ -187,7 +187,7 @@ class ProcesarConversacionTest(TestCase):
         )
         enviar = self._procesar(cliente)
 
-        enviar.assert_called_once()
+        self.assertEqual(enviar.call_count, 2)
         self.assertEqual(enviar.call_args.kwargs['mensaje'], 'La pasadía es de 11 a 7.')
         self.conv.refresh_from_db()
         roles = [m['role'] for m in self.conv.historial]
@@ -197,7 +197,7 @@ class ProcesarConversacionTest(TestCase):
         # El segundo llamado reenvía el primero intacto (append-only).
         primero, segundo = cliente.enviados
         self.assertEqual(segundo[:len(primero)], primero)
-        self.assertEqual(self.conv.mensajes.filter(direccion='AGENTE').count(), 1)
+        self.assertEqual(self.conv.mensajes.filter(direccion='AGENTE').count(), 2)
 
     def test_pasar_a_humano_avisa_al_equipo_y_despues_calla(self):
         cliente = _cliente_falso(
@@ -215,6 +215,18 @@ class ProcesarConversacionTest(TestCase):
         enviar = self._procesar(otro)
         otro.beta.messages.create.assert_not_called()
         enviar.assert_not_called()
+
+    def test_el_primer_contacto_avisa_que_es_ia_y_enlaza_el_aviso_una_sola_vez(self):
+        enviar = self._procesar(_cliente_falso(_respuesta(_texto('Hola, ¿para cuántas personas?'))))
+        primero = enviar.call_args_list[0].kwargs['mensaje']
+        self.assertEqual(primero, services_agente.AVISO_INICIAL)
+        self.assertIn('inteligencia artificial', primero)
+        self.assertIn(services_agente.URL_AVISO_PRIVACIDAD, primero)
+
+        services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='Somos 15', wamid='w-2')
+        enviar = self._procesar(_cliente_falso(_respuesta(_texto('Perfecto.'))))
+        enviar.assert_called_once_with(tipo='AGENTE_IA', telefono=self.conv.telefono,
+                                       mensaje='Perfecto.', trigger='SIGNAL')
 
     def _pasado_a_humano_hace(self, horas):
         """Conversación que el agente pasó a una persona hace `horas`."""
