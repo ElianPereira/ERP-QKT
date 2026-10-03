@@ -395,6 +395,53 @@ class PaqueteEscalaPorPersonasTest(TestCase):
         self.assertEqual(Decimal(exhibido['total']), cotizacion.precio_final)
 
 
+class PaqueteConFijosPorEventoTest(TestCase):
+    """Caso real del Paquete Fiesta: la renta de la Quinta y la habitación
+    Ka'an iban dentro del precio por bloque de 10, así que un evento de 120
+    personas las pagaba 12 veces. Marcadas `fijo_por_evento`, se cobran una
+    sola vez a su propio precio y el bloque solo lleva lo variable."""
+
+    def setUp(self):
+        cache.clear()
+        self.paquete = Producto.objects.create(
+            nombre='Paquete Fiesta QKT', precio_venta_fijo=Decimal('1000.00'),
+            visible_cotizador=True, cotizador_evento=True, es_paquete=True,
+            cantidad_por_persona=True, factor_personas=10,
+        )
+        self.renta = Producto.objects.create(nombre='Paquete Esencial QKT', precio_venta_fijo=Decimal('4000.00'))
+        self.kaan = Producto.objects.create(nombre="Habitación Ka'an", precio_venta_fijo=Decimal('800.00'))
+        self.meseros = Producto.objects.create(nombre='Servicio de meseros', precio_venta_fijo=Decimal('300.00'))
+        for hijo, fijo in ((self.renta, True), (self.kaan, True), (self.meseros, False)):
+            ProductoComponente.objects.create(
+                producto_padre=self.paquete, producto_hijo=hijo, cantidad=Decimal('1'), fijo_por_evento=fijo)
+
+    def _lineas(self, personas):
+        return {prod.nombre: qty for prod, qty, _ in _lineas_cotizador(
+            servicio='EVENTO', paquete_id=self.paquete.id, extras_ids=[],
+            num_personas=personas, horas_evento=6)}
+
+    def test_renta_y_habitacion_una_vez_y_el_bloque_por_cada_diez(self):
+        self.assertEqual(self._lineas(120), {
+            'Paquete Fiesta QKT': 12, 'Paquete Esencial QKT': 1, "Habitación Ka'an": 1,
+        })
+        self.assertEqual(self._lineas(20)['Paquete Esencial QKT'], 1)
+
+    def test_vitrina_y_total_cobran_lo_mismo(self):
+        # (1000 × 12 + 4000 + 800) = 16800 base → 19488.00 con IVA (una sola conversión).
+        vitrina = self.client.get(reverse('api_paquetes_evento'), {'personas': '120'}).json()
+        self.assertEqual(vitrina['paquetes'][0]['precio'], '19488.00')
+        total = self.client.get(reverse('api_total_cotizador'), {
+            'servicio': 'EVENTO', 'personas': '120', 'paquete': self.paquete.id,
+        }).json()
+        self.assertEqual(total['total'], '19488.00')
+
+    def test_el_costo_del_bloque_no_cuenta_lo_fijo(self):
+        # Si contara la renta (4000), un precio por bloque de 1000 fallaría
+        # la validación de "margen negativo" y no se podría guardar.
+        self.assertEqual(self.paquete.calcular_costo(), Decimal('300.00'))
+        self.paquete.full_clean()
+
+
 class CosteoPorBloqueDeDiezTest(TestCase):
     """`cantidad_por_persona` + `factor_personas=10`: costeo por bloque de 10,
     no por persona — mecanismo del catálogo abierto, compartido con
