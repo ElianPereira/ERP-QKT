@@ -90,6 +90,16 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
   "Pólizas", "Reglas", "Eliminadas") e **ícono propio** en
   `JAZZMIN_SETTINGS['icons']`, además de su lugar en
   `order_with_respect_to`. Lo vigila `core_erp/test_menu_admin.py`.
+- **Sistema de diseño del admin, siempre** (no esperar a que el
+  propietario lo note): toda pantalla, botón, aviso o diálogo nuevo o
+  modificado usa los componentes y tokens de `static/css/qkt_ui.css`
+  (`qkt-btn`, `qkt-aviso`, `qkt-panel`, `badge`… y `core_erp/admin_ui.py` en
+  listas), con su escala de tamaños y espacios. **Sin emojis** en la UI del
+  ERP (botones, títulos, eventos del calendario, columnas, `__str__` que se
+  ven en selects): los íconos son Font Awesome (`<i class="fas fa-…">`).
+  Nada de `window.confirm`/`alert` nativos: `QKT.confirmar()` o
+  `data-qkt-confirmar`. Los mensajes al cliente (WhatsApp/email) quedan
+  fuera de esta regla.
 - Nunca hardcodees secretos ni llaves API: todo vía `config()`/variables de
   entorno, igual que en todo `settings.py`. Un literal de credencial fuera
   de archivos de test bloquea el lint (`ruff` `S105`/`S106`/`S107`) y el

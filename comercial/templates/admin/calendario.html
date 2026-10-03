@@ -250,7 +250,7 @@
         {% if bloqueo_url %}
         <div class="calendario-acciones">
             <span class="calendario-ayuda">Selecciona uno o varios días para bloquearlos.</span>
-            <a class="button" href="{{ bloqueo_url }}?desde=calendario">⛔ Bloquear fechas</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{{ bloqueo_url }}?desde=calendario"><i class="fas fa-ban"></i> Bloquear fechas</a>
         </div>
         {% endif %}
     </div>
@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   + ' al ' + hasta.toLocaleDateString('es-MX', largo);
             calendar.unselect();
             QKT.confirmar({
-                titulo: desdeStr === hastaStr ? 'Bloquear fecha' : 'Bloquear fechas',
+                titulo: 'Nuevo bloqueo',
                 mensaje: 'Se bloqueará ' + texto + '. Dejará de estar disponible en el cotizador '
                     + 'y en el portal hasta que se libere.',
                 aceptar: 'Continuar'
