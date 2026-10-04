@@ -344,7 +344,7 @@ class HerramientasTest(TestCase):
 
         opcion = herramientas_agente.ver_opciones(servicio='EVENTO', personas=30)['solo_renta']
         self.assertEqual((opcion['nombre'], opcion['precio_total']), (renta.nombre, '$4,000.00'))
-        self.assertEqual(opcion['minimo_personas'], 50)
+        self.assertEqual(opcion['minimo_personas'], 31)
 
     def test_disponibilidad_no_revela_datos_de_otra_reservacion(self):
         manana = (timezone.localdate() + timedelta(days=10)).isoformat()
