@@ -329,7 +329,22 @@ class HerramientasTest(TestCase):
         self.assertIn('error', herramientas_agente.cotizar_estimado(servicio='PASADIA', personas=31))
         self.assertIn('error', herramientas_agente.cotizar_estimado(
             servicio='EVENTO', personas=151, paquete_id=self.paquete.id))
-        self.assertIn('error', herramientas_agente.cotizar_estimado(servicio='EVENTO', personas=80))
+        self.assertIn('error', herramientas_agente.cotizar_estimado(
+            servicio='EVENTO', personas=80, paquete_id=999999))
+
+    def test_solo_la_renta_del_lugar_con_el_minimo_del_cotizador_web(self):
+        renta = Producto.objects.create(
+            nombre='Renta de la Quinta', precio_venta_fijo=Decimal('3448.28'),
+            rol_cotizador='BASE_EVENTO', descripcion='Uso del lugar por 6 horas',
+        )
+        r = herramientas_agente.cotizar_estimado(servicio='EVENTO', personas=60)
+        self.assertEqual(r['total'], '$4,000.00')
+        self.assertEqual(r['total'], self._total_web(servicio='EVENTO', personas=60))
+        self.assertIn('error', herramientas_agente.cotizar_estimado(servicio='EVENTO', personas=30))
+
+        opcion = herramientas_agente.ver_opciones(servicio='EVENTO', personas=30)['solo_renta']
+        self.assertEqual((opcion['nombre'], opcion['precio_total']), (renta.nombre, '$4,000.00'))
+        self.assertEqual(opcion['minimo_personas'], 31)
 
     def test_disponibilidad_no_revela_datos_de_otra_reservacion(self):
         manana = (timezone.localdate() + timedelta(days=10)).isoformat()

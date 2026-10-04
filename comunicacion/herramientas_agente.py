@@ -63,7 +63,8 @@ HERRAMIENTAS = [
         'description': (
             'Lista lo que se puede contratar de un servicio, con precio total IVA incluido '
             'y lo que incluye cada opción, tal como está capturado en el ERP: paquetes de '
-            'evento, niveles de pasadía (Básico/Premium) o habitaciones de hospedaje.'
+            'evento y la renta del lugar sola, niveles de pasadía (Básico/Premium) o '
+            'habitaciones de hospedaje.'
         ),
         'input_schema': {
             'type': 'object',
@@ -83,8 +84,9 @@ HERRAMIENTAS = [
         'description': (
             'Calcula el total estimado (IVA incluido, con promociones automáticas vigentes) '
             'de una selección concreta, con el mismo cálculo del cotizador web. Úsala para '
-            'cualquier precio que vayas a decir. Para Evento hace falta paquete_id (sale de '
-            'ver_opciones); un evento armado a la medida se cotiza en el cotizador web.'
+            'cualquier precio que vayas a decir. Para Evento, con paquete_id cotiza ese paquete '
+            '(sale de ver_opciones); sin paquete_id cotiza solo la renta del lugar, que se '
+            f'contrata a partir de {MIN_PERSONAS_PERSONALIZADO_EVENTO} personas.'
         ),
         'input_schema': {
             'type': 'object',
@@ -92,7 +94,10 @@ HERRAMIENTAS = [
                 'servicio': {'type': 'string', 'enum': list(SERVICIOS)},
                 'personas': {'type': 'integer'},
                 'fecha': {'type': 'string', 'description': 'AAAA-MM-DD, si el cliente la dio.'},
-                'paquete_id': {'type': 'integer', 'description': 'Evento: id del paquete.'},
+                'paquete_id': {
+                    'type': 'integer',
+                    'description': 'Evento: id del paquete. Omitir para cotizar solo la renta del lugar.',
+                },
                 'horas': {
                     'type': 'integer',
                     'description': f'Evento: duración total en horas ({HORAS_BASE_EVENTO} incluidas, '
@@ -215,6 +220,22 @@ def consultar_disponibilidad(fecha=None, noches=None):
     return _disponibilidad(inicio, noches)
 
 
+def _solo_renta(personas):
+    """La renta del lugar sin paquete: la línea base que el cotizador web cobra
+    en «Arma tu propio evento». Se ofrece con la misma regla de aforo mínimo."""
+    base = Producto.objects.filter(rol_cotizador='BASE_EVENTO').first()
+    if not base:
+        return None
+    return {
+        'nombre': base.nombre,
+        'precio_total': _formato(estimar_total(
+            servicio='EVENTO', num_personas=max(personas, MIN_PERSONAS_PERSONALIZADO_EVENTO),
+            horas_evento=HORAS_BASE_EVENTO)['total']),
+        'incluye': _incluye(base),
+        'minimo_personas': MIN_PERSONAS_PERSONALIZADO_EVENTO,
+    }
+
+
 def ver_opciones(servicio=None, personas=None):
     servicio = str(servicio or '').upper()
     personas = _entero(personas)
@@ -235,11 +256,12 @@ def ver_opciones(servicio=None, personas=None):
                     horas_evento=HORAS_BASE_EVENTO)['total']),
                 'incluye': _incluye(p),
             } for p in paquetes],
+            'solo_renta': _solo_renta(n),
             'reglas': (
                 f'{HORAS_BASE_EVENTO} horas incluidas y hasta {HORAS_MAX_EVENTO - HORAS_BASE_EVENTO} '
                 f'horas extra con costo. Aforo máximo {MAX_PERSONAS_EVENTO} personas. '
-                f'Un evento armado a la medida (desde {MIN_PERSONAS_PERSONALIZADO_EVENTO} personas) '
-                'se cotiza en el cotizador web.'
+                f'La renta sola (y armar el evento a la medida) es desde '
+                f'{MIN_PERSONAS_PERSONALIZADO_EVENTO} personas; con menos, solo paquetes.'
             ),
             'cotizador_web': f'{URL_COTIZADOR}?servicio=EVENTO',
         }
@@ -263,8 +285,10 @@ def ver_opciones(servicio=None, personas=None):
             'personas_cotizadas': n,
             'niveles': niveles,
             'reglas': (
-                'Horario 11:00 a.m. a 7:00 p.m. 20 personas incluidas; de 21 a '
-                f'{MAX_PERSONAS_PASADIA} con cargo por persona. No incluye pernocta.'
+                'Horario 11:00 a.m. a 7:00 p.m. 20 personas incluidas en ambos niveles; de 21 a '
+                f'{MAX_PERSONAS_PASADIA} con cargo por persona. No incluye pernocta. Se puede '
+                'agregar una habitación de uso de día como extra (en Básico, una; en Premium, '
+                'una segunda); su precio se ve en el cotizador web.'
             ),
             'cotizador_web': f'{URL_COTIZADOR}?servicio=PASADIA',
         }
@@ -319,12 +343,16 @@ def cotizar_estimado(servicio=None, personas=None, fecha=None, paquete_id=None, 
             return {'error': f'No hay eventos de más de {MAX_PERSONAS_EVENTO} personas.'}
         if horas_ev > HORAS_MAX_EVENTO:
             return {'error': f'Un evento dura como máximo {HORAS_MAX_EVENTO} horas.'}
-        paquete = Producto.objects.filter(
+        if paquete_id in (None, ''):
+            # Solo la renta del lugar: misma regla de aforo mínimo que el cotizador web.
+            if personas < MIN_PERSONAS_PERSONALIZADO_EVENTO:
+                return {'error': f'La renta sola del lugar es a partir de '
+                                 f'{MIN_PERSONAS_PERSONALIZADO_EVENTO} personas; con menos, '
+                                 'ofrece los paquetes (ver_opciones).'}
+        elif not Producto.objects.filter(
             id=_entero(paquete_id) or 0, es_paquete=True, visible_cotizador=True,
-        ).first()
-        if not paquete:
-            return {'error': 'Falta elegir paquete (usa ver_opciones). Un evento a la medida '
-                             f'se cotiza en {URL_COTIZADOR}?servicio=EVENTO'}
+        ).exists():
+            return {'error': 'Ese paquete no existe: usa ver_opciones.'}
     elif servicio == 'PASADIA':
         if personas > MAX_PERSONAS_PASADIA:
             return {'error': f'La pasadía admite como máximo {MAX_PERSONAS_PASADIA} personas; '

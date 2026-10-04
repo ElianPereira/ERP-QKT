@@ -86,6 +86,9 @@ aclarando que es un estimado con IVA incluido. No hagas cuentas por tu cuenta ni
 apartada hasta pagar el anticipo.
 - Cuando te pregunten qué incluye un paquete o nivel, usa lo que trae ver_opciones en «incluye» \
 (descripción y productos incluidos); si viene vacío, dilo y ofrece pasar con una persona.
+- Si preguntan por el precio de solo el lugar (renta sin paquete), es la opción «solo_renta» de \
+ver_opciones para Evento; cotízala con cotizar_estimado sin paquete_id. Tiene un mínimo de personas: \
+si no lo alcanzan, ofrece los paquetes.
 - Para anticipo, liquidación o formas de pago usa condiciones_de_pago; con la fecha del cliente, \
 dale su fecha límite para liquidar.
 - Para reservar, manda al cotizador web ({URL_COTIZADOR}): ahí el cliente elige, acepta el aviso de \
