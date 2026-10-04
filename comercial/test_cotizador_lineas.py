@@ -20,9 +20,9 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from comercial.models import Cliente, Cotizacion, ItemCotizacion, Producto
+from comercial.models import Cliente, Cotizacion, ItemCotizacion, PreguntaFrecuente, Producto
 from comercial.roles_cotizador import sembrar_roles
-from comercial.views_cotizador import _lineas_cotizador
+from comercial.views_cotizador import _lineas_cotizador, estimar_total
 from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
 
 
@@ -509,3 +509,23 @@ class CotizacionCreadaConLineasTest(TestCase):
         cotizacion = Cotizacion.objects.latest('id')
         self.assertIn(self.esencial, [item.producto for item in cotizacion.items.all()])
         self.assertGreater(cotizacion.precio_final, Decimal("0"))
+
+
+class HabitacionDiaPasadiaTest(TestCase):
+    """Migración 0110: la habitación de uso de día es un extra de Pasadía
+    de $500.00 con IVA (Básico ya no la trae, Premium trae una)."""
+
+    def test_extra_sembrado_y_sumado_al_total_de_pasadia(self):
+        hab = Producto.objects.get(nombre='Uso de día de una habitación')
+        self.assertTrue(hab.visible_cotizador and hab.cotizador_pasadia)
+        self.assertEqual(hab.rol_cotizador, '')
+        Producto.objects.create(
+            nombre='Pasadía Básico', precio_venta_fijo=Decimal('1724.14'),
+            rol_cotizador='BASE_PASADIA_BASICO',
+        )
+        total = estimar_total(servicio='PASADIA', num_personas=15, extras_ids=[hab.id])['total']
+        self.assertEqual(total, Decimal('2500.00'))
+
+    def test_faq_de_regaderas_actualizada(self):
+        faq = PreguntaFrecuente.objects.get(pregunta='¿Hay baños y regaderas?')
+        self.assertIn('Pasadía Básica puedes agregar la habitación', faq.respuesta)
