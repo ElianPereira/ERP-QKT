@@ -285,8 +285,10 @@ def ver_opciones(servicio=None, personas=None):
             'personas_cotizadas': n,
             'niveles': niveles,
             'reglas': (
-                'Horario 11:00 a.m. a 7:00 p.m. 20 personas incluidas; de 21 a '
-                f'{MAX_PERSONAS_PASADIA} con cargo por persona. No incluye pernocta.'
+                'Horario 11:00 a.m. a 7:00 p.m. 20 personas incluidas en ambos niveles; de 21 a '
+                f'{MAX_PERSONAS_PASADIA} con cargo por persona. No incluye pernocta. Se puede '
+                'agregar una habitación de uso de día como extra (en Básico, una; en Premium, '
+                'una segunda); su precio se ve en el cotizador web.'
             ),
             'cotizador_web': f'{URL_COTIZADOR}?servicio=PASADIA',
         }

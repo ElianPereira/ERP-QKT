@@ -1249,9 +1249,13 @@ function actualizarAvisoPersonaExtraPasadia() {
 // cotizador); el texto de "qué incluye" es copy fijo del propietario, no
 // depende del servidor.
 var NIVEL_PASADIA_DESC = {
-  BASICO: 'Uso de instalaciones, mesas y sillas para 20 personas y 1 habitación.',
-  PREMIUM: 'Uso de instalaciones, mesas y sillas para 20 personas, 2 habitaciones, brincolín '
-    + 'y carrito de bolis (30 piezas, sabores surtidos).',
+  BASICO: 'Uso de las instalaciones y la alberca de 11:00 a.m. a 7:00 p.m., mesas y sillas para '
+    + '20 personas. De 21 a 30 personas se cobra un cargo por persona que incluye su mobiliario. '
+    + 'No incluye quedarse a dormir.',
+  PREMIUM: 'Todo lo de la Pasadía Básica más uso de día de una habitación, un brincolín y un '
+    + 'carrito de bolis con 25 piezas de sabores surtidos. Horario de 11:00 a.m. a 7:00 p.m., '
+    + 'mesas y sillas para 20 personas; de 21 a 30 personas se cobra un cargo por persona que '
+    + 'incluye su mobiliario. No incluye quedarse a dormir.',
 };
 
 function actualizarNivelPasadiaUI() {
@@ -1277,23 +1281,16 @@ function actualizarNotaPasadia() {
   if (desc) desc.textContent = NIVEL_PASADIA_DESC[nivelPasadiaSel] || '';
   if (servicioSel === 'PASADIA') {
     mostrarNotaBase('Tu cotización ya incluye Pasadía ' + (nivelPasadiaSel === 'PREMIUM' ? 'Premium' : 'Básico')
-      + ': uso de la quinta de 11:00 a.m. a 7:00 p.m. — ' + (NIVEL_PASADIA_DESC[nivelPasadiaSel] || ''));
+      + ': ' + (NIVEL_PASADIA_DESC[nivelPasadiaSel] || ''));
   }
 }
 
 function selNivelPasadia(val) {
   if (val === 'PREMIUM' && !precioNivelPremiumPasadia) return;
   nivelPasadiaSel = val;
-  // El precio de cada nivel es fijo sin importar cuántos de los incluidos
-  // asista el cliente, así que el slider salta al tope de ese nivel al
-  // elegirlo (30 en Premium, 20 en Básico) — deja explícito hasta cuántas
-  // personas cubre, en vez de quedarse en el valor del nivel anterior.
-  var slider = document.getElementById('personas');
-  if (slider) {
-    var nuevoValor = val === 'PREMIUM' ? 30 : 20;
-    slider.value = nuevoValor;
-    actualizarPersonas(nuevoValor);
-  }
+  // Los dos niveles incluyen 20 personas (de 21 a 30 se cobra cargo por
+  // persona en ambos), así que cambiar de nivel no mueve el slider.
+  // Antes saltaba a 30 en Premium y cotizaba 10 personas extra sin pedirlas.
   actualizarNivelPasadiaUI();
   actualizarAvisoPersonaExtraPasadia();
   cargarTotal();
