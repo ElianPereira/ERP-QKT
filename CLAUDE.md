@@ -265,6 +265,18 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-05 — **Topes del agente de WhatsApp contra abuso y gasto** (pedido
+  del propietario tras ver el consumo real: ~US$0.01-0.02 por respuesta con
+  100% de caché). Variables de Railway con default: 30 respuestas del modelo
+  por número al día (`WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA`; al pasarlo, la
+  conversación queda en «Requiere humano» con su correo), 300 en total al día
+  (`WA_AGENTE_MAX_RESPUESTAS_DIA`; al pasarlo, las conversaciones nuevas quedan
+  en «Requiere humano» **sin** correo cada una y sale una sola alerta al día)
+  e historial de 40,000 caracteres (`WA_AGENTE_MAX_HISTORIAL_CARACTERES`,
+  antes 200,000 fijos). Se cuentan los `MensajeWhatsApp` AGENTE del día local;
+  los textos fijos (bienvenida, espera, paso a humano) no cuentan. Sin
+  migración. El tope de verdad sigue siendo el límite mensual en Anthropic.
+
 - 2026-10-03 — **Lanzamiento del agente de WhatsApp al público** (PR #355 +
   QKT-Pages#17). Aviso de Privacidad v2.5 publicado (vigente 03/10/2026) con
   el criterio del abogado: el asistente es finalidad necesaria (§3.1/§3.3),

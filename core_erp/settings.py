@@ -370,6 +370,13 @@ WA_AGENTE_MODELO = config('WA_AGENTE_MODELO', default='claude-opus-5-5')
 # Cuánto se calla el agente en una conversación después de que el propietario
 # contesta desde la app de WhatsApp Business (coexistencia).
 WA_AGENTE_PAUSA_HUMANO_HORAS = config('WA_AGENTE_PAUSA_HUMANO_HORAS', default=12, cast=int)
+# Topes contra abuso y gasto (respuestas del modelo por día, hora de Yucatán).
+# Al pasar el de un número, esa conversación pasa a una persona; al pasar el
+# global, el agente deja de usar IA hasta el día siguiente y avisa al equipo.
+WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA = config('WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA', default=30, cast=int)
+WA_AGENTE_MAX_RESPUESTAS_DIA = config('WA_AGENTE_MAX_RESPUESTAS_DIA', default=300, cast=int)
+# Historial que se reenvía al modelo; al pasarlo la conversación empieza de cero.
+WA_AGENTE_MAX_HISTORIAL_CARACTERES = config('WA_AGENTE_MAX_HISTORIAL_CARACTERES', default=40000, cast=int)
 # La llave de Anthropic la lee el SDK de la variable ANTHROPIC_API_KEY.
 
 # --- STORAGES (Cloudflare R2, S3-compatible) ---
