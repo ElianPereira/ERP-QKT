@@ -199,6 +199,74 @@ class ProcesarConversacionTest(TestCase):
         self.assertEqual(segundo[:len(primero)], primero)
         self.assertEqual(self.conv.mensajes.filter(direccion='AGENTE').count(), 2)
 
+    def _respuestas_previas(self, conv, n):
+        MensajeWhatsApp.objects.bulk_create(
+            MensajeWhatsApp(conversacion=conv, direccion='AGENTE', texto=f'Respuesta {i}', procesado=True)
+            for i in range(n))
+
+    def test_tope_por_numero_pasa_a_humano_sin_llamar_al_modelo(self):
+        self._respuestas_previas(self.conv, 3)
+        services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='¿Y para 25?', wamid='w2')
+        cliente = _cliente_falso()
+        with self.settings(WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA=3):
+            enviar = self._procesar(cliente)
+        cliente.beta.messages.create.assert_not_called()
+        self.assertEqual(enviar.call_args.kwargs['mensaje'], services_agente.MENSAJE_HUMANO)
+        self.conv.refresh_from_db()
+        self.assertTrue(self.conv.requiere_humano)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_tope_global_avisa_una_sola_vez_al_equipo(self):
+        otra = ConversacionWhatsApp.objects.create(telefono='529990000001')
+        self._respuestas_previas(otra, 2)
+        cliente = _cliente_falso()
+        with self.settings(WA_AGENTE_MAX_RESPUESTAS_DIA=2):
+            self._procesar(cliente)
+            segunda = services_agente.recibir_mensaje(
+                telefono='529990000002', nombre='Luis', texto='Hola', wamid='w9')
+            with patch.object(services_agente, '_cliente_ia', return_value=cliente), \
+                    patch.object(services_agente, 'enviar_whatsapp',
+                                 return_value=SimpleNamespace(proveedor_id='')):
+                services_agente.procesar_conversacion(segunda.pk)
+        cliente.beta.messages.create.assert_not_called()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('tope diario', mail.outbox[0].subject)
+        self.conv.refresh_from_db()
+        self.assertTrue(self.conv.requiere_humano)
+
+    def test_los_textos_fijos_no_cuentan_para_el_tope(self):
+        MensajeWhatsApp.objects.create(conversacion=self.conv, direccion='AGENTE',
+                                       texto=services_agente.AVISO_INICIAL, procesado=True)
+        services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='¿Horario?', wamid='w2')
+        cliente = _cliente_falso(_respuesta(_texto('La pasadía es de 11 a 7.')))
+        with self.settings(WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA=1):
+            enviar = self._procesar(cliente)
+        self.assertEqual(enviar.call_args.kwargs['mensaje'], 'La pasadía es de 11 a 7.')
+
+    def test_pasar_a_humano_avisa_al_propietario_por_whatsapp(self):
+        cliente = _cliente_falso(
+            _respuesta(_uso('pasar_a_humano', {'motivo': 'Quiere negociar precio'}), stop='tool_use'),
+            _respuesta(_texto('Te comunico con alguien del equipo.')),
+        )
+        with self.settings(WA_NUMERO_NEGOCIO='9994457178', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+                patch.object(services_agente, 'enviar_whatsapp_template') as plantilla:
+            self._procesar(cliente)
+        kwargs = plantilla.call_args.kwargs
+        self.assertEqual(kwargs['telefono'], '529994457178')
+        self.assertEqual(kwargs['template_name'], 'aviso_operaciones')
+        self.assertIn('Quiere negociar precio', kwargs['parametros'][0])
+        self.assertIn(TEL_CLIENTE, kwargs['parametros'][0])
+
+    def test_sin_numero_del_propietario_no_avisa_por_whatsapp(self):
+        cliente = _cliente_falso(
+            _respuesta(_uso('pasar_a_humano', {'motivo': 'Queja'}), stop='tool_use'),
+            _respuesta(_texto('Te comunico con alguien del equipo.')),
+        )
+        with self.settings(WA_NUMERO_NEGOCIO='', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+                patch.object(services_agente, 'enviar_whatsapp_template') as plantilla:
+            self._procesar(cliente)
+        plantilla.assert_not_called()
+
     def test_pasar_a_humano_avisa_al_equipo_y_despues_calla(self):
         cliente = _cliente_falso(
             _respuesta(_uso('pasar_a_humano', {'motivo': 'Quiere negociar precio'}), stop='tool_use'),

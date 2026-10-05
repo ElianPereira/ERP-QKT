@@ -23,7 +23,7 @@ Reglas que no son obvias:
 import json
 import logging
 import threading
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 import anthropic
 from django.conf import settings
@@ -34,16 +34,18 @@ from django.utils.formats import date_format
 
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp
-from .services import alertar_equipo_email, enviar_whatsapp, normalizar_telefono_wa
+from .services import (
+    alertar_equipo_email,
+    enviar_whatsapp,
+    enviar_whatsapp_template,
+    normalizar_telefono_wa,
+)
 
 logger = logging.getLogger(__name__)
 
 REINICIO_TRAS = timedelta(hours=24)
 # Turnos de herramienta por mensaje del cliente: una pregunta normal usa 1-3.
 MAX_ITERACIONES = 6
-# Tope del historial serializado; al pasarlo se empieza de cero en vez de
-# recortar (recortar editaría turnos ya enviados).
-MAX_HISTORIAL_CARACTERES = 200_000
 LIMITE_WHATSAPP = 4000
 CANDADO_SEGUNDOS = 300
 
@@ -304,9 +306,49 @@ def _atender_pendientes(conversacion_id: int) -> None:
         return
     if not conv.mensajes.filter(direccion='AGENTE', texto=AVISO_INICIAL).exists():
         _enviar(conv, AVISO_INICIAL)
+    if _tope_alcanzado(conv):
+        _enviar(conv, MENSAJE_HUMANO)
+        return
     respuesta = responder(conv, texto)
     if respuesta:
         _enviar(conv, respuesta)
+
+
+def _respuestas_de_hoy():
+    """Respuestas del modelo enviadas hoy (hora local). Los textos fijos no
+    pasan por la IA y no cuentan."""
+    inicio = timezone.make_aware(datetime.combine(timezone.localdate(), time.min))
+    return MensajeWhatsApp.objects.filter(direccion='AGENTE', created_at__gte=inicio).exclude(
+        texto__in=(AVISO_INICIAL, AVISO_ESPERA, MENSAJE_HUMANO))
+
+
+def _tope_alcanzado(conv) -> bool:
+    """Topes diarios contra abuso y gasto. Si se pasa uno, la conversación
+    queda para una persona (y se reactiva sola a las 24 h, como cualquier
+    «Requiere humano»), sin llamar al modelo."""
+    if _respuestas_de_hoy().filter(conversacion=conv).count() >= settings.WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA:
+        logger.warning("Agente WhatsApp: %s llegó al tope diario de respuestas", conv.telefono)
+        _pasar_a_humano(conv, 'Llegó al tope diario de respuestas del asistente para este número.')
+        return True
+    if _respuestas_de_hoy().count() >= settings.WA_AGENTE_MAX_RESPUESTAS_DIA:
+        _pasar_a_humano(conv, 'El asistente llegó a su tope diario de respuestas.', avisar=False)
+        # Un solo correo por día: con el tope global alcanzado, cada
+        # conversación nueva lo dispararía otra vez.
+        if cache.add(f'agente_wa_tope_global:{timezone.localdate()}', 1, timeout=60 * 60 * 24):
+            logger.warning("Agente WhatsApp: tope diario global alcanzado")
+            alertar_equipo_email(
+                None,
+                asunto='WhatsApp: el asistente llegó a su tope diario de respuestas',
+                cuerpo=(f'El agente ya dio {settings.WA_AGENTE_MAX_RESPUESTAS_DIA} respuestas hoy y dejó '
+                        'de usar la IA hasta mañana. Las conversaciones nuevas quedan en «Requiere humano» '
+                        '(Admin → Comunicación → Conversaciones), sin aviso por correo de cada una.\n\n'
+                        'Si es volumen normal y no un abuso, sube WA_AGENTE_MAX_RESPUESTAS_DIA en Railway.'),
+            )
+            _avisar_propietario(
+                f'el asistente llegó a su tope de {settings.WA_AGENTE_MAX_RESPUESTAS_DIA} respuestas '
+                'de hoy; las conversaciones nuevas quedan para una persona hasta mañana')
+        return True
+    return False
 
 
 def _texto_desde_ultima_respuesta(conv) -> str:
@@ -342,10 +384,12 @@ def _enviar(conv, texto: str) -> None:
     )
 
 
-def _pasar_a_humano(conv, motivo: str) -> None:
+def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
     conv.requiere_humano = True
     conv.motivo_humano = (motivo or '')[:300]
     conv.save(update_fields=['requiere_humano', 'motivo_humano', 'updated_at'])
+    if not avisar:
+        return
     ultimos = conv.mensajes.order_by('-created_at', '-id')[:6]
     resumen = '\n'.join(f"{m.get_direccion_display()}: {m.texto[:300]}" for m in reversed(ultimos))
     alertar_equipo_email(
@@ -358,6 +402,33 @@ def _pasar_a_humano(conv, motivo: str) -> None:
                 "Para que el agente vuelva a contestar, desmarca «Requiere humano» "
                 "(se reactiva solo si en 24 h nadie le escribe al cliente)."),
     )
+    _avisar_propietario(
+        f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp. "
+        f"Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones")
+
+
+def _avisar_propietario(resumen: str) -> None:
+    """Aviso por WhatsApp a `WA_NUMERO_NEGOCIO` (además del correo), porque el
+    propietario revisa más WhatsApp que el correo.
+
+    Va en la plantilla aprobada `WA_TEMPLATE_OPERACIONES` («Tienes un aviso
+    nuevo: {{1}}»), que llega aunque no haya ventana de 24 h; sin plantilla, va
+    como texto libre. No lleva el texto de los mensajes del cliente: esta copia
+    no la alcanza la purga de conversaciones. Nunca lanza: un aviso caído no
+    debe tumbar la respuesta al cliente.
+    """
+    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    if not destino:
+        return
+    plantilla = getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
+    try:
+        if plantilla:
+            enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
+                                     parametros=[resumen[:900]])
+        else:
+            enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=f'Aviso nuevo: {resumen}.')
+    except Exception:
+        logger.exception("Agente WhatsApp: no se pudo avisar al propietario por WhatsApp")
 
 
 def _cliente_ia():
@@ -384,7 +455,7 @@ def responder(conv, texto_cliente: str):
     historial = list(conv.historial or [])
     ultima = _ultima_salida(conv)
     if (not ultima or ahora - ultima.created_at > REINICIO_TRAS
-            or len(json.dumps(historial)) > MAX_HISTORIAL_CARACTERES):
+            or len(json.dumps(historial)) > settings.WA_AGENTE_MAX_HISTORIAL_CARACTERES):
         historial = []
 
     fecha_hoy = date_format(ahora, 'l j \\d\\e F \\d\\e Y, H:i')
