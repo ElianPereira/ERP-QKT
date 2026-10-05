@@ -34,7 +34,12 @@ from django.utils.formats import date_format
 
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp
-from .services import alertar_equipo_email, enviar_whatsapp, normalizar_telefono_wa
+from .services import (
+    alertar_equipo_email,
+    enviar_whatsapp,
+    enviar_whatsapp_template,
+    normalizar_telefono_wa,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -339,6 +344,9 @@ def _tope_alcanzado(conv) -> bool:
                         '(Admin → Comunicación → Conversaciones), sin aviso por correo de cada una.\n\n'
                         'Si es volumen normal y no un abuso, sube WA_AGENTE_MAX_RESPUESTAS_DIA en Railway.'),
             )
+            _avisar_propietario(
+                f'el asistente llegó a su tope de {settings.WA_AGENTE_MAX_RESPUESTAS_DIA} respuestas '
+                'de hoy; las conversaciones nuevas quedan para una persona hasta mañana')
         return True
     return False
 
@@ -394,6 +402,33 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
                 "Para que el agente vuelva a contestar, desmarca «Requiere humano» "
                 "(se reactiva solo si en 24 h nadie le escribe al cliente)."),
     )
+    _avisar_propietario(
+        f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp. "
+        f"Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones")
+
+
+def _avisar_propietario(resumen: str) -> None:
+    """Aviso por WhatsApp a `WA_NUMERO_NEGOCIO` (además del correo), porque el
+    propietario revisa más WhatsApp que el correo.
+
+    Va en la plantilla aprobada `WA_TEMPLATE_OPERACIONES` («Tienes un aviso
+    nuevo: {{1}}»), que llega aunque no haya ventana de 24 h; sin plantilla, va
+    como texto libre. No lleva el texto de los mensajes del cliente: esta copia
+    no la alcanza la purga de conversaciones. Nunca lanza: un aviso caído no
+    debe tumbar la respuesta al cliente.
+    """
+    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    if not destino:
+        return
+    plantilla = getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
+    try:
+        if plantilla:
+            enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
+                                     parametros=[resumen[:900]])
+        else:
+            enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=f'Aviso nuevo: {resumen}.')
+    except Exception:
+        logger.exception("Agente WhatsApp: no se pudo avisar al propietario por WhatsApp")
 
 
 def _cliente_ia():

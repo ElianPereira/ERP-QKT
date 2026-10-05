@@ -243,6 +243,30 @@ class ProcesarConversacionTest(TestCase):
             enviar = self._procesar(cliente)
         self.assertEqual(enviar.call_args.kwargs['mensaje'], 'La pasadía es de 11 a 7.')
 
+    def test_pasar_a_humano_avisa_al_propietario_por_whatsapp(self):
+        cliente = _cliente_falso(
+            _respuesta(_uso('pasar_a_humano', {'motivo': 'Quiere negociar precio'}), stop='tool_use'),
+            _respuesta(_texto('Te comunico con alguien del equipo.')),
+        )
+        with self.settings(WA_NUMERO_NEGOCIO='9994457178', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+                patch.object(services_agente, 'enviar_whatsapp_template') as plantilla:
+            self._procesar(cliente)
+        kwargs = plantilla.call_args.kwargs
+        self.assertEqual(kwargs['telefono'], '529994457178')
+        self.assertEqual(kwargs['template_name'], 'aviso_operaciones')
+        self.assertIn('Quiere negociar precio', kwargs['parametros'][0])
+        self.assertIn(TEL_CLIENTE, kwargs['parametros'][0])
+
+    def test_sin_numero_del_propietario_no_avisa_por_whatsapp(self):
+        cliente = _cliente_falso(
+            _respuesta(_uso('pasar_a_humano', {'motivo': 'Queja'}), stop='tool_use'),
+            _respuesta(_texto('Te comunico con alguien del equipo.')),
+        )
+        with self.settings(WA_NUMERO_NEGOCIO='', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+                patch.object(services_agente, 'enviar_whatsapp_template') as plantilla:
+            self._procesar(cliente)
+        plantilla.assert_not_called()
+
     def test_pasar_a_humano_avisa_al_equipo_y_despues_calla(self):
         cliente = _cliente_falso(
             _respuesta(_uso('pasar_a_humano', {'motivo': 'Quiere negociar precio'}), stop='tool_use'),

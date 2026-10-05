@@ -276,6 +276,12 @@ salvo que queden obsoletas.
   antes 200,000 fijos). Se cuentan los `MensajeWhatsApp` AGENTE del día local;
   los textos fijos (bienvenida, espera, paso a humano) no cuentan. Sin
   migración. El tope de verdad sigue siendo el límite mensual en Anthropic.
+  Mismo PR: el paso a humano y el tope global avisan además por **WhatsApp a
+  `WA_NUMERO_NEGOCIO`** (el propietario casi no lee el correo), con la
+  plantilla aprobada `WA_TEMPLATE_OPERACIONES` («Tienes un aviso nuevo:
+  {{1}}»), que llega sin ventana de 24 h. El aviso lleva nombre, teléfono y
+  motivo, **nunca el texto del cliente**: esa copia en `ComunicacionCliente`
+  va al número del propietario y la purga de conversaciones no la alcanza.
 
 - 2026-10-03 — **Lanzamiento del agente de WhatsApp al público** (PR #355 +
   QKT-Pages#17). Aviso de Privacidad v2.5 publicado (vigente 03/10/2026) con
