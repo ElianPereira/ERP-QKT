@@ -861,6 +861,42 @@ class ContratoService:
         return pdf_bytes, numero
 
 
+def emitir_contrato(cotizacion, usuario=None, deposito=None):
+    """
+    Genera el contrato de una cotización CONFIRMADA, lo guarda y deja
+    registrado el depósito en garantía para cobrarlo en el portal.
+
+    Fuente única de la emisión: la usan el botón del admin y la emisión
+    automática al confirmarse la cotización. Devuelve (contrato, pdf_bytes).
+    """
+    from django.core.files.base import ContentFile
+
+    from .models import ContratoServicio, Cotizacion
+    from .services_deposito import asegurar_deposito
+
+    servicio = ContratoService(cotizacion, deposito=deposito)
+    pdf_bytes, numero = servicio.generar()
+    filename = f"Contrato_{numero}.pdf"
+
+    contrato = ContratoServicio(
+        cotizacion=cotizacion,
+        numero=numero,
+        tipo_servicio=cotizacion.tipo_servicio,
+        deposito_garantia=servicio.dep,
+        generado_por=usuario,
+    )
+    contrato.archivo.save(filename, ContentFile(pdf_bytes), save=False)
+    contrato.save()
+
+    asegurar_deposito(cotizacion, servicio.dep, usuario=usuario)
+
+    cotizacion.archivo_contrato.save(filename, ContentFile(pdf_bytes), save=False)
+    Cotizacion.objects.filter(pk=cotizacion.pk).update(
+        archivo_contrato=cotizacion.archivo_contrato.name
+    )
+    return contrato, pdf_bytes
+
+
 # ==========================================
 # CARGA MASIVA DE XML (Compras)
 # ==========================================

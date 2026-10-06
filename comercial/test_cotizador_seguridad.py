@@ -16,7 +16,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from comercial.models import Producto
+from comercial.models import Cotizacion, Producto
 from comunicacion.tests.utils import RespuestaFalsa, limpiar_cache_emisor, wa_settings
 
 
@@ -115,6 +115,17 @@ class CotizadorEnviarValidacionTest(TestCase):
             respuesta = self._post(tipo_evento='Boda', como_nos_encontro='Instagram')
         self.assertEqual(respuesta.status_code, 200)
         self.assertTrue(respuesta.json()['ok'])
+
+    def test_notas_y_origen_no_se_pegan_al_nombre_que_ve_el_cliente(self):
+        with patch('comunicacion.services_notificaciones.notificar_cotizacion'), \
+             patch('comunicacion.services_notificaciones.alertar_equipo_nueva_cotizacion'):
+            respuesta = self._post(tipo_evento='Boda', como_nos_encontro='WhatsApp',
+                                   notas='Llegamos temprano a decorar')
+        self.assertEqual(respuesta.status_code, 200)
+        cot = Cotizacion.objects.latest('pk')
+        self.assertEqual(cot.nombre_evento, 'Boda — Ana Ruiz')
+        self.assertEqual(cot.como_nos_encontro, 'WhatsApp')
+        self.assertEqual(cot.notas_cliente, 'Llegamos temprano a decorar')
 
     def test_sigue_agregando_todos_los_errores_de_una_vez(self):
         # Mismo comportamiento que antes de este cambio: no se detiene en el

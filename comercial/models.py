@@ -608,6 +608,10 @@ class Cotizacion(models.Model):
         verbose_name="Tipo de servicio"
     )
     nombre_evento = models.CharField(max_length=200, default="Evento General")
+    # Lo que el cliente escribe en el cotizador web. Antes se pegaba al
+    # `nombre_evento`, que el cliente ve en su portal, correos y contrato.
+    notas_cliente = models.TextField(blank=True, verbose_name='Notas del cliente')
+    como_nos_encontro = models.CharField(max_length=30, blank=True, verbose_name='Cómo nos encontró')
     tipo_evento = models.ForeignKey(
         'TipoEvento', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='cotizaciones', verbose_name="Tipo de evento",
