@@ -265,6 +265,10 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-06 — **Kooxy pasa a llamarse Kooxi** (pedido del propietario el mismo
+  día). Solo cambia el nombre; la personalidad sigue igual. Las conversaciones
+  abiertas vuelven a recibir la presentación una vez (el aviso se detecta por texto).
+
 - 2026-10-06 — **El agente de WhatsApp se llama Kooxy** (pedido del propietario).
   Nombre y personalidad (cálido, anfitrión, toque yucateco ligero, máx. un emoji y
   ninguno en pagos/quejas) en `SYSTEM_PROMPT`; `AVISO_INICIAL` se presenta como
