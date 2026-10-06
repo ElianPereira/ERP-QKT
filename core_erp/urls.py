@@ -47,7 +47,6 @@ from comercial.views_portal import (
     portal_evento,
     portal_firmar_contrato,
     portal_subir_identificacion,
-    whatsapp_agente,
 )
 from comunicacion.views_whatsapp import whatsapp_webhook
 from core_erp.descargas import descargar_archivo_privado
@@ -217,7 +216,6 @@ urlpatterns = [
     path('', include('legal.urls')),
 
     # --- 7. RUTA RAÍZ — LANDING PÚBLICA ---
-    path('whatsapp/', whatsapp_agente, name='whatsapp_agente'),
     path('', landing_publico, name='landing'),
 ]
 
