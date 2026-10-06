@@ -481,6 +481,11 @@ class HerramientasTest(TestCase):
         self.assertTrue(error)
         self.assertIn('desconocida', salida)
 
+    def test_el_agente_se_presenta_como_kooxy_y_como_ia(self):
+        self.assertIn('Kooxy', services_agente.AVISO_INICIAL)
+        self.assertIn('inteligencia artificial', services_agente.AVISO_INICIAL)
+        self.assertIn('Eres Kooxy', services_agente.SYSTEM_PROMPT)
+
     def test_el_enlace_del_cotizador_apunta_a_un_dominio_vivo(self):
         """`clientes.quintakooxtanil.com` no existe: el cliente recibía un enlace muerto."""
         url = urlparse(herramientas_agente.URL_COTIZADOR)
