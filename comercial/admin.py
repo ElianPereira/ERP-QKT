@@ -711,7 +711,7 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Información del Evento', {
-            'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'fecha_evento', 'fecha_salida', 'hora_inicio', 'hora_fin', 'num_personas', 'estado'),
+            'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'notas_cliente', 'como_nos_encontro', 'fecha_evento', 'fecha_salida', 'hora_inicio', 'hora_fin', 'num_personas', 'estado'),
             'description': '"Fecha de salida" solo aplica a Hospedaje (checkout, varias noches); en el resto de los servicios déjala vacía.',
         }),
         ('Configuración de Barra', {

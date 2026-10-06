@@ -432,10 +432,6 @@ def cotizador_enviar(request):
         nombre_evento = f"Hospedaje ({noches} noche{'s' if noches != 1 else ''}) — {nombre}"
     else:
         nombre_evento = f"Arrendamiento de Mobiliario — {nombre}"
-    if notas:
-        nombre_evento += f" | {notas[:60]}"
-    if como_nos_encontro:
-        nombre_evento += f" [{como_nos_encontro}]"
 
     # ── Crear Cotización ──────────────────────────────────────────────────────────────
     clima = _detectar_clima(fecha_evento)
@@ -450,6 +446,8 @@ def cotizador_enviar(request):
         # "XV Años", etc. nunca aplicaban a una solicitud web.
         tipo_evento=_tipo_evento_catalogo(servicio, tipo_ev),
         nombre_evento=nombre_evento[:200],
+        notas_cliente=notas,
+        como_nos_encontro=como_nos_encontro[:30],
         fecha_evento=fecha_evento,
         fecha_salida=fecha_salida,
         num_personas=num_personas,

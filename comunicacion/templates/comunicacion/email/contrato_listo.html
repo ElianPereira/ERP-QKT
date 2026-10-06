@@ -1,0 +1,16 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#2E7D32;margin-top:0;">Tu contrato está listo para firmar</h2>
+
+<p>Hola {{ cotizacion.cliente.nombre }}, tu reservación de <strong>{{ cotizacion.nombre_evento }}</strong>
+ya está confirmada y preparamos tu contrato <strong>{{ contrato.numero }}</strong>.</p>
+
+<p>Puedes leerlo y firmarlo desde tu portal, en unos minutos y sin imprimir nada. Te pediremos un código
+que te llegará a este correo.</p>
+
+{% if portal_url %}
+<p style="text-align:center;margin:25px 0;">
+  <a href="{{ portal_url }}" style="background:#2E7D32;color:#F5C518;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:bold;">Revisar y firmar mi contrato</a>
+</p>
+{% endif %}
+{% endblock %}

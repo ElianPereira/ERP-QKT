@@ -546,6 +546,48 @@ def notificar_factura(solicitud):
     )
 
 
+# ─────────────────────────────── Contrato ───────────────────────────────
+
+def notificar_contrato_listo(contrato):
+    """Avisa al cliente que su contrato ya está en el portal para firmarlo.
+
+    Solo por correo: no hay plantilla de WhatsApp aprobada para este aviso y
+    un texto libre fuera de la ventana de 24 h no llegaría.
+    """
+    cotizacion = contrato.cotizacion
+    cliente = getattr(cotizacion, 'cliente', None)
+    if cliente is None or not cliente.email:
+        return
+    _seguro(
+        'enviar el aviso de contrato listo para firmar',
+        enviar_email,
+        cotizacion=cotizacion,
+        tipo='CONTRATO',
+        destinatario=cliente.email,
+        asunto=f"Tu contrato {contrato.numero} está listo para firmar",
+        template='comunicacion/email/contrato_listo.html',
+        context={'cotizacion': cotizacion, 'contrato': contrato, 'portal_url': url_portal(cotizacion)},
+        clave_idempotencia=f"contrato:{contrato.pk}:listo:email",
+    )
+
+
+def alertar_equipo_contrato_fallido(cotizacion):
+    """El contrato automático no se pudo generar: alguien debe emitirlo a mano."""
+    folio = f"COT-{cotizacion.pk:03d}"
+    _seguro(
+        'avisar al equipo que el contrato automático falló',
+        alertar_equipo_email,
+        cotizacion,
+        asunto=f"No se pudo generar el contrato — {folio}",
+        cuerpo=(
+            f"La cotización {folio} quedó confirmada, pero el contrato no se pudo "
+            "generar automáticamente. Emítelo desde el admin con «Generar contrato»; "
+            "el detalle del error está en el log del servidor."
+        ),
+        clave_idempotencia=f"cotizacion:{cotizacion.pk}:contrato_fallido:email",
+    )
+
+
 # ─────────────────────────── Alerta interna al equipo ───────────────────────
 
 def alertar_equipo_nueva_cotizacion(cotizacion):
@@ -574,6 +616,10 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
         f"Total a pagar: ${total}\n"
         f"URL: {portal}"
     )
+    if cotizacion.como_nos_encontro:
+        cuerpo += f"\nNos encontró por: {cotizacion.como_nos_encontro}"
+    if cotizacion.notas_cliente:
+        cuerpo += f"\nNotas del cliente: {cotizacion.notas_cliente}"
 
     _seguro(
         'enviar la copia por email de la alerta interna',

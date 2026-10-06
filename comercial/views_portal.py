@@ -199,9 +199,11 @@ def portal_evento(request, token):
     # Historial de comunicaciones
     try:
         from comunicacion.models import ComunicacionCliente
+        # 'OTRO' son las alertas internas al equipo ("Nueva cotización web",
+        # "Pago acreditado"): van ligadas a la cotización pero no son del cliente.
         comunicaciones = ComunicacionCliente.objects.filter(
             cotizacion=cotizacion
-        ).order_by('-fecha_envio')[:20]
+        ).exclude(tipo='OTRO').order_by('-fecha_envio')[:20]
     except Exception:
         comunicaciones = []
 

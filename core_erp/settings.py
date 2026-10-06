@@ -237,6 +237,9 @@ PROFECO_REGISTRO_HOSPEDAJE = config('PROFECO_REGISTRO_HOSPEDAJE', default='')
 # la validación legal del texto (2026-09-25); False vuelve a los contratos
 # basados en el modelo PROFECO sin desplegar.
 CONTRATO_PROPIO_ACTIVO = config('CONTRATO_PROPIO_ACTIVO', default=True, cast=bool)
+# Emite el contrato solo al confirmarse la cotización (comercial/signals.py).
+# False vuelve al botón «Generar contrato» del admin sin desplegar.
+CONTRATO_AUTOMATICO = config('CONTRATO_AUTOMATICO', default=True, cast=bool)
 
 # Registro PROFECO del contrato propio de Evento/Pasadía. La NOM-174-SCFI-2007
 # (numeral 5.1) obliga a registrarlo; el propietario decidió emitirlo mientras

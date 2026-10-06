@@ -972,8 +972,7 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
 @staff_member_required
 @permission_required('comercial.add_contratoservicio', raise_exception=True)
 def generar_contrato(request, cotizacion_id):
-    from .models import ContratoServicio
-    from .services import ContratoService
+    from .services import ContratoService, emitir_contrato
 
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
 
@@ -983,37 +982,16 @@ def generar_contrato(request, cotizacion_id):
 
     # El tipo sale de la cotización, nunca de la URL: así no puede emitirse
     # un contrato de Evento para una Pasadía.
-    tipo = cotizacion.tipo_servicio
     deposito = request.GET.get('deposito')
     deposito = Decimal(deposito) if deposito else None
-    if tipo not in ContratoService.TIPOS:
+    if cotizacion.tipo_servicio not in ContratoService.TIPOS:
         messages.error(request, " Tipo de contrato no disponible.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
     try:
-        servicio  = ContratoService(cotizacion, deposito=deposito)
-        pdf_bytes, numero = servicio.generar()
-
+        contrato, pdf_bytes = emitir_contrato(cotizacion, usuario=request.user, deposito=deposito)
+        numero = contrato.numero
         filename = f"Contrato_{numero}.pdf"
-
-        contrato = ContratoServicio(
-            cotizacion=cotizacion,
-            numero=numero,
-            tipo_servicio=tipo,
-            deposito_garantia=servicio.dep,
-            generado_por=request.user,
-        )
-        contrato.archivo.save(filename, ContentFile(pdf_bytes), save=False)
-        contrato.save()
-
-        # El depósito del contrato queda registrado para cobrarlo en el portal.
-        from .services_deposito import asegurar_deposito
-        asegurar_deposito(cotizacion, servicio.dep, usuario=request.user)
-
-        cotizacion.archivo_contrato.save(filename, ContentFile(pdf_bytes), save=False)
-        Cotizacion.objects.filter(pk=cotizacion.pk).update(
-            archivo_contrato=cotizacion.archivo_contrato.name
-        )
 
         messages.success(request, f" Contrato {numero} generado correctamente.")
 

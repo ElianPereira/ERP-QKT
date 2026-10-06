@@ -265,6 +265,21 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-06 — **Contrato automático al confirmarse** (hallazgo de la
+  simulación E2E pedida por el propietario: el contrato solo salía con el
+  botón del admin). Un `post_save` de `Cotizacion` (`comercial/signals.py`)
+  emite el contrato en `on_commit` cuando queda CONFIRMADA, con fecha hoy o
+  futura y sin contrato previo (`select_for_update` contra el doble guardado),
+  y manda al cliente el correo «listo para firmar» (`CONTRATO`, idempotente).
+  `emitir_contrato()` en `services.py` es la fuente única: la usan el signal
+  y el botón. Si falla, la confirmación no se deshace: alerta interna al
+  equipo y se genera a mano. `CONTRATO_AUTOMATICO=False` lo apaga. Mismo PR:
+  las notas y el «cómo nos encontró» del cotizador ya no se pegan a
+  `nombre_evento` (lo ve el cliente en portal y contrato): viven en
+  `notas_cliente`/`como_nos_encontro` (migración `comercial.0111`, solo
+  agrega campos) y van en la alerta al equipo; el historial del portal
+  excluye `tipo='OTRO'` (alertas internas); pie del portal «Umán, Yucatán».
+
 - 2026-10-06 — **Kooxy pasa a llamarse Kooxi** (pedido del propietario el mismo
   día). Solo cambia el nombre; la personalidad sigue igual. Las conversaciones
   abiertas vuelven a recibir la presentación una vez (el aviso se detecta por texto).
