@@ -218,6 +218,8 @@ urlpatterns = [
 
     # --- 7. RUTA RAÍZ — LANDING PÚBLICA ---
     path('whatsapp/', whatsapp_agente, name='whatsapp_agente'),
+    # Misma página para los anuncios de Meta: una URL con "whatsapp" la marca Ads Manager.
+    path('contacto/', whatsapp_agente, name='contacto'),
     path('', landing_publico, name='landing'),
 ]
 
