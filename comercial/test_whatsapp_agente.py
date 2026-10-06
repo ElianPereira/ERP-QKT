@@ -3,9 +3,11 @@ from django.test import TestCase
 from comercial.views_portal import WA_AGENTE_URL
 
 
-class WhatsappAgentePaginaTest(TestCase):
-    def test_pagina_real_con_boton_al_agente(self):
-        response = self.client.get('/whatsapp/')
-        # 200 y no redirect: Meta rechaza el anuncio si el destino termina en wa.me.
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f'href="{WA_AGENTE_URL}"')
+class WhatsappAgenteRedirectTest(TestCase):
+    def test_redirige_al_chat_del_agente(self):
+        for ruta in ('/whatsapp/', '/whatsapp'):
+            response = self.client.get(ruta, follow=False)
+            if response.status_code == 301:  # APPEND_SLASH
+                response = self.client.get(response['Location'])
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response['Location'], WA_AGENTE_URL)
