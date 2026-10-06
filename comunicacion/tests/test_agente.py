@@ -8,6 +8,7 @@ from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 from django.core import mail
 from django.core.cache import cache
@@ -479,6 +480,12 @@ class HerramientasTest(TestCase):
         salida, error = herramientas_agente.ejecutar('borrar_todo', {})
         self.assertTrue(error)
         self.assertIn('desconocida', salida)
+
+    def test_el_enlace_del_cotizador_apunta_a_un_dominio_vivo(self):
+        """`clientes.quintakooxtanil.com` no existe: el cliente recibía un enlace muerto."""
+        url = urlparse(herramientas_agente.URL_COTIZADOR)
+        self.assertEqual(url.netloc, 'quintakooxtanil.com')
+        self.assertEqual(url.path, reverse('cotizador_publico'))
 
 
 @wa_settings(**AGENTE)

@@ -41,7 +41,7 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
   La contabilidad oficial la lleva el contador fuera del ERP, por eso borrar
   el registro de Airbnb no pierde nada. Unidad de negocio: QUINTA.
 - **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
-  `clientes.quintakooxtanil.com` (portal cliente, Railway),
+  portal cliente y cotizador en `quintakooxtanil.com/mi-evento/` y `/cotizar/` (Railway; `clientes.` ya no existe en DNS),
   `quintakooxtanil.com` (landing pública, Cloudflare Pages).
 - **Cuenta bancaria**: una sola, BBVA Maestra PYME → QUINTA, para cobros y
   para gastos con y sin factura. Revolut como cuenta pagadora se probó y se
@@ -264,6 +264,13 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-10-06 — **El agente de WhatsApp mandaba un enlace muerto al cotizador**
+  (reportado por el propietario: un cliente de pasadía no podía abrirlo).
+  `URL_COTIZADOR` apuntaba a `clientes.quintakooxtanil.com`, que no existe en
+  DNS ni como dominio en Railway; el cotizador vive en
+  `quintakooxtanil.com/cotizar/` (dominio propio del servicio `web`, verificado
+  en los logs HTTP). Test que fija el dominio y la ruta.
 
 - 2026-10-05 — **Topes del agente de WhatsApp contra abuso y gasto** (pedido
   del propietario tras ver el consumo real: ~US$0.01-0.02 por respuesta con

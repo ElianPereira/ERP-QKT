@@ -2,7 +2,7 @@
 
 ## 0. Contexto del Proyecto
 - **Negocio:** Quinta Ko'ox Tanil (QKT) — eventos, pasadía, hospedaje corto directo (Ka'an, Otoch). Unidad de negocio: QUINTA. Airbnb y Honey Sea House se retiraron del portafolio y del ERP (Issue #311).
-- **Stack:** Django + PostgreSQL, Railway (`erp.quintakooxtanil.com`, `clientes.quintakooxtanil.com`), Cloudflare Pages (`quintakooxtanil.com`), Cloudflare R2 (storage de archivos), Openpay/BBVA, WhatsApp Cloud API, GitHub.
+- **Stack:** Django + PostgreSQL, Railway (`erp.quintakooxtanil.com`, `quintakooxtanil.com`), Cloudflare Pages (`quintakooxtanil.com`), Cloudflare R2 (storage de archivos), Openpay/BBVA, WhatsApp Cloud API, GitHub.
 - **Apps relevantes:** ERP interno, portal cliente, landing pública.
 - **Cuentas bancarias:** BBVA Maestra PYME → QUINTA.
 - **Estándares de código obligatorios:**

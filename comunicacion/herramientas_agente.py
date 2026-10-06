@@ -34,7 +34,7 @@ from comercial.views_cotizador import (
 
 logger = logging.getLogger(__name__)
 
-URL_COTIZADOR = 'https://clientes.quintakooxtanil.com/cotizar/'
+URL_COTIZADOR = 'https://quintakooxtanil.com/cotizar/'
 SERVICIOS = ('EVENTO', 'PASADIA', 'HOSPEDAJE')
 
 HERRAMIENTAS = [
