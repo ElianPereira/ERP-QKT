@@ -44,15 +44,13 @@ from .models import (
 )
 from .paynet import TIENDAS_PAYNET
 
-# Enlace corto al agente de WhatsApp para anuncios de Meta: Ads Manager no
-# acepta números de la Cloud API en anuncios "a WhatsApp" ni un wa.me directo
-# como destino de "Sitio web" (#2446860), así que el anuncio apunta aquí.
+# Chat con el agente de WhatsApp, para la página de destino de los anuncios.
 WA_AGENTE_URL = 'https://wa.me/529991699191?text=Hola,%20quiero%20cotizar%20una%20pasad%C3%ADa'
 
 
 def whatsapp_agente(request):
-    """quintakooxtanil.com/whatsapp → chat con el agente (302, cambiable)."""
-    return redirect(WA_AGENTE_URL)
+    """quintakooxtanil.com/whatsapp: página de destino de los anuncios de Meta."""
+    return render(request, 'landing/whatsapp.html', {'wa_url': WA_AGENTE_URL})
 
 
 def landing_publico(request):

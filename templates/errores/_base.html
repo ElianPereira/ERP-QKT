@@ -52,11 +52,12 @@
         </div>
 
         <div class="content-section">
-            <div class="codigo">{% block codigo %}Error{% endblock %}</div>
+            {% block etiqueta %}<div class="codigo">{% block codigo %}Error{% endblock %}</div>{% endblock %}
             <h1 class="titulo">{% block titulo_mensaje %}Algo no salió como esperábamos{% endblock %}</h1>
             <div class="mensaje">{% block descripcion %}Inténtalo de nuevo en unos minutos.{% endblock %}</div>
 
             <div class="acciones">
+                {% block acciones %}
                 {% comment %}
                 Fijo a quintakooxtanil.com, no "/" relativo: esta página también
                 se sirve en el subdominio erp.* (panel interno), donde "/" hace
@@ -66,6 +67,7 @@
                 {% endcomment %}
                 <a href="https://quintakooxtanil.com/" class="btn btn-primary">Ir al inicio</a>
                 <a href="https://wa.me/529994457178" target="_blank" rel="noopener" class="btn btn-secundario">Escríbenos por WhatsApp</a>
+                {% endblock %}
             </div>
         </div>
 

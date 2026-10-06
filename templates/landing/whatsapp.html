@@ -1,0 +1,14 @@
+{% extends "errores/_base.html" %}
+{% comment %}
+Destino de los anuncios de Meta. Tiene que ser una página real (200), no un
+redirect: Ads Manager sigue el redirect, ve wa.me y rechaza el anuncio
+(#2446860), y tampoco admite el número de la Cloud API en anuncios "a WhatsApp".
+{% endcomment %}
+{% block titulo %}Cotiza por WhatsApp — Quinta Ko'ox Tanil{% endblock %}
+{% block etiqueta %}{% endblock %}
+{% block titulo_mensaje %}Cotiza tu pasadía por WhatsApp{% endblock %}
+{% block descripcion %}Alberca, jardín y un día sin pendientes en Umán, Yucatán. Escríbenos y te respondemos al momento con precios y fechas disponibles.{% endblock %}
+{% block acciones %}
+<a href="{{ wa_url }}" class="btn btn-primary">Escríbenos por WhatsApp</a>
+<a href="https://quintakooxtanil.com/" class="btn btn-secundario">Conoce la Quinta</a>
+{% endblock %}
