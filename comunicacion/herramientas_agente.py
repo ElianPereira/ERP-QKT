@@ -1,8 +1,10 @@
 """
 Herramientas del agente de WhatsApp (Issue #346; Issue #366 agrega las del cliente).
 
-Cada herramienta es una consulta al ERP que el modelo puede pedir; nada de lo
-que está aquí escribe en la base. Los precios salen de
+Casi todas son consultas de solo lectura. Las que dependen de quién escribe
+(`mi_reservacion`, `crear_cotizacion`) reciben la conversación desde
+`ejecutar`, nunca un teléfono del modelo; `crear_cotizacion` es la única que
+escribe, con la misma función que el cotizador web. Los precios salen de
 `comercial.views_cotizador.estimar_total`, la misma función que exhibe el
 total del cotizador web: el agente nunca calcula ni redondea importes.
 
@@ -15,9 +17,12 @@ import json
 import logging
 from datetime import date, datetime, timedelta
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.utils import timezone
 
 from comercial.disponibilidad import verificar_disponibilidad_rango
+from comercial.forms_cotizador import TIPO_EVENTO_CHOICES
 from comercial.models import Cotizacion, PreguntaFrecuente, Producto
 from comercial.reglas_eventos import (
     MAX_PERSONAS_EVENTO,
@@ -29,6 +34,8 @@ from comercial.views_cotizador import (
     HORAS_BASE_EVENTO,
     HORAS_MAX_EVENTO,
     NOCHES_HOSPEDAJE_MAX,
+    SolicitudInvalida,
+    crear_cotizacion_solicitud,
     estimar_total,
 )
 
@@ -151,6 +158,37 @@ HERRAMIENTAS = [
             'su saldo o cuánto le falta. Solo ve las de este número: no puede consultar otras.'
         ),
         'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+    },
+    {
+        'name': 'crear_cotizacion',
+        'description': (
+            'Crea la cotización formal en el ERP, igual que el cotizador web, y le manda al cliente '
+            'por WhatsApp y correo el enlace a su portal para pagar. Úsala solo cuando el cliente '
+            'pida que le prepares la cotización y ya tengas servicio, fecha libre, personas, la '
+            'opción elegida (paquete, nivel u habitaciones), su nombre y su correo. La primera vez '
+            'el sistema le manda un mensaje con botones para aceptar el aviso de privacidad: si la '
+            'herramienta responde que falta la autorización, díselo y espera su respuesta.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'servicio': {'type': 'string', 'enum': list(SERVICIOS)},
+                'fecha': {'type': 'string', 'description': 'AAAA-MM-DD.'},
+                'personas': {'type': 'integer'},
+                'nombre': {'type': 'string', 'description': 'Nombre completo del cliente.'},
+                'correo': {'type': 'string', 'description': 'Correo del cliente.'},
+                'paquete_id': {'type': 'integer', 'description': 'Evento: id del paquete; omitir para solo la renta.'},
+                'hora_inicio': {'type': 'string', 'description': 'Evento: HH:MM en 24 h.'},
+                'hora_fin': {'type': 'string', 'description': 'Evento: HH:MM en 24 h.'},
+                'tipo_evento': {'type': 'string', 'enum': [v for v, _ in TIPO_EVENTO_CHOICES]},
+                'nivel_pasadia': {'type': 'string', 'enum': ['BASICO', 'PREMIUM']},
+                'habitaciones_ids': {'type': 'array', 'items': {'type': 'integer'}},
+                'noches': {'type': 'integer'},
+                'notas': {'type': 'string', 'description': 'Lo que el cliente pidió anotar (máx. 300).'},
+            },
+            'required': ['servicio', 'fecha', 'personas', 'nombre', 'correo'],
+            'additionalProperties': False,
+        },
     },
     {
         'name': 'pasar_a_humano',
@@ -463,16 +501,16 @@ def cotizaciones_del_telefono(telefono: str):
             .order_by('fecha_evento', 'id'))
 
 
-def mi_reservacion(telefono=''):
+def mi_reservacion(conv=None):
     """Saldo y estado de las reservaciones del número que escribe.
 
-    El teléfono lo pone `ejecutar` desde la conversación, nunca el modelo: el
-    esquema de la herramienta no tiene parámetros, así que el cliente no puede
-    pedir las de otro número. No se manda el enlace con token del portal: se
-    entra por el acceso con código y 4 dígitos.
+    La conversación la pone `ejecutar`, nunca el modelo: el esquema de la
+    herramienta no tiene parámetros, así que el cliente no puede pedir las de
+    otro número. No se manda el enlace con token del portal: se entra por el
+    acceso con código y 4 dígitos.
     """
     reservaciones = []
-    for c in cotizaciones_del_telefono(telefono):
+    for c in cotizaciones_del_telefono(getattr(conv, 'telefono', '')):
         saldo = c.saldo_pendiente()
         minimo, motivo = c.monto_minimo_pago_detalle()
         dias = Cotizacion.DIAS_PAGO_TOTAL.get(c.tipo_servicio)
@@ -505,6 +543,107 @@ def mi_reservacion(telefono=''):
     }
 
 
+# Cotizaciones que un mismo número puede crear por día en el chat: más que eso
+# es un abuso o un caso para una persona.
+MAX_COTIZACIONES_CHAT_DIA = 3
+
+
+def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre=None, correo=None,
+                     paquete_id=None, hora_inicio=None, hora_fin=None, tipo_evento=None,
+                     nivel_pasadia=None, habitaciones_ids=None, noches=None, notas=None):
+    """Crea la cotización con la misma función que el cotizador web.
+
+    El teléfono sale de la conversación (nunca del modelo) y la evidencia del
+    consentimiento es el botón que tocó el cliente en este chat.
+    """
+    from comunicacion import services_agente  # importa este módulo: va aquí
+
+    if conv is None:
+        return {'error': 'Sin conversación.'}
+    if not services_agente.consentimiento_vigente(conv):
+        enviado = services_agente.pedir_consentimiento(conv)
+        return {'requiere_autorizacion': True, 'nota': (
+            'Se le acaba de mandar al cliente un mensaje con botones para aceptar el Aviso de '
+            'Privacidad y los Términos. Pídele que toque «Acepto» y, cuando lo haga, vuelve a '
+            'llamar crear_cotizacion.' if enviado else
+            'Ya tiene en el chat el mensaje con botones para aceptar el Aviso de Privacidad; pídele '
+            'que toque «Acepto». Sin eso no se puede crear la cotización.')}
+
+    correo = str(correo or '').strip().lower()
+    try:
+        validate_email(correo)
+    except ValidationError:
+        return {'error': 'El correo no parece válido: confírmalo con el cliente.'}
+    inicio, error = _fecha(fecha)
+    if error:
+        return {'error': error}
+    servicio = str(servicio or '').upper()
+    noches_n = _entero(noches, 1) or 1
+    # Mismos topes de aforo, paquete y habitaciones que el estimado: el
+    # cotizador web los aplica en su formulario, no en la función compartida.
+    horas = None
+    if hora_inicio and hora_fin:
+        try:
+            h_i = datetime.strptime(hora_inicio, '%H:%M')
+            h_f = datetime.strptime(hora_fin, '%H:%M')
+        except ValueError:
+            return {'error': 'Horario no válido: usa HH:MM en 24 h.'}
+        horas = int(((h_f - h_i).total_seconds() % 86400) / 3600) or 24
+    estimado = cotizar_estimado(servicio=servicio, personas=personas, fecha=inicio.isoformat(),
+                                paquete_id=paquete_id, horas=horas, nivel_pasadia=nivel_pasadia,
+                                habitaciones_ids=habitaciones_ids, noches=noches_n)
+    if 'error' in estimado:
+        return estimado
+    if not estimado['disponibilidad']['disponible']:
+        return {'error': 'Esa fecha ya está ocupada: sugiere otra con consultar_disponibilidad.'}
+
+    hoy = timezone.localdate()
+    creadas_hoy = Cotizacion.objects.filter(
+        cliente__telefono__endswith=conv.telefono[-10:], created_at__date=hoy).count()
+    if creadas_hoy >= MAX_COTIZACIONES_CHAT_DIA:
+        return {'error': 'Este número ya creó varias cotizaciones hoy: ofrece pasar con una persona.'}
+
+    datos = {
+        'nombre': str(nombre or '').strip(), 'telefono': conv.telefono, 'email': correo,
+        'servicio': servicio, 'fecha': inicio.isoformat(), 'personas': str(_entero(personas, '') or ''),
+        'noches': str(noches_n), 'hora_inicio': hora_inicio or '', 'hora_fin': hora_fin or '',
+        'tipo_evento': tipo_evento or '', 'notas': str(notas or '')[:300], 'acepta_legales': True,
+        'paquete_id': paquete_id or '', 'habitaciones_ids': habitaciones_ids or [],
+        'nivel_pasadia': nivel_pasadia or 'BASICO',
+        'finalidades': ['MARKETING'] if conv.consentimiento_marketing else [],
+    }
+
+    def _consentimiento_whatsapp(cliente, email, finalidades):
+        from legal.models import OrigenAceptacion
+        from legal.services import LegalService
+        LegalService.registrar_aceptacion(
+            request=None, correo=email, origen=OrigenAceptacion.WHATSAPP, cliente=cliente,
+            finalidades_aceptadas=finalidades, referencia_externa=conv.consentimiento_wamid,
+            aceptado_en=conv.consentimiento_en,
+        )
+
+    try:
+        r = crear_cotizacion_solicitud(datos, origen_cliente='WhatsApp',
+                                       registrar_consentimiento=_consentimiento_whatsapp)
+    except SolicitudInvalida as e:
+        return {'error': ' '.join(e.errores)}
+    cot = r['cotizacion']
+    if conv.cliente_id != cot.cliente_id:
+        conv.cliente = cot.cliente
+        conv.save(update_fields=['cliente', 'updated_at'])
+    return {
+        'folio': f'COT-{cot.id:03d}',
+        'total': _formato(cot.precio_final),
+        'conceptos': [i.descripcion for i in cot.items.all()],
+        # El enlace con token no pasa por el modelo: le llega al cliente en
+        # el aviso de cotización (WhatsApp y correo).
+        'nota': ('La cotización quedó creada. El cliente recibe en mensaje aparte y por correo el enlace '
+                 'a su portal, donde paga y ve su contrato. Si no le llega, puede entrar en '
+                 f'{URL_PORTAL_ACCESO} con su folio y los últimos 4 dígitos de su teléfono. La fecha se '
+                 'aparta con el primer pago.'),
+    }
+
+
 _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
@@ -512,14 +651,15 @@ _EJECUTORES = {
     'condiciones_de_pago': condiciones_de_pago,
     'preguntas_frecuentes': preguntas_frecuentes,
 }
-# Herramientas que dependen de quién escribe: reciben el teléfono de la
-# conversación, no un dato que pueda dictar el modelo.
+# Herramientas que dependen de quién escribe: reciben la conversación, nunca
+# un teléfono que pueda dictar el modelo.
 _EJECUTORES_DEL_CLIENTE = {
     'mi_reservacion': mi_reservacion,
+    'crear_cotizacion': crear_cotizacion,
 }
 
 
-def ejecutar(nombre: str, entrada: dict, telefono: str = '') -> tuple[str, bool]:
+def ejecutar(nombre: str, entrada: dict, conv=None) -> tuple[str, bool]:
     """Ejecuta una herramienta de consulta. Devuelve (json, es_error).
 
     `pasar_a_humano` no vive aquí: cambia el estado de la conversación y lo
@@ -529,7 +669,7 @@ def ejecutar(nombre: str, entrada: dict, telefono: str = '') -> tuple[str, bool]
     funcion = _EJECUTORES.get(nombre)
     if nombre in _EJECUTORES_DEL_CLIENTE:
         funcion = _EJECUTORES_DEL_CLIENTE[nombre]
-        entrada['telefono'] = telefono
+        entrada['conv'] = conv
     if funcion is None:
         return json.dumps({'error': f'Herramienta desconocida: {nombre}'}), True
     try:

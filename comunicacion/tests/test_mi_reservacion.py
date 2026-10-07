@@ -2,6 +2,7 @@
 import json
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 from django.test import TestCase
 from django.utils import timezone
@@ -28,7 +29,8 @@ class MiReservacionTest(TestCase):
         return cot
 
     def _ejecutar(self, telefono, entrada=None):
-        salida, error = herramientas_agente.ejecutar('mi_reservacion', entrada or {}, telefono=telefono)
+        conv = SimpleNamespace(telefono=telefono)
+        salida, error = herramientas_agente.ejecutar('mi_reservacion', entrada or {}, conv=conv)
         return json.loads(salida), error
 
     def test_el_saldo_es_el_mismo_del_portal(self):
@@ -51,8 +53,9 @@ class MiReservacionTest(TestCase):
 
     def test_el_modelo_no_puede_pedir_las_de_otro_numero(self):
         self._cot()
-        r, _ = self._ejecutar(OTRO_TEL, {'telefono': TEL_CLIENTE})
-        self.assertEqual(r['reservaciones'], [])
+        r, error = self._ejecutar(OTRO_TEL, {'telefono': TEL_CLIENTE})
+        self.assertTrue(error)
+        self.assertNotIn('reservaciones', r)
 
     def test_sin_telefono_no_busca(self):
         self._cot()

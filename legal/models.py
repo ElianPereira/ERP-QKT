@@ -185,6 +185,7 @@ class OrigenAceptacion(models.TextChoices):
     CHECKOUT = 'CHECKOUT', 'Checkout de pago'
     CONTRATO = 'CONTRATO', 'Firma de contrato'
     ADMIN = 'ADMIN', 'Captura administrativa'
+    WHATSAPP = 'WHATSAPP', 'Botón en el chat de WhatsApp'
 
 
 class AceptacionLegal(models.Model):
@@ -213,6 +214,11 @@ class AceptacionLegal(models.Model):
     origen = models.CharField(max_length=24, choices=OrigenAceptacion.choices)
     ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP')
     user_agent = models.TextField(blank=True, verbose_name='Navegador (user agent)')
+    # Sin navegador no hay IP ni user agent: en WhatsApp la evidencia es el
+    # mensaje del botón que tocó el cliente (su ID de Meta, `wamid`).
+    referencia_externa = models.CharField(
+        max_length=191, blank=True, verbose_name='Referencia externa',
+        help_text='ID del mensaje de WhatsApp con el que aceptó (origen WhatsApp).')
     aceptado_en = models.DateTimeField(default=timezone.now, editable=False,
                                        db_index=True)
 

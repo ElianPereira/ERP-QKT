@@ -265,6 +265,30 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-07 — **Kooxi: reservación, tablero, seguimiento y cotización en el
+  chat** (Issue #366, decisiones del propietario). **(A)** `mi_reservacion`:
+  saldo, mínimo y fecha límite de las cotizaciones del número que escribe; la
+  identidad es el número de WhatsApp (sin folio) y las herramientas «del
+  cliente» reciben la conversación desde `ejecutar`, nunca un teléfono del
+  modelo. **(B)** `MensajeWhatsApp` guarda modelo y tokens; `PaseAHumano`
+  registra cada pase con motivo; tablero en Comunicación → Kooxi (costo a
+  precio de lista en `services_tablero.PRECIOS_USD_MTOK`: modelo nuevo = sin
+  costo hasta agregarlo). Cron `enviar_seguimientos` (pendiente de alta en
+  Railway y de aprobar `WA_TEMPLATE_SEGUIMIENTO`, ver
+  `docs/whatsapp_plantilla_seguimiento.md`): una vez, a los 3 días, **solo con
+  MARKETING** hasta que el abogado diga si es finalidad necesaria; queda en la
+  conversación como `automatico=True` para que el agente lo reciba de contexto.
+  **(C)** `crear_cotizacion_solicitud()` (en `views_cotizador.py`, junto a
+  `estimar_total`) es la fuente única de la web y del chat. El chat exige
+  **consentimiento expreso por botón** (`pedir_consentimiento`, vigente 24 h);
+  la evidencia va a `AceptacionLegal` con origen `WHATSAPP`,
+  `referencia_externa` = wamid del botón y `aceptado_en` = hora del botón
+  (`legal/` tocado con aprobación explícita). Hallazgo: la función compartida
+  no topa la pasadía a 30 (lo hace el slider web), por eso el chat valida con
+  `cotizar_estimado` antes de crear. El enlace con token del portal no pasa por
+  el modelo. Cambió `AVISO_INICIAL`: las conversaciones abiertas lo reciben
+  una vez más.
+
 - 2026-10-06 — **Se revierten `/whatsapp` y `/contacto`** (#361-#363; decisión
   del propietario): el anuncio de Meta usa el botón nativo de WhatsApp al
   **999 445 7178** (app, no API) y su mensaje de bienvenida —configurado en

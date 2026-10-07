@@ -3,6 +3,7 @@
 import logging
 
 from django.db import transaction
+from django.utils import timezone
 
 from .models import (
     AceptacionLegal,
@@ -38,6 +39,8 @@ class LegalService:
         X-Forwarded-For. Se toma el PRIMER valor de la cadena, que es el
         cliente; el resto son los proxies intermedios.
         """
+        if request is None:
+            return None
         forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
         if forwarded:
             return forwarded.split(',')[0].strip()
@@ -46,9 +49,12 @@ class LegalService:
     @classmethod
     @transaction.atomic
     def registrar_aceptacion(cls, *, request, correo, origen, cliente=None,
-                             finalidades_aceptadas=None):
+                             finalidades_aceptadas=None, referencia_externa='', aceptado_en=None):
         """
         Registra evidencia de consentimiento.
+
+        `request` es None fuera de un navegador (WhatsApp): entonces la
+        evidencia es `referencia_externa` y `aceptado_en` el momento del botón.
 
         Congela un snapshot (tipo, versión, hash) de cada documento vigente,
         para que la evidencia sobreviva a futuras versiones de los documentos.
@@ -74,7 +80,9 @@ class LegalService:
             correo=correo,
             origen=origen,
             ip=cls.obtener_ip(request),
-            user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
+            user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000] if request is not None else '',
+            referencia_externa=referencia_externa[:191],
+            aceptado_en=aceptado_en or timezone.now(),
             finalidades_aceptadas=sorted(set(aceptadas) & opcionales),
             finalidades_rechazadas=rechazadas,
             snapshot_documentos=[

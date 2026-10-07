@@ -11,7 +11,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
+from .models import ComunicacionCliente, ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 
 # Precio de lista de Anthropic en USD por millón de tokens: entrada, salida,
 # lectura de caché y escritura de caché (5 min). Un modelo que no esté aquí
@@ -114,5 +114,7 @@ def metricas_agente(dias: int = 30) -> dict:
         'ultimos_pases': list(pases.select_related('conversacion')[:15]),
         'consumo': _consumo(respuestas_ia),
         'conversion': _conversion(nuevas),
-        'seguimientos': mensajes.filter(direccion='AGENTE', automatico=True).count(),
+        'seguimientos': ComunicacionCliente.objects.filter(
+            tipo='SEGUIMIENTO', estado__in=('ENVIADO', 'ENTREGADO', 'ABIERTO'), fecha_envio__gte=desde).count(),
+        'autorizaciones': ConversacionWhatsApp.objects.filter(consentimiento_en__gte=desde).count(),
     }

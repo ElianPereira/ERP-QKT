@@ -80,8 +80,8 @@ class ConversacionWhatsAppAdmin(admin.ModelAdmin):
     list_filter = ('requiere_humano',)
     search_fields = ('telefono', 'nombre', 'cliente__nombre', 'mensajes__texto')
     fields = ('nombre', 'telefono', 'cliente', 'responder', 'requiere_humano', 'motivo_humano',
-              'pausado_hasta', 'ultimo_mensaje')
-    readonly_fields = ('nombre', 'telefono', 'ultimo_mensaje')
+              'pausado_hasta', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing')
+    readonly_fields = ('nombre', 'telefono', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing')
     autocomplete_fields = ('cliente',)
     inlines = (MensajeWhatsAppInline,)
     actions = ('reactivar_agente',)

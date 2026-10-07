@@ -19,6 +19,10 @@ Reglas que no son obvias:
 - Mientras espera a una persona, el cliente que sigue escribiendo recibe
   `AVISO_ESPERA` (texto fijo, sin IA). Si en `REINICIO_TRAS` nadie del equipo
   le escribe, «requiere humano» se apaga solo y el agente vuelve a contestar.
+- Crear una cotización en el chat exige consentimiento expreso (Issue #366):
+  un mensaje con botones (`pedir_consentimiento`) cuyo «Acepto» guarda el
+  webhook (`registrar_consentimiento`) y pasa a `legal.AceptacionLegal` con
+  origen WHATSAPP al crear la cotización.
 """
 import json
 import logging
@@ -37,6 +41,7 @@ from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
     alertar_equipo_email,
     enviar_whatsapp,
+    enviar_whatsapp_botones,
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
@@ -62,10 +67,33 @@ AVISO_ESPERA_CADA = timedelta(hours=3)
 # transparencia no dependa de cómo responda; el MensajeWhatsApp guardado es
 # la evidencia de cuándo se le puso el aviso a disposición.
 URL_AVISO_PRIVACIDAD = 'https://quintakooxtanil.com/aviso-de-privacidad'
+# Consentimiento expreso para cotizar en el chat (Issue #366; criterio del
+# abogado: cerrar ventas en el chat pide un botón, no basta el tácito del
+# aviso inicial). Los IDs viajan de vuelta en el webhook al tocar el botón.
+URL_TERMINOS = 'https://quintakooxtanil.com/terminos-y-condiciones'
+URL_POLITICA_CANCELACION = 'https://quintakooxtanil.com/politica-de-cancelacion'
+BOTON_ACEPTO = 'qkt_acepto_legales'
+BOTON_ACEPTO_PROMOS = 'qkt_acepto_legales_promos'
+BOTON_NO_ACEPTO = 'qkt_no_acepto_legales'
+BOTONES_CONSENTIMIENTO = (
+    (BOTON_ACEPTO, 'Acepto'),
+    (BOTON_ACEPTO_PROMOS, 'Acepto + promociones'),
+    (BOTON_NO_ACEPTO, 'No acepto'),
+)
+MENSAJE_CONSENTIMIENTO = (
+    "Para preparar tu cotización con tus datos necesito tu autorización. Revisa nuestro "
+    f"Aviso de Privacidad ({URL_AVISO_PRIVACIDAD}), los Términos y Condiciones ({URL_TERMINOS}) y la "
+    f"Política de Cancelación ({URL_POLITICA_CANCELACION}).\n\n"
+    "¿Los aceptas? Si además quieres recibir promociones y fechas disponibles, elige "
+    "«Acepto + promociones»."
+)
+# Vigencia del botón: pasado este plazo se vuelve a pedir, para que la evidencia
+# corresponda a los documentos que estaban vigentes cuando se cotizó.
+CONSENTIMIENTO_VIGENTE = timedelta(hours=24)
 AVISO_INICIAL = (
     "¡Hola! Soy Kooxi, el asistente virtual de Quinta Ko'ox Tanil. Funciono con "
-    "inteligencia artificial, no soy una persona. Puedo darte precios estimados, revisar fechas y "
-    "resolver dudas; si en algún momento prefieres que te atienda alguien del equipo, "
+    "inteligencia artificial, no soy una persona. Puedo darte precios, revisar fechas, consultar tu "
+    "reservación, preparar tu cotización y resolver dudas; si en algún momento prefieres que te atienda alguien del equipo, "
     "solo escríbelo.\n\n"
     "Al continuar esta conversación aceptas el tratamiento de tus datos conforme a "
     f"nuestro Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}"
@@ -105,9 +133,15 @@ ver_opciones para Evento; cotízala con cotizar_estimado sin paquete_id. Tiene u
 si no lo alcanzan, ofrece los paquetes.
 - Para anticipo, liquidación o formas de pago usa condiciones_de_pago; con la fecha del cliente, \
 dale su fecha límite para liquidar.
-- Para reservar, manda al cotizador web ({URL_COTIZADOR}): ahí el cliente elige, acepta el aviso de \
-privacidad y recibe su portal para pagar. Comparte el enlace cuando el cliente ya tiene servicio y \
-fecha o pide cómo reservar, no en cada mensaje. Tú no creas reservaciones, no cobras ni firmas contratos.
+- Si el cliente quiere su cotización formal o reservar, puedes crearla tú con crear_cotizacion \
+cuando ya tengas servicio, fecha libre, personas, la opción elegida (paquete, nivel o habitaciones), \
+su nombre completo y su correo. Antes confírmale en un mensaje corto el resumen y el total estimado. \
+La primera vez el sistema le manda un mensaje con botones para aceptar el aviso de privacidad: si la \
+herramienta dice que falta la autorización, pídele que toque «Acepto» y espera. Si toca «No acepto», \
+no insistas: puedes seguir resolviendo dudas y ofrecerle el cotizador web ({URL_COTIZADOR}). Al \
+crearla, dale el folio y el total, y dile que el enlace a su portal (para pagar y ver el contrato) le \
+llega en un mensaje aparte y por correo; la fecha se aparta con el primer pago. Tú no cobras ni \
+firmas contratos.
 - Si pregunta por su reservación, su saldo, cuánto le falta o hasta cuándo liquidar, usa \
 mi_reservacion (ve solo las cotizaciones de este número de WhatsApp) y repite los importes tal cual. \
 Para pagar o ver su contrato, mándalo a su portal con el acceso que trae la herramienta. Si no \
@@ -122,8 +156,9 @@ fecha de su mensaje: díselo, sin prometerle reembolso.
 - El sistema ya le envía al cliente, antes de tu primera respuesta, un mensaje fijo que te \
 presenta como Kooxi, asistente virtual con IA, ofrece atención humana y enlaza el aviso de privacidad. \
 No repitas esa presentación: contesta directo a lo que pregunta.
-- Pide solo los datos que necesitas para contestar (servicio, fecha, personas); no pidas datos \
-personales ni fiscales.
+- Pide solo los datos que necesitas para contestar (servicio, fecha, personas). Nombre y correo, \
+solo cuando vayas a crear la cotización. Nunca pidas datos fiscales, de tarjeta ni de pago: la \
+factura y el pago van en su portal.
 
 Problemas con la página (el botón de las páginas de error abre este chat con un texto como «me \
 apareció el error 404»):
@@ -210,6 +245,47 @@ def registrar_mensaje_automatico(*, telefono, texto, wamid=None):
     if mensaje is not None:
         MensajeWhatsApp.objects.filter(pk=mensaje.pk).update(automatico=True)
     return mensaje
+
+
+def consentimiento_vigente(conv) -> bool:
+    return bool(conv.consentimiento_en and timezone.now() - conv.consentimiento_en <= CONSENTIMIENTO_VIGENTE)
+
+
+def pedir_consentimiento(conv) -> bool:
+    """Manda el mensaje con botones para aceptar los documentos legales.
+
+    Devuelve False si ya se mandó en los últimos minutos (el modelo puede
+    pedirlo dos veces en el mismo turno) o si WhatsApp no lo aceptó.
+    """
+    texto = MENSAJE_CONSENTIMIENTO
+    reciente = conv.mensajes.filter(direccion='AGENTE', automatico=True, texto=texto,
+                                    created_at__gte=timezone.now() - timedelta(minutes=30))
+    if reciente.exists():
+        return False
+    comm = enviar_whatsapp_botones(tipo='AGENTE_IA', telefono=conv.telefono, mensaje=texto,
+                                   botones=list(BOTONES_CONSENTIMIENTO))
+    if comm is None or comm.estado == 'FALLIDO':
+        return False
+    MensajeWhatsApp.objects.create(conversacion=conv, direccion='AGENTE', texto=texto, procesado=True,
+                                   automatico=True, wamid=comm.proveedor_id or None)
+    return True
+
+
+def registrar_consentimiento(*, telefono, boton_id, wamid) -> None:
+    """El cliente tocó un botón del mensaje de consentimiento. «No acepto»
+    retira uno anterior: sin aceptación vigente no se cotiza en el chat."""
+    telefono = normalizar_telefono_wa(telefono)
+    if not telefono or boton_id not in dict(BOTONES_CONSENTIMIENTO):
+        return
+    conv = _conversacion(telefono)
+    if boton_id == BOTON_NO_ACEPTO:
+        conv.consentimiento_en, conv.consentimiento_wamid, conv.consentimiento_marketing = None, '', False
+    else:
+        conv.consentimiento_en = timezone.now()
+        conv.consentimiento_wamid = (wamid or '')[:191]
+        conv.consentimiento_marketing = boton_id == BOTON_ACEPTO_PROMOS
+    conv.save(update_fields=['consentimiento_en', 'consentimiento_wamid', 'consentimiento_marketing',
+                             'updated_at'])
 
 
 class VentanaCerrada(Exception):
@@ -570,7 +646,7 @@ def _resultados_herramientas(conv, contenido) -> list:
             _pasar_a_humano(conv, (bloque.input or {}).get('motivo', ''))
             salida, error = json.dumps({'ok': True, 'nota': 'El equipo fue avisado.'}), False
         else:
-            salida, error = ejecutar(bloque.name, bloque.input or {}, telefono=conv.telefono)
+            salida, error = ejecutar(bloque.name, bloque.input or {}, conv=conv)
         resultado = {'type': 'tool_result', 'tool_use_id': bloque.id, 'content': salida}
         if error:
             resultado['is_error'] = True

@@ -118,6 +118,12 @@ class ConversacionWhatsApp(models.Model):
         help_text='Se llena solo cuando alguien contesta desde la app de WhatsApp.',
     )
     ultimo_mensaje = models.DateTimeField(default=timezone.now, verbose_name='Último mensaje')
+    # Consentimiento expreso para cotizar en el chat (Issue #366): el cliente
+    # tocó «Acepto» en el mensaje con botones. Es la evidencia que pasa a
+    # `legal.AceptacionLegal` cuando se crea la cotización.
+    consentimiento_en = models.DateTimeField(null=True, blank=True, verbose_name='Aceptó el aviso el')
+    consentimiento_wamid = models.CharField(max_length=191, blank=True, verbose_name='Mensaje con que aceptó')
+    consentimiento_marketing = models.BooleanField(default=False, verbose_name='Aceptó promociones')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
 

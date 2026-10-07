@@ -170,21 +170,29 @@ def cotizador_publico(request):
 # Endpoint público con sesión anónima (CSRF vía cookie, no login): se limita
 # por IP para frenar spam/abuso, ya que cada envío crea Cliente + Cotización
 # y dispara una notificación de WhatsApp.
-@rate_limit(key='cotizador_enviar', limit=10, window=60)
-@require_http_methods(["POST"])
-def cotizador_enviar(request):
-    """
-    Procesa la solicitud del cotizador web.
-    """
-    try:
-        data = json.loads(request.body)
-    except Exception:
-        data = request.POST.dict()
+class SolicitudInvalida(Exception):
+    """La solicitud no pasa las reglas del cotizador; `errores` va tal cual al cliente."""
 
+    def __init__(self, errores):
+        super().__init__('; '.join(errores))
+        self.errores = list(errores)
+
+
+def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento):
+    """
+    Crea la cotización de una solicitud del cotizador: cliente, consentimiento,
+    líneas, descuentos automáticos, portal y avisos. Fuente única para el
+    cotizador web y el agente de WhatsApp (Issue #366): con la misma entrada
+    sale exactamente la misma cotización.
+
+    `registrar_consentimiento(cliente, correo, finalidades)` guarda la
+    evidencia legal del canal (navegador o botón de WhatsApp); si falla, la
+    solicitud sigue y queda en el log. Lanza `SolicitudInvalida` si no pasa
+    las reglas. Devuelve `{'cotizacion', 'portal_url', 'aviso_fecha'}`.
+    """
     form = CotizadorEnviarForm(data)
     if not form.is_valid():
-        errores = [mensaje for lista in form.errors.values() for mensaje in lista]
-        return JsonResponse({'ok': False, 'errores': errores}, status=400)
+        raise SolicitudInvalida([mensaje for lista in form.errors.values() for mensaje in lista])
     limpio = form.cleaned_data
 
     # ── Datos base ────────────────────────────────────────────────────────────
@@ -300,14 +308,11 @@ def cotizador_enviar(request):
             dt_f += timedelta(days=1)
         horas_evento = max(HORAS_BASE_EVENTO, int((dt_f - dt_i).total_seconds() / 3600))
         if servicio == 'EVENTO' and horas_evento > HORAS_MAX_EVENTO:
-            return JsonResponse({
-                'ok': False,
-                'errores': [
-                    f"El horario del evento no puede superar las {HORAS_MAX_EVENTO} horas "
-                    f"({HORAS_BASE_EVENTO} incluidas + {MAX_HORAS_EXTRA_EVENTO} de hora extra "
-                    "como máximo). Ajusta la hora de inicio o de fin."
-                ],
-            }, status=400)
+            raise SolicitudInvalida([
+                f"El horario del evento no puede superar las {HORAS_MAX_EVENTO} horas "
+                f"({HORAS_BASE_EVENTO} incluidas + {MAX_HORAS_EXTRA_EVENTO} de hora extra "
+                "como máximo). Ajusta la hora de inicio o de fin."
+            ])
     else:
         horas_evento = HORAS_BASE_EVENTO
 
@@ -322,10 +327,10 @@ def cotizador_enviar(request):
     # más de MAX_PERSONAS_EVENTO personas, sin ruta alterna — no se recorta la
     # solicitud en silencio, porque el cliente pidió algo que no operamos.
     if servicio == 'EVENTO' and num_raw > MAX_PERSONAS_EVENTO:
-        return JsonResponse({'ok': False, 'errores': [
+        raise SolicitudInvalida([
             f"No ofrecemos eventos de más de {MAX_PERSONAS_EVENTO} personas. "
             "Escríbenos si necesitas algo distinto y lo vemos contigo."
-        ]}, status=400)
+        ])
 
     # "Arma tu propio evento" (catálogo abierto) solo a partir de
     # MIN_PERSONAS_PERSONALIZADO_EVENTO personas — pedido del propietario.
@@ -333,10 +338,10 @@ def cotizador_enviar(request):
     # distinguir el camino personalizado del de paquete cerrado.
     if (servicio == 'EVENTO' and not data.get('paquete_id')
             and num_raw < MIN_PERSONAS_PERSONALIZADO_EVENTO):
-        return JsonResponse({'ok': False, 'errores': [
+        raise SolicitudInvalida([
             f'"Arma tu propio evento" está disponible a partir de '
             f'{MIN_PERSONAS_PERSONALIZADO_EVENTO} personas. Con menos, elige uno de nuestros paquetes.'
-        ]}, status=400)
+        ])
 
     # ── Habitaciones (solo HOSPEDAJE) ────────────────────────────────────────────────────
     # No hay línea base automática como en Evento/Pasadía: el cliente elige
@@ -349,19 +354,16 @@ def cotizador_enviar(request):
             id__in=habitaciones_ids, rol_cotizador='HABITACION_HOSPEDAJE', visible_cotizador=True,
         ).values_list('capacidad_base_hospedaje', flat=True))
         if not habitaciones_validas:
-            return JsonResponse({
-                'ok': False,
-                'errores': ["Selecciona al menos una habitación."],
-            }, status=400)
+            raise SolicitudInvalida(["Selecciona al menos una habitación."])
         # Tope duro por habitación: capacidad base (comodidad garantizada)
         # + MAX_PERSONAS_EXTRA_POR_HABITACION con recargo. Igual que en
         # Evento, no se recorta en silencio.
         max_huespedes = sum(c + MAX_PERSONAS_EXTRA_POR_HABITACION for c in habitaciones_validas)
         if num_personas > max_huespedes:
-            return JsonResponse({'ok': False, 'errores': [
+            raise SolicitudInvalida([
                 f"Las habitaciones elegidas admiten como máximo {max_huespedes} huéspedes. "
                 "Elige otra habitación o reduce el número de huéspedes."
-            ]}, status=400)
+            ])
 
     # ── Disponibilidad de fecha ────────────────────────────────────────────────────────────
     aviso_fecha = None
@@ -382,7 +384,7 @@ def cotizador_enviar(request):
     cliente, _ = get_or_create_cliente_desde_canal(
         telefono_raw=tel_d,
         nombre_raw=nombre,
-        origen='Web',
+        origen=origen_cliente,
         email_raw=email,
     )
 
@@ -391,15 +393,7 @@ def cotizador_enviar(request):
     # porque falta sembrar algún documento vigente) NO se pierde la solicitud: se
     # deja el error en el log y el lead sigue su curso.
     try:
-        from legal.models import OrigenAceptacion
-        from legal.services import LegalService
-        LegalService.registrar_aceptacion(
-            request=request,
-            correo=email,
-            origen=OrigenAceptacion.FORM_COTIZACION,
-            cliente=cliente,
-            finalidades_aceptadas=finalidades_opt,
-        )
+        registrar_consentimiento(cliente, email, finalidades_opt)
     except Exception:
         logger.exception(
             "No se pudo registrar la aceptación legal del cliente %s.", cliente.pk
@@ -534,12 +528,42 @@ def cotizador_enviar(request):
         except Exception:
             pass
 
+    return {'cotizacion': cotizacion, 'portal_url': portal_url, 'aviso_fecha': aviso_fecha}
+
+
+@rate_limit(key='cotizador_enviar', limit=10, window=60)
+@require_http_methods(["POST"])
+def cotizador_enviar(request):
+    """
+    Procesa la solicitud del cotizador web.
+    """
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST.dict()
+
+    def _consentimiento_navegador(cliente, correo, finalidades):
+        from legal.models import OrigenAceptacion
+        from legal.services import LegalService
+        LegalService.registrar_aceptacion(
+            request=request,
+            correo=correo,
+            origen=OrigenAceptacion.FORM_COTIZACION,
+            cliente=cliente,
+            finalidades_aceptadas=finalidades,
+        )
+
+    try:
+        r = crear_cotizacion_solicitud(
+            data, origen_cliente='Web', registrar_consentimiento=_consentimiento_navegador)
+    except SolicitudInvalida as e:
+        return JsonResponse({'ok': False, 'errores': e.errores}, status=400)
     return JsonResponse({
         'ok': True,
-        'portal_url': portal_url,
-        'cotizacion_id': cotizacion.id,
-        'folio': f"COT-{cotizacion.id:03d}",
-        'aviso_fecha': aviso_fecha,
+        'portal_url': r['portal_url'],
+        'cotizacion_id': r['cotizacion'].id,
+        'folio': f"COT-{r['cotizacion'].id:03d}",
+        'aviso_fecha': r['aviso_fecha'],
     })
 
 
