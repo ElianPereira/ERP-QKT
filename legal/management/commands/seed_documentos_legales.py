@@ -23,13 +23,13 @@ DIRECTORIO = Path(__file__).resolve().parent.parent.parent / 'documentos_inicial
 
 # archivo -> (tipo, título)
 DOCUMENTOS = {
-    'aviso_privacidad_v2.5.md': (TipoDocumento.AVISO_PRIVACIDAD, 'Aviso de Privacidad'),
+    'aviso_privacidad_v2.6.md': (TipoDocumento.AVISO_PRIVACIDAD, 'Aviso de Privacidad'),
     'aviso_simplificado_v2.0.md': (TipoDocumento.AVISO_SIMPLIFICADO,
                                    'Aviso de Privacidad Simplificado'),
-    'terminos_v2.3.md': (TipoDocumento.TERMINOS, 'Términos y Condiciones'),
-    'politica_cancelacion_v2.2.md': (TipoDocumento.POLITICA_CANCELACION,
+    'terminos_v2.4.md': (TipoDocumento.TERMINOS, 'Términos y Condiciones'),
+    'politica_cancelacion_v2.3.md': (TipoDocumento.POLITICA_CANCELACION,
                                      'Política de Cancelación y Reembolso'),
-    'reglamento_v1.3.md': (TipoDocumento.REGLAMENTO, 'Reglamento Interno'),
+    'reglamento_v1.4.md': (TipoDocumento.REGLAMENTO, 'Reglamento Interno'),
 }
 
 FINALIDADES = [

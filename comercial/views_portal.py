@@ -44,14 +44,6 @@ from .models import (
 )
 from .paynet import TIENDAS_PAYNET
 
-# Chat con el agente de WhatsApp, para la página de destino de los anuncios.
-WA_AGENTE_URL = 'https://wa.me/529991699191?text=Hola,%20quiero%20cotizar%20una%20pasad%C3%ADa'
-
-
-def whatsapp_agente(request):
-    """quintakooxtanil.com/whatsapp: página de destino de los anuncios de Meta."""
-    return render(request, 'landing/whatsapp.html', {'wa_url': WA_AGENTE_URL})
-
 
 def landing_publico(request):
     """
