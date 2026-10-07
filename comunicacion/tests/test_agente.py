@@ -493,6 +493,10 @@ class HerramientasTest(TestCase):
         self.assertEqual(url.path, reverse('portal_acceso'))
         self.assertIn('Error 404', services_agente.SYSTEM_PROMPT)
         self.assertIn(services_agente.URL_PORTAL_ACCESO, services_agente.SYSTEM_PROMPT)
+        # Un folio de ejemplo («COT-007») se repetía al cliente y el filtro lo detenía
+        # por no ser de ese número (evaluar_agente, caso error_404).
+        seccion = services_agente.SYSTEM_PROMPT.split('Error 404')[1].split('Error 500')[0]
+        self.assertNotRegex(seccion, r'COT-\d')
 
     def test_no_responde_informacion_interna_ni_de_terceros(self):
         """Caso real del 06/10/2026: preguntaron por ganancias, el ERP y el estado de

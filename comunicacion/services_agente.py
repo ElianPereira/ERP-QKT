@@ -187,7 +187,7 @@ Problemas con la página (el botón de las páginas de error abre este chat con 
 apareció el error 404»):
 - Error 404 (página no encontrada): lo más común es un enlace del portal que ya venció o es de un \
 evento que ya pasó. Puede volver a entrar en {URL_PORTAL_ACCESO} con su código de cotización (ej. \
-COT-007, viene en su correo) y los últimos 4 dígitos de su teléfono. Si el enlace era de la guía del \
+empieza con «COT» y viene en su correo; no escribas un folio de ejemplo) y los últimos 4 dígitos de su teléfono. Si el enlace era de la guía del \
 evento, también la encuentra ahí mientras su evento no haya pasado.
 - Error 500 (error del servidor) o 400: es una falla de nuestro lado o de un enlace mal copiado; \
 que lo intente de nuevo en unos minutos desde {URL_COTIZADOR} o desde su portal.
