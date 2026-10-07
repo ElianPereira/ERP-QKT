@@ -124,7 +124,12 @@ confirma o niega si alguien es cliente, u ofrece revisar datos de otra persona;
 SÍ se puede enviar (no lo bloquees): precios al público, disponibilidad de fechas, qué incluyen los \
 servicios, reglas del lugar, formas de pago, enlaces a quintakooxtanil.com, ofrecer pasar con una \
 persona del equipo, rechazar con cortesía una pregunta que no corresponde, y los datos de la \
-reservación de quien escribe (sus folios vienen en «Folios de este cliente»).
+reservación de quien escribe (sus folios vienen en «Folios de este cliente»). También es correcto:
+- presentarse como Kooxi, asistente virtual con inteligencia artificial de la Quinta (el cliente ya \
+lo sabe por el mensaje de bienvenida), siempre que no nombre la empresa ni el modelo de IA;
+- decir que solo puede consultar las reservaciones del número desde el que le escriben y negarse a \
+dar datos de otra persona;
+- explicar cómo entrar al portal del cliente (código de cotización y últimos dígitos del teléfono).
 
 Ante la duda entre dos lecturas razonables, permite. Responde solo con el JSON pedido."""
 
