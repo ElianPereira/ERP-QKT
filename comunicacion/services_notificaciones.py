@@ -900,11 +900,15 @@ def motivo_para_no_seguir(cotizacion) -> str:
     """'' si toca mandar el seguimiento; si no, por qué no."""
     from legal.services import LegalService
 
+    from .services_bajas import dado_de_baja
+
     cliente = cotizacion.cliente
     if not _telefono(cliente):
         return 'sin teléfono'
     if not LegalService.cliente_acepto(cliente, 'MARKETING'):
         return 'no aceptó promociones (MARKETING)'
+    if dado_de_baja(_telefono(cliente), cliente):
+        return 'pidió no recibir más mensajes (BAJA)'
     if not cotizacion.fecha_disponible_detalle()[0]:
         return 'la fecha ya no está disponible'
     return ''

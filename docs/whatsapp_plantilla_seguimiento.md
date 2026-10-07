@@ -31,7 +31,13 @@ Hola {{1}}, tu cotización {{2}} para el {{3}} en Quinta Ko'ox Tanil sigue dispo
 ¿Tienes dudas? Contéstanos por aquí y Kooxi, nuestro asistente, te ayuda.
 ```
 
-6. Pie sugerido (Meta lo pide en marketing): «Responde BAJA si no quieres más mensajes».
+6. Pie de página: **«Responde BAJA si no quieres más mensajes»**. Encabezado y
+   botones vacíos (el envío solo manda las 5 variables del cuerpo).
+
+Quien contesta «BAJA» (o le pide a Kooxi que no le escriban) queda en
+Comunicación → Bajas, recibe una confirmación y el cron ya no le manda
+seguimientos (`services_bajas.dado_de_baja`). Si después vuelve a aceptar
+promociones en el cotizador o en el chat, la baja deja de valer.
 
 ## Activarlo en Railway
 

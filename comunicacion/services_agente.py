@@ -45,6 +45,7 @@ from .services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
+from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
 
 logger = logging.getLogger(__name__)
@@ -155,6 +156,10 @@ refleja, quiere cancelar o cambiar su fecha, o ejercer sus derechos sobre sus da
 personales (ARCO), o su caso no lo cubren tus herramientas, usa pasar_a_humano y avísale que alguien \
 del equipo le contestará por este mismo chat. Una solicitud de cancelación queda registrada con la \
 fecha de su mensaje: díselo, sin prometerle reembolso.
+- Si el cliente pide no recibir más promociones, recordatorios de su cotización o mensajes de la \
+Quinta, usa dar_de_baja_promociones y confírmale que ya no le escribiremos para eso; los avisos de \
+su reservación sí le siguen llegando y puede escribirte cuando quiera. Si solo escribe «BAJA», el \
+sistema ya lo atendió: no hagas nada más.
 - El sistema ya le envía al cliente, antes de tu primera respuesta, un mensaje fijo que te \
 presenta como Kooxi, asistente virtual con IA, ofrece atención humana y enlaza el aviso de privacidad. \
 No repitas esa presentación: contesta directo a lo que pregunta.
@@ -470,6 +475,15 @@ def _atender_pendientes(conversacion_id: int) -> None:
     if not pendientes:
         return
     MensajeWhatsApp.objects.filter(pk__in=[m.pk for m in pendientes]).update(procesado=True)
+    # La baja se atiende aunque el agente esté en pausa o apagado: el
+    # seguimiento sale por cron sin importar el agente.
+    bajas = [m for m in pendientes if es_palabra_baja(m.texto)]
+    if bajas:
+        registrar_baja(telefono=conv.telefono, origen='PALABRA', texto=bajas[-1].texto,
+                       wamid=bajas[-1].wamid or '')
+        _enviar_automatico(conv, CONFIRMACION_BAJA)
+        if len(bajas) == len(pendientes):
+            return
     _reactivar_si_nadie_atendio(conv)
     if not agente_contesta_a(conv):
         if _toca_aviso_espera(conv):
@@ -558,6 +572,16 @@ def _enviar(conv, texto: str, uso: dict | None = None) -> None:
     MensajeWhatsApp.objects.create(
         conversacion=conv, direccion='AGENTE', texto=texto, procesado=True,
         wamid=(comm.proveedor_id or None) if comm else None, **(uso or {}),
+    )
+
+
+def _enviar_automatico(conv, texto: str) -> None:
+    """Texto fijo del sistema: no cuenta como respuesta del modelo, así que
+    los demás mensajes pendientes del cliente se le siguen pasando al agente."""
+    comm = enviar_whatsapp(tipo='AGENTE_IA', telefono=conv.telefono, mensaje=texto, trigger='SIGNAL')
+    MensajeWhatsApp.objects.create(
+        conversacion=conv, direccion='AGENTE', texto=texto, procesado=True, automatico=True,
+        wamid=(comm.proveedor_id or None) if comm else None,
     )
 
 
