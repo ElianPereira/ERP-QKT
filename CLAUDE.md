@@ -265,6 +265,15 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-06 — **Se revierten `/whatsapp` y `/contacto`** (#361-#363; decisión
+  del propietario): el anuncio de Meta usa el botón nativo de WhatsApp al
+  **999 445 7178** (app, no API) y su mensaje de bienvenida —configurado en
+  la app, no en el ERP— ofrece al agente en el 9191. Mismo PR: el botón de
+  las páginas de error (400/403/404/500) va al agente (**9191**) con el error
+  prellenado (`{% block texto_wa %}`, nunca la URL: la del portal lleva el
+  token) y `SYSTEM_PROMPT` gana «Problemas con la página» (enlace vencido →
+  `mi-evento/` con código + 4 dígitos; pago/contrato → `pasar_a_humano`).
+
 - 2026-10-06 — **Contrato automático al confirmarse** (hallazgo de la
   simulación E2E pedida por el propietario: el contrato solo salía con el
   botón del admin). Un `post_save` de `Cotizacion` (`comercial/signals.py`)

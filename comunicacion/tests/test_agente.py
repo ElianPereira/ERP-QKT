@@ -486,6 +486,13 @@ class HerramientasTest(TestCase):
         self.assertIn('inteligencia artificial', services_agente.AVISO_INICIAL)
         self.assertIn('Eres Kooxi', services_agente.SYSTEM_PROMPT)
 
+    def test_sabe_ayudar_con_las_paginas_de_error(self):
+        """El botón de las páginas de error abre el chat con «error 404» y similares."""
+        url = urlparse(services_agente.URL_PORTAL_ACCESO)
+        self.assertEqual(url.path, reverse('portal_acceso'))
+        self.assertIn('Error 404', services_agente.SYSTEM_PROMPT)
+        self.assertIn(services_agente.URL_PORTAL_ACCESO, services_agente.SYSTEM_PROMPT)
+
     def test_el_enlace_del_cotizador_apunta_a_un_dominio_vivo(self):
         """`clientes.quintakooxtanil.com` no existe: el cliente recibía un enlace muerto."""
         url = urlparse(herramientas_agente.URL_COTIZADOR)

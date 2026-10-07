@@ -54,3 +54,11 @@ class PaginasErrorTest(TestCase):
                 html = get_template(nombre).render({})
                 self.assertIn('--ui-surface', html)
                 self.assertIn('https://quintakooxtanil.com/', html)
+
+    def test_whatsapp_lleva_al_agente_con_el_error_escrito(self):
+        for codigo in ('400', '403', '404', '500'):
+            with self.subTest(codigo=codigo):
+                html = get_template(f'{codigo}.html').render({})
+                self.assertIn('https://wa.me/529991699191?text=', html)
+                self.assertIn(f'error%20{codigo}', html)
+                self.assertNotIn('529994457178', html)

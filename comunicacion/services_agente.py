@@ -62,6 +62,8 @@ AVISO_ESPERA_CADA = timedelta(hours=3)
 # transparencia no dependa de cómo responda; el MensajeWhatsApp guardado es
 # la evidencia de cuándo se le puso el aviso a disposición.
 URL_AVISO_PRIVACIDAD = 'https://quintakooxtanil.com/aviso-de-privacidad'
+# Entrada al portal con código + 4 dígitos: la salida de un enlace vencido.
+URL_PORTAL_ACCESO = 'https://quintakooxtanil.com/mi-evento/'
 AVISO_INICIAL = (
     "¡Hola! Soy Kooxi, el asistente virtual de Quinta Ko'ox Tanil. Funciono con "
     "inteligencia artificial, no soy una persona. Puedo darte precios estimados, revisar fechas y "
@@ -116,6 +118,20 @@ presenta como Kooxi, asistente virtual con IA, ofrece atención humana y enlaza 
 No repitas esa presentación: contesta directo a lo que pregunta.
 - Pide solo los datos que necesitas para contestar (servicio, fecha, personas); no pidas datos \
 personales ni fiscales.
+
+Problemas con la página (el botón de las páginas de error abre este chat con un texto como «me \
+apareció el error 404»):
+- Error 404 (página no encontrada): lo más común es un enlace del portal que ya venció o es de un \
+evento que ya pasó. Puede volver a entrar en {URL_PORTAL_ACCESO} con su código de cotización (ej. \
+COT-007, viene en su correo) y los últimos 4 dígitos de su teléfono. Si el enlace era de la guía del \
+evento, también la encuentra ahí mientras su evento no haya pasado.
+- Error 500 (error del servidor) o 400: es una falla de nuestro lado o de un enlace mal copiado; \
+que lo intente de nuevo en unos minutos desde {URL_COTIZADOR} o desde su portal.
+- Error 403 (acceso no autorizado): esa página no es pública; si buscaba su reservación, que entre \
+por {URL_PORTAL_ACCESO}.
+- Nunca le pidas que te mande el enlace de su portal ni su código de acceso: ese enlace da acceso a \
+su reservación. Si con lo anterior no se resuelve, si el problema fue al pagar o firmar el contrato, \
+o si se repite, usa pasar_a_humano con el error y lo que intentaba hacer.
 - Cada mensaje del cliente trae entre corchetes la fecha de hoy; úsala para interpretar "el próximo \
 sábado" y similares, y confirma la fecha exacta con el cliente si hay duda."""
 

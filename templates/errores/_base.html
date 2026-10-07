@@ -65,7 +65,8 @@
                 viendo la pantalla de login del ERP.
                 {% endcomment %}
                 <a href="https://quintakooxtanil.com/" class="btn btn-primary">Ir al inicio</a>
-                <a href="https://wa.me/529994457178" target="_blank" rel="noopener" class="btn btn-secundario">Escríbenos por WhatsApp</a>
+                {% comment %}Al agente de WhatsApp (999 169 9191), con el error ya escrito para que sepa ayudar (SYSTEM_PROMPT, «Problemas con la página»). Nunca la URL: la del portal lleva el token de acceso.{% endcomment %}
+                <a href="https://wa.me/529991699191?text={% filter urlencode:'' %}{% block texto_wa %}Hola, tuve un problema en la página de la Quinta.{% endblock %}{% endfilter %}" target="_blank" rel="noopener" class="btn btn-secundario">Escríbenos por WhatsApp</a>
             </div>
         </div>
 
