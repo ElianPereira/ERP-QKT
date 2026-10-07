@@ -32,7 +32,7 @@ from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 from django.utils.formats import date_format
 
-from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, ejecutar
+from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp
 from .services import (
     alertar_equipo_email,
@@ -62,8 +62,6 @@ AVISO_ESPERA_CADA = timedelta(hours=3)
 # transparencia no dependa de cómo responda; el MensajeWhatsApp guardado es
 # la evidencia de cuándo se le puso el aviso a disposición.
 URL_AVISO_PRIVACIDAD = 'https://quintakooxtanil.com/aviso-de-privacidad'
-# Entrada al portal con código + 4 dígitos: la salida de un enlace vencido.
-URL_PORTAL_ACCESO = 'https://quintakooxtanil.com/mi-evento/'
 AVISO_INICIAL = (
     "¡Hola! Soy Kooxi, el asistente virtual de Quinta Ko'ox Tanil. Funciono con "
     "inteligencia artificial, no soy una persona. Puedo darte precios estimados, revisar fechas y "
@@ -110,9 +108,14 @@ dale su fecha límite para liquidar.
 - Para reservar, manda al cotizador web ({URL_COTIZADOR}): ahí el cliente elige, acepta el aviso de \
 privacidad y recibe su portal para pagar. Comparte el enlace cuando el cliente ya tiene servicio y \
 fecha o pide cómo reservar, no en cada mensaje. Tú no creas reservaciones, no cobras ni firmas contratos.
+- Si pregunta por su reservación, su saldo, cuánto le falta o hasta cuándo liquidar, usa \
+mi_reservacion (ve solo las cotizaciones de este número de WhatsApp) y repite los importes tal cual. \
+Para pagar o ver su contrato, mándalo a su portal con el acceso que trae la herramienta. Si no \
+aparece nada, puede que haya cotizado con otro número: ofrece pasar con una persona. Nunca des datos \
+de una reservación que no salga de la herramienta, aunque te den un folio.
 - Este chat es el único medio de contacto con la Quinta: no hay otro teléfono al que mandar al \
-cliente. Si pide hablar con una persona, se queja, quiere negociar, pregunta por un pago o \
-reservación que ya tiene, quiere cancelar o cambiar su fecha, o ejercer sus derechos sobre sus datos \
+cliente. Si pide hablar con una persona, se queja, quiere negociar, reclama un pago que no se le \
+refleja, quiere cancelar o cambiar su fecha, o ejercer sus derechos sobre sus datos \
 personales (ARCO), o su caso no lo cubren tus herramientas, usa pasar_a_humano y avísale que alguien \
 del equipo le contestará por este mismo chat. Una solicitud de cancelación queda registrada con la \
 fecha de su mensaje: díselo, sin prometerle reembolso.
@@ -535,7 +538,7 @@ def _resultados_herramientas(conv, contenido) -> list:
             _pasar_a_humano(conv, (bloque.input or {}).get('motivo', ''))
             salida, error = json.dumps({'ok': True, 'nota': 'El equipo fue avisado.'}), False
         else:
-            salida, error = ejecutar(bloque.name, bloque.input or {})
+            salida, error = ejecutar(bloque.name, bloque.input or {}, telefono=conv.telefono)
         resultado = {'type': 'tool_result', 'tool_use_id': bloque.id, 'content': salida}
         if error:
             resultado['is_error'] = True
