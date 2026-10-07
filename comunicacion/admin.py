@@ -10,7 +10,7 @@ from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 
 from . import services_agente, services_tablero
-from .models import ComunicacionCliente, ConversacionWhatsApp, MensajeWhatsApp
+from .models import BajaWhatsApp, ComunicacionCliente, ConversacionWhatsApp, MensajeWhatsApp
 
 
 @admin.register(ComunicacionCliente)
@@ -135,3 +135,21 @@ class ConversacionWhatsAppAdmin(admin.ModelAdmin):
     def reactivar_agente(self, request, queryset):
         n = queryset.update(requiere_humano=False, motivo_humano='', pausado_hasta=None)
         self.message_user(request, f'Agente reactivado en {n} conversación(es).')
+
+
+@admin.register(BajaWhatsApp)
+class BajaWhatsAppAdmin(admin.ModelAdmin):
+    """Solo consulta: quién pidió no recibir promociones ni seguimientos."""
+    list_display = ('telefono', 'origen', 'texto', 'created_at')
+    list_filter = ('origen',)
+    search_fields = ('telefono',)
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

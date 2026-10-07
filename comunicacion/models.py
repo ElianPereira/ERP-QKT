@@ -252,3 +252,31 @@ class PreguntaSinRespuesta(models.Model):
 
     def __str__(self):
         return self.pregunta[:80]
+
+
+class BajaWhatsApp(models.Model):
+    """El cliente pidió no recibir más mensajes de promoción ni seguimientos.
+
+    Va por teléfono y no cuelga de la conversación: la purga de
+    conversaciones (`services_retencion`) no debe llevársela, porque es lo que
+    impide volver a escribirle. Deja de valer si después vuelve a aceptar
+    promociones (`services_bajas.dado_de_baja`). No se edita ni se borra.
+    """
+    ORIGEN_CHOICES = [
+        ('PALABRA', 'Escribió BAJA'),
+        ('AGENTE', 'Se lo pidió a Kooxi'),
+    ]
+
+    telefono = models.CharField(max_length=20, db_index=True, verbose_name='Teléfono')
+    origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, verbose_name='Cómo la pidió')
+    texto = models.CharField(max_length=300, blank=True, verbose_name='Mensaje del cliente')
+    wamid = models.CharField(max_length=191, blank=True, verbose_name='ID del mensaje en WhatsApp')
+    created_at = models.DateTimeField(default=timezone.now, db_index=True, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Baja de mensajes'
+        verbose_name_plural = 'Bajas'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.telefono} — {self.created_at:%d/%m/%Y}'

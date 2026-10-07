@@ -265,6 +265,23 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
+  armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).
+  `BajaWhatsApp` (migración `comunicacion.0010`, menú «Bajas», solo consulta)
+  va **por teléfono y sin FK a la conversación**: la purga de conversaciones no
+  debe borrarla, es lo que impide volver a escribirle. Un mensaje que sea solo
+  «BAJA» (o frases fijas: `services_bajas.PALABRAS_BAJA`) se atiende en
+  `_atender_pendientes` **antes** de revisar si el agente está activo o en
+  pausa —el seguimiento sale por cron sin importar el agente—, con una
+  confirmación fija (`automatico=True`, sin modelo); pedido con otras palabras
+  lo resuelve la herramienta `dar_de_baja_promociones`. Ambas apagan
+  `consentimiento_marketing` del chat. `motivo_para_no_seguir` la respeta vía
+  `dado_de_baja()`, que deja de aplicar si después hay una `AceptacionLegal` con
+  MARKETING (volvió a aceptar en el cotizador o el chat). Los avisos de la
+  propia reservación no son promoción y siguen llegando. Toda campaña nueva
+  debe filtrar con `dado_de_baja` además de `LegalService.cliente_acepto`
+  (no se tocó `legal/`).
+
 - 2026-10-07 — **Kooxi: filtro, juez y pruebas contra el modelo real** (pedido
   del propietario tras un chat real donde describió el sistema interno y
   ofreció revisar datos de un tercero). La garantía no es el prompt: el agente

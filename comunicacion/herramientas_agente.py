@@ -191,6 +191,14 @@ HERRAMIENTAS = [
         },
     },
     {
+        'name': 'dar_de_baja_promociones',
+        'description': (
+            'Registra que el cliente que escribe ya no quiere recibir promociones ni seguimientos de '
+            'su cotización por WhatsApp. Úsala solo cuando él lo pida.'
+        ),
+        'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+    },
+    {
         'name': 'registrar_pregunta_sin_respuesta',
         'description': (
             'Anota para el equipo una duda del cliente que tus herramientas no contestan (por '
@@ -676,6 +684,14 @@ def registrar_pregunta_sin_respuesta(conv=None, pregunta=None):
                                 'ofrécele pasar con una persona.'}
 
 
+def dar_de_baja_promociones(conv=None):
+    from comunicacion.services_bajas import registrar_baja
+    if conv is None or registrar_baja(telefono=conv.telefono, origen='AGENTE') is None:
+        return {'error': 'No se pudo registrar la baja.'}
+    return {'ok': True, 'nota': 'Ya no recibirá promociones ni seguimientos. Los avisos de su reservación '
+                                '(pagos, detalles del evento) sí le siguen llegando.'}
+
+
 _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
@@ -689,6 +705,7 @@ _EJECUTORES_DEL_CLIENTE = {
     'mi_reservacion': mi_reservacion,
     'crear_cotizacion': crear_cotizacion,
     'registrar_pregunta_sin_respuesta': registrar_pregunta_sin_respuesta,
+    'dar_de_baja_promociones': dar_de_baja_promociones,
 }
 
 
