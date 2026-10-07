@@ -26,6 +26,7 @@ SECRETO = 'app-secret-de-prueba'
 TOKEN = 'token-verificacion-prueba'
 AGENTE = dict(WA_APP_SECRET=SECRETO, WA_WEBHOOK_VERIFY_TOKEN=TOKEN, WA_AGENTE_ACTIVO=True,
               WA_AGENTE_NUMEROS_PRUEBA=[], WA_AGENTE_MODELO='claude-opus-5-5',
+              WA_AGENTE_JUEZ_ACTIVO=False,
               ALERTAS_INTERNAS_EMAIL=['equipo@qkt.test'])
 
 
@@ -492,6 +493,18 @@ class HerramientasTest(TestCase):
         self.assertEqual(url.path, reverse('portal_acceso'))
         self.assertIn('Error 404', services_agente.SYSTEM_PROMPT)
         self.assertIn(services_agente.URL_PORTAL_ACCESO, services_agente.SYSTEM_PROMPT)
+
+    def test_no_responde_informacion_interna_ni_de_terceros(self):
+        """Caso real del 06/10/2026: preguntaron por ganancias, el ERP y el estado de
+        cuenta del dueño, y el agente describió el sistema interno y ofreció pasar
+        con una persona para revisar los datos de un tercero."""
+        prompt = services_agente.SYSTEM_PROMPT
+        self.assertIn('Lo que no respondes', prompt)
+        for tema in ('ganancias', 'proveedores', 'estados de cuenta', 'sistemas internos',
+                     'Datos de otras personas', 'no ofrezcas'):
+            self.assertIn(tema, prompt)
+        self.assertNotIn('ERP', prompt)
+        self.assertNotIn('ERP', json.dumps(herramientas_agente.HERRAMIENTAS, ensure_ascii=False))
 
     def test_el_enlace_del_cotizador_apunta_a_un_dominio_vivo(self):
         """`clientes.quintakooxtanil.com` no existe: el cliente recibía un enlace muerto."""

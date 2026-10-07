@@ -867,3 +867,78 @@ def alertar_equipo_evidencia_automatica(contracargo):
         cuerpo=cuerpo,
         clave_idempotencia=f"contracargo:{contracargo.pk}:evidencia_auto:email",
     )
+
+
+# ──────────────────────── Seguimiento sin pago (#366) ───────────────────────
+
+# Margen para recuperar una corrida que no se hizo, sin escribirle a quien
+# cotizó hace semanas cuando el cron se activa por primera vez.
+SEGUIMIENTO_MARGEN_DIAS = 4
+
+
+def cotizaciones_para_seguimiento(hoy):
+    """Cotizaciones sin pago que cumplen `WA_SEGUIMIENTO_DIAS` y aún pueden apartarse.
+
+    Solo BORRADOR/COTIZADA con fecha futura; el filtro de pagos, de
+    consentimiento y de fecha libre se aplica en `notificar_seguimiento`, que
+    es donde se decide si se manda.
+    """
+    from datetime import timedelta
+
+    from comercial.models import Cotizacion
+
+    dias = getattr(settings, 'WA_SEGUIMIENTO_DIAS', 3)
+    hasta = hoy - timedelta(days=dias)
+    desde = hasta - timedelta(days=SEGUIMIENTO_MARGEN_DIAS)
+    return (Cotizacion.objects
+            .filter(estado__in=Cotizacion.ESTADOS_SIN_APARTAR, fecha_evento__gt=hoy,
+                    created_at__date__gte=desde, created_at__date__lte=hasta, pagos__isnull=True)
+            .select_related('cliente').order_by('id'))
+
+
+def motivo_para_no_seguir(cotizacion) -> str:
+    """'' si toca mandar el seguimiento; si no, por qué no."""
+    from legal.services import LegalService
+
+    cliente = cotizacion.cliente
+    if not _telefono(cliente):
+        return 'sin teléfono'
+    if not LegalService.cliente_acepto(cliente, 'MARKETING'):
+        return 'no aceptó promociones (MARKETING)'
+    if not cotizacion.fecha_disponible_detalle()[0]:
+        return 'la fecha ya no está disponible'
+    return ''
+
+
+def notificar_seguimiento(cotizacion):
+    """Una plantilla al cliente: su cotización sigue disponible. Idempotente.
+
+    Si sale, queda también en la conversación de WhatsApp como mensaje
+    automático, para que el agente sepa a qué está contestando el cliente.
+    """
+    plantilla = _plantilla('WA_TEMPLATE_SEGUIMIENTO')
+    if not plantilla or motivo_para_no_seguir(cotizacion):
+        return None
+    cliente = cotizacion.cliente
+    parametros = [
+        _nombre_pila(cliente),
+        f'COT-{cotizacion.pk:03d}',
+        _fecha(cotizacion.fecha_evento),
+        _dinero(cotizacion.precio_final),
+        url_portal(cotizacion),
+    ]
+    comm = _seguro(
+        'enviar el WhatsApp de seguimiento', enviar_whatsapp_template,
+        cotizacion=cotizacion, tipo='SEGUIMIENTO', telefono=_telefono(cliente),
+        template_name=plantilla, parametros=parametros, trigger='CRON',
+        clave_idempotencia=f'seguimiento:{cotizacion.pk}:whatsapp',
+    )
+    if comm is not None and comm.estado != 'FALLIDO':
+        from .services_agente import registrar_mensaje_automatico
+        registrar_mensaje_automatico(
+            telefono=_telefono(cliente), wamid=comm.proveedor_id,
+            texto=(f'Seguimiento: la cotización {parametros[1]} para el {parametros[2]} '
+                   f'(total ${parametros[3]}) sigue disponible; se le invitó a escribir si tiene dudas '
+                   'o quiere apartar la fecha.'),
+        )
+    return comm

@@ -48,6 +48,8 @@ def _texto(mensaje: dict) -> str:
     if tipo == 'interactive':
         interactivo = mensaje.get('interactive') or {}
         respuesta = interactivo.get('button_reply') or interactivo.get('list_reply') or {}
+        if respuesta.get('id') in dict(services_agente.BOTONES_CONSENTIMIENTO):
+            return f"[Tocó el botón «{respuesta.get('title', '')}» del mensaje de autorización]"
         return respuesta.get('title', '')
     return f'[El cliente envió un mensaje de tipo «{tipo}»; el asistente solo puede leer texto]'
 
@@ -68,6 +70,10 @@ def _procesar_cambio(cambio: dict) -> set:
                 wamid=mensaje.get('id'),
             )
             if conv:
+                boton = ((mensaje.get('interactive') or {}).get('button_reply') or {}).get('id', '')
+                if boton:
+                    services_agente.registrar_consentimiento(
+                        telefono=conv.telefono, boton_id=boton, wamid=mensaje.get('id'))
                 por_contestar.add(conv.pk)
 
     elif cambio.get('field') == 'smb_message_echoes':

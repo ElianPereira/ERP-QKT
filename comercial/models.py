@@ -2383,8 +2383,17 @@ class PreguntaFrecuente(models.Model):
         verbose_name = "Pregunta frecuente"
         verbose_name_plural = "Preguntas"
 
+    # Lo deja el resumen semanal de Kooxi cuando no hay con qué contestar.
+    MARCADOR_COMPLETAR = '[COMPLETAR]'
+
     def __str__(self):
         return self.pregunta
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.activo and self.MARCADOR_COMPLETAR in (self.respuesta or ''):
+            raise ValidationError({'respuesta': f'Sustituye {self.MARCADOR_COMPLETAR} por la respuesta '
+                                                'antes de activar la pregunta.'})
 
 
 # ==========================================

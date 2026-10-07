@@ -332,6 +332,11 @@ WA_TEMPLATE_RECORDATORIO = config('WA_TEMPLATE_RECORDATORIO', default='')
 # Guía pre-evento (Issue #234): enlace de descarga, nunca el PDF adjunto —
 # adjuntarlo requeriría una plantilla tipo "documento", más lenta de aprobar.
 WA_TEMPLATE_GUIA = config('WA_TEMPLATE_GUIA', default='')
+# Seguimiento de cotizaciones sin pago (Issue #366): una sola vez, a los
+# WA_SEGUIMIENTO_DIAS de creada y solo a quien aceptó la finalidad MARKETING.
+# Sin plantilla, el cron no manda nada.
+WA_TEMPLATE_SEGUIMIENTO = config('WA_TEMPLATE_SEGUIMIENTO', default='')
+WA_SEGUIMIENTO_DIAS = config('WA_SEGUIMIENTO_DIAS', default=3, cast=int)
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
 WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
@@ -370,6 +375,13 @@ WA_APP_SECRET = config('WA_APP_SECRET', default='')
 WA_AGENTE_ACTIVO = config('WA_AGENTE_ACTIVO', default=False, cast=bool)
 WA_AGENTE_NUMEROS_PRUEBA = config('WA_AGENTE_NUMEROS_PRUEBA', default='', cast=Csv())
 WA_AGENTE_MODELO = config('WA_AGENTE_MODELO', default='claude-opus-5-5')
+# Profundidad de razonamiento del agente (low/medium/high). Más alto contesta
+# mejor las preguntas con varias condiciones y cuesta más por respuesta.
+WA_AGENTE_ESFUERZO = config('WA_AGENTE_ESFUERZO', default='medium')
+# Juez (Issue #366): un modelo pequeño revisa cada respuesta antes de enviarla.
+# El filtro determinista de `services_guardia` corre siempre, con o sin juez.
+WA_AGENTE_JUEZ_ACTIVO = config('WA_AGENTE_JUEZ_ACTIVO', default=True, cast=bool)
+WA_AGENTE_MODELO_JUEZ = config('WA_AGENTE_MODELO_JUEZ', default='claude-haiku-4-5')
 # Cuánto se calla el agente en una conversación después de que el propietario
 # contesta desde la app de WhatsApp Business (coexistencia).
 WA_AGENTE_PAUSA_HUMANO_HORAS = config('WA_AGENTE_PAUSA_HUMANO_HORAS', default=12, cast=int)
@@ -696,6 +708,12 @@ JAZZMIN_SETTINGS = {
             "url": "admin:otp_totp_totpdevice_changelist",
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
+        }],
+        "comunicacion": [{
+            "name": "Kooxi",
+            "url": "admin:comunicacion_tablero_agente",
+            "icon": "fas fa-robot",
+            "permissions": ["comunicacion.view_conversacionwhatsapp"],
         }],
         "contabilidad": [{
             "name": "Cobertura",

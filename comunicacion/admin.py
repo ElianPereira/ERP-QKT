@@ -1,12 +1,15 @@
 from django import forms
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
+from django.template.response import TemplateResponse
+from django.urls import path
 from django.utils import timezone
 from django.utils.formats import date_format
 
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 
-from . import services_agente
+from . import services_agente, services_tablero
 from .models import ComunicacionCliente, ConversacionWhatsApp, MensajeWhatsApp
 
 
@@ -77,14 +80,32 @@ class ConversacionWhatsAppAdmin(admin.ModelAdmin):
     list_filter = ('requiere_humano',)
     search_fields = ('telefono', 'nombre', 'cliente__nombre', 'mensajes__texto')
     fields = ('nombre', 'telefono', 'cliente', 'responder', 'requiere_humano', 'motivo_humano',
-              'pausado_hasta', 'ultimo_mensaje')
-    readonly_fields = ('nombre', 'telefono', 'ultimo_mensaje')
+              'pausado_hasta', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing')
+    readonly_fields = ('nombre', 'telefono', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing')
     autocomplete_fields = ('cliente',)
     inlines = (MensajeWhatsAppInline,)
     actions = ('reactivar_agente',)
 
     def has_add_permission(self, request):
         return False
+
+    def get_urls(self):
+        return [
+            path('tablero/', self.admin_site.admin_view(self.tablero_view), name='comunicacion_tablero_agente'),
+        ] + super().get_urls()
+
+    def tablero_view(self, request):
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        try:
+            dias = int(request.GET.get('dias', 30))
+        except ValueError:
+            dias = 30
+        return TemplateResponse(request, 'admin/comunicacion/tablero_agente.html', {
+            **self.admin_site.each_context(request),
+            'title': 'Tablero de Kooxi',
+            'm': services_tablero.metricas_agente(dias),
+        })
 
     @admin.display(description='Último mensaje', ordering='ultimo_mensaje')
     def ultimo_display(self, obj):

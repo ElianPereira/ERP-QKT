@@ -441,6 +441,37 @@ def enviar_whatsapp(
     return _enviar_wa(comm, {'type': 'text', 'text': {'body': mensaje}}, destino)
 
 
+def enviar_whatsapp_botones(
+    *,
+    tipo: str,
+    telefono: str,
+    mensaje: str,
+    botones: list,
+    trigger: str = 'SIGNAL',
+) -> Optional[ComunicacionCliente]:
+    """Mensaje interactivo con hasta 3 botones de respuesta, `[(id, título), …]`.
+
+    Igual que el texto libre, solo llega con la ventana de 24 h abierta. Meta
+    limita el título de cada botón a 20 caracteres y el cuerpo a 1024.
+    """
+    destino = normalizar_telefono_wa(telefono)
+    comm = reservar_comunicacion(
+        canal='WHATSAPP', tipo=tipo, trigger=trigger,
+        destinatario=destino or str(telefono or ''), asunto='',
+        cuerpo=(mensaje + '\n' + ' | '.join(t for _, t in botones))[:5000], estado='PENDIENTE',
+    )
+    if comm is None:
+        return None
+    payload = {'type': 'interactive', 'interactive': {
+        'type': 'button',
+        'body': {'text': mensaje[:1024]},
+        'action': {'buttons': [
+            {'type': 'reply', 'reply': {'id': id_, 'title': titulo[:20]}} for id_, titulo in botones[:3]
+        ]},
+    }}
+    return _enviar_wa(comm, payload, destino)
+
+
 def enviar_whatsapp_template(
     *,
     cotizacion=None,
