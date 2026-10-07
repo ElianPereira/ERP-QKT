@@ -81,6 +81,13 @@ class AdminLoginRateLimitTest(TestCase):
 
     def setUp(self):
         cache.clear()
+        # Ventana fija durante toda la prueba: si el reloj cruza un corte de
+        # ADMIN_LOGIN_VENTANA (cada 15 min) a mitad del test, los contadores
+        # vuelven a cero y el bloqueo esperado no llega (pasó en CI a las 22:45).
+        bucket_fijo = patch('core_erp.ratelimit._bucket',
+                            side_effect=lambda key, ident, window: f'rl:{key}:{ident}:prueba')
+        bucket_fijo.start()
+        self.addCleanup(bucket_fijo.stop)
         self.usuario = get_user_model().objects.create_superuser(
             username=self.username,
             email='admin179@example.test',
