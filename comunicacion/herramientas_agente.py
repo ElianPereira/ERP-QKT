@@ -504,7 +504,8 @@ def condiciones_de_pago(servicio=None, fecha=None):
 def preguntas_frecuentes():
     return {'preguntas': [
         {'pregunta': p.pregunta, 'respuesta': p.respuesta}
-        for p in PreguntaFrecuente.objects.filter(activo=True).order_by('orden', 'id')
+        for p in PreguntaFrecuente.objects.filter(activo=True)
+        .exclude(respuesta__contains=PreguntaFrecuente.MARCADOR_COMPLETAR).order_by('orden', 'id')
     ]}
 
 

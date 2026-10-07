@@ -241,6 +241,8 @@ class PreguntaSinRespuesta(models.Model):
         verbose_name='Conversación',
     )
     pregunta = models.CharField(max_length=300, verbose_name='Pregunta')
+    # Cuándo entró al resumen semanal (`services_preguntas`): no se vuelve a sugerir.
+    resumida_en = models.DateTimeField(null=True, blank=True, verbose_name='Resumida el')
     created_at = models.DateTimeField(default=timezone.now, verbose_name='Fecha')
 
     class Meta:

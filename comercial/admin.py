@@ -2082,6 +2082,8 @@ class EspacioLandingAdmin(DesactivarSinArchivoMixin, admin.ModelAdmin):
 @admin.register(PreguntaFrecuente)
 class PreguntaFrecuenteAdmin(admin.ModelAdmin):
     list_display = ('pregunta', 'respuesta_corta', 'orden', 'activo')
+    # Los borradores que sugiere el resumen semanal de Kooxi nacen inactivos.
+    list_filter = ('activo',)
     list_editable = ('orden', 'activo')
 
     @admin.display(description="Respuesta")

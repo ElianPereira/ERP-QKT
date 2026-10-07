@@ -173,3 +173,53 @@ class EvaluacionTest(TestCase):
         call_command('evaluar_agente', stdout=salida)
         self.assertIn('--ejecutar', salida.getvalue())
         self.assertFalse(MensajeWhatsApp.objects.exists())
+
+
+@wa_settings(**{**AGENTE, 'WA_NUMERO_NEGOCIO': '529994457178', 'WA_TEMPLATE_OPERACIONES': 'aviso_operaciones'})
+class ResumenPreguntasTest(TestCase):
+    def setUp(self):
+        from comercial.models import PreguntaFrecuente
+        self.FAQ = PreguntaFrecuente
+        conv = ConversacionWhatsApp.objects.create(telefono=TEL_CLIENTE)
+        for texto in ('¿La renta incluye la alberca?', '¿Se puede usar la alberca en evento?', '¿Hay estacionamiento?'):
+            PreguntaSinRespuesta.objects.create(conversacion=conv, pregunta=texto)
+
+    def _modelo(self, grupos):
+        cliente = MagicMock()
+        cliente.messages.create.return_value = SimpleNamespace(
+            content=[SimpleNamespace(type='text', text=json.dumps({'grupos': grupos}))])
+        return patch('comunicacion.services_preguntas._cliente', return_value=cliente)
+
+    def test_crea_borradores_inactivos_y_avisa_una_vez(self):
+        from comunicacion import services_preguntas
+        grupos = [
+            {'pregunta': '¿Prueba: la renta incluye la alberca?', 'respuesta_sugerida': '[COMPLETAR]', 'veces': 2},
+            {'pregunta': '¿Prueba: hay valet parking?', 'respuesta_sugerida': 'No, hay estacionamiento propio.', 'veces': 1},
+        ]
+        with self._modelo(grupos), patch.object(services_agente, '_avisar_propietario') as aviso:
+            r = services_preguntas.resumir_preguntas(aplicar=True)
+            otra = services_preguntas.resumir_preguntas(aplicar=True)
+        self.assertEqual((r['dudas'], r['borradores'], r['por_completar']), (3, 2, 1))
+        self.assertEqual(otra['dudas'], 0)  # ya resumidas, no se repiten
+        nuevas = self.FAQ.objects.filter(pregunta__in=[g['pregunta'] for g in grupos])
+        self.assertEqual(nuevas.count(), 2)
+        self.assertFalse(nuevas.filter(activo=True).exists())
+        aviso.assert_called_once()
+        self.assertIn('2 preguntas frecuentes', aviso.call_args.args[0])
+
+    def test_sin_aplicar_no_llama_al_modelo(self):
+        from comunicacion import services_preguntas
+        with patch('comunicacion.services_preguntas._cliente') as cliente:
+            r = services_preguntas.resumir_preguntas(aplicar=False)
+        cliente.assert_not_called()
+        self.assertEqual(r['dudas'], 3)
+        self.assertFalse(PreguntaSinRespuesta.objects.exclude(resumida_en=None).exists())
+
+    def test_un_borrador_sin_completar_no_se_puede_activar_ni_lo_ve_el_agente(self):
+        from django.core.exceptions import ValidationError
+        faq = self.FAQ(pregunta='¿Alberca?', respuesta='[COMPLETAR]', activo=True)
+        with self.assertRaises(ValidationError):
+            faq.full_clean()
+        faq.save()  # aunque se cuele por otra vía, el agente no la lee
+        vistas = [p['pregunta'] for p in herramientas_agente.preguntas_frecuentes()['preguntas']]
+        self.assertNotIn('¿Alberca?', vistas)

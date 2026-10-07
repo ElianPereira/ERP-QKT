@@ -286,7 +286,13 @@ salvo que queden obsoletas.
   botones y cotizaciones simulados; requiere `ANTHROPIC_API_KEY` (no está en
   el contenedor de Claude: correrlo con `railway run`). Correrlo antes y
   después de tocar prompt, modelo o esfuerzo, y agregar cada chat real que
-  salga mal como caso nuevo.
+  salga mal como caso nuevo. **No aprende solo** (decisión consciente: no se
+  reentrena con los chats); el ciclo de mejora es el cron semanal
+  `resumir_preguntas_agente --aplicar` (**pendiente de alta en Railway**):
+  agrupa las `PreguntaSinRespuesta`, propone respuestas solo con lo ya
+  capturado y las deja como `PreguntaFrecuente` **inactivas** (`[COMPLETAR]`
+  si no hay con qué); `PreguntaFrecuente.clean()` no deja activar una con el
+  marcador y el agente nunca la lee. Avisa al propietario por WhatsApp.
 
 - 2026-10-07 — **Kooxi: reservación, tablero, seguimiento y cotización en el
   chat** (Issue #366, decisiones del propietario). **(A)** `mi_reservacion`:
