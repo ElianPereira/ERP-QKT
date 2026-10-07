@@ -16,7 +16,7 @@ from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
 
-from comunicacion.evaluacion_agente import cargar_casos, evaluar
+from comunicacion.evaluacion_agente import cargar_casos, evaluar_caso
 
 
 class Command(BaseCommand):
@@ -38,15 +38,22 @@ class Command(BaseCommand):
             self.stdout.write(f'\n{len(casos)} casos. Agrega --ejecutar para correrlos contra el modelo.')
             return
 
-        resultados = evaluar(opciones['caso'])
-        costo = sum((r['costo_usd'] for r in resultados), Decimal('0'))
-        for r in resultados:
+        # Cada caso tarda varios segundos: se imprime al terminar cada uno para
+        # que la consola no parezca colgada.
+        self.stdout.write(f'Corriendo {len(casos)} casos contra el modelo (tarda unos minutos)...')
+        resultados = []
+        for i, caso in enumerate(casos, start=1):
+            r = evaluar_caso(caso, i)
+            resultados.append(r)
             estado = self.style.SUCCESS('OK   ') if r['ok'] else self.style.ERROR('FALLA')
-            self.stdout.write(f"{estado} {r['id']:<26} {r['tipo']:<10} {', '.join(r['herramientas']) or '—'}")
+            self.stdout.write(f"{i:>2}/{len(casos)} {estado} {r['id']:<26} {r['tipo']:<10} "
+                              f"{', '.join(r['herramientas']) or '—'}")
             for falla in r['fallas']:
                 self.stdout.write(f'      - {falla}')
             if not r['ok'] and r['respuestas']:
                 self.stdout.write(f"      Respuesta: {r['respuestas'][-1][:300]}")
+            self.stdout.flush()
+        costo = sum((r['costo_usd'] for r in resultados), Decimal('0'))
         aprobados = sum(r['ok'] for r in resultados)
         self.stdout.write(f'\n{aprobados}/{len(resultados)} casos aprobados. Costo estimado: US${costo}')
         if opciones['salida']:
