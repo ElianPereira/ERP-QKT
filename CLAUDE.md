@@ -273,6 +273,12 @@ salvo que queden obsoletas.
   prellenado (`{% block texto_wa %}`, nunca la URL: la del portal lleva el
   token) y `SYSTEM_PROMPT` gana «Problemas con la página» (enlace vencido →
   `mi-evento/` con código + 4 dígitos; pago/contrato → `pasar_a_humano`).
+  **El 9191 (agente) es el único contacto público** (decisión del propietario,
+  mismo día): landing, ficha de pago, contratos y documentos legales pasan del
+  7178 al 9191 (Aviso v2.6, TyC v2.4, Política v2.3, Reglamento v1.4, vigentes
+  07/10/2026, solo cambia el número). Cancelación por escrito y ARCO llegan al
+  agente, que hace `pasar_a_humano`. El 7178 queda solo como
+  `WA_NUMERO_NEGOCIO` (avisos internos) y para el anuncio de Meta.
 
 - 2026-10-06 — **Contrato automático al confirmarse** (hallazgo de la
   simulación E2E pedida por el propietario: el contrato solo salía con el
