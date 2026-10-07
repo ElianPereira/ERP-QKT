@@ -50,7 +50,7 @@ HERRAMIENTAS = [
     {
         'name': 'consultar_disponibilidad',
         'description': (
-            'Revisa en el ERP si una fecha (o una estancia de hospedaje de varias noches) '
+            'Revisa si una fecha (o una estancia de hospedaje de varias noches) '
             'está libre. Úsala siempre antes de decir que una fecha está disponible. '
             'Una fecha libre NO queda apartada: se aparta al pagar el anticipo.'
         ),
@@ -71,7 +71,7 @@ HERRAMIENTAS = [
         'name': 'ver_opciones',
         'description': (
             'Lista lo que se puede contratar de un servicio, con precio total IVA incluido '
-            'y lo que incluye cada opción, tal como está capturado en el ERP: paquetes de '
+            'y lo que incluye cada opción, tal como lo ofrece la Quinta: paquetes de '
             'evento y la renta del lugar sola, niveles de pasadía (Básico/Premium) o '
             'habitaciones de hospedaje.'
         ),
@@ -126,7 +126,7 @@ HERRAMIENTAS = [
     {
         'name': 'condiciones_de_pago',
         'description': (
-            'Reglas de pago del ERP: cuánto se paga para apartar, cuándo se liquida y cómo se '
+            'Reglas de pago de la Quinta: cuánto se paga para apartar, cuándo se liquida y cómo se '
             'paga. Úsala para cualquier pregunta de anticipo, liquidación o formas de pago. '
             'Con la fecha del cliente da también su fecha límite para liquidar.'
         ),
@@ -162,7 +162,7 @@ HERRAMIENTAS = [
     {
         'name': 'crear_cotizacion',
         'description': (
-            'Crea la cotización formal en el ERP, igual que el cotizador web, y le manda al cliente '
+            'Crea la cotización formal, igual que el cotizador web, y le manda al cliente '
             'por WhatsApp y correo el enlace a su portal para pagar. Úsala solo cuando el cliente '
             'pida que le prepares la cotización y ya tengas servicio, fecha libre, personas, la '
             'opción elegida (paquete, nivel u habitaciones), su nombre y su correo. La primera vez '
@@ -678,5 +678,5 @@ def ejecutar(nombre: str, entrada: dict, conv=None) -> tuple[str, bool]:
         return json.dumps({'error': 'Parámetros no válidos para la herramienta.'}), True
     except Exception:
         logger.exception("Agente WhatsApp: falló la herramienta %s", nombre)
-        return json.dumps({'error': 'No se pudo consultar el ERP; ofrece pasar con una persona.'}), True
+        return json.dumps({'error': 'No se pudo consultar la información; ofrece pasar con una persona.'}), True
     return json.dumps(resultado, ensure_ascii=False, default=str), 'error' in resultado

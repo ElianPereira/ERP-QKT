@@ -493,6 +493,18 @@ class HerramientasTest(TestCase):
         self.assertIn('Error 404', services_agente.SYSTEM_PROMPT)
         self.assertIn(services_agente.URL_PORTAL_ACCESO, services_agente.SYSTEM_PROMPT)
 
+    def test_no_responde_informacion_interna_ni_de_terceros(self):
+        """Caso real del 06/10/2026: preguntaron por ganancias, el ERP y el estado de
+        cuenta del dueño, y el agente describió el sistema interno y ofreció pasar
+        con una persona para revisar los datos de un tercero."""
+        prompt = services_agente.SYSTEM_PROMPT
+        self.assertIn('Lo que no respondes', prompt)
+        for tema in ('ganancias', 'proveedores', 'estados de cuenta', 'sistemas internos',
+                     'Datos de otras personas', 'no ofrezcas'):
+            self.assertIn(tema, prompt)
+        self.assertNotIn('ERP', prompt)
+        self.assertNotIn('ERP', json.dumps(herramientas_agente.HERRAMIENTAS, ensure_ascii=False))
+
     def test_el_enlace_del_cotizador_apunta_a_un_dominio_vivo(self):
         """`clientes.quintakooxtanil.com` no existe: el cliente recibía un enlace muerto."""
         url = urlparse(herramientas_agente.URL_COTIZADOR)
