@@ -375,6 +375,13 @@ WA_APP_SECRET = config('WA_APP_SECRET', default='')
 WA_AGENTE_ACTIVO = config('WA_AGENTE_ACTIVO', default=False, cast=bool)
 WA_AGENTE_NUMEROS_PRUEBA = config('WA_AGENTE_NUMEROS_PRUEBA', default='', cast=Csv())
 WA_AGENTE_MODELO = config('WA_AGENTE_MODELO', default='claude-opus-5-5')
+# Profundidad de razonamiento del agente (low/medium/high). Más alto contesta
+# mejor las preguntas con varias condiciones y cuesta más por respuesta.
+WA_AGENTE_ESFUERZO = config('WA_AGENTE_ESFUERZO', default='medium')
+# Juez (Issue #366): un modelo pequeño revisa cada respuesta antes de enviarla.
+# El filtro determinista de `services_guardia` corre siempre, con o sin juez.
+WA_AGENTE_JUEZ_ACTIVO = config('WA_AGENTE_JUEZ_ACTIVO', default=True, cast=bool)
+WA_AGENTE_MODELO_JUEZ = config('WA_AGENTE_MODELO_JUEZ', default='claude-haiku-4-5')
 # Cuánto se calla el agente en una conversación después de que el propietario
 # contesta desde la app de WhatsApp Business (coexistencia).
 WA_AGENTE_PAUSA_HUMANO_HORAS = config('WA_AGENTE_PAUSA_HUMANO_HORAS', default=12, cast=int)

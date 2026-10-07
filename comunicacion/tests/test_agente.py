@@ -26,6 +26,7 @@ SECRETO = 'app-secret-de-prueba'
 TOKEN = 'token-verificacion-prueba'
 AGENTE = dict(WA_APP_SECRET=SECRETO, WA_WEBHOOK_VERIFY_TOKEN=TOKEN, WA_AGENTE_ACTIVO=True,
               WA_AGENTE_NUMEROS_PRUEBA=[], WA_AGENTE_MODELO='claude-opus-5-5',
+              WA_AGENTE_JUEZ_ACTIVO=False,
               ALERTAS_INTERNAS_EMAIL=['equipo@qkt.test'])
 
 

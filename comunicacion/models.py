@@ -204,3 +204,49 @@ class PaseAHumano(models.Model):
 
     def __str__(self):
         return f"{self.conversacion.telefono}: {self.motivo[:60]}"
+
+
+class RespuestaBloqueada(models.Model):
+    """Respuesta del modelo que no se envió porque el filtro o el juez la
+    detuvieron (Issue #366). El cliente recibió en su lugar un texto fijo.
+    Se borra con su conversación."""
+    CAPA_CHOICES = [('FILTRO', 'Filtro automático'), ('JUEZ', 'Juez de IA')]
+    conversacion = models.ForeignKey(
+        ConversacionWhatsApp, on_delete=models.CASCADE, related_name='respuestas_bloqueadas',
+        verbose_name='Conversación',
+    )
+    texto = models.TextField(verbose_name='Respuesta detenida')
+    capa = models.CharField(max_length=10, choices=CAPA_CHOICES, verbose_name='Quién la detuvo')
+    motivo = models.CharField(max_length=300, blank=True, verbose_name='Motivo')
+    # El historial del modelo es append-only: la próxima respuesta recibe una
+    # nota de que esta no se envió, una sola vez.
+    avisada_al_modelo = models.BooleanField(default=False, verbose_name='Avisada al modelo')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Respuesta bloqueada'
+        verbose_name_plural = 'Bloqueadas'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_capa_display()}: {self.motivo[:60]}"
+
+
+class PreguntaSinRespuesta(models.Model):
+    """Lo que el agente no supo contestar con sus herramientas (Issue #366).
+    El tablero las agrupa para completar las preguntas frecuentes o el
+    catálogo. El texto lo redacta el modelo, sin datos personales."""
+    conversacion = models.ForeignKey(
+        ConversacionWhatsApp, on_delete=models.CASCADE, related_name='preguntas_sin_respuesta',
+        verbose_name='Conversación',
+    )
+    pregunta = models.CharField(max_length=300, verbose_name='Pregunta')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Pregunta sin respuesta'
+        verbose_name_plural = 'Pendientes'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.pregunta[:80]

@@ -11,7 +11,14 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from .models import ComunicacionCliente, ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
+from .models import (
+    ComunicacionCliente,
+    ConversacionWhatsApp,
+    MensajeWhatsApp,
+    PaseAHumano,
+    PreguntaSinRespuesta,
+    RespuestaBloqueada,
+)
 
 # Precio de lista de Anthropic en USD por millón de tokens: entrada, salida,
 # lectura de caché y escritura de caché (5 min). Un modelo que no esté aquí
@@ -99,6 +106,7 @@ def metricas_agente(dias: int = 30) -> dict:
     pases = PaseAHumano.objects.filter(created_at__gte=desde)
     nuevas = list(ConversacionWhatsApp.objects.filter(created_at__gte=desde))
     activas = mensajes.filter(direccion='ENTRADA').values('conversacion').distinct().count()
+    bloqueadas = RespuestaBloqueada.objects.filter(created_at__gte=desde)
 
     return {
         'dias': dias,
@@ -117,4 +125,11 @@ def metricas_agente(dias: int = 30) -> dict:
         'seguimientos': ComunicacionCliente.objects.filter(
             tipo='SEGUIMIENTO', estado__in=('ENVIADO', 'ENTREGADO', 'ABIERTO'), fecha_envio__gte=desde).count(),
         'autorizaciones': ConversacionWhatsApp.objects.filter(consentimiento_en__gte=desde).count(),
+        # Lo que el agente no supo: lo que más se repite es lo primero que hay
+        # que capturar en preguntas frecuentes o en la descripción del producto.
+        'sin_respuesta': list(PreguntaSinRespuesta.objects.filter(created_at__gte=desde)
+                              .values('pregunta').annotate(veces=Count('id'))
+                              .order_by('-veces', 'pregunta')[:20]),
+        'bloqueadas': bloqueadas.count(),
+        'ultimas_bloqueadas': list(bloqueadas.select_related('conversacion')[:15]),
     }

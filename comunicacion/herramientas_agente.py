@@ -191,6 +191,27 @@ HERRAMIENTAS = [
         },
     },
     {
+        'name': 'registrar_pregunta_sin_respuesta',
+        'description': (
+            'Anota para el equipo una duda del cliente que tus herramientas no contestan (por '
+            'ejemplo, algo que no viene en preguntas_frecuentes ni en ver_opciones). Úsala antes '
+            'de decirle al cliente que no tienes ese dato. No la uses para preguntas que no '
+            'corresponden (información interna, datos de otras personas).'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'pregunta': {
+                    'type': 'string',
+                    'description': 'La duda redactada en general, sin nombres, teléfonos ni datos '
+                                   'personales. Ej.: «¿La renta del lugar incluye la alberca?»',
+                },
+            },
+            'required': ['pregunta'],
+            'additionalProperties': False,
+        },
+    },
+    {
         'name': 'pasar_a_humano',
         'description': (
             'Pasa la conversación a una persona del equipo y deja de contestar. Úsala si el '
@@ -644,6 +665,16 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
     }
 
 
+def registrar_pregunta_sin_respuesta(conv=None, pregunta=None):
+    from comunicacion.models import PreguntaSinRespuesta
+    pregunta = str(pregunta or '').strip()[:300]
+    if conv is None or not pregunta:
+        return {'error': 'Falta la pregunta.'}
+    PreguntaSinRespuesta.objects.create(conversacion=conv, pregunta=pregunta)
+    return {'ok': True, 'nota': 'Quedó anotada para el equipo. Dile al cliente que no tienes ese dato y '
+                                'ofrécele pasar con una persona.'}
+
+
 _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
@@ -656,6 +687,7 @@ _EJECUTORES = {
 _EJECUTORES_DEL_CLIENTE = {
     'mi_reservacion': mi_reservacion,
     'crear_cotizacion': crear_cotizacion,
+    'registrar_pregunta_sin_respuesta': registrar_pregunta_sin_respuesta,
 }
 
 

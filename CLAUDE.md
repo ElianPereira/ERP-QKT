@@ -265,6 +265,29 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-07 — **Kooxi: filtro, juez y pruebas contra el modelo real** (pedido
+  del propietario tras un chat real donde describió el sistema interno y
+  ofreció revisar datos de un tercero). La garantía no es el prompt: el agente
+  solo ve datos públicos o del número que escribe, y cada respuesta pasa por
+  `services_guardia` antes de enviarse: **(1)** filtro determinista (folios,
+  teléfonos y correos que no son de ese número, enlaces fuera de
+  `quintakooxtanil.com` o con token del portal, «ERP», nombres de
+  herramientas, «prompt», «ganancia»; las fechas se quitan antes de buscar
+  teléfonos) y **(2)** juez `WA_AGENTE_MODELO_JUEZ` (Haiku 4.5, salida JSON);
+  si el juez falla, la respuesta sigue (fail-open a propósito: la capa dura es
+  el filtro). Lo detenido no se envía: sale `RESPUESTA_SEGURA`, queda en
+  `RespuestaBloqueada` y el modelo recibe una nota en su siguiente turno (el
+  historial es append-only, no se edita). Herramienta
+  `registrar_pregunta_sin_respuesta` → `PreguntaSinRespuesta`, agrupadas en el
+  tablero para completar FAQ/productos. Prompt con 7 ejemplos y esfuerzo
+  `WA_AGENTE_ESFUERZO` (default `medium`, antes `low` fijo). **Pruebas**:
+  `manage.py evaluar_agente --ejecutar` corre `comunicacion/evals/casos_agente.json`
+  contra el modelo real dentro de una transacción revertida y con avisos,
+  botones y cotizaciones simulados; requiere `ANTHROPIC_API_KEY` (no está en
+  el contenedor de Claude: correrlo con `railway run`). Correrlo antes y
+  después de tocar prompt, modelo o esfuerzo, y agregar cada chat real que
+  salga mal como caso nuevo.
+
 - 2026-10-07 — **Kooxi: reservación, tablero, seguimiento y cotización en el
   chat** (Issue #366, decisiones del propietario). **(A)** `mi_reservacion`:
   saldo, mínimo y fecha límite de las cotizaciones del número que escribe; la
