@@ -332,6 +332,11 @@ WA_TEMPLATE_RECORDATORIO = config('WA_TEMPLATE_RECORDATORIO', default='')
 # Guía pre-evento (Issue #234): enlace de descarga, nunca el PDF adjunto —
 # adjuntarlo requeriría una plantilla tipo "documento", más lenta de aprobar.
 WA_TEMPLATE_GUIA = config('WA_TEMPLATE_GUIA', default='')
+# Seguimiento de cotizaciones sin pago (Issue #366): una sola vez, a los
+# WA_SEGUIMIENTO_DIAS de creada y solo a quien aceptó la finalidad MARKETING.
+# Sin plantilla, el cron no manda nada.
+WA_TEMPLATE_SEGUIMIENTO = config('WA_TEMPLATE_SEGUIMIENTO', default='')
+WA_SEGUIMIENTO_DIAS = config('WA_SEGUIMIENTO_DIAS', default=3, cast=int)
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
 WA_TEMPLATE_ALERTA_INTERNA = config('WA_TEMPLATE_ALERTA_INTERNA', default='')
@@ -696,6 +701,12 @@ JAZZMIN_SETTINGS = {
             "url": "admin:otp_totp_totpdevice_changelist",
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
+        }],
+        "comunicacion": [{
+            "name": "Kooxi",
+            "url": "admin:comunicacion_tablero_agente",
+            "icon": "fas fa-robot",
+            "permissions": ["comunicacion.view_conversacionwhatsapp"],
         }],
         "contabilidad": [{
             "name": "Cobertura",

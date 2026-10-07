@@ -1,0 +1,128 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div class="qkt-pagina">
+
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-robot" aria-hidden="true"></i> Tablero de Kooxi</h1>
+        <p class="qkt-pagina__intro">
+            Lo que hizo el agente de WhatsApp desde el {{ m.desde|date:"d/m/Y" }}: cuánta gente escribió,
+            cuánto costó la IA, cuándo hizo falta una persona y cuántas conversaciones terminaron en cotización y en pago.
+        </p>
+    </div>
+
+    <div class="qkt-botonera">
+        {% for p in m.periodos %}
+        <a href="?dias={{ p }}" class="qkt-btn qkt-btn--sm {% if p == m.dias %}qkt-btn--primario{% else %}qkt-btn--secundario{% endif %}">Últimos {{ p }} días</a>
+        {% endfor %}
+    </div>
+
+    <div class="qkt-kpis">
+        <div class="qkt-kpi qkt-kpi--info">
+            <div class="qkt-kpi__label">Conversaciones activas</div>
+            <div class="qkt-kpi__valor">{{ m.conversaciones_activas }}</div>
+            <div class="qkt-kpi__sub">{{ m.mensajes_clientes }} mensajes de clientes</div>
+        </div>
+        <div class="qkt-kpi qkt-kpi--exito">
+            <div class="qkt-kpi__label">Respuestas de la IA</div>
+            <div class="qkt-kpi__valor">{{ m.respuestas_ia }}</div>
+            <div class="qkt-kpi__sub">{{ m.respuestas_equipo }} del equipo</div>
+        </div>
+        <div class="qkt-kpi {% if m.pases_a_humano %}qkt-kpi--alerta{% else %}qkt-kpi--exito{% endif %}">
+            <div class="qkt-kpi__label">Pases a una persona</div>
+            <div class="qkt-kpi__valor">{{ m.pases_a_humano }}</div>
+            <div class="qkt-kpi__sub">en {{ m.conversaciones_a_humano }} conversaciones</div>
+        </div>
+        <div class="qkt-kpi qkt-kpi--info">
+            <div class="qkt-kpi__label">Costo de la IA (USD)</div>
+            <div class="qkt-kpi__valor">${{ m.consumo.costo_usd }}</div>
+            <div class="qkt-kpi__sub">
+                {% if m.consumo.costo_por_respuesta_usd is not None %}${{ m.consumo.costo_por_respuesta_usd }} por respuesta{% elif not m.consumo.costo_completo %}Falta el precio de un modelo{% else %}Sin respuestas medidas{% endif %}
+            </div>
+        </div>
+        <div class="qkt-kpi qkt-kpi--exito">
+            <div class="qkt-kpi__label">Terminaron en cotización</div>
+            <div class="qkt-kpi__valor">{{ m.conversion.tasa_cotizacion }}%</div>
+            <div class="qkt-kpi__sub">{{ m.conversion.con_cotizacion }} de {{ m.conversion.nuevas }} conversaciones nuevas</div>
+        </div>
+        <div class="qkt-kpi qkt-kpi--exito">
+            <div class="qkt-kpi__label">Terminaron en pago</div>
+            <div class="qkt-kpi__valor">{{ m.conversion.tasa_pago }}%</div>
+            <div class="qkt-kpi__sub">{{ m.conversion.con_pago }} de {{ m.conversion.nuevas }}</div>
+        </div>
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab qkt-panel__cab--apilada">
+            <h2 class="qkt-panel__titulo">Por qué se pasó a una persona</h2>
+            <p class="qkt-campo__ayuda">Los motivos que se repiten son lo primero que conviene enseñarle al agente.</p>
+        </div>
+        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+            {% if m.motivos %}
+            <table class="qkt-tabla">
+                <thead><tr><th>Motivo</th><th class="qkt-der">Veces</th></tr></thead>
+                <tbody>
+                {% for fila in m.motivos %}
+                <tr><td>{{ fila.motivo|default:"—" }}</td><td class="qkt-der qkt-num">{{ fila.veces }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="qkt-panel__cuerpo">Ningún pase a una persona en el periodo.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if m.ultimos_pases %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">Últimos pases</h2></div>
+        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Fecha</th><th>Cliente</th><th>Motivo</th><th></th></tr></thead>
+                <tbody>
+                {% for pase in m.ultimos_pases %}
+                <tr>
+                    <td>{{ pase.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ pase.conversacion.nombre|default:pase.conversacion.telefono }}</td>
+                    <td>{{ pase.motivo|default:"—" }}</td>
+                    <td class="qkt-der"><a href="{% url 'admin:comunicacion_conversacionwhatsapp_change' pase.conversacion_id %}" class="qkt-btn qkt-btn--secundario qkt-btn--sm">Ver conversación</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab qkt-panel__cab--apilada">
+            <h2 class="qkt-panel__titulo">Consumo por modelo</h2>
+            <p class="qkt-campo__ayuda">Precio de lista de Anthropic. El cobro real y el límite mensual se ven en la consola de Anthropic.</p>
+        </div>
+        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+            {% if m.consumo.por_modelo %}
+            <table class="qkt-tabla">
+                <thead><tr><th>Modelo</th><th class="qkt-der">Respuestas</th><th class="qkt-der">Entrada</th><th class="qkt-der">Salida</th><th class="qkt-der">Caché leída</th><th class="qkt-der">Caché escrita</th><th class="qkt-der">USD</th></tr></thead>
+                <tbody>
+                {% for fila in m.consumo.por_modelo %}
+                <tr>
+                    <td><span class="qkt-codigo">{{ fila.modelo }}</span></td>
+                    <td class="qkt-der qkt-num">{{ fila.respuestas }}</td>
+                    <td class="qkt-der qkt-num">{{ fila.entrada }}</td>
+                    <td class="qkt-der qkt-num">{{ fila.salida }}</td>
+                    <td class="qkt-der qkt-num">{{ fila.cache_lectura }}</td>
+                    <td class="qkt-der qkt-num">{{ fila.cache_escritura }}</td>
+                    <td class="qkt-der qkt-num">{% if fila.costo_usd is not None %}${{ fila.costo_usd }}{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="qkt-panel__cuerpo">Sin respuestas medidas en el periodo (el consumo se registra desde esta versión).</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <p class="qkt-campo__ayuda">Seguimientos automáticos de cotizaciones sin pago enviados en el periodo: {{ m.seguimientos }}.</p>
+</div>
+{% endblock %}

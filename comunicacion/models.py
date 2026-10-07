@@ -24,6 +24,7 @@ class ComunicacionCliente(models.Model):
         ('CANCELACION', 'Cancelación'),
         ('FACTURA', 'Factura emitida'),
         ('AGENTE_IA', 'Respuesta del agente de WhatsApp'),
+        ('SEGUIMIENTO', 'Seguimiento de cotización sin pago'),
         ('OTRO', 'Otro'),
     ]
     ESTADO_CHOICES = [
@@ -156,6 +157,17 @@ class MensajeWhatsApp(models.Model):
         related_name='+', verbose_name='Enviado por',
         help_text='Quién contestó desde el ERP (vacío si fue el cliente, el agente o la app).',
     )
+    # Mensaje que el sistema manda por su cuenta (p. ej. el seguimiento de una
+    # cotización sin pago): no es respuesta del modelo, así que la próxima
+    # respuesta del agente lo recibe como contexto en vez de cortar ahí.
+    automatico = models.BooleanField(default=False, verbose_name='Automático')
+    # Consumo de la respuesta del modelo (solo AGENTE escritos por la IA),
+    # sumado entre las vueltas de herramientas de esa respuesta.
+    modelo = models.CharField(max_length=60, blank=True, verbose_name='Modelo de IA')
+    tokens_entrada = models.PositiveIntegerField(default=0, verbose_name='Tokens de entrada')
+    tokens_salida = models.PositiveIntegerField(default=0, verbose_name='Tokens de salida')
+    tokens_cache_lectura = models.PositiveIntegerField(default=0, verbose_name='Tokens leídos de caché')
+    tokens_cache_escritura = models.PositiveIntegerField(default=0, verbose_name='Tokens escritos en caché')
     created_at = models.DateTimeField(default=timezone.now, verbose_name='Fecha')
 
     class Meta:
@@ -166,3 +178,23 @@ class MensajeWhatsApp(models.Model):
 
     def __str__(self):
         return f"[{self.get_direccion_display()}] {self.texto[:60]}"
+
+
+class PaseAHumano(models.Model):
+    """Cada vez que una conversación quedó para una persona del equipo, con su
+    motivo. `ConversacionWhatsApp.motivo_humano` solo guarda el último; esto
+    es lo que mide el tablero del agente. Se borra con su conversación."""
+    conversacion = models.ForeignKey(
+        ConversacionWhatsApp, on_delete=models.CASCADE, related_name='pases_a_humano',
+        verbose_name='Conversación',
+    )
+    motivo = models.CharField(max_length=300, blank=True, verbose_name='Motivo')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Pase a humano'
+        verbose_name_plural = 'Pases'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.conversacion.telefono}: {self.motivo[:60]}"

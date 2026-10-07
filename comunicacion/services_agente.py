@@ -33,7 +33,7 @@ from django.utils import timezone
 from django.utils.formats import date_format
 
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
-from .models import ConversacionWhatsApp, MensajeWhatsApp
+from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
     alertar_equipo_email,
     enviar_whatsapp,
@@ -198,6 +198,20 @@ def registrar_respuesta_humana(*, telefono, texto, wamid):
     conv.save(update_fields=['pausado_hasta', 'ultimo_mensaje', 'updated_at'])
 
 
+def registrar_mensaje_automatico(*, telefono, texto, wamid=None):
+    """Deja en la conversación un mensaje que el sistema mandó por su cuenta
+    (seguimiento de cotización). No es respuesta del modelo: la próxima
+    respuesta del agente lo recibe como contexto (`_texto_desde_ultima_respuesta`)."""
+    telefono = normalizar_telefono_wa(telefono)
+    if not telefono:
+        return None
+    conv = _conversacion(telefono)
+    mensaje = _guardar_mensaje(conv, 'AGENTE', texto, wamid, procesado=True)
+    if mensaje is not None:
+        MensajeWhatsApp.objects.filter(pk=mensaje.pk).update(automatico=True)
+    return mensaje
+
+
 class VentanaCerrada(Exception):
     """El cliente no escribe desde hace más de 24 h: Meta rechaza el texto libre."""
 
@@ -343,17 +357,18 @@ def _atender_pendientes(conversacion_id: int) -> None:
     if _tope_alcanzado(conv):
         _enviar(conv, MENSAJE_HUMANO)
         return
-    respuesta = responder(conv, texto)
+    respuesta, uso = responder(conv, texto)
     if respuesta:
-        _enviar(conv, respuesta)
+        _enviar(conv, respuesta, uso=uso)
 
 
 def _respuestas_de_hoy():
     """Respuestas del modelo enviadas hoy (hora local). Los textos fijos no
     pasan por la IA y no cuentan."""
     inicio = timezone.make_aware(datetime.combine(timezone.localdate(), time.min))
-    return MensajeWhatsApp.objects.filter(direccion='AGENTE', created_at__gte=inicio).exclude(
-        texto__in=(AVISO_INICIAL, AVISO_ESPERA, MENSAJE_HUMANO))
+    return MensajeWhatsApp.objects.filter(
+        direccion='AGENTE', automatico=False, created_at__gte=inicio,
+    ).exclude(texto__in=(AVISO_INICIAL, AVISO_ESPERA, MENSAJE_HUMANO))
 
 
 def _tope_alcanzado(conv) -> bool:
@@ -393,28 +408,29 @@ def _texto_desde_ultima_respuesta(conv) -> str:
     el intercambio completo con quién dijo qué, para que no repita ni
     contradiga lo que ya se le respondió al cliente.
     """
-    ultima = (conv.mensajes.filter(direccion='AGENTE').exclude(texto=AVISO_ESPERA)
+    ultima = (conv.mensajes.filter(direccion='AGENTE', automatico=False).exclude(texto=AVISO_ESPERA)
               .order_by('-created_at', '-id').first())
     desde = timezone.now() - REINICIO_TRAS
     if ultima and ultima.created_at > desde:
         desde = ultima.created_at
-    recientes = conv.mensajes.exclude(direccion='AGENTE').filter(created_at__gte=desde)
+    recientes = (conv.mensajes.filter(created_at__gte=desde)
+                 .exclude(direccion='AGENTE', automatico=False))
     recientes = [m for m in recientes.order_by('created_at', 'id') if m.texto.strip()]
     if not any(m.direccion == 'ENTRADA' for m in recientes):
         return ''
-    if not any(m.direccion == 'HUMANO' for m in recientes):
+    if all(m.direccion == 'ENTRADA' for m in recientes):
         return '\n'.join(m.texto for m in recientes)
-    return ('Conversación desde tu última respuesta (una persona del equipo también contestó):\n'
-            + '\n'.join(f"{'Equipo QKT' if m.direccion == 'HUMANO' else 'Cliente'}: {m.texto}"
-                        for m in recientes))
+    etiquetas = {'ENTRADA': 'Cliente', 'HUMANO': 'Equipo QKT', 'AGENTE': 'Mensaje automático de QKT'}
+    return ('Conversación desde tu última respuesta (además del cliente, escribió el equipo o el sistema):\n'
+            + '\n'.join(f"{etiquetas[m.direccion]}: {m.texto}" for m in recientes))
 
 
-def _enviar(conv, texto: str) -> None:
+def _enviar(conv, texto: str, uso: dict | None = None) -> None:
     texto = texto.strip()[:LIMITE_WHATSAPP]
     comm = enviar_whatsapp(tipo='AGENTE_IA', telefono=conv.telefono, mensaje=texto, trigger='SIGNAL')
     MensajeWhatsApp.objects.create(
         conversacion=conv, direccion='AGENTE', texto=texto, procesado=True,
-        wamid=(comm.proveedor_id or None) if comm else None,
+        wamid=(comm.proveedor_id or None) if comm else None, **(uso or {}),
     )
 
 
@@ -422,6 +438,7 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
     conv.requiere_humano = True
     conv.motivo_humano = (motivo or '')[:300]
     conv.save(update_fields=['requiere_humano', 'motivo_humano', 'updated_at'])
+    PaseAHumano.objects.create(conversacion=conv, motivo=conv.motivo_humano)
     if not avisar:
         return
     ultimos = conv.mensajes.order_by('-created_at', '-id')[:6]
@@ -483,8 +500,21 @@ def _llamar_modelo(client, messages):
     )
 
 
+def _sumar_uso(uso: dict, respuesta) -> None:
+    """Acumula el consumo de cada vuelta del modelo en la respuesta que se envía."""
+    datos = getattr(respuesta, 'usage', None)
+    if datos is None:
+        return
+    uso['modelo'] = getattr(respuesta, 'model', '') or uso.get('modelo', '')
+    for campo, atributo in (('tokens_entrada', 'input_tokens'), ('tokens_salida', 'output_tokens'),
+                            ('tokens_cache_lectura', 'cache_read_input_tokens'),
+                            ('tokens_cache_escritura', 'cache_creation_input_tokens')):
+        valor = getattr(datos, atributo, 0)
+        uso[campo] = uso.get(campo, 0) + (valor if isinstance(valor, int) else 0)
+
+
 def responder(conv, texto_cliente: str):
-    """Corre el agente sobre el historial y devuelve el texto a enviar (o None)."""
+    """Corre el agente sobre el historial. Devuelve (texto a enviar o None, consumo de tokens)."""
     ahora = timezone.localtime()
     historial = list(conv.historial or [])
     ultima = _ultima_salida(conv)
@@ -498,15 +528,17 @@ def responder(conv, texto_cliente: str):
         'content': [{'type': 'text', 'text': f'[Hoy es {fecha_hoy}, hora de Yucatán]\n{texto_cliente}'}],
     }]
 
+    uso = {}
     try:
         client = _cliente_ia()
         respuesta = None
         for _ in range(MAX_ITERACIONES):
             respuesta = _llamar_modelo(client, messages)
+            _sumar_uso(uso, respuesta)
             if respuesta.stop_reason == 'refusal':
                 logger.warning("Agente WhatsApp: el modelo declinó en %s", conv.telefono)
                 _pasar_a_humano(conv, 'El asistente no pudo responder este mensaje.')
-                return MENSAJE_HUMANO
+                return MENSAJE_HUMANO, uso
             messages.append({'role': 'assistant', 'content': [b.to_dict(exclude_none=True) for b in respuesta.content]})
             if respuesta.stop_reason != 'tool_use':
                 break
@@ -515,18 +547,18 @@ def responder(conv, texto_cliente: str):
             _pasar_a_humano(conv, 'El asistente no llegó a una respuesta.')
             conv.historial = messages
             conv.save(update_fields=['historial', 'updated_at'])
-            return MENSAJE_HUMANO
+            return MENSAJE_HUMANO, uso
     except anthropic.APIError:
         logger.exception("Agente WhatsApp: falló la API de Claude para %s", conv.telefono)
         _pasar_a_humano(conv, 'El asistente no estuvo disponible (error de la API de IA).')
-        return MENSAJE_HUMANO
+        return MENSAJE_HUMANO, uso
 
     conv.historial = messages
     conv.save(update_fields=['historial', 'updated_at'])
     texto = '\n'.join(b.text for b in respuesta.content if b.type == 'text').strip()
     if not texto and conv.requiere_humano:
-        return MENSAJE_HUMANO
-    return texto or None
+        return MENSAJE_HUMANO, uso
+    return texto or None, uso
 
 
 def _resultados_herramientas(conv, contenido) -> list:
