@@ -21,10 +21,10 @@ from .test_agente import AGENTE, _cliente_falso, _respuesta, _texto, _uso
 from .utils import TEL_CLIENTE, wa_settings
 
 
-def _juez(permitida, motivo=''):
+def _juez(categoria='NINGUNA', cita=''):
     cliente = MagicMock()
     cliente.messages.create.return_value = SimpleNamespace(
-        content=[SimpleNamespace(type='text', text=json.dumps({'permitida': permitida, 'motivo': motivo}))])
+        content=[SimpleNamespace(type='text', text=json.dumps({'categoria': categoria, 'cita': cita}))])
     return patch.object(services_guardia, '_cliente_juez', return_value=cliente)
 
 
@@ -82,23 +82,31 @@ class JuezYFlujoTest(TestCase):
         return env
 
     def test_el_juez_detiene_y_el_cliente_recibe_el_texto_seguro(self):
-        with _juez(False, 'Revela ganancias'):
+        with _juez('INFORMACION_INTERNA', '30% a cada evento'):
             env = self._procesar(_cliente_falso(_respuesta(_texto('Le ganamos como 30% a cada evento.'))))
         self.assertEqual(env.call_args.kwargs['mensaje'], services_guardia.RESPUESTA_SEGURA)
         bloqueada = RespuestaBloqueada.objects.get()
-        self.assertEqual((bloqueada.capa, bloqueada.motivo), ('JUEZ', 'Revela ganancias'))
+        self.assertEqual((bloqueada.capa, bloqueada.motivo), ('JUEZ', 'Información interna: «30% a cada evento»'))
 
         # El siguiente turno el modelo se entera, una sola vez.
         services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='¿Y cuánto cuesta?', wamid='w2')
         cliente = _cliente_falso(_respuesta(_texto('Depende del servicio.')))
-        with _juez(True):
+        with _juez():
             self._procesar(cliente)
         ultimo = cliente.enviados[-1][-1]['content'][0]['text']
         self.assertIn('no se envió', ultimo)
         self.assertTrue(RespuestaBloqueada.objects.get().avisada_al_modelo)
 
+    def test_el_juez_no_bloquea_con_una_cita_que_no_esta_en_la_respuesta(self):
+        # Falsos positivos de evaluar_agente: el juez «veía» una fuga que la
+        # respuesta no contiene. Sin cita literal no se bloquea.
+        with _juez('FUNCIONAMIENTO_INTERNO', 'usa una base de datos'):
+            env = self._procesar(_cliente_falso(_respuesta(_texto('Soy Kooxi, asistente con IA de la Quinta.'))))
+        self.assertEqual(env.call_args.kwargs['mensaje'], 'Soy Kooxi, asistente con IA de la Quinta.')
+        self.assertFalse(RespuestaBloqueada.objects.exists())
+
     def test_el_filtro_corre_antes_que_el_juez(self):
-        with _juez(True) as juez:
+        with _juez() as juez:
             env = self._procesar(_cliente_falso(_respuesta(_texto('Lo consulto en el ERP.'))))
         self.assertEqual(env.call_args.kwargs['mensaje'], services_guardia.RESPUESTA_SEGURA)
         self.assertEqual(RespuestaBloqueada.objects.get().capa, 'FILTRO')
@@ -115,7 +123,7 @@ class JuezYFlujoTest(TestCase):
 
     def test_usa_el_esfuerzo_configurado(self):
         cliente = _cliente_falso(_respuesta(_texto('Hola')))
-        with self.settings(WA_AGENTE_ESFUERZO='high'), _juez(True):
+        with self.settings(WA_AGENTE_ESFUERZO='high'), _juez():
             self._procesar(cliente)
         self.assertEqual(cliente.beta.messages.create.call_args.kwargs['output_config'], {'effort': 'high'})
 
@@ -125,7 +133,7 @@ class JuezYFlujoTest(TestCase):
                        stop='tool_use'),
             _respuesta(_texto('No tengo ese dato confirmado.')),
         )
-        with _juez(True):
+        with _juez():
             self._procesar(cliente)
         self.assertEqual(PreguntaSinRespuesta.objects.get().pregunta, '¿La renta incluye la alberca?')
 
@@ -158,13 +166,13 @@ class EvaluacionTest(TestCase):
             _respuesta(_uso('mi_reservacion', {}), stop='tool_use'),
             _respuesta(_texto('No tienes reservaciones con este número.')),
         )
-        with patch.object(services_agente, '_cliente_ia', return_value=bien), _juez(True):
+        with patch.object(services_agente, '_cliente_ia', return_value=bien), _juez():
             r = evaluacion_agente.evaluar(['mi_saldo'])[0]
         self.assertTrue(r['ok'], r['fallas'])
         self.assertFalse(ConversacionWhatsApp.objects.exists())
 
         mal = _cliente_falso(_respuesta(_texto('Lo veo en el ERP: ganan 30%.')))
-        with patch.object(services_agente, '_cliente_ia', return_value=mal), _juez(True):
+        with patch.object(services_agente, '_cliente_ia', return_value=mal), _juez():
             r = evaluacion_agente.evaluar(['ganancias'])[0]
         self.assertFalse(r['ok'])
 
