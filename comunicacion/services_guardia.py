@@ -179,7 +179,6 @@ def revisar_juez(conv, pregunta: str, texto: str) -> str:
         r = _cliente_juez().messages.create(
             model=settings.WA_AGENTE_MODELO_JUEZ,
             max_tokens=300,
-            temperature=0,
             system=INSTRUCCIONES_JUEZ,
             messages=[{'role': 'user', 'content': contenido}],
             output_config={'format': {'type': 'json_schema', 'schema': _ESQUEMA_JUEZ}},
