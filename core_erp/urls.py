@@ -7,6 +7,7 @@ from django.contrib.auth import logout
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from comercial.views import (
     descargar_plan_pagos_pdf,
@@ -89,8 +90,6 @@ try:
         descargar_lista_compras_pdf,
         enviar_cotizacion_email,
         exportar_cierre_excel,
-        exportar_reporte_cotizaciones,
-        exportar_reporte_pagos,
         generar_pdf_cotizacion,
         ver_dashboard_kpis,
     )
@@ -136,8 +135,9 @@ urlpatterns = [
     # Reportes y Herramientas
     path('admin/calendario/', calendario_unificado, name='calendario_unificado'),
     path('admin/calendario/eventos/', calendario_unificado_eventos, name='calendario_unificado_eventos'),
-    path('admin/exportar-cotizaciones/', exportar_reporte_cotizaciones, name='exportar_reporte_cotizaciones'),
-    path('admin/reporte-pagos/', exportar_reporte_pagos, name='reporte_pagos'),
+    # Los reportes de ventas y pagos viven en el Centro de reportes (Issue #373).
+    path('admin/exportar-cotizaciones/', RedirectView.as_view(pattern_name='reportes:selector')),
+    path('admin/reporte-pagos/', RedirectView.as_view(pattern_name='reportes:selector')),
     path('admin/exportar-cierre/', exportar_cierre_excel, name='exportar_cierre_excel'),
 
     # --- 4. MÓDULOS EXTRA ---

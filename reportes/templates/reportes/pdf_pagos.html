@@ -1,0 +1,63 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Cobros, reembolsos y cortesías registrados por fecha de pago{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ cobrado|moneda }}</div><div class="doc-kpi-etiqueta">Cobrado</div></div>
+  <div class="doc-kpi doc-kpi--error"><div class="doc-kpi-valor">{{ reembolsado|moneda }}</div><div class="doc-kpi-etiqueta">Reembolsado</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ neto|moneda }}</div><div class="doc-kpi-etiqueta">Cobrado neto</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ condonado|moneda }}</div><div class="doc-kpi-etiqueta">Cortesías</div></div>
+</div>
+
+{% if metodos %}
+<div class="doc-resumen">
+  {% for m in metodos %}<span><b>{{ m.nombre }}:</b> {{ m.total|moneda }} ({{ m.porcentaje }} %)</span>{% endfor %}
+</div>
+{% endif %}
+
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="centro col-fecha">Fecha</th>
+      <th class="col-folio">Folio</th>
+      <th>Cliente / evento</th>
+      <th>Método</th>
+      <th>Referencia</th>
+      <th>Registró</th>
+      <th class="centro col-estado">Tipo</th>
+      <th class="num col-monto">Importe</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pago in pagos %}
+    <tr>
+      <td class="centro">{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+      <td class="codigo">COT-{{ pago.cotizacion_id|stringformat:"03d" }}</td>
+      <td class="negrita">{{ pago.cotizacion.cliente.nombre|truncatechars:30 }}<span class="doc-nota-linea">{{ pago.cotizacion.nombre_evento|truncatechars:40 }}</span></td>
+      <td>{{ pago.get_metodo_display }}</td>
+      <td class="codigo">{{ pago.referencia|default:"—"|truncatechars:24 }}</td>
+      <td>{{ pago.usuario.get_username|default:"Sistema" }}</td>
+      <td class="centro">{% if pago.tipo == 'REEMBOLSO' %}{% badge_doc "Reembolso" "error" %}{% elif pago.metodo == 'CONDONACION' %}{% badge_doc "Cortesía" "info" %}{% else %}{% badge_doc "Cobro" "exito" %}{% endif %}</td>
+      <td class="num{% if pago.tipo == 'REEMBOLSO' %} texto-error{% endif %}">{% if pago.tipo == 'REEMBOLSO' %}-{% endif %}{{ pago.monto|moneda }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" class="vacio">Sin pagos en el periodo.</td></tr>
+    {% endfor %}
+    {% if pagos %}
+    <tr class="total">
+      <td colspan="7">Cobrado neto ({{ count }} movimientos)</td>
+      <td class="num">{{ neto|moneda }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block notas %}Cobrado neto = cobros menos reembolsos. Las cortesías (condonaciones) se muestran aparte porque no entra dinero.{% endblock %}

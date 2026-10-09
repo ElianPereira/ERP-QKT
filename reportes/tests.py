@@ -259,3 +259,105 @@ class ReportesComercialesTest(TestCase):
         SolicitudFactura.objects.filter(pk=solicitud.pk).update(estado='CANCELADA')
         texto = self._texto_pdf('facturas', **self._periodo())
         self.assertIn('Sin facturas en el periodo.', texto)
+
+
+class RentabilidadYPagosTest(TestCase):
+    """Rentabilidad por evento y pagos recibidos (Issue #373, fase 3).
+
+    Evento confirmado de 10,000.00 + IVA, con una compra facturada ligada de
+    1,000.00 + IVA 160.00; un gasto operativo sin factura de 500.00; un borrador
+    que no debe contar como venta; un anticipo de 5,800.00 y un reembolso de
+    1,000.00. Esperado: utilidad bruta 9,000.00, neta 8,500.00, IVA por pagar
+    1,440.00 y cobrado neto 4,800.00.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from comercial.models import Cliente, Compra, Cotizacion, Gasto, ItemCotizacion, Pago
+
+        cls.usuario = User.objects.create_superuser('direccion', 'd@x.mx', 'clave-de-prueba-123')
+        cls.hoy = timezone.localdate()
+        cliente = Cliente.objects.create(nombre='Luis Chan Uc', telefono='5555550002')
+        cls.cot = Cotizacion.objects.create(
+            cliente=cliente, nombre_evento='XV Chan', tipo_servicio='EVENTO',
+            fecha_evento=cls.hoy + timedelta(days=20), incluye_refrescos=False,
+        )
+        ItemCotizacion.objects.create(cotizacion=cls.cot, descripcion='Servicio', cantidad=1,
+                                      precio_unitario=D('10000.00'))
+        Pago.objects.create(cotizacion=cls.cot, monto=D('5800.00'), metodo='TRANSFERENCIA')
+        Pago.objects.create(cotizacion=cls.cot, monto=D('1000.00'), metodo='TRANSFERENCIA', tipo='REEMBOLSO')
+
+        borrador = Cotizacion.objects.create(
+            cliente=cliente, nombre_evento='Borrador sin pagar', tipo_servicio='EVENTO',
+            fecha_evento=cls.hoy + timedelta(days=40), incluye_refrescos=False,
+        )
+        ItemCotizacion.objects.create(cotizacion=borrador, descripcion='Servicio', cantidad=1,
+                                      precio_unitario=D('50000.00'))
+
+        unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        facturada = Compra.objects.create(
+            proveedor_nombre='Banquetes Test', subtotal=D('1000.00'), iva=D('160.00'), total=D('1160.00'),
+            uuid='11111111-2222-3333-4444-555555555555', fecha_emision=cls.hoy, unidad_negocio=unidad,
+        )
+        Gasto.objects.create(compra=facturada, descripcion='Banquete', total_linea=D('1160.00'),
+                             evento_relacionado=cls.cot, fecha_gasto=cls.hoy)
+        nota = Compra.objects.create(
+            proveedor_nombre='Tlapalería', subtotal=D('500.00'), iva=D('0'), total=D('500.00'),
+            uuid=None, fecha_emision=cls.hoy, unidad_negocio=unidad,
+        )
+        Gasto.objects.create(compra=nota, descripcion='Material', total_linea=D('500.00'), fecha_gasto=cls.hoy)
+
+    def setUp(self):
+        login_superuser_con_totp(self.client, self.usuario)
+
+    def _periodo(self):
+        return {'fecha_inicio': f'{self.hoy.year}-01-01', 'fecha_fin': f'{self.hoy.year + 1}-12-31'}
+
+    def _texto_pdf(self, nombre_url, **params):
+        respuesta = self.client.get(reverse(f'reportes:{nombre_url}'), params)
+        self.assertEqual(respuesta.status_code, 200)
+        with pdfplumber.open(io.BytesIO(respuesta.content)) as pdf:
+            return '\n'.join(pagina.extract_text() or '' for pagina in pdf.pages)
+
+    def test_rentabilidad_servicio(self):
+        from reportes.services.comercial import RentabilidadEventosService
+
+        p = self._periodo()
+        datos = RentabilidadEventosService.generar(
+            date.fromisoformat(p['fecha_inicio']), date.fromisoformat(p['fecha_fin']))
+        self.assertEqual(len(datos['eventos']), 1, 'El borrador no es venta')
+        self.assertEqual(datos['totales']['base'], D('10000.00'))
+        self.assertEqual(datos['totales']['gasto_fiscal'], D('1000.00'))
+        self.assertEqual(datos['totales']['iva_acreditable'], D('160.00'))
+        self.assertEqual(datos['totales']['utilidad'], D('9000.00'))
+        self.assertEqual(datos['op_nofiscal'], D('500.00'))
+        self.assertEqual(datos['utilidad_neta'], D('8500.00'))
+        self.assertEqual(datos['iva_por_pagar'], D('1440.00'))
+
+    def test_rentabilidad_pdf(self):
+        texto = self._texto_pdf('rentabilidad', **self._periodo())
+        self.assertIn('Estado: Ventas reales', texto)
+        self.assertIn('Luis Chan Uc', texto)
+        self.assertNotIn('Borrador sin pagar', texto)
+        self.assertIn('Utilidad neta $8,500.00', texto)
+        self.assertIn('IVA por pagar $1,440.00', texto)
+
+    def test_pagos_restan_reembolsos(self):
+        texto = self._texto_pdf('pagos', **self._periodo())
+        self.assertIn('-$1,000.00', texto)
+        self.assertIn('Cobrado neto (2 movimientos) $4,800.00', texto)
+
+    def test_excel_con_montos_numericos(self):
+        import openpyxl
+
+        respuesta = self.client.get(reverse('reportes:pagos'), {**self._periodo(), 'formato': 'excel'})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertRegex(respuesta['Content-Disposition'], r'filename="QKT_Pagos_\d{8}_\d{8}\.xlsx"')
+        hoja = openpyxl.load_workbook(io.BytesIO(respuesta.content))['Pagos']
+        self.assertEqual(hoja['I1'].value, 'Importe')
+        self.assertEqual(sorted(c.value for c in hoja['I'][1:]), [-1000, 5800])
+        self.assertEqual(hoja['I2'].number_format, '"$"#,##0.00;-"$"#,##0.00')

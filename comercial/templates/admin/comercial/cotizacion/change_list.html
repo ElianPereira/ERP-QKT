@@ -2,6 +2,6 @@
 {% load i18n admin_urls %}
 
 {% block object-tools-items %}
-    <a href="{% url 'exportar_reporte_cotizaciones' %}" class="qkt-btn qkt-btn--secundario"><i class="fas fa-file-pdf" aria-hidden="true"></i> Reporte PDF</a>
+    <a href="{% url 'reportes:selector' %}" class="qkt-btn qkt-btn--secundario"><i class="fas fa-chart-bar" aria-hidden="true"></i> Reportes</a>
     {{ block.super }}
 {% endblock %}

@@ -1,0 +1,123 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Venta sin IVA contra gastos de cada evento y gastos operativos{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+<span><b>Estado:</b> {{ estado_filtro_etiqueta }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ eventos|length }}</div><div class="doc-kpi-etiqueta">Eventos</div></div>
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ totales.base|moneda }}</div><div class="doc-kpi-etiqueta">Ingreso sin IVA</div></div>
+  <div class="doc-kpi doc-kpi--error"><div class="doc-kpi-valor">{{ costos_totales|moneda }}</div><div class="doc-kpi-etiqueta">Costos y gastos</div></div>
+  <div class="doc-kpi doc-kpi--{{ utilidad_neta|tono_signo }}"><div class="doc-kpi-valor">{{ utilidad_neta|moneda }}</div><div class="doc-kpi-etiqueta">Utilidad neta</div></div>
+</div>
+
+<div class="doc-seccion">1. Eventos</div>
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="col-folio">Folio</th>
+      <th class="centro col-fecha">Fecha</th>
+      <th>Cliente / evento</th>
+      <th class="num col-monto">Venta total</th>
+      <th class="num col-monto">IVA trasladado</th>
+      <th class="num col-monto">Ingreso sin IVA</th>
+      <th class="num col-monto">Gasto facturado</th>
+      <th class="num col-monto">IVA acreditable</th>
+      <th class="num col-monto">Gasto sin factura</th>
+      <th class="num col-monto">Utilidad bruta</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in eventos %}
+    <tr>
+      <td class="codigo">{{ e.folio }}</td>
+      <td class="centro">{{ e.fecha|date:"d/m/Y" }}</td>
+      <td class="negrita">{{ e.cliente|truncatechars:30 }}<span class="doc-nota-linea">{{ e.evento|truncatechars:40 }}</span></td>
+      <td class="num">{{ e.venta|moneda }}</td>
+      <td class="num">{{ e.iva|moneda }}</td>
+      <td class="num negrita">{{ e.base|moneda }}</td>
+      <td class="num">{{ e.gasto_fiscal|moneda }}</td>
+      <td class="num">{{ e.iva_acreditable|moneda }}</td>
+      <td class="num">{{ e.gasto_nofiscal|moneda }}</td>
+      <td class="num negrita texto-{{ e.utilidad|tono_signo }}">{{ e.utilidad|moneda }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="10" class="vacio">Sin eventos en el periodo.</td></tr>
+    {% endfor %}
+    {% if eventos %}
+    <tr class="total">
+      <td colspan="3">Totales</td>
+      <td class="num">{{ totales.venta|moneda }}</td>
+      <td class="num">{{ totales.iva|moneda }}</td>
+      <td class="num">{{ totales.base|moneda }}</td>
+      <td class="num">{{ totales.gasto_fiscal|moneda }}</td>
+      <td class="num">{{ totales.iva_acreditable|moneda }}</td>
+      <td class="num">{{ totales.gasto_nofiscal|moneda }}</td>
+      <td class="num">{{ totales.utilidad|moneda }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<div class="doc-seccion">2. Gastos operativos</div>
+<div class="doc-columnas">
+  <div class="doc-datos">
+    <table class="doc-tabla">
+      <thead><tr><th>Con factura (deducible)</th><th class="num col-monto">Base</th><th class="num col-monto">IVA</th></tr></thead>
+      <tbody>
+        {% for g in operativos_fiscales %}
+        <tr><td>{{ g.nombre }}</td><td class="num">{{ g.base|moneda }}</td><td class="num">{{ g.iva|moneda }}</td></tr>
+        {% empty %}
+        <tr><td colspan="3" class="vacio">Sin gastos con factura.</td></tr>
+        {% endfor %}
+        <tr class="subtotal"><td>Subtotal</td><td class="num">{{ op_fiscal|moneda }}</td><td class="num">{{ op_iva|moneda }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="doc-datos">
+    <table class="doc-tabla">
+      <thead><tr><th>Sin factura (no deducible)</th><th class="num col-monto">Total</th></tr></thead>
+      <tbody>
+        {% for g in operativos_nofiscales %}
+        <tr><td>{{ g.nombre }}</td><td class="num">{{ g.total|moneda }}</td></tr>
+        {% empty %}
+        <tr><td colspan="2" class="vacio">Sin gastos sin factura.</td></tr>
+        {% endfor %}
+        <tr class="subtotal"><td>Subtotal</td><td class="num">{{ op_nofiscal|moneda }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="doc-columnas sin-cortes">
+  <div class="doc-datos">
+    <table class="doc-tabla">
+      <thead><tr><th colspan="2">Rentabilidad</th></tr></thead>
+      <tbody>
+        <tr><td>Ingreso sin IVA</td><td class="num">{{ totales.base|moneda }}</td></tr>
+        <tr><td>(−) Costos con factura</td><td class="num">{{ costos_deducibles|moneda }}</td></tr>
+        <tr><td>(−) Costos sin factura</td><td class="num">{{ costos_no_deducibles|moneda }}</td></tr>
+        <tr class="total"><td>Utilidad neta</td><td class="num">{{ utilidad_neta|moneda }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="doc-datos">
+    <table class="doc-tabla">
+      <thead><tr><th colspan="2">IVA estimado</th></tr></thead>
+      <tbody>
+        <tr><td>(+) IVA cobrado en ventas</td><td class="num">{{ totales.iva|moneda }}</td></tr>
+        <tr><td>(−) IVA acreditable</td><td class="num">{{ iva_acreditable|moneda }}</td></tr>
+        <tr class="total"><td>IVA por pagar</td><td class="num">{{ iva_por_pagar|moneda }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block notas %}Solo las compras con UUID (CFDI) acreditan IVA y se consideran deducibles. Es una estimación de gestión: la cifra fiscal la determina el contador.{% endblock %}

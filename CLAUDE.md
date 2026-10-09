@@ -311,6 +311,23 @@ salvo que queden obsoletas.
   en la plantilla. `facturacion/views.py` tenía su propio desglose (sin ISH)
   para el mismo PDF: ahora usa `generar_pdf_solicitud`. **Pendiente**: la ficha
   Paynet/SPEI se genera dentro de `views_openpay.py` (zona restringida).
+  **Fase 3** (documentos operativos): recibo de nómina, lista de compras, ficha
+  de producto y evidencia de contracargo migrados; los reportes «Financiero» y
+  «Pagos» de `comercial` pasan al Centro de reportes (`reportes:rentabilidad`,
+  `reportes:pagos`; las URL viejas redirigen al selector) y Excel tiene helper
+  propio, `core_erp/excel.py` (`respuesta_excel`, montos como número).
+  Hallazgos corregidos: **(1)** el recibo de nómina se calculaba con `float` y
+  duplicado en vista y comando `sync_jibble` → `nomina/services_recibos.py`
+  (`Decimal`, días en español; antes `strftime('%A')` salía en inglés); **(2)**
+  el reporte de pagos **sumaba los reembolsos como ingreso** (ahora cobrado −
+  reembolsos, cortesías aparte); **(3)** el «Financiero» sin filtro contaba
+  borradores, canceladas y expiradas como venta (ahora `ESTADOS_VENTA_REAL`);
+  **(4)** la lista de compras pintaba en rojo a **todo** proveedor (`'' in
+  texto` es siempre verdadero, residuo de un emoji borrado) y costeaba con
+  `float`; **(5)** la ficha de producto leía campos que no existen
+  (`precio_base_publico`, `descripcion_whatsapp`) y un contacto falso (999 999
+  9999); **(6)** el Excel de cierre filtraba solo por mes, sin año. De paso,
+  `hora_ampm` pasa un `datetime` con zona a hora local (mostraba UTC).
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).

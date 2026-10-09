@@ -1,300 +1,74 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Recibo de Nómina</title>
-    <style>
-        @page {
-            size: letter;
-            margin: 1cm 1.5cm;
-        }
-        * {
-            box-sizing: border-box;
-        }
-        body { 
-            font-family: 'Helvetica', sans-serif; 
-            color: #333; 
-            margin: 0; 
-            padding: 0;
-            font-size: 11px;
-        }
-        .clearfix { clear: both; }
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos qkt_horarios %}
 
-        .header-container {
-            width: 100%;
-            margin-bottom: 20px;
-        }
-        .header-table {
-            width: 100%;
-            border: none;
-        }
-        .header-table td {
-            vertical-align: top;
-        }
-        .company-name {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2E7D32;
-            margin-bottom: 5px;
-        }
-        .company-details {
-            font-size: 10px;
-            color: #666;
-            line-height: 1.4;
-        }
+{% block variante %}operativo{% endblock %}
+{% block subtitulo %}Folio {{ folio }}{% endblock %}
+{% block filtros %}<span><b>Periodo:</b> {{ inicio|date:"d/m/Y" }} al {{ fin|date:"d/m/Y" }}</span>{% endblock %}
+{% block generado %}<span><b>Emisión:</b> {{ fecha_emision|date:"d/m/Y" }} {{ fecha_emision|hora_ampm }}</span>{% endblock %}
 
-        .doc-title {
-            text-align: center;
-            margin-top: 8px;
-            margin-bottom: 12px;
-        }
-        .doc-title h1 {
-            margin: 0;
-            color: #2c3e50;
-            font-size: 20px;
-        }
-        .doc-title p {
-            margin: 3px 0 0 0;
-            color: #7f8c8d;
-            font-size: 11px;
-        }
+{% block contenido %}
+<div class="doc-columnas">
+  <dl class="doc-datos">
+    <div><dt>Empleado</dt><dd>{{ empleado.nombre|upper }}</dd></div>
+    <div><dt>Puesto</dt><dd>{{ empleado.get_puesto_display }}</dd></div>
+  </dl>
+  <dl class="doc-datos">
+    <div><dt>Tarifa</dt><dd>{{ tarifa|moneda }} por hora</dd></div>
+    <div><dt>Días</dt><dd>{{ filas|length }}</dd></div>
+  </dl>
+</div>
 
-        .employee-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            padding: 10px 12px;
-            background-color: #fcfcfc;
-            margin-bottom: 15px;
-        }
-        .card-table { width: 100%; }
-        .card-label {
-            color: #2E7D32;
-            font-weight: bold;
-            width: 95px;
-            font-size: 10px;
-        }
-        .card-value { 
-            color: #333; 
-            font-size: 10px;
-        }
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="col-fecha">Fecha</th>
+      <th class="col-corta">Día</th>
+      <th class="centro">Entrada</th>
+      <th class="centro">Salida</th>
+      <th class="num">Horas reales</th>
+      <th class="num">Horas a pagar</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for fila in filas %}
+    <tr>
+      <td>{{ fila.fecha|date:"d/m/Y" }}</td>
+      <td>{{ fila.dia }}</td>
+      <td class="centro">{{ fila.entrada }}</td>
+      <td class="centro">{{ fila.salida }}</td>
+      <td class="num">{{ fila.horas_fmt }}</td>
+      <td class="num negrita">{{ fila.horas_a_pagar_fmt }}{% if fila.fue_recortado %} <span class="texto-error">▼</span>{% endif %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="vacio">Sin asistencia en el periodo.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
 
-        .data-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin-top: 6px;
-            border-bottom: 2px solid #2E7D32;
-        }
-        .data-table th {
-            background-color: #2E7D32;
-            color: white;
-            padding: 6px 4px;
-            text-align: center;
-            font-weight: normal;
-            font-size: 9px;
-            border: none;
-        }
-        .data-table th:first-child { border-top-left-radius: 5px; }
-        .data-table th:last-child { border-top-right-radius: 5px; }
-        .data-table td {
-            padding: 5px 4px;
-            text-align: center;
-            border-bottom: 1px solid #f0f0f0;
-            color: #555;
-            font-size: 10px;
-        }
-        .data-table tr:last-child td { border-bottom: none; }
-        .col-horas {
-            font-weight: bold;
-            color: #000;
-        }
-        .recortado {
-            color: #c0392b;
-            font-size: 8px;
-            margin-left: 2px;
-        }
-        .col-pagar {
-            font-weight: bold;
-            color: #2E7D32;
-        }
+<div class="doc-aviso doc-aviso--alerta">
+  <b>Regla de redondeo 90 %:</b> la fracción de hora se reconoce solo si llega a 54 minutos;
+  si no, se toma la hora entera inferior. El símbolo ▼ marca los días con ajuste.
+</div>
 
-        .regla-box {
-            margin-top: 10px;
-            margin-bottom: 10px;
-            padding: 6px 10px;
-            background-color: #FFF8E1;
-            border-left: 3px solid #F9A825;
-            border-radius: 3px;
-            font-size: 8px;
-            color: #555;
-        }
-        .regla-box strong {
-            color: #E65100;
-        }
+<div class="doc-totales">
+  <table>
+    <tr><td>Horas reales</td><td class="num">{{ horas_reales|cifra }} h</td></tr>
+    <tr><td>Horas a pagar</td><td class="num">{{ horas_a_pagar|cifra }} h</td></tr>
+    {% if ajuste_horas %}<tr class="resta"><td>Ajuste por redondeo</td><td class="num">-{{ ajuste_horas|cifra }} h</td></tr>{% endif %}
+    <tr><td>Tarifa por hora</td><td class="num">{{ tarifa|moneda }}</td></tr>
+    <tr class="gran-total"><td>Neto a pagar</td><td class="num">{{ total|moneda }}</td></tr>
+    {% if ajuste_dinero %}<tr><td colspan="2" class="doc-totales-nota">Sin redondeo serían {{ sin_redondeo|moneda }}.</td></tr>{% endif %}
+  </table>
+</div>
 
-        .totals-section {
-            margin-top: 10px;
-            width: 100%;
-            page-break-inside: avoid;
-        }
-        .totals-table {
-            float: right;
-            width: 280px;
-            border: 1px solid #eee;
-            border-radius: 5px;
-            padding: 8px;
-        }
-        .total-row {
-            margin-bottom: 4px;
-            font-size: 10px;
-        }
-        .total-row-ahorro {
-            margin-bottom: 4px;
-            font-size: 9px;
-            color: #888;
-            text-decoration: line-through;
-        }
-        .grand-total {
-            background-color: #2E7D32;
-            color: white;
-            padding: 7px;
-            text-align: center;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 12px;
-            margin-top: 6px;
-        }
-    </style>
-</head>
-<body>
-
-    <div class="header-container">
-        <table class="header-table">
-            <tr>
-                <td style="width: 50%;">
-                    <img src="{{ logo_url }}" 
-                         alt="LOGO" 
-                         style="height: 60px; display: block;">
-                </td>
-                <td style="width: 50%; text-align: right;">
-                    <div class="company-name">Quinta Ko'ox Tanil</div>
-                    <div class="company-details">
-                        Ctra Tanil - Ticimul KM 1.920<br>
-                        Umán, Yucatán<br>
-                        quintakooxtanil@gmail.com
-                    </div>
-                </td>
-            </tr>
-        </table>
-    </div>
-
-    <div class="doc-title">
-        <h1>Recibo de Nómina</h1>
-        <p>Periodo: {{ periodo }}</p>
-    </div>
-
-    <div class="employee-card">
-        <table class="card-table">
-            <tr>
-                <td style="width: 60%;">
-                    <table style="width: 100%;">
-                        <tr>
-                            <td class="card-label">Empleado:</td>
-                            <td class="card-value" style="text-transform: uppercase;">{{ empleado.nombre }}</td>
-                        </tr>
-                        <tr>
-                            <td class="card-label">Fecha Emisión:</td>
-                            <td class="card-value">{{ fecha_emision }}</td>
-                        </tr>
-                    </table>
-                </td>
-                <td style="width: 40%;">
-                    <table style="width: 100%;">
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Tarifa Hora:</td>
-                            <td class="card-value" style="text-align: right;">${{ empleado.tarifa_base }}</td>
-                        </tr>
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Folio:</td>
-                            <td class="card-value" style="text-align: right;">{{ folio }}</td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </div>
-
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th style="width: 14%;">Fecha</th>
-                <th style="width: 8%;">Día</th>
-                <th style="width: 12%;">Entrada</th>
-                <th style="width: 12%;">Salida</th>
-                <th style="width: 16%;">Hrs Reales</th>
-                <th style="width: 16%;">Hrs a Pagar</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for fila in lista_asistencia %}
-            <tr>
-                <td>{{ fila.fecha }}</td>
-                <td>{{ fila.dia }}</td>
-                <td>{{ fila.entrada }}</td>
-                <td>{{ fila.salida }}</td>
-                <td class="col-horas">{{ fila.horas_fmt }}</td>
-                <td class="col-pagar">
-                    {{ fila.horas_a_pagar_fmt }}
-                    {% if fila.fue_recortado %}<span class="recortado">▼</span>{% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <div class="regla-box">
-        <strong>Regla de redondeo 90%:</strong> 
-        La fracción de hora se reconoce solo si alcanza ≥54 minutos (90%). 
-        De lo contrario, se trunca a la hora entera inferior. 
-        El símbolo <span style="color:#c0392b;">▼</span> indica que se aplicó el ajuste.
-    </div>
-
-    <div class="totals-section">
-        <div class="totals-table">
-            <div class="total-row">
-                <span style="float:left;">Horas Reales:</span>
-                <span style="float:right; font-weight:bold; color:#888;">{{ total_horas_reales }} hrs</span>
-                <div class="clearfix"></div>
-            </div>
-            <div class="total-row">
-                <span style="float:left; font-weight:bold;">Horas a Pagar:</span>
-                <span style="float:right; font-weight:bold; color:#2E7D32;">{{ total_horas_a_pagar }} hrs</span>
-                <div class="clearfix"></div>
-            </div>
-            <div class="total-row">
-                <span style="float:left;">Ajuste por Redondeo:</span>
-                <span style="float:right; color:#c0392b;">-{{ ahorro_horas }} hrs</span>
-                <div class="clearfix"></div>
-            </div>
-            <div style="border-top: 1px dashed #ddd; margin: 5px 0;"></div>
-            <div class="total-row">
-                <span style="float:left;">Tarifa por Hora:</span>
-                <span style="float:right; font-weight:bold;">${{ empleado.tarifa_base }}</span>
-                <div class="clearfix"></div>
-            </div>
-            <div class="total-row-ahorro">
-                <span style="float:left;">Sin redondeo sería:</span>
-                <span style="float:right;">${{ total_sin_redondeo }}</span>
-                <div class="clearfix"></div>
-            </div>
-            <div class="grand-total">
-                <span style="float:left;">NETO A PAGAR:</span>
-                <span style="float:right;">${{ total_pagado }}</span>
-                <div class="clearfix"></div>
-            </div>
-        </div>
-        <div class="clearfix"></div>
-    </div>
-
-</body>
-</html>
+<div class="doc-firmas">
+  <div class="doc-firma">
+    <div class="doc-firma-linea">{{ empleado.nombre }}</div>
+    <div class="doc-firma-rol">Recibí de conformidad</div>
+  </div>
+  <div class="doc-firma">
+    <div class="doc-firma-linea">Administración</div>
+    <div class="doc-firma-rol">{{ doc_empresa }}</div>
+  </div>
+</div>
+{% endblock %}

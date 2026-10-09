@@ -23,12 +23,15 @@ class ReporteGenerado(models.Model):
         # Comercial
         ('CXC_CARTERA', 'CxC / Antigüedad de Saldos'),
         ('COT_PERIODO', 'Cotizaciones por Período'),
+        ('RENTABILIDAD', 'Rentabilidad por Evento'),
+        ('PAGOS', 'Pagos Recibidos'),
         # Facturación
         ('FACTURAS', 'Facturas Emitidas'),
     ]
     FORMATO_CHOICES = [
         ('PDF', 'PDF'),
         ('HTML', 'Vista en Pantalla'),
+        ('EXCEL', 'Excel'),
     ]
 
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, verbose_name="Tipo de Reporte")

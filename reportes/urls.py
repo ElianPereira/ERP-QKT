@@ -23,6 +23,8 @@ urlpatterns = [
     # Comercial
     path('cxc/', views.reporte_cxc, name='cxc'),
     path('cotizaciones/', views.reporte_cotizaciones, name='cotizaciones'),
+    path('rentabilidad/', views.reporte_rentabilidad, name='rentabilidad'),
+    path('pagos/', views.reporte_pagos, name='pagos'),
 
     # Facturación
     path('facturas/', views.reporte_facturas, name='facturas'),

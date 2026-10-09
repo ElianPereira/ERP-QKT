@@ -17,9 +17,9 @@ import logging
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
-from django.template.loader import render_to_string
 from django.utils import timezone
-from weasyprint import HTML
+
+from core_erp.documentos import render_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def _contexto_evidencia(contracargo):
         'cliente': getattr(cotizacion, 'cliente', None),
         'pagos': pagos,
         'comunicaciones': comunicaciones,
-        'generado_en': timezone.now(),
+        'titulo': 'Evidencia de contracargo',
     }
 
 
@@ -58,10 +58,9 @@ def armar_evidencia(contracargo):
     if contracargo.evidencia_pdf:
         return contracargo.evidencia_pdf
     try:
-        html = render_to_string(
+        pdf_bytes = render_pdf(
             'comercial/pdf/evidencia_contracargo.html', _contexto_evidencia(contracargo),
         )
-        pdf_bytes = HTML(string=html).write_pdf()
     except Exception:
         logger.exception(
             "Contracargo %s: no se pudo armar el PDF de evidencia", contracargo.openpay_id,

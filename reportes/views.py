@@ -15,6 +15,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
 from core_erp.documentos import nombre_archivo, respuesta_pdf
+from core_erp.excel import respuesta_excel
 
 from .models import ReporteGenerado
 
@@ -61,6 +62,7 @@ def selector_reportes(request):
 
     puede_contabilidad = request.user.has_perm('contabilidad.view_movimientocontable')
     puede_comercial = request.user.has_perm('comercial.view_cotizacion')
+    puede_pagos = request.user.has_perm('comercial.view_pago')
     puede_facturacion = request.user.has_perm('facturacion.view_solicitudfactura')
 
     context = {
@@ -76,6 +78,8 @@ def selector_reportes(request):
         'inicio_anio': date(timezone.now().year, 1, 1),
         'puede_contabilidad': puede_contabilidad,
         'puede_comercial': puede_comercial,
+        'puede_pagos': puede_pagos,
+        'inicio_mes': timezone.now().date().replace(day=1),
         'puede_facturacion': puede_facturacion,
     }
     return render(request, 'reportes/selector.html', context)
@@ -371,3 +375,73 @@ def reporte_facturas(request):
 
     filename = nombre_archivo('Facturas', fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_facturas.html', datos, filename)
+
+
+# ==========================================
+# 11. RENTABILIDAD POR EVENTO
+# ==========================================
+
+@staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
+def reporte_rentabilidad(request):
+    """Rentabilidad por evento + gastos operativos, en PDF o Excel."""
+    from .services.comercial import RentabilidadEventosService
+
+    fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
+    fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
+    estado = request.GET.get('estado_cotizacion') or None
+    excel = request.GET.get('formato') == 'excel'
+
+    datos = RentabilidadEventosService.generar(fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, estado=estado)
+    datos['titulo'] = 'Rentabilidad por evento'
+    _registrar_reporte(request, 'RENTABILIDAD', fecha_inicio, fecha_fin,
+                       formato='EXCEL' if excel else 'PDF', parametros={'estado': estado})
+
+    if excel:
+        return respuesta_excel(datos['titulo'], [
+            ('Eventos', ['Folio', 'Fecha', 'Cliente', 'Evento', 'Venta total', 'IVA trasladado',
+                         'Ingreso sin IVA', 'Gasto facturado', 'IVA acreditable', 'Gasto sin factura',
+                         'Utilidad bruta'],
+             [(e['folio'], e['fecha'], e['cliente'], e['evento'], e['venta'], e['iva'], e['base'],
+               e['gasto_fiscal'], e['iva_acreditable'], e['gasto_nofiscal'], e['utilidad'])
+              for e in datos['eventos']]),
+            ('Gastos operativos', ['Categoría', 'Con factura', 'Base', 'IVA', 'Total'],
+             [(g['nombre'], 'Sí', g['base'], g['iva'], g['base'] + g['iva']) for g in datos['operativos_fiscales']]
+             + [(g['nombre'], 'No', None, None, g['total']) for g in datos['operativos_nofiscales']]),
+        ], nombre_archivo('Rentabilidad', fecha_inicio, fecha_fin, extension='xlsx'))
+
+    filename = nombre_archivo('Rentabilidad', fecha_inicio, fecha_fin)
+    return _render_pdf(request, 'reportes/pdf_rentabilidad.html', datos, filename)
+
+
+# ==========================================
+# 12. PAGOS RECIBIDOS
+# ==========================================
+
+@staff_member_required
+@permission_required('comercial.view_pago', raise_exception=True)
+def reporte_pagos(request):
+    """Pagos del periodo (cobros, reembolsos y cortesías), en PDF o Excel."""
+    from .services.comercial import PagosRecibidosService
+
+    fecha_inicio = _parse_fecha(request, 'fecha_inicio', timezone.now().date().replace(day=1))
+    fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
+    excel = request.GET.get('formato') == 'excel'
+
+    datos = PagosRecibidosService.generar(fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
+    datos['titulo'] = 'Pagos recibidos'
+    _registrar_reporte(request, 'PAGOS', fecha_inicio, fecha_fin, formato='EXCEL' if excel else 'PDF')
+
+    if excel:
+        return respuesta_excel(datos['titulo'], [
+            ('Pagos', ['Fecha', 'Folio', 'Cliente', 'Evento', 'Tipo', 'Método', 'Referencia',
+                       'Registró', 'Importe'],
+             [(p.fecha_pago, f"COT-{p.cotizacion_id:03d}", p.cotizacion.cliente.nombre,
+               p.cotizacion.nombre_evento, p.get_tipo_display(), p.get_metodo_display(),
+               p.referencia, p.usuario.get_username() if p.usuario else 'Sistema',
+               -p.monto if p.tipo == 'REEMBOLSO' else p.monto)
+              for p in datos['pagos']]),
+        ], nombre_archivo('Pagos', fecha_inicio, fecha_fin, extension='xlsx'))
+
+    filename = nombre_archivo('Pagos', fecha_inicio, fecha_fin)
+    return _render_pdf(request, 'reportes/pdf_pagos.html', datos, filename)

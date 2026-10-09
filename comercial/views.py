@@ -1,11 +1,9 @@
 import logging
 import math
-import os
 import re
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
-import openpyxl
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -21,15 +19,15 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.views.decorators.csrf import csrf_exempt
-from weasyprint import HTML
 
+from core_erp import impuestos
 from core_erp.documentos import nombre_archivo, render_pdf, respuesta_pdf
+from core_erp.excel import respuesta_excel
 
 from .models import (
     Cliente,
     Compra,
     Cotizacion,
-    Gasto,
     Insumo,
     ItemCotizacion,
     MovimientoInventario,
@@ -96,7 +94,7 @@ def _obtener_item_plantilla(categoria):
         return {
             'nombre': nombre,
             'proveedor': insumo.proveedor.nombre if insumo.proveedor else '',
-            'costo_unitario': float(insumo.costo_unitario),
+            'costo_unitario': insumo.costo_unitario,
             'proporcion': float(plantilla.proporcion),
             'insumo_id': insumo.id,
         }
@@ -145,8 +143,8 @@ def _obtener_item_plantilla(categoria):
                 nombre = f"{insumo.nombre} ({insumo.presentacion})"
             return {
                 'nombre': nombre,
-                'proveedor': insumo.proveedor.nombre if insumo.proveedor else ' Sin proveedor',
-                'costo_unitario': float(insumo.costo_unitario),
+                'proveedor': insumo.proveedor.nombre if insumo.proveedor else PROVEEDOR_SIN_ASIGNAR,
+                'costo_unitario': insumo.costo_unitario,
                 'proporcion': 1.0,
                 'insumo_id': insumo.id,
                 '_via_fallback': True,
@@ -155,12 +153,16 @@ def _obtener_item_plantilla(categoria):
     return None
 
 
+PROVEEDOR_SIN_ASIGNAR = 'Sin proveedor asignado'
+PROVEEDOR_POR_CONFIGURAR = 'Configurar en Plantilla de Barra'
+
+
 def _fallback_item(nombre_generico):
     """Devuelve un item con datos genéricos cuando no hay plantilla configurada."""
     return {
         'nombre': nombre_generico,
-        'proveedor': ' Sin asignar',
-        'costo_unitario': 0,
+        'proveedor': PROVEEDOR_SIN_ASIGNAR,
+        'costo_unitario': Decimal('0'),
         'proporcion': 1.0,
         'insumo_id': None,
     }
@@ -180,9 +182,10 @@ def _agregar_a_lista(lista, seccion, item_nombre, cantidad, unidad, nota='', pro
         entry['nota'] = nota
     if proveedor:
         entry['proveedor'] = proveedor
+        entry['proveedor_pendiente'] = proveedor in (PROVEEDOR_SIN_ASIGNAR, PROVEEDOR_POR_CONFIGURAR)
     if costo_unitario > 0:
         entry['costo_unitario'] = costo_unitario
-        entry['costo_total'] = round(costo_unitario * cantidad, 2)
+        entry['costo_total'] = (costo_unitario * cantidad).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     lista[seccion].append(entry)
 
@@ -218,7 +221,7 @@ def generar_lista_compras_barra(cotizacion):
             else:
                 cant = math.ceil(b * default_prop)
                 if cant > 0:
-                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
+                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=PROVEEDOR_POR_CONFIGURAR)
 
     if datos['botellas_premium'] > 0:
         b = datos['botellas_premium']
@@ -237,7 +240,7 @@ def generar_lista_compras_barra(cotizacion):
             else:
                 cant = math.ceil(b * default_prop)
                 if cant > 0:
-                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
+                    _agregar_a_lista(lista_compras, 'Licores y Alcohol', fallback_nombre, cant, 'Botellas', proveedor=PROVEEDOR_POR_CONFIGURAR)
 
     if l := datos['litros_mezcladores']:
         mapeo_mezcladores = [
@@ -253,7 +256,7 @@ def generar_lista_compras_barra(cotizacion):
                 if p:
                     _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', p['nombre'], cant, 'Botellas', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
                 else:
-                    _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', fallback_nombre, cant, 'Botellas', proveedor=' Configurar en Plantilla de Barra')
+                    _agregar_a_lista(lista_compras, 'Bebidas y Mezcladores', fallback_nombre, cant, 'Botellas', proveedor=PROVEEDOR_POR_CONFIGURAR)
 
     if datos['litros_agua'] > 0:
         p = _obtener_item_plantilla('AGUA_NATURAL') or _fallback_item('Agua Natural (Garrafón 20L)')
@@ -284,11 +287,6 @@ def generar_lista_compras_barra(cotizacion):
 
     p = _obtener_item_plantilla('SERVILLETAS') or _fallback_item('Servilletas / Popotes')
     _agregar_a_lista(lista_compras, 'Abarrotes y Consumibles', p['nombre'], 1, 'Kit', proveedor=p['proveedor'], costo_unitario=p['costo_unitario'])
-
-    for seccion, items in lista_compras.items():
-        for item in items:
-            if 'costo_total' not in item and item.get('costo_unitario', 0) > 0:
-                item['costo_total'] = round(item['costo_unitario'] * item['cantidad'], 2)
 
     return lista_compras
 
@@ -508,20 +506,13 @@ def ver_dashboard_kpis(request):
 @permission_required('comercial.view_cotizacion', raise_exception=True)
 def descargar_lista_compras_pdf(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    lista_insumos = generar_lista_compras_barra(cotizacion)
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-
-    html_string = render_to_string('pdf_lista_compras.html', {
-        'cotizacion': cotizacion, 'lista': lista_insumos, 'logo_url': logo_url, 'fecha_impresion': timezone.now()
-    })
-
-    html = HTML(string=html_string, base_url=request.build_absolute_uri())
-    result = html.write_pdf()
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename=Checklist_Barra_{cotizacion.id}.pdf'
-    response.write(result)
-    return response
+    lista = generar_lista_compras_barra(cotizacion)
+    total = sum((i.get('costo_total', Decimal('0')) for items in lista.values() for i in items), Decimal('0'))
+    return respuesta_pdf('pdf_lista_compras.html', {
+        'titulo': 'Lista de compras de barra',
+        'cotizacion': cotizacion, 'lista': lista, 'total_estimado': total,
+        'pendientes': sum(1 for items in lista.values() for i in items if i.get('proveedor_pendiente')),
+    }, nombre_archivo('ListaCompras', f"COT-{cotizacion.id:03d}"), request=request)
 
 # ==========================================
 # 3. PDF Y EMAIL
@@ -601,196 +592,20 @@ def enviar_cotizacion_email(request, cotizacion_id):
 def exportar_cierre_excel(request):
     if not (request.user.is_superuser or request.user.groups.filter(name='Gerencia').exists()):
         return redirect('/admin/')
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     hoy = timezone.localdate()
-    response['Content-Disposition'] = f'attachment; filename="Contabilidad_{hoy.strftime("%B_%Y")}.xlsx"'
-    wb = openpyxl.Workbook()
-    ws_ingresos = wb.active
-    ws_ingresos.title = "Ingresos"
-    ws_ingresos.append(['Fecha', 'Cliente', 'Monto', 'Metodo'])
-    for p in Pago.objects.filter(fecha_pago__month=hoy.month):
-        ws_ingresos.append([p.fecha_pago, p.cotizacion.cliente.nombre, p.monto, p.metodo])
-    ws_gastos = wb.create_sheet(title="Gastos")
-    ws_gastos.append(['Fecha', 'Proveedor', 'Total Factura', 'RFC Emisor'])
-    for c in Compra.objects.filter(fecha_emision__month=hoy.month):
-        ws_gastos.append([c.fecha_emision, c.proveedor_display, c.total, c.rfc_emisor])
-    wb.save(response)
-    return response
-
-@staff_member_required
-@permission_required('comercial.view_cotizacion', raise_exception=True)
-def exportar_reporte_cotizaciones(request):
-    if request.method != 'POST':
-        return render(request, 'comercial/reporte_form.html')
-    fecha_inicio = request.POST.get('fecha_inicio')
-    fecha_fin = request.POST.get('fecha_fin')
-    estado = request.POST.get('estado')
-
-    cotizaciones = Cotizacion.objects.all().select_related('cliente').prefetch_related('gasto_set__compra').order_by('fecha_evento')
-
-    if fecha_inicio:
-        cotizaciones = cotizaciones.filter(fecha_evento__gte=fecha_inicio)
-    if fecha_fin:
-        cotizaciones = cotizaciones.filter(fecha_evento__lte=fecha_fin)
-    if estado and estado != 'TODAS':
-        cotizaciones = cotizaciones.filter(estado=estado)
-
-    t_subtotal = Decimal(0)
-    t_descuento = Decimal(0)
-    t_base_real = Decimal(0)
-    t_total_ventas = Decimal(0)
-    t_iva_trasladado = Decimal(0)
-    t_ret_isr = Decimal(0)
-    t_gastos_ev_fiscal_base = Decimal(0)
-    t_gastos_ev_fiscal_iva = Decimal(0)
-    t_gastos_ev_nofiscal = Decimal(0)
-    t_gastos_op_fiscal_base = Decimal(0)
-    t_gastos_op_fiscal_iva = Decimal(0)
-    t_gastos_op_nofiscal = Decimal(0)
-    datos_tabla = []
-
-    for c in cotizaciones:
-        base_real_venta = c.subtotal - c.descuento
-        t_subtotal += c.subtotal
-        t_descuento += c.descuento
-        t_base_real += base_real_venta
-        t_iva_trasladado += c.iva
-        t_ret_isr += c.retencion_isr
-        t_total_ventas += c.precio_final
-
-        ev_fiscal_base = Decimal(0)
-        ev_fiscal_iva = Decimal(0)
-        ev_nofiscal = Decimal(0)
-
-        gastos_evento = c.gasto_set.all()
-
-        for g in gastos_evento:
-            total_linea = g.total_linea or Decimal(0)
-            compra = g.compra
-            if compra.uuid:
-                if compra.total > 0 and compra.iva > 0:
-                    factor = total_linea / compra.total
-                    iva_prop = factor * compra.iva
-                    base_prop = total_linea - iva_prop
-                else:
-                    iva_prop = Decimal(0)
-                    base_prop = total_linea
-                ev_fiscal_base += base_prop
-                ev_fiscal_iva += iva_prop
-            else:
-                ev_nofiscal += total_linea
-
-        t_gastos_ev_fiscal_base += ev_fiscal_base
-        t_gastos_ev_fiscal_iva += ev_fiscal_iva
-        t_gastos_ev_nofiscal += ev_nofiscal
-        utilidad_bruta = base_real_venta - (ev_fiscal_base + ev_nofiscal)
-
-        datos_tabla.append({
-            'folio': c.id, 'fecha': c.fecha_evento, 'cliente': c.cliente.nombre,
-            'producto': c.nombre_evento, 'base_real_venta': base_real_venta,
-            'iva_trasladado': c.iva, 'venta_total': c.precio_final,
-            'gasto_fiscal_base': ev_fiscal_base, 'gasto_nofiscal': ev_nofiscal,
-            'iva_acreditable': ev_fiscal_iva, 'utilidad': utilidad_bruta
-        })
-
-    gastos_qs = Gasto.objects.filter(evento_relacionado__isnull=True).select_related('compra')
-    if fecha_inicio:
-        gastos_qs = gastos_qs.filter(fecha_gasto__gte=fecha_inicio)
-    if fecha_fin:
-        gastos_qs = gastos_qs.filter(fecha_gasto__lte=fecha_fin)
-
-    ops_fiscales = []
-    ops_nofiscales = []
-
-    for g in gastos_qs:
-        total_linea = g.total_linea or Decimal(0)
-        compra = g.compra
-        if compra.uuid:
-            if compra.total > 0 and compra.iva > 0:
-                factor = total_linea / compra.total
-                iva_prop = factor * compra.iva
-                base_prop = total_linea - iva_prop
-            else:
-                iva_prop = Decimal(0)
-                base_prop = total_linea
-            t_gastos_op_fiscal_base += base_prop
-            t_gastos_op_fiscal_iva += iva_prop
-
-            found = False
-            for item in ops_fiscales:
-                if item['cat'] == g.categoria:
-                    item['base'] += base_prop
-                    item['iva'] += iva_prop
-                    item['total'] += total_linea
-                    found = True
-                    break
-            if not found:
-                ops_fiscales.append({'cat': g.categoria, 'base': base_prop, 'iva': iva_prop, 'total': total_linea})
-        else:
-            t_gastos_op_nofiscal += total_linea
-            found = False
-            for item in ops_nofiscales:
-                if item['cat'] == g.categoria:
-                    item['total'] += total_linea
-                    found = True
-                    break
-            if not found:
-                ops_nofiscales.append({'cat': g.categoria, 'total': total_linea})
-
-    cat_labels = dict(Gasto.CATEGORIAS)
-    gastos_operativos_fiscales_list = [{'nombre': cat_labels.get(item['cat'], item['cat']), 'base': item['base'], 'iva': item['iva'], 'total': item['total']} for item in ops_fiscales]
-    gastos_operativos_nofiscales_list = [{'nombre': cat_labels.get(item['cat'], item['cat']), 'total': item['total']} for item in ops_nofiscales]
-
-    total_costos_deducibles = t_gastos_ev_fiscal_base + t_gastos_op_fiscal_base
-    total_costos_no_deducibles = t_gastos_ev_nofiscal + t_gastos_op_nofiscal
-    utilidad_neta_real = t_base_real - total_costos_deducibles - total_costos_no_deducibles
-    total_iva_acreditable = t_gastos_ev_fiscal_iva + t_gastos_op_fiscal_iva
-    iva_por_pagar = t_iva_trasladado - total_iva_acreditable
-
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-
-    context = {
-        'datos': datos_tabla, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'estado_filtro': estado,
-        'logo_url': logo_url, 't_base_real': t_base_real, 't_iva_trasladado': t_iva_trasladado, 't_venta_total': t_total_ventas,
-        't_ev_fiscal_base': t_gastos_ev_fiscal_base, 't_ev_nofiscal': t_gastos_ev_nofiscal, 't_ev_iva': t_gastos_ev_fiscal_iva,
-        't_op_fiscal_base': t_gastos_op_fiscal_base, 't_op_nofiscal': t_gastos_op_nofiscal, 't_op_iva': t_gastos_op_fiscal_iva,
-        'gastos_operativos_fiscales_list': gastos_operativos_fiscales_list, 'gastos_operativos_nofiscales_list': gastos_operativos_nofiscales_list,
-        'total_costos_base': total_costos_deducibles, 'total_costos_nofiscal': total_costos_no_deducibles, 'utilidad_neta_real': utilidad_neta_real,
-        'total_iva_acreditable': total_iva_acreditable, 'iva_por_pagar': iva_por_pagar
-    }
-
-    html = render_to_string('cotizaciones/pdf_reporte_ventas.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    filename = f"Estado_Resultados_{fecha_inicio if fecha_inicio else 'General'}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    HTML(string=html).write_pdf(response)
-    return response
-
-@staff_member_required
-@permission_required('comercial.view_pago', raise_exception=True)
-def exportar_reporte_pagos(request):
-    if request.method != 'POST':
-        return render(request, 'comercial/reporte_form.html', {'titulo': 'Generar Reporte Detallado de Pagos'})
-    fecha_inicio = request.POST.get('fecha_inicio')
-    fecha_fin = request.POST.get('fecha_fin')
-    pagos = Pago.objects.select_related('cotizacion', 'cotizacion__cliente', 'usuario').order_by('fecha_pago')
-    if fecha_inicio:
-        pagos = pagos.filter(fecha_pago__gte=fecha_inicio)
-    if fecha_fin:
-        pagos = pagos.filter(fecha_pago__lte=fecha_fin)
-    total_ingresos = pagos.aggregate(Sum('monto'))['monto__sum'] or Decimal(0)
-    metodos_data = pagos.values('metodo').annotate(total=Sum('monto')).order_by('-total')
-    resumen_metodos = [{'nombre': dict(Pago.METODOS).get(item['metodo'], item['metodo']), 'total': item['total'], 'porcentaje': (item['total'] / total_ingresos * 100) if total_ingresos > 0 else 0} for item in metodos_data]
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    context = {'pagos': pagos, 'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'total_ingresos': total_ingresos, 'resumen_metodos': resumen_metodos, 'logo_url': logo_url, 'generado_el': timezone.now()}
-    html = render_to_string('comercial/pdf_reporte_pagos.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    filename = f"Reporte_Pagos_{fecha_inicio if fecha_inicio else 'Historico'}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    HTML(string=html).write_pdf(response)
-    return response
+    pagos = Pago.objects.filter(
+        fecha_pago__year=hoy.year, fecha_pago__month=hoy.month,
+    ).select_related('cotizacion__cliente').order_by('fecha_pago')
+    compras = Compra.objects.filter(
+        fecha_emision__year=hoy.year, fecha_emision__month=hoy.month,
+    ).order_by('fecha_emision')
+    return respuesta_excel(f"Cierre {hoy:%m/%Y}", [
+        ('Ingresos', ['Fecha', 'Cliente', 'Tipo', 'Método', 'Monto'],
+         [(p.fecha_pago, p.cotizacion.cliente.nombre, p.get_tipo_display(), p.get_metodo_display(),
+           -p.monto if p.tipo == 'REEMBOLSO' else p.monto) for p in pagos]),
+        ('Gastos', ['Fecha', 'Proveedor', 'RFC emisor', 'Total factura'],
+         [(c.fecha_emision, c.proveedor_display, c.rfc_emisor, c.total) for c in compras]),
+    ], nombre_archivo('Cierre', f"{hoy:%Y-%m}", extension='xlsx'))
 
 # ==========================================
 # 5. FICHA TÉCNICA
@@ -799,24 +614,18 @@ def exportar_reporte_pagos(request):
 @permission_required('comercial.view_producto', raise_exception=True)
 def descargar_ficha_producto(request, producto_id):
     producto = get_object_or_404(Producto, id=producto_id)
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    if os.name == 'nt':
-        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
+    if producto.es_paquete:
+        incluye = [c.producto_hijo.nombre for c in producto.productos_incluidos.select_related('producto_hijo')]
     else:
-        logo_url = f"file://{ruta_logo}"
-    img_prod_url = ""
-    if producto.imagen_promocional:
-        img_prod_url = request.build_absolute_uri(producto.imagen_promocional.url)
-    context = {
-        'p': producto, 'logo_url': logo_url,
-        'img_prod_url': img_prod_url, 'fecha_impresion': timezone.now()
-    }
-    html_string = render_to_string('comercial/pdf_ficha_producto.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    filename = f"Ficha_{producto.nombre.replace(' ','_')}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    HTML(string=html_string).write_pdf(response)
-    return response
+        incluye = [c.subproducto.nombre for c in producto.componentes.select_related('subproducto')]
+    return respuesta_pdf('comercial/pdf_ficha_producto.html', {
+        'titulo': producto.nombre,
+        'p': producto,
+        'precio': impuestos.con_iva(Decimal(str(producto.sugerencia_precio()))),
+        'descripcion': producto.descripcion_corta or producto.descripcion,
+        'incluye': incluye,
+        'imagen': request.build_absolute_uri(producto.imagen_promocional.url) if producto.imagen_promocional else '',
+    }, nombre_archivo('Ficha', producto.nombre), request=request)
 
 # ==========================================
 # DASHBOARD CxC (CARTERA DE CLIENTES)
