@@ -73,7 +73,7 @@ class PlantillaContratoTest(ContratoPropioBase):
     def test_vista_previa_usa_el_contrato_propio_con_marca_de_agua(self):
         html = _html(self._cot('EVENTO'), vista_previa=True)
         self.assertIn('Anexo Evento', html)
-        self.assertIn('BORRADOR', html)
+        self.assertIn('doc-marca-agua">BORRADOR', html)
         self.assertNotIn('Arrendamiento de Salón', html)
         # El contrato viejo contradecía al Reglamento (pet friendly).
         self.assertNotIn('No se permite la entrada de animales', html)
@@ -102,7 +102,7 @@ class PlantillaContratoTest(ContratoPropioBase):
         Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('20000.00'))
         cot.refresh_from_db()
         html = _html(cot)
-        self.assertNotIn('marca-agua">BORRADOR', html)
+        self.assertNotIn('<div class="doc-marca-agua">', html)
         self.assertIn('$2,000.00 MXN', html)
         self.assertIn('1234-2026', html)
         self.assertNotIn('9341-2023', html)

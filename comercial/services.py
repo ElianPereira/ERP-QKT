@@ -746,8 +746,6 @@ class ContratoService:
 
     def _contexto_propio(self):
         """Datos que solo usan los contratos propios (marco + anexos)."""
-        import os
-
         from . import reglas_contrato as rc
         from .models import Cotizacion
         from .reglas_eventos import MAX_PERSONAS_EVENTO, MAX_PERSONAS_PASADIA
@@ -760,7 +758,6 @@ class ContratoService:
         return {
             'vista_previa':                 self.vista_previa,
             'version_modelo':               rc.VERSION_MODELO,
-            'fuentes_dir':                  f"file://{os.path.join(settings.BASE_DIR, 'static', 'fonts')}",
             'domicilio_inmueble':           'Carretera Tanil – Ticimul KM 1.920, C.P. 97390, Umán, Yucatán',
             'dias_pago_total':              Cotizacion.DIAS_PAGO_TOTAL.get(self.tipo, 15),
             'tiene_deposito':               self.dep > 0,
@@ -786,10 +783,7 @@ class ContratoService:
         """
         Genera el PDF del contrato y retorna (pdf_bytes, numero_contrato).
         """
-        import os
-
-        from django.template.loader import render_to_string
-        from weasyprint import HTML
+        from core_erp.documentos import render_pdf
 
         numero    = self._numero_contrato()
         folio     = f"COT-{self.cot.id:03d}"
@@ -813,9 +807,6 @@ class ContratoService:
             'EVENTO':  '☑ Evento   ☐ Pasadía',
             'PASADIA': '☐ Evento   ☑ Pasadía',
         }.get(self.tipo, '☐ Evento   ☐ Pasadía')
-
-        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-        logo_url  = f"file://{ruta_logo}" if os.name != 'nt' else f"file:///{ruta_logo.replace(os.sep, '/')}"
 
         context = {
             'numero':            numero,
@@ -841,7 +832,6 @@ class ContratoService:
             'saldo_str':         self._fmt_money(saldo),
             'deposito_str':      self._fmt_money(self.dep),
             'clausulas_tipo':    self._clausulas_tipo(),
-            'logo_url':          logo_url,
         }
 
         if self.tipo == 'HOSPEDAJE':
@@ -850,15 +840,14 @@ class ContratoService:
             context.update(self._contexto_propio())
             if self.vista_previa:
                 context['numero'] = numero = f"VP-{folio}"
+                context['marca_agua'] = 'BORRADOR'
             plantilla = 'contratos/propio/contrato.html'
         elif self.tipo == 'HOSPEDAJE':
             plantilla = 'contratos/contrato_hospedaje_pdf.html'
         else:
             plantilla = 'contratos/contrato_pdf.html'
-        html_string = render_to_string(plantilla, context)
-        pdf_bytes   = HTML(string=html_string).write_pdf()
-
-        return pdf_bytes, numero
+        context['titulo'] = f"Contrato {numero}"
+        return render_pdf(plantilla, context), numero
 
 
 def emitir_contrato(cotizacion, usuario=None, deposito=None):
@@ -871,12 +860,14 @@ def emitir_contrato(cotizacion, usuario=None, deposito=None):
     """
     from django.core.files.base import ContentFile
 
+    from core_erp.documentos import nombre_archivo
+
     from .models import ContratoServicio, Cotizacion
     from .services_deposito import asegurar_deposito
 
     servicio = ContratoService(cotizacion, deposito=deposito)
     pdf_bytes, numero = servicio.generar()
-    filename = f"Contrato_{numero}.pdf"
+    filename = nombre_archivo('Contrato', numero)
 
     contrato = ContratoServicio(
         cotizacion=cotizacion,

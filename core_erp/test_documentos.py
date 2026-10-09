@@ -29,6 +29,11 @@ PLANTILLAS_MIGRADAS = sorted(
         _BASE / 'comercial' / 'templates' / 'pdf_lista_compras.html',
         _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf_ficha_producto.html',
         _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf' / 'evidencia_contracargo.html',
+        # Fase 4: contratos (solo estilos; el texto no cambia).
+        _BASE / 'comercial' / 'templates' / 'contratos' / 'propio' / 'contrato.html',
+        _BASE / 'comercial' / 'templates' / 'contratos' / 'contrato_pdf.html',
+        _BASE / 'comercial' / 'templates' / 'contratos' / 'contrato_hospedaje_pdf.html',
+        _BASE / 'comercial' / 'templates' / 'contratos' / 'constancia_firma.html',
     ]
 )
 
@@ -102,7 +107,14 @@ class PlantillasMigradasTest(SimpleTestCase):
     """Guardián: lo migrado no vuelve a los estilos sueltos."""
 
     def test_hay_plantillas_que_vigilar(self):
-        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 17)
+        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 21)
+
+    def test_anexos_del_contrato_sin_estilos_sueltos(self):
+        for ruta in (_BASE / 'comercial' / 'templates' / 'contratos' / 'propio').glob('_anexo_*.html'):
+            with self.subTest(anexo=ruta.name):
+                texto = ruta.read_text(encoding='utf-8')
+                self.assertNotIn('style=', texto)
+                self.assertIsNone(re.search(r'#[0-9A-Fa-f]{6}\b', texto))
 
     def test_extienden_la_base_y_usan_los_componentes(self):
         for ruta in PLANTILLAS_MIGRADAS:

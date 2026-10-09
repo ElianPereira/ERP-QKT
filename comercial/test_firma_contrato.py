@@ -113,10 +113,15 @@ class FirmarTest(FirmaBase):
         pdf = firma.archivo_firmado.open('rb').read()
         self.assertEqual(firma.hash_firmado, sha256(pdf))
         # Original sin tocar + una hoja de constancia.
-        self.assertEqual(len(pypdfium2.PdfDocument(pdf)), 2)
+        documento = pypdfium2.PdfDocument(pdf)
+        self.assertEqual(len(documento), 2)
+        constancia = documento[1].get_textpage().get_text_range()
+        self.assertIn('Constancia de firma electrónica', constancia)
+        self.assertIn(f'Contrato {self.contrato.numero}', constancia)
         # Copia al cliente con el PDF firmado.
         copia = mail.outbox[-1]
         self.assertIn('firmado', copia.subject)
+        self.assertTrue(copia.attachments[0][0].startswith('QKT_Contrato_'))
         self.assertEqual(copia.attachments[0][2], 'application/pdf')
 
     def test_codigo_incorrecto_cuenta_intentos_y_bloquea(self):

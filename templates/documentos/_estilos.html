@@ -214,3 +214,186 @@ table.doc-tabla tbody tr.detalle:nth-child(even) td { background: transparent; }
 .negrita { font-weight: 700; }
 .sin-cortes { page-break-inside: avoid; }
 .salto-pagina { page-break-before: always; }
+
+/* ===== CONTRATOS (doc--contractual) =====
+   Identidad del contrato propio y de los documentos legales (legal/documento.html):
+   portada en Cormorant, cláusulas justificadas, tablas claras. Los contratos basados
+   en el modelo PROFECO usan la misma identidad con sus propias clases. */
+@page contractual { margin: 2cm 2.2cm 2.2cm 2.2cm; }
+.doc--contractual { page: contractual; }
+
+/* Portada */
+.doc--contractual .barra { display: table; width: 100%; padding-bottom: 10px; border-bottom: 1px solid var(--linea); }
+.doc--contractual .barra img { height: 34px; vertical-align: middle; }
+.doc--contractual .barra .marca {
+  font-family: 'Cormorant Garamond', serif; font-size: 15pt; font-weight: 600;
+  color: var(--verde-oscuro); vertical-align: middle; margin-left: 8px;
+}
+.doc--contractual .portada { text-align: center; margin: 22px 0 18px; }
+.doc--contractual .portada h1 {
+  font-family: 'Cormorant Garamond', serif; font-size: 24pt; font-weight: 600;
+  color: var(--verde-oscuro); line-height: 1.15; margin-bottom: 4px;
+}
+.doc--contractual .portada .servicio {
+  font-size: 8.5pt; font-weight: 700; color: var(--verde);
+  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px;
+}
+.doc--contractual .sello {
+  display: inline-block; font-size: 8pt; color: var(--tinta-2);
+  border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea); padding: 6px 14px;
+}
+.doc--contractual .sello span { margin: 0 7px; }
+
+/* Encabezados */
+.doc--contractual h2 {
+  font-family: 'Cormorant Garamond', serif; font-size: 15pt; font-weight: 600;
+  color: var(--verde-oscuro); margin: 20px 0 8px; padding-bottom: 4px;
+  border-bottom: 2px solid var(--verde); page-break-after: avoid;
+}
+.doc--contractual h3 {
+  font-size: 10pt; font-weight: 700; color: var(--verde-oscuro);
+  margin: 14px 0 5px; page-break-after: avoid;
+}
+.doc--contractual h4 {
+  font-size: 8.5pt; font-weight: 700; color: var(--tinta); text-transform: uppercase;
+  letter-spacing: .5px; margin: 10px 0 4px; page-break-after: avoid;
+}
+.doc--contractual h4.separado { margin-top: 22px; }
+
+.doc--contractual p { margin: 0 0 7px; text-align: justify; }
+.doc--contractual strong { font-weight: 600; }
+.doc--contractual em { color: var(--tinta-2); }
+.doc--contractual ol, .doc--contractual ul { margin: 0 0 8px 18px; }
+.doc--contractual li { margin-bottom: 4px; }
+.doc--contractual li::marker { color: var(--verde); font-weight: 600; }
+.doc--contractual ol.incisos { list-style-type: lower-alpha; }
+
+/* Tablas: mismo trato que las del sitio */
+.doc--contractual table {
+  width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 9pt;
+  border: 1px solid var(--linea); page-break-inside: avoid;
+}
+.doc--contractual thead th {
+  background: var(--fondo-suave); color: var(--verde-oscuro); font-weight: 700; font-size: 7.5pt;
+  text-transform: uppercase; letter-spacing: .5px; padding: 6px 8px; text-align: left;
+  border-bottom: 2px solid var(--linea);
+}
+.doc--contractual tbody td { padding: 5px 8px; border-bottom: 1px solid var(--linea-suave); vertical-align: top; }
+.doc--contractual tbody tr:nth-child(even) { background: var(--fondo-suave); }
+.doc--contractual td.dato { width: 36%; font-weight: 600; color: var(--verde-oscuro); }
+.doc--contractual td.num { text-align: right; white-space: nowrap; }
+.doc--contractual td.hash { font-family: monospace; font-size: 7.5pt; word-break: break-all; }
+
+/* Nota destacada: el blockquote de los documentos legales */
+.doc--contractual .nota {
+  border-left: 3px solid var(--verde); background: var(--verde-bg);
+  padding: 8px 12px; margin: 4px 0 10px; font-size: 9pt; page-break-inside: avoid;
+}
+.doc--contractual .nota p:last-child { margin-bottom: 0; }
+
+.doc--contractual .pequeno { font-size: 8pt; color: var(--tinta-2); }
+.doc--contractual .centrado { text-align: center; }
+.doc--contractual .salto { page-break-before: always; }
+.doc--contractual .cierre { page-break-inside: avoid; }
+
+/* Firmas */
+.doc--contractual .firmas { display: table; width: 100%; margin-top: 30px; page-break-inside: avoid; }
+.doc--contractual .firma { display: table-cell; width: 50%; text-align: center; padding: 0 14px; vertical-align: bottom; }
+.doc--contractual .firma .espacio { height: 46px; }
+.doc--contractual .firma .linea { border-top: 1px solid var(--tinta); margin-bottom: 4px; }
+.doc--contractual .firma .nombre { font-weight: 700; font-size: 8.5pt; }
+.doc--contractual .firma .rol { font-size: 7.5pt; color: var(--tinta-2); text-transform: uppercase; letter-spacing: .5px; }
+.doc--contractual .casilla { display: inline-block; width: 9px; height: 9px; border: 1px solid var(--tinta-2); margin: 0 3px -1px 0; }
+
+/* Constancia de firma electrónica */
+.doc--contractual .firma-trazo { text-align: center; margin: 14px 0 4px; }
+.doc--contractual .firma-trazo img { max-height: 90px; max-width: 70%; }
+.doc--contractual .firmas--una { margin-top: 0; }
+.doc--contractual .firmas--una .firma { width: 100%; }
+.doc--contractual .firmas--una .linea { width: 60%; margin: 0 auto 4px; }
+
+/* Vista previa: no es un contrato emitido */
+.doc--contractual .doc-marca-agua {
+  font-family: 'Cormorant Garamond', serif; font-size: 90pt; font-weight: 600;
+  color: rgba(198, 40, 40, .09);
+}
+
+/* --- Contratos basados en el modelo PROFECO (CONTRATO_PROPIO_ACTIVO=False) --- */
+.doc--contractual .header { text-align: center; margin-bottom: 14px; }
+.doc--contractual .header--anexo { margin-bottom: 12px; }
+.doc--contractual .header .logo { height: 46px; margin-bottom: 6px; }
+.doc--contractual .header .titulo {
+  font-family: 'Cormorant Garamond', serif; font-size: 20pt; font-weight: 600;
+  color: var(--verde-oscuro); line-height: 1.15;
+}
+.doc--contractual .header .subtitulo {
+  font-size: 8.5pt; font-weight: 700; color: var(--verde);
+  text-transform: uppercase; letter-spacing: 1.2px; margin-top: 4px;
+}
+.doc--contractual .folio-bar {
+  font-size: 8pt; color: var(--tinta-2); margin-top: 8px; padding: 6px 0;
+  border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea);
+}
+.doc--contractual .profeco-bar {
+  border-left: 3px solid var(--verde); background: var(--verde-bg); color: var(--verde-oscuro);
+  padding: 6px 10px; font-size: 8pt; margin-top: 8px; text-align: center;
+}
+
+.doc--contractual .seccion { margin-top: 13px; margin-bottom: 5px; }
+.doc--contractual .seccion-titulo {
+  font-family: 'Cormorant Garamond', serif; font-size: 15pt; font-weight: 600;
+  color: var(--verde-oscuro); border-bottom: 2px solid var(--verde);
+  padding-bottom: 3px; margin-bottom: 7px; page-break-after: avoid;
+}
+.doc--contractual .glosario-item { margin-bottom: 4px; }
+.doc--contractual .glosario-item strong { color: var(--verde-oscuro); }
+.doc--contractual .decl-bloque { margin-bottom: 8px; page-break-inside: avoid; }
+.doc--contractual .decl-titulo { font-weight: 700; color: var(--verde-oscuro); margin-bottom: 5px; }
+/* Incisos con letra explícita: WeasyPrint no respeta ol type="a" */
+.doc--contractual .decl-inciso { margin: 0 0 3px 12px; text-align: justify; }
+
+.doc--contractual .tabla-campos td { border: 1px solid var(--linea); padding: 4px 8px; }
+.doc--contractual .tabla-campos td.label { width: 33%; font-weight: 600; color: var(--verde-oscuro); }
+.doc--contractual .tabla-cancel th {
+  background: var(--fondo-suave); color: var(--verde-oscuro); font-size: 7.5pt; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .5px; padding: 6px 8px; text-align: center;
+  border-bottom: 2px solid var(--linea);
+}
+.doc--contractual .tabla-cancel td { border: 1px solid var(--linea); padding: 4px 8px; text-align: center; }
+.doc--contractual .tabla-cancel td:first-child { text-align: left; }
+.doc--contractual .verde { color: var(--verde); font-weight: 700; }
+.doc--contractual .rojo { color: var(--error); font-weight: 700; }
+
+.doc--contractual .bold { font-weight: 700; }
+.doc--contractual .small { font-size: 8.5pt; color: var(--tinta-2); }
+.doc--contractual .italic { font-style: italic; }
+.doc--contractual .cierre-registro { margin-top: 10px; text-align: center; }
+.doc--contractual .pie-contrato { margin-top: 14px; text-align: center; }
+
+.doc--contractual .lista-obligaciones { margin: 0 0 6px 14px; }
+.doc--contractual .lista-obligaciones .item { margin-bottom: 3px; text-align: justify; padding-left: 10px; text-indent: -10px; }
+.doc--contractual .lista-obligaciones .item::before { content: "— "; color: var(--verde-oscuro); font-weight: 700; }
+
+.doc--contractual .aviso {
+  border-left: 3px solid var(--verde); background: var(--verde-bg);
+  padding: 7px 11px; margin: 8px 0; font-size: 9pt; page-break-inside: avoid;
+}
+.doc--contractual .autorizacion-box {
+  border: 1px solid var(--linea); padding: 10px 14px; margin-top: 18px; font-size: 9pt; page-break-inside: avoid;
+}
+.doc--contractual .check-row { margin: 5px 0; }
+.doc--contractual .autorizacion-firma { margin-top: 24px; text-align: center; }
+.doc--contractual .autorizacion-firma .linea { border-top: 1px solid var(--tinta); width: 60%; margin: 0 auto 4px; }
+.doc--contractual .autorizacion-firma .nombre { font-size: 9pt; font-weight: 700; }
+
+.doc--contractual .firmas--separadas { margin-top: 24px; }
+.doc--contractual .firma-col { display: table-cell; width: 50%; text-align: center; padding: 0 10px; vertical-align: bottom; }
+.doc--contractual .firma-linea { border-top: 1px solid var(--tinta); margin: 38px 0 4px; }
+.doc--contractual .firma-nombre { font-size: 9pt; font-weight: 700; }
+.doc--contractual .firma-rol { font-size: 8pt; color: var(--tinta-2); }
+.doc--contractual .firma-rfc { font-size: 8pt; color: var(--tinta-3); font-style: italic; }
+
+.doc--contractual .page-break { page-break-after: always; }
+.doc--contractual .parrafo-anexo { margin-bottom: 10px; }
+.doc--contractual ol.reglamento { margin-left: 20px; }
+.doc--contractual ol.reglamento li { margin-bottom: 5px; text-align: justify; }

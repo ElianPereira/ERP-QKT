@@ -399,7 +399,7 @@ def portal_descargar_contrato(request, token):
     respuesta = FileResponse(
         archivo,
         as_attachment=False,
-        filename=f'Contrato_COT-{cotizacion.id:03d}.pdf',
+        filename=nombre_archivo('Contrato', f'COT-{cotizacion.id:03d}'),
         content_type='application/pdf',
     )
     respuesta['Cache-Control'] = 'private, no-store'

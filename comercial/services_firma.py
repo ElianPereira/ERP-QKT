@@ -13,11 +13,9 @@ import base64
 import hashlib
 import io
 import logging
-import os
 import secrets
 from datetime import timedelta
 
-from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.files.base import ContentFile
 from django.core.mail import EmailMultiAlternatives
@@ -25,6 +23,8 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
+
+from core_erp.documentos import nombre_archivo, render_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -157,19 +157,14 @@ def _decodificar_firma(data_url: str) -> bytes:
 def _pdf_firmado(contrato, firma, pdf_original: bytes, png: bytes) -> bytes:
     """Contrato original + hoja de constancia, unidos sin alterar el original."""
     import pypdfium2
-    from weasyprint import HTML
 
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    html = render_to_string('contratos/constancia_firma.html', {
+    constancia = render_pdf('contratos/constancia_firma.html', {
+        'titulo': f'Constancia de firma — Contrato {contrato.numero}',
         'contrato': contrato,
         'cotizacion': contrato.cotizacion,
         'firma': firma,
         'firma_data_url': FIRMA_PNG_PREFIJO + base64.b64encode(png).decode(),
-        'logo_url': f"file://{ruta_logo}",
-        'fuentes_dir': f"file://{os.path.join(settings.BASE_DIR, 'static', 'fonts')}",
-        'numero': contrato.numero,
     })
-    constancia = HTML(string=html).write_pdf()
 
     documento = pypdfium2.PdfDocument(pdf_original)
     documento.import_pages(pypdfium2.PdfDocument(constancia))
@@ -234,7 +229,7 @@ def firmar(contrato, *, codigo, firma_data_url, nombre, ip, user_agent,
 
         pdf = _pdf_firmado(contrato, firma, pdf_original, png)
         firma.hash_firmado = sha256(pdf)
-        firma.archivo_firmado.save(f'Contrato_{contrato.numero}_firmado.pdf', ContentFile(pdf), save=False)
+        firma.archivo_firmado.save(nombre_archivo('Contrato', contrato.numero, 'firmado'), ContentFile(pdf), save=False)
         firma.save()
 
     transaction.on_commit(lambda: _enviar_copia_firmada(firma.pk))
@@ -256,7 +251,7 @@ def _enviar_copia_firmada(firma_pk):
             asunto=f"Tu contrato {firma.contrato.numero} firmado",
             template='comunicacion/email/contrato_firmado.html',
             context={'cotizacion': cotizacion, 'firma': firma},
-            adjuntos=[(f'Contrato_{firma.contrato.numero}_firmado.pdf',
+            adjuntos=[(nombre_archivo('Contrato', firma.contrato.numero, 'firmado'),
                        _leer(firma.archivo_firmado), 'application/pdf')],
             clave_idempotencia=f'contrato:{firma.contrato_id}:firmado',
         )

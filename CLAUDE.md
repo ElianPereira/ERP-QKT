@@ -328,6 +328,19 @@ salvo que queden obsoletas.
   (`precio_base_publico`, `descripcion_whatsapp`) y un contacto falso (999 999
   9999); **(6)** el Excel de cierre filtraba solo por mes, sin año. De paso,
   `hora_ampm` pasa un `datetime` con zona a hora local (mostraba UTC).
+  **Fase 4** (contratos, solo estilos): contrato propio, los dos PROFECO
+  (`CONTRATO_PROPIO_ACTIVO=False`) y la constancia de firma extienden
+  `documentos/_base.html` con variante `contractual`; sus estilos viven en
+  `_estilos.html` acotados a `.doc--contractual` (margen propio vía página
+  nombrada `@page contractual`) y se borraron `_estilos_contrato.html` y
+  `propio/_estilos.html`. La base ganó los bloques `encabezado` (la portada del
+  contrato lo sustituye), `pie` y `paginacion`. **El texto no cambió**:
+  verificado palabra por palabra contra los PDF previos (7 variantes, mismas
+  páginas). Los PROFECO pasan de Arial a la identidad del propio (IBM Plex,
+  títulos en Cormorant); las casillas ☑/☐ siguen en la fuente del sistema
+  porque Plex no las trae. Archivos `QKT_Contrato_<número>.pdf` (y
+  `_firmado`). Ojo: el contrato PROFECO de evento y su glosario dicen «Mérida»
+  (texto registrado, no se tocó).
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).

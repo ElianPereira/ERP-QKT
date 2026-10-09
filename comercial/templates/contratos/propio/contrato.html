@@ -1,15 +1,10 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Contrato {{ numero }} — Quinta Ko'ox Tanil</title>
-  {% include 'contratos/propio/_estilos.html' %}
-</head>
-<body>
-{% if vista_previa %}<div class="marca-agua">BORRADOR</div>{% endif %}
+{% extends "documentos/_base.html" %}
+{% block variante %}contractual{% endblock %}
+{% block pie %}"Contrato {{ numero }}"{% endblock %}
 
+{% block encabezado %}
 <div class="barra">
-  {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}<span class="marca">Quinta Ko'ox Tanil</span>
+  <img src="{{ doc_logo }}" alt=""><span class="marca">Quinta Ko'ox Tanil</span>
 </div>
 
 <div class="portada">
@@ -23,7 +18,9 @@
     {% if registro_profeco %}<span>Registro PROFECO <strong>{{ registro_profeco }}</strong></span>{% endif %}
   </div>
 </div>
+{% endblock %}
 
+{% block contenido %}
 {% if vista_previa %}
 <div class="nota">
   <p><strong>Vista previa para revisión.</strong> Este documento no es un contrato emitido ni tiene
@@ -247,13 +244,13 @@
   </div>
 </div>
 
-<h4 style="margin-top: 22px;">Autorización de uso de datos con fines publicitarios</h4>
+<h4 class="separado">Autorización de uso de datos con fines publicitarios</h4>
 <p class="pequeno">
   <span class="casilla"></span>Sí <span class="casilla"></span>No — acepto que LA QUINTA me envíe publicidad sobre sus servicios.<br>
   <span class="casilla"></span>Sí <span class="casilla"></span>No — acepto que LA QUINTA transmita mis datos a terceros con fines mercadotécnicos o publicitarios.
 </p>
 {% if registro_profeco %}
-<p class="pequeno" style="text-align: center; margin-top: 10px;">
+<p class="pequeno centrado cierre-registro">
   Este contrato está registrado ante la Procuraduría Federal del Consumidor con el número
   <strong>{{ registro_profeco }}</strong>. Cualquier variación en perjuicio de EL CLIENTE frente al contrato
   registrado se tendrá por no puesta.
@@ -282,6 +279,4 @@
     <div class="rol">EL CLIENTE — de conformidad con el Anexo</div>
   </div>
 </div>
-
-</body>
-</html>
+{% endblock %}

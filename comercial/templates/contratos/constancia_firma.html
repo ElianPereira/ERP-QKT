@@ -1,28 +1,21 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Constancia de firma — Contrato {{ contrato.numero }}</title>
-  {% include 'contratos/propio/_estilos.html' %}
-  <style>
-    .firma-trazo { text-align: center; margin: 14px 0 4px; }
-    .firma-trazo img { max-height: 90px; max-width: 70%; }
-    /* La hoja va al final del contrato: su propio contador diría "1 de 1". */
-    @page { @bottom-right { content: "Constancia de firma"; } }
-    .hash { font-family: monospace; font-size: 7.5pt; word-break: break-all; color: #2c2b28; }
-  </style>
-</head>
-<body>
+{% extends "documentos/_base.html" %}
+{% block variante %}contractual{% endblock %}
+{% block pie %}"Contrato {{ contrato.numero }}"{% endblock %}
+{# La hoja va al final del contrato: su propio contador diría "1 de 1". #}
+{% block paginacion %}"Constancia de firma"{% endblock %}
 
+{% block encabezado %}
 <div class="barra">
-  {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}<span class="marca">Quinta Ko'ox Tanil</span>
+  <img src="{{ doc_logo }}" alt=""><span class="marca">Quinta Ko'ox Tanil</span>
 </div>
 
 <div class="portada">
   <h1>Constancia de firma electrónica</h1>
   <div class="servicio">Contrato {{ contrato.numero }} · Cotización COT-{{ cotizacion.id|stringformat:"03d" }}</div>
 </div>
+{% endblock %}
 
+{% block contenido %}
 <p>
   EL CLIENTE firmó por medios electrónicos el contrato que antecede a esta hoja, conforme a los artículos 89 y
   siguientes del Código de Comercio y 1803 y 1834 bis del Código Civil Federal. Las páginas anteriores son el
@@ -30,9 +23,9 @@
 </p>
 
 <div class="firma-trazo"><img src="{{ firma_data_url }}" alt="Firma"></div>
-<div class="firmas" style="margin-top: 0;">
-  <div class="firma" style="width: 100%;">
-    <div class="linea" style="width: 60%; margin: 0 auto 4px;"></div>
+<div class="firmas firmas--una">
+  <div class="firma">
+    <div class="linea"></div>
     <div class="nombre">{{ firma.nombre_firmante|upper }}</div>
     <div class="rol">EL CLIENTE</div>
   </div>
@@ -56,6 +49,4 @@
   disposición de EL CLIENTE en su portal. Para verificar su integridad, la huella SHA-256 de las páginas del contrato debe
   coincidir con la indicada arriba; LA QUINTA conserva además la huella de este documento completo.</p>
 </div>
-
-</body>
-</html>
+{% endblock %}
