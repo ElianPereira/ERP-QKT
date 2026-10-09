@@ -135,6 +135,13 @@
                     <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</button>
                 </div>
             </form>
+
+            {% url 'reportes:flujo' as accion %}
+            {% include "reportes/_form_periodo.html" with titulo="Flujo de efectivo" icono="fa-water" desde=inicio_anio %}
+            {% if puede_conciliacion %}
+            {% url 'reportes:conciliacion' as accion %}
+            {% include "reportes/_form_periodo.html" with titulo="Conciliación bancaria" icono="fa-check-double" %}
+            {% endif %}
         </div>
         {% endif %}
 
@@ -211,6 +218,39 @@
                     </div>
                 </form>
                 {% endif %}
+
+                {% url 'reportes:ocupacion' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Ocupación" icono="fa-calendar-check" desde=inicio_anio %}
+                {% if puede_depositos %}
+                {% url 'reportes:depositos' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Depósitos en garantía" icono="fa-shield-alt" desde=inicio_anio %}
+                {% endif %}
+                {% if puede_cortesias %}
+                {% url 'reportes:cortesias' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Cortesías y descuentos" icono="fa-gift" desde=inicio_anio %}
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if puede_compras or puede_nomina %}
+            <div class="qkt-panel qkt-panel--error">
+                <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-receipt" aria-hidden="true"></i> Gastos y nómina</h2></div>
+                {% if puede_compras %}
+                {% url 'reportes:gastos' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Gastos por categoría" icono="fa-tags" %}
+                {% endif %}
+                {% if puede_nomina %}
+                {% url 'reportes:nomina' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Nómina por periodo" icono="fa-users" %}
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if puede_kooxi %}
+            <div class="qkt-panel">
+                <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fab fa-whatsapp" aria-hidden="true"></i> Agente Kooxi</h2></div>
+                {% url 'reportes:kooxi' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Uso, costo y conversión" icono="fa-robot" %}
             </div>
             {% endif %}
 

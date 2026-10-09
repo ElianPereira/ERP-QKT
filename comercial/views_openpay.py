@@ -79,8 +79,9 @@ def portal_ficha_paynet(request, token, openpay_id):
     por cotización, el token de un cliente serviría para leer la ficha de
     cualquier otro con solo cambiar el id en la URL.
     """
-    from django.template.loader import render_to_string
-    from weasyprint import HTML
+    from django.utils.dateparse import parse_datetime
+
+    from core_erp.documentos import nombre_archivo, render_pdf
 
     portal = _portal_vigente_o_404(token)
     del request  # solo se usa para el rate limit; el PDF no depende de él
@@ -92,19 +93,25 @@ def portal_ficha_paynet(request, token, openpay_id):
     datos = transaccion.payload_crudo or {}
     metodo_pago = datos.get('payment_method') or {}
 
+    # Openpay manda la fecha límite como texto ISO ('2026-08-10T23:59:00'); la
+    # ficha la imprimía tal cual.
+    vence = parse_datetime(str(metodo_pago.get('due_date') or datos.get('due_date') or ''))
+    if vence and timezone.is_aware(vence):
+        vence = timezone.localtime(vence)
+
     contexto = {
+        'titulo': 'Ficha de pago en efectivo',
         'cotizacion': portal.cotizacion,
         'cliente': portal.cotizacion.cliente,
         'monto': transaccion.monto,
         'referencia': metodo_pago.get('reference', '') or transaccion.referencia_pago,
         'barcode_url': metodo_pago.get('barcode_url', ''),
-        'due_date': metodo_pago.get('due_date') or datos.get('due_date', ''),
+        'vence': vence,
         'descripcion': datos.get('description', ''),
         'emitida': timezone.localtime(),
         # Los logotipos se resuelven a rutas de disco (ver _estatico_local):
-        # son 21 imágenes y bajarlas por HTTP haría 21 peticiones de red para
-        # armar cada ficha.
-        'logo': _estatico_local('img/logo.png'),
+        # son 20 imágenes y bajarlas por HTTP haría 20 peticiones de red para
+        # armar cada ficha. El del negocio lo pone la base del documento.
         'logo_paynet': _estatico_local('img/pagos/paynet.png'),
         'tiendas': [
             (_estatico_local(f'img/pagos/paynet/{slug}.png'), nombre)
@@ -112,13 +119,10 @@ def portal_ficha_paynet(request, token, openpay_id):
         ],
     }
 
-    html = render_to_string('portal/ficha_paynet.html', contexto)
-    pdf = HTML(string=html).write_pdf()
-
+    pdf = render_pdf('portal/ficha_paynet.html', contexto)
+    nombre = nombre_archivo('FichaPago', f'COT-{portal.cotizacion.id:03d}')
     respuesta = HttpResponse(pdf, content_type='application/pdf')
-    respuesta['Content-Disposition'] = (
-        f'inline; filename="Ficha-Paynet-COT-{portal.cotizacion.id:03d}.pdf"'
-    )
+    respuesta['Content-Disposition'] = f'inline; filename="{nombre}"'
     return respuesta
 
 

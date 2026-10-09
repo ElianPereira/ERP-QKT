@@ -341,6 +341,29 @@ salvo que queden obsoletas.
   porque Plex no las trae. Archivos `QKT_Contrato_<número>.pdf` (y
   `_firmado`). Ojo: el contrato PROFECO de evento y su glosario dicen «Mérida»
   (texto registrado, no se tocó).
+  **Fase 5** (reportes nuevos, PDF + Excel, en el Centro de reportes, cada uno
+  con el permiso de su área): nómina por periodo, gastos por categoría, flujo
+  de efectivo, ocupación, depósitos en garantía, cortesías y descuentos,
+  conciliación bancaria y Kooxi. Servicios en `reportes/services/operacion.py`
+  y `finanzas.py`; las vistas comparten `_entregar()` (registra en
+  `ReporteGenerado` y responde PDF o `?formato=excel`) y el selector usa
+  `reportes/_form_periodo.html`. Criterios no obvios: **nómina** entra al
+  periodo por el inicio de la semana (`ReciboNomina.periodo` es texto; si no
+  se puede leer, cuenta la fecha de generación); **flujo** sale de pólizas
+  APLICADAS sobre la cuenta contable de cada `CuentaBancaria` activa (saldo
+  según libros, no el del banco); **ocupación** solo cuenta ventas reales y
+  mide sobre los días vendibles (sin bloqueos), con los sábados y domingos
+  aparte; **cortesías** usa `Descuento.es_cortesia`, montos sin IVA y solo
+  pesan los de ventas reales. `comunicacion/services_tablero.py` ganó
+  `metricas_periodo(desde, hasta)`; `metricas_agente(dias)` la envuelve.
+  Pruebas con un febrero armado a mano en `reportes/test_reportes_fase5.py`.
+  **Ficha Paynet** (cierra el Issue #373; `views_openpay.py` tocado con
+  aprobación explícita): `portal/ficha_paynet.html` extiende la base (variante
+  `cliente`) y sale con `render_pdf` como `QKT_FichaPago_COT-NNN.pdf`. Conserva
+  los cinco elementos que Openpay exige (PAYNET, logotipos de cadenas,
+  referencia, código de barras y monto); la fecha límite ya no sale como texto
+  ISO crudo (`2026-08-10T23:59:00`) sino «10/08/2026 a las 11:59 p.m.». SPEI no
+  tiene ficha propia: es el recibo `/spei-pdf/` de Openpay.
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).

@@ -634,6 +634,16 @@ class CargoEfectivoSpeiTest(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta['Content-Type'], 'application/pdf')
         self.assertTrue(respuesta.content.startswith(b'%PDF'))
+        self.assertIn('QKT_FichaPago_COT-', respuesta['Content-Disposition'])
+        import io
+
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(respuesta.content)) as pdf:
+            texto = pdf.pages[0].extract_text()
+        self.assertIn('Ficha de pago en efectivo', texto)
+        self.assertIn('$1,000.00 MXN', texto)
+        self.assertIn('10/08/2026 a las 11:59 p.m.', texto)  # antes salía '2026-08-10T23:59:00'
+        self.assertIn('1010102410925001', texto)
 
         # El token de otro cliente no alcanza la ficha ajena.
         otra = _crear_cotizacion()

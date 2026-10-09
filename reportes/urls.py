@@ -28,4 +28,14 @@ urlpatterns = [
 
     # Facturación
     path('facturas/', views.reporte_facturas, name='facturas'),
+
+    # Fase 5 (Issue #373)
+    path('nomina/', views.reporte_nomina, name='nomina'),
+    path('gastos/', views.reporte_gastos, name='gastos'),
+    path('flujo/', views.reporte_flujo, name='flujo'),
+    path('ocupacion/', views.reporte_ocupacion, name='ocupacion'),
+    path('depositos/', views.reporte_depositos, name='depositos'),
+    path('cortesias/', views.reporte_cortesias, name='cortesias'),
+    path('conciliacion/', views.reporte_conciliacion, name='conciliacion'),
+    path('kooxi/', views.reporte_kooxi, name='kooxi'),
 ]

@@ -1,0 +1,12 @@
+{# Formulario de un reporte por periodo con PDF y Excel. Recibe accion, titulo, icono y, opcional, desde. #}
+<form method="get" action="{{ accion }}" target="_blank" class="qkt-panel__cuerpo">
+    <h3 class="qkt-reporte__titulo"><i class="fas {{ icono }}" aria-hidden="true"></i> {{ titulo }}</h3>
+    <div class="qkt-filtros-pagina">
+        <label class="qkt-campo"><span class="qkt-campo__label">Desde</span>
+            <input type="date" name="fecha_inicio" value="{{ desde|default:inicio_mes|date:'Y-m-d' }}"></label>
+        <label class="qkt-campo"><span class="qkt-campo__label">Hasta</span>
+            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}"></label>
+        <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</button>
+        <button type="submit" name="formato" value="excel" class="qkt-btn qkt-btn--secundario"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</button>
+    </div>
+</form>

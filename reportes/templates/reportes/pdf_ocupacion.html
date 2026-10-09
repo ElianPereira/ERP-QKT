@@ -1,0 +1,53 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Días con reservación vendida (confirmada, ejecutada o cerrada) y días cerrados por bloqueo{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }} ({{ dias_periodo }} días)</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ ocupacion }} %</div><div class="doc-kpi-etiqueta">Ocupación</div></div>
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ dias_ocupados }}</div><div class="doc-kpi-etiqueta">Días ocupados</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ dias_libres }}</div><div class="doc-kpi-etiqueta">Días libres</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ fines_ocupados }} / {{ fines_semana }}</div><div class="doc-kpi-etiqueta">Sábados y domingos ocupados ({{ ocupacion_fines }} %)</div></div>
+</div>
+
+{% if dias_bloqueados %}
+<div class="doc-resumen"><span><b>Días bloqueados:</b> {{ dias_bloqueados }} (mantenimiento o uso propio; no cuentan como disponibles)</span></div>
+{% endif %}
+
+<h2 class="doc-seccion">Por servicio</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Servicio</th><th class="num col-corta">Reservaciones</th><th class="num col-corta">Días</th><th class="num col-corta">Ocupación</th><th class="num col-corta">Personas</th><th class="num col-monto">Venta</th></tr></thead>
+  <tbody>
+    {% for t in tipos %}
+    <tr><td class="negrita">{{ t.nombre }}</td><td class="num">{{ t.reservaciones }}</td><td class="num">{{ t.dias }}</td>
+      <td class="num">{{ t.porcentaje }} %</td><td class="num">{{ t.personas }}</td><td class="num">{{ t.venta|moneda }}</td></tr>
+    {% empty %}
+    <tr><td colspan="6" class="vacio">Sin reservaciones en el periodo.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if reservaciones %}
+<h2 class="doc-seccion">Reservaciones</h2>
+<table class="doc-tabla">
+  <thead><tr><th class="col-folio">Folio</th><th class="centro col-fecha">Desde</th><th class="centro col-fecha">Hasta</th><th>Servicio</th>
+    <th>Cliente / evento</th><th class="num col-corta">Personas</th><th class="num col-corta">Días</th><th>Estado</th><th class="num col-monto">Venta</th></tr></thead>
+  <tbody>
+    {% for r in reservaciones %}
+    <tr><td class="codigo">{{ r.folio }}</td><td class="centro">{{ r.inicio|date:"d/m/Y" }}</td><td class="centro">{{ r.fin|date:"d/m/Y" }}</td>
+      <td>{{ r.tipo }}</td><td class="negrita">{{ r.cliente|truncatechars:30 }}<span class="doc-nota-linea">{{ r.evento|truncatechars:40 }}</span></td>
+      <td class="num">{{ r.personas }}</td><td class="num">{{ r.dias }}</td><td>{{ r.estado }}</td><td class="num">{{ r.venta|moneda }}</td></tr>
+    {% endfor %}
+    <tr class="total"><td colspan="8">Venta de las reservaciones</td><td class="num">{{ venta|moneda }}</td></tr>
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
+
+{% block notas %}Ocupación = días ocupados entre días disponibles (periodo menos bloqueados). Hospedaje cuenta cada noche; el día de salida no. La venta es el precio total de cada reservación, aunque parte de su estancia caiga fuera del periodo.{% endblock %}

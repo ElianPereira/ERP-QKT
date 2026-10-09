@@ -1,0 +1,65 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block subtitulo %}Recibos por empleado según el inicio de su periodo; los cancelados no cuentan{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ total|moneda }}</div><div class="doc-kpi-etiqueta">Nómina del periodo</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ pagado|moneda }}</div><div class="doc-kpi-etiqueta">Pagado</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ pendiente|moneda }}</div><div class="doc-kpi-etiqueta">Por pagar</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ horas|cifra }}</div><div class="doc-kpi-etiqueta">Horas pagadas</div></div>
+</div>
+
+<h2 class="doc-seccion">Por empleado</h2>
+<table class="doc-tabla">
+  <thead>
+    <tr><th>Empleado</th><th>Puesto</th><th class="num col-corta">Recibos</th><th class="num col-monto">Horas</th>
+      <th class="num col-monto">Total</th><th class="num col-monto">Pagado</th><th class="num col-monto">Pendiente</th></tr>
+  </thead>
+  <tbody>
+    {% for e in empleados %}
+    <tr>
+      <td class="negrita">{{ e.nombre }}</td><td>{{ e.puesto }}</td><td class="num">{{ e.recibos }}</td>
+      <td class="num">{{ e.horas|cifra }}</td><td class="num">{{ e.total|moneda }}</td>
+      <td class="num">{{ e.pagado|moneda }}</td>
+      <td class="num{% if e.pendiente %} texto-alerta{% endif %}">{{ e.pendiente|moneda }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="vacio">Sin recibos en el periodo.</td></tr>
+    {% endfor %}
+    {% if empleados %}
+    <tr class="total">
+      <td colspan="3">Total</td><td class="num">{{ horas|cifra }}</td><td class="num">{{ total|moneda }}</td>
+      <td class="num">{{ pagado|moneda }}</td><td class="num">{{ pendiente|moneda }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{% if recibos %}
+<h2 class="doc-seccion">Recibos</h2>
+<table class="doc-tabla">
+  <thead>
+    <tr><th class="col-folio">Folio</th><th>Empleado</th><th>Periodo</th><th class="num col-corta">Horas</th>
+      <th class="num col-corta">Tarifa</th><th class="num col-monto">Total</th><th class="centro col-estado">Estado</th></tr>
+  </thead>
+  <tbody>
+    {% for r in recibos %}
+    <tr>
+      <td class="codigo">NOM-{{ r.pk|stringformat:"03d" }}</td><td>{{ r.empleado.nombre }}</td><td>{{ r.periodo }}</td>
+      <td class="num">{{ r.horas_trabajadas|cifra }}</td><td class="num">{{ r.tarifa_aplicada|moneda }}</td>
+      <td class="num">{{ r.total_pagado|moneda }}</td>
+      <td class="centro">{% if r.estado == 'PAGADO' %}{% badge_doc "Pagado" "exito" %}{% else %}{% badge_doc "Por pagar" "alerta" %}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
+
+{% block notas %}Un recibo entra al periodo por la fecha en que empieza su semana. Pagado = recibos marcados como pagados en efectivo.{% endblock %}

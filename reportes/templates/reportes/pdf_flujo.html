@@ -1,0 +1,62 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block subtitulo %}Entradas y salidas de las cuentas bancarias según pólizas aplicadas{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ saldo_inicial|moneda }}</div><div class="doc-kpi-etiqueta">Saldo inicial</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ entradas|moneda }}</div><div class="doc-kpi-etiqueta">Entradas</div></div>
+  <div class="doc-kpi doc-kpi--error"><div class="doc-kpi-valor">{{ salidas|moneda }}</div><div class="doc-kpi-etiqueta">Salidas</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ saldo_final|moneda }}</div><div class="doc-kpi-etiqueta">Saldo final</div></div>
+</div>
+
+<h2 class="doc-seccion">Por origen</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Origen</th><th class="num col-monto">Entradas</th><th class="num col-monto">Salidas</th><th class="num col-monto">Neto</th></tr></thead>
+  <tbody>
+    {% for o in origenes %}
+    <tr><td>{{ o.nombre }}</td><td class="num">{{ o.entradas|moneda }}</td><td class="num">{{ o.salidas|moneda }}</td>
+      <td class="num texto-{{ o.neto|tono_signo }}">{{ o.neto|moneda }}</td></tr>
+    {% empty %}
+    <tr><td colspan="4" class="vacio">Sin movimientos bancarios en el periodo.</td></tr>
+    {% endfor %}
+    {% if origenes %}
+    <tr class="total"><td>Flujo neto</td><td class="num">{{ entradas|moneda }}</td><td class="num">{{ salidas|moneda }}</td>
+      <td class="num">{{ neto|moneda }}</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{% if meses %}
+<h2 class="doc-seccion">Por mes</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Mes</th><th class="num col-monto">Entradas</th><th class="num col-monto">Salidas</th><th class="num col-monto">Neto</th><th class="num col-monto">Saldo al cierre</th></tr></thead>
+  <tbody>
+    {% for m in meses %}
+    <tr><td>{{ m.mes|date:"F Y"|capfirst }}</td><td class="num">{{ m.entradas|moneda }}</td><td class="num">{{ m.salidas|moneda }}</td>
+      <td class="num texto-{{ m.neto|tono_signo }}">{{ m.neto|moneda }}</td><td class="num negrita">{{ m.saldo|moneda }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2 class="doc-seccion">Por cuenta</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Cuenta</th><th class="num col-monto">Saldo inicial</th><th class="num col-monto">Entradas</th><th class="num col-monto">Salidas</th><th class="num col-monto">Saldo final</th></tr></thead>
+  <tbody>
+    {% for c in cuentas %}
+    <tr><td>{{ c.nombre }}</td><td class="num">{{ c.saldo_inicial|moneda }}</td><td class="num">{{ c.entradas|moneda }}</td>
+      <td class="num">{{ c.salidas|moneda }}</td><td class="num negrita">{{ c.saldo_final|moneda }}</td></tr>
+    {% empty %}
+    <tr><td colspan="5" class="vacio">Sin cuentas bancarias activas.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block notas %}Saldo según libros (no el del banco): para el saldo real del banco usa la Conciliación bancaria. Entradas = cargos a bancos; salidas = abonos.{% endblock %}

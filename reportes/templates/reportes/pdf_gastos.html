@@ -1,0 +1,50 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Compras por fecha de emisión, agrupadas por categoría de gasto{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ totales.total|moneda }}</div><div class="doc-kpi-etiqueta">Total de compras</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ totales.con_factura|moneda }}</div><div class="doc-kpi-etiqueta">Con factura</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ totales.sin_factura|moneda }}</div><div class="doc-kpi-etiqueta">Sin factura</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ totales.iva|moneda }}</div><div class="doc-kpi-etiqueta">IVA de las compras</div></div>
+</div>
+
+{% if sin_clasificar %}
+<div class="doc-aviso doc-aviso--alerta">{{ sin_clasificar }} compra{{ sin_clasificar|pluralize }} sin clasificar: asigna la categoría en el proveedor o en la compra para que su gasto llegue a la cuenta correcta.</div>
+{% endif %}
+
+<table class="doc-tabla">
+  <thead>
+    <tr><th>Categoría</th><th class="num col-corta">Compras</th><th class="num col-monto">Base</th><th class="num col-monto">IVA</th>
+      <th class="num col-monto">Retenciones</th><th class="num col-monto">Total</th><th class="num col-corta">%</th>
+      <th class="num col-monto">Con factura</th><th class="num col-monto">Sin factura</th></tr>
+  </thead>
+  <tbody>
+    {% for c in categorias %}
+    <tr>
+      <td class="negrita">{{ c.nombre }}</td><td class="num">{{ c.compras }}</td><td class="num">{{ c.base|moneda }}</td>
+      <td class="num">{{ c.iva|moneda }}</td><td class="num">{{ c.retenciones|moneda }}</td><td class="num negrita">{{ c.total|moneda }}</td>
+      <td class="num">{{ c.porcentaje|cifra }}</td><td class="num">{{ c.con_factura|moneda }}</td><td class="num">{{ c.sin_factura|moneda }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" class="vacio">Sin compras en el periodo.</td></tr>
+    {% endfor %}
+    {% if categorias %}
+    <tr class="total">
+      <td colspan="2">Total</td><td class="num">{{ totales.base|moneda }}</td><td class="num">{{ totales.iva|moneda }}</td>
+      <td class="num">{{ totales.retenciones|moneda }}</td><td class="num">{{ totales.total|moneda }}</td><td></td>
+      <td class="num">{{ totales.con_factura|moneda }}</td><td class="num">{{ totales.sin_factura|moneda }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block notas %}Base = subtotal menos descuento. El detalle por compra viene en la versión Excel.{% endblock %}

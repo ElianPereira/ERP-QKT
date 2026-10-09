@@ -1,0 +1,63 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block subtitulo %}Uso, costo y resultados del agente de WhatsApp{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ conversaciones_activas }}</div><div class="doc-kpi-etiqueta">Conversaciones activas</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ respuestas_ia }}</div><div class="doc-kpi-etiqueta">Respuestas de la IA</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ tasa_humano }} %</div><div class="doc-kpi-etiqueta">Pasaron a persona</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">US{{ consumo.costo_usd|moneda }}</div><div class="doc-kpi-etiqueta">Costo del modelo</div></div>
+</div>
+
+<h2 class="doc-seccion">Resultados</h2>
+<dl class="doc-datos">
+  <div><dt>Mensajes de clientes</dt><dd>{{ mensajes_clientes }}</dd></div>
+  <div><dt>Respuestas del equipo</dt><dd>{{ respuestas_equipo }}</dd></div>
+  <div><dt>Pases a persona</dt><dd>{{ pases_a_humano }} (en {{ conversaciones_a_humano }} conversaci{{ conversaciones_a_humano|pluralize:"ón,ones" }})</dd></div>
+  <div><dt>Conversaciones nuevas</dt><dd>{{ conversion.nuevas }}</dd></div>
+  <div><dt>Terminaron en cotización</dt><dd>{{ conversion.con_cotizacion }} ({{ conversion.tasa_cotizacion }} %)</dd></div>
+  <div><dt>Terminaron en pago</dt><dd>{{ conversion.con_pago }} ({{ conversion.tasa_pago }} %)</dd></div>
+  <div><dt>Seguimientos enviados</dt><dd>{{ seguimientos }}</dd></div>
+  <div><dt>Respuestas detenidas por el filtro</dt><dd>{{ bloqueadas }}</dd></div>
+  {% if consumo.costo_por_respuesta_usd is not None %}<div><dt>Costo por respuesta</dt><dd>US${{ consumo.costo_por_respuesta_usd }}</dd></div>{% endif %}
+</dl>
+
+{% if consumo.por_modelo %}
+<h2 class="doc-seccion">Consumo por modelo</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Modelo</th><th class="num col-corta">Respuestas</th><th class="num col-monto">Tokens entrada</th><th class="num col-monto">Tokens salida</th><th class="num col-monto">Caché leída</th><th class="num col-monto">Costo (USD)</th></tr></thead>
+  <tbody>
+    {% for f in consumo.por_modelo %}
+    <tr><td class="codigo">{{ f.modelo }}</td><td class="num">{{ f.respuestas }}</td><td class="num">{{ f.entrada }}</td>
+      <td class="num">{{ f.salida }}</td><td class="num">{{ f.cache_lectura }}</td>
+      <td class="num">{% if f.costo_usd is not None %}{{ f.costo_usd|cifra }}{% else %}Sin precio{% endif %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if not consumo.costo_completo %}<div class="doc-aviso doc-aviso--alerta">Algún modelo no tiene precio capturado: el costo total está incompleto.</div>{% endif %}
+{% endif %}
+
+{% if motivos %}
+<h2 class="doc-seccion">Motivos de pase a persona</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Motivo</th><th class="num col-corta">Veces</th></tr></thead>
+  <tbody>{% for m in motivos %}<tr><td>{{ m.motivo|default:"Sin motivo" }}</td><td class="num">{{ m.veces }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endif %}
+
+{% if sin_respuesta %}
+<h2 class="doc-seccion">Preguntas sin respuesta</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Pregunta</th><th class="num col-corta">Veces</th></tr></thead>
+  <tbody>{% for p in sin_respuesta %}<tr><td>{{ p.pregunta|truncatechars:120 }}</td><td class="num">{{ p.veces }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endif %}
+{% endblock %}
+
+{% block notas %}Costo a precio de lista de Anthropic en dólares; no incluye el costo de WhatsApp de Meta. Las preguntas sin respuesta se capturan en Preguntas frecuentes.{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Conciliaciones de los meses del periodo y movimientos del banco sin asiento contable{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ conciliaciones|length }}</div><div class="doc-kpi-etiqueta">Conciliaciones</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ conciliadas }}</div><div class="doc-kpi-etiqueta">Conciliadas</div></div>
+  <div class="doc-kpi doc-kpi--error"><div class="doc-kpi-valor">{{ con_diferencia }}</div><div class="doc-kpi-etiqueta">Con diferencia</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ pendientes|length }}</div><div class="doc-kpi-etiqueta">Movimientos sin conciliar</div></div>
+</div>
+
+<table class="doc-tabla">
+  <thead><tr><th>Cuenta</th><th class="centro col-corta">Periodo</th><th class="num col-monto">Saldo banco</th><th class="num col-monto">Saldo libros</th>
+    <th class="num col-monto">Banco sin póliza</th><th class="num col-monto">Libros sin banco</th><th class="num col-monto">Arrastrada</th>
+    <th class="num col-monto">Diferencia</th><th class="centro col-estado">Estado</th></tr></thead>
+  <tbody>
+    {% for c in conciliaciones %}
+    <tr><td>{{ c.cuenta_bancaria }}</td><td class="centro">{{ c.mes|stringformat:"02d" }}/{{ c.anio|stringformat:"d" }}</td>
+      <td class="num">{{ c.saldo_segun_banco|moneda }}</td><td class="num">{{ c.saldo_segun_libros|moneda }}</td>
+      <td class="num">{{ c.abonos_banco_no_registrados|moneda }} / {{ c.cargos_banco_no_registrados|moneda }}</td>
+      <td class="num">{{ c.abonos_empresa_no_abonados|moneda }} / {{ c.cargos_empresa_no_cobrados|moneda }}</td>
+      <td class="num">{{ c.diferencia_arrastrada|moneda }}</td>
+      <td class="num negrita{% if c.diferencia %} texto-error{% endif %}">{{ c.diferencia|moneda }}</td>
+      <td class="centro">{% if c.estado == 'CONCILIADA' %}{% badge_doc "Conciliada" "exito" %}{% elif c.estado == 'EN_PROCESO' %}{% badge_doc "En proceso" "alerta" %}{% else %}{% badge_doc "Pendiente" "neutro" %}{% endif %}</td></tr>
+    {% empty %}
+    <tr><td colspan="9" class="vacio">Sin conciliaciones en el periodo.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 class="doc-seccion">Movimientos del banco sin conciliar</h2>
+<table class="doc-tabla">
+  <thead><tr><th class="centro col-fecha">Fecha</th><th>Cuenta</th><th>Descripción</th><th>Referencia</th><th class="num col-monto">Cargo</th><th class="num col-monto">Abono</th></tr></thead>
+  <tbody>
+    {% for m in pendientes %}
+    <tr><td class="centro">{{ m.fecha|date:"d/m/Y" }}</td><td>{{ m.estado_cuenta.cuenta_bancaria }}</td><td>{{ m.descripcion|truncatechars:60 }}</td>
+      <td class="codigo">{{ m.referencia|default:"—"|truncatechars:20 }}</td><td class="num">{% if m.cargo %}{{ m.cargo|moneda }}{% endif %}</td>
+      <td class="num">{% if m.abono %}{{ m.abono|moneda }}{% endif %}</td></tr>
+    {% empty %}
+    <tr><td colspan="6" class="vacio">Todos los movimientos del banco tienen asiento.</td></tr>
+    {% endfor %}
+    {% if pendientes %}
+    <tr class="total"><td colspan="4">Total sin conciliar</td><td class="num">{{ pendientes_cargos|moneda }}</td><td class="num">{{ pendientes_abonos|moneda }}</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block notas %}«Banco sin póliza» y «Libros sin banco» se muestran como abonos / cargos. La diferencia arrastrada es el descuadre heredado de periodos anteriores; la diferencia es la del periodo.{% endblock %}

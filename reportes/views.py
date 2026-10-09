@@ -81,6 +81,12 @@ def selector_reportes(request):
         'puede_pagos': puede_pagos,
         'inicio_mes': timezone.now().date().replace(day=1),
         'puede_facturacion': puede_facturacion,
+        'puede_conciliacion': request.user.has_perm('contabilidad.view_conciliacionbancaria'),
+        'puede_depositos': request.user.has_perm('comercial.view_depositogarantia'),
+        'puede_cortesias': request.user.has_perm('comercial.view_descuentoaplicado'),
+        'puede_compras': request.user.has_perm('comercial.view_compra'),
+        'puede_nomina': request.user.has_perm('nomina.view_recibonomina'),
+        'puede_kooxi': request.user.has_perm('comunicacion.view_conversacionwhatsapp'),
     }
     return render(request, 'reportes/selector.html', context)
 
@@ -445,3 +451,196 @@ def reporte_pagos(request):
 
     filename = nombre_archivo('Pagos', fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_pagos.html', datos, filename)
+
+
+# ==========================================
+# FASE 5: REPORTES NUEVOS (Issue #373)
+# ==========================================
+
+def _periodo(request, default_inicio=None):
+    hoy = timezone.now().date()
+    return (_parse_fecha(request, 'fecha_inicio', default_inicio or hoy.replace(day=1)),
+            _parse_fecha(request, 'fecha_fin', hoy))
+
+
+def _entregar(request, tipo, nombre, plantilla, datos, hojas):
+    """Registra el reporte y responde en PDF o, con `?formato=excel`, en Excel."""
+    excel = request.GET.get('formato') == 'excel'
+    fi, ff = datos['fecha_inicio'], datos['fecha_fin']
+    _registrar_reporte(request, tipo, fi, ff, formato='EXCEL' if excel else 'PDF')
+    if excel:
+        return respuesta_excel(datos['titulo'], hojas(), nombre_archivo(nombre, fi, ff, extension='xlsx'))
+    return _render_pdf(request, plantilla, datos, nombre_archivo(nombre, fi, ff))
+
+
+@staff_member_required
+@permission_required('nomina.view_recibonomina', raise_exception=True)
+def reporte_nomina(request):
+    """Nómina por periodo: recibos por empleado, pagado y pendiente."""
+    from .services.operacion import NominaPeriodoService, inicio_del_recibo
+
+    datos = NominaPeriodoService.generar(*_periodo(request))
+    datos['titulo'] = 'Nómina por periodo'
+    return _entregar(request, 'NOMINA', 'Nomina', 'reportes/pdf_nomina.html', datos, lambda: [
+        ('Por empleado', ['Empleado', 'Puesto', 'Recibos', 'Horas', 'Total', 'Pagado', 'Pendiente'],
+         [(e['nombre'], e['puesto'], e['recibos'], e['horas'], e['total'], e['pagado'], e['pendiente'])
+          for e in datos['empleados']]),
+        ('Recibos', ['Folio', 'Empleado', 'Inicio', 'Periodo', 'Horas', 'Tarifa', 'Total', 'Estado',
+                     'Fecha de pago'],
+         [(f"NOM-{r.pk:03d}", r.empleado.nombre, inicio_del_recibo(r), r.periodo, r.horas_trabajadas,
+           r.tarifa_aplicada, r.total_pagado, r.get_estado_display(), r.fecha_pago)
+          for r in datos['recibos']]),
+    ])
+
+
+@staff_member_required
+@permission_required('comercial.view_compra', raise_exception=True)
+def reporte_gastos(request):
+    """Gastos (compras) por categoría, con y sin factura."""
+    from .services.finanzas import GastosCategoriaService
+
+    datos = GastosCategoriaService.generar(*_periodo(request))
+    datos['titulo'] = 'Gastos por categoría'
+    return _entregar(request, 'GASTOS', 'Gastos', 'reportes/pdf_gastos.html', datos, lambda: [
+        ('Por categoría', ['Categoría', 'Compras', 'Base', 'IVA', 'Retenciones', 'Total',
+                           'Con factura', 'Sin factura'],
+         [(c['nombre'], c['compras'], c['base'], c['iva'], c['retenciones'], c['total'],
+           c['con_factura'], c['sin_factura']) for c in datos['categorias']]),
+        ('Compras', ['Fecha', 'Proveedor', 'RFC', 'Categoría', 'UUID', 'Base', 'IVA', 'Retenciones',
+                     'Total'],
+         [(c.fecha_emision, c.proveedor_nombre, c.rfc_emisor, c.get_categoria_display(), c.uuid or '',
+           c.base, c.iva, c.retenciones, c.total) for c in datos['compras']]),
+    ])
+
+
+@staff_member_required
+@permission_required('contabilidad.view_movimientocontable', raise_exception=True)
+def reporte_flujo(request):
+    """Flujo de efectivo de las cuentas bancarias según pólizas aplicadas."""
+    from .services.finanzas import FlujoEfectivoService
+
+    datos = FlujoEfectivoService.generar(*_periodo(request))
+    datos['titulo'] = 'Flujo de efectivo'
+    return _entregar(request, 'FLUJO', 'FlujoEfectivo', 'reportes/pdf_flujo.html', datos, lambda: [
+        ('Por origen', ['Origen', 'Entradas', 'Salidas', 'Neto'],
+         [(o['nombre'], o['entradas'], o['salidas'], o['neto']) for o in datos['origenes']]),
+        ('Por mes', ['Mes', 'Entradas', 'Salidas', 'Neto', 'Saldo al cierre'],
+         [(m['mes'], m['entradas'], m['salidas'], m['neto'], m['saldo']) for m in datos['meses']]),
+        ('Por cuenta', ['Cuenta', 'Saldo inicial', 'Entradas', 'Salidas', 'Saldo final'],
+         [(c['nombre'], c['saldo_inicial'], c['entradas'], c['salidas'], c['saldo_final'])
+          for c in datos['cuentas']]),
+    ])
+
+
+@staff_member_required
+@permission_required('comercial.view_cotizacion', raise_exception=True)
+def reporte_ocupacion(request):
+    """Ocupación de la Quinta: días vendidos, bloqueados y libres."""
+    from .services.operacion import OcupacionService
+
+    datos = OcupacionService.generar(*_periodo(request))
+    datos['titulo'] = 'Ocupación'
+    return _entregar(request, 'OCUPACION', 'Ocupacion', 'reportes/pdf_ocupacion.html', datos, lambda: [
+        ('Por servicio', ['Servicio', 'Reservaciones', 'Días', 'Ocupación %', 'Personas', 'Venta'],
+         [(t['nombre'], t['reservaciones'], t['dias'], float(t['porcentaje']), t['personas'], t['venta'])
+          for t in datos['tipos']]),
+        ('Reservaciones', ['Folio', 'Desde', 'Hasta', 'Servicio', 'Cliente', 'Evento', 'Personas',
+                           'Días en el periodo', 'Estado', 'Venta'],
+         [(r['folio'], r['inicio'], r['fin'], r['tipo'], r['cliente'], r['evento'], r['personas'],
+           r['dias'], r['estado'], r['venta']) for r in datos['reservaciones']]),
+    ])
+
+
+@staff_member_required
+@permission_required('comercial.view_depositogarantia', raise_exception=True)
+def reporte_depositos(request):
+    """Depósitos en garantía: movimientos del periodo y depósitos abiertos."""
+    from .services.operacion import DepositosGarantiaService
+
+    datos = DepositosGarantiaService.generar(*_periodo(request))
+    datos['titulo'] = 'Depósitos en garantía'
+    return _entregar(request, 'DEPOSITOS', 'Depositos', 'reportes/pdf_depositos.html', datos, lambda: [
+        ('Movimientos', ['Fecha', 'Folio', 'Cliente', 'Tipo', 'Método', 'Referencia', 'Monto'],
+         [(m.fecha, f"COT-{m.deposito.cotizacion_id:03d}", m.deposito.cotizacion.cliente.nombre,
+           m.get_tipo_display(), m.get_metodo_display(), m.referencia, m.monto)
+          for m in datos['movimientos']]),
+        ('Abiertos', ['Folio', 'Cliente', 'Fin del servicio', 'Monto', 'Recibido', 'En custodia',
+                      'Por recibir', 'Devolver a más tardar', 'Vencido', 'Estado'],
+         [(a['folio'], a['cliente'], a['fecha_servicio'], a['monto'], a['recibido'], a['en_custodia'],
+           a['por_recibir'], a['limite'], 'Sí' if a['vencido'] else 'No', a['estado'])
+          for a in datos['abiertos']]),
+    ])
+
+
+@staff_member_required
+@permission_required('comercial.view_descuentoaplicado', raise_exception=True)
+def reporte_cortesias(request):
+    """Cortesías, promociones y condonaciones del periodo."""
+    from .services.operacion import CortesiasDescuentosService
+
+    datos = CortesiasDescuentosService.generar(*_periodo(request))
+    datos['titulo'] = 'Cortesías y descuentos'
+    return _entregar(request, 'CORTESIAS', 'Cortesias', 'reportes/pdf_cortesias.html', datos, lambda: [
+        ('Descuentos', ['Fecha', 'Folio', 'Cliente', 'Regla', 'Tipo', 'Estado de la cotización',
+                        'Cuenta', 'Monto sin IVA'],
+         [(timezone.localtime(a.fecha_aplicacion).date(), f"COT-{a.cotizacion_id:03d}",
+           a.cotizacion.cliente.nombre, a.descuento.nombre,
+           'Cortesía' if a.descuento.es_cortesia else 'Promoción', a.cotizacion.get_estado_display(),
+           'Sí' if a.venta_real else 'No', a.monto_aplicado) for a in datos['aplicados']]),
+        ('Condonaciones', ['Fecha', 'Folio', 'Cliente', 'Referencia', 'Monto'],
+         [(p.fecha_pago, f"COT-{p.cotizacion_id:03d}", p.cotizacion.cliente.nombre, p.referencia, p.monto)
+          for p in datos['condonaciones']]),
+    ])
+
+
+@staff_member_required
+@permission_required('contabilidad.view_conciliacionbancaria', raise_exception=True)
+def reporte_conciliacion(request):
+    """Conciliaciones bancarias del periodo y movimientos del banco sin asiento."""
+    from .services.finanzas import ConciliacionBancariaService
+
+    datos = ConciliacionBancariaService.generar(*_periodo(request))
+    datos['titulo'] = 'Conciliación bancaria'
+    return _entregar(request, 'CONCILIACION', 'Conciliacion', 'reportes/pdf_conciliacion.html', datos, lambda: [
+        ('Conciliaciones', ['Cuenta', 'Periodo', 'Saldo banco', 'Saldo libros', 'Cargos banco sin póliza',
+                            'Abonos banco sin póliza', 'Salidas no cobradas', 'Depósitos en tránsito',
+                            'Diferencia arrastrada', 'Diferencia', 'Estado'],
+         [(str(c.cuenta_bancaria), f"{c.mes:02d}/{c.anio}", c.saldo_segun_banco, c.saldo_segun_libros,
+           c.cargos_banco_no_registrados, c.abonos_banco_no_registrados, c.cargos_empresa_no_cobrados,
+           c.abonos_empresa_no_abonados, c.diferencia_arrastrada, c.diferencia, c.get_estado_display())
+          for c in datos['conciliaciones']]),
+        ('Sin conciliar', ['Fecha', 'Cuenta', 'Descripción', 'Referencia', 'Cargo', 'Abono'],
+         [(m.fecha, str(m.estado_cuenta.cuenta_bancaria), m.descripcion, m.referencia, m.cargo, m.abono)
+          for m in datos['pendientes']]),
+    ])
+
+
+@staff_member_required
+@permission_required('comunicacion.view_conversacionwhatsapp', raise_exception=True)
+def reporte_kooxi(request):
+    """Uso, costo y resultados del agente de WhatsApp en el periodo."""
+    from .services.operacion import KooxiService
+
+    datos = KooxiService.generar(*_periodo(request))
+    datos['titulo'] = 'Agente Kooxi'
+    return _entregar(request, 'KOOXI', 'Kooxi', 'reportes/pdf_kooxi.html', datos, lambda: [
+        ('Resumen', ['Indicador', 'Valor'], [
+            ('Conversaciones activas', datos['conversaciones_activas']),
+            ('Mensajes de clientes', datos['mensajes_clientes']),
+            ('Respuestas de la IA', datos['respuestas_ia']),
+            ('Respuestas del equipo', datos['respuestas_equipo']),
+            ('Pases a persona', datos['pases_a_humano']),
+            ('Respuestas detenidas por el filtro', datos['bloqueadas']),
+            ('Conversaciones nuevas', datos['conversion']['nuevas']),
+            ('… con cotización', datos['conversion']['con_cotizacion']),
+            ('… con pago', datos['conversion']['con_pago']),
+            ('Costo (USD)', float(datos['consumo']['costo_usd'])),
+        ]),
+        ('Consumo por modelo', ['Modelo', 'Respuestas', 'Tokens de entrada', 'Tokens de salida',
+                                'Lectura de caché', 'Escritura de caché', 'Costo (USD)'],
+         [(f['modelo'], f['respuestas'], f['entrada'], f['salida'], f['cache_lectura'],
+           f['cache_escritura'], float(f['costo_usd']) if f['costo_usd'] is not None else None)
+          for f in datos['consumo']['por_modelo']]),
+        ('Pases a persona', ['Motivo', 'Veces'], [(m['motivo'], m['veces']) for m in datos['motivos']]),
+        ('Sin respuesta', ['Pregunta', 'Veces'], [(p['pregunta'], p['veces']) for p in datos['sin_respuesta']]),
+    ])

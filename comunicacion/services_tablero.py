@@ -95,23 +95,28 @@ def _conversion(conversaciones) -> dict:
 
 
 def metricas_agente(dias: int = 30) -> dict:
+    """Tablero del admin: los últimos 7, 30 o 90 días hasta hoy."""
     if dias not in PERIODOS:
         dias = 30
     hoy = timezone.localdate()
-    desde_fecha = hoy - timedelta(days=dias - 1)
-    desde = timezone.make_aware(datetime.combine(desde_fecha, time.min))
+    return {**metricas_periodo(hoy - timedelta(days=dias - 1), hoy), 'dias': dias, 'periodos': PERIODOS}
 
-    mensajes = MensajeWhatsApp.objects.filter(created_at__gte=desde)
+
+def metricas_periodo(desde_fecha, hasta_fecha) -> dict:
+    """Métricas entre dos fechas locales, ambas incluidas (también las usa el reporte de Kooxi)."""
+    desde = timezone.make_aware(datetime.combine(desde_fecha, time.min))
+    hasta = timezone.make_aware(datetime.combine(hasta_fecha + timedelta(days=1), time.min))
+
+    mensajes = MensajeWhatsApp.objects.filter(created_at__gte=desde, created_at__lt=hasta)
     respuestas_ia = mensajes.filter(direccion='AGENTE', automatico=False).exclude(modelo='')
-    pases = PaseAHumano.objects.filter(created_at__gte=desde)
-    nuevas = list(ConversacionWhatsApp.objects.filter(created_at__gte=desde))
+    pases = PaseAHumano.objects.filter(created_at__gte=desde, created_at__lt=hasta)
+    nuevas = list(ConversacionWhatsApp.objects.filter(created_at__gte=desde, created_at__lt=hasta))
     activas = mensajes.filter(direccion='ENTRADA').values('conversacion').distinct().count()
-    bloqueadas = RespuestaBloqueada.objects.filter(created_at__gte=desde)
+    bloqueadas = RespuestaBloqueada.objects.filter(created_at__gte=desde, created_at__lt=hasta)
 
     return {
-        'dias': dias,
-        'periodos': PERIODOS,
         'desde': desde_fecha,
+        'hasta': hasta_fecha,
         'conversaciones_activas': activas,
         'mensajes_clientes': mensajes.filter(direccion='ENTRADA').count(),
         'respuestas_ia': respuestas_ia.count(),
@@ -123,11 +128,13 @@ def metricas_agente(dias: int = 30) -> dict:
         'consumo': _consumo(respuestas_ia),
         'conversion': _conversion(nuevas),
         'seguimientos': ComunicacionCliente.objects.filter(
-            tipo='SEGUIMIENTO', estado__in=('ENVIADO', 'ENTREGADO', 'ABIERTO'), fecha_envio__gte=desde).count(),
-        'autorizaciones': ConversacionWhatsApp.objects.filter(consentimiento_en__gte=desde).count(),
+            tipo='SEGUIMIENTO', estado__in=('ENVIADO', 'ENTREGADO', 'ABIERTO'),
+            fecha_envio__gte=desde, fecha_envio__lt=hasta).count(),
+        'autorizaciones': ConversacionWhatsApp.objects.filter(
+            consentimiento_en__gte=desde, consentimiento_en__lt=hasta).count(),
         # Lo que el agente no supo: lo que más se repite es lo primero que hay
         # que capturar en preguntas frecuentes o en la descripción del producto.
-        'sin_respuesta': list(PreguntaSinRespuesta.objects.filter(created_at__gte=desde)
+        'sin_respuesta': list(PreguntaSinRespuesta.objects.filter(created_at__gte=desde, created_at__lt=hasta)
                               .values('pregunta').annotate(veces=Count('id'))
                               .order_by('-veces', 'pregunta')[:20]),
         'bloqueadas': bloqueadas.count(),
