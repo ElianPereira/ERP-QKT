@@ -36,8 +36,6 @@ VISTAS_PROTEGIDAS = [
     ('cotizacion_lista_compras', {'cotizacion_id': 99999}),
     ('cotizacion_pdf', {'cotizacion_id': 99999}),
     ('cotizacion_email', {'cotizacion_id': 99999}),
-    ('exportar_reporte_cotizaciones', {}),
-    ('reporte_pagos', {}),
     ('producto_ficha_pdf', {'producto_id': 99999}),
     ('cartera_cxc', {}),
     ('generar_plan_pagos', {'cotizacion_id': 99999}),
@@ -58,6 +56,8 @@ VISTAS_PROTEGIDAS = [
     ('reportes:auxiliar', {}),
     ('reportes:cxc', {}),
     ('reportes:cotizaciones', {}),
+    ('reportes:rentabilidad', {}),
+    ('reportes:pagos', {}),
     ('reportes:facturas', {}),
 ]
 

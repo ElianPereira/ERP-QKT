@@ -6,7 +6,7 @@ CxC (Antigüedad de Saldos) y Cotizaciones por período.
 ERP Quinta Ko'ox Tanil
 """
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, List, Optional
 
 from django.utils import timezone
@@ -154,4 +154,139 @@ class CotizacionesPeriodoService:
             'total_pendiente': total_cotizado - total_cobrado,
             'resumen_estados': resumen_estados,
             'count': len(cotizaciones),
+        }
+
+
+def _prorratear_iva(total_linea: Decimal, compra) -> tuple:
+    """(base, iva) de una línea de gasto: solo una compra con UUID acredita IVA,
+    en proporción a lo que la línea pesa en el total de su factura."""
+    if compra.uuid and compra.total > 0 and compra.iva > 0:
+        iva = (total_linea / compra.total * compra.iva).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return total_linea - iva, iva
+    return total_linea, Decimal('0.00')
+
+
+class RentabilidadEventosService:
+    """
+    Rentabilidad por evento: venta sin IVA contra lo gastado en cada evento,
+    más los gastos operativos del periodo (los que no se ligan a un evento).
+
+    Sin filtro de estado cuenta solo ventas reales (confirmadas, ejecutadas y
+    cerradas): un borrador o una cancelada no es venta.
+    """
+
+    @classmethod
+    def generar(cls, fecha_inicio: date, fecha_fin: date, estado: str = None) -> Dict:
+        from comercial.models import Cotizacion, Gasto
+        from comercial.views import ESTADOS_VENTA_REAL
+
+        cero = Decimal('0.00')
+        cotizaciones = Cotizacion.objects.filter(
+            fecha_evento__gte=fecha_inicio, fecha_evento__lte=fecha_fin,
+            estado__in=[estado] if estado else ESTADOS_VENTA_REAL,
+        ).select_related('cliente').prefetch_related('gasto_set__compra').order_by('fecha_evento')
+
+        eventos = []
+        t = dict.fromkeys(
+            ('venta', 'iva', 'base', 'gasto_fiscal', 'iva_acreditable', 'gasto_nofiscal', 'utilidad'), cero)
+        for cot in cotizaciones:
+            base = cot.subtotal - cot.descuento
+            fiscal = iva_acr = nofiscal = cero
+            for gasto in cot.gasto_set.all():
+                total_linea = gasto.total_linea or cero
+                if gasto.compra.uuid:
+                    b, i = _prorratear_iva(total_linea, gasto.compra)
+                    fiscal += b
+                    iva_acr += i
+                else:
+                    nofiscal += total_linea
+            fila = {
+                'folio': f"COT-{cot.id:03d}", 'fecha': cot.fecha_evento,
+                'cliente': cot.cliente.nombre, 'evento': cot.nombre_evento,
+                'venta': cot.precio_final, 'iva': cot.iva, 'base': base,
+                'gasto_fiscal': fiscal, 'iva_acreditable': iva_acr, 'gasto_nofiscal': nofiscal,
+                'utilidad': base - fiscal - nofiscal,
+            }
+            for clave in t:
+                t[clave] += fila[clave]
+            eventos.append(fila)
+
+        etiquetas = dict(Gasto.CATEGORIAS)
+        fiscales, nofiscales = {}, {}
+        gastos = Gasto.objects.filter(
+            evento_relacionado__isnull=True, fecha_gasto__gte=fecha_inicio, fecha_gasto__lte=fecha_fin,
+        ).select_related('compra')
+        for gasto in gastos:
+            total_linea = gasto.total_linea or cero
+            nombre = etiquetas.get(gasto.categoria, gasto.categoria)
+            if gasto.compra.uuid:
+                b, i = _prorratear_iva(total_linea, gasto.compra)
+                fila = fiscales.setdefault(nombre, {'nombre': nombre, 'base': cero, 'iva': cero})
+                fila['base'] += b
+                fila['iva'] += i
+            else:
+                fila = nofiscales.setdefault(nombre, {'nombre': nombre, 'total': cero})
+                fila['total'] += total_linea
+
+        op_fiscal = sum((f['base'] for f in fiscales.values()), cero)
+        op_iva = sum((f['iva'] for f in fiscales.values()), cero)
+        op_nofiscal = sum((f['total'] for f in nofiscales.values()), cero)
+        costos_deducibles = t['gasto_fiscal'] + op_fiscal
+        costos_no_deducibles = t['gasto_nofiscal'] + op_nofiscal
+        iva_acreditable = t['iva_acreditable'] + op_iva
+
+        return {
+            'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin,
+            'estado_filtro_etiqueta': dict(Cotizacion.ESTADOS).get(estado) if estado else 'Ventas reales',
+            'eventos': eventos, 'totales': t,
+            'operativos_fiscales': sorted(fiscales.values(), key=lambda f: f['nombre']),
+            'operativos_nofiscales': sorted(nofiscales.values(), key=lambda f: f['nombre']),
+            'op_fiscal': op_fiscal, 'op_iva': op_iva, 'op_nofiscal': op_nofiscal,
+            'costos_deducibles': costos_deducibles,
+            'costos_no_deducibles': costos_no_deducibles,
+            'costos_totales': costos_deducibles + costos_no_deducibles,
+            'utilidad_neta': t['base'] - costos_deducibles - costos_no_deducibles,
+            'iva_acreditable': iva_acreditable,
+            'iva_por_pagar': t['iva'] - iva_acreditable,
+        }
+
+
+class PagosRecibidosService:
+    """
+    Pagos registrados en el periodo. El cobrado neto resta los reembolsos, y
+    las condonaciones (cortesías) se informan aparte porque no entra dinero.
+    """
+
+    @classmethod
+    def generar(cls, fecha_inicio: date, fecha_fin: date) -> Dict:
+        from comercial.models import Pago
+
+        cero = Decimal('0.00')
+        pagos = list(Pago.objects.filter(
+            fecha_pago__gte=fecha_inicio, fecha_pago__lte=fecha_fin,
+        ).select_related('cotizacion', 'cotizacion__cliente', 'usuario').order_by('fecha_pago', 'id'))
+
+        cobrado = reembolsado = condonado = cero
+        por_metodo = {}
+        for pago in pagos:
+            if pago.tipo == 'REEMBOLSO':
+                reembolsado += pago.monto
+            elif pago.metodo == 'CONDONACION':
+                condonado += pago.monto
+            else:
+                cobrado += pago.monto
+                nombre = pago.get_metodo_display()
+                por_metodo[nombre] = por_metodo.get(nombre, cero) + pago.monto
+
+        metodos = [
+            {'nombre': nombre, 'total': total,
+             'porcentaje': (total / cobrado * 100).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)}
+            for nombre, total in sorted(por_metodo.items(), key=lambda m: -m[1])
+        ]
+        return {
+            'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin,
+            'pagos': pagos, 'metodos': metodos,
+            'cobrado': cobrado, 'reembolsado': reembolsado, 'condonado': condonado,
+            'neto': cobrado - reembolsado,
+            'count': len(pagos),
         }

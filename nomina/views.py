@@ -1,27 +1,19 @@
-import io
 import logging
-import math
-import os
 from datetime import date, datetime, time, timedelta
-from decimal import ROUND_HALF_UP, Decimal
 
 import pandas as pd
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
-from django.core.files.base import ContentFile
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.template.loader import render_to_string
-from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from weasyprint import HTML
 
 from core_erp.ratelimit import rate_limit
 
-from .models import Empleado, ReciboNomina
+from .services_recibos import generar_recibos
 
 logger = logging.getLogger(__name__)
 
@@ -122,76 +114,6 @@ def parsear_horario_trabajo(df):
 
 
 # ==========================================
-# GENERADOR DE RECIBOS (reutilizable)
-# ==========================================
-
-def _generar_recibos_desde_datos(datos_empleados, fecha_emision_por_empleado=None):
-    """
-    Genera recibos PDF.
-    fecha_emision_por_empleado: {nombre: 'YYYY-MM-DD HH:MM'} -> ultima salida semanal.
-    """
-    count = 0
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-    fecha_emision_por_empleado = fecha_emision_por_empleado or {}
-
-    for nombre, registros in datos_empleados.items():
-        if not registros:
-            continue
-
-        total_horas_reales = round(sum(r['horas_raw'] for r in registros), 2)
-        total_horas_a_pagar = sum(r['horas_a_pagar'] for r in registros)
-        ahorro_horas = round(total_horas_reales - total_horas_a_pagar, 2)
-        empleado_obj, _ = Empleado.objects.get_or_create(nombre=nombre)
-        fechas_dt = [pd.to_datetime(r['fecha']) for r in registros]
-        periodo = f"{min(fechas_dt).strftime('%Y-%m-%d')} al {max(fechas_dt).strftime('%Y-%m-%d')}"
-        tarifa = float(empleado_obj.tarifa_base)
-        total_pagado = round(total_horas_a_pagar * tarifa, 2)
-        total_sin_redondeo = round(total_horas_reales * tarifa, 2)
-        ahorro_dinero = round(total_sin_redondeo - total_pagado, 2)
-
-        # Fecha de emision: ultima salida de la semana o ahora
-        fecha_emision = fecha_emision_por_empleado.get(nombre, '')
-        if not fecha_emision:
-            fecha_emision = timezone.now().strftime('%d/%m/%Y %H:%M')
-        else:
-            try:
-                dt = datetime.strptime(fecha_emision, '%Y-%m-%d %H:%M')
-                fecha_emision = dt.strftime('%d/%m/%Y %H:%M')
-            except ValueError:
-                fecha_emision = timezone.now().strftime('%d/%m/%Y %H:%M')
-
-        context = {
-            'empleado': empleado_obj,
-            'periodo': periodo,
-            'lista_asistencia': registros,
-            'total_horas_reales': f"{total_horas_reales:.2f}",
-            'total_horas_a_pagar': f"{total_horas_a_pagar:.0f}",
-            'ahorro_horas': f"{ahorro_horas:.2f}",
-            'total_pagado': f"{total_pagado:,.2f}",
-            'total_sin_redondeo': f"{total_sin_redondeo:,.2f}",
-            'ahorro_dinero': f"{ahorro_dinero:,.2f}",
-            'folio': f"NOM-{ReciboNomina.objects.count()+1:03d}",
-            'logo_url': logo_url,
-            'fecha_emision': fecha_emision,
-        }
-
-        html = render_to_string('nomina/recibo_nomina.html', context)
-        pdf = HTML(string=html).write_pdf()
-        recibo = ReciboNomina.objects.create(
-            empleado=empleado_obj, periodo=periodo,
-            horas_trabajadas=Decimal(str(total_horas_a_pagar)),
-            tarifa_aplicada=empleado_obj.tarifa_base,
-            total_pagado=Decimal(str(total_pagado)),
-        )
-        safe_name = "".join([c for c in nombre if c.isalnum() or c == ' ']).strip().replace(' ', '_')
-        recibo.archivo_pdf.save(f"Nomina_{safe_name}.pdf", ContentFile(pdf))
-        count += 1
-
-    return count
-
-
-# ==========================================
 # VISTA 1: CARGA DESDE EXCEL
 # ==========================================
 
@@ -273,7 +195,7 @@ def cargar_nomina(request):
                                 if nombre not in fecha_emision_por_empleado or salida_dt > fecha_emision_por_empleado[nombre]:
                                     fecha_emision_por_empleado[nombre] = salida_dt
 
-            count = _generar_recibos_desde_datos(datos_empleados, fecha_emision_por_empleado)
+            count = generar_recibos(datos_empleados, fecha_emision_por_empleado)
             if count > 0:
                 messages.success(request, f"Exito: {count} recibos generados con regla de redondeo 90%.")
             else:
@@ -315,7 +237,7 @@ def sync_jibble_view(request):
                 messages.warning(request, f"Jibble ({fuente}): No se encontraron datos para el periodo.")
                 return redirect('admin:nomina_recibonomina_changelist')
             datos_empleados, fecha_emision_map = _transformar_datos_jibble(personas)
-            count = _generar_recibos_desde_datos(datos_empleados, fecha_emision_map)
+            count = generar_recibos(datos_empleados, fecha_emision_map)
             if count > 0:
                 messages.success(request, f"Jibble ({fuente}): {count} recibos generados con regla 90%.")
             else:
@@ -373,7 +295,7 @@ def webhook_sync_jibble(request):
         if not personas:
             return JsonResponse({'status': 'ok', 'recibos_generados': 0, 'fuente': fuente})
         datos_empleados, fecha_emision_map = _transformar_datos_jibble(personas)
-        count = _generar_recibos_desde_datos(datos_empleados, fecha_emision_map)
+        count = generar_recibos(datos_empleados, fecha_emision_map)
         return JsonResponse({
             'status': 'ok', 'periodo': f'{fecha_inicio} al {fecha_fin}',
             'fuente': fuente, 'empleados_procesados': len(personas),

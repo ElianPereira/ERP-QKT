@@ -12,8 +12,8 @@
 
     <nav class="qkt-atajos" aria-label="Accesos rápidos">
         <a href="{% url 'admin:comercial_cotizacion_add' %}" class="qkt-atajo"><i class="fas fa-plus-circle" aria-hidden="true"></i> Cotización</a>
-        <a href="{% url 'reporte_pagos' %}" class="qkt-atajo"><i class="fas fa-cash-register" aria-hidden="true"></i> Pagos</a>
-        <a href="{% url 'exportar_reporte_cotizaciones' %}" class="qkt-atajo"><i class="fas fa-chart-line" aria-hidden="true"></i> Financiero</a>
+        <a href="{% url 'reportes:pagos' %}" class="qkt-atajo"><i class="fas fa-cash-register" aria-hidden="true"></i> Pagos</a>
+        <a href="{% url 'reportes:rentabilidad' %}" class="qkt-atajo"><i class="fas fa-chart-line" aria-hidden="true"></i> Financiero</a>
         <a href="{% url 'crear_solicitud' %}" class="qkt-atajo"><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i> Facturar</a>
         <a href="{% url 'admin:comercial_compra_changelist' %}" class="qkt-atajo"><i class="fas fa-receipt" aria-hidden="true"></i> Gastos</a>
         <a href="{% url 'admin:nomina_recibonomina_changelist' %}" class="qkt-atajo"><i class="fas fa-users" aria-hidden="true"></i> Nómina</a>

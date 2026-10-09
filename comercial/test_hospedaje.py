@@ -75,6 +75,13 @@ class FormatoHoraAmPmTest(TestCase):
     def test_sin_hora(self):
         self.assertEqual(formato_hora_ampm(None), '')
 
+    def test_datetime_de_la_base_sale_en_hora_local(self):
+        from datetime import datetime
+        from datetime import timezone as tz
+
+        # 18:30 UTC son las 12:30 p.m. en Mérida (UTC−6).
+        self.assertEqual(formato_hora_ampm(datetime(2026, 10, 9, 18, 30, tzinfo=tz.utc)), '12:30 p.m.')
+
 
 class CotizacionRangoOcupadoTest(TestCase):
     def setUp(self):

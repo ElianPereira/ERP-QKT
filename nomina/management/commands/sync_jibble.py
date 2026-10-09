@@ -12,19 +12,14 @@ Railway Cron (cada lunes a las 7am):
     python manage.py sync_jibble
 """
 
-import os
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import date, timedelta
 
-from django.conf import settings
-from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
-from django.template.loader import render_to_string
-from weasyprint import HTML
 
-from nomina.models import Empleado, ReciboNomina
+from nomina.models import Empleado
 from nomina.services import JibbleAPIError, JibbleService
-from nomina.views import redondear_horas_90
+from nomina.services_recibos import calcular_recibo, generar_recibo
+from nomina.views import _transformar_datos_jibble
 
 
 class Command(BaseCommand):
@@ -117,93 +112,27 @@ class Command(BaseCommand):
         # =====================
         # PROCESAR Y GENERAR RECIBOS
         # =====================
-        ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-
-        count = 0
         dry_run = options['dry_run']
+        datos_empleados, fecha_emision_map = _transformar_datos_jibble(resultado['personas'])
+        count = 0
 
-        for nombre, info in resultado['personas'].items():
-            if not info['dias']:
-                continue
-
+        for nombre, registros in datos_empleados.items():
             empleado_obj, created = Empleado.objects.get_or_create(nombre=nombre)
             if created:
                 self.stdout.write(f"  Empleado NUEVO creado: {nombre}")
 
-            tarifa = float(empleado_obj.tarifa_base)
-            registros = []
-            total_horas_reales = 0.0
-            total_horas_a_pagar = 0.0
-
-            for dia in info['dias']:
-                seg = dia['duracion_segundos']
-                horas_decimal = seg / 3600.0
-                h = seg // 3600
-                m = (seg % 3600) // 60
-                s = seg % 60
-
-                horas_pagar = redondear_horas_90(horas_decimal)
-                total_horas_reales += horas_decimal
-                total_horas_a_pagar += horas_pagar
-
-                registros.append({
-                    'fecha': dia['fecha'],
-                    'dia': datetime.strptime(dia['fecha'], '%Y-%m-%d').strftime('%A')[:3],
-                    'entrada': dia.get('entrada', '-'),
-                    'salida': dia.get('salida', '-'),
-                    'horas_fmt': f"{h}:{m:02d}:{s:02d}",
-                    'horas_raw': horas_decimal,
-                    'horas_a_pagar': horas_pagar,
-                    'horas_a_pagar_fmt': f"{horas_pagar:.0f}:00",
-                    'fue_recortado': horas_pagar < horas_decimal,
-                })
-
-            total_horas_reales = round(total_horas_reales, 2)
-            ahorro_horas = round(total_horas_reales - total_horas_a_pagar, 2)
-            total_pagado = round(total_horas_a_pagar * tarifa, 2)
-            total_sin_redondeo = round(total_horas_reales * tarifa, 2)
-            ahorro_dinero = round(total_sin_redondeo - total_pagado, 2)
-
+            calculo = calcular_recibo(empleado_obj, registros)
             self.stdout.write(
-                f"  {nombre}: {total_horas_reales}h reales → {total_horas_a_pagar:.0f}h a pagar "
-                f"(${total_pagado:,.2f}, ahorro ${ahorro_dinero:,.2f})"
+                f"  {nombre}: {calculo['horas_reales']}h reales → {calculo['horas_a_pagar']}h a pagar "
+                f"(${calculo['total']:,.2f}, ahorro ${calculo['ajuste_dinero']:,.2f})"
             )
-
             if dry_run:
                 continue
 
-            periodo = f"{fecha_inicio} al {fecha_fin}"
-
-            context = {
-                'empleado': empleado_obj,
-                'periodo': periodo,
-                'lista_asistencia': registros,
-                'total_horas_reales': f"{total_horas_reales:.2f}",
-                'total_horas_a_pagar': f"{total_horas_a_pagar:.0f}",
-                'ahorro_horas': f"{ahorro_horas:.2f}",
-                'total_pagado': f"{total_pagado:,.2f}",
-                'total_sin_redondeo': f"{total_sin_redondeo:,.2f}",
-                'ahorro_dinero': f"{ahorro_dinero:,.2f}",
-                'folio': f"NOM-{ReciboNomina.objects.count()+1:03d}",
-                'logo_url': logo_url,
-            }
-
-            html = render_to_string('nomina/recibo_nomina.html', context)
-            pdf = HTML(string=html).write_pdf()
-
-            recibo = ReciboNomina.objects.create(
-                empleado=empleado_obj,
-                periodo=periodo,
-                horas_trabajadas=Decimal(str(total_horas_a_pagar)),
-                tarifa_aplicada=empleado_obj.tarifa_base,
-                total_pagado=Decimal(str(total_pagado)),
+            generar_recibo(
+                empleado_obj, registros, inicio=fecha_inicio, fin=fecha_fin,
+                fecha_emision=fecha_emision_map.get(nombre, ''),
             )
-
-            safe_name = "".join(
-                [c for c in nombre if c.isalnum() or c == ' ']
-            ).strip().replace(' ', '_')
-            recibo.archivo_pdf.save(f"Nomina_{safe_name}.pdf", ContentFile(pdf))
             count += 1
 
         if dry_run:

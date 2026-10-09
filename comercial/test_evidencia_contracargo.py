@@ -73,7 +73,7 @@ class ArmarEvidenciaTest(TestCase):
         contracargo = _contracargo(_cotizacion_con_pago())
         armar_evidencia(contracargo)
         nombre_original = contracargo.evidencia_pdf.name
-        with patch('comercial.services_evidencia_contracargo.render_to_string') as mock_render:
+        with patch('comercial.services_evidencia_contracargo.render_pdf') as mock_render:
             armar_evidencia(contracargo)
             mock_render.assert_not_called()
         self.assertEqual(contracargo.evidencia_pdf.name, nombre_original)

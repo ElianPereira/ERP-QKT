@@ -24,6 +24,11 @@ PLANTILLAS_MIGRADAS = sorted(
         _BASE / 'comercial' / 'templates' / 'cotizaciones' / 'pdf_recibo.html',
         _BASE / 'comercial' / 'templates' / 'cotizaciones' / 'pdf_plan_pagos.html',
         _BASE / 'comercial' / 'templates' / 'facturacion' / 'solicitud_pdf.html',
+        # Fase 3: documentos operativos.
+        _BASE / 'comercial' / 'templates' / 'nomina' / 'recibo_nomina.html',
+        _BASE / 'comercial' / 'templates' / 'pdf_lista_compras.html',
+        _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf_ficha_producto.html',
+        _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf' / 'evidencia_contracargo.html',
     ]
 )
 
@@ -97,7 +102,7 @@ class PlantillasMigradasTest(SimpleTestCase):
     """Guardián: lo migrado no vuelve a los estilos sueltos."""
 
     def test_hay_plantillas_que_vigilar(self):
-        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 11)
+        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 17)
 
     def test_extienden_la_base_y_usan_los_componentes(self):
         for ruta in PLANTILLAS_MIGRADAS:
@@ -127,6 +132,7 @@ class ReportesGeneranPdfTest(TestCase):
         casos = [
             ('balanza', {}), ('estado_resultados', {}), ('balance_general', {}),
             ('cxc', {}), ('cotizaciones', {}), ('facturas', {}),
+            ('rentabilidad', {}), ('pagos', {}),
             ('libro_mayor', {'cuenta_id': cuenta.pk}),
             ('auxiliar', {'cuenta_padre_id': padre.pk}),
         ]

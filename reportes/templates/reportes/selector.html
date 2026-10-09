@@ -176,6 +176,41 @@
                         <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</button>
                     </div>
                 </form>
+
+                <!-- 8. Rentabilidad por evento -->
+                <form method="get" action="{% url 'reportes:rentabilidad' %}" target="_blank" class="qkt-panel__cuerpo">
+                    <h3 class="qkt-reporte__titulo"><i class="fas fa-chart-pie" aria-hidden="true"></i> Rentabilidad por Evento</h3>
+                    <div class="qkt-filtros-pagina">
+                        <label class="qkt-campo"><span class="qkt-campo__label">Desde</span>
+                            <input type="date" name="fecha_inicio" value="{{ inicio_anio|date:'Y-m-d' }}"></label>
+                        <label class="qkt-campo"><span class="qkt-campo__label">Hasta</span>
+                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}"></label>
+                        <label class="qkt-campo"><span class="qkt-campo__label">Estado</span>
+                            <select name="estado_cotizacion">
+                                <option value="">Ventas reales</option>
+                                <option value="CONFIRMADA">Confirmada</option>
+                                <option value="EJECUTADA">Ejecutada</option>
+                                <option value="CERRADA">Cerrada</option>
+                            </select></label>
+                        <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</button>
+                        <button type="submit" name="formato" value="excel" class="qkt-btn qkt-btn--secundario"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</button>
+                    </div>
+                </form>
+
+                {% if puede_pagos %}
+                <!-- 9. Pagos recibidos -->
+                <form method="get" action="{% url 'reportes:pagos' %}" target="_blank" class="qkt-panel__cuerpo">
+                    <h3 class="qkt-reporte__titulo"><i class="fas fa-cash-register" aria-hidden="true"></i> Pagos Recibidos</h3>
+                    <div class="qkt-filtros-pagina">
+                        <label class="qkt-campo"><span class="qkt-campo__label">Desde</span>
+                            <input type="date" name="fecha_inicio" value="{{ inicio_mes|date:'Y-m-d' }}"></label>
+                        <label class="qkt-campo"><span class="qkt-campo__label">Hasta</span>
+                            <input type="date" name="fecha_fin" value="{{ hoy|date:'Y-m-d' }}"></label>
+                        <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</button>
+                        <button type="submit" name="formato" value="excel" class="qkt-btn qkt-btn--secundario"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</button>
+                    </div>
+                </form>
+                {% endif %}
             </div>
             {% endif %}
 

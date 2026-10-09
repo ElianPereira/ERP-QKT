@@ -1,125 +1,60 @@
-{% load humanize %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Lista de Compras #{{ cotizacion.id }}</title>
-    <style>
-        @page { size: letter landscape; margin: 1.5cm; }
-        body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 11px; }
-        
-        .header { width: 100%; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        .title { font-size: 18px; font-weight: bold; color: #333; }
-        .subtitle { font-size: 12px; color: #666; margin-top: 5px; }
-        
-        .section-title { 
-            background-color: #2E7D32; color: white; padding: 6px 12px; 
-            font-weight: bold; margin-top: 18px; margin-bottom: 0; 
-            border-radius: 4px 4px 0 0; font-size: 12px;
-        }
-        
-        table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-        th { 
-            background-color: #ecf0f1; padding: 5px 8px; 
-            text-align: left; border: 1px solid #bdc3c7; 
-            font-size: 10px; color: #555;
-        }
-        td { padding: 5px 8px; border: 1px solid #ddd; }
-        
-        .check-col { width: 4%; text-align: center; }
-        .item-col { width: 30%; }
-        .qty-col { width: 8%; text-align: center; font-weight: bold; color: #2E7D32; }
-        .unit-col { width: 8%; text-align: center; }
-        .prov-col { width: 22%; }
-        .cu-col { width: 10%; text-align: right; }
-        .total-col { width: 10%; text-align: right; font-weight: bold; }
-        
-        .nota { font-size: 9px; color: #888; }
-        .sin-asignar { color: #e74c3c; font-size: 10px; }
-        .muted { color: #aaa; }
-        
-        .resumen-box { 
-            margin-top: 25px; padding: 10px 15px; 
-            background: #f8f9fa; border-radius: 4px; 
-            text-align: right; border: 1px solid #ddd;
-        }
-        .resumen-total { font-size: 15px; color: #e74c3c; font-weight: bold; }
-        
-        .footer { margin-top: 30px; font-size: 9px; color: #777; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
-    </style>
-</head>
-<body>
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
 
-    <div class="header">
-        <div style="float:right; text-align:right;">
-            <div style="font-size:10px;">Fecha Evento:</div>
-            <div style="font-weight:bold;">{{ cotizacion.fecha_evento|date:"d/M/Y" }}</div>
-            <div style="font-size:10px; margin-top:4px;">{{ cotizacion.num_personas }} Personas · {{ cotizacion.horas_servicio }} Hrs</div>
-        </div>
-        <div class="title"> Lista de Compras / Barra</div>
-        <div class="subtitle">{{ cotizacion.cliente.nombre }} — {{ cotizacion.nombre_evento }}</div>
-    </div>
+{% block variante %}operativo{% endblock %}
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}COT-{{ cotizacion.id|stringformat:"03d" }} · {{ cotizacion.cliente.nombre }} — {{ cotizacion.nombre_evento }}{% endblock %}
+{% block filtros %}
+<span><b>Fecha del evento:</b> {{ cotizacion.fecha_evento|date:"d/m/Y" }}</span>
+<span><b>Personas:</b> {{ cotizacion.num_personas }}</span>
+<span><b>Horas:</b> {{ cotizacion.horas_servicio }}</span>
+{% endblock %}
 
-    {% for categoria, items in lista.items %}
-        {% if items %}
-            <div class="section-title">{{ categoria }}</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th class="check-col">✓</th>
-                        <th class="item-col">Artículo</th>
-                        <th class="qty-col">Cant.</th>
-                        <th class="unit-col">Unidad</th>
-                        <th class="prov-col">Proveedor</th>
-                        <th class="cu-col">C/U</th>
-                        <th class="total-col">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for producto in items %}
-                    <tr>
-                        <td class="check-col">☐</td>
-                        <td class="item-col">
-                            {{ producto.item }}
-                            {% if producto.nota %}<br><span class="nota">{{ producto.nota }}</span>{% endif %}
-                        </td>
-                        <td class="qty-col">{{ producto.cantidad }}</td>
-                        <td class="unit-col">{{ producto.unidad }}</td>
-                        <td class="prov-col">
-                            {% if producto.proveedor %}
-                                {% if '' in producto.proveedor %}
-                                    <span class="sin-asignar">{{ producto.proveedor }}</span>
-                                {% else %}
-                                    {{ producto.proveedor }}
-                                {% endif %}
-                            {% else %}
-                                <span class="muted">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="cu-col">
-                            {% if producto.costo_unitario %}
-                                ${{ producto.costo_unitario|floatformat:2 }}
-                            {% else %}
-                                <span class="muted">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="total-col">
-                            {% if producto.costo_total %}
-                                ${{ producto.costo_total|floatformat:2 }}
-                            {% else %}
-                                <span class="muted">—</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
+{% block contenido %}
+{% if pendientes %}
+<div class="doc-aviso doc-aviso--alerta">{{ pendientes }} artículo{{ pendientes|pluralize }} sin proveedor: configúralo{{ pendientes|pluralize:"s" }} en la Plantilla de Barra para que la lista salga costeada.</div>
+{% endif %}
+
+{% for categoria, items in lista.items %}
+{% if items %}
+<div class="doc-seccion">{{ categoria }}</div>
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="centro col-corta">Listo</th>
+      <th>Artículo</th>
+      <th class="num col-corta">Cant.</th>
+      <th>Unidad</th>
+      <th>Proveedor</th>
+      <th class="num col-monto">Costo unitario</th>
+      <th class="num col-monto">Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for producto in items %}
+    <tr>
+      <td class="centro">☐</td>
+      <td class="negrita">{{ producto.item }}{% if producto.nota %}<span class="doc-nota-linea">{{ producto.nota }}</span>{% endif %}</td>
+      <td class="num negrita">{{ producto.cantidad }}</td>
+      <td>{{ producto.unidad }}</td>
+      <td>{% if producto.proveedor_pendiente %}{% badge_doc producto.proveedor "alerta" %}{% else %}{{ producto.proveedor|default:"—" }}{% endif %}</td>
+      <td class="num">{{ producto.costo_unitario|moneda|default:"—" }}</td>
+      <td class="num">{{ producto.costo_total|moneda|default:"—" }}</td>
+    </tr>
     {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% empty %}
+<div class="doc-aviso doc-aviso--info">La cotización no incluye servicio de barra.</div>
+{% endfor %}
 
-    <div class="footer">
-        Generado automáticamente por ERP Quinta Ko'ox Tanil el {% now "d/m/Y H:i" %}
-    </div>
-
-</body>
-</html>
+{% if lista %}
+<div class="doc-totales">
+  <table>
+    <tr class="gran-total"><td>Costo estimado</td><td class="num">{{ total_estimado|moneda }}</td></tr>
+    <tr><td colspan="2" class="doc-totales-nota">Con los costos capturados en insumos; los artículos sin costo no suman.</td></tr>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
