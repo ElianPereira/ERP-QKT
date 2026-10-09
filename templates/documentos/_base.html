@@ -12,6 +12,8 @@ Bloques:
   orientacion  portrait | landscape
   subtitulo    una línea bajo el título
   filtros      <span><b>Etiqueta:</b> valor</span> por cada dato del encabezado
+  generado     fecha (y usuario) de emisión; un documento al cliente lo
+               sobrescribe para no mostrar el usuario interno
   estilos      CSS propio del documento (evitarlo: usar los componentes)
   contenido    cuerpo
   notas        texto chico al final del cuerpo
@@ -60,7 +62,7 @@ Bloques:
 
   <div class="doc-filtros">
     {% block filtros %}{% endblock %}
-    <span><b>Generado:</b> {{ doc_generado_en|date:"d/m/Y" }} {{ doc_generado_en|hora_ampm }}{% if doc_generado_por %} por {{ doc_generado_por }}{% endif %}</span>
+    {% block generado %}<span><b>Generado:</b> {{ doc_generado_en|date:"d/m/Y" }} {{ doc_generado_en|hora_ampm }}{% if doc_generado_por %} por {{ doc_generado_por }}{% endif %}</span>{% endblock %}
   </div>
 
   {% block contenido %}{% endblock %}

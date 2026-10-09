@@ -115,6 +115,51 @@ table.doc-tabla tr.total--final td { font-size: 10pt; }
 .col-corta { width: 46px; }
 .col-estado { width: 74px; }
 
+/* ===== DOS COLUMNAS DE DATOS (cliente / evento) ===== */
+.doc-columnas { display: table; width: 100%; margin-bottom: 12px; border: 1px solid var(--linea); background: var(--fondo-suave); }
+.doc-columnas > .doc-datos { display: table-cell; width: 50%; padding: 8px 12px; margin: 0; vertical-align: top; }
+.doc-columnas > .doc-datos + .doc-datos { border-left: 1px solid var(--linea); }
+.doc-datos dd { font-weight: 600; }
+.doc-columnas .doc-datos > div { display: block; padding: 2px 0; }
+.doc-columnas .doc-datos dt, .doc-columnas .doc-datos dd { display: inline-block; border-bottom: none; padding: 0; vertical-align: top; }
+.doc-columnas .doc-datos dt { width: 74px; }
+.doc-columnas .doc-datos dd { width: calc(100% - 80px); }
+
+/* Renglones de detalle bajo un concepto (componentes, desglose de barra) */
+table.doc-tabla tr.detalle td { font-size: 7.5pt; color: var(--tinta-2); border-bottom: none; padding-top: 1px; padding-bottom: 1px; }
+table.doc-tabla tr.detalle td:first-child { padding-left: 18px; }
+table.doc-tabla tbody tr.detalle:nth-child(even) td { background: transparent; }
+.doc-nota-linea { display: block; font-size: 7pt; color: var(--tinta-3); font-weight: 400; }
+
+/* ===== CUADRO DE TOTALES ===== */
+.doc-totales { width: 46%; margin-left: 54%; margin-bottom: 12px; page-break-inside: avoid; }
+.doc-totales table { width: 100%; border-collapse: collapse; }
+.doc-totales td { padding: 3px 6px; }
+.doc-totales td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.doc-totales tr.resta td { color: var(--error); }
+.doc-totales tr.gran-total td {
+  font-size: 11pt; font-weight: 700; color: var(--verde-oscuro);
+  border-top: 2px solid var(--verde); padding-top: 6px;
+}
+.doc-totales tr.saldo td { font-weight: 700; color: var(--alerta); border-top: 1px dashed var(--linea); }
+.doc-totales .doc-totales-nota { font-size: 7pt; color: var(--tinta-3); text-align: right; padding-top: 0; }
+
+/* ===== BANDA DESTACADA (p. ej. RFC emisor) ===== */
+.doc-banda { display: table; width: 100%; margin-bottom: 12px; padding: 8px 12px; background: var(--verde-oscuro); color: #fff; }
+.doc-banda > div { display: table-cell; vertical-align: middle; }
+.doc-banda > div + div { text-align: right; }
+.doc-banda small { display: block; font-size: 7pt; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+.doc-banda strong { font-size: 11pt; }
+
+/* ===== CONDICIONES (listas de cláusulas) ===== */
+.doc-condiciones { margin-bottom: 8px; page-break-inside: avoid; }
+.doc-condiciones h3 { font-size: 9pt; font-weight: 700; color: var(--verde-oscuro); margin-bottom: 3px; }
+.doc-condiciones ul { padding-left: 14px; font-size: 8pt; color: var(--tinta-2); }
+.doc-condiciones li { margin-bottom: 2px; }
+
+/* ===== SELLO DIGITAL ===== */
+.doc-sello { margin-top: 6px; font-size: 6.5pt; color: var(--tinta-3); word-break: break-all; }
+
 /* ===== BADGES ===== */
 .doc-badge {
   display: inline-block; padding: 1px 6px; border-radius: 8px;

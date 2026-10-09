@@ -23,6 +23,7 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 from weasyprint import HTML
 
+from core_erp.documentos import nombre_archivo, respuesta_pdf
 from core_erp.ratelimit import (
     limpiar_portal_acceso,
     portal_acceso_bloqueado,
@@ -282,14 +283,11 @@ def portal_descargar_cotizacion(request, token):
     portal = _portal_vigente_o_404(token)
     cotizacion = portal.cotizacion
 
-    from .views import obtener_contexto_cotizacion
-    context = obtener_contexto_cotizacion(cotizacion)
-    html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
-
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="Cotizacion_COT-{cotizacion.id:03d}.pdf"'
-    HTML(string=html_string).write_pdf(response)
-    return response
+    from .views import nombre_pdf_cotizacion, obtener_contexto_cotizacion
+    return respuesta_pdf(
+        'cotizaciones/pdf_recibo.html', obtener_contexto_cotizacion(cotizacion),
+        nombre_pdf_cotizacion(cotizacion),
+    )
 
 @_rate_limit(key='portal_descargar_plan', limit=10, window=60)
 def portal_descargar_plan(request, token):
@@ -302,22 +300,11 @@ def portal_descargar_plan(request, token):
     except PlanPago.DoesNotExist:
         raise Http404("No hay plan de pagos disponible.")
 
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-
-    context = {
-        'cotizacion': cotizacion,
-        'plan': plan,
-        'parcialidades': plan.parcialidades.all(),
-        'logo_url': logo_url,
-        'fecha_generacion': timezone.now(),
-    }
-
-    html_string = render_to_string('cotizaciones/pdf_plan_pagos.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="Plan_Pagos_COT-{cotizacion.id:03d}.pdf"'
-    HTML(string=html_string).write_pdf(response)
-    return response
+    from .views import contexto_plan_pagos
+    return respuesta_pdf(
+        'cotizaciones/pdf_plan_pagos.html', contexto_plan_pagos(cotizacion, plan),
+        nombre_archivo('PlanPagos', f"COT-{cotizacion.id:03d}"),
+    )
 
 
 @_rate_limit(key='portal_firmar_contrato', limit=20, window=60)

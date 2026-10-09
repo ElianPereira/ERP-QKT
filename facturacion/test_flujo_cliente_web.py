@@ -139,8 +139,7 @@ class IshEnLaSolicitudTest(TestCase):
         self.assertIn('ISH (impuesto local): $30.00', self.solicitud.get_datos_para_contador())
 
     def test_el_pdf_usa_el_desglose_guardado_no_trata_el_ish_como_base(self):
-        with patch('facturacion.services.render_to_string', return_value='') as render, \
-             patch('facturacion.services.HTML'):
+        with patch('facturacion.services.render_pdf', return_value=b'') as render:
             generar_pdf_solicitud(self.solicitud)
         contexto = render.call_args.args[1]
         self.assertEqual(contexto['calc_subtotal'], Decimal('1000.00'))
@@ -150,8 +149,7 @@ class IshEnLaSolicitudTest(TestCase):
     def test_monto_editado_a_mano_recalcula_desde_el_monto(self):
         self.solicitud.monto = Decimal('1160.00')
         self.assertFalse(self.solicitud.desglose_cuadra)
-        with patch('facturacion.services.render_to_string', return_value='') as render, \
-             patch('facturacion.services.HTML'):
+        with patch('facturacion.services.render_pdf', return_value=b'') as render:
             generar_pdf_solicitud(self.solicitud)
         contexto = render.call_args.args[1]
         self.assertEqual(contexto['calc_subtotal'], Decimal('1000.00'))

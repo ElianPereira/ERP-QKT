@@ -23,6 +23,8 @@ from django.utils.html import strip_tags
 from django.views.decorators.csrf import csrf_exempt
 from weasyprint import HTML
 
+from core_erp.documentos import nombre_archivo, render_pdf, respuesta_pdf
+
 from .models import (
     Cliente,
     Compra,
@@ -525,30 +527,48 @@ def descargar_lista_compras_pdf(request, cotizacion_id):
 # 3. PDF Y EMAIL
 # ==========================================
 def obtener_contexto_cotizacion(cotizacion):
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-
     calc = CalculadoraBarraService(cotizacion)
     datos_barra = calc.calcular()
 
     return {
+        'titulo': f"Cotización de {cotizacion.get_tipo_servicio_display()}",
         'cotizacion': cotizacion, 'items': cotizacion.items.all(),
-        'logo_url': logo_url, 'total_pagado': cotizacion.total_pagado(),
+        'total_pagado': cotizacion.total_pagado(),
         'saldo_pendiente': cotizacion.saldo_pendiente(), 'barra': datos_barra
     }
+
+
+def nombre_pdf_cotizacion(cotizacion):
+    return nombre_archivo('Cotizacion', f"COT-{cotizacion.id:03d}")
+
+
+def contexto_plan_pagos(cotizacion, plan):
+    """Contexto del PDF del plan de pagos. Las condiciones salen de las fuentes
+    vigentes (tabla de la Política de Cancelación y días de pago total), no de
+    texto fijo en la plantilla, para no prometer algo distinto al contrato."""
+    from . import reglas_contrato as rc
+
+    dias = Cotizacion.DIAS_PAGO_TOTAL.get(cotizacion.tipo_servicio, Cotizacion.DIAS_PAGO_TOTAL['EVENTO'])
+    tabla = 'HOSPEDAJE' if cotizacion.tipo_servicio == 'HOSPEDAJE' else 'SERVICIO'
+    return {
+        'titulo': 'Plan de pagos',
+        'cotizacion': cotizacion,
+        'plan': plan,
+        'parcialidades': plan.parcialidades.all(),
+        'dias_pago_total': dias,
+        'fecha_pago_total': cotizacion.fecha_evento - timedelta(days=dias),
+        'tabla_cancelacion': rc.TABLA_CANCELACION[tabla],
+    }
+
 
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
 def generar_pdf_cotizacion(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    context = obtener_contexto_cotizacion(cotizacion)
-    html_string = render_to_string('cotizaciones/pdf_recibo.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    folio = f"COT-{cotizacion.id:03d}"
-    filename = f"{folio}_{timezone.now().strftime('%d-%m-%Y')}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    HTML(string=html_string).write_pdf(response)
-    return response
+    return respuesta_pdf(
+        'cotizaciones/pdf_recibo.html', obtener_contexto_cotizacion(cotizacion),
+        nombre_pdf_cotizacion(cotizacion), request=request,
+    )
 
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
@@ -561,10 +581,9 @@ def enviar_cotizacion_email(request, cotizacion_id):
     try:
         context = obtener_contexto_cotizacion(cotizacion)
         context['cliente'] = cliente
-        html_pdf = render_to_string('cotizaciones/pdf_recibo.html', context)
-        pdf_file = HTML(string=html_pdf).write_pdf()
+        pdf_file = render_pdf('cotizaciones/pdf_recibo.html', context)
         folio = f"COT-{cotizacion.id:03d}"
-        filename = f"{folio}_{timezone.now().strftime('%d-%m-%Y')}.pdf"
+        filename = nombre_pdf_cotizacion(cotizacion)
         html_email = render_to_string('emails/cotizacion.html', context)
         msg = EmailMultiAlternatives(f"Cotización {folio} - Quinta Ko'ox Tanil", strip_tags(html_email), settings.DEFAULT_FROM_EMAIL, [cliente.email])
         msg.attach_alternative(html_email, "text/html")
@@ -948,22 +967,10 @@ def descargar_plan_pagos_pdf(request, cotizacion_id):
         messages.error(request, "El plan de pagos está inactivo.")
         return redirect(request.META.get('HTTP_REFERER', '/admin/'))
 
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}" if os.name == 'nt' else f"file://{ruta_logo}"
-
-    context = {
-        'cotizacion': cotizacion,
-        'plan': plan,
-        'parcialidades': plan.parcialidades.all(),
-        'logo_url': logo_url,
-        'fecha_generacion': timezone.now(),
-    }
-
-    html_string = render_to_string('cotizaciones/pdf_plan_pagos.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="Plan_Pagos_COT-{cotizacion.id:03d}.pdf"'
-    HTML(string=html_string).write_pdf(response)
-    return response
+    return respuesta_pdf(
+        'cotizaciones/pdf_plan_pagos.html', contexto_plan_pagos(cotizacion, plan),
+        nombre_archivo('PlanPagos', f"COT-{cotizacion.id:03d}"), request=request,
+    )
 
 
 # ==========================================

@@ -1,221 +1,48 @@
-    {% load humanize %}
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <title>Solicitud Factura #{{ solicitud.id }}</title>
-        <style>
-            @page { size: letter; margin: 1.5cm; }
-            body { 
-                font-family: 'Helvetica', sans-serif; 
-                color: #333; 
-                margin: 0; padding: 0; 
-                font-size: 12px; 
-            }
-            .clearfix { clear: both; }
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+{# Ficha para el contador (uso interno): con qué RFC timbrar y qué datos lleva el CFDI. #}
 
-            .header-container { width: 100%; margin-bottom: 30px; }
-            .header-table { width: 100%; border: none; }
-            .header-table td { vertical-align: top; }
-            .company-name { font-size: 18px; font-weight: bold; color: #2E7D32; margin-bottom: 5px; }
-            .company-details { font-size: 11px; color: #666; line-height: 1.4; }
+{% block variante %}operativo{% endblock %}
+{% block subtitulo %}Folio {{ folio }}{% endblock %}
+{% block filtros %}
+<span><b>Fecha de solicitud:</b> {{ solicitud.fecha_solicitud|date:"d/m/Y" }}</span>
+<span><b>Origen:</b> {% if solicitud.cotizacion %}COT-{{ solicitud.cotizacion.id|stringformat:"03d" }}{% else %}Venta directa{% endif %}</span>
+{% endblock %}
 
-            .doc-title { text-align: center; margin-top: 10px; margin-bottom: 20px; }
-            .doc-title h1 { margin: 0; color: #2c3e50; font-size: 22px; }
-            .doc-title p { margin: 5px 0 0 0; color: #7f8c8d; }
+{% block contenido %}
+<div class="doc-banda">
+  <div><small>Timbrar bajo</small><strong>{{ solicitud.get_linea_negocio_display }}</strong></div>
+  <div><small>RFC emisor</small><strong>{{ solicitud.rfc_emisor }}</strong></div>
+</div>
 
-            .info-card {
-                border: 1px solid #e0e0e0; border-radius: 10px; padding: 15px;
-                background-color: #fcfcfc; margin-bottom: 30px; position: relative; display: block;
-            }
-            .card-table { width: 100%; }
-            .card-label { color: #2E7D32; font-weight: bold; width: 110px; }
-            .card-value { color: #333; }
+<div class="doc-columnas">
+  <dl class="doc-datos">
+    <div><dt>Razón social</dt><dd>{{ solicitud.razon_social }}</dd></div>
+    <div><dt>RFC</dt><dd>{{ solicitud.rfc }}</dd></div>
+    <div><dt>Régimen fiscal</dt><dd>{{ solicitud.get_regimen_fiscal_display }}</dd></div>
+    <div><dt>C.P. fiscal</dt><dd>{{ solicitud.codigo_postal }}</dd></div>
+  </dl>
+  <dl class="doc-datos">
+    <div><dt>Uso CFDI</dt><dd>{{ solicitud.get_uso_cfdi_display }}</dd></div>
+    <div><dt>Método de pago</dt><dd>{{ solicitud.get_metodo_pago_display }}</dd></div>
+    <div><dt>Forma de pago</dt><dd>{{ solicitud.get_forma_pago_display }}</dd></div>
+  </dl>
+</div>
 
-            .data-table {
-                width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px;
-                border-bottom: 2px solid #2E7D32;
-            }
-            .data-table th {
-                background-color: #2E7D32; color: white; padding: 10px; text-align: center;
-                font-weight: normal; font-size: 12px; border: none;
-            }
-            .data-table th:first-child { border-top-left-radius: 5px; text-align: left; padding-left: 20px; }
-            .data-table th:last-child { border-top-right-radius: 5px; text-align: right; padding-right: 20px; }
-            
-            .data-table td { padding: 10px; text-align: center; border-bottom: 1px solid #f0f0f0; color: #555; }
-            .data-table td:first-child { text-align: left; padding-left: 20px; }
-            .data-table td:last-child { text-align: right; padding-right: 20px; }
-            .data-table tr:last-child td { border-bottom: none; }
+<table class="doc-tabla">
+  <thead><tr><th>Concepto a facturar</th><th class="num col-monto">Subtotal</th></tr></thead>
+  <tbody><tr><td>{{ solicitud.concepto }}</td><td class="num">{{ calc_subtotal|moneda }}</td></tr></tbody>
+</table>
 
-            /* NUEVA SECCIÓN DE TOTALES CON DESGLOSE */
-            .totals-section { margin-top: 20px; width: 100%; }
-            .totals-table { float: right; width: 300px; border: 1px solid #eee; border-radius: 5px; padding: 10px; }
-            
-            .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; }
-            .total-row span:first-child { color: #666; font-weight: bold; }
-            .total-row span:last-child { color: #333; }
-            
-            .grand-total {
-                background-color: #2E7D32; color: white; padding: 10px;
-                border-radius: 4px; font-weight: bold; font-size: 14px; margin-top: 8px;
-                display: flex; justify-content: space-between;
-            }
+<div class="doc-totales">
+  <table>
+    <tr><td>Subtotal</td><td class="num">{{ calc_subtotal|moneda }}</td></tr>
+    {% if calc_iva > 0 %}<tr><td>IVA</td><td class="num">{{ calc_iva|moneda }}</td></tr>{% endif %}
+    {% if calc_ish > 0 %}<tr><td>ISH (impuesto local)</td><td class="num">{{ calc_ish|moneda }}</td></tr>{% endif %}
+    {% if calc_ret_isr > 0 %}<tr class="resta"><td>Retención ISR</td><td class="num">-{{ calc_ret_isr|moneda }}</td></tr>{% endif %}
+    <tr class="gran-total"><td>Total factura</td><td class="num">{{ calc_total|moneda }}</td></tr>
+  </table>
+</div>
+{% endblock %}
 
-            .linea-negocio-banner {
-                background-color: {{ linea_negocio_color }}; color: white; padding: 10px 15px;
-                border-radius: 6px; margin-bottom: 15px; font-size: 13px;
-                display: flex; justify-content: space-between; align-items: center;
-            }
-            .linea-negocio-banner strong { font-size: 14px; }
-        </style>
-    </head>
-    <body>
-
-        <div class="header-container">
-            <table class="header-table">
-                <tr>
-                    <td style="width: 50%;">
-                        <img src="{{ logo_url }}" style="height: 70px; display: block;">
-                    </td>
-                    <td style="width: 50%; text-align: right;">
-                        <div class="company-name">Quinta Ko'ox Tanil</div>
-                        <div class="company-details">
-                            Ctra Tanil - Ticimul KM 1.920<br>Umán, Yucatán<br>quintakooxtanil@gmail.com
-                        </div>
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="doc-title">
-            <h1>Ficha Técnica de Facturación</h1>
-            <p>Folio Solicitud: SOL-{{ solicitud.id|stringformat:"03d" }}</p>
-        </div>
-
-        <div class="linea-negocio-banner">
-            <span>Timbrar bajo:<br><strong>{{ solicitud.get_linea_negocio_display }}</strong></span>
-            <span style="text-align: right;">RFC emisor:<br><strong>{{ solicitud.rfc_emisor }}</strong></span>
-        </div>
-
-        <div class="info-card">
-            <table class="card-table">
-                <tr>
-                    <td style="width: 60%;">
-                        <table style="width: 100%;">
-                            <tr>
-                                <td class="card-label">Razón Social:</td>
-                                <td class="card-value" style="font-weight: bold;">{{ solicitud.razon_social }}</td>
-                            </tr>
-                            <tr>
-                                <td class="card-label">RFC:</td>
-                                <td class="card-value">{{ solicitud.rfc }}</td>
-                            </tr>
-                            <tr>
-                                <td class="card-label">Régimen:</td>
-                                <td class="card-value">{{ solicitud.get_regimen_fiscal_display }}</td>
-                            </tr>
-                            <tr>
-                                <td class="card-label">CP Fiscal:</td>
-                                <td class="card-value">{{ solicitud.codigo_postal }}</td>
-                            </tr>
-                        </table>
-                    </td>
-                    <td style="width: 40%;">
-                        <table style="width: 100%;">
-                            <tr>
-                                <td class="card-label" style="text-align: right;">Fecha Solicitud:</td>
-                                <td class="card-value" style="text-align: right;">{{ solicitud.fecha_solicitud|date:"d/m/Y" }}</td>
-                            </tr>
-                            
-                            <tr>
-                                <td class="card-label" style="text-align: right;">Origen:</td>
-                                <td class="card-value" style="text-align: right; font-weight: bold; color: #2E7D32;">
-                                    {% if solicitud.cotizacion %}
-                                        COT-{{ solicitud.cotizacion.id|stringformat:"03d" }}
-                                    {% else %}
-                                        Venta Directa
-                                    {% endif %}
-                                </td>
-                            </tr>
-
-                            <tr>
-                                <td class="card-label" style="text-align: right;">Uso CFDI:</td>
-                                <td class="card-value" style="text-align: right;">{{ solicitud.get_uso_cfdi_display }}</td>
-                            </tr>
-                            <tr>
-                                <td class="card-label" style="text-align: right;">Método Pago:</td>
-                                <td class="card-value" style="text-align: right;">{{ solicitud.get_metodo_pago_display }}</td>
-                            </tr>
-                            <tr>
-                                <td class="card-label" style="text-align: right;">Forma Pago:</td>
-                                <td class="card-value" style="text-align: right;">{{ solicitud.get_forma_pago_display }}</td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="clearfix" style="height: 10px;"></div>
-
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Concepto a Facturar</th>
-                    <th>Monto Base (Subtotal)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td style="text-align: left;">{{ solicitud.concepto }}</td>
-                    <td>${{ calc_subtotal|floatformat:2|intcomma }}</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div class="totals-section">
-            <div class="totals-table">
-                
-                <div class="total-row">
-                    <span>Subtotal:</span>
-                    <span>${{ calc_subtotal|floatformat:2|intcomma }}</span>
-                </div>
-
-                {% if calc_iva > 0 %}
-                <div class="total-row" style="color: #666;">
-                    <span>(+) IVA 16%:</span>
-                    <span>${{ calc_iva|floatformat:2|intcomma }}</span>
-                </div>
-                {% endif %}
-
-                {% if calc_ish > 0 %}
-                <div class="total-row" style="color: #666;">
-                    <span>(+) ISH (impuesto local):</span>
-                    <span>${{ calc_ish|floatformat:2|intcomma }}</span>
-                </div>
-                {% endif %}
-
-                {% if calc_ret_isr > 0 %}
-                <div class="total-row" style="color: #c0392b;">
-                    <span>(-) Ret. ISR:</span>
-                    <span>- ${{ calc_ret_isr|floatformat:2|intcomma }}</span>
-                </div>
-                {% endif %}
-
-                <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
-
-                <div class="grand-total">
-                    <span>TOTAL FACTURA:</span>
-                    <span>${{ calc_total|floatformat:2|intcomma }}</span>
-                </div>
-            </div>
-            <div class="clearfix"></div>
-        </div>
-
-        <div style="position: absolute; bottom: 0; width: 100%; text-align: center; color: #ccc; font-size: 9px; border-top: 1px solid #eee; padding-top: 10px;">
-            Este documento es una solicitud interna para el área contable.
-        </div>
-
-    </body>
-    </html>
+{% block notas %}Solicitud interna para el área contable.{% endblock %}

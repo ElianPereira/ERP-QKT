@@ -21,6 +21,11 @@ from django.utils import timezone
 
 EMPRESA = "Quinta Ko'ox Tanil"
 UBICACION = 'Umán, Yucatán'
+# Contacto que ve el cliente: el 9191 (agente) es el único número público
+# (Memoria 2026-10-06), igual que en contratos y documentos legales.
+DOMICILIO = 'Ctra. Tanil - Ticimul km 1.920, Umán, Yucatán'
+WHATSAPP = '999 169 9191'
+EMAIL = 'quintakooxtanil@gmail.com'
 
 
 def ruta_estatica(ruta: str) -> str:
@@ -37,6 +42,9 @@ def contexto_documento(request=None) -> dict:
     return {
         'doc_empresa': EMPRESA,
         'doc_ubicacion': UBICACION,
+        'doc_domicilio': DOMICILIO,
+        'doc_whatsapp': WHATSAPP,
+        'doc_email': EMAIL,
         'doc_logo': ruta_estatica('img/logo.png'),
         'doc_fuentes': ruta_estatica('fonts'),
         'doc_generado_en': timezone.localtime(),

@@ -14,6 +14,7 @@ from comercial.models import Cliente, Cotizacion
 from core_erp import impuestos
 
 from .models import SolicitudFactura
+from .services import generar_pdf_solicitud
 
 
 @staff_member_required
@@ -73,44 +74,9 @@ def crear_solicitud(request):
                 uso_cfdi=uso_cfdi,
             )
 
-            # --- PREPARACIÓN DEL PDF ---
-            ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-            if os.name == 'nt':
-                logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
-            else:
-                logo_url = f"file://{ruta_logo}"
-
-            # --- CÁLCULO INVERSO DE IMPUESTOS (AQUÍ ESTABA FALTANDO) ---
-            total = Decimal(solicitud.monto)
-            subtotal = total
-            iva = Decimal('0.00')
-            ret_isr = Decimal('0.00')
-
-            if cliente.es_cliente_fiscal:
-                # El desglose lo hace el módulo central: antes se calculaba aquí
-                # con factores propios y SIN redondear, así que llegaban valores
-                # de precisión arbitraria al contexto del PDF.
-                d = impuestos.desglosar(
-                    total, con_retencion_isr=(cliente.tipo_persona == 'MORAL'),
-                )
-                subtotal = d['base']
-                iva = d['iva']
-                ret_isr = d['ret_isr']
-
-            context = {
-                'solicitud': solicitud,
-                'cliente': cliente,
-                'folio': f"SOL-{int(solicitud.id):03d}",
-                'logo_url': logo_url,
-                # Variables matemáticas para el template
-                'calc_subtotal': subtotal,
-                'calc_iva': iva,
-                'calc_ret_isr': ret_isr,
-                'calc_total': total
-            }
-
-            html_string = render_to_string('facturacion/solicitud_pdf.html', context)
-            pdf_file = HTML(string=html_string).write_pdf()
+            # Mismo generador que el flujo automático (signal) y el envío al
+            # contador: un solo desglose fiscal, ISH incluido.
+            pdf_file = generar_pdf_solicitud(solicitud)
 
             filename = f"Solicitud_{cliente.rfc}_SOL-{solicitud.id}.pdf"
             solicitud.archivo_pdf.save(filename, ContentFile(pdf_file))
