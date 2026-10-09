@@ -14,7 +14,27 @@ from django.utils import timezone
 
 
 class BalanzaComprobacionService:
-    """Genera la balanza de comprobación para un período."""
+    """Genera la balanza de comprobación para un período.
+
+    Cada cuenta acumula los movimientos de todas sus subcuentas (por la
+    jerarquía `padre`, no por el número de nivel), así que a cualquier nivel
+    de detalle la balanza está completa: antes, en nivel 2 o 3 se perdía todo
+    lo capturado en subcuentas más profundas (el banco es 102.02.01, nivel 4).
+    Las filas marcadas `es_raiz` son las que no tienen ancestro visible: los
+    totales se suman solo sobre ellas para no contar un importe dos veces.
+    """
+
+    @staticmethod
+    def _lados(saldo: Decimal, naturaleza: str) -> Tuple[Decimal, Decimal]:
+        """(debe, haber) de un saldo: del lado de su naturaleza si es positivo,
+        del contrario si es negativo."""
+        cero = Decimal('0.00')
+        if saldo == 0:
+            return cero, cero
+        natural = saldo > 0
+        if (naturaleza == 'D') == natural:
+            return abs(saldo), cero
+        return cero, abs(saldo)
 
     @classmethod
     def generar(
@@ -22,65 +42,79 @@ class BalanzaComprobacionService:
         fecha_inicio: date,
         fecha_fin: date,
         unidad_negocio=None,
-        nivel_detalle: int = 3
+        nivel_detalle: int = 4
     ) -> List[Dict]:
         from .models import CuentaContable, MovimientoContable
 
-        cuentas = CuentaContable.objects.filter(
-            activa=True,
-            nivel__lte=nivel_detalle
-        ).order_by('codigo_sat')
-
-        filtros_mov = Q(poliza__estado='APLICADA')
+        filtros_mov = Q(poliza__estado='APLICADA', poliza__fecha__lte=fecha_fin)
         if unidad_negocio:
             filtros_mov &= Q(poliza__unidad_negocio=unidad_negocio)
 
-        resultado = []
-
-        for cuenta in cuentas:
-            saldo_inicial_data = MovimientoContable.objects.filter(
-                filtros_mov,
-                cuenta=cuenta,
-                poliza__fecha__lt=fecha_inicio
-            ).aggregate(debe=Sum('debe'), haber=Sum('haber'))
-
-            debe_inicial = saldo_inicial_data['debe'] or Decimal('0.00')
-            haber_inicial = saldo_inicial_data['haber'] or Decimal('0.00')
-
-            if cuenta.naturaleza == 'D':
-                saldo_inicial = debe_inicial - haber_inicial
+        cero = Decimal('0.00')
+        # Importes propios de cada cuenta: [debe_previo, haber_previo, cargos, abonos]
+        propios = {}
+        for fila in (MovimientoContable.objects.filter(filtros_mov)
+                     .values('cuenta_id', 'poliza__fecha')
+                     .annotate(debe=Sum('debe'), haber=Sum('haber'))):
+            acum = propios.setdefault(fila['cuenta_id'], [cero, cero, cero, cero])
+            debe, haber = fila['debe'] or cero, fila['haber'] or cero
+            if fila['poliza__fecha'] < fecha_inicio:
+                acum[0] += debe
+                acum[1] += haber
             else:
-                saldo_inicial = haber_inicial - debe_inicial
+                acum[2] += debe
+                acum[3] += haber
 
-            movimientos_periodo = MovimientoContable.objects.filter(
-                filtros_mov,
-                cuenta=cuenta,
-                poliza__fecha__gte=fecha_inicio,
-                poliza__fecha__lte=fecha_fin
-            ).aggregate(debe=Sum('debe'), haber=Sum('haber'))
+        cuentas = {c.pk: c for c in CuentaContable.objects.all()}
+        acumulado = {pk: [cero, cero, cero, cero] for pk in cuentas}
+        for cuenta_id, importes in propios.items():
+            pk, vistos = cuenta_id, set()
+            while pk is not None and pk not in vistos:
+                vistos.add(pk)
+                acumulado[pk] = [x + y for x, y in zip(acumulado[pk], importes)]
+                pk = cuentas[pk].padre_id
 
-            cargos = movimientos_periodo['debe'] or Decimal('0.00')
-            abonos = movimientos_periodo['haber'] or Decimal('0.00')
+        visibles = {
+            pk for pk, c in cuentas.items() if c.activa and c.nivel <= nivel_detalle
+        }
 
+        def es_raiz(cuenta):
+            pk, vistos = cuenta.padre_id, set()
+            while pk is not None and pk not in vistos:
+                if pk in visibles:
+                    return False
+                vistos.add(pk)
+                pk = cuentas[pk].padre_id
+            return True
+
+        resultado = []
+        for cuenta in sorted((cuentas[pk] for pk in visibles), key=lambda c: c.codigo_sat):
+            debe_ini, haber_ini, cargos, abonos = acumulado[cuenta.pk]
             if cuenta.naturaleza == 'D':
+                saldo_inicial = debe_ini - haber_ini
                 saldo_final = saldo_inicial + cargos - abonos
             else:
+                saldo_inicial = haber_ini - debe_ini
                 saldo_final = saldo_inicial - cargos + abonos
 
-            if saldo_inicial != 0 or cargos != 0 or abonos != 0 or saldo_final != 0:
-                resultado.append({
-                    'codigo': cuenta.codigo_sat,
-                    'nombre': cuenta.nombre,
-                    'tipo': cuenta.tipo,
-                    'naturaleza': cuenta.naturaleza,
-                    'nivel': cuenta.nivel,
-                    'saldo_inicial_debe': saldo_inicial if cuenta.naturaleza == 'D' and saldo_inicial > 0 else Decimal('0.00'),
-                    'saldo_inicial_haber': abs(saldo_inicial) if cuenta.naturaleza == 'A' or saldo_inicial < 0 else Decimal('0.00'),
-                    'cargos': cargos,
-                    'abonos': abonos,
-                    'saldo_final_debe': saldo_final if cuenta.naturaleza == 'D' and saldo_final > 0 else Decimal('0.00'),
-                    'saldo_final_haber': abs(saldo_final) if cuenta.naturaleza == 'A' or saldo_final < 0 else Decimal('0.00'),
-                })
+            if not (saldo_inicial or cargos or abonos or saldo_final):
+                continue
+            si_debe, si_haber = cls._lados(saldo_inicial, cuenta.naturaleza)
+            sf_debe, sf_haber = cls._lados(saldo_final, cuenta.naturaleza)
+            resultado.append({
+                'codigo': cuenta.codigo_sat,
+                'nombre': cuenta.nombre,
+                'tipo': cuenta.tipo,
+                'naturaleza': cuenta.naturaleza,
+                'nivel': cuenta.nivel,
+                'es_raiz': es_raiz(cuenta),
+                'saldo_inicial_debe': si_debe,
+                'saldo_inicial_haber': si_haber,
+                'cargos': cargos,
+                'abonos': abonos,
+                'saldo_final_debe': sf_debe,
+                'saldo_final_haber': sf_haber,
+            })
 
         return resultado
 

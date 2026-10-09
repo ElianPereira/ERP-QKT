@@ -136,6 +136,34 @@ class MesContableTest(TestCase):
         self.assertIn('102.02.01', texto)
         self.assertIn('$116,970.00 $116,970.00', texto)
 
+    def test_balanza_mismos_totales_en_cualquier_nivel(self):
+        from contabilidad.services import BalanzaComprobacionService
+        for nivel in (1, 2, 3, 4):
+            with self.subTest(nivel=nivel):
+                datos = BalanzaComprobacionService.generar(
+                    date(2026, 1, 1), date(2026, 1, 31), nivel_detalle=nivel)
+                raices = [r for r in datos if r['es_raiz']]
+                self.assertEqual(sum(r['cargos'] for r in raices), D('116970.00'))
+                self.assertEqual(sum(r['abonos'] for r in raices), D('116970.00'))
+                self.assertEqual(
+                    sum(r['saldo_final_debe'] for r in raices),
+                    sum(r['saldo_final_haber'] for r in raices),
+                )
+
+    def test_balanza_nivel_2_acumula_el_banco_en_su_grupo(self):
+        from contabilidad.services import BalanzaComprobacionService
+        datos = BalanzaComprobacionService.generar(
+            date(2026, 1, 1), date(2026, 1, 31), nivel_detalle=2)
+        grupo = next(r for r in datos if r['codigo'] == '102')
+        self.assertEqual(grupo['saldo_final_debe'], D('106330.00'))
+        activo = next(r for r in datos if r['codigo'] == '100')
+        self.assertEqual(activo['saldo_final_debe'], D('106650.00'))  # banco + IVA acreditable
+
+    def test_balanza_pdf_nivel_2(self):
+        texto = self._texto_pdf('balanza', nivel='2', **self.PERIODO)
+        self.assertIn('$116,970.00 $116,970.00', texto)
+        self.assertNotIn('102.02.01', texto)  # nivel 4 no se muestra, pero se suma
+
     def test_libro_mayor_del_banco(self):
         texto = self._texto_pdf('libro_mayor', cuenta_id=self.cuentas['102.02.01'].pk, **self.PERIODO)
         self.assertIn('Venta evento COT-001', texto)
