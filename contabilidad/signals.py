@@ -92,6 +92,12 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
     cotizacion = pago.cotizacion
     monto = Decimal(str(pago.monto))
 
+    # Condonación: no entra dinero ni se devenga ingreso ni IVA por ese
+    # importe; el ingreso del evento queda en lo efectivamente cobrado. Antes
+    # caía en la rama por defecto y cargaba el banco por dinero inexistente.
+    if pago.metodo == 'CONDONACION':
+        return
+
     # Si es reembolso, generar póliza inversa de egreso
     if getattr(pago, 'tipo', 'INGRESO') == 'REEMBOLSO':
         crear_poliza_reembolso_cliente(pago)
