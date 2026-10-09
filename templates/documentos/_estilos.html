@@ -1,0 +1,167 @@
+{# Sistema de documentos QKT (Issue #373). Tokens y componentes de impresión: la versión clara de los --ui-* del admin. #}
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; font-style: normal; src: url('{{ doc_fuentes }}/IBMPlexSans-400.woff'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; font-style: italic; src: url('{{ doc_fuentes }}/IBMPlexSans-400-italic.woff'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; font-style: normal; src: url('{{ doc_fuentes }}/IBMPlexSans-600.woff'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 700; font-style: normal; src: url('{{ doc_fuentes }}/IBMPlexSans-700.woff'); }
+@font-face { font-family: 'Cormorant Garamond'; font-weight: 600; font-style: normal; src: url('{{ doc_fuentes }}/CormorantGaramond-600.woff'); }
+
+:root {
+  --tinta: #2c2b28;
+  --tinta-2: #5a5852;
+  --tinta-3: #8a8780;
+  --linea: #e4e0d8;
+  --linea-suave: #efece6;
+  --fondo-suave: #f8f6f2;
+  --verde: #2E7D32;
+  --verde-oscuro: #1B5E20;
+  --verde-bg: #EAF4EA;
+  --exito: #2E7D32;  --exito-bg: #EAF4EA;
+  --alerta: #A65F00; --alerta-bg: #FFF3DF;
+  --error: #C62828;  --error-bg: #FDECEA;
+  --info: #1F5FA8;   --info-bg: #E8F0FA;
+  --neutro: #5a5852; --neutro-bg: #F0EEE9;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'IBM Plex Sans', Arial, sans-serif;
+  font-size: 8.5pt; line-height: 1.45; color: var(--tinta);
+}
+.doc--cliente, .doc--contractual { font-size: 9.5pt; line-height: 1.55; }
+
+/* ===== ENCABEZADO ===== */
+.doc-encabezado { display: table; width: 100%; padding-bottom: 8px; border-bottom: 2px solid var(--verde); }
+.doc-encabezado > div { display: table-cell; vertical-align: middle; }
+.doc-marca { width: 45%; }
+.doc-marca img { height: 34px; vertical-align: middle; }
+.doc-marca .doc-marca-texto { display: inline-block; vertical-align: middle; margin-left: 8px; }
+.doc-marca .doc-empresa { font-size: 11pt; font-weight: 700; color: var(--verde-oscuro); }
+.doc-marca .doc-ubicacion { font-size: 7.5pt; color: var(--tinta-3); }
+.doc-titulo { text-align: right; }
+.doc-titulo h1 {
+  font-size: 14pt; font-weight: 700; color: var(--verde-oscuro); line-height: 1.2;
+  string-set: titulo-doc content();
+}
+.doc--cliente .doc-titulo h1,
+.doc--contractual .doc-titulo h1 { font-family: 'Cormorant Garamond', serif; font-size: 20pt; font-weight: 600; }
+.doc-titulo .doc-subtitulo { font-size: 8pt; color: var(--tinta-2); margin-top: 2px; }
+
+/* Filtros / datos del documento: periodo, unidad, generado por */
+.doc-filtros { margin: 6px 0 12px; font-size: 7.5pt; color: var(--tinta-2); }
+.doc-filtros span { display: inline-block; margin-right: 14px; }
+.doc-filtros b { color: var(--tinta); font-weight: 600; }
+
+/* ===== SECCIONES ===== */
+.doc-seccion {
+  font-size: 9.5pt; font-weight: 700; color: var(--verde-oscuro);
+  border-bottom: 1px solid var(--linea); padding-bottom: 3px; margin: 14px 0 6px;
+  page-break-after: avoid;
+}
+.doc--cliente .doc-seccion,
+.doc--contractual .doc-seccion { font-family: 'Cormorant Garamond', serif; font-size: 13pt; font-weight: 600; }
+
+/* ===== KPIs ===== */
+.doc-kpis { display: table; width: calc(100% + 12px); border-spacing: 6px 0; margin: 0 -6px 12px; }
+.doc-kpi {
+  display: table-cell; background: var(--fondo-suave); border: 1px solid var(--linea);
+  border-top: 2px solid var(--verde); padding: 7px 9px;
+}
+.doc-kpi .doc-kpi-valor { font-size: 12pt; font-weight: 700; color: var(--tinta); }
+.doc-kpi .doc-kpi-etiqueta { font-size: 6.5pt; color: var(--tinta-3); text-transform: uppercase; letter-spacing: 0.5px; }
+.doc-kpi--exito { border-top-color: var(--exito); } .doc-kpi--exito .doc-kpi-valor { color: var(--exito); }
+.doc-kpi--alerta { border-top-color: var(--alerta); } .doc-kpi--alerta .doc-kpi-valor { color: var(--alerta); }
+.doc-kpi--error { border-top-color: var(--error); } .doc-kpi--error .doc-kpi-valor { color: var(--error); }
+.doc-kpi--info { border-top-color: var(--info); } .doc-kpi--info .doc-kpi-valor { color: var(--info); }
+
+/* ===== DATOS (etiqueta: valor) ===== */
+.doc-datos { display: table; width: 100%; margin-bottom: 10px; }
+.doc-datos > div { display: table-row; }
+.doc-datos dt, .doc-datos dd { display: table-cell; padding: 2px 0; border-bottom: 1px solid var(--linea-suave); }
+.doc-datos dt { width: 32%; color: var(--tinta-3); font-size: 7.5pt; }
+
+/* ===== TABLAS ===== */
+table.doc-tabla { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+table.doc-tabla thead { display: table-header-group; }
+table.doc-tabla th {
+  background: var(--verde-oscuro); color: #fff; padding: 4px 6px; text-align: left;
+  font-size: 6.8pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+}
+table.doc-tabla td { padding: 3px 6px; border-bottom: 1px solid var(--linea-suave); vertical-align: top; }
+table.doc-tabla tbody tr:nth-child(even) td { background: var(--fondo-suave); }
+table.doc-tabla tr { page-break-inside: avoid; }
+table.doc-tabla .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.doc-tabla .centro { text-align: center; }
+table.doc-tabla .codigo { white-space: nowrap; color: var(--tinta-2); }
+table.doc-tabla .vacio { text-align: center; color: var(--tinta-3); padding: 10px; }
+table.doc-tabla tr.destacado td { background: var(--verde-bg); font-weight: 600; }
+table.doc-tabla tr.subtotal td { background: var(--neutro-bg); font-weight: 600; border-top: 1px solid var(--tinta-3); }
+table.doc-tabla tr.total td {
+  background: var(--verde-bg); font-weight: 700; color: var(--verde-oscuro);
+  border-top: 2px solid var(--verde); border-bottom: none;
+}
+table.doc-tabla tr.total--final td { font-size: 10pt; }
+
+/* Niveles del catálogo de cuentas */
+.nivel-1 { font-weight: 700; }
+.nivel-2 { padding-left: 12px !important; font-weight: 600; }
+.nivel-3 { padding-left: 24px !important; }
+.nivel-4 { padding-left: 36px !important; color: var(--tinta-2); }
+
+/* Columnas de ancho fijo para tablas densas */
+.col-codigo { width: 62px; }
+.col-fecha { width: 58px; }
+.col-folio { width: 58px; }
+.col-monto { width: 84px; }
+.col-corta { width: 46px; }
+.col-estado { width: 74px; }
+
+/* ===== BADGES ===== */
+.doc-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 8px;
+  font-size: 6.5pt; font-weight: 600; white-space: nowrap;
+  color: var(--neutro); background: var(--neutro-bg);
+}
+.doc-badge--exito { color: var(--exito); background: var(--exito-bg); }
+.doc-badge--alerta { color: var(--alerta); background: var(--alerta-bg); }
+.doc-badge--error { color: var(--error); background: var(--error-bg); }
+.doc-badge--info { color: var(--info); background: var(--info-bg); }
+
+/* ===== AVISOS ===== */
+.doc-aviso {
+  padding: 6px 10px; margin: 8px 0; border-left: 3px solid var(--neutro);
+  background: var(--neutro-bg); font-size: 8pt; page-break-inside: avoid;
+}
+.doc-aviso--exito { border-left-color: var(--exito); background: var(--exito-bg); color: var(--exito); }
+.doc-aviso--alerta { border-left-color: var(--alerta); background: var(--alerta-bg); color: var(--alerta); }
+.doc-aviso--error { border-left-color: var(--error); background: var(--error-bg); color: var(--error); }
+.doc-aviso--info { border-left-color: var(--info); background: var(--info-bg); color: var(--info); }
+
+/* ===== RESUMEN EN LÍNEA (conteos por estado, forma de pago…) ===== */
+.doc-resumen { margin: -4px 0 10px; font-size: 7.5pt; color: var(--tinta-2); }
+.doc-resumen span { display: inline-block; margin-right: 12px; }
+.doc-resumen b { color: var(--tinta); }
+
+/* ===== FIRMAS ===== */
+.doc-firmas { display: table; width: 100%; margin-top: 36px; page-break-inside: avoid; }
+.doc-firma { display: table-cell; width: 50%; padding: 0 20px; text-align: center; }
+.doc-firma .doc-firma-linea { border-top: 1px solid var(--tinta); padding-top: 4px; font-size: 8pt; }
+.doc-firma .doc-firma-rol { font-size: 7pt; color: var(--tinta-3); }
+
+/* ===== MARCA DE AGUA (VISTA PREVIA, BORRADOR, CANCELADO) ===== */
+.doc-marca-agua {
+  position: fixed; top: 42%; left: 0; width: 100%; text-align: center;
+  font-size: 64pt; font-weight: 700; color: rgba(198, 40, 40, 0.10);
+  transform: rotate(-30deg); z-index: -1;
+}
+
+/* ===== PIE DEL CUERPO ===== */
+.doc-notas { margin-top: 14px; font-size: 7pt; color: var(--tinta-3); }
+
+/* ===== UTILIDADES ===== */
+.texto-exito, table.doc-tabla tr td.texto-exito { color: var(--exito); }
+.texto-error, table.doc-tabla tr td.texto-error { color: var(--error); }
+.texto-alerta { color: var(--alerta); }
+.texto-tenue { color: var(--tinta-3); }
+.negrita { font-weight: 700; }
+.sin-cortes { page-break-inside: avoid; }
+.salto-pagina { page-break-before: always; }

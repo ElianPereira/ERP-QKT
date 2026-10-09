@@ -1,133 +1,58 @@
-{% extends "reportes/pdf_base.html" %}
-{% load humanize %}
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
 
-{% block subtitulo %}Estado de Situación Financiera.{% endblock %}
+{% block subtitulo %}Estado de situación financiera{% endblock %}
 
-{% block periodo_header %}
-    <strong>Al:</strong> {{ fecha_corte|date:"d/m/Y" }}
+{% block filtros %}
+<span><b>Al:</b> {{ fecha_corte|date:"d/m/Y" }}</span>
+<span><b>Unidad:</b> {{ unidad|default:"Todas" }}</span>
 {% endblock %}
 
-{% block extra_css %}
-    .cuadre-ok { background: #E8F5E9; color: #2E7D32; padding: 6px 12px; border-radius: 4px; font-weight: 700; font-size: 10px; display: inline-block; margin-top: 8px; }
-    .cuadre-error { background: #FFEBEE; color: #e74c3c; padding: 6px 12px; border-radius: 4px; font-weight: 700; font-size: 10px; display: inline-block; margin-top: 8px; }
-{% endblock %}
-
-{% block content %}
-
-<!-- RESUMEN -->
-<div class="resumen-grid">
-    <div class="resumen-card">
-        <div class="valor">${{ total_activo|floatformat:2|intcomma }}</div>
-        <div class="etiqueta">Total Activo</div>
-    </div>
-    <div class="resumen-card">
-        <div class="valor">${{ total_pasivo|floatformat:2|intcomma }}</div>
-        <div class="etiqueta">Total Pasivo</div>
-    </div>
-    <div class="resumen-card">
-        <div class="valor">${{ total_capital_mas_resultado|floatformat:2|intcomma }}</div>
-        <div class="etiqueta">Capital + Resultado</div>
-    </div>
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ total_activo|moneda }}</div><div class="doc-kpi-etiqueta">Total activo</div></div>
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ total_pasivo|moneda }}</div><div class="doc-kpi-etiqueta">Total pasivo</div></div>
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ total_capital_mas_resultado|moneda }}</div><div class="doc-kpi-etiqueta">Capital + resultado</div></div>
 </div>
 
-<!-- ACTIVO -->
-<div class="seccion-titulo">ACTIVO</div>
-<table class="reporte">
-    <thead>
-        <tr>
-            <th style="width:70px;">Código</th>
-            <th>Cuenta</th>
-            <th class="right" style="width:130px;">Saldo</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for l in activos %}
-        <tr class="no-break">
-            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
-            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
-            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
-        </tr>
-        {% endfor %}
-        <tr class="total">
-            <td colspan="2">TOTAL ACTIVO</td>
-            <td class="right">${{ total_activo|floatformat:2|intcomma }}</td>
-        </tr>
-    </tbody>
-</table>
+<div class="doc-seccion">Activo</div>
+{% include "reportes/_tabla_cuentas.html" with lineas=activos columna="Saldo" total_etiqueta="Total activo" total=total_activo %}
 
-<!-- PASIVO -->
-<div class="seccion-titulo">PASIVO</div>
-<table class="reporte">
-    <thead>
-        <tr>
-            <th style="width:70px;">Código</th>
-            <th>Cuenta</th>
-            <th class="right" style="width:130px;">Saldo</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for l in pasivos %}
-        <tr class="no-break">
-            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
-            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
-            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
-        </tr>
-        {% endfor %}
-        <tr class="total">
-            <td colspan="2">TOTAL PASIVO</td>
-            <td class="right">${{ total_pasivo|floatformat:2|intcomma }}</td>
-        </tr>
-    </tbody>
-</table>
+<div class="doc-seccion">Pasivo</div>
+{% include "reportes/_tabla_cuentas.html" with lineas=pasivos columna="Saldo" total_etiqueta="Total pasivo" total=total_pasivo %}
 
-<!-- CAPITAL -->
-<div class="seccion-titulo">CAPITAL CONTABLE</div>
-<table class="reporte">
-    <thead>
-        <tr>
-            <th style="width:70px;">Código</th>
-            <th>Cuenta</th>
-            <th class="right" style="width:130px;">Saldo</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for l in capital %}
-        <tr class="no-break">
-            <td><span class="nivel-{{ l.nivel }}">{{ l.codigo }}</span></td>
-            <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
-            <td class="right">${{ l.saldo|floatformat:2|intcomma }}</td>
-        </tr>
-        {% endfor %}
-        <tr class="subtotal">
-            <td colspan="2">Subtotal Capital</td>
-            <td class="right">${{ total_capital|floatformat:2|intcomma }}</td>
-        </tr>
-        <tr class="no-break">
-            <td></td>
-            <td class="text-bold">Resultado del Ejercicio</td>
-            <td class="right text-bold" style="color:{% if resultado_ejercicio >= 0 %}#2E7D32{% else %}#e74c3c{% endif %}">
-                ${{ resultado_ejercicio|floatformat:2|intcomma }}
-            </td>
-        </tr>
-        <tr class="total">
-            <td colspan="2">TOTAL CAPITAL + RESULTADO</td>
-            <td class="right">${{ total_capital_mas_resultado|floatformat:2|intcomma }}</td>
-        </tr>
-    </tbody>
-</table>
-
-<!-- CUADRE -->
-<table class="reporte" style="margin-top:10px;">
-    <tr class="total">
-        <td>TOTAL PASIVO + CAPITAL</td>
-        <td class="right" style="width:130px;">${{ total_pasivo_capital|floatformat:2|intcomma }}</td>
+<div class="doc-seccion">Capital contable</div>
+<table class="doc-tabla">
+  <thead>
+    <tr><th class="col-codigo">Código</th><th>Cuenta</th><th class="num col-monto">Saldo</th></tr>
+  </thead>
+  <tbody>
+    {% for l in capital %}
+    <tr>
+      <td class="codigo nivel-{{ l.nivel }}">{{ l.codigo }}</td>
+      <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+      <td class="num">{{ l.saldo|moneda }}</td>
     </tr>
+    {% endfor %}
+    <tr class="subtotal"><td colspan="2">Subtotal capital</td><td class="num">{{ total_capital|moneda }}</td></tr>
+    <tr>
+      <td></td>
+      <td class="negrita">Resultado del ejercicio</td>
+      <td class="num negrita texto-{{ resultado_ejercicio|tono_signo }}">{{ resultado_ejercicio|moneda }}</td>
+    </tr>
+    <tr class="total"><td colspan="2">Total capital + resultado</td><td class="num">{{ total_capital_mas_resultado|moneda }}</td></tr>
+  </tbody>
+</table>
+
+<table class="doc-tabla">
+  <tbody>
+    <tr class="total total--final"><td>Total pasivo + capital</td><td class="num col-monto">{{ total_pasivo_capital|moneda }}</td></tr>
+  </tbody>
 </table>
 
 {% if cuadra %}
-<div class="cuadre-ok">La ecuación contable cuadra (A = P + C)</div>
+<div class="doc-aviso doc-aviso--exito">La ecuación contable cuadra (Activo = Pasivo + Capital).</div>
 {% else %}
-<div class="cuadre-error">DESCUADRE: Diferencia de ${{ diferencia|floatformat:2|intcomma }}</div>
+<div class="doc-aviso doc-aviso--error"><b>Descuadre:</b> diferencia de {{ diferencia|moneda }}.</div>
 {% endif %}
-
 {% endblock %}

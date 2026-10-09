@@ -5,30 +5,22 @@ Selector centralizado + generación de cada reporte en HTML y PDF.
 
 ERP Quinta Ko'ox Tanil
 """
-import os
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
-from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
-from django.template.loader import render_to_string
 from django.utils import timezone
-from weasyprint import HTML
+
+from core_erp.documentos import nombre_archivo, respuesta_pdf
 
 from .models import ReporteGenerado
 
 # ==========================================
 # UTILIDADES
 # ==========================================
-
-def _logo_url():
-    """Genera la URL del logo para WeasyPrint."""
-    ruta = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    return f"file://{ruta}"
-
 
 def _parse_fecha(request, campo, default=None):
     """Parsea fecha de GET params con fallback."""
@@ -54,14 +46,8 @@ def _registrar_reporte(request, tipo, fecha_inicio, fecha_fin, formato='PDF', pa
 
 
 def _render_pdf(request, template, context, filename):
-    """Renderiza un template a PDF con WeasyPrint."""
-    context['logo_url'] = _logo_url()
-    context['fecha_impresion'] = timezone.now()
-    html_string = render_to_string(template, context)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    HTML(string=html_string).write_pdf(response)
-    return response
+    """PDF con el sistema de documentos QKT (core_erp/documentos.py)."""
+    return respuesta_pdf(template, context, filename, request=request)
 
 
 # ==========================================
@@ -131,7 +117,7 @@ def reporte_balanza(request):
     total_sf_haber = sum(Decimal(str(r['saldo_final_haber'])) for r in datos)
 
     context = {
-        'titulo': 'Balanza de Comprobación',
+        'titulo': 'Balanza de comprobación',
         'fecha_inicio': fecha_inicio,
         'fecha_fin': fecha_fin,
         'unidad': unidad,
@@ -149,7 +135,7 @@ def reporte_balanza(request):
         'unidad': str(unidad) if unidad else None, 'nivel': nivel,
     })
 
-    filename = f"Balanza_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('Balanza', fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_balanza.html', context, filename)
 
 
@@ -179,13 +165,13 @@ def reporte_estado_resultados(request):
         unidad_negocio=unidad,
     )
     datos['unidad'] = unidad
-    datos['titulo'] = 'Estado de Resultados'
+    datos['titulo'] = 'Estado de resultados'
 
     _registrar_reporte(request, 'EDO_RESULTADOS', fecha_inicio, fecha_fin, parametros={
         'unidad': str(unidad) if unidad else None,
     })
 
-    filename = f"EdoResultados_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('EstadoResultados', fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_estado_resultados.html', datos, filename)
 
 
@@ -213,13 +199,13 @@ def reporte_balance_general(request):
         unidad_negocio=unidad,
     )
     datos['unidad'] = unidad
-    datos['titulo'] = 'Balance General'
+    datos['titulo'] = 'Balance general'
 
     _registrar_reporte(request, 'BALANCE_GRAL', fecha_fin, fecha_fin, parametros={
         'unidad': str(unidad) if unidad else None,
     })
 
-    filename = f"BalanceGeneral_{fecha_fin.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('BalanceGeneral', fecha_fin)
     return _render_pdf(request, 'reportes/pdf_balance_general.html', datos, filename)
 
 
@@ -254,14 +240,14 @@ def reporte_libro_mayor(request):
         unidad_negocio=unidad,
     )
     datos['unidad'] = unidad
-    datos['titulo'] = f"Libro Mayor — {datos['cuenta'].codigo_sat} {datos['cuenta'].nombre}"
+    datos['titulo'] = f"Libro mayor {datos['cuenta'].codigo_sat} {datos['cuenta'].nombre}"
 
     _registrar_reporte(request, 'LIBRO_MAYOR', fecha_inicio, fecha_fin, parametros={
         'cuenta': str(datos['cuenta']),
         'unidad': str(unidad) if unidad else None,
     })
 
-    filename = f"LibroMayor_{datos['cuenta'].codigo_sat}_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('LibroMayor', datos['cuenta'].codigo_sat, fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_libro_mayor.html', datos, filename)
 
 
@@ -296,14 +282,14 @@ def reporte_auxiliar(request):
         unidad_negocio=unidad,
     )
     datos['unidad'] = unidad
-    datos['titulo'] = f"Auxiliar de Cuentas — {datos['cuenta_padre'].codigo_sat} {datos['cuenta_padre'].nombre}"
+    datos['titulo'] = 'Auxiliar de cuentas'
 
     _registrar_reporte(request, 'AUXILIAR', fecha_inicio, fecha_fin, parametros={
         'cuenta_padre': str(datos['cuenta_padre']),
         'unidad': str(unidad) if unidad else None,
     })
 
-    filename = f"Auxiliar_{datos['cuenta_padre'].codigo_sat}_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('Auxiliar', datos['cuenta_padre'].codigo_sat, fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_auxiliar.html', datos, filename)
 
 
@@ -319,11 +305,11 @@ def reporte_cxc(request):
 
     fecha_corte = _parse_fecha(request, 'fecha_corte', timezone.now().date())
     datos = CxCCarteraService.generar(fecha_corte=fecha_corte)
-    datos['titulo'] = 'Cartera de Clientes — Antigüedad de Saldos'
+    datos['titulo'] = 'Cartera de clientes'
 
     _registrar_reporte(request, 'CXC_CARTERA', fecha_corte, fecha_corte)
 
-    filename = f"CxC_Cartera_{fecha_corte.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('Cartera', fecha_corte)
     return _render_pdf(request, 'reportes/pdf_cxc.html', datos, filename)
 
 
@@ -346,13 +332,17 @@ def reporte_cotizaciones(request):
         fecha_fin=fecha_fin,
         estado=estado,
     )
-    datos['titulo'] = 'Cotizaciones por Período'
+    datos['titulo'] = 'Cotizaciones por periodo'
+    # Mismos tonos que la lista de cotizaciones del admin.
+    from comercial.admin import CotizacionAdmin
+    for fila in datos['cotizaciones']:
+        fila['estado_tono'] = CotizacionAdmin.TONOS_ESTADO.get(fila['estado_clave'], 'neutro')
 
     _registrar_reporte(request, 'COT_PERIODO', fecha_inicio, fecha_fin, parametros={
         'estado': estado,
     })
 
-    filename = f"Cotizaciones_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('Cotizaciones', fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_cotizaciones.html', datos, filename)
 
 
@@ -373,9 +363,9 @@ def reporte_facturas(request):
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
     )
-    datos['titulo'] = 'Facturas Emitidas'
+    datos['titulo'] = 'Facturas emitidas'
 
     _registrar_reporte(request, 'FACTURAS', fecha_inicio, fecha_fin)
 
-    filename = f"Facturas_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.pdf"
+    filename = nombre_archivo('Facturas', fecha_inicio, fecha_fin)
     return _render_pdf(request, 'reportes/pdf_facturas.html', datos, filename)

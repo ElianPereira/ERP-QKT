@@ -11,6 +11,14 @@ from typing import Dict, List, Optional
 
 from django.utils import timezone
 
+# Etiqueta y tono (los 5 del sistema de diseño) de cada tramo de antigüedad.
+ANTIGUEDAD = {
+    'VENCIDO': ('Vencido', 'error'),
+    'URGENTE': ('Urgente', 'alerta'),
+    'PROXIMO': ('Próximo', 'info'),
+    'AL_DIA': ('Al día', 'exito'),
+}
+
 
 class CxCCarteraService:
     """
@@ -68,6 +76,8 @@ class CxCCarteraService:
                 'porcentaje_pagado': cot.porcentaje_pagado,
                 'dias_evento': dias_evento,
                 'antiguedad': antiguedad,
+                'antiguedad_etiqueta': ANTIGUEDAD[antiguedad][0],
+                'antiguedad_tono': ANTIGUEDAD[antiguedad][1],
             })
 
         # Ordenar: vencidos primero
@@ -124,18 +134,20 @@ class CotizacionesPeriodoService:
                 'folio': f"COT-{cot.id:03d}",
                 'cliente': cot.cliente.nombre,
                 'evento': cot.nombre_evento,
-                'tipo_evento': cot.nombre_evento[:20],
+                'tipo_servicio': cot.get_tipo_servicio_display(),
                 'fecha_evento': cot.fecha_evento,
                 'precio_final': cot.precio_final,
                 'total_pagado': pagado,
                 'saldo': cot.saldo_pendiente(),
                 'estado': estado_cot,
+                'estado_clave': cot.estado,
             })
 
         return {
             'fecha_inicio': fecha_inicio,
             'fecha_fin': fecha_fin,
             'estado_filtro': estado,
+            'estado_filtro_etiqueta': dict(Cotizacion.ESTADOS).get(estado, estado),
             'cotizaciones': cotizaciones,
             'total_cotizado': total_cotizado,
             'total_cobrado': total_cobrado,

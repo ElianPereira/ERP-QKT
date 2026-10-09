@@ -265,6 +265,25 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-09 — **Sistema de documentos QKT, fase 1** (Issue #373, decisiones del
+  propietario: IBM Plex en todo, Cormorant solo en títulos al cliente/legales;
+  alcance = todo lo existente + reportes faltantes). Todo PDF nuevo o migrado
+  se genera con `core_erp/documentos.py` (`render_pdf`/`respuesta_pdf`/
+  `nombre_archivo` → `QKT_<Tipo>_<…>.pdf`), extiende `documentos/_base.html`
+  (bloques `variante`, `orientacion`, `subtitulo`, `filtros`, `contenido`) y usa
+  los componentes `doc-*` de `documentos/_estilos.html`; montos con `|moneda`/
+  `|cifra` y badges con `{% badge_doc texto tono %}` (`qkt_documentos`, en
+  `comercial/templatetags` porque `core_erp` no es app). Nada de `style=`,
+  colores literales ni `intcomma`: lo vigila `core_erp/test_documentos.py`, cuya
+  lista `PLANTILLAS_MIGRADAS` crece con cada fase. **Trampas**: el `@page` vive
+  en `_base.html` y no en el include de estilos, porque un `{% block %}` dentro
+  de un `{% include %}` no se puede sobrescribir; el título del pie sale con
+  `string-set` desde el `<h1>` (meterlo como texto en el CSS rompe con el
+  apóstrofo de «Ko'ox» escapado); y `tr.total td` le gana en especificidad a
+  `td.texto-error`, por eso esos selectores llevan `tr`. De paso: «Cotizaciones
+  por periodo» llenaba Tipo con `nombre_evento[:20]` (ahora tipo de servicio) y
+  pintaba todo estado en gris (ahora los tonos del admin).
+
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).
   `BajaWhatsApp` (migración `comunicacion.0010`, menú «Bajas», solo consulta)

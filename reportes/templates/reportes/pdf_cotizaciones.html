@@ -1,86 +1,67 @@
-{% extends "reportes/pdf_base.html" %}
-{% load humanize %}
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
 
-{% block orientation %}landscape{% endblock %}
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Cotizaciones por fecha de servicio y estado{% endblock %}
 
-{% block subtitulo %}Resumen de cotizaciones por período y estado.{% endblock %}
-
-{% block periodo_header %}
-    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
-    {% if estado_filtro %} | <strong>Estado:</strong> {{ estado_filtro }}{% endif %}
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+<span><b>Estado:</b> {{ estado_filtro_etiqueta|default:"Todos" }}</span>
 {% endblock %}
 
-{% block content %}
-
-<!-- RESUMEN -->
-<div class="resumen-grid">
-    <div class="resumen-card">
-        <div class="valor">{{ count }}</div>
-        <div class="etiqueta">Cotizaciones</div>
-    </div>
-    <div class="resumen-card">
-        <div class="valor">${{ total_cotizado|floatformat:2|intcomma }}</div>
-        <div class="etiqueta">Total Cotizado</div>
-    </div>
-    <div class="resumen-card">
-        <div class="valor">${{ total_cobrado|floatformat:2|intcomma }}</div>
-        <div class="etiqueta">Total Cobrado</div>
-    </div>
-    <div class="resumen-card">
-        <div class="valor" style="color:#e67e22">${{ total_pendiente|floatformat:2|intcomma }}</div>
-        <div class="etiqueta">Pendiente</div>
-    </div>
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ count }}</div><div class="doc-kpi-etiqueta">Cotizaciones</div></div>
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ total_cotizado|moneda }}</div><div class="doc-kpi-etiqueta">Total cotizado</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ total_cobrado|moneda }}</div><div class="doc-kpi-etiqueta">Total cobrado</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ total_pendiente|moneda }}</div><div class="doc-kpi-etiqueta">Pendiente</div></div>
 </div>
 
 {% if resumen_estados %}
-<div style="margin-bottom:10px; font-size:9px;">
-    <strong>Por estado:</strong>
-    {% for estado, count in resumen_estados.items %}
-        {{ estado }}: {{ count }}{% if not forloop.last %} | {% endif %}
-    {% endfor %}
+<div class="doc-resumen">
+  {% for estado, n in resumen_estados.items %}<span><b>{{ estado }}:</b> {{ n }}</span>{% endfor %}
 </div>
 {% endif %}
 
-<table class="reporte">
-    <thead>
-        <tr>
-            <th style="width:55px;">Folio</th>
-            <th>Cliente</th>
-            <th>Evento</th>
-            <th class="center" style="width:55px;">Tipo</th>
-            <th class="center" style="width:65px;">Fecha</th>
-            <th class="right" style="width:85px;">Precio</th>
-            <th class="right" style="width:85px;">Pagado</th>
-            <th class="right" style="width:85px;">Saldo</th>
-            <th class="center" style="width:70px;">Estado</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for c in cotizaciones %}
-        <tr class="no-break">
-            <td class="text-bold">{{ c.folio }}</td>
-            <td>{{ c.cliente|truncatechars:25 }}</td>
-            <td>{{ c.evento|truncatechars:25 }}</td>
-            <td class="center">{{ c.tipo_evento }}</td>
-            <td class="center">{{ c.fecha_evento|date:"d/m/y" }}</td>
-            <td class="right">${{ c.precio_final|floatformat:2|intcomma }}</td>
-            <td class="right">${{ c.total_pagado|floatformat:2|intcomma }}</td>
-            <td class="right">${{ c.saldo|floatformat:2|intcomma }}</td>
-            <td class="center"><span class="badge badge-neutral">{{ c.estado }}</span></td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="9" class="text-center text-muted">Sin cotizaciones en el período.</td></tr>
-        {% endfor %}
-
-        {% if cotizaciones %}
-        <tr class="total">
-            <td colspan="5">TOTALES ({{ count }})</td>
-            <td class="right">${{ total_cotizado|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_cobrado|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_pendiente|floatformat:2|intcomma }}</td>
-            <td></td>
-        </tr>
-        {% endif %}
-    </tbody>
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="col-folio">Folio</th>
+      <th>Cliente</th>
+      <th>Evento</th>
+      <th class="col-estado">Servicio</th>
+      <th class="centro col-fecha">Fecha</th>
+      <th class="num col-monto">Precio</th>
+      <th class="num col-monto">Pagado</th>
+      <th class="num col-monto">Saldo</th>
+      <th class="centro col-estado">Estado</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in cotizaciones %}
+    <tr>
+      <td class="codigo">{{ c.folio }}</td>
+      <td>{{ c.cliente|truncatechars:30 }}</td>
+      <td>{{ c.evento|truncatechars:30 }}</td>
+      <td>{{ c.tipo_servicio }}</td>
+      <td class="centro">{{ c.fecha_evento|date:"d/m/Y" }}</td>
+      <td class="num">{{ c.precio_final|moneda }}</td>
+      <td class="num">{{ c.total_pagado|moneda }}</td>
+      <td class="num">{{ c.saldo|moneda }}</td>
+      <td class="centro">{% badge_doc c.estado c.estado_tono %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" class="vacio">Sin cotizaciones en el periodo.</td></tr>
+    {% endfor %}
+    {% if cotizaciones %}
+    <tr class="total">
+      <td colspan="5">Totales ({{ count }})</td>
+      <td class="num">{{ total_cotizado|moneda }}</td>
+      <td class="num">{{ total_cobrado|moneda }}</td>
+      <td class="num">{{ total_pendiente|moneda }}</td>
+      <td></td>
+    </tr>
+    {% endif %}
+  </tbody>
 </table>
 {% endblock %}
