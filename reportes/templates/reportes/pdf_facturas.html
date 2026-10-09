@@ -2,7 +2,7 @@
 {% load qkt_documentos %}
 
 {% block orientacion %}landscape{% endblock %}
-{% block subtitulo %}Solicitudes de facturación emitidas en el periodo{% endblock %}
+{% block subtitulo %}Solicitudes de facturación del periodo (sin canceladas){% endblock %}
 
 {% block filtros %}
 <span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
@@ -31,6 +31,7 @@
       <th>Concepto</th>
       <th class="num col-monto">Monto</th>
       <th class="col-estado">Forma de pago</th>
+      <th class="centro col-estado">Estado</th>
     </tr>
   </thead>
   <tbody>
@@ -44,15 +45,16 @@
       <td>{{ f.concepto }}</td>
       <td class="num">{{ f.monto|moneda }}</td>
       <td>{{ f.forma_pago }}</td>
+      <td class="centro">{% badge_doc f.estado f.estado_tono %}</td>
     </tr>
     {% empty %}
-    <tr><td colspan="8" class="vacio">Sin facturas en el periodo.</td></tr>
+    <tr><td colspan="9" class="vacio">Sin facturas en el periodo.</td></tr>
     {% endfor %}
     {% if facturas %}
     <tr class="total">
       <td colspan="6">Total ({{ count }} facturas)</td>
       <td class="num">{{ total_monto|moneda }}</td>
-      <td></td>
+      <td colspan="2"></td>
     </tr>
     {% endif %}
   </tbody>

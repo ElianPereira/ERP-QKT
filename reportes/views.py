@@ -95,7 +95,9 @@ def reporte_balanza(request):
     fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
     fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
     unidad_id = request.GET.get('unidad_negocio')
-    nivel = int(request.GET.get('nivel', '3'))
+    # Nivel 4 por defecto: el servicio no acumula subcuentas en su padre, así que
+    # un nivel menor deja fuera cuentas con movimientos (el banco es 102.02.01).
+    nivel = int(request.GET.get('nivel', '4'))
 
     unidad = None
     if unidad_id:

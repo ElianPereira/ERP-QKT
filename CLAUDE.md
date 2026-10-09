@@ -282,7 +282,19 @@ salvo que queden obsoletas.
   apóstrofo de «Ko'ox» escapado); y `tr.total td` le gana en especificidad a
   `td.texto-error`, por eso esos selectores llevan `tr`. De paso: «Cotizaciones
   por periodo» llenaba Tipo con `nombre_evento[:20]` (ahora tipo de servicio) y
-  pintaba todo estado en gris (ahora los tonos del admin).
+  pintaba todo estado en gris (ahora los tonos del admin). **Prueba funcional
+  con un mes contable real** (`reportes/tests.py`, pedida por el propietario:
+  «¿se revisó que funcione o solo el diseño?») encontró tres fallas de cálculo
+  previas: **(1)** el Estado de resultados contaba las 402 (tipo INGRESO) en
+  Ingresos y otra vez en «Otros» → utilidad inflada; **(2)** el Balance general
+  cortaba en nivel 3 y dejaba fuera el banco (102.02.01 es nivel 4) → descuadre
+  por todo el saldo bancario; **(3)** «Facturas emitidas» sumaba solicitudes
+  CANCELADAS y mostraba «None» como RFC (ahora usa el RFC de la solicitud y
+  muestra su estado). Los servicios no acumulan subcuentas en el padre: un
+  nivel de detalle menor que el de la cuenta con movimientos la omite. La
+  **Balanza** tiene el mismo corte (vive en `contabilidad/services.py`, zona
+  restringida): solo se movió su default a nivel 4 en vista y selector;
+  acumular subcuentas en los niveles 2/3 queda **pendiente de aprobación**.
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).

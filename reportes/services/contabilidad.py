@@ -42,10 +42,14 @@ class EstadoResultadosService:
             filtros &= Q(poliza__unidad_negocio=unidad_negocio)
 
         def _sumar_tipo(tipo: str) -> List[Dict]:
-            """Suma movimientos de cuentas de un tipo, devuelve detalle por cuenta."""
+            """Suma movimientos de cuentas de un tipo, devuelve detalle por cuenta.
+
+            Las 402 (otros ingresos) son de tipo INGRESO pero van en su propia
+            sección: contarlas aquí también las sumaba dos veces a la utilidad.
+            """
             cuentas = CuentaContable.objects.filter(
                 tipo=tipo, activa=True, nivel__lte=nivel_detalle
-            ).order_by('codigo_sat')
+            ).exclude(codigo_sat__startswith='402').order_by('codigo_sat')
 
             lineas = []
             for cuenta in cuentas:
@@ -139,7 +143,7 @@ class BalanceGeneralService:
         cls,
         fecha_corte: date,
         unidad_negocio=None,
-        nivel_detalle: int = 3,
+        nivel_detalle: int = 4,
     ) -> Dict:
         from contabilidad.models import CuentaContable, MovimientoContable
 
