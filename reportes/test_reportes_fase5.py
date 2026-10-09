@@ -359,8 +359,7 @@ class AccesoTest(Base):
         self.assertEqual(ReporteGenerado.objects.filter(formato='EXCEL').count(), len(self.REPORTES))
 
     def test_staff_sin_permiso_recibe_403(self):
-        User.objects.create_user('ventas', password='clave-de-prueba-123', is_staff=True)
-        self.client.login(username='ventas', password='clave-de-prueba-123')
+        self.client.force_login(User.objects.create_user('ventas', is_staff=True))
         for nombre in self.REPORTES:
             with self.subTest(reporte=nombre):
                 self.assertEqual(self.client.get(reverse(f'reportes:{nombre}'), PERIODO).status_code, 403)
