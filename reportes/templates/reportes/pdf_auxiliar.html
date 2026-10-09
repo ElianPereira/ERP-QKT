@@ -1,48 +1,48 @@
-{% extends "reportes/pdf_base.html" %}
-{% load humanize %}
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
 
-{% block subtitulo %}Desglose de subcuentas y movimientos.{% endblock %}
+{% block subtitulo %}Desglose de subcuentas y movimientos{% endblock %}
 
-{% block periodo_header %}
-    <strong>Cuenta:</strong> {{ cuenta_padre.codigo_sat }} — {{ cuenta_padre.nombre }}
-    | <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
+{% block filtros %}
+<span><b>Cuenta:</b> {{ cuenta_padre.codigo_sat }} {{ cuenta_padre.nombre }}</span>
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+<span><b>Unidad:</b> {{ unidad|default:"Todas" }}</span>
 {% endblock %}
 
-{% block content %}
-<table class="reporte">
-    <thead>
-        <tr>
-            <th style="width:80px;">Código</th>
-            <th>Subcuenta</th>
-            <th class="right" style="width:90px;">S. Inicial</th>
-            <th class="right" style="width:90px;">Cargos</th>
-            <th class="right" style="width:90px;">Abonos</th>
-            <th class="right" style="width:90px;">S. Final</th>
-            <th class="center" style="width:50px;">Movs.</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for l in lineas %}
-        <tr class="no-break">
-            <td>{{ l.codigo }}</td>
-            <td>{{ l.nombre }}</td>
-            <td class="right">${{ l.saldo_inicial|floatformat:2|intcomma }}</td>
-            <td class="right">${{ l.cargos|floatformat:2|intcomma }}</td>
-            <td class="right">${{ l.abonos|floatformat:2|intcomma }}</td>
-            <td class="right">${{ l.saldo_final|floatformat:2|intcomma }}</td>
-            <td class="center">{{ l.num_movimientos }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="7" class="text-center text-muted">Sin subcuentas con movimientos.</td></tr>
-        {% endfor %}
-
-        <tr class="total">
-            <td colspan="3">TOTALES</td>
-            <td class="right">${{ total_debe|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_haber|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_saldo|floatformat:2|intcomma }}</td>
-            <td></td>
-        </tr>
-    </tbody>
+{% block contenido %}
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="col-codigo">Código</th>
+      <th>Subcuenta</th>
+      <th class="num col-monto">S. Inicial</th>
+      <th class="num col-monto">Cargos</th>
+      <th class="num col-monto">Abonos</th>
+      <th class="num col-monto">S. Final</th>
+      <th class="centro col-corta">Movs.</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in lineas %}
+    <tr>
+      <td class="codigo">{{ l.codigo }}</td>
+      <td>{{ l.nombre }}</td>
+      <td class="num">{{ l.saldo_inicial|moneda }}</td>
+      <td class="num">{{ l.cargos|moneda }}</td>
+      <td class="num">{{ l.abonos|moneda }}</td>
+      <td class="num">{{ l.saldo_final|moneda }}</td>
+      <td class="centro">{{ l.num_movimientos }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="vacio">Sin subcuentas con movimientos.</td></tr>
+    {% endfor %}
+    <tr class="total">
+      <td colspan="3">Totales</td>
+      <td class="num">{{ total_debe|moneda }}</td>
+      <td class="num">{{ total_haber|moneda }}</td>
+      <td class="num">{{ total_saldo|moneda }}</td>
+      <td></td>
+    </tr>
+  </tbody>
 </table>
 {% endblock %}

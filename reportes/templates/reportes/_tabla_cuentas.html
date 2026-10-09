@@ -1,0 +1,27 @@
+{% load qkt_documentos %}
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="col-codigo">Código</th>
+      <th>Cuenta</th>
+      <th class="num col-monto">{{ columna|default:"Importe" }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in lineas %}
+    <tr>
+      <td class="codigo nivel-{{ l.nivel }}">{{ l.codigo }}</td>
+      <td class="nivel-{{ l.nivel }}">{{ l.nombre }}</td>
+      <td class="num">{{ l.saldo|moneda }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="3" class="vacio">Sin cuentas con saldo.</td></tr>
+    {% endfor %}
+    {% if subtotal_etiqueta %}
+    <tr class="subtotal"><td colspan="2">{{ subtotal_etiqueta }}</td><td class="num">{{ subtotal|moneda }}</td></tr>
+    {% endif %}
+    {% if total_etiqueta %}
+    <tr class="total"><td colspan="2">{{ total_etiqueta }}</td><td class="num">{{ total|moneda }}</td></tr>
+    {% endif %}
+  </tbody>
+</table>

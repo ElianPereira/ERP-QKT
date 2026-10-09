@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+{% comment %}
+Base de todo documento del ERP (Issue #373). Se renderiza con
+core_erp.documentos.render_pdf(), que inyecta doc_logo, doc_fuentes,
+doc_generado_en y doc_generado_por.
+
+Contexto: `titulo` (encabezado, pie de página y metadatos del PDF) y,
+opcional, `marca_agua` (VISTA PREVIA, BORRADOR, CANCELADO).
+
+Bloques:
+  variante     reporte | cliente | contractual | operativo
+  orientacion  portrait | landscape
+  subtitulo    una línea bajo el título
+  filtros      <span><b>Etiqueta:</b> valor</span> por cada dato del encabezado
+  estilos      CSS propio del documento (evitarlo: usar los componentes)
+  contenido    cuerpo
+  notas        texto chico al final del cuerpo
+{% endcomment %}
+{% load qkt_horarios %}
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ titulo }}</title>
+  <meta name="author" content="{{ doc_empresa }}">
+  <meta name="generator" content="ERP Quinta Ko'ox Tanil">
+  <style>
+    {% include "documentos/_estilos.html" %}
+    @page {
+      size: letter {% block orientacion %}portrait{% endblock %};
+      margin: 1.6cm 1.5cm 1.8cm 1.5cm;
+      @bottom-left {
+        content: "Quinta Ko'ox Tanil · " string(titulo-doc);
+        font-family: 'IBM Plex Sans', sans-serif; font-size: 7pt; color: #8a8780;
+      }
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-family: 'IBM Plex Sans', sans-serif; font-size: 7pt; color: #8a8780;
+      }
+    }
+    {% block estilos %}{% endblock %}
+  </style>
+</head>
+<body class="doc doc--{% block variante %}reporte{% endblock %}">
+
+  {% if marca_agua %}<div class="doc-marca-agua">{{ marca_agua }}</div>{% endif %}
+
+  <header class="doc-encabezado">
+    <div class="doc-marca">
+      <img src="{{ doc_logo }}" alt="">
+      <span class="doc-marca-texto">
+        <span class="doc-empresa">{{ doc_empresa }}</span><br>
+        <span class="doc-ubicacion">{{ doc_ubicacion }}</span>
+      </span>
+    </div>
+    <div class="doc-titulo">
+      <h1>{{ titulo }}</h1>
+      <div class="doc-subtitulo">{% block subtitulo %}{% endblock %}</div>
+    </div>
+  </header>
+
+  <div class="doc-filtros">
+    {% block filtros %}{% endblock %}
+    <span><b>Generado:</b> {{ doc_generado_en|date:"d/m/Y" }} {{ doc_generado_en|hora_ampm }}{% if doc_generado_por %} por {{ doc_generado_por }}{% endif %}</span>
+  </div>
+
+  {% block contenido %}{% endblock %}
+
+  <div class="doc-notas">{% block notas %}{% endblock %}</div>
+
+</body>
+</html>

@@ -1,54 +1,53 @@
-{% extends "reportes/pdf_base.html" %}
-{% load humanize %}
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
 
-{% block orientation %}landscape{% endblock %}
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Saldos iniciales, movimientos del periodo y saldos finales{% endblock %}
 
-{% block subtitulo %}Saldos iniciales, movimientos del período y saldos finales.{% endblock %}
-
-{% block periodo_header %}
-    <strong>Período:</strong> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}
-    | <strong>Nivel:</strong> {{ nivel }}
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+<span><b>Nivel:</b> {{ nivel }}</span>
+<span><b>Unidad:</b> {{ unidad|default:"Todas" }}</span>
 {% endblock %}
 
-{% block content %}
-<table class="reporte">
-    <thead>
-        <tr>
-            <th style="width:60px;">Código</th>
-            <th>Cuenta</th>
-            <th class="right">S.I. Debe</th>
-            <th class="right">S.I. Haber</th>
-            <th class="right">Cargos</th>
-            <th class="right">Abonos</th>
-            <th class="right">S.F. Debe</th>
-            <th class="right">S.F. Haber</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for r in datos %}
-        <tr class="no-break">
-            <td><span class="nivel-{{ r.nivel }}">{{ r.codigo }}</span></td>
-            <td class="nivel-{{ r.nivel }}">{{ r.nombre }}</td>
-            <td class="right">{{ r.saldo_inicial_debe|floatformat:2|intcomma }}</td>
-            <td class="right">{{ r.saldo_inicial_haber|floatformat:2|intcomma }}</td>
-            <td class="right">{{ r.cargos|floatformat:2|intcomma }}</td>
-            <td class="right">{{ r.abonos|floatformat:2|intcomma }}</td>
-            <td class="right">{{ r.saldo_final_debe|floatformat:2|intcomma }}</td>
-            <td class="right">{{ r.saldo_final_haber|floatformat:2|intcomma }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="8" class="text-center text-muted">Sin movimientos en el período.</td></tr>
-        {% endfor %}
-
-        <tr class="total">
-            <td colspan="2">TOTALES</td>
-            <td class="right">${{ total_si_debe|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_si_haber|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_cargos|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_abonos|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_sf_debe|floatformat:2|intcomma }}</td>
-            <td class="right">${{ total_sf_haber|floatformat:2|intcomma }}</td>
-        </tr>
-    </tbody>
+{% block contenido %}
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="col-codigo">Código</th>
+      <th>Cuenta</th>
+      <th class="num col-monto">S.I. Debe</th>
+      <th class="num col-monto">S.I. Haber</th>
+      <th class="num col-monto">Cargos</th>
+      <th class="num col-monto">Abonos</th>
+      <th class="num col-monto">S.F. Debe</th>
+      <th class="num col-monto">S.F. Haber</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in datos %}
+    <tr>
+      <td class="codigo nivel-{{ r.nivel }}">{{ r.codigo }}</td>
+      <td class="nivel-{{ r.nivel }}">{{ r.nombre }}</td>
+      <td class="num">{{ r.saldo_inicial_debe|cifra }}</td>
+      <td class="num">{{ r.saldo_inicial_haber|cifra }}</td>
+      <td class="num">{{ r.cargos|cifra }}</td>
+      <td class="num">{{ r.abonos|cifra }}</td>
+      <td class="num">{{ r.saldo_final_debe|cifra }}</td>
+      <td class="num">{{ r.saldo_final_haber|cifra }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" class="vacio">Sin movimientos en el periodo.</td></tr>
+    {% endfor %}
+    <tr class="total">
+      <td colspan="2">Totales</td>
+      <td class="num">{{ total_si_debe|moneda }}</td>
+      <td class="num">{{ total_si_haber|moneda }}</td>
+      <td class="num">{{ total_cargos|moneda }}</td>
+      <td class="num">{{ total_abonos|moneda }}</td>
+      <td class="num">{{ total_sf_debe|moneda }}</td>
+      <td class="num">{{ total_sf_haber|moneda }}</td>
+    </tr>
+  </tbody>
 </table>
 {% endblock %}
