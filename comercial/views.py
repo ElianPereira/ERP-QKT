@@ -807,7 +807,7 @@ def generar_contrato(request, cotizacion_id):
     try:
         contrato, pdf_bytes = emitir_contrato(cotizacion, usuario=request.user, deposito=deposito)
         numero = contrato.numero
-        filename = f"Contrato_{numero}.pdf"
+        filename = nombre_archivo('Contrato', numero)
 
         messages.success(request, f" Contrato {numero} generado correctamente.")
 
@@ -835,7 +835,7 @@ def vista_previa_contrato_propio(request, cotizacion_id):
 
     pdf_bytes, numero = ContratoService(cotizacion, vista_previa=True).generar()
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="Contrato_{numero}.pdf"'
+    response['Content-Disposition'] = f'inline; filename="{nombre_archivo('Contrato', numero)}"'
     return response
 
 

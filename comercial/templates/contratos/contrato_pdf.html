@@ -1,18 +1,16 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  {% include 'contratos/_estilos_contrato.html' %}
-</head>
-<body>
+{% extends "documentos/_base.html" %}
+{% block variante %}contractual{% endblock %}
+{% block pie %}"Contrato {{ numero }}"{% endblock %}
+
+{% block encabezado %}{% endblock %}
+
+{% block contenido %}
 
 <!-- ══════════════════════════════════════════════════════════
      ENCABEZADO
 ══════════════════════════════════════════════════════════ -->
 <div class="header">
-  {% if logo_url %}
-  <img src="{{ logo_url }}" class="logo" alt="Logo">
-  {% endif %}
+  <img src="{{ doc_logo }}" class="logo" alt="">
   <div class="titulo">
     
       Contrato de Arrendamiento de Salón para Eventos Sociales
@@ -347,8 +345,7 @@
      FIRMAS
 ══════════════════════════════════════════════════════════ -->
 <div class="firmas">
-  <div class="firmas-grid">
-    <div class="firma-col">
+      <div class="firma-col">
       <div class="firma-linea"></div>
       <div class="firma-nombre">ELIAN DE JESUS PEREIRA CEH</div>
       <div class="firma-rol">EL ARRENDADOR</div>
@@ -360,13 +357,12 @@
       <div class="firma-rol">EL ARRENDATARIO</div>
       <div class="firma-rfc">RFC/CURP: {{ rfc_curp }}</div>
     </div>
-  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
      AUTORIZACIÓN MERCADOTECNIA
 ══════════════════════════════════════════════════════════ -->
-<div class="autorizacion-box" style="margin-top: 18px;">
+<div class="autorizacion-box">
   <p class="bold">Autorización para la utilización de información con fines mercadotécnicos o publicitarios</p>
   <p>EL ARRENDATARIO:</p>
   <div class="check-row">
@@ -376,15 +372,15 @@
   <div class="check-row">
     Si ( &nbsp; ) &nbsp; No ( &nbsp; ) &mdash; acepta que EL ARRENDADOR le envíe publicidad sobre bienes y servicios.
   </div>
-  <div style="margin-top: 24px; text-align: center;">
-    <div style="border-top: 1px solid #333; width: 60%; margin: 0 auto;"></div>
-    <div style="font-size: 9pt; font-weight: bold; margin-top: 4px;">
+  <div class="autorizacion-firma">
+    <div class="linea"></div>
+    <div class="nombre">
       Firma de autorización de EL ARRENDATARIO
     </div>
   </div>
 </div>
 
-<p class="small italic" style="margin-top: 10px; text-align: center;">
+<p class="small italic cierre-registro">
   
     Este contrato fue aprobado y registrado por la Procuraduría Federal del Consumidor
     bajo el número <strong>9341-2023</strong> de fecha 31 de octubre de 2023.
@@ -398,15 +394,13 @@
 ══════════════════════════════════════════════════════════ -->
 <div class="page-break"></div>
 
-<div class="header" style="margin-bottom: 12px;">
-  {% if logo_url %}
-  <img src="{{ logo_url }}" class="logo" alt="Logo">
-  {% endif %}
+<div class="header header--anexo">
+  <img src="{{ doc_logo }}" class="logo" alt="">
   <div class="titulo">Reglamento Interno</div>
   <div class="subtitulo">Quinta Ko'ox Tanil — Anexo al Contrato {{ numero }}</div>
 </div>
 
-<p style="margin-bottom: 10px; text-align: justify;">
+<p class="parrafo-anexo">
   El presente Reglamento se considera anexo integral al Contrato y es de observancia
   obligatoria para ambas partes y para todos los invitados del Arrendatario.
 </p>
@@ -430,9 +424,8 @@
 </ol>
 
 
-<div class="firmas" style="margin-top: 24px;">
-  <div class="firmas-grid">
-    <div class="firma-col">
+<div class="firmas firmas--separadas">
+      <div class="firma-col">
       <div class="firma-linea"></div>
       <div class="firma-nombre">ELIAN DE JESUS PEREIRA CEH</div>
       <div class="firma-rol">El Arrendador</div>
@@ -442,12 +435,9 @@
       <div class="firma-nombre">{{ nombre_fiscal|upper }}</div>
       <div class="firma-rol">El Arrendatario — De conformidad con el Reglamento</div>
     </div>
-  </div>
 </div>
 
-<p class="small italic" style="text-align:center; margin-top: 14px;">
+<p class="small italic pie-contrato">
   Quinta Ko'ox Tanil &mdash; Contrato {{ numero }} &mdash; {{ fecha_doc }} &mdash; DOCUMENTO CONFIDENCIAL
 </p>
-
-</body>
-</html>
+{% endblock %}

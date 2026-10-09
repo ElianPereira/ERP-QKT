@@ -10,6 +10,8 @@ opcional, `marca_agua` (VISTA PREVIA, BORRADOR, CANCELADO).
 Bloques:
   variante     reporte | cliente | contractual | operativo
   orientacion  portrait | landscape
+  encabezado   logo, título y datos del documento; un contrato lo sustituye
+               por su portada
   subtitulo    una línea bajo el título
   filtros      <span><b>Etiqueta:</b> valor</span> por cada dato del encabezado
   generado     fecha (y usuario) de emisión; un documento al cliente lo
@@ -17,6 +19,8 @@ Bloques:
   estilos      CSS propio del documento (evitarlo: usar los componentes)
   contenido    cuerpo
   notas        texto chico al final del cuerpo
+  pie          contenido CSS del pie izquierdo (por defecto, el título)
+  paginacion   contenido CSS del pie derecho (por defecto, «Página n de m»)
 {% endcomment %}
 {% load qkt_horarios %}
 <html lang="es">
@@ -31,11 +35,11 @@ Bloques:
       size: letter {% block orientacion %}portrait{% endblock %};
       margin: 1.6cm 1.5cm 1.8cm 1.5cm;
       @bottom-left {
-        content: "Quinta Ko'ox Tanil · " string(titulo-doc);
+        content: "Quinta Ko'ox Tanil · " {% block pie %}string(titulo-doc){% endblock %};
         font-family: 'IBM Plex Sans', sans-serif; font-size: 7pt; color: #8a8780;
       }
       @bottom-right {
-        content: "Página " counter(page) " de " counter(pages);
+        content: {% block paginacion %}"Página " counter(page) " de " counter(pages){% endblock %};
         font-family: 'IBM Plex Sans', sans-serif; font-size: 7pt; color: #8a8780;
       }
     }
@@ -46,6 +50,7 @@ Bloques:
 
   {% if marca_agua %}<div class="doc-marca-agua">{{ marca_agua }}</div>{% endif %}
 
+  {% block encabezado %}
   <header class="doc-encabezado">
     <div class="doc-marca">
       <img src="{{ doc_logo }}" alt="">
@@ -64,6 +69,7 @@ Bloques:
     {% block filtros %}{% endblock %}
     {% block generado %}<span><b>Generado:</b> {{ doc_generado_en|date:"d/m/Y" }} {{ doc_generado_en|hora_ampm }}{% if doc_generado_por %} por {{ doc_generado_por }}{% endif %}</span>{% endblock %}
   </div>
+  {% endblock %}
 
   {% block contenido %}{% endblock %}
 
