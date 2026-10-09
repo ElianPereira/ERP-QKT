@@ -1,0 +1,57 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Movimientos del periodo y depósitos abiertos al {{ fecha_fin|date:"d/m/Y" }}{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ recibido|moneda }}</div><div class="doc-kpi-etiqueta">Recibido</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ devuelto|moneda }}</div><div class="doc-kpi-etiqueta">Devuelto</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ retenido|moneda }}</div><div class="doc-kpi-etiqueta">Retenido</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ en_custodia|moneda }}</div><div class="doc-kpi-etiqueta">En custodia hoy</div></div>
+</div>
+
+{% if vencidos %}
+<div class="doc-aviso doc-aviso--error">{{ vencidos }} depósito{{ vencidos|pluralize }} con plazo de devolución vencido y dinero en custodia.</div>
+{% endif %}
+
+<h2 class="doc-seccion">Movimientos del periodo</h2>
+<table class="doc-tabla">
+  <thead><tr><th class="centro col-fecha">Fecha</th><th class="col-folio">Folio</th><th>Cliente</th><th>Tipo</th><th>Método</th><th>Referencia</th><th class="num col-monto">Monto</th></tr></thead>
+  <tbody>
+    {% for m in movimientos %}
+    <tr><td class="centro">{{ m.fecha|date:"d/m/Y" }}</td><td class="codigo">COT-{{ m.deposito.cotizacion_id|stringformat:"03d" }}</td>
+      <td>{{ m.deposito.cotizacion.cliente.nombre|truncatechars:30 }}</td><td>{{ m.get_tipo_display }}</td>
+      <td>{{ m.get_metodo_display }}</td><td class="codigo">{{ m.referencia|default:"—"|truncatechars:24 }}</td><td class="num">{{ m.monto|moneda }}</td></tr>
+    {% empty %}
+    <tr><td colspan="7" class="vacio">Sin movimientos en el periodo.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 class="doc-seccion">Depósitos abiertos</h2>
+<table class="doc-tabla">
+  <thead><tr><th class="col-folio">Folio</th><th>Cliente</th><th class="centro col-fecha">Fin del servicio</th><th class="num col-monto">Monto</th>
+    <th class="num col-monto">En custodia</th><th class="num col-monto">Por recibir</th><th class="centro col-fecha">Devolver a más tardar</th><th class="centro col-estado">Estado</th></tr></thead>
+  <tbody>
+    {% for a in abiertos %}
+    <tr><td class="codigo">{{ a.folio }}</td><td>{{ a.cliente|truncatechars:30 }}</td><td class="centro">{{ a.fecha_servicio|date:"d/m/Y" }}</td>
+      <td class="num">{{ a.monto|moneda }}</td><td class="num">{{ a.en_custodia|moneda }}</td><td class="num">{{ a.por_recibir|moneda }}</td>
+      <td class="centro">{{ a.limite|date:"d/m/Y"|default:"—" }}</td>
+      <td class="centro">{% if a.vencido %}{% badge_doc "Vencido" "error" %}{% else %}{% badge_doc a.estado "neutro" %}{% endif %}</td></tr>
+    {% empty %}
+    <tr><td colspan="8" class="vacio">Sin depósitos abiertos.</td></tr>
+    {% endfor %}
+    {% if abiertos %}
+    <tr class="total"><td colspan="4">Total</td><td class="num">{{ en_custodia|moneda }}</td><td class="num">{{ por_recibir|moneda }}</td><td colspan="2"></td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block notas %}El depósito no es un pago: es dinero del cliente en custodia (pasivo 205.03) hasta devolverlo o retenerlo con desglose.{% endblock %}

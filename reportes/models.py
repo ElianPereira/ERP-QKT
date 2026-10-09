@@ -20,11 +20,20 @@ class ReporteGenerado(models.Model):
         ('BALANCE_GRAL', 'Balance General'),
         ('LIBRO_MAYOR', 'Libro Mayor'),
         ('AUXILIAR', 'Auxiliar de Cuentas'),
+        ('FLUJO', 'Flujo de Efectivo'),
+        ('CONCILIACION', 'Conciliación Bancaria'),
+        ('GASTOS', 'Gastos por Categoría'),
         # Comercial
         ('CXC_CARTERA', 'CxC / Antigüedad de Saldos'),
         ('COT_PERIODO', 'Cotizaciones por Período'),
         ('RENTABILIDAD', 'Rentabilidad por Evento'),
         ('PAGOS', 'Pagos Recibidos'),
+        ('OCUPACION', 'Ocupación'),
+        ('DEPOSITOS', 'Depósitos en Garantía'),
+        ('CORTESIAS', 'Cortesías y Descuentos'),
+        ('KOOXI', 'Agente Kooxi'),
+        # Nómina
+        ('NOMINA', 'Nómina por Periodo'),
         # Facturación
         ('FACTURAS', 'Facturas Emitidas'),
     ]

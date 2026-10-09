@@ -1,0 +1,61 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Descuentos aplicados en el periodo y saldos condonados{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ cortesias|moneda }}</div><div class="doc-kpi-etiqueta">Cortesías</div></div>
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ promociones|moneda }}</div><div class="doc-kpi-etiqueta">Promociones</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ condonado|moneda }}</div><div class="doc-kpi-etiqueta">Condonado</div></div>
+  <div class="doc-kpi doc-kpi--error"><div class="doc-kpi-valor">{{ total|moneda }}</div><div class="doc-kpi-etiqueta">Total que dejó de cobrarse</div></div>
+</div>
+
+<h2 class="doc-seccion">Por regla</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Regla</th><th class="centro col-estado">Tipo</th><th class="num col-corta">Veces</th><th class="num col-monto">Monto</th></tr></thead>
+  <tbody>
+    {% for r in reglas %}
+    <tr><td class="negrita">{{ r.nombre }}</td><td class="centro">{% if r.cortesia %}{% badge_doc "Cortesía" "info" %}{% else %}{% badge_doc "Promoción" "neutro" %}{% endif %}</td>
+      <td class="num">{{ r.veces }}</td><td class="num">{{ r.monto|moneda }}</td></tr>
+    {% empty %}
+    <tr><td colspan="4" class="vacio">Sin descuentos en ventas reales.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if aplicados %}
+<h2 class="doc-seccion">Detalle</h2>
+<table class="doc-tabla">
+  <thead><tr><th class="centro col-fecha">Fecha</th><th class="col-folio">Folio</th><th>Cliente</th><th>Regla</th><th>Cotización</th><th class="num col-monto">Monto</th></tr></thead>
+  <tbody>
+    {% for a in aplicados %}
+    <tr><td class="centro">{{ a.fecha_aplicacion|date:"d/m/Y" }}</td><td class="codigo">COT-{{ a.cotizacion_id|stringformat:"03d" }}</td>
+      <td>{{ a.cotizacion.cliente.nombre|truncatechars:30 }}</td><td>{{ a.descuento.nombre }}</td>
+      <td>{% if a.venta_real %}{{ a.cotizacion.get_estado_display }}{% else %}{% badge_doc a.cotizacion.get_estado_display "neutro" %}{% endif %}</td>
+      <td class="num{% if not a.venta_real %} texto-tenue{% endif %}">{{ a.monto_aplicado|moneda }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if condonaciones %}
+<h2 class="doc-seccion">Condonaciones</h2>
+<table class="doc-tabla">
+  <thead><tr><th class="centro col-fecha">Fecha</th><th class="col-folio">Folio</th><th>Cliente</th><th>Referencia</th><th class="num col-monto">Monto</th></tr></thead>
+  <tbody>
+    {% for p in condonaciones %}
+    <tr><td class="centro">{{ p.fecha_pago|date:"d/m/Y" }}</td><td class="codigo">COT-{{ p.cotizacion_id|stringformat:"03d" }}</td>
+      <td>{{ p.cotizacion.cliente.nombre|truncatechars:30 }}</td><td>{{ p.referencia|default:"—" }}</td><td class="num">{{ p.monto|moneda }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
+
+{% block notas %}Montos de descuento sin IVA (se aplican sobre el subtotal). Solo suman los de ventas reales (confirmada, ejecutada o cerrada){% if no_concretado %}; {{ no_concretado|moneda }} se aplicaron en cotizaciones que no se concretaron{% endif %}.{% endblock %}

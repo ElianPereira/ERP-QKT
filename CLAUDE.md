@@ -341,6 +341,24 @@ salvo que queden obsoletas.
   porque Plex no las trae. Archivos `QKT_Contrato_<número>.pdf` (y
   `_firmado`). Ojo: el contrato PROFECO de evento y su glosario dicen «Mérida»
   (texto registrado, no se tocó).
+  **Fase 5** (reportes nuevos, PDF + Excel, en el Centro de reportes, cada uno
+  con el permiso de su área): nómina por periodo, gastos por categoría, flujo
+  de efectivo, ocupación, depósitos en garantía, cortesías y descuentos,
+  conciliación bancaria y Kooxi. Servicios en `reportes/services/operacion.py`
+  y `finanzas.py`; las vistas comparten `_entregar()` (registra en
+  `ReporteGenerado` y responde PDF o `?formato=excel`) y el selector usa
+  `reportes/_form_periodo.html`. Criterios no obvios: **nómina** entra al
+  periodo por el inicio de la semana (`ReciboNomina.periodo` es texto; si no
+  se puede leer, cuenta la fecha de generación); **flujo** sale de pólizas
+  APLICADAS sobre la cuenta contable de cada `CuentaBancaria` activa (saldo
+  según libros, no el del banco); **ocupación** solo cuenta ventas reales y
+  mide sobre los días vendibles (sin bloqueos), con los sábados y domingos
+  aparte; **cortesías** usa `Descuento.es_cortesia`, montos sin IVA y solo
+  pesan los de ventas reales. `comunicacion/services_tablero.py` ganó
+  `metricas_periodo(desde, hasta)`; `metricas_agente(dias)` la envuelve.
+  Pruebas con un febrero armado a mano en `reportes/test_reportes_fase5.py`.
+  **Pendiente del Issue #373**: la ficha Paynet/SPEI (`views_openpay.py`, zona
+  restringida).
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).
