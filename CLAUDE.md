@@ -357,8 +357,13 @@ salvo que queden obsoletas.
   pesan los de ventas reales. `comunicacion/services_tablero.py` ganó
   `metricas_periodo(desde, hasta)`; `metricas_agente(dias)` la envuelve.
   Pruebas con un febrero armado a mano en `reportes/test_reportes_fase5.py`.
-  **Pendiente del Issue #373**: la ficha Paynet/SPEI (`views_openpay.py`, zona
-  restringida).
+  **Ficha Paynet** (cierra el Issue #373; `views_openpay.py` tocado con
+  aprobación explícita): `portal/ficha_paynet.html` extiende la base (variante
+  `cliente`) y sale con `render_pdf` como `QKT_FichaPago_COT-NNN.pdf`. Conserva
+  los cinco elementos que Openpay exige (PAYNET, logotipos de cadenas,
+  referencia, código de barras y monto); la fecha límite ya no sale como texto
+  ISO crudo (`2026-08-10T23:59:00`) sino «10/08/2026 a las 11:59 p.m.». SPEI no
+  tiene ficha propia: es el recibo `/spei-pdf/` de Openpay.
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).
