@@ -95,8 +95,6 @@ def reporte_balanza(request):
     fecha_inicio = _parse_fecha(request, 'fecha_inicio', date(timezone.now().year, 1, 1))
     fecha_fin = _parse_fecha(request, 'fecha_fin', timezone.now().date())
     unidad_id = request.GET.get('unidad_negocio')
-    # Nivel 4 por defecto: el servicio no acumula subcuentas en su padre, así que
-    # un nivel menor deja fuera cuentas con movimientos (el banco es 102.02.01).
     nivel = int(request.GET.get('nivel', '4'))
 
     unidad = None
@@ -110,13 +108,15 @@ def reporte_balanza(request):
         nivel_detalle=nivel,
     )
 
-    # Totales
-    total_si_debe = sum(Decimal(str(r['saldo_inicial_debe'])) for r in datos)
-    total_si_haber = sum(Decimal(str(r['saldo_inicial_haber'])) for r in datos)
-    total_cargos = sum(Decimal(str(r['cargos'])) for r in datos)
-    total_abonos = sum(Decimal(str(r['abonos'])) for r in datos)
-    total_sf_debe = sum(Decimal(str(r['saldo_final_debe'])) for r in datos)
-    total_sf_haber = sum(Decimal(str(r['saldo_final_haber'])) for r in datos)
+    # Totales solo sobre las cuentas raíz: cada fila ya acumula sus subcuentas,
+    # sumar padre e hija contaría el mismo importe dos veces.
+    raices = [r for r in datos if r['es_raiz']]
+    total_si_debe = sum((r['saldo_inicial_debe'] for r in raices), Decimal('0.00'))
+    total_si_haber = sum((r['saldo_inicial_haber'] for r in raices), Decimal('0.00'))
+    total_cargos = sum((r['cargos'] for r in raices), Decimal('0.00'))
+    total_abonos = sum((r['abonos'] for r in raices), Decimal('0.00'))
+    total_sf_debe = sum((r['saldo_final_debe'] for r in raices), Decimal('0.00'))
+    total_sf_haber = sum((r['saldo_final_haber'] for r in raices), Decimal('0.00'))
 
     context = {
         'titulo': 'Balanza de comprobación',

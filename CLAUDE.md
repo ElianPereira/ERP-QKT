@@ -295,6 +295,22 @@ salvo que queden obsoletas.
   **Balanza** tiene el mismo corte (vive en `contabilidad/services.py`, zona
   restringida): solo se movió su default a nivel 4 en vista y selector;
   acumular subcuentas en los niveles 2/3 queda **pendiente de aprobación**.
+  **Actualización (mismo día, aprobado por el propietario)**: la Balanza ya
+  acumula subcuentas siguiendo `padre` (no el número de nivel: hay cuentas
+  como 501.04 marcadas nivel 2 bajo otra de nivel 2) y marca `es_raiz`; los
+  totales suman solo raíces. **Fase 2**: cotización, plan de pagos y solicitud
+  de factura migradas (variante `cliente`/`operativo`, bloque `generado` para no
+  mostrarle al cliente el usuario interno, contacto común en
+  `documentos/_contacto.html` desde `core_erp.documentos`). **El plan de pagos
+  prometía condiciones contrarias a los documentos vigentes**: tabla de
+  cancelación vieja (+90/60-90/30-60/<30 días contra 60/31-60/16-30/≤15),
+  «tribunales de Mérida» contra el fuero del consumidor de los TyC §16, mora
+  sin el tope de los TyC §4.3 y 15 días de pago total también para Hospedaje
+  (son 7). Ahora la tabla sale de `reglas_contrato.TABLA_CANCELACION` y los días
+  de `Cotizacion.DIAS_PAGO_TOTAL`: si la Política cambia, se cambia ahí, nunca
+  en la plantilla. `facturacion/views.py` tenía su propio desglose (sin ISH)
+  para el mismo PDF: ahora usa `generar_pdf_solicitud`. **Pendiente**: la ficha
+  Paynet/SPEI se genera dentro de `views_openpay.py` (zona restringida).
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).

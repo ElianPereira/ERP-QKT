@@ -17,8 +17,14 @@ from core_erp.test_utils import login_superuser_con_totp
 
 # Plantillas ya migradas al sistema de documentos. Cada fase del Issue #373
 # agrega aquí las suyas; al final de la migración, toda plantilla PDF del ERP.
+_BASE = Path(settings.BASE_DIR)
 PLANTILLAS_MIGRADAS = sorted(
-    (Path(settings.BASE_DIR) / 'reportes' / 'templates' / 'reportes').glob('pdf_*.html')
+    list((_BASE / 'reportes' / 'templates' / 'reportes').glob('pdf_*.html')) + [
+        # Fase 2: documentos al cliente y solicitud de factura.
+        _BASE / 'comercial' / 'templates' / 'cotizaciones' / 'pdf_recibo.html',
+        _BASE / 'comercial' / 'templates' / 'cotizaciones' / 'pdf_plan_pagos.html',
+        _BASE / 'comercial' / 'templates' / 'facturacion' / 'solicitud_pdf.html',
+    ]
 )
 
 
@@ -91,7 +97,7 @@ class PlantillasMigradasTest(SimpleTestCase):
     """Guardián: lo migrado no vuelve a los estilos sueltos."""
 
     def test_hay_plantillas_que_vigilar(self):
-        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 8)
+        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 11)
 
     def test_extienden_la_base_y_usan_los_componentes(self):
         for ruta in PLANTILLAS_MIGRADAS:

@@ -21,6 +21,7 @@ from django.template.loader import render_to_string
 from weasyprint import HTML
 
 from core_erp import impuestos
+from core_erp.documentos import render_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +40,6 @@ def get_usuario_sistema():
 def generar_pdf_solicitud(solicitud):
     """Genera el PDF de la solicitud de factura y retorna los bytes."""
     cliente = solicitud.cliente
-
-    ruta_logo = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo.png')
-    if os.name == 'nt':
-        logo_url = f"file:///{ruta_logo.replace(os.sep, '/')}"
-    else:
-        logo_url = f"file://{ruta_logo}"
 
     total = Decimal(str(solicitud.monto))
     if solicitud.desglose_cuadra:
@@ -66,17 +61,15 @@ def generar_pdf_solicitud(solicitud):
     context = {
         'solicitud':    solicitud,
         'cliente':      cliente,
+        'titulo':       'Solicitud de factura',
         'folio':        f"SOL-{int(solicitud.id):03d}",
-        'logo_url':     logo_url,
         'calc_subtotal':subtotal,
         'calc_iva':     iva,
         'calc_ret_isr': ret_isr,
         'calc_ish':     ish,
         'calc_total':   total,
-        'linea_negocio_color': '#2E7D32' if solicitud.linea_negocio == 'QUINTA' else '#FF5A5F',
     }
-    html_string = render_to_string('facturacion/solicitud_pdf.html', context)
-    return HTML(string=html_string).write_pdf()
+    return render_pdf('facturacion/solicitud_pdf.html', context)
 
 
 def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, linea_negocio_nombre):

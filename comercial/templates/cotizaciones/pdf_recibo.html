@@ -1,440 +1,124 @@
-{% load humanize qkt_horarios %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Cotización #{{ cotizacion.id }}</title>
-    <style>
-        @page { size: letter; margin: 1.5cm; }
-        body { 
-            font-family: 'Helvetica', sans-serif; 
-            color: #333; 
-            margin: 0; padding: 0; 
-            font-size: 12px; 
-        }
-        .clearfix { clear: both; }
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos qkt_horarios %}
 
-        /* HEADER */
-        .header-container { width: 100%; margin-bottom: 20px; }
-        .header-table { width: 100%; border: none; }
-        .header-table td { vertical-align: top; }
-        .company-name { font-size: 18px; font-weight: bold; color: #2E7D32; margin-bottom: 5px; }
-        .company-details { font-size: 11px; color: #666; line-height: 1.4; }
+{% block variante %}cliente{% endblock %}
+{% block subtitulo %}Folio COT-{{ cotizacion.id|stringformat:"03d" }}{% endblock %}
+{% block generado %}<span><b>Emisión:</b> {{ doc_generado_en|date:"d/m/Y" }} {{ doc_generado_en|hora_ampm }}</span>{% endblock %}
 
-        /* TÍTULO */
-        .doc-title { text-align: center; margin-top: 5px; margin-bottom: 15px; }
-        .doc-title h1 { margin: 0; color: #2c3e50; font-size: 20px; }
-        .doc-title p { margin: 2px 0 0 0; color: #7f8c8d; font-size: 10px; }
+{% block contenido %}
+<div class="doc-columnas">
+  <dl class="doc-datos">
+    <div><dt>Cliente</dt><dd>{{ cotizacion.cliente.nombre }}</dd></div>
+    <div><dt>{% if cotizacion.tipo_servicio == 'EVENTO' %}Evento{% else %}Detalle{% endif %}</dt><dd>{{ cotizacion.nombre_evento }}</dd></div>
+    <div><dt>{% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}Huéspedes{% else %}Personas{% endif %}</dt><dd>{{ cotizacion.num_personas }}</dd></div>
+    <div><dt>Correo</dt><dd>{{ cotizacion.cliente.email|default:"—" }}</dd></div>
+  </dl>
+  <dl class="doc-datos">
+    {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
+    <div><dt>Llegada</dt><dd>{{ cotizacion.fecha_evento|date:"d/m/Y" }}, {{ cotizacion.hora_inicio|hora_ampm }}</dd></div>
+    <div><dt>Salida</dt><dd>{{ cotizacion.fecha_salida|date:"d/m/Y" }}, {{ cotizacion.hora_fin|hora_ampm }}</dd></div>
+    <div><dt>Noches</dt><dd>{{ cotizacion.noches }}</dd></div>
+    {% else %}
+    <div><dt>Fecha</dt><dd>{{ cotizacion.fecha_evento|date:"d/m/Y" }}</dd></div>
+    <div><dt>Horario</dt><dd>{% if cotizacion.hora_inicio %}{{ cotizacion.hora_inicio|hora_ampm }} a {{ cotizacion.hora_fin|hora_ampm }}{% else %}Por definir{% endif %}</dd></div>
+    {% endif %}
+    <div><dt>Servicio</dt><dd>{{ cotizacion.get_tipo_servicio_display }}</dd></div>
+  </dl>
+</div>
 
-        /* TARJETA DE DATOS */
-        .info-card {
-            border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px;
-            background-color: #fcfcfc; margin-bottom: 20px; position: relative; display: block;
-        }
-        .card-table { width: 100%; }
-        .card-label { color: #2E7D32; font-weight: bold; width: 100px; }
-        .card-value { color: #333; }
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th>Concepto</th>
+      <th class="num col-corta">Cantidad</th>
+      <th class="num col-monto">Importe sin IVA</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td class="negrita">
+        {% if item.producto %}{{ item.producto.nombre }}<span class="doc-nota-linea">{{ item.descripcion|default:"Paquete contratado" }}</span>
+        {% elif item.insumo %}{{ item.insumo.nombre }}<span class="doc-nota-linea">{{ item.descripcion|default:"Servicio contratado" }}</span>
+        {% else %}{{ item.descripcion }}{% endif %}
+      </td>
+      <td class="num">{{ item.cantidad|cifra }}</td>
+      <td class="num">{{ item.subtotal|moneda }}</td>
+    </tr>
 
-        /* TABLA DE DETALLE */
-        .data-table {
-            width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px;
-            border-bottom: 2px solid #2E7D32;
-        }
-        .data-table th {
-            background-color: #2E7D32; color: white; padding: 8px; text-align: left;
-            font-weight: normal; font-size: 11px; border: none;
-        }
-        .data-table th:first-child { border-top-left-radius: 5px; padding-left: 15px; }
-        .data-table th:last-child { border-top-right-radius: 5px; padding-right: 15px; text-align: right;} 
-        
-        .data-table td { padding: 8px; border-bottom: 1px solid #f0f0f0; color: #555; font-size: 11px; }
-        .data-table td:first-child { text-align: left; padding-left: 15px; }
-        .data-table td:last-child { text-align: right; padding-right: 15px; }
-        .data-table tr:last-child td { border-bottom: none; }
-
-        /* Estilos para el desglose de Barra */
-        .barra-breakdown-row td {
-            background-color: #fcfcfc;
-            border-bottom: 1px dashed #ddd;
-            font-size: 10px;
-            color: #666;
-            padding-top: 6px; padding-bottom: 6px; /* Un poco más de aire para leer mejor */
-        }
-
-        /* Sub-items (los subproductos dentro del paquete) */
-        .sub-item-row td { 
-            background-color: #fdfdfd; 
-            color: #777; 
-            font-size: 10px; 
-            padding-top: 2px; 
-            padding-bottom: 2px;
-            border-bottom: none;
-        }
-
-        /* ABONOS */
-        .payments-table { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 10px; }
-        .payments-table th { border-bottom: 1px solid #999; text-align: left; padding: 4px; color: #666; }
-        .payments-table td { border-bottom: 1px solid #eee; padding: 4px; color: #333; }
-
-        /* TOTALES */
-        .totals-section { margin-top: 20px; width: 100%; page-break-inside: avoid; }
-        .totals-table { float: right; width: 260px; border: 1px solid #eee; border-radius: 5px; padding: 10px; background-color: #fcfcfc;}
-        .total-row { margin-bottom: 4px; font-size: 11px; }
-        
-        .grand-total {
-            background-color: #2E7D32; color: white; padding: 6px; text-align: center;
-            border-radius: 4px; font-weight: bold; font-size: 13px; margin-top: 8px;
-        }
-        
-        .balance-row { color: #d9534f; font-weight: bold; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px;}
-        .abono-text { color: #28a745; }
-
-        /* FIRMAS Y PIE */
-        .signature-section { margin-top: 40px; width: 100%; page-break-inside: avoid; }
-        .signature-box { width: 45%; float: left; text-align: center; }
-        .signature-line { border-top: 1px solid #333; width: 80%; margin: 0 auto 5px auto; }
-        .digital-seal { font-size: 7px; color: #999; margin-top: 5px; font-family: 'Courier New', monospace; word-break: break-all; }
-        
-        .footer-msg {
-            position: absolute; bottom: 0; width: 100%; text-align: center; 
-            color: #ccc; font-size: 8px; border-top: 1px solid #eee; padding-top: 5px;
-        }
-    </style>
-</head>
-<body>
-
-    <div class="header-container">
-        <table class="header-table">
-            <tr>
-                <td style="width: 50%;">
-                    <img src="{{ logo_url }}" style="height: 60px; display: block;">
-                </td>
-                <td style="width: 50%; text-align: right;">
-                    <div class="company-name">Quinta Ko'ox Tanil</div>
-                    <div class="company-details">
-                        Ctra Tanil - Ticimul KM 1.920<br>Umán, Yucatán<br>quintakooxtanil@gmail.com
-                    </div>
-                </td>
-            </tr>
-        </table>
-    </div>
-
-    <div class="doc-title">
-        <h1>Cotización de {{ cotizacion.get_tipo_servicio_display }}</h1>
-        <p>Folio: COT-{{ cotizacion.id|stringformat:"03d" }}</p>
-    </div>
-
-    <div class="info-card">
-        <table class="card-table">
-            <tr>
-                <td style="width: 60%;">
-                    <table style="width: 100%;">
-                        <tr>
-                            <td class="card-label">Cliente:</td>
-                            <td class="card-value" style="text-transform: uppercase;">{{ cotizacion.cliente.nombre }}</td>
-                        </tr>
-                        <tr>
-                            <td class="card-label">{% if cotizacion.tipo_servicio == 'EVENTO' %}Evento:{% else %}Detalle:{% endif %}</td>
-                            <td class="card-value">{{ cotizacion.nombre_evento }}</td>
-                        </tr>
-                        {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
-                        <tr>
-                            <td class="card-label">Huéspedes:</td>
-                            <td class="card-value">{{ cotizacion.num_personas }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td class="card-label">Personas:</td>
-                            <td class="card-value">{{ cotizacion.num_personas }}</td>
-                        </tr>
-                        {% endif %}
-                        <tr>
-                            <td class="card-label">Email:</td>
-                            <td class="card-value">{{ cotizacion.cliente.email|default:"-" }}</td>
-                        </tr>
-                    </table>
-                </td>
-                <td style="width: 40%;">
-                    <table style="width: 100%;">
-                        {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Check-in:</td>
-                            <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_evento|date:"d/m/Y" }}, {{ cotizacion.hora_inicio|hora_ampm }}</td>
-                        </tr>
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Check-out:</td>
-                            <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_salida|date:"d/m/Y" }}, {{ cotizacion.hora_fin|hora_ampm }}</td>
-                        </tr>
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Noches:</td>
-                            <td class="card-value" style="text-align: right;">{{ cotizacion.noches }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Fecha:</td>
-                            <td class="card-value" style="text-align: right;">{{ cotizacion.fecha_evento|date:"d/m/Y" }}</td>
-                        </tr>
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Horario:</td>
-                            <td class="card-value" style="text-align: right;">
-                                {% if cotizacion.hora_inicio %}
-                                    {{ cotizacion.hora_inicio|hora_ampm }} - {{ cotizacion.hora_fin|hora_ampm }}
-                                {% else %}
-                                    Por definir
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endif %}
-                        <tr>
-                            <td class="card-label" style="text-align: right;">Emisión:</td>
-                            <td class="card-value" style="text-align: right;">{% now "d/m/Y H:i" %}</td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </div>
-
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th style="width: 65%">Concepto</th>
-                <th style="width: 15%; text-align: center;">Cantidad</th>
-                <th style="width: 20%; text-align: right;">Importe<br><span style="font-weight:400;font-size:8px;">(sin IVA)</span></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in items %}
-                
-                <tr style="font-weight: bold; color: #333;">
-                    <td>
-                        {% if item.producto %}
-                            {{ item.producto.nombre }}
-                            <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Paquete contratado" }}</span>
-                        {% elif item.insumo %}
-                            {{ item.insumo.nombre }}
-                            <br><span style="font-size: 9px; font-weight: normal; color: #888;">{{ item.descripcion|default:"Servicio Contratado" }}</span>
-                        {% else %}
-                            {{ item.descripcion }}
-                        {% endif %}
-                    </td>
-                    <td style="text-align: center;">{{ item.cantidad|floatformat:2 }}</td>
-                    <td style="text-align: right;">
-                        ${{ item.subtotal|floatformat:2|intcomma }}
-                    </td>
-                </tr>
-
-                {% if "Servicio de Barra" in item.descripcion and barra.desglose_venta %}
-                    
-                    {% if barra.desglose_venta.refrescos > 0 %}
-                    <tr class="barra-breakdown-row">
-                        <td style="padding-left: 25px;">
-                            <strong style="color:#2E7D32;">• Refrescos y Mezcladores</strong>
-                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
-                                Barra Libre de: Coca-Cola, Coca-Cola Light/Zero, Squirt, Agua Mineral Peñafiel, Agua Purificada y Hielo Ilimitado.
-                            </span>
-                        </td>
-                        <td style="text-align: center;">-</td>
-                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.refrescos|floatformat:2|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-
-                    {% if barra.desglose_venta.cerveza > 0 %}
-                    <tr class="barra-breakdown-row">
-                        <td style="padding-left: 25px;">
-                            <strong style="color:#2E7D32;">• Cerveza Nacional</strong>
-                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
-                                Servicio ilimitado. Presentación Caguama (940ml) servida en vaso. Marcas: Corona, Victoria o Superior (sujeto a disponibilidad).
-                            </span>
-                        </td>
-                        <td style="text-align: center;">-</td>
-                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.cerveza|floatformat:2|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-
-                    {% if barra.desglose_venta.nacional > 0 %}
-                    <tr class="barra-breakdown-row">
-                        <td style="padding-left: 25px;">
-                            <strong style="color:#2E7D32;">• Barra Libre Nacional</strong>
-                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
-                                Incluye: Tequila (Tradicional/José Cuervo), Ron (Bacardí Blanco/Añejo), Vodka (Smirnoff/Absolut), Whisky (Red Label/William Lawson's).
-                            </span>
-                        </td>
-                        <td style="text-align: center;">-</td>
-                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.nacional|floatformat:2|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-
-                    {% if barra.desglose_venta.premium > 0 %}
-                    <tr class="barra-breakdown-row">
-                        <td style="padding-left: 25px;">
-                            <strong style="color:#2E7D32;">• Barra Libre Premium</strong>
-                            <span style="display:block; font-size:9px; color:#666; margin-top:2px;">
-                                Marcas de Prestigio: Tequila (Don Julio 70 / Herradura Ultra), Whisky (Black Label / Chivas 12), Ron (Matusalem / Zacapa), Vodka (Grey Goose / Belvedere), Ginebra (Tanqueray / Bombay).
-                            </span>
-                        </td>
-                        <td style="text-align: center;">-</td>
-                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.premium|floatformat:2|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-
-                    {% if barra.desglose_venta.coctel > 0 %}
-                    <tr class="barra-breakdown-row">
-                        <td style="padding-left: 25px;">
-                            <strong style="color:#2E7D32;">• Coctelería y Mixología</strong>
-                            <span style="display:block; font-size:9px; color:#666; margin-top:2px; line-height: 1.3;">
-                                {% if cotizacion.incluye_cocteleria_basica %}
-                                    <strong>Clásicos:</strong> Mojitos (Limón y Frutos Rojos), Margaritas (Limón, Tamarindo, Jamaica), Palomas Escarchadas, Vampiritos, Daiquiris.<br>
-                                {% endif %}
-                                {% if cotizacion.incluye_cocteleria_premium %}
-                                    <strong>Premium / Autor:</strong> Carajillos 43 Shakeados, Aperol Spritz, Gin Tonics Botánicos, Mezcalitas de Sabores (Maracuyá/Pepino).
-                                {% endif %}
-                            </span>
-                        </td>
-                        <td style="text-align: center;">-</td>
-                        <td style="text-align: right; color:#555;">${{ barra.desglose_venta.coctel|floatformat:2|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-                    
-                    <tr class="barra-breakdown-row">
-                        <td style="padding-left: 25px; border-bottom: 2px solid #eee;">
-                            <i>• Servicio de Staff Profesional, Cristalería y Herramientas</i>
-                        </td>
-                        <td style="text-align: center; border-bottom: 2px solid #eee;">-</td>
-                        <td style="text-align: right; font-size: 9px; color: #28a745; border-bottom: 2px solid #eee;"><i>Incluido</i></td>
-                    </tr>
-
-                {% endif %}
-
-
-                {% if item.producto and "Servicio de Barra" not in item.descripcion %}
-                    {% for componente in item.producto.componentes.all %}
-                    <tr class="sub-item-row">
-                        <td style="padding-left: 25px;">
-                             • {{ componente.subproducto.nombre }} 
-                             <span style="color: #aaa; font-size: 9px;">({{ componente.cantidad }} pzas)</span>
-                        </td>
-                        <td style="text-align: center;">-</td>
-                        <td style="text-align: right; font-size: 9px; color: #28a745;"><i>Incluido</i></td>
-                    </tr>
-                    {% endfor %}
-                {% endif %}
-
-            {% endfor %}
-        </tbody>
-    </table>
-
-    {% if cotizacion.pagos.exists %}
-    <div style="margin-top: 20px; margin-bottom: 15px;">
-        <h4 style="color: #2E7D32; margin-bottom: 5px; border-bottom: 1px solid #ccc; font-size: 11px;">Historial de Abonos</h4>
-        <table class="payments-table" style="margin-top: 0;">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Método</th>
-                    <th>Referencia</th>
-                    <th>Recibido Por</th>
-                    <th style="text-align: right;">Monto</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for pago in cotizacion.pagos.all %}
-                <tr>
-                    <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
-                    <td>{{ pago.metodo }}</td>
-                    <td>{{ pago.referencia|default:"-" }}</td>
-                    <td>{{ pago.usuario.first_name|default:"Sistema" }}</td>
-                    <td style="text-align: right; color: #28a745; font-weight: bold;">
-                        ${{ pago.monto|floatformat:2|intcomma }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% if "Servicio de Barra" in item.descripcion and barra.desglose_venta %}
+      {% if barra.desglose_venta.refrescos > 0 %}
+      <tr class="detalle"><td>Refrescos y mezcladores<span class="doc-nota-linea">Barra libre de Coca-Cola, Coca-Cola Light/Zero, Squirt, agua mineral Peñafiel, agua purificada y hielo ilimitado.</span></td><td></td><td class="num">{{ barra.desglose_venta.refrescos|moneda }}</td></tr>
+      {% endif %}
+      {% if barra.desglose_venta.cerveza > 0 %}
+      <tr class="detalle"><td>Cerveza nacional<span class="doc-nota-linea">Servicio ilimitado. Caguama (940 ml) servida en vaso. Corona, Victoria o Superior (sujeto a disponibilidad).</span></td><td></td><td class="num">{{ barra.desglose_venta.cerveza|moneda }}</td></tr>
+      {% endif %}
+      {% if barra.desglose_venta.nacional > 0 %}
+      <tr class="detalle"><td>Barra libre nacional<span class="doc-nota-linea">Tequila (Tradicional/José Cuervo), ron (Bacardí blanco/añejo), vodka (Smirnoff/Absolut), whisky (Red Label/William Lawson's).</span></td><td></td><td class="num">{{ barra.desglose_venta.nacional|moneda }}</td></tr>
+      {% endif %}
+      {% if barra.desglose_venta.premium > 0 %}
+      <tr class="detalle"><td>Barra libre premium<span class="doc-nota-linea">Tequila (Don Julio 70/Herradura Ultra), whisky (Black Label/Chivas 12), ron (Matusalem/Zacapa), vodka (Grey Goose/Belvedere), ginebra (Tanqueray/Bombay).</span></td><td></td><td class="num">{{ barra.desglose_venta.premium|moneda }}</td></tr>
+      {% endif %}
+      {% if barra.desglose_venta.coctel > 0 %}
+      <tr class="detalle"><td>Coctelería y mixología<span class="doc-nota-linea">{% if cotizacion.incluye_cocteleria_basica %}Clásicos: mojitos (limón y frutos rojos), margaritas (limón, tamarindo, jamaica), palomas escarchadas, vampiritos, daiquiris. {% endif %}{% if cotizacion.incluye_cocteleria_premium %}Premium/autor: carajillos 43 shakeados, Aperol Spritz, gin tonics botánicos, mezcalitas de sabores (maracuyá/pepino).{% endif %}</span></td><td></td><td class="num">{{ barra.desglose_venta.coctel|moneda }}</td></tr>
+      {% endif %}
+      <tr class="detalle"><td>Staff profesional, cristalería y herramientas</td><td></td><td class="num texto-exito">Incluido</td></tr>
     {% endif %}
 
-    <div class="totals-section">
-        <div class="totals-table">
-            <div class="total-row">
-                <span style="float:left;">Subtotal Global:</span>
-                <span style="float:right;">${{ cotizacion.subtotal|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
+    {% if item.producto and "Servicio de Barra" not in item.descripcion %}
+      {% for componente in item.producto.componentes.all %}
+      <tr class="detalle"><td>{{ componente.subproducto.nombre }} ({{ componente.cantidad }} pzas)</td><td></td><td class="num texto-exito">Incluido</td></tr>
+      {% endfor %}
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
 
-            {% if cotizacion.descuento > 0 %}
-            <div class="total-row" style="color: #d9534f;">
-                <span style="float:left;">(-) Descuento:</span>
-                <span style="float:right;">- ${{ cotizacion.descuento|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
-            {% endif %}
+<div class="doc-totales">
+  <table>
+    <tr><td>Subtotal</td><td class="num">{{ cotizacion.subtotal|moneda }}</td></tr>
+    {% if cotizacion.descuento > 0 %}<tr class="resta"><td>Descuento</td><td class="num">-{{ cotizacion.descuento|moneda }}</td></tr>{% endif %}
+    {% if cotizacion.iva > 0 %}<tr><td>IVA</td><td class="num">{{ cotizacion.iva|moneda }}</td></tr>{% endif %}
+    {% if cotizacion.retencion_isr > 0 %}<tr class="resta"><td>Retención ISR</td><td class="num">-{{ cotizacion.retencion_isr|moneda }}</td></tr>{% endif %}
+    <tr class="gran-total"><td>Precio total</td><td class="num">{{ cotizacion.precio_final|moneda }}</td></tr>
+    <tr><td colspan="2" class="doc-totales-nota">MXN, IVA incluido. Es el importe a pagar.</td></tr>
+    {% if total_pagado > 0 %}
+    <tr><td>Abonado</td><td class="num">-{{ total_pagado|moneda }}</td></tr>
+    <tr class="saldo"><td>Pendiente</td><td class="num">{{ saldo_pendiente|moneda }}</td></tr>
+    {% endif %}
+  </table>
+</div>
 
-            {% if cotizacion.iva > 0 %}
-            <div class="total-row">
-                <span style="float:left;">(+) IVA (16%):</span>
-                <span style="float:right;">${{ cotizacion.iva|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
-            {% endif %}
+{% if cotizacion.pagos.exists %}
+<div class="doc-seccion">Historial de abonos</div>
+<table class="doc-tabla">
+  <thead>
+    <tr><th class="col-fecha">Fecha</th><th>Método</th><th>Referencia</th><th class="num col-monto">Monto</th></tr>
+  </thead>
+  <tbody>
+    {% for pago in cotizacion.pagos.all %}
+    <tr>
+      <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+      <td>{{ pago.get_metodo_display }}</td>
+      <td class="codigo">{{ pago.referencia|default:"—" }}</td>
+      <td class="num texto-exito">{{ pago.monto|moneda }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 
-            {% if cotizacion.retencion_isr > 0 %}
-            <div class="total-row">
-                <span style="float:left; color:#900;">(-) Retención ISR:</span>
-                <span style="float:right; color:#900;">- ${{ cotizacion.retencion_isr|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
-            {% endif %}
-            
-            <div class="grand-total">
-                <span style="float:left;">PRECIO TOTAL:</span>
-                <span style="float:right;">${{ cotizacion.precio_final|floatformat:2|intcomma }}</span>
-                <div class="clearfix"></div>
-            </div>
-            <div style="font-size:9px; color:#666; text-align:right; margin-top:4px;">
-                Precio total en MXN, IVA incluido. Es el importe a pagar.
-            </div>
+<div class="doc-firmas">
+  <div class="doc-firma">
+    <div class="doc-firma-linea">{{ cotizacion.cliente.nombre }}</div>
+    <div class="doc-firma-rol">Acepto la cotización</div>
+  </div>
+  <div class="doc-firma">
+    <div class="doc-firma-linea">{{ cotizacion.usuario.get_full_name|default:"Administración" }}</div>
+    <div class="doc-firma-rol">{{ doc_empresa }}</div>
+  </div>
+</div>
+<div class="doc-sello">Sello digital: {{ cotizacion.id }}|{{ cotizacion.fecha_evento|date:"Ymd" }}|{{ cotizacion.created_at|date:"His" }}|{{ cotizacion.usuario.username|default:"SYS" }}|QKT-SECURE</div>
+{% endblock %}
 
-            <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 8px;">
-                 <div class="total-row abono-text">
-                    <span style="float:left;">Abonado:</span>
-                    <span style="float:right;">- ${{ total_pagado|floatformat:2|intcomma }}</span>
-                    <div class="clearfix"></div>
-                </div>
-                
-                <div class="total-row balance-row">
-                    <span style="float:left;">PENDIENTE:</span>
-                    <span style="float:right;">${{ saldo_pendiente|floatformat:2|intcomma }}</span>
-                    <div class="clearfix"></div>
-                </div>
-            </div>
-
-        </div>
-        <div class="clearfix"></div>
-    </div>
-
-    <div class="signature-section">
-        <div class="signature-box">
-            <div class="signature-line"></div>
-            <strong>{{ cotizacion.cliente.nombre }}</strong><br>
-            <span style="font-size: 10px; color: #666;">Acepto Cotización</span>
-        </div>
-        
-        <div class="signature-box" style="float: right;">
-            <div class="signature-line"></div>
-            <strong>Elaborado por: {{ cotizacion.usuario.first_name|default:"Administración" }} {{ cotizacion.usuario.last_name }}</strong><br>
-            <span style="font-size: 10px; color: #666;">Quinta Ko'ox Tanil</span>
-            
-            <div class="digital-seal">
-                Sello Digital: {{ cotizacion.id }}|{{ cotizacion.fecha_evento|date:"Ymd" }}|{{ cotizacion.created_at|date:"His" }}|{{ cotizacion.usuario.username|default:"SYS" }}|QKT-SECURE
-            </div>
-        </div>
-        <div class="clearfix"></div>
-    </div>
-
-    <div class="footer-msg">
-        Gracias por confiar en Quinta Ko'ox Tanil.
-    </div>
-
-</body>
-</html>
+{% block notas %}Gracias por confiar en {{ doc_empresa }}. {% include "documentos/_contacto.html" %}{% endblock %}
