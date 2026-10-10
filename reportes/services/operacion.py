@@ -205,12 +205,15 @@ class CortesiasDescuentosService:
     Descuentos aplicados en el periodo (por fecha de aplicación), separados en
     cortesías (`Descuento.es_cortesia`) y promociones, y las condonaciones de
     saldo. Solo pesan en el total los de ventas reales: un descuento en una
-    cotización que no se concretó no le costó nada a la Quinta.
+    cotización que no se concretó no le costó nada a la Quinta. Todo va sin IVA:
+    la condonación es un monto con impuestos (lo que el cliente dejó de pagar),
+    así que se suma por su base, con el mismo desglose que se usa al facturar.
     """
 
     @classmethod
     def generar(cls, fecha_inicio: date, fecha_fin: date) -> Dict:
         from comercial.models import DescuentoAplicado, Pago
+        from comercial.services import calcular_desglose_proporcional
         from comercial.views import ESTADOS_VENTA_REAL
 
         aplicados = list(DescuentoAplicado.objects.filter(
@@ -238,7 +241,9 @@ class CortesiasDescuentosService:
         condonaciones = list(Pago.objects.filter(
             metodo='CONDONACION', fecha_pago__gte=fecha_inicio, fecha_pago__lte=fecha_fin,
         ).exclude(tipo='REEMBOLSO').select_related('cotizacion__cliente').order_by('fecha_pago'))
-        condonado = sum((p.monto for p in condonaciones), CERO)
+        for p in condonaciones:
+            p.base = calcular_desglose_proporcional(p.monto, p.cotizacion)['subtotal']
+        condonado = sum((p.base for p in condonaciones), CERO)
         return {
             'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin,
             'aplicados': aplicados,

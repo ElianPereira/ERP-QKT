@@ -587,8 +587,8 @@ def reporte_cortesias(request):
            a.cotizacion.cliente.nombre, a.descuento.nombre,
            'Cortesía' if a.descuento.es_cortesia else 'Promoción', a.cotizacion.get_estado_display(),
            'Sí' if a.venta_real else 'No', a.monto_aplicado) for a in datos['aplicados']]),
-        ('Condonaciones', ['Fecha', 'Folio', 'Cliente', 'Referencia', 'Monto'],
-         [(p.fecha_pago, f"COT-{p.cotizacion_id:03d}", p.cotizacion.cliente.nombre, p.referencia, p.monto)
+        ('Condonaciones', ['Fecha', 'Folio', 'Cliente', 'Referencia', 'Monto condonado', 'Sin IVA'],
+         [(p.fecha_pago, f"COT-{p.cotizacion_id:03d}", p.cotizacion.cliente.nombre, p.referencia, p.monto, p.base)
           for p in datos['condonaciones']]),
     ])
 

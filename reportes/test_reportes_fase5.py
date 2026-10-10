@@ -263,14 +263,16 @@ class CortesiasTest(Base):
         from reportes.services.operacion import CortesiasDescuentosService
 
         datos = CortesiasDescuentosService.generar(INICIO, FIN)
+        # La condonación ($200 con IVA de una venta de $11,600) cuenta por su base: $172.41
         self.assertEqual((datos['cortesias'], datos['promociones'], datos['condonado'], datos['total']),
-                         (D('1000.00'), D('500.00'), D('200.00'), D('1700.00')))
+                         (D('1000.00'), D('500.00'), D('172.41'), D('1672.41')))
         self.assertEqual(datos['no_concretado'], D('300.00'))
 
     def test_pdf(self):
         texto = self._texto('cortesias')
         self.assertIn('Cortesía familia Cortesía 1 $1,000.00', texto)
         self.assertIn('$300.00 se aplicaron en cotizaciones que no se concretaron', texto)
+        self.assertIn('$200.00 $172.41', texto)
 
 
 class ConciliacionTest(Base):

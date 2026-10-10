@@ -364,6 +364,19 @@ salvo que queden obsoletas.
   referencia, código de barras y monto); la fecha límite ya no sale como texto
   ISO crudo (`2026-08-10T23:59:00`) sino «10/08/2026 a las 11:59 p.m.». SPEI no
   tiene ficha propia: es el recibo `/spei-pdf/` de Openpay.
+  **Condonaciones** (hallazgo de la simulación de un mes completo pedida por el
+  propietario tras el deploy, corrección aprobada): un `Pago` con método
+  CONDONACION caía en la rama por defecto del signal y **cargaba el banco**
+  por dinero que nunca entró, abonando anticipo e IVA trasladado; además
+  generaba una solicitud de factura al contador. Ahora no genera ni póliza ni
+  solicitud (el ingreso queda en lo cobrado). Las pólizas ya generadas se
+  corrigen con `manage.py corregir_polizas_condonacion [--desde] [--aplicar]`
+  (simula por defecto; cancela, no borra, y reemite el reconocimiento de
+  ingreso si el evento ya se ejecutó); las solicitudes de factura existentes
+  solo se listan, deciden el contador y el propietario. **Pendiente de correr
+  en producción con el contador.** El reporte de cortesías suma las
+  condonaciones por su base sin IVA (`calcular_desglose_proporcional`), como
+  los descuentos.
 
 - 2026-10-07 — **Bajas de promociones por WhatsApp** (pedido del propietario al
   armar la plantilla `seguimiento_cotizacion`, cuyo pie dice «Responde BAJA»).

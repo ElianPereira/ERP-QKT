@@ -68,7 +68,8 @@ def _forma_pago_openpay(pago):
 def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     """
     Crea una SolicitudFactura automáticamente cuando se registra un Pago.
-    Todos los pagos nuevos generan solicitud de factura, con una excepción.
+    Todos los pagos nuevos generan solicitud de factura, salvo las dos
+    excepciones de abajo (reactivación por contracargo y condonación).
 
     El desglose fiscal se calcula proporcionalmente basado en la cotización.
     """
@@ -89,6 +90,10 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     # corre antes de que el Contracargo quede guardado y enlazado — ver
     # comercial.services_openpay._asegurar_pago_reactivacion_contracargo.
     if getattr(pago, '_contracargo_reactivacion', False):
+        return
+
+    # Una condonación no es un cobro: no hay nada que facturar.
+    if pago.metodo == 'CONDONACION':
         return
 
     cotizacion = pago.cotizacion
