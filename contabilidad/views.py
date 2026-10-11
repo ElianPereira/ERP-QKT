@@ -25,6 +25,7 @@ from .models import (
     UnidadNegocio,
 )
 from .services import cerrar_historico_contable
+from .services_estados_cuenta import ids_comisiones_cubiertas
 from .services_reglas_banco import clasificar_movimiento, clave_aprendizaje
 
 
@@ -200,6 +201,7 @@ def _candidatos_asiento_bancario(estado_cuenta, tolerancia_dias=5):
             poliza__fecha__lte=hasta,
         )
         .exclude(id__in=ya_emparejados)
+        .exclude(id__in=ids_comisiones_cubiertas(estado_cuenta.cuenta_bancaria))
         .select_related('poliza', 'cuenta')
         .order_by('poliza__fecha', 'id')
     )

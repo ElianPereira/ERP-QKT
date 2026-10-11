@@ -265,6 +265,18 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-11 — **Depósitos netos de Openpay/terminal en la conciliación**
+  (reportado por el propietario: un depósito de $1,488.79 contra un cobro de
+  $1,500.00). El ingreso se registra por el total y la comisión en su propia
+  póliza (`COMISION_OPENPAY`/`COMISION_TPV`), así que el banco deposita la suma
+  de dos asientos y `MovimientoEstadoCuenta` solo liga uno. Sin migración:
+  `services_estados_cuenta.comisiones_por_cobro()` ubica las comisiones de un
+  cobro; el emparejamiento automático prueba «cobro − comisiones» cuando no hay
+  importe exacto (único candidato, si hay varios no adivina), y
+  `ids_comisiones_cubiertas()` saca esas comisiones de las partidas en tránsito
+  y del buscador de asientos **solo si el abono es exactamente cobro −
+  comisiones**. No cubre depósitos que Openpay agrupe de varios cobros.
+
 - 2026-10-09 — **Sistema de documentos QKT, fase 1** (Issue #373, decisiones del
   propietario: IBM Plex en todo, Cormorant solo en títulos al cliente/legales;
   alcance = todo lo existente + reportes faltantes). Todo PDF nuevo o migrado
