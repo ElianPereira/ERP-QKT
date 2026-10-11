@@ -276,6 +276,19 @@ salvo que queden obsoletas.
   `ids_comisiones_cubiertas()` saca esas comisiones de las partidas en tránsito
   y del buscador de asientos **solo si el abono es exactamente cobro −
   comisiones**. No cubre depósitos que Openpay agrupe de varios cobros.
+  **Cuenta puente** (aprobada por el propietario, mismo día): la comisión
+  que reporta Openpay en `fee` ya no es gasto + IVA, va a **106.02
+  «Comisiones Openpay por comprobar»** contra Bancos; la **factura mensual**
+  de Openpay (Compra de un `Proveedor.descuenta_de_depositos`) registra gasto
+  e IVA acreditable contra esa cuenta, nunca contra Bancos ni con cuenta de
+  pago (antes se duplicaba el gasto y salía del banco dinero que nunca
+  salió). Saldo ≠ 0 al cierre = diferencia por aclarar con Openpay. Caso real
+  de septiembre: depósito $1,488.79 = $1.00 de saldo anterior (cargo de
+  prueba de agosto) + $1,500 − $9.28 (SPEI) − $2.93 (comisión de agosto);
+  factura $12.21 = $9.28 + $2.93. Lo ya registrado se corrige con
+  `manage.py regularizar_comisiones_openpay [--desde] [--aplicar]` (simula por
+  defecto, cancela y reemite). **Pendiente de correr en producción.** La
+  migración `comercial.0112` marca a todo proveedor con «openpay» en el nombre.
 
 - 2026-10-09 — **Sistema de documentos QKT, fase 1** (Issue #373, decisiones del
   propietario: IBM Plex en todo, Cormorant solo en títulos al cliente/legales;

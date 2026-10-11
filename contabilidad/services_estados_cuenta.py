@@ -570,7 +570,10 @@ def compras_candidatas(mov_banco, unidad, tolerancia_dias=5, cuenta_bancaria=Non
     """
     from comercial.models import Compra
 
-    base = Compra.objects.filter(unidad_negocio=unidad, total=mov_banco.cargo)
+    # Openpay no se paga desde el banco: descuenta de los depósitos.
+    base = Compra.objects.filter(unidad_negocio=unidad, total=mov_banco.cargo).exclude(
+        proveedor__descuenta_de_depositos=True
+    )
     if cuenta_bancaria is None:
         base = base.filter(cuenta_pago__isnull=True)
     else:
