@@ -265,6 +265,17 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-12 — **El RFC del negocio también tiene régimen 605 (Sueldos y
+  salarios)** y la carga masiva de XML solo filtraba por RFC: las facturas
+  personales entraban como compras. `analizar_xml_compra()` ahora exige
+  `RegimenFiscalReceptor` en `REGIMENES_RECEPTOR_NEGOCIO` (626); un CFDI 3.3,
+  sin ese atributo, pasa. Lo ya cargado se limpia con `manage.py
+  excluir_compras_sueldos [--aplicar]` (simula por defecto): cancela la póliza
+  y **borra la Compra** (borrado físico autorizado por el propietario, para que
+  salga también de «Gastos por categoría», que lee `Compra`). Si la póliza está
+  ligada a un renglón del estado de cuenta no toca nada: salió de la cuenta del
+  negocio y hay que reclasificarla a mano como retiro del dueño.
+
 - 2026-10-12 — **`cerrar_cotizaciones` nunca estuvo dado de alta en Railway**
   (reportado por el propietario: el Estado de resultados salía con $0 de
   ingresos). Todo cobro previo al evento va a 205.01 Anticipos y solo pasa a

@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from comercial.models import (
@@ -777,7 +777,7 @@ class DashboardKpisQuintaTest(TestCase):
 
 
 def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid='',
-                     rfc_emisor='PRV010101ABC', nombre_emisor='Proveedor Test'):
+                     rfc_emisor='PRV010101ABC', nombre_emisor='Proveedor Test', regimen_receptor=''):
     """CFDI 4.0 mínimo (solo lo que analizar_xml_compra/Compra.save() necesitan leer)."""
     complemento = ''
     if uuid:
@@ -787,11 +787,12 @@ def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid
             f'UUID="{uuid}"/>'
             '</cfdi:Complemento>'
         )
+    regimen = f' RegimenFiscalReceptor="{regimen_receptor}"' if regimen_receptor else ''
     return (
         '<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" '
         f'Version="4.0" TipoDeComprobante="{tipo}" Total="1160.00" SubTotal="1000.00">'
         f'<cfdi:Emisor Rfc="{rfc_emisor}" Nombre="{nombre_emisor}"/>'
-        f'<cfdi:Receptor Rfc="{rfc_receptor}" UsoCFDI="{uso_cfdi}"/>'
+        f'<cfdi:Receptor Rfc="{rfc_receptor}" UsoCFDI="{uso_cfdi}"{regimen}/>'
         f'{complemento}'
         '</cfdi:Comprobante>'
     ).encode('utf-8')
@@ -832,6 +833,20 @@ class AnalizarXmlCompraTest(TestCase):
         self.assertFalse(valido)
         self.assertIsNone(unidad_clave)
         self.assertIn('no pertenece al negocio', motivo)
+
+    def test_factura_al_regimen_de_sueldos_se_excluye(self):
+        """Mismo RFC, régimen 605: es personal, no compra del negocio."""
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, *_ = analizar_xml_compra(_construir_cfdi(regimen_receptor='605'))
+        self.assertFalse(valido)
+        self.assertIsNone(unidad_clave)
+        self.assertIn('no es RESICO', motivo)
+
+    def test_factura_al_regimen_resico_es_compra(self):
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, *_ = analizar_xml_compra(_construir_cfdi(regimen_receptor='626'))
+        self.assertTrue(valido)
+        self.assertEqual(unidad_clave, 'QUINTA')
 
     def test_nota_de_credito_se_excluye_por_tipo(self):
         from comercial.services import analizar_xml_compra
@@ -1116,3 +1131,54 @@ class SimuladorPagoTest(TestCase):
         self.cot.refresh_from_db()
         self.assertEqual(self.cot.saldo_pendiente(), Decimal('9000.00'))
         self.assertEqual(Pago.objects.count(), 1)
+
+
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class ExcluirComprasSueldosTest(TestCase):
+    """Las compras ya cargadas con CFDI al régimen de sueldos (605) salen de la
+    contabilidad: su póliza se cancela y la compra se borra, salvo que esté
+    ligada al banco."""
+
+    def _compra_con_poliza(self, regimen, uuid):
+        from django.contrib.contenttypes.models import ContentType
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from contabilidad.models import Poliza, UnidadNegocio
+        from contabilidad.signals import get_usuario_sistema
+
+        xml = SimpleUploadedFile('f.xml', _construir_cfdi(uuid=uuid, regimen_receptor=regimen))
+        compra = Compra.objects.create(archivo_xml=xml)
+        unidad, _ = UnidadNegocio.objects.get_or_create(clave='QUINTA', defaults={'nombre': 'Quinta'})
+        Poliza.objects.filter(content_type=ContentType.objects.get_for_model(Compra), object_id=compra.pk).delete()
+        poliza = Poliza.objects.create(
+            tipo='E', folio=Poliza.siguiente_folio('E', date(2026, 9, 1)), fecha=date(2026, 9, 1),
+            concepto='Compra', unidad_negocio=unidad, estado='APLICADA', origen='COMPRA',
+            content_type=ContentType.objects.get_for_model(Compra), object_id=compra.pk,
+            created_by=get_usuario_sistema(),
+        )
+        return compra, poliza
+
+    def test_simula_por_defecto_y_cancela_solo_las_de_sueldos(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        compra_sueldos, sueldos = self._compra_con_poliza('605', 'U-605')
+        compra_resico, resico = self._compra_con_poliza('626', 'U-626')
+
+        out = StringIO()
+        call_command('excluir_compras_sueldos', stdout=out)
+        sueldos.refresh_from_db()
+        self.assertEqual(sueldos.estado, 'APLICADA')
+        self.assertIn('régimen 605', out.getvalue())
+
+        call_command('excluir_compras_sueldos', '--aplicar', stdout=StringIO())
+        sueldos.refresh_from_db()
+        resico.refresh_from_db()
+        self.assertEqual(sueldos.estado, 'CANCELADA')
+        self.assertEqual(resico.estado, 'APLICADA')
+        self.assertFalse(Compra.objects.filter(pk=compra_sueldos.pk).exists())
+        self.assertTrue(Compra.objects.filter(pk=compra_resico.pk).exists())
