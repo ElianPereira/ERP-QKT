@@ -273,9 +273,15 @@ salvo que queden obsoletas.
   `services_estados_cuenta.comisiones_por_cobro()` ubica las comisiones de un
   cobro; el emparejamiento automático prueba «cobro − comisiones» cuando no hay
   importe exacto (único candidato, si hay varios no adivina), y
-  `ids_comisiones_cubiertas()` saca esas comisiones de las partidas en tránsito
+  `ids_cubiertos_por_depositos()` saca esas comisiones de las partidas en tránsito
   y del buscador de asientos **solo si el abono es exactamente cobro −
-  comisiones**. No cubre depósitos que Openpay agrupe de varios cobros.
+  comisiones**. **Depósitos agrupados** (2026-10-12): Openpay junta varios
+  cobros en un depósito y retiene los chicos (el $1.00 del 05/08 llegó el
+  23/09 con el de $1,500). `_grupo_del_deposito()` busca la **única**
+  combinación de cobros con comisión aún sin depósito (ventana 60 días, máx.
+  12 cobros; si hay varias o más cobros, no adivina) cuyo neto suma el abono:
+  se liga el cobro mayor y los demás cobros y sus comisiones quedan cubiertos.
+  Se recalcula al vuelo, así que también vale si se liga a mano.
   **Cuenta puente** (aprobada por el propietario, mismo día): la comisión
   que reporta Openpay en `fee` ya no es gasto + IVA, va a **106.02
   «Comisiones Openpay por comprobar»** contra Bancos; la **factura mensual**
@@ -287,7 +293,8 @@ salvo que queden obsoletas.
   prueba de agosto) + $1,500 − $9.28 (SPEI) − $2.93 (comisión de agosto);
   factura $12.21 = $9.28 + $2.93. Lo ya registrado se corrige con
   `manage.py regularizar_comisiones_openpay [--desde] [--aplicar]` (simula por
-  defecto, cancela y reemite). **Pendiente de correr en producción.** La
+  defecto, cancela y reemite). **Corrido en producción el 2026-10-12**
+  (E-0003 de agosto, E-0001 y E-0006 de septiembre; 106.02 quedó en $0.00). La
   migración `comercial.0112` marca a todo proveedor con «openpay» en el nombre.
   **Conciliación mensual contra la API** (aprobado, `services_openpay.py`
   tocado solo para leer): `listar_cargos_openpay(desde, hasta)` (GET de cargos
