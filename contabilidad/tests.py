@@ -8,7 +8,7 @@ cuenta BBVA con su conciliación preliminar.
 """
 import os
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from io import StringIO
 
@@ -18,6 +18,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from comercial.models import Cliente, Compra, Cotizacion, ItemCotizacion, Pago
 from contabilidad.admin import MovimientoContableAdmin
@@ -1039,6 +1040,56 @@ class DepositoNetoDeComisionTest(TestCase):
         self.assertEqual(mov_banco.movimiento_contable, cobro_deposito)
         self.assertTrue(self._pendientes_de_libros().isdisjoint(
             {self.cobro, self.comision, comision_deposito}))
+
+    def _caso_septiembre(self):
+        """Caso real: el depósito trae el cobro, su comisión, un cargo de prueba
+        de $1.00 sin Pago (su ingreso se capturó a mano) y la comisión de ese
+        cargo, fechada semanas antes."""
+        from comercial.models import OpenpayTransaccion
+        from contabilidad.signals import crear_poliza_comision_openpay, get_cuenta, get_unidad_negocio
+
+        prueba = OpenpayTransaccion.objects.create(
+            openpay_id='txprueba', metodo='card', monto=Decimal('1.00'), payload_crudo={}, procesado=True,
+        )
+        OpenpayTransaccion.objects.filter(pk=prueba.pk).update(created_at=timezone.make_aware(datetime(2026, 8, 5, 12)))
+        prueba.refresh_from_db()
+        crear_poliza_comision_openpay(prueba, {'amount': 2.53, 'tax': 0.40})
+        comision_prueba = MovimientoContable.objects.get(poliza__object_id=prueba.pk, poliza__origen='COMISION_OPENPAY', haber__gt=0)
+
+        manual = Poliza.objects.create(
+            tipo='I', folio=Poliza.siguiente_folio('I', date(2026, 9, 23)), fecha=date(2026, 9, 23),
+            concepto='Cargo de prueba Openpay', unidad_negocio=get_unidad_negocio('QUINTA'),
+            estado='APLICADA', origen='MANUAL', created_by=self.user,
+        )
+        ingreso_prueba = MovimientoContable.objects.create(
+            poliza=manual, cuenta=get_cuenta('BANCO_PRINCIPAL'), debe=Decimal('1.00'), haber=Decimal('0.00'), concepto='x')
+        MovimientoContable.objects.create(
+            poliza=manual, cuenta=get_cuenta('APORTACIONES_DUENO') or get_cuenta('OTROS_INGRESOS_CLIENTE'),
+            debe=Decimal('0.00'), haber=Decimal('1.00'), concepto='x')
+
+        self.estado_cuenta.saldo_inicial_estado = Decimal('0.00')
+        self.estado_cuenta.saldo_final_estado = Decimal('1486.86')
+        self.estado_cuenta.save()
+        mov_banco = self._deposito(Decimal('1486.86'))  # 1,500 − 11.21 + 1.00 − 2.93
+        mov_banco.movimiento_contable = self.cobro
+        mov_banco.save()
+        return comision_prueba, ingreso_prueba
+
+    def test_deposito_ligado_a_mano_cubre_comisiones_y_poliza_manual(self):
+        _, ingreso_prueba = self._caso_septiembre()
+        pendientes = set(movimientos_contables_del_periodo(self.estado_cuenta, date(2026, 9, 1)))
+        self.assertNotIn(self.comision, pendientes)
+        self.assertNotIn(ingreso_prueba, pendientes)
+
+    def test_deposito_con_cargo_sin_pago_concilia_en_cero(self):
+        from contabilidad.services_estados_cuenta import analizar_conciliacion
+
+        self._caso_septiembre()
+        datos = analizar_conciliacion(self.estado_cuenta)
+        self.assertEqual(datos['diferencia_arrastrada'], Decimal('0.00'))
+        self.assertEqual(datos['abonos_empresa_no_abonados'], Decimal('0.00'))
+        self.assertEqual(datos['cargos_empresa_no_cobrados'], Decimal('0.00'))
+        self.assertEqual(datos['saldo_segun_libros'], datos['saldo_segun_banco'])
 
     def test_cobro_fuera_de_la_ventana_no_se_agrupa(self):
         self._cobro_previo('txviejo', fecha=date(2026, 6, 1))
