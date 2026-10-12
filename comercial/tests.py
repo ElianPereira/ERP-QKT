@@ -1139,7 +1139,8 @@ class SimuladorPagoTest(TestCase):
 })
 class ExcluirComprasSueldosTest(TestCase):
     """Las compras ya cargadas con CFDI al régimen de sueldos (605) salen de la
-    contabilidad: su póliza se cancela, salvo que esté ligada al banco."""
+    contabilidad: su póliza se cancela y la compra se borra, salvo que esté
+    ligada al banco."""
 
     def _compra_con_poliza(self, regimen, uuid):
         from django.contrib.contenttypes.models import ContentType
@@ -1165,8 +1166,8 @@ class ExcluirComprasSueldosTest(TestCase):
 
         from django.core.management import call_command
 
-        _, sueldos = self._compra_con_poliza('605', 'U-605')
-        _, resico = self._compra_con_poliza('626', 'U-626')
+        compra_sueldos, sueldos = self._compra_con_poliza('605', 'U-605')
+        compra_resico, resico = self._compra_con_poliza('626', 'U-626')
 
         out = StringIO()
         call_command('excluir_compras_sueldos', stdout=out)
@@ -1179,3 +1180,5 @@ class ExcluirComprasSueldosTest(TestCase):
         resico.refresh_from_db()
         self.assertEqual(sueldos.estado, 'CANCELADA')
         self.assertEqual(resico.estado, 'APLICADA')
+        self.assertFalse(Compra.objects.filter(pk=compra_sueldos.pk).exists())
+        self.assertTrue(Compra.objects.filter(pk=compra_resico.pk).exists())
