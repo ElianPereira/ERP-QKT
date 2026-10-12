@@ -78,6 +78,16 @@ class Proveedor(models.Model):
         help_text="Openpay: no se le paga desde el banco, descuenta su comisión de cada depósito. "
                   "Su factura se registra contra «Comisiones Openpay por comprobar», nunca contra Bancos.",
     )
+    cobra_de_la_cuenta = models.BooleanField(
+        default=False, verbose_name='Cobra directo de la cuenta',
+        help_text="Banco (BBVA): cobra sus comisiones directo de la cuenta y esos cargos ya se asientan "
+                  "desde el estado de cuenta. Su CFDI mensual queda solo como comprobante: no genera póliza.",
+    )
+
+    @property
+    def no_se_paga_desde_banco(self):
+        """Sus facturas nunca salen de Bancos como un pago aparte."""
+        return self.descuenta_de_depositos or self.cobra_de_la_cuenta
 
     def __str__(self): return self.nombre
     class Meta:
@@ -1851,11 +1861,11 @@ class Compra(models.Model):
         # hay ambigüedad posible — una única cuenta bancaria activa para esa
         # unidad de negocio. Con dos o más cuentas activas (o ninguna) se deja
         # en blanco, exactamente como hoy: nunca se adivina cuál de varias.
-        # Un proveedor que cobra descontando de los depósitos (Openpay) nunca
-        # se paga desde una cuenta: asignarla haría salir del banco dinero
-        # que ya se descontó.
+        # Un proveedor que cobra descontando de los depósitos (Openpay) o
+        # directo de la cuenta (BBVA) nunca se paga desde una cuenta:
+        # asignarla haría salir del banco dinero que ya salió.
         if not self.pk and self.unidad_negocio_id and not self.cuenta_pago_id \
-                and not (self.proveedor_id and self.proveedor.descuenta_de_depositos):
+                and not (self.proveedor_id and self.proveedor.no_se_paga_desde_banco):
             from contabilidad.models import CuentaBancaria
             cuentas_activas = list(
                 CuentaBancaria.objects.filter(

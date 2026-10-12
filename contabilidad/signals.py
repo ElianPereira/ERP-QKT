@@ -990,6 +990,12 @@ def emitir_poliza_compra(compra):
     """
     if compra.total <= 0:
         return None
+    # El CFDI mensual de comisiones del banco ampara cargos que ya se asentaron
+    # desde el estado de cuenta (reglas «Comisión bancaria» e «IVA de comisión
+    # bancaria»): una póliza aquí los duplicaría contra Bancos.
+    if compra.proveedor_id and compra.proveedor.cobra_de_la_cuenta:
+        logger.info("Compra #%s: comisiones del banco ya asentadas desde el estado de cuenta, sin póliza.", compra.pk)
+        return None
 
     cuenta_iva = get_cuenta('IVA_ACREDITABLE')
     categoria = compra.get_categoria_display() if compra.categoria != 'SIN_CLASIFICAR' else None
