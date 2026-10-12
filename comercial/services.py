@@ -923,6 +923,16 @@ USOS_CFDI_PERSONALES = {
 TIPOS_VALIDOS_CARGA_MASIVA = {'I'}
 
 
+def regimen_receptor_de_xml(xml_content):
+    """`RegimenFiscalReceptor` del CFDI ('' si no lo trae, p. ej. CFDI 3.3)."""
+    import defusedxml.ElementTree as ET
+
+    root = ET.fromstring(xml_content)
+    ns = 'http://www.sat.gob.mx/cfd/3' if 'http://www.sat.gob.mx/cfd/3' in root.tag else 'http://www.sat.gob.mx/cfd/4'
+    receptor = root.find(f'{{{ns}}}Receptor')
+    return receptor.attrib.get('RegimenFiscalReceptor', '') if receptor is not None else ''
+
+
 def analizar_xml_compra(xml_content):
     """
     Analiza un XML de CFDI para decidir si es elegible como Compra del

@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from comercial.models import (
@@ -1131,3 +1131,51 @@ class SimuladorPagoTest(TestCase):
         self.cot.refresh_from_db()
         self.assertEqual(self.cot.saldo_pendiente(), Decimal('9000.00'))
         self.assertEqual(Pago.objects.count(), 1)
+
+
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class ExcluirComprasSueldosTest(TestCase):
+    """Las compras ya cargadas con CFDI al régimen de sueldos (605) salen de la
+    contabilidad: su póliza se cancela, salvo que esté ligada al banco."""
+
+    def _compra_con_poliza(self, regimen, uuid):
+        from django.contrib.contenttypes.models import ContentType
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from contabilidad.models import Poliza, UnidadNegocio
+        from contabilidad.signals import get_usuario_sistema
+
+        xml = SimpleUploadedFile('f.xml', _construir_cfdi(uuid=uuid, regimen_receptor=regimen))
+        compra = Compra.objects.create(archivo_xml=xml)
+        unidad, _ = UnidadNegocio.objects.get_or_create(clave='QUINTA', defaults={'nombre': 'Quinta'})
+        Poliza.objects.filter(content_type=ContentType.objects.get_for_model(Compra), object_id=compra.pk).delete()
+        poliza = Poliza.objects.create(
+            tipo='E', folio=Poliza.siguiente_folio('E', date(2026, 9, 1)), fecha=date(2026, 9, 1),
+            concepto='Compra', unidad_negocio=unidad, estado='APLICADA', origen='COMPRA',
+            content_type=ContentType.objects.get_for_model(Compra), object_id=compra.pk,
+            created_by=get_usuario_sistema(),
+        )
+        return compra, poliza
+
+    def test_simula_por_defecto_y_cancela_solo_las_de_sueldos(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        _, sueldos = self._compra_con_poliza('605', 'U-605')
+        _, resico = self._compra_con_poliza('626', 'U-626')
+
+        out = StringIO()
+        call_command('excluir_compras_sueldos', stdout=out)
+        sueldos.refresh_from_db()
+        self.assertEqual(sueldos.estado, 'APLICADA')
+        self.assertIn('régimen 605', out.getvalue())
+
+        call_command('excluir_compras_sueldos', '--aplicar', stdout=StringIO())
+        sueldos.refresh_from_db()
+        resico.refresh_from_db()
+        self.assertEqual(sueldos.estado, 'CANCELADA')
+        self.assertEqual(resico.estado, 'APLICADA')
