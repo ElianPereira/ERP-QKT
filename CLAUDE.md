@@ -287,7 +287,13 @@ salvo que queden obsoletas.
   `MovimientoDeposito.transaccion_openpay`). **El caso real de septiembre no
   se agrupa**: el cargo de prueba de $1.00 no tiene Pago (no tenía
   cotización), así que ese ingreso no está en libros; se registra con póliza
-  manual y el depósito se liga a mano con I-0004.
+  manual y el depósito se liga a mano con I-0004. Para que eso cuadre,
+  `cobertura_por_deposito()` busca además, cuando los cobros no explican el
+  abono, la combinación única de comisiones y pólizas MANUAL sin ligar
+  (`ORIGENES_SUELTOS`) que suma la diferencia con el cobro ligado; y
+  `analizar_conciliacion()` ya no cuenta como arrastre lo asentado antes del
+  periodo que se liquida en él (ligado o cubierto): era tránsito al inicio
+  (`_en_transito_al_inicio`), como la comisión de $2.93 fechada el 05/08.
   **Cuenta puente** (aprobada por el propietario, mismo día): la comisión
   que reporta Openpay en `fee` ya no es gasto + IVA, va a **106.02
   «Comisiones Openpay por comprobar»** contra Bancos; la **factura mensual**

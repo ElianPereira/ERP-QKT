@@ -465,26 +465,51 @@ def _cobros_por_depositar(cuenta_contable, fecha, excluidos, tolerancia_dias=5):
     return sueltos, comisiones
 
 
-def _grupo_del_deposito(abono, cobros, comisiones, ancla=None):
-    """
-    La única combinación de cobros cuyo neto (cobro − comisiones) suma el
-    abono, incluido `ancla` si se da. None si no hay ninguna, si hay varias o
-    si son demasiados cobros para probarlas todas: no se adivina.
-    """
-    cobros = [c for c in cobros if ancla is None or c.id != ancla.id]
-    if len(cobros) > MAX_COBROS_POR_DEPOSITO:
+def _combinacion_unica(objetivo, elementos, valor, minimo=1):
+    """La única combinación de `elementos` cuyos valores suman `objetivo`.
+    None si no hay ninguna, si hay varias o si son demasiados para probarlas
+    todas: no se adivina."""
+    if len(elementos) > MAX_COBROS_POR_DEPOSITO:
         return None
-    objetivo = abono - (_neto(ancla, comisiones) if ancla is not None else 0)
     encontrados = []
-    for tamano in range(0 if ancla is not None else 1, len(cobros) + 1):
-        for combinacion in combinations(cobros, tamano):
-            if sum((_neto(c, comisiones) for c in combinacion), Decimal('0.00')) == objetivo:
+    for tamano in range(minimo, len(elementos) + 1):
+        for combinacion in combinations(elementos, tamano):
+            if sum((valor(e) for e in combinacion), Decimal('0.00')) == objetivo:
                 encontrados.append(combinacion)
                 if len(encontrados) > 1:
                     return None
-    if not encontrados:
+    return list(encontrados[0]) if encontrados else None
+
+
+def _grupo_del_deposito(abono, cobros, comisiones, ancla=None):
+    """
+    La única combinación de cobros cuyo neto (cobro − comisiones) suma el
+    abono, incluido `ancla` si se da (`_combinacion_unica`).
+    """
+    cobros = [c for c in cobros if ancla is None or c.id != ancla.id]
+    objetivo = abono - (_neto(ancla, comisiones) if ancla is not None else 0)
+    resto = _combinacion_unica(
+        objetivo, cobros, lambda c: _neto(c, comisiones), minimo=0 if ancla is not None else 1)
+    if resto is None:
         return None
-    return ([ancla] if ancla is not None else []) + list(encontrados[0])
+    return ([ancla] if ancla is not None else []) + resto
+
+
+# Líneas de bancos sin cobro detrás que también viajan dentro de un depósito de
+# Openpay: comisiones (de este cobro o de un cargo sin Pago) y lo capturado a
+# mano, como el ingreso de un cargo de prueba que no nació de una cotización.
+ORIGENES_SUELTOS = ('COMISION_OPENPAY', 'COMISION_TPV', 'MANUAL')
+
+
+def _lineas_sueltas(cuenta_contable, fecha, excluidos, tolerancia_dias=5):
+    return list(
+        MovimientoContable.objects.filter(
+            cuenta=cuenta_contable, poliza__estado='APLICADA',
+            poliza__origen__in=ORIGENES_SUELTOS,
+            poliza__fecha__gte=fecha - timedelta(days=VENTANA_DEPOSITO_AGRUPADO_DIAS),
+            poliza__fecha__lte=fecha + timedelta(days=tolerancia_dias),
+        ).exclude(id__in=excluidos)
+    )
 
 
 def _ids_del_grupo(grupo, comisiones, ancla):
@@ -495,23 +520,27 @@ def _ids_del_grupo(grupo, comisiones, ancla):
     }
 
 
-def ids_cubiertos_por_depositos(cuenta_bancaria):
+def cobertura_por_deposito(cuenta_bancaria):
     """
-    Líneas de bancos que ya explica un depósito neto aunque el modelo solo
-    ligue un asiento por movimiento del banco: las comisiones del cobro ligado
-    y, si Openpay juntó varios cobros en ese depósito, los demás cobros con sus
-    comisiones. Solo cuando el abono cuadra exacto y de una sola forma; si no,
-    siguen saliendo como partidas en tránsito. Vale igual para lo emparejado a
-    mano que para lo automático.
+    {id del movimiento del banco: ids de las líneas de bancos que explica
+    además del asiento ligado}, aunque el modelo solo ligue uno por movimiento.
+
+    Primero se buscan cobros: las comisiones del cobro ligado y, si Openpay
+    juntó varios cobros en el depósito, los demás con sus comisiones. Si así no
+    cuadra, la diferencia entre el abono y el cobro ligado se busca entre
+    comisiones y pólizas manuales sin ligar (`ORIGENES_SUELTOS`). En los dos
+    casos solo cuenta una combinación exacta y única; si no, todo sigue
+    saliendo como partida en tránsito. Vale igual para lo emparejado a mano que
+    para lo automático.
     """
     cuenta_contable = cuenta_bancaria.cuenta_contable
     if not cuenta_contable:
-        return set()
+        return {}
     emparejados = MovimientoEstadoCuenta.objects.filter(
         estado_cuenta__cuenta_bancaria=cuenta_bancaria, movimiento_contable__isnull=False,
     )
     ocupados = set(emparejados.values_list('movimiento_contable_id', flat=True))
-    cubiertos = set()
+    cobertura, cubiertos = {}, set()
     for mov_banco in emparejados.filter(abono__gt=0).select_related(
         'movimiento_contable__poliza'
     ).order_by('fecha', 'id'):
@@ -519,12 +548,28 @@ def ids_cubiertos_por_depositos(cuenta_bancaria):
         if (ancla.debe == mov_banco.abono or ancla.cuenta_id != cuenta_contable.id
                 or ancla.poliza.origen not in ORIGENES_COBRO):
             continue
-        sueltos, comisiones = _cobros_por_depositar(cuenta_contable, mov_banco.fecha, ocupados | cubiertos)
+        excluidos = ocupados | cubiertos
+        sueltos, comisiones = _cobros_por_depositar(cuenta_contable, mov_banco.fecha, excluidos)
         comisiones.update(comisiones_por_cobro([ancla]))
         grupo = _grupo_del_deposito(mov_banco.abono, sueltos, comisiones, ancla)
         if grupo:
-            cubiertos |= _ids_del_grupo(grupo, comisiones, ancla)
-    return cubiertos
+            ids = _ids_del_grupo(grupo, comisiones, ancla)
+        else:
+            lineas = _combinacion_unica(
+                mov_banco.abono - ancla.debe,
+                _lineas_sueltas(cuenta_contable, mov_banco.fecha, excluidos),
+                lambda linea: linea.debe - linea.haber,
+            )
+            ids = {linea.id for linea in lineas or []}
+        if ids:
+            cobertura[mov_banco.id] = ids
+            cubiertos |= ids
+    return cobertura
+
+
+def ids_cubiertos_por_depositos(cuenta_bancaria):
+    """Todas las líneas de bancos que explica algún depósito (`cobertura_por_deposito`)."""
+    return set().union(*cobertura_por_deposito(cuenta_bancaria).values())
 
 
 def _emparejar_automaticamente(estado_cuenta: EstadoCuentaBancario, tolerancia_dias=5):
@@ -812,6 +857,23 @@ def movimientos_contables_del_periodo(estado_cuenta: EstadoCuentaBancario, fecha
     ).select_related('poliza', 'cuenta')
 
 
+def _en_transito_al_inicio(estado_cuenta, fecha_inicio):
+    """Neto (debe − haber) de las líneas de bancos anteriores al periodo que
+    liquidan movimientos de este estado de cuenta: ligadas directo o cubiertas
+    por un depósito. Al primer día del periodo estaban en tránsito."""
+    cobertura = cobertura_por_deposito(estado_cuenta.cuenta_bancaria)
+    ids = set()
+    for mov_id, linea_id in estado_cuenta.movimientos.filter(
+        movimiento_contable__isnull=False,
+    ).values_list('id', 'movimiento_contable_id'):
+        ids.add(linea_id)
+        ids |= cobertura.get(mov_id, set())
+    totales = MovimientoContable.objects.filter(
+        id__in=ids, poliza__fecha__lt=fecha_inicio,
+    ).aggregate(debe=Sum('debe'), haber=Sum('haber'))
+    return (totales['debe'] or Decimal('0.00')) - (totales['haber'] or Decimal('0.00'))
+
+
 def analizar_conciliacion(estado_cuenta: EstadoCuentaBancario):
     """
     Calcula todas las cifras de la conciliación de un estado de cuenta, sin
@@ -845,6 +907,7 @@ def analizar_conciliacion(estado_cuenta: EstadoCuentaBancario):
     )
 
     saldo_libros_inicio = cuenta_bancaria.saldo_a_fecha(fecha_inicio - timedelta(days=1))
+    en_transito_al_inicio = _en_transito_al_inicio(estado_cuenta, fecha_inicio)
     saldo_libros_corte = cuenta_bancaria.saldo_a_fecha(estado_cuenta.fecha_corte_real)
 
     saldo_inicial_banco = estado_cuenta.saldo_inicial_estado
@@ -856,7 +919,9 @@ def analizar_conciliacion(estado_cuenta: EstadoCuentaBancario):
             "El estado de cuenta no tiene saldo inicial extraído del PDF — "
             "vuelve a procesarlo para poder separar la diferencia arrastrada."
         )
-    diferencia_arrastrada = saldo_libros_inicio - saldo_inicial_banco
+    # Lo asentado antes del periodo que el banco liquidó dentro de él era una
+    # partida en tránsito al inicio, no descuadre heredado.
+    diferencia_arrastrada = saldo_libros_inicio - en_transito_al_inicio - saldo_inicial_banco
 
     # Lado del banco: movimientos del estado de cuenta sin asiento contable.
     banco_sin_asiento = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True)
