@@ -437,25 +437,28 @@ def crear_poliza_ingreso_extra(pago):
 # ==========================================
 def crear_poliza_comision_openpay(transaccion, fee):
     """
-    Genera la póliza de la comisión que Openpay cobra por un cargo, con el
-    desglose exacto que Openpay reporta en el campo `fee` de la transacción.
-    Mismo asiento que la comisión de terminal (manual de contabilidad 7.2):
+    Registra la comisión que Openpay descuenta del depósito de un cargo, con
+    el importe que reporta en el campo `fee` de la transacción:
 
-        DEBE: Comisiones bancarias    fee.amount
-        DEBE: IVA acreditable         fee.tax
-        HABER: Banco principal        fee.amount + fee.tax
+        DEBE: Comisiones Openpay por comprobar    fee.amount + fee.tax
+        HABER: Banco principal                    fee.amount + fee.tax
 
-    Idempotente: una sola póliza por OpenpayTransaccion aunque el webhook
-    llegue repetido. Si faltan cuentas configuradas se omite con warning,
-    sin afectar el registro del Pago.
+    No es gasto todavía: el gasto y el IVA acreditable los registra la
+    factura mensual de Openpay (Compra de un proveedor con
+    `descuenta_de_depositos`), contra la misma cuenta puente. Si no queda en
+    cero al cierre del mes, la diferencia es lo que hay que aclarar con
+    Openpay.
+
+    Idempotente: una sola póliza vigente por OpenpayTransaccion aunque el
+    webhook llegue repetido. Si faltan cuentas configuradas se omite con
+    warning, sin afectar el registro del Pago.
     """
     if not signals_enabled():
         return None
 
     fee = fee or {}
     try:
-        comision = Decimal(str(fee.get('amount') or 0))
-        iva = Decimal(str(fee.get('tax') or 0))
+        comision = Decimal(str(fee.get('amount') or 0)) + Decimal(str(fee.get('tax') or 0))
     except Exception:
         logger.warning("Comisión Openpay no registrada para %s: fee ilegible %r", transaccion.openpay_id, fee)
         return None
@@ -466,17 +469,16 @@ def crear_poliza_comision_openpay(transaccion, fee):
     content_type = ContentType.objects.get_for_model(transaccion)
     if Poliza.objects.filter(
         content_type=content_type, object_id=transaccion.pk, origen='COMISION_OPENPAY'
-    ).exists():
+    ).exclude(estado='CANCELADA').exists():
         return None  # ya registrada (idempotencia ante reintentos del webhook)
 
-    cuenta_gasto = get_cuenta('GASTO_BANCARIOS')
-    cuenta_iva = get_cuenta('IVA_ACREDITABLE')
+    cuenta_puente = get_cuenta('COMISIONES_POR_COMPROBAR')
     cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
-    if not cuenta_gasto or not cuenta_banco:
+    if not cuenta_puente or not cuenta_banco:
         logger.warning(
             "Comisión Openpay no registrada para %s: falta configuración contable "
-            "(GASTO_BANCARIOS=%s, BANCO_PRINCIPAL=%s)",
-            transaccion.openpay_id, cuenta_gasto, cuenta_banco,
+            "(COMISIONES_POR_COMPROBAR=%s, BANCO_PRINCIPAL=%s)",
+            transaccion.openpay_id, cuenta_puente, cuenta_banco,
         )
         return None
 
@@ -499,44 +501,22 @@ def crear_poliza_comision_openpay(transaccion, fee):
         object_id=transaccion.pk,
         created_by=get_usuario_sistema(),
     )
-
     MovimientoContable.objects.create(
         poliza=poliza,
-        cuenta=cuenta_gasto,
+        cuenta=cuenta_puente,
         debe=comision,
         haber=Decimal('0.00'),
-        concepto="Comisión Openpay",
+        concepto="Comisión Openpay por comprobar",
         referencia=transaccion.openpay_id,
     )
-    if cuenta_iva and iva > 0:
-        MovimientoContable.objects.create(
-            poliza=poliza,
-            cuenta=cuenta_iva,
-            debe=iva,
-            haber=Decimal('0.00'),
-            concepto="IVA acreditable comisión Openpay",
-            referencia=transaccion.openpay_id,
-        )
-    elif iva > 0:
-        # Sin cuenta de IVA acreditable configurada: se incluye en el gasto
-        MovimientoContable.objects.create(
-            poliza=poliza,
-            cuenta=cuenta_gasto,
-            debe=iva,
-            haber=Decimal('0.00'),
-            concepto="IVA comisión Openpay (incluido en gasto)",
-            referencia=transaccion.openpay_id,
-        )
-
     MovimientoContable.objects.create(
         poliza=poliza,
         cuenta=cuenta_banco,
         debe=Decimal('0.00'),
-        haber=comision + iva,
+        haber=comision,
         concepto="Comisión Openpay descontada del depósito",
         referencia=transaccion.openpay_id,
     )
-
     return poliza
 
 
@@ -998,10 +978,18 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
     """
     if not signals_enabled() or not created:
         return
+    emitir_poliza_compra(instance)
 
-    compra = instance
+
+def emitir_poliza_compra(compra):
+    """
+    Póliza de una Compra. La contrapartida es la cuenta bancaria de pago, salvo
+    para un proveedor que cobra descontando de los depósitos (Openpay): su
+    factura ampara comisiones que ya salieron del banco con cada depósito
+    (`crear_poliza_comision_openpay`), así que se abona a la cuenta puente.
+    """
     if compra.total <= 0:
-        return
+        return None
 
     cuenta_iva = get_cuenta('IVA_ACREDITABLE')
     categoria = compra.get_categoria_display() if compra.categoria != 'SIN_CLASIFICAR' else None
@@ -1009,18 +997,22 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
 
     if not cuenta_gasto:
         logger.warning("Póliza NO generada para Compra #%s: falta cuenta de gasto", compra.pk)
-        return
+        return None
 
     # Unidad de negocio: SOLO la explícita en la compra. Sin fallback a una
     # unidad "por defecto" — eso fue exactamente el bug que mezcló dos unidades.
     unidad = compra.unidad_negocio
-    cuenta_banco = compra.cuenta_pago.cuenta_contable if (compra.cuenta_pago and compra.cuenta_pago.cuenta_contable) else None
+    descontada = bool(compra.proveedor_id and compra.proveedor.descuenta_de_depositos)
+    if descontada:
+        cuenta_contra = get_cuenta('COMISIONES_POR_COMPROBAR')
+    else:
+        cuenta_contra = compra.cuenta_pago.cuenta_contable if (compra.cuenta_pago and compra.cuenta_pago.cuenta_contable) else None
 
     faltantes = []
     if not unidad:
         faltantes.append("unidad_negocio")
-    if not cuenta_banco:
-        faltantes.append("cuenta_pago")
+    if not cuenta_contra:
+        faltantes.append("cuenta COMISIONES_POR_COMPROBAR" if descontada else "cuenta_pago")
 
     estado_poliza = 'APLICADA' if not faltantes else 'BORRADOR'
     if faltantes:
@@ -1073,11 +1065,12 @@ def crear_poliza_compra(sender, instance, created, **kwargs):
             concepto="IVA acreditable",
         )
 
-    if cuenta_banco:
+    if cuenta_contra:
         MovimientoContable.objects.create(
-            poliza=poliza, cuenta=cuenta_banco,
+            poliza=poliza, cuenta=cuenta_contra,
             debe=Decimal('0.00'), haber=compra.total,
-            concepto="Pago a proveedor",
+            concepto="Comisiones descontadas de depósitos" if descontada else "Pago a proveedor",
             referencia=compra.uuid[:20] if compra.uuid else '',
         )
+    return poliza
 

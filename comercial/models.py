@@ -73,6 +73,11 @@ class Proveedor(models.Model):
         help_text="Opcional. Cuenta exacta para sus compras (ej. CFE → Energía eléctrica). "
                   "Sin ella, la cuenta sale de la categoría.",
     )
+    descuenta_de_depositos = models.BooleanField(
+        default=False, verbose_name='Cobra descontando de los depósitos',
+        help_text="Openpay: no se le paga desde el banco, descuenta su comisión de cada depósito. "
+                  "Su factura se registra contra «Comisiones Openpay por comprobar», nunca contra Bancos.",
+    )
 
     def __str__(self): return self.nombre
     class Meta:
@@ -1846,7 +1851,11 @@ class Compra(models.Model):
         # hay ambigüedad posible — una única cuenta bancaria activa para esa
         # unidad de negocio. Con dos o más cuentas activas (o ninguna) se deja
         # en blanco, exactamente como hoy: nunca se adivina cuál de varias.
-        if not self.pk and self.unidad_negocio_id and not self.cuenta_pago_id:
+        # Un proveedor que cobra descontando de los depósitos (Openpay) nunca
+        # se paga desde una cuenta: asignarla haría salir del banco dinero
+        # que ya se descontó.
+        if not self.pk and self.unidad_negocio_id and not self.cuenta_pago_id \
+                and not (self.proveedor_id and self.proveedor.descuenta_de_depositos):
             from contabilidad.models import CuentaBancaria
             cuentas_activas = list(
                 CuentaBancaria.objects.filter(

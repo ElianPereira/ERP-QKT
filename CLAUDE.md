@@ -265,6 +265,41 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-11 — **Depósitos netos de Openpay/terminal en la conciliación**
+  (reportado por el propietario: un depósito de $1,488.79 contra un cobro de
+  $1,500.00). El ingreso se registra por el total y la comisión en su propia
+  póliza (`COMISION_OPENPAY`/`COMISION_TPV`), así que el banco deposita la suma
+  de dos asientos y `MovimientoEstadoCuenta` solo liga uno. Sin migración:
+  `services_estados_cuenta.comisiones_por_cobro()` ubica las comisiones de un
+  cobro; el emparejamiento automático prueba «cobro − comisiones» cuando no hay
+  importe exacto (único candidato, si hay varios no adivina), y
+  `ids_comisiones_cubiertas()` saca esas comisiones de las partidas en tránsito
+  y del buscador de asientos **solo si el abono es exactamente cobro −
+  comisiones**. No cubre depósitos que Openpay agrupe de varios cobros.
+  **Cuenta puente** (aprobada por el propietario, mismo día): la comisión
+  que reporta Openpay en `fee` ya no es gasto + IVA, va a **106.02
+  «Comisiones Openpay por comprobar»** contra Bancos; la **factura mensual**
+  de Openpay (Compra de un `Proveedor.descuenta_de_depositos`) registra gasto
+  e IVA acreditable contra esa cuenta, nunca contra Bancos ni con cuenta de
+  pago (antes se duplicaba el gasto y salía del banco dinero que nunca
+  salió). Saldo ≠ 0 al cierre = diferencia por aclarar con Openpay. Caso real
+  de septiembre: depósito $1,488.79 = $1.00 de saldo anterior (cargo de
+  prueba de agosto) + $1,500 − $9.28 (SPEI) − $2.93 (comisión de agosto);
+  factura $12.21 = $9.28 + $2.93. Lo ya registrado se corrige con
+  `manage.py regularizar_comisiones_openpay [--desde] [--aplicar]` (simula por
+  defecto, cancela y reemite). **Pendiente de correr en producción.** La
+  migración `comercial.0112` marca a todo proveedor con «openpay» en el nombre.
+  **Conciliación mensual contra la API** (aprobado, `services_openpay.py`
+  tocado solo para leer): `listar_cargos_openpay(desde, hasta)` (GET de cargos
+  paginado de 100 en 100) y `manage.py sincronizar_comisiones_openpay [--mes
+  AAAA-MM] [--aplicar]` comparan el `fee` de cada cargo `completed`/`refunded`
+  contra las pólizas COMISION_OPENPAY, registran las faltantes y dan el total
+  del mes (= lo que debe traer la factura). Un cargo sin `OpenpayTransaccion`
+  solo se reporta. **Sin aviso** (decisión del propietario): el resultado
+  queda solo en el log del cron, que no lleva variables de WhatsApp. La API **no** expone el estado de cuenta ni la factura
+  mensual (el recurso `/fees` es para cobrarle comisión a un cliente).
+  **Pendiente de alta en Railway** como Cron mensual (día 2, mes anterior).
+
 - 2026-10-09 — **Sistema de documentos QKT, fase 1** (Issue #373, decisiones del
   propietario: IBM Plex en todo, Cormorant solo en títulos al cliente/legales;
   alcance = todo lo existente + reportes faltantes). Todo PDF nuevo o migrado

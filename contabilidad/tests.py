@@ -43,6 +43,7 @@ from contabilidad.services_estados_cuenta import (
     _emparejar_automaticamente,
     aplicar_sugerencias_compras,
     generar_conciliacion_preliminar,
+    movimientos_contables_del_periodo,
     sugerir_compras_pendientes,
 )
 from core_erp.test_utils import login_superuser_con_totp
@@ -853,6 +854,88 @@ class EmparejamientoAutomaticoTest(TestCase):
         mov_banco.refresh_from_db()
         self.assertIsNone(mov_banco.movimiento_contable)
         self.assertFalse(mov_banco.match_automatico)
+
+
+class DepositoNetoDeComisionTest(TestCase):
+    """Openpay deposita el cobro menos su comisión: el abono del banco se
+    empareja con el cobro y la línea de la comisión queda cubierta, no como
+    partida en tránsito."""
+
+    def setUp(self):
+        from comercial.models import OpenpayTransaccion
+        from contabilidad.signals import crear_poliza_comision_openpay, get_cuenta
+
+        setup_contabilidad_minima()
+        self.user = User.objects.create_user('conc_openpay', password='x')
+        cot = _crear_cotizacion(Cliente.objects.create(nombre='Cliente'), Decimal('11600.00'))
+        self.pago = Pago.objects.create(
+            cotizacion=cot, monto=Decimal('1500.00'), metodo='PLATAFORMA',
+            referencia='txneto', fecha_pago=date(2026, 9, 22), usuario=self.user,
+        )
+        transaccion = OpenpayTransaccion.objects.create(
+            openpay_id='txneto', metodo='card', monto=Decimal('1500.00'),
+            pago=self.pago, payload_crudo={}, procesado=True,
+        )
+        crear_poliza_comision_openpay(transaccion, {'amount': 9.66, 'tax': 1.55})
+
+        cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+        self.cobro = MovimientoContable.objects.get(poliza__origen='PAGO_CLIENTE', cuenta=cuenta_banco)
+        self.comision = MovimientoContable.objects.get(poliza__origen='COMISION_OPENPAY', cuenta=cuenta_banco)
+        self.cuenta_bancaria = CuentaBancaria.objects.create(
+            nombre='BBVA (test neto)', banco='BBVA', clabe='012345678901234571',
+            cuenta_contable=cuenta_banco,
+        )
+        self.estado_cuenta = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA', periodo_mes=9,
+            periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 9, 30),
+        )
+
+    def _deposito(self, importe):
+        return MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 9, 23),
+            descripcion='DEPOSITO DE TERCERO', abono=importe,
+        )
+
+    def _pendientes_de_libros(self):
+        return set(movimientos_contables_del_periodo(self.estado_cuenta, date(2026, 9, 1)))
+
+    def test_empareja_el_deposito_neto_con_el_cobro(self):
+        mov_banco = self._deposito(Decimal('1488.79'))
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertEqual(mov_banco.movimiento_contable, self.cobro)
+        self.assertFalse(mov_banco.confirmado)
+
+    def test_la_comision_no_queda_en_transito(self):
+        self._deposito(Decimal('1488.79'))
+        _emparejar_automaticamente(self.estado_cuenta)
+        pendientes = self._pendientes_de_libros()
+        self.assertNotIn(self.comision, pendientes)
+        self.assertNotIn(self.cobro, pendientes)
+
+    def test_emparejado_a_mano_tambien_cubre_la_comision(self):
+        mov_banco = self._deposito(Decimal('1488.79'))
+        mov_banco.movimiento_contable = self.cobro
+        mov_banco.save()
+        self.assertNotIn(self.comision, self._pendientes_de_libros())
+
+    def test_importe_que_no_cuadra_no_cubre_la_comision(self):
+        mov_banco = self._deposito(Decimal('1480.00'))
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertIsNone(mov_banco.movimiento_contable)
+
+        mov_banco.movimiento_contable = self.cobro
+        mov_banco.save()
+        self.assertIn(self.comision, self._pendientes_de_libros())
+
+    def test_deposito_bruto_sigue_emparejando_exacto(self):
+        mov_banco = self._deposito(Decimal('1500.00'))
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertEqual(mov_banco.movimiento_contable, self.cobro)
+        self.assertIn(self.comision, self._pendientes_de_libros())
 
 
 class SugerirComprasPendientesTest(TestCase):

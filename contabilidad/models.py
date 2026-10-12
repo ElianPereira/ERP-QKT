@@ -775,6 +775,7 @@ class ConfiguracionContable(models.Model):
         ('GASTO_IMPUESTOS', 'Gastos - Impuestos y derechos'),
         ('GASTO_SEGUROS', 'Gastos - Seguros y fianzas'),
         ('GASTO_BANCARIOS', 'Gastos - Comisiones bancarias'),
+        ('COMISIONES_POR_COMPROBAR', 'Comisiones Openpay por comprobar'),
 
         # Legacy (mantener por compatibilidad)
         ('GASTOS_BEBIDAS', 'Gastos bebidas'),

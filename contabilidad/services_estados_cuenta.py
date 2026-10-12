@@ -367,6 +367,89 @@ def _parsear_xml_bbva(archivo):
     )
 
 
+def comisiones_por_cobro(lineas_cobro):
+    """
+    {id de la línea de bancos de un cobro: [líneas de bancos de sus comisiones]}.
+
+    Openpay y la terminal depositan el NETO: el cobro entra a bancos por el
+    total (póliza PAGO_CLIENTE) y la comisión sale aparte (COMISION_OPENPAY,
+    ligada a la OpenpayTransaccion del pago; COMISION_TPV, ligada al Pago).
+    El depósito del banco es la suma de ambas líneas.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from comercial.models import OpenpayTransaccion, Pago
+
+    ct_pago = ContentType.objects.get_for_model(Pago)
+    ct_transaccion = ContentType.objects.get_for_model(OpenpayTransaccion)
+
+    cobro_por_pago = {
+        linea.poliza.object_id: linea for linea in lineas_cobro
+        if linea.debe > 0 and linea.poliza.origen == 'PAGO_CLIENTE'
+        and linea.poliza.content_type_id == ct_pago.id
+    }
+    if not cobro_por_pago:
+        return {}
+    pago_por_transaccion = dict(
+        OpenpayTransaccion.objects.filter(pago_id__in=cobro_por_pago).values_list('pk', 'pago_id')
+    )
+
+    comisiones = MovimientoContable.objects.filter(
+        haber__gt=0, poliza__estado='APLICADA',
+    ).filter(
+        Q(poliza__origen='COMISION_TPV', poliza__content_type=ct_pago,
+          poliza__object_id__in=list(cobro_por_pago))
+        | Q(poliza__origen='COMISION_OPENPAY', poliza__content_type=ct_transaccion,
+            poliza__object_id__in=list(pago_por_transaccion))
+    ).select_related('poliza')
+
+    resultado = {}
+    for comision in comisiones:
+        pago_id = (
+            comision.poliza.object_id if comision.poliza.origen == 'COMISION_TPV'
+            else pago_por_transaccion[comision.poliza.object_id]
+        )
+        cobro = cobro_por_pago[pago_id]
+        if comision.cuenta_id == cobro.cuenta_id:
+            resultado.setdefault(cobro.id, []).append(comision)
+    return resultado
+
+
+def ids_comisiones_cubiertas(cuenta_bancaria):
+    """
+    Líneas de comisión que ya quedan explicadas por un depósito neto: el
+    movimiento del banco está emparejado con el cobro y su importe es
+    exactamente cobro − comisiones. Cuentan como emparejadas aunque el modelo
+    solo ligue un asiento por movimiento del banco; si no, la comisión saldría
+    para siempre como partida en tránsito.
+    """
+    emparejados = list(
+        MovimientoEstadoCuenta.objects.filter(
+            estado_cuenta__cuenta_bancaria=cuenta_bancaria,
+            movimiento_contable__isnull=False, abono__gt=0,
+        ).select_related('movimiento_contable__poliza')
+    )
+    comisiones = comisiones_por_cobro([m.movimiento_contable for m in emparejados])
+    cubiertas = set()
+    for mov_banco in emparejados:
+        lineas = comisiones.get(mov_banco.movimiento_contable_id)
+        if lineas and mov_banco.movimiento_contable.debe - sum(c.haber for c in lineas) == mov_banco.abono:
+            cubiertas.update(c.id for c in lineas)
+    return cubiertas
+
+
+def _cobro_neto_de_comision(mov_banco, candidatos, comisiones, excluidos):
+    """El único cobro cuyo depósito neto (cobro − comisiones) es este abono, o
+    None si no hay ninguno o hay varios (no se adivina)."""
+    coincidencias = [
+        cobro for cobro in candidatos
+        if comisiones.get(cobro.id)
+        and not any(c.id in excluidos for c in comisiones[cobro.id])
+        and cobro.debe - sum(c.haber for c in comisiones[cobro.id]) == mov_banco.abono
+    ]
+    return coincidencias[0] if len(coincidencias) == 1 else None
+
+
 def _emparejar_automaticamente(estado_cuenta: EstadoCuentaBancario, tolerancia_dias=5):
     """
     Empareja cada MovimientoEstadoCuenta sin emparejar contra un MovimientoContable
@@ -376,6 +459,9 @@ def _emparejar_automaticamente(estado_cuenta: EstadoCuentaBancario, tolerancia_d
     Vista del banco -> vista de libros:
         abono (entra dinero al banco)  <-> MovimientoContable.debe  (aumenta Bancos)
         cargo (sale dinero del banco)  <-> MovimientoContable.haber (disminuye Bancos)
+
+    Un abono sin coincidencia exacta se intenta contra un cobro de Openpay o
+    terminal neto de su comisión (`comisiones_por_cobro`).
 
     Marca match_automatico=True pero confirmado=False siempre — la confirmación
     la da el usuario en el admin, nunca se auto-confirma.
@@ -389,7 +475,7 @@ def _emparejar_automaticamente(estado_cuenta: EstadoCuentaBancario, tolerancia_d
             estado_cuenta__cuenta_bancaria=estado_cuenta.cuenta_bancaria,
             movimiento_contable__isnull=False,
         ).values_list('movimiento_contable_id', flat=True)
-    )
+    ) | ids_comisiones_cubiertas(estado_cuenta.cuenta_bancaria)
 
     pendientes = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True)
 
@@ -404,22 +490,30 @@ def _emparejar_automaticamente(estado_cuenta: EstadoCuentaBancario, tolerancia_d
             poliza__fecha__lte=rango_fin,
         ).exclude(id__in=ya_emparejados_ids)
 
+        comisiones_match = []
         if mov_banco.abono > 0:
-            candidatos = candidatos.filter(debe=mov_banco.abono)
+            match = candidatos.filter(debe=mov_banco.abono).first()
+            if not match:
+                cobros = list(
+                    candidatos.filter(debe__gt=mov_banco.abono, poliza__origen='PAGO_CLIENTE')
+                    .select_related('poliza')
+                )
+                comisiones = comisiones_por_cobro(cobros)
+                match = _cobro_neto_de_comision(mov_banco, cobros, comisiones, ya_emparejados_ids)
+                if match:
+                    comisiones_match = comisiones[match.id]
         elif mov_banco.cargo > 0:
-            candidatos = candidatos.filter(haber=mov_banco.cargo)
+            match = candidatos.filter(haber=mov_banco.cargo).first()
         else:
             continue
 
-        match = candidatos.order_by(
-            # Preferir la fecha más cercana al movimiento del banco
-        ).first()
         if match:
             mov_banco.movimiento_contable = match
             mov_banco.match_automatico = True
             mov_banco.confirmado = False
             mov_banco.save(update_fields=['movimiento_contable', 'match_automatico', 'confirmado'])
             ya_emparejados_ids.add(match.id)
+            ya_emparejados_ids.update(c.id for c in comisiones_match)
 
 
 def sugerir_compras_pendientes(estado_cuenta: EstadoCuentaBancario, tolerancia_dias=5):
@@ -476,7 +570,10 @@ def compras_candidatas(mov_banco, unidad, tolerancia_dias=5, cuenta_bancaria=Non
     """
     from comercial.models import Compra
 
-    base = Compra.objects.filter(unidad_negocio=unidad, total=mov_banco.cargo)
+    # Openpay no se paga desde el banco: descuenta de los depósitos.
+    base = Compra.objects.filter(unidad_negocio=unidad, total=mov_banco.cargo).exclude(
+        proveedor__descuenta_de_depositos=True
+    )
     if cuenta_bancaria is None:
         base = base.filter(cuenta_pago__isnull=True)
     else:
@@ -633,7 +730,9 @@ def movimientos_contables_del_periodo(estado_cuenta: EstadoCuentaBancario, fecha
         poliza__estado='APLICADA',
         poliza__fecha__gte=fecha_inicio,
         poliza__fecha__lte=estado_cuenta.fecha_corte_real,
-    ).exclude(id__in=emparejados_ids).select_related('poliza', 'cuenta')
+    ).exclude(id__in=emparejados_ids).exclude(
+        id__in=ids_comisiones_cubiertas(estado_cuenta.cuenta_bancaria)
+    ).select_related('poliza', 'cuenta')
 
 
 def analizar_conciliacion(estado_cuenta: EstadoCuentaBancario):
