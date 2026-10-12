@@ -408,8 +408,9 @@ salvo que queden obsoletas.
   corrigen con `manage.py corregir_polizas_condonacion [--desde] [--aplicar]`
   (simula por defecto; cancela, no borra, y reemite el reconocimiento de
   ingreso si el evento ya se ejecutó); las solicitudes de factura existentes
-  solo se listan, deciden el contador y el propietario. **Pendiente de correr
-  en producción con el contador.** El reporte de cortesías suma las
+  solo se listan, deciden el contador y el propietario. **Corrido en
+  producción el 2026-10-12 (simulación): 0 pólizas y 0 solicitudes**, no hubo
+  nada que corregir ni hizo falta `--aplicar`. El reporte de cortesías suma las
   condonaciones por su base sin IVA (`calcular_desglose_proporcional`), como
   los descuentos.
 
