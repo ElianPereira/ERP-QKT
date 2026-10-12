@@ -33,6 +33,8 @@ CARGO_TRASPASO_TYPO = 'PAGO CUENTA DE TERCERO 0081158420 BNET 1112223334 Traspas
 ABONO_TRASPASO = 'SPEI RECIBIDOSANTANDER 0174899148 014 0595539TRASPASO A QKT 00014910569118634338'
 COMISION = 'SERV BANCA INTERNET OPS SERV BCA IN'
 IVA_COMISION = 'IVA COM SERV BCA INTERNET'
+COMISION_TERMINAL = 'APLI TASA DE DES DEBITO 174957758 TERMINALES PUNTO'
+IVA_COMISION_TERMINAL = 'IVA TASA DE DESC DEBITO 174957758 TERMINALES PUNTO'
 TARJETA_USD = 'VERCEL ******3288 USD 6.30TC017.3587AUT: 879462'
 TARJETA_RFC = 'FACEBOOK MEXICO S DE R ******3288 RFC: FME 120803935 10:55 AUT: 958680'
 DEPOSITO_CLIENTE = 'SPEI RECIBIDOHSBC 0119876101 021 0090826Transferencia SPEI 00021919063875963188 CLIENTE PRUEBA'
@@ -93,7 +95,7 @@ class ReglasBancoBase(TestCase):
 class ReglasDeSistemaTest(ReglasBancoBase):
 
     def test_las_reglas_de_sistema_vienen_sembradas(self):
-        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 15)
+        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 17)
 
     def test_traspaso_a_cuenta_propia_se_asienta_y_empareja_solo(self):
         mov = self._mov(CARGO_TRASPASO, cargo='450.00')
@@ -125,6 +127,16 @@ class ReglasDeSistemaTest(ReglasBancoBase):
         emparejar_y_asentar(self.estado, usuario=self.usuario)
         self.assertTrue(self._polizas_banco(comision).get().movimientos.filter(cuenta=self.comisiones).exists())
         self.assertTrue(self._polizas_banco(iva).get().movimientos.filter(cuenta=self.iva).exists())
+
+    def test_comision_de_terminal_y_su_iva_se_asientan_solos(self):
+        comision = self._mov(COMISION_TERMINAL, cargo='0.08')
+        iva = self._mov(IVA_COMISION_TERMINAL, cargo='0.01')
+        resumen = emparejar_y_asentar(self.estado, usuario=self.usuario)
+        self.assertEqual(set(resumen['aplicadas']), {comision, iva})
+        self.assertTrue(self._polizas_banco(comision).get().movimientos.filter(
+            cuenta=self.comisiones, debe=Decimal('0.08')).exists())
+        self.assertTrue(self._polizas_banco(iva).get().movimientos.filter(
+            cuenta=self.iva, debe=Decimal('0.01')).exists())
 
     def test_deposito_de_cliente_no_se_asienta_por_regla(self):
         mov = self._mov(DEPOSITO_CLIENTE, abono='1100.00')
