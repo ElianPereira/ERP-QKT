@@ -937,6 +937,77 @@ class DepositoNetoDeComisionTest(TestCase):
         self.assertEqual(mov_banco.movimiento_contable, self.cobro)
         self.assertIn(self.comision, self._pendientes_de_libros())
 
+    def _cobro_previo(self, referencia, fecha=date(2026, 8, 5)):
+        """Cargo de $1.00 con comisión de $2.93 que Openpay retuvo y depositó
+        después, junto con el siguiente cobro (caso real de septiembre)."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from comercial.models import OpenpayTransaccion
+        from contabilidad.signals import crear_poliza_comision_openpay
+
+        cot = _crear_cotizacion(Cliente.objects.create(nombre=f'Cliente {referencia}'), Decimal('11600.00'))
+        pago = Pago.objects.create(
+            cotizacion=cot, monto=Decimal('1.00'), metodo='PLATAFORMA',
+            referencia=referencia, fecha_pago=fecha, usuario=self.user,
+        )
+        transaccion = OpenpayTransaccion.objects.create(
+            openpay_id=referencia, metodo='card', monto=Decimal('1.00'),
+            pago=pago, payload_crudo={}, procesado=True,
+        )
+        crear_poliza_comision_openpay(transaccion, {'amount': 2.53, 'tax': 0.40})
+        ct = ContentType.objects.get_for_model(Pago)
+        cobro = MovimientoContable.objects.get(
+            poliza__origen='PAGO_CLIENTE', poliza__content_type=ct, poliza__object_id=pago.pk, debe__gt=0)
+        comision = MovimientoContable.objects.get(
+            poliza__origen='COMISION_OPENPAY', poliza__object_id=transaccion.pk, haber__gt=0)
+        return cobro, comision
+
+    # 1,500 − 11.21 + 1.00 − 2.93
+    DEPOSITO_AGRUPADO = Decimal('1486.86')
+
+    def test_deposito_con_varios_cobros_se_liga_al_principal(self):
+        cobro_previo, comision_previa = self._cobro_previo('txprueba')
+        mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertEqual(mov_banco.movimiento_contable, self.cobro)
+        pendientes = set(movimientos_contables_del_periodo(self.estado_cuenta, date(2026, 8, 1)))
+        self.assertTrue(pendientes.isdisjoint({self.cobro, self.comision, cobro_previo, comision_previa}))
+
+    def test_deposito_agrupado_ligado_a_mano_cubre_todo_el_grupo(self):
+        cobro_previo, comision_previa = self._cobro_previo('txprueba')
+        mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
+        mov_banco.movimiento_contable = self.cobro
+        mov_banco.save()
+        pendientes = set(movimientos_contables_del_periodo(self.estado_cuenta, date(2026, 8, 1)))
+        self.assertTrue(pendientes.isdisjoint({self.comision, cobro_previo, comision_previa}))
+
+    def test_deposito_agrupado_ambiguo_no_se_adivina(self):
+        self._cobro_previo('txprueba1')
+        self._cobro_previo('txprueba2')
+        mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertIsNone(mov_banco.movimiento_contable)
+
+    def test_cobro_ya_depositado_no_entra_en_otro_grupo(self):
+        cobro_previo, _ = self._cobro_previo('txprueba')
+        MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado_cuenta, fecha=date(2026, 9, 2), descripcion='DEPOSITO',
+            abono=Decimal('1.00'), movimiento_contable=cobro_previo,
+        )
+        mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertIsNone(mov_banco.movimiento_contable)
+
+    def test_cobro_fuera_de_la_ventana_no_se_agrupa(self):
+        self._cobro_previo('txviejo', fecha=date(2026, 6, 1))
+        mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertIsNone(mov_banco.movimiento_contable)
+
 
 class SugerirComprasPendientesTest(TestCase):
     """sugerir_compras_pendientes: candidatas de Compra BORRADOR para cargos
