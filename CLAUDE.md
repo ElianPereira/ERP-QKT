@@ -281,7 +281,13 @@ salvo que queden obsoletas.
   combinación de cobros con comisión aún sin depósito (ventana 60 días, máx.
   12 cobros; si hay varias o más cobros, no adivina) cuyo neto suma el abono:
   se liga el cobro mayor y los demás cobros y sus comisiones quedan cubiertos.
-  Se recalcula al vuelo, así que también vale si se liga a mano.
+  Se recalcula al vuelo, así que también vale si se liga a mano. Un cobro es
+  la póliza PAGO_CLIENTE de un Pago o la DEPOSITO_GARANTIA de la recepción de
+  un depósito en garantía (`ORIGENES_COBRO`; su comisión se liga por
+  `MovimientoDeposito.transaccion_openpay`). **El caso real de septiembre no
+  se agrupa**: el cargo de prueba de $1.00 no tiene Pago (no tenía
+  cotización), así que ese ingreso no está en libros; se registra con póliza
+  manual y el depósito se liga a mano con I-0004.
   **Cuenta puente** (aprobada por el propietario, mismo día): la comisión
   que reporta Openpay en `fee` ya no es gasto + IVA, va a **106.02
   «Comisiones Openpay por comprobar»** contra Bancos; la **factura mensual**

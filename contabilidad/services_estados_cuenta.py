@@ -368,32 +368,51 @@ def _parsear_xml_bbva(archivo):
     )
 
 
+# Pólizas cuya línea de bancos es un cobro que Openpay o la terminal depositan
+# neto de comisión: un pago de la cotización o un depósito en garantía.
+ORIGENES_COBRO = ('PAGO_CLIENTE', 'DEPOSITO_GARANTIA')
+
+
 def comisiones_por_cobro(lineas_cobro):
     """
     {id de la línea de bancos de un cobro: [líneas de bancos de sus comisiones]}.
 
     Openpay y la terminal depositan el NETO: el cobro entra a bancos por el
-    total (póliza PAGO_CLIENTE) y la comisión sale aparte (COMISION_OPENPAY,
-    ligada a la OpenpayTransaccion del pago; COMISION_TPV, ligada al Pago).
-    El depósito del banco es la suma de ambas líneas.
+    total y la comisión sale aparte (COMISION_OPENPAY, ligada a la
+    OpenpayTransaccion; COMISION_TPV, ligada al Pago). El depósito del banco
+    es la suma de ambas líneas. El cobro es la póliza PAGO_CLIENTE del Pago o,
+    en un depósito en garantía, la DEPOSITO_GARANTIA de su recepción.
     """
     from django.contrib.contenttypes.models import ContentType
 
-    from comercial.models import OpenpayTransaccion, Pago
+    from comercial.models import MovimientoDeposito, OpenpayTransaccion, Pago
 
     ct_pago = ContentType.objects.get_for_model(Pago)
+    ct_deposito = ContentType.objects.get_for_model(MovimientoDeposito)
     ct_transaccion = ContentType.objects.get_for_model(OpenpayTransaccion)
 
-    cobro_por_pago = {
-        linea.poliza.object_id: linea for linea in lineas_cobro
-        if linea.debe > 0 and linea.poliza.origen == 'PAGO_CLIENTE'
-        and linea.poliza.content_type_id == ct_pago.id
-    }
-    if not cobro_por_pago:
+    cobro_por_pago, cobro_por_deposito = {}, {}
+    for linea in lineas_cobro:
+        if linea.debe <= 0:
+            continue
+        if linea.poliza.origen == 'PAGO_CLIENTE' and linea.poliza.content_type_id == ct_pago.id:
+            cobro_por_pago[linea.poliza.object_id] = linea
+        elif linea.poliza.origen == 'DEPOSITO_GARANTIA' and linea.poliza.content_type_id == ct_deposito.id:
+            cobro_por_deposito[linea.poliza.object_id] = linea
+    if not cobro_por_pago and not cobro_por_deposito:
         return {}
-    pago_por_transaccion = dict(
-        OpenpayTransaccion.objects.filter(pago_id__in=cobro_por_pago).values_list('pk', 'pago_id')
-    )
+
+    cobro_por_transaccion = {
+        transaccion_id: cobro_por_pago[pago_id]
+        for transaccion_id, pago_id in OpenpayTransaccion.objects.filter(
+            pago_id__in=cobro_por_pago).values_list('pk', 'pago_id')
+    }
+    cobro_por_transaccion.update({
+        transaccion_id: cobro_por_deposito[mov_id]
+        for mov_id, transaccion_id in MovimientoDeposito.objects.filter(
+            pk__in=cobro_por_deposito, transaccion_openpay__isnull=False,
+        ).values_list('pk', 'transaccion_openpay_id')
+    })
 
     comisiones = MovimientoContable.objects.filter(
         haber__gt=0, poliza__estado='APLICADA',
@@ -401,24 +420,23 @@ def comisiones_por_cobro(lineas_cobro):
         Q(poliza__origen='COMISION_TPV', poliza__content_type=ct_pago,
           poliza__object_id__in=list(cobro_por_pago))
         | Q(poliza__origen='COMISION_OPENPAY', poliza__content_type=ct_transaccion,
-            poliza__object_id__in=list(pago_por_transaccion))
+            poliza__object_id__in=list(cobro_por_transaccion))
     ).select_related('poliza')
 
     resultado = {}
     for comision in comisiones:
-        pago_id = (
-            comision.poliza.object_id if comision.poliza.origen == 'COMISION_TPV'
-            else pago_por_transaccion[comision.poliza.object_id]
+        cobro = (
+            cobro_por_pago[comision.poliza.object_id] if comision.poliza.origen == 'COMISION_TPV'
+            else cobro_por_transaccion[comision.poliza.object_id]
         )
-        cobro = cobro_por_pago[pago_id]
         if comision.cuenta_id == cobro.cuenta_id:
             resultado.setdefault(cobro.id, []).append(comision)
     return resultado
 
 
 # Openpay junta en un solo depósito los cobros que liquida juntos y retiene los
-# importes chicos hasta completar uno: el cargo de prueba de $1.00 del 05/08
-# llegó al banco el 23/09, en el mismo depósito que un cobro de $1,500.
+# importes chicos hasta completar uno, así que un abono puede traer cobros de
+# días o semanas distintos.
 VENTANA_DEPOSITO_AGRUPADO_DIAS = 60
 MAX_COBROS_POR_DEPOSITO = 12
 
@@ -428,12 +446,13 @@ def _neto(cobro, comisiones):
 
 
 def _cobros_por_depositar(cuenta_contable, fecha, excluidos, tolerancia_dias=5):
-    """Cobros con comisión (Openpay, terminal) sin depósito todavía que pudieron
+    """Cobros con comisión (Openpay, terminal; pagos y depósitos en garantía)
+    sin depósito todavía que pudieron
     entrar en un abono de esa fecha, y {cobro: comisiones} de cada uno."""
     cobros = list(
         MovimientoContable.objects.filter(
             cuenta=cuenta_contable, debe__gt=0, poliza__estado='APLICADA',
-            poliza__origen='PAGO_CLIENTE',
+            poliza__origen__in=ORIGENES_COBRO,
             poliza__fecha__gte=fecha - timedelta(days=VENTANA_DEPOSITO_AGRUPADO_DIAS),
             poliza__fecha__lte=fecha + timedelta(days=tolerancia_dias),
         ).exclude(id__in=excluidos).select_related('poliza')
@@ -498,7 +517,7 @@ def ids_cubiertos_por_depositos(cuenta_bancaria):
     ).order_by('fecha', 'id'):
         ancla = mov_banco.movimiento_contable
         if (ancla.debe == mov_banco.abono or ancla.cuenta_id != cuenta_contable.id
-                or ancla.poliza.origen != 'PAGO_CLIENTE'):
+                or ancla.poliza.origen not in ORIGENES_COBRO):
             continue
         sueltos, comisiones = _cobros_por_depositar(cuenta_contable, mov_banco.fecha, ocupados | cubiertos)
         comisiones.update(comisiones_por_cobro([ancla]))

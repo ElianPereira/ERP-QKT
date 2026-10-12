@@ -1001,6 +1001,45 @@ class DepositoNetoDeComisionTest(TestCase):
         mov_banco.refresh_from_db()
         self.assertIsNone(mov_banco.movimiento_contable)
 
+    def _deposito_garantia_openpay(self, monto, fee):
+        """Recepción de un depósito en garantía cobrado por Openpay: no es un
+        Pago, su línea de bancos es la póliza DEPOSITO_GARANTIA."""
+        from comercial.models import OpenpayTransaccion
+        from comercial.services_deposito import asegurar_deposito, registrar_recepcion
+        from contabilidad.signals import crear_poliza_comision_openpay
+
+        transaccion = OpenpayTransaccion.objects.create(
+            openpay_id='txdeposito', metodo='card', monto=monto, destino='DEPOSITO',
+            cotizacion=self.pago.cotizacion, payload_crudo={}, procesado=True,
+        )
+        deposito = asegurar_deposito(self.pago.cotizacion, monto)
+        registrar_recepcion(deposito, monto=monto, metodo='PLATAFORMA', fecha=date(2026, 9, 22),
+                            transaccion=transaccion, validar_tope=False)
+        crear_poliza_comision_openpay(transaccion, fee)
+        cobro = MovimientoContable.objects.get(poliza__origen='DEPOSITO_GARANTIA', debe__gt=0)
+        comision = MovimientoContable.objects.get(
+            poliza__origen='COMISION_OPENPAY', poliza__object_id=transaccion.pk, haber__gt=0)
+        return cobro, comision
+
+    def test_deposito_en_garantia_solo_empareja_neto(self):
+        cobro_deposito, comision_deposito = self._deposito_garantia_openpay(
+            Decimal('2000.00'), {'amount': 12.50, 'tax': 2.00})
+        mov_banco = self._deposito(Decimal('1985.50'))
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertEqual(mov_banco.movimiento_contable, cobro_deposito)
+        self.assertNotIn(comision_deposito, self._pendientes_de_libros())
+
+    def test_deposito_en_garantia_agrupado_con_un_pago(self):
+        cobro_deposito, comision_deposito = self._deposito_garantia_openpay(
+            Decimal('2000.00'), {'amount': 12.50, 'tax': 2.00})
+        mov_banco = self._deposito(Decimal('3474.29'))  # 1,500 − 11.21 + 2,000 − 14.50
+        _emparejar_automaticamente(self.estado_cuenta)
+        mov_banco.refresh_from_db()
+        self.assertEqual(mov_banco.movimiento_contable, cobro_deposito)
+        self.assertTrue(self._pendientes_de_libros().isdisjoint(
+            {self.cobro, self.comision, comision_deposito}))
+
     def test_cobro_fuera_de_la_ventana_no_se_agrupa(self):
         self._cobro_previo('txviejo', fecha=date(2026, 6, 1))
         mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
