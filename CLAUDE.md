@@ -289,6 +289,16 @@ salvo que queden obsoletas.
   `manage.py regularizar_comisiones_openpay [--desde] [--aplicar]` (simula por
   defecto, cancela y reemite). **Pendiente de correr en producción.** La
   migración `comercial.0112` marca a todo proveedor con «openpay» en el nombre.
+  **Conciliación mensual contra la API** (aprobado, `services_openpay.py`
+  tocado solo para leer): `listar_cargos_openpay(desde, hasta)` (GET de cargos
+  paginado de 100 en 100) y `manage.py sincronizar_comisiones_openpay [--mes
+  AAAA-MM] [--aplicar]` comparan el `fee` de cada cargo `completed`/`refunded`
+  contra las pólizas COMISION_OPENPAY, registran las faltantes y dan el total
+  del mes (= lo que debe traer la factura). Un cargo sin `OpenpayTransaccion`
+  solo se reporta. Con `--aplicar` avisa por WhatsApp al propietario si
+  encontró algo. La API **no** expone el estado de cuenta ni la factura
+  mensual (el recurso `/fees` es para cobrarle comisión a un cliente).
+  **Pendiente de alta en Railway** como Cron mensual (día 2, mes anterior).
 
 - 2026-10-09 — **Sistema de documentos QKT, fase 1** (Issue #373, decisiones del
   propietario: IBM Plex en todo, Cormorant solo en títulos al cliente/legales;

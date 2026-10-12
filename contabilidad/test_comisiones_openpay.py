@@ -3,9 +3,11 @@ la factura mensual de Openpay."""
 from datetime import date
 from decimal import Decimal
 from io import StringIO
+from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
+from django.test import TestCase
 
 from comercial.models import Cliente, Compra, OpenpayTransaccion, Pago, Proveedor
 
@@ -126,3 +128,60 @@ class RegularizarComisionesOpenpayTest(ComisionesOpenpayBase):
         self.assertEqual(Poliza.objects.filter(origen='COMISION_OPENPAY', estado='APLICADA').count(), 1)
         self.assertEqual(Poliza.objects.filter(
             origen='COMPRA', object_id=self.compra.pk, estado='APLICADA').count(), 1)
+
+
+CARGOS_SEPTIEMBRE = [
+    {'id': 'txpuente', 'status': 'completed', 'method': 'bank_account', 'fee': {'amount': 8.00, 'tax': 1.28}},
+    {'id': 'txajeno', 'status': 'completed', 'method': 'card', 'fee': {'amount': 2.53, 'tax': 0.40}},
+    {'id': 'txfallido', 'status': 'failed', 'method': 'card', 'fee': {'amount': 2.53, 'tax': 0.40}},
+]
+
+
+@patch('contabilidad.management.commands.sincronizar_comisiones_openpay.listar_cargos_openpay',
+       return_value=CARGOS_SEPTIEMBRE)
+@patch('comunicacion.services_agente._avisar_propietario')
+class SincronizarComisionesOpenpayTest(ComisionesOpenpayBase):
+
+    def _correr(self, *args):
+        salida = StringIO()
+        call_command('sincronizar_comisiones_openpay', '--mes', '2026-09', *args, stdout=salida)
+        return salida.getvalue()
+
+    def _comisiones(self):
+        return Poliza.objects.filter(origen='COMISION_OPENPAY').exclude(estado='CANCELADA')
+
+    def test_simulacion_reporta_sin_escribir_ni_avisar(self, avisar, _listar):
+        salida = self._correr()
+        self.assertIn('$12.21', salida)  # 9.28 + 2.93; el fallido no cuenta
+        self.assertFalse(self._comisiones().exists())
+        avisar.assert_not_called()
+
+    def test_aplicar_registra_la_faltante_y_avisa(self, avisar, _listar):
+        self._correr('--aplicar')
+        poliza = self._comisiones().get()
+        self.assertEqual(poliza.movimientos.get(cuenta=self.puente).debe, Decimal('9.28'))
+        avisar.assert_called_once()
+        self.assertIn('1 cobrados en Openpay sin registro', avisar.call_args[0][0])
+
+    def test_no_duplica_la_que_ya_existe(self, avisar, _listar):
+        crear_poliza_comision_openpay(self.transaccion, {'amount': 8.00, 'tax': 1.28})
+        self._correr('--aplicar')
+        self.assertEqual(self._comisiones().count(), 1)
+
+    def test_mes_anterior_por_default(self, avisar, listar):
+        with patch('django.utils.timezone.localdate', return_value=date(2026, 10, 2)):
+            call_command('sincronizar_comisiones_openpay', stdout=StringIO())
+        listar.assert_called_once_with(date(2026, 9, 1), date(2026, 9, 30))
+
+
+class ListarCargosOpenpayTest(TestCase):
+
+    @patch('comercial.services_openpay.requests.get')
+    def test_recorre_todas_las_paginas(self, get):
+        from comercial.services_openpay import listar_cargos_openpay
+        paginas = [[{'id': f'a{i}'} for i in range(100)], [{'id': 'b0'}]]
+        get.side_effect = [MagicMock(json=MagicMock(return_value=p)) for p in paginas]
+        cargos = listar_cargos_openpay(date(2026, 9, 1), date(2026, 9, 30))
+        self.assertEqual(len(cargos), 101)
+        self.assertEqual(get.call_args_list[1].kwargs['params']['offset'], 100)
+        self.assertEqual(get.call_args_list[0].kwargs['params']['creation[gte]'], '2026-09-01')

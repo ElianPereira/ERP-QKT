@@ -343,6 +343,28 @@ def _registrar_comision_openpay(registro, fee):
         logger.exception("No se pudo registrar la póliza de comisión Openpay para %s.", registro.openpay_id)
 
 
+LIMITE_LISTADO_CARGOS = 100  # máximo que admite Openpay por página
+
+
+def listar_cargos_openpay(desde, hasta):
+    """Cargos del comercio creados entre `desde` y `hasta` (fechas, inclusivas),
+    tal como los devuelve Openpay, con su `fee`. Solo lectura: la usa la
+    conciliación mensual de comisiones. Lanza `requests.HTTPError` si Openpay
+    responde con error, para que quien llama no lo confunda con «sin cargos»."""
+    cargos, offset = [], 0
+    while True:
+        response = requests.get(_charges_url(), auth=_auth(), timeout=20, params={
+            'creation[gte]': desde.isoformat(), 'creation[lte]': hasta.isoformat(),
+            'offset': offset, 'limit': LIMITE_LISTADO_CARGOS,
+        })
+        response.raise_for_status()
+        pagina = response.json()
+        cargos.extend(pagina)
+        if len(pagina) < LIMITE_LISTADO_CARGOS:
+            return cargos
+        offset += LIMITE_LISTADO_CARGOS
+
+
 def _confirmar_cargo_completado(registro, cotizacion, monto, data, metodo):
     """
     Marca un cargo ya autorizado como pagado: crea el Pago (que dispara la
