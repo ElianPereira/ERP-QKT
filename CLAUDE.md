@@ -265,6 +265,24 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-12 — **`cerrar_cotizaciones` nunca estuvo dado de alta en Railway**
+  (reportado por el propietario: el Estado de resultados salía con $0 de
+  ingresos). Todo cobro previo al evento va a 205.01 Anticipos y solo pasa a
+  401.01.01 cuando la cotización llega a EJECUTADA/CERRADA, cosa que hace ese
+  cron (pasos 1 y 2) o un cambio manual. Ninguno de los 9 servicios lo corría,
+  así que tampoco se expiraban cotizaciones abandonadas ni se cerraban las
+  liquidadas. Ahora existe **Cron Cierre Cotizaciones** (`10 6 * * *` = 00:10
+  Mérida, variables como `${{web.…}}`, `DEFAULT_FROM_EMAIL` →
+  `EMAIL_FROM_RESERVAS` porque confirmar dispara el correo del contrato). El
+  histórico se regularizó con `reconocer_ingresos_eventos --desde 2026-07-01
+  --aplicar` (12 eventos de jul–sep, $17,370.66 de base; cierra el pendiente
+  de la entrada del 2026-09-23). Ojo: ese comando **solo crea pólizas, no
+  cambia estados**; y el cron no reconoce lo que ya está en EJECUTADA, para eso
+  está el comando. Al diagnosticar: un descuadre de exactamente una base
+  ($1,293.10 = $1,500 con IVA) era COT-138, reconocida por el signal al
+  cambiarla a mano, no un duplicado. «Cron Seguimientos Copy» corre en
+  realidad `sincronizar_comisiones_openpay` (nombre engañoso, sin renombrar).
+
 - 2026-10-12 — **CFDI de comisiones de BBVA duplicaba el cargo** (conciliación
   de septiembre con $0.91 arrastrados). BBVA emite el día 2 un CFDI «TOTAL
   COMISIONES» por lo que cobró el mes anterior, y esos cargos ya están en libros
