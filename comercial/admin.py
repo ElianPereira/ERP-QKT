@@ -101,7 +101,7 @@ class ProveedorAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('nombre', 'rfc', 'contacto', 'telefono', 'email')}),
         ('Clasificación de sus compras', {
-            'fields': ('categoria_gasto', 'cuenta_gasto', 'descuenta_de_depositos'),
+            'fields': ('categoria_gasto', 'cuenta_gasto', 'descuenta_de_depositos', 'cobra_de_la_cuenta'),
             'description': 'Sus facturas entran ya clasificadas. Al guardar un cambio aquí se '
                            'reclasifican sus compras sin clasificar o de esta categoría.',
         }),

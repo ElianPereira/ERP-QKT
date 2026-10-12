@@ -265,6 +265,23 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-12 — **CFDI de comisiones de BBVA duplicaba el cargo** (conciliación
+  de septiembre con $0.91 arrastrados). BBVA emite el día 2 un CFDI «TOTAL
+  COMISIONES» por lo que cobró el mes anterior, y esos cargos ya están en libros
+  desde el estado de cuenta (reglas «Comisión bancaria»/«IVA de comisión
+  bancaria», o a mano). Como `Compra.save()` le asignaba la única cuenta
+  bancaria, su póliza volvía a sacar el importe de Bancos. Ahora
+  `Proveedor.cobra_de_la_cuenta` (migración `comercial.0113`, marca a BBVA por
+  nombre o RFC `BBA830831LJ2`): su Compra no recibe cuenta de pago, no genera
+  póliza (queda como comprobante) y no es candidata de ningún cargo. Los otros
+  dos residuos del mismo caso: la póliza de un Pago borrado (I-0003, cargo de
+  prueba) seguía aplicada junto a la manual que lo sustituía, y
+  `movimientos_contables_del_periodo` sacaba del tránsito de agosto lo que
+  liquida un depósito de septiembre (ahora solo cuenta lo liquidado hasta el
+  corte, PR #385). Ojo: los cargos «APLI/IVA TASA DE DES DEBITO … TERMINALES
+  PUNTO» (comisión de la terminal) no calzan con ninguna regla: se asientan a
+  mano o con la `comision_tpv` del Pago, nunca con las dos.
+
 - 2026-10-11 — **Depósitos netos de Openpay/terminal en la conciliación**
   (reportado por el propietario: un depósito de $1,488.79 contra un cobro de
   $1,500.00). El ingreso se registra por el total y la comisión en su propia

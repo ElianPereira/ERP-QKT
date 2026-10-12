@@ -182,3 +182,43 @@ class ListarCargosOpenpayTest(TestCase):
         self.assertEqual(len(cargos), 101)
         self.assertEqual(get.call_args_list[1].kwargs['params']['offset'], 100)
         self.assertEqual(get.call_args_list[0].kwargs['params']['creation[gte]'], '2026-09-01')
+
+
+class CfdiComisionesBancoTest(ClasificacionBase):
+    """El CFDI mensual «TOTAL COMISIONES» de BBVA ampara cargos que ya se
+    asentaron desde el estado de cuenta: no debe volver a salir de Bancos."""
+
+    def setUp(self):
+        super().setUp()
+        self.bbva = Proveedor.objects.create(nombre='BBVA MEXICO TEST', rfc='BBA830831LJ2', cobra_de_la_cuenta=True)
+
+    def _cfdi_comisiones(self):
+        return Compra.objects.create(
+            proveedor=self.bbva, proveedor_nombre=self.bbva.nombre,
+            subtotal=Decimal('0.08'), iva=Decimal('0.01'), total=Decimal('0.09'),
+            uuid='UUID-BBVA-0001', fecha_emision=date(2026, 8, 2), unidad_negocio=self.unidad,
+        )
+
+    def test_no_se_marca_pagada_ni_genera_poliza(self):
+        compra = self._cfdi_comisiones()
+        self.assertIsNone(compra.cuenta_pago)
+        self.assertFalse(Poliza.objects.filter(
+            content_type=ContentType.objects.get_for_model(compra), object_id=compra.pk).exists())
+
+    def test_no_es_candidata_para_un_cargo_del_banco(self):
+        from .services_estados_cuenta import compras_candidatas
+
+        self._cfdi_comisiones()
+        estado = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA', periodo_mes=8, periodo_anio=2026,
+            formato='PDF', estado='PROCESADO', fecha_corte_real=date(2026, 8, 31),
+        )
+        cargo = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado, fecha=date(2026, 8, 3), descripcion='COMISION', cargo=Decimal('0.09'))
+        self.assertEqual(compras_candidatas(cargo, self.unidad, cuenta_bancaria=self.cuenta_bancaria), [])
+
+    def test_otro_proveedor_sigue_pagandose_desde_el_banco(self):
+        self.bbva.cobra_de_la_cuenta = False
+        self.bbva.save()
+        compra = self._cfdi_comisiones()
+        self.assertEqual(compra.cuenta_pago, self.cuenta_bancaria)
