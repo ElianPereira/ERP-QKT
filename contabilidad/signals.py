@@ -265,11 +265,11 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
 # ==========================================
 def crear_poliza_comision_tpv(pago):
     """
-    Póliza del descuento que BBVA/Netpay aplica a cada venta cobrada con la
-    terminal física. El banco nunca lo desglosa en el estado de cuenta —
-    solo deposita el neto — así que se captura a mano en Pago.comision_tpv
-    y de ahí se genera este gasto financiero, con la misma unidad_negocio de
-    la venta que lo originó (mismo criterio que la comisión de Openpay).
+    Póliza del descuento de una terminal que deposita el neto (Netpay): se
+    captura a mano en Pago.comision_tpv y de ahí sale este gasto financiero.
+    La terminal BBVA no entra aquí: cobra la tasa de descuento como cargo
+    aparte en el estado de cuenta y la asientan las reglas «Comisión de
+    terminal» e «IVA de comisión de terminal» (migración contabilidad.0037).
 
     El monto capturado se asume con IVA incluido (así lo descuenta el banco
     del depósito), igual que en el manual de contabilidad 7.2:

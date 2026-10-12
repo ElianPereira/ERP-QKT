@@ -1355,9 +1355,9 @@ class Pago(models.Model):
     comision_tpv = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True, default=Decimal('0.00'),
         verbose_name="Comisión de terminal (TPV)",
-        help_text="Comisión que el banco descuenta antes de depositar (IVA incluido). "
-                   "El estado de cuenta nunca la muestra por separado — se captura a mano "
-                   "del recibo de la terminal o del reporte de Netpay.",
+        help_text="Solo para una terminal que deposita neto (IVA incluido). La terminal BBVA "
+                  "cobra su tasa de descuento como cargo aparte en el estado de cuenta y se "
+                  "asienta sola desde ahí: no la captures aquí o se duplica.",
     )
 
     # Facturación

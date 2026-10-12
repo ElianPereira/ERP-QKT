@@ -278,9 +278,13 @@ salvo que queden obsoletas.
   prueba) seguía aplicada junto a la manual que lo sustituía, y
   `movimientos_contables_del_periodo` sacaba del tránsito de agosto lo que
   liquida un depósito de septiembre (ahora solo cuenta lo liquidado hasta el
-  corte, PR #385). Ojo: los cargos «APLI/IVA TASA DE DES DEBITO … TERMINALES
-  PUNTO» (comisión de la terminal) no calzan con ninguna regla: se asientan a
-  mano o con la `comision_tpv` del Pago, nunca con las dos.
+  corte, PR #385). **Comisión de la terminal BBVA**: no se descuenta del
+  depósito, BBVA la cobra aparte («APLI TASA DE DES DEBITO … TERMINALES PUNTO»
+  + «IVA TASA DE DESC …»); ninguna regla la reconocía y se capturaba a mano.
+  `contabilidad.0037` siembra las reglas «Comisión de terminal» (GASTO_BANCARIOS)
+  e «IVA de comisión de terminal» (IVA_ACREDITABLE). `Pago.comision_tpv` queda
+  solo para una terminal que deposita neto (Netpay): capturarla en un cobro con
+  la terminal BBVA duplica la comisión.
 
 - 2026-10-11 — **Depósitos netos de Openpay/terminal en la conciliación**
   (reportado por el propietario: un depósito de $1,488.79 contra un cobro de
