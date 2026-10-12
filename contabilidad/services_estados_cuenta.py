@@ -407,6 +407,19 @@ def comisiones_por_cobro(lineas_cobro):
         for transaccion_id, pago_id in OpenpayTransaccion.objects.filter(
             pago_id__in=cobro_por_pago).values_list('pk', 'pago_id')
     }
+    # Un Pago capturado a mano por un cargo de Openpay no queda ligado a su
+    # transacción, pero lleva el openpay_id en la referencia.
+    pago_por_referencia = {
+        referencia: pago_id
+        for pago_id, referencia in Pago.objects.filter(
+            pk__in=cobro_por_pago).exclude(referencia='').values_list('pk', 'referencia')
+    }
+    cobro_por_transaccion.update({
+        transaccion_id: cobro_por_pago[pago_por_referencia[openpay_id]]
+        for transaccion_id, openpay_id in OpenpayTransaccion.objects.filter(
+            pago__isnull=True, openpay_id__in=pago_por_referencia,
+        ).values_list('pk', 'openpay_id')
+    })
     cobro_por_transaccion.update({
         transaccion_id: cobro_por_deposito[mov_id]
         for mov_id, transaccion_id in MovimientoDeposito.objects.filter(
@@ -833,7 +846,8 @@ def movimientos_contables_del_periodo(estado_cuenta: EstadoCuentaBancario, fecha
     """
     Renglones de póliza APLICADA que tocan la cuenta de bancos dentro del
     periodo del estado de cuenta y que NO están emparejados con ningún
-    movimiento bancario de esa cuenta (ni de este estado de cuenta ni de otro).
+    movimiento bancario de esa cuenta fechado hasta el corte (de este estado de
+    cuenta o de uno anterior), ni cubiertos por un depósito así.
 
     Son las "partidas del lado de libros": lo que la contabilidad ya registró y
     el banco todavía no refleja.
@@ -842,19 +856,24 @@ def movimientos_contables_del_periodo(estado_cuenta: EstadoCuentaBancario, fecha
     if not cuenta_contable:
         return MovimientoContable.objects.none()
 
-    emparejados_ids = MovimientoEstadoCuenta.objects.filter(
+    # Solo sale de las partidas lo que el banco liquidó hasta este corte: lo
+    # que liquida un estado de cuenta posterior seguía en tránsito aquí.
+    liquidados = MovimientoEstadoCuenta.objects.filter(
         estado_cuenta__cuenta_bancaria=estado_cuenta.cuenta_bancaria,
         movimiento_contable__isnull=False,
-    ).values_list('movimiento_contable_id', flat=True)
+        fecha__lte=estado_cuenta.fecha_corte_real,
+    )
+    emparejados_ids = set(liquidados.values_list('movimiento_contable_id', flat=True))
+    cobertura = cobertura_por_deposito(estado_cuenta.cuenta_bancaria)
+    for mov_id in liquidados.filter(id__in=cobertura).values_list('id', flat=True):
+        emparejados_ids |= cobertura[mov_id]
 
     return MovimientoContable.objects.filter(
         cuenta=cuenta_contable,
         poliza__estado='APLICADA',
         poliza__fecha__gte=fecha_inicio,
         poliza__fecha__lte=estado_cuenta.fecha_corte_real,
-    ).exclude(id__in=emparejados_ids).exclude(
-        id__in=ids_cubiertos_por_depositos(estado_cuenta.cuenta_bancaria)
-    ).select_related('poliza', 'cuenta')
+    ).exclude(id__in=emparejados_ids).select_related('poliza', 'cuenta')
 
 
 def _en_transito_al_inicio(estado_cuenta, fecha_inicio):

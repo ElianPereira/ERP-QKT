@@ -1091,6 +1091,57 @@ class DepositoNetoDeComisionTest(TestCase):
         self.assertEqual(datos['cargos_empresa_no_cobrados'], Decimal('0.00'))
         self.assertEqual(datos['saldo_segun_libros'], datos['saldo_segun_banco'])
 
+    def _caso_septiembre_con_pago_a_mano(self):
+        """El cargo de prueba sí tiene Pago, capturado a mano: la transacción
+        de Openpay no quedó ligada a él, solo comparten el openpay_id en la
+        referencia."""
+        from comercial.models import OpenpayTransaccion
+        from contabilidad.signals import crear_poliza_comision_openpay
+
+        cot = _crear_cotizacion(Cliente.objects.create(nombre='Prueba Openpay'), Decimal('11600.00'))
+        Pago.objects.create(
+            cotizacion=cot, monto=Decimal('1.00'), metodo='PLATAFORMA',
+            referencia='txprueba', fecha_pago=date(2026, 8, 5), usuario=self.user,
+        )
+        prueba = OpenpayTransaccion.objects.create(
+            openpay_id='txprueba', metodo='card', monto=Decimal('1.00'), payload_crudo={}, procesado=True,
+        )
+        OpenpayTransaccion.objects.filter(pk=prueba.pk).update(created_at=timezone.make_aware(datetime(2026, 8, 5, 12)))
+        prueba.refresh_from_db()
+        crear_poliza_comision_openpay(prueba, {'amount': 2.53, 'tax': 0.40})
+
+        self.estado_cuenta.saldo_inicial_estado = Decimal('0.00')
+        self.estado_cuenta.saldo_final_estado = self.DEPOSITO_AGRUPADO
+        self.estado_cuenta.save()
+        mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
+        mov_banco.movimiento_contable = self.cobro
+        mov_banco.save()
+
+    def test_pago_capturado_a_mano_entra_al_grupo_por_su_referencia(self):
+        from contabilidad.services_estados_cuenta import analizar_conciliacion
+
+        self._caso_septiembre_con_pago_a_mano()
+        datos = analizar_conciliacion(self.estado_cuenta)
+        self.assertEqual(datos['diferencia_arrastrada'], Decimal('0.00'))
+        self.assertEqual(datos['abonos_empresa_no_abonados'], Decimal('0.00'))
+        self.assertEqual(datos['cargos_empresa_no_cobrados'], Decimal('0.00'))
+        self.assertEqual(datos['saldo_segun_libros'], datos['saldo_segun_banco'])
+
+    def test_lo_que_liquida_un_deposito_posterior_sigue_en_transito_antes(self):
+        """En agosto el cargo de prueba y su comisión siguen pendientes: el
+        depósito que los liquida es del 23/09."""
+        self._caso_septiembre_con_pago_a_mano()
+        agosto = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta_bancaria, banco='BBVA', periodo_mes=8,
+            periodo_anio=2026, formato='PDF', estado='PROCESADO',
+            fecha_corte_real=date(2026, 8, 31),
+        )
+        pendientes = movimientos_contables_del_periodo(agosto, date(2026, 8, 1))
+        self.assertEqual(
+            sorted((m.debe, m.haber) for m in pendientes),
+            [(Decimal('0.00'), Decimal('2.93')), (Decimal('1.00'), Decimal('0.00'))],
+        )
+
     def test_cobro_fuera_de_la_ventana_no_se_agrupa(self):
         self._cobro_previo('txviejo', fecha=date(2026, 6, 1))
         mov_banco = self._deposito(self.DEPOSITO_AGRUPADO)
