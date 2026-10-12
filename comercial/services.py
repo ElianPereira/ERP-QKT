@@ -4,6 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.conf import settings
 
 from core_erp import impuestos
+from facturacion.choices import RegimenFiscal
 
 from .models import ConstanteSistema, ItemCotizacion
 
@@ -898,6 +899,10 @@ RFC_UNIDAD_MAP = {
 }
 RFCS_VALIDOS = set(RFC_UNIDAD_MAP.keys())
 
+# El mismo RFC tiene otro régimen (605 Sueldos y salarios): solo los CFDI
+# emitidos al régimen del negocio son compras. CFDI 3.3 no trae el atributo.
+REGIMENES_RECEPTOR_NEGOCIO = {RegimenFiscal.RESICO_MORALES.value}  # 626
+
 # Usos CFDI personales (deducciones personales — NO son del negocio)
 USOS_CFDI_PERSONALES = {
     'D01',  # Honorarios médicos, dentales y gastos hospitalarios
@@ -955,6 +960,14 @@ def analizar_xml_compra(xml_content):
 
     if rfc_receptor not in RFCS_VALIDOS:
         return False, f"RFC receptor '{rfc_receptor}' no pertenece al negocio", None, rfc_receptor, tipo, uso_cfdi, False
+
+    regimen_receptor = receptor.attrib.get('RegimenFiscalReceptor', '')
+    if regimen_receptor and regimen_receptor not in REGIMENES_RECEPTOR_NEGOCIO:
+        return (
+            False,
+            f"Régimen fiscal receptor '{regimen_receptor}' no es RESICO (626): factura personal, no del negocio",
+            None, rfc_receptor, tipo, uso_cfdi, False,
+        )
 
     if uso_cfdi in USOS_CFDI_PERSONALES:
         if uso_cfdi == 'S01':

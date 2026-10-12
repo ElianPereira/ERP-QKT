@@ -777,7 +777,7 @@ class DashboardKpisQuintaTest(TestCase):
 
 
 def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid='',
-                     rfc_emisor='PRV010101ABC', nombre_emisor='Proveedor Test'):
+                     rfc_emisor='PRV010101ABC', nombre_emisor='Proveedor Test', regimen_receptor=''):
     """CFDI 4.0 mínimo (solo lo que analizar_xml_compra/Compra.save() necesitan leer)."""
     complemento = ''
     if uuid:
@@ -787,11 +787,12 @@ def _construir_cfdi(tipo='I', rfc_receptor='PECE010202IA0', uso_cfdi='G03', uuid
             f'UUID="{uuid}"/>'
             '</cfdi:Complemento>'
         )
+    regimen = f' RegimenFiscalReceptor="{regimen_receptor}"' if regimen_receptor else ''
     return (
         '<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" '
         f'Version="4.0" TipoDeComprobante="{tipo}" Total="1160.00" SubTotal="1000.00">'
         f'<cfdi:Emisor Rfc="{rfc_emisor}" Nombre="{nombre_emisor}"/>'
-        f'<cfdi:Receptor Rfc="{rfc_receptor}" UsoCFDI="{uso_cfdi}"/>'
+        f'<cfdi:Receptor Rfc="{rfc_receptor}" UsoCFDI="{uso_cfdi}"{regimen}/>'
         f'{complemento}'
         '</cfdi:Comprobante>'
     ).encode('utf-8')
@@ -832,6 +833,20 @@ class AnalizarXmlCompraTest(TestCase):
         self.assertFalse(valido)
         self.assertIsNone(unidad_clave)
         self.assertIn('no pertenece al negocio', motivo)
+
+    def test_factura_al_regimen_de_sueldos_se_excluye(self):
+        """Mismo RFC, régimen 605: es personal, no compra del negocio."""
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, *_ = analizar_xml_compra(_construir_cfdi(regimen_receptor='605'))
+        self.assertFalse(valido)
+        self.assertIsNone(unidad_clave)
+        self.assertIn('no es RESICO', motivo)
+
+    def test_factura_al_regimen_resico_es_compra(self):
+        from comercial.services import analizar_xml_compra
+        valido, motivo, unidad_clave, *_ = analizar_xml_compra(_construir_cfdi(regimen_receptor='626'))
+        self.assertTrue(valido)
+        self.assertEqual(unidad_clave, 'QUINTA')
 
     def test_nota_de_credito_se_excluye_por_tipo(self):
         from comercial.services import analizar_xml_compra
