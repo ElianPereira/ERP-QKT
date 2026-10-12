@@ -295,8 +295,8 @@ salvo que queden obsoletas.
   AAAA-MM] [--aplicar]` comparan el `fee` de cada cargo `completed`/`refunded`
   contra las pólizas COMISION_OPENPAY, registran las faltantes y dan el total
   del mes (= lo que debe traer la factura). Un cargo sin `OpenpayTransaccion`
-  solo se reporta. Con `--aplicar` avisa por WhatsApp al propietario si
-  encontró algo. La API **no** expone el estado de cuenta ni la factura
+  solo se reporta. **Sin aviso** (decisión del propietario): el resultado
+  queda solo en el log del cron, que no lleva variables de WhatsApp. La API **no** expone el estado de cuenta ni la factura
   mensual (el recurso `/fees` es para cobrarle comisión a un cliente).
   **Pendiente de alta en Railway** como Cron mensual (día 2, mes anterior).
 

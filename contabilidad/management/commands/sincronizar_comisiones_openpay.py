@@ -8,9 +8,9 @@ comprobar», y da el total del mes: es lo que debe amparar la factura mensual de
 Openpay. Un cargo cobrado en Openpay sin registro en el ERP solo se reporta:
 sin su OpenpayTransaccion no hay a qué ligar la póliza.
 
-Simula por defecto; `--aplicar` escribe y avisa al propietario por WhatsApp si
-encontró algo. Sin `--mes`, revisa el mes anterior (corre como cron a inicio
-de mes).
+Simula por defecto; `--aplicar` escribe. Sin `--mes`, revisa el mes anterior
+(corre como cron a inicio de mes). No avisa a nadie (decisión del propietario):
+el resultado queda en el log del cron.
 
 Uso:  python manage.py sincronizar_comisiones_openpay [--mes 2026-09] [--aplicar]
 """
@@ -99,7 +99,3 @@ class Command(BaseCommand):
             f'{len(faltantes)} sin póliza en el ERP; {len(sin_registro)} cobrados en Openpay sin registro en el ERP.'
         )
         self.stdout.write(self.style.SUCCESS(f'\n{resumen}'))
-
-        if aplicar and (faltantes or sin_registro):
-            from comunicacion.services_agente import _avisar_propietario
-            _avisar_propietario(resumen + ' Detalle en el log del cron de comisiones Openpay')

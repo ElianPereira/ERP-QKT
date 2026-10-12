@@ -139,7 +139,6 @@ CARGOS_SEPTIEMBRE = [
 
 @patch('contabilidad.management.commands.sincronizar_comisiones_openpay.listar_cargos_openpay',
        return_value=CARGOS_SEPTIEMBRE)
-@patch('comunicacion.services_agente._avisar_propietario')
 class SincronizarComisionesOpenpayTest(ComisionesOpenpayBase):
 
     def _correr(self, *args):
@@ -150,25 +149,23 @@ class SincronizarComisionesOpenpayTest(ComisionesOpenpayBase):
     def _comisiones(self):
         return Poliza.objects.filter(origen='COMISION_OPENPAY').exclude(estado='CANCELADA')
 
-    def test_simulacion_reporta_sin_escribir_ni_avisar(self, avisar, _listar):
+    def test_simulacion_reporta_sin_escribir(self, _listar):
         salida = self._correr()
         self.assertIn('$12.21', salida)  # 9.28 + 2.93; el fallido no cuenta
         self.assertFalse(self._comisiones().exists())
-        avisar.assert_not_called()
 
-    def test_aplicar_registra_la_faltante_y_avisa(self, avisar, _listar):
-        self._correr('--aplicar')
+    def test_aplicar_registra_la_faltante(self, _listar):
+        salida = self._correr('--aplicar')
         poliza = self._comisiones().get()
         self.assertEqual(poliza.movimientos.get(cuenta=self.puente).debe, Decimal('9.28'))
-        avisar.assert_called_once()
-        self.assertIn('1 cobrados en Openpay sin registro', avisar.call_args[0][0])
+        self.assertIn('1 cobrados en Openpay sin registro', salida)
 
-    def test_no_duplica_la_que_ya_existe(self, avisar, _listar):
+    def test_no_duplica_la_que_ya_existe(self, _listar):
         crear_poliza_comision_openpay(self.transaccion, {'amount': 8.00, 'tax': 1.28})
         self._correr('--aplicar')
         self.assertEqual(self._comisiones().count(), 1)
 
-    def test_mes_anterior_por_default(self, avisar, listar):
+    def test_mes_anterior_por_default(self, listar):
         with patch('django.utils.timezone.localdate', return_value=date(2026, 10, 2)):
             call_command('sincronizar_comisiones_openpay', stdout=StringIO())
         listar.assert_called_once_with(date(2026, 9, 1), date(2026, 9, 30))
