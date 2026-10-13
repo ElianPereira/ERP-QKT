@@ -256,6 +256,10 @@ PROFECO_REGISTRO_EVENTOS = config('PROFECO_REGISTRO_EVENTOS', default='')
 # Otoch). Ver core_erp/impuestos.py.
 TASA_ISH = Decimal(config('TASA_ISH', default='0'))
 
+# Llave Fernet con la que se cifra la e.firma (.key y contraseña) para la descarga
+# masiva del SAT. Sin ella el módulo no guarda ni usa ninguna e.firma.
+SAT_FIEL_ENCRYPTION_KEY = config('SAT_FIEL_ENCRYPTION_KEY', default='')
+
 # --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
 ADMIN_LOGIN_VENTANA = config('ADMIN_LOGIN_VENTANA', default=900, cast=int)
 ADMIN_LOGIN_MAX_INTENTOS_IP = config('ADMIN_LOGIN_MAX_INTENTOS_IP', default=10, cast=int)
@@ -548,6 +552,9 @@ JAZZMIN_SETTINGS = {
         "contabilidad.saldoapertura":       "fas fa-hourglass-start",
         "contabilidad.estadocuentabancario":    "fas fa-file-alt",
         "contabilidad.reglaconciliacion":   "fas fa-magic",
+        "contabilidad.credencialsat":       "fas fa-key",
+        "contabilidad.solicituddescargasat": "fas fa-cloud-download-alt",
+        "contabilidad.cfdisat":             "fas fa-file-invoice",
         "contabilidad.polizaeliminada":     "fas fa-trash-alt",
 
         # LEGAL
@@ -662,6 +669,9 @@ JAZZMIN_SETTINGS = {
         "contabilidad.cuentabancaria",
         "contabilidad.unidadnegocio",
         "contabilidad.configuracioncontable",
+        "contabilidad.credencialsat",
+        "contabilidad.solicituddescargasat",
+        "contabilidad.cfdisat",
 
         # === NÓMINA ===
         "nomina",

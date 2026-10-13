@@ -265,6 +265,40 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-13 — **Descarga masiva de CFDI del SAT** (pedido del propietario: dejar de
+  subir XML a mano). `contabilidad/services_sat_ws.py` es el cliente SOAP (Autentica →
+  Solicita → Verifica → Descargar, firma RSA-SHA1 con la e.firma; endpoints y SOAPAction
+  tomados de phpcfdi/sat-ws-descarga-masiva) y `services_sat.py` la máquina de estados:
+  `avanzar()` da UN paso por solicitud (el SAT tarda minutos u horas), así que sirve el
+  cron y el botón del admin. Modelos `CredencialSAT` (.key y contraseña cifrados con
+  Fernet, llave `SAT_FIEL_ENCRYPTION_KEY`; solo superusuario la ve), `SolicitudDescargaSAT`
+  y `CfdiSAT` (bitácora + idempotencia por UUID); migración `contabilidad.0039`.
+  **Recibidas** → `Compra` con las mismas reglas de la carga manual (`analizar_xml_compra`).
+  **Emitidas** → se ligan a la `SolicitudFactura` única con mismo RFC receptor, monto
+  (±$0.01) y fecha (solicitud hasta 45 días antes de la factura); con 0 o varias
+  candidatas queda «Emitido sin solicitud» y el contador la asigna desde el admin
+  (campo Solicitud de factura) o con la acción de reintento. Se adjunta el XML y el
+  **PDF se genera solo desde él** (`facturacion/services_cfdi_pdf.py`, plantilla
+  `facturacion/cfdi_pdf.html`: sellos, cadena original, QR del SAT; no pisa un PDF ya
+  subido), así la solicitud queda FACTURADA con XML+PDF y sale el correo al cliente. Solo se piden CFDI **vigentes**: una cancelación posterior no se
+  refleja sola. **Sin probar contra el SAT real** (el contenedor no tiene e.firma ni
+  salida a sus servidores): las firmas se verifican en tests con un certificado generado;
+  la primera sincronización real es la prueba de fondo. **Pendiente en Railway**: definir
+  `SAT_FIEL_ENCRYPTION_KEY` (en `web` y en el cron), cargar la e.firma en Admin →
+  Contabilidad → Firmas y dar de alta un Cron cada hora con `manage.py sincronizar_sat`
+  (variables como `${{web.…}}`). Más historial: campo «Traer historial desde» de la e.firma (o `sincronizar_sat --historial-desde AAAA-MM-DD`); se pide por tramos de 31 días, máx. 10 solicitudes nuevas por corrida, y lo que falle se reintenta.
+  **Resiliencia ante un SAT intermitente**: nada se pierde por un fallo suyo. (1) Los
+  fallos de comunicación y los códigos 404/5006 son transitorios: la solicitud conserva
+  su estado y se reintenta cada corrida (aviso al equipo a las 24 corridas). (2) Lo
+  definitivo (rechazo, vencida, sin terminar en 72 h, paquetes vencidos a las 70 h) pasa a
+  ERROR **y su tramo vuelve a ser hueco**: `planear_sincronizacion` ya no avanza un
+  puntero, calcula los días sin cobertura desde el alta de la e.firma −35 días y los pide
+  de nuevo (espera de 6 h entre intentos del mismo tramo, tope de 8). El solape de 3 días
+  se repite una vez al día. (3) Un XML que truene queda en `CfdiSAT` con resultado ERROR
+  y su archivo, y `reintentar_comprobantes()` lo reprocesa cada corrida; si ni eso se
+  puede guardar, se aborta el paquete para bajarlo completo después. (4) Una solicitud
+  con error inesperado no detiene a las demás.
+
 - 2026-10-13 — **Catálogo de categorías de gasto** (Issue #390, decisiones del
   propietario y el contador). Hallazgo: `SERVICIOS_ADMON` («Servicios
   administrativos y bancarios») caía en `GASTOS_GENERALES` = **601.02.05

@@ -1258,3 +1258,4 @@ class ReglaConciliacionAdmin(admin.ModelAdmin):
     @admin.display(description="Origen", ordering="origen")
     def origen_display(self, obj):
         return ui.badge_por_valor(obj.origen, self.TONOS_ORIGEN, obj.get_origen_display())
+from . import admin_sat  # noqa: E402,F401 -- registra los admins de la descarga masiva del SAT
