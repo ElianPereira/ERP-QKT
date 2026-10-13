@@ -286,7 +286,7 @@ salvo que queden obsoletas.
   la primera sincronización real es la prueba de fondo. **Pendiente en Railway**: definir
   `SAT_FIEL_ENCRYPTION_KEY` (en `web` y en el cron), cargar la e.firma en Admin →
   Contabilidad → Firmas y dar de alta un Cron cada hora con `manage.py sincronizar_sat`
-  (variables como `${{web.…}}`). Backfill: `sincronizar_sat --desde … --hasta …`.
+  (variables como `${{web.…}}`). Más historial: campo «Traer historial desde» de la e.firma (o `sincronizar_sat --historial-desde AAAA-MM-DD`); se pide por tramos de 31 días, máx. 10 solicitudes nuevas por corrida, y lo que falle se reintenta.
   **Resiliencia ante un SAT intermitente**: nada se pierde por un fallo suyo. (1) Los
   fallos de comunicación y los códigos 404/5006 son transitorios: la solicitud conserva
   su estado y se reintenta cada corrida (aviso al equipo a las 24 corridas). (2) Lo

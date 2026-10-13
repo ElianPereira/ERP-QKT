@@ -1191,6 +1191,10 @@ class CredencialSAT(models.Model):
     password_cifrada = models.BinaryField(editable=False, verbose_name="Contraseña cifrada")
     vigente_hasta = models.DateField(verbose_name="Vigente hasta")
     activa = models.BooleanField(default=True, verbose_name="Activa")
+    historial_desde = models.DateField(
+        null=True, blank=True, verbose_name="Traer historial desde",
+        help_text="Por defecto se descarga desde 35 días antes de cargar la e.firma. Pon aquí una fecha "
+                  "anterior para traer más historial: se pide por tramos de un mes y lo que falle se reintenta.")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='credenciales_sat', verbose_name="Cargada por")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creada")

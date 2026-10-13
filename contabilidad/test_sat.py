@@ -243,7 +243,7 @@ class FlujoDescargaTest(TestCase):
 
     def test_planear_cubre_hasta_ayer_y_no_repite(self):
         hoy = timezone.localdate()
-        self.assertEqual(len(sat.planear_sincronizacion(self.cred, hoy=hoy)), 2)
+        self.assertEqual(len(sat.planear_sincronizacion(self.cred, hoy=hoy)), 4)  # 35 días = 2 tramos por tipo
         self.assertEqual(len(sat.planear_sincronizacion(self.cred, hoy=hoy)), 0)
         ultima = SolicitudDescargaSAT.objects.latest('id')
         self.assertEqual(ultima.hasta, hoy - timedelta(days=1))
@@ -252,10 +252,36 @@ class FlujoDescargaTest(TestCase):
         nueva = SolicitudDescargaSAT.objects.latest('id')
         self.assertEqual((nueva.desde, nueva.hasta), (hoy - timedelta(days=3), hoy))
 
+    def test_historial_se_pide_por_tramos_y_poco_a_poco(self):
+        hoy = timezone.localdate()
+        self.cred.historial_desde = hoy - timedelta(days=400)
+        self.cred.save()
+        primera = sat.planear_sincronizacion(self.cred, hoy=hoy)
+        self.assertEqual(len(primera), sat.MAX_SOLICITUDES_POR_CORRIDA)
+        self.assertTrue(all((s.hasta - s.desde).days < sat.MAX_DIAS_TRAMO for s in primera))
+        # las siguientes corridas continúan hasta cubrir todo, sin repetir
+        for _ in range(10):
+            sat.planear_sincronizacion(self.cred, hoy=hoy)
+        self.assertEqual(sat.planear_sincronizacion(self.cred, hoy=hoy), [])
+        self.assertEqual(SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').order_by('desde').first().desde,
+                         hoy - timedelta(days=400))
+
+    def test_tramo_de_historial_fallido_se_repite(self):
+        hoy = timezone.localdate()
+        self.cred.historial_desde = hoy - timedelta(days=100)
+        self.cred.save()
+        for _ in range(3):
+            sat.planear_sincronizacion(self.cred, hoy=hoy)
+        viejo = SolicitudDescargaSAT.objects.filter(tipo='EMITIDAS').order_by('desde').first()
+        SolicitudDescargaSAT.objects.filter(pk=viejo.pk).update(
+            estado='ERROR', updated_at=timezone.now() - timedelta(days=1))
+        nuevas = sat.planear_sincronizacion(self.cred, hoy=hoy)
+        self.assertEqual([(n.tipo, n.desde, n.hasta) for n in nuevas], [('EMITIDAS', viejo.desde, viejo.hasta)])
+
     def test_tramo_con_error_definitivo_se_vuelve_a_pedir(self):
         hoy = timezone.localdate()
         sat.planear_sincronizacion(self.cred, hoy=hoy)
-        rota = SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').get()
+        rota = SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').order_by('desde').first()
         sat.avanzar(rota, ClienteFalso(solicita={'id_solicitud': '', 'codigo': '5003', 'mensaje': 'tope'}))
         self.assertEqual(rota.estado, 'ERROR')
         # recién fallada: no se insiste (espera de 6 h)
@@ -267,7 +293,7 @@ class FlujoDescargaTest(TestCase):
     def test_deja_de_insistir_tras_muchos_errores_del_mismo_tramo(self):
         hoy = timezone.localdate()
         sat.planear_sincronizacion(self.cred, hoy=hoy)
-        base = SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').get()
+        base = SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').order_by('desde').first()
         SolicitudDescargaSAT.objects.filter(pk=base.pk).update(estado='ERROR')
         for _ in range(sat.MAX_REINTENTOS_TRAMO - 1):
             SolicitudDescargaSAT.objects.create(credencial=self.cred, tipo='RECIBIDAS', desde=base.desde,

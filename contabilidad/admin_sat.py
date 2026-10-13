@@ -24,7 +24,7 @@ class CredencialSATForm(forms.ModelForm):
 
     class Meta:
         model = CredencialSAT
-        fields = ['activa']
+        fields = ['historial_desde', 'activa']
 
     def clean(self):
         datos = super().clean()
@@ -87,7 +87,7 @@ class CredencialSATAdmin(SoloDireccion, admin.ModelAdmin):
                        'created_at', 'updated_at']
 
     def get_fields(self, request, obj=None):
-        base = ['archivo_cer', 'archivo_key', 'password', 'activa']
+        base = ['archivo_cer', 'archivo_key', 'password', 'historial_desde', 'activa']
         return base if obj is None else ['rfc', 'nombre', 'vigente_hasta', *base,
                                          'created_by', 'created_at', 'updated_at']
 

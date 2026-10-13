@@ -40,6 +40,8 @@ VENTANA_SOLICITUD_DIAS = 45
 VIDA_PAQUETE = timedelta(hours=70)       # el SAT los borra a las 72 h
 VIDA_SOLICITUD = timedelta(hours=72)     # más que esto sin terminar: se da por perdida
 ESPERA_TRAS_ERROR = timedelta(hours=6)   # no repetir el mismo tramo fallido antes de esto
+MAX_DIAS_TRAMO = 31                      # una solicitud por mes: el SAT topa en 200 mil CFDI
+MAX_SOLICITUDES_POR_CORRIDA = 10         # el historial largo se pide poco a poco
 MAX_REINTENTOS_TRAMO = 8                 # tras tantos errores idénticos se deja de insistir
 INTENTOS_PARA_AVISAR = 24                # ~1 día de fallos transitorios seguidos
 
@@ -110,21 +112,6 @@ def _limites(solicitud):
     return inicio, min(fin, ahora)
 
 
-def crear_solicitudes(credencial, desde, hasta, usuario=None):
-    """Una solicitud de emitidas y una de recibidas, salvo que ya exista una
-    igual (el SAT rechaza peticiones idénticas repetidas)."""
-    creadas = []
-    for tipo in ('EMITIDAS', 'RECIBIDAS'):
-        existe = SolicitudDescargaSAT.objects.filter(
-            credencial=credencial, tipo=tipo, desde=desde, hasta=hasta,
-        ).exclude(estado='ERROR').exists()
-        if existe:
-            continue
-        creadas.append(SolicitudDescargaSAT.objects.create(
-            credencial=credencial, tipo=tipo, desde=desde, hasta=hasta, created_by=usuario))
-    return creadas
-
-
 def _dias(desde, hasta):
     d = desde
     while d <= hasta:
@@ -154,6 +141,16 @@ def _huecos(credencial, tipo, desde, hasta):
     return rangos
 
 
+def _tramos(rangos):
+    """Parte los huecos largos en tramos de MAX_DIAS_TRAMO, desde su inicio (así el
+    mismo hueco produce siempre los mismos tramos y el control de reintentos funciona)."""
+    for desde, hasta in rangos:
+        while desde <= hasta:
+            fin = min(hasta, desde + timedelta(days=MAX_DIAS_TRAMO - 1))
+            yield desde, fin
+            desde = fin + timedelta(days=1)
+
+
 def _en_espera(credencial, tipo, desde, hasta, ahora):
     """¿Ese mismo tramo falló hace poco o ya agotó sus reintentos? Evita
     martillar al SAT cuando está caído o rechaza siempre la misma petición."""
@@ -171,11 +168,15 @@ def planear_sincronizacion(credencial, hoy=None, dias_iniciales=35):
     hoy = hoy or timezone.localdate()
     ayer = hoy - timedelta(days=1)
     inicio = timezone.localtime(credencial.created_at).date() - timedelta(days=dias_iniciales)
+    if credencial.historial_desde:
+        inicio = min(inicio, credencial.historial_desde)
     ahora = timezone.now()
     hoy_00 = timezone.make_aware(datetime.combine(hoy, time.min))
     creadas = []
     for tipo in ('EMITIDAS', 'RECIBIDAS'):
-        for desde, hasta in _huecos(credencial, tipo, inicio, ayer):
+        for desde, hasta in _tramos(_huecos(credencial, tipo, inicio, ayer)):
+            if len(creadas) >= MAX_SOLICITUDES_POR_CORRIDA:
+                return creadas
             # El solape (últimos días) se repite una vez por día, no en cada corrida.
             ya_hoy = SolicitudDescargaSAT.objects.filter(
                 credencial=credencial, tipo=tipo, created_at__gte=hoy_00, desde__lte=desde, hasta__gte=hasta,
