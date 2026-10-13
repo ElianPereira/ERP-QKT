@@ -292,6 +292,8 @@ def _verificar(solicitud, cliente):
         raise ws.SatError(f"El SAT no pudo verificar la solicitud ({r['codigo'] or 'sin código'}): {r['mensaje']}")
     if r['codigo'] != ws.COD_OK:
         return _error(solicitud, f"El SAT rechazó la verificación: {r['mensaje']}", r['codigo'])
+    if not r['estado']:
+        raise ws.SatError(f"El SAT respondió sin estado de solicitud: {r['mensaje']}")
     if r['estado'] in (ws.SAT_ACEPTADA, ws.SAT_EN_PROCESO):
         solicitud.estado = 'EN_PROCESO'
     elif r['estado'] == ws.SAT_TERMINADA:
@@ -302,7 +304,9 @@ def _verificar(solicitud, cliente):
     elif r['estado'] == ws.SAT_VENCIDA:
         return _error(solicitud, "La solicitud venció en el SAT; genera una nueva.", r['codigo_estado'])
     else:
-        return _error(solicitud, f"El SAT no pudo generar la solicitud: {r['mensaje']}", r['codigo_estado'])
+        return _error(solicitud,
+                       f"El SAT no pudo generar la solicitud (estado {r['estado']}, código {r['codigo_estado'] or 'sin código'}): "
+                       f"{r['mensaje']}", r['codigo_estado'])
     solicitud.save()
 
 
