@@ -760,26 +760,48 @@ class ConfiguracionContable(models.Model):
         # ═══════════════════════════════════════════
         ('PROVEEDORES', 'Proveedores'),
         ('IVA_ACREDITABLE', 'IVA acreditable'),
-        ('GASTOS_GENERALES', 'Gastos generales'),
+        ('GASTOS_GENERALES', 'Gastos por clasificar (compras sin categoría)'),
 
         # ═══════════════════════════════════════════
         # COMPRAS/GASTOS - POR CATEGORÍA
         # ═══════════════════════════════════════════
-        ('GASTO_INSUMOS', 'Gastos - Insumos y bebidas'),
+        ('GASTO_INSUMOS', 'Costo - Insumos para eventos'),
         ('GASTO_SERVICIOS', 'Gastos - Servicios (agua, luz, internet)'),
-        ('GASTO_MANTENIMIENTO', 'Gastos - Mantenimiento y limpieza'),
+        ('GASTO_MANTENIMIENTO', 'Gastos - Mantenimiento y reparaciones'),
         ('GASTO_PUBLICIDAD', 'Gastos - Publicidad y marketing'),
         ('GASTO_EQUIPO', 'Gastos - Equipo y mobiliario'),
         ('GASTO_VEHICULOS', 'Gastos - Vehículos y combustible'),
         ('GASTO_OFICINA', 'Gastos - Oficina y papelería'),
         ('GASTO_IMPUESTOS', 'Gastos - Impuestos y derechos'),
         ('GASTO_SEGUROS', 'Gastos - Seguros y fianzas'),
-        ('GASTO_BANCARIOS', 'Gastos - Comisiones bancarias'),
+        ('GASTO_BANCARIOS', 'Gastos financieros - Comisiones bancarias y de cobro'),
         ('COMISIONES_POR_COMPROBAR', 'Comisiones Openpay por comprobar'),
-
-        # Legacy (mantener por compatibilidad)
-        ('GASTOS_BEBIDAS', 'Gastos bebidas'),
-        ('GASTOS_NOMINA_EXT', 'Gastos nómina externa'),
+        # Una operación por categoría (`contabilidad.categorias_gasto`)
+        ('COSTO_ALIMENTOS', 'Costo - Alimentos'),
+        ('GASTOS_BEBIDAS', 'Costo - Bebidas'),
+        ('GASTOS_NOMINA_EXT', 'Costo - Staff externo de eventos'),
+        ('COSTO_RENTA_EVENTOS', 'Costo - Renta de mobiliario y equipo para eventos'),
+        ('COSTO_SERVICIOS_EVENTOS', 'Costo - Servicios subcontratados para eventos'),
+        ('GASTO_LUZ', 'Gastos - Energía eléctrica'),
+        ('GASTO_AGUA', 'Gastos - Agua'),
+        ('GASTO_GAS', 'Gastos - Gas'),
+        ('GASTO_TELEFONO', 'Gastos - Teléfono e internet'),
+        ('GASTO_JARDINERIA', 'Gastos - Jardinería'),
+        ('GASTO_LIMPIEZA', 'Gastos - Limpieza'),
+        ('GASTO_SEGURIDAD', 'Gastos - Vigilancia y sistemas de seguridad'),
+        ('GASTO_HONORARIOS', 'Gastos - Honorarios profesionales'),
+        ('GASTO_CONTABLES', 'Gastos - Servicios contables'),
+        ('GASTO_SOFTWARE', 'Gastos - Software y suscripciones'),
+        ('GASTO_FOTOGRAFIA', 'Gastos - Fotografía y video'),
+        ('GASTO_OTROS', 'Gastos - Otros gastos'),
+        ('ACTIVO_MOBILIARIO', 'Activo fijo - Mobiliario y equipo'),
+        ('ACTIVO_CONSTRUCCIONES', 'Activo fijo - Construcciones y mejoras al inmueble'),
+        # Compras sin CFDI: subcuenta no deducible de su grupo
+        ('NO_DEDUCIBLE_COSTO', 'No deducible - Costo'),
+        ('NO_DEDUCIBLE_OPERACION', 'No deducible - Gastos de operación'),
+        ('NO_DEDUCIBLE_VENTA', 'No deducible - Gastos de venta'),
+        ('NO_DEDUCIBLE_FINANCIERO', 'No deducible - Gastos financieros'),
+        ('NO_DEDUCIBLE_OTROS', 'No deducible - Otros gastos'),
 
         # ═══════════════════════════════════════════
         # NÓMINA
@@ -805,7 +827,7 @@ class ConfiguracionContable(models.Model):
         ('RETIROS_DUENO', 'Retiros del dueño (traspasos a cuentas propias)'),
         ('APORTACIONES_DUENO', 'Aportaciones del dueño (traspasos desde cuentas propias)'),
         ('INVERSIONES', 'Inversiones (dinero enviado a o recuperado de una inversión)'),
-        ('GASTO_NO_DEDUCIBLE', 'Gastos no deducibles (sin CFDI)'),
+        ('GASTO_NO_DEDUCIBLE', 'No deducible - Gastos de administración (sin CFDI)'),
         ('PARTIDAS_POR_IDENTIFICAR', 'Partidas bancarias por identificar'),
     ]
 

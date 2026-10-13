@@ -1432,9 +1432,13 @@ class CompraAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        if change and 'categoria' in form.changed_data:
-            from contabilidad.services_compras import reclasificar_compra, recordar_en_proveedor
+        # La cuenta depende de la categoría y de si es deducible (sin CFDI va a
+        # la subcuenta no deducible de su grupo).
+        if change and {'categoria', 'es_deducible'} & set(form.changed_data):
+            from contabilidad.services_compras import reclasificar_compra
             reclasificar_compra(obj)
+        if change and 'categoria' in form.changed_data:
+            from contabilidad.services_compras import recordar_en_proveedor
             otras = recordar_en_proveedor(obj)
             if otras:
                 messages.info(request, f"{obj.proveedor} recordará «{obj.get_categoria_display()}»: "

@@ -24,6 +24,7 @@ from core_erp import impuestos
 
 logger = logging.getLogger(__name__)
 
+from .categorias_gasto import GRUPO_POR_CATEGORIA, NO_DEDUCIBLE_POR_GRUPO, OPERACION_POR_CATEGORIA
 from .models import ConfiguracionContable, MovimientoContable, Poliza, UnidadNegocio
 
 
@@ -864,85 +865,28 @@ def crear_poliza_movimiento_deposito(sender, instance, created, **kwargs):
 
 
 # ==========================================
-# MAPEO DE CATEGORÍAS DE GASTO A CUENTAS
+# CATEGORÍAS DE GASTO → CUENTAS (`categorias_gasto`)
 # ==========================================
-MAPEO_CATEGORIA_CUENTA = {
-    # Categoría de gasto -> Operación de ConfiguracionContable
-    'INSUMOS': 'GASTO_INSUMOS',
-    'BEBIDAS': 'GASTO_INSUMOS',
-    'LICOR': 'GASTO_INSUMOS',
-    'HIELO': 'GASTO_INSUMOS',
-    'SERVICIOS': 'GASTO_SERVICIOS',
-    'AGUA': 'GASTO_SERVICIOS',
-    'LUZ': 'GASTO_SERVICIOS',
-    'INTERNET': 'GASTO_SERVICIOS',
-    'TELEFONO': 'GASTO_SERVICIOS',
-    'MANTENIMIENTO': 'GASTO_MANTENIMIENTO',
-    'JARDINERIA': 'GASTO_MANTENIMIENTO',
-    'LIMPIEZA': 'GASTO_MANTENIMIENTO',
-    'REPARACIONES': 'GASTO_MANTENIMIENTO',
-    'PUBLICIDAD': 'GASTO_PUBLICIDAD',
-    'MARKETING': 'GASTO_PUBLICIDAD',
-    'REDES': 'GASTO_PUBLICIDAD',
-    'EQUIPO': 'GASTO_EQUIPO',
-    'MOBILIARIO': 'GASTO_EQUIPO',
-    'HERRAMIENTAS': 'GASTO_EQUIPO',
-    'VEHICULOS': 'GASTO_VEHICULOS',
-    'GASOLINA': 'GASTO_VEHICULOS',
-    'COMBUSTIBLE': 'GASTO_VEHICULOS',
-    'OFICINA': 'GASTO_OFICINA',
-    'PAPELERIA': 'GASTO_OFICINA',
-    'ADMINISTRATIVO': 'GASTO_OFICINA',
-    'IMPUESTOS': 'GASTO_IMPUESTOS',
-    'SAT': 'GASTO_IMPUESTOS',
-    'PREDIAL': 'GASTO_IMPUESTOS',
-    'SEGUROS': 'GASTO_SEGUROS',
-    'FIANZAS': 'GASTO_SEGUROS',
-    'BANCARIOS': 'GASTO_BANCARIOS',
-    'COMISIONES': 'GASTO_BANCARIOS',
-    'OTROS': 'GASTOS_GENERALES',
-    # Claves de `comercial.models.CATEGORIAS_GASTO` que no calzan arriba.
-    'BEBIDAS_SIN_ALCOHOL': 'GASTO_INSUMOS',
-    'BEBIDAS_CON_ALCOHOL': 'GASTO_INSUMOS',
-    'MOBILIARIO_EQ': 'GASTO_EQUIPO',
-    'NOMINA_EXT': 'GASTOS_NOMINA_EXT',
-    'SERVICIO_EXTERNO': 'GASTOS_GENERALES',
-    'SERVICIOS_ADMON': 'GASTOS_GENERALES',
-    'SIN_CLASIFICAR': 'GASTOS_GENERALES',
-    'OTRO': 'GASTOS_GENERALES',
-}
-
-
 def get_cuenta_por_categoria(categoria):
     """
-    Obtiene la cuenta contable apropiada según la categoría del gasto.
-
-    Args:
-        categoria: str - Categoría del gasto (puede ser None)
-
-    Returns:
-        CuentaContable o None
+    Cuenta de una categoría de gasto: la de su operación en el catálogo. Sin
+    categoría, con una clave que ya no existe o con la operación sin cuenta,
+    va a «Gastos por clasificar» (GASTOS_GENERALES): queda a la vista como
+    pendiente en vez de asentarse en una cuenta que no le corresponde.
     """
-    if not categoria:
-        return get_cuenta('GASTOS_GENERALES')
+    operacion = OPERACION_POR_CATEGORIA.get(categoria or 'SIN_CLASIFICAR')
+    cuenta = get_cuenta(operacion) if operacion else None
+    if cuenta is None and operacion != 'GASTOS_GENERALES':
+        logger.warning("Categoría de gasto %r sin cuenta (operación %s): va a gastos por clasificar.",
+                       categoria, operacion)
+    return cuenta or get_cuenta('GASTOS_GENERALES')
 
-    # Buscar mapeo exacto
-    operacion = MAPEO_CATEGORIA_CUENTA.get(categoria.upper())
-    if operacion:
-        cuenta = get_cuenta(operacion)
-        if cuenta:
-            return cuenta
 
-    # Buscar por palabra clave parcial
-    categoria_upper = categoria.upper()
-    for keyword, op in MAPEO_CATEGORIA_CUENTA.items():
-        if keyword in categoria_upper:
-            cuenta = get_cuenta(op)
-            if cuenta:
-                return cuenta
-
-    # Fallback a gastos generales
-    return get_cuenta('GASTOS_GENERALES')
+def cuenta_no_deducible(categoria):
+    """Subcuenta no deducible del grupo de la categoría, o None si su grupo no
+    tiene (activo fijo, por clasificar)."""
+    operacion = NO_DEDUCIBLE_POR_GRUPO.get(GRUPO_POR_CATEGORIA.get(categoria))
+    return get_cuenta(operacion) if operacion else None
 
 
 def cuenta_gasto_de_compra(compra):
@@ -950,13 +894,20 @@ def cuenta_gasto_de_compra(compra):
     Cuenta de gasto de una Compra: la cuenta exacta del proveedor si la tiene
     y la compra está en la categoría del proveedor (o sin clasificar); si no,
     la de su categoría. Una compra que alguien clasificó distinto a lo habitual
-    del proveedor manda sobre la cuenta del proveedor.
+    del proveedor manda sobre la cuenta del proveedor. Sin CFDI no es
+    deducible: va a la subcuenta no deducible del grupo de su categoría.
     """
+    categoria = compra.categoria
     proveedor = compra.proveedor if compra.proveedor_id else None
     if proveedor and proveedor.cuenta_gasto_id and proveedor.cuenta_gasto.activa \
-            and compra.categoria in ('SIN_CLASIFICAR', proveedor.categoria_gasto):
-        return proveedor.cuenta_gasto
-    return get_cuenta_por_categoria(compra.categoria)
+            and categoria in ('SIN_CLASIFICAR', proveedor.categoria_gasto):
+        cuenta = proveedor.cuenta_gasto
+        categoria = proveedor.categoria_gasto or categoria
+    else:
+        cuenta = get_cuenta_por_categoria(categoria)
+    if not compra.es_deducible:
+        cuenta = cuenta_no_deducible(categoria) or cuenta
+    return cuenta
 
 
 # ==========================================

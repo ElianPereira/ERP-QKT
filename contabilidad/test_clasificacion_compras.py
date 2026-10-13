@@ -1,4 +1,5 @@
 """Compras clasificadas por proveedor: configuración, aprendizaje y póliza."""
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -40,9 +41,11 @@ class ClasificacionBase(TestCase):
         self.proveedor = Proveedor.objects.create(nombre='Hielera Test', rfc='HIE010101AAA')
 
     def _compra(self, total='116.00', proveedor=None, **extra):
+        """Con CFDI (deducible) salvo que se pase `uuid=None`."""
+        extra.setdefault('uuid', str(uuid.uuid4()))
         return Compra.objects.create(
             proveedor=proveedor or self.proveedor, proveedor_nombre=(proveedor or self.proveedor).nombre,
-            subtotal=Decimal('100.00'), iva=Decimal('16.00'), total=Decimal(total), uuid=None,
+            subtotal=Decimal('100.00'), iva=Decimal('16.00'), total=Decimal(total),
             fecha_emision=date(2026, 8, 5), unidad_negocio=self.unidad, **extra,
         )
 
@@ -67,7 +70,7 @@ class ClasificacionPorProveedorTest(ClasificacionBase):
         self.assertIn('Insumos para eventos', Poliza.objects.get(object_id=compra.pk, origen='COMPRA').concepto)
 
     def test_cuenta_exacta_del_proveedor_manda(self):
-        cfe = Proveedor.objects.create(nombre='CFE Test', categoria_gasto='SERVICIOS_ADMON', cuenta_gasto=self.luz)
+        cfe = Proveedor.objects.create(nombre='CFE Test', categoria_gasto='LUZ', cuenta_gasto=self.luz)
         self.assertEqual(self._cuenta_gasto(self._compra(proveedor=cfe)), self.luz)
 
     def test_clasificacion_distinta_a_la_del_proveedor_gana_a_su_cuenta(self):
@@ -77,8 +80,9 @@ class ClasificacionPorProveedorTest(ClasificacionBase):
         compra = self._compra(categoria='INSUMOS')
         self.assertEqual(self._cuenta_gasto(compra), self.insumos)
 
-    def test_bebidas_van_a_insumos(self):
-        self.assertEqual(self._cuenta_gasto(self._compra(categoria='BEBIDAS_CON_ALCOHOL')), self.insumos)
+    def test_bebidas_van_a_costo_de_bebidas(self):
+        cuenta = self._cuenta_gasto(self._compra(categoria='BEBIDAS_CON_ALCOHOL'))
+        self.assertEqual(cuenta.codigo_sat, '501.02')
 
 
 class AprendizajeProveedorTest(ClasificacionBase):
