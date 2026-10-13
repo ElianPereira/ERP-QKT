@@ -255,8 +255,9 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
   sigue pagando $1,000.00 por noche.
 - [x] ~~Módulo de depósito en garantía ausente~~ — implementado (Issue #318,
   fase 3): `DepositoGarantia` + `MovimientoDeposito`, cobro por Openpay o
-  manual, pasivo en 205.03. Pendiente confirmar con el contador el trato de
-  las retenciones (daños sin IVA, servicio con IVA).
+  manual, pasivo en 205.03. Trato fiscal decidido el 2026-10-13 (ver
+  Memoria): solo lo retenido se factura, daños sin IVA y servicio con IVA,
+  en CFDI individual al cliente.
 
 ## Memoria
 
@@ -264,6 +265,29 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 `FECHA — decisión/error → resolución o estado`. Agrega una línea nueva
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
+
+- 2026-10-13 — **Depósito en garantía: solo lo retenido se factura**
+  (decisión del propietario; el contador proponía cobrarlo todo en efectivo
+  «para no facturar»). Recibir el depósito no es ingreso, es pasivo (205.03),
+  así que **no lleva CFDI sin importar el medio de pago**: el efectivo no
+  ahorraba ninguna obligación, solo dejaba sin rastro lo retenido, que sí es
+  ingreso (RESICO paga sobre lo cobrado). La factura de la reparación no es
+  requisito fiscal (RESICO PF no deduce): es evidencia ante el cliente/PROFECO
+  y va en el `desglose`. Ahora `facturacion.signals.crear_solicitud_factura_desde_retencion`
+  crea la `SolicitudFactura` de cada `MovimientoDeposito` RETENCION_DANOS (sin
+  IVA, «indemnización») o RETENCION_SERVICIO (con IVA, `impuestos.desglosar`),
+  con el desglose en el concepto y la forma de pago de la recepción, y la manda
+  al contador como las de los pagos (sin FK nueva: el movimiento es inmutable y
+  el signal solo corre al crearse). Sin retención ISR aunque el cliente sea
+  persona moral: lo decide el contador. **Criterio cerrado** (el contador no
+  tenía postura y el propietario adoptó la recomendación): **(1)** daños = no
+  objeto de IVA (`ObjetoImp 01`) porque resarcen un daño real valuado con
+  evidencia, no son contraprestación del servicio; si algún día se cobrara un
+  monto fijo pactado (pena convencional), ese sí llevaría IVA (art. 18 LIVA).
+  Sí es ingreso para ISR. **(2)** CFDI **individual** al cliente (con su RFC,
+  o a público en general si no lo dio), timbrado en el mes de la retención,
+  igual que los pagos; no en la global: el cliente recibe comprobante de lo
+  que se le cobró, útil si reclama ante PROFECO.
 
 - 2026-10-13 — **Descarga masiva de CFDI del SAT** (pedido del propietario: dejar de
   subir XML a mano). `contabilidad/services_sat_ws.py` es el cliente SOAP (Autentica →

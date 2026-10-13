@@ -29,6 +29,7 @@ from comercial.services_openpay import (
     procesar_webhook_openpay,
 )
 from contabilidad.models import Poliza
+from facturacion.models import SolicitudFactura
 
 
 def _cotizacion():
@@ -120,6 +121,29 @@ class LiquidacionTest(DepositoBase):
         self.assertEqual(lineas['205.03'], (Decimal('116.00'), Decimal('0.00')))
 
         self.assertEqual(self.deposito.movimientos.get(tipo='DEVOLUCION').monto, Decimal('744.00'))
+
+    def test_solo_lo_retenido_se_factura(self):
+        """Recibir y devolver el depósito no se factura; cada retención sí,
+        daños sin IVA y servicio con IVA."""
+        liquidar(self.deposito, retencion_danos=Decimal('300.00'),
+                 retencion_servicio=Decimal('116.00'), desglose='Silla rota; 1 h de limpieza extra.')
+        solicitudes = SolicitudFactura.objects.filter(cotizacion=self.cot, pago__isnull=True)
+        self.assertEqual(solicitudes.count(), 2)
+
+        danos = solicitudes.get(monto=Decimal('300.00'))
+        self.assertEqual((danos.subtotal, danos.iva), (Decimal('300.00'), Decimal('0.00')))
+        self.assertIn('Indemnización', danos.concepto)
+        self.assertIn('Silla rota', danos.concepto)
+        self.assertEqual(danos.forma_pago, '03')  # se recibió por transferencia
+        self.assertTrue(danos.desglose_cuadra)
+
+        servicio = solicitudes.get(monto=Decimal('116.00'))
+        self.assertEqual((servicio.subtotal, servicio.iva), (Decimal('100.00'), Decimal('16.00')))
+        self.assertTrue(servicio.desglose_cuadra)
+
+    def test_devolucion_total_no_genera_factura(self):
+        liquidar(self.deposito)
+        self.assertFalse(SolicitudFactura.objects.filter(cotizacion=self.cot).exists())
 
     def test_retencion_exige_desglose_y_no_excede_custodia(self):
         with self.assertRaisesMessage(DepositoError, 'desglose'):
