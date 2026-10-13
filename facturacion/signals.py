@@ -1,7 +1,8 @@
 """
 Signals del Módulo de Facturación
 =================================
-Genera solicitudes de factura automáticamente desde Pagos.
+Genera solicitudes de factura automáticamente desde Pagos y desde lo
+retenido de un depósito en garantía.
 
 Lógica de desglose fiscal:
 - Siempre usa la proporción del pago vs precio_final de la cotización
@@ -16,6 +17,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from comercial.services import calcular_desglose_proporcional
+from facturacion.choices import FormaPago
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,42 @@ def _forma_pago_openpay(pago):
     return None
 
 
+def _datos_fiscales(cliente):
+    """(rfc, razón social, C.P., régimen, uso CFDI) del cliente, o Público en General."""
+    from facturacion.choices import uso_cfdi_compatible
+    from facturacion.models import RFC_PUBLICO_GENERAL
+
+    if cliente.rfc and cliente.razon_social:
+        # 616 ("Sin obligaciones fiscales") es exclusivo de persona física —
+        # dejarlo como fallback también para una persona moral produciría un
+        # CFDI inválido. 601 (General de Ley Personas Morales) es el régimen
+        # real más común para una empresa; el contador lo corrige si tributa
+        # distinto.
+        regimen_fiscal = cliente.regimen_fiscal or (
+            '601' if cliente.tipo_persona == 'MORAL' else '616'
+        )
+        # 616 (el default de Cliente) con G03 (también default) es una
+        # combinación que el PAC rechaza: se ajusta el uso al régimen.
+        return (cliente.rfc, cliente.razon_social, cliente.codigo_postal_fiscal or '97238',
+                regimen_fiscal, uso_cfdi_compatible(regimen_fiscal, cliente.uso_cfdi))
+    return RFC_PUBLICO_GENERAL, 'PUBLICO EN GENERAL', '97238', '616', 'S01'
+
+
+def _enviar_al_contador_al_confirmar(solicitud):
+    """Manda la solicitud al contador cuando la transacción queda confirmada.
+    Nunca lanza: un fallo aquí no debe tumbar el guardado que la originó."""
+    def _enviar():
+        from .services import enviar_solicitud_al_contador
+        try:
+            enviar_solicitud_al_contador(solicitud)
+        except Exception:
+            logger.exception(
+                "Envío automático de la solicitud de factura #%s falló", solicitud.pk
+            )
+
+    transaction.on_commit(_enviar)
+
+
 @receiver(post_save, sender='comercial.Pago')
 def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     """
@@ -100,35 +138,13 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     cliente = cotizacion.cliente
 
     # Importar aquí para evitar circular imports
-    from facturacion.choices import FormaPago, uso_cfdi_compatible
-    from facturacion.models import RFC_PUBLICO_GENERAL, SolicitudFactura
+    from facturacion.models import SolicitudFactura
 
     # ─── Idempotencia: no crear duplicados ──────────────────────
     if SolicitudFactura.objects.filter(pago=pago).exists():
         return
 
-    # ─── Determinar datos fiscales ──────────────────────────────
-    if cliente.rfc and cliente.razon_social:
-        rfc = cliente.rfc
-        razon_social = cliente.razon_social
-        codigo_postal = cliente.codigo_postal_fiscal or '97238'
-        # 616 ("Sin obligaciones fiscales") es exclusivo de persona física —
-        # dejarlo como fallback también para una persona moral produciría un
-        # CFDI inválido. 601 (General de Ley Personas Morales) es el régimen
-        # real más común para una empresa; el contador lo corrige si tributa
-        # distinto.
-        regimen_fiscal = cliente.regimen_fiscal or (
-            '601' if cliente.tipo_persona == 'MORAL' else '616'
-        )
-        # 616 (el default de Cliente) con G03 (también default) es una
-        # combinación que el PAC rechaza: se ajusta el uso al régimen.
-        uso_cfdi = uso_cfdi_compatible(regimen_fiscal, cliente.uso_cfdi)
-    else:
-        rfc = RFC_PUBLICO_GENERAL
-        razon_social = 'PUBLICO EN GENERAL'
-        codigo_postal = '97238'
-        regimen_fiscal = '616'
-        uso_cfdi = 'S01'
+    rfc, razon_social, codigo_postal, regimen_fiscal, uso_cfdi = _datos_fiscales(cliente)
 
     # ─── Calcular desglose fiscal proporcional ──────────────────
     monto_pago = Decimal(str(pago.monto))
@@ -187,16 +203,68 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     # queda confirmado en la base de datos (on_commit: si el guardado del Pago
     # se revierte, este envío nunca se dispara). Nunca lanza — un fallo aquí
     # no debe tumbar el guardado del Pago que lo originó.
-    def _enviar_automatico():
-        from .services import enviar_solicitud_al_contador
-        try:
-            enviar_solicitud_al_contador(solicitud)
-        except Exception:
-            logger.exception(
-                "Envío automático de la solicitud de factura #%s falló", solicitud.pk
-            )
+    _enviar_al_contador_al_confirmar(solicitud)
 
-    transaction.on_commit(_enviar_automatico)
+
+# Forma de pago del CFDI de una retención: la del dinero que se retiene, o sea
+# la de la recepción del depósito. Openpay sin detalle cae a transferencia,
+# igual que un Pago.
+FORMA_PAGO_DEPOSITO = {
+    'EFECTIVO': FormaPago.EFECTIVO,
+    'TRANSFERENCIA': FormaPago.TRANSFERENCIA,
+    'PLATAFORMA': FormaPago.TRANSFERENCIA,
+    'TARJETA': FormaPago.TARJETA_CREDITO,
+}
+
+
+@receiver(post_save, sender='comercial.MovimientoDeposito')
+def crear_solicitud_factura_desde_retencion(sender, instance, created, **kwargs):
+    """Lo que se retiene del depósito en garantía es ingreso y se factura.
+
+    Recibir o devolver el depósito no se factura (es un pasivo, dinero del
+    cliente). Al retener: **daños** van sin IVA (indemnización) y **servicio**
+    (tiempo extra, limpieza) con IVA, el mismo criterio de la póliza. La
+    evidencia y la valuación viajan en el `desglose` del movimiento.
+    """
+    if not created or instance.tipo not in ('RETENCION_DANOS', 'RETENCION_SERVICIO'):
+        return
+
+    from core_erp import impuestos
+    from facturacion.models import SolicitudFactura
+
+    deposito = instance.deposito
+    cotizacion = deposito.cotizacion
+    cliente = cotizacion.cliente
+    rfc, razon_social, codigo_postal, regimen_fiscal, uso_cfdi = _datos_fiscales(cliente)
+
+    monto = impuestos.centavos(instance.monto)
+    if instance.tipo == 'RETENCION_SERVICIO':
+        desglose = impuestos.desglosar(monto)
+        subtotal, iva = desglose['base'], desglose['iva']
+        concepto = 'Servicios adicionales cobrados del depósito en garantía'
+    else:
+        subtotal, iva = monto, Decimal('0.00')
+        concepto = 'Indemnización por daños, cobrada del depósito en garantía (no objeto de IVA)'
+
+    recepcion = deposito.movimientos.filter(tipo='RECEPCION').order_by('fecha', 'pk').first()
+    solicitud = SolicitudFactura.objects.create(
+        cliente=cliente,
+        cotizacion=cotizacion,
+        linea_negocio='QUINTA',
+        monto=monto,
+        subtotal=subtotal,
+        iva=iva,
+        concepto=f"COT-{cotizacion.pk:04d} {concepto}. {instance.desglose}".strip()[:2000],
+        rfc=rfc,
+        razon_social=razon_social,
+        codigo_postal=codigo_postal,
+        regimen_fiscal=regimen_fiscal,
+        uso_cfdi=uso_cfdi,
+        forma_pago=FORMA_PAGO_DEPOSITO.get(recepcion.metodo if recepcion else '', FormaPago.TRANSFERENCIA),
+        fecha_pago=instance.fecha,
+        created_by=instance.created_by,
+    )
+    _enviar_al_contador_al_confirmar(solicitud)
 
 
 @receiver(post_save, sender='facturacion.SolicitudFactura')
