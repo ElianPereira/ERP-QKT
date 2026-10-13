@@ -265,6 +265,34 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-13 — **Catálogo de categorías de gasto** (Issue #390, decisiones del
+  propietario y el contador). Hallazgo: `SERVICIOS_ADMON` («Servicios
+  administrativos y bancarios») caía en `GASTOS_GENERALES` = **601.02.05
+  Mantenimiento**, igual que Sin clasificar, Otros, Servicio externo, Limpieza y
+  todo lo que iba a `GASTO_EQUIPO`/`OFICINA`/`SERVICIOS`/`SEGUROS` (operaciones
+  sin cuenta: el mapeo caía en silencio al fallback, y además buscaba por
+  palabra parcial). Ahora `contabilidad/categorias_gasto.py` es la fuente única
+  (clave, etiqueta, grupo, operación; `comercial` toma de ahí las choices) y
+  `contabilidad.0038` le da a cada operación su cuenta, **sobrescribiendo** las
+  ya configuradas. Decisiones: comisiones bancarias y de cobro = **gasto
+  financiero 602.03** (también `GASTO_BANCARIOS` de las reglas y la terminal);
+  staff externo = **costo 501.03**; mobiliario = **activo 115.03**; Otros =
+  601.06; Sin clasificar = **601.99 «Gastos por clasificar»** (transitoria:
+  saldo ≠ 0 = compras pendientes; se prefirió a una póliza BORRADOR porque las
+  compras sin clasificar sí se emparejan con el banco). **No deducibles** (sin
+  CFDI): subcuenta del grupo (`NO_DEDUCIBLE_POR_GRUPO`: 501.90, 601.05.01-04,
+  602.90), nunca «Otros»; 601.05 pasa a cuenta de grupo y `GASTO_NO_DEDUCIBLE`
+  a 601.05.02. Activo y por clasificar no cambian sin CFDI. Marcar/desmarcar
+  `es_deducible` en el admin reapunta la póliza. `comercial.0115` reparte las
+  categorías retiradas: bancos/pasarelas (`cobra_de_la_cuenta`/
+  `descuenta_de_depositos`) → COMISIONES_BANCARIAS, el resto → Sin clasificar.
+  **Lo ya asentado no lo mueve la migración**: `manage.py reclasificar_compras
+  [--desde] [--aplicar]` (simula por defecto) reapunta la línea de gasto de cada
+  Compra y los asientos en 601.03.04 → 602.03 y 601.05 → 601.05.02; **pendiente
+  de correr en producción** con `--desde` del primer periodo abierto. Riesgo
+  conocido: un asiento provisional por palabra clave (MANT, INS…) sin CFDI que
+  nunca llega se queda en la cuenta deducible.
+
 - 2026-10-12 — **El RFC del negocio también tiene régimen 605 (Sueldos y
   salarios)** y la carga masiva de XML solo filtraba por RFC: las facturas
   personales entraban como compras. `analizar_xml_compra()` ahora exige

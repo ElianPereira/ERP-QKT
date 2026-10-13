@@ -10,6 +10,7 @@ from django.db.models import F, Sum
 from django.utils.timezone import now
 
 from comercial.choices import ModoDescuento, PosicionLanding
+from contabilidad.categorias_gasto import CATEGORIAS_GASTO
 from core_erp import impuestos
 from core_erp.storages_qkt import storage_privado
 from facturacion.choices import RegimenFiscal, UsoCFDI
@@ -32,23 +33,8 @@ class ConstanteSistema(models.Model):
 # ==========================================
 # 0.5 PROVEEDORES
 # ==========================================
-# Categorías de gasto de una Compra y de sus líneas (Gasto). La cuenta contable
-# que le corresponde a cada una vive en `contabilidad.signals.MAPEO_CATEGORIA_CUENTA`.
-CATEGORIAS_GASTO = [
-    ('SIN_CLASIFICAR', 'Sin Clasificar'),
-    ('INSUMOS', 'Insumos para eventos'),
-    ('SERVICIO_EXTERNO', 'Servicio Externo'),
-    ('BEBIDAS_SIN_ALCOHOL', 'Bebidas Sin Alcohol'),
-    ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol'),
-    ('LIMPIEZA', 'Limpieza Y Desechables'),
-    ('MOBILIARIO_EQ', 'Mobiliario Y Equipo'),
-    ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones'),
-    ('NOMINA_EXT', 'Servicios Staff Externo'),
-    ('IMPUESTOS', 'Pago De Impuestos'),
-    ('PUBLICIDAD', 'Publicidad Y Marketing'),
-    ('SERVICIOS_ADMON', 'Servicios Administrativos Y Bancarios'),
-    ('OTRO', 'Otros Gastos'),
-]
+# Categorías de gasto de una Compra y de sus líneas (Gasto): el catálogo, su
+# grupo y su cuenta viven en `contabilidad.categorias_gasto`.
 
 
 class Proveedor(models.Model):
