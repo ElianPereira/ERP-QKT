@@ -298,6 +298,18 @@ salvo que queden obsoletas.
   conocido: un asiento provisional por palabra clave (MANT, INS…) sin CFDI que
   nunca llega se queda en la cuenta deducible.
 
+- 2026-10-13 — **Crons pendientes, cerrados** (confirmado por el propietario):
+  ya están dados de alta y han corrido en Railway `sincronizar_comisiones_openpay`
+  (mensual), `purgar_conversaciones_whatsapp --aplicar` (diario),
+  `resumir_preguntas_agente --aplicar` (semanal) y `enviar_seguimientos`, con
+  `WA_TEMPLATE_SEGUIMIENTO` ya aprobada por Meta. Los «pendiente de alta» de las
+  entradas de abajo quedan obsoletos. Siguen abiertos: el registro PROFECO del
+  contrato de Evento/Pasadía y el trato contable de las retenciones del depósito
+  en garantía. Del retiro de las facturas del régimen 605: el propietario las
+  borró desde el admin y se verificó que no quedó ninguna póliza aplicada de una
+  compra inexistente (borrar una Compra **no** cancela su póliza; para eso está
+  `excluir_compras_sueldos --ids`).
+
 - 2026-10-12 — **El RFC del negocio también tiene régimen 605 (Sueldos y
   salarios)** y la carga masiva de XML solo filtraba por RFC: las facturas
   personales entraban como compras. `analizar_xml_compra()` ahora exige
