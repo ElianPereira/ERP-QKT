@@ -1182,3 +1182,23 @@ class ExcluirComprasSueldosTest(TestCase):
         self.assertEqual(resico.estado, 'APLICADA')
         self.assertFalse(Compra.objects.filter(pk=compra_sueldos.pk).exists())
         self.assertTrue(Compra.objects.filter(pk=compra_resico.pk).exists())
+
+    def test_ids_excluye_compras_cuyo_xml_no_se_puede_leer(self):
+        from io import StringIO
+
+        from django.core.management import CommandError, call_command
+
+        compra, poliza = self._compra_con_poliza('626', 'U-PERDIDO')
+        compra.archivo_xml.storage.delete(compra.archivo_xml.name)
+
+        out = StringIO()
+        call_command('excluir_compras_sueldos', stdout=out)
+        self.assertIn('XML ilegible', out.getvalue())
+
+        call_command('excluir_compras_sueldos', '--ids', str(compra.pk), '--aplicar', stdout=StringIO())
+        poliza.refresh_from_db()
+        self.assertEqual(poliza.estado, 'CANCELADA')
+        self.assertFalse(Compra.objects.filter(pk=compra.pk).exists())
+
+        with self.assertRaises(CommandError):
+            call_command('excluir_compras_sueldos', '--ids', '999999', stdout=StringIO())
