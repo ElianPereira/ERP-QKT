@@ -356,15 +356,30 @@ def _procesar_emitido(solicitud, registro, datos, xml):
         solicitud.omitidos += 1
 
 
+def _adjuntar_pdf(solicitud_factura, xml):
+    """PDF de la factura armado desde el XML, salvo que el contador ya subiera uno.
+    Un fallo al generarlo no impide ligar el XML: queda sin PDF y se puede subir a mano."""
+    if solicitud_factura.archivo_pdf or solicitud_factura.archivo_zip:
+        return
+    from facturacion.services_cfdi_pdf import CfdiInvalidoError, generar_pdf_cfdi
+    try:
+        pdf, nombre = generar_pdf_cfdi(xml)
+    except (CfdiInvalidoError, OSError, ValueError):
+        logger.exception("No se pudo generar el PDF de SOL-%s", solicitud_factura.pk)
+        return
+    solicitud_factura.archivo_pdf.save(nombre, ContentFile(pdf), save=False)
+
+
 def vincular(registro, solicitud_factura, xml=None):
-    """Adjunta el XML timbrado a la solicitud y la marca FACTURADA. El PDF no
-    viaja en la descarga del SAT: el aviso al cliente sale cuando se suba."""
+    """Adjunta el XML timbrado a la solicitud, genera el PDF desde él y la marca
+    FACTURADA; con XML + PDF la solicitud ya cuenta como facturada y sale el aviso al cliente."""
     if xml is None:
         registro.archivo_xml.open('rb')
         xml = registro.archivo_xml.read()
     datos = leer_cfdi(xml)
     sf = solicitud_factura
     sf.archivo_xml.save(f"{datos['uuid']}.xml", ContentFile(xml), save=False)
+    _adjuntar_pdf(sf, xml)
     sf.uuid_factura, sf.fecha_factura, sf.estado = datos['uuid'], datos['fecha'], 'FACTURADA'
     sf.save()
     registro.solicitud_factura, registro.resultado = sf, 'VINCULADO'

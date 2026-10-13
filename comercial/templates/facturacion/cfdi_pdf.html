@@ -1,0 +1,75 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+{# Representación impresa de un CFDI emitido; todo sale del XML timbrado. #}
+
+{% block variante %}cliente{% endblock %}
+{% block subtitulo %}CFDI {{ cfdi.version }} · {{ cfdi.tipo }}{% if cfdi.serie_folio %} · {{ cfdi.serie_folio }}{% endif %}{% endblock %}
+{% block filtros %}
+<span><b>Folio fiscal:</b> {{ cfdi.uuid }}</span>
+<span><b>Fecha de emisión:</b> {{ cfdi.fecha }}</span>
+{% endblock %}
+{% block generado %}{% endblock %}
+
+{% block contenido %}
+<div class="doc-columnas">
+  <dl class="doc-datos">
+    <div><dt>Emisor</dt><dd>{{ cfdi.emisor.nombre }}</dd></div>
+    <div><dt>RFC</dt><dd>{{ cfdi.emisor.rfc }}</dd></div>
+    <div><dt>Régimen fiscal</dt><dd>{{ cfdi.emisor.regimen }}</dd></div>
+    <div><dt>Lugar de expedición</dt><dd>{{ cfdi.lugar_expedicion }}</dd></div>
+  </dl>
+  <dl class="doc-datos">
+    <div><dt>Receptor</dt><dd>{{ cfdi.receptor.nombre }}</dd></div>
+    <div><dt>RFC</dt><dd>{{ cfdi.receptor.rfc }}</dd></div>
+    <div><dt>Régimen fiscal</dt><dd>{{ cfdi.receptor.regimen }}</dd></div>
+    <div><dt>C.P. fiscal</dt><dd>{{ cfdi.receptor.cp }}</dd></div>
+    <div><dt>Uso del CFDI</dt><dd>{{ cfdi.receptor.uso }}</dd></div>
+  </dl>
+</div>
+
+<dl class="doc-datos">
+  <div><dt>Forma de pago</dt><dd>{{ cfdi.forma_pago }}</dd></div>
+  <div><dt>Método de pago</dt><dd>{{ cfdi.metodo_pago }}</dd></div>
+  <div><dt>Moneda</dt><dd>{{ cfdi.moneda }}</dd></div>
+  {% if cfdi.condiciones %}<div><dt>Condiciones de pago</dt><dd>{{ cfdi.condiciones }}</dd></div>{% endif %}
+</dl>
+
+<table class="doc-tabla">
+  <thead><tr><th>Clave</th><th>Cant.</th><th>Unidad</th><th>Descripción</th><th class="num">Valor unitario</th><th class="num">Importe</th></tr></thead>
+  <tbody>
+  {% for c in cfdi.conceptos %}
+    <tr><td class="codigo">{{ c.clave }}</td><td>{{ c.cantidad }}</td><td>{{ c.unidad }}</td><td>{{ c.descripcion }}</td>
+        <td class="num">{{ c.valor_unitario|moneda }}</td><td class="num">{{ c.importe|moneda }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="doc-totales">
+  <table>
+    <tr><td>Subtotal</td><td class="num">{{ cfdi.subtotal|moneda }}</td></tr>
+    {% if cfdi.descuento %}<tr class="resta"><td>Descuento</td><td class="num">-{{ cfdi.descuento|moneda }}</td></tr>{% endif %}
+    {% for i in cfdi.impuestos %}
+    <tr{% if i.retencion %} class="resta"{% endif %}><td>{{ i.tipo }} {{ i.nombre }}{% if i.tasa %} {{ i.tasa }}{% endif %}</td><td class="num">{% if i.retencion %}-{% endif %}{{ i.importe|moneda }}</td></tr>
+    {% endfor %}
+    <tr class="gran-total"><td>Total</td><td class="num">{{ cfdi.total|moneda }}</td></tr>
+  </table>
+</div>
+
+<div class="doc-sello-bloque">
+  <img class="doc-qr" src="{{ cfdi.qr }}" alt="Código QR de verificación del SAT">
+  <dl class="doc-datos">
+    <div><dt>Folio fiscal (UUID)</dt><dd>{{ cfdi.uuid }}</dd></div>
+    <div><dt>No. de certificado del emisor</dt><dd>{{ cfdi.no_certificado }}</dd></div>
+    <div><dt>No. de certificado del SAT</dt><dd>{{ cfdi.no_certificado_sat }}</dd></div>
+    <div><dt>Fecha y hora de certificación</dt><dd>{{ cfdi.fecha_timbrado }}</dd></div>
+  </dl>
+</div>
+<p class="doc-sello-titulo">Sello digital del CFDI</p>
+<p class="doc-sello">{{ cfdi.sello_cfd }}</p>
+<p class="doc-sello-titulo">Sello digital del SAT</p>
+<p class="doc-sello">{{ cfdi.sello_sat }}</p>
+<p class="doc-sello-titulo">Cadena original del complemento de certificación digital del SAT</p>
+<p class="doc-sello">{{ cfdi.cadena_original }}</p>
+{% endblock %}
+
+{% block notas %}Este documento es una representación impresa de un CFDI.{% endblock %}

@@ -279,8 +279,19 @@ class EmitidasTest(TestCase):
         self.assertEqual(sf.uuid_factura, uuid)
         self.assertEqual(sf.estado, 'FACTURADA')
         self.assertTrue(sf.archivo_xml)
+        self.assertTrue(sf.archivo_pdf)
+        self.assertTrue(sf.tiene_factura)
         self.assertEqual(sf.fecha_factura, date(2026, 10, 5))
         self.assertEqual(CfdiSAT.objects.get().resultado, 'VINCULADO')
+
+    def test_no_pisa_un_pdf_que_el_contador_ya_subio(self):
+        from django.core.files.base import ContentFile
+        sf = self._solicitud_factura()
+        sf.archivo_pdf.save('mio.pdf', ContentFile(b'%PDF-mio'), save=True)
+        nombre = sf.archivo_pdf.name
+        self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000008', RFC, 'XEXX010101000'))
+        sf.refresh_from_db()
+        self.assertEqual(sf.archivo_pdf.name, nombre)
 
     def test_con_dos_candidatas_no_adivina(self):
         self._solicitud_factura()

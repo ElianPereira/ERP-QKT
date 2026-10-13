@@ -24,6 +24,7 @@ PLANTILLAS_MIGRADAS = sorted(
         _BASE / 'comercial' / 'templates' / 'cotizaciones' / 'pdf_recibo.html',
         _BASE / 'comercial' / 'templates' / 'cotizaciones' / 'pdf_plan_pagos.html',
         _BASE / 'comercial' / 'templates' / 'facturacion' / 'solicitud_pdf.html',
+        _BASE / 'comercial' / 'templates' / 'facturacion' / 'cfdi_pdf.html',
         # Fase 3: documentos operativos.
         _BASE / 'comercial' / 'templates' / 'nomina' / 'recibo_nomina.html',
         _BASE / 'comercial' / 'templates' / 'pdf_lista_compras.html',

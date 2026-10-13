@@ -277,9 +277,10 @@ salvo que queden obsoletas.
   **Emitidas** → se ligan a la `SolicitudFactura` única con mismo RFC receptor, monto
   (±$0.01) y fecha (solicitud hasta 45 días antes de la factura); con 0 o varias
   candidatas queda «Emitido sin solicitud» y el contador la asigna desde el admin
-  (campo Solicitud de factura) o con la acción de reintento. Se adjunta solo el XML y la
-  solicitud pasa a FACTURADA; el PDF no viaja en la descarga, el correo al cliente sale
-  cuando alguien lo sube. Solo se piden CFDI **vigentes**: una cancelación posterior no se
+  (campo Solicitud de factura) o con la acción de reintento. Se adjunta el XML y el
+  **PDF se genera solo desde él** (`facturacion/services_cfdi_pdf.py`, plantilla
+  `facturacion/cfdi_pdf.html`: sellos, cadena original, QR del SAT; no pisa un PDF ya
+  subido), así la solicitud queda FACTURADA con XML+PDF y sale el correo al cliente. Solo se piden CFDI **vigentes**: una cancelación posterior no se
   refleja sola. **Sin probar contra el SAT real** (el contenedor no tiene e.firma ni
   salida a sus servidores): las firmas se verifican en tests con un certificado generado;
   la primera sincronización real es la prueba de fondo. **Pendiente en Railway**: definir
