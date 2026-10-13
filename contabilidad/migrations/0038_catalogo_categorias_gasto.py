@@ -4,7 +4,8 @@
 # reparaciones» (GASTOS_GENERALES) por no tener cuenta configurada.
 #
 # - Comisiones bancarias y de cobro → 602.03 (gasto financiero, nueva).
-# - Staff externo de eventos → 501.03 (costo del evento).
+# - Staff externo de eventos → 501.03; renta y servicios subcontratados para
+#   eventos → 501.05 / 501.06 (costo del evento, nuevas).
 # - Mobiliario y equipo → 115.03 (activo fijo).
 # - Sin clasificar → 601.99 «Gastos por clasificar» (nueva, cuenta transitoria:
 #   saldo ≠ 0 = compras pendientes de clasificar).
@@ -23,6 +24,8 @@ CUENTAS = [
     ('602.90', 'Gastos financieros no deducibles', 'GASTO', 'D', '602', True),
     ('601.06', 'Otros gastos', 'GASTO', 'D', '601', True),
     ('601.99', 'Gastos por clasificar', 'GASTO', 'D', '601', True),
+    ('501.05', 'Renta de mobiliario y equipo para eventos', 'COSTO', 'D', '501', True),
+    ('501.06', 'Servicios subcontratados para eventos', 'COSTO', 'D', '501', True),
     ('501.90', 'Costos no deducibles', 'COSTO', 'D', '501', True),
     ('601.05.01', 'No deducibles - Gastos de operación', 'GASTO', 'D', '601.05', True),
     ('601.05.02', 'No deducibles - Gastos de administración', 'GASTO', 'D', '601.05', True),
@@ -37,6 +40,8 @@ CONFIGURACION = [
     ('GASTOS_BEBIDAS', '501.02'),
     ('GASTO_INSUMOS', '501.04'),
     ('GASTOS_NOMINA_EXT', '501.03'),
+    ('COSTO_RENTA_EVENTOS', '501.05'),
+    ('COSTO_SERVICIOS_EVENTOS', '501.06'),
     ('GASTO_LUZ', '601.02.01'),
     ('GASTO_AGUA', '601.02.02'),
     ('GASTO_GAS', '601.02.03'),
@@ -84,6 +89,7 @@ def aplicar(apps, schema_editor):
         )
     # 601.05 se vuelve cuenta de grupo; lo que ya tenga asentado lo pasa a
     # 601.05.02 `reclasificar_compras`.
+    CuentaContable.objects.filter(codigo_sat='601.02.08').update(nombre='Vigilancia y sistemas de seguridad')
     CuentaContable.objects.filter(codigo_sat='601.05').update(
         nombre='Gastos no deducibles', permite_movimientos=False)
 
@@ -150,13 +156,21 @@ class Migration(migrations.Migration):
                     ("COSTO_ALIMENTOS", "Costo - Alimentos"),
                     ("GASTOS_BEBIDAS", "Costo - Bebidas"),
                     ("GASTOS_NOMINA_EXT", "Costo - Staff externo de eventos"),
+                    (
+                        "COSTO_RENTA_EVENTOS",
+                        "Costo - Renta de mobiliario y equipo para eventos",
+                    ),
+                    (
+                        "COSTO_SERVICIOS_EVENTOS",
+                        "Costo - Servicios subcontratados para eventos",
+                    ),
                     ("GASTO_LUZ", "Gastos - Energía eléctrica"),
                     ("GASTO_AGUA", "Gastos - Agua"),
                     ("GASTO_GAS", "Gastos - Gas"),
                     ("GASTO_TELEFONO", "Gastos - Teléfono e internet"),
                     ("GASTO_JARDINERIA", "Gastos - Jardinería"),
                     ("GASTO_LIMPIEZA", "Gastos - Limpieza"),
-                    ("GASTO_SEGURIDAD", "Gastos - Seguridad"),
+                    ("GASTO_SEGURIDAD", "Gastos - Vigilancia y sistemas de seguridad"),
                     ("GASTO_HONORARIOS", "Gastos - Honorarios profesionales"),
                     ("GASTO_CONTABLES", "Gastos - Servicios contables"),
                     ("GASTO_SOFTWARE", "Gastos - Software y suscripciones"),
@@ -242,13 +256,21 @@ class Migration(migrations.Migration):
                     ("COSTO_ALIMENTOS", "Costo - Alimentos"),
                     ("GASTOS_BEBIDAS", "Costo - Bebidas"),
                     ("GASTOS_NOMINA_EXT", "Costo - Staff externo de eventos"),
+                    (
+                        "COSTO_RENTA_EVENTOS",
+                        "Costo - Renta de mobiliario y equipo para eventos",
+                    ),
+                    (
+                        "COSTO_SERVICIOS_EVENTOS",
+                        "Costo - Servicios subcontratados para eventos",
+                    ),
                     ("GASTO_LUZ", "Gastos - Energía eléctrica"),
                     ("GASTO_AGUA", "Gastos - Agua"),
                     ("GASTO_GAS", "Gastos - Gas"),
                     ("GASTO_TELEFONO", "Gastos - Teléfono e internet"),
                     ("GASTO_JARDINERIA", "Gastos - Jardinería"),
                     ("GASTO_LIMPIEZA", "Gastos - Limpieza"),
-                    ("GASTO_SEGURIDAD", "Gastos - Seguridad"),
+                    ("GASTO_SEGURIDAD", "Gastos - Vigilancia y sistemas de seguridad"),
                     ("GASTO_HONORARIOS", "Gastos - Honorarios profesionales"),
                     ("GASTO_CONTABLES", "Gastos - Servicios contables"),
                     ("GASTO_SOFTWARE", "Gastos - Software y suscripciones"),

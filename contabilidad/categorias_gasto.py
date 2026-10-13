@@ -6,7 +6,9 @@ en otra cuenta "por parecido".
 
 Decisiones del propietario y el contador (2026-10-12):
 - Comisiones bancarias y de cobro: gasto financiero (602.03), no administración.
-- Staff externo de eventos: costo del evento (501.03).
+- Staff externo de eventos: costo del evento (501.03). Lo que se renta o
+  subcontrata para revenderse en un evento, también costo (501.05/501.06).
+- Combustible de la planta de luz: energía eléctrica; el de vehículos: vehículos.
 - Mobiliario y equipo: activo fijo (115.03), no gasto.
 - No deducibles (compra sin CFDI): subcuenta no deducible del grupo
   (`NO_DEDUCIBLE_POR_GRUPO`), no una sola bolsa ni «Otros».
@@ -32,23 +34,25 @@ CATALOGO = [
     ('BEBIDAS_CON_ALCOHOL', 'Bebidas Con Alcohol', COSTO, 'GASTOS_BEBIDAS'),
     ('INSUMOS', 'Insumos para eventos', COSTO, 'GASTO_INSUMOS'),
     ('NOMINA_EXT', 'Staff externo de eventos', COSTO, 'GASTOS_NOMINA_EXT'),
+    ('RENTA_EVENTOS', 'Renta de mobiliario y equipo para eventos', COSTO, 'COSTO_RENTA_EVENTOS'),
+    ('SERVICIOS_EVENTOS', 'Servicios subcontratados para eventos', COSTO, 'COSTO_SERVICIOS_EVENTOS'),
     # Gastos de operación
-    ('LUZ', 'Energía eléctrica', OPERACION, 'GASTO_LUZ'),
+    ('LUZ', 'Energía eléctrica (incluye combustible de la planta)', OPERACION, 'GASTO_LUZ'),
     ('AGUA', 'Agua', OPERACION, 'GASTO_AGUA'),
     ('GAS', 'Gas', OPERACION, 'GASTO_GAS'),
     ('TELEFONO_INTERNET', 'Teléfono e internet', OPERACION, 'GASTO_TELEFONO'),
     ('MANTENIMIENTO', 'Mantenimiento Y Reparaciones', OPERACION, 'GASTO_MANTENIMIENTO'),
     ('JARDINERIA', 'Jardinería', OPERACION, 'GASTO_JARDINERIA'),
     ('LIMPIEZA', 'Limpieza Y Desechables', OPERACION, 'GASTO_LIMPIEZA'),
-    ('SEGURIDAD', 'Seguridad', OPERACION, 'GASTO_SEGURIDAD'),
+    ('SEGURIDAD', 'Vigilancia y sistemas de seguridad', OPERACION, 'GASTO_SEGURIDAD'),
     ('SEGUROS', 'Seguros y fianzas', OPERACION, 'GASTO_SEGUROS'),
-    ('VEHICULOS', 'Vehículos y combustible', OPERACION, 'GASTO_VEHICULOS'),
+    ('VEHICULOS', 'Vehículos (combustible, mantenimiento y refacciones)', OPERACION, 'GASTO_VEHICULOS'),
     # Gastos de administración
     ('PAPELERIA', 'Papelería y oficina', ADMINISTRACION, 'GASTO_OFICINA'),
     ('HONORARIOS', 'Honorarios profesionales', ADMINISTRACION, 'GASTO_HONORARIOS'),
     ('CONTABILIDAD', 'Servicios contables', ADMINISTRACION, 'GASTO_CONTABLES'),
     ('SOFTWARE', 'Software y suscripciones', ADMINISTRACION, 'GASTO_SOFTWARE'),
-    ('IMPUESTOS', 'Impuestos y derechos', ADMINISTRACION, 'GASTO_IMPUESTOS'),
+    ('IMPUESTOS', 'Impuestos locales y derechos (predial, licencias)', ADMINISTRACION, 'GASTO_IMPUESTOS'),
     # Gastos de venta
     ('PUBLICIDAD', 'Publicidad Y Marketing', VENTA, 'GASTO_PUBLICIDAD'),
     ('FOTOGRAFIA', 'Fotografía y video', VENTA, 'GASTO_FOTOGRAFIA'),

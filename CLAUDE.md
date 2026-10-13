@@ -276,7 +276,10 @@ salvo que queden obsoletas.
   `contabilidad.0038` le da a cada operación su cuenta, **sobrescribiendo** las
   ya configuradas. Decisiones: comisiones bancarias y de cobro = **gasto
   financiero 602.03** (también `GASTO_BANCARIOS` de las reglas y la terminal);
-  staff externo = **costo 501.03**; mobiliario = **activo 115.03**; Otros =
+  staff externo = **costo 501.03**; lo que se renta o subcontrata para
+  revender en un evento = costo 501.05 (renta de mobiliario y equipo) y 501.06
+  (servicios subcontratados); combustible de la planta = energía eléctrica, el
+  de vehículos = vehículos; mobiliario = **activo 115.03**; Otros =
   601.06; Sin clasificar = **601.99 «Gastos por clasificar»** (transitoria:
   saldo ≠ 0 = compras pendientes; se prefirió a una póliza BORRADOR porque las
   compras sin clasificar sí se emparejan con el banco). **No deducibles** (sin
