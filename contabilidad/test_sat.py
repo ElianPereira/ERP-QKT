@@ -154,6 +154,17 @@ class CredencialTest(TestCase):
         with override_settings(SAT_FIEL_ENCRYPTION_KEY=''), self.assertRaises(sat.ConfiguracionSATError):
             sat.guardar_credencial(cer, key, CLAVE)
 
+    def test_la_llave_tolera_comillas_espacios_y_prefijo_de_bytes(self):
+        cer, key = fiel_de_prueba()
+        for sucia in (f"  {LLAVE}\n", f'"{LLAVE}"', f"'{LLAVE}'", f"b'{LLAVE}'"):
+            with self.subTest(sucia=sucia), override_settings(SAT_FIEL_ENCRYPTION_KEY=sucia):
+                self.assertEqual(sat.guardar_credencial(cer, key, CLAVE).rfc, RFC)
+
+    def test_llave_invalida_dice_como_arreglarla(self):
+        with override_settings(SAT_FIEL_ENCRYPTION_KEY='demasiado-corta'), \
+                self.assertRaisesMessage(sat.ConfiguracionSATError, '44'):
+            sat._fernet()
+
     def test_rechaza_efirma_vencida(self):
         cer, key = fiel_de_prueba(dias=-0)
         with self.assertRaises(ws.FielError):

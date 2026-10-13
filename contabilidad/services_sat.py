@@ -52,16 +52,29 @@ class ConfiguracionSATError(Exception):
 
 # ─── Credencial (e.firma cifrada) ────────────────────────────
 
+def _limpiar_llave(llave):
+    """Quita lo que se cuela al copiar la llave: espacios, saltos de línea, comillas
+    y el prefijo b'...' con que Python imprime los bytes."""
+    llave = (llave.decode() if isinstance(llave, bytes) else llave).strip()
+    if llave[:2] in ("b'", 'b"'):
+        llave = llave[1:]
+    return llave.strip('\'"').strip()
+
+
 def _fernet():
     llave = getattr(settings, 'SAT_FIEL_ENCRYPTION_KEY', '')
     if not llave:
         raise ConfiguracionSATError(
             "Falta SAT_FIEL_ENCRYPTION_KEY en las variables de entorno. Genérala con "
             "`python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`.")
+    llave = _limpiar_llave(llave)
     try:
-        return Fernet(llave.encode() if isinstance(llave, str) else llave)
+        return Fernet(llave.encode())
     except ValueError as e:
-        raise ConfiguracionSATError("SAT_FIEL_ENCRYPTION_KEY no es una llave Fernet válida.") from e
+        raise ConfiguracionSATError(
+            f"SAT_FIEL_ENCRYPTION_KEY no es una llave Fernet válida (tiene {len(llave)} caracteres; debe tener "
+            "44, terminar en «=» y usar solo letras, números, «-» y «_»). Genérala con "
+            "`openssl rand -base64 32 | tr '+/' '-_'` y pégala sin comillas ni espacios.") from e
 
 
 def guardar_credencial(cer, key, password, usuario=None):
