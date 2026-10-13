@@ -1191,10 +1191,6 @@ class CredencialSAT(models.Model):
     password_cifrada = models.BinaryField(editable=False, verbose_name="Contraseña cifrada")
     vigente_hasta = models.DateField(verbose_name="Vigente hasta")
     activa = models.BooleanField(default=True, verbose_name="Activa")
-    ultima_fecha_cubierta = models.DateField(
-        null=True, blank=True, verbose_name="Cubierta hasta",
-        help_text="Último día que ya se pidió al SAT; la siguiente sincronización parte de ahí.",
-    )
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='credenciales_sat', verbose_name="Cargada por")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creada")
@@ -1246,6 +1242,9 @@ class SolicitudDescargaSAT(models.Model):
     codigo_sat = models.CharField(max_length=10, blank=True, verbose_name="Código SAT")
     mensaje = models.TextField(blank=True, verbose_name="Mensaje")
     intentos = models.PositiveIntegerField(default=0, verbose_name="Intentos")
+    terminada_en = models.DateTimeField(
+        null=True, blank=True, verbose_name="Lista desde",
+        help_text="Cuándo el SAT dejó listos los paquetes; vencen a las 72 horas.")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='descargas_sat', verbose_name="Creada por")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creada")
@@ -1272,6 +1271,7 @@ class CfdiSAT(models.Model):
         ('VINCULADO', 'Ligado a solicitud de factura'),
         ('SIN_VINCULAR', 'Emitido sin solicitud'),
         ('OMITIDO', 'Omitido'),
+        ('ERROR', 'Con error (se reintenta)'),
     ]
 
     uuid = models.CharField(max_length=36, unique=True, verbose_name="Folio fiscal")

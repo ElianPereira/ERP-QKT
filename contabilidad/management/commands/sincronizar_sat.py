@@ -31,9 +31,11 @@ class Command(BaseCommand):
                 continue
             if o['solo_avanzar']:
                 continue
-            creadas = (sat.crear_solicitudes(cred, o['desde'], o['hasta']) if o['desde']
-                       else sat.planear_sincronizacion(cred))
+            if o['desde']:
+                creadas = sat.crear_solicitudes(cred, o['desde'], o['hasta'])
+            else:
+                creadas = sat.planear_sincronizacion(cred)
             self.stdout.write(f"{cred.rfc}: {len(creadas)} solicitud(es) nueva(s).")
         pasos = sat.procesar_pendientes()
-        ligados = sat.reintentar_vinculos()
-        self.stdout.write(f"{pasos} solicitud(es) avanzada(s); {ligados} emitido(s) ligado(s) tras reintento.")
+        resueltos = sat.reintentar_comprobantes()
+        self.stdout.write(f"{pasos} solicitud(es) avanzada(s); {resueltos} comprobante(s) resuelto(s) tras reintento.")

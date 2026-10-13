@@ -37,6 +37,11 @@ MAX_BYTES_ZIP_DESCOMPRIMIDO = 1024 * 1024 * 1024
 SOLAPE_DIAS = 3  # una sincronización repite los últimos días por si el SAT publicó tarde
 TOLERANCIA_MONTO = Decimal('0.01')
 VENTANA_SOLICITUD_DIAS = 45
+VIDA_PAQUETE = timedelta(hours=70)       # el SAT los borra a las 72 h
+VIDA_SOLICITUD = timedelta(hours=72)     # más que esto sin terminar: se da por perdida
+ESPERA_TRAS_ERROR = timedelta(hours=6)   # no repetir el mismo tramo fallido antes de esto
+MAX_REINTENTOS_TRAMO = 8                 # tras tantos errores idénticos se deja de insistir
+INTENTOS_PARA_AVISAR = 24                # ~1 día de fallos transitorios seguidos
 
 
 class ConfiguracionSATError(Exception):
@@ -120,38 +125,103 @@ def crear_solicitudes(credencial, desde, hasta, usuario=None):
     return creadas
 
 
+def _dias(desde, hasta):
+    d = desde
+    while d <= hasta:
+        yield d
+        d += timedelta(days=1)
+
+
+def _huecos(credencial, tipo, desde, hasta):
+    """Rangos de [desde, hasta] que ninguna solicitud vigente cubre.
+
+    Una solicitud con error no cubre nada, así que lo que el SAT rechazó o dejó
+    vencer reaparece como hueco y se vuelve a pedir. Las vigentes cubren hasta
+    SOLAPE_DIAS antes de su fin: los últimos días se piden otra vez porque el SAT
+    publica con retraso."""
+    cubiertos = set()
+    for s in SolicitudDescargaSAT.objects.filter(credencial=credencial, tipo=tipo).exclude(estado='ERROR'):
+        cubiertos.update(_dias(s.desde, s.hasta - timedelta(days=SOLAPE_DIAS)))
+    rangos, inicio = [], None
+    for d in _dias(desde, hasta):
+        if d not in cubiertos and inicio is None:
+            inicio = d
+        elif d in cubiertos and inicio is not None:
+            rangos.append((inicio, d - timedelta(days=1)))
+            inicio = None
+    if inicio is not None:
+        rangos.append((inicio, hasta))
+    return rangos
+
+
+def _en_espera(credencial, tipo, desde, hasta, ahora):
+    """¿Ese mismo tramo falló hace poco o ya agotó sus reintentos? Evita
+    martillar al SAT cuando está caído o rechaza siempre la misma petición."""
+    fallidas = SolicitudDescargaSAT.objects.filter(
+        credencial=credencial, tipo=tipo, desde=desde, hasta=hasta, estado='ERROR')
+    if fallidas.count() >= MAX_REINTENTOS_TRAMO:
+        return True
+    return fallidas.filter(updated_at__gte=ahora - ESPERA_TRAS_ERROR).exists()
+
+
 def planear_sincronizacion(credencial, hoy=None, dias_iniciales=35):
-    """Crea las solicitudes del tramo aún no cubierto (hasta ayer, con solape)."""
+    """Pide al SAT todo lo que falte entre el alta de la e.firma (menos
+    `dias_iniciales`) y ayer. Se autorrepara: si una solicitud falla de forma
+    definitiva, su tramo vuelve a ser hueco y se pide de nuevo."""
     hoy = hoy or timezone.localdate()
     ayer = hoy - timedelta(days=1)
-    if credencial.ultima_fecha_cubierta and credencial.ultima_fecha_cubierta >= ayer:
-        return []
-    if credencial.ultima_fecha_cubierta:
-        desde = credencial.ultima_fecha_cubierta - timedelta(days=SOLAPE_DIAS)
-    else:
-        desde = hoy - timedelta(days=dias_iniciales)
-    if desde > ayer:
-        return []
-    creadas = crear_solicitudes(credencial, desde, ayer)
-    if creadas:
-        credencial.ultima_fecha_cubierta = ayer
-        credencial.save(update_fields=['ultima_fecha_cubierta', 'updated_at'])
+    inicio = timezone.localtime(credencial.created_at).date() - timedelta(days=dias_iniciales)
+    ahora = timezone.now()
+    hoy_00 = timezone.make_aware(datetime.combine(hoy, time.min))
+    creadas = []
+    for tipo in ('EMITIDAS', 'RECIBIDAS'):
+        for desde, hasta in _huecos(credencial, tipo, inicio, ayer):
+            # El solape (últimos días) se repite una vez por día, no en cada corrida.
+            ya_hoy = SolicitudDescargaSAT.objects.filter(
+                credencial=credencial, tipo=tipo, created_at__gte=hoy_00, desde__lte=desde, hasta__gte=hasta,
+            ).exclude(estado='ERROR').exists()
+            if not ya_hoy and not _en_espera(credencial, tipo, desde, hasta, ahora):
+                creadas.append(SolicitudDescargaSAT.objects.create(
+                    credencial=credencial, tipo=tipo, desde=desde, hasta=hasta))
     return creadas
 
 
 def _error(solicitud, mensaje, codigo=''):
+    """Fallo definitivo de ESTA solicitud (no de la información: su tramo se vuelve
+    a pedir en la siguiente planeación). Avisa al equipo."""
     solicitud.estado = 'ERROR'
     solicitud.mensaje = mensaje[:2000]
     solicitud.codigo_sat = codigo
     solicitud.save()
+    _alertar(solicitud, f"Solicitud con error definitivo: {mensaje}", 'error')
+
+
+def _alertar(solicitud, motivo, clave):
+    """Correo al equipo, una sola vez por solicitud y motivo. Nunca rompe el proceso."""
+    from comunicacion.services import alertar_equipo_email
+    try:
+        alertar_equipo_email(
+            None, asunto=f"Descarga del SAT: {solicitud}",
+            cuerpo=f"{solicitud.get_tipo_display()} {solicitud.desde:%d/%m/%Y} – {solicitud.hasta:%d/%m/%Y} "
+                   f"({solicitud.credencial.rfc})\n{motivo}\nCódigo SAT: {solicitud.codigo_sat or '—'}\n"
+                   "El ERP la reintentará solo; revisa Contabilidad → Descargas si persiste.",
+            clave_idempotencia=f"sat:{solicitud.pk}:{clave}")
+    except Exception:
+        logger.exception("No se pudo avisar de la descarga SAT #%s", solicitud.pk)
 
 
 def avanzar(solicitud, cliente=None):
-    """Da un paso de la máquina de estados. Devuelve el estado resultante."""
+    """Da un paso de la máquina de estados. Devuelve el estado resultante.
+
+    Un fallo de comunicación o del SAT (intermitente) conserva el estado y se
+    reintenta en la siguiente corrida; solo es definitivo lo que el SAT rechaza o
+    deja vencer, y de eso se encarga la planeación (vuelve a pedir el tramo)."""
     if solicitud.terminada:
         return solicitud.estado
     solicitud.intentos += 1
     try:
+        if _caducada(solicitud):
+            return solicitud.estado
         if cliente is None:
             cliente = ws.ClienteSAT(fiel_de(solicitud.credencial))
         if solicitud.estado == 'PENDIENTE':
@@ -161,11 +231,25 @@ def avanzar(solicitud, cliente=None):
         if solicitud.estado == 'TERMINADA':
             _descargar(solicitud, cliente)
     except (ws.SatError, ws.FielError, ConfiguracionSATError) as e:
-        # Fallo transitorio o de configuración: se conserva el estado y se reintenta.
         solicitud.mensaje = str(e)[:2000]
         logger.warning("Descarga SAT #%s: %s", solicitud.pk, e)
         solicitud.save()
+        if solicitud.intentos == INTENTOS_PARA_AVISAR:
+            _alertar(solicitud, f"Lleva {solicitud.intentos} intentos sin avanzar: {e}", 'atascada')
     return solicitud.estado
+
+
+def _caducada(solicitud):
+    """El SAT no entrega lo que tarda demasiado, y los paquetes se borran a las
+    72 horas: se da por perdida para que su tramo se pida de nuevo."""
+    ahora = timezone.now()
+    if solicitud.estado == 'TERMINADA' and solicitud.terminada_en and ahora - solicitud.terminada_en > VIDA_PAQUETE:
+        _error(solicitud, "Los paquetes vencieron en el SAT antes de poder descargarlos.")
+        return True
+    if solicitud.estado in ('PENDIENTE', 'ENVIADA', 'EN_PROCESO') and ahora - solicitud.created_at > VIDA_SOLICITUD:
+        _error(solicitud, "El SAT no la terminó en el plazo esperado.")
+        return True
+    return False
 
 
 def _enviar(solicitud, cliente):
@@ -174,6 +258,8 @@ def _enviar(solicitud, cliente):
         return _error(solicitud, "El rango pedido es futuro o vacío.")
     r = cliente.solicitar(solicitud.tipo, inicio, fin)
     solicitud.codigo_sat, solicitud.mensaje = r['codigo'], r['mensaje']
+    if r['codigo'] in ws.CODIGOS_TRANSITORIOS or not r['codigo']:
+        raise ws.SatError(f"El SAT no pudo recibir la solicitud ({r['codigo'] or 'sin código'}): {r['mensaje']}")
     if r['codigo'] == ws.COD_OK and r['id_solicitud']:
         solicitud.id_solicitud_sat = r['id_solicitud']
         solicitud.estado = 'ENVIADA'
@@ -188,6 +274,8 @@ def _enviar(solicitud, cliente):
 def _verificar(solicitud, cliente):
     r = cliente.verificar(solicitud.id_solicitud_sat)
     solicitud.codigo_sat, solicitud.mensaje = r['codigo_estado'] or r['codigo'], r['mensaje']
+    if r['codigo'] in ws.CODIGOS_TRANSITORIOS or not r['codigo']:
+        raise ws.SatError(f"El SAT no pudo verificar la solicitud ({r['codigo'] or 'sin código'}): {r['mensaje']}")
     if r['codigo'] != ws.COD_OK:
         return _error(solicitud, f"El SAT rechazó la verificación: {r['mensaje']}", r['codigo'])
     if r['estado'] in (ws.SAT_ACEPTADA, ws.SAT_EN_PROCESO):
@@ -196,6 +284,7 @@ def _verificar(solicitud, cliente):
         solicitud.numero_cfdis = r['numero_cfdis']
         solicitud.paquetes = r['paquetes']
         solicitud.estado = 'TERMINADA' if r['paquetes'] else 'SIN_INFORMACION'
+        solicitud.terminada_en = timezone.now()
     elif r['estado'] == ws.SAT_VENCIDA:
         return _error(solicitud, "La solicitud venció en el SAT; genera una nueva.", r['codigo_estado'])
     else:
@@ -220,13 +309,17 @@ def _descargar(solicitud, cliente):
 
 
 def procesar_pendientes(cliente_por_credencial=None):
-    """Da un paso a toda solicitud no terminada. Lo llama el cron."""
+    """Da un paso a toda solicitud no terminada. Lo llama el cron. Una solicitud
+    que truene por un error inesperado no detiene a las demás."""
     n = 0
     for s in SolicitudDescargaSAT.objects.exclude(estado__in=SolicitudDescargaSAT.FINALES).select_related('credencial'):
         if not s.credencial.activa:
             continue
-        cliente = (cliente_por_credencial or {}).get(s.credencial_id)
-        avanzar(s, cliente)
+        try:
+            avanzar(s, (cliente_por_credencial or {}).get(s.credencial_id))
+        except Exception:
+            logger.exception("Descarga SAT #%s: error inesperado", s.pk)
+            continue
         n += 1
     return n
 
@@ -277,13 +370,25 @@ def leer_cfdi(xml):
 
 
 def _importar_xml(solicitud, xml):
+    """Un comprobante que truene no frena el resto del paquete ni se pierde: queda
+    registrado con resultado ERROR (con su XML) y se reintenta en cada corrida."""
     datos = leer_cfdi(xml)
     if not datos:
         solicitud.errores += 1
         return
-    if CfdiSAT.objects.filter(uuid=datos['uuid']).exclude(resultado='SIN_VINCULAR').exists():
+    previo = CfdiSAT.objects.filter(uuid=datos['uuid']).first()
+    if previo and previo.resultado not in ('SIN_VINCULAR', 'ERROR'):
         solicitud.duplicados += 1
         return
+    try:
+        with transaction.atomic():
+            _procesar_cfdi(solicitud, datos, xml)
+    except Exception as e:
+        logger.exception("CFDI %s de la descarga SAT #%s no se pudo procesar", datos['uuid'], solicitud.pk)
+        _registrar_error(solicitud, datos, xml, e)
+
+
+def _procesar_cfdi(solicitud, datos, xml):
     recibida = solicitud.tipo == 'RECIBIDAS'
     registro, _ = CfdiSAT.objects.get_or_create(uuid=datos['uuid'], defaults={
         'direccion': 'RECIBIDO' if recibida else 'EMITIDO', 'resultado': 'OMITIDO',
@@ -294,8 +399,29 @@ def _importar_xml(solicitud, xml):
     })
     if not registro.archivo_xml:
         registro.archivo_xml.save(f"{datos['uuid']}.xml", ContentFile(xml), save=False)
+    registro.detalle = ''
     (_procesar_recibido if recibida else _procesar_emitido)(solicitud, registro, datos, xml)
     registro.save()
+
+
+def _registrar_error(solicitud, datos, xml, error):
+    recibida = solicitud.tipo == 'RECIBIDAS'
+    try:
+        with transaction.atomic():
+            registro, _ = CfdiSAT.objects.get_or_create(uuid=datos['uuid'], defaults={
+                'direccion': 'RECIBIDO' if recibida else 'EMITIDO', 'tipo_comprobante': datos['tipo'],
+                'rfc_emisor': datos['rfc_emisor'], 'rfc_receptor': datos['rfc_receptor'],
+                'total': datos['total'], 'fecha': datos['fecha'], 'descarga': solicitud,
+                'nombre_contraparte': (datos['nombre_emisor'] if recibida else datos['nombre_receptor'])[:300]})
+            registro.resultado, registro.detalle = 'ERROR', f"{type(error).__name__}: {error}"[:300]
+            if not registro.archivo_xml:
+                registro.archivo_xml.save(f"{datos['uuid']}.xml", ContentFile(xml), save=False)
+            registro.save()
+    except Exception as e:
+        # Ni siquiera se pudo guardar el XML (p. ej. el storage está caído): se
+        # aborta el paquete para que se descargue completo en la siguiente corrida.
+        raise ws.SatError(f"No se pudo guardar el comprobante {datos['uuid']}: {e}") from e
+    solicitud.errores += 1
 
 
 def _procesar_recibido(solicitud, registro, datos, xml):
@@ -387,24 +513,36 @@ def vincular(registro, solicitud_factura, xml=None):
     registro.save()
 
 
-def reintentar_vinculos(credencial=None):
-    """Vuelve a buscar solicitud para los emitidos que quedaron sin vincular
-    (p. ej. la solicitud de factura se creó después de bajar el CFDI)."""
+def reintentar_comprobantes(credencial=None):
+    """Vuelve a procesar, desde su XML guardado, los comprobantes que fallaron o que
+    quedaron sin vincular (p. ej. la solicitud de factura se creó después de bajar
+    el CFDI). Devuelve cuántos se resolvieron."""
     from types import SimpleNamespace
 
-    ligados = 0
-    qs = CfdiSAT.objects.filter(direccion='EMITIDO', resultado='SIN_VINCULAR')
-    for registro in qs:
-        rfc = registro.rfc_emisor
-        if credencial and credencial.rfc != rfc:
+    resueltos = 0
+    for registro in CfdiSAT.objects.filter(resultado__in=['SIN_VINCULAR', 'ERROR']):
+        if credencial and registro.direccion == 'EMITIDO' and credencial.rfc != registro.rfc_emisor:
             continue
-        registro.archivo_xml.open('rb')
-        xml = registro.archivo_xml.read()
-        datos = leer_cfdi(xml)
-        if not datos:
+        try:
+            registro.archivo_xml.open('rb')
+            xml = registro.archivo_xml.read()
+            registro.archivo_xml.close()
+            datos = leer_cfdi(xml)
+            if not datos:
+                continue
+            antes = registro.resultado
+            contadores = SimpleNamespace(
+                credencial=SimpleNamespace(rfc=registro.rfc_emisor), importados=0, vinculados=0,
+                duplicados=0, omitidos=0, errores=0)
+            with transaction.atomic():
+                registro.detalle = ''
+                (_procesar_emitido if registro.direccion == 'EMITIDO' else _procesar_recibido)(
+                    contadores, registro, datos, xml)
+                registro.save()
+        except Exception as e:
+            logger.exception("Reintento del CFDI %s falló", registro.uuid)
+            CfdiSAT.objects.filter(pk=registro.pk).update(resultado='ERROR', detalle=f"{type(e).__name__}: {e}"[:300])
             continue
-        contadores = SimpleNamespace(credencial=SimpleNamespace(rfc=rfc), vinculados=0, omitidos=0)
-        _procesar_emitido(contadores, registro, datos, xml)
-        registro.save()
-        ligados += contadores.vinculados
-    return ligados
+        if registro.resultado not in ('SIN_VINCULAR', 'ERROR') and registro.resultado != antes:
+            resueltos += 1
+    return resueltos

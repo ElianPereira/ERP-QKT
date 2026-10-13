@@ -80,15 +80,15 @@ class SoloDireccion:
 @admin.register(CredencialSAT)
 class CredencialSATAdmin(SoloDireccion, admin.ModelAdmin):
     form = CredencialSATForm
-    list_display = ['rfc', 'nombre', 'vigencia_display', 'cubierta_display', 'activa']
+    list_display = ['rfc', 'nombre', 'vigencia_display', 'activa']
     columnas_texto = ('nombre',)
     actions = ['sincronizar_ahora']
-    readonly_fields = ['rfc', 'nombre', 'vigente_hasta', 'ultima_fecha_cubierta', 'created_by',
+    readonly_fields = ['rfc', 'nombre', 'vigente_hasta', 'created_by',
                        'created_at', 'updated_at']
 
     def get_fields(self, request, obj=None):
         base = ['archivo_cer', 'archivo_key', 'password', 'activa']
-        return base if obj is None else ['rfc', 'nombre', 'vigente_hasta', 'ultima_fecha_cubierta', *base,
+        return base if obj is None else ['rfc', 'nombre', 'vigente_hasta', *base,
                                          'created_by', 'created_at', 'updated_at']
 
     def save_model(self, request, obj, form, change):
@@ -102,16 +102,13 @@ class CredencialSATAdmin(SoloDireccion, admin.ModelAdmin):
         tono = ui.ERROR if dias <= 0 else ui.ALERTA if dias <= 60 else ui.EXITO
         return ui.badge(f"{obj.vigente_hasta:%d/%m/%Y}", tono)
 
-    @admin.display(description="Cubierta hasta", ordering="ultima_fecha_cubierta")
-    def cubierta_display(self, obj):
-        return f"{obj.ultima_fecha_cubierta:%d/%m/%Y}" if obj.ultima_fecha_cubierta else ui.vacio()
-
     @admin.action(description="Sincronizar con el SAT ahora")
     def sincronizar_ahora(self, request, queryset):
         for cred in queryset.filter(activa=True):
             creadas = sat.planear_sincronizacion(cred)
             messages.info(request, f"{cred.rfc}: {len(creadas)} solicitud(es) nueva(s). El SAT tarda en "
-                                   "preparar los paquetes; se descargan solos en la siguiente corrida.")
+                                   "preparar los paquetes; se descargan solos en la siguiente corrida. "
+                                   "Los tramos que fallen se piden de nuevo automáticamente.")
         sat.procesar_pendientes()
 
 
@@ -189,7 +186,8 @@ class CfdiSATAdmin(admin.ModelAdmin):
     search_fields = ['uuid', 'rfc_emisor', 'rfc_receptor', 'nombre_contraparte']
     raw_id_fields = ['solicitud_factura', 'compra']
     actions = ['reintentar_vinculos']
-    TONOS = {'IMPORTADO': ui.EXITO, 'VINCULADO': ui.EXITO, 'SIN_VINCULAR': ui.ALERTA, 'OMITIDO': ui.NEUTRO}
+    TONOS = {'IMPORTADO': ui.EXITO, 'VINCULADO': ui.EXITO, 'SIN_VINCULAR': ui.ALERTA, 'OMITIDO': ui.NEUTRO,
+             'ERROR': ui.ERROR}
 
     def get_readonly_fields(self, request, obj=None):
         return [f.name for f in self.model._meta.fields if f.name != 'solicitud_factura']
@@ -240,6 +238,6 @@ class CfdiSATAdmin(admin.ModelAdmin):
         url = url_descarga(obj, 'archivo_xml')
         return ui.acciones(ui.boton_icono(url, 'file-code', 'XML', nueva_pestana=True) if url else ui.hueco_icono())
 
-    @admin.action(description="Reintentar ligar emitidos con solicitudes de factura")
+    @admin.action(description="Reintentar comprobantes con error o sin vincular")
     def reintentar_vinculos(self, request, queryset):
-        messages.info(request, f"{sat.reintentar_vinculos()} comprobante(s) ligado(s).")
+        messages.info(request, f"{sat.reintentar_comprobantes()} comprobante(s) resuelto(s).")

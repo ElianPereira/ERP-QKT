@@ -241,15 +241,129 @@ class FlujoDescargaTest(TestCase):
         self.assertEqual(s.estado, 'TERMINADA')
         self.assertIn('límites', s.mensaje)
 
-    def test_planear_no_repite_y_avanza_la_cobertura(self):
-        hoy = date(2026, 10, 13)
+    def test_planear_cubre_hasta_ayer_y_no_repite(self):
+        hoy = timezone.localdate()
         self.assertEqual(len(sat.planear_sincronizacion(self.cred, hoy=hoy)), 2)
-        self.cred.refresh_from_db()
-        self.assertEqual(self.cred.ultima_fecha_cubierta, date(2026, 10, 12))
         self.assertEqual(len(sat.planear_sincronizacion(self.cred, hoy=hoy)), 0)
-        self.assertEqual(len(sat.planear_sincronizacion(self.cred, hoy=date(2026, 10, 14))), 2)
         ultima = SolicitudDescargaSAT.objects.latest('id')
-        self.assertEqual(ultima.desde, date(2026, 10, 9))  # solape de 3 días
+        self.assertEqual(ultima.hasta, hoy - timedelta(days=1))
+        # al día siguiente solo se pide lo nuevo, con 3 días de solape
+        sat.planear_sincronizacion(self.cred, hoy=hoy + timedelta(days=1))
+        nueva = SolicitudDescargaSAT.objects.latest('id')
+        self.assertEqual((nueva.desde, nueva.hasta), (hoy - timedelta(days=3), hoy))
+
+    def test_tramo_con_error_definitivo_se_vuelve_a_pedir(self):
+        hoy = timezone.localdate()
+        sat.planear_sincronizacion(self.cred, hoy=hoy)
+        rota = SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').get()
+        sat.avanzar(rota, ClienteFalso(solicita={'id_solicitud': '', 'codigo': '5003', 'mensaje': 'tope'}))
+        self.assertEqual(rota.estado, 'ERROR')
+        # recién fallada: no se insiste (espera de 6 h)
+        self.assertEqual(len(sat.planear_sincronizacion(self.cred, hoy=hoy)), 0)
+        SolicitudDescargaSAT.objects.filter(pk=rota.pk).update(updated_at=timezone.now() - timedelta(hours=7))
+        nuevas = sat.planear_sincronizacion(self.cred, hoy=hoy)
+        self.assertEqual([(n.tipo, n.desde, n.hasta) for n in nuevas], [('RECIBIDAS', rota.desde, rota.hasta)])
+
+    def test_deja_de_insistir_tras_muchos_errores_del_mismo_tramo(self):
+        hoy = timezone.localdate()
+        sat.planear_sincronizacion(self.cred, hoy=hoy)
+        base = SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').get()
+        SolicitudDescargaSAT.objects.filter(pk=base.pk).update(estado='ERROR')
+        for _ in range(sat.MAX_REINTENTOS_TRAMO - 1):
+            SolicitudDescargaSAT.objects.create(credencial=self.cred, tipo='RECIBIDAS', desde=base.desde,
+                                                hasta=base.hasta, estado='ERROR')
+        SolicitudDescargaSAT.objects.update(updated_at=timezone.now() - timedelta(days=2))
+        self.assertEqual([n for n in sat.planear_sincronizacion(self.cred, hoy=hoy) if n.tipo == 'RECIBIDAS'], [])
+
+    def test_falla_del_servicio_del_sat_es_transitoria(self):
+        s = self._solicitud()
+        sat.avanzar(s, ClienteFalso(solicita={'id_solicitud': '', 'codigo': '404', 'mensaje': 'Error no controlado'}))
+        self.assertEqual(s.estado, 'PENDIENTE')
+        self.assertIn('Error no controlado', s.mensaje)
+        s2 = self._solicitud(estado='ENVIADA', id_solicitud_sat='S-1')
+        sat.avanzar(s2, ClienteFalso(verifica={'codigo': '5006', 'estado': 0, 'codigo_estado': '', 'numero_cfdis': 0,
+                                               'mensaje': 'interno', 'paquetes': []}))
+        self.assertEqual(s2.estado, 'ENVIADA')
+
+    def test_respuesta_sin_codigo_no_se_toma_por_rechazo(self):
+        s = self._solicitud()
+        sat.avanzar(s, ClienteFalso(solicita={'id_solicitud': '', 'codigo': '', 'mensaje': ''}))
+        self.assertEqual(s.estado, 'PENDIENTE')
+
+    def test_paquetes_vencidos_pasan_a_error_para_repedirse(self):
+        s = self._solicitud(estado='TERMINADA', paquetes=['P1'], terminada_en=timezone.now() - timedelta(hours=71))
+        sat.avanzar(s, ClienteFalso())
+        self.assertEqual(s.estado, 'ERROR')
+
+    def test_solicitud_que_nunca_termina_se_da_por_perdida(self):
+        s = self._solicitud(estado='EN_PROCESO', id_solicitud_sat='S-1')
+        SolicitudDescargaSAT.objects.filter(pk=s.pk).update(created_at=timezone.now() - timedelta(hours=73))
+        s.refresh_from_db()
+        sat.avanzar(s, ClienteFalso())
+        self.assertEqual(s.estado, 'ERROR')
+
+    def test_avisa_al_equipo_tras_un_dia_de_fallas(self):
+        class Roto(ClienteFalso):
+            def verificar(self, id_solicitud):
+                raise ws.SatError("caído")
+        s = self._solicitud(estado='ENVIADA', id_solicitud_sat='S-1', intentos=sat.INTENTOS_PARA_AVISAR - 1)
+        with patch('comunicacion.services.alertar_equipo_email') as alerta:
+            sat.avanzar(s, Roto())
+        alerta.assert_called_once()
+
+    def test_un_error_inesperado_no_detiene_a_las_demas_solicitudes(self):
+        malo = self._solicitud()
+        bueno = self._solicitud(tipo='EMITIDAS')
+        c = ClienteFalso(solicita={'id_solicitud': 'S-9', 'codigo': '5000', 'mensaje': ''})
+        original = sat.avanzar
+
+        def avanzar(s, cliente=None):
+            if s.pk == malo.pk:
+                raise RuntimeError("bug")
+            return original(s, cliente)
+        with patch.object(sat, 'avanzar', avanzar):
+            sat.procesar_pendientes({self.cred.pk: c})
+        bueno.refresh_from_db()
+        self.assertEqual(bueno.estado, 'ENVIADA')
+
+    def test_un_xml_que_truena_no_frena_el_paquete_y_se_reintenta(self):
+        s = self._solicitud(estado='TERMINADA', paquetes=['P1'])
+        bueno = cfdi('AAAAAAAA-0000-0000-0000-000000000010', 'PRV010101ABC', RFC)
+        malo = cfdi('AAAAAAAA-0000-0000-0000-000000000011', 'PRV010101ABC', RFC)
+        original = sat._procesar_recibido
+
+        def recibido(sol, registro, datos, xml):
+            if datos['uuid'].endswith('11'):
+                raise RuntimeError("falla de base de datos")
+            return original(sol, registro, datos, xml)
+        with patch.object(sat, '_procesar_recibido', recibido):
+            sat.avanzar(s, ClienteFalso(descarga={'P1': {'codigo': '5000', 'mensaje': '',
+                                                         'zip': paquete(malo, bueno)}}))
+        self.assertEqual(s.estado, 'DESCARGADA')
+        self.assertEqual(Compra.objects.count(), 1)
+        reg = CfdiSAT.objects.get(uuid__endswith='11')
+        self.assertEqual(reg.resultado, 'ERROR')
+        self.assertTrue(reg.archivo_xml)
+        self.assertEqual(sat.reintentar_comprobantes(), 1)
+        self.assertEqual(Compra.objects.count(), 2)
+        reg.refresh_from_db()
+        self.assertEqual(reg.resultado, 'IMPORTADO')
+
+    def test_si_no_se_puede_guardar_el_error_el_paquete_se_reintenta_completo(self):
+        s = self._solicitud(estado='TERMINADA', paquetes=['P1'])
+        xml = cfdi('AAAAAAAA-0000-0000-0000-000000000012', 'PRV010101ABC', RFC)
+        with patch.object(sat, '_procesar_cfdi', side_effect=RuntimeError("storage caído")), \
+                patch.object(sat, '_registrar_error', side_effect=ws.SatError("sin storage")):
+            sat.avanzar(s, ClienteFalso(descarga={'P1': {'codigo': '5000', 'mensaje': '', 'zip': paquete(xml)}}))
+        s.refresh_from_db()
+        self.assertEqual(s.estado, 'TERMINADA')
+        self.assertEqual(s.paquetes_descargados, [])
+        # el SAT se recupera: la siguiente corrida baja el paquete completo
+        sat.avanzar(s, ClienteFalso(descarga={'P1': {'codigo': '5000', 'mensaje': '', 'zip': paquete(xml)}}))
+        self.assertEqual(s.estado, 'DESCARGADA')
+        self.assertEqual(Compra.objects.count(), 1)
+
+
 
 
 @override_settings(SAT_FIEL_ENCRYPTION_KEY=LLAVE, STORAGES=STORAGE_MEMORIA)
@@ -310,7 +424,7 @@ class EmitidasTest(TestCase):
     def test_reintento_liga_cuando_la_solicitud_aparece_despues(self):
         self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000004', RFC, 'XEXX010101000'))
         sf = self._solicitud_factura()
-        self.assertEqual(sat.reintentar_vinculos(), 1)
+        self.assertEqual(sat.reintentar_comprobantes(), 1)
         sf.refresh_from_db()
         self.assertEqual(sf.estado, 'FACTURADA')
 

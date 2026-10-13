@@ -287,6 +287,17 @@ salvo que queden obsoletas.
   `SAT_FIEL_ENCRYPTION_KEY` (en `web` y en el cron), cargar la e.firma en Admin →
   Contabilidad → Firmas y dar de alta un Cron cada hora con `manage.py sincronizar_sat`
   (variables como `${{web.…}}`). Backfill: `sincronizar_sat --desde … --hasta …`.
+  **Resiliencia ante un SAT intermitente**: nada se pierde por un fallo suyo. (1) Los
+  fallos de comunicación y los códigos 404/5006 son transitorios: la solicitud conserva
+  su estado y se reintenta cada corrida (aviso al equipo a las 24 corridas). (2) Lo
+  definitivo (rechazo, vencida, sin terminar en 72 h, paquetes vencidos a las 70 h) pasa a
+  ERROR **y su tramo vuelve a ser hueco**: `planear_sincronizacion` ya no avanza un
+  puntero, calcula los días sin cobertura desde el alta de la e.firma −35 días y los pide
+  de nuevo (espera de 6 h entre intentos del mismo tramo, tope de 8). El solape de 3 días
+  se repite una vez al día. (3) Un XML que truene queda en `CfdiSAT` con resultado ERROR
+  y su archivo, y `reintentar_comprobantes()` lo reprocesa cada corrida; si ni eso se
+  puede guardar, se aborta el paquete para bajarlo completo después. (4) Una solicitud
+  con error inesperado no detiene a las demás.
 
 - 2026-10-13 — **Catálogo de categorías de gasto** (Issue #390, decisiones del
   propietario y el contador). Hallazgo: `SERVICIOS_ADMON` («Servicios
