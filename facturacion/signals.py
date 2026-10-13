@@ -244,7 +244,7 @@ def crear_solicitud_factura_desde_retencion(sender, instance, created, **kwargs)
         concepto = 'Servicios adicionales cobrados del depósito en garantía'
     else:
         subtotal, iva = monto, Decimal('0.00')
-        concepto = 'Indemnización por daños, cobrada del depósito en garantía (no objeto de IVA)'
+        concepto = 'Indemnización por daños, cobrada del depósito en garantía (no objeto de IVA, ObjetoImp 01)'
 
     recepcion = deposito.movimientos.filter(tipo='RECEPCION').order_by('fecha', 'pk').first()
     solicitud = SolicitudFactura.objects.create(

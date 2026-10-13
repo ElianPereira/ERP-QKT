@@ -256,8 +256,8 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
 - [x] ~~Módulo de depósito en garantía ausente~~ — implementado (Issue #318,
   fase 3): `DepositoGarantia` + `MovimientoDeposito`, cobro por Openpay o
   manual, pasivo en 205.03. Trato fiscal decidido el 2026-10-13 (ver
-  Memoria): solo lo retenido se factura. Falta que el contador confirme dos
-  detalles: daños sin IVA, y si factura al cliente o en la global.
+  Memoria): solo lo retenido se factura, daños sin IVA y servicio con IVA,
+  en CFDI individual al cliente.
 
 ## Memoria
 
@@ -279,8 +279,15 @@ salvo que queden obsoletas.
   con el desglose en el concepto y la forma de pago de la recepción, y la manda
   al contador como las de los pagos (sin FK nueva: el movimiento es inmutable y
   el signal solo corre al crearse). Sin retención ISR aunque el cliente sea
-  persona moral: lo decide el contador. Pendiente que el contador confirme
-  daños sin IVA y si timbra al cliente o en la global.
+  persona moral: lo decide el contador. **Criterio cerrado** (el contador no
+  tenía postura y el propietario adoptó la recomendación): **(1)** daños = no
+  objeto de IVA (`ObjetoImp 01`) porque resarcen un daño real valuado con
+  evidencia, no son contraprestación del servicio; si algún día se cobrara un
+  monto fijo pactado (pena convencional), ese sí llevaría IVA (art. 18 LIVA).
+  Sí es ingreso para ISR. **(2)** CFDI **individual** al cliente (con su RFC,
+  o a público en general si no lo dio), timbrado en el mes de la retención,
+  igual que los pagos; no en la global: el cliente recibe comprobante de lo
+  que se le cobró, útil si reclama ante PROFECO.
 
 - 2026-10-13 — **Descarga masiva de CFDI del SAT** (pedido del propietario: dejar de
   subir XML a mano). `contabilidad/services_sat_ws.py` es el cliente SOAP (Autentica →
