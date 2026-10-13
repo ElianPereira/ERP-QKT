@@ -292,8 +292,9 @@ salvo que queden obsoletas.
   `descuenta_de_depositos`) → COMISIONES_BANCARIAS, el resto → Sin clasificar.
   **Lo ya asentado no lo mueve la migración**: `manage.py reclasificar_compras
   [--desde] [--aplicar]` (simula por defecto) reapunta la línea de gasto de cada
-  Compra y los asientos en 601.03.04 → 602.03 y 601.05 → 601.05.02; **pendiente
-  de correr en producción** con `--desde` del primer periodo abierto. Riesgo
+  Compra y los asientos en 601.03.04 → 602.03 y 601.05 → 601.05.02. **Corrido en
+  producción el 2026-10-13** con `--desde 2026-07-01`: 12 compras y 3 asientos
+  (E-0047, E-0008 → 602.03; E-0030 → 601.05.02). Riesgo
   conocido: un asiento provisional por palabra clave (MANT, INS…) sin CFDI que
   nunca llega se queda en la cuenta deducible.
 
