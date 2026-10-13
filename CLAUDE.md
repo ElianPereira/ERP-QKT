@@ -265,6 +265,28 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+- 2026-10-13 — **Descarga masiva de CFDI del SAT** (pedido del propietario: dejar de
+  subir XML a mano). `contabilidad/services_sat_ws.py` es el cliente SOAP (Autentica →
+  Solicita → Verifica → Descargar, firma RSA-SHA1 con la e.firma; endpoints y SOAPAction
+  tomados de phpcfdi/sat-ws-descarga-masiva) y `services_sat.py` la máquina de estados:
+  `avanzar()` da UN paso por solicitud (el SAT tarda minutos u horas), así que sirve el
+  cron y el botón del admin. Modelos `CredencialSAT` (.key y contraseña cifrados con
+  Fernet, llave `SAT_FIEL_ENCRYPTION_KEY`; solo superusuario la ve), `SolicitudDescargaSAT`
+  y `CfdiSAT` (bitácora + idempotencia por UUID); migración `contabilidad.0039`.
+  **Recibidas** → `Compra` con las mismas reglas de la carga manual (`analizar_xml_compra`).
+  **Emitidas** → se ligan a la `SolicitudFactura` única con mismo RFC receptor, monto
+  (±$0.01) y fecha (solicitud hasta 45 días antes de la factura); con 0 o varias
+  candidatas queda «Emitido sin solicitud» y el contador la asigna desde el admin
+  (campo Solicitud de factura) o con la acción de reintento. Se adjunta solo el XML y la
+  solicitud pasa a FACTURADA; el PDF no viaja en la descarga, el correo al cliente sale
+  cuando alguien lo sube. Solo se piden CFDI **vigentes**: una cancelación posterior no se
+  refleja sola. **Sin probar contra el SAT real** (el contenedor no tiene e.firma ni
+  salida a sus servidores): las firmas se verifican en tests con un certificado generado;
+  la primera sincronización real es la prueba de fondo. **Pendiente en Railway**: definir
+  `SAT_FIEL_ENCRYPTION_KEY` (en `web` y en el cron), cargar la e.firma en Admin →
+  Contabilidad → Firmas y dar de alta un Cron cada hora con `manage.py sincronizar_sat`
+  (variables como `${{web.…}}`). Backfill: `sincronizar_sat --desde … --hasta …`.
+
 - 2026-10-13 — **Catálogo de categorías de gasto** (Issue #390, decisiones del
   propietario y el contador). Hallazgo: `SERVICIOS_ADMON` («Servicios
   administrativos y bancarios») caía en `GASTOS_GENERALES` = **601.02.05

@@ -1172,3 +1172,133 @@ class ReglaConciliacion(models.Model):
         if self.cuenta_id:
             return self.cuenta
         return ConfiguracionContable.obtener_cuenta(self.operacion) if self.operacion else None
+
+
+# ==========================================
+# 9. DESCARGA MASIVA DE CFDI (SAT)
+# ==========================================
+
+class CredencialSAT(models.Model):
+    """e.firma (FIEL) con la que el ERP firma las peticiones al SAT.
+
+    El .key y la contraseña se guardan cifrados (Fernet, llave en
+    `SAT_FIEL_ENCRYPTION_KEY`); el .cer es público. Se desactiva, nunca se borra.
+    """
+    rfc = models.CharField(max_length=13, unique=True, verbose_name="RFC")
+    nombre = models.CharField(max_length=200, blank=True, verbose_name="Titular")
+    cer = models.BinaryField(editable=False, verbose_name="Certificado (.cer)")
+    key_cifrada = models.BinaryField(editable=False, verbose_name="Llave privada cifrada")
+    password_cifrada = models.BinaryField(editable=False, verbose_name="Contraseña cifrada")
+    vigente_hasta = models.DateField(verbose_name="Vigente hasta")
+    activa = models.BooleanField(default=True, verbose_name="Activa")
+    ultima_fecha_cubierta = models.DateField(
+        null=True, blank=True, verbose_name="Cubierta hasta",
+        help_text="Último día que ya se pidió al SAT; la siguiente sincronización parte de ahí.",
+    )
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='credenciales_sat', verbose_name="Cargada por")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creada")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizada")
+
+    class Meta:
+        verbose_name = "e.firma del SAT"
+        verbose_name_plural = "Firmas"
+        ordering = ['rfc']
+
+    def __str__(self):
+        return f"{self.rfc} (vence {self.vigente_hasta:%d/%m/%Y})"
+
+    @property
+    def vencida(self):
+        return self.vigente_hasta <= timezone.localdate()
+
+
+class SolicitudDescargaSAT(models.Model):
+    """Una petición al Servicio de Descarga Masiva (emitidas o recibidas)."""
+    TIPO_CHOICES = [('EMITIDAS', 'Emitidas'), ('RECIBIDAS', 'Recibidas')]
+    ESTADO_CHOICES = [
+        ('PENDIENTE', 'Por enviar'),
+        ('ENVIADA', 'Enviada al SAT'),
+        ('EN_PROCESO', 'SAT preparando paquetes'),
+        ('TERMINADA', 'Lista para descargar'),
+        ('DESCARGADA', 'Descargada'),
+        ('SIN_INFORMACION', 'Sin comprobantes'),
+        ('ERROR', 'Con error'),
+    ]
+    FINALES = ('DESCARGADA', 'SIN_INFORMACION', 'ERROR')
+
+    credencial = models.ForeignKey(CredencialSAT, on_delete=models.PROTECT, related_name='solicitudes',
+                                   verbose_name="e.firma")
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, verbose_name="Tipo")
+    desde = models.DateField(verbose_name="Desde")
+    hasta = models.DateField(verbose_name="Hasta")
+    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='PENDIENTE', db_index=True,
+                              verbose_name="Estado")
+    id_solicitud_sat = models.CharField(max_length=40, blank=True, verbose_name="Folio SAT")
+    paquetes = models.JSONField(default=list, blank=True, verbose_name="Paquetes")
+    paquetes_descargados = models.JSONField(default=list, blank=True, verbose_name="Paquetes descargados")
+    numero_cfdis = models.PositiveIntegerField(default=0, verbose_name="CFDI según SAT")
+    importados = models.PositiveIntegerField(default=0, verbose_name="Importados")
+    vinculados = models.PositiveIntegerField(default=0, verbose_name="Vinculados")
+    duplicados = models.PositiveIntegerField(default=0, verbose_name="Duplicados")
+    omitidos = models.PositiveIntegerField(default=0, verbose_name="Omitidos")
+    errores = models.PositiveIntegerField(default=0, verbose_name="Con error")
+    codigo_sat = models.CharField(max_length=10, blank=True, verbose_name="Código SAT")
+    mensaje = models.TextField(blank=True, verbose_name="Mensaje")
+    intentos = models.PositiveIntegerField(default=0, verbose_name="Intentos")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='descargas_sat', verbose_name="Creada por")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creada")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizada")
+
+    class Meta:
+        verbose_name = "Descarga del SAT"
+        verbose_name_plural = "Descargas"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} {self.desde:%d/%m/%Y} – {self.hasta:%d/%m/%Y}"
+
+    @property
+    def terminada(self):
+        return self.estado in self.FINALES
+
+
+class CfdiSAT(models.Model):
+    """Comprobante bajado del SAT. Bitácora única y llave de idempotencia (UUID)."""
+    DIRECCION_CHOICES = [('RECIBIDO', 'Recibido (compra)'), ('EMITIDO', 'Emitido (venta)')]
+    RESULTADO_CHOICES = [
+        ('IMPORTADO', 'Importado como compra'),
+        ('VINCULADO', 'Ligado a solicitud de factura'),
+        ('SIN_VINCULAR', 'Emitido sin solicitud'),
+        ('OMITIDO', 'Omitido'),
+    ]
+
+    uuid = models.CharField(max_length=36, unique=True, verbose_name="Folio fiscal")
+    direccion = models.CharField(max_length=10, choices=DIRECCION_CHOICES, verbose_name="Dirección")
+    resultado = models.CharField(max_length=15, choices=RESULTADO_CHOICES, db_index=True, verbose_name="Resultado")
+    detalle = models.CharField(max_length=300, blank=True, verbose_name="Detalle")
+    tipo_comprobante = models.CharField(max_length=2, blank=True, verbose_name="Tipo")
+    rfc_emisor = models.CharField(max_length=13, blank=True, verbose_name="RFC emisor")
+    rfc_receptor = models.CharField(max_length=13, blank=True, verbose_name="RFC receptor")
+    nombre_contraparte = models.CharField(max_length=300, blank=True, verbose_name="Contraparte")
+    total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'), verbose_name="Total")
+    fecha = models.DateField(null=True, blank=True, verbose_name="Fecha")
+    archivo_xml = models.FileField(upload_to='cfdi_sat/', storage=storage_privado, blank=True, null=True,
+                                   verbose_name="XML")
+    compra = models.ForeignKey('comercial.Compra', on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name='cfdi_sat', verbose_name="Compra")
+    solicitud_factura = models.ForeignKey('facturacion.SolicitudFactura', on_delete=models.SET_NULL, null=True,
+                                          blank=True, related_name='cfdi_sat', verbose_name="Solicitud de factura")
+    descarga = models.ForeignKey(SolicitudDescargaSAT, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='comprobantes', verbose_name="Descarga")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Descargado")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado")
+
+    class Meta:
+        verbose_name = "Comprobante del SAT"
+        verbose_name_plural = "Comprobantes"
+        ordering = ['-fecha', '-created_at']
+
+    def __str__(self):
+        return f"{self.uuid[:8]}… {self.get_direccion_display()}"

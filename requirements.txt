@@ -35,3 +35,7 @@ django-otp
 qrcode
 # Agente de WhatsApp con IA (Issue #346): SDK oficial de la API de Claude.
 anthropic
+
+# Descarga masiva del SAT (firma con e.firma, cifrado Fernet, XML canónico).
+cryptography
+lxml
