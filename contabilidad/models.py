@@ -795,6 +795,7 @@ class ConfiguracionContable(models.Model):
         ('GASTO_FOTOGRAFIA', 'Gastos - Fotografía y video'),
         ('GASTO_OTROS', 'Gastos - Otros gastos'),
         ('ACTIVO_MOBILIARIO', 'Activo fijo - Mobiliario y equipo'),
+        ('ACTIVO_CONSTRUCCIONES', 'Activo fijo - Construcciones y mejoras al inmueble'),
         # Compras sin CFDI: subcuenta no deducible de su grupo
         ('NO_DEDUCIBLE_COSTO', 'No deducible - Costo'),
         ('NO_DEDUCIBLE_OPERACION', 'No deducible - Gastos de operación'),

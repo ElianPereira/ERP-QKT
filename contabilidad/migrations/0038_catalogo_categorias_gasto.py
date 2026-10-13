@@ -6,7 +6,8 @@
 # - Comisiones bancarias y de cobro → 602.03 (gasto financiero, nueva).
 # - Staff externo de eventos → 501.03; renta y servicios subcontratados para
 #   eventos → 501.05 / 501.06 (costo del evento, nuevas).
-# - Mobiliario y equipo → 115.03 (activo fijo).
+# - Mobiliario y equipo → 115.03; construcciones y mejoras al inmueble → 115.01
+#   (activo fijo).
 # - Sin clasificar → 601.99 «Gastos por clasificar» (nueva, cuenta transitoria:
 #   saldo ≠ 0 = compras pendientes de clasificar).
 # - No deducibles: 601.05 pasa a ser cuenta de grupo con una subcuenta por
@@ -61,6 +62,7 @@ CONFIGURACION = [
     ('GASTO_FOTOGRAFIA', '601.04.03'),
     ('GASTO_BANCARIOS', '602.03'),
     ('ACTIVO_MOBILIARIO', '115.03'),
+    ('ACTIVO_CONSTRUCCIONES', '115.01'),
     ('GASTO_OTROS', '601.06'),
     ('NO_DEDUCIBLE_COSTO', '501.90'),
     ('NO_DEDUCIBLE_OPERACION', '601.05.01'),
@@ -177,6 +179,10 @@ class Migration(migrations.Migration):
                     ("GASTO_FOTOGRAFIA", "Gastos - Fotografía y video"),
                     ("GASTO_OTROS", "Gastos - Otros gastos"),
                     ("ACTIVO_MOBILIARIO", "Activo fijo - Mobiliario y equipo"),
+                    (
+                        "ACTIVO_CONSTRUCCIONES",
+                        "Activo fijo - Construcciones y mejoras al inmueble",
+                    ),
                     ("NO_DEDUCIBLE_COSTO", "No deducible - Costo"),
                     ("NO_DEDUCIBLE_OPERACION", "No deducible - Gastos de operación"),
                     ("NO_DEDUCIBLE_VENTA", "No deducible - Gastos de venta"),
@@ -277,6 +283,10 @@ class Migration(migrations.Migration):
                     ("GASTO_FOTOGRAFIA", "Gastos - Fotografía y video"),
                     ("GASTO_OTROS", "Gastos - Otros gastos"),
                     ("ACTIVO_MOBILIARIO", "Activo fijo - Mobiliario y equipo"),
+                    (
+                        "ACTIVO_CONSTRUCCIONES",
+                        "Activo fijo - Construcciones y mejoras al inmueble",
+                    ),
                     ("NO_DEDUCIBLE_COSTO", "No deducible - Costo"),
                     ("NO_DEDUCIBLE_OPERACION", "No deducible - Gastos de operación"),
                     ("NO_DEDUCIBLE_VENTA", "No deducible - Gastos de venta"),

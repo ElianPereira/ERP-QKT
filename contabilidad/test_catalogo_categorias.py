@@ -49,7 +49,7 @@ class CatalogoSembradoTest(TestCase):
     def test_decisiones_del_contador(self):
         esperado = {
             'COMISIONES_BANCARIAS': '602.03', 'NOMINA_EXT': '501.03', 'MOBILIARIO_EQ': '115.03',
-            'RENTA_EVENTOS': '501.05', 'SERVICIOS_EVENTOS': '501.06',
+            'RENTA_EVENTOS': '501.05', 'SERVICIOS_EVENTOS': '501.06', 'CONSTRUCCIONES': '115.01',
             'OTRO': '601.06', 'SIN_CLASIFICAR': '601.99', 'SOFTWARE': '601.03.05',
         }
         for clave, codigo in esperado.items():

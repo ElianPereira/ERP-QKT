@@ -279,7 +279,8 @@ salvo que queden obsoletas.
   staff externo = **costo 501.03**; lo que se renta o subcontrata para
   revender en un evento = costo 501.05 (renta de mobiliario y equipo) y 501.06
   (servicios subcontratados); combustible de la planta = energía eléctrica, el
-  de vehículos = vehículos; mobiliario = **activo 115.03**; Otros =
+  de vehículos = vehículos; mobiliario = **activo 115.03**; construcciones y
+  mejoras al inmueble (propio) = **activo 115.01**; Otros =
   601.06; Sin clasificar = **601.99 «Gastos por clasificar»** (transitoria:
   saldo ≠ 0 = compras pendientes; se prefirió a una póliza BORRADOR porque las
   compras sin clasificar sí se emparejan con el banco). **No deducibles** (sin

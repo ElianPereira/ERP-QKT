@@ -9,7 +9,9 @@ Decisiones del propietario y el contador (2026-10-12):
 - Staff externo de eventos: costo del evento (501.03). Lo que se renta o
   subcontrata para revenderse en un evento, también costo (501.05/501.06).
 - Combustible de la planta de luz: energía eléctrica; el de vehículos: vehículos.
-- Mobiliario y equipo: activo fijo (115.03), no gasto.
+- Mobiliario y equipo: activo fijo (115.03), no gasto. Construcciones y
+  mejoras al inmueble (propio): activo fijo (115.01); mantenimiento es solo
+  lo que conserva el inmueble como está.
 - No deducibles (compra sin CFDI): subcuenta no deducible del grupo
   (`NO_DEDUCIBLE_POR_GRUPO`), no una sola bolsa ni «Otros».
 
@@ -60,6 +62,7 @@ CATALOGO = [
     ('COMISIONES_BANCARIAS', 'Comisiones bancarias y de cobro', FINANCIERO, 'GASTO_BANCARIOS'),
     # Activo fijo
     ('MOBILIARIO_EQ', 'Mobiliario Y Equipo (activo)', ACTIVO, 'ACTIVO_MOBILIARIO'),
+    ('CONSTRUCCIONES', 'Construcciones y mejoras al inmueble (activo)', ACTIVO, 'ACTIVO_CONSTRUCCIONES'),
     # Otros
     ('OTRO', 'Otros Gastos', OTROS, 'GASTO_OTROS'),
 ]
