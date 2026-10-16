@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 from core_erp.storages_qkt import storage_privado
 
@@ -131,6 +132,13 @@ class Vigencia(models.Model):
     def __str__(self):
         base = f'{self.tramite} · {self.folio}' if self.folio else str(self.tramite)
         return f'{base} ({self.fecha_vencimiento:%d/%m/%Y})' if self.fecha_vencimiento else base
+
+    @property
+    def dias_restantes(self):
+        """Días al vencimiento (negativo = vencida); None si no vence."""
+        if not self.fecha_vencimiento:
+            return None
+        return (self.fecha_vencimiento - timezone.localdate()).days
 
     def clean(self):
         super().clean()

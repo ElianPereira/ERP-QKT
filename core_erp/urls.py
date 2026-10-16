@@ -158,6 +158,7 @@ urlpatterns = [
     path('admin/migrar-archivos-privados/', migrar_archivos_privados_view,
          name='migrar_archivos_privados'),
     path('admin/contabilidad/reportes/', include('contabilidad.urls')),
+    path('admin/cumplimiento/', include('cumplimiento.urls')),
 
     #--- PLAN DE PAGOS---
     path('cotizacion/<int:cotizacion_id>/plan-pagos/generar/', generar_plan_pagos, name='generar_plan_pagos'),
