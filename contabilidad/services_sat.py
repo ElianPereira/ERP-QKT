@@ -43,6 +43,7 @@ ESPERA_TRAS_ERROR = timedelta(hours=6)   # no repetir el mismo tramo fallido ant
 MAX_DIAS_TRAMO = 31                      # una solicitud por mes: el SAT topa en 200 mil CFDI
 MAX_SOLICITUDES_POR_CORRIDA = 10         # el historial largo se pide poco a poco
 MAX_REINTENTOS_TRAMO = 8                 # tras tantos errores idénticos se deja de insistir
+MAX_DESPLAZAMIENTO_RANGO = 5             # días que se corre un rango cuya cuota de por vida se agotó
 INTENTOS_PARA_AVISAR = 24                # ~1 día de fallos transitorios seguidos
 
 
@@ -174,6 +175,24 @@ def _en_espera(credencial, tipo, desde, hasta, ahora):
     return fallidas.filter(updated_at__gte=ahora - ESPERA_TRAS_ERROR).exists()
 
 
+def _sin_cuota(credencial, tipo, desde, hasta):
+    """¿El SAT ya agotó las solicitudes de por vida de ESTE rango exacto (5002)?"""
+    return SolicitudDescargaSAT.objects.filter(
+        credencial=credencial, tipo=tipo, desde=desde, hasta=hasta, codigo_sat=ws.COD_CUOTA_AGOTADA).exists()
+
+
+def _rango_nuevo(credencial, tipo, desde, hasta):
+    """Para el SAT la cuota de por vida es por rango exacto: si el tramo ya la agotó se
+    pide un día antes (otro rango, misma información). None si ya se corrió demasiado."""
+    corrido = 0
+    while _sin_cuota(credencial, tipo, desde, hasta):
+        if corrido >= MAX_DESPLAZAMIENTO_RANGO:
+            return None
+        desde -= timedelta(days=1)
+        corrido += 1
+    return desde, hasta
+
+
 def planear_sincronizacion(credencial, hoy=None, dias_iniciales=35):
     """Pide al SAT todo lo que falte entre el alta de la e.firma (menos
     `dias_iniciales`) y ayer. Se autorrepara: si una solicitud falla de forma
@@ -191,6 +210,10 @@ def planear_sincronizacion(credencial, hoy=None, dias_iniciales=35):
             if len(creadas) >= MAX_SOLICITUDES_POR_CORRIDA:
                 return creadas
             # El solape (últimos días) se repite una vez por día, no en cada corrida.
+            rango = _rango_nuevo(credencial, tipo, desde, hasta)
+            if rango is None:
+                continue
+            desde, hasta = rango
             ya_hoy = SolicitudDescargaSAT.objects.filter(
                 credencial=credencial, tipo=tipo, created_at__gte=hoy_00, desde__lte=desde, hasta__gte=hasta,
             ).exclude(estado='ERROR').exists()
@@ -303,6 +326,11 @@ def _verificar(solicitud, cliente):
         solicitud.terminada_en = timezone.now()
     elif r['estado'] == ws.SAT_VENCIDA:
         return _error(solicitud, "La solicitud venció en el SAT; genera una nueva.", r['codigo_estado'])
+    elif r['estado'] == ws.SAT_RECHAZADA and r['codigo_estado'] == ws.COD_SIN_INFORMACION:
+        # Rechazada con 5004 = el SAT no tiene CFDI en ese periodo: resultado normal.
+        solicitud.numero_cfdis = 0
+        solicitud.estado = 'SIN_INFORMACION'
+        solicitud.terminada_en = timezone.now()
     else:
         return _error(solicitud,
                        f"El SAT no pudo generar la solicitud (estado {r['estado']}, código {r['codigo_estado'] or 'sin código'}): "

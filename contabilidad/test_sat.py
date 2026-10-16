@@ -289,6 +289,41 @@ class FlujoDescargaTest(TestCase):
         nuevas = sat.planear_sincronizacion(self.cred, hoy=hoy)
         self.assertEqual([(n.tipo, n.desde, n.hasta) for n in nuevas], [('EMITIDAS', viejo.desde, viejo.hasta)])
 
+    def test_verificacion_rechazada_con_5004_es_sin_informacion(self):
+        s = self._solicitud(estado='ENVIADA', id_solicitud_sat='S-1')
+        sat.avanzar(s, ClienteFalso(verifica={'codigo': '5000', 'estado': 5, 'codigo_estado': '5004',
+                                              'numero_cfdis': 0, 'mensaje': 'Solicitud Aceptada', 'paquetes': []}))
+        s.refresh_from_db()
+        self.assertEqual(s.estado, 'SIN_INFORMACION')
+        self.assertTrue(s.terminada)
+
+    def test_verificacion_rechazada_con_otro_codigo_es_error(self):
+        s = self._solicitud(estado='ENVIADA', id_solicitud_sat='S-1')
+        sat.avanzar(s, ClienteFalso(verifica={'codigo': '5000', 'estado': 5, 'codigo_estado': '5002',
+                                              'numero_cfdis': 0, 'mensaje': 'x', 'paquetes': []}))
+        self.assertEqual(s.estado, 'ERROR')
+
+    def test_sin_informacion_no_se_vuelve_a_pedir(self):
+        hoy = timezone.localdate()
+        sat.planear_sincronizacion(self.cred, hoy=hoy)
+        SolicitudDescargaSAT.objects.update(estado='SIN_INFORMACION')
+        self.assertEqual(sat.planear_sincronizacion(self.cred, hoy=hoy), [])
+
+    def test_cuota_agotada_se_pide_con_otro_rango(self):
+        hoy = timezone.localdate()
+        sat.planear_sincronizacion(self.cred, hoy=hoy)
+        rota = SolicitudDescargaSAT.objects.filter(tipo='RECIBIDAS').order_by('desde').first()
+        sat.avanzar(rota, ClienteFalso(solicita={'id_solicitud': '', 'codigo': '5002', 'mensaje': 'agotada'}))
+        self.assertEqual(rota.codigo_sat, '5002')
+        SolicitudDescargaSAT.objects.filter(pk=rota.pk).update(updated_at=timezone.now() - timedelta(hours=7))
+        nuevas = sat.planear_sincronizacion(self.cred, hoy=hoy)
+        self.assertEqual([(n.tipo, n.desde, n.hasta) for n in nuevas],
+                         [('RECIBIDAS', rota.desde - timedelta(days=1), rota.hasta)])
+        # si el rango corrido también se agota, se corre otro día más; nunca el mismo
+        sat.avanzar(nuevas[0], ClienteFalso(solicita={'id_solicitud': '', 'codigo': '5002', 'mensaje': 'agotada'}))
+        otras = sat.planear_sincronizacion(self.cred, hoy=hoy)
+        self.assertEqual([(n.desde, n.hasta) for n in otras], [(rota.desde - timedelta(days=2), rota.hasta)])
+
     def test_tramo_con_error_definitivo_se_vuelve_a_pedir(self):
         hoy = timezone.localdate()
         sat.planear_sincronizacion(self.cred, hoy=hoy)

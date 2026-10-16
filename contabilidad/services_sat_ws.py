@@ -48,6 +48,7 @@ ET_B64 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-s
 
 COD_OK = '5000'
 COD_SIN_INFORMACION = '5004'
+COD_CUOTA_AGOTADA = '5002'  # solicitudes de por vida agotadas para ese rango exacto
 # Códigos que el SAT devuelve cuando el servicio falla por su lado (no es un rechazo
 # de la petición): se reintenta en la siguiente corrida.
 CODIGOS_TRANSITORIOS = frozenset({'404', '5006'})
