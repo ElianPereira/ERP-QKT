@@ -1,0 +1,42 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block subtitulo %}Lo pagado en permisos, licencias, constancias y contratos de servicio{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ total|moneda }}</div><div class="doc-kpi-etiqueta">Costo total</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ vigencias|length }}</div><div class="doc-kpi-etiqueta">Vigencias</div></div>
+</div>
+
+<h2 class="doc-seccion">Por tipo</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Tipo</th><th class="num">Vigencias</th><th class="num col-monto">Costo</th></tr></thead>
+  <tbody>
+    {% for t in tipos %}
+    <tr><td>{{ t.nombre }}</td><td class="num">{{ t.vigencias }}</td><td class="num">{{ t.costo|moneda }}</td></tr>
+    {% empty %}
+    <tr><td colspan="3" class="vacio">Sin vigencias con inicio en el periodo.</td></tr>
+    {% endfor %}
+    {% if tipos %}<tr class="total"><td>Total</td><td class="num">{{ vigencias|length }}</td><td class="num">{{ total|moneda }}</td></tr>{% endif %}
+  </tbody>
+</table>
+
+<h2 class="doc-seccion">Por trámite</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Trámite</th><th>Tipo</th><th class="num">Vigencias</th><th class="num col-monto">Costo</th></tr></thead>
+  <tbody>
+    {% for t in tramites %}
+    <tr><td>{{ t.nombre }}</td><td>{{ t.tipo }}</td><td class="num">{{ t.vigencias }}</td><td class="num">{{ t.costo|moneda }}</td></tr>
+    {% empty %}
+    <tr><td colspan="4" class="vacio">Sin vigencias con inicio en el periodo.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block notas %}Costo capturado por vigencia (total pagado). No incluye vigencias canceladas. No genera pólizas: la contabilidad del gasto sigue en Compras.{% endblock %}

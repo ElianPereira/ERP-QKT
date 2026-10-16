@@ -1,0 +1,44 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block variante %}operativo{% endblock %}
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Permisos, licencias, constancias y contratos de servicio al {{ hoy|date:"d/m/Y" }}{% endblock %}
+
+{% block filtros %}
+<span><b>Trámites activos:</b> {{ filas|length }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ conteo.VIGENTE }}</div><div class="doc-kpi-etiqueta">Vigentes</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ conteo.POR_VENCER }}</div><div class="doc-kpi-etiqueta">Por vencer</div></div>
+  <div class="doc-kpi doc-kpi--error"><div class="doc-kpi-valor">{{ conteo.VENCIDO }}</div><div class="doc-kpi-etiqueta">Vencidos</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ conteo.EN_TRAMITE }}</div><div class="doc-kpi-etiqueta">En trámite</div></div>
+</div>
+
+{% if criticos_vencidos %}
+<div class="doc-aviso doc-aviso--error">Hay {{ criticos_vencidos|length }} trámite{{ criticos_vencidos|length|pluralize }} crítico{{ criticos_vencidos|length|pluralize }} vencido{{ criticos_vencidos|length|pluralize }}.</div>
+{% endif %}
+
+<table class="doc-tabla">
+  <thead><tr><th>Trámite</th><th>Emisor</th><th class="col-folio">Folio</th><th class="centro col-fecha">Emisión</th>
+    <th class="centro col-fecha">Vencimiento</th><th class="centro col-estado">Estado</th></tr></thead>
+  <tbody>
+    {% for f in filas %}
+    <tr>
+      <td>{{ f.tramite.nombre }}{% if f.tramite.critico %} {% badge_doc "Crítico" "error" %}{% endif %}</td>
+      <td>{{ f.tramite.emisor|default:"—" }}</td>
+      <td class="codigo">{{ f.vigencia.folio|default:"—" }}</td>
+      <td class="centro">{{ f.vigencia.fecha_emision|date:"d/m/Y"|default:"—" }}</td>
+      <td class="centro">{% if f.vigencia.fecha_vencimiento %}{{ f.vigencia.fecha_vencimiento|date:"d/m/Y" }}{% elif f.vigencia %}Sin vencimiento{% else %}—{% endif %}</td>
+      <td class="centro">{% badge_doc f.etiqueta f.tono %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="vacio">Sin trámites registrados.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block notas %}Los documentos oficiales de cada trámite vigente se entregan por separado en el expediente digital.{% endblock %}

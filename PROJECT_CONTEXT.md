@@ -40,6 +40,7 @@ cliente, ambos servidos con templates Django normales.
 | `facturacion` | Solicitudes de factura y configuración del contador. |
 | `comunicacion` | Registro/envío de comunicaciones al cliente (emails transaccionales, recordatorios). |
 | `reportes` | Módulo centralizado de reportes PDF/Excel que reutiliza datos de las demás apps (`reportes/services/*.py` por dominio). |
+| `cumplimiento` | Permisos, licencias, constancias y contratos de servicio con vigencia, costo, expediente y avisos de vencimiento (Issue #403). Sin contabilidad; solo Dirección por defecto. |
 | `core_erp` | Proyecto Django: `settings.py`, `urls.py` raíz, rate limiting (`ratelimit.py`), auth config. |
 
 ## Modelos principales por app
@@ -81,6 +82,13 @@ Las pólizas se generan automáticamente vía signals cuando se registran
 ### `comunicacion`
 
 `ComunicacionCliente` (historial de emails/notificaciones enviadas).
+
+### `cumplimiento`
+
+`Tramite` (catálogo) → `RequisitoTramite`; `Vigencia` (cada obtención/renovación, con
+documento oficial) → `DocumentoExpediente`; `AvisoVencimiento` (bitácora e idempotencia
+de avisos). Semáforo en `services.estado_tramite()`; avisos en `services_avisos.py`
+(`manage.py avisar_vencimientos`); expediente PDF/ZIP en `services_expediente.py`.
 
 ### `reportes`
 

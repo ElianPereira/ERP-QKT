@@ -3,6 +3,11 @@
 <div class="qkt-pagina">
     <div class="qkt-pagina__cabecera">
         <h1 class="qkt-pagina__titulo"><i class="fas fa-clipboard-check" aria-hidden="true"></i> Tablero de cumplimiento</h1>
+        <div class="qkt-botonera">
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'cumplimiento:expediente_pdf' %}" target="_blank" rel="noopener"><i class="fas fa-file-pdf" aria-hidden="true"></i> Expediente PDF</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'cumplimiento:expediente_zip' %}"><i class="fas fa-file-archive" aria-hidden="true"></i> Descargar expediente vigente</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'cumplimiento:expediente_zip' %}?requisitos=1"><i class="fas fa-folder-open" aria-hidden="true"></i> Con documentos de requisitos</a>
+        </div>
         <p class="qkt-pagina__intro">Permisos, licencias, constancias y contratos de servicio con su vigencia. Los críticos son los que, vencidos, pueden detener la operación.</p>
     </div>
 

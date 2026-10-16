@@ -254,6 +254,14 @@
             </div>
             {% endif %}
 
+            {% if puede_cumplimiento %}
+            <div class="qkt-panel">
+                <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-clipboard-check" aria-hidden="true"></i> Cumplimiento</h2></div>
+                {% url 'reportes:cumplimiento_costo' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Costo de cumplimiento" icono="fa-stamp" desde=inicio_anio %}
+            </div>
+            {% endif %}
+
             <!-- FACTURACIÓN -->
             {% if puede_facturacion %}
             <div class="qkt-panel qkt-panel--info">

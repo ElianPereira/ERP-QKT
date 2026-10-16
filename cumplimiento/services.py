@@ -28,6 +28,8 @@ ESTADOS_ETIQUETA = {
     SIN_REGISTRO: 'Sin registro', EN_TRAMITE: 'En trámite', VENCIDO: 'Vencido',
     POR_VENCER: 'Por vencer', VIGENTE: 'Vigente',
 }
+# Tonos de los cinco tonos semánticos de core_erp/admin_ui.py
+TONO_POR_ESTADO = {VIGENTE: 'exito', POR_VENCER: 'alerta', VENCIDO: 'error', EN_TRAMITE: 'info', SIN_REGISTRO: 'neutro'}
 # Orden de urgencia en el tablero
 ORDEN_ESTADOS = (VENCIDO, POR_VENCER, EN_TRAMITE, SIN_REGISTRO, VIGENTE)
 
@@ -156,6 +158,7 @@ def resumen_tablero(hoy=None):
         est = estado_tramite(tramite, hoy)
         filas.append({
             'tramite': tramite, 'estado': est.estado, 'etiqueta': ESTADOS_ETIQUETA[est.estado],
+            'tono': TONO_POR_ESTADO[est.estado],
             'vigencia': est.vigencia, 'dias': est.dias, 'dias_texto': dias_texto(est.dias),
             'renovacion': est.renovacion_en_curso,
         })

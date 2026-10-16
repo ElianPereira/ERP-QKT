@@ -18,10 +18,7 @@ MEDIA_CONFIG = {
     'js': ('js/tabs_fix.js',),
 }
 
-TONOS_SEMAFORO = {
-    services.VIGENTE: ui.EXITO, services.POR_VENCER: ui.ALERTA, services.VENCIDO: ui.ERROR,
-    services.EN_TRAMITE: ui.INFO, services.SIN_REGISTRO: ui.NEUTRO,
-}
+TONOS_SEMAFORO = services.TONO_POR_ESTADO
 
 TONOS_ESTADO = {'EN_TRAMITE': ui.INFO, 'OBTENIDA': ui.EXITO, 'CANCELADA': ui.NEUTRO}
 
