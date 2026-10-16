@@ -87,6 +87,7 @@ def selector_reportes(request):
         'puede_compras': request.user.has_perm('comercial.view_compra'),
         'puede_nomina': request.user.has_perm('nomina.view_recibonomina'),
         'puede_kooxi': request.user.has_perm('comunicacion.view_conversacionwhatsapp'),
+        'puede_indicadores': request.user.is_superuser,
     }
     return render(request, 'reportes/selector.html', context)
 

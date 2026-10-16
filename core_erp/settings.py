@@ -627,6 +627,7 @@ JAZZMIN_SETTINGS = {
         {"name": "Calendario",         "url": "calendario_unificado"},
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},
+        {"name": "Indicadores",        "url": "indicadores:tablero",     "permissions": ["indicadores.view_metamensual"]},
         {"name": "Cerrar sesión",      "url": "/admin/logout/",          "new_window": False},
     ],
 

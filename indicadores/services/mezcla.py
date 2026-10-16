@@ -224,6 +224,8 @@ class MezclaOptimaService:
             })
 
         real = cls._real(anio, mes, p, economia)
+        for fila in filas:
+            fila['real_unidades'] = real['unidades'][fila['tipo']]
         cf = costos['cf']
         return {
             'anio': anio, 'mes': mes, 'segmentos': SEGMENTOS,

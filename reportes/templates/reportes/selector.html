@@ -246,6 +246,16 @@
             </div>
             {% endif %}
 
+            {% if puede_indicadores %}
+            <div class="qkt-panel qkt-panel--exito">
+                <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-chart-line" aria-hidden="true"></i> Indicadores</h2></div>
+                <div class="qkt-panel__cuerpo">
+                    <p>Capacidad, punto de equilibrio, ocupación, mezcla óptima y metas comerciales. Solo Dirección.</p>
+                    <a class="qkt-btn qkt-btn--primario" href="{% url 'indicadores:tablero' %}"><i class="fas fa-tachometer-alt" aria-hidden="true"></i> Abrir tablero</a>
+                </div>
+            </div>
+            {% endif %}
+
             {% if puede_kooxi %}
             <div class="qkt-panel">
                 <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fab fa-whatsapp" aria-hidden="true"></i> Agente Kooxi</h2></div>
