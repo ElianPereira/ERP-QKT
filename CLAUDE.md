@@ -266,6 +266,17 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-10-16 — **Descarga SAT: falsos errores por 5004 y cuota 5002** (reportado
+  por el propietario al ver decenas de solicitudes «Con error»; los logs de
+  Railway no traen el motivo, solo `SolicitudDescargaSAT.mensaje`/`codigo_sat`).
+  `_verificar` marcaba ERROR a una solicitud rechazada (estado 5) con código
+  5004 = «sin información», resultado normal; el tramo reaparecía como hueco y
+  se repetía en cada corrida, agotando la cuota de por vida del SAT (5002: 2
+  solicitudes por RFC, tipo y rango **exacto**). Ahora 5004 → `SIN_INFORMACION`
+  y un rango con 5002 se vuelve a pedir un día antes (hasta
+  `MAX_DESPLAZAMIENTO_RANGO`), nunca el mismo. Lo ya en ERROR no se reescribe:
+  tras el deploy, `manage.py sincronizar_sat` recupera jul–sep. Sin migración.
 - 2026-10-13 — **Depósito en garantía: solo lo retenido se factura**
   (decisión del propietario; el contador proponía cobrarlo todo en efectivo
   «para no facturar»). Recibir el depósito no es ingreso, es pasivo (205.03),
