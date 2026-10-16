@@ -176,3 +176,33 @@ class DocumentoExpediente(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+class AvisoVencimiento(models.Model):
+    """Bitácora e idempotencia de los avisos: un registro por vigencia,
+    umbral y canal. El INSERT va antes del envío (ver services_avisos)."""
+
+    CANAL_CHOICES = [('WHATSAPP', 'WhatsApp'), ('EMAIL', 'Correo')]
+    ESTADO_CHOICES = [('PENDIENTE', 'Pendiente'), ('ENVIADO', 'Enviado'), ('FALLIDO', 'Fallido')]
+
+    vigencia = models.ForeignKey(Vigencia, on_delete=models.CASCADE, related_name='avisos', verbose_name='Vigencia')
+    umbral = models.SmallIntegerField(
+        verbose_name='Umbral (días)',
+        help_text='Días al vencimiento que disparó el aviso; -1 = vencida, -2 = último día para cancelar.')
+    canal = models.CharField(max_length=10, choices=CANAL_CHOICES, verbose_name='Canal')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PENDIENTE', verbose_name='Estado')
+    detalle = models.TextField(blank=True, verbose_name='Detalle')
+    enviado_en = models.DateTimeField(null=True, blank=True, verbose_name='Enviado')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    actualizado_en = models.DateTimeField(default=timezone.now, verbose_name='Último intento')
+
+    class Meta:
+        verbose_name = 'Aviso'
+        verbose_name_plural = 'Avisos'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['vigencia', 'umbral', 'canal'], name='aviso_vencimiento_unico'),
+        ]
+
+    def __str__(self):
+        return f'{self.vigencia} · {self.umbral} · {self.get_canal_display()}'

@@ -600,6 +600,7 @@ JAZZMIN_SETTINGS = {
         "cumplimiento":                      "fas fa-clipboard-check",
         "cumplimiento.Tramite":              "fas fa-stamp",
         "cumplimiento.Vigencia":             "fas fa-calendar-check",
+        "cumplimiento.AvisoVencimiento":     "fas fa-bell",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -619,6 +620,8 @@ JAZZMIN_SETTINGS = {
         # admin_lineas_negocio.py) — son proxies del mismo modelo/tabla, así
         # que se oculta el "Producto" sin filtrar para no duplicar el menú.
         "comercial.Producto",
+        # Bitácora de avisos de vencimiento (solo lectura, se consulta desde Cumplimiento)
+        "cumplimiento.AvisoVencimiento",
     ],
 
     # ── TOP MENU ──────────────────────────────────────────────

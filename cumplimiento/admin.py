@@ -11,7 +11,7 @@ from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.descargas import url_descarga
 
 from . import services
-from .models import DocumentoExpediente, RequisitoTramite, Tramite, Vigencia
+from .models import AvisoVencimiento, DocumentoExpediente, RequisitoTramite, Tramite, Vigencia
 
 MEDIA_CONFIG = {
     'css': {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')},
@@ -247,3 +247,26 @@ class VigenciaAdmin(AuditoriaAdminMixin, admin.ModelAdmin):
     class Media:
         css = MEDIA_CONFIG['css']
         js = MEDIA_CONFIG['js']
+
+
+@admin.register(AvisoVencimiento)
+class AvisoVencimientoAdmin(admin.ModelAdmin):
+    """Bitácora de avisos: solo lectura."""
+    list_display = ['vigencia', 'umbral', 'canal', 'estado_badge', 'enviado_en']
+    list_filter = [('canal', con_titulo('Canal')), ('estado', con_titulo('Estado'))]
+    search_fields = ['vigencia__tramite__nombre']
+
+    TONOS = {'ENVIADO': ui.EXITO, 'FALLIDO': ui.ERROR, 'PENDIENTE': ui.ALERTA}
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS, obj.get_estado_display())
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
