@@ -91,6 +91,7 @@ INSTALLED_APPS = [
     'comunicacion',
     'legal',
     'operaciones',
+    'cumplimiento',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]
@@ -594,6 +595,11 @@ JAZZMIN_SETTINGS = {
         "operaciones":                       "fas fa-broom",
         "operaciones.PlantillaChecklist":    "fas fa-tasks",
         "operaciones.TareaProgramada":       "fas fa-clock",
+
+        # CUMPLIMIENTO
+        "cumplimiento":                      "fas fa-clipboard-check",
+        "cumplimiento.Tramite":              "fas fa-stamp",
+        "cumplimiento.Vigencia":             "fas fa-calendar-check",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -693,6 +699,11 @@ JAZZMIN_SETTINGS = {
         # === REPORTES ===
         "reportes",
         "reportes.reportegenerado",
+
+        # === CUMPLIMIENTO ===
+        "cumplimiento",
+        "cumplimiento.Tramite",
+        "cumplimiento.Vigencia",
 
         # === ADMINISTRACIÓN ===
         "auth",

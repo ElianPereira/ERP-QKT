@@ -11,6 +11,10 @@ usado en `importar_historico_view` y `migrar_archivos_privados_view` — un
 superusuario pasa cualquier `has_perm`/`permission_required` sin necesitar
 permisos explícitos.
 
+`cumplimiento` (Issue #403) tampoco se liga a ningún grupo: por decisión
+por defecto solo lo ve Dirección (superusuario). Para abrirlo a un área,
+agregar 'cumplimiento' a la lista de apps del grupo correspondiente.
+
 `legal.SolicitudARCO` no se liga a ningún grupo de aquí: conserva su permiso
 independiente `legal.ver_identificacion_arco`, asignado a mano por el
 propietario a quien gestione ARCO.
