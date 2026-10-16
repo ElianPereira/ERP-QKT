@@ -1,0 +1,66 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block variante %}operativo{% endblock %}
+{% block subtitulo %}Capacidad, punto de equilibrio, mezcla óptima y metas del mes{% endblock %}
+
+{% block filtros %}
+<span><b>Mes:</b> {{ d.inicio|date:"m/Y" }}</span>
+<span><b>Ventana de promedio:</b> {{ d.ventana.0|date:"d/m/Y" }} al {{ d.ventana.1|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  {% for k in d.resumen %}
+  <div class="doc-kpi doc-kpi--{% if k.tono == 'neutro' %}info{% else %}{{ k.tono }}{% endif %}"><div class="doc-kpi-valor">{% if k.valor is None %}—{% elif k.tipo == 'moneda' %}{{ k.valor|moneda }}{% else %}{{ k.valor }} %{% endif %}</div><div class="doc-kpi-etiqueta">{{ k.etiqueta }}{% if k.estimado %} (estimado){% endif %}</div></div>
+  {% endfor %}
+</div>
+
+{% for aviso in d.avisos %}<div class="doc-resumen"><span><b>Revisa:</b> {{ aviso }}</span></div>{% endfor %}
+
+<h2 class="doc-seccion">Capacidad máxima</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Servicio</th><th class="num">Días vendibles</th><th class="num">Capacidad</th><th class="num col-monto">Ingreso máximo</th><th class="num col-monto">Contribución máxima</th></tr></thead>
+  <tbody>
+    {% for s in d.capacidad.servicios.values %}
+    <tr><td class="negrita">{{ s.nombre }}{% if s.fuente_costo != 'medido' %} ({{ s.fuente_costo }}){% endif %}</td><td class="num">{{ s.dias_vendibles }}</td><td class="num">{{ s.unidades|default_if_none:"—" }}</td><td class="num">{{ s.ingreso_max|moneda }}</td><td class="num">{{ s.mc_max|moneda }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>{{ d.capacidad.nota }}</p>
+
+<h2 class="doc-seccion">Punto de equilibrio</h2>
+{% with b=d.equilibrio.base o=d.equilibrio.objetivo %}
+<table class="doc-tabla">
+  <thead><tr><th>Concepto</th><th class="num col-monto">Equilibrio</th><th class="num col-monto">Con utilidad objetivo ({{ d.equilibrio.utilidad_objetivo|moneda }})</th></tr></thead>
+  <tbody>
+    <tr><td>Costos fijos mensuales ({{ d.equilibrio.fuente_cf }})</td><td class="num">{{ b.objetivo|moneda }}</td><td class="num">{{ o.objetivo|moneda }}</td></tr>
+    <tr><td>Margen de contribución ponderado</td><td class="num">{{ b.mc_pct|default_if_none:"—" }}</td><td class="num">{{ o.mc_pct|default_if_none:"—" }}</td></tr>
+    <tr><td>Venta neta necesaria al mes</td><td class="num">{{ b.pesos|moneda }}</td><td class="num">{{ o.pesos|moneda }}</td></tr>
+    <tr><td>Días ocupados necesarios</td><td class="num">{{ b.dias|default_if_none:"—" }}</td><td class="num">{{ o.dias|default_if_none:"—" }}</td></tr>
+    <tr class="total"><td>Ocupación de equilibrio</td><td class="num">{% if b.ocupacion_pct is None %}—{% else %}{{ b.ocupacion_pct }} %{% endif %}</td><td class="num">{% if o.ocupacion_pct is None %}—{% else %}{{ o.ocupacion_pct }} %{% endif %}</td></tr>
+  </tbody>
+</table>
+{% endwith %}
+
+<h2 class="doc-seccion">Mezcla óptima</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Servicio</th><th class="num">Fin de semana</th><th class="num">Entre semana</th><th class="num">Unidades</th><th class="num">Días</th><th class="num col-monto">Ingreso</th><th class="num col-monto">Contribución</th><th class="num">Real mes anterior</th></tr></thead>
+  <tbody>
+    {% for f in d.mezcla.filas %}
+    <tr><td class="negrita">{{ f.nombre }}</td><td class="num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="num">{{ f.segmentos.ENTRE_SEMANA }}</td><td class="num">{{ f.unidades }}</td><td class="num">{{ f.dias }}</td><td class="num">{{ f.ingreso|moneda }}</td><td class="num">{{ f.contribucion|moneda }}</td><td class="num">{{ f.real_unidades }}</td></tr>
+    {% endfor %}
+    <tr class="total"><td colspan="6">Contribución óptima · utilidad {{ d.mezcla.utilidad|moneda }} · brecha contra lo real {{ d.mezcla.brecha|moneda }}</td><td class="num">{{ d.mezcla.contribucion|moneda }}</td><td></td></tr>
+  </tbody>
+</table>
+
+<h2 class="doc-seccion">Metas en cascada</h2>
+<table class="doc-tabla">
+  <tbody>
+    <tr><td>Venta neta necesaria</td><td class="num">{{ d.metas.venta_necesaria|moneda }}</td></tr>
+    <tr><td>Ventas necesarias</td><td class="num">{{ d.metas.ventas_necesarias|default_if_none:"—" }}</td></tr>
+    <tr><td>Solicitudes necesarias (conversión {{ d.metas.tasa_conversion }} %)</td><td class="num">{{ d.metas.solicitudes_necesarias|default_if_none:"—" }}</td></tr>
+    <tr class="total"><td>Presupuesto de marketing sugerido</td><td class="num">{{ d.metas.presupuesto_marketing|moneda }}</td></tr>
+  </tbody>
+</table>
+{% endblock %}

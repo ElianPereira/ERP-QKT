@@ -13,7 +13,7 @@ de mes usa **solo lo ya confirmado** para fechas del mes (las reservas se venden
 por adelantado), no una línea recta por días transcurridos.
 """
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, Optional
 
 from reportes.services.operacion import OcupacionService
@@ -106,3 +106,39 @@ class MetasService:
             'avance': avance, 'equilibrio': eq, 'avisos': avisos,
             'proyeccion': real['venta_neta'],  # solo lo confirmado para fechas del mes
         }
+
+
+def proponer_meta(anio: int, mes: int, usuario=None, hoy: Optional[date] = None,
+                  parametros: Optional[ParametrosNegocio] = None) -> MetaMensual:
+    """
+    Crea o actualiza la meta activa del mes con la cascada (el propietario la ajusta
+    después): venta y ocupación del equilibrio con utilidad objetivo; unidades por
+    servicio según la mezcla real de la ventana de promedio; presupuesto de marketing sugerido.
+    """
+    datos = MetasService.generar(anio, mes, parametros, hoy=hoy)
+    tipos = datos['equilibrio']['economia']['tipos']
+    ventas_base = sum(t['ventas'] for t in tipos.values())
+    ventas = datos['ventas_necesarias'] or 0
+
+    def unidades(tipo):
+        return int((Decimal(ventas) * tipos[tipo]['ventas'] / ventas_base).quantize(Decimal('1'), rounding=ROUND_HALF_UP)) if ventas_base else 0
+
+    noches = 0
+    if ventas_base and tipos['HOSPEDAJE']['dias_por_unidad']:
+        noches = int((unidades('HOSPEDAJE') * tipos['HOSPEDAJE']['dias_por_unidad']).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+    ocupacion = datos['objetivo']['ocupacion_pct']
+    campos = {
+        'meta_venta_neta': datos['venta_necesaria'] or D0,
+        'meta_ocupacion_pct': min(ocupacion, Decimal('100')) if ocupacion is not None else D0,
+        'meta_eventos': unidades('EVENTO'), 'meta_pasadias': unidades('PASADIA'), 'meta_noches': noches,
+        'presupuesto_marketing': datos['presupuesto_marketing'] or D0,
+    }
+    meta = MetaMensual.del_mes(anio, mes)
+    if meta is None:
+        meta = MetaMensual(anio=anio, mes=mes, created_by=usuario)
+    for campo, valor in campos.items():
+        setattr(meta, campo, valor)
+    meta.updated_by = usuario
+    meta.notas = (meta.notas + '\n' if meta.notas else '') + 'Propuesta desde equilibrio.'
+    meta.save()
+    return meta

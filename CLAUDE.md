@@ -269,6 +269,27 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-16 — **Módulo Indicadores** (Issue #402; solo superusuario, solo lectura
+  sobre datos existentes + `ParametrosNegocio`/`MetaMensual`, migración
+  `indicadores.0001` solo crea tablas). Tablero en `admin/indicadores/tablero/`,
+  PDF/Excel en `exportar/`, enlace en el Centro de reportes. Definiciones (fuente única
+  en `indicadores/services/`): **venta neta** = `subtotal − descuento` de ventas reales
+  sin cortesías; **costo variable** = gasto ligado a la cotización (medido con ≥5 ventas
+  con gasto ligado por tipo, si no el % de Parámetros, marcado «estimado»); **MC** =
+  ticket − costo; la Quinta es **un recurso por día**, así que todo se optimiza en **MC
+  por día**. **CF** = promedio de meses cerrados de cuentas 6xx de pólizas APLICADAS, o
+  el presupuestado; **nómina**: si hay póliza en la cuenta de sueldos del mes no se suman
+  recibos, si no, sí (nunca ambas). Equilibrio = CF / MC% ponderado con la mezcla real de
+  la ventana; ocupación de equilibrio = CF / MC-día ponderado / días vendibles.
+  **Decisión no obvia**: el voraz por MC/día es exacto solo con unidades de un día; las
+  estancias de varios días dejan días muertos (un barrido contra fuerza bruta lo
+  mostró: 74 de 400 casos perdían), por eso `mezcla.asignar_optimo` enumera cuántas
+  estancias van en cada bolsa y deja el voraz para el resto (0 diferencias en el
+  barrido; cae al voraz puro con >20,000 combinaciones). No hay fecha de confirmación
+  guardada: «días a confirmar» y anticipación se miden contra el **primer pago**. No se
+  registra en `ReporteGenerado` (evita migración en `reportes`). Chart.js 4.4.1 fijado
+  desde cdnjs; se agregó `.qkt-grafica` a `qkt_ui.css`. Pendiente del propietario:
+  capturar Parámetros (días de venta, tope de eventos, % de respaldo) y metas.
 - 2026-10-16 — **Descarga SAT: los últimos días de un mes cerrado eran hueco
   eterno** (seguimiento del PR #399, duda del propietario sobre «Traer historial
   desde»: la fecha 01/07 es correcta, el problema era otro). `_huecos` cubría cada

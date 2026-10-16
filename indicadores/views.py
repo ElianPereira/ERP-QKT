@@ -10,6 +10,10 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
 from django.utils import timezone
 
+from core_erp.documentos import nombre_archivo, respuesta_pdf
+from core_erp.excel import respuesta_excel
+
+from .exportacion import hojas
 from .services.tablero import TableroService, overrides_desde
 
 
@@ -49,3 +53,16 @@ def tablero(request):
             'ocupacion': (str(datos['equilibrio_ocupacion'])
                           if datos['equilibrio_ocupacion'] is not None else None)},
     })
+
+
+@solo_direccion
+def exportar(request):
+    """PDF «Indicadores del mes» o, con `?formato=excel`, el mismo contenido en Excel."""
+    anio, mes = _mes(request)
+    datos = TableroService.generar(anio, mes, overrides_desde(request.GET))
+    nombre_base = f'{anio}-{mes:02d}'
+    if request.GET.get('formato') == 'excel':
+        return respuesta_excel('Indicadores del mes', list(hojas(datos)),
+                               nombre_archivo('Indicadores', nombre_base, extension='xlsx'))
+    return respuesta_pdf('indicadores/pdf_indicadores.html', {'titulo': 'Indicadores del mes', 'd': datos},
+                         nombre_archivo('Indicadores', nombre_base), request=request)

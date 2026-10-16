@@ -21,6 +21,8 @@
         <label class="qkt-campo"><span class="qkt-campo__label">Mes</span>
             <input type="month" name="mes" value="{{ mes_valor }}"></label>
         <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-sync-alt" aria-hidden="true"></i> Ver mes</button>
+        <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:exportar' %}?mes={{ mes_valor }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</a>
+        <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:exportar' %}?mes={{ mes_valor }}&amp;formato=excel"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</a>
     </form>
 
     {% for aviso in d.avisos %}

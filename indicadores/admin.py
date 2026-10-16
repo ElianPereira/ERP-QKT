@@ -2,7 +2,7 @@
 Admin de Indicadores (Issue #402). Solo Dirección (superusuario) ve y edita
 parámetros y metas: son supuestos de negocio, no captura operativa.
 """
-from django.contrib import admin
+from django.contrib import admin, messages
 
 from core_erp import admin_ui as ui
 
@@ -107,3 +107,15 @@ class MetaMensualAdmin(SoloDireccionMixin, admin.ModelAdmin):
     @admin.display(description='Marketing')
     def marketing(self, obj):
         return ui.monto(obj.presupuesto_marketing)
+
+    actions = ['proponer_desde_equilibrio']
+
+    @admin.action(description='Proponer desde equilibrio')
+    def proponer_desde_equilibrio(self, request, queryset):
+        from .services.metas import proponer_meta
+
+        meses = sorted({(m.anio, m.mes) for m in queryset})
+        for anio, mes in meses:
+            proponer_meta(anio, mes, request.user)
+        self.message_user(request, f'Metas propuestas desde el equilibrio: {len(meses)} mes(es).',
+                          messages.SUCCESS)

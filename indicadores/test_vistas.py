@@ -1,5 +1,7 @@
 """Tablero de Indicadores (Issue #402, fase 3): acceso, render y reglas del sistema de diseño."""
 import re
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
@@ -12,6 +14,9 @@ from indicadores.services.tablero import overrides_desde
 from indicadores.test_services import MesArmado
 
 EMOJI = re.compile('[\U0001F300-\U0001FAFF☀-➿]')
+
+
+D = Decimal
 
 
 class AccesoTest(TestCase):
@@ -97,3 +102,67 @@ class EnlacesTest(TestCase):
         self.client.logout()
         self.client.force_login(staff)
         self.assertNotContains(self.client.get(reverse('reportes:selector')), url)
+
+
+class ExportacionTest(MesArmado):
+
+    def setUp(self):
+        login_superuser_con_totp(self.client, User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123'))
+
+    def test_pdf(self):
+        import io
+
+        import pdfplumber
+        r = self.client.get(reverse('indicadores:exportar'), {'mes': '2026-02'})
+        self.assertEqual(r['Content-Type'], 'application/pdf')
+        self.assertIn('QKT_Indicadores_2026-02.pdf', r['Content-Disposition'])
+        with pdfplumber.open(io.BytesIO(r.content)) as pdf:
+            texto = '\n'.join(p.extract_text() or '' for p in pdf.pages)
+        for esperado in ('Indicadores del mes', '$50,000.00', '$101,400.00', '38.6 %'):
+            self.assertIn(esperado, texto)
+
+    def test_excel(self):
+        import io
+
+        import openpyxl
+        r = self.client.get(reverse('indicadores:exportar'), {'mes': '2026-02', 'formato': 'excel'})
+        self.assertIn('QKT_Indicadores_2026-02.xlsx', r['Content-Disposition'])
+        libro = openpyxl.load_workbook(io.BytesIO(r.content))
+        self.assertIn('Mezcla óptima', libro.sheetnames)
+        equilibrio = {f[0].value: f[1].value for f in libro['Equilibrio'].iter_rows(min_row=2)}
+        self.assertEqual(equilibrio['Venta neta necesaria'], 50000)
+
+    def test_staff_no_exporta(self):
+        self.client.logout()
+        self.client.force_login(User.objects.create_user('s', 's@x.mx', 'clave-de-prueba-123', is_staff=True))
+        self.assertEqual(self.client.get(reverse('indicadores:exportar')).status_code, 403)
+
+
+class ProponerMetaTest(MesArmado):
+
+    def test_propone_y_actualiza_sin_duplicar(self):
+        from indicadores.models import MetaMensual
+        from indicadores.services.metas import proponer_meta
+
+        usuario = User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123')
+        meta = proponer_meta(2026, 2, usuario, hoy=date(2026, 3, 5), parametros=self.p)
+        self.assertEqual((meta.meta_venta_neta, meta.meta_ocupacion_pct), (D('50000.00'), D('38.6')))
+        self.assertEqual((meta.meta_eventos, meta.meta_pasadias, meta.meta_noches), (3, 5, 6))   # 9 ventas repartidas 4:6:2, redondeo half-up
+        self.assertEqual(meta.presupuesto_marketing, D('4431.75'))
+        self.assertEqual(meta.created_by, usuario)
+        meta_otra = proponer_meta(2026, 2, usuario, hoy=date(2026, 3, 5), parametros=self.p)
+        self.assertEqual(meta.pk, meta_otra.pk)
+        self.assertEqual(MetaMensual.objects.filter(anio=2026, mes=2, activo=True).count(), 1)
+
+    def test_accion_del_admin(self):
+        from django.urls import reverse as r
+
+        from indicadores.models import MetaMensual
+        usuario = User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123')
+        login_superuser_con_totp(self.client, usuario)
+        meta = MetaMensual.objects.create(anio=2026, mes=2)
+        resp = self.client.post(r('admin:indicadores_metamensual_changelist'), {
+            'action': 'proponer_desde_equilibrio', '_selected_action': [meta.pk]})
+        self.assertEqual(resp.status_code, 302)
+        meta.refresh_from_db()
+        self.assertGreater(meta.meta_venta_neta, 0)
