@@ -267,6 +267,13 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-16 — **Descarga SAT: los últimos días de un mes cerrado eran hueco
+  eterno** (seguimiento del PR #399, duda del propietario sobre «Traer historial
+  desde»: la fecha 01/07 es correcta, el problema era otro). `_huecos` cubría cada
+  solicitud solo hasta `hasta − SOLAPE_DIAS` aunque fuera de un mes ya cerrado,
+  así que 29–31 de cada mes se pedían a diario con el mismo rango exacto hasta el
+  5002. Ahora una solicitud hecha `SOLAPE_DIAS` o más después de su fin (el SAT ya
+  publicó) cubre su rango completo; las recientes conservan el solape. Sin migración.
 - 2026-10-16 — **Descarga SAT: falsos errores por 5004 y cuota 5002** (reportado
   por el propietario al ver decenas de solicitudes «Con error»; los logs de
   Railway no traen el motivo, solo `SolicitudDescargaSAT.mensaje`/`codigo_sat`).
