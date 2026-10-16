@@ -1,0 +1,6 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+    <a href="{% url 'cumplimiento:tablero' %}" class="qkt-btn qkt-btn--secundario"><i class="fas fa-th-list" aria-hidden="true"></i> Tablero</a>
+    {{ block.super }}
+{% endblock %}

@@ -32,6 +32,7 @@ class ReporteGenerado(models.Model):
         ('DEPOSITOS', 'Depósitos en Garantía'),
         ('CORTESIAS', 'Cortesías y Descuentos'),
         ('KOOXI', 'Agente Kooxi'),
+        ('CUMPLIMIENTO', 'Costo de Cumplimiento'),
         # Nómina
         ('NOMINA', 'Nómina por Periodo'),
         # Facturación
