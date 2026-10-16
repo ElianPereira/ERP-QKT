@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     'anymail',
     'contabilidad',
     'reportes',
+    'indicadores',
     'comunicacion',
     'legal',
     'operaciones',
@@ -590,6 +591,11 @@ JAZZMIN_SETTINGS = {
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-clipboard-list",
 
+        # INDICADORES (solo Dirección)
+        "indicadores":                       "fas fa-chart-line",
+        "indicadores.ParametrosNegocio":     "fas fa-sliders-h",
+        "indicadores.MetaMensual":           "fas fa-bullseye",
+
         # OPERACIONES
         "operaciones":                       "fas fa-broom",
         "operaciones.PlantillaChecklist":    "fas fa-tasks",
@@ -693,6 +699,11 @@ JAZZMIN_SETTINGS = {
         # === REPORTES ===
         "reportes",
         "reportes.reportegenerado",
+
+        # === INDICADORES ===
+        "indicadores",
+        "indicadores.ParametrosNegocio",
+        "indicadores.MetaMensual",
 
         # === ADMINISTRACIÓN ===
         "auth",

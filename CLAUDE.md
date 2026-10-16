@@ -116,20 +116,22 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones` |
+| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones indicadores` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 | Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
-**Estructura clave** (9 apps Django propias):
+**Estructura clave** (10 apps Django propias):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
   desde `comercial`), conciliación bancaria.
 - `nomina/`, `facturacion/`, `comunicacion/`, `reportes/`, `operaciones/` —
   un dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
+- `indicadores/` — KPIs de dirección (capacidad, equilibrio, mezcla óptima, metas); solo
+  superusuario, solo lectura sobre datos existentes + parámetros del propietario.
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
