@@ -139,10 +139,15 @@ def _huecos(credencial, tipo, desde, hasta):
     Una solicitud con error no cubre nada, así que lo que el SAT rechazó o dejó
     vencer reaparece como hueco y se vuelve a pedir. Las vigentes cubren hasta
     SOLAPE_DIAS antes de su fin: los últimos días se piden otra vez porque el SAT
-    publica con retraso."""
+    publica con retraso. Si la solicitud se hizo cuando ese retraso ya había pasado
+    (SOLAPE_DIAS o más después de su fin), cubre su rango completo: así un mes
+    cerrado no deja sus últimos días como hueco para siempre."""
     cubiertos = set()
+    zona = timezone.get_current_timezone()
     for s in SolicitudDescargaSAT.objects.filter(credencial=credencial, tipo=tipo).exclude(estado='ERROR'):
-        cubiertos.update(_dias(s.desde, s.hasta - timedelta(days=SOLAPE_DIAS)))
+        pedida = timezone.localtime(s.created_at, zona).date()
+        publicado = (pedida - s.hasta).days >= SOLAPE_DIAS
+        cubiertos.update(_dias(s.desde, s.hasta if publicado else s.hasta - timedelta(days=SOLAPE_DIAS)))
     rangos, inicio = [], None
     for d in _dias(desde, hasta):
         if d not in cubiertos and inicio is None:

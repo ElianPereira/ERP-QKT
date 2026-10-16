@@ -324,6 +324,21 @@ class FlujoDescargaTest(TestCase):
         otras = sat.planear_sincronizacion(self.cred, hoy=hoy)
         self.assertEqual([(n.desde, n.hasta) for n in otras], [(rota.desde - timedelta(days=2), rota.hasta)])
 
+    def test_mes_cerrado_no_deja_sus_ultimos_dias_como_hueco(self):
+        hoy = timezone.localdate()
+        desde, hasta = hoy - timedelta(days=60), hoy - timedelta(days=30)
+        # pedida hoy, cuando el SAT ya había publicado todo ese rango
+        SolicitudDescargaSAT.objects.create(credencial=self.cred, tipo='RECIBIDAS', desde=desde, hasta=hasta,
+                                            estado='DESCARGADA')
+        self.assertEqual(sat._huecos(self.cred, 'RECIBIDAS', desde, hasta), [])
+
+    def test_solicitud_reciente_conserva_el_solape(self):
+        hoy = timezone.localdate()
+        sat.planear_sincronizacion(self.cred, hoy=hoy)
+        ayer = hoy - timedelta(days=1)
+        self.assertEqual(sat._huecos(self.cred, 'RECIBIDAS', hoy - timedelta(days=35), ayer),
+                         [(ayer - timedelta(days=sat.SOLAPE_DIAS - 1), ayer)])
+
     def test_tramo_con_error_definitivo_se_vuelve_a_pedir(self):
         hoy = timezone.localdate()
         sat.planear_sincronizacion(self.cred, hoy=hoy)
