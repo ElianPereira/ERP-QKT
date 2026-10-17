@@ -6,7 +6,7 @@ Evento/Pasadía/Hospedaje no conviven el mismo día (`comercial/disponibilidad.p
 Por eso la capacidad de cada servicio se calcula *como si solo vendiera ese
 servicio* y **las capacidades no se suman**: comparten los mismos días.
 (Si algún día se permite vender dos servicios el mismo día, este service y
-`MezclaOptimaService` cambian de modelo.)
+`PlanAnualService` cambian de modelo.)
 
 - **Días vendibles de un servicio** = días del periodo, sin `BloqueoFecha`
   activo, en los días de la semana que `ParametrosNegocio` permite para él.

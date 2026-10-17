@@ -3,7 +3,7 @@ from .services.costos_fijos import GRUPOS
 
 
 def hojas(d: dict):
-    eq, mz, em, mt = d['equilibrio'], d['mezcla'], d['embudo'], d['metas']
+    eq, pl, em, mt = d['equilibrio'], d['plan']['plan'], d['embudo'], d['metas']
     b, o = eq['base'], eq['objetivo']
     yield ('Resumen', ['Indicador', 'Valor', 'Detalle'],
            [(k['etiqueta'], k['valor'], k['sub']) for k in d['resumen']])
@@ -20,15 +20,12 @@ def hojas(d: dict):
     yield ('Costos fijos', ['Mes', *GRUPOS.values(), 'Total', 'Fuente de nómina'],
            [(m['etiqueta'], *(m['por_grupo'][g] for g in GRUPOS), m['total'], m['fuente_nomina'])
             for m in d['costos']['meses']])
-    yield ('Mezcla óptima', ['Servicio', 'Precio neto', 'Costo directo', 'Tope al mes', 'Fin de semana', 'Entre semana',
-                             'Unidades', 'Días', 'Ingreso', 'Contribución', 'Real mes anterior'],
-           [(f['nombre'], f['precio'], f['costo'], f['tope'], f['segmentos']['FIN_DE_SEMANA'],
-             f['segmentos']['ENTRE_SEMANA'], f['unidades'], f['dias'], f['ingreso'], f['contribucion'],
-             f['real_unidades']) for f in mz['filas']])
-    yield ('Escenarios', ['Escenario', 'Eventos', 'Pasadías', 'Noches-habitación', 'Días', 'Venta neta',
-                          'Costo directo', 'Contribución', 'Costos fijos', 'Utilidad neta'],
-           [(e['nombre'], e['unidades']['EVENTO'], e['unidades']['PASADIA'], e['unidades']['HOSPEDAJE'], e['dias'],
-             e['venta'], e['costo_directo'], e['contribucion'], e['cf'], e['utilidad_neta']) for e in mz['escenarios']])
+    yield ('Plan anual', ['Mes', 'Eventos', 'Pasadías', 'Noches-habitación', 'Días ocupados', 'Venta neta',
+                          'Contribución', 'Costos fijos', 'Utilidad'],
+           [(m['etiqueta'], m['eventos'], m['pasadias'], m['noches'], m['dias_ocupados'], m['venta'],
+             m['contribucion'], m['cf'], m['utilidad']) for m in pl['meses']]
+           + [('Año', pl['unidades']['EVENTO'], pl['unidades']['PASADIA'], pl['unidades']['HOSPEDAJE'],
+               pl['dias_ocupados'], pl['venta'], pl['contribucion'], pl['cf'], pl['utilidad'])])
     yield ('Comercial', ['Canal', 'Solicitudes', 'Vendidas', 'Conversión (%)', 'Expiración (%)',
                          'Cancelación (%)', 'Venta neta'],
            [(f['nombre'], f['solicitudes'], f['ventas'], f['tasa_conversion'], f['tasa_expiracion'],
