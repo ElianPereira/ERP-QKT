@@ -125,5 +125,5 @@ class AdminSoloDireccionTest(TestCase):
             precio_venta_hospedaje=Decimal('1900.00'), costo_directo_hospedaje=Decimal('100.00'))
         r = self.client.get(reverse('admin:indicadores_parametrosnegocio_change', args=[p.pk]))
         html = r.content.decode()
-        self.assertLess(html.index('1. Hospedaje'), html.index('2. Pasadía'))
-        self.assertNotIn('Evento</th><td', html.split('Qué sale de esto')[1].split('</table>')[0])
+        self.assertLess(html.index('1 · Hospedaje'), html.index('2 · Pasadía'))
+        self.assertNotIn('· Evento', html)
