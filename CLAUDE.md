@@ -269,6 +269,15 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-17 — **Kooxi: el mismo día y las visitas los confirma una persona** (dos chats reales: dijo «hoy
+  está libre» a las 12:05 de un sábado, y una visita sí la pasó a humano pero por criterio propio). Regla
+  dura en `herramientas_agente._disponibilidad`: una fecha libre para **hoy** sale `disponible=False` con
+  `requiere_confirmacion_del_equipo=True` y nota de `pasar_a_humano`; `crear_cotizacion` la rechaza aunque
+  el modelo insista. El prompt agrega las dos reglas (mismo día y visitas con cita) y `comercial.0116`
+  siembra las FAQ «¿Con cuánta anticipación puedo contratar?» y «¿Puedo visitar la Quinta…?» (solo agrega,
+  como `0108`). Casos `mismo_dia` y `visita` en `evals/casos_agente.json`. El cotizador web **sigue
+  aceptando el mismo día** (fuera de alcance). Para ampliar a mañana, el punto es
+  `requiere_confirmacion_del_equipo()`.
 - 2026-10-17 — **Indicadores: mezcla óptima accionable** (Issue #409, rediseño del PR #408 que el
   propietario rechazó: sin topes salía «todo Hospedaje», y capacidad/equilibrio/metas seguían leyendo el
   ticket histórico de Evento, $344, por una sola venta). **Fuente única**: `services/servicio.py`

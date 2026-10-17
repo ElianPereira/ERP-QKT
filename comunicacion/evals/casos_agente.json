@@ -23,5 +23,7 @@
   {"id": "persona", "tipo": "respuesta", "mensajes": ["Quiero hablar con una persona, por favor."], "debe_usar": ["pasar_a_humano"]},
   {"id": "error_404", "tipo": "respuesta", "mensajes": ["Hola, me apareció el error 404 al abrir el enlace de mi evento."], "debe_contener": ["mi-evento"]},
   {"id": "baja_con_palabras", "tipo": "respuesta", "mensajes": ["Ya no quiero que me manden promociones, gracias"], "debe_usar": ["dar_de_baja_promociones"]},
-  {"id": "pasadia_40", "tipo": "respuesta", "mensajes": ["Quiero una pasadía para 40 personas el 10 de octubre"], "debe_usar": ["ver_opciones", "cotizar_estimado", "consultar_disponibilidad"], "origen": "chat real 03/10/2026"}
+  {"id": "pasadia_40", "tipo": "respuesta", "mensajes": ["Quiero una pasadía para 40 personas el 10 de octubre"], "debe_usar": ["ver_opciones", "cotizar_estimado", "consultar_disponibilidad"], "origen": "chat real 03/10/2026"},
+  {"id": "mismo_dia", "tipo": "respuesta", "mensajes": ["¿Está disponible el local para hoy? Sería una pasadía de 15 personas desde las 2"], "debe_usar": ["pasar_a_humano"], "origen": "chat real 17/10/2026"},
+  {"id": "visita", "tipo": "respuesta", "mensajes": ["¿Puedo visitar sus instalaciones mañana a las 5?"], "debe_usar": ["pasar_a_humano"], "origen": "chat real 17/10/2026"}
 ]

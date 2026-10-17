@@ -275,11 +275,28 @@ def _incluye(producto) -> dict:
     }
 
 
+def requiere_confirmacion_del_equipo(inicio: date) -> bool:
+    """Un servicio para hoy: la fecha puede estar libre en el calendario sin
+    que la Quinta esté lista para recibirlo, así que lo confirma una persona."""
+    return inicio <= timezone.localdate()
+
+
 def _disponibilidad(inicio: date, noches: int = 0) -> dict:
     fin = inicio + timedelta(days=max(noches, 1))
     libre, _ = verificar_disponibilidad_rango(inicio, fin)
     # El mensaje de disponibilidad del ERP menciona el folio y el servicio de
     # la otra reservación: al cliente solo le importa si está libre o no.
+    if libre and requiere_confirmacion_del_equipo(inicio):
+        return {
+            'fecha': inicio.isoformat(),
+            'noches': noches or None,
+            'disponible': False,
+            'requiere_confirmacion_del_equipo': True,
+            'nota': ('Es para hoy: no digas que está disponible. Contratar el mismo día solo es '
+                     'posible si el equipo confirma que la Quinta puede estar lista; usa '
+                     'pasar_a_humano con el servicio, la hora y las personas, y dile al cliente '
+                     'que alguien le confirmará por este chat.'),
+        }
     return {
         'fecha': inicio.isoformat(),
         'noches': noches or None,
@@ -624,6 +641,8 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
                                 habitaciones_ids=habitaciones_ids, noches=noches_n)
     if 'error' in estimado:
         return estimado
+    if estimado['disponibilidad'].get('requiere_confirmacion_del_equipo'):
+        return {'error': estimado['disponibilidad']['nota']}
     if not estimado['disponibilidad']['disponible']:
         return {'error': 'Esa fecha ya está ocupada: sugiere otra con consultar_disponibilidad.'}
 
