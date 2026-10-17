@@ -1074,3 +1074,13 @@ body.login-page .main-footer { display: none; }
 .qkt-dias { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .qkt-dias > div { display: inline-flex; align-items: center; margin: 0; }
 .qkt-dias label { display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+
+/* Barra de avance a lo ancho (KPI de Indicadores) */
+.qkt-avance--ancha { display: flex; margin-top: 8px; }
+.qkt-avance--ancha .qkt-avance__barra { flex: 1; width: auto; height: 6px; }
+.qkt-avance--error .qkt-avance__barra > span { background: var(--ui-error); }
+
+/* Plan del año: captura | resultado */
+.qkt-plan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+.qkt-plan__respuesta { margin: 0 0 14px; font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--ui-text); }
+@media (max-width: 991px) { .qkt-plan { grid-template-columns: minmax(0, 1fr); } }

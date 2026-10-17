@@ -259,9 +259,9 @@ class PaginaPlanTest(TestCase):
                          (2027, D('15000.00'), D('300.00')))
         self.assertEqual(form['cf_anual'].value(), D('600000.00'))      # 50,000 × 12
         self.assertContains(r, 'En 2027 lo que más te conviene es: 105 eventos (vie-dom), 0 pasadías')
-        for seccion in ('Tus números', 'La respuesta', 'Por qué', 'Qué pasa si no lleno todo', 'Mes por mes'):
+        for seccion in ('Tus números', 'Qué vender', 'Mes por mes', 'Ajustes avanzados'):
             self.assertContains(r, seccion)
-        self.assertContains(r, 'entraría si dejara más de $1,484.48 por día, o sea con un precio de $2,070.00 con IVA')
+        self.assertContains(r, 'Entra desde $2,070.00')
         self.assertContains(r, 'Eventos solo vie, sáb y dom, máximo 2 por semana; 2 habitaciones; un servicio por día')
         self.assertContains(r, '$618,634.55')
 
@@ -298,7 +298,7 @@ class PaginaPlanTest(TestCase):
     def test_un_servicio_sin_precio_no_entra_al_calculo(self):
         r = self.client.post(self.url, self.datos('calcular', precio_PASADIA='', costo_PASADIA=''))
         self.assertNotIn('PASADIA', r.context['plan']['servicios'])
-        self.assertContains(r, 'Sin precio: no entra al cálculo.')
+        self.assertContains(r, 'Sin precio')
 
     def test_datos_invalidos_se_explican_sin_calcular(self):
         r = self.client.post(self.url, self.datos('calcular', precio_EVENTO='-1', anio='1999'))
@@ -313,10 +313,12 @@ class PaginaPlanTest(TestCase):
         self.assertEqual(self.client.post(self.url, self.datos('guardar')).status_code, 403)
         self.assertEqual(ParametrosNegocio.objects.count(), 1)
 
-    def test_el_menu_tiene_plan_optimo_con_icono_propio(self):
+    def test_el_menu_tiene_este_mes_y_plan_del_ano(self):
         r = self.client.get(reverse('admin:index'))
         self.assertContains(r, self.url)
-        self.assertContains(r, 'Plan óptimo')
+        self.assertContains(r, 'Plan del año')
+        self.assertContains(r, reverse('indicadores:tablero'))
+        self.assertNotContains(r, 'indicadores/parametrosnegocio/"')
 
 
 class ValoresInicialesTest(TestCase):
