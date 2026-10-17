@@ -9,7 +9,6 @@ Cada KPI lleva un tono: **error** bajo el equilibrio, **alerta** entre el
 equilibrio y la meta (o el objetivo), **exito** sobre la meta.
 """
 from datetime import date
-from decimal import Decimal, InvalidOperation
 from typing import Dict, Optional
 
 from reportes.services.operacion import OcupacionService
@@ -17,11 +16,11 @@ from reportes.services.operacion import OcupacionService
 from ..models import ParametrosNegocio
 from .base import (
     D0,
-    TIPOS,
     corte,
     dividir,
     mes_anterior,
     mes_rango,
+    porcentaje,
     q2,
     venta_neta,
     ventana_promedio,
@@ -30,46 +29,15 @@ from .base import (
 from .capacidad import CapacidadService
 from .costos_fijos import CostosFijosService
 from .embudo import EmbudoComercialService
-from .equilibrio import EquilibrioService
+from .equilibrio import EquilibrioService, _hacia_arriba
 from .metas import MetasService
 from .plan_anual import PlanAnualService
 from .unitarios import EconomiaUnitariaService
 
 EXITO, ALERTA, ERROR, NEUTRO = 'exito', 'alerta', 'error', 'neutro'
 MESES_TENDENCIA = 12
-
-
-def overrides_desde(params) -> dict:
-    """Simulación por GET: `ticket_<TIPO>` y `costo_pct_<TIPO>`. Lo inválido se ignora."""
-    resultado = {}
-    for tipo in TIPOS:
-        for prefijo, minimo, maximo in (('ticket', 0, None), ('costo_pct', 0, 100)):
-            clave = f'{prefijo}_{tipo}'
-            texto = (params.get(clave) or '').strip().replace(',', '')
-            if not texto:
-                continue
-            try:
-                valor = Decimal(texto)
-            except InvalidOperation:
-                continue
-            if not valor.is_finite() or valor < minimo or (maximo is not None and valor > maximo):
-                continue
-            resultado[clave] = valor
-    return resultado
-
-
-def campos_simulacion(overrides: dict) -> list:
-    """Entradas del formulario de simulación, con lo que se está simulando ya puesto."""
-    from .base import ETIQUETAS
-
-    campos = []
-    for prefijo, etiqueta, paso in (('ticket', 'Precio neto', '0.01'), ('costo_pct', '% costo directo', '0.1')):
-        for tipo in TIPOS:
-            clave = f'{prefijo}_{tipo}'
-            unidad = ' (habitación-noche)' if tipo == 'HOSPEDAJE' and prefijo != 'costo_pct' else ''
-            campos.append({'nombre': clave, 'etiqueta': f'{etiqueta} · {ETIQUETAS[tipo].lower()}{unidad}',
-                           'paso': paso, 'valor': overrides.get(clave, '')})
-    return campos
+MESES = ('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre',
+         'Noviembre', 'Diciembre')
 
 
 def _tono(valor, equilibrio, meta) -> str:
@@ -123,14 +91,56 @@ class TableroService:
             equilibrio['avisos'] + economia['avisos'] + capacidad['avisos'] + metas['avisos']))
         resumen = cls._resumen(equilibrio, metas, embudo, ocupacion, plan)
         return {
-            'anio': anio, 'mes': mes, 'inicio': inicio, 'fin': fin, 'hoy': hoy, 'parametros': p,
+            'anio': anio, 'inicio': inicio, 'fin': fin, 'hoy': hoy, 'parametros': p,
             'ventana': ventana_promedio(anio, mes, p), 'overrides': overrides,
             'economia': economia, 'costos': costos, 'capacidad': capacidad, 'equilibrio': equilibrio,
             'plan': plan, 'metas': metas, 'embudo': embudo, 'ocupacion': ocupacion,
-            'resumen': resumen, 'avisos': avisos, 'campos_simulacion': campos_simulacion(overrides),
+            'resumen': resumen, 'avisos': avisos,
+            'mes': cls._mes(equilibrio, metas, plan, ocupacion, anio, mes),
             'tendencia': _tendencia(anio, mes),
             'equilibrio_pesos': equilibrio['base']['pesos'],
             'equilibrio_ocupacion': equilibrio['base']['ocupacion_pct'],
+        }
+
+    @staticmethod
+    def _mes(eq, metas, plan, ocupacion, anio: int = 0, mes: int = 1) -> dict:
+        """Lo que muestra «Este mes»: venta contra meta, utilidad proyectada con lo confirmado, equilibrio y ocupación."""
+        base = eq['base']
+        venta = metas['real']['venta_neta']
+        con_plan = not plan['plan']['vacio']
+        meta = metas['meta']
+        if meta and meta.meta_venta_neta:
+            meta_venta, fuente = meta.meta_venta_neta, 'meta'
+        elif con_plan:
+            meta_venta, fuente = plan['fila']['venta'], 'plan'
+        elif base['pesos'] is not None:
+            meta_venta, fuente = base['pesos'], 'equilibrio'
+        else:
+            meta_venta, fuente = None, None
+
+        pct = porcentaje(venta, meta_venta) if meta_venta else None
+        if pct is None:
+            tono = NEUTRO
+        else:
+            tono = EXITO if pct >= 100 else (ALERTA if pct > 0 else ERROR)
+        dias_eq = _hacia_arriba(base['dias'])
+        dias_vendidos = ocupacion['dias_ocupados']
+        if con_plan:
+            ocupacion_plan = plan['fila']['ocupacion']
+        else:
+            ocupacion_plan = meta.meta_ocupacion_pct if meta else None
+        return {
+            'etiqueta': f'{MESES[mes - 1]} {anio}',
+            'venta': venta, 'venta_realizada': metas['real']['venta_realizada'],
+            'meta_venta': meta_venta, 'fuente_meta': fuente,
+            'pct_meta': pct, 'pct_barra': int(min(max(pct, 0), 100)) if pct is not None else 0, 'tono_meta': tono,
+            'cf': eq['cf'],
+            'utilidad': q2(venta * base['mc_pct'] - eq['cf']) if base['mc_pct'] is not None else None,
+            'falta_cf': max(D0, q2(base['pesos'] - venta)) if base['pesos'] is not None else None,
+            'dias_equilibrio': dias_eq, 'dias_vendidos': dias_vendidos,
+            'dias_faltan': max(0, dias_eq - dias_vendidos) if dias_eq is not None else None,
+            'dias_vendibles': eq['dias_vendibles'], 'ocupacion': ocupacion['ocupacion'],
+            'ocupacion_plan': ocupacion_plan,
         }
 
     @staticmethod

@@ -269,6 +269,7 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-17 — **Indicadores: rediseño a 2 pantallas** (Issue #413; el propietario: «super feo», «menos redundante»). «Este mes» (venta vs meta con barra, utilidad proyectada con lo confirmado, equilibrio en días, ocupación vs plan, tendencia) y «Plan del año» (captura + resultado, simulador = Calcular). Parámetros y Metas ocultos del menú (`hide_models`), accesibles por «Ajustes avanzados»; meta del mes: `MetaMensual` activa > plan del mes > equilibrio. Se quitó la simulación por GET del tablero (`overrides_desde`, `campos_simulacion`); `d['mes']` ahora es el bloque de «Este mes» (`TableroService._mes`). PDF y Excel sin cambio: son el detalle. Sin migraciones.
 - 2026-10-17 — **Kooxi: el mismo día y las visitas los confirma una persona** (dos chats reales: dijo «hoy
   está libre» a las 12:05 de un sábado, y una visita sí la pasó a humano pero por criterio propio). Regla
   dura en `herramientas_agente._disponibilidad`: una fecha libre para **hoy** sale `disponible=False` con

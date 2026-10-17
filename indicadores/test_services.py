@@ -30,6 +30,7 @@ from indicadores.services.equilibrio import EquilibrioService
 from indicadores.services.metas import MetasService
 from indicadores.services.plan_anual import PlanAnualService
 from indicadores.services.servicio import economia_servicio
+from indicadores.services.tablero import TableroService
 from indicadores.services.unitarios import EconomiaUnitariaService
 
 D = Decimal
@@ -523,3 +524,39 @@ class SinFloatTest(TestCase):
             texto = ruta.read_text()
             self.assertIsNone(re.search(r'\bfloat\(', texto), msg=f'float( en {ruta.name}')
             self.assertIsNone(re.search(r'0\.16|1\.16', texto), msg=f'IVA en {ruta.name}')
+
+
+class MesDelTableroTest(TestCase):
+    """`TableroService._mes` con números fijos."""
+
+    @staticmethod
+    def _armar(venta, pesos, dias, mc_pct, plan_vacio=True):
+        eq = {'base': {'pesos': pesos, 'dias': dias, 'mc_pct': mc_pct}, 'cf': D('50000.00'), 'dias_vendibles': 28}
+        metas = {'real': {'venta_neta': venta, 'venta_realizada': venta}, 'meta': None}
+        plan = {'plan': {'vacio': plan_vacio}, 'fila': {'venta': D('100000.00'), 'ocupacion': D('60')}}
+        ocupacion = {'dias_ocupados': 3, 'ocupacion': D('10.7')}
+        return TableroService._mes(eq, metas, plan, ocupacion, 2026, 10)
+
+    def test_falta_cf_y_dias_antes_del_equilibrio(self):
+        m = self._armar(D('30000.00'), D('80000.00'), D('4.2'), D('0.6'))
+        self.assertEqual(m['etiqueta'], 'Octubre 2026')
+        self.assertEqual(m['falta_cf'], D('50000.00'))
+        self.assertEqual(m['dias_equilibrio'], 5)
+        self.assertEqual(m['dias_faltan'], 2)
+        self.assertEqual(m['utilidad'], D('-32000.00'))        # 30,000 × 0.6 − 50,000
+        self.assertEqual(m['fuente_meta'], 'equilibrio')
+
+    def test_pasado_el_equilibrio_no_faltan_ni_dias_ni_pesos(self):
+        m = self._armar(D('90000.00'), D('80000.00'), D('2'), D('0.6'), plan_vacio=False)
+        self.assertEqual(m['falta_cf'], D('0.00'))
+        self.assertEqual(m['dias_faltan'], 0)
+        self.assertEqual(m['fuente_meta'], 'plan')
+        self.assertEqual(m['tono_meta'], 'alerta')              # 90 % del plan de 100,000
+
+    def test_sin_margen_no_hay_utilidad(self):
+        m = self._armar(D('1000.00'), None, None, None)
+        self.assertIsNone(m['utilidad'])
+        self.assertIsNone(m['falta_cf'])
+        self.assertIsNone(m['dias_faltan'])
+        self.assertIsNone(m['meta_venta'])
+        self.assertEqual(m['tono_meta'], 'neutro')

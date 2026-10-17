@@ -29,3 +29,13 @@ class MenuAdminTest(SimpleTestCase):
     def test_cada_apartado_tiene_nombre_de_una_palabra(self):
         largos = [f'{clave}: «{nombre}»' for clave, nombre in _modelos_en_menu() if len(nombre.split()) > 1]
         self.assertEqual(largos, [], "verbose_name_plural del menú debe ser una sola palabra.")
+
+
+class MenuIndicadoresTest(SimpleTestCase):
+    def test_parametros_y_metas_ocultos_y_dos_enlaces(self):
+        ocultos = settings.JAZZMIN_SETTINGS['hide_models']
+        self.assertIn('indicadores.ParametrosNegocio', ocultos)
+        self.assertIn('indicadores.MetaMensual', ocultos)
+        enlaces = settings.JAZZMIN_SETTINGS['custom_links']['indicadores']
+        self.assertEqual([e['name'] for e in enlaces], ['Este mes', 'Plan del año'])
+        self.assertEqual([e['url'] for e in enlaces], ['indicadores:tablero', 'indicadores:plan'])

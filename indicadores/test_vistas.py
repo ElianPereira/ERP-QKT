@@ -10,7 +10,6 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core_erp.test_utils import login_superuser_con_totp
-from indicadores.services.tablero import overrides_desde
 from indicadores.test_services import MesArmado
 
 EMOJI = re.compile('[\U0001F300-\U0001FAFF☀-➿]')
@@ -36,7 +35,7 @@ class AccesoTest(TestCase):
         login_superuser_con_totp(self.client, self.direccion)
         r = self.client.get(reverse('indicadores:tablero'))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, 'Indicadores')
+        self.assertContains(r, 'Este mes')
         self.assertContains(r, 'Revisa')           # avisos en vez de errores
         r = self.client.get(reverse('indicadores:tablero'), {'mes': 'basura'})
         self.assertEqual(r.status_code, 200)       # un mes inválido cae al mes en curso
@@ -56,32 +55,57 @@ class TableroConDatosTest(MesArmado):
     def test_muestra_las_cifras_calculadas_a_mano(self):
         r = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02'})
         self.assertEqual(r.status_code, 200)
-        for esperado in ('$75,000.00', '$50,000.00', '38.6 %', '$32,500.00', '$7,150.00', '$148,000.00', '$63,700.00'):
+        # Febrero 2026 (MesArmado): venta neta 75,000 (los 74,000 de eventos, pasadías y hospedajes + 1,000 de arrendamiento);
+        # margen ponderado 65 %, costos fijos 32,500 → utilidad 75,000 × 0.65 − 32,500 = 16,250. Equilibrio: 32,500 / 0.65 = 50,000
+        # (ya cubierto) y 32,500 / 3,006.25 = 10.81 → 11 días; vendidos 18 de 28 vendibles = 64.3 %. Meta = venta del plan, 148,000.
+        for esperado in ('$75,000.00', '$148,000.00', '$16,250.00', '18 de 11 días', 'Costos fijos cubiertos',
+                         'Equilibrio alcanzado', '64.3 %', '28 días vendibles', 'Febrero 2026'):
             self.assertContains(r, esperado)
+        mes = r.context['d']['mes']
+        self.assertEqual((mes['utilidad'], mes['dias_equilibrio'], mes['dias_vendidos'], mes['falta_cf']),
+                         (D('16250.00'), 11, 18, D('0')))
 
-    def test_el_panel_es_la_parte_del_mes_del_plan_anual(self):
+    def test_la_meta_cae_al_plan_del_mes(self):
         r = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02'})
-        self.assertContains(r, 'Plan óptimo · 02/2026')
-        self.assertContains(r, 'Utilidad del plan')
-        self.assertContains(r, reverse('indicadores:plan'))
+        mes = r.context['d']['mes']
         plan = r.context['d']['plan']
-        self.assertEqual(plan['fila']['mes'], 2)
-        self.assertEqual(plan['fila'], plan['plan']['meses'][1])
+        self.assertEqual(mes['fuente_meta'], 'plan')
+        self.assertEqual(mes['meta_venta'], plan['fila']['venta'])
         self.assertNotIn('mezcla', r.context['d'])
 
-    def test_simulacion_por_get(self):
+    def test_una_meta_capturada_manda_sobre_el_plan(self):
+        from indicadores.models import MetaMensual
+        MetaMensual.objects.create(anio=2026, mes=2, meta_venta_neta=D('90000'), meta_ocupacion_pct=D('50'))
+        mes = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02'}).context['d']['mes']
+        self.assertEqual(mes['fuente_meta'], 'meta')
+        self.assertEqual(mes['meta_venta'], D('90000.00'))
+
+    def test_la_simulacion_por_get_ya_no_cambia_nada(self):
+        limpio = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02'}).context['d']['mes']
         r = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02', 'ticket_EVENTO': '20000'})
-        self.assertContains(r, 'Simulación activa')
-        self.assertEqual(r.context['d']['plan']['plan']['servicios']['EVENTO']['neto'], D('20000.00'))
+        self.assertEqual(r.context['d']['mes'], limpio)
+        self.assertNotContains(r, 'Simulación activa')
+
+    def test_sin_clases_de_acento_ni_estilos_en_linea(self):
+        for url, params in ((reverse('indicadores:tablero'), {'mes': '2026-02'}), (reverse('indicadores:plan'), {})):
+            html = self.client.get(url, params).content.decode()
+            self.assertNotIn('qkt-panel--', html, msg=url)
+            self.assertEqual(re.findall(r'\sstyle="(?!width:)', html), [], msg=url)
+
+    def test_el_plan_muestra_que_vender_y_mes_por_mes(self):
+        r = self.client.get(reverse('indicadores:plan'), {'anio': 2026})
+        self.assertContains(r, 'Qué vender')
+        self.assertContains(r, 'Mes por mes')
+        self.assertNotContains(r, 'Si logras')
 
 
-class OverridesTest(TestCase):
+class SinPreciosTest(TestCase):
 
-    def test_ignora_lo_invalido(self):
-        o = overrides_desde({'ticket_EVENTO': '12,500.50', 'costo_pct_PASADIA': '120', 'demanda_HOSPEDAJE': '3',
-                             'ticket_PASADIA': 'abc', 'costo_pct_EVENTO': '-1', 'costo_pct_HOSPEDAJE': '25'})
-        self.assertEqual(sorted(o), ['costo_pct_HOSPEDAJE', 'ticket_EVENTO'])     # el tope de demanda ya no existe
-        self.assertEqual(str(o['ticket_EVENTO']), '12500.50')
+    def test_sin_precios_ni_meta_la_meta_cae_al_equilibrio(self):
+        login_superuser_con_totp(self.client, User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123'))
+        mes = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02'}).context['d']['mes']
+        self.assertIn(mes['fuente_meta'], ('equilibrio', None))
+        self.assertNotEqual(mes['fuente_meta'], 'meta')
 
 
 class SistemaDeDisenoTest(TestCase):
@@ -92,7 +116,7 @@ class SistemaDeDisenoTest(TestCase):
             texto = ruta.read_text()
             if 'documentos/_base.html' in texto:
                 continue                                  # los PDF tienen su propia guardia
-            self.assertNotRegex(texto, r'\sstyle="', msg=ruta.name)
+            self.assertNotRegex(texto, r'\sstyle="(?!width:)', msg=ruta.name)   # solo el ancho de la barra de avance
             self.assertIsNone(EMOJI.search(texto), msg=ruta.name)
             self.assertNotIn('confirm(', texto, msg=ruta.name)
             for version in re.findall(r'Chart\.js/([\w.]+)/', texto):

@@ -20,7 +20,7 @@ from .forms import PlanForm
 from .models import ParametrosNegocio
 from .services.base import ETIQUETAS, TIPOS, q2
 from .services.plan_anual import PlanAnualService
-from .services.tablero import TableroService, overrides_desde
+from .services.tablero import TableroService
 
 SUFIJO = {'EVENTO': 'evento', 'PASADIA': 'pasadia', 'HOSPEDAJE': 'hospedaje'}   # campos de ParametrosNegocio
 
@@ -49,11 +49,9 @@ def _mes(request):
 @solo_direccion
 def tablero(request):
     anio, mes = _mes(request)
-    overrides = overrides_desde(request.GET)
-    datos = TableroService.generar(anio, mes, overrides)
+    datos = TableroService.generar(anio, mes)
     return render(request, 'indicadores/tablero.html', {
-        'title': 'Indicadores', 'd': datos, 'mes_valor': f'{anio}-{mes:02d}',
-        'simulando': bool(overrides),
+        'title': 'Este mes', 'd': datos, 'mes_valor': f'{anio}-{mes:02d}',
         'tendencia': [{'mes': f['etiqueta'], 'venta': str(f['venta_neta']), 'ocupacion': str(f['ocupacion'])}
                       for f in datos['tendencia']],
         'linea_equilibrio': {
@@ -67,7 +65,7 @@ def tablero(request):
 def exportar(request):
     """PDF «Indicadores del mes» o, con `?formato=excel`, el mismo contenido en Excel."""
     anio, mes = _mes(request)
-    datos = TableroService.generar(anio, mes, overrides_desde(request.GET))
+    datos = TableroService.generar(anio, mes)
     nombre_base = f'{anio}-{mes:02d}'
     if request.GET.get('formato') == 'excel':
         return respuesta_excel('Indicadores del mes', list(hojas(datos)),
@@ -107,8 +105,6 @@ def plan(request):
     «Plan óptimo»: qué vender en el año para dejar más utilidad. Abre ya lleno; «Calcular» recalcula con lo
     que haya en el formulario sin guardar nada, y «Guardar estos números» crea un Parámetro nuevo y activo.
     """
-    from django.utils import timezone
-
     hoy = timezone.localdate()
     p = ParametrosNegocio.vigente()
     iniciales = PlanAnualService.valores_iniciales(p, hoy)
@@ -134,7 +130,7 @@ def plan(request):
             con_umbrales=True, iniciales=iniciales)
         filas = [{'tipo': t, 'nombre': ETIQUETAS[t], 'servicio': resultado['servicios'].get(t)} for t in TIPOS]
     return render(request, 'indicadores/plan.html', {
-        'title': 'Plan óptimo', 'form': form, 'plan': resultado, 'filas': filas,
+        'title': 'Plan del año', 'form': form, 'plan': resultado, 'filas': filas,
         'campos': [{'tipo': t, 'precio': form[f'precio_{t}'], 'costo': form[f'costo_{t}']} for t in TIPOS],
         'avisos': iniciales['avisos'],
     })
