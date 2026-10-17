@@ -1058,7 +1058,10 @@ body.login-page .main-footer { display: none; }
 
 /* Captura de Indicadores › Parámetros: una fila por servicio */
 .qkt-tabla--captura td { vertical-align: top; }
-.qkt-tabla--captura input[type="number"] { width: 9em; }
+.qkt-tabla--captura input[type="number"] {
+    width: 9em; height: var(--ui-h-md); padding: 0 10px; border-radius: var(--ui-r-sm);
+    border: 1px solid var(--ui-line); background: var(--ui-surface-2); color: var(--ui-text);
+}
 .qkt-tabla--captura .qkt-campo__ayuda { display: block; margin-top: 2px; }
 .qkt-tabla--captura .errorlist { margin: 0 0 4px; padding: 0; list-style: none; color: var(--ui-error); font-size: 13px; }
 

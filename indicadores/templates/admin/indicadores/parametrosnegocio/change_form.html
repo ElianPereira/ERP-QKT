@@ -1,6 +1,7 @@
 {% extends "admin/change_form.html" %}
 
-{% block form_top %}{{ block.super }}
+{% block field_sets %}
+<div class="col-12 col-lg-9">
 {% with f=adminform.form %}
 <div class="qkt-panel qkt-panel--info">
     <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-th-list" aria-hidden="true"></i> Servicios</h2></div>
@@ -35,4 +36,16 @@
     </div>
 </div>
 {% endwith %}
+
+{% for fieldset in adminform %}
+    {% if 'collapse' in fieldset.classes %}
+    <details class="qkt-desplegable">
+        <summary>{{ fieldset.name }}</summary>
+        {% include "admin/includes/fieldset.html" with card=True %}
+    </details>
+    {% else %}
+        {% include "admin/includes/fieldset.html" with card=True card_header=True %}
+    {% endif %}
+{% endfor %}
+</div>
 {% endblock %}

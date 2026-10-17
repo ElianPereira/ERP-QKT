@@ -129,9 +129,9 @@
             <div class="qkt-kpi qkt-kpi--{% if mz.plan.diferencia_objetivo >= 0 %}exito{% else %}alerta{% endif %}"><div class="qkt-kpi__label">Contra el objetivo</div><div class="qkt-kpi__valor">{{ mz.plan.diferencia_objetivo|moneda }}</div><div class="qkt-kpi__sub">Objetivo {{ mz.plan.utilidad_objetivo|moneda }}</div></div>
         </div>
 
+        <h3 class="qkt-reporte__titulo qkt-panel__cuerpo"><i class="fas fa-columns" aria-hidden="true"></i> Escenarios</h3>
         <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
             <table class="qkt-tabla">
-                <caption class="qkt-panel__cuerpo">Escenarios</caption>
                 <thead><tr><th>Escenario</th><th class="qkt-der">Eventos</th><th class="qkt-der">Pasadías</th><th class="qkt-der">Noches-hab.</th><th class="qkt-der">Días</th><th class="qkt-der">Venta neta</th><th class="qkt-der">Costo directo</th><th class="qkt-der">Contribución</th><th class="qkt-der">Costos fijos</th><th class="qkt-der">Utilidad neta</th></tr></thead>
                 <tbody>
                 {% for e in mz.escenarios %}

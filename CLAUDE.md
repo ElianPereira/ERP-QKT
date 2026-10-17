@@ -269,18 +269,37 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
-- 2026-10-17 — **Indicadores: la mezcla óptima usa solo precio de venta y costo directo**
-  (pedido del propietario: el ticket de Evento salía en $344.82 porque el promedio histórico
-  tenía una sola venta, COT-127). `ParametrosNegocio` gana `precio_venta_*` (con IVA, se pasa a
-  neto con `impuestos.sin_iva`) y `costo_directo_*` (pesos sin IVA) por servicio (migración
-  `indicadores.0002`; el resto son `help_text`). En `mezcla._unidad` el precio se toma
-  simulado > Parámetros > promedio histórico y el costo simulado (%) > costo directo > % de
-  respaldo > histórico; el **hospedaje de Parámetros es por noche** (1 día por unidad) y la
-  mezcla real del mes anterior se valúa con ese mismo margen. Costos fijos, equilibrio,
-  capacidad y metas **no cambian**. Sin precio capturado se avisa con el tamaño de la muestra.
-  Admin: Parámetros y Metas en pestañas con explicación por sección, días de venta con
-  casillas (`ParametrosNegocioForm`, se guarda la misma cadena ISO), panel «Qué sale de esto»
-  con la prioridad por margen por día y alta de Metas prellenada con el mes actual.
+- 2026-10-17 — **Indicadores: mezcla óptima accionable** (Issue #409, rediseño del PR #408 que el
+  propietario rechazó: sin topes salía «todo Hospedaje», y capacidad/equilibrio/metas seguían leyendo el
+  ticket histórico de Evento, $344, por una sola venta). **Fuente única**: `services/servicio.py`
+  (`economia_servicio`) da precio neto, costo, margen y MC/día de cada servicio a capacidad, equilibrio,
+  mezcla, metas y al resumen de Parámetros, así que el mismo servicio muestra la misma cifra en todos los
+  paneles. Precio: simulado > Parámetros (con IVA, se pasa a neto con `impuestos.sin_iva`) > histórico, y
+  **el histórico solo vale con ≥ 5 ventas típicas** (`MIN_MUESTRA`); con menos, `ticket=None` y un aviso con
+  los folios del promedio y un botón a Parámetros. Costo: % simulado > costo directo > % de respaldo (con
+  precio simulado o de Parámetros) > histórico medido. `EconomiaUnitariaService` quedó como histórico puro (ya
+  no recibe overrides). **Cortesías fuera del precio típico**: una venta con `DescuentoAplicado` activo cuya
+  regla es `es_cortesia` (p. ej. COT-127, un evento cobrado a $400 a una asociación) cuenta en venta neta,
+  días, ventas del mes y «mes anterior real», pero no en el ticket ni el costo histórico (`tipicas`);
+  `ventas_reales()` no cambió. **Hospedaje por habitación-noche**: la unidad es 1 habitación-noche = ½
+  día-quinta (`HABITACIONES=2`; supone que las dos se rentan la misma noche) y los días de un grupo se
+  redondean hacia arriba (3 = 2 días) en `base.consumo_dias`; el voraz sigue exacto con unidades ≤ 1 día y
+  solo se enumera con estancias > 1 día. `meta_noches` y su real pasan a noches-habitación. **Topes
+  obligatorios**: «Tope al mes» (`demanda_max_*_mes`), `ParametrosNegocio.clean()` exige tope > 0 si hay
+  precio; sin un tope la mezcla es `modo='techo'` («Techo teórico (sin topes)», con aviso) y con todos,
+  `modo='plan'`; el de eventos sigue acotado por `max_eventos_semana`. **Resultado**:
+  `MezclaOptimaService.generar()` agrega `plan` (frase, venta, costo directo, contribución, CF, utilidad neta
+  y diferencia contra el objetivo) y `escenarios` (plan, mes anterior real, solo eventos/pasadías/
+  hospedaje, cada uno con su tope); utilidad neta = contribución − CF. El KPI de utilidad del tablero usa
+  el plan solo en `modo='plan'`. Tablero, PDF y Excel (hoja «Escenarios») lo muestran. **Parámetros**: tabla
+  de una fila por servicio (precio, costo, tope, días) en `change_form` propio (los campos se piden
+  aparte en `get_form`), CF y utilidad objetivo, «Qué sale de esto» con el plan guardado y «Avanzado»
+  plegable. **Metas**: «Llenar desde el plan» (`?desde_plan=1&anio=&mes=`, también en edición, sin guardar) y
+  `proponer_meta` usa el plan si hay topes. `ticket_ponderado` de la cascada sigue siendo por venta
+  (reservación), no por habitación-noche. `indicadores.0002` se reescribió (no había corrido en producción):
+  6 columnas nulas de precio/costo en `ParametrosNegocio` y solo `help_text`/`verbose_name` en el resto; todo
+  merge a `main` la aplica en el deploy. Pendiente del propietario: capturar precio, costo y tope de cada
+  servicio en Parámetros.
 - 2026-10-16 — **Módulo Indicadores** (Issue #402; solo superusuario, solo lectura
   sobre datos existentes + `ParametrosNegocio`/`MetaMensual`, migración
   `indicadores.0001` solo crea tablas). Tablero en `admin/indicadores/tablero/`,
