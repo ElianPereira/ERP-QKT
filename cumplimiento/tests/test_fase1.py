@@ -87,7 +87,7 @@ class AdminCumplimientoTest(TestCase):
 
     def test_alta_audita_created_by_y_updated_by(self):
         r = self.client.post(reverse('admin:cumplimiento_tramite_add'), {
-            'nombre': 'Licencia de uso de suelo', 'tipo': 'LICENCIA', 'dias_aviso': 90, 'activo': 'on',
+            'nombre': 'Licencia de uso de suelo', 'tipo': 'LICENCIA', 'dias_aviso': 90, 'orden': 100, 'activo': 'on',
             'requisitos-TOTAL_FORMS': 0, 'requisitos-INITIAL_FORMS': 0,
             'requisitos-MIN_NUM_FORMS': 0, 'requisitos-MAX_NUM_FORMS': 1000,
         })

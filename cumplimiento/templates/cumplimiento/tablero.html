@@ -71,7 +71,7 @@
                 <tbody>
                 {% for f in grupo.filas %}
                     <tr>
-                        <td>{{ f.tramite.nombre }}{% if f.tramite.critico %} <span class="qkt-badge qkt-badge--error">Crítico</span>{% endif %}{% if f.renovacion %} <span class="qkt-badge qkt-badge--info">Renovación en curso</span>{% endif %}</td>
+                        <td>{{ f.tramite.nombre }}{% if f.tramite.critico %} <span class="qkt-badge qkt-badge--error">Crítico</span>{% endif %}{% if f.renovacion %} <span class="qkt-badge qkt-badge--info">Renovación en curso</span>{% endif %}{% if f.previo %} <span class="qkt-badge qkt-badge--alerta">Primero: {{ f.previo.nombre }}</span>{% endif %}</td>
                         <td>{{ f.vigencia.folio|default:"—" }}</td>
                         <td>{{ f.vigencia.fecha_vencimiento|date:"d/m/Y"|default:"—" }}</td>
                         <td>{{ f.dias_texto }}</td>
