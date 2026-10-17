@@ -50,6 +50,7 @@ class AccesoTest(TestCase):
 class TableroConDatosTest(MesArmado):
 
     def setUp(self):
+        self.precios_de_febrero(guardar=True)
         login_superuser_con_totp(self.client, User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123'))
 
     def test_muestra_las_cifras_calculadas_a_mano(self):
@@ -57,7 +58,20 @@ class TableroConDatosTest(MesArmado):
         self.assertEqual(r.status_code, 200)
         for esperado in ('$75,000.00', '$50,000.00', '38.6 %', '$32,500.00', '$7,150.00', '$101,400.00'):
             self.assertContains(r, esperado)
-        self.assertContains(r, 'Estimado')         # el costo de evento no tiene muestra
+        self.assertContains(r, 'Techo teórico (sin topes)')      # ningún servicio tiene tope
+        self.assertContains(r, 'Escenarios')
+        self.assertContains(r, 'Detalle por servicio')
+        self.assertContains(r, 'las dos habitaciones se rentan la misma noche')
+
+    def test_con_topes_el_panel_es_un_plan_con_utilidad_neta(self):
+        self.p.demanda_max_evento_mes, self.p.demanda_max_pasadia_mes, self.p.demanda_max_hospedaje_mes = 4, 10, 20
+        self.p.save()
+        r = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02'})
+        self.assertContains(r, 'Plan óptimo del mes')
+        self.assertNotContains(r, 'Techo teórico (sin topes)')
+        self.assertContains(r, 'Vende 4 eventos')
+        self.assertContains(r, 'Utilidad del plan')
+        self.assertEqual(r.context['d']['mezcla']['modo'], 'plan')
 
     def test_simulacion_por_get(self):
         r = self.client.get(reverse('indicadores:tablero'), {'mes': '2026-02', 'demanda_EVENTO': '2'})
@@ -107,6 +121,7 @@ class EnlacesTest(TestCase):
 class ExportacionTest(MesArmado):
 
     def setUp(self):
+        self.precios_de_febrero(guardar=True)
         login_superuser_con_totp(self.client, User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123'))
 
     def test_pdf(self):
@@ -118,7 +133,8 @@ class ExportacionTest(MesArmado):
         self.assertIn('QKT_Indicadores_2026-02.pdf', r['Content-Disposition'])
         with pdfplumber.open(io.BytesIO(r.content)) as pdf:
             texto = '\n'.join(p.extract_text() or '' for p in pdf.pages)
-        for esperado in ('Indicadores del mes', '$50,000.00', '$101,400.00', '38.6 %'):
+        for esperado in ('Indicadores del mes', '$50,000.00', '$101,400.00', '38.6 %', 'Escenarios',
+                         'Detalle por servicio', 'Techo teórico (sin topes)'):
             self.assertIn(esperado, texto)
 
     def test_excel(self):
@@ -129,6 +145,9 @@ class ExportacionTest(MesArmado):
         self.assertIn('QKT_Indicadores_2026-02.xlsx', r['Content-Disposition'])
         libro = openpyxl.load_workbook(io.BytesIO(r.content))
         self.assertIn('Mezcla óptima', libro.sheetnames)
+        escenarios = {f[0].value: f[9].value for f in libro['Escenarios'].iter_rows(min_row=2)}
+        self.assertEqual(escenarios['Techo teórico'], 68900)
+        self.assertEqual(list(escenarios)[1], 'Mes anterior (real)')
         equilibrio = {f[0].value: f[1].value for f in libro['Equilibrio'].iter_rows(min_row=2)}
         self.assertEqual(equilibrio['Venta neta necesaria'], 50000)
 
@@ -140,6 +159,9 @@ class ExportacionTest(MesArmado):
 
 class ProponerMetaTest(MesArmado):
 
+    def setUp(self):
+        self.precios_de_febrero(guardar=True)
+
     def test_propone_y_actualiza_sin_duplicar(self):
         from indicadores.models import MetaMensual
         from indicadores.services.metas import proponer_meta
@@ -147,12 +169,21 @@ class ProponerMetaTest(MesArmado):
         usuario = User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123')
         meta = proponer_meta(2026, 2, usuario, hoy=date(2026, 3, 5), parametros=self.p)
         self.assertEqual((meta.meta_venta_neta, meta.meta_ocupacion_pct), (D('50000.00'), D('38.6')))
-        self.assertEqual((meta.meta_eventos, meta.meta_pasadias, meta.meta_noches), (3, 5, 6))   # 9 ventas repartidas 4:6:2, redondeo half-up
+        self.assertEqual((meta.meta_eventos, meta.meta_pasadias, meta.meta_noches), (3, 5, 12))   # 9 ventas repartidas 4:6:2 (half-up); 2 reservaciones × 6 habitaciones-noche
         self.assertEqual(meta.presupuesto_marketing, D('4431.75'))
         self.assertEqual(meta.created_by, usuario)
         meta_otra = proponer_meta(2026, 2, usuario, hoy=date(2026, 3, 5), parametros=self.p)
         self.assertEqual(meta.pk, meta_otra.pk)
         self.assertEqual(MetaMensual.objects.filter(anio=2026, mes=2, activo=True).count(), 1)
+
+    def test_con_topes_la_meta_sale_del_plan(self):
+        from indicadores.services.metas import proponer_meta
+
+        self.p.demanda_max_evento_mes, self.p.demanda_max_pasadia_mes, self.p.demanda_max_hospedaje_mes = 4, 10, 20
+        self.p.save()
+        meta = proponer_meta(2026, 2, hoy=date(2026, 3, 5), parametros=self.p)
+        self.assertEqual((meta.meta_eventos, meta.meta_pasadias, meta.meta_noches), (4, 10, 20))
+        self.assertIn('Propuesta desde plan', meta.notas)
 
     def test_accion_del_admin(self):
         from django.urls import reverse as r

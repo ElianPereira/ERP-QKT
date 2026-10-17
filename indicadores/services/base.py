@@ -5,13 +5,19 @@ Definiciones que comparten todos los cálculos (documentadas aquí una vez):
 
 - **Venta neta** = `subtotal - descuento` de la cotización (sin IVA ni ISH), solo
   ventas reales (`ESTADOS_VENTA_REAL`) y sin cortesías (`precio_final == 0`).
+- **Precio especial**: una venta con un descuento activo marcado `es_cortesia` (por ejemplo,
+  un evento cobrado a una asociación) cuenta como venta y como día ocupado, pero no entra al
+  precio típico ni al costo histórico (ver `unitarios.py`).
 - **Día-quinta**: la Quinta es un solo recurso por día; Evento, Pasadía y
   Hospedaje no conviven el mismo día. Todo se mide en contribución por día.
+- **Unidad de hospedaje** = una habitación, una noche. Con `HABITACIONES` habitaciones, una
+  unidad ocupa `1 / HABITACIONES` de día-quinta y los días que consume un grupo de unidades se
+  redondean hacia arriba (`consumo_dias`).
 - Todo es `Decimal` con `ROUND_HALF_UP`; nada pasa por `float`.
 """
 from calendar import monthrange
 from datetime import date, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from typing import Iterator, Set
 
 from reportes.services.operacion import _porcentaje
@@ -35,6 +41,11 @@ def q2(valor) -> Decimal:
 
 def q4(valor) -> Decimal:
     return Decimal(valor).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+
+
+def consumo_dias(unidades, dias_unidad) -> Decimal:
+    """Días-quinta enteros que ocupan `unidades` de un servicio (3 habitaciones-noche = 2 días)."""
+    return (Decimal(unidades) * Decimal(dias_unidad)).to_integral_value(rounding=ROUND_CEILING)
 
 
 def dividir(numerador, denominador, *, cuantizar=q2):

@@ -28,7 +28,8 @@ from indicadores.services.costos_fijos import CostosFijosService
 from indicadores.services.embudo import EmbudoComercialService
 from indicadores.services.equilibrio import EquilibrioService
 from indicadores.services.metas import MetasService
-from indicadores.services.mezcla import FIN_DE_SEMANA, MezclaOptimaService, asignar_optimo
+from indicadores.services.mezcla import FIN_DE_SEMANA, MezclaOptimaService, asignar_optimo, asignar_voraz
+from indicadores.services.servicio import economia_servicio
 from indicadores.services.unitarios import EconomiaUnitariaService
 
 D = Decimal
@@ -137,8 +138,24 @@ class MesArmado(TestCase):
             ReciboNomina.objects.create(empleado=ana, periodo=periodo, horas_trabajadas=D('10'),
                                         tarifa_aplicada=ana.tarifa_base, total_pagado=D(total), estado=estado)
 
-    def economia(self, **kw):
-        return EconomiaUnitariaService.generar(INICIO, FIN, self.p, **kw)
+    def economia(self):
+        return EconomiaUnitariaService.generar(INICIO, FIN, self.p)
+
+    def precios_de_febrero(self, guardar=False):
+        """
+        Parámetros con el mismo precio y costo que el histórico de febrero (por venta o por habitación-noche),
+        para que las cifras a mano del módulo se mantengan: evento 11,000 / 3,850; pasadía 3,000 / 1,050;
+        hospedaje 1,000 / 350 por habitación-noche (6,000 por reservación de 3 noches y 2 habitaciones).
+        Sin topes: la mezcla sale como techo.
+        """
+        from core_erp.impuestos import con_iva
+
+        for tipo, neto, costo in (('evento', '11000', '3850'), ('pasadia', '3000', '1050'),
+                                  ('hospedaje', '1000', '350')):
+            setattr(self.p, f'precio_venta_{tipo}', con_iva(D(neto)))
+            setattr(self.p, f'costo_directo_{tipo}', D(costo))
+        if guardar:
+            self.p.save()
 
 
 class EconomiaUnitariaTest(MesArmado):
@@ -146,14 +163,13 @@ class EconomiaUnitariaTest(MesArmado):
     def test_valores_a_mano(self):
         e = self.economia()
         ev, pa, ho = (e['tipos'][t] for t in ('EVENTO', 'PASADIA', 'HOSPEDAJE'))
-        self.assertEqual((ev['ventas'], ev['ticket'], ev['costo_variable'], ev['mc'], ev['mc_dia']),
-                         (4, D('11000.00'), D('3850.00'), D('7150.00'), D('7150.00')))
-        self.assertEqual((pa['ventas'], pa['ticket'], pa['costo_variable'], pa['mc'], pa['mc_dia']),
-                         (6, D('3000.00'), D('1050.00'), D('1950.00'), D('1950.00')))
-        self.assertEqual((ho['ventas'], ho['ticket'], ho['mc'], ho['dias_por_unidad'], ho['mc_dia']),
-                         (2, D('6000.00'), D('3900.00'), D('3.0000'), D('1300.00')))
-        self.assertEqual((ho['noches'], ho['noches_habitacion']), (6, 12))
-        self.assertEqual((ev['mc_pct'], pa['mc_pct'], ho['mc_pct']), (D('65.0'), D('65.0'), D('65.0')))
+        self.assertEqual((ev['ventas'], ev['tipicas'], ev['ticket'], ev['ticket_unidad']),
+                         (4, 4, D('11000.00'), D('11000.00')))
+        self.assertEqual((pa['ventas'], pa['tipicas'], pa['ticket'], pa['ticket_unidad']),
+                         (6, 6, D('3000.00'), D('3000.00')))
+        # Hospedaje: 2 reservaciones de 6,000, 3 noches y 2 habitaciones = 12 habitaciones-noche de 1,000
+        self.assertEqual((ho['ventas'], ho['ticket'], ho['ticket_unidad']), (2, D('6000.00'), D('1000.00')))
+        self.assertEqual((ho['dias'], ho['noches'], ho['noches_habitacion']), (6, 6, 12))
         self.assertEqual(e['venta_neta'], D('75000.00'))   # 74,000 + 1,000 de arrendamiento
         self.assertEqual(e['otros_venta'], D('1000.00'))
         self.assertEqual(e['ventas'], 12)
@@ -163,7 +179,7 @@ class EconomiaUnitariaTest(MesArmado):
         self.assertEqual(sum(t['ventas'] for t in e['tipos'].values()), 12)
         self.assertEqual(e['tipos']['EVENTO']['ventas'], 4)
 
-    def test_menos_de_cinco_ventas_con_gasto_usa_parametros_y_se_marca_estimado(self):
+    def test_costo_medido_o_de_respaldo(self):
         e = self.economia()
         self.assertEqual(e['tipos']['PASADIA']['fuente_costo'], 'medido')
         self.assertEqual(e['tipos']['PASADIA']['muestra'], 6)
@@ -171,19 +187,42 @@ class EconomiaUnitariaTest(MesArmado):
         self.assertEqual(e['tipos']['EVENTO']['fuente_costo'], 'estimado')
         self.assertEqual(e['tipos']['EVENTO']['muestra'], 0)
         self.assertEqual(e['tipos']['EVENTO']['costo_pct'], D('0.3500'))
-        self.assertTrue(any('Evento' in a for a in e['avisos']))
 
-    def test_simulacion_no_toca_la_base(self):
-        e = self.economia(overrides={'ticket_EVENTO': D('20000'), 'costo_pct_EVENTO': D('50')})
-        ev = e['tipos']['EVENTO']
-        self.assertEqual((ev['ticket'], ev['mc'], ev['fuente_costo']), (D('20000.00'), D('10000.00'), 'simulado'))
+    def test_una_venta_con_descuento_de_cortesia_cuenta_pero_no_entra_al_precio_tipico(self):
+        especial = self.venta_con_cortesia('Asociación', date(2026, 2, 21), tipo='PASADIA', precio='100')
+        e = self.economia()['tipos']['PASADIA']
+        self.assertEqual((e['ventas'], e['tipicas'], e['dias']), (7, 6, 7))
+        self.assertEqual(e['venta_neta'], D('18100.00'))           # 6 × 3,000 + 100
+        self.assertEqual((e['ticket'], e['ticket_unidad']), (D('3000.00'), D('3000.00')))
+        self.assertEqual(e['muestra'], 6)
+        self.assertNotIn(f'COT-{especial.pk:03d}', e['folios'])
+        # Sigue contando para lo vendido del mes y para el mes anterior real
+        mes = MetasService.generar(2026, 2, self.p, hoy=HOY)
+        self.assertEqual(mes['real']['pasadias'], 7)
+        mezcla = MezclaOptimaService.generar(2026, 3, self.p, hoy=HOY)
+        self.assertEqual(mezcla['real']['unidades']['PASADIA'], 7)
 
-    def test_mc_negativo_no_revienta(self):
-        e = self.economia(overrides={'costo_pct_PASADIA': D('120')})
-        pa = e['tipos']['PASADIA']
-        self.assertEqual(pa['mc'], D('-600.00'))
-        self.assertIsNone(pa['mc_dia'])
-        self.assertTrue(any('margen de contribución' in a for a in pa['avisos']))
+    def test_un_descuento_normal_o_revertido_no_es_precio_especial(self):
+        from comercial.models import Descuento, DescuentoAplicado
+
+        normal = Descuento.objects.create(nombre='Promo', valor=D('10'))
+        revertida = Descuento.objects.create(nombre='Regalo revertido', valor=D('100'), es_cortesia=True)
+        for descuento, activo, fecha in ((normal, True, date(2026, 2, 21)), (revertida, False, date(2026, 2, 22))):
+            cot = cotizacion(f'Con {descuento.nombre}', fecha, tipo='PASADIA', precio='3000')
+            DescuentoAplicado.objects.create(cotizacion=cot, descuento=descuento, monto_aplicado=D('10'),
+                                             modo_aplicacion='MANUAL', activo=activo)
+        e = self.economia()['tipos']['PASADIA']
+        self.assertEqual((e['ventas'], e['tipicas']), (8, 8))
+
+    def venta_con_cortesia(self, nombre, fecha, tipo='EVENTO', precio='400'):
+        from comercial.models import Descuento, DescuentoAplicado
+
+        regla = Descuento.objects.get_or_create(nombre='Precio especial', defaults={
+            'valor': D('50'), 'es_cortesia': True})[0]
+        cot = cotizacion(nombre, fecha, tipo=tipo, precio=precio)
+        DescuentoAplicado.objects.create(cotizacion=cot, descuento=regla, monto_aplicado=D('50'),
+                                         modo_aplicacion='MANUAL')
+        return cot
 
     def test_gasto_de_costo_ligado(self):
         # 6 pasadías × 1,050 + 2,100 de la cotización borrador = 8,400 ligados de 10,500
@@ -239,6 +278,9 @@ class CostosFijosTest(MesArmado):
 
 class CapacidadTest(MesArmado):
 
+    def setUp(self):
+        self.precios_de_febrero()
+
     def test_valores_a_mano(self):
         c = CapacidadService.generar(INICIO, FIN, self.p, self.economia())
         ev, pa, ho = (c['servicios'][t] for t in ('EVENTO', 'PASADIA', 'HOSPEDAJE'))
@@ -271,6 +313,9 @@ class CapacidadTest(MesArmado):
 
 class EquilibrioTest(MesArmado):
 
+    def setUp(self):
+        self.precios_de_febrero()
+
     def generar(self, **kw):
         return EquilibrioService.generar(2026, 2, self.p, hoy=HOY, **kw)
 
@@ -283,8 +328,9 @@ class EquilibrioTest(MesArmado):
         self.assertEqual(b['mc_dia'], D('3006.25'))
         self.assertEqual(b['dias'], D('10.81'))
         self.assertEqual(b['ocupacion_pct'], D('38.6'))
+        # Hospedaje por habitación-noche: 32,500 / 650 = 50 unidades, que ocupan 25 días-quinta
         self.assertEqual((eq['solo']['EVENTO']['unidades'], eq['solo']['PASADIA']['unidades'],
-                          eq['solo']['HOSPEDAJE']['unidades'], eq['solo']['HOSPEDAJE']['noches']), (5, 17, 9, 25))
+                          eq['solo']['HOSPEDAJE']['unidades'], eq['solo']['HOSPEDAJE']['dias']), (5, 17, 50, 25))
 
     def test_con_utilidad_objetivo(self):
         self.p.utilidad_mensual_objetivo = D('6500')
@@ -308,6 +354,9 @@ class EquilibrioTest(MesArmado):
 
 class MezclaTest(MesArmado):
 
+    def setUp(self):
+        self.precios_de_febrero()
+
     def test_evento_primero_y_el_resto_a_pasadia(self):
         m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
         filas = {f['tipo']: f for f in m['filas']}
@@ -316,6 +365,7 @@ class MezclaTest(MesArmado):
         self.assertEqual(filas['EVENTO']['segmentos'][FIN_DE_SEMANA], 9)
         self.assertEqual(m['contribucion'], D('101400.00'))
         self.assertEqual(m['utilidad'], D('68900.00'))
+        self.assertEqual(m['plan']['utilidad_neta'], D('68900.00'))
         self.assertEqual(m['ocupacion'], D('100.0'))
         self.assertEqual(m['dias_por_segmento'], {'FIN_DE_SEMANA': 12, 'ENTRE_SEMANA': 16})
 
@@ -328,10 +378,80 @@ class MezclaTest(MesArmado):
     def test_compara_contra_la_mezcla_real_del_mes_anterior(self):
         self.p.meses_promedio = 2
         m = MezclaOptimaService.generar(2026, 3, self.p, hoy=HOY)
-        self.assertEqual(m['real']['unidades'], {'EVENTO': 4, 'PASADIA': 6, 'HOSPEDAJE': 2})
+        # Hospedaje real en habitaciones-noche: 2 reservaciones × 3 noches × 2 habitaciones
+        self.assertEqual(m['real']['unidades'], {'EVENTO': 4, 'PASADIA': 6, 'HOSPEDAJE': 12})
         self.assertEqual(m['real']['contribucion'], D('48100.00'))
         self.assertEqual(m['contribucion'], D('107250.00'))
         self.assertEqual(m['brecha'], D('59150.00'))
+
+    def test_con_precio_costo_directo_y_topes_sale_un_plan(self):
+        # Precios con IVA: neto 3,448.28 / 1,293.10 / 1,637.93 por habitación-noche; el histórico se ignora.
+        self.p.precio_venta_evento, self.p.costo_directo_evento = D('4000.00'), D('1000.00')
+        self.p.precio_venta_pasadia, self.p.costo_directo_pasadia = D('1500.00'), D('150.00')
+        self.p.precio_venta_hospedaje, self.p.costo_directo_hospedaje = D('1900.00'), D('100.00')
+        self.p.demanda_max_evento_mes, self.p.demanda_max_pasadia_mes = 4, 10
+        self.p.demanda_max_hospedaje_mes = 20
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        filas = {f['tipo']: f for f in m['filas']}
+        self.assertEqual(m['modo'], 'plan')
+        self.assertEqual(filas['EVENTO']['precio'], D('3448.28'))
+        self.assertEqual(filas['EVENTO']['costo'], D('1000.00'))
+        self.assertEqual(filas['EVENTO']['mc_dia'], D('2448.28'))
+        self.assertEqual(filas['PASADIA']['mc_dia'], D('1143.10'))
+        self.assertEqual(filas['HOSPEDAJE']['mc_dia'], D('3075.86'))      # 1,537.93 por media jornada de la quinta
+        self.assertEqual({f['fuente_precio'] for f in m['filas']}, {'parámetros'})
+        self.assertEqual({f['fuente_costo'] for f in m['filas']}, {'parámetros'})
+        self.assertEqual((filas['EVENTO']['unidades'], filas['PASADIA']['unidades'], filas['HOSPEDAJE']['unidades']),
+                         (4, 10, 20))
+        self.assertEqual(m['contribucion'], 4 * D('2448.28') + 10 * D('1143.10') + 20 * D('1537.93'))
+
+    def test_sin_costo_directo_usa_el_porcentaje_de_respaldo(self):
+        self.p = ParametrosNegocio(inicio_datos=INICIO, meses_promedio=1, precio_venta_pasadia=D('1500.00'),
+                                   pct_costo_variable_pasadia=D('15'))
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        fila = next(f for f in m['filas'] if f['tipo'] == 'PASADIA')
+        self.assertEqual((fila['precio'], fila['costo'], fila['fuente_costo']), (D('1293.10'), D('193.97'), 'estimado'))
+
+    def test_sin_precio_ni_muestra_suficiente_no_entra_y_avisa_con_los_folios(self):
+        self.p.precio_venta_evento = None
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        evento = next(f for f in m['filas'] if f['tipo'] == 'EVENTO')
+        self.assertEqual((evento['unidades'], evento['precio']), (0, None))
+        folios = [f'COT-{c.pk:03d}' for c in self.ventas_de('EVENTO')]
+        aviso = next(a for a in m['avisos'] if a.startswith('Evento: sin precio de venta en Parámetros'))
+        self.assertIn('solo 4 de 5 ventas típicas', aviso)
+        for folio in folios:
+            self.assertIn(folio, aviso)
+
+    def test_con_cinco_ventas_tipicas_el_historico_vale_como_precio(self):
+        m = MezclaOptimaService.generar(2026, 2, ParametrosNegocio(inicio_datos=INICIO, meses_promedio=1), hoy=HOY)
+        pasadia = next(f for f in m['filas'] if f['tipo'] == 'PASADIA')
+        self.assertEqual((pasadia['precio'], pasadia['fuente_precio'], pasadia['fuente_costo']),
+                         (D('3000.00'), 'histórico', 'medido'))
+        self.assertTrue(any(a.startswith('Pasadía: sin precio de venta en Parámetros; se usa el promedio de 6')
+                            for a in m['avisos']))
+
+    def test_costo_directo_que_rebasa_el_precio_saca_al_servicio(self):
+        self.p.precio_venta_evento, self.p.costo_directo_evento = D('1000.00'), D('900.00')
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        self.assertEqual(next(f for f in m['filas'] if f['tipo'] == 'EVENTO')['unidades'], 0)
+        self.assertTrue(any('no entra a la mezcla' in a for a in m['avisos']))
+
+    def test_la_simulacion_manda_sobre_parametros(self):
+        self.p.precio_venta_pasadia, self.p.costo_directo_pasadia = D('1500.00'), D('150.00')
+        m = MezclaOptimaService.generar(2026, 2, self.p, overrides={'ticket_PASADIA': D('2000')}, hoy=HOY)
+        fila = next(f for f in m['filas'] if f['tipo'] == 'PASADIA')
+        self.assertEqual((fila['precio'], fila['costo'], fila['fuente_precio']), (D('2000.00'), D('150.00'), 'simulado'))
+
+    def test_la_mezcla_real_de_hospedaje_se_mide_en_habitaciones_noche(self):
+        m = MezclaOptimaService.generar(2026, 3, self.p, hoy=HOY)
+        previo = EconomiaUnitariaService.generar(date(2026, 2, 1), date(2026, 2, 28), parametros=self.p)
+        self.assertEqual(m['real']['unidades']['HOSPEDAJE'], previo['tipos']['HOSPEDAJE']['noches_habitacion'])
+
+    def ventas_de(self, tipo):
+        from comercial.models import Cotizacion
+        return Cotizacion.objects.filter(tipo_servicio=tipo, estado='CONFIRMADA', fecha_evento__gte=INICIO,
+                                         fecha_evento__lte=FIN).exclude(precio_final=0)
 
     def test_la_asignacion_es_optima_contra_fuerza_bruta(self):
         casos = [
@@ -410,6 +530,9 @@ class EmbudoTest(MesArmado):
 
 class MetasTest(MesArmado):
 
+    def setUp(self):
+        self.precios_de_febrero()
+
     def test_cascada_a_mano(self):
         m = MetasService.generar(2026, 2, self.p, hoy=HOY)
         self.assertEqual(m['venta_necesaria'], D('50000.00'))
@@ -441,6 +564,210 @@ class MetasTest(MesArmado):
 
     def test_sin_meta_no_hay_avance(self):
         self.assertIsNone(MetasService.generar(2026, 2, self.p, hoy=HOY)['avance'])
+
+
+class FuenteUnicaTest(MesArmado):
+    """Capacidad, equilibrio y mezcla leen el precio y el margen de `economia_servicio`."""
+
+    def paneles(self, overrides=None):
+        economia = self.economia()
+        capacidad = CapacidadService.generar(INICIO, FIN, self.p, economia, overrides)
+        equilibrio = EquilibrioService.generar(2026, 2, self.p, overrides, HOY, economia=economia, capacidad=capacidad)
+        mezcla = MezclaOptimaService.generar(2026, 2, self.p, overrides, HOY, economia=economia)
+        return economia, capacidad, equilibrio, mezcla
+
+    def comprobar(self, overrides=None):
+        economia, capacidad, equilibrio, mezcla = self.paneles(overrides)
+        filas = {f['tipo']: f for f in mezcla['filas']}
+        for tipo in ('EVENTO', 'PASADIA', 'HOSPEDAJE'):
+            esperado = economia_servicio(tipo, economia['tipos'][tipo], self.p, overrides)
+            cap, eq = capacidad['servicios'][tipo], equilibrio['servicios'][tipo]
+            self.assertEqual(cap['ticket'], esperado['ticket'], tipo)
+            self.assertEqual(eq['ticket'], esperado['ticket'], tipo)
+            self.assertEqual(filas[tipo]['precio'], esperado['ticket'], tipo)
+            self.assertEqual(eq['mc'], esperado['mc'], tipo)
+            if esperado['mc'] is not None and esperado['mc'] > 0:
+                self.assertEqual(equilibrio['solo'][tipo]['mc'], esperado['mc'], tipo)
+                self.assertEqual(cap['mc_max'], esperado['mc'] * cap['unidades'], tipo)
+                self.assertEqual(filas[tipo]['costo'], esperado['costo'], tipo)
+        return economia_servicio
+
+    def test_sin_parametros_solo_vale_el_historico_con_muestra(self):
+        self.comprobar()
+        _, capacidad, equilibrio, mezcla = self.paneles()
+        self.assertEqual(capacidad['servicios']['PASADIA']['ticket'], D('3000.00'))
+        for tipo in ('EVENTO', 'HOSPEDAJE'):           # 4 y 2 ventas: menos de 5, sin precio
+            self.assertIsNone(capacidad['servicios'][tipo]['ticket'])
+            self.assertIsNone(capacidad['servicios'][tipo]['ingreso_max'])
+            self.assertIsNone(equilibrio['servicios'][tipo]['ticket'])
+            self.assertEqual(next(f for f in mezcla['filas'] if f['tipo'] == tipo)['unidades'], 0)
+        self.assertEqual(equilibrio['base']['ventas_base'], 6)         # solo la pasadía pesa en el equilibrio
+
+    def test_con_parametros_el_mismo_precio_y_margen_en_todos_los_paneles(self):
+        self.precios_de_febrero()
+        self.comprobar()
+        _, capacidad, equilibrio, _ = self.paneles()
+        self.assertEqual(capacidad['servicios']['HOSPEDAJE']['ticket'], D('1000.00'))
+        self.assertEqual(equilibrio['servicios']['HOSPEDAJE']['mc'], D('650.00'))
+
+    def test_con_una_simulacion_tambien(self):
+        self.precios_de_febrero()
+        self.comprobar({'ticket_EVENTO': D('20000'), 'costo_pct_PASADIA': D('50'), 'ticket_HOSPEDAJE': D('2000')})
+
+    def test_sin_muestra_los_avisos_traen_los_folios_en_cada_panel(self):
+        _, capacidad, equilibrio, mezcla = self.paneles()
+        for avisos in (capacidad['avisos'], equilibrio['avisos'], mezcla['avisos']):
+            aviso = next(a for a in avisos if a.startswith('Evento: sin precio de venta'))
+            self.assertIn('Captura el precio en Parámetros', aviso)
+            self.assertIn('COT-', aviso)
+
+
+class HospedajePorHabitacionNocheTest(TestCase):
+
+    TODOS = ('EVENTO', 'PASADIA', 'HOSPEDAJE')
+
+    def servicios(self, tope_hospedaje=None, tope_evento=5):
+        return [
+            {'tipo': 'HOSPEDAJE', 'dias_unidad': D(1) / 2, 'mc': D('800'), 'tope': tope_hospedaje},   # 1,600 por día
+            {'tipo': 'EVENTO', 'dias_unidad': D(1), 'mc': D('500'), 'tope': tope_evento},
+        ]
+
+    def test_dos_habitaciones_noche_ocupan_un_dia_y_el_evento_no_lo_usa(self):
+        asignado = asignar_voraz({(FIN_DE_SEMANA, self.TODOS): D(1)}, self.servicios(tope_hospedaje=2))
+        self.assertEqual(asignado, {('HOSPEDAJE', FIN_DE_SEMANA): 2})
+
+    def test_tres_habitaciones_noche_ocupan_dos_dias(self):
+        asignado = asignar_voraz({(FIN_DE_SEMANA, self.TODOS): D(3)}, self.servicios(tope_hospedaje=3))
+        self.assertEqual(asignado, {('HOSPEDAJE', FIN_DE_SEMANA): 3, ('EVENTO', FIN_DE_SEMANA): 1})
+
+    def test_el_resto_de_los_dias_se_llena_en_enteros(self):
+        asignado = asignar_voraz({(FIN_DE_SEMANA, self.TODOS): D(5)}, self.servicios())
+        self.assertEqual(asignado, {('HOSPEDAJE', FIN_DE_SEMANA): 10})
+        self.assertEqual(asignar_optimo({(FIN_DE_SEMANA, self.TODOS): D(5)}, self.servicios()), asignado)
+
+    def test_el_plan_del_mes_cuenta_los_dias_redondeados_hacia_arriba(self):
+        p = ParametrosNegocio(
+            precio_venta_hospedaje=D('1160.00'), costo_directo_hospedaje=D('300'), demanda_max_hospedaje_mes=3,
+            dias_hospedaje='1234567', dias_evento='', dias_pasadia='', costo_fijo_mensual_override=D('0'))
+        m = MezclaOptimaService.generar(2026, 4, p, hoy=date(2026, 4, 10))
+        hospedaje = next(f for f in m['filas'] if f['tipo'] == 'HOSPEDAJE')
+        self.assertEqual((hospedaje['unidades'], hospedaje['dias'], hospedaje['precio']), (3, D('2.00'), D('1000.00')))
+        self.assertEqual(m['dias_ocupados'], D('2.00'))
+        self.assertIn('las dos habitaciones se rentan la misma noche', m['nota_hospedaje'])
+
+
+class EjemploFijoTest(TestCase):
+    """
+    Abril de 2026 (30 días, sin bloqueos), días de venta por defecto, costos fijos $3,000.
+    Precios con IVA / costo directo / tope: Evento 12,000 / 4,000 / 4; Pasadía 2,000 / 300 / 6;
+    Hospedaje (por habitación-noche) 1,000 / 120 / 20.
+
+    A mano, netos: evento 12,000 / 1.16 = 10,344.83 (MC 6,344.83 por día); pasadía 1,724.14 (MC 1,424.14);
+    hospedaje 862.07 (MC 742.07 por habitación-noche = 1,484.14 por día-quinta). Orden por MC/día:
+    evento, hospedaje, pasadía. Los días sobran (4 + 10 + 6 de 30), así que se llenan los tres topes.
+    """
+
+    def parametros(self, **extra):
+        datos = dict(
+            costo_fijo_mensual_override=D('3000'), precio_venta_evento=D('12000'), costo_directo_evento=D('4000'),
+            demanda_max_evento_mes=4, precio_venta_pasadia=D('2000'), costo_directo_pasadia=D('300'),
+            demanda_max_pasadia_mes=6, precio_venta_hospedaje=D('1000'), costo_directo_hospedaje=D('120'),
+            demanda_max_hospedaje_mes=20)
+        datos.update(extra)
+        return ParametrosNegocio(**datos)
+
+    def generar(self, p):
+        return MezclaOptimaService.generar(2026, 4, p, hoy=date(2026, 4, 10))
+
+    def test_el_plan_llena_los_topes_y_la_utilidad_neta_coincide_con_el_calculo_a_mano(self):
+        m = self.generar(self.parametros(utilidad_mensual_objetivo=D('40000')))
+        self.assertEqual(m['modo'], 'plan')
+        filas = {f['tipo']: f for f in m['filas']}
+        self.assertEqual((filas['EVENTO']['unidades'], filas['PASADIA']['unidades'], filas['HOSPEDAJE']['unidades']),
+                         (4, 6, 20))
+        self.assertEqual(filas['EVENTO']['mc_dia'], D('6344.83'))
+        self.assertEqual(filas['HOSPEDAJE']['mc_dia'], D('1484.14'))
+        self.assertEqual(filas['PASADIA']['mc_dia'], D('1424.14'))
+        venta = 4 * D('10344.83') + 6 * D('1724.14') + 20 * D('862.07')                 # 68,965.56
+        costo = 4 * D('4000') + 6 * D('300') + 20 * D('120')                            # 20,200
+        plan = m['plan']
+        self.assertEqual((plan['venta'], plan['costo_directo']), (venta, costo))
+        self.assertEqual(plan['contribucion'], D('48765.56'))
+        self.assertEqual((plan['cf'], plan['utilidad_neta']), (D('3000.00'), D('45765.56')))
+        self.assertEqual((plan['utilidad_objetivo'], plan['diferencia_objetivo']), (D('40000.00'), D('5765.56')))
+        self.assertEqual(plan['frase'], 'Vende 4 eventos (4 en fin de semana), 6 pasadías y 20 noches-habitación')
+
+    def test_cuando_los_dias_alcanzan_primero_va_lo_que_mas_deja_por_dia(self):
+        p = self.parametros(demanda_max_pasadia_mes=100, demanda_max_hospedaje_mes=100)
+        filas = {f['tipo']: f for f in self.generar(p)['filas']}
+        # Los 4 eventos toman 4 días; los 26 restantes van a hospedaje (52 habitaciones-noche), que deja más por día
+        self.assertEqual((filas['EVENTO']['unidades'], filas['PASADIA']['unidades'], filas['HOSPEDAJE']['unidades']),
+                         (4, 0, 52))
+
+    def test_escenarios_cumplen_utilidad_neta_igual_contribucion_menos_cf_y_respetan_topes(self):
+        m = self.generar(self.parametros())
+        nombres = [e['nombre'] for e in m['escenarios']]
+        self.assertEqual(nombres, ['Plan óptimo', 'Mes anterior (real)', 'Solo eventos', 'Solo pasadías',
+                                   'Solo hospedaje'])
+        topes = {'EVENTO': 4, 'PASADIA': 6, 'HOSPEDAJE': 20}
+        for e in m['escenarios']:
+            self.assertEqual(e['utilidad_neta'], e['contribucion'] - e['cf'], e['nombre'])
+            self.assertEqual(e['contribucion'], e['venta'] - e['costo_directo'], e['nombre'])
+        por_nombre = {e['nombre']: e for e in m['escenarios']}
+        for solo, tipo in (('Solo eventos', 'EVENTO'), ('Solo pasadías', 'PASADIA'), ('Solo hospedaje', 'HOSPEDAJE')):
+            unidades = por_nombre[solo]['unidades']
+            self.assertEqual(unidades[tipo], topes[tipo], solo)       # los días alcanzan: llega al tope, no lo pasa
+            self.assertEqual(sum(n for t, n in unidades.items() if t != tipo), 0, solo)
+        self.assertEqual(por_nombre['Solo eventos']['utilidad_neta'], 4 * D('6344.83') - D('3000'))
+        self.assertEqual(por_nombre['Mes anterior (real)']['unidades'], {'EVENTO': 0, 'PASADIA': 0, 'HOSPEDAJE': 0})
+        self.assertEqual(por_nombre['Mes anterior (real)']['utilidad_neta'], D('-3000.00'))
+
+    def test_solo_x_no_pasa_su_tope_aunque_sobren_dias(self):
+        p = self.parametros(demanda_max_pasadia_mes=3)
+        solo = next(e for e in self.generar(p)['escenarios'] if e['nombre'] == 'Solo pasadías')
+        self.assertEqual(solo['unidades']['PASADIA'], 3)
+
+    def test_un_servicio_sin_precio_se_omite_de_su_escenario_y_se_avisa(self):
+        m = self.generar(self.parametros(precio_venta_pasadia=None, costo_directo_pasadia=None,
+                                         demanda_max_pasadia_mes=None))
+        self.assertNotIn('Solo pasadías', [e['nombre'] for e in m['escenarios']])
+        self.assertTrue(any('Solo pasadías' in a and 'omitido' in a for a in m['avisos']))
+
+    def test_sin_un_tope_es_un_techo_teorico(self):
+        m = self.generar(self.parametros(demanda_max_hospedaje_mes=None))
+        self.assertEqual(m['modo'], 'techo')
+        self.assertTrue(any('Falta el tope al mes de Hospedaje' in a for a in m['avisos']))
+        self.assertEqual(m['escenarios'][0]['nombre'], 'Techo teórico')
+        # Sin tope, el hospedaje se come todos los días que le deja el evento
+        self.assertGreater(next(f for f in m['filas'] if f['tipo'] == 'HOSPEDAJE')['unidades'], 20)
+        self.assertEqual(self.generar(self.parametros())['modo'], 'plan')
+
+    def test_sin_ningun_dato_la_mezcla_no_revienta(self):
+        m = self.generar(ParametrosNegocio())
+        self.assertEqual(m['plan']['frase'], 'Sin servicios que vender con los datos actuales.')
+        self.assertEqual([e['nombre'] for e in m['escenarios']], ['Plan óptimo', 'Mes anterior (real)'])
+
+
+class MetasDesdeElPlanTest(TestCase):
+
+    def test_con_plan_la_meta_sale_de_el(self):
+        from indicadores.services.metas import proponer_meta, valores_desde_plan
+
+        ejemplo = EjemploFijoTest().parametros()
+        ejemplo.save()
+        valores = valores_desde_plan(2026, 4, hoy=date(2026, 4, 10))
+        self.assertEqual((valores['meta_eventos'], valores['meta_pasadias'], valores['meta_noches']), (4, 6, 20))
+        self.assertEqual(valores['meta_venta_neta'], D('68965.56'))
+        meta = proponer_meta(2026, 4, hoy=date(2026, 4, 10))
+        self.assertEqual((meta.meta_eventos, meta.meta_pasadias, meta.meta_noches, meta.meta_venta_neta),
+                         (4, 6, 20, D('68965.56')))
+        self.assertIn('desde plan', meta.notas)
+
+    def test_sin_topes_no_hay_plan(self):
+        from indicadores.services.metas import valores_desde_plan
+
+        EjemploFijoTest().parametros(demanda_max_evento_mes=None).save()
+        self.assertIsNone(valores_desde_plan(2026, 4, hoy=date(2026, 4, 10)))
 
 
 class BaseVaciaTest(TestCase):

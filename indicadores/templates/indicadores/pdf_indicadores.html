@@ -43,14 +43,27 @@
 </table>
 {% endwith %}
 
-<h2 class="doc-seccion">Mezcla óptima</h2>
+<h2 class="doc-seccion">{% if d.mezcla.modo == 'plan' %}Plan óptimo del mes{% else %}Techo teórico (sin topes){% endif %}</h2>
+<p><b>{{ d.mezcla.plan.frase }}.</b> Utilidad neta {{ d.mezcla.plan.utilidad_neta|moneda }} ({{ d.mezcla.plan.contribucion|moneda }} de contribución menos {{ d.mezcla.plan.cf|moneda }} de costos fijos); objetivo {{ d.mezcla.plan.utilidad_objetivo|moneda }}.</p>
+<h2 class="doc-seccion">Escenarios</h2>
 <table class="doc-tabla">
-  <thead><tr><th>Servicio</th><th class="num">Fin de semana</th><th class="num">Entre semana</th><th class="num">Unidades</th><th class="num">Días</th><th class="num col-monto">Ingreso</th><th class="num col-monto">Contribución</th><th class="num">Real mes anterior</th></tr></thead>
+  <thead><tr><th>Escenario</th><th class="num">Eventos</th><th class="num">Pasadías</th><th class="num">Noches-hab.</th><th class="num">Días</th><th class="num col-monto">Venta neta</th><th class="num col-monto">Costo directo</th><th class="num col-monto">Contribución</th><th class="num col-monto">Costos fijos</th><th class="num col-monto">Utilidad neta</th></tr></thead>
+  <tbody>
+    {% for e in d.mezcla.escenarios %}
+    <tr><td class="negrita">{{ e.nombre }}</td><td class="num">{{ e.unidades.EVENTO }}</td><td class="num">{{ e.unidades.PASADIA }}</td><td class="num">{{ e.unidades.HOSPEDAJE }}</td><td class="num">{{ e.dias }}</td><td class="num">{{ e.venta|moneda }}</td><td class="num">{{ e.costo_directo|moneda }}</td><td class="num">{{ e.contribucion|moneda }}</td><td class="num">{{ e.cf|moneda }}</td><td class="num">{{ e.utilidad_neta|moneda }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>{{ d.mezcla.nota_hospedaje }}</p>
+
+<h2 class="doc-seccion">Detalle por servicio</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Servicio</th><th class="num col-monto">Precio neto</th><th class="num col-monto">Costo directo</th><th class="num">Tope</th><th class="num">Fin de semana</th><th class="num">Entre semana</th><th class="num">Unidades</th><th class="num">Días</th><th class="num col-monto">Ingreso</th><th class="num col-monto">Contribución</th><th class="num">Real mes anterior</th></tr></thead>
   <tbody>
     {% for f in d.mezcla.filas %}
-    <tr><td class="negrita">{{ f.nombre }}</td><td class="num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="num">{{ f.segmentos.ENTRE_SEMANA }}</td><td class="num">{{ f.unidades }}</td><td class="num">{{ f.dias }}</td><td class="num">{{ f.ingreso|moneda }}</td><td class="num">{{ f.contribucion|moneda }}</td><td class="num">{{ f.real_unidades }}</td></tr>
+    <tr><td class="negrita">{{ f.nombre }}</td><td class="num">{{ f.precio|moneda|default:"—" }}</td><td class="num">{{ f.costo|moneda|default:"—" }}</td><td class="num">{{ f.tope|default_if_none:"—" }}</td><td class="num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="num">{{ f.segmentos.ENTRE_SEMANA }}</td><td class="num">{{ f.unidades }}</td><td class="num">{{ f.dias }}</td><td class="num">{{ f.ingreso|moneda }}</td><td class="num">{{ f.contribucion|moneda }}</td><td class="num">{{ f.real_unidades }}</td></tr>
     {% endfor %}
-    <tr class="total"><td colspan="6">Contribución óptima · utilidad {{ d.mezcla.utilidad|moneda }} · brecha contra lo real {{ d.mezcla.brecha|moneda }}</td><td class="num">{{ d.mezcla.contribucion|moneda }}</td><td></td></tr>
+    <tr class="total"><td colspan="9">Contribución del plan · brecha contra lo real {{ d.mezcla.brecha|moneda }}</td><td class="num">{{ d.mezcla.contribucion|moneda }}</td><td></td></tr>
   </tbody>
 </table>
 
