@@ -6,6 +6,7 @@ from datetime import date
 
 from django import forms
 from django.contrib import admin, messages
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
@@ -14,14 +15,14 @@ from core_erp import admin_ui as ui
 from .models import DIAS_ISO, MetaMensual, ParametrosNegocio
 from .services.base import ETIQUETAS, TIPOS
 from .services.metas import valores_desde_plan
-from .services.mezcla import MezclaOptimaService
+from .services.plan_anual import PlanAnualService
 
 CAMPOS_DIAS = ('dias_evento', 'dias_pasadia', 'dias_hospedaje')
 # La tabla «un servicio por fila» de la plantilla; no están en `fieldsets` para no pintarse dos veces.
 CAMPOS_SERVICIOS = (
-    'precio_venta_evento', 'costo_directo_evento', 'demanda_max_evento_mes', 'dias_evento',
-    'precio_venta_pasadia', 'costo_directo_pasadia', 'demanda_max_pasadia_mes', 'dias_pasadia',
-    'precio_venta_hospedaje', 'costo_directo_hospedaje', 'demanda_max_hospedaje_mes', 'dias_hospedaje',
+    'precio_venta_evento', 'costo_directo_evento', 'dias_evento',
+    'precio_venta_pasadia', 'costo_directo_pasadia', 'dias_pasadia',
+    'precio_venta_hospedaje', 'costo_directo_hospedaje', 'dias_hospedaje',
 )
 
 
@@ -108,36 +109,26 @@ class ParametrosNegocioAdmin(SoloDireccionMixin, admin.ModelAdmin):
             kwargs['fields'] = [*CAMPOS_SERVICIOS, *kwargs['fields']]
         return super().get_form(request, obj, change=change, **kwargs)
 
-    @admin.display(description='Plan del mes con lo guardado')
+    @admin.display(description='Plan del año con lo guardado')
     def resumen_servicios(self, obj):
-        """El plan de la mezcla óptima del mes en curso con estos parámetros: lo que se ve al guardar."""
+        """La respuesta del plan óptimo del año siguiente con estos parámetros: lo que se ve al guardar."""
+        enlace = format_html('<a class="qkt-btn qkt-btn--secundario qkt-btn--sm" href="{}">Ver el plan completo</a>',
+                             reverse('indicadores:plan'))
         if obj is None or not obj.pk or all(obj.precio_de(t) is None for t in TIPOS):
             return format_html(
-                '<p class="qkt-aviso qkt-aviso--info">{}</p>',
-                'Captura precio, costo directo y tope de cada servicio y guarda: aquí verás qué conviene vender '
-                'este mes y cuánta utilidad neta deja.')
+                '<p class="qkt-aviso qkt-aviso--info">{}</p><p>{}</p>',
+                'Captura el precio y el costo directo de cada servicio y guarda: aquí verás qué conviene vender '
+                'el año que entra y cuánta utilidad deja.', enlace)
         hoy = timezone.localdate()
-        mezcla = MezclaOptimaService.generar(hoy.year, hoy.month, obj, hoy=hoy)
-        plan = mezcla['plan']
-        tono = 'exito' if plan['utilidad_neta'] >= 0 else 'error'
-        aviso = format_html(
-            '<p class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Techo teórico</span> {}</p>',
-            'Falta el tope de algún servicio: esto es lo que cabría si se vendiera todo, no un plan.'
-        ) if mezcla['modo'] == 'techo' else ''
+        plan = PlanAnualService.generar(hoy.year + 1, obj, hoy=hoy)
+        tono = 'exito' if plan['utilidad'] >= 0 else 'error'
         return format_html(
-            '{}<p><strong>{}.</strong></p><div class="qkt-kpis">'
+            '<p><strong>{}.</strong></p><div class="qkt-kpis">'
             '<div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Venta neta</div>'
             '<div class="qkt-kpi__valor">{}</div></div>'
-            '<div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Contribución</div>'
-            '<div class="qkt-kpi__valor">{}</div></div>'
-            '<div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Costos fijos</div>'
-            '<div class="qkt-kpi__valor">{}</div></div>'
-            '<div class="qkt-kpi qkt-kpi--{}"><div class="qkt-kpi__label">Utilidad neta</div>'
-            '<div class="qkt-kpi__valor">{}</div>'
-            '<div class="qkt-kpi__sub">Objetivo {}</div></div></div>'
-            '<p>{} Se actualiza al guardar.</p>',
-            aviso, plan['frase'], ui.monto(plan['venta']), ui.monto(plan['contribucion']), ui.monto(plan['cf']),
-            tono, ui.monto(plan['utilidad_neta']), ui.monto(plan['utilidad_objetivo']), mezcla['nota_hospedaje'])
+            '<div class="qkt-kpi qkt-kpi--{}"><div class="qkt-kpi__label">Utilidad</div>'
+            '<div class="qkt-kpi__valor">{}</div></div></div><p>{} Se actualiza al guardar.</p>',
+            plan['frase'], ui.monto(plan['venta']), tono, ui.monto(plan['utilidad']), enlace)
 
     @admin.display(description='Precios')
     def precios(self, obj):
@@ -207,7 +198,7 @@ class MetaMensualAdmin(SoloDireccionMixin, admin.ModelAdmin):
         valores = valores_desde_plan(anio, mes, hoy=hoy)
         if valores is None:
             self.message_user(
-                request, f'No hay un plan para {mes:02d}/{anio}: captura precio y tope de cada servicio en '
+                request, f'No hay un plan para {mes:02d}/{anio}: captura el precio de algún servicio en '
                          'Parámetros. Los campos quedan como estaban.', messages.WARNING)
             return {}
         self.message_user(request, f'Valores del plan de {mes:02d}/{anio}. Revísalos y pulsa Guardar para conservarlos.',

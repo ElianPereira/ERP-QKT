@@ -11,6 +11,11 @@ from django.urls import reverse
 from core_erp.test_utils import login_superuser_con_totp
 from indicadores.models import MetaMensual, ParametrosNegocio
 
+PARAMETROS_EJEMPLO = dict(
+    precio_venta_evento=Decimal('12000.00'), costo_directo_evento=Decimal('4000.00'),
+    precio_venta_pasadia=Decimal('2000.00'), costo_directo_pasadia=Decimal('300.00'),
+    costo_fijo_mensual_override=Decimal('3000.00'))
+
 
 class ParametrosTest(TestCase):
 
@@ -102,34 +107,20 @@ class AdminSoloDireccionTest(TestCase):
         self.assertEqual((p.dias_evento, p.dias_pasadia, p.dias_hospedaje), ('567', '12', ''))
 
     def test_costo_directo_no_puede_igualar_el_precio_sin_iva(self):
-        p = ParametrosNegocio(precio_venta_pasadia=Decimal('1500.00'), costo_directo_pasadia=Decimal('1293.10'),
-                              demanda_max_pasadia_mes=6)
+        p = ParametrosNegocio(precio_venta_pasadia=Decimal('1500.00'), costo_directo_pasadia=Decimal('1293.10'))
         with self.assertRaises(ValidationError) as ctx:
             p.full_clean()
         self.assertIn('costo_directo_pasadia', ctx.exception.message_dict)
         p.costo_directo_pasadia = Decimal('200.00')
         p.full_clean()
 
-    def test_un_precio_sin_tope_o_con_tope_cero_se_rechaza(self):
-        for tope in (None, 0):
-            p = ParametrosNegocio(precio_venta_hospedaje=Decimal('1000.00'), demanda_max_hospedaje_mes=tope)
-            with self.assertRaises(ValidationError) as ctx:
-                p.full_clean()
-            self.assertIn('demanda_max_hospedaje_mes', ctx.exception.message_dict)
-        ParametrosNegocio(precio_venta_hospedaje=Decimal('1000.00'), demanda_max_hospedaje_mes=1).full_clean()
-        ParametrosNegocio(demanda_max_evento_mes=None).full_clean()      # sin precio no hay nada que topar
-
-    def test_el_alta_rechaza_un_precio_sin_tope_y_explica_por_que(self):
+    def test_el_alta_acepta_un_precio_sin_pedir_ningun_tope(self):
         login_superuser_con_totp(self.client, self.direccion)
         r = self.client.post(reverse('admin:indicadores_parametrosnegocio_add'), self.datos(
             precio_venta_evento='12000.00'))
-        self.assertEqual(r.status_code, 200)
-        self.assertContains(r, 'Obligatorio y mayor que 0')
-        self.assertFalse(ParametrosNegocio.objects.exists())
-        r = self.client.post(reverse('admin:indicadores_parametrosnegocio_add'), self.datos(
-            precio_venta_evento='12000.00', demanda_max_evento_mes='4'))
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(ParametrosNegocio.objects.get().demanda_max_evento_mes, 4)
+        self.assertEqual(ParametrosNegocio.objects.get().precio_venta_evento, Decimal('12000.00'))
+        self.assertFalse(hasattr(ParametrosNegocio, 'demanda_de'))
 
     def datos(self, **extra):
         datos = {
@@ -147,9 +138,10 @@ class AdminSoloDireccionTest(TestCase):
         r = self.client.get(reverse('admin:indicadores_parametrosnegocio_add'))
         self.assertEqual(r.status_code, 200)
         html = r.content.decode()
-        for encabezado in ('Servicio', 'Precio con IVA', 'Costo directo sin IVA', 'Tope al mes', 'Días de venta'):
+        for encabezado in ('Servicio', 'Precio con IVA', 'Costo directo sin IVA', 'Días de venta'):
             self.assertIn(encabezado, html)
-        for campo in ('precio_venta_evento', 'costo_directo_pasadia', 'demanda_max_hospedaje_mes'):
+        self.assertNotIn('Tope al mes', html)
+        for campo in ('precio_venta_evento', 'costo_directo_pasadia', 'costo_directo_hospedaje'):
             self.assertEqual(html.count(f'name="{campo}"'), 1, campo)           # cada campo, una sola vez
         self.assertEqual(html.count('name="dias_hospedaje"'), 7)                # una casilla por día
         self.assertIn('Habitación-noche', html)
@@ -161,7 +153,7 @@ class AdminSoloDireccionTest(TestCase):
     def test_formularios_de_alta_cargan_con_las_secciones_nuevas(self):
         login_superuser_con_totp(self.client, self.direccion)
         r = self.client.get(reverse('admin:indicadores_parametrosnegocio_add'))
-        self.assertContains(r, 'Captura precio, costo directo y tope')
+        self.assertContains(r, 'Captura el precio y el costo directo de cada servicio')
         r = self.client.get(reverse('admin:indicadores_metamensual_add'))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Llenar desde el plan')
@@ -169,20 +161,13 @@ class AdminSoloDireccionTest(TestCase):
 
     def test_el_resumen_muestra_el_plan_con_lo_guardado(self):
         login_superuser_con_totp(self.client, self.direccion)
-        p = ParametrosNegocio.objects.create(
-            precio_venta_pasadia=Decimal('2000.00'), costo_directo_pasadia=Decimal('300.00'),
-            demanda_max_pasadia_mes=6, precio_venta_hospedaje=Decimal('1000.00'),
-            costo_directo_hospedaje=Decimal('120.00'), demanda_max_hospedaje_mes=20,
-            costo_fijo_mensual_override=Decimal('3000.00'))
+        p = ParametrosNegocio.objects.create(**PARAMETROS_EJEMPLO)
         r = self.client.get(reverse('admin:indicadores_parametrosnegocio_change', args=[p.pk]))
         html = r.content.decode()
-        self.assertIn('Vende 6 pasadías y 20 noches-habitación', html)
-        self.assertIn('Utilidad neta', html)
+        self.assertIn('lo que más te conviene es', html)
+        self.assertIn('Utilidad', html)
+        self.assertIn(reverse('indicadores:plan'), html)
         self.assertNotIn('Techo teórico', html)
-        p.demanda_max_hospedaje_mes = None
-        p.save()
-        r = self.client.get(reverse('admin:indicadores_parametrosnegocio_change', args=[p.pk]))
-        self.assertContains(r, 'Techo teórico')
 
 
 class LlenarDesdeElPlanTest(TestCase):
@@ -190,10 +175,11 @@ class LlenarDesdeElPlanTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        from indicadores.test_services import EjemploFijoTest
+        from indicadores.services.plan_anual import PlanAnualService
 
         cls.direccion = User.objects.create_superuser('direccion', 'd@x.mx', 'clave-de-prueba-123')
-        EjemploFijoTest().parametros().save()
+        ParametrosNegocio.objects.create(**PARAMETROS_EJEMPLO)
+        cls.fila = PlanAnualService.del_mes(2026, 4, hoy=date(2026, 4, 10))['fila']
 
     def setUp(self):
         login_superuser_con_totp(self.client, self.direccion)
@@ -202,9 +188,10 @@ class LlenarDesdeElPlanTest(TestCase):
         r = self.client.get(reverse('admin:indicadores_metamensual_add'), {'desde_plan': 1, 'anio': 2026, 'mes': 4})
         initial = r.context['adminform'].form.initial
         self.assertEqual((initial['anio'], initial['mes']), (2026, 4))
-        self.assertEqual((initial['meta_eventos'], initial['meta_pasadias'], initial['meta_noches']), (4, 6, 20))
-        self.assertEqual(initial['meta_venta_neta'], Decimal('68965.56'))
-        self.assertContains(r, 'value="68965.56"')
+        self.assertEqual((initial['meta_eventos'], initial['meta_pasadias'], initial['meta_noches']),
+                         (self.fila['eventos'], self.fila['pasadias'], self.fila['noches']))
+        self.assertEqual(initial['meta_venta_neta'], self.fila['venta'])
+        self.assertContains(r, f'value="{self.fila["venta"]}"')
         self.assertContains(r, 'Valores del plan de 04/2026')
         self.assertFalse(MetaMensual.objects.exists())
 
@@ -212,8 +199,8 @@ class LlenarDesdeElPlanTest(TestCase):
         meta = MetaMensual.objects.create(anio=2026, mes=4, meta_eventos=1)
         r = self.client.get(reverse('admin:indicadores_metamensual_change', args=[meta.pk]),
                             {'desde_plan': 1, 'anio': 2026, 'mes': 4})
-        self.assertContains(r, 'value="68965.56"')
-        self.assertEqual(r.context['adminform'].form.initial['meta_eventos'], 4)
+        self.assertContains(r, f'value="{self.fila["venta"]}"')
+        self.assertEqual(r.context['adminform'].form.initial['meta_eventos'], self.fila['eventos'])
         meta.refresh_from_db()
         self.assertEqual(meta.meta_eventos, 1)           # nada se guardó
         self.assertEqual(MetaMensual.objects.count(), 1)
@@ -224,7 +211,7 @@ class LlenarDesdeElPlanTest(TestCase):
     def test_sin_plan_avisa_y_deja_los_campos(self):
         r = self.client.get(reverse('admin:indicadores_metamensual_add'), {'desde_plan': 1, 'anio': 2026, 'mes': 'x'})
         self.assertEqual(r.status_code, 200)
-        ParametrosNegocio.objects.all().update(demanda_max_evento_mes=None)
+        ParametrosNegocio.objects.all().update(precio_venta_evento=None, precio_venta_pasadia=None)
         r = self.client.get(reverse('admin:indicadores_metamensual_add'), {'desde_plan': 1, 'anio': 2026, 'mes': 4})
         self.assertContains(r, 'No hay un plan para 04/2026')
         self.assertNotIn('meta_eventos', r.context['adminform'].form.initial)

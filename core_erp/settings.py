@@ -746,6 +746,12 @@ JAZZMIN_SETTINGS = {
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
         }],
+        "indicadores": [{
+            "name": "Plan óptimo",
+            "url": "indicadores:plan",
+            "icon": "fas fa-th-large",
+            "permissions": ["indicadores.view_metamensual"],
+        }],
         "cumplimiento": [{
             "name": "Tablero",
             "url": "cumplimiento:tablero",

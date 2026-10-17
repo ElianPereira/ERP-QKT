@@ -2,7 +2,7 @@
 Módulo Indicadores (Issue #402)
 ===============================
 Parámetros que captura el propietario y metas mensuales. Todo lo demás
-(capacidad, equilibrio, ocupación, mezcla) se calcula en `indicadores/services/`
+(capacidad, equilibrio, ocupación, plan anual) se calcula en `indicadores/services/`
 sobre datos que el ERP ya tiene; aquí solo viven los supuestos.
 
 Ambos modelos siguen la regla de soft-deactivation: se desactiva, nunca se borra.
@@ -102,17 +102,6 @@ class ParametrosNegocio(models.Model):
         verbose_name='Utilidad mensual objetivo',
         help_text='Cuánto quieres ganar al mes después de todos los costos. 0 = solo cubrir costos (equilibrio).')
 
-    demanda_max_evento_mes = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name='Tope al mes · evento',
-        help_text='Cuántos eventos crees poder vender en un mes. Obligatorio si capturas el precio de eventos.')
-    demanda_max_pasadia_mes = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name='Tope al mes · pasadía',
-        help_text='Cuántas pasadías crees poder vender en un mes. Obligatorio si capturas el precio de pasadías.')
-    demanda_max_hospedaje_mes = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name='Tope de habitaciones-noche al mes · hospedaje',
-        help_text='Cuántas habitaciones-noche crees poder vender en un mes (una habitación, una noche). '
-                  'Obligatorio si capturas el precio de hospedaje.')
-
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, editable=False,
         on_delete=models.SET_NULL, related_name='+', verbose_name='Creado por')
@@ -146,11 +135,6 @@ class ParametrosNegocio(models.Model):
                 errores[f'costo_directo_{nombre}'] = (
                     'El costo directo no puede ser igual o mayor al precio sin IVA '
                     f'(${sin_iva(precio):,.2f}): el servicio no dejaría margen.')
-            tope = self.demanda_de(tipo)
-            if tope is None or tope <= 0:
-                errores[f'demanda_max_{nombre}_mes'] = (
-                    'Obligatorio y mayor que 0: sin tope, la mezcla sale como un techo teórico que no se puede '
-                    'vender. Captura cuántas unidades crees poder vender al mes.')
         if errores:
             raise ValidationError(errores)
 
@@ -183,10 +167,6 @@ class ParametrosNegocio(models.Model):
     def pct_costo_de(self, tipo: str) -> Decimal:
         return {'EVENTO': self.pct_costo_variable_evento, 'PASADIA': self.pct_costo_variable_pasadia,
                 'HOSPEDAJE': self.pct_costo_variable_hospedaje}[tipo]
-
-    def demanda_de(self, tipo: str):
-        return {'EVENTO': self.demanda_max_evento_mes, 'PASADIA': self.demanda_max_pasadia_mes,
-                'HOSPEDAJE': self.demanda_max_hospedaje_mes}[tipo]
 
 
 class MetaMensual(models.Model):

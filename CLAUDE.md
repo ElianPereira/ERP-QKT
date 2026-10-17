@@ -130,7 +130,7 @@ pre-commit · CI en GitHub Actions.
   desde `comercial`), conciliación bancaria.
 - `nomina/`, `facturacion/`, `comunicacion/`, `reportes/`, `operaciones/` —
   un dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
-- `indicadores/` — KPIs de dirección (capacidad, equilibrio, mezcla óptima, metas); solo
+- `indicadores/` — KPIs de dirección (capacidad, equilibrio, plan óptimo anual, metas); solo
   superusuario, solo lectura sobre datos existentes + parámetros del propietario.
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
@@ -269,6 +269,27 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-17 — **Indicadores: «Plan óptimo» anual** (Issue #410; el propietario rechazó Parámetros/Metas del
+  #408 con «no entiendo nada»: quiere algo digerido y sin topes). Página `/admin/indicadores/plan/` (solo
+  superusuario, menú «Plan óptimo» vía `custom_links`): «Tus números» ya llenos (año siguiente; CF del año =
+  mensual × 12; precio con IVA y costo por servicio de Parámetros o del histórico con ≥ 5 ventas), respuesta en
+  una frase, tabla «Por qué» (lo que deja cada servicio por día y el **precio para entrar** de los que no
+  entran), utilidad al 25/50/75/100 % del plan y días para cubrir CF, y 12 meses que suman el año (el último
+  mes absorbe el redondeo del CF). «Calcular» (POST) no guarda; «Guardar estos números» clona el Parámetro
+  vigente con esos precios/costos y CF/12 en uno nuevo activo (el anterior queda inactivo, `created_by`).
+  **Algoritmo** (`services/plan_anual.py`): DP exacto sobre los días del año, estado (eventos de la semana ISO,
+  días de preparación pendientes); un servicio por día, días permitidos, `max_eventos_semana`, bloqueos fuera,
+  hospedaje = 2 habitaciones × MC. Se corrió sobre todo el año y no por semana aislada porque la preparación
+  puede cruzar de semana; la preparación se trunca el 31/12 (un evento al final del año la trae gratis).
+  Probado contra fuerza bruta (con y sin preparación). **Precio para entrar**: bisección sobre pesos enteros
+  con IVA hasta que el servicio aparece en la solución. Ejemplo a mano en tests: 2027, evento $15,000 /
+  pasadía $2,000 / hospedaje $1,000, CF $600,000 → 105 eventos (el 1/ene/2027 cae en la semana ISO 53 de 2026,
+  por eso 105 y no 104), 0 pasadías, 520 noches-habitación, utilidad $618,634.55; la pasadía entraría desde
+  $2,070. **Retirado**: `services/mezcla.py`, escenarios, «Tope al mes» y `demanda_max_*_mes` (migración
+  `indicadores.0003`, 3 columnas nulas: corre sola en el deploy al mergear). Tablero, PDF, Excel (hoja «Plan
+  anual») y Metas (`valores_desde_plan`, «Llenar desde el plan») leen la parte mensual del plan anual
+  (`PlanAnualService.del_mes`); sin ningún precio, `proponer_meta` cae al equilibrio. El simulador del
+  tablero ya solo mueve precio y % de costo.
 - 2026-10-17 — **Indicadores: mezcla óptima accionable** (Issue #409, rediseño del PR #408 que el
   propietario rechazó: sin topes salía «todo Hospedaje», y capacidad/equilibrio/metas seguían leyendo el
   ticket histórico de Evento, $344, por una sola venta). **Fuente única**: `services/servicio.py`
