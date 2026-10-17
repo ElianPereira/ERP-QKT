@@ -785,6 +785,8 @@ body.change-list #changelist .card-body.table-responsive { padding: 0 !important
 .qkt-kpi--alerta .qkt-kpi__valor { color: var(--ui-alerta); }
 .qkt-kpi--error  .qkt-kpi__valor { color: var(--ui-error); }
 .qkt-kpi--info   .qkt-kpi__valor { color: var(--ui-info); }
+.qkt-kpi--destacado { border-width: 2px; border-left-width: 4px; }
+.qkt-kpi--destacado .qkt-kpi__valor { font-size: 26px; }
 
 /* Datos clave en línea (etiqueta sobre valor) */
 .qkt-datos { display: flex; flex-wrap: wrap; gap: 12px 32px; margin-bottom: 16px; }
@@ -1053,6 +1055,16 @@ body.login-page .main-footer { display: none; }
 /* GRÁFICA (Chart.js dentro de un panel): el contenedor fija la altura, el lienzo se adapta */
 .qkt-grafica { position: relative; height: 280px; padding: 12px 16px 16px; }
 @media (max-width: 767px) { .qkt-grafica { height: 240px; padding: 8px; } }
+
+/* Captura de Indicadores › Parámetros: una fila por servicio */
+.qkt-tabla--captura td { vertical-align: top; }
+.qkt-tabla--captura input[type="number"] { width: 9em; }
+.qkt-tabla--captura .qkt-campo__ayuda { display: block; margin-top: 2px; }
+.qkt-tabla--captura .errorlist { margin: 0 0 4px; padding: 0; list-style: none; color: var(--ui-error); font-size: 13px; }
+
+/* Bloque plegable dentro de un panel (por ejemplo, el detalle por servicio de Indicadores) */
+.qkt-desplegable { margin-top: 8px; }
+.qkt-desplegable > summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ui-text-2); padding: 4px 0; }
 
 /* Casillas de días de la semana (Indicadores › Parámetros) */
 .qkt-dias { display: flex; flex-wrap: wrap; gap: 8px 16px; }

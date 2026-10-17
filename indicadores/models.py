@@ -60,10 +60,11 @@ class ParametrosNegocio(models.Model):
     precio_venta_hospedaje = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(Decimal('0.01'))],
         verbose_name='Precio de venta · hospedaje',
-        help_text='Lo que cobras por UNA NOCHE (las habitaciones que rentas en una noche típica), con IVA incluido.')
+        help_text='Lo que cobras por una habitación, una noche, con IVA incluido.')
     costo_directo_hospedaje = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(Decimal('0'))],
-        verbose_name='Costo directo · hospedaje', help_text='Costo de atender esa noche (limpieza, ropa de cama), sin IVA.')
+        verbose_name='Costo directo · hospedaje',
+        help_text='Costo de atender una habitación una noche (limpieza, ropa de cama), sin IVA.')
 
     dias_evento = models.CharField(
         max_length=7, default='567', blank=True, verbose_name='Días de evento',
@@ -102,14 +103,15 @@ class ParametrosNegocio(models.Model):
         help_text='Cuánto quieres ganar al mes después de todos los costos. 0 = solo cubrir costos (equilibrio).')
 
     demanda_max_evento_mes = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name='Demanda máxima de eventos al mes',
-        help_text='Cuántos eventos crees poder vender en un mes. Vacío = sin tope (la mezcla supone que se vende todo).')
+        null=True, blank=True, verbose_name='Tope al mes · evento',
+        help_text='Cuántos eventos crees poder vender en un mes. Obligatorio si capturas el precio de eventos.')
     demanda_max_pasadia_mes = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name='Demanda máxima de pasadías al mes',
-        help_text='Vacío = sin tope.')
+        null=True, blank=True, verbose_name='Tope al mes · pasadía',
+        help_text='Cuántas pasadías crees poder vender en un mes. Obligatorio si capturas el precio de pasadías.')
     demanda_max_hospedaje_mes = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name='Demanda máxima de noches de hospedaje al mes',
-        help_text='Noches que crees poder vender en el mes. Vacío = sin tope.')
+        null=True, blank=True, verbose_name='Tope de habitaciones-noche al mes · hospedaje',
+        help_text='Cuántas habitaciones-noche crees poder vender en un mes (una habitación, una noche). '
+                  'Obligatorio si capturas el precio de hospedaje.')
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, editable=False,
@@ -135,12 +137,22 @@ class ParametrosNegocio(models.Model):
         _validar_dias(self.dias_hospedaje, 'dias_hospedaje')
         from core_erp.impuestos import sin_iva
 
+        errores = {}
         for tipo, nombre in (('EVENTO', 'evento'), ('PASADIA', 'pasadia'), ('HOSPEDAJE', 'hospedaje')):
             precio, costo = self.precio_de(tipo), self.costo_directo_de(tipo)
-            if precio is not None and costo is not None and costo >= sin_iva(precio):
-                raise ValidationError({f'costo_directo_{nombre}': (
+            if precio is None:
+                continue
+            if costo is not None and costo >= sin_iva(precio):
+                errores[f'costo_directo_{nombre}'] = (
                     'El costo directo no puede ser igual o mayor al precio sin IVA '
-                    f'(${sin_iva(precio):,.2f}): el servicio no dejaría margen.')})
+                    f'(${sin_iva(precio):,.2f}): el servicio no dejaría margen.')
+            tope = self.demanda_de(tipo)
+            if tope is None or tope <= 0:
+                errores[f'demanda_max_{nombre}_mes'] = (
+                    'Obligatorio y mayor que 0: sin tope, la mezcla sale como un techo teórico que no se puede '
+                    'vender. Captura cuántas unidades crees poder vender al mes.')
+        if errores:
+            raise ValidationError(errores)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -185,17 +197,26 @@ class MetaMensual(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(12)], verbose_name='Mes')
     meta_venta_neta = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal('0.00'), verbose_name='Meta de venta neta',
-        help_text='Venta del mes sin IVA. 0 = sin meta (el tablero usa el punto de equilibrio).')
+        help_text='Venta del mes sin IVA. El tablero la compara contra la venta real; con 0 no hay meta y usa el '
+                  'punto de equilibrio.')
     meta_ocupacion_pct = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('0.00'), validators=PORCENTAJE,
         verbose_name='Meta de ocupación (%)',
-        help_text='Porcentaje de días vendibles con servicio. 0 = sin meta.')
-    meta_eventos = models.PositiveIntegerField(default=0, verbose_name='Meta de eventos', help_text='Cuántos eventos quieres vender.')
-    meta_pasadias = models.PositiveIntegerField(default=0, verbose_name='Meta de pasadías', help_text='Cuántas pasadías quieres vender.')
-    meta_noches = models.PositiveIntegerField(default=0, verbose_name='Meta de noches', help_text='Noches de hospedaje que quieres vender.')
+        help_text='Porcentaje de días vendibles con servicio. El tablero lo compara contra la ocupación real; '
+                  '0 = sin meta.')
+    meta_eventos = models.PositiveIntegerField(
+        default=0, verbose_name='Meta de eventos',
+        help_text='Cuántos eventos quieres vender. El tablero los compara contra los vendidos del mes.')
+    meta_pasadias = models.PositiveIntegerField(
+        default=0, verbose_name='Meta de pasadías',
+        help_text='Cuántas pasadías quieres vender. El tablero las compara contra las vendidas del mes.')
+    meta_noches = models.PositiveIntegerField(
+        default=0, verbose_name='Meta de noches',
+        help_text='Noches-habitación de hospedaje que quieres vender (una habitación, una noche). '
+                  'El tablero las compara contra las vendidas del mes.')
     presupuesto_marketing = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal('0.00'), verbose_name='Presupuesto de marketing',
-        help_text='Cuánto piensas invertir en publicidad este mes.')
+        help_text='Cuánto piensas invertir en publicidad este mes. El tablero lo compara contra el gasto real.')
     notas = models.TextField(blank=True, verbose_name='Notas', help_text='Supuestos o acuerdos detrás de esta meta.')
     activo = models.BooleanField(
         default=True, verbose_name='Activa', help_text='Solo puede haber una meta activa por mes.')

@@ -28,6 +28,9 @@
     {% for aviso in d.avisos %}
     <div class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Revisa</span> {{ aviso }}</div>
     {% endfor %}
+    {% if d.avisos %}
+    <p><a class="qkt-btn qkt-btn--secundario qkt-btn--sm" href="{% url 'admin:indicadores_parametrosnegocio_changelist' %}"><i class="fas fa-sliders-h" aria-hidden="true"></i> Abrir Parámetros</a></p>
+    {% endif %}
 
     <!-- RESUMEN -->
     <div class="qkt-kpis">
@@ -50,7 +53,7 @@
                 {% for s in d.capacidad.servicios.values %}
                     <tr><th>{{ s.nombre }}{% if s.fuente_costo != 'medido' %} <span class="qkt-badge qkt-badge--neutro" title="Costo variable {{ s.fuente_costo }}">{{ s.fuente_costo|capfirst }}</span>{% endif %}</th>
                         <td class="qkt-der qkt-num">{{ s.dias_vendibles }}</td>
-                        <td class="qkt-der qkt-num">{{ s.unidades|default_if_none:"—" }}{% if s.tipo == 'HOSPEDAJE' %} reserv. · {{ s.noches_habitacion }} noches-hab.{% elif s.tipo == 'EVENTO' %} eventos{% else %} pasadías{% endif %}</td>
+                        <td class="qkt-der qkt-num">{{ s.unidades|default_if_none:"—" }}{% if s.tipo == 'HOSPEDAJE' %} noches-hab.{% elif s.tipo == 'EVENTO' %} eventos{% else %} pasadías{% endif %}</td>
                         <td class="qkt-der qkt-num">{{ s.ingreso_max|moneda|default:"—" }}</td>
                         <td class="qkt-der qkt-num">{{ s.mc_max|moneda|default:"—" }}</td></tr>
                 {% endfor %}
@@ -85,7 +88,7 @@
                 {% for s in eq.solo.values %}
                     <tr><th>{{ s.nombre }}{% if s.fuente_costo != 'medido' %} <span class="qkt-badge qkt-badge--neutro">{{ s.fuente_costo|capfirst }}</span>{% endif %}</th>
                         <td class="qkt-der qkt-num">{{ s.mc|moneda|default:"—" }}</td>
-                        <td class="qkt-der qkt-num">{{ s.unidades|default_if_none:"—" }}{% if s.noches %} ({{ s.noches }} noches){% endif %}</td></tr>
+                        <td class="qkt-der qkt-num">{{ s.unidades|default_if_none:"—" }}{% if s.dias %} ({{ s.dias }} días){% endif %}</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -112,32 +115,59 @@
 
     <!-- MEZCLA ÓPTIMA -->
     <div class="qkt-panel qkt-panel--exito">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-th-large" aria-hidden="true"></i> Mezcla óptima del mes</h2></div>
         {% with mz=d.mezcla %}
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-th-large" aria-hidden="true"></i> {% if mz.modo == 'plan' %}Plan óptimo del mes{% else %}Techo teórico (sin topes){% endif %}</h2></div>
+        {% if mz.modo == 'techo' %}
+        <div class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Sin topes</span> A algún servicio le falta el tope al mes en <a href="{% url 'admin:indicadores_parametrosnegocio_changelist' %}">Parámetros</a>: esto es lo que cabría si se vendiera todo, no un plan que se pueda vender.</div>
+        {% endif %}
+        <p class="qkt-panel__cuerpo"><strong>{{ mz.plan.frase }}.</strong></p>
+        <div class="qkt-kpis qkt-panel__cuerpo">
+            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Venta neta</div><div class="qkt-kpi__valor">{{ mz.plan.venta|moneda }}</div><div class="qkt-kpi__sub">Costo directo {{ mz.plan.costo_directo|moneda }}</div></div>
+            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Contribución</div><div class="qkt-kpi__valor">{{ mz.plan.contribucion|moneda }}</div><div class="qkt-kpi__sub">Venta menos costo directo</div></div>
+            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Costos fijos</div><div class="qkt-kpi__valor">{{ mz.plan.cf|moneda }}</div><div class="qkt-kpi__sub">{{ mz.fuente_cf|capfirst }}</div></div>
+            <div class="qkt-kpi qkt-kpi--destacado qkt-kpi--{% if mz.plan.utilidad_neta >= 0 %}exito{% else %}error{% endif %}"><div class="qkt-kpi__label">Utilidad neta</div><div class="qkt-kpi__valor">{{ mz.plan.utilidad_neta|moneda }}</div><div class="qkt-kpi__sub">Contribución menos costos fijos</div></div>
+            <div class="qkt-kpi qkt-kpi--{% if mz.plan.diferencia_objetivo >= 0 %}exito{% else %}alerta{% endif %}"><div class="qkt-kpi__label">Contra el objetivo</div><div class="qkt-kpi__valor">{{ mz.plan.diferencia_objetivo|moneda }}</div><div class="qkt-kpi__sub">Objetivo {{ mz.plan.utilidad_objetivo|moneda }}</div></div>
+        </div>
+
         <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
             <table class="qkt-tabla">
-                <thead><tr><th>Servicio</th><th class="qkt-der">Precio neto</th><th class="qkt-der">Costo directo</th><th class="qkt-der">Margen por día</th><th class="qkt-der">Fin de semana</th><th class="qkt-der">Entre semana</th><th class="qkt-der">Unidades</th><th class="qkt-der">Días</th><th class="qkt-der">Ingreso</th><th class="qkt-der">Contribución</th><th class="qkt-der">Mes anterior (real)</th></tr></thead>
+                <caption class="qkt-panel__cuerpo">Escenarios</caption>
+                <thead><tr><th>Escenario</th><th class="qkt-der">Eventos</th><th class="qkt-der">Pasadías</th><th class="qkt-der">Noches-hab.</th><th class="qkt-der">Días</th><th class="qkt-der">Venta neta</th><th class="qkt-der">Costo directo</th><th class="qkt-der">Contribución</th><th class="qkt-der">Costos fijos</th><th class="qkt-der">Utilidad neta</th></tr></thead>
                 <tbody>
-                {% for f in mz.filas %}
-                    <tr><th>{{ f.nombre }}{% if f.por_noche %} <span class="qkt-badge qkt-badge--neutro">Por noche</span>{% endif %}</th>
-                        <td class="qkt-der qkt-num">{{ f.precio|moneda|default:"—" }}{% if f.fuente_precio and f.fuente_precio != 'parámetros' %} <span class="qkt-badge qkt-badge--neutro">{{ f.fuente_precio|capfirst }}</span>{% endif %}</td>
-                        <td class="qkt-der qkt-num">{{ f.costo|moneda|default:"—" }}{% if f.fuente_costo and f.fuente_costo != 'parámetros' %} <span class="qkt-badge qkt-badge--neutro">{{ f.fuente_costo|capfirst }}</span>{% endif %}</td>
-                        <td class="qkt-der qkt-num">{{ f.mc_dia|moneda|default:"—" }}</td>
-                        <td class="qkt-der qkt-num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="qkt-der qkt-num">{{ f.segmentos.ENTRE_SEMANA }}</td>
-                        <td class="qkt-der qkt-num">{{ f.unidades }}</td><td class="qkt-der qkt-num">{{ f.dias }}</td>
-                        <td class="qkt-der qkt-num">{{ f.ingreso|moneda }}</td><td class="qkt-der qkt-num">{{ f.contribucion|moneda }}</td>
-                        <td class="qkt-der qkt-num">{{ f.real_unidades }}</td></tr>
+                {% for e in mz.escenarios %}
+                    <tr{% if forloop.first %} class="qkt-tabla__destacado"{% endif %}><th>{{ e.nombre }}</th>
+                        <td class="qkt-der qkt-num">{{ e.unidades.EVENTO }}</td><td class="qkt-der qkt-num">{{ e.unidades.PASADIA }}</td><td class="qkt-der qkt-num">{{ e.unidades.HOSPEDAJE }}</td>
+                        <td class="qkt-der qkt-num">{{ e.dias }}</td><td class="qkt-der qkt-num">{{ e.venta|moneda }}</td><td class="qkt-der qkt-num">{{ e.costo_directo|moneda }}</td>
+                        <td class="qkt-der qkt-num">{{ e.contribucion|moneda }}</td><td class="qkt-der qkt-num">{{ e.cf|moneda }}</td><td class="qkt-der qkt-num">{{ e.utilidad_neta|moneda }}</td></tr>
                 {% endfor %}
                 </tbody>
-                <tfoot>
-                    <tr><th>Contribución óptima</th><td colspan="8"></td><td class="qkt-der qkt-num">{{ mz.contribucion|moneda }}</td><td class="qkt-der qkt-num">{{ mz.real.contribucion|moneda }}</td></tr>
-                    <tr><th>Utilidad (− costos fijos {{ mz.cf|moneda }})</th><td colspan="8"></td><td class="qkt-der qkt-num">{{ mz.utilidad|moneda }}</td><td></td></tr>
-                    <tr><th>Brecha contra la mezcla real de {{ mz.real.mes|stringformat:"02d" }}/{{ mz.real.anio|stringformat:"d" }}</th><td colspan="8"></td><td class="qkt-der qkt-num">{{ mz.brecha|moneda }}</td><td></td></tr>
-                </tfoot>
             </table>
         </div>
-        <p class="qkt-panel__cuerpo">Ocupación resultante: {{ mz.ocupacion }} % ({{ mz.dias_ocupados }} días comprometidos, incluida la preparación de eventos).
-            Días del mes: {{ mz.dias_por_segmento.FIN_DE_SEMANA }} de fin de semana y {{ mz.dias_por_segmento.ENTRE_SEMANA }} entre semana.</p>
+        <p class="qkt-panel__cuerpo">Ocupación del plan: {{ mz.ocupacion }} % ({{ mz.dias_ocupados }} días comprometidos, incluida la preparación de eventos).
+            Días del mes: {{ mz.dias_por_segmento.FIN_DE_SEMANA }} de fin de semana y {{ mz.dias_por_segmento.ENTRE_SEMANA }} entre semana.
+            {{ mz.nota_hospedaje }} Brecha de contribución contra lo real de {{ mz.real.mes|stringformat:"02d" }}/{{ mz.real.anio|stringformat:"d" }}: {{ mz.brecha|moneda }}.</p>
+
+        <details class="qkt-panel__cuerpo qkt-desplegable">
+            <summary>Detalle por servicio</summary>
+            <div class="qkt-panel__cuerpo--tabla">
+                <table class="qkt-tabla">
+                    <thead><tr><th>Servicio</th><th class="qkt-der">Precio neto</th><th class="qkt-der">Costo directo</th><th class="qkt-der">Margen por día</th><th class="qkt-der">Tope</th><th class="qkt-der">Fin de semana</th><th class="qkt-der">Entre semana</th><th class="qkt-der">Unidades</th><th class="qkt-der">Días</th><th class="qkt-der">Ingreso</th><th class="qkt-der">Contribución</th><th class="qkt-der">Mes anterior (real)</th></tr></thead>
+                    <tbody>
+                    {% for f in mz.filas %}
+                        <tr><th>{{ f.nombre }}{% if f.tipo == 'HOSPEDAJE' %} <span class="qkt-badge qkt-badge--neutro">Habitación-noche</span>{% endif %}</th>
+                            <td class="qkt-der qkt-num">{{ f.precio|moneda|default:"—" }}{% if f.fuente_precio and f.fuente_precio != 'parámetros' %} <span class="qkt-badge qkt-badge--neutro">{{ f.fuente_precio|capfirst }}</span>{% endif %}</td>
+                            <td class="qkt-der qkt-num">{{ f.costo|moneda|default:"—" }}{% if f.fuente_costo and f.fuente_costo != 'parámetros' %} <span class="qkt-badge qkt-badge--neutro">{{ f.fuente_costo|capfirst }}</span>{% endif %}</td>
+                            <td class="qkt-der qkt-num">{{ f.mc_dia|moneda|default:"—" }}</td>
+                            <td class="qkt-der qkt-num">{{ f.tope|default_if_none:"—" }}</td>
+                            <td class="qkt-der qkt-num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="qkt-der qkt-num">{{ f.segmentos.ENTRE_SEMANA }}</td>
+                            <td class="qkt-der qkt-num">{{ f.unidades }}</td><td class="qkt-der qkt-num">{{ f.dias }}</td>
+                            <td class="qkt-der qkt-num">{{ f.ingreso|moneda }}</td><td class="qkt-der qkt-num">{{ f.contribucion|moneda }}</td>
+                            <td class="qkt-der qkt-num">{{ f.real_unidades }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
         {% endwith %}
 
         <form method="get" class="qkt-panel__cuerpo">

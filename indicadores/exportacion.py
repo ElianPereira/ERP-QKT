@@ -20,10 +20,15 @@ def hojas(d: dict):
     yield ('Costos fijos', ['Mes', *GRUPOS.values(), 'Total', 'Fuente de nómina'],
            [(m['etiqueta'], *(m['por_grupo'][g] for g in GRUPOS), m['total'], m['fuente_nomina'])
             for m in d['costos']['meses']])
-    yield ('Mezcla óptima', ['Servicio', 'Precio neto', 'Costo directo', 'Fin de semana', 'Entre semana', 'Unidades',
-                             'Días', 'Ingreso', 'Contribución', 'Real mes anterior'],
-           [(f['nombre'], f['precio'], f['costo'], f['segmentos']['FIN_DE_SEMANA'], f['segmentos']['ENTRE_SEMANA'], f['unidades'],
-             f['dias'], f['ingreso'], f['contribucion'], f['real_unidades']) for f in mz['filas']])
+    yield ('Mezcla óptima', ['Servicio', 'Precio neto', 'Costo directo', 'Tope al mes', 'Fin de semana', 'Entre semana',
+                             'Unidades', 'Días', 'Ingreso', 'Contribución', 'Real mes anterior'],
+           [(f['nombre'], f['precio'], f['costo'], f['tope'], f['segmentos']['FIN_DE_SEMANA'],
+             f['segmentos']['ENTRE_SEMANA'], f['unidades'], f['dias'], f['ingreso'], f['contribucion'],
+             f['real_unidades']) for f in mz['filas']])
+    yield ('Escenarios', ['Escenario', 'Eventos', 'Pasadías', 'Noches-habitación', 'Días', 'Venta neta',
+                          'Costo directo', 'Contribución', 'Costos fijos', 'Utilidad neta'],
+           [(e['nombre'], e['unidades']['EVENTO'], e['unidades']['PASADIA'], e['unidades']['HOSPEDAJE'], e['dias'],
+             e['venta'], e['costo_directo'], e['contribucion'], e['cf'], e['utilidad_neta']) for e in mz['escenarios']])
     yield ('Comercial', ['Canal', 'Solicitudes', 'Vendidas', 'Conversión (%)', 'Expiración (%)',
                          'Cancelación (%)', 'Venta neta'],
            [(f['nombre'], f['solicitudes'], f['ventas'], f['tasa_conversion'], f['tasa_expiracion'],

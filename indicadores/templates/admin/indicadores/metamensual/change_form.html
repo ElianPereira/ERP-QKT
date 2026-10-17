@@ -1,0 +1,22 @@
+{% extends "admin/change_form.html" %}
+
+{% block form_top %}{{ block.super }}
+<div class="qkt-botonera qkt-botonera--arriba">
+    <a id="llenar-desde-plan" class="qkt-btn qkt-btn--secundario"
+       href="?desde_plan=1&amp;anio={{ adminform.form.anio.value|default_if_none:'' }}&amp;mes={{ adminform.form.mes.value|default_if_none:'' }}"><i class="fas fa-magic" aria-hidden="true"></i> Llenar desde el plan</a>
+    <span class="qkt-campo__ayuda">Trae venta, ocupación y unidades del plan de ese mes. No guarda nada hasta que pulses Guardar.</span>
+</div>
+<script>
+    (function () {
+        var enlace = document.getElementById('llenar-desde-plan');
+        var anio = document.getElementById('id_anio');
+        var mes = document.getElementById('id_mes');
+        function actualizar() {
+            if (anio && mes && anio.value && mes.value) {
+                enlace.href = '?desde_plan=1&anio=' + encodeURIComponent(anio.value) + '&mes=' + encodeURIComponent(mes.value);
+            }
+        }
+        if (anio && mes) { anio.addEventListener('change', actualizar); mes.addEventListener('change', actualizar); }
+    }());
+</script>
+{% endblock %}

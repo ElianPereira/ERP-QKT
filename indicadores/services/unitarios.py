@@ -1,16 +1,19 @@
 """
-Economía unitaria por tipo de servicio (Issue #402)
-===================================================
+Economía unitaria por tipo de servicio (Issue #402, #409)
+=========================================================
+Solo describe el **histórico** de la ventana. El precio y el costo que usan los paneles salen
+de `servicio.economia_servicio`, que decide entre simulación, Parámetros e histórico.
+
 Definiciones:
 
-- **Unidad vendible**: Evento = 1 día; Pasadía = 1 día; Hospedaje = 1 reservación
-  que ocupa `noches` días (se mide también en noches-habitación).
-- **Costo variable** = gasto ligado a la cotización (`gasto_set`), con el mismo
-  criterio base/IVA que `RentabilidadEventosService`. Con menos de `MIN_MUESTRA`
-  ventas con gasto ligado en el tipo, se usa el % de costo variable de
-  `ParametrosNegocio` y el resultado se marca «estimado».
-- **Margen de contribución (MC)** = ticket neto - costo variable.
-  **MC por día** = MC / días que ocupa la unidad.
+- **Unidad vendible**: Evento = 1 día; Pasadía = 1 día; Hospedaje = una habitación, una noche
+  (`noches_habitacion`). `ventas` cuenta reservaciones.
+- **Precio especial**: la venta con un `DescuentoAplicado` activo cuyo `Descuento.es_cortesia`
+  es verdadero cuenta en venta neta, días y ventas, pero no en `tipicas`: el promedio de
+  ticket y el de costo solo miran ventas típicas.
+- **Costo variable** = gasto ligado a la cotización (`gasto_set`), con el mismo criterio base/IVA
+  que `RentabilidadEventosService`. Con menos de `MIN_MUESTRA` ventas típicas con gasto ligado
+  en el tipo, el % de costo es el de respaldo de `ParametrosNegocio` y se marca «estimado».
 """
 from datetime import date
 from decimal import Decimal
@@ -21,7 +24,6 @@ from reportes.services.comercial import _prorratear_iva
 from ..models import ParametrosNegocio
 from .base import (
     D0,
-    ESTANCIA_DEFAULT,
     ETIQUETAS,
     HABITACIONES,
     MIN_MUESTRA,
@@ -49,55 +51,68 @@ def costo_ligado(cotizacion) -> Decimal:
     return total
 
 
-def _noches_habitacion(cotizacion) -> int:
+def noches_habitacion(cotizacion) -> int:
     noches = sum(
         (i.cantidad for i in cotizacion.items.all()
          if i.producto_id and i.producto.rol_cotizador == 'HABITACION_HOSPEDAJE'), D0)
     return int(noches) if noches else (cotizacion.noches or 0) * HABITACIONES
 
 
+def es_precio_especial(cotizacion) -> bool:
+    """Cierto si la venta lleva un descuento activo marcado como cortesía (`Descuento.es_cortesia`)."""
+    return any(a.activo and a.descuento.es_cortesia for a in cotizacion.descuentos_aplicados.all())
+
+
+def folio(cotizacion) -> str:
+    return f'COT-{cotizacion.pk:03d}'
+
+
 class EconomiaUnitariaService:
 
     @classmethod
-    def generar(cls, desde: date, hasta: date, parametros: Optional[ParametrosNegocio] = None,
-                overrides: Optional[dict] = None) -> Dict:
+    def generar(cls, desde: date, hasta: date, parametros: Optional[ParametrosNegocio] = None) -> Dict:
         """
-        `overrides` permite simular: `ticket_<TIPO>` (pesos) y `costo_pct_<TIPO>` (porcentaje).
+        Histórico de [desde, hasta]. No simula ni lee Parámetros de precio: eso es de `economia_servicio`.
         El service nunca lee el `request`.
         """
         p = parametros or ParametrosNegocio.vigente()
-        overrides = overrides or {}
         acc = {t: dict(ventas=0, venta=D0, dias=0, noches=0, noches_hab=0, personas=0,
+                       tipicas=0, venta_tipica=D0, noches_hab_tipicas=0, folios=[],
                        con_gasto=0, venta_con_gasto=D0, costo_con_gasto=D0) for t in TIPOS}
         otros_venta = D0
         cotizaciones = ventas_reales(desde, hasta).select_related('cliente').prefetch_related(
-            'gasto_set__compra', 'items__producto')
+            'gasto_set__compra', 'items__producto', 'descuentos_aplicados__descuento')
         for cot in cotizaciones:
             neta = venta_neta(cot)
             if cot.tipo_servicio not in acc:
                 otros_venta += neta
                 continue
             a = acc[cot.tipo_servicio]
+            especial = es_precio_especial(cot)
+            noches_hab = 0
             a['ventas'] += 1
             a['venta'] += neta
             a['personas'] += cot.num_personas or 0
             if cot.tipo_servicio == 'HOSPEDAJE':
+                noches_hab = noches_habitacion(cot)
                 a['dias'] += cot.noches or 1
                 a['noches'] += cot.noches or 1
-                a['noches_hab'] += _noches_habitacion(cot)
+                a['noches_hab'] += noches_hab
             else:
                 a['dias'] += 1
+            if especial:
+                continue
+            a['tipicas'] += 1
+            a['venta_tipica'] += neta
+            a['noches_hab_tipicas'] += noches_hab
+            a['folios'].append(folio(cot))
             if cot.gasto_set.all():
                 a['con_gasto'] += 1
                 a['venta_con_gasto'] += neta
                 a['costo_con_gasto'] += costo_ligado(cot)
 
-        tipos, avisos = {}, []
-        for tipo in TIPOS:
-            fila = cls._fila(tipo, acc[tipo], p, overrides)
-            tipos[tipo] = fila
-            avisos.extend(fila['avisos'])
-
+        tipos = {tipo: cls._fila(tipo, acc[tipo], p) for tipo in TIPOS}
+        avisos = []
         ventas = sum(f['ventas'] for f in tipos.values())
         total_neta = sum((acc[t]['venta'] for t in TIPOS), D0) + otros_venta
         ligado = cls.pct_gasto_ligado(desde, hasta)
@@ -112,47 +127,20 @@ class EconomiaUnitariaService:
         }
 
     @staticmethod
-    def _fila(tipo, a, p, overrides) -> Dict:
-        nombre, ventas = ETIQUETAS[tipo], a['ventas']
-        avisos = []
-        ticket_sim = overrides.get(f'ticket_{tipo}')
-        if ticket_sim is not None:
-            ticket = q2(ticket_sim)
-        else:
-            ticket = dividir(a['venta'], ventas)
-
-        pct_sim = overrides.get(f'costo_pct_{tipo}')
-        if pct_sim is not None:
-            pct, fuente = q4(Decimal(pct_sim) / 100), 'simulado'
-        elif a['con_gasto'] >= MIN_MUESTRA and a['venta_con_gasto'] > 0:
+    def _fila(tipo, a, p) -> Dict:
+        """Cifras del histórico. `ticket_unidad` es por unidad vendible (hospedaje: habitación-noche)."""
+        unidades_tipicas = a['noches_hab_tipicas'] if tipo == 'HOSPEDAJE' else a['tipicas']
+        if a['con_gasto'] >= MIN_MUESTRA and a['venta_con_gasto'] > 0:
             pct, fuente = q4(a['costo_con_gasto'] / a['venta_con_gasto']), 'medido'
         else:
             pct, fuente = q4(p.pct_costo_de(tipo) / 100), 'estimado'
-            avisos.append(f'{nombre}: {a["con_gasto"]} de {MIN_MUESTRA} ventas con gasto ligado necesarias; '
-                          'se usa el % de costo variable de Parámetros.')
-
-        if ventas:
-            dias_unidad = q4(Decimal(a['dias']) / ventas)
-        elif tipo == 'HOSPEDAJE':
-            dias_unidad = ESTANCIA_DEFAULT
-        else:
-            dias_unidad = Decimal('1')
-
-        costo = q2(ticket * pct) if ticket is not None else None
-        mc = ticket - costo if ticket is not None else None
-        mc_dia = dividir(mc, dias_unidad) if mc is not None and mc > 0 else None
-        if ticket is None:
-            avisos.append(f'{nombre}: sin ventas en el periodo; captura un ticket de simulación.')
-        elif mc <= 0:
-            avisos.append(f'{nombre}: el margen de contribución es {mc}; no se calcula equilibrio con él.')
         return {
-            'tipo': tipo, 'nombre': nombre, 'ventas': ventas, 'venta_neta': q2(a['venta']),
+            'tipo': tipo, 'nombre': ETIQUETAS[tipo], 'ventas': a['ventas'], 'venta_neta': q2(a['venta']),
             'dias': a['dias'], 'noches': a['noches'], 'noches_habitacion': a['noches_hab'],
-            'personas_promedio': dividir(a['personas'], ventas),
-            'ticket': ticket, 'costo_pct': pct, 'costo_variable': costo, 'mc': mc,
-            'mc_pct': porcentaje(mc, ticket) if mc is not None and ticket else None,
-            'dias_por_unidad': dias_unidad, 'mc_dia': mc_dia,
-            'fuente_costo': fuente, 'muestra': a['con_gasto'], 'avisos': avisos,
+            'personas_promedio': dividir(a['personas'], a['ventas']),
+            'tipicas': a['tipicas'], 'ticket': dividir(a['venta_tipica'], a['tipicas']),
+            'ticket_unidad': dividir(a['venta_tipica'], unidades_tipicas), 'folios': a['folios'],
+            'costo_pct': pct, 'fuente_costo': fuente, 'muestra': a['con_gasto'],
         }
 
     @staticmethod

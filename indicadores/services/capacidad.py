@@ -12,12 +12,12 @@ servicio* y **las capacidades no se suman**: comparten los mismos días.
   activo, en los días de la semana que `ParametrosNegocio` permite para él.
 - **Eventos** = por semana ISO, mínimo entre `max_eventos_semana`, los días
   permitidos de la semana y los días libres de la semana entre `1 + dias_preparacion_evento`.
-- **Pasadías** = días vendibles. **Hospedaje** = noches vendibles (y
-  noches-habitación = noches × 2 habitaciones, solo informativo).
+- **Pasadías** = días vendibles. **Hospedaje** = habitaciones-noche (noches vendibles × 2
+  habitaciones): supone que, si hay demanda, las dos se rentan la misma noche.
+- Precio, costo y margen salen de `servicio.economia_servicio`, igual que en los demás paneles.
 """
 from collections import defaultdict
 from datetime import date
-from decimal import Decimal
 from typing import Dict, Optional
 
 from ..models import ParametrosNegocio
@@ -31,6 +31,7 @@ from .base import (
     q2,
     ventana_promedio,
 )
+from .servicio import economia_servicios
 from .unitarios import EconomiaUnitariaService
 
 NOTA_NO_SUMA = ('Las capacidades no se suman: Evento, Pasadía y Hospedaje comparten los mismos días '
@@ -68,36 +69,33 @@ class CapacidadService:
                 economia: Optional[dict] = None, overrides: Optional[dict] = None) -> Dict:
         p = parametros or ParametrosNegocio.vigente()
         if economia is None:
-            economia = EconomiaUnitariaService.generar(
-                *ventana_promedio(hasta.year, hasta.month, p), parametros=p, overrides=overrides)
+            economia = EconomiaUnitariaService.generar(*ventana_promedio(hasta.year, hasta.month, p), parametros=p)
+        unidad = economia_servicios(economia, p, overrides)
         bloqueados = dias_bloqueados(desde, hasta)
         vendibles = dias_vendibles_por_tipo(desde, hasta, p, bloqueados)
         unicos = {d for dias in vendibles.values() for d in dias}
-        servicios = {}
+        servicios, avisos = {}, list(economia['avisos'])
         for tipo in TIPOS:
-            e = economia['tipos'][tipo]
+            u = unidad[tipo]
+            avisos.extend(u['avisos'])
             dias = len(vendibles[tipo])
             if tipo == 'EVENTO':
                 unidades = eventos_maximos(desde, hasta, p, bloqueados)
-                dias_usados = unidades
+            elif tipo == 'PASADIA':
+                unidades = dias
             else:
-                unidades = dias if tipo == 'PASADIA' else (
-                    q2(dias / e['dias_por_unidad']) if e['dias_por_unidad'] else None)
-                dias_usados = dias
-            # Hospedaje: ingreso por noche × noches (las unidades fraccionarias no se redondean antes).
-            factor = Decimal(dias) / e['dias_por_unidad'] if tipo == 'HOSPEDAJE' else unidades
-            ingreso = q2(factor * e['ticket']) if factor is not None and e['ticket'] is not None else None
-            mc = q2(factor * e['mc']) if factor is not None and e['mc'] is not None else None
+                unidades = dias * HABITACIONES
             servicios[tipo] = {
-                'tipo': tipo, 'nombre': ETIQUETAS[tipo], 'dias_vendibles': dias, 'dias_usados': dias_usados,
-                'unidades': unidades, 'ticket': e['ticket'], 'ingreso_max': ingreso, 'mc_max': mc,
-                'fuente_costo': e['fuente_costo'],
-                'noches_habitacion': dias * HABITACIONES if tipo == 'HOSPEDAJE' else None,
+                'tipo': tipo, 'nombre': ETIQUETAS[tipo], 'dias_vendibles': dias, 'unidades': unidades, 'ticket': u['ticket'],
+                'ingreso_max': q2(unidades * u['ticket']) if u['ticket'] is not None else None,
+                'mc_max': q2(unidades * u['mc']) if u['mc'] is not None else None,
+                'fuente_precio': u['fuente_precio'], 'fuente_costo': u['fuente_costo'],
+                'noches_habitacion': unidades if tipo == 'HOSPEDAJE' else None,
             }
         return {
             'desde': desde, 'hasta': hasta, 'dias_periodo': (hasta - desde).days + 1,
             'dias_bloqueados': len(bloqueados), 'dias_vendibles': len(unicos),
-            'servicios': servicios, 'nota': NOTA_NO_SUMA, 'avisos': list(economia['avisos']),
+            'servicios': servicios, 'nota': NOTA_NO_SUMA, 'avisos': avisos,
         }
 
 

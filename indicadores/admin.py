@@ -2,18 +2,27 @@
 Admin de Indicadores (Issue #402). Solo Dirección (superusuario) ve y edita
 parámetros y metas: son supuestos de negocio, no captura operativa.
 """
+from datetime import date
+
 from django import forms
 from django.contrib import admin, messages
 from django.utils import timezone
-from django.utils.html import format_html, format_html_join
+from django.utils.html import format_html
 
 from core_erp import admin_ui as ui
 
 from .models import DIAS_ISO, MetaMensual, ParametrosNegocio
 from .services.base import ETIQUETAS, TIPOS
-from .services.mezcla import referencia
+from .services.metas import valores_desde_plan
+from .services.mezcla import MezclaOptimaService
 
 CAMPOS_DIAS = ('dias_evento', 'dias_pasadia', 'dias_hospedaje')
+# La tabla «un servicio por fila» de la plantilla; no están en `fieldsets` para no pintarse dos veces.
+CAMPOS_SERVICIOS = (
+    'precio_venta_evento', 'costo_directo_evento', 'demanda_max_evento_mes', 'dias_evento',
+    'precio_venta_pasadia', 'costo_directo_pasadia', 'demanda_max_pasadia_mes', 'dias_pasadia',
+    'precio_venta_hospedaje', 'costo_directo_hospedaje', 'demanda_max_hospedaje_mes', 'dias_hospedaje',
+)
 
 
 class SoloDireccionMixin:
@@ -74,65 +83,61 @@ class ParametrosNegocioForm(forms.ModelForm):
 @admin.register(ParametrosNegocio)
 class ParametrosNegocioAdmin(SoloDireccionMixin, admin.ModelAdmin):
     form = ParametrosNegocioForm
+    change_form_template = 'admin/indicadores/parametrosnegocio/change_form.html'
     list_display = ('vigencia', 'estado', 'precios', 'costo_fijo', 'utilidad', 'tope_eventos', 'actualizado')
     list_filter = ('activo',)
     readonly_fields = ('resumen_servicios', 'created_by', 'updated_by', 'created_at', 'updated_at')
     fieldsets = (
-        ('Precios', {
-            'description': 'La mezcla óptima se arma solo con esto: lo que cobras y lo que cuesta atender cada '
-                           'servicio. Si dejas un precio vacío, se usa el promedio de tus ventas reales '
-                           '(poco confiable con pocas ventas).',
-            'fields': ('precio_venta_evento', 'costo_directo_evento',
-                       'precio_venta_pasadia', 'costo_directo_pasadia',
-                       'precio_venta_hospedaje', 'costo_directo_hospedaje', 'resumen_servicios')}),
-        ('Calendario', {
-            'description': 'En qué días aceptas cada servicio y cuánto puede atender el equipo.',
-            'fields': ('dias_evento', 'dias_pasadia', 'dias_hospedaje', 'max_eventos_semana',
-                       'dias_preparacion_evento')}),
-        ('Demanda', {
-            'description': 'Cuánto crees poder vender al mes. Sin tope, la mezcla supone que se vende todo '
-                           'lo que cabe: úsalo para ver el techo y luego pon tu demanda realista.',
-            'fields': ('demanda_max_evento_mes', 'demanda_max_pasadia_mes', 'demanda_max_hospedaje_mes')}),
-        ('Costos fijos', {
-            'description': 'Lo que pagas cada mes sin importar cuánto vendas, y cuánto quieres ganar.',
+        ('Costos fijos y utilidad', {
+            'description': 'Lo que pagas cada mes sin importar cuánto vendas, y cuánto quieres ganar. De aquí sale la '
+                           'utilidad neta de cada combinación.',
             'fields': ('costo_fijo_mensual_override', 'utilidad_mensual_objetivo')}),
-        ('Respaldos', {
-            'description': 'Datos que se usan solo cuando falta información: el periodo de la contabilidad y el '
-                           '% de costo cuando no capturas el costo directo en pesos.',
-            'fields': ('inicio_datos', 'meses_promedio', 'pct_costo_variable_evento',
-                       'pct_costo_variable_pasadia', 'pct_costo_variable_hospedaje')}),
-        ('Vigencia', {
-            'description': 'Al guardar un juego de parámetros activo, el anterior queda como histórico.',
-            'fields': ('vigente_desde', 'activo')}),
+        ('Qué sale de esto', {'fields': ('resumen_servicios',)}),
+        ('Avanzado', {
+            'classes': ('collapse',),
+            'description': 'Calendario del equipo, respaldos cuando falta información y vigencia. Casi nunca se tocan.',
+            'fields': ('max_eventos_semana', 'dias_preparacion_evento', 'pct_costo_variable_evento',
+                       'pct_costo_variable_pasadia', 'pct_costo_variable_hospedaje', 'inicio_datos',
+                       'meses_promedio', 'vigente_desde', 'activo')}),
         ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_by', 'updated_at')}),
     )
 
-    @admin.display(description='Qué sale de esto')
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        # Los campos de la tabla viven en la plantilla, no en `fieldsets`: hay que pedirlos aparte.
+        if kwargs.get('fields'):
+            kwargs['fields'] = [*CAMPOS_SERVICIOS, *kwargs['fields']]
+        return super().get_form(request, obj, change=change, **kwargs)
+
+    @admin.display(description='Plan del mes con lo guardado')
     def resumen_servicios(self, obj):
-        """Margen y prioridad de cada servicio con lo ya guardado: lo que la mezcla optimizará."""
-        filas = []
-        for tipo in TIPOS:
-            ref = obj and referencia(obj, tipo)
-            if ref:
-                filas.append((tipo, ref))
-        if not filas:
+        """El plan de la mezcla óptima del mes en curso con estos parámetros: lo que se ve al guardar."""
+        if obj is None or not obj.pk or all(obj.precio_de(t) is None for t in TIPOS):
             return format_html(
                 '<p class="qkt-aviso qkt-aviso--info">{}</p>',
-                'Captura el precio de venta y el costo directo de cada servicio y guarda: aquí verás cuánto '
-                'deja cada uno y en qué orden conviene venderlos.')
-        # La unidad de la mezcla es el día-quinta: todas las referencias ocupan 1 día.
-        filas.sort(key=lambda f: -f[1]['mc'])
-        cuerpo = format_html_join(
-            '', '<tr><th>{}</th><td class="qkt-der qkt-num">{}</td><td class="qkt-der qkt-num">{}</td>'
-                '<td class="qkt-der qkt-num">{} ({}%)</td></tr>',
-            ((f'{orden} · {ETIQUETAS[tipo]}', ui.monto(r['neto']), ui.monto(r['costo']), ui.monto(r['mc']),
-              round(r['mc'] / r['neto'] * 100) if r['neto'] else 0)
-             for orden, (tipo, r) in enumerate(filas, 1)))
+                'Captura precio, costo directo y tope de cada servicio y guarda: aquí verás qué conviene vender '
+                'este mes y cuánta utilidad neta deja.')
+        hoy = timezone.localdate()
+        mezcla = MezclaOptimaService.generar(hoy.year, hoy.month, obj, hoy=hoy)
+        plan = mezcla['plan']
+        tono = 'exito' if plan['utilidad_neta'] >= 0 else 'error'
+        aviso = format_html(
+            '<p class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Techo teórico</span> {}</p>',
+            'Falta el tope de algún servicio: esto es lo que cabría si se vendiera todo, no un plan.'
+        ) if mezcla['modo'] == 'techo' else ''
         return format_html(
-            '<table class="qkt-tabla"><thead><tr><th>Prioridad</th><th class="qkt-der">Precio sin IVA</th>'
-            '<th class="qkt-der">Costo directo</th><th class="qkt-der">Margen por día</th></tr></thead>'
-            '<tbody>{}</tbody></table><p>La Quinta atiende un servicio por día: conviene vender primero el que '
-            'más deja por día. Se actualiza al guardar.</p>', cuerpo)
+            '{}<p><strong>{}.</strong></p><div class="qkt-kpis">'
+            '<div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Venta neta</div>'
+            '<div class="qkt-kpi__valor">{}</div></div>'
+            '<div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Contribución</div>'
+            '<div class="qkt-kpi__valor">{}</div></div>'
+            '<div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Costos fijos</div>'
+            '<div class="qkt-kpi__valor">{}</div></div>'
+            '<div class="qkt-kpi qkt-kpi--{}"><div class="qkt-kpi__label">Utilidad neta</div>'
+            '<div class="qkt-kpi__valor">{}</div>'
+            '<div class="qkt-kpi__sub">Objetivo {}</div></div></div>'
+            '<p>{} Se actualiza al guardar.</p>',
+            aviso, plan['frase'], ui.monto(plan['venta']), ui.monto(plan['contribucion']), ui.monto(plan['cf']),
+            tono, ui.monto(plan['utilidad_neta']), ui.monto(plan['utilidad_objetivo']), mezcla['nota_hospedaje'])
 
     @admin.display(description='Precios')
     def precios(self, obj):
@@ -167,28 +172,65 @@ class ParametrosNegocioAdmin(SoloDireccionMixin, admin.ModelAdmin):
 
 @admin.register(MetaMensual)
 class MetaMensualAdmin(SoloDireccionMixin, admin.ModelAdmin):
+    change_form_template = 'admin/indicadores/metamensual/change_form.html'
     list_display = ('periodo', 'estado', 'venta', 'ocupacion', 'unidades', 'marketing')
     list_filter = ('activo', 'anio')
     readonly_fields = ('created_by', 'updated_by', 'created_at', 'updated_at')
     fieldsets = (
         ('Mes', {
-            'description': 'Una meta activa por mes. Para empezar, selecciona el mes en la lista y usa la acción '
-                           '«Proponer desde equilibrio»: calcula la venta, ocupación y unidades necesarias para '
-                           'tu utilidad objetivo y tú las ajustas.',
+            'description': 'Una meta activa por mes. Para empezar usa «Llenar desde el plan»: trae la venta, la '
+                           'ocupación y las unidades del plan de ese mes (sin guardar nada) y tú las ajustas. Sin '
+                           'plan, la acción «Proponer desde el plan» de la lista usa el punto de equilibrio.',
             'fields': ('anio', 'mes', 'activo')}),
         ('Venta y ocupación', {
-            'description': 'Lo que quieres lograr en el mes. Con 0 el tablero usa el punto de equilibrio.',
+            'description': 'Lo que quieres lograr en el mes. El tablero compara lo real contra esto; con 0 usa el '
+                           'punto de equilibrio.',
             'fields': ('meta_venta_neta', 'meta_ocupacion_pct')}),
         ('Por servicio', {
-            'description': 'Cuántas unidades de cada servicio necesitas vender para llegar a la meta.',
+            'description': 'Cuántas unidades de cada servicio necesitas vender para llegar a la meta. El hospedaje '
+                           'se cuenta en noches-habitación.',
             'fields': ('meta_eventos', 'meta_pasadias', 'meta_noches')}),
         ('Marketing y notas', {'fields': ('presupuesto_marketing', 'notas')}),
         ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_by', 'updated_at')}),
     )
 
+    def _valores_del_plan(self, request, obj=None) -> dict:
+        """Con `?desde_plan=1&anio=&mes=`: lo que el plan de ese mes propone. Nunca guarda nada."""
+        if not request.GET.get('desde_plan'):
+            return {}
+        hoy = timezone.localdate()
+        try:
+            anio, mes = int(request.GET['anio']), int(request.GET['mes'])
+            date(anio, mes, 1)
+        except (KeyError, ValueError):
+            anio, mes = (obj.anio, obj.mes) if obj else (hoy.year, hoy.month)
+        valores = valores_desde_plan(anio, mes, hoy=hoy)
+        if valores is None:
+            self.message_user(
+                request, f'No hay un plan para {mes:02d}/{anio}: captura precio y tope de cada servicio en '
+                         'Parámetros. Los campos quedan como estaban.', messages.WARNING)
+            return {}
+        self.message_user(request, f'Valores del plan de {mes:02d}/{anio}. Revísalos y pulsa Guardar para conservarlos.',
+                          messages.INFO)
+        return {'anio': anio, 'mes': mes, **valores}
+
     def get_changeform_initial_data(self, request):
         hoy = timezone.localdate()
-        return {**super().get_changeform_initial_data(request), 'anio': hoy.year, 'mes': hoy.month}
+        return {'anio': hoy.year, 'mes': hoy.month, **super().get_changeform_initial_data(request),
+                **self._valores_del_plan(request)}
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        formulario = super().get_form(request, obj, change=change, **kwargs)
+        if obj is None or not kwargs.get('fields') or request.method != 'GET' or not request.GET.get('desde_plan'):
+            return formulario
+        valores = self._valores_del_plan(request, obj)
+
+        class ConPlan(formulario):
+            def __init__(self, *args, **kw):
+                super().__init__(*args, **kw)
+                self.initial.update(valores)
+
+        return ConPlan
 
     @admin.display(description='Mes', ordering='mes')
     def periodo(self, obj):
@@ -216,12 +258,12 @@ class MetaMensualAdmin(SoloDireccionMixin, admin.ModelAdmin):
 
     actions = ['proponer_desde_equilibrio']
 
-    @admin.action(description='Proponer desde equilibrio')
+    @admin.action(description='Proponer desde el plan')
     def proponer_desde_equilibrio(self, request, queryset):
         from .services.metas import proponer_meta
 
         meses = sorted({(m.anio, m.mes) for m in queryset})
         for anio, mes in meses:
             proponer_meta(anio, mes, request.user)
-        self.message_user(request, f'Metas propuestas desde el equilibrio: {len(meses)} mes(es).',
+        self.message_user(request, f'Metas propuestas: {len(meses)} mes(es).',
                           messages.SUCCESS)

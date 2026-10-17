@@ -728,6 +728,10 @@ JAZZMIN_SETTINGS = {
     "custom_css": "css/admin_fix.css",
     "custom_js": "js/tabs_fix.js",
 
+    # Parámetros de Indicadores: una página corrida (tabla de servicios, utilidad, «Avanzado» plegable)
+    # en vez de pestañas.
+    "changeform_format_overrides": {"indicadores.parametrosnegocio": "collapsible"},
+
     # Los grupos del menú (Eventos & Servicios, etc.) inician colapsados;
     # un clic en el título muestra/oculta sus submódulos.
     "navigation_expanded": False,

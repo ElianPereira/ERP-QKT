@@ -1,0 +1,38 @@
+{% extends "admin/change_form.html" %}
+
+{% block form_top %}{{ block.super }}
+{% with f=adminform.form %}
+<div class="qkt-panel qkt-panel--info">
+    <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-th-list" aria-hidden="true"></i> Servicios</h2></div>
+    <p class="qkt-panel__cuerpo">
+        Una fila por servicio. El precio lleva IVA y el costo directo no. <strong>Cada precio necesita su tope al mes</strong>:
+        lo que crees poder vender, porque sin tope la mezcla sale como un techo teórico que no se puede prometer.
+        Hospedaje se captura por habitación-noche (una habitación, una noche). Sin precio, el servicio solo entra si
+        tiene al menos 5 ventas típicas.
+    </p>
+    {% if f.non_field_errors %}<div class="qkt-aviso qkt-aviso--error">{{ f.non_field_errors }}</div>{% endif %}
+    <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+        <table class="qkt-tabla qkt-tabla--captura">
+            <thead><tr><th>Servicio</th><th>Precio con IVA</th><th>Costo directo sin IVA</th><th>Tope al mes</th><th>Días de venta</th></tr></thead>
+            <tbody>
+                <tr><th>Evento</th>
+                    <td>{{ f.precio_venta_evento.errors }}{{ f.precio_venta_evento }}</td>
+                    <td>{{ f.costo_directo_evento.errors }}{{ f.costo_directo_evento }}</td>
+                    <td>{{ f.demanda_max_evento_mes.errors }}{{ f.demanda_max_evento_mes }}<span class="qkt-campo__ayuda">eventos</span></td>
+                    <td>{{ f.dias_evento.errors }}{{ f.dias_evento }}</td></tr>
+                <tr><th>Pasadía</th>
+                    <td>{{ f.precio_venta_pasadia.errors }}{{ f.precio_venta_pasadia }}</td>
+                    <td>{{ f.costo_directo_pasadia.errors }}{{ f.costo_directo_pasadia }}</td>
+                    <td>{{ f.demanda_max_pasadia_mes.errors }}{{ f.demanda_max_pasadia_mes }}<span class="qkt-campo__ayuda">pasadías</span></td>
+                    <td>{{ f.dias_pasadia.errors }}{{ f.dias_pasadia }}</td></tr>
+                <tr><th>Hospedaje <span class="qkt-badge qkt-badge--neutro">Habitación-noche</span></th>
+                    <td>{{ f.precio_venta_hospedaje.errors }}{{ f.precio_venta_hospedaje }}</td>
+                    <td>{{ f.costo_directo_hospedaje.errors }}{{ f.costo_directo_hospedaje }}</td>
+                    <td>{{ f.demanda_max_hospedaje_mes.errors }}{{ f.demanda_max_hospedaje_mes }}<span class="qkt-campo__ayuda">habitaciones-noche</span></td>
+                    <td>{{ f.dias_hospedaje.errors }}{{ f.dias_hospedaje }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endwith %}
+{% endblock %}

@@ -64,10 +64,11 @@ def campos_simulacion(overrides: dict) -> list:
 
     campos = []
     for prefijo, etiqueta, paso in (('ticket', 'Precio neto', '0.01'), ('costo_pct', '% costo directo', '0.1'),
-                                     ('demanda', 'Demanda máxima al mes', '1')):
+                                     ('demanda', 'Tope al mes', '1')):
         for tipo in TIPOS:
             clave = f'{prefijo}_{tipo}'
-            campos.append({'nombre': clave, 'etiqueta': f'{etiqueta} · {ETIQUETAS[tipo].lower()}',
+            unidad = ' (habitación-noche)' if tipo == 'HOSPEDAJE' and prefijo != 'costo_pct' else ''
+            campos.append({'nombre': clave, 'etiqueta': f'{etiqueta} · {ETIQUETAS[tipo].lower()}{unidad}',
                            'paso': paso, 'valor': overrides.get(clave, '')})
     return campos
 
@@ -109,10 +110,9 @@ class TableroService:
         overrides = overrides or {}
         inicio, fin = mes_rango(anio, mes)
 
-        economia = EconomiaUnitariaService.generar(
-            *ventana_promedio(anio, mes, p), parametros=p, overrides=overrides)
+        economia = EconomiaUnitariaService.generar(*ventana_promedio(anio, mes, p), parametros=p)
         costos = CostosFijosService.generar(corte(anio, mes, hoy), p)
-        capacidad = CapacidadService.generar(inicio, fin, p, economia)
+        capacidad = CapacidadService.generar(inicio, fin, p, economia, overrides)
         equilibrio = EquilibrioService.generar(
             anio, mes, p, overrides, hoy, economia=economia, costos=costos, capacidad=capacidad)
         mezcla = MezclaOptimaService.generar(anio, mes, p, overrides, hoy, economia=economia, costos=costos)
@@ -142,8 +142,12 @@ class TableroService:
         meta_ocupacion = meta.meta_ocupacion_pct if meta and meta.meta_ocupacion_pct else objetivo['ocupacion_pct']
         vendibles = eq['dias_vendibles']
 
-        utilidad = None
-        if base['mc_pct'] is not None:
+        utilidad, etiqueta_utilidad, sub_utilidad, estimada = None, 'Utilidad estimada', 'Venta × margen − costos fijos', True
+        if mezcla['modo'] == 'plan':
+            plan = mezcla['plan']
+            utilidad, estimada, etiqueta_utilidad = plan['utilidad_neta'], False, 'Utilidad del plan'
+            sub_utilidad = f'Plan óptimo · objetivo ${plan["utilidad_objetivo"]:,.2f}'
+        elif base['mc_pct'] is not None:
             utilidad = q2(venta * base['mc_pct'] - eq['cf'])
 
         conversion = embudo['total']
@@ -156,8 +160,8 @@ class TableroService:
                  f'{base["ocupacion_pct"]} %' if base['ocupacion_pct'] is not None else 's/d',
                  f'{meta_ocupacion} %' if meta_ocupacion is not None else 's/d'),
              'tono': _tono(ocupacion['ocupacion'], base['ocupacion_pct'], meta_ocupacion)},
-            {'etiqueta': 'Utilidad estimada', 'tipo': 'moneda', 'valor': utilidad, 'estimado': True,
-             'sub': 'Venta × margen − costos fijos',
+            {'etiqueta': etiqueta_utilidad, 'tipo': 'moneda', 'valor': utilidad, 'estimado': estimada,
+             'sub': sub_utilidad,
              'tono': NEUTRO if utilidad is None else (EXITO if utilidad >= eq['utilidad_objetivo'] and utilidad >= 0
                                                        else (ALERTA if utilidad >= 0 else ERROR))},
             {'etiqueta': 'Ingreso por día disponible', 'tipo': 'moneda',
