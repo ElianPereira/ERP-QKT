@@ -735,6 +735,12 @@ JAZZMIN_SETTINGS = {
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
         }],
+        "cumplimiento": [{
+            "name": "Tablero",
+            "url": "cumplimiento:tablero",
+            "icon": "fas fa-th-list",
+            "permissions": ["cumplimiento.view_tramite"],
+        }],
         "comunicacion": [{
             "name": "Kooxi",
             "url": "admin:comunicacion_tablero_agente",
