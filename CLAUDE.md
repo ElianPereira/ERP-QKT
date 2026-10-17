@@ -290,7 +290,7 @@ salvo que queden obsoletas.
   `reportes.0006`, solo choices). **Pendiente en Railway**: Cron diario `5 13 * * *` con
   `manage.py avisar_vencimientos --aplicar` (variables como `${{web.…}}`, `DEFAULT_FROM_EMAIL`
   → `${{web.EMAIL_FROM_NOTIFICACIONES}}`, y `WA_NUMERO_NEGOCIO`/`WA_TEMPLATE_OPERACIONES`).
-  Migraciones: `cumplimiento.0001` y `0002` (tablas nuevas) y `reportes.0006`.
+  Migraciones: `cumplimiento.0001` y `0002` (tablas nuevas) y `reportes.0006`. El tablero se alcanza desde el menú lateral (`custom_links` de `cumplimiento`, «Tablero») y desde el botón «Tablero» de la lista de Trámites; sin ese enlace solo se llegaba escribiendo la URL.
 
 - 2026-10-16 — **Descarga SAT: los últimos días de un mes cerrado eran hueco
   eterno** (seguimiento del PR #399, duda del propietario sobre «Traer historial

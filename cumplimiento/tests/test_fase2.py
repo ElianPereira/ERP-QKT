@@ -197,3 +197,11 @@ class TableroYAdminTest(TestCase):
         v = Vigencia.objects.create(tramite=t, estado='EN_TRAMITE')
         r = self.client.get(reverse('admin:cumplimiento_vigencia_change', args=[v.pk]))
         self.assertContains(r, 'Dictamen eléctrico')
+
+
+class MenuTableroTest(TestCase):
+    def test_el_tablero_tiene_enlace_en_el_menu_del_admin(self):
+        admin = User.objects.create_superuser('dir', 'dir@example.com', 'x-segura-123')
+        login_superuser_con_totp(self.client, admin)
+        html = self.client.get(reverse('admin:index')).content.decode()
+        self.assertIn(reverse('cumplimiento:tablero'), html)
