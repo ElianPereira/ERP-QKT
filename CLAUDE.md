@@ -116,20 +116,22 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento` |
+| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 | Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
-**Estructura clave** (9 apps Django propias):
+**Estructura clave** (10 apps Django propias):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
   desde `comercial`), conciliación bancaria.
 - `nomina/`, `facturacion/`, `comunicacion/`, `reportes/`, `operaciones/` —
   un dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
+- `indicadores/` — KPIs de dirección (capacidad, equilibrio, mezcla óptima, metas); solo
+  superusuario, solo lectura sobre datos existentes + parámetros del propietario.
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -267,6 +269,27 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-16 — **Módulo Indicadores** (Issue #402; solo superusuario, solo lectura
+  sobre datos existentes + `ParametrosNegocio`/`MetaMensual`, migración
+  `indicadores.0001` solo crea tablas). Tablero en `admin/indicadores/tablero/`,
+  PDF/Excel en `exportar/`, enlace en el Centro de reportes. Definiciones (fuente única
+  en `indicadores/services/`): **venta neta** = `subtotal − descuento` de ventas reales
+  sin cortesías; **costo variable** = gasto ligado a la cotización (medido con ≥5 ventas
+  con gasto ligado por tipo, si no el % de Parámetros, marcado «estimado»); **MC** =
+  ticket − costo; la Quinta es **un recurso por día**, así que todo se optimiza en **MC
+  por día**. **CF** = promedio de meses cerrados de cuentas 6xx de pólizas APLICADAS, o
+  el presupuestado; **nómina**: si hay póliza en la cuenta de sueldos del mes no se suman
+  recibos, si no, sí (nunca ambas). Equilibrio = CF / MC% ponderado con la mezcla real de
+  la ventana; ocupación de equilibrio = CF / MC-día ponderado / días vendibles.
+  **Decisión no obvia**: el voraz por MC/día es exacto solo con unidades de un día; las
+  estancias de varios días dejan días muertos (un barrido contra fuerza bruta lo
+  mostró: 74 de 400 casos perdían), por eso `mezcla.asignar_optimo` enumera cuántas
+  estancias van en cada bolsa y deja el voraz para el resto (0 diferencias en el
+  barrido; cae al voraz puro con >20,000 combinaciones). No hay fecha de confirmación
+  guardada: «días a confirmar» y anticipación se miden contra el **primer pago**. No se
+  registra en `ReporteGenerado` (evita migración en `reportes`). Chart.js 4.4.1 fijado
+  desde cdnjs; se agregó `.qkt-grafica` a `qkt_ui.css`. Pendiente del propietario:
+  capturar Parámetros (días de venta, tope de eventos, % de respaldo) y metas.
 - 2026-10-16 — **Módulo de Cumplimiento** (Issue #403, 4 fases). App `cumplimiento/`:
   catálogo `Tramite` (+ `RequisitoTramite`), cada obtención/renovación en `Vigencia`
   (folio, fechas, costo `Decimal`, documento oficial y `compra` opcional) y su

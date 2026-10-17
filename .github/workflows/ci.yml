@@ -40,7 +40,7 @@ jobs:
           DEBUG: 'True'
           ALLOWED_HOSTS: '*'
         run: |
-          coverage run --source='.' manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento
+          coverage run --source='.' manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores
           coverage report --skip-covered
 
   security:

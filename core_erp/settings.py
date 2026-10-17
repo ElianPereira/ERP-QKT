@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     'anymail',
     'contabilidad',
     'reportes',
+    'indicadores',
     'comunicacion',
     'legal',
     'operaciones',
@@ -591,6 +592,11 @@ JAZZMIN_SETTINGS = {
         "reportes":                          "fas fa-chart-bar",
         "reportes.reportegenerado":          "fas fa-clipboard-list",
 
+        # INDICADORES (solo Dirección)
+        "indicadores":                       "fas fa-chart-line",
+        "indicadores.ParametrosNegocio":     "fas fa-sliders-h",
+        "indicadores.MetaMensual":           "fas fa-bullseye",
+
         # OPERACIONES
         "operaciones":                       "fas fa-broom",
         "operaciones.PlantillaChecklist":    "fas fa-tasks",
@@ -630,6 +636,7 @@ JAZZMIN_SETTINGS = {
         {"name": "Calendario",         "url": "calendario_unificado"},
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},
+        {"name": "Indicadores",        "url": "indicadores:tablero",     "permissions": ["indicadores.view_metamensual"]},
         {"name": "Cerrar sesión",      "url": "/admin/logout/",          "new_window": False},
     ],
 
@@ -703,6 +710,10 @@ JAZZMIN_SETTINGS = {
         "reportes",
         "reportes.reportegenerado",
 
+        # === INDICADORES ===
+        "indicadores",
+        "indicadores.ParametrosNegocio",
+        "indicadores.MetaMensual",
         # === CUMPLIMIENTO ===
         "cumplimiento",
         "cumplimiento.Tramite",
