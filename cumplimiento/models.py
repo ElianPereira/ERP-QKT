@@ -43,6 +43,12 @@ class Tramite(models.Model):
         default=60, verbose_name='Días de aviso', help_text='Desde cuántos días antes se marca «Por vencer».')
     critico = models.BooleanField(default=False, verbose_name='Crítico',
                                   help_text='Sin esto no se puede operar.')
+    orden = models.PositiveSmallIntegerField(
+        default=100, verbose_name='Orden', help_text='Posición en las listas y el tablero (menor = primero).')
+    requiere = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='dependientes',
+        verbose_name='Requiere (trámite previo)',
+        help_text='Sin este trámite vigente no se puede marcar como obtenido el actual.')
     renovacion_automatica = models.BooleanField(default=False, verbose_name='Renovación automática')
     dias_preaviso_cancelacion = models.PositiveSmallIntegerField(
         null=True, blank=True, verbose_name='Días de preaviso para cancelar',
@@ -62,7 +68,7 @@ class Tramite(models.Model):
     class Meta:
         verbose_name = 'Trámite'
         verbose_name_plural = 'Trámites'
-        ordering = ['-critico', 'nombre']
+        ordering = ['orden', '-critico', 'nombre']
 
     def __str__(self):
         return self.nombre
@@ -71,6 +77,21 @@ class Tramite(models.Model):
         super().clean()
         if self.dias_preaviso_cancelacion and self.tipo != 'CONTRATO':
             raise ValidationError({'dias_preaviso_cancelacion': 'El preaviso de cancelación aplica solo a contratos.'})
+        previo, vistos = self.requiere, {self.pk}
+        while previo is not None:
+            if previo.pk in vistos:
+                raise ValidationError({'requiere': 'La cadena de trámites previos no puede ser circular.'})
+            vistos.add(previo.pk)
+            previo = previo.requiere
+
+    @property
+    def previo_pendiente(self):
+        """Trámite previo que impide obtener este (None si no hay o ya está vigente)."""
+        from .services import ESTADOS_QUE_HABILITAN, estado_tramite
+
+        if self.requiere_id and estado_tramite(self.requiere).estado not in ESTADOS_QUE_HABILITAN:
+            return self.requiere
+        return None
 
 
 class RequisitoTramite(models.Model):
@@ -148,6 +169,9 @@ class Vigencia(models.Model):
                 errores['documento'] = 'Sube el documento oficial para marcarla como obtenida.'
             if not self.fecha_vencimiento and self.tramite_id and self.tramite.periodicidad_meses:
                 errores['fecha_vencimiento'] = 'Este trámite vence: captura la fecha de vencimiento.'
+            previo = self.tramite.previo_pendiente if self.tramite_id else None
+            if previo:
+                errores['estado'] = f'Antes necesitas «{previo.nombre}» vigente.'
         if self.fecha_inicio and self.fecha_vencimiento and self.fecha_vencimiento < self.fecha_inicio:
             errores['fecha_vencimiento'] = 'El vencimiento no puede ser anterior al inicio de vigencia.'
         if errores:

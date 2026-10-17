@@ -31,6 +31,8 @@ ESTADOS_ETIQUETA = {
 # Tonos de los cinco tonos semánticos de core_erp/admin_ui.py
 TONO_POR_ESTADO = {VIGENTE: 'exito', POR_VENCER: 'alerta', VENCIDO: 'error', EN_TRAMITE: 'info', SIN_REGISTRO: 'neutro'}
 # Orden de urgencia en el tablero
+# Estados del trámite previo que permiten obtener el siguiente de la cadena
+ESTADOS_QUE_HABILITAN = (VIGENTE, POR_VENCER)
 ORDEN_ESTADOS = (VENCIDO, POR_VENCER, EN_TRAMITE, SIN_REGISTRO, VIGENTE)
 
 _MESES = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
@@ -159,10 +161,10 @@ def resumen_tablero(hoy=None):
         filas.append({
             'tramite': tramite, 'estado': est.estado, 'etiqueta': ESTADOS_ETIQUETA[est.estado],
             'tono': TONO_POR_ESTADO[est.estado],
-            'vigencia': est.vigencia, 'dias': est.dias, 'dias_texto': dias_texto(est.dias),
-            'renovacion': est.renovacion_en_curso,
+            'vigencia': est.vigencia, 'dias': est.dias, 'dias_texto': dias_texto(est.dias) if est.vigencia else '—',
+            'renovacion': est.renovacion_en_curso, 'previo': tramite.previo_pendiente,
         })
-    filas.sort(key=lambda f: (ORDEN_ESTADOS.index(f['estado']), not f['tramite'].critico,
+    filas.sort(key=lambda f: (ORDEN_ESTADOS.index(f['estado']), f['tramite'].orden, not f['tramite'].critico,
                               f['dias'] if f['dias'] is not None else 10**6, f['tramite'].nombre))
 
     grupos = [{'estado': e, 'etiqueta': ESTADOS_ETIQUETA[e], 'filas': [f for f in filas if f['estado'] == e]}
@@ -194,9 +196,11 @@ def cargar_catalogo_sugerido(usuario=None):
     requisitos. Devuelve cuántos trámites nuevos se crearon."""
     creados = 0
     for datos in CATALOGO_SUGERIDO:
-        campos = {k: v for k, v in datos.items() if k not in ('nombre', 'requisitos')}
+        campos = {k: v for k, v in datos.items() if k not in ('nombre', 'requisitos', 'requiere')}
         tramite, nuevo = Tramite.objects.get_or_create(
             nombre=datos['nombre'], defaults={**campos, 'created_by': usuario, 'updated_by': usuario})
+        if datos.get('requiere') and not tramite.requiere_id:
+            Tramite.objects.filter(pk=tramite.pk).update(requiere=Tramite.objects.filter(nombre=datos['requiere']).first())
         if not nuevo:
             continue
         creados += 1

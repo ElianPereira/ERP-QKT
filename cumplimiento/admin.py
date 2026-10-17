@@ -53,12 +53,12 @@ class TramiteAdmin(AuditoriaAdminMixin, admin.ModelAdmin):
                     'requisitos_avance', 'critico_badge', 'acciones_fila']
     list_filter = [('tipo', con_titulo('Tipo')), ('critico', con_titulo('Crítico')), ('activo', con_titulo('Activo'))]
     search_fields = ['nombre', 'emisor']
-    autocomplete_fields = ['proveedor']
+    autocomplete_fields = ['proveedor', 'requiere']
     inlines = [RequisitoInline]
     columnas_texto = ('nombre',)
     readonly_fields = ['created_by', 'updated_by', 'created_at', 'updated_at']
     fieldsets = [
-        (None, {'fields': ['nombre', 'tipo', 'emisor', 'proveedor', 'critico', 'responsable', 'activo']}),
+        (None, {'fields': ['nombre', 'tipo', 'emisor', 'proveedor', 'critico', 'orden', 'requiere', 'responsable', 'activo']}),
         ('Vigencia y avisos', {'fields': ['periodicidad_meses', 'dias_aviso']}),
         ('Contrato de servicio', {'fields': ['renovacion_automatica', 'dias_preaviso_cancelacion']}),
         ('Otros', {'fields': ['notas', 'created_by', 'updated_by', 'created_at', 'updated_at']}),
@@ -72,13 +72,13 @@ class TramiteAdmin(AuditoriaAdminMixin, admin.ModelAdmin):
         ).prefetch_related('vigencias__documentos', 'requisitos')
 
     def get_ordering(self, request):
-        # Críticos primero y, dentro de cada grupo, el vencimiento más cercano:
+        # Cadena de trámites (orden), críticos primero y, dentro de cada grupo, el vencimiento más cercano:
         # los vencidos quedan arriba. Sin registro (sin fecha) al final.
         # La anotación solo existe en el changelist; en otros usos (autocomplete
         # de FK) se ordena por lo que sí existe en el modelo.
         if request.resolver_match and request.resolver_match.url_name == 'cumplimiento_tramite_changelist':
-            return ['-critico', F('_vence').asc(nulls_last=True), 'nombre']
-        return ['-critico', 'nombre']
+            return ['orden', '-critico', F('_vence').asc(nulls_last=True), 'nombre']
+        return ['orden', '-critico', 'nombre']
 
     def _estado(self, obj):
         return services.estado_tramite(obj)
