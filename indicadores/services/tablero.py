@@ -3,7 +3,7 @@ Tablero de Indicadores (Issue #402, fase 3)
 ===========================================
 Compone los services del módulo para un mes: se calcula una sola vez la
 economía unitaria, los costos fijos y la capacidad, y se reparten entre
-equilibrio, mezcla y metas. La vista solo pinta lo que este service devuelve.
+equilibrio, plan anual y metas. La vista solo pinta lo que este service devuelve.
 
 Cada KPI lleva un tono: **error** bajo el equilibrio, **alerta** entre el
 equilibrio y la meta (o el objetivo), **exito** sobre la meta.
@@ -32,7 +32,7 @@ from .costos_fijos import CostosFijosService
 from .embudo import EmbudoComercialService
 from .equilibrio import EquilibrioService
 from .metas import MetasService
-from .mezcla import MezclaOptimaService
+from .plan_anual import PlanAnualService
 from .unitarios import EconomiaUnitariaService
 
 EXITO, ALERTA, ERROR, NEUTRO = 'exito', 'alerta', 'error', 'neutro'
@@ -40,10 +40,10 @@ MESES_TENDENCIA = 12
 
 
 def overrides_desde(params) -> dict:
-    """Simulación por GET: `ticket_<TIPO>`, `costo_pct_<TIPO>` y `demanda_<TIPO>`. Lo inválido se ignora."""
+    """Simulación por GET: `ticket_<TIPO>` y `costo_pct_<TIPO>`. Lo inválido se ignora."""
     resultado = {}
     for tipo in TIPOS:
-        for prefijo, minimo, maximo in (('ticket', 0, None), ('costo_pct', 0, 100), ('demanda', 0, None)):
+        for prefijo, minimo, maximo in (('ticket', 0, None), ('costo_pct', 0, 100)):
             clave = f'{prefijo}_{tipo}'
             texto = (params.get(clave) or '').strip().replace(',', '')
             if not texto:
@@ -54,7 +54,7 @@ def overrides_desde(params) -> dict:
                 continue
             if not valor.is_finite() or valor < minimo or (maximo is not None and valor > maximo):
                 continue
-            resultado[clave] = int(valor) if prefijo == 'demanda' else valor
+            resultado[clave] = valor
     return resultado
 
 
@@ -63,8 +63,7 @@ def campos_simulacion(overrides: dict) -> list:
     from .base import ETIQUETAS
 
     campos = []
-    for prefijo, etiqueta, paso in (('ticket', 'Precio neto', '0.01'), ('costo_pct', '% costo directo', '0.1'),
-                                     ('demanda', 'Tope al mes', '1')):
+    for prefijo, etiqueta, paso in (('ticket', 'Precio neto', '0.01'), ('costo_pct', '% costo directo', '0.1')):
         for tipo in TIPOS:
             clave = f'{prefijo}_{tipo}'
             unidad = ' (habitación-noche)' if tipo == 'HOSPEDAJE' and prefijo != 'costo_pct' else ''
@@ -115,19 +114,19 @@ class TableroService:
         capacidad = CapacidadService.generar(inicio, fin, p, economia, overrides)
         equilibrio = EquilibrioService.generar(
             anio, mes, p, overrides, hoy, economia=economia, costos=costos, capacidad=capacidad)
-        mezcla = MezclaOptimaService.generar(anio, mes, p, overrides, hoy, economia=economia, costos=costos)
+        plan = PlanAnualService.del_mes(anio, mes, p, hoy, economia=economia, costos=costos, overrides=overrides)
         metas = MetasService.generar(anio, mes, p, overrides, hoy, equilibrio=equilibrio)
         embudo = EmbudoComercialService.generar(inicio, fin)
         ocupacion = OcupacionService.generar(inicio, fin)
 
         avisos = list(dict.fromkeys(
-            equilibrio['avisos'] + economia['avisos'] + capacidad['avisos'] + mezcla['avisos'] + metas['avisos']))
-        resumen = cls._resumen(equilibrio, metas, embudo, ocupacion, mezcla)
+            equilibrio['avisos'] + economia['avisos'] + capacidad['avisos'] + metas['avisos']))
+        resumen = cls._resumen(equilibrio, metas, embudo, ocupacion, plan)
         return {
             'anio': anio, 'mes': mes, 'inicio': inicio, 'fin': fin, 'hoy': hoy, 'parametros': p,
             'ventana': ventana_promedio(anio, mes, p), 'overrides': overrides,
             'economia': economia, 'costos': costos, 'capacidad': capacidad, 'equilibrio': equilibrio,
-            'mezcla': mezcla, 'metas': metas, 'embudo': embudo, 'ocupacion': ocupacion,
+            'plan': plan, 'metas': metas, 'embudo': embudo, 'ocupacion': ocupacion,
             'resumen': resumen, 'avisos': avisos, 'campos_simulacion': campos_simulacion(overrides),
             'tendencia': _tendencia(anio, mes),
             'equilibrio_pesos': equilibrio['base']['pesos'],
@@ -135,7 +134,7 @@ class TableroService:
         }
 
     @staticmethod
-    def _resumen(eq, metas, embudo, ocupacion, mezcla) -> list:
+    def _resumen(eq, metas, embudo, ocupacion, plan) -> list:
         base, objetivo, meta = eq['base'], eq['objetivo'], metas['meta']
         venta = metas['real']['venta_neta']
         meta_venta = meta.meta_venta_neta if meta and meta.meta_venta_neta else objetivo['pesos']
@@ -143,10 +142,9 @@ class TableroService:
         vendibles = eq['dias_vendibles']
 
         utilidad, etiqueta_utilidad, sub_utilidad, estimada = None, 'Utilidad estimada', 'Venta × margen − costos fijos', True
-        if mezcla['modo'] == 'plan':
-            plan = mezcla['plan']
-            utilidad, estimada, etiqueta_utilidad = plan['utilidad_neta'], False, 'Utilidad del plan'
-            sub_utilidad = f'Plan óptimo · objetivo ${plan["utilidad_objetivo"]:,.2f}'
+        if not plan['plan']['vacio']:
+            utilidad, estimada, etiqueta_utilidad = plan['fila']['utilidad'], False, 'Utilidad del plan'
+            sub_utilidad = f'Plan óptimo · objetivo ${eq["utilidad_objetivo"]:,.2f}'
         elif base['mc_pct'] is not None:
             utilidad = q2(venta * base['mc_pct'] - eq['cf'])
 

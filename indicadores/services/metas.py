@@ -8,9 +8,9 @@ promedio) → presupuesto de marketing sugerido (× costo por solicitud).
 Si las ventas necesarias no caben en los días vendibles del mes, se avisa:
 hay que subir ticket o cambiar la mezcla.
 
-**Con topes capturados** (`MezclaOptimaService` en `modo='plan'`), `proponer_meta` toma el plan del
-mes en vez de la cascada: unidades, venta neta y ocupación del plan. Sin topes, o sin precio, usa el
-equilibrio. El presupuesto de marketing sigue saliendo de la cascada.
+**Con precios** (Parámetros o histórico suficiente), `proponer_meta` toma la parte de ese mes del plan
+anual (`PlanAnualService`) en vez de la cascada: unidades, venta neta y ocupación del plan. Sin
+precio de ningún servicio usa el equilibrio. El presupuesto de marketing sigue saliendo de la cascada.
 
 **Avance**: lo real del mes contra la `MetaMensual` activa. La proyección a fin
 de mes usa **solo lo ya confirmado** para fechas del mes (las reservas se venden
@@ -26,7 +26,7 @@ from ..models import MetaMensual, ParametrosNegocio
 from .base import D0, TIPOS, dividir, mes_rango, porcentaje, q2, venta_neta, ventana_promedio, ventas_reales
 from .embudo import EmbudoComercialService, gasto_marketing
 from .equilibrio import EquilibrioService, _hacia_arriba
-from .mezcla import MezclaOptimaService
+from .plan_anual import PlanAnualService
 from .unitarios import noches_habitacion
 
 
@@ -114,29 +114,24 @@ class MetasService:
         }
 
 
-def _campos_del_plan(plan_mezcla: dict) -> dict:
-    """Los campos de `MetaMensual` que salen del plan de la mezcla óptima."""
-    unidades = {f['tipo']: f['unidades'] for f in plan_mezcla['filas']}
-    return {
-        'meta_venta_neta': plan_mezcla['plan']['venta'], 'meta_ocupacion_pct': plan_mezcla['ocupacion'],
-        'meta_eventos': unidades['EVENTO'], 'meta_pasadias': unidades['PASADIA'], 'meta_noches': unidades['HOSPEDAJE'],
-    }
-
-
 def valores_desde_plan(anio: int, mes: int, parametros: Optional[ParametrosNegocio] = None,
                        hoy: Optional[date] = None) -> Optional[dict]:
-    """Venta, ocupación y unidades del plan de ese mes, o `None` si aún no hay plan (faltan topes o precios)."""
-    mezcla = MezclaOptimaService.generar(anio, mes, parametros, hoy=hoy)
-    if mezcla['modo'] != 'plan' or not any(f['unidades'] for f in mezcla['filas']):
+    """Venta, ocupación y unidades de ese mes en el plan anual, o `None` si el plan no vende nada (faltan precios)."""
+    parte = PlanAnualService.del_mes(anio, mes, parametros, hoy)
+    fila = parte['fila']
+    if parte['plan']['vacio'] or not (fila['eventos'] or fila['pasadias'] or fila['noches']):
         return None
-    return _campos_del_plan(mezcla)
+    return {
+        'meta_venta_neta': fila['venta'], 'meta_ocupacion_pct': fila['ocupacion'],
+        'meta_eventos': fila['eventos'], 'meta_pasadias': fila['pasadias'], 'meta_noches': fila['noches'],
+    }
 
 
 def proponer_meta(anio: int, mes: int, usuario=None, hoy: Optional[date] = None,
                   parametros: Optional[ParametrosNegocio] = None) -> MetaMensual:
     """
-    Crea o actualiza la meta activa del mes (el propietario la ajusta después). Con el plan de la mezcla
-    óptima (topes capturados) toma venta, ocupación y unidades de ahí; si no, de la cascada del equilibrio
+    Crea o actualiza la meta activa del mes (el propietario la ajusta después). Con el plan anual toma
+    venta, ocupación y unidades de la parte de ese mes; si no, de la cascada del equilibrio
     con utilidad objetivo y la mezcla real de la ventana de promedio. El presupuesto de marketing sale
     siempre de la cascada.
     """

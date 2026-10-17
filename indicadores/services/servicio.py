@@ -1,7 +1,7 @@
 """
 Precio y costo por servicio: la única fuente (Issue #409)
 ========================================================
-Capacidad, equilibrio, mezcla, metas y el resumen de Parámetros leen de aquí el precio neto, el
+Capacidad, equilibrio, plan anual, metas y el resumen de Parámetros leen de aquí el precio neto, el
 costo y el margen de cada servicio, así que un mismo servicio muestra la misma cifra en todos
 los paneles.
 
@@ -95,7 +95,7 @@ def economia_servicio(tipo: str, e: dict, p: ParametrosNegocio, overrides: Optio
     mc = ticket - costo
     if mc <= 0:
         avisos.append(f'{nombre}: el margen de contribución es {mc}: el costo directo iguala o rebasa al precio; '
-                      'no entra a la mezcla ni al equilibrio.')
+                      'no entra al plan ni al equilibrio.')
     return {**base, 'ticket': ticket, 'costo': costo, 'mc': mc, 'mc_pct': porcentaje(mc, ticket),
             'mc_dia': dividir(mc, dias_unidad) if mc > 0 else None,
             'fuente_precio': fuente_precio, 'fuente_costo': fuente_costo}
