@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     'comunicacion',
     'legal',
     'operaciones',
+    'cumplimiento',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]
@@ -600,6 +601,12 @@ JAZZMIN_SETTINGS = {
         "operaciones":                       "fas fa-broom",
         "operaciones.PlantillaChecklist":    "fas fa-tasks",
         "operaciones.TareaProgramada":       "fas fa-clock",
+
+        # CUMPLIMIENTO
+        "cumplimiento":                      "fas fa-clipboard-check",
+        "cumplimiento.Tramite":              "fas fa-stamp",
+        "cumplimiento.Vigencia":             "fas fa-calendar-check",
+        "cumplimiento.AvisoVencimiento":     "fas fa-bell",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -619,6 +626,8 @@ JAZZMIN_SETTINGS = {
         # admin_lineas_negocio.py) — son proxies del mismo modelo/tabla, así
         # que se oculta el "Producto" sin filtrar para no duplicar el menú.
         "comercial.Producto",
+        # Bitácora de avisos de vencimiento (solo lectura, se consulta desde Cumplimiento)
+        "cumplimiento.AvisoVencimiento",
     ],
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -705,6 +714,10 @@ JAZZMIN_SETTINGS = {
         "indicadores",
         "indicadores.ParametrosNegocio",
         "indicadores.MetaMensual",
+        # === CUMPLIMIENTO ===
+        "cumplimiento",
+        "cumplimiento.Tramite",
+        "cumplimiento.Vigencia",
 
         # === ADMINISTRACIÓN ===
         "auth",
@@ -732,6 +745,12 @@ JAZZMIN_SETTINGS = {
             "url": "admin:otp_totp_totpdevice_changelist",
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
+        }],
+        "cumplimiento": [{
+            "name": "Tablero",
+            "url": "cumplimiento:tablero",
+            "icon": "fas fa-th-list",
+            "permissions": ["cumplimiento.view_tramite"],
         }],
         "comunicacion": [{
             "name": "Kooxi",

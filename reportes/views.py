@@ -88,6 +88,7 @@ def selector_reportes(request):
         'puede_nomina': request.user.has_perm('nomina.view_recibonomina'),
         'puede_kooxi': request.user.has_perm('comunicacion.view_conversacionwhatsapp'),
         'puede_indicadores': request.user.is_superuser,
+        'puede_cumplimiento': request.user.has_perm('cumplimiento.view_vigencia'),
     }
     return render(request, 'reportes/selector.html', context)
 
@@ -644,4 +645,25 @@ def reporte_kooxi(request):
           for f in datos['consumo']['por_modelo']]),
         ('Pases a persona', ['Motivo', 'Veces'], [(m['motivo'], m['veces']) for m in datos['motivos']]),
         ('Sin respuesta', ['Pregunta', 'Veces'], [(p['pregunta'], p['veces']) for p in datos['sin_respuesta']]),
+    ])
+
+
+@staff_member_required
+@permission_required('cumplimiento.view_vigencia', raise_exception=True)
+def reporte_cumplimiento_costo(request):
+    """Costo de cumplimiento (permisos, licencias, contratos) por trámite y tipo."""
+    from .services.cumplimiento import CostoCumplimientoService
+
+    hoy = timezone.localdate()
+    datos = CostoCumplimientoService.generar(*_periodo(request, date(hoy.year, 1, 1)))
+    datos['titulo'] = 'Costo de cumplimiento'
+    return _entregar(request, 'CUMPLIMIENTO', 'CostoCumplimiento', 'reportes/pdf_cumplimiento_costo.html', datos,
+                     lambda: [
+        ('Por tipo', ['Tipo', 'Vigencias', 'Costo'],
+         [(t['nombre'], t['vigencias'], t['costo']) for t in datos['tipos']]),
+        ('Por trámite', ['Trámite', 'Tipo', 'Vigencias', 'Costo'],
+         [(t['nombre'], t['tipo'], t['vigencias'], t['costo']) for t in datos['tramites']]),
+        ('Vigencias', ['Trámite', 'Folio', 'Estado', 'Inicio', 'Vencimiento', 'Costo'],
+         [(v.tramite.nombre, v.folio, v.get_estado_display(), v.fecha_inicio, v.fecha_vencimiento, v.costo)
+          for v in datos['vigencias']]),
     ])

@@ -1,0 +1,107 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div class="qkt-pagina">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-clipboard-check" aria-hidden="true"></i> Tablero de cumplimiento</h1>
+        <div class="qkt-botonera">
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'cumplimiento:expediente_pdf' %}" target="_blank" rel="noopener"><i class="fas fa-file-pdf" aria-hidden="true"></i> Expediente PDF</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'cumplimiento:expediente_zip' %}"><i class="fas fa-file-archive" aria-hidden="true"></i> Descargar expediente vigente</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'cumplimiento:expediente_zip' %}?requisitos=1"><i class="fas fa-folder-open" aria-hidden="true"></i> Con documentos de requisitos</a>
+        </div>
+        <p class="qkt-pagina__intro">Permisos, licencias, constancias y contratos de servicio con su vigencia. Los críticos son los que, vencidos, pueden detener la operación.</p>
+    </div>
+
+    {% if criticos_vencidos %}
+    <div class="qkt-aviso qkt-aviso--error">
+        <span class="qkt-aviso__titulo">Riesgo de clausura</span>
+        Trámites críticos vencidos:
+        {% for f in criticos_vencidos %}<strong>{{ f.tramite.nombre }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+    </div>
+    {% endif %}
+
+    {% if vacio %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cuerpo">
+            <p>Aún no hay trámites registrados.</p>
+            {% if puede_cargar_catalogo %}
+            <form method="post" action="{% url 'cumplimiento:cargar_catalogo' %}">
+                {% csrf_token %}
+                <button type="submit" class="qkt-btn qkt-btn--primario"
+                        data-qkt-confirmar="Se crearán los trámites sugeridos (extintores, Protección Civil, uso de suelo y funcionamiento) sin fechas ni costos. ¿Continuar?">
+                    <i class="fas fa-list-check" aria-hidden="true"></i> Cargar catálogo sugerido
+                </button>
+            </form>
+            {% else %}
+            <p class="qkt-campo__ayuda">Solo Dirección puede cargar el catálogo sugerido.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+
+    <div class="qkt-kpis">
+        <div class="qkt-kpi qkt-kpi--exito"><div class="qkt-kpi__label">Vigentes</div><div class="qkt-kpi__valor">{{ conteo.VIGENTE }}</div></div>
+        <div class="qkt-kpi {% if conteo.POR_VENCER %}qkt-kpi--alerta{% else %}qkt-kpi--exito{% endif %}"><div class="qkt-kpi__label">Por vencer</div><div class="qkt-kpi__valor">{{ conteo.POR_VENCER }}</div></div>
+        <div class="qkt-kpi {% if conteo.VENCIDO %}qkt-kpi--error{% else %}qkt-kpi--exito{% endif %}"><div class="qkt-kpi__label">Vencidos</div><div class="qkt-kpi__valor">{{ conteo.VENCIDO }}</div></div>
+        <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">En trámite</div><div class="qkt-kpi__valor">{{ conteo.EN_TRAMITE }}</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Costo {{ anio }}</div><div class="qkt-kpi__valor">${{ costo_anual|floatformat:2 }}</div></div>
+    </div>
+
+    {% if proximos_90 %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">Próximos 90 días</h2></div>
+        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Trámite</th><th>Vence</th><th>Cuándo</th></tr></thead>
+                <tbody>
+                {% for f in proximos_90 %}
+                    <tr><td>{{ f.tramite.nombre }}</td><td>{{ f.vigencia.fecha_vencimiento|date:"d/m/Y" }}</td><td>{{ f.dias_texto }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% for grupo in grupos %}{% if grupo.filas %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">{{ grupo.etiqueta }} ({{ grupo.filas|length }})</h2></div>
+        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Trámite</th><th>Folio</th><th>Vence</th><th>Cuándo</th><th></th></tr></thead>
+                <tbody>
+                {% for f in grupo.filas %}
+                    <tr>
+                        <td>{{ f.tramite.nombre }}{% if f.tramite.critico %} <span class="qkt-badge qkt-badge--error">Crítico</span>{% endif %}{% if f.renovacion %} <span class="qkt-badge qkt-badge--info">Renovación en curso</span>{% endif %}</td>
+                        <td>{{ f.vigencia.folio|default:"—" }}</td>
+                        <td>{{ f.vigencia.fecha_vencimiento|date:"d/m/Y"|default:"—" }}</td>
+                        <td>{{ f.dias_texto }}</td>
+                        <td>
+                            <div class="qkt-acciones">
+                                <a class="qkt-btn qkt-btn--icono" title="Ver trámite" aria-label="Ver trámite" href="{% url 'admin:cumplimiento_tramite_change' f.tramite.pk %}"><i class="fas fa-eye" aria-hidden="true"></i></a>
+                                <a class="qkt-btn qkt-btn--icono" title="Registrar renovación" aria-label="Registrar renovación" href="{% url 'admin:cumplimiento_tramite_renovar' f.tramite.pk %}"><i class="fas fa-rotate" aria-hidden="true"></i></a>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}{% endfor %}
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">Vencimientos de los próximos 12 meses</h2></div>
+        <div class="qkt-panel__cuerpo">
+            {% for mes in linea_tiempo %}
+                <p><strong>{{ mes.titulo }}</strong></p>
+                <ul>
+                {% for f in mes.filas %}<li>{{ f.vigencia.fecha_vencimiento|date:"d/m" }} — {{ f.tramite.nombre }}</li>{% endfor %}
+                </ul>
+            {% empty %}
+                <p class="qkt-campo__ayuda">Sin vencimientos en los próximos 12 meses.</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -35,6 +35,7 @@ urlpatterns = [
     path('flujo/', views.reporte_flujo, name='flujo'),
     path('ocupacion/', views.reporte_ocupacion, name='ocupacion'),
     path('depositos/', views.reporte_depositos, name='depositos'),
+    path('cumplimiento-costo/', views.reporte_cumplimiento_costo, name='cumplimiento_costo'),
     path('cortesias/', views.reporte_cortesias, name='cortesias'),
     path('conciliacion/', views.reporte_conciliacion, name='conciliacion'),
     path('kooxi/', views.reporte_kooxi, name='kooxi'),

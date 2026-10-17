@@ -116,7 +116,7 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones indicadores` |
+| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
@@ -290,6 +290,31 @@ salvo que queden obsoletas.
   registra en `ReporteGenerado` (evita migración en `reportes`). Chart.js 4.4.1 fijado
   desde cdnjs; se agregó `.qkt-grafica` a `qkt_ui.css`. Pendiente del propietario:
   capturar Parámetros (días de venta, tope de eventos, % de respaldo) y metas.
+- 2026-10-16 — **Módulo de Cumplimiento** (Issue #403, 4 fases). App `cumplimiento/`:
+  catálogo `Tramite` (+ `RequisitoTramite`), cada obtención/renovación en `Vigencia`
+  (folio, fechas, costo `Decimal`, documento oficial y `compra` opcional) y su
+  expediente en `DocumentoExpediente`; todos los archivos en `storage_privado` y
+  registrados en `ARCHIVOS_PROTEGIDOS` (el admin usa `FileInput` + botón de descarga,
+  nunca `.url`). **No toca contabilidad ni `legal/`**. `Vigencia.clean()` exige el
+  documento para quedar `OBTENIDA`. Sin borrado físico (se cancela). Por defecto solo
+  Dirección (superusuario): `cumplimiento` no está en ningún grupo de
+  `crear_grupos_permisos`. `services.estado_tramite()` es la fuente única del semáforo
+  (Vigente/Por vencer/Vencido/En trámite/Sin registro; `hoy` inyectable). Renovación:
+  `/admin/cumplimiento/tramite/<id>/renovar/` abre el alta de Vigencia **prellenada por
+  GET** (no crea nada hasta guardar; si ya hay una en trámite abre esa). Tablero en
+  `/admin/cumplimiento/tablero/` (catálogo sugerido idempotente, solo superusuario) y
+  expediente PDF/ZIP (solo vigentes; ZIP en memoria con tope de 100 MB).
+  **Avisos**: `manage.py avisar_vencimientos [--aplicar]` (simula por defecto), umbrales
+  `dias_aviso`/30/7/0/vencido más preaviso de cancelación de contratos; un mensaje
+  consolidado por canal, con WhatsApp vía `WA_TEMPLATE_OPERACIONES` (el resumen va en el
+  parámetro, así llega fuera de la ventana de 24 h) y correo interno. Idempotencia en
+  `AvisoVencimiento` (INSERT antes de enviar; FALLIDO se reintenta; PENDIENTE de más de
+  1 h se retoma). Reporte «Costo de cumplimiento» en el Centro de reportes (migración
+  `reportes.0006`, solo choices). **Pendiente en Railway**: Cron diario `5 13 * * *` con
+  `manage.py avisar_vencimientos --aplicar` (variables como `${{web.…}}`, `DEFAULT_FROM_EMAIL`
+  → `${{web.EMAIL_FROM_NOTIFICACIONES}}`, y `WA_NUMERO_NEGOCIO`/`WA_TEMPLATE_OPERACIONES`).
+  Migraciones: `cumplimiento.0001` y `0002` (tablas nuevas) y `reportes.0006`. El tablero se alcanza desde el menú lateral (`custom_links` de `cumplimiento`, «Tablero») y desde el botón «Tablero» de la lista de Trámites; sin ese enlace solo se llegaba escribiendo la URL.
+
 - 2026-10-16 — **Descarga SAT: los últimos días de un mes cerrado eran hueco
   eterno** (seguimiento del PR #399, duda del propietario sobre «Traer historial
   desde»: la fecha 01/07 es correcta, el problema era otro). `_huecos` cubría cada
