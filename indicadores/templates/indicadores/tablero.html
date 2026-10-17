@@ -6,230 +6,63 @@
 {% endblock %}
 
 {% block content %}
+{% with m=d.mes %}
 <div class="qkt-pagina qkt-pagina--ancha">
     <div class="qkt-pagina__cabecera">
-        <h1 class="qkt-pagina__titulo"><i class="fas fa-chart-line" aria-hidden="true"></i> Indicadores</h1>
-        <p class="qkt-pagina__intro">
-            Capacidad, punto de equilibrio, ocupación, plan óptimo y metas, calculados con los datos del ERP y los
-            supuestos de <a href="{% url 'admin:indicadores_parametrosnegocio_changelist' %}">Parámetros</a>; el <a href="{% url 'indicadores:plan' %}">plan óptimo</a> dice qué vender en el año.
-            Lo marcado como <span class="qkt-badge qkt-badge--neutro">Estimado</span> no sale de una muestra suficiente
-            de ventas; lo demás es medido. Ventana de promedio: {{ d.ventana.0|date:"d/m/Y" }} al {{ d.ventana.1|date:"d/m/Y" }}.
-        </p>
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-chart-line" aria-hidden="true"></i> Este mes · {{ m.etiqueta }}</h1>
+        <div class="qkt-botonera">
+            <form method="get" class="qkt-filtros-pagina">
+                <input type="month" name="mes" value="{{ mes_valor }}" aria-label="Mes">
+                <button type="submit" class="qkt-btn qkt-btn--secundario"><i class="fas fa-sync-alt" aria-hidden="true"></i> Ver</button>
+            </form>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:exportar' %}?mes={{ mes_valor }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:exportar' %}?mes={{ mes_valor }}&amp;formato=excel"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:plan' %}?anio={{ d.anio }}"><i class="fas fa-th-large" aria-hidden="true"></i> Plan del año</a>
+        </div>
     </div>
 
-    <form method="get" class="qkt-filtros-pagina">
-        <label class="qkt-campo"><span class="qkt-campo__label">Mes</span>
-            <input type="month" name="mes" value="{{ mes_valor }}"></label>
-        <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-sync-alt" aria-hidden="true"></i> Ver mes</button>
-        <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:plan' %}?anio={{ d.anio }}"><i class="fas fa-th-large" aria-hidden="true"></i> Plan óptimo</a>
-        <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:exportar' %}?mes={{ mes_valor }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf" aria-hidden="true"></i> PDF</a>
-        <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:exportar' %}?mes={{ mes_valor }}&amp;formato=excel"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</a>
-    </form>
-
-    {% for aviso in d.avisos %}
-    <div class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Revisa</span> {{ aviso }}</div>
-    {% endfor %}
     {% if d.avisos %}
-    <p><a class="qkt-btn qkt-btn--secundario qkt-btn--sm" href="{% url 'admin:indicadores_parametrosnegocio_changelist' %}"><i class="fas fa-sliders-h" aria-hidden="true"></i> Abrir Parámetros</a></p>
+    <div class="qkt-aviso qkt-aviso--alerta">
+        <span class="qkt-aviso__titulo">Revisa</span>
+        <ul>{% for aviso in d.avisos %}<li>{{ aviso }}</li>{% endfor %}</ul>
+        <a href="{% url 'indicadores:plan' %}">Ajustar números</a>
+    </div>
     {% endif %}
 
-    <!-- RESUMEN -->
     <div class="qkt-kpis">
-        {% for k in d.resumen %}
-        <div class="qkt-kpi qkt-kpi--{% if k.tono == 'neutro' %}info{% else %}{{ k.tono }}{% endif %}">
-            <div class="qkt-kpi__label">{{ k.etiqueta }}{% if k.estimado %} <span class="qkt-badge qkt-badge--neutro">Estimado</span>{% endif %}</div>
-            <div class="qkt-kpi__valor">{% if k.valor is None %}—{% elif k.tipo == 'moneda' %}{{ k.valor|moneda }}{% else %}{{ k.valor }} %{% endif %}</div>
-            <div class="qkt-kpi__sub">{{ k.sub }}</div>
+        <div class="qkt-kpi qkt-kpi--{% if m.tono_meta == 'neutro' %}info{% else %}{{ m.tono_meta }}{% endif %}" title="Realizado {{ m.venta_realizada|moneda }}">
+            <div class="qkt-kpi__label">Venta neta</div>
+            <div class="qkt-kpi__valor">{{ m.venta|moneda }}</div>
+            {% if m.meta_venta is not None %}
+            <span class="qkt-avance qkt-avance--ancha qkt-avance--{{ m.tono_meta }}"><span class="qkt-avance__barra"><span style="width:{{ m.pct_barra }}%"></span></span><span class="qkt-avance__pct">{{ m.pct_meta }}%</span></span>
+            <div class="qkt-kpi__sub">Meta {{ m.meta_venta|moneda }} · {% if m.fuente_meta == 'plan' %}del plan{% elif m.fuente_meta == 'meta' %}de Metas{% else %}equilibrio{% endif %}</div>
+            {% else %}
+            <div class="qkt-kpi__sub">Sin meta: captura precios en el Plan del año</div>
+            {% endif %}
         </div>
-        {% endfor %}
-    </div>
-
-    <!-- CAPACIDAD -->
-    <div class="qkt-panel qkt-panel--info">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-warehouse" aria-hidden="true"></i> Capacidad máxima</h2></div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Servicio</th><th class="qkt-der">Días vendibles</th><th class="qkt-der">Capacidad</th><th class="qkt-der">Ingreso máximo</th><th class="qkt-der">Contribución máxima</th></tr></thead>
-                <tbody>
-                {% for s in d.capacidad.servicios.values %}
-                    <tr><th>{{ s.nombre }}{% if s.fuente_costo != 'medido' %} <span class="qkt-badge qkt-badge--neutro" title="Costo variable {{ s.fuente_costo }}">{{ s.fuente_costo|capfirst }}</span>{% endif %}</th>
-                        <td class="qkt-der qkt-num">{{ s.dias_vendibles }}</td>
-                        <td class="qkt-der qkt-num">{{ s.unidades|default_if_none:"—" }}{% if s.tipo == 'HOSPEDAJE' %} noches-hab.{% elif s.tipo == 'EVENTO' %} eventos{% else %} pasadías{% endif %}</td>
-                        <td class="qkt-der qkt-num">{{ s.ingreso_max|moneda|default:"—" }}</td>
-                        <td class="qkt-der qkt-num">{{ s.mc_max|moneda|default:"—" }}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
+        <div class="qkt-kpi qkt-kpi--destacado{% if m.utilidad is not None %} qkt-kpi--{% if m.utilidad >= 0 %}exito{% else %}error{% endif %}{% endif %}">
+            <div class="qkt-kpi__label">Utilidad del mes</div>
+            <div class="qkt-kpi__valor">{% if m.utilidad is None %}—{% else %}{{ m.utilidad|moneda }}{% endif %}</div>
+            <div class="qkt-kpi__sub">{% if m.falta_cf is None %}Sin margen calculado{% elif m.falta_cf > 0 %}Faltan {{ m.falta_cf|moneda }} para cubrir costos fijos{% else %}Costos fijos cubiertos{% endif %}</div>
         </div>
-        <p class="qkt-panel__cuerpo">{{ d.capacidad.nota }} Días del mes: {{ d.capacidad.dias_periodo }}; bloqueados: {{ d.capacidad.dias_bloqueados }}; vendibles: {{ d.capacidad.dias_vendibles }}.</p>
-    </div>
-
-    <!-- EQUILIBRIO -->
-    <div class="qkt-panel qkt-panel--alerta">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-balance-scale-right" aria-hidden="true"></i> Punto de equilibrio</h2></div>
-        {% with eq=d.equilibrio b=d.equilibrio.base o=d.equilibrio.objetivo %}
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Concepto</th><th class="qkt-der">Equilibrio</th><th class="qkt-der">Con utilidad objetivo ({{ eq.utilidad_objetivo|moneda }})</th></tr></thead>
-                <tbody>
-                    <tr><th>Costos fijos mensuales
-                        <span class="qkt-badge qkt-badge--neutro" title="{% if eq.fuente_cf == 'presupuestado' %}Capturado en Parámetros{% elif eq.fuente_cf == 'contabilidad' %}Promedio de {{ d.costos.meses|length }} mes(es) cerrado(s){% else %}Sin meses cerrados con contabilidad{% endif %}">{{ eq.fuente_cf|capfirst }}</span></th>
-                        <td class="qkt-der qkt-num">{{ b.objetivo|moneda }}</td><td class="qkt-der qkt-num">{{ o.objetivo|moneda }}</td></tr>
-                    <tr><th>Margen de contribución ponderado</th><td class="qkt-der qkt-num">{% if b.mc_pct is None %}—{% else %}{{ b.mc_pct }}{% endif %}</td><td class="qkt-der qkt-num">{% if o.mc_pct is None %}—{% else %}{{ o.mc_pct }}{% endif %}</td></tr>
-                    <tr><th>Venta neta necesaria al mes</th><td class="qkt-der qkt-num">{{ b.pesos|moneda|default:"—" }}</td><td class="qkt-der qkt-num">{{ o.pesos|moneda|default:"—" }}</td></tr>
-                    <tr><th>Días ocupados necesarios</th><td class="qkt-der qkt-num">{{ b.dias|default_if_none:"—" }}</td><td class="qkt-der qkt-num">{{ o.dias|default_if_none:"—" }}</td></tr>
-                    <tr class="qkt-tabla__destacado"><th>Ocupación de equilibrio</th><td class="qkt-der qkt-num">{% if b.ocupacion_pct is None %}—{% else %}{{ b.ocupacion_pct }} %{% endif %}</td><td class="qkt-der qkt-num">{% if o.ocupacion_pct is None %}—{% else %}{{ o.ocupacion_pct }} %{% endif %}</td></tr>
-                </tbody>
-            </table>
+        <div class="qkt-kpi">
+            <div class="qkt-kpi__label">Equilibrio</div>
+            <div class="qkt-kpi__valor">{% if m.dias_equilibrio is None %}—{% else %}{{ m.dias_vendidos }} de {{ m.dias_equilibrio }} días{% endif %}</div>
+            <div class="qkt-kpi__sub">{% if m.dias_faltan is None %}Sin margen calculado{% elif m.dias_faltan > 0 %}Faltan {{ m.dias_faltan }} día{{ m.dias_faltan|pluralize }} por vender{% else %}Equilibrio alcanzado{% endif %}</div>
         </div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Si vendieras solo…</th><th class="qkt-der">Margen por unidad</th><th class="qkt-der">Unidades al mes</th></tr></thead>
-                <tbody>
-                {% for s in eq.solo.values %}
-                    <tr><th>{{ s.nombre }}{% if s.fuente_costo != 'medido' %} <span class="qkt-badge qkt-badge--neutro">{{ s.fuente_costo|capfirst }}</span>{% endif %}</th>
-                        <td class="qkt-der qkt-num">{{ s.mc|moneda|default:"—" }}</td>
-                        <td class="qkt-der qkt-num">{{ s.unidades|default_if_none:"—" }}{% if s.dias %} ({{ s.dias }} días){% endif %}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endwith %}
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Costos fijos por mes cerrado</th>{% for g, nombre in d.costos.grupos.items %}<th class="qkt-der">{{ nombre }}</th>{% endfor %}<th class="qkt-der">Total</th><th>Nómina</th></tr></thead>
-                <tbody>
-                {% for m in d.costos.meses %}
-                    <tr><th>{{ m.etiqueta }}</th>
-                        <td class="qkt-der qkt-num">{{ m.por_grupo.OPERACION|moneda }}</td><td class="qkt-der qkt-num">{{ m.por_grupo.ADMINISTRACION|moneda }}</td>
-                        <td class="qkt-der qkt-num">{{ m.por_grupo.VENTA|moneda }}</td><td class="qkt-der qkt-num">{{ m.por_grupo.FINANCIERO|moneda }}</td>
-                        <td class="qkt-der qkt-num">{{ m.por_grupo.NOMINA|moneda }}</td><td class="qkt-der qkt-num">{{ m.por_grupo.POR_CLASIFICAR|moneda }}</td>
-                        <td class="qkt-der qkt-num">{{ m.por_grupo.OTROS|moneda }}</td><td class="qkt-der qkt-num">{{ m.total|moneda }}</td>
-                        <td>{% if m.fuente_nomina == 'contabilidad' %}Pólizas{% else %}Recibos{% endif %}</td></tr>
-                {% empty %}
-                    <tr><td colspan="10">Aún no hay un mes cerrado con contabilidad desde el inicio de datos.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
+        <div class="qkt-kpi">
+            <div class="qkt-kpi__label">Ocupación</div>
+            <div class="qkt-kpi__valor">{{ m.ocupacion }} %</div>
+            <div class="qkt-kpi__sub">{% if m.ocupacion_plan is not None %}Plan {{ m.ocupacion_plan }} % · {% endif %}{{ m.dias_vendibles }} días vendibles</div>
         </div>
     </div>
 
-    <!-- PLAN ÓPTIMO -->
-    <div class="qkt-panel qkt-panel--exito">
-        {% with pl=d.plan.plan fila=d.plan.fila %}
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-th-large" aria-hidden="true"></i> Plan óptimo · {{ fila.etiqueta }}</h2></div>
-        {% if pl.vacio %}
-        <div class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Sin plan</span> Ningún servicio tiene precio. Captúralo en <a href="{% url 'admin:indicadores_parametrosnegocio_changelist' %}">Parámetros</a> o en el <a href="{% url 'indicadores:plan' %}?anio={{ d.anio }}">Plan óptimo</a>.</div>
-        {% else %}
-        <p class="qkt-panel__cuerpo"><strong>{{ pl.frase }}.</strong> Este mes le toca:
-            {{ fila.eventos }} evento{{ fila.eventos|pluralize }}, {{ fila.pasadias }} pasadía{{ fila.pasadias|pluralize }} y {{ fila.noches }} noche{{ fila.noches|pluralize }}-habitación.</p>
-        <div class="qkt-kpis qkt-panel__cuerpo">
-            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Venta neta del mes</div><div class="qkt-kpi__valor">{{ fila.venta|moneda }}</div><div class="qkt-kpi__sub">{{ fila.dias_ocupados }} de {{ fila.dias_disponibles }} días · {{ fila.ocupacion }} %</div></div>
-            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Contribución</div><div class="qkt-kpi__valor">{{ fila.contribucion|moneda }}</div><div class="qkt-kpi__sub">Venta menos costo directo</div></div>
-            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Costos fijos</div><div class="qkt-kpi__valor">{{ fila.cf|moneda }}</div><div class="qkt-kpi__sub">{{ pl.fuente_cf|capfirst }}</div></div>
-            <div class="qkt-kpi qkt-kpi--destacado qkt-kpi--{% if fila.utilidad >= 0 %}exito{% else %}error{% endif %}"><div class="qkt-kpi__label">Utilidad del mes</div><div class="qkt-kpi__valor">{{ fila.utilidad|moneda }}</div><div class="qkt-kpi__sub">Contribución menos costos fijos</div></div>
-        </div>
-        {% endif %}
-        <p class="qkt-panel__cuerpo">{{ pl.supuestos }}
-            <a class="qkt-btn qkt-btn--secundario qkt-btn--sm" href="{% url 'indicadores:plan' %}?anio={{ d.anio }}"><i class="fas fa-th-large" aria-hidden="true"></i> Ver el plan del año</a></p>
-        {% endwith %}
-
-        <form method="get" class="qkt-panel__cuerpo">
-            <input type="hidden" name="mes" value="{{ mes_valor }}">
-            <h3 class="qkt-reporte__titulo"><i class="fas fa-flask" aria-hidden="true"></i> Simular{% if simulando %} <span class="qkt-badge qkt-badge--info">Simulación activa</span>{% endif %}</h3>
-            <div class="qkt-filtros-pagina">
-                {% for c in d.campos_simulacion %}
-                <label class="qkt-campo qkt-campo--chico"><span class="qkt-campo__label">{{ c.etiqueta }}</span>
-                    <input type="number" step="{{ c.paso }}" min="0" name="{{ c.nombre }}" value="{{ c.valor }}"></label>
-                {% endfor %}
-                <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-play" aria-hidden="true"></i> Simular</button>
-                {% if simulando %}<a class="qkt-btn qkt-btn--secundario" href="?mes={{ mes_valor }}">Quitar simulación</a>{% endif %}
-            </div>
-        </form>
-    </div>
-
-    <!-- COMERCIAL Y MARKETING -->
-    <div class="qkt-panel qkt-panel--info">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-bullhorn" aria-hidden="true"></i> Comercial y marketing</h2></div>
-        {% with e=d.embudo %}
-        <div class="qkt-kpis qkt-panel__cuerpo">
-            <div class="qkt-kpi"><div class="qkt-kpi__label">Solicitudes</div><div class="qkt-kpi__valor">{{ e.total.solicitudes }}</div><div class="qkt-kpi__sub">{{ e.total.ventas }} vendidas · {{ e.total.expiradas }} expiradas · {{ e.total.canceladas }} canceladas</div></div>
-            <div class="qkt-kpi"><div class="qkt-kpi__label">Gasto de marketing</div><div class="qkt-kpi__valor">{{ e.gasto_marketing|moneda }}</div><div class="qkt-kpi__sub">Costo por solicitud {{ e.costo_por_solicitud|moneda|default:"—" }}</div></div>
-            <div class="qkt-kpi"><div class="qkt-kpi__label">CAC</div><div class="qkt-kpi__valor">{{ e.cac|moneda|default:"—" }}</div><div class="qkt-kpi__sub">Gasto / ventas nuevas</div></div>
-            <div class="qkt-kpi"><div class="qkt-kpi__label">ROAS</div><div class="qkt-kpi__valor">{{ e.roas|default_if_none:"—" }}</div><div class="qkt-kpi__sub">Venta neta nueva / gasto</div></div>
-            <div class="qkt-kpi"><div class="qkt-kpi__label">Del primer pago al evento</div><div class="qkt-kpi__valor">{{ e.anticipacion|default_if_none:"—" }}</div><div class="qkt-kpi__sub">días de anticipación · {{ e.dias_a_confirmar|default_if_none:"—" }} días a confirmar</div></div>
-            <div class="qkt-kpi"><div class="qkt-kpi__label">WhatsApp (Kooxi)</div><div class="qkt-kpi__valor">{{ e.whatsapp.nuevas|default:0 }}</div><div class="qkt-kpi__sub">{{ e.whatsapp.con_cotizacion|default:0 }} con cotización · {{ e.whatsapp.con_pago|default:0 }} con pago</div></div>
-        </div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Canal</th><th class="qkt-der">Solicitudes</th><th class="qkt-der">Vendidas</th><th class="qkt-der">Conversión</th><th class="qkt-der">Expiración</th><th class="qkt-der">Cancelación</th><th class="qkt-der">Venta neta</th></tr></thead>
-                <tbody>
-                {% for f in e.por_canal %}
-                    <tr><th>{{ f.nombre }}</th><td class="qkt-der qkt-num">{{ f.solicitudes }}</td><td class="qkt-der qkt-num">{{ f.ventas }}</td><td class="qkt-der qkt-num">{{ f.tasa_conversion }} %</td><td class="qkt-der qkt-num">{{ f.tasa_expiracion }} %</td><td class="qkt-der qkt-num">{{ f.tasa_cancelacion }} %</td><td class="qkt-der qkt-num">{{ f.venta_neta|moneda }}</td></tr>
-                {% empty %}
-                    <tr><td colspan="7">Sin solicitudes en el mes.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Servicio</th><th class="qkt-der">Solicitudes</th><th class="qkt-der">Vendidas</th><th class="qkt-der">Conversión</th><th class="qkt-der">Expiración</th><th class="qkt-der">Cancelación</th><th class="qkt-der">Venta neta</th></tr></thead>
-                <tbody>
-                {% for f in e.por_servicio %}
-                    <tr><th>{{ f.nombre }}</th><td class="qkt-der qkt-num">{{ f.solicitudes }}</td><td class="qkt-der qkt-num">{{ f.ventas }}</td><td class="qkt-der qkt-num">{{ f.tasa_conversion }} %</td><td class="qkt-der qkt-num">{{ f.tasa_expiracion }} %</td><td class="qkt-der qkt-num">{{ f.tasa_cancelacion }} %</td><td class="qkt-der qkt-num">{{ f.venta_neta|moneda }}</td></tr>
-                {% empty %}
-                    <tr><td colspan="7">Sin solicitudes en el mes.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <p class="qkt-panel__cuerpo">El gasto de marketing sale de las pólizas aplicadas de publicidad y fotografía; no hay dato para atribuirlo por canal.</p>
-        {% endwith %}
-    </div>
-
-    <!-- METAS -->
-    <div class="qkt-panel qkt-panel--exito">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-bullseye" aria-hidden="true"></i> Metas: de la utilidad a marketing</h2></div>
-        {% with m=d.metas %}
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Paso de la cascada</th><th class="qkt-der">Valor</th></tr></thead>
-                <tbody>
-                    <tr><th>Venta neta necesaria (costos fijos + utilidad objetivo)</th><td class="qkt-der qkt-num">{{ m.venta_necesaria|moneda|default:"—" }}</td></tr>
-                    <tr><th>Ventas necesarias (ticket ponderado {{ m.ticket_ponderado|moneda|default:"—" }})</th><td class="qkt-der qkt-num">{{ m.ventas_necesarias|default_if_none:"—" }}</td></tr>
-                    <tr><th>Solicitudes necesarias (conversión {{ m.tasa_conversion }} %)</th><td class="qkt-der qkt-num">{{ m.solicitudes_necesarias|default_if_none:"—" }}</td></tr>
-                    <tr class="qkt-tabla__destacado"><th>Presupuesto de marketing sugerido (costo por solicitud {{ m.costo_por_solicitud|moneda|default:"—" }})</th><td class="qkt-der qkt-num">{{ m.presupuesto_marketing|moneda|default:"—" }}</td></tr>
-                </tbody>
-            </table>
-        </div>
-        {% if m.avance %}
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Avance contra la meta de {{ m.mes|stringformat:"02d" }}/{{ m.anio|stringformat:"d" }}</th><th class="qkt-der">Real (con lo ya confirmado)</th><th class="qkt-der">Meta</th><th class="qkt-der">Avance</th></tr></thead>
-                <tbody>
-                    <tr><th>Venta neta</th><td class="qkt-der qkt-num">{{ m.avance.venta_neta.real|moneda }}</td><td class="qkt-der qkt-num">{{ m.avance.venta_neta.meta|moneda }}</td><td class="qkt-der qkt-num">{{ m.avance.venta_neta.pct|default_if_none:"—" }} %</td></tr>
-                    <tr><th>Ocupación</th><td class="qkt-der qkt-num">{{ m.avance.ocupacion.real }} %</td><td class="qkt-der qkt-num">{{ m.avance.ocupacion.meta }} %</td><td class="qkt-der qkt-num">{{ m.avance.ocupacion.pct|default_if_none:"—" }} %</td></tr>
-                    <tr><th>Eventos</th><td class="qkt-der qkt-num">{{ m.avance.eventos.real }}</td><td class="qkt-der qkt-num">{{ m.avance.eventos.meta }}</td><td class="qkt-der qkt-num">{{ m.avance.eventos.pct|default_if_none:"—" }} %</td></tr>
-                    <tr><th>Pasadías</th><td class="qkt-der qkt-num">{{ m.avance.pasadias.real }}</td><td class="qkt-der qkt-num">{{ m.avance.pasadias.meta }}</td><td class="qkt-der qkt-num">{{ m.avance.pasadias.pct|default_if_none:"—" }} %</td></tr>
-                    <tr><th>Noches de hospedaje</th><td class="qkt-der qkt-num">{{ m.avance.noches.real }}</td><td class="qkt-der qkt-num">{{ m.avance.noches.meta }}</td><td class="qkt-der qkt-num">{{ m.avance.noches.pct|default_if_none:"—" }} %</td></tr>
-                    <tr><th>Gasto de marketing</th><td class="qkt-der qkt-num">{{ m.avance.marketing.real|moneda }}</td><td class="qkt-der qkt-num">{{ m.avance.marketing.meta|moneda }}</td><td class="qkt-der qkt-num">{{ m.avance.marketing.pct|default_if_none:"—" }} %</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="qkt-panel__cuerpo">Proyección a fin de mes: solo lo ya confirmado para fechas del mes ({{ m.proyeccion|moneda }}); de eso, {{ m.real.venta_realizada|moneda }} ya se realizó.</p>
-        {% else %}
-        <p class="qkt-panel__cuerpo">No hay una meta activa para este mes. Captúrala en <a href="{% url 'admin:indicadores_metamensual_changelist' %}">Metas</a>.</p>
-        {% endif %}
-        {% endwith %}
-    </div>
-
-    <!-- TENDENCIA -->
     <div class="qkt-panel">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-chart-area" aria-hidden="true"></i> Tendencia de 12 meses</h2></div>
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-chart-area" aria-hidden="true"></i> Últimos 12 meses</h2></div>
         <div class="qkt-grafica"><canvas id="grafica-tendencia" role="img" aria-label="Venta neta y ocupación de los últimos 12 meses contra el equilibrio"></canvas></div>
     </div>
 </div>
+{% endwith %}
 
 {{ tendencia|json_script:"datos-tendencia" }}
 {{ linea_equilibrio|json_script:"datos-equilibrio" }}

@@ -4,135 +4,110 @@
 {% block content %}
 <div class="qkt-pagina qkt-pagina--ancha">
     <div class="qkt-pagina__cabecera">
-        <h1 class="qkt-pagina__titulo"><i class="fas fa-th-large" aria-hidden="true"></i> Plan óptimo</h1>
-        <p class="qkt-pagina__intro">
-            Qué vender en el año para ganar lo más posible con los días que tienes. Los números ya vienen llenos
-            desde <a href="{% url 'admin:indicadores_parametrosnegocio_changelist' %}">Parámetros</a> o desde tus ventas; cámbialos
-            y pulsa Calcular para probar otros precios.
-        </p>
+        <h1 class="qkt-pagina__titulo"{% if plan %} title="{{ plan.supuestos }}"{% endif %}><i class="fas fa-th-large" aria-hidden="true"></i> Plan del año {{ form.anio.value|stringformat:"d" }}</h1>
+        <div class="qkt-botonera">
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'indicadores:tablero' %}"><i class="fas fa-chart-line" aria-hidden="true"></i> Este mes</a>
+        </div>
     </div>
 
-    {% for aviso in avisos %}
-    <div class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Revisa</span> {{ aviso }}</div>
-    {% endfor %}
-
-    <!-- 1. TUS NÚMEROS -->
-    <form method="post" class="qkt-panel qkt-panel--info" action="{% url 'indicadores:plan' %}">
-        {% csrf_token %}
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-pen" aria-hidden="true"></i> Tus números</h2></div>
-        {% if form.non_field_errors %}<div class="qkt-aviso qkt-aviso--error">{{ form.non_field_errors }}</div>{% endif %}
-        <div class="qkt-panel__cuerpo qkt-filtros-pagina">
-            <label class="qkt-campo qkt-campo--chico"><span class="qkt-campo__label">Año</span>
-                {{ form.anio }}{% if form.anio.errors %}<span class="qkt-campo__error">{{ form.anio.errors.0 }}</span>{% endif %}</label>
-            <label class="qkt-campo"><span class="qkt-campo__label">Costos fijos del año</span>
-                {{ form.cf_anual }}{% if form.cf_anual.errors %}<span class="qkt-campo__error">{{ form.cf_anual.errors.0 }}</span>{% endif %}
-                <span class="qkt-campo__ayuda">Lo que pagas en el año sin importar cuánto vendas.</span></label>
-        </div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla qkt-tabla--captura">
-                <thead><tr><th>Servicio</th><th>Precio con IVA</th><th>Costo variable sin IVA</th></tr></thead>
-                <tbody>
-                {% for c in campos %}
-                    <tr><th>{% if c.tipo == 'EVENTO' %}Evento{% elif c.tipo == 'PASADIA' %}Pasadía{% else %}Hospedaje <span class="qkt-badge qkt-badge--neutro">Habitación-noche</span>{% endif %}</th>
-                        <td>{{ c.precio }}{% if c.precio.errors %}<span class="qkt-campo__error">{{ c.precio.errors.0 }}</span>{% endif %}</td>
-                        <td>{{ c.costo }}{% if c.costo.errors %}<span class="qkt-campo__error">{{ c.costo.errors.0 }}</span>{% endif %}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <p class="qkt-panel__cuerpo">Un servicio sin precio no entra al cálculo. El costo variable es lo que cuesta atender una unidad (un evento, una pasadía, una habitación una noche).</p>
-        <div class="qkt-botonera qkt-panel__cuerpo">
-            <button type="submit" name="accion" value="calcular" class="qkt-btn qkt-btn--primario"><i class="fas fa-calculator" aria-hidden="true"></i> Calcular</button>
-            <button type="submit" name="accion" value="guardar" class="qkt-btn qkt-btn--secundario" data-qkt-confirmar="Estos números pasan a ser los Parámetros vigentes. El juego anterior se conserva como histórico."><i class="fas fa-save" aria-hidden="true"></i> Guardar estos números</button>
-        </div>
-    </form>
-
-    {% if plan %}
-    <!-- 2. LA RESPUESTA -->
-    <div class="qkt-panel qkt-panel--exito">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-bullseye" aria-hidden="true"></i> La respuesta</h2></div>
-        <p class="qkt-panel__cuerpo"><strong>{{ plan.frase }}.</strong></p>
-        {% if plan.vacio %}
-        <div class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Sin plan</span> Ningún servicio deja margen con estos números. Captura al menos un precio mayor que su costo.</div>
-        {% endif %}
-        <div class="qkt-kpis qkt-panel__cuerpo">
-            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Venta neta del año</div><div class="qkt-kpi__valor">{{ plan.venta|moneda }}</div><div class="qkt-kpi__sub">Sin IVA</div></div>
-            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Contribución</div><div class="qkt-kpi__valor">{{ plan.contribucion|moneda }}</div><div class="qkt-kpi__sub">Venta menos costo variable</div></div>
-            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Costos fijos</div><div class="qkt-kpi__valor">{{ plan.cf|moneda }}</div><div class="qkt-kpi__sub">{{ plan.fuente_cf|capfirst }}</div></div>
-            <div class="qkt-kpi qkt-kpi--destacado qkt-kpi--{% if plan.utilidad >= 0 %}exito{% else %}error{% endif %}"><div class="qkt-kpi__label">Utilidad del año</div><div class="qkt-kpi__valor">{{ plan.utilidad|moneda }}</div><div class="qkt-kpi__sub">{{ plan.dias_ocupados }} de {{ plan.dias_disponibles }} días disponibles</div></div>
-        </div>
-        <p class="qkt-panel__cuerpo">{{ plan.supuestos }}{% if plan.dias_bloqueados %} Días bloqueados este año: {{ plan.dias_bloqueados }}.{% endif %}</p>
-    </div>
-
-    <!-- 3. POR QUÉ -->
-    <div class="qkt-panel qkt-panel--info">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-lightbulb" aria-hidden="true"></i> Por qué</h2></div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Servicio</th><th class="qkt-der">Deja por día ocupado</th><th class="qkt-der">En el plan</th><th class="qkt-der">Contribución</th></tr></thead>
-                <tbody>
-                {% for f in filas %}{% with s=f.servicio %}
-                    <tr><th>{{ f.nombre }}</th>
-                        {% if s %}
-                        <td class="qkt-der qkt-num">{{ s.mc_dia|moneda|default:"—" }}</td>
-                        <td class="qkt-der qkt-num">{{ s.unidades }}{% if f.tipo == 'HOSPEDAJE' %} noches-hab.{% elif f.tipo == 'EVENTO' %} eventos{% else %} pasadías{% endif %}</td>
-                        <td class="qkt-der qkt-num">{{ s.contribucion|moneda }}</td>
-                        {% else %}
-                        <td class="qkt-der" colspan="3">Sin precio: no entra al cálculo.</td>
-                        {% endif %}</tr>
-                {% endwith %}{% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% for f in filas %}{% with s=f.servicio %}{% if s and not s.entra %}
-        <p class="qkt-panel__cuerpo">
-            {% if s.mc <= 0 %}{{ f.nombre }} no entra: con ese costo no deja margen.
-            {% elif s.umbral %}{{ f.nombre }} no entra al plan: entraría si dejara más de {{ s.umbral.mc_dia|moneda }} por día, o sea con un precio de {{ s.umbral.precio|moneda }} con IVA.
-            {% else %}{{ f.nombre }} no entra: no tiene días libres en el calendario.{% endif %}
-        </p>
-        {% endif %}{% endwith %}{% endfor %}
-    </div>
-
-    <!-- 4. QUÉ PASA SI NO LLENO TODO -->
-    <div class="qkt-panel qkt-panel--alerta">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-percentage" aria-hidden="true"></i> Qué pasa si no lleno todo</h2></div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Si logras…</th><th class="qkt-der">Contribución</th><th class="qkt-der">Utilidad del año</th></tr></thead>
-                <tbody>
-                {% for e in plan.escenarios %}
-                    <tr{% if e.pct == 100 %} class="qkt-tabla__destacado"{% endif %}><th>{{ e.pct }} % del plan</th>
-                        <td class="qkt-der qkt-num">{{ e.contribucion|moneda }}</td>
-                        <td class="qkt-der qkt-num">{{ e.utilidad|moneda }}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <p class="qkt-panel__cuerpo">
-            {% if plan.equilibrio.dias is None %}Con estos números el plan no cubre los costos fijos.
-            {% elif plan.equilibrio.alcanza %}Para cubrir los costos fijos hay que vender {{ plan.equilibrio.dias }} día{{ plan.equilibrio.dias|pluralize }} del plan ({{ plan.equilibrio.pct_plan }} % del plan).
-            {% else %}Ni vendiendo todo el plan se cubren los costos fijos: harían falta {{ plan.equilibrio.dias }} días ocupados y el plan solo tiene {{ plan.dias_ocupados }}.{% endif %}
-        </p>
-    </div>
-
-    <!-- 5. MES POR MES -->
-    <div class="qkt-panel">
-        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Mes por mes</h2></div>
-        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
-            <table class="qkt-tabla">
-                <thead><tr><th>Mes</th><th class="qkt-der">Eventos</th><th class="qkt-der">Pasadías</th><th class="qkt-der">Noches-hab.</th><th class="qkt-der">Venta neta</th><th class="qkt-der">Utilidad</th></tr></thead>
-                <tbody>
-                {% for m in plan.meses %}
-                    <tr><th>{{ m.etiqueta }}</th><td class="qkt-der qkt-num">{{ m.eventos }}</td><td class="qkt-der qkt-num">{{ m.pasadias }}</td><td class="qkt-der qkt-num">{{ m.noches }}</td>
-                        <td class="qkt-der qkt-num">{{ m.venta|moneda }}</td><td class="qkt-der qkt-num">{{ m.utilidad|moneda }}</td></tr>
-                {% endfor %}
-                    <tr class="qkt-tabla__destacado"><th>Año</th><td class="qkt-der qkt-num">{{ plan.unidades.EVENTO }}</td><td class="qkt-der qkt-num">{{ plan.unidades.PASADIA }}</td><td class="qkt-der qkt-num">{{ plan.unidades.HOSPEDAJE }}</td>
-                        <td class="qkt-der qkt-num">{{ plan.venta|moneda }}</td><td class="qkt-der qkt-num">{{ plan.utilidad|moneda }}</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="qkt-panel__cuerpo">El costo fijo del año se reparte entre 12 meses.</p>
+    {% if avisos %}
+    <div class="qkt-aviso qkt-aviso--alerta">
+        <span class="qkt-aviso__titulo">Revisa</span>
+        <ul>{% for aviso in avisos %}<li>{{ aviso }}</li>{% endfor %}</ul>
     </div>
     {% endif %}
+
+    <div class="qkt-plan">
+        <form method="post" class="qkt-panel" action="{% url 'indicadores:plan' %}">
+            {% csrf_token %}
+            <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-pen" aria-hidden="true"></i> Tus números</h2></div>
+            <div class="qkt-panel__cuerpo">
+                {% if form.non_field_errors %}<div class="qkt-aviso qkt-aviso--error">{{ form.non_field_errors }}</div>{% endif %}
+                <label class="qkt-campo"><span class="qkt-campo__label">Año</span>
+                    {{ form.anio }}{% if form.anio.errors %}<span class="qkt-campo__error">{{ form.anio.errors.0 }}</span>{% endif %}</label>
+                <label class="qkt-campo"><span class="qkt-campo__label">Costos fijos del año</span>
+                    {{ form.cf_anual }}{% if form.cf_anual.errors %}<span class="qkt-campo__error">{{ form.cf_anual.errors.0 }}</span>{% endif %}</label>
+            </div>
+            <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+                <table class="qkt-tabla qkt-tabla--captura qkt-tabla--compacta">
+                    <thead><tr><th>Servicio</th><th>Precio con IVA</th><th>Costo</th></tr></thead>
+                    <tbody>
+                    {% for c in campos %}
+                        <tr><th>{% if c.tipo == 'EVENTO' %}Evento{% elif c.tipo == 'PASADIA' %}Pasadía{% else %}Hospedaje <span class="qkt-campo__ayuda">por habitación-noche</span>{% endif %}</th>
+                            <td>{{ c.precio }}{% if c.precio.errors %}<span class="qkt-campo__error">{{ c.precio.errors.0 }}</span>{% endif %}</td>
+                            <td>{{ c.costo }}{% if c.costo.errors %}<span class="qkt-campo__error">{{ c.costo.errors.0 }}</span>{% endif %}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="qkt-panel__cuerpo">
+                <span class="qkt-campo__ayuda">Sin precio, el servicio no entra.</span>
+                <div class="qkt-botonera">
+                    <button type="submit" name="accion" value="calcular" class="qkt-btn qkt-btn--primario"><i class="fas fa-calculator" aria-hidden="true"></i> Calcular</button>
+                    <button type="submit" name="accion" value="guardar" class="qkt-btn qkt-btn--secundario" data-qkt-confirmar="Estos números pasan a ser los Parámetros vigentes. El juego anterior se conserva como histórico."><i class="fas fa-save" aria-hidden="true"></i> Guardar estos números</button>
+                </div>
+                <div class="qkt-botonera">
+                    <a class="qkt-btn qkt-btn--secundario qkt-btn--sm" href="{% url 'admin:indicadores_parametrosnegocio_changelist' %}"><i class="fas fa-sliders-h" aria-hidden="true"></i> Ajustes avanzados</a>
+                </div>
+            </div>
+        </form>
+
+        <div>
+            {% if plan %}
+            <p class="qkt-plan__respuesta">{{ plan.frase }}.</p>
+            <div class="qkt-kpis">
+                <div class="qkt-kpi qkt-kpi--destacado qkt-kpi--{% if plan.utilidad >= 0 %}exito{% else %}error{% endif %}"><div class="qkt-kpi__label">Utilidad del año</div><div class="qkt-kpi__valor">{{ plan.utilidad|moneda }}</div><div class="qkt-kpi__sub">{{ plan.dias_ocupados }} de {{ plan.dias_disponibles }} días</div></div>
+                <div class="qkt-kpi"><div class="qkt-kpi__label">Venta neta</div><div class="qkt-kpi__valor">{{ plan.venta|moneda }}</div><div class="qkt-kpi__sub">Sin IVA</div></div>
+                <div class="qkt-kpi"><div class="qkt-kpi__label">Equilibrio</div>
+                    <div class="qkt-kpi__valor">{% if plan.equilibrio.dias is None %}—{% else %}{{ plan.equilibrio.dias }} días{% endif %}</div>
+                    <div class="qkt-kpi__sub">{% if plan.equilibrio.dias is None %}El plan no cubre costos fijos{% elif not plan.equilibrio.alcanza %}El plan solo tiene {{ plan.dias_ocupados }} días{% else %}{{ plan.equilibrio.pct_plan }} % del plan{% endif %}</div></div>
+            </div>
+            {% if plan.vacio %}<div class="qkt-aviso qkt-aviso--alerta">Ningún servicio deja margen con estos números.</div>{% endif %}
+
+            <div class="qkt-panel">
+                <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-list" aria-hidden="true"></i> Qué vender</h2></div>
+                <div class="qkt-panel__cuerpo--tabla">
+                    <table class="qkt-tabla">
+                        <thead><tr><th>Servicio</th><th class="qkt-der">En el plan</th><th class="qkt-der">Deja por día</th></tr></thead>
+                        <tbody>
+                        {% for f in filas %}{% with s=f.servicio %}
+                            <tr><th>{{ f.nombre }}</th>
+                            {% if not s %}
+                                <td class="qkt-der" colspan="2">Sin precio</td>
+                            {% elif s.entra %}
+                                <td class="qkt-der qkt-num">{{ s.unidades }}{% if f.tipo == 'HOSPEDAJE' %} noches-hab.{% elif f.tipo == 'EVENTO' %} eventos{% else %} pasadías{% endif %}</td>
+                                <td class="qkt-der qkt-num">{{ s.mc_dia|moneda|default:"—" }}</td>
+                            {% else %}
+                                <td class="qkt-der">No entra <span class="qkt-badge qkt-badge--alerta">{% if s.mc <= 0 %}Sin margen{% elif s.umbral %}Entra desde {{ s.umbral.precio|moneda }}{% else %}Sin días libres{% endif %}</span></td>
+                                <td class="qkt-der qkt-num">{{ s.mc_dia|moneda|default:"—" }}</td>
+                            {% endif %}</tr>
+                        {% endwith %}{% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="qkt-panel__cuerpo">
+                    <details class="qkt-desplegable">
+                        <summary>Mes por mes</summary>
+                        <div class="qkt-panel__cuerpo--tabla">
+                            <table class="qkt-tabla qkt-tabla--compacta">
+                                <thead><tr><th>Mes</th><th class="qkt-der">Eventos</th><th class="qkt-der">Pasadías</th><th class="qkt-der">Noches-hab.</th><th class="qkt-der">Venta</th><th class="qkt-der">Utilidad</th></tr></thead>
+                                <tbody>
+                                {% for m in plan.meses %}
+                                    <tr><th>{{ m.etiqueta }}</th><td class="qkt-der qkt-num">{{ m.eventos }}</td><td class="qkt-der qkt-num">{{ m.pasadias }}</td><td class="qkt-der qkt-num">{{ m.noches }}</td>
+                                        <td class="qkt-der qkt-num">{{ m.venta|moneda }}</td><td class="qkt-der qkt-num">{{ m.utilidad|moneda }}</td></tr>
+                                {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr><th>Año</th><td class="qkt-der qkt-num">{{ plan.unidades.EVENTO }}</td><td class="qkt-der qkt-num">{{ plan.unidades.PASADIA }}</td><td class="qkt-der qkt-num">{{ plan.unidades.HOSPEDAJE }}</td>
+                                        <td class="qkt-der qkt-num">{{ plan.venta|moneda }}</td><td class="qkt-der qkt-num">{{ plan.utilidad|moneda }}</td></tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endblock %}

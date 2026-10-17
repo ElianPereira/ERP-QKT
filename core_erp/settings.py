@@ -628,6 +628,9 @@ JAZZMIN_SETTINGS = {
         "comercial.Producto",
         # Bitácora de avisos de vencimiento (solo lectura, se consulta desde Cumplimiento)
         "cumplimiento.AvisoVencimiento",
+        # Se capturan desde «Plan del año» («Ajustes avanzados» abre Parámetros); siguen accesibles por URL
+        "indicadores.ParametrosNegocio",
+        "indicadores.MetaMensual",
     ],
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -746,12 +749,12 @@ JAZZMIN_SETTINGS = {
             "icon": "fas fa-mobile-alt",
             "permissions": ["auth.view_user"],
         }],
-        "indicadores": [{
-            "name": "Plan óptimo",
-            "url": "indicadores:plan",
-            "icon": "fas fa-th-large",
-            "permissions": ["indicadores.view_metamensual"],
-        }],
+        "indicadores": [
+            {"name": "Este mes", "url": "indicadores:tablero", "icon": "fas fa-chart-line",
+             "permissions": ["indicadores.view_metamensual"]},
+            {"name": "Plan del año", "url": "indicadores:plan", "icon": "fas fa-th-large",
+             "permissions": ["indicadores.view_metamensual"]},
+        ],
         "cumplimiento": [{
             "name": "Tablero",
             "url": "cumplimiento:tablero",
