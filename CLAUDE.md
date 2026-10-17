@@ -269,6 +269,18 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-17 — **Indicadores: la mezcla óptima usa solo precio de venta y costo directo**
+  (pedido del propietario: el ticket de Evento salía en $344.82 porque el promedio histórico
+  tenía una sola venta, COT-127). `ParametrosNegocio` gana `precio_venta_*` (con IVA, se pasa a
+  neto con `impuestos.sin_iva`) y `costo_directo_*` (pesos sin IVA) por servicio (migración
+  `indicadores.0002`; el resto son `help_text`). En `mezcla._unidad` el precio se toma
+  simulado > Parámetros > promedio histórico y el costo simulado (%) > costo directo > % de
+  respaldo > histórico; el **hospedaje de Parámetros es por noche** (1 día por unidad) y la
+  mezcla real del mes anterior se valúa con ese mismo margen. Costos fijos, equilibrio,
+  capacidad y metas **no cambian**. Sin precio capturado se avisa con el tamaño de la muestra.
+  Admin: Parámetros y Metas en pestañas con explicación por sección, días de venta con
+  casillas (`ParametrosNegocioForm`, se guarda la misma cadena ISO), panel «Qué sale de esto»
+  con la prioridad por margen por día y alta de Metas prellenada con el mes actual.
 - 2026-10-16 — **Módulo Indicadores** (Issue #402; solo superusuario, solo lectura
   sobre datos existentes + `ParametrosNegocio`/`MetaMensual`, migración
   `indicadores.0001` solo crea tablas). Tablero en `admin/indicadores/tablero/`,

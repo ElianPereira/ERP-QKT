@@ -45,12 +45,12 @@
 
 <h2 class="doc-seccion">Mezcla óptima</h2>
 <table class="doc-tabla">
-  <thead><tr><th>Servicio</th><th class="num">Fin de semana</th><th class="num">Entre semana</th><th class="num">Unidades</th><th class="num">Días</th><th class="num col-monto">Ingreso</th><th class="num col-monto">Contribución</th><th class="num">Real mes anterior</th></tr></thead>
+  <thead><tr><th>Servicio</th><th class="num col-monto">Precio neto</th><th class="num col-monto">Costo directo</th><th class="num">Fin de semana</th><th class="num">Entre semana</th><th class="num">Unidades</th><th class="num">Días</th><th class="num col-monto">Ingreso</th><th class="num col-monto">Contribución</th><th class="num">Real mes anterior</th></tr></thead>
   <tbody>
     {% for f in d.mezcla.filas %}
-    <tr><td class="negrita">{{ f.nombre }}</td><td class="num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="num">{{ f.segmentos.ENTRE_SEMANA }}</td><td class="num">{{ f.unidades }}</td><td class="num">{{ f.dias }}</td><td class="num">{{ f.ingreso|moneda }}</td><td class="num">{{ f.contribucion|moneda }}</td><td class="num">{{ f.real_unidades }}</td></tr>
+    <tr><td class="negrita">{{ f.nombre }}</td><td class="num">{{ f.precio|moneda|default:"—" }}</td><td class="num">{{ f.costo|moneda|default:"—" }}</td><td class="num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="num">{{ f.segmentos.ENTRE_SEMANA }}</td><td class="num">{{ f.unidades }}</td><td class="num">{{ f.dias }}</td><td class="num">{{ f.ingreso|moneda }}</td><td class="num">{{ f.contribucion|moneda }}</td><td class="num">{{ f.real_unidades }}</td></tr>
     {% endfor %}
-    <tr class="total"><td colspan="6">Contribución óptima · utilidad {{ d.mezcla.utilidad|moneda }} · brecha contra lo real {{ d.mezcla.brecha|moneda }}</td><td class="num">{{ d.mezcla.contribucion|moneda }}</td><td></td></tr>
+    <tr class="total"><td colspan="8">Contribución óptima · utilidad {{ d.mezcla.utilidad|moneda }} · brecha contra lo real {{ d.mezcla.brecha|moneda }}</td><td class="num">{{ d.mezcla.contribucion|moneda }}</td><td></td></tr>
   </tbody>
 </table>
 

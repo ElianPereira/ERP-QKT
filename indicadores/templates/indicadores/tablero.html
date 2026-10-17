@@ -116,10 +116,12 @@
         {% with mz=d.mezcla %}
         <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
             <table class="qkt-tabla">
-                <thead><tr><th>Servicio</th><th class="qkt-der">Margen por día</th><th class="qkt-der">Fin de semana</th><th class="qkt-der">Entre semana</th><th class="qkt-der">Unidades</th><th class="qkt-der">Días</th><th class="qkt-der">Ingreso</th><th class="qkt-der">Contribución</th><th class="qkt-der">Mes anterior (real)</th></tr></thead>
+                <thead><tr><th>Servicio</th><th class="qkt-der">Precio neto</th><th class="qkt-der">Costo directo</th><th class="qkt-der">Margen por día</th><th class="qkt-der">Fin de semana</th><th class="qkt-der">Entre semana</th><th class="qkt-der">Unidades</th><th class="qkt-der">Días</th><th class="qkt-der">Ingreso</th><th class="qkt-der">Contribución</th><th class="qkt-der">Mes anterior (real)</th></tr></thead>
                 <tbody>
                 {% for f in mz.filas %}
-                    <tr><th>{{ f.nombre }}{% if f.fuente_costo != 'medido' %} <span class="qkt-badge qkt-badge--neutro">{{ f.fuente_costo|capfirst }}</span>{% endif %}</th>
+                    <tr><th>{{ f.nombre }}{% if f.por_noche %} <span class="qkt-badge qkt-badge--neutro">Por noche</span>{% endif %}</th>
+                        <td class="qkt-der qkt-num">{{ f.precio|moneda|default:"—" }}{% if f.fuente_precio and f.fuente_precio != 'parámetros' %} <span class="qkt-badge qkt-badge--neutro">{{ f.fuente_precio|capfirst }}</span>{% endif %}</td>
+                        <td class="qkt-der qkt-num">{{ f.costo|moneda|default:"—" }}{% if f.fuente_costo and f.fuente_costo != 'parámetros' %} <span class="qkt-badge qkt-badge--neutro">{{ f.fuente_costo|capfirst }}</span>{% endif %}</td>
                         <td class="qkt-der qkt-num">{{ f.mc_dia|moneda|default:"—" }}</td>
                         <td class="qkt-der qkt-num">{{ f.segmentos.FIN_DE_SEMANA }}</td><td class="qkt-der qkt-num">{{ f.segmentos.ENTRE_SEMANA }}</td>
                         <td class="qkt-der qkt-num">{{ f.unidades }}</td><td class="qkt-der qkt-num">{{ f.dias }}</td>
@@ -128,9 +130,9 @@
                 {% endfor %}
                 </tbody>
                 <tfoot>
-                    <tr><th>Contribución óptima</th><td colspan="6"></td><td class="qkt-der qkt-num">{{ mz.contribucion|moneda }}</td><td class="qkt-der qkt-num">{{ mz.real.contribucion|moneda }}</td></tr>
-                    <tr><th>Utilidad (− costos fijos {{ mz.cf|moneda }})</th><td colspan="6"></td><td class="qkt-der qkt-num">{{ mz.utilidad|moneda }}</td><td></td></tr>
-                    <tr><th>Brecha contra la mezcla real de {{ mz.real.mes|stringformat:"02d" }}/{{ mz.real.anio|stringformat:"d" }}</th><td colspan="6"></td><td class="qkt-der qkt-num">{{ mz.brecha|moneda }}</td><td></td></tr>
+                    <tr><th>Contribución óptima</th><td colspan="8"></td><td class="qkt-der qkt-num">{{ mz.contribucion|moneda }}</td><td class="qkt-der qkt-num">{{ mz.real.contribucion|moneda }}</td></tr>
+                    <tr><th>Utilidad (− costos fijos {{ mz.cf|moneda }})</th><td colspan="8"></td><td class="qkt-der qkt-num">{{ mz.utilidad|moneda }}</td><td></td></tr>
+                    <tr><th>Brecha contra la mezcla real de {{ mz.real.mes|stringformat:"02d" }}/{{ mz.real.anio|stringformat:"d" }}</th><td colspan="8"></td><td class="qkt-der qkt-num">{{ mz.brecha|moneda }}</td><td></td></tr>
                 </tfoot>
             </table>
         </div>

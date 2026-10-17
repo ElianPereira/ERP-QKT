@@ -59,8 +59,8 @@ class AdminSoloDireccionTest(TestCase):
         login_superuser_con_totp(self.client, self.direccion)
         r = self.client.post(reverse('admin:indicadores_parametrosnegocio_add'), {
             'vigente_desde': '2026-10-01', 'activo': 'on', 'inicio_datos': '2026-07-01',
-            'meses_promedio': 3, 'dias_evento': '567', 'dias_pasadia': '1234567',
-            'dias_hospedaje': '1234567', 'max_eventos_semana': 2, 'dias_preparacion_evento': 0,
+            'meses_promedio': 3, 'dias_evento': ['5', '6', '7'], 'dias_pasadia': list('1234567'),
+            'dias_hospedaje': list('1234567'), 'max_eventos_semana': 2, 'dias_preparacion_evento': 0,
             'pct_costo_variable_evento': '35', 'pct_costo_variable_pasadia': '15',
             'pct_costo_variable_hospedaje': '10', 'utilidad_mensual_objetivo': '0',
         })
@@ -81,3 +81,49 @@ class AdminSoloDireccionTest(TestCase):
         r = self.client.post(reverse('admin:indicadores_parametrosnegocio_delete', args=[p.pk]), {'post': 'yes'})
         self.assertEqual(r.status_code, 403)
         self.assertTrue(ParametrosNegocio.objects.filter(pk=p.pk).exists())
+
+    def test_dias_se_eligen_con_casillas_y_se_guardan_como_cadena(self):
+        login_superuser_con_totp(self.client, self.direccion)
+        p = ParametrosNegocio.objects.create(dias_evento='67')
+        url = reverse('admin:indicadores_parametrosnegocio_change', args=[p.pk])
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'qkt-dias')
+        self.assertContains(r, 'Qué sale de esto')
+        datos = {
+            'vigente_desde': '2026-10-01', 'activo': 'on', 'inicio_datos': '2026-07-01', 'meses_promedio': 3,
+            'dias_evento': ['6', '5', '7'], 'dias_pasadia': ['1', '2'], 'dias_hospedaje': [],
+            'max_eventos_semana': 2, 'dias_preparacion_evento': 0, 'pct_costo_variable_evento': '35',
+            'pct_costo_variable_pasadia': '15', 'pct_costo_variable_hospedaje': '10',
+            'utilidad_mensual_objetivo': '0',
+        }
+        self.assertEqual(self.client.post(url, datos).status_code, 302)
+        p.refresh_from_db()
+        self.assertEqual((p.dias_evento, p.dias_pasadia, p.dias_hospedaje), ('567', '12', ''))
+
+    def test_costo_directo_no_puede_igualar_el_precio_sin_iva(self):
+        p = ParametrosNegocio(precio_venta_pasadia=Decimal('1500.00'), costo_directo_pasadia=Decimal('1293.10'))
+        with self.assertRaises(ValidationError) as ctx:
+            p.full_clean()
+        self.assertIn('costo_directo_pasadia', ctx.exception.message_dict)
+        p.costo_directo_pasadia = Decimal('200.00')
+        p.full_clean()
+
+    def test_formularios_de_alta_cargan_con_las_secciones_nuevas(self):
+        login_superuser_con_totp(self.client, self.direccion)
+        r = self.client.get(reverse('admin:indicadores_parametrosnegocio_add'))
+        self.assertContains(r, 'Captura el precio de venta')
+        r = self.client.get(reverse('admin:indicadores_metamensual_add'))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Proponer desde equilibrio')
+        self.assertEqual(r.context['adminform'].form.initial['anio'], date.today().year)
+
+    def test_resumen_muestra_prioridad_por_margen_por_dia(self):
+        login_superuser_con_totp(self.client, self.direccion)
+        p = ParametrosNegocio.objects.create(
+            precio_venta_pasadia=Decimal('1500.00'), costo_directo_pasadia=Decimal('150.00'),
+            precio_venta_hospedaje=Decimal('1900.00'), costo_directo_hospedaje=Decimal('100.00'))
+        r = self.client.get(reverse('admin:indicadores_parametrosnegocio_change', args=[p.pk]))
+        html = r.content.decode()
+        self.assertLess(html.index('1. Hospedaje'), html.index('2. Pasadía'))
+        self.assertNotIn('Evento</th><td', html.split('Qué sale de esto')[1].split('</table>')[0])

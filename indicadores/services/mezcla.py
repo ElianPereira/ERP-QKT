@@ -4,6 +4,10 @@ Mezcla óptima de servicios (Issue #402)
 Pregunta: con los días que tengo este mes, ¿qué combinación de eventos,
 pasadías y hospedaje maximiza la utilidad?
 
+**Qué entra por servicio.** Solo el precio de venta y su costo directo (ver `_unidad`): los
+capturados en Parámetros; sin ellos, el promedio histórico. Costos fijos, equilibrio y capacidad
+siguen calculándose como antes y no condicionan qué mezcla es la más rentable.
+
 **Modelo.** El recurso escaso es el día-quinta (un solo servicio por día). Los
 días vendibles del mes (sin bloqueos) se agrupan en dos segmentos, **fin de
 semana (vie-dom)** y **entre semana (lun-jue)**, y dentro de cada segmento en
@@ -32,10 +36,13 @@ from datetime import date
 from decimal import Decimal
 from typing import Dict, List, Optional
 
+from core_erp.impuestos import sin_iva
+
 from ..models import ParametrosNegocio
 from .base import (
     D0,
     ETIQUETAS,
+    MIN_MUESTRA,
     TIPOS,
     corte,
     dias_bloqueados,
@@ -152,6 +159,59 @@ def asignar_optimo(bolsas: Dict[tuple, Decimal], servicios: List[dict]) -> Dict[
     return mejor
 
 
+def referencia(p: ParametrosNegocio, tipo: str) -> Optional[dict]:
+    """
+    Precio y costo directo capturados en Parámetros para `tipo`, o `None` si no hay precio.
+    El precio se captura con IVA; todo lo demás va sin IVA. Sin costo directo en pesos, se usa
+    el % de respaldo sobre el precio neto.
+    """
+    precio = p.precio_de(tipo)
+    if precio is None:
+        return None
+    neto = q2(sin_iva(precio))
+    directo = p.costo_directo_de(tipo)
+    if directo is None:
+        costo, fuente = q2(neto * p.pct_costo_de(tipo) / 100), 'estimado'
+    else:
+        costo, fuente = q2(directo), 'parámetros'
+    return {'neto': neto, 'costo': costo, 'mc': neto - costo, 'fuente_costo': fuente}
+
+
+def _unidad(tipo: str, e: dict, p: ParametrosNegocio, overrides: dict) -> dict:
+    """
+    Lo único que entra a la mezcla por servicio: precio neto, costo directo y días que ocupa.
+    Precio: simulado > Parámetros > promedio histórico. Costo: simulado (%) > costo directo de
+    Parámetros (o su % de respaldo) > costo histórico. El hospedaje de Parámetros es por noche.
+    """
+    ticket_sim = overrides.get(f'ticket_{tipo}')
+    ref = referencia(p, tipo)
+    por_noche = False
+    if ticket_sim is not None:
+        ticket, fuente_precio = q2(ticket_sim), 'simulado'
+    elif ref:
+        ticket, fuente_precio, por_noche = ref['neto'], 'parámetros', tipo == 'HOSPEDAJE'
+    else:
+        ticket, fuente_precio = e['ticket'], 'histórico'
+    if ticket is None:
+        return {'ticket': None}
+
+    pct_sim = overrides.get(f'costo_pct_{tipo}')
+    directo = p.costo_directo_de(tipo)
+    if pct_sim is not None:
+        costo, fuente_costo = q2(ticket * Decimal(pct_sim) / 100), 'simulado'
+    elif fuente_precio != 'histórico' and directo is not None:
+        costo, fuente_costo = q2(directo), 'parámetros'
+    elif fuente_precio != 'histórico':
+        costo, fuente_costo = q2(ticket * p.pct_costo_de(tipo) / 100), 'estimado'
+    else:
+        costo, fuente_costo = e['costo_variable'], e['fuente_costo']
+    return {
+        'ticket': ticket, 'costo': costo, 'mc': ticket - costo, 'fuente_precio': fuente_precio,
+        'fuente_costo': fuente_costo, 'por_noche': por_noche,
+        'dias_unidad': Decimal(1) if por_noche else e['dias_por_unidad'],
+    }
+
+
 def _bolsas(desde: date, hasta: date, p: ParametrosNegocio) -> Dict[tuple, Decimal]:
     bloqueados = dias_bloqueados(desde, hasta)
     bolsas = {}
@@ -188,9 +248,21 @@ class MezclaOptimaService:
         candidatos, avisos = [], list(economia['avisos'])
         for tipo in TIPOS:
             e = economia['tipos'][tipo]
-            if e['mc_dia'] is None:
+            u = _unidad(tipo, e, p, overrides)
+            nombre = ETIQUETAS[tipo]
+            if u['ticket'] is None:
+                avisos.append(f'{nombre}: sin precio de venta en Parámetros ni ventas que promediar; '
+                              'no entra a la mezcla.')
                 continue
-            dias_unidad = e['dias_por_unidad']
+            if u['fuente_precio'] == 'histórico':
+                avisos.append(
+                    f'{nombre}: sin precio de venta en Parámetros; se usa el promedio de '
+                    f'{e["ventas"]} venta(s) real(es).' + (
+                        ' Es una muestra chica: captura el precio en Parámetros.' if e['ventas'] < MIN_MUESTRA else ''))
+            if u['mc'] <= 0:
+                avisos.append(f'{nombre}: el costo directo iguala o rebasa al precio; no entra a la mezcla.')
+                continue
+            dias_unidad = u['dias_unidad']
             if tipo == 'EVENTO':
                 dias_unidad = Decimal(1 + p.dias_preparacion_evento)
             tope = overrides.get(f'demanda_{tipo}', p.demanda_de(tipo))
@@ -199,7 +271,8 @@ class MezclaOptimaService:
                 tope = maximo if tope is None else min(int(tope), maximo)
             candidatos.append({
                 'tipo': tipo, 'dias_unidad': dias_unidad, 'tope': None if tope is None else int(tope),
-                'mc_dia': q2(e['mc'] / dias_unidad), 'mc': e['mc'], 'ticket': e['ticket'],
+                'mc_dia': q2(u['mc'] / dias_unidad), 'mc': u['mc'], 'ticket': u['ticket'], 'costo': u['costo'],
+                'fuente_precio': u['fuente_precio'], 'fuente_costo': u['fuente_costo'], 'por_noche': u['por_noche'],
             })
         candidatos.sort(key=lambda c: (-c['mc_dia'], TIPOS.index(c['tipo'])))
 
@@ -220,10 +293,13 @@ class MezclaOptimaService:
                 'tipo': tipo, 'nombre': ETIQUETAS[tipo], 'unidades': unidades, 'segmentos': segmentos,
                 'dias': q2(dias), 'ingreso': q2(venta), 'contribucion': q2(mc),
                 'mc_dia': c['mc_dia'] if c else None, 'tope': c['tope'] if c else None,
-                'fuente_costo': economia['tipos'][tipo]['fuente_costo'],
+                'precio': c['ticket'] if c else None, 'costo': c['costo'] if c else None,
+                'fuente_precio': c['fuente_precio'] if c else None,
+                'fuente_costo': c['fuente_costo'] if c else None,
+                'por_noche': c['por_noche'] if c else False,
             })
 
-        real = cls._real(anio, mes, p, economia)
+        real = cls._real(anio, mes, p, por_tipo)
         for fila in filas:
             fila['real_unidades'] = real['unidades'][fila['tipo']]
         cf = costos['cf']
@@ -238,12 +314,15 @@ class MezclaOptimaService:
         }
 
     @staticmethod
-    def _real(anio: int, mes: int, p, economia: dict) -> Dict:
-        """Mezcla real del mes anterior valuada con el MC unitario de la ventana de promedio."""
+    def _real(anio: int, mes: int, p, por_tipo: dict) -> Dict:
+        """Mezcla real del mes anterior valuada con el mismo margen unitario que la mezcla óptima."""
         a, m = mes_anterior(anio, mes)
         previo = EconomiaUnitariaService.generar(*mes_rango(a, m), parametros=p)
-        unidades = {t: previo['tipos'][t]['ventas'] for t in TIPOS}
-        contribucion = sum(
-            (unidades[t] * economia['tipos'][t]['mc'] for t in TIPOS if economia['tipos'][t]['mc'] is not None), D0)
-        return {'anio': a, 'mes': m, 'unidades': unidades, 'contribucion': q2(contribucion),
-                'dias': sum(previo['tipos'][t]['dias'] for t in TIPOS)}
+        unidades, dias = {}, 0
+        for t in TIPOS:
+            fila = previo['tipos'][t]
+            noches = por_tipo.get(t, {}).get('por_noche')
+            unidades[t] = fila['noches'] if noches else fila['ventas']
+            dias += fila['dias']
+        contribucion = sum((unidades[t] * por_tipo[t]['mc'] for t in TIPOS if t in por_tipo), D0)
+        return {'anio': a, 'mes': m, 'unidades': unidades, 'contribucion': q2(contribucion), 'dias': dias}

@@ -333,6 +333,56 @@ class MezclaTest(MesArmado):
         self.assertEqual(m['contribucion'], D('107250.00'))
         self.assertEqual(m['brecha'], D('59150.00'))
 
+    def test_con_precio_y_costo_directo_solo_cuentan_esos_dos_datos(self):
+        # Precios con IVA: neto 3,448.28 / 1,293.10 / 1,637.93 por noche; el histórico de febrero se ignora.
+        self.p.precio_venta_evento, self.p.costo_directo_evento = D('4000.00'), D('1000.00')
+        self.p.precio_venta_pasadia, self.p.costo_directo_pasadia = D('1500.00'), D('150.00')
+        self.p.precio_venta_hospedaje, self.p.costo_directo_hospedaje = D('1900.00'), D('100.00')
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        filas = {f['tipo']: f for f in m['filas']}
+        self.assertEqual(filas['EVENTO']['precio'], D('3448.28'))
+        self.assertEqual(filas['EVENTO']['costo'], D('1000.00'))
+        self.assertEqual(filas['EVENTO']['mc_dia'], D('2448.28'))
+        self.assertEqual(filas['PASADIA']['mc_dia'], D('1143.10'))
+        self.assertEqual(filas['HOSPEDAJE']['mc_dia'], D('1537.93'))
+        self.assertTrue(filas['HOSPEDAJE']['por_noche'])
+        self.assertEqual({f['fuente_precio'] for f in m['filas']}, {'parámetros'})
+        self.assertEqual({f['fuente_costo'] for f in m['filas']}, {'parámetros'})
+        # Evento (9) en los fines de semana permitidos; el resto, lo que más deja por noche: hospedaje.
+        self.assertEqual((filas['EVENTO']['unidades'], filas['PASADIA']['unidades'], filas['HOSPEDAJE']['unidades']),
+                         (9, 0, 19))
+        self.assertEqual(m['contribucion'], 9 * D('2448.28') + 19 * D('1537.93'))
+
+    def test_sin_costo_directo_usa_el_porcentaje_de_respaldo(self):
+        self.p.precio_venta_pasadia = D('1500.00')
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        fila = next(f for f in m['filas'] if f['tipo'] == 'PASADIA')
+        self.assertEqual((fila['precio'], fila['costo'], fila['fuente_costo']), (D('1293.10'), D('193.97'), 'estimado'))
+
+    def test_sin_precio_en_parametros_usa_el_historico_y_lo_avisa(self):
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        fila = next(f for f in m['filas'] if f['tipo'] == 'EVENTO')
+        self.assertEqual(fila['fuente_precio'], 'histórico')
+        self.assertTrue(any('sin precio de venta en Parámetros' in a for a in m['avisos']))
+
+    def test_costo_directo_que_rebasa_el_precio_saca_al_servicio(self):
+        self.p.precio_venta_evento, self.p.costo_directo_evento = D('1000.00'), D('900.00')
+        m = MezclaOptimaService.generar(2026, 2, self.p, hoy=HOY)
+        self.assertEqual(next(f for f in m['filas'] if f['tipo'] == 'EVENTO')['unidades'], 0)
+        self.assertTrue(any('no entra a la mezcla' in a for a in m['avisos']))
+
+    def test_la_simulacion_manda_sobre_parametros(self):
+        self.p.precio_venta_pasadia, self.p.costo_directo_pasadia = D('1500.00'), D('150.00')
+        m = MezclaOptimaService.generar(2026, 2, self.p, overrides={'ticket_PASADIA': D('2000')}, hoy=HOY)
+        fila = next(f for f in m['filas'] if f['tipo'] == 'PASADIA')
+        self.assertEqual((fila['precio'], fila['costo'], fila['fuente_precio']), (D('2000.00'), D('150.00'), 'simulado'))
+
+    def test_la_mezcla_real_se_valua_con_el_mismo_margen_por_noche(self):
+        self.p.precio_venta_hospedaje, self.p.costo_directo_hospedaje = D('1900.00'), D('100.00')
+        m = MezclaOptimaService.generar(2026, 3, self.p, hoy=HOY)
+        previo = EconomiaUnitariaService.generar(date(2026, 2, 1), date(2026, 2, 28), parametros=self.p)
+        self.assertEqual(m['real']['unidades']['HOSPEDAJE'], previo['tipos']['HOSPEDAJE']['noches'])
+
     def test_la_asignacion_es_optima_contra_fuerza_bruta(self):
         casos = [
             # (días fin de semana, días entre semana, tope eventos, tope pasadías, MC evento, pasadía, hospedaje/día)

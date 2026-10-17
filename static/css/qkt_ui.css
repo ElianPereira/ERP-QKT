@@ -1053,3 +1053,8 @@ body.login-page .main-footer { display: none; }
 /* GRÁFICA (Chart.js dentro de un panel): el contenedor fija la altura, el lienzo se adapta */
 .qkt-grafica { position: relative; height: 280px; padding: 12px 16px 16px; }
 @media (max-width: 767px) { .qkt-grafica { height: 240px; padding: 8px; } }
+
+/* Casillas de días de la semana (Indicadores › Parámetros) */
+.qkt-dias { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.qkt-dias > div { display: inline-flex; align-items: center; margin: 0; }
+.qkt-dias label { display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }

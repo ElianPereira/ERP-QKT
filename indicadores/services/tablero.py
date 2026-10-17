@@ -63,7 +63,7 @@ def campos_simulacion(overrides: dict) -> list:
     from .base import ETIQUETAS
 
     campos = []
-    for prefijo, etiqueta, paso in (('ticket', 'Ticket neto', '0.01'), ('costo_pct', '% costo variable', '0.1'),
+    for prefijo, etiqueta, paso in (('ticket', 'Precio neto', '0.01'), ('costo_pct', '% costo directo', '0.1'),
                                      ('demanda', 'Demanda máxima al mes', '1')):
         for tipo in TIPOS:
             clave = f'{prefijo}_{tipo}'

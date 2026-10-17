@@ -20,9 +20,9 @@ def hojas(d: dict):
     yield ('Costos fijos', ['Mes', *GRUPOS.values(), 'Total', 'Fuente de nómina'],
            [(m['etiqueta'], *(m['por_grupo'][g] for g in GRUPOS), m['total'], m['fuente_nomina'])
             for m in d['costos']['meses']])
-    yield ('Mezcla óptima', ['Servicio', 'Fin de semana', 'Entre semana', 'Unidades', 'Días', 'Ingreso',
-                             'Contribución', 'Real mes anterior'],
-           [(f['nombre'], f['segmentos']['FIN_DE_SEMANA'], f['segmentos']['ENTRE_SEMANA'], f['unidades'],
+    yield ('Mezcla óptima', ['Servicio', 'Precio neto', 'Costo directo', 'Fin de semana', 'Entre semana', 'Unidades',
+                             'Días', 'Ingreso', 'Contribución', 'Real mes anterior'],
+           [(f['nombre'], f['precio'], f['costo'], f['segmentos']['FIN_DE_SEMANA'], f['segmentos']['ENTRE_SEMANA'], f['unidades'],
              f['dias'], f['ingreso'], f['contribucion'], f['real_unidades']) for f in mz['filas']])
     yield ('Comercial', ['Canal', 'Solicitudes', 'Vendidas', 'Conversión (%)', 'Expiración (%)',
                          'Cancelación (%)', 'Venta neta'],
