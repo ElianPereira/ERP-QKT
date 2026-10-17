@@ -114,6 +114,9 @@ class CotizacionEnElChatTest(TestCase):
             self.assertIn('error', _ejecutar(self.conv, **{**self.datos, 'personas': 31})[0])
             with patch.object(herramientas_agente, 'verificar_disponibilidad_rango', return_value=(False, '')):
                 self.assertIn('error', _ejecutar(self.conv, **self.datos)[0])
+            # Para hoy, aunque esté libre, lo confirma una persona.
+            hoy = {**self.datos, 'fecha': timezone.localdate().isoformat()}
+            self.assertIn('pasar_a_humano', _ejecutar(self.conv, **hoy)[0]['error'])
         self.assertFalse(Cotizacion.objects.exists())
 
     def test_tope_diario_por_numero(self):

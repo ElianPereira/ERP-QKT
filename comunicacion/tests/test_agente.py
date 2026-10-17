@@ -424,6 +424,18 @@ class HerramientasTest(TestCase):
         self.assertFalse(r['disponible'])
         self.assertNotIn('COT', json.dumps(r))
 
+    def test_el_mismo_dia_no_se_da_por_disponible_aunque_este_libre(self):
+        hoy = timezone.localdate().isoformat()
+        with patch.object(herramientas_agente, 'verificar_disponibilidad_rango', return_value=(True, '')):
+            r = herramientas_agente.consultar_disponibilidad(fecha=hoy)
+            manana = herramientas_agente.consultar_disponibilidad(
+                fecha=(timezone.localdate() + timedelta(days=1)).isoformat())
+        self.assertFalse(r['disponible'])
+        self.assertTrue(r['requiere_confirmacion_del_equipo'])
+        self.assertIn('pasar_a_humano', r['nota'])
+        self.assertTrue(manana['disponible'])
+        self.assertNotIn('requiere_confirmacion_del_equipo', manana)
+
     def test_fecha_pasada_o_mal_escrita_regresa_error(self):
         self.assertIn('error', herramientas_agente.consultar_disponibilidad(fecha='2020-01-01'))
         self.assertIn('error', herramientas_agente.consultar_disponibilidad(fecha='sábado'))
@@ -476,6 +488,8 @@ class HerramientasTest(TestCase):
         preguntas = {p['pregunta'] for p in herramientas_agente.preguntas_frecuentes()['preguntas']}
         self.assertIn('¿Puedo llevar a mi mascota?', preguntas)
         self.assertIn('¿Incluyen hielo?', preguntas)
+        self.assertIn('¿Con cuánta anticipación puedo contratar?', preguntas)
+        self.assertIn('¿Puedo visitar la Quinta antes de reservar?', preguntas)
 
     def test_ejecutar_herramienta_desconocida_es_error(self):
         salida, error = herramientas_agente.ejecutar('borrar_todo', {})
