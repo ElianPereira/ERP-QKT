@@ -13,7 +13,8 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from comercial.models import Cliente, Cotizacion, Pago, PortalCliente
+from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago, PortalCliente
+from core_erp import impuestos
 
 # ---------------------------------------------------------------------------
 # DATOS DEL SISTEMA ANTERIOR
@@ -64,15 +65,15 @@ COTIZACIONES = [
     (120, 11, "2025-08-03", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
     (121, 14, "2025-06-07", "ARRENDAMIENTO", Decimal("1450.00"),    "CERRADA"),
     (125, 10, "2025-08-02", "EVENTO",        Decimal("6350.00"),    "CERRADA"),
-    (134, 16, "2025-12-05", "EVENTO",        Decimal("17166.84"),   "EJECUTADA"),
+    (134, 16, "2025-12-05", "EVENTO",        Decimal("17166.84"),   "CERRADA"),
     (136, 11, "2025-08-24", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
     (137, 3,  "2025-09-14", "PASADIA",       Decimal("500.00"),     "CERRADA"),
     (138, 15, "2025-09-18", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
     (145, 19, "2025-11-04", "ARRENDAMIENTO", Decimal("800.00"),     "CERRADA"),
     (146, 15, "2025-11-08", "ARRENDAMIENTO", Decimal("200.00"),     "CERRADA"),
     (147, 15, "2025-11-15", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
-    (148, 16, "2025-12-05", "ARRENDAMIENTO", Decimal("986.00"),     "EJECUTADA"),
-    (149, 20, "2026-01-10", "EVENTO",        Decimal("18328.00"),   "EJECUTADA"),
+    (148, 16, "2025-12-05", "ARRENDAMIENTO", Decimal("986.00"),     "CERRADA"),
+    (149, 20, "2026-01-10", "EVENTO",        Decimal("18328.00"),   "CERRADA"),
 ]
 
 # (cot_id, fecha_pago YYYY-MM-DD, monto, metodo)
@@ -118,7 +119,16 @@ PAGOS = [
     (147, "2025-11-15", Decimal("700.00"),  "EFECTIVO"),
     (148, "2025-12-02", Decimal("975.38"),  "TRANSFERENCIA"),
     (149, "2025-12-08", Decimal("9164.00"), "TRANSFERENCIA"),
+    # Saldos que el sistema anterior no registró; se cobraron completos
+    # (confirmado por el propietario, 2026-10-18).
+    (134, "2025-12-05", Decimal("1762.55"), "OTRO"),
+    (148, "2025-12-05", Decimal("10.62"),   "OTRO"),
+    (149, "2026-01-10", Decimal("9164.00"), "OTRO"),
 ]
+
+# Total = base redonda + IVA (725 = 625, 1450 = 1250, 17166.84 = 14799,
+# 986 = 850, 18328 = 15800); las demás se cobraron sin IVA.
+CON_IVA = {88, 121, 134, 148, 149}
 
 TIPO_LABELS = {
     "EVENTO": "Evento",
@@ -129,6 +139,10 @@ TIPO_LABELS = {
 
 def _nombre_evento(cot_id, tipo, cliente_nombre):
     return f"[HIST-{cot_id:04d}] {TIPO_LABELS[tipo]} - {cliente_nombre.title()}"
+
+
+def concepto_historico(cot_id):
+    return f"Venta registrada en el sistema anterior (folio {cot_id})"
 
 
 class Command(BaseCommand):
@@ -250,18 +264,24 @@ class Command(BaseCommand):
                 )
                 continue
 
-            # El precio_final que se establece en Cotizacion.save() se
-            # sobreescribe inmediatamente después con un update() directo,
-            # ya que calcular_totales() toma como base los items (ninguno aquí).
+            if cot_id in CON_IVA:
+                desglose = impuestos.desglosar(total)
+                base, iva = desglose["base"], desglose["iva"]
+            else:
+                base, iva = total, Decimal("0.00")
+
+            # `es_historica` evita que save() le agregue la barra y recalcule:
+            # el total es el que se cobró en el sistema anterior.
             cot = Cotizacion(
+                es_historica=True,
                 cliente=cliente,
                 tipo_servicio=tipo,
                 nombre_evento=nombre_evento,
                 fecha_evento=fecha_evento,
                 estado="BORRADOR",
                 usuario=usuario,
-                subtotal=total,
-                iva=Decimal("0.00"),
+                subtotal=base,
+                iva=iva,
                 retencion_isr=Decimal("0.00"),
                 retencion_iva=Decimal("0.00"),
                 precio_final=total,
@@ -269,15 +289,11 @@ class Command(BaseCommand):
             )
             # Usamos save() para respetar el flujo del modelo (portal, etc.)
             cot.save()
-
-            # Corregir precio_final porque calcular_totales() lo pone a 0
-            # (no hay items). Usamos update() para no disparar save() de nuevo.
-            Cotizacion.objects.filter(pk=cot.pk).update(
-                subtotal=total,
-                iva=Decimal("0.00"),
-                retencion_isr=Decimal("0.00"),
-                retencion_iva=Decimal("0.00"),
-                precio_final=total,
+            ItemCotizacion.objects.create(
+                cotizacion=cot,
+                descripcion=concepto_historico(cot_id),
+                cantidad=1,
+                precio_unitario=base,
             )
 
             # Desactivar el portal que se crea automáticamente
