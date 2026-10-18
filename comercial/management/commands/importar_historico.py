@@ -13,7 +13,7 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from comercial.models import Cliente, Cotizacion, Pago, PortalCliente
+from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago, PortalCliente
 
 # ---------------------------------------------------------------------------
 # DATOS DEL SISTEMA ANTERIOR
@@ -129,6 +129,10 @@ TIPO_LABELS = {
 
 def _nombre_evento(cot_id, tipo, cliente_nombre):
     return f"[HIST-{cot_id:04d}] {TIPO_LABELS[tipo]} - {cliente_nombre.title()}"
+
+
+def concepto_historico(cot_id):
+    return f"Venta registrada en el sistema anterior (folio {cot_id})"
 
 
 class Command(BaseCommand):
@@ -250,10 +254,10 @@ class Command(BaseCommand):
                 )
                 continue
 
-            # El precio_final que se establece en Cotizacion.save() se
-            # sobreescribe inmediatamente después con un update() directo,
-            # ya que calcular_totales() toma como base los items (ninguno aquí).
+            # `es_historica` evita que save() le agregue la barra y recalcule:
+            # el total es el que se cobró en el sistema anterior.
             cot = Cotizacion(
+                es_historica=True,
                 cliente=cliente,
                 tipo_servicio=tipo,
                 nombre_evento=nombre_evento,
@@ -269,15 +273,11 @@ class Command(BaseCommand):
             )
             # Usamos save() para respetar el flujo del modelo (portal, etc.)
             cot.save()
-
-            # Corregir precio_final porque calcular_totales() lo pone a 0
-            # (no hay items). Usamos update() para no disparar save() de nuevo.
-            Cotizacion.objects.filter(pk=cot.pk).update(
-                subtotal=total,
-                iva=Decimal("0.00"),
-                retencion_isr=Decimal("0.00"),
-                retencion_iva=Decimal("0.00"),
-                precio_final=total,
+            ItemCotizacion.objects.create(
+                cotizacion=cot,
+                descripcion=concepto_historico(cot_id),
+                cantidad=1,
+                precio_unitario=total,
             )
 
             # Desactivar el portal que se crea automáticamente

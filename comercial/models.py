@@ -719,6 +719,13 @@ class Cotizacion(models.Model):
     fecha_reactivacion = models.DateTimeField(null=True, blank=True, editable=False,
                                               verbose_name="Reactivada el")
 
+    # Venta importada del sistema anterior (`importar_historico`): su total es
+    # el que se cobró entonces y no sale de los conceptos, así que nunca se
+    # recalcula. Sin esto, cualquier guardado le metía la barra cotizada hoy
+    # para 1 persona y le cambiaba el precio.
+    es_historica = models.BooleanField(default=False, editable=False,
+                                       verbose_name="Venta del sistema anterior")
+
     # Estados en los que la cotización ya no representa una venta viva: nadie
     # debería poder pagarla desde el portal. CANCELADA puede haber generado ya
     # una póliza de reversión y un reembolso; EXPIRADA nunca prosperó y su
@@ -1086,7 +1093,9 @@ class Cotizacion(models.Model):
             # costos de HOY, y hacerlo al confirmar por pago, al cancelar o al
             # subir la INE movía el precio de algo que el cliente ya aceptó.
             update_fields = kwargs.get('update_fields')
-            if update_fields is None or not set(update_fields) <= self.CAMPOS_SIN_EFECTO_EN_PRECIO:
+            if not self.es_historica and (
+                    update_fields is None
+                    or not set(update_fields) <= self.CAMPOS_SIN_EFECTO_EN_PRECIO):
                 from .services import actualizar_item_cotizacion
                 actualizar_item_cotizacion(self)
                 self.persistir_totales()
@@ -1108,6 +1117,8 @@ class Cotizacion(models.Model):
         aunque cambien los conceptos. `descuento` se relee de la BD porque es
         ahí donde `aplicar`/`revertir` lo ajustan de forma atómica.
         """
+        if self.es_historica:
+            return
         from .services_descuentos import DescuentoService
         self.descuento = Cotizacion.objects.filter(pk=self.pk).values_list('descuento', flat=True).get()
         DescuentoService.recalcular(self)

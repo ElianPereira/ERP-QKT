@@ -269,6 +269,14 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-18 — **Ventas históricas ([HIST-NNNN]) con precio corrupto** (reportado por el propietario: las 29
+  importadas del sistema anterior mostraban $3,263.31 y un «Servicio de Barra»). `importar_historico` las creaba
+  sin conceptos y fijaba el total con `update()`, pero su `save()` ya les metía la barra cotizada para 1 persona
+  y cualquier guardado completo posterior recalculaba con ella. Nunca hubo productos migrados que «se borraran»;
+  los pagos siempre estuvieron bien. `Cotizacion.es_historica` (migración `comercial.0117`, solo agrega campo +
+  datos) apaga `actualizar_item_cotizacion` y `persistir_totales`; la misma migración quita la barra, deja un
+  concepto «Venta registrada en el sistema anterior (folio N)» con el total original (copiado del comando) y
+  restaura los totales. Corre sola en el deploy al mergear.
 - 2026-10-17 — **Indicadores: rediseño a 2 pantallas** (Issue #413; el propietario: «super feo», «menos redundante»). «Este mes» (venta vs meta con barra, utilidad proyectada con lo confirmado, equilibrio en días, ocupación vs plan, tendencia) y «Plan del año» (captura + resultado, simulador = Calcular). Parámetros y Metas ocultos del menú (`hide_models`), accesibles por «Ajustes avanzados»; meta del mes: `MetaMensual` activa > plan del mes > equilibrio. Se quitó la simulación por GET del tablero (`overrides_desde`, `campos_simulacion`); `d['mes']` ahora es el bloque de «Este mes» (`TableroService._mes`). PDF y Excel sin cambio: son el detalle. Sin migraciones.
 - 2026-10-17 — **Kooxi: el mismo día y las visitas los confirma una persona** (dos chats reales: dijo «hoy
   está libre» a las 12:05 de un sábado, y una visita sí la pasó a humano pero por criterio propio). Regla
