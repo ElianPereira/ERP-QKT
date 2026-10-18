@@ -1132,3 +1132,41 @@ body.login-page .main-footer { display: none; }
         box-shadow: 6px 0 8px -4px rgba(0, 0, 0, .55);
     }
 }
+
+/* Formularios (≤ 767 px): el panel pierde su relleno de escritorio y todo
+   control ocupa el ancho completo; los select2 inline traen un `width` fijo
+   desde JS, de ahí el !important. */
+@media (max-width: 767px) {
+    body.change-form .card-body.p-5 { padding: 14px !important; }
+    body.change-form .form-group .row { margin-left: 0; margin-right: 0; }
+    body.change-form .form-group .row > [class*="col-"] { flex: 0 0 100%; max-width: 100%; padding-left: 0; padding-right: 0; }
+    body.change-form form textarea,
+    body.change-form form select,
+    body.change-form form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    body.change-form form .select2-container,
+    body.change-form form .vTextField,
+    body.change-form form .vLargeTextField,
+    body.change-form form .vURLField {
+        width: 100% !important;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    body.change-form .related-widget-wrapper { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    body.change-form .related-widget-wrapper > :is(select, .select2-container) { flex: 1 1 160px; width: auto !important; min-width: 0; }
+    /* filter_horizontal: disponibles y elegidos en una sola columna */
+    body.change-form .selector { display: flex; flex-direction: column; width: 100%; }
+    body.change-form .selector .selector-available,
+    body.change-form .selector .selector-chosen { width: 100%; float: none; }
+    body.change-form .selector .selector-chooser { flex-direction: row; justify-content: center; margin: 8px 0; width: auto; }
+    /* Pestañas de Jazzmin: una sola fila que se desliza */
+    body.change-form .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    body.change-form .nav-tabs::-webkit-scrollbar { display: none; }
+    body.change-form .nav-tabs .nav-item { flex: 0 0 auto; }
+    body.change-form .nav-tabs .nav-link { white-space: nowrap; padding: 8px 12px; font-size: 13px; }
+}

@@ -59,6 +59,27 @@ JS_BARRIDO = """
 }
 """
 
+# Controles de formulario que se salen de su panel o del viewport, o que
+# quedan demasiado angostos para leerse (< 120 px).
+JS_CULPABLES = """
+() => {
+  const ancho = window.innerWidth, malos = [];
+  const visibles = document.querySelectorAll(
+    'form textarea, form input:not([type=hidden]):not([type=checkbox]):not([type=radio]), form select, form .select2-container, .selector');
+  for (const el of visibles) {
+    if (el.closest('.sr-only, .qkt-panel__cuerpo--tabla, .select2-hidden-accessible, .empty-form, .inline-related.empty-form')) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0) continue;
+    const panel = el.closest('.card-body, .tab-pane');
+    const limite = panel ? panel.getBoundingClientRect().right : ancho;
+    const etiqueta = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + ' w=' + Math.round(r.width);
+    if (r.right > Math.min(limite, ancho) + 1) malos.push('desborda ' + etiqueta);
+    else if (el.classList.contains('select2-container') && r.width < 120) malos.push('angosto ' + etiqueta);
+  }
+  return malos.slice(0, 6);
+}
+"""
+
 
 def _ruta_chromium():
     ruta = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH')
@@ -159,6 +180,44 @@ class ListasMovilTest(MovilBase):
         self.assertNotEqual(datos['radio'], '0px')
 
 
+class PaginasMovilTest(MovilBase):
+    """Ninguna pantalla desborda la página en horizontal (formularios,
+    altas y páginas propias)."""
+
+    def _rutas(self):
+        rutas = []
+        for modelo, model_admin in admin.site._registry.items():
+            if not model_admin.has_add_permission(self._peticion()):
+                continue
+            nombre = f'admin:{modelo._meta.app_label}_{modelo._meta.model_name}_add'
+            try:
+                rutas.append(reverse(nombre))
+            except NoReverseMatch:
+                continue
+        rutas.append(reverse('admin:comercial_cotizacion_change', args=[self.cotizacion.pk]))
+        return sorted(rutas)
+
+    def _peticion(self):
+        from django.test import RequestFactory
+        peticion = RequestFactory().get('/')
+        peticion.user = get_user_model().objects.get(username='movil')
+        return peticion
+
+    def test_ninguna_pantalla_desborda(self):
+        problemas = []
+        for ruta in self._rutas():
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES)
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Páginas que desbordan en móvil:\n' + '\n'.join(problemas))
+
+    def test_pestañas_del_formulario_ocupan_un_renglon(self):
+        self.barrer(reverse('admin:comercial_cotizacion_change', args=[self.cotizacion.pk]))
+        alto = self.page.evaluate("document.querySelector('.nav-tabs').getBoundingClientRect().height")
+        self.assertLess(alto, 60)
+
+
 class CapturasMovilTest(MovilBase):
     """Capturas de Cotizaciones (lista y formulario) para el PR; solo con
     MOVIL_CAPTURAS=<directorio> y el prefijo en MOVIL_PREFIJO."""
@@ -174,7 +233,7 @@ class CapturasMovilTest(MovilBase):
             ('formulario', reverse('admin:comercial_cotizacion_change', args=[self.cotizacion.pk])),
         ):
             self.barrer(ruta)
-            self.page.screenshot(path=f'{destino}/{prefijo}_{nombre}.png')
+            self.page.screenshot(path=f'{destino}/{prefijo}_{nombre}.png', full_page=(nombre == 'formulario'))
             if nombre == 'lista':
                 self.page.evaluate("document.querySelector('.table-responsive').scrollLeft = 9999")
                 self.page.locator('#result_list').scroll_into_view_if_needed()
