@@ -4,15 +4,26 @@
 update(); el primer save() completo les agregaba «Servicio de Barra» cotizada
 para 1 persona y recalculaba, así que todas terminaron con el mismo precio.
 Aquí se quita esa barra, se pone un concepto con el total original y se
-marcan como históricas para que nunca vuelvan a recalcularse. Las que el cron
-cerró por el precio corrupto vuelven a EJECUTADA. Los pagos no se tocan: nunca
-se perdieron.
+marcan como históricas para que nunca vuelvan a recalcularse.
+
+Decisiones del propietario (2026-10-18):
+- Llevan IVA las ventas cuyo total sale de una base redonda (÷1.16 exacto);
+  las demás se cobraron sin IVA y su total es la base.
+- Todas se cobraron completas. El saldo que el sistema anterior dejó sin
+  registrar se asienta como un pago «cobrado fuera del registro», igual que el
+  resto del histórico: `bulk_create`, sin póliza ni solicitud de factura. Todas
+  quedan CERRADAS (el precio corrupto ya había hecho que el cron cerrara
+  algunas EJECUTADAS con saldo).
 """
 
+import datetime
 import re
 from decimal import Decimal
 
 from django.db import migrations, models
+from django.db.models import Sum
+
+from core_erp import impuestos
 
 # Folio del sistema anterior -> total contratado (copia de
 # comercial/management/commands/importar_historico.py: la migración no debe
@@ -28,17 +39,27 @@ TOTALES = {
     149: '18328.00',
 }
 
-# Llegaron EJECUTADAS (evento hecho, con saldo). Con el precio corrupto el cron
-# `cerrar_cotizaciones` las veía liquidadas y pudo pasarlas a CERRADA.
-EJECUTADAS_ORIGINALES = {134, 148, 149}
+# Total = base redonda + IVA: 725 = 625, 1450 = 1250, 17166.84 = 14799,
+# 986 = 850 y 18328 = 15800.
+CON_IVA = {88, 121, 134, 148, 149}
+
+NOTA_SALDO = 'Saldo cobrado fuera del registro del sistema anterior'
 
 PATRON = re.compile(r'^\[HIST-(\d{4})\]')
 CERO = Decimal('0.00')
 
 
+def _desglose(folio, total):
+    if folio in CON_IVA:
+        d = impuestos.desglosar(total)
+        return d['base'], d['iva']
+    return total, CERO
+
+
 def reparar(apps, schema_editor):
     Cotizacion = apps.get_model('comercial', 'Cotizacion')
     ItemCotizacion = apps.get_model('comercial', 'ItemCotizacion')
+    Pago = apps.get_model('comercial', 'Pago')
 
     reparadas = 0
     for cot in Cotizacion.objects.filter(nombre_evento__startswith='[HIST-'):
@@ -47,6 +68,7 @@ def reparar(apps, schema_editor):
             continue
         folio = int(coincide.group(1))
         total = Decimal(TOTALES[folio])
+        base, iva = _desglose(folio, total)
         concepto = f'Venta registrada en el sistema anterior (folio {folio})'
 
         # Solo la barra que agregó el recálculo automático (sin producto);
@@ -55,25 +77,35 @@ def reparar(apps, schema_editor):
             cotizacion=cot, producto__isnull=True,
             descripcion__startswith='Servicio de Barra',
         ).delete()
-        if not ItemCotizacion.objects.filter(cotizacion=cot, descripcion=concepto).exists():
-            ItemCotizacion.objects.create(
-                cotizacion=cot, descripcion=concepto,
-                cantidad=Decimal('1'), precio_unitario=total,
-            )
+        item, _ = ItemCotizacion.objects.get_or_create(
+            cotizacion=cot, descripcion=concepto,
+            defaults={'cantidad': Decimal('1'), 'precio_unitario': base},
+        )
+        if item.precio_unitario != base or item.cantidad != 1:
+            ItemCotizacion.objects.filter(pk=item.pk).update(cantidad=Decimal('1'), precio_unitario=base)
         otros = ItemCotizacion.objects.filter(cotizacion=cot).exclude(descripcion=concepto)
         if otros.exists():
             print(f'  [HIST-{folio:04d}] conserva {otros.count()} concepto(s) capturado(s) a mano; '
                   f'el total queda en el original (${total}).')
 
-        estado = cot.estado
-        if folio in EJECUTADAS_ORIGINALES and estado == 'CERRADA':
-            estado = 'EJECUTADA'
-            print(f'  [HIST-{folio:04d}] CERRADA -> EJECUTADA: la cerró el precio corrupto.')
+        pagos = Pago.objects.filter(cotizacion=cot)
+        cobrado = (
+            (pagos.filter(tipo='INGRESO', concepto='VENTA').aggregate(s=Sum('monto'))['s'] or CERO)
+            - (pagos.filter(tipo='REEMBOLSO').aggregate(s=Sum('monto'))['s'] or CERO)
+        )
+        saldo = total - cobrado
+        if saldo > 0:
+            Pago.objects.bulk_create([Pago(
+                cotizacion=cot, tipo='INGRESO', concepto='VENTA',
+                fecha_pago=cot.fecha_evento or datetime.date.today(),
+                monto=saldo, metodo='OTRO', solicitar_factura=False, notas=NOTA_SALDO,
+            )])
+            print(f'  [HIST-{folio:04d}] saldo de ${saldo} registrado como cobrado.')
 
         Cotizacion.objects.filter(pk=cot.pk).update(
-            es_historica=True, subtotal=total, descuento=CERO, iva=CERO,
+            es_historica=True, subtotal=base, descuento=CERO, iva=iva,
             impuesto_hospedaje=CERO, retencion_isr=CERO, retencion_iva=CERO,
-            precio_final=total, estado=estado,
+            precio_final=total, estado='CERRADA',
         )
         reparadas += 1
 

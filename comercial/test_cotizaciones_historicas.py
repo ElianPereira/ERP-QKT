@@ -29,6 +29,18 @@ class ImportarHistoricoTest(TestCase):
         )
         self.assertEqual(cot.total_pagado(), Decimal('700.00'))
 
+    def test_las_de_iva_se_desglosan_y_todas_quedan_cobradas(self):
+        cot = Cotizacion.objects.get(nombre_evento__startswith='[HIST-0149]')
+        self.assertEqual(
+            (cot.subtotal, cot.iva, cot.precio_final),
+            (Decimal('15800.00'), Decimal('2528.00'), Decimal('18328.00')),
+        )
+        self.assertEqual(cot.items.get().precio_unitario, Decimal('15800.00'))
+        self.assertEqual(cot.estado, 'CERRADA')
+        self.assertEqual(cot.saldo_pendiente(), Decimal('0.00'))
+        for cot in Cotizacion.objects.filter(es_historica=True):
+            self.assertLessEqual(cot.saldo_pendiente(), 0, cot.nombre_evento)
+
     def test_guardar_no_agrega_barra_ni_cambia_el_precio(self):
         cot = Cotizacion.objects.get(nombre_evento__startswith='[HIST-0103]')
         cot.notas_cliente = 'editada en el admin'
@@ -87,21 +99,39 @@ class RepararHistoricasTest(TestCase):
             ['Venta registrada en el sistema anterior (folio 147)'],
         )
 
-    def test_reabre_la_ejecutada_que_el_cron_cerro_por_el_precio_corrupto(self):
+    def _hist_0149_con_saldo(self):
         cot = Cotizacion.objects.create(
             cliente=self.cot.cliente, tipo_servicio='EVENTO', num_personas=1,
             nombre_evento='[HIST-0149] Evento - Yazmin', fecha_evento='2026-01-10',
         )
-        Cotizacion.objects.filter(pk=cot.pk).update(estado='CERRADA')
+        Cotizacion.objects.filter(pk=cot.pk).update(estado='EJECUTADA')
+        Pago.objects.bulk_create([Pago(
+            cotizacion=cot, tipo='INGRESO', fecha_pago='2025-12-08',
+            monto=Decimal('9164.00'), metodo='TRANSFERENCIA',
+        )])
+        return cot
+
+    def test_desglosa_iva_registra_el_saldo_cobrado_y_cierra(self):
+        from contabilidad.models import Poliza
+
+        cot = self._hist_0149_con_saldo()
         migracion.reparar(apps, None)
         cot.refresh_from_db()
-        self.assertEqual(cot.estado, 'EJECUTADA')
-        self.assertEqual(cot.precio_final, Decimal('18328.00'))
-        # La que llegó CERRADA se queda así.
+        self.assertEqual(
+            (cot.subtotal, cot.iva, cot.precio_final, cot.estado),
+            (Decimal('15800.00'), Decimal('2528.00'), Decimal('18328.00'), 'CERRADA'),
+        )
+        self.assertEqual(cot.saldo_pendiente(), Decimal('0.00'))
+        saldo = cot.pagos.get(notas=migracion.NOTA_SALDO)
+        self.assertEqual((saldo.monto, saldo.metodo), (Decimal('9164.00'), 'OTRO'))
+        self.assertFalse(Poliza.objects.exists())
+        # Sin IVA: el total es la base.
         self.cot.refresh_from_db()
-        self.assertEqual(self.cot.estado, 'CERRADA')
+        self.assertEqual((self.cot.subtotal, self.cot.iva), (Decimal('700.00'), Decimal('0.00')))
 
     def test_es_idempotente(self):
+        cot = self._hist_0149_con_saldo()
         migracion.reparar(apps, None)
         migracion.reparar(apps, None)
         self.assertEqual(ItemCotizacion.objects.filter(cotizacion=self.cot).count(), 1)
+        self.assertEqual(cot.pagos.count(), 2)
