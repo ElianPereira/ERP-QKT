@@ -36,11 +36,9 @@ CLIENTES = [
     {"clave": 13, "nombre": "JAVIER PEREZ HERNANDEZ",             "telefono": "9983213206", "email": "javier.perez@fanosa.com"},
     {"clave": 14, "nombre": "MARTHA EUGENIA PENICHE OLAIS",       "telefono": "",           "email": ""},
     {"clave": 15, "nombre": "PUBLICO EN GENERAL",                 "telefono": "",           "email": ""},
-    {"clave": 16, "nombre": "ANGELICA ALATRISTE",                 "telefono": "",           "email": ""},
     {"clave": 17, "nombre": "MARIANA BERMEJO",                    "telefono": "",           "email": ""},
     {"clave": 18, "nombre": "MARI PECH",                          "telefono": "",           "email": ""},
     {"clave": 19, "nombre": "INGRID ARCEO",                       "telefono": "",           "email": ""},
-    {"clave": 20, "nombre": "YAZMIN GUADALUPE SANCHEZ MARRUFO",   "telefono": "",           "email": ""},
 ]
 
 # (cot_id, cliente_clave, fecha_evento YYYY-MM-DD, tipo_servicio, total_contratado, estado_final)
@@ -65,15 +63,12 @@ COTIZACIONES = [
     (120, 11, "2025-08-03", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
     (121, 14, "2025-06-07", "ARRENDAMIENTO", Decimal("1450.00"),    "CERRADA"),
     (125, 10, "2025-08-02", "EVENTO",        Decimal("6350.00"),    "CERRADA"),
-    (134, 16, "2025-12-05", "EVENTO",        Decimal("17166.84"),   "CERRADA"),
     (136, 11, "2025-08-24", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
     (137, 3,  "2025-09-14", "PASADIA",       Decimal("500.00"),     "CERRADA"),
     (138, 15, "2025-09-18", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
     (145, 19, "2025-11-04", "ARRENDAMIENTO", Decimal("800.00"),     "CERRADA"),
     (146, 15, "2025-11-08", "ARRENDAMIENTO", Decimal("200.00"),     "CERRADA"),
     (147, 15, "2025-11-15", "ARRENDAMIENTO", Decimal("700.00"),     "CERRADA"),
-    (148, 16, "2025-12-05", "ARRENDAMIENTO", Decimal("986.00"),     "CERRADA"),
-    (149, 20, "2026-01-10", "EVENTO",        Decimal("18328.00"),   "CERRADA"),
 ]
 
 # (cot_id, fecha_pago YYYY-MM-DD, monto, metodo)
@@ -108,8 +103,6 @@ PAGOS = [
     (121, "2025-06-07", Decimal("1450.00"), "EFECTIVO"),
     (125, "2025-07-17", Decimal("2000.00"), "TRANSFERENCIA"),
     (125, "2025-07-28", Decimal("4350.00"), "TRANSFERENCIA"),
-    (134, "2025-11-04", Decimal("7055.19"), "TARJETA_DEBITO"),
-    (134, "2025-11-25", Decimal("8349.10"), "TARJETA_DEBITO"),
     (136, "2025-08-24", Decimal("700.00"),  "EFECTIVO"),
     (137, "2025-09-14", Decimal("500.00"),  "EFECTIVO"),
     (138, "2025-09-10", Decimal("700.00"),  "TRANSFERENCIA"),
@@ -117,18 +110,12 @@ PAGOS = [
     (145, "2025-11-04", Decimal("300.00"),  "EFECTIVO"),
     (146, "2025-11-07", Decimal("200.00"),  "EFECTIVO"),
     (147, "2025-11-15", Decimal("700.00"),  "EFECTIVO"),
-    (148, "2025-12-02", Decimal("975.38"),  "TRANSFERENCIA"),
-    (149, "2025-12-08", Decimal("9164.00"), "TRANSFERENCIA"),
-    # Saldos que el sistema anterior no registró; se cobraron completos
-    # (confirmado por el propietario, 2026-10-18).
-    (134, "2025-12-05", Decimal("1762.55"), "OTRO"),
-    (148, "2025-12-05", Decimal("10.62"),   "OTRO"),
-    (149, "2026-01-10", Decimal("9164.00"), "OTRO"),
 ]
 
-# Total = base redonda + IVA (725 = 625, 1450 = 1250, 17166.84 = 14799,
-# 986 = 850, 18328 = 15800); las demás se cobraron sin IVA.
-CON_IVA = {88, 121, 134, 148, 149}
+# Total = base redonda + IVA (725 = 625, 1450 = 1250); las demás se cobraron
+# sin IVA. Los folios 134, 148 y 149 no se importan: ya existen en el ERP como
+# COT-004 y COT-005 (confirmado por el propietario, 2026-10-18).
+CON_IVA = {88, 121}
 
 TIPO_LABELS = {
     "EVENTO": "Evento",

@@ -30,14 +30,16 @@ class ImportarHistoricoTest(TestCase):
         self.assertEqual(cot.total_pagado(), Decimal('700.00'))
 
     def test_las_de_iva_se_desglosan_y_todas_quedan_cobradas(self):
-        cot = Cotizacion.objects.get(nombre_evento__startswith='[HIST-0149]')
+        cot = Cotizacion.objects.get(nombre_evento__startswith='[HIST-0121]')
         self.assertEqual(
             (cot.subtotal, cot.iva, cot.precio_final),
-            (Decimal('15800.00'), Decimal('2528.00'), Decimal('18328.00')),
+            (Decimal('1250.00'), Decimal('200.00'), Decimal('1450.00')),
         )
-        self.assertEqual(cot.items.get().precio_unitario, Decimal('15800.00'))
+        self.assertEqual(cot.items.get().precio_unitario, Decimal('1250.00'))
         self.assertEqual(cot.estado, 'CERRADA')
         self.assertEqual(cot.saldo_pendiente(), Decimal('0.00'))
+        # Ya existen en el ERP como COT-004 y COT-005.
+        self.assertFalse(Cotizacion.objects.filter(nombre_evento__regex=r'^\[HIST-01(34|48|49)\]').exists())
         for cot in Cotizacion.objects.filter(es_historica=True):
             self.assertLessEqual(cot.saldo_pendiente(), 0, cot.nombre_evento)
 
