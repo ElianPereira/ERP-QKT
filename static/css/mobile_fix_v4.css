@@ -17,32 +17,6 @@
     }
 }
 
-/* ============================================================
-   CHANGELIST — SCROLL HORIZONTAL + BOTONES TÁCTILES EN MÓVIL
-   ============================================================ */
-@media screen and (max-width: 900px) {
-    #result_list,
-    .results {
-        display: block;
-        overflow-x: scroll;
-        width: 100%;
-        -webkit-overflow-scrolling: touch;
-    }
-    #result_list table,
-    .results table {
-        min-width: 700px;
-    }
-    #result_list th:last-child,
-    #result_list td:last-child,
-    #result_list th:nth-last-child(2),
-    #result_list td:nth-last-child(2),
-    #result_list th:nth-last-child(3),
-    #result_list td:nth-last-child(3) {
-        white-space: nowrap;
-        min-width: 70px;
-    }
-}
-
 /* Botones dentro de celdas — área táctil mínima */
 #result_list td a,
 .results td a {

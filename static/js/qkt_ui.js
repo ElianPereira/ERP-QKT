@@ -245,9 +245,38 @@
         }
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', iniciarLista);
-    } else {
+    // Listas en celular: marca el contenedor con la posición del scroll
+    // (degradado de "hay más columnas" y sombra del folio fijo) y fija la
+    // cabecera de la columna del folio. Estilos en qkt_ui.css, sección MÓVIL.
+    function iniciarTablaMovil() {
+        var tabla = document.getElementById('result_list');
+        var resultados = tabla && tabla.closest('.table-responsive');
+        if (!resultados) { return; }
+        var contenedor = resultados.parentElement;
+        contenedor.classList.add('qkt-tabla-wrap');
+        var celdaFolio = tabla.querySelector('tbody th');
+        if (celdaFolio) {
+            var cabecera = tabla.querySelectorAll('thead th')[celdaFolio.cellIndex];
+            if (cabecera) { cabecera.classList.add('qkt-col-fija'); }
+        }
+        function actualizar() {
+            var maximo = resultados.scrollWidth - resultados.clientWidth;
+            contenedor.classList.toggle('qkt-mas-derecha', resultados.scrollLeft < maximo - 1);
+            contenedor.classList.toggle('qkt-mas-izquierda', resultados.scrollLeft > 1);
+        }
+        resultados.addEventListener('scroll', actualizar, { passive: true });
+        window.addEventListener('resize', actualizar);
+        actualizar();
+    }
+
+    function iniciar() {
         iniciarLista();
+        iniciarTablaMovil();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iniciar);
+    } else {
+        iniciar();
     }
 })();
