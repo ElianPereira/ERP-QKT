@@ -37,6 +37,21 @@ class ImportarHistoricoTest(TestCase):
         self.assertEqual(cot.precio_final, Decimal('13578.99'))
         self.assertFalse(cot.items.filter(descripcion__startswith='Servicio de Barra').exists())
 
+    def test_admin_muestra_sus_conceptos_sin_poder_editarlos(self):
+        from django.contrib.admin.sites import site
+        from django.test import RequestFactory
+
+        from comercial.admin import ItemCotizacionInline
+
+        cot = Cotizacion.objects.get(nombre_evento__startswith='[HIST-0103]')
+        request = RequestFactory().get('/')
+        request.user = User.objects.get(username='dir')
+        inline = ItemCotizacionInline(Cotizacion, site)
+        self.assertFalse(inline.has_add_permission(request, cot))
+        self.assertFalse(inline.has_change_permission(request, cot))
+        self.assertFalse(inline.has_delete_permission(request, cot))
+        self.assertTrue(inline.has_view_permission(request, cot))
+
 
 class RepararHistoricasTest(TestCase):
     """Estado de producción: barra agregada y precio recalculado."""
@@ -71,6 +86,20 @@ class RepararHistoricasTest(TestCase):
             list(self.cot.items.values_list('descripcion', flat=True)),
             ['Venta registrada en el sistema anterior (folio 147)'],
         )
+
+    def test_reabre_la_ejecutada_que_el_cron_cerro_por_el_precio_corrupto(self):
+        cot = Cotizacion.objects.create(
+            cliente=self.cot.cliente, tipo_servicio='EVENTO', num_personas=1,
+            nombre_evento='[HIST-0149] Evento - Yazmin', fecha_evento='2026-01-10',
+        )
+        Cotizacion.objects.filter(pk=cot.pk).update(estado='CERRADA')
+        migracion.reparar(apps, None)
+        cot.refresh_from_db()
+        self.assertEqual(cot.estado, 'EJECUTADA')
+        self.assertEqual(cot.precio_final, Decimal('18328.00'))
+        # La que llegó CERRADA se queda así.
+        self.cot.refresh_from_db()
+        self.assertEqual(self.cot.estado, 'CERRADA')
 
     def test_es_idempotente(self):
         migracion.reparar(apps, None)

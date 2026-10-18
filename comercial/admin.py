@@ -644,6 +644,17 @@ class ItemCotizacionInline(admin.TabularInline):
     fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
     readonly_fields = ('subtotal',)
 
+    # Una venta del sistema anterior no se recalcula: editar sus conceptos
+    # dejaría el total desalineado sin aviso.
+    def has_add_permission(self, request, obj=None):
+        return not (obj and obj.es_historica) and super().has_add_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        return not (obj and obj.es_historica) and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return not (obj and obj.es_historica) and super().has_delete_permission(request, obj)
+
 class PagoInline(admin.TabularInline):
     model = Pago
     extra = 0

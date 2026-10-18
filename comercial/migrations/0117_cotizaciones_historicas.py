@@ -4,8 +4,9 @@
 update(); el primer save() completo les agregaba «Servicio de Barra» cotizada
 para 1 persona y recalculaba, así que todas terminaron con el mismo precio.
 Aquí se quita esa barra, se pone un concepto con el total original y se
-marcan como históricas para que nunca vuelvan a recalcularse. Los pagos no se
-tocan: nunca se perdieron.
+marcan como históricas para que nunca vuelvan a recalcularse. Las que el cron
+cerró por el precio corrupto vuelven a EJECUTADA. Los pagos no se tocan: nunca
+se perdieron.
 """
 
 import re
@@ -26,6 +27,10 @@ TOTALES = {
     145: '800.00', 146: '200.00', 147: '700.00', 148: '986.00',
     149: '18328.00',
 }
+
+# Llegaron EJECUTADAS (evento hecho, con saldo). Con el precio corrupto el cron
+# `cerrar_cotizaciones` las veía liquidadas y pudo pasarlas a CERRADA.
+EJECUTADAS_ORIGINALES = {134, 148, 149}
 
 PATRON = re.compile(r'^\[HIST-(\d{4})\]')
 CERO = Decimal('0.00')
@@ -60,10 +65,15 @@ def reparar(apps, schema_editor):
             print(f'  [HIST-{folio:04d}] conserva {otros.count()} concepto(s) capturado(s) a mano; '
                   f'el total queda en el original (${total}).')
 
+        estado = cot.estado
+        if folio in EJECUTADAS_ORIGINALES and estado == 'CERRADA':
+            estado = 'EJECUTADA'
+            print(f'  [HIST-{folio:04d}] CERRADA -> EJECUTADA: la cerró el precio corrupto.')
+
         Cotizacion.objects.filter(pk=cot.pk).update(
             es_historica=True, subtotal=total, descuento=CERO, iva=CERO,
             impuesto_hospedaje=CERO, retencion_isr=CERO, retencion_iva=CERO,
-            precio_final=total,
+            precio_final=total, estado=estado,
         )
         reparadas += 1
 

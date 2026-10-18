@@ -276,7 +276,14 @@ salvo que queden obsoletas.
   los pagos siempre estuvieron bien. `Cotizacion.es_historica` (migración `comercial.0117`, solo agrega campo +
   datos) apaga `actualizar_item_cotizacion` y `persistir_totales`; la misma migración quita la barra, deja un
   concepto «Venta registrada en el sistema anterior (folio N)» con el total original (copiado del comando) y
-  restaura los totales. Corre sola en el deploy al mergear.
+  restaura los totales. Corre sola en el deploy al mergear. **Efecto colateral**: con el precio corrupto
+  ($3,263.31) el cron `cerrar_cotizaciones` veía liquidadas a HIST-0134 y HIST-0149 (EJECUTADAS con saldo
+  real de $1,762.55 y $9,164.00) y pudo pasarlas a CERRADA; la migración las regresa a EJECUTADA si las
+  encuentra cerradas. Contabilidad no se contaminó: los pagos se importaron con `bulk_create` (sin pólizas),
+  así que `anticipo_por_reconocer` es 0 y no hubo reconocimiento de ingreso. El inline de conceptos queda de
+  solo lectura en una histórica. **Abierto**: el total histórico se guarda como base sin IVA (como en la
+  importación original), aunque 0103/0134/0149 son exactos con IVA (÷1.16 da base redonda); Indicadores los
+  lee con hasta 16% de más.
 - 2026-10-17 — **Indicadores: rediseño a 2 pantallas** (Issue #413; el propietario: «super feo», «menos redundante»). «Este mes» (venta vs meta con barra, utilidad proyectada con lo confirmado, equilibrio en días, ocupación vs plan, tendencia) y «Plan del año» (captura + resultado, simulador = Calcular). Parámetros y Metas ocultos del menú (`hide_models`), accesibles por «Ajustes avanzados»; meta del mes: `MetaMensual` activa > plan del mes > equilibrio. Se quitó la simulación por GET del tablero (`overrides_desde`, `campos_simulacion`); `d['mes']` ahora es el bloque de «Este mes» (`TableroService._mes`). PDF y Excel sin cambio: son el detalle. Sin migraciones.
 - 2026-10-17 — **Kooxi: el mismo día y las visitas los confirma una persona** (dos chats reales: dijo «hoy
   está libre» a las 12:05 de un sábado, y una visita sí la pasó a humano pero por criterio propio). Regla
