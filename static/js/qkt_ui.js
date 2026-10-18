@@ -93,11 +93,15 @@
     });
 
     // Menús "más acciones": uno abierto a la vez, se cierran al hacer clic fuera
-    document.addEventListener('click', function (e) {
+    // pointerdown y no solo click: Safari iOS no emite click al tocar un
+    // área sin elementos interactivos, y el menú se quedaba abierto.
+    function cerrarMenusFuera(e) {
         document.querySelectorAll('details.qkt-menu[open]').forEach(function (d) {
             if (!d.contains(e.target)) d.removeAttribute('open');
         });
-    });
+    }
+    document.addEventListener('click', cerrarMenusFuera);
+    document.addEventListener('pointerdown', cerrarMenusFuera);
     // La tabla tiene overflow-x: auto, que recortaría un panel absoluto: el
     // panel se posiciona fijo respecto a la ventana, pegado a su botón, y se
     // abre hacia arriba si no cabe abajo.

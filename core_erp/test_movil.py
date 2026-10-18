@@ -180,6 +180,40 @@ class ListasMovilTest(MovilBase):
         self.assertNotEqual(datos['radio'], '0px')
 
 
+class FlujoCotizacionMovilTest(MovilBase):
+    """Desde el celular: lista de Cotizaciones, íconos de acción y menú «⋯»
+    con el dedo."""
+
+    def setUp(self):
+        super().setUp()
+        self.page.goto(self.live_server_url + reverse('admin:comercial_cotizacion_changelist'))
+        self.page.wait_for_load_state('networkidle')
+
+    def test_iconos_de_accion_tienen_area_tactil(self):
+        chicos = self.page.evaluate("""() => [...document.querySelectorAll('#result_list .qkt-btn--icono')]
+            .map(e => e.getBoundingClientRect()).filter(r => r.width < 43.5 || r.height < 43.5).length""")
+        self.assertEqual(chicos, 0)
+
+    def test_menu_mas_acciones_abre_dentro_de_pantalla_y_cierra_al_tocar_fuera(self):
+        resumen = self.page.locator('details.qkt-menu > summary').first
+        resumen.tap()
+        panel = self.page.locator('details.qkt-menu[open] .qkt-menu__panel').first
+        panel.wait_for(state='visible')
+        caja = panel.bounding_box()
+        alto = self.page.evaluate('window.innerHeight')
+        self.assertGreaterEqual(caja['x'], 0)
+        self.assertLessEqual(caja['x'] + caja['width'], ANCHO_IPHONE + 1)
+        self.assertGreaterEqual(caja['y'], 0)
+        self.assertLessEqual(caja['y'] + caja['height'], alto + 1)
+        self.page.touchscreen.tap(385, 130)
+        self.assertEqual(self.page.locator('details.qkt-menu[open]').count(), 0)
+
+    def test_tocar_el_folio_abre_la_cotizacion(self):
+        self.page.locator('#result_list tbody th a').first.tap()
+        self.page.wait_for_url('**/change/')
+        self.assertIn('/change/', self.page.url)
+
+
 class PaginasMovilTest(MovilBase):
     """Ninguna pantalla desborda la página en horizontal (formularios,
     altas y páginas propias)."""

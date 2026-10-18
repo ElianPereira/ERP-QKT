@@ -15,7 +15,7 @@ from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
 # vive en static/js/tabs_fix.js, sin tocar el JS de Django. Este admin no
 # tiene ningún DateField hoy, pero se deja cableado por si se agrega uno.
 MEDIA_CONFIG = {
-    'css': {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')},
+    'css': {'all': ('css/admin_fix.css',)},
     'js': ('js/tabs_fix.js',),
 }
 

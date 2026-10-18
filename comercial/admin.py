@@ -77,7 +77,7 @@ from .widgets import TimeSlotWidget
 logger = logging.getLogger(__name__)
 
 MEDIA_CONFIG = {
-    'css': { 'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css') },
+    'css': { 'all': ('css/admin_fix.css',) },
     'js': ('js/tabs_fix.js',)
 }
 

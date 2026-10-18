@@ -1170,3 +1170,48 @@ body.login-page .main-footer { display: none; }
     body.change-form .nav-tabs .nav-item { flex: 0 0 auto; }
     body.change-form .nav-tabs .nav-link { white-space: nowrap; padding: 8px 12px; font-size: 13px; }
 }
+
+/* Enlaces de celda (folio) — antes en mobile_fix_v4.css: área de toque propia
+   sin tocar los botones del sistema, que ya traen su tamaño. */
+#result_list td a:not(.qkt-btn):not(.qkt-menu__item) {
+    display: inline-block;
+    min-height: 34px;
+    line-height: 34px;
+    padding: 0 10px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+#result_list td a,
+.qkt-btn,
+.qkt-menu__item { touch-action: manipulation; -webkit-tap-highlight-color: rgba(0, 0, 0, .08); }
+
+@media (max-width: 900px) {
+    /* tablas de los inlines: se deslizan */
+    .inline-group .tabular { display: block; overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
+    .inline-group .tabular table { min-width: 800px; }
+}
+
+/* Área táctil de 44 px (Apple HIG) en pantallas táctiles o angostas */
+@media (pointer: coarse), (max-width: 767px) {
+    .qkt-btn { height: 44px; }
+    .qkt-btn--sm { height: 44px; padding: 0 14px; }
+    .qkt-btn--icono,
+    #result_list td a.qkt-btn--icono,
+    #result_list td .qkt-btn--icono { width: 44px; height: 44px; }
+    .qkt-btn--enlace,
+    #result_list td a.qkt-btn--enlace { height: 44px; display: inline-flex; }
+    #result_list td a:not(.qkt-btn):not(.qkt-menu__item) { min-height: 44px; line-height: 44px; }
+    .qkt-menu__item,
+    #result_list td a.qkt-menu__item { padding: 12px 16px; min-height: 44px; }
+    .qkt-acciones { gap: 6px; }
+    .qkt-object-tools .qkt-btn,
+    .qkt-object-tools > a.btn-success { flex: 1 1 auto; height: 44px; }
+    /* El guardado de list_editable ocupa el ancho de abajo y no tapa el paginador */
+    .qkt-guardar-lista.is-pendiente {
+        left: 12px;
+        right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        justify-content: space-between;
+    }
+    body.change-list .paginator { margin-bottom: 84px; }
+}
