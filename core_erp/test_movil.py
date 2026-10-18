@@ -80,6 +80,27 @@ JS_CULPABLES = """
 }
 """
 
+# Elementos que sobresalen del viewport fuera de un scroller (auto/scroll).
+JS_SOBRESALEN = """
+() => {
+  const ancho = window.innerWidth, malos = [];
+  for (const el of document.body.querySelectorAll('main *, .content-wrapper *')) {
+    if (el.closest('.sr-only, .select2-container--open, .select2-hidden-accessible')) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.right <= ancho + 1) continue;
+    let ok = false;
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      const ox = getComputedStyle(p).overflowX;
+      if (ox === 'auto' || ox === 'scroll') { ok = true; break; }
+    }
+    if (!ok && getComputedStyle(el).position !== 'fixed') {
+      malos.push(el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + '.' + String(el.className).split(' ')[0] + ' r=' + Math.round(r.right));
+    }
+  }
+  return malos.slice(0, 5);
+}
+"""
+
 
 def _ruta_chromium():
     ruta = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH')
@@ -214,6 +235,23 @@ class FlujoCotizacionMovilTest(MovilBase):
         self.assertIn('/change/', self.page.url)
 
 
+class MenuLateralMovilTest(MovilBase):
+    def test_menu_lateral_abre_cabe_y_enlaza(self):
+        self.barrer('/admin/')
+        self.page.locator('a[data-lte-toggle="sidebar"]').first.tap()
+        lateral = self.page.locator('aside.main-sidebar, aside.app-sidebar').first
+        self.page.wait_for_timeout(500)
+        caja = lateral.bounding_box()
+        self.assertGreaterEqual(caja['x'], -1)
+        self.assertLessEqual(caja['x'] + caja['width'], ANCHO_IPHONE + 1)
+        enlaces = self.page.locator('aside .nav-link:visible')
+        self.assertGreater(enlaces.count(), 0)
+        destino = self.page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        self.assertTrue(destino)
+        if os.environ.get('MOVIL_CAPTURAS'):
+            self.page.screenshot(path=os.environ['MOVIL_CAPTURAS'] + '/menu_lateral.png')
+
+
 class PaginasMovilTest(MovilBase):
     """Ninguna pantalla desborda la página en horizontal (formularios,
     altas y páginas propias)."""
@@ -250,6 +288,20 @@ class PaginasMovilTest(MovilBase):
         self.barrer(reverse('admin:comercial_cotizacion_change', args=[self.cotizacion.pk]))
         alto = self.page.evaluate("document.querySelector('.nav-tabs').getBoundingClientRect().height")
         self.assertLess(alto, 60)
+
+    def test_paginas_propias_no_desbordan(self):
+        rutas = [
+            '/admin/', reverse('calendario_unificado'),
+            reverse('indicadores:tablero'), reverse('indicadores:plan'),
+            reverse('cumplimiento:tablero'), reverse('reportes:selector'),
+        ]
+        problemas = []
+        for ruta in rutas:
+            res = self.barrer(ruta)
+            sobresalen = self.page.evaluate(JS_SOBRESALEN)
+            if res['desborde_pagina'] > 0 or sobresalen:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {sobresalen}")
+        self.assertEqual(problemas, [], 'Páginas propias que desbordan:\n' + '\n'.join(problemas))
 
 
 class CapturasMovilTest(MovilBase):

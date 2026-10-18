@@ -1215,3 +1215,12 @@ body.login-page .main-footer { display: none; }
     }
     body.change-list .paginator { margin-bottom: 84px; }
 }
+
+/* Páginas propias (≤ 767 px): filtros y rejillas en una sola columna */
+@media (max-width: 767px) {
+    .qkt-filtros-pagina .qkt-campo { flex: 1 1 100%; min-width: 0; }
+    .qkt-filtros-pagina .qkt-campo .form-control,
+    .qkt-filtros-pagina .qkt-campo > select,
+    .qkt-filtros-pagina .qkt-campo > input { width: 100%; min-width: 0; max-width: 100%; }
+    .qkt-rejilla { grid-template-columns: minmax(0, 1fr); }
+}
