@@ -93,11 +93,15 @@
     });
 
     // Menús "más acciones": uno abierto a la vez, se cierran al hacer clic fuera
-    document.addEventListener('click', function (e) {
+    // pointerdown y no solo click: Safari iOS no emite click al tocar un
+    // área sin elementos interactivos, y el menú se quedaba abierto.
+    function cerrarMenusFuera(e) {
         document.querySelectorAll('details.qkt-menu[open]').forEach(function (d) {
             if (!d.contains(e.target)) d.removeAttribute('open');
         });
-    });
+    }
+    document.addEventListener('click', cerrarMenusFuera);
+    document.addEventListener('pointerdown', cerrarMenusFuera);
     // La tabla tiene overflow-x: auto, que recortaría un panel absoluto: el
     // panel se posiciona fijo respecto a la ventana, pegado a su botón, y se
     // abre hacia arriba si no cabe abajo.
@@ -245,9 +249,38 @@
         }
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', iniciarLista);
-    } else {
+    // Listas en celular: marca el contenedor con la posición del scroll
+    // (degradado de "hay más columnas" y sombra del folio fijo) y fija la
+    // cabecera de la columna del folio. Estilos en qkt_ui.css, sección MÓVIL.
+    function iniciarTablaMovil() {
+        var tabla = document.getElementById('result_list');
+        var resultados = tabla && tabla.closest('.table-responsive');
+        if (!resultados) { return; }
+        var contenedor = resultados.parentElement;
+        contenedor.classList.add('qkt-tabla-wrap');
+        var celdaFolio = tabla.querySelector('tbody th');
+        if (celdaFolio) {
+            var cabecera = tabla.querySelectorAll('thead th')[celdaFolio.cellIndex];
+            if (cabecera) { cabecera.classList.add('qkt-col-fija'); }
+        }
+        function actualizar() {
+            var maximo = resultados.scrollWidth - resultados.clientWidth;
+            contenedor.classList.toggle('qkt-mas-derecha', resultados.scrollLeft < maximo - 1);
+            contenedor.classList.toggle('qkt-mas-izquierda', resultados.scrollLeft > 1);
+        }
+        resultados.addEventListener('scroll', actualizar, { passive: true });
+        window.addEventListener('resize', actualizar);
+        actualizar();
+    }
+
+    function iniciar() {
         iniciarLista();
+        iniciarTablaMovil();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iniciar);
+    } else {
+        iniciar();
     }
 })();

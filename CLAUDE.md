@@ -269,6 +269,22 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-18 — **ERP usable en celular** (Issue #417; el propietario no podía deslizar la lista de Cotizaciones en
+  su iPhone: se veían 348 de 956 px). **Trampa de especificidad**: `qkt_ui.css` puso `overflow:hidden` en
+  `body.change-list #result_list` (para el redondeo de esquinas) y le ganaba a cualquier regla de scroll de
+  `mobile_fix_v4.css`; el recorte nunca se vio en escritorio. **Detalle que corrige el diagnóstico**: Jazzmin no
+  pinta el `.results` de Django, la tabla vive en `.card > .card-body.table-responsive > table#result_list`; por
+  eso las reglas sobre `.results` eran letra muerta. Ahora **la única fuente de scroll es `.card-body.table-responsive`**
+  (lleva también borde y redondeo; la tabla ya no recorta nada), con el folio fijo (`position:sticky`, cabecera
+  marcada por `qkt_ui.js`) y un degradado en el borde derecho cuando hay más columnas. Formularios ≤ 767 px:
+  panel sin el `p-5`, controles a 100 % (`!important` por el `width` inline de select2), pestañas de Jazzmin en
+  una fila que se desliza, `filter_horizontal` apilado. Táctil (`pointer: coarse` o ≤ 767 px): íconos y botones
+  de 44 px, menú «⋯» que cierra con `pointerdown` (Safari iOS no emite `click` sobre áreas sin interactivos) y el
+  guardado de `list_editable` a lo ancho abajo. `mobile_fix_v4.css` se borró (lo vivo pasó a la sección MÓVIL de
+  `qkt_ui.css`). **Regla: toda pantalla nueva del admin se revisa a 390 px**; lo vigila `core_erp/test_movil.py`
+  (Playwright, iPhone 13; se salta solo sin Playwright/Chromium; `MOVIL_CAPTURAS=<dir>` guarda capturas). Sin
+  verificar: calendario (FullCalendar viene de CDN, bloqueado en el contenedor) y Safari real del propietario.
+  Sin migraciones.
 - 2026-10-18 — **Ventas históricas ([HIST-NNNN]) con precio corrupto** (reportado por el propietario: las 29
   importadas del sistema anterior mostraban $3,263.31 y un «Servicio de Barra»). `importar_historico` las creaba
   sin conceptos y fijaba el total con `update()`, pero su `save()` ya les metía la barra cotizada para 1 persona

@@ -14,7 +14,7 @@ from . import services
 from .models import AvisoVencimiento, DocumentoExpediente, RequisitoTramite, Tramite, Vigencia
 
 MEDIA_CONFIG = {
-    'css': {'all': ('css/admin_fix.css', 'css/mobile_fix_v4.css')},
+    'css': {'all': ('css/admin_fix.css',)},
     'js': ('js/tabs_fix.js',),
 }
 

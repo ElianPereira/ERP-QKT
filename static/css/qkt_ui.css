@@ -449,13 +449,25 @@ body.change-list .actions .action-counter { color: var(--ui-text); font-weight: 
 }
 
 /* ── TABLA DE LA LISTA ─────────────────────────────────────── */
-body.change-list #result_list {
-    border: 1px solid var(--ui-line) !important;
+/* El borde, el redondeo y el recorte viven en `.card-body.table-responsive`
+   (así lo pinta Jazzmin; el `.results` de Django no existe aquí), que es
+   además la ÚNICA fuente de scroll horizontal. Si el recorte (overflow:hidden) se
+   pone en la tabla, le gana en especificidad a cualquier regla de scroll y
+   la deja sin desplazamiento en el celular (Issue #417). */
+body.change-list #changelist .card-body.table-responsive {
+    border: 1px solid var(--ui-line);
     border-radius: var(--ui-r-md);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+body.change-list #result_list {
+    border: 0 !important;
     border-collapse: separate;
     border-spacing: 0;
-    overflow: hidden;
     font-size: 13px;
+    width: 100%;
 }
 body.change-list #result_list thead th {
     height: 36px;
@@ -501,10 +513,7 @@ body.change-list #result_list [class*="field-folio"] a { font-family: var(--ui-m
 /* Dato secundario bajo el principal (cliente bajo el evento) */
 .qkt-sub { font-size: 12px; color: var(--ui-text-3); line-height: 1.3; }
 
-/* La tabla se desplaza sola en pantallas angostas, no la página. El menú
-   "⋯" necesita escapar de ese recorte: se abre hacia arriba-izquierda y
-   el contenedor deja ver lo que sobresale en vertical. */
-body.change-list .results { overflow-x: auto; }
+/* El menú "⋯" no se recorta: se posiciona con position:fixed por JS. */
 body.change-list #changelist { padding: 0 !important; background: transparent !important; }
 body.change-list #changelist .row { margin: 0; }
 body.change-list #changelist .row > .col-12 { padding: 0; }
@@ -1084,3 +1093,134 @@ body.login-page .main-footer { display: none; }
 .qkt-plan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 18px; align-items: start; }
 .qkt-plan__respuesta { margin: 0 0 14px; font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--ui-text); }
 @media (max-width: 991px) { .qkt-plan { grid-template-columns: minmax(0, 1fr); } }
+
+/* ============================================================
+   MÓVIL (Issue #417). Toda pantalla nueva se revisa a 390 px
+   (core_erp/test_movil.py). Aquí vive lo que antes estaba en
+   mobile_fix_v4.css, con los tokens del sistema.
+   ============================================================ */
+/* Listas: `.table-responsive` desplaza; el folio queda fijo a la izquierda y un
+   degradado en el borde avisa que hay más columnas. `qkt_ui.js` agrega
+   .qkt-tabla-wrap al contenedor y las clases .qkt-mas-derecha /
+   .qkt-mas-izquierda según la posición del scroll. */
+.qkt-tabla-wrap { position: relative; }
+.qkt-tabla-wrap::after {
+    content: '';
+    position: absolute;
+    top: 1px; bottom: 1px; right: 1px;
+    width: 22px;
+    border-radius: 0 var(--ui-r-md) var(--ui-r-md) 0;
+    background: linear-gradient(to right, transparent, rgba(0, 0, 0, .4));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+}
+.qkt-tabla-wrap.qkt-mas-derecha::after { opacity: 1; }
+@media (max-width: 900px) {
+    body.change-list #result_list { width: auto; min-width: 100%; }
+    body.change-list #result_list tbody th,
+    body.change-list #result_list thead th.qkt-col-fija {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background-color: var(--ui-surface) !important;
+    }
+    body.change-list #result_list tbody tr:hover th { background-color: var(--ui-hover) !important; }
+    body.change-list #result_list thead th.qkt-col-fija { background-color: var(--ui-surface-2) !important; }
+    .qkt-tabla-wrap.qkt-mas-izquierda #result_list tbody th,
+    .qkt-tabla-wrap.qkt-mas-izquierda #result_list thead th.qkt-col-fija {
+        box-shadow: 6px 0 8px -4px rgba(0, 0, 0, .55);
+    }
+}
+
+/* Formularios (≤ 767 px): el panel pierde su relleno de escritorio y todo
+   control ocupa el ancho completo; los select2 inline traen un `width` fijo
+   desde JS, de ahí el !important. */
+@media (max-width: 767px) {
+    body.change-form .card-body.p-5 { padding: 14px !important; }
+    body.change-form .form-group .row { margin-left: 0; margin-right: 0; }
+    body.change-form .form-group .row > [class*="col-"] { flex: 0 0 100%; max-width: 100%; padding-left: 0; padding-right: 0; }
+    body.change-form form textarea,
+    body.change-form form select,
+    body.change-form form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    body.change-form form .select2-container,
+    body.change-form form .vTextField,
+    body.change-form form .vLargeTextField,
+    body.change-form form .vURLField {
+        width: 100% !important;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    body.change-form .related-widget-wrapper { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    body.change-form .related-widget-wrapper > :is(select, .select2-container) { flex: 1 1 160px; width: auto !important; min-width: 0; }
+    /* filter_horizontal: disponibles y elegidos en una sola columna */
+    body.change-form .selector { display: flex; flex-direction: column; width: 100%; }
+    body.change-form .selector .selector-available,
+    body.change-form .selector .selector-chosen { width: 100%; float: none; }
+    body.change-form .selector .selector-chooser { flex-direction: row; justify-content: center; margin: 8px 0; width: auto; }
+    /* Pestañas de Jazzmin: una sola fila que se desliza */
+    body.change-form .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    body.change-form .nav-tabs::-webkit-scrollbar { display: none; }
+    body.change-form .nav-tabs .nav-item { flex: 0 0 auto; }
+    body.change-form .nav-tabs .nav-link { white-space: nowrap; padding: 8px 12px; font-size: 13px; }
+}
+
+/* Enlaces de celda (folio) — antes en mobile_fix_v4.css: área de toque propia
+   sin tocar los botones del sistema, que ya traen su tamaño. */
+#result_list td a:not(.qkt-btn):not(.qkt-menu__item) {
+    display: inline-block;
+    min-height: 34px;
+    line-height: 34px;
+    padding: 0 10px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+#result_list td a,
+.qkt-btn,
+.qkt-menu__item { touch-action: manipulation; -webkit-tap-highlight-color: rgba(0, 0, 0, .08); }
+
+@media (max-width: 900px) {
+    /* tablas de los inlines: se deslizan */
+    .inline-group .tabular { display: block; overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
+    .inline-group .tabular table { min-width: 800px; }
+}
+
+/* Área táctil de 44 px (Apple HIG) en pantallas táctiles o angostas */
+@media (pointer: coarse), (max-width: 767px) {
+    .qkt-btn { height: 44px; }
+    .qkt-btn--sm { height: 44px; padding: 0 14px; }
+    .qkt-btn--icono,
+    #result_list td a.qkt-btn--icono,
+    #result_list td .qkt-btn--icono { width: 44px; height: 44px; }
+    .qkt-btn--enlace,
+    #result_list td a.qkt-btn--enlace { height: 44px; display: inline-flex; }
+    #result_list td a:not(.qkt-btn):not(.qkt-menu__item) { min-height: 44px; line-height: 44px; }
+    .qkt-menu__item,
+    #result_list td a.qkt-menu__item { padding: 12px 16px; min-height: 44px; }
+    .qkt-acciones { gap: 6px; }
+    .qkt-object-tools .qkt-btn,
+    .qkt-object-tools > a.btn-success { flex: 1 1 auto; height: 44px; }
+    /* El guardado de list_editable ocupa el ancho de abajo y no tapa el paginador */
+    .qkt-guardar-lista.is-pendiente {
+        left: 12px;
+        right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        justify-content: space-between;
+    }
+    body.change-list .paginator { margin-bottom: 84px; }
+}
+
+/* Páginas propias (≤ 767 px): filtros y rejillas en una sola columna */
+@media (max-width: 767px) {
+    .qkt-filtros-pagina .qkt-campo { flex: 1 1 100%; min-width: 0; }
+    .qkt-filtros-pagina .qkt-campo .form-control,
+    .qkt-filtros-pagina .qkt-campo > select,
+    .qkt-filtros-pagina .qkt-campo > input { width: 100%; min-width: 0; max-width: 100%; }
+    .qkt-rejilla { grid-template-columns: minmax(0, 1fr); }
+}
