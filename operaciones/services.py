@@ -33,6 +33,7 @@ from comunicacion.services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
+from comunicacion.services_responsables import SIN_DESTINO, telefonos_aviso
 from core_erp.horarios import formato_hora_ampm
 
 from .constantes import HORA_ENTRADA_NORMAL, HORA_SALIDA_NORMAL, calcular_horario_turnover
@@ -217,18 +218,15 @@ def enviar_resumen_propietario(fecha) -> str:
     if not tareas:
         return 'NO_APLICA'
 
-    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
-    if not destino:
-        logger.error("WA_NUMERO_NEGOCIO no configurado; no se puede mandar el resumen de operaciones")
+    destinos = telefonos_aviso('ENCARGADO')
+    if not destinos:
+        logger.error("%s; no se puede mandar el resumen de operaciones", SIN_DESTINO)
         TareaProgramada.objects.filter(pk__in=[t.pk for t in tareas]).update(estado_resumen_propietario='FALLIDO')
         return 'FALLIDO'
 
-    comm = enviar_whatsapp(
-        tipo='OTRO',
-        telefono=destino,
-        mensaje=construir_texto_resumen_propietario(tareas),
-    )
-    estado = 'ENVIADO' if comm and comm.estado == 'ENVIADO' else 'FALLIDO'
+    texto = construir_texto_resumen_propietario(tareas)
+    comms = [enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=texto) for destino in destinos]
+    estado = 'ENVIADO' if all(c and c.estado == 'ENVIADO' for c in comms) else 'FALLIDO'
     TareaProgramada.objects.filter(pk__in=[t.pk for t in tareas]).update(estado_resumen_propietario=estado)
     return estado
 

@@ -9,8 +9,16 @@ from django.utils.formats import date_format
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 
-from . import services_agente, services_tablero
-from .models import BajaWhatsApp, ComunicacionCliente, ConversacionWhatsApp, MensajeWhatsApp
+from . import services_agente, services_responsables, services_tablero
+from .models import (
+    BajaWhatsApp,
+    CambioResponsable,
+    ComunicacionCliente,
+    ConversacionWhatsApp,
+    MensajeWhatsApp,
+    Responsable,
+)
+from .services import normalizar_telefono_wa
 
 
 @admin.register(ComunicacionCliente)
@@ -153,3 +161,126 @@ class BajaWhatsAppAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class ResponsableForm(forms.ModelForm):
+    telefono = forms.CharField(
+        max_length=20, label='Número de WhatsApp',
+        help_text='Si cambia, el número nuevo queda en espera y se activa cuando responda ACEPTO desde él; '
+                  'mientras tanto los avisos siguen al número anterior.')
+
+    class Meta:
+        model = Responsable
+        fields = ('rol', 'nombre', 'email', 'modo_copia', 'activo', 'vigente_desde', 'vigente_hasta')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields['telefono'].initial = self.instance.telefono_pendiente or self.instance.telefono_wa
+
+    def clean_telefono(self):
+        normalizado = normalizar_telefono_wa(self.cleaned_data['telefono'])
+        if not normalizado:
+            raise forms.ValidationError('Escribe un número de WhatsApp válido (10 dígitos).')
+        return normalizado
+
+    def clean(self):
+        datos = super().clean()
+        desde, hasta = datos.get('vigente_desde'), datos.get('vigente_hasta')
+        if desde and hasta and hasta < desde:
+            self.add_error('vigente_hasta', 'La fecha final no puede ser anterior a la inicial.')
+        return datos
+
+
+class CambioResponsableInline(admin.TabularInline):
+    model = CambioResponsable
+    extra = 0
+    can_delete = False
+    fields = ('created_at', 'campo', 'antes', 'despues', 'usuario')
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Responsable)
+class ResponsableAdmin(admin.ModelAdmin):
+    """Directorio de a quién le llega cada aviso interno. Solo superusuario."""
+    form = ResponsableForm
+    list_display = ('nombre', 'rol_badge', 'telefono_actual', 'estado_badge', 'copia', 'vigencia', 'activo')
+    list_filter = ('rol', 'activo')
+    search_fields = ('nombre', 'telefono_wa', 'telefono_pendiente')
+    fields = ('rol', 'nombre', 'telefono', 'estado_numero', 'email', 'modo_copia', 'activo',
+              'vigente_desde', 'vigente_hasta')
+    readonly_fields = ('estado_numero',)
+    inlines = [CambioResponsableInline]
+    columnas_texto = ('nombre',)
+    CAMPOS_BITACORA = ('rol', 'nombre', 'email', 'modo_copia', 'activo', 'vigente_desde', 'vigente_hasta')
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Rol', ordering='rol')
+    def rol_badge(self, obj):
+        return ui.badge(obj.get_rol_display(), ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Teléfono')
+    def telefono_actual(self, obj):
+        return obj.telefono_wa or obj.telefono_pendiente or ui.vacio()
+
+    @admin.display(description='Número')
+    def estado_badge(self, obj):
+        if obj.telefono_pendiente:
+            return ui.badge('Esperando ACEPTO', ui.ALERTA)
+        if obj.telefono_wa:
+            return ui.badge('Confirmado', ui.EXITO)
+        return ui.badge('Sin número', ui.ERROR)
+
+    @admin.display(description='Estado del número')
+    def estado_numero(self, obj):
+        return self.estado_badge(obj) if obj and obj.pk else ui.vacio()
+
+    @admin.display(description='Copia')
+    def copia(self, obj):
+        return obj.get_modo_copia_display() if obj.rol == 'DIRECCION' else ui.vacio()
+
+    @admin.display(description='Vigencia')
+    def vigencia(self, obj):
+        if not (obj.vigente_desde or obj.vigente_hasta):
+            return ui.badge('Permanente', ui.NEUTRO, categoria=True)
+        desde = date_format(obj.vigente_desde, 'd M Y') if obj.vigente_desde else '…'
+        hasta = date_format(obj.vigente_hasta, 'd M Y') if obj.vigente_hasta else '…'
+        return f'{desde} – {hasta}'
+
+    def save_model(self, request, obj, form, change):
+        previo = Responsable.objects.get(pk=obj.pk) if change else None
+        antes = {c: getattr(previo, c) for c in self.CAMPOS_BITACORA} if change else {}
+        if change:
+            obj.updated_by = request.user
+        else:
+            obj.created_by = obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+        if not change:
+            services_responsables.registrar_cambio(obj, 'alta', '', f'{obj.get_rol_display()} — {obj.nombre}',
+                                                   request.user)
+        for campo in self.CAMPOS_BITACORA:
+            if change and getattr(obj, campo) != antes[campo]:
+                services_responsables.registrar_cambio(obj, campo, antes[campo], getattr(obj, campo), request.user)
+        if services_responsables.proponer_telefono(obj, form.cleaned_data['telefono'], request.user):
+            self.message_user(request, 'Se envió la solicitud de confirmación. El número se activa cuando '
+                                       'responda ACEPTO; mientras tanto los avisos siguen al número anterior.')

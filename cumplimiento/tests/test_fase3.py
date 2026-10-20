@@ -7,6 +7,7 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from comunicacion.models import Responsable
 from cumplimiento import services_avisos as sa
 from cumplimiento.models import AvisoVencimiento, Tramite, Vigencia
 
@@ -94,6 +95,16 @@ class EnvioTest(TestCase):
         self.assertEqual(wa.call_count, 1)
         self.assertEqual(mail.call_count, 1)
         self.assertEqual(AvisoVencimiento.objects.filter(estado='ENVIADO').count(), 2)
+
+    def test_avisa_al_numero_de_direccion_del_directorio(self):
+        Responsable.objects.create(rol='ENCARGADO', nombre='E', telefono_wa='525555550011')
+        Responsable.objects.create(rol='DIRECCION', nombre='D', telefono_wa='525555550012')
+        with WA as wa, MAIL as mail:
+            wa.return_value = _ok()
+            mail.return_value = _ok()
+            sa.procesar_avisos(HOY, aplicar=True)
+        self.assertEqual(wa.call_count, 1)
+        self.assertEqual(wa.call_args.kwargs['telefono'], '525555550012')
 
     def test_mensaje_consolidado(self):
         tramite_con_vigencia(2, nombre='Otro', critico=True)

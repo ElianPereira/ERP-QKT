@@ -47,6 +47,13 @@ from .services import (
 )
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
+from .services_responsables import (
+    CONFIRMACION_ACEPTO,
+    confirmar_numero,
+    es_acepto,
+    rol_de_telefono,
+    telefonos_aviso,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -394,9 +401,10 @@ def _numero_habilitado(conv) -> bool:
     prueba.discard('')
     if prueba and conv.telefono not in prueba:
         return False
-    # El número del propietario (destino de las alertas internas) le escribe
-    # al de la API para abrir la ventana de 24 h; el agente no le contesta.
-    return conv.telefono != normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    # Los números del directorio de responsables (destino de las alertas
+    # internas) le escriben al de la API para abrir la ventana de 24 h; el
+    # agente no les contesta.
+    return rol_de_telefono(conv.telefono) is None
 
 
 def agente_contesta_a(conv) -> bool:
@@ -482,6 +490,14 @@ def _atender_pendientes(conversacion_id: int) -> None:
     if not pendientes:
         return
     MensajeWhatsApp.objects.filter(pk__in=[m.pk for m in pendientes]).update(procesado=True)
+    # «ACEPTO» desde un número pendiente del directorio lo activa; desde
+    # cualquier otro número sigue el flujo normal.
+    aceptos = [m for m in pendientes if es_acepto(m.texto)]
+    if aceptos and confirmar_numero(conv.telefono):
+        _enviar_automatico(conv, CONFIRMACION_ACEPTO)
+        pendientes = [m for m in pendientes if m not in aceptos]
+        if not pendientes:
+            return
     # La baja se atiende aunque el agente esté en pausa o apagado: el
     # seguimiento sale por cron sin importar el agente.
     bajas = [m for m in pendientes if es_palabra_baja(m.texto)]
@@ -543,7 +559,8 @@ def _tope_alcanzado(conv) -> bool:
             )
             _avisar_propietario(
                 f'el asistente llegó a su tope de {settings.WA_AGENTE_MAX_RESPUESTAS_DIA} respuestas '
-                'de hoy; las conversaciones nuevas quedan para una persona hasta mañana')
+                'de hoy; las conversaciones nuevas quedan para una persona hasta mañana',
+                rol='DIRECCION')
         return True
     return False
 
@@ -616,9 +633,9 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
         f"Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones")
 
 
-def _avisar_propietario(resumen: str) -> None:
-    """Aviso por WhatsApp a `WA_NUMERO_NEGOCIO` (además del correo), porque el
-    propietario revisa más WhatsApp que el correo.
+def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:
+    """Aviso por WhatsApp a los números del directorio de responsables para el
+    `rol` (además del correo), porque el equipo revisa más WhatsApp que el correo.
 
     Va en la plantilla aprobada `WA_TEMPLATE_OPERACIONES` («Tienes un aviso
     nuevo: {{1}}»), que llega aunque no haya ventana de 24 h; sin plantilla, va
@@ -626,18 +643,16 @@ def _avisar_propietario(resumen: str) -> None:
     no la alcanza la purga de conversaciones. Nunca lanza: un aviso caído no
     debe tumbar la respuesta al cliente.
     """
-    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
-    if not destino:
-        return
     plantilla = getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
-    try:
-        if plantilla:
-            enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
-                                     parametros=[resumen[:900]])
-        else:
-            enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=f'Aviso nuevo: {resumen}.')
-    except Exception:
-        logger.exception("Agente WhatsApp: no se pudo avisar al propietario por WhatsApp")
+    for destino in telefonos_aviso(rol):
+        try:
+            if plantilla:
+                enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
+                                         parametros=[resumen[:900]])
+            else:
+                enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=f'Aviso nuevo: {resumen}.')
+        except Exception:
+            logger.exception("Agente WhatsApp: no se pudo avisar al propietario por WhatsApp")
 
 
 def _cliente_ia():

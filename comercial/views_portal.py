@@ -209,7 +209,7 @@ def portal_evento(request, token):
 
     # Número público de contacto para los enlaces wa.me que ve el cliente.
     # Es el de atención, distinto del emisor de la Cloud API y distinto del
-    # WA_NUMERO_NEGOCIO al que van las alertas internas. Si no está configurado
+    # número interno al que van las alertas internas. Si no está configurado
     # la plantilla oculta el enlace en vez de renderizar un wa.me/ roto.
     from comunicacion.services import normalizar_telefono_wa
     wa_numero = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', ''))

@@ -280,3 +280,77 @@ class BajaWhatsApp(models.Model):
 
     def __str__(self):
         return f'{self.telefono} — {self.created_at:%d/%m/%Y}'
+
+
+class Responsable(models.Model):
+    """Directorio de responsables internos: a quién le llega cada aviso.
+
+    Reemplaza el número único de avisos de Railway: cambiar un número es editar
+    un renglón, sin tocar Railway. Un número nuevo no se activa hasta que su
+    dueño responde «ACEPTO» desde él (`telefono_pendiente` → `telefono_wa`),
+    para que un número mal capturado no mande avisos a un desconocido.
+    Un suplente es un renglón con rango de fechas: dentro del rango gana sobre
+    el permanente. No se borra, se desactiva.
+    """
+    ROL_CHOICES = [
+        ('ENCARGADO', 'Encargado'),
+        ('DIRECCION', 'Dirección'),
+        ('CONTADOR', 'Contador'),
+        ('COMPRAS', 'Compras'),
+    ]
+    COPIA_CHOICES = [
+        ('EN_VIVO', 'En vivo'),
+        ('CADA_HORA', 'Cada hora'),
+        ('OFF', 'Sin copia'),
+    ]
+
+    rol = models.CharField(max_length=10, choices=ROL_CHOICES, db_index=True, verbose_name='Rol')
+    nombre = models.CharField(max_length=120, verbose_name='Nombre')
+    telefono_wa = models.CharField(max_length=20, blank=True, verbose_name='Teléfono de WhatsApp activo')
+    telefono_pendiente = models.CharField(max_length=20, blank=True, verbose_name='Teléfono esperando ACEPTO')
+    email = models.EmailField(blank=True, verbose_name='Correo electrónico')
+    modo_copia = models.CharField(
+        max_length=10, choices=COPIA_CHOICES, default='EN_VIVO', verbose_name='Copia de avisos',
+        help_text='Solo aplica a Dirección: si recibe copia de los avisos del encargado.')
+    activo = models.BooleanField(default=True, verbose_name='Activo')
+    vigente_desde = models.DateField(null=True, blank=True, verbose_name='Vigente desde',
+                                     help_text='Solo para suplencias; vacío = sin límite.')
+    vigente_hasta = models.DateField(null=True, blank=True, verbose_name='Vigente hasta')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Responsable'
+        verbose_name_plural = 'Responsables'
+        ordering = ['rol', '-activo', 'nombre']
+
+    def __str__(self):
+        return f'{self.get_rol_display()} — {self.nombre}'
+
+    @property
+    def confirmado(self) -> bool:
+        return bool(self.telefono_wa) and not self.telefono_pendiente
+
+
+class CambioResponsable(models.Model):
+    """Bitácora de solo lectura de los cambios al directorio."""
+    responsable = models.ForeignKey(Responsable, on_delete=models.PROTECT, related_name='cambios',
+                                    verbose_name='Responsable')
+    campo = models.CharField(max_length=40, verbose_name='Campo')
+    antes = models.CharField(max_length=300, blank=True, verbose_name='Antes')
+    despues = models.CharField(max_length=300, blank=True, verbose_name='Después')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='+', verbose_name='Usuario')
+    created_at = models.DateTimeField(default=timezone.now, db_index=True, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Cambio de responsable'
+        verbose_name_plural = 'Cambios'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.responsable} · {self.campo}'
