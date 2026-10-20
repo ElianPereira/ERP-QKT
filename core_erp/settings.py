@@ -584,6 +584,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.ConversacionWhatsApp": "fab fa-whatsapp",
         "comunicacion.BajaWhatsApp":        "fas fa-bell-slash",
         "comunicacion.Responsable":         "fas fa-address-book",
+        "comunicacion.Pendiente":           "fas fa-clipboard-list",
 
         # AUTH
         "auth":                             "fas fa-shield-alt",
@@ -711,6 +712,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.ConversacionWhatsApp",
         "comunicacion.BajaWhatsApp",
         "comunicacion.Responsable",
+        "comunicacion.Pendiente",
 
         # === REPORTES ===
         "reportes",

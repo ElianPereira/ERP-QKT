@@ -3,6 +3,8 @@ Modelo unificado de comunicaciones salientes con clientes.
 Registra cada email/WhatsApp/SMS/notificación enviado.
 """
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 
@@ -354,3 +356,67 @@ class CambioResponsable(models.Model):
 
     def __str__(self):
         return f'{self.responsable} · {self.campo}'
+
+
+class Pendiente(models.Model):
+    """Bandeja única de lo que requiere a una persona (Issue #422).
+
+    Cada alerta interna deja un renglón con responsable (`rol`), severidad y
+    plazo. No se borra: se resuelve o se descarta. El detalle nunca lleva el
+    texto de mensajes de clientes (esta tabla no la alcanza la purga de
+    conversaciones).
+    """
+    TIPO_CHOICES = [
+        ('ALERTA', 'Alerta'),
+        ('PASE_HUMANO', 'Pase a humano'),
+        ('CHOQUE_FECHA', 'Choque de fecha'),
+        ('CONTRACARGO', 'Contracargo'),
+        ('SAT', 'SAT'),
+        ('CUMPLIMIENTO', 'Cumplimiento'),
+        ('CRON', 'Proceso automático'),
+        ('OTRO', 'Otro'),
+    ]
+    SEVERIDAD_CHOICES = [('URGENTE', 'Urgente'), ('NORMAL', 'Normal')]
+    ESTADO_CHOICES = [('ABIERTO', 'Abierto'), ('RESUELTO', 'Resuelto'), ('DESCARTADO', 'Descartado')]
+
+    tipo = models.CharField(max_length=15, choices=TIPO_CHOICES, default='ALERTA', db_index=True,
+                            verbose_name='Tipo')
+    severidad = models.CharField(max_length=8, choices=SEVERIDAD_CHOICES, default='NORMAL', db_index=True,
+                                 verbose_name='Severidad')
+    rol = models.CharField(max_length=10, choices=Responsable.ROL_CHOICES, db_index=True, verbose_name='Responsable')
+    titulo = models.CharField(max_length=200, verbose_name='Título')
+    detalle = models.TextField(blank=True, verbose_name='Detalle')
+    content_type = models.ForeignKey(ContentType, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+', verbose_name='Tipo de objeto')
+    object_id = models.PositiveIntegerField(null=True, blank=True, verbose_name='Id del objeto')
+    objeto = GenericForeignKey('content_type', 'object_id')
+    vence_en = models.DateTimeField(db_index=True, verbose_name='Vence')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='ABIERTO', db_index=True,
+                              verbose_name='Estado')
+    tomado_por_direccion = models.BooleanField(default=False, verbose_name='Tomado por Dirección')
+    escalado_en = models.DateTimeField(null=True, blank=True, verbose_name='Escalado')
+    copiado_en = models.DateTimeField(null=True, blank=True, verbose_name='Incluido en la copia por hora')
+    resuelto_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+', verbose_name='Resuelto por')
+    resuelto_en = models.DateTimeField(null=True, blank=True, verbose_name='Resuelto')
+    clave_idempotencia = models.CharField(max_length=191, null=True, blank=True, unique=True,
+                                          verbose_name='Clave de idempotencia')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Pendiente'
+        verbose_name_plural = 'Pendientes'
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['estado', 'rol', 'vence_en'])]
+
+    def __str__(self):
+        return f'Pendiente {self.pk}: {self.titulo}'[:120]
+
+    @property
+    def vencido(self) -> bool:
+        return self.estado == 'ABIERTO' and self.vence_en < timezone.now()

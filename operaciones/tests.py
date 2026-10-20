@@ -14,13 +14,13 @@ from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
 from .services import (
     construir_bloques_checklist,
     construir_texto_aviso_horario,
-    construir_texto_resumen_propietario,
     enviar_aviso_horario,
     enviar_mensaje_operativo,
-    enviar_resumen_propietario,
     generar_tarea_turnover,
     generar_tareas_mantenimiento,
+    marcar_resumen_enviado,
     procesar_pendientes,
+    resumen_operaciones,
 )
 
 TEL_COLABORADOR = '525555550009'
@@ -170,11 +170,13 @@ class ConstruirMensajesTest(TestCase):
         self.assertIn('6:00 a.m.', texto)
         self.assertIn('Preparación — Evento', texto)
 
-    def test_resumen_propietario_agrupa_por_persona(self):
-        ItemChecklist.objects.create(plantilla=self.plantilla, orden=1, texto='Tarea 1')
-        texto = construir_texto_resumen_propietario([self.tarea])
-        self.assertIn('👤 Juan', texto)
+    def test_resumen_de_operaciones_cubre_hoy_y_manana_y_se_marca_una_vez(self):
+        tareas, texto = resumen_operaciones(self.tarea.fecha)
+        self.assertEqual(tareas, [self.tarea])
+        self.assertIn('hoy Juan', texto)
         self.assertIn('1:00 p.m.', texto)
+        marcar_resumen_enviado(tareas, 'ENVIADO')
+        self.assertEqual(resumen_operaciones(self.tarea.fecha), ([], ''))
 
 
 @wa_settings()
@@ -228,20 +230,6 @@ class EnviarMensajesTest(TestCase):
         self.tarea.save()
         self.assertEqual(enviar_aviso_horario(self.tarea), 'NO_APLICA')
 
-    def test_resumen_propietario_va_al_numero_del_negocio(self):
-        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post:
-            estado = enviar_resumen_propietario(self.tarea.fecha)
-        self.assertEqual(estado, 'ENVIADO')
-        self.assertEqual(post.call_args.kwargs['json']['to'], TEL_NEGOCIO)
-
-    def test_resumen_propietario_va_al_encargado_y_copia_a_direccion(self):
-        Responsable.objects.create(rol='ENCARGADO', nombre='E', telefono_wa='525555550011')
-        Responsable.objects.create(rol='DIRECCION', nombre='D', telefono_wa='525555550012')
-        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post:
-            estado = enviar_resumen_propietario(self.tarea.fecha)
-        self.assertEqual(estado, 'ENVIADO')
-        self.assertEqual([c.kwargs['json']['to'] for c in post.call_args_list], ['525555550011', '525555550012'])
-
 
 class ProcesarPendientesTest(TestCase):
     def setUp(self):
@@ -258,9 +246,8 @@ class ProcesarPendientesTest(TestCase):
 
     @wa_settings()
     def test_no_envia_el_checklist_antes_de_su_horario(self):
-        # A las 4:00 a.m. el resumen al propietario (corte 8:00 p.m. del día
-        # anterior) ya está vencido y sí se manda; lo que NO debe salir
-        # todavía es el checklist operativo (entrada 8:00 a.m. - 2h = 6:00).
+        # A las 4:00 a.m. todavía no debe salir el checklist operativo
+        # (entrada 8:00 a.m. - 2h = 6:00).
         ahora = timezone_naive(date(2026, 8, 27), time(4, 0))
         with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()):
             procesar_pendientes(ahora)

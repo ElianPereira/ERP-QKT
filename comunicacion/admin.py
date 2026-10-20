@@ -8,14 +8,16 @@ from django.utils.formats import date_format
 
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
+from core_erp.admin_utils import confirmar_accion_destructiva
 
-from . import services_agente, services_responsables, services_tablero
+from . import services_agente, services_pendientes, services_responsables, services_tablero
 from .models import (
     BajaWhatsApp,
     CambioResponsable,
     ComunicacionCliente,
     ConversacionWhatsApp,
     MensajeWhatsApp,
+    Pendiente,
     Responsable,
 )
 from .services import normalizar_telefono_wa
@@ -284,3 +286,72 @@ class ResponsableAdmin(admin.ModelAdmin):
         if services_responsables.proponer_telefono(obj, form.cleaned_data['telefono'], request.user):
             self.message_user(request, 'Se envió la solicitud de confirmación. El número se activa cuando '
                                        'responda ACEPTO; mientras tanto los avisos siguen al número anterior.')
+
+
+@admin.register(Pendiente)
+class PendienteAdmin(admin.ModelAdmin):
+    """Bandeja única de lo que requiere a una persona (Issue #422). Los
+    pendientes nacen de las alertas y los avisos; aquí solo se atienden."""
+    list_display = ('titulo', 'tipo_badge', 'severidad_badge', 'rol_badge', 'estado_badge', 'vence', 'creado')
+    list_filter = ('estado', 'rol', 'severidad', 'tipo')
+    search_fields = ('titulo', 'detalle')
+    filtros_visibles = 4
+    columnas_texto = ('titulo',)
+    actions = ['resolver', 'descartar', 'tomar']
+    fields = ('titulo', 'detalle', 'tipo', 'severidad', 'rol', 'estado', 'vence_en', 'tomado_por_direccion',
+              'escalado_en', 'resuelto_por', 'resuelto_en', 'created_at')
+    readonly_fields = fields
+
+    TONOS_ESTADO = {'ABIERTO': ui.ALERTA, 'RESUELTO': ui.EXITO, 'DESCARTADO': ui.NEUTRO}
+    TONOS_SEVERIDAD = {'URGENTE': ui.ERROR, 'NORMAL': ui.NEUTRO}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Tipo', ordering='tipo')
+    def tipo_badge(self, obj):
+        return ui.badge(obj.get_tipo_display(), ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Severidad', ordering='severidad')
+    def severidad_badge(self, obj):
+        return ui.badge_por_valor(obj.severidad, self.TONOS_SEVERIDAD, obj.get_severidad_display())
+
+    @admin.display(description='Responsable', ordering='rol')
+    def rol_badge(self, obj):
+        return ui.badge(obj.get_rol_display(), ui.INFO if obj.tomado_por_direccion else ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='Vence', ordering='vence_en')
+    def vence(self, obj):
+        texto = date_format(timezone.localtime(obj.vence_en), 'd M H:i')
+        return ui.badge(f'Vencido · {texto}', ui.ERROR) if obj.vencido else texto
+
+    @admin.display(description='Creado', ordering='created_at')
+    def creado(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M H:i')
+
+    def _aplicar(self, request, queryset, funcion, verbo):
+        hechos = sum(1 for p in queryset.filter(estado='ABIERTO') if funcion(p, request.user))
+        self.message_user(request, f'{hechos} pendiente(s) {verbo}.', messages.SUCCESS if hechos else messages.WARNING)
+
+    @admin.action(description='Marcar como resueltos')
+    def resolver(self, request, queryset):
+        self._aplicar(request, queryset, services_pendientes.resolver, 'resuelto(s)')
+
+    @admin.action(description='Descartar')
+    @confirmar_accion_destructiva('Los pendientes descartados salen de la bandeja sin haberse atendido.')
+    def descartar(self, request, queryset):
+        self._aplicar(request, queryset, services_pendientes.descartar, 'descartado(s)')
+
+    @admin.action(description='Tomar como Dirección', permissions=['tomar'])
+    def tomar(self, request, queryset):
+        self._aplicar(request, queryset, services_pendientes.tomar, 'tomado(s)')
+
+    def has_tomar_permission(self, request):
+        return request.user.is_superuser

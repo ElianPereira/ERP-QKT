@@ -47,6 +47,7 @@ from .services import (
 )
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
+from .services_pendientes import atender_boton, es_boton, registrar_pendiente
 from .services_responsables import (
     CONFIRMACION_ACEPTO,
     confirmar_numero,
@@ -498,6 +499,16 @@ def _atender_pendientes(conversacion_id: int) -> None:
         pendientes = [m for m in pendientes if m not in aceptos]
         if not pendientes:
             return
+    # Botones de la bandeja de pendientes (`pend:<id>:<acción>`): valen solo
+    # desde el teléfono del responsable y nunca llegan al agente.
+    botones = [m for m in pendientes if es_boton(m.texto)]
+    for m in botones:
+        respuesta = atender_boton(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+    pendientes = [m for m in pendientes if m not in botones]
+    if not pendientes:
+        return
     # La baja se atiende aunque el agente esté en pausa o apagado: el
     # seguimiento sale por cron sin importar el agente.
     bajas = [m for m in pendientes if es_palabra_baja(m.texto)]
@@ -620,6 +631,7 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
     resumen = '\n'.join(f"{m.get_direccion_display()}: {m.texto[:300]}" for m in reversed(ultimos))
     alertar_equipo_email(
         None,
+        pendiente=False,  # el pase a humano tiene su propio pendiente URGENTE, sin el texto del cliente
         asunto=f"WhatsApp: {conv.nombre or conv.telefono} necesita atención",
         cuerpo=(f"El agente de WhatsApp pasó la conversación a una persona.\n\n"
                 f"Cliente: {conv.nombre or '—'} ({conv.telefono})\nMotivo: {conv.motivo_humano}\n\n"
@@ -628,9 +640,10 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
                 "Para que el agente vuelva a contestar, desmarca «Requiere humano» "
                 "(se reactiva solo si en 24 h nadie le escribe al cliente)."),
     )
-    _avisar_propietario(
-        f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp. "
-        f"Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones")
+    registrar_pendiente(
+        titulo=f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp",
+        detalle=f'Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones.',
+        rol='ENCARGADO', tipo='PASE_HUMANO', severidad='URGENTE')
 
 
 def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:

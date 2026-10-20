@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import Cliente, Cotizacion, Pago
-from comunicacion import services_agente, services_notificaciones
+from comunicacion import services_agente, services_notificaciones, services_pendientes
 from comunicacion import services_responsables as sr
 from comunicacion.models import CambioResponsable, Responsable
 from core_erp.test_utils import login_superuser_con_totp
@@ -195,7 +195,7 @@ class AgenteYAceptoTest(TestCase):
             _respuesta(_uso('pasar_a_humano', {'motivo': 'Queja'}), stop='tool_use'),
             _respuesta(_texto('Te comunico con alguien.')))
         with wa_settings(**AGENTE, WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
-                patch.object(services_agente, 'enviar_whatsapp_template') as plantilla:
+                patch.object(services_pendientes, 'enviar_whatsapp_template') as plantilla:
             self._procesar(conv, cliente)
         self.assertEqual([c.kwargs['telefono'] for c in plantilla.call_args_list], [TEL_A, TEL_B])
 

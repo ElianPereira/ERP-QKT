@@ -12,13 +12,6 @@ HORA_SALIDA_NORMAL = time(14, 0)
 # hora de entrada que le toque ese día al colaborador (normal o adelantada).
 HORAS_ANTES_ENVIO_OPERATIVO = 2
 
-# Hora de corte, la noche anterior, para el resumen que recibe el propietario.
-# Si la tarea se genera después de este corte (o el mismo día), el resumen se
-# manda de inmediato en vez de esperar a "la noche anterior" — no tiene caso
-# programarlo para un momento que ya pasó.
-RESUMEN_HORA_CORTE = time(20, 0)
-
-
 def calcular_horario_turnover(hora_limite: time, duracion_estimada_horas) -> tuple:
     """
     Deriva (hora_entrada, requiere_tiempo_extra) para una tarea de turnover.

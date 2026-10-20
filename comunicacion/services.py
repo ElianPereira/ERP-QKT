@@ -317,8 +317,22 @@ def alertar_equipo_fecha_chocada(cotizacion, mensaje: str) -> None:
 
 
 def alertar_equipo_email(cotizacion, *, asunto: str, cuerpo: str, pago=None,
-                         clave_idempotencia: Optional[str] = None) -> Optional[ComunicacionCliente]:
-    """Copia por correo de una alerta interna, a los mismos destinatarios del equipo."""
+                         clave_idempotencia: Optional[str] = None,
+                         pendiente: bool = True) -> Optional[ComunicacionCliente]:
+    """Copia por correo de una alerta interna, a los mismos destinatarios del equipo.
+
+    Toda alerta deja además un `Pendiente` NORMAL tipo ALERTA para Dirección en
+    la bandeja (Issue #422), salvo `pendiente=False` (quien ya registró el suyo).
+    Si la bandeja falla, la alerta sale igual.
+    """
+    if pendiente:
+        try:
+            from .services_pendientes import registrar_pendiente
+            registrar_pendiente(
+                titulo=asunto, rol='DIRECCION', detalle=cuerpo[:2000], objeto=cotizacion,
+                clave_idempotencia=f'alerta:{clave_idempotencia}' if clave_idempotencia else None)
+        except Exception:
+            logger.exception("No se pudo dejar el pendiente de la alerta «%s»", asunto)
     destinatarios = getattr(settings, 'ALERTAS_INTERNAS_EMAIL', None) or [
         getattr(settings, 'DEFAULT_FROM_EMAIL', 'alertas@qkt.mx')
     ]
