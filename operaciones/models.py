@@ -171,13 +171,3 @@ class TareaProgramada(models.Model):
     def hora_envio_operativo(self) -> datetime:
         """Momento en que debe salir el checklist: HORAS_ANTES_ENVIO_OPERATIVO antes de la entrada."""
         return datetime.combine(self.fecha, self.hora_entrada) - timedelta(hours=HORAS_ANTES_ENVIO_OPERATIVO)
-
-    def hora_envio_resumen(self):
-        """
-        Momento en que debe salir el resumen al propietario: la noche anterior
-        (RESUMEN_HORA_CORTE), o ahora mismo si ya se pasó ese corte al generar
-        la tarea (servicio confirmado con poca anticipación).
-        """
-        from .constantes import RESUMEN_HORA_CORTE
-        objetivo = datetime.combine(self.fecha - timedelta(days=1), RESUMEN_HORA_CORTE)
-        return objetivo

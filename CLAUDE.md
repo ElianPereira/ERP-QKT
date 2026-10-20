@@ -269,6 +269,30 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-20 — **Bandeja de pendientes, resumen diario y escalamiento** (Issue #422, fase 1b del plan de piloto
+  automático). `comunicacion.Pendiente` (migración `comunicacion.0012`, una tabla nueva) concentra lo que requiere a una
+  persona: tipo, severidad URGENTE/NORMAL, `rol` de `Responsable`, plazo (`vence_en`: 2 h urgente, 24 h normal), objeto
+  ligado opcional (GenericFK), `tomado_por_direccion`, `escalado_en`, `clave_idempotencia` única. Sin borrado: se resuelve
+  o se descarta. `services_pendientes.registrar_pendiente()` es idempotente por clave y **nunca lanza**; un URGENTE avisa
+  al momento con `telefonos_aviso(rol)` (botones si la ventana de 24 h del destinatario está abierta, plantilla
+  `WA_TEMPLATE_OPERACIONES` con el enlace si no); un NORMAL espera al resumen. **Integración sin tocar zonas
+  restringidas**: `alertar_equipo_email` crea un NORMAL tipo ALERTA para DIRECCION (clave `alerta:<clave>`; `pendiente=False`
+  lo omite y un error de la bandeja no tumba la alerta), así quedan capturadas todas las alertas, incluida la de Openpay,
+  sin editar `services_openpay.py`. El pase a humano crea su propio PASE_HUMANO URGENTE para ENCARGADO (con `pendiente=False`
+  en la alerta) y su detalle **no lleva texto del cliente**; reemplaza al `_avisar_propietario` de ese flujo.
+  `revisar_pendientes` escala una sola vez lo vencido del ENCARGADO a DIRECCION y manda la copia «cada hora» (una por hora,
+  en un mensaje; `copiado_en`); `enviar_resumen_diario` manda un mensaje por responsable (conteo por tipo, 5 más viejos,
+  enlace; a Dirección además los resueltos de ayer; idempotente por día y teléfono con clave en `ComunicacionCliente`).
+  **Ninguno de los dos comandos está dado de alta en Railway**: los agenda la Fase 1c. Botones `pend:<id>:tomar|ok`: el
+  webhook conserva el id como texto del mensaje y `_atender_pendientes` los procesa antes del agente (nunca le llegan);
+  solo valen desde el teléfono del rol (`rol_de_telefono`), «Intervengo» solo desde Dirección. **Operaciones**: el resumen
+  al propietario ya no sale solo; `resumen_operaciones(hoy)` (tareas de hoy y mañana aún sin resumir, versión corta sin el
+  checklist) va dentro del resumen del encargado y `marcar_resumen_enviado` las marca; se retiraron
+  `enviar_resumen_propietario`, `construir_texto_resumen_propietario`, `hora_envio_resumen` y `RESUMEN_HORA_CORTE`.
+  Admin «Pendientes» (ícono `fa-clipboard-list`; filtros estado/rol/severidad/tipo; acciones Resolver, Descartar con
+  `confirmar_accion_destructiva` y Tomar solo superusuario; sin alta ni borrado). Pendiente de la semana en producción:
+  si llegan demasiados NORMAL, ajustar qué alertas crean pendiente.
+
 - 2026-10-20 — **Directorio de responsables** (Issue #421, fase 1a del plan de piloto automático). Los avisos
   internos ya no leen `WA_NUMERO_NEGOCIO` sino `comunicacion/services_responsables.py`: `Responsable` (rol
   ENCARGADO/DIRECCION/CONTADOR/COMPRAS, `telefono_wa` activo y `telefono_pendiente`, `modo_copia`, rango de

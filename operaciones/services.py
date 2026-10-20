@@ -3,7 +3,8 @@ Armado y envío de los tres mensajes del módulo de operaciones (Issue #257):
 
 1. Aviso anticipado de horario especial (solo si `requiere_tiempo_extra`).
 2. Mensaje operativo (checklist) al responsable, 2 h antes de su entrada.
-3. Resumen anticipado al propietario, la noche anterior.
+3. Resumen de operaciones al encargado: ya no sale solo; va dentro del resumen
+   diario de la bandeja de pendientes (`comunicacion.services_pendientes`).
 
 Todo es informativo y unidireccional — no hay confirmación digital del
 colaborador. El estado de cada envío vive en los tres campos
@@ -23,7 +24,7 @@ libre (funciona mientras la ventana esté abierta, mismo criterio que el resto
 de mensajería interna del ERP sin plantilla).
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.utils import timezone
@@ -33,7 +34,6 @@ from comunicacion.services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
-from comunicacion.services_responsables import SIN_DESTINO, telefonos_aviso
 from core_erp.horarios import formato_hora_ampm
 
 from .constantes import HORA_ENTRADA_NORMAL, HORA_SALIDA_NORMAL, calcular_horario_turnover
@@ -114,21 +114,27 @@ def construir_texto_aviso_horario(tarea: TareaProgramada) -> str:
     )
 
 
-def construir_texto_resumen_propietario(tareas) -> str:
-    """`tareas`: iterable de TareaProgramada del mismo día, ya con responsable."""
-    tareas = list(tareas)
+def resumen_operaciones(hoy) -> tuple:
+    """Tareas de hoy y mañana aún sin resumir y su línea para el resumen diario
+    del encargado (`(tareas, texto)`; texto vacío si no hay ninguna)."""
+    tareas = list(
+        TareaProgramada.objects.filter(
+            estado_resumen_propietario='PENDIENTE', fecha__gte=hoy, fecha__lte=hoy + timedelta(days=1))
+        .select_related('plantilla', 'responsable').order_by('fecha', 'hora_entrada'))
     if not tareas:
-        return ''
-    fecha_texto = _fecha_larga(tareas[0].fecha).capitalize()
-    lineas = [f"*Resumen — {fecha_texto}*", '']
-    for tarea in tareas:
-        quien = tarea.responsable.nombre if tarea.responsable else 'Sin asignar'
-        hora_limite_texto = formato_hora_ampm(tarea.hora_limite)
-        lineas.append(f"👤 {quien} — {tarea.plantilla.titulo_mensaje()} (antes {hora_limite_texto})")
-        for item in tarea.plantilla.items.order_by('orden'):
-            lineas.append(f"{item.orden}. {item.texto}")
-        lineas.append('')
-    return '\n'.join(lineas).rstrip()
+        return [], ''
+    lineas = [
+        f"{'hoy' if t.fecha == hoy else 'mañana'} {t.responsable.nombre if t.responsable else 'sin asignar'}: "
+        f"{t.plantilla.titulo_mensaje()} (antes {formato_hora_ampm(t.hora_limite)})"
+        for t in tareas[:3]
+    ]
+    if len(tareas) > 3:
+        lineas.append(f'y {len(tareas) - 3} más')
+    return tareas, '; '.join(lineas)
+
+
+def marcar_resumen_enviado(tareas, estado: str) -> None:
+    TareaProgramada.objects.filter(pk__in=[t.pk for t in tareas]).update(estado_resumen_propietario=estado)
 
 
 # ─────────────────────────────── Envío ──────────────────────────────────────
@@ -203,32 +209,6 @@ def enviar_mensaje_operativo(tarea: TareaProgramada) -> str:
     tarea.estado_operativo = 'ENVIADO' if exito else 'FALLIDO'
     tarea.save(update_fields=['estado_operativo'])
     return tarea.estado_operativo
-
-
-def enviar_resumen_propietario(fecha) -> str:
-    """
-    Manda al propietario, en un solo mensaje, el resumen consolidado de todas
-    las tareas de `fecha` que aún no se le han resumido. Devuelve el estado
-    resultante ('NO_APLICA' si no había nada pendiente).
-    """
-    tareas = list(
-        TareaProgramada.objects.filter(fecha=fecha, estado_resumen_propietario='PENDIENTE')
-        .select_related('plantilla', 'responsable')
-    )
-    if not tareas:
-        return 'NO_APLICA'
-
-    destinos = telefonos_aviso('ENCARGADO')
-    if not destinos:
-        logger.error("%s; no se puede mandar el resumen de operaciones", SIN_DESTINO)
-        TareaProgramada.objects.filter(pk__in=[t.pk for t in tareas]).update(estado_resumen_propietario='FALLIDO')
-        return 'FALLIDO'
-
-    texto = construir_texto_resumen_propietario(tareas)
-    comms = [enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=texto) for destino in destinos]
-    estado = 'ENVIADO' if all(c and c.estado == 'ENVIADO' for c in comms) else 'FALLIDO'
-    TareaProgramada.objects.filter(pk__in=[t.pk for t in tareas]).update(estado_resumen_propietario=estado)
-    return estado
 
 
 # ─────────────────────────────── Generación ─────────────────────────────────
@@ -318,7 +298,7 @@ def procesar_pendientes(ahora: datetime = None) -> dict:
     # local de Mérida, sin zona), así que comparar contra localtime() sin tz
     # evita tener que aware-izar cada datetime calculado a partir de ellos.
     ahora = ahora or timezone.localtime().replace(tzinfo=None)
-    contadores = {'aviso_horario': 0, 'operativo': 0, 'resumen': 0}
+    contadores = {'aviso_horario': 0, 'operativo': 0}
 
     pendientes_aviso = TareaProgramada.objects.filter(
         requiere_tiempo_extra=True,
@@ -331,14 +311,5 @@ def procesar_pendientes(ahora: datetime = None) -> dict:
     for tarea in pendientes_operativo:
         if ahora >= tarea.hora_envio_operativo() and enviar_mensaje_operativo(tarea) == 'ENVIADO':
             contadores['operativo'] += 1
-
-    fechas_pendientes = (
-        TareaProgramada.objects.filter(estado_resumen_propietario='PENDIENTE')
-        .values_list('fecha', flat=True).distinct()
-    )
-    for fecha in fechas_pendientes:
-        primera = TareaProgramada.objects.filter(fecha=fecha, estado_resumen_propietario='PENDIENTE').first()
-        if ahora >= primera.hora_envio_resumen() and enviar_resumen_propietario(fecha) == 'ENVIADO':
-            contadores['resumen'] += 1
 
     return contadores

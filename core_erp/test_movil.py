@@ -304,6 +304,23 @@ class PaginasMovilTest(MovilBase):
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Responsables desborda en móvil:\n' + '\n'.join(problemas))
 
+    def test_bandeja_de_pendientes_no_desborda(self):
+        from django.utils import timezone
+
+        from comunicacion.models import Pendiente
+        pend = Pendiente.objects.create(
+            titulo='WhatsApp: un cliente con un nombre bastante largo necesita atención', rol='ENCARGADO',
+            tipo='PASE_HUMANO', severidad='URGENTE', detalle='Motivo: quiere negociar el precio del evento.',
+            vence_en=timezone.now() - timedelta(hours=1))
+        problemas = []
+        for ruta in (reverse('admin:comunicacion_pendiente_changelist'),
+                     reverse('admin:comunicacion_pendiente_change', args=[pend.pk])):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES) if '/change/' in ruta else []
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Pendientes desborda en móvil:\n' + '\n'.join(problemas))
+
     def test_paginas_propias_no_desbordan(self):
         rutas = [
             '/admin/', reverse('calendario_unificado'),

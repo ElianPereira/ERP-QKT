@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import ConstanteSistema, Cotizacion, Producto, ProductoComponente
-from comunicacion import herramientas_agente, services_agente
+from comunicacion import herramientas_agente, services_agente, services_pendientes
 from comunicacion.models import ConversacionWhatsApp, MensajeWhatsApp
 
 from .utils import TEL_CLIENTE, wa_settings
@@ -251,7 +251,7 @@ class ProcesarConversacionTest(TestCase):
             _respuesta(_texto('Te comunico con alguien del equipo.')),
         )
         with self.settings(WA_NUMERO_NEGOCIO='9994457178', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
-                patch.object(services_agente, 'enviar_whatsapp_template') as plantilla:
+                patch.object(services_pendientes, 'enviar_whatsapp_template') as plantilla:
             self._procesar(cliente)
         kwargs = plantilla.call_args.kwargs
         self.assertEqual(kwargs['telefono'], '529994457178')
@@ -265,7 +265,7 @@ class ProcesarConversacionTest(TestCase):
             _respuesta(_texto('Te comunico con alguien del equipo.')),
         )
         with self.settings(WA_NUMERO_NEGOCIO='', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
-                patch.object(services_agente, 'enviar_whatsapp_template') as plantilla:
+                patch.object(services_pendientes, 'enviar_whatsapp_template') as plantilla:
             self._procesar(cliente)
         plantilla.assert_not_called()
 
