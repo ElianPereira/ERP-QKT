@@ -5,6 +5,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from comercial.models import Cliente, Cotizacion
+from comunicacion.models import Responsable
 from comunicacion.tests.utils import TEL_NEGOCIO, RespuestaFalsa, wa_settings
 from nomina.models import Empleado
 
@@ -232,6 +233,14 @@ class EnviarMensajesTest(TestCase):
             estado = enviar_resumen_propietario(self.tarea.fecha)
         self.assertEqual(estado, 'ENVIADO')
         self.assertEqual(post.call_args.kwargs['json']['to'], TEL_NEGOCIO)
+
+    def test_resumen_propietario_va_al_encargado_y_copia_a_direccion(self):
+        Responsable.objects.create(rol='ENCARGADO', nombre='E', telefono_wa='525555550011')
+        Responsable.objects.create(rol='DIRECCION', nombre='D', telefono_wa='525555550012')
+        with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post:
+            estado = enviar_resumen_propietario(self.tarea.fecha)
+        self.assertEqual(estado, 'ENVIADO')
+        self.assertEqual([c.kwargs['json']['to'] for c in post.call_args_list], ['525555550011', '525555550012'])
 
 
 class ProcesarPendientesTest(TestCase):

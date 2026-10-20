@@ -269,6 +269,22 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-20 — **Directorio de responsables** (Issue #421, fase 1a del plan de piloto automático). Los avisos
+  internos ya no leen `WA_NUMERO_NEGOCIO` sino `comunicacion/services_responsables.py`: `Responsable` (rol
+  ENCARGADO/DIRECCION/CONTADOR/COMPRAS, `telefono_wa` activo y `telefono_pendiente`, `modo_copia`, rango de
+  fechas para suplentes) y `CambioResponsable` (bitácora de solo lectura), migración `comunicacion.0011` (dos
+  tablas nuevas, aditiva). **Transición sin regresión**: sin responsable de ENCARGADO o DIRECCION, `telefono_de`
+  cae a `WA_NUMERO_NEGOCIO` (que además sigue bloqueando al agente vía `rol_de_telefono`); la copia a Dirección
+  solo sale si existe un `Responsable` real de Dirección con `modo_copia = EN_VIVO` (el respaldo no se copia).
+  Cotización nueva, pago, pase a humano y resumen de operaciones → `telefonos_aviso('ENCARGADO')`;
+  contracargo, tope global de Kooxi y cumplimiento → Dirección. La clave de idempotencia de cada envío lleva el
+  teléfono. **ACEPTO**: guardar un número nuevo o distinto lo deja en `telefono_pendiente`, manda la plantilla
+  `WA_TEMPLATE_OPERACIONES` y el activo no cambia; `_atender_pendientes` lo activa (antes de las bajas) cuando
+  «acepto» llega desde ese número, y contesta texto fijo. Desde cualquier otro número, «acepto» sigue el flujo
+  normal. Las cadenas de log de «sin destino» usan `SIN_DESTINO`, así que ningún archivo fuera del servicio
+  nombra `WA_NUMERO_NEGOCIO` en código. Admin «Responsables» solo superusuario, sin borrado. Fuera de alcance:
+  copia «cada hora» (1b) y programador (1c): `modo_copia = CADA_HORA` hoy no copia en vivo.
+
 - 2026-10-18 — **ERP usable en celular** (Issue #417; el propietario no podía deslizar la lista de Cotizaciones en
   su iPhone: se veían 348 de 956 px). **Trampa de especificidad**: `qkt_ui.css` puso `overflow:hidden` en
   `body.change-list #result_list` (para el redondeo de esquinas) y le ganaba a cualquier regla de scroll de

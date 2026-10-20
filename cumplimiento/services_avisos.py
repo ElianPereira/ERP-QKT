@@ -2,7 +2,7 @@
 Avisos de vencimiento del módulo de Cumplimiento (Issue #403, fase 3).
 
 Un mensaje consolidado por corrida y canal al propietario: WhatsApp a
-`WA_NUMERO_NEGOCIO` (plantilla `WA_TEMPLATE_OPERACIONES` con el resumen en el
+los números de Dirección del directorio de responsables (plantilla `WA_TEMPLATE_OPERACIONES` con el resumen en el
 parámetro, que sí llega fuera de la ventana de 24 h; sin plantilla, texto
 libre) y correo interno. La idempotencia es `AvisoVencimiento`: el INSERT va
 antes del envío, igual que `ComunicacionCliente`; un canal fallido se
@@ -23,8 +23,8 @@ from comunicacion.services import (
     alertar_equipo_email,
     enviar_whatsapp,
     enviar_whatsapp_template,
-    normalizar_telefono_wa,
 )
+from comunicacion.services_responsables import SIN_DESTINO, telefono_de
 
 from . import services
 from .models import AvisoVencimiento
@@ -152,10 +152,10 @@ def procesar_avisos(hoy=None, aplicar=False):
     if not aplicar or not avisos:
         return resultado
 
-    destino_wa = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    destino_wa = telefono_de('DIRECCION')
     for canal in CANALES:
         if canal == 'WHATSAPP' and not destino_wa:
-            logger.warning("WA_NUMERO_NEGOCIO no configurado; avisos de cumplimiento solo por correo")
+            logger.warning("%s; avisos de cumplimiento solo por correo", SIN_DESTINO)
             continue
         tomados = [(a, fila) for a in avisos if (fila := _reservar(a, canal)) is not None]
         if not tomados:

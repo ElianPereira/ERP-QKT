@@ -289,6 +289,21 @@ class PaginasMovilTest(MovilBase):
         alto = self.page.evaluate("document.querySelector('.nav-tabs').getBoundingClientRect().height")
         self.assertLess(alto, 60)
 
+    def test_directorio_de_responsables_no_desborda(self):
+        from comunicacion.models import Responsable
+        resp = Responsable.objects.create(rol='DIRECCION', nombre='Dirección móvil', telefono_wa='525555550011',
+                                          telefono_pendiente='525555550012')
+        problemas = []
+        for ruta in (reverse('admin:comunicacion_responsable_changelist'),
+                     reverse('admin:comunicacion_responsable_change', args=[resp.pk])):
+            res = self.barrer(ruta)
+            # Los filtros de las listas (select2 en dos columnas) ya los barre
+            # ListasMovilTest; aquí solo importa el formulario.
+            culpables = self.page.evaluate(JS_CULPABLES) if '/change/' in ruta else []
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Responsables desborda en móvil:\n' + '\n'.join(problemas))
+
     def test_paginas_propias_no_desbordan(self):
         rutas = [
             '/admin/', reverse('calendario_unificado'),

@@ -27,6 +27,7 @@ from .services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
+from .services_responsables import SIN_DESTINO, telefono_de, telefonos_aviso
 
 logger = logging.getLogger(__name__)
 
@@ -594,8 +595,8 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
     """
     Avisa al negocio de que entró una cotización por el cotizador público.
 
-    Va al `WA_NUMERO_NEGOCIO` configurado —sin fallback: un número de negocio
-    hardcodeado es exactamente lo que hacía que estas alertas se perdieran— más
+    Va a los números del directorio de responsables (`telefonos_aviso`) —sin
+    números hardcodeados: eso hacía que estas alertas se perdieran— más
     una copia por correo, para que quede registro aunque WhatsApp falle.
 
     El destino es un número externo cualquiera, así que la ventana de 24 h le
@@ -630,38 +631,38 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
         clave_idempotencia=f"cotizacion:{cotizacion.pk}:alerta_equipo:email",
     )
 
-    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
-    if not destino:
+    destinos = telefonos_aviso('ENCARGADO')
+    if not destinos:
         logger.error(
-            "%s: WA_NUMERO_NEGOCIO no está configurado; la alerta interna de "
-            "WhatsApp no se envía (la cotización se creó correctamente)", folio,
+            "%s: %s; la alerta interna de "
+            "WhatsApp no se envía (la cotización se creó correctamente)", folio, SIN_DESTINO,
         )
         return
 
     clave = f"cotizacion:{cotizacion.pk}:alerta_equipo:whatsapp"
     plantilla = _plantilla('WA_TEMPLATE_ALERTA_INTERNA')
-    if plantilla:
+    for destino in destinos:
+        if plantilla:
+            _seguro(
+                'enviar la alerta interna por WhatsApp',
+                enviar_whatsapp_template,
+                cotizacion=cotizacion,
+                tipo='OTRO',
+                telefono=destino,
+                template_name=plantilla,
+                parametros=[tipo_evento, fecha, total, portal],
+                clave_idempotencia=f"{clave}:{destino}",
+            )
+            continue
         _seguro(
             'enviar la alerta interna por WhatsApp',
-            enviar_whatsapp_template,
+            enviar_whatsapp,
             cotizacion=cotizacion,
             tipo='OTRO',
             telefono=destino,
-            template_name=plantilla,
-            parametros=[tipo_evento, fecha, total, portal],
-            clave_idempotencia=clave,
+            mensaje=cuerpo,
+            clave_idempotencia=f"{clave}:{destino}",
         )
-        return
-
-    _seguro(
-        'enviar la alerta interna por WhatsApp',
-        enviar_whatsapp,
-        cotizacion=cotizacion,
-        tipo='OTRO',
-        telefono=destino,
-        mensaje=cuerpo,
-        clave_idempotencia=clave,
-    )
 
 
 def alertar_equipo_pago(pago):
@@ -669,8 +670,8 @@ def alertar_equipo_pago(pago):
     Avisa al negocio de que se acreditó un pago (Openpay o registrado a mano).
 
     Mismo patrón que `alertar_equipo_nueva_cotizacion`: copia por email a
-    `ALERTAS_INTERNAS_EMAIL` + WhatsApp a `WA_NUMERO_NEGOCIO`, sin fallback
-    hardcodeado. No dispara para reembolsos —es otro tipo de evento, esta
+    `ALERTAS_INTERNAS_EMAIL` + WhatsApp a los números del directorio de
+    responsables, sin números hardcodeados. No dispara para reembolsos —es otro tipo de evento, esta
     alerta es solo para pagos de ingreso ya acreditados.
     """
     cotizacion = getattr(pago, 'cotizacion', None)
@@ -705,41 +706,41 @@ def alertar_equipo_pago(pago):
         clave_idempotencia=f"pago:{pago.pk}:alerta_equipo:email",
     )
 
-    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
-    if not destino:
+    destinos = telefonos_aviso('ENCARGADO')
+    if not destinos:
         logger.error(
-            "%s: WA_NUMERO_NEGOCIO no está configurado; la alerta interna de "
+            "%s: %s; la alerta interna de "
             "pago no se envía por WhatsApp (el pago se registró correctamente)",
-            folio,
+            folio, SIN_DESTINO,
         )
         return
 
     clave = f"pago:{pago.pk}:alerta_equipo:whatsapp"
     plantilla = _plantilla('WA_TEMPLATE_ALERTA_PAGO')
-    if plantilla:
+    for destino in destinos:
+        if plantilla:
+            _seguro(
+                'enviar la alerta de pago por WhatsApp',
+                enviar_whatsapp_template,
+                cotizacion=cotizacion,
+                pago=pago,
+                tipo='OTRO',
+                telefono=destino,
+                template_name=plantilla,
+                parametros=[folio, nombre_cliente, monto, saldo_texto],
+                clave_idempotencia=f"{clave}:{destino}",
+            )
+            continue
         _seguro(
             'enviar la alerta de pago por WhatsApp',
-            enviar_whatsapp_template,
+            enviar_whatsapp,
             cotizacion=cotizacion,
             pago=pago,
             tipo='OTRO',
             telefono=destino,
-            template_name=plantilla,
-            parametros=[folio, nombre_cliente, monto, saldo_texto],
-            clave_idempotencia=clave,
+            mensaje=cuerpo,
+            clave_idempotencia=f"{clave}:{destino}",
         )
-        return
-
-    _seguro(
-        'enviar la alerta de pago por WhatsApp',
-        enviar_whatsapp,
-        cotizacion=cotizacion,
-        pago=pago,
-        tipo='OTRO',
-        telefono=destino,
-        mensaje=cuerpo,
-        clave_idempotencia=clave,
-    )
 
 
 # ────────────────────────── Contracargo (chargeback) ────────────────────────
@@ -803,16 +804,16 @@ def alertar_equipo_contracargo(contracargo):
         clave_idempotencia=f"contracargo:{contracargo.pk}:{contracargo.estado}:email",
     )
 
-    destino = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    destino = telefono_de('DIRECCION')
     if not destino:
         logger.error(
-            "Contracargo %s: WA_NUMERO_NEGOCIO no está configurado; la alerta "
+            "Contracargo %s: %s; la alerta "
             "interna de WhatsApp no se envía (el contracargo se registró igual)",
-            contracargo.openpay_id,
+            contracargo.openpay_id, SIN_DESTINO,
         )
         return
 
-    clave = f"contracargo:{contracargo.pk}:{contracargo.estado}:whatsapp"
+    clave = f"contracargo:{contracargo.pk}:{contracargo.estado}:whatsapp:{destino}"
     plantilla = _plantilla('WA_TEMPLATE_ALERTA_CONTRACARGO')
     if plantilla:
         _seguro(

@@ -318,7 +318,8 @@ WA_PHONE_NUMBER_ID = config('WA_PHONE_NUMBER_ID', default='')
 WA_CLOUD_API_TOKEN = config('WA_CLOUD_API_TOKEN', default='')
 
 # Dos números con roles distintos, y ninguno con fallback en código:
-#   WA_NUMERO_NEGOCIO         → destino de las alertas internas de nueva cotización.
+#   WA_NUMERO_NEGOCIO         → respaldo de las alertas internas mientras el directorio de
+#                               Responsables (Admin → Comunicación) no tenga ENCARGADO/DIRECCION.
 #                               Debe ser un teléfono que lea una persona y NO puede
 #                               coincidir con el número emisor (Meta rechaza con 131021).
 #   WA_NUMERO_CONTACTO_PUBLICO → el que se le muestra al cliente en los enlaces wa.me
@@ -582,6 +583,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.ComunicacionCliente": "fas fa-paper-plane",
         "comunicacion.ConversacionWhatsApp": "fab fa-whatsapp",
         "comunicacion.BajaWhatsApp":        "fas fa-bell-slash",
+        "comunicacion.Responsable":         "fas fa-address-book",
 
         # AUTH
         "auth":                             "fas fa-shield-alt",
@@ -708,6 +710,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.ComunicacionCliente",
         "comunicacion.ConversacionWhatsApp",
         "comunicacion.BajaWhatsApp",
+        "comunicacion.Responsable",
 
         # === REPORTES ===
         "reportes",
