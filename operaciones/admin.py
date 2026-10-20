@@ -1,11 +1,12 @@
 from django.contrib import admin
 from django.db import models as db_models
+from django.utils import timezone
 
 from comercial.widgets import TimeSlotWidget
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 
-from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
+from .models import EjecucionCron, ItemChecklist, PlantillaChecklist, TareaProgramada
 
 # Jazzmin convierte los fieldsets nombrados de PlantillaChecklistAdmin en
 # pestañas — el selector de fecha del admin (DateTimeShortcuts.js) posiciona
@@ -95,3 +96,41 @@ class TareaProgramadaAdmin(admin.ModelAdmin):
     # Es el tablero de supervisión (qué se le mandó a quién): todo de solo
     # lectura salvo `responsable`, para permitir el override manual antes de
     # que salga el envío.
+
+
+@admin.register(EjecucionCron)
+class EjecucionCronAdmin(admin.ModelAdmin):
+    """Bitácora del programador único (Issue #423): solo lectura, sin alta,
+    cambio ni borrado."""
+    list_display = ['tarea', 'ranura', 'estado_badge', 'duracion_legible', 'inicio']
+    list_filter = ['tarea', 'estado']
+    search_fields = ['tarea']
+    date_hierarchy = 'programada_para'
+    fields = ['tarea', 'programada_para', 'inicio', 'fin', 'estado', 'error', 'salida']
+    readonly_fields = fields
+
+    TONOS = {'EXITO': ui.EXITO, 'ERROR': ui.ERROR, 'EN_CURSO': ui.INFO}
+
+    @admin.display(description='Ranura', ordering='programada_para')
+    def ranura(self, obj):
+        return timezone.localtime(obj.programada_para).strftime('%d/%m/%Y %H:%M')
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS, obj.get_estado_display())
+
+    @admin.display(description='Duración')
+    def duracion_legible(self, obj):
+        if obj.duracion is None:
+            return ui.vacio(numerico=True)
+        segundos = int(obj.duracion.total_seconds())
+        return f'{segundos // 60} min {segundos % 60} s' if segundos >= 60 else f'{segundos} s'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

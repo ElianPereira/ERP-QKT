@@ -31,6 +31,17 @@ Basado en el bloque `sidebar` original de Jazzmin — si Jazzmin cambia esa
 plantilla en una actualización, este bloque puede quedar desactualizado.
 {% endcomment %}
 
+{% block messages %}
+{% if programador_ultima_vuelta %}
+<div class="qkt-aviso qkt-aviso--error" role="alert">
+    <span class="qkt-aviso__titulo"><i class="fas fa-history"></i> El programador no está corriendo</span>
+    Última vuelta registrada: {{ programador_ultima_vuelta|date:"d/m/Y H:i" }}. Las tareas automáticas no se están ejecutando; revisa el servicio «Programador» en Railway.
+    <a href="{% url 'admin:operaciones_ejecucioncron_changelist' %}">Ver ejecuciones</a>
+</div>
+{% endif %}
+{{ block.super }}
+{% endblock %}
+
 {% block sidebar %}
 {% if jazzmin_settings.show_sidebar %}
     {% get_side_menu_grouped as side_menu_list %}

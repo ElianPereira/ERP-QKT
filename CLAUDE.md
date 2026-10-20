@@ -269,6 +269,26 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-20 — **Programador único + vigilante** (Issue #423, fase 1c del plan de piloto automático). Un solo cron de
+  Railway (`*/5 * * * *`) corre `manage.py programador`; la tabla de tareas está en `core_erp/programador.py`
+  (`Tarea(nombre, comando, horario, tolerancia, args)`; horarios `cada`/`diario`/`semanal`/`mensual` en
+  America/Merida, dataclasses propios, sin dependencias) y la lógica en `operaciones/services_programador.py`. Cada
+  vuelta calcula la última ranura vencida de cada tarea y, **solo si sigue dentro de su tolerancia**, la reserva con
+  una `operaciones.EjecucionCron` EN_CURSO (migración `operaciones.0004`, una tabla nueva): el `UniqueConstraint`
+  (tarea, ranura) decide quién gana si dos procesos corren a la vez, y el perdedor se salta la ranura. Una ranura
+  atrasada fuera de tolerancia **no se recupera** (decisión: una mensual corrida el día 20 por un deploy tardío sería
+  peor que avisar). Salida truncada a 5,000 caracteres con credenciales enmascaradas (`sin_secretos`). **Vigilante** al
+  final de cada vuelta: ranura reciente en ERROR, o sin EXITO pasada la tolerancia (no corrió o se quedó EN_CURSO) →
+  `registrar_pendiente(tipo='CRON', URGENTE, DIRECCION, clave_idempotencia='cron:<tarea>:<ranura>')`; no duplica. No
+  alerta ranuras anteriores a la primera corrida registrada (antes de existir el programador no podía correrlas;
+  evita una ráfaga de avisos el día del corte), salvo que esa ranura ya tenga su fila. **Salud**: context processor
+  `salud_programador` → `qkt-aviso--error` en `templates/admin/base.html` para superusuarios si la última
+  `EjecucionCron` tiene > 30 min (sin filas no avisa: el programador aún no entra en uso); el resumen diario a
+  Dirección trae «Programador: última vuelta hh:mm». Admin «Ejecuciones» (solo lectura, ícono `fa-history`, grupo
+  nuevo OPERACIONES en `order_with_respect_to`). Los 11 crons de Railway + `revisar_pendientes` + `enviar_resumen_diario`
+  quedan en la tabla; **el corte en Railway lo hace otra sesión** con `docs/railway_programador.md`. `--simular` y
+  `--solo <tarea>` sirven para pruebas. Sin cambios en los comandos existentes.
+
 - 2026-10-20 — **Bandeja de pendientes, resumen diario y escalamiento** (Issue #422, fase 1b del plan de piloto
   automático). `comunicacion.Pendiente` (migración `comunicacion.0012`, una tabla nueva) concentra lo que requiere a una
   persona: tipo, severidad URGENTE/NORMAL, `rol` de `Responsable`, plazo (`vence_en`: 2 h urgente, 24 h normal), objeto

@@ -144,6 +144,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core_erp.context_processors.session_idle',
                 'core_erp.context_processors.version_estaticos',
+                'core_erp.context_processors.salud_programador',
             ],
         },
     },
@@ -604,6 +605,7 @@ JAZZMIN_SETTINGS = {
         "operaciones":                       "fas fa-broom",
         "operaciones.PlantillaChecklist":    "fas fa-tasks",
         "operaciones.TareaProgramada":       "fas fa-clock",
+        "operaciones.EjecucionCron":         "fas fa-history",
 
         # CUMPLIMIENTO
         "cumplimiento":                      "fas fa-clipboard-check",
@@ -713,6 +715,12 @@ JAZZMIN_SETTINGS = {
         "comunicacion.BajaWhatsApp",
         "comunicacion.Responsable",
         "comunicacion.Pendiente",
+
+        # === OPERACIONES ===
+        "operaciones",
+        "operaciones.PlantillaChecklist",
+        "operaciones.TareaProgramada",
+        "operaciones.EjecucionCron",
 
         # === REPORTES ===
         "reportes",

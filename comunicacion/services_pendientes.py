@@ -248,7 +248,7 @@ def copiar_cada_hora(ahora=None) -> int:
 
 # ───────────────────────────── Resumen diario ─────────────────────────────────
 
-def _resumen_de(abiertos, resueltos_ayer, operaciones, hoy) -> str:
+def _resumen_de(abiertos, resueltos_ayer, operaciones, hoy, programador='') -> str:
     partes = [f'Resumen del {hoy:%d/%m}.']
     if abiertos:
         conteo = ', '.join(f'{n} {tipo}' for tipo, n in Counter(p.get_tipo_display() for p in abiertos).items())
@@ -259,6 +259,8 @@ def _resumen_de(abiertos, resueltos_ayer, operaciones, hoy) -> str:
         partes.append(f'Operación: {operaciones}.')
     if resueltos_ayer:
         partes.append(f'Resueltos ayer: {resueltos_ayer}.')
+    if programador:
+        partes.append(f'{programador}.')
     partes.append(f'Bandeja: {url_bandeja()}')
     return ' '.join(partes)
 
@@ -268,6 +270,7 @@ def enviar_resumen_diario(hoy=None) -> int:
     los más viejos); a Dirección además los resueltos de ayer, y al encargado el
     resumen de operaciones. Idempotente por día y teléfono. Devuelve cuántos salieron."""
     from operaciones.services import marcar_resumen_enviado, resumen_operaciones
+    from operaciones.services_programador import texto_ultima_vuelta
 
     hoy = hoy or timezone.localdate()
     por_telefono = {}
@@ -284,7 +287,8 @@ def enviar_resumen_diario(hoy=None) -> int:
         tareas, operaciones = resumen_operaciones(hoy) if 'ENCARGADO' in roles else ([], '')
         if not (abiertos or resueltos_ayer or operaciones):
             continue
-        comm = _enviar_aviso(telefono, _resumen_de(abiertos, resueltos_ayer, operaciones, hoy),
+        programador = texto_ultima_vuelta() if 'DIRECCION' in roles else ''
+        comm = _enviar_aviso(telefono, _resumen_de(abiertos, resueltos_ayer, operaciones, hoy, programador),
                              clave=f'pend:resumen:{hoy}:{telefono}')
         if comm is None:
             continue
