@@ -36,6 +36,9 @@ from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 from django.utils.formats import date_format
 
+from comercial import services_terminal
+from operaciones.services import es_listo, marcar_listo
+
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
@@ -47,7 +50,9 @@ from .services import (
 )
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
-from .services_pendientes import atender_boton, es_boton, registrar_pendiente
+from .services_pendientes import _enviar_aviso, atender_boton, es_boton, registrar_pendiente
+from .services_preguntas import atender_boton as atender_boton_faq
+from .services_preguntas import es_boton as es_boton_faq
 from .services_responsables import (
     CONFIRMACION_ACEPTO,
     confirmar_numero,
@@ -170,7 +175,7 @@ cliente. Si pide hablar con una persona, se queja, quiere negociar, reclama un p
 refleja, quiere cancelar o cambiar su fecha, o ejercer sus derechos sobre sus datos \
 personales (ARCO), o su caso no lo cubren tus herramientas, usa pasar_a_humano y avísale que alguien \
 del equipo le contestará por este mismo chat. Una solicitud de cancelación queda registrada con la \
-fecha de su mensaje: díselo, sin prometerle reembolso.
+fecha de su mensaje: díselo, sin prometerle reembolso. Si es una queja o reclamo, pasa categoria="queja".
 - Si el cliente pide no recibir más promociones, recordatorios de su cotización o mensajes de la \
 Quinta, usa dar_de_baja_promociones y confírmale que ya no le escribiremos para eso; los avisos de \
 su reservación sí le siguen llegando y puede escribirte cuando quiera. Si solo escribe «BAJA», el \
@@ -507,6 +512,23 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if respuesta:
             _enviar_automatico(conv, respuesta)
     pendientes = [m for m in pendientes if m not in botones]
+    # [Aprobar] de una pregunta frecuente propuesta (`faq:<id>:ok`): solo Dirección.
+    for m in [m for m in pendientes if es_boton_faq(m.texto)]:
+        respuesta = atender_boton_faq(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Cobros con terminal (`terminal 5000 cot 145` y su botón `term:<token>:ok`):
+    # solo valen desde ENCARGADO o DIRECCION. Desde otro número el reporte sigue
+    # el flujo normal; un botón ajeno se descarta sin contestar.
+    terminal = [m for m in pendientes if _atender_terminal(conv, m.texto)]
+    pendientes = [m for m in pendientes if m not in terminal]
+    # «Listo» del personal con tareas de hoy sin completar (`operaciones`).
+    for m in [m for m in pendientes if es_listo(m.texto)]:
+        respuesta = marcar_listo(conv.telefono)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
     if not pendientes:
         return
     # La baja se atiende aunque el agente esté en pausa o apagado: el
@@ -535,6 +557,51 @@ def _atender_pendientes(conversacion_id: int) -> None:
     respuesta, uso = responder(conv, texto)
     if respuesta:
         _enviar(conv, filtrar_respuesta(conv, texto, respuesta), uso=uso)
+
+
+def _atender_terminal(conv, texto: str) -> bool:
+    """True si el mensaje era de la terminal y ya se atendió (o se descartó)."""
+    try:
+        if services_terminal.es_boton(texto):
+            resultado = services_terminal.confirmar(conv.telefono, texto)
+            if resultado is None:
+                return True  # botón ajeno o de un número sin permiso: no llega al agente
+            _enviar_automatico(conv, resultado.texto)
+            if resultado.pago is not None:
+                _copiar_cobro_a_direccion(conv.telefono, resultado)
+            return True
+        if services_terminal.es_reporte(texto):
+            resultado = services_terminal.proponer(conv.telefono, texto)
+            if resultado is None:
+                return False
+            if resultado.boton_id:
+                comm = enviar_whatsapp_botones(
+                    tipo='OTRO', telefono=conv.telefono, mensaje=resultado.texto,
+                    botones=[(resultado.boton_id, services_terminal.ETIQUETA_BOTON)])
+                if comm is None or comm.estado == 'FALLIDO':
+                    _enviar_automatico(conv, 'No pude mostrarte el botón de confirmación. '
+                                             'Vuelve a enviar el reporte en un momento.')
+                else:
+                    MensajeWhatsApp.objects.create(
+                        conversacion=conv, direccion='AGENTE', texto=resultado.texto[:LIMITE_WHATSAPP],
+                        procesado=True, automatico=True, wamid=comm.proveedor_id or None)
+            else:
+                _enviar_automatico(conv, resultado.texto)
+            return True
+    except Exception:
+        logger.exception("Agente WhatsApp: falló el reporte de terminal de %s", conv.telefono)
+    return False
+
+
+def _copiar_cobro_a_direccion(telefono_origen: str, resultado) -> None:
+    """Aviso a Dirección de un cobro registrado por WhatsApp (sin el texto del
+    chat). No se repite al número que lo confirmó."""
+    reporte = resultado.reporte
+    texto = (f'Cobro con terminal registrado por WhatsApp: ${reporte.monto:,.2f} en '
+             f'COT-{reporte.cotizacion_id:03d}, reportado desde el número del rol {reporte.rol}.')
+    for destino in telefonos_aviso('DIRECCION'):
+        if destino != normalizar_telefono_wa(telefono_origen):
+            _enviar_aviso(destino, texto, clave=f'terminal:{reporte.pk}:copia:{destino}')
 
 
 def _respuestas_de_hoy():
@@ -620,7 +687,7 @@ def _enviar_automatico(conv, texto: str) -> None:
     )
 
 
-def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
+def _pasar_a_humano(conv, motivo: str, avisar: bool = True, categoria: str = '') -> None:
     conv.requiere_humano = True
     conv.motivo_humano = (motivo or '')[:300]
     conv.save(update_fields=['requiere_humano', 'motivo_humano', 'updated_at'])
@@ -643,7 +710,7 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
     registrar_pendiente(
         titulo=f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp",
         detalle=f'Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones.',
-        rol='ENCARGADO', tipo='PASE_HUMANO', severidad='URGENTE')
+        rol='ENCARGADO', tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO', severidad='URGENTE')
 
 
 def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:
@@ -754,7 +821,8 @@ def _resultados_herramientas(conv, contenido) -> list:
         if bloque.type != 'tool_use':
             continue
         if bloque.name == 'pasar_a_humano':
-            _pasar_a_humano(conv, (bloque.input or {}).get('motivo', ''))
+            entrada = bloque.input or {}
+            _pasar_a_humano(conv, entrada.get('motivo', ''), categoria=entrada.get('categoria', ''))
             salida, error = json.dumps({'ok': True, 'nota': 'El equipo fue avisado.'}), False
         else:
             salida, error = ejecutar(bloque.name, bloque.input or {}, conv=conv)

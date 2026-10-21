@@ -369,6 +369,7 @@ class Pendiente(models.Model):
     TIPO_CHOICES = [
         ('ALERTA', 'Alerta'),
         ('PASE_HUMANO', 'Pase a humano'),
+        ('QUEJA', 'Queja'),
         ('CHOQUE_FECHA', 'Choque de fecha'),
         ('CONTRACARGO', 'Contracargo'),
         ('SAT', 'SAT'),

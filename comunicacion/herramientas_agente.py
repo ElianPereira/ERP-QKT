@@ -230,6 +230,11 @@ HERRAMIENTAS = [
             'type': 'object',
             'properties': {
                 'motivo': {'type': 'string', 'description': 'Una línea para el equipo: qué necesita el cliente.'},
+                'categoria': {
+                    'type': 'string', 'enum': ['queja', 'venta', 'otro'],
+                    'description': 'queja si el cliente está inconforme o reclama algo; venta si quiere contratar '
+                                   'o negociar; otro en los demás casos.',
+                },
             },
             'required': ['motivo'],
             'additionalProperties': False,

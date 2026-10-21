@@ -150,6 +150,10 @@ class TareaProgramada(models.Model):
     estado_operativo = models.CharField(max_length=10, choices=ESTADO_ENVIO, default='PENDIENTE')
     estado_resumen_propietario = models.CharField(max_length=10, choices=ESTADO_ENVIO, default='PENDIENTE')
 
+    # «Listo» por WhatsApp (Issue #428): el responsable avisa que terminó.
+    completada_en = models.DateTimeField(null=True, blank=True, verbose_name='Completada')
+    completada_por_telefono = models.CharField(max_length=20, blank=True, verbose_name='Completada desde el teléfono')
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
     class Meta:

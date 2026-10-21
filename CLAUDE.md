@@ -272,6 +272,29 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-21 — **Renglones pendientes de la Fase 1** (Issue #428, fase 1e; el punto 3 va a revisión de Opus antes del
+  merge). **(1-2, 7)** Choque de fecha, contracargo y SAT dejan su `Pendiente` URGENTE (CHOQUE_FECHA/CONTRACARGO/SAT, rol
+  DIRECCION, claves `pago_fecha_ocupada:<pago>`, `contracargo:<pk>:<estado>`, `sat:<pk>:<motivo>`) y pasan
+  `pendiente=False` al correo, así no queda el ALERTA NORMAL duplicado; el título del pendiente va sin emoji aunque el
+  asunto del correo lo traiga. La evidencia automática de un contracargo se anota en el detalle de su pendiente en
+  disputa. **(3) Cobro con terminal por WhatsApp** (`comercial/services_terminal.py`, modelo `ReporteTerminal`, migración
+  `comercial.0118`): «terminal 5000 cot 145» solo vale desde el teléfono **activo** de ENCARGADO o DIRECCION (decisión
+  más estricta que `rol_de_telefono`, que también acepta un número aún pendiente de «ACEPTO»: un número sin aceptar no
+  mueve dinero); deja una propuesta con botón `term:<token>:ok`; el token es aleatorio, se guarda con HMAC (nunca en
+  claro), dura 10 min, es de un solo uso y solo para el mismo teléfono. Al confirmar se revalida estado y saldo bajo
+  `select_for_update` y el `Pago` (TARJETA_DEBITO, `TERMINAL-WA-<id>`) se crea con `full_clean()` + `save()`, así corren
+  los signals de póliza, solicitud de factura y confirmación por pago; `comision_tpv` no se toca. Una propuesta idéntica
+  nueva anula la anterior (dos vivas del mismo cobro podrían confirmarse las dos). Desde otro número el texto sigue el
+  flujo normal del agente y un botón ajeno se descarta sin llegar al agente. `ReporteTerminal` no se registró en el admin
+  (sin menú que diseñar); el `Pago` lleva la nota con rol y teléfono. **(4)** `pasar_a_humano(categoria='queja')` abre
+  pendiente tipo QUEJA (choice nuevo, `comunicacion.0013`); caso `queja` en los evals (el corredor solo comprueba la
+  herramienta, no la categoría). **(5)** `resumir_preguntas` manda a Dirección hasta 5 propuestas con `[Aprobar]`
+  (`faq:<id>:ok`, solo DIRECCION, activa con `full_clean()`); las que traen `[COMPLETAR]` van sin botón. **(6)**
+  `TareaProgramada.completada_en`/`completada_por_telefono` (`operaciones.0005`): «listo»/«ya»/«terminé» de un
+  `Empleado` marca su tarea de hoy con la hora límite más próxima; `procesar_pendientes` abre un pendiente NORMAL
+  (`tarea:<pk>:sin_listo`) a +60 min de la hora límite, solo para tareas de **hoy** (evita una ráfaga con las tareas
+  anteriores al despliegue). Sin cuadre de la terminal contra el depósito (llega con #401).
+
 - 2026-10-20 — **Variables de entorno estandarizadas** (Issue #424, fase 1d). Regla `ORIGEN_SERVICIO_DATO[_DISTINTIVO]`
   (ORIGEN = quién la emite: `META`/`ANTHROPIC`/`OPENPAY`/`CLOUDFLARE`/`BREVO`/`JIBBLE`, `ERP` propia, `DJANGO`; exentas
   `DATABASE_URL`, `PORT`, `RAILWAY_*`) y catálogo en `docs/variables_entorno.md` (nombre, para qué, quién la emite, dónde

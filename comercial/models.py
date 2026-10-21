@@ -1423,8 +1423,16 @@ class Pago(models.Model):
 
         def _alertar():
             from comunicacion.services import alertar_equipo_email
+            from comunicacion.services_pendientes import registrar_pendiente
+            registrar_pendiente(
+                titulo=f"Pago con fecha ocupada — COT-{cot.id:03d}", tipo='CHOQUE_FECHA',
+                severidad='URGENTE', rol='DIRECCION', objeto=cot,
+                detalle=(f"Pago de ${self.monto:,.2f} para la fecha {cot.fecha_evento:%d/%m/%Y}. "
+                         f"Motivo: {msg_fecha}. Opciones: mover fecha o reembolsar."),
+                clave_idempotencia=f"pago_fecha_ocupada:{pago_pk}")
             alertar_equipo_email(
                 cot,
+                pendiente=False,
                 asunto=f"⚠️ Pago recibido con fecha ocupada — COT-{cot.id:03d}",
                 cuerpo=(
                     f"Entró un pago de ${self.monto:,.2f} para COT-{cot.id:03d} "
@@ -2921,3 +2929,44 @@ class Contracargo(models.Model):
     def __str__(self):
         return f"Contracargo {self.openpay_id} [{self.get_estado_display()}]"
 
+
+
+class ReporteTerminal(models.Model):
+    """Cobro con terminal reportado por WhatsApp (Issue #428, punto 3).
+
+    Un mensaje «terminal 5000 cot 145» del encargado o de Dirección solo deja
+    una PROPUESTA; el `Pago` nace cuando el mismo teléfono toca el botón con el
+    token de un solo uso (10 min). El token se guarda con HMAC, nunca en claro.
+    Sin borrado: queda como evidencia de quién reportó qué.
+    """
+    ESTADO_CHOICES = [
+        ('PROPUESTO', 'Propuesto'),
+        ('CONFIRMADO', 'Confirmado'),
+        ('VENCIDO', 'Vencido'),
+    ]
+    telefono = models.CharField(max_length=20, db_index=True, verbose_name='Teléfono')
+    rol = models.CharField(max_length=10, verbose_name='Rol')
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.PROTECT, related_name='reportes_terminal',
+                                   verbose_name='Cotización')
+    monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Monto')
+    token_hash = models.CharField(max_length=64, unique=True, verbose_name='Token (HMAC)')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PROPUESTO', db_index=True,
+                              verbose_name='Estado')
+    vence_en = models.DateTimeField(verbose_name='Vence')
+    confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name='Confirmado')
+    pago = models.ForeignKey(Pago, null=True, blank=True, on_delete=models.PROTECT, related_name='+',
+                             verbose_name='Pago creado')
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                   verbose_name='Creado por')
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                   verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Reporte de terminal'
+        verbose_name_plural = 'Terminal'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Terminal {self.pk}: COT-{self.cotizacion_id:03d} ${self.monto}'

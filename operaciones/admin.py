@@ -62,7 +62,7 @@ class PlantillaChecklistAdmin(admin.ModelAdmin):
 class TareaProgramadaAdmin(admin.ModelAdmin):
     list_display = [
         'fecha', 'plantilla', 'responsable', 'hora_entrada', 'hora_limite',
-        'requiere_tiempo_extra', 'operativo_badge', 'resumen_badge',
+        'requiere_tiempo_extra', 'operativo_badge', 'resumen_badge', 'listo_badge',
     ]
     list_filter = [('estado_operativo', con_titulo('Checklist enviado')), ('plantilla__tipo', con_titulo('Tipo')),
                    'responsable', ('requiere_tiempo_extra', con_titulo('Tiempo extra'))]
@@ -80,12 +80,18 @@ class TareaProgramadaAdmin(admin.ModelAdmin):
     def resumen_badge(self, obj):
         return ui.badge_por_valor(obj.estado_resumen_propietario, self.TONOS_ENVIO,
                                   obj.get_estado_resumen_propietario_display())
+
+    @admin.display(description='Listo', ordering='completada_en')
+    def listo_badge(self, obj):
+        if obj.completada_en:
+            return ui.badge('Listo', ui.EXITO)
+        return ui.badge('Sin aviso', ui.NEUTRO)
     date_hierarchy = 'fecha'
     autocomplete_fields = ['cotizacion', 'responsable']
     readonly_fields = [
         'plantilla', 'cotizacion', 'fecha', 'hora_entrada', 'hora_limite',
         'requiere_tiempo_extra', 'estado_aviso_horario', 'estado_operativo',
-        'estado_resumen_propietario', 'created_at',
+        'estado_resumen_propietario', 'completada_en', 'completada_por_telefono', 'created_at',
     ]
 
     def has_add_permission(self, request):

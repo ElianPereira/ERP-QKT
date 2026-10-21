@@ -12,20 +12,28 @@ Si el modelo no tiene con qué contestar, la respuesta queda con el marcador
 """
 import json
 import logging
+import re
 
 import anthropic
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import PreguntaFrecuente, Producto
 
 from .models import PreguntaSinRespuesta
+from .services_pendientes import _base_url, _enviar_aviso
+from .services_responsables import rol_de_telefono, telefono_de
 
 logger = logging.getLogger(__name__)
 
 MARCADOR_COMPLETAR = PreguntaFrecuente.MARCADOR_COMPLETAR
 MAX_GRUPOS = 15
+MAX_PROPUESTAS_WA = 5
+RE_BOTON = re.compile(r'^faq:(\d+):ok$')
+FALTA_COMPLETAR = 'Esa respuesta aún tiene [COMPLETAR]: falta completarla en el admin antes de activarla.'
 
 INSTRUCCIONES = f"""Ayudas al dueño de una quinta de eventos en Yucatán a completar las preguntas \
 frecuentes de su asistente de WhatsApp. Recibes las dudas que el asistente no supo contestar y la \
@@ -102,13 +110,14 @@ def resumir_preguntas(aplicar: bool = False) -> dict:
         return resultado
 
     grupos = _agrupar(dudas)
+    creadas = []
     with transaction.atomic():
         for g in grupos:
             respuesta = (g.get('respuesta_sugerida') or '').strip() or MARCADOR_COMPLETAR
-            PreguntaFrecuente.objects.create(
+            creadas.append(PreguntaFrecuente.objects.create(
                 pregunta=(g.get('pregunta') or '').strip()[:200] or 'Pregunta sin título',
                 respuesta=respuesta, activo=False, orden=999,
-            )
+            ))
             resultado['borradores'] += 1
             resultado['por_completar'] += MARCADOR_COMPLETAR in respuesta
         PreguntaSinRespuesta.objects.filter(pk__in=[pk for pk, _ in pendientes]).update(
@@ -120,4 +129,61 @@ def resumir_preguntas(aplicar: bool = False) -> dict:
             f"Kooxi no supo contestar {resultado['dudas']} dudas. Dejé {resultado['borradores']} "
             f"preguntas frecuentes en borrador ({resultado['por_completar']} sin respuesta) para que las "
             'revises y actives en Admin, Preguntas')
+        proponer_a_direccion(creadas)
     return resultado
+
+
+# ───────────────── Aprobación por WhatsApp (Issue #428, punto 5) ─────────────
+
+def es_boton(texto: str) -> bool:
+    return bool(RE_BOTON.match((texto or '').strip()))
+
+
+def id_boton(faq_id: int) -> str:
+    return f'faq:{faq_id}:ok'
+
+
+def url_borradores() -> str:
+    return _base_url() + reverse('admin:comercial_preguntafrecuente_changelist') + '?activo__exact=0'
+
+
+def proponer_a_direccion(faqs) -> int:
+    """Un mensaje por propuesta a Dirección (máx. 5), con botón [Aprobar] si su
+    ventana de 24 h está abierta o la plantilla con el enlace al admin si no.
+    Las que tienen [COMPLETAR] no llevan botón: solo el aviso de que faltan."""
+    destino = telefono_de('DIRECCION')
+    if not destino:
+        return 0
+    enviados = 0
+    for faq in list(faqs)[:MAX_PROPUESTAS_WA]:
+        completa = MARCADOR_COMPLETAR not in faq.respuesta
+        texto = (f'Propuesta de pregunta frecuente. Pregunta: {faq.pregunta} '
+                 f'Respuesta propuesta: {faq.respuesta[:500]} '
+                 + ('' if completa else 'Falta completarla. ') + f'Revisar en el admin: {url_borradores()}')
+        botones = [(id_boton(faq.pk), 'Aprobar')] if completa else None
+        if _enviar_aviso(destino, texto, botones=botones, clave=f'faq:{faq.pk}:propuesta') is not None:
+            enviados += 1
+    return enviados
+
+
+def atender_boton(telefono: str, texto: str):
+    """Botón `faq:<id>:ok`: solo vale desde el teléfono de DIRECCION. Activa la
+    pregunta con `full_clean()`, así una con [COMPLETAR] no se activa. Devuelve
+    el texto con que contestarle, o None si no hizo nada."""
+    coincide = RE_BOTON.match((texto or '').strip())
+    if not coincide or rol_de_telefono(telefono) != 'DIRECCION':
+        return None
+    with transaction.atomic():
+        faq = PreguntaFrecuente.objects.select_for_update().filter(pk=int(coincide.group(1))).first()
+        if faq is None:
+            return None
+        if faq.activo:
+            return f'Esa pregunta ya estaba activa: {faq.pregunta}'
+        faq.activo = True
+        try:
+            faq.full_clean()
+        except ValidationError:
+            return FALTA_COMPLETAR
+        faq.save(update_fields=['activo'])
+    return f'Listo, quedó activa para Kooxi: {faq.pregunta}'
+

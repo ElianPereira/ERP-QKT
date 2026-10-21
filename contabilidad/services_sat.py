@@ -239,11 +239,17 @@ def _error(solicitud, mensaje, codigo=''):
 
 
 def _alertar(solicitud, motivo, clave):
-    """Correo al equipo, una sola vez por solicitud y motivo. Nunca rompe el proceso."""
+    """Pendiente URGENTE para Dirección y correo al equipo, una sola vez por
+    solicitud y motivo. Nunca rompe el proceso."""
     from comunicacion.services import alertar_equipo_email
+    from comunicacion.services_pendientes import registrar_pendiente
+    registrar_pendiente(
+        titulo=f"Descarga del SAT con problemas: {solicitud}", tipo='SAT', severidad='URGENTE',
+        rol='DIRECCION', detalle=f"{motivo} Revisa Contabilidad, Descargas SAT.",
+        clave_idempotencia=f"sat:{solicitud.pk}:{clave}")
     try:
         alertar_equipo_email(
-            None, asunto=f"Descarga del SAT: {solicitud}",
+            None, pendiente=False, asunto=f"Descarga del SAT: {solicitud}",
             cuerpo=f"{solicitud.get_tipo_display()} {solicitud.desde:%d/%m/%Y} – {solicitud.hasta:%d/%m/%Y} "
                    f"({solicitud.credencial.rfc})\n{motivo}\nCódigo SAT: {solicitud.codigo_sat or '—'}\n"
                    "El ERP la reintentará solo; revisa Contabilidad → Descargas si persiste.",

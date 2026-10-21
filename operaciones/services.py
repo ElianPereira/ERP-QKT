@@ -27,6 +27,7 @@ import logging
 from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from comunicacion.services import (
@@ -34,6 +35,8 @@ from comunicacion.services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
+from comunicacion.services_bajas import _normalizar
+from comunicacion.services_pendientes import registrar_pendiente
 from core_erp.horarios import formato_hora_ampm
 
 from .constantes import HORA_ENTRADA_NORMAL, HORA_SALIDA_NORMAL, calcular_horario_turnover
@@ -42,6 +45,9 @@ from .models import PlantillaChecklist, TareaProgramada
 logger = logging.getLogger(__name__)
 
 MAX_TAREAS_POR_MENSAJE = 8
+# «Listo» del personal (Issue #428): el mensaje completo debe ser una de estas frases.
+PALABRAS_LISTO = {'listo', 'ya', 'termine'}
+MINUTOS_SIN_LISTO = 60
 
 _DIAS_SEMANA = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
 _MESES = (
@@ -286,6 +292,56 @@ def generar_tareas_mantenimiento(fecha) -> int:
     return creadas
 
 
+# ─────────────────────────── «Listo» del personal ───────────────────────────
+
+def es_listo(texto: str) -> bool:
+    return _normalizar(texto) in PALABRAS_LISTO
+
+
+def marcar_listo(telefono: str, hoy=None, ahora=None):
+    """«Listo» de un `nomina.Empleado` responsable: marca como completada su tarea
+    de hoy con la hora límite más próxima. Devuelve el texto con que contestarle,
+    o None si ese número no tiene tareas de hoy sin completar (el mensaje sigue
+    el flujo normal)."""
+    tel = normalizar_telefono_wa(telefono)
+    if not tel:
+        return None
+    hoy = hoy or timezone.localdate()
+    ahora = ahora or timezone.now()
+    from nomina.models import Empleado
+    empleados = [e.pk for e in Empleado.objects.exclude(telefono='') if normalizar_telefono_wa(e.telefono) == tel]
+    if not empleados:
+        return None
+    with transaction.atomic():
+        tarea = (TareaProgramada.objects.select_for_update().select_related('plantilla')
+                 .filter(responsable__in=empleados, fecha=hoy, completada_en__isnull=True)
+                 .order_by('hora_limite', 'id').first())
+        if tarea is None:
+            return None
+        tarea.completada_en, tarea.completada_por_telefono = ahora, tel
+        tarea.save(update_fields=['completada_en', 'completada_por_telefono'])
+    return f'Listo, quedó marcada como terminada: {tarea.plantilla.titulo_mensaje()}. Gracias.'
+
+
+def avisar_sin_listo(ahora: datetime) -> int:
+    """Una tarea de hoy sin «listo» 60 min después de su hora límite abre un
+    pendiente NORMAL para el encargado, una sola vez (clave por tarea)."""
+    abiertos = 0
+    for tarea in (TareaProgramada.objects.select_related('plantilla', 'responsable')
+                  .filter(fecha=ahora.date(), completada_en__isnull=True)):
+        if ahora < datetime.combine(tarea.fecha, tarea.hora_limite) + timedelta(minutes=MINUTOS_SIN_LISTO):
+            continue
+        quien = tarea.responsable.nombre if tarea.responsable else 'sin responsable'
+        pendiente = registrar_pendiente(
+            titulo=f'Tarea sin aviso de «listo»: {tarea.plantilla.titulo_mensaje()}', rol='ENCARGADO',
+            tipo='OTRO', severidad='NORMAL', objeto=tarea,
+            detalle=(f'{tarea.fecha:%d/%m/%Y}, hora límite {formato_hora_ampm(tarea.hora_limite)}, '
+                     f'responsable: {quien}. Pasó más de una hora sin que respondiera «listo».'),
+            clave_idempotencia=f'tarea:{tarea.pk}:sin_listo')
+        abiertos += pendiente is not None
+    return abiertos
+
+
 # ─────────────────────────── Orquestación (cron) ────────────────────────────
 
 def procesar_pendientes(ahora: datetime = None) -> dict:
@@ -312,4 +368,5 @@ def procesar_pendientes(ahora: datetime = None) -> dict:
         if ahora >= tarea.hora_envio_operativo() and enviar_mensaje_operativo(tarea) == 'ENVIADO':
             contadores['operativo'] += 1
 
+    contadores['sin_listo'] = avisar_sin_listo(ahora)
     return contadores
