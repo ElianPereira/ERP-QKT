@@ -219,7 +219,7 @@ def sync_jibble_view(request):
     from .services import JibbleAPIError, JibbleService
     svc = JibbleService()
     if not svc.esta_configurado():
-        messages.error(request, "Jibble no configurado. Agrega JIBBLE_CLIENT_ID y JIBBLE_CLIENT_SECRET en Railway.")
+        messages.error(request, "Jibble no configurado. Agrega JIBBLE_NOMINA_ID y JIBBLE_NOMINA_SECRET en Railway.")
         return redirect('admin:nomina_recibonomina_changelist')
 
     if request.method == 'POST':
@@ -260,9 +260,9 @@ def sync_jibble_view(request):
 @require_POST
 def webhook_sync_jibble(request):
     from .services import JibbleAPIError, JibbleService
-    cron_token = getattr(settings, 'NOMINA_CRON_TOKEN', '')
+    cron_token = getattr(settings, 'ERP_NOMINA_WEBHOOK_TOKEN', '')
     if not cron_token:
-        return JsonResponse({'error': 'NOMINA_CRON_TOKEN no configurado'}, status=500)
+        return JsonResponse({'error': 'ERP_NOMINA_WEBHOOK_TOKEN no configurado'}, status=500)
     import hmac
     auth_header = request.headers.get('Authorization', '')
     # Comparación en tiempo constante para no filtrar el token vía timing.

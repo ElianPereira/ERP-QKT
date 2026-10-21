@@ -43,8 +43,8 @@ class ExpiracionDeSesionTest(TestCase):
 
     def test_la_cookie_de_sesion_expira_por_inactividad_no_de_forma_indefinida(self):
         # Django trae 1209600s (2 semanas) como default de SESSION_COOKIE_AGE
-        # si no se toca — el proyecto lo ata a SESSION_IDLE_TIMEOUT a propósito.
-        self.assertEqual(settings.SESSION_COOKIE_AGE, settings.SESSION_IDLE_TIMEOUT)
+        # si no se toca — el proyecto lo ata a ERP_SESION_INACTIVIDAD_SEGUNDOS a propósito.
+        self.assertEqual(settings.SESSION_COOKIE_AGE, settings.ERP_SESION_INACTIVIDAD_SEGUNDOS)
         self.assertLessEqual(settings.SESSION_COOKIE_AGE, 1800)
 
     def test_el_reloj_de_inactividad_se_reinicia_en_cada_peticion(self):
@@ -71,10 +71,10 @@ class ExpiracionDeSesionTest(TestCase):
 
     def test_el_context_processor_expone_el_mismo_valor_que_el_backend(self):
         # El auto-logout del navegador (JS) lee session_idle_minutes de la
-        # plantilla — si se desincroniza de SESSION_IDLE_TIMEOUT, el aviso
+        # plantilla — si se desincroniza de ERP_SESION_INACTIVIDAD_SEGUNDOS, el aviso
         # al usuario y la expiración real dejan de coincidir.
         contexto = session_idle(None)
-        minutos_esperados = settings.SESSION_IDLE_TIMEOUT // 60
+        minutos_esperados = settings.ERP_SESION_INACTIVIDAD_SEGUNDOS // 60
         self.assertEqual(contexto['session_idle_minutes'], minutos_esperados)
 
 
@@ -84,7 +84,7 @@ class PublicSecurityHeadersMiddlewareTest(TestCase):
     quitara la CSP de las páginas públicas o el Permissions-Policy general
     habría pasado inadvertida en CI."""
 
-    @override_settings(PUBLIC_CSP_ENABLED=True, PUBLIC_CSP_REPORT_ONLY=False)
+    @override_settings(ERP_CSP_PUBLICO_ACTIVO=True, ERP_CSP_PUBLICO_SOLO_REPORTE=False)
     def test_la_pagina_publica_lleva_csp_bloqueante(self):
         respuesta = self.client.get('/')
 
@@ -93,14 +93,14 @@ class PublicSecurityHeadersMiddlewareTest(TestCase):
         self.assertIn("default-src 'self'", respuesta.headers['Content-Security-Policy'])
         self.assertIn("object-src 'none'", respuesta.headers['Content-Security-Policy'])
 
-    @override_settings(PUBLIC_CSP_ENABLED=True, PUBLIC_CSP_REPORT_ONLY=True)
+    @override_settings(ERP_CSP_PUBLICO_ACTIVO=True, ERP_CSP_PUBLICO_SOLO_REPORTE=True)
     def test_public_csp_report_only_cambia_la_cabecera_usada(self):
         respuesta = self.client.get('/')
 
         self.assertIn('Content-Security-Policy-Report-Only', respuesta.headers)
         self.assertNotIn('Content-Security-Policy', respuesta.headers)
 
-    @override_settings(PUBLIC_CSP_ENABLED=False)
+    @override_settings(ERP_CSP_PUBLICO_ACTIVO=False)
     def test_public_csp_enabled_en_false_no_manda_ninguna_csp(self):
         respuesta = self.client.get('/')
 
@@ -115,14 +115,14 @@ class PublicSecurityHeadersMiddlewareTest(TestCase):
         self.assertIn('Permissions-Policy', respuesta_admin.headers)
 
     def test_admin_csp_report_only_desactivada_por_default_no_manda_nada(self):
-        # ADMIN_CSP_REPORT_ONLY default es False (orden 37, SEC-CFG-002):
+        # ERP_CSP_ADMIN_SOLO_REPORTE default es False (orden 37, SEC-CFG-002):
         # el admin no debe llevar ninguna CSP mientras no se active a propósito.
         respuesta = self.client.get('/admin/login/')
 
         self.assertNotIn('Content-Security-Policy', respuesta.headers)
         self.assertNotIn('Content-Security-Policy-Report-Only', respuesta.headers)
 
-    @override_settings(ADMIN_CSP_REPORT_ONLY=True)
+    @override_settings(ERP_CSP_ADMIN_SOLO_REPORTE=True)
     def test_admin_csp_report_only_activada_manda_report_only_no_bloqueante(self):
         respuesta = self.client.get('/admin/login/')
 

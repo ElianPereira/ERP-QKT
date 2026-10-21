@@ -69,7 +69,7 @@ class FiltroTest(TestCase):
             self.assertNotEqual(self._motivo(texto), '', texto)
 
 
-@wa_settings(**{**AGENTE, 'WA_AGENTE_JUEZ_ACTIVO': True})
+@wa_settings(**{**AGENTE, 'ERP_KOOXI_JUEZ_ACTIVO': True})
 class JuezYFlujoTest(TestCase):
     def setUp(self):
         cache.clear()
@@ -123,7 +123,7 @@ class JuezYFlujoTest(TestCase):
 
     def test_usa_el_esfuerzo_configurado(self):
         cliente = _cliente_falso(_respuesta(_texto('Hola')))
-        with self.settings(WA_AGENTE_ESFUERZO='high'), _juez():
+        with self.settings(ERP_KOOXI_ESFUERZO='high'), _juez():
             self._procesar(cliente)
         self.assertEqual(cliente.beta.messages.create.call_args.kwargs['output_config'], {'effort': 'high'})
 
@@ -183,7 +183,7 @@ class EvaluacionTest(TestCase):
         self.assertFalse(MensajeWhatsApp.objects.exists())
 
 
-@wa_settings(**{**AGENTE, 'WA_NUMERO_NEGOCIO': '529994457178', 'WA_TEMPLATE_OPERACIONES': 'aviso_operaciones'})
+@wa_settings(**{**AGENTE, 'ERP_WA_NEGOCIO_NUMERO': '529994457178', 'META_WA_PLANTILLA_OPERACIONES': 'aviso_operaciones'})
 class ResumenPreguntasTest(TestCase):
     def setUp(self):
         from comercial.models import PreguntaFrecuente

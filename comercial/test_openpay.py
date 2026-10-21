@@ -85,7 +85,7 @@ def _payload_exitoso(cotizacion, openpay_id='txabc123', amount=500.00):
     }
 
 
-@override_settings(OPENPAY_WEBHOOK_USER=WEBHOOK_USER, OPENPAY_WEBHOOK_PASSWORD=WEBHOOK_PASSWORD)
+@override_settings(OPENPAY_WEBHOOK_USUARIO=WEBHOOK_USER, OPENPAY_WEBHOOK_SECRET=WEBHOOK_PASSWORD)
 class WebhookOpenpayAuthTest(TestCase):
     def setUp(self):
         self.client = Client()
@@ -102,7 +102,7 @@ class WebhookOpenpayAuthTest(TestCase):
         )
         self.assertEqual(response.status_code, 401)
 
-    @override_settings(OPENPAY_WEBHOOK_USER='', OPENPAY_WEBHOOK_PASSWORD='')
+    @override_settings(OPENPAY_WEBHOOK_USUARIO='', OPENPAY_WEBHOOK_SECRET='')
     def test_rechaza_todo_si_credenciales_sin_configurar(self):
         response = self.client.post(
             self.url, secure=True, data='{}', content_type='application/json',

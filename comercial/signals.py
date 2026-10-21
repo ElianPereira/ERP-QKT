@@ -17,11 +17,11 @@ def emitir_contrato_al_confirmar(sender, instance, **kwargs):
     que entrar al admin a darle «Generar contrato»: el cliente pagaba y se
     quedaba sin nada que firmar.
 
-    `CONTRATO_AUTOMATICO=False` en Railway lo apaga sin desplegar.
+    `ERP_CONTRATO_AUTOMATICO_ACTIVO=False` en Railway lo apaga sin desplegar.
     """
     from .services import ContratoService
 
-    if not getattr(settings, 'CONTRATO_AUTOMATICO', True):
+    if not getattr(settings, 'ERP_CONTRATO_AUTOMATICO_ACTIVO', True):
         return
     cot = instance
     if cot.estado != 'CONFIRMADA' or cot.tipo_servicio not in ContratoService.TIPOS:

@@ -174,7 +174,7 @@ class PolizaISHHospedajeTest(TestCase):
         cot.refresh_from_db()
         return cot
 
-    @override_settings(TASA_ISH=Decimal('0.05'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('0.05'))
     def test_el_pago_abona_el_ish_a_su_cuenta_y_la_poliza_cuadra(self):
         cot = self._cotizacion_hospedaje()
         self.assertEqual(cot.precio_final, Decimal('1210.00'))
@@ -192,7 +192,7 @@ class PolizaISHHospedajeTest(TestCase):
                         if m.cuenta_id == self.cuenta_ish.pk)
         self.assertEqual(haber_ish, Decimal('50.00'))
 
-    @override_settings(TASA_ISH=Decimal('0.05'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('0.05'))
     def test_un_anticipo_parcial_abona_solo_su_parte_del_ish(self):
         cot = self._cotizacion_hospedaje()
         Pago.objects.create(
@@ -207,7 +207,7 @@ class PolizaISHHospedajeTest(TestCase):
                         if m.cuenta_id == self.cuenta_ish.pk)
         self.assertEqual(haber_ish, Decimal('25.00'))
 
-    @override_settings(TASA_ISH=Decimal('0.05'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('0.05'))
     def test_el_reembolso_reversa_tambien_el_ish(self):
         cot = self._cotizacion_hospedaje()
         Pago.objects.create(
@@ -226,7 +226,7 @@ class PolizaISHHospedajeTest(TestCase):
                        if m.cuenta_id == self.cuenta_ish.pk)
         self.assertEqual(debe_ish, Decimal('50.00'))
 
-    @override_settings(TASA_ISH=Decimal('0'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('0'))
     def test_sin_tasa_configurada_la_poliza_no_toca_la_cuenta_de_ish(self):
         cot = self._cotizacion_hospedaje()
         self.assertEqual(cot.precio_final, Decimal('1160.00'))

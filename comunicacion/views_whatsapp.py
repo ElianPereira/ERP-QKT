@@ -6,7 +6,7 @@ POST /api/whatsapp/webhook/ → mensajes de clientes (`messages`) y respuestas q
      el propietario manda desde la app (`smb_message_echoes`, coexistencia).
 
 Toda entrega se valida con la firma `X-Hub-Signature-256` (HMAC-SHA256 del
-cuerpo con el App Secret). Sin `WA_APP_SECRET` configurado se rechaza todo:
+cuerpo con el App Secret). Sin `META_WA_APP_SECRET` configurado se rechaza todo:
 fail-closed, mismo criterio que el feed iCal. Se responde 200 en cuanto el
 mensaje queda guardado; el agente contesta en segundo plano, porque Meta
 reintenta una entrega que tarda.
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def _firma_valida(request) -> bool:
-    secreto = getattr(settings, 'WA_APP_SECRET', '') or ''
+    secreto = getattr(settings, 'META_WA_APP_SECRET', '') or ''
     firma = request.headers.get('X-Hub-Signature-256', '')
     if not secreto or not firma.startswith('sha256='):
         return False
@@ -91,14 +91,14 @@ def _procesar_cambio(cambio: dict) -> set:
 @require_http_methods(['GET', 'POST'])
 def whatsapp_webhook(request):
     if request.method == 'GET':
-        token = getattr(settings, 'WA_WEBHOOK_VERIFY_TOKEN', '') or ''
+        token = getattr(settings, 'META_WA_WEBHOOK_TOKEN', '') or ''
         if (token and request.GET.get('hub.mode') == 'subscribe'
                 and hmac.compare_digest(request.GET.get('hub.verify_token', ''), token)):
             return HttpResponse(request.GET.get('hub.challenge', ''), content_type='text/plain')
         return HttpResponseForbidden()
 
     if not _firma_valida(request):
-        logger.warning("Webhook de WhatsApp con firma inválida o sin WA_APP_SECRET")
+        logger.warning("Webhook de WhatsApp con firma inválida o sin META_WA_APP_SECRET")
         return HttpResponseForbidden()
 
     try:

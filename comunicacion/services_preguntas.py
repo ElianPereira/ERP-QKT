@@ -71,14 +71,14 @@ def _contexto_capturado() -> str:
 
 
 def _cliente():
-    return anthropic.Anthropic(timeout=60.0, max_retries=2)
+    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY_KOOXI, timeout=60.0, max_retries=2)
 
 
 def _agrupar(dudas: list[str]) -> list[dict]:
     contenido = (f'{_contexto_capturado()}\n\nDudas sin respuesta de esta semana:\n'
                  + '\n'.join(f'- {d}' for d in dudas))
     r = _cliente().messages.create(
-        model=settings.WA_AGENTE_MODELO_JUEZ,
+        model=settings.ERP_KOOXI_MODELO_JUEZ,
         max_tokens=4000,
         system=INSTRUCCIONES,
         messages=[{'role': 'user', 'content': contenido}],

@@ -1,7 +1,7 @@
 """
 Cron diario: recuerda por WhatsApp las cotizaciones sin pago (Issue #366).
 
-Una sola vez por cotización, a los `WA_SEGUIMIENTO_DIAS` de creada, solo a
+Una sola vez por cotización, a los `ERP_KOOXI_SEGUIMIENTO_DIAS` de creada, solo a
 quien aceptó la finalidad MARKETING y si la fecha sigue libre.
 
 Uso:
@@ -29,8 +29,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
-        if not settings.WA_TEMPLATE_SEGUIMIENTO and not dry_run:
-            self.stdout.write('WA_TEMPLATE_SEGUIMIENTO no está configurada: no se manda nada.')
+        if not settings.META_WA_PLANTILLA_SEGUIMIENTO and not dry_run:
+            self.stdout.write('META_WA_PLANTILLA_SEGUIMIENTO no está configurada: no se manda nada.')
             return
         enviadas = omitidas = 0
         for cot in cotizaciones_para_seguimiento(timezone.localdate()):

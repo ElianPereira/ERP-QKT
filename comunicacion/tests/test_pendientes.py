@@ -58,7 +58,7 @@ class MocksWA:
         return [c.kwargs['telefono'] for c in mock.call_args_list]
 
 
-@wa_settings(WA_TEMPLATE_OPERACIONES='aviso_operaciones')
+@wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
 class RegistroTest(MocksWA, TestCase):
     def test_toda_alerta_deja_un_pendiente_para_direccion_y_la_clave_no_lo_duplica(self):
         for _ in range(2):
@@ -102,7 +102,7 @@ class RegistroTest(MocksWA, TestCase):
         self.assertNotIn('MI SECRETO', ' '.join(str(c) for c in self.enviar_whatsapp_template.call_args_list))
 
 
-@wa_settings(WA_TEMPLATE_OPERACIONES='aviso_operaciones')
+@wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
 class AvisosTest(MocksWA, TestCase):
     def setUp(self):
         super().setUp()
@@ -145,7 +145,7 @@ class AvisosTest(MocksWA, TestCase):
         self.assertTrue(Pendiente.objects.filter(pk=p.pk).exists())
 
 
-@wa_settings(WA_TEMPLATE_OPERACIONES='aviso_operaciones')
+@wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
 class EscalamientoTest(MocksWA, TestCase):
     def setUp(self):
         super().setUp()
@@ -176,7 +176,7 @@ class EscalamientoTest(MocksWA, TestCase):
         self.assertEqual(Pendiente.objects.get().rol, 'DIRECCION')
 
 
-@wa_settings(WA_TEMPLATE_OPERACIONES='aviso_operaciones')
+@wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
 class CopiaPorHoraTest(MocksWA, TestCase):
     def setUp(self):
         super().setUp()
@@ -209,7 +209,7 @@ class CopiaPorHoraTest(MocksWA, TestCase):
         self.assertEqual(services_pendientes.copiar_cada_hora(), 1)
 
 
-@wa_settings(WA_TEMPLATE_OPERACIONES='aviso_operaciones', **AGENTE)
+@wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones', **AGENTE)
 class BotonesTest(TestCase):
     def setUp(self):
         mail.outbox = []
@@ -263,7 +263,7 @@ class BotonesTest(TestCase):
         self.assertEqual(_texto(mensaje), 'Resuelto')
 
 
-@wa_settings(WA_TEMPLATE_OPERACIONES='aviso_operaciones')
+@wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
 class ResumenDiarioTest(TestCase):
     def setUp(self):
         mail.outbox = []

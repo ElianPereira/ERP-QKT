@@ -41,7 +41,7 @@ def _crear_cotizacion(cliente, tipo_servicio, fecha_evento, estado='CONFIRMADA')
     return cot
 
 
-@wa_settings(WA_TEMPLATE_GUIA='qkt_guia_evento', EMAIL_FROM_RESERVAS='reservas@qkt.mx')
+@wa_settings(META_WA_PLANTILLA_GUIA='qkt_guia_evento', ERP_EMAIL_REMITENTE_RESERVAS='reservas@qkt.mx')
 @override_settings(STORAGES=STORAGES_PRUEBA)
 class NotificarGuiaEventoTest(TestCase):
     def setUp(self):
@@ -101,7 +101,7 @@ class NotificarGuiaEventoTest(TestCase):
     def test_sin_whatsapp_configurado_el_email_igual_se_manda(self):
         GuiaTipoServicio.objects.create(tipo_servicio='PASADIA', archivo_pdf=_pdf())
         mail.outbox = []
-        with override_settings(WA_TEMPLATE_GUIA=''):
+        with override_settings(META_WA_PLANTILLA_GUIA=''):
             self._correr()
         self.assertEqual(len(mail.outbox), 1)
         comm_wa = ComunicacionCliente.objects.get(tipo='EVENTO_PROXIMO', canal='WHATSAPP')
@@ -110,7 +110,7 @@ class NotificarGuiaEventoTest(TestCase):
         self.assertEqual(comm_email.estado, 'ENVIADO')
 
 
-@wa_settings(WA_TEMPLATE_GUIA='qkt_guia_evento', EMAIL_FROM_RESERVAS='reservas@qkt.mx')
+@wa_settings(META_WA_PLANTILLA_GUIA='qkt_guia_evento', ERP_EMAIL_REMITENTE_RESERVAS='reservas@qkt.mx')
 @override_settings(STORAGES=STORAGES_PRUEBA)
 class EnviarGuiasCommandTest(TestCase):
     def setUp(self):
@@ -203,7 +203,7 @@ class EnviarGuiasCommandTest(TestCase):
         self.assertEqual(len(mail.outbox), 1)
 
 
-@wa_settings(WA_TEMPLATE_GUIA='qkt_guia_evento', EMAIL_FROM_RESERVAS='reservas@qkt.mx')
+@wa_settings(META_WA_PLANTILLA_GUIA='qkt_guia_evento', ERP_EMAIL_REMITENTE_RESERVAS='reservas@qkt.mx')
 @override_settings(STORAGES=STORAGES_PRUEBA)
 class GuiaAlConfirmarTest(TestCase):
     """Confirmar con el evento a ≤ 3 días manda la guía de inmediato, sin esperar al cron."""

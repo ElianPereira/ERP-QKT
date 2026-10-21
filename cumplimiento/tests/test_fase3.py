@@ -73,7 +73,7 @@ class UmbralesTest(TestCase):
         self.assertEqual([a['tramite'].nombre for a in sa.calcular_avisos(HOY)], ['Critico', 'Normal'])
 
 
-@override_settings(WA_NUMERO_NEGOCIO='9991234567', WA_TEMPLATE_OPERACIONES='aviso_operaciones')
+@override_settings(ERP_WA_NEGOCIO_NUMERO='9991234567', META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
 class EnvioTest(TestCase):
     def setUp(self):
         self.t, self.v = tramite_con_vigencia(7)
@@ -173,7 +173,7 @@ class EnvioTest(TestCase):
             sa.procesar_avisos(HOY, aplicar=True)
         self.assertEqual(copia.call_args.args[3], ['resp@example.com'])
 
-    @override_settings(WA_TEMPLATE_OPERACIONES='')
+    @override_settings(META_WA_PLANTILLA_OPERACIONES='')
     def test_sin_plantilla_manda_texto_libre(self):
         with WA as plantilla, WA_TEXTO as texto, MAIL as mail:
             texto.return_value = _ok()
@@ -182,7 +182,7 @@ class EnvioTest(TestCase):
         plantilla.assert_not_called()
         self.assertEqual(texto.call_count, 1)
 
-    @override_settings(WA_NUMERO_NEGOCIO='')
+    @override_settings(ERP_WA_NEGOCIO_NUMERO='')
     def test_sin_numero_de_negocio_no_truena_y_manda_correo(self):
         with WA as wa, MAIL as mail:
             mail.return_value = _ok()
@@ -192,7 +192,7 @@ class EnvioTest(TestCase):
         self.assertFalse(AvisoVencimiento.objects.filter(canal='WHATSAPP').exists())
 
 
-@override_settings(WA_NUMERO_NEGOCIO='9991234567', WA_TEMPLATE_OPERACIONES='aviso_operaciones')
+@override_settings(ERP_WA_NEGOCIO_NUMERO='9991234567', META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
 class ComandoTest(TestCase):
     def test_simula_por_defecto_y_aplica_con_flag(self):
         tramite_con_vigencia(3)

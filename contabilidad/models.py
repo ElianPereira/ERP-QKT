@@ -1182,7 +1182,7 @@ class CredencialSAT(models.Model):
     """e.firma (FIEL) con la que el ERP firma las peticiones al SAT.
 
     El .key y la contraseña se guardan cifrados (Fernet, llave en
-    `SAT_FIEL_ENCRYPTION_KEY`); el .cer es público. Se desactiva, nunca se borra.
+    `ERP_SAT_FIEL_CIFRADO_SECRET`); el .cer es público. Se desactiva, nunca se borra.
     """
     rfc = models.CharField(max_length=13, unique=True, verbose_name="RFC")
     nombre = models.CharField(max_length=200, blank=True, verbose_name="Titular")

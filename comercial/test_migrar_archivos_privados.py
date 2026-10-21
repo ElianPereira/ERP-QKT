@@ -129,7 +129,7 @@ class MigrarArchivosPrivadosServicioTest(TestCase):
 
 class MigrarSinBucketPrivadoTest(TestCase):
     def test_el_comando_aborta_si_no_hay_bucket_privado(self):
-        # Sin CLOUDFLARE_R2_PRIVATE_BUCKET_NAME el storage privado cae al
+        # Sin CLOUDFLARE_R2_PRIVADO_BUCKET el storage privado cae al
         # default, y copiar de un bucket a sí mismo no tendría sentido.
         with self.assertRaisesMessage(CommandError, "No hay bucket privado"):
             call_command("migrar_archivos_privados")

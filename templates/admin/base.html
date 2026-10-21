@@ -3,7 +3,7 @@
 
 {% comment %}
 Auto-cierre de sesión por inactividad. El tiempo lo dicta el backend
-(SESSION_IDLE_TIMEOUT) y se pasa al JS vía context processor para no
+(ERP_SESION_INACTIVIDAD_SEGUNDOS) y se pasa al JS vía context processor para no
 desincronizar. El control de seguridad real es la caducidad de sesión en
 servidor; este script solo redirige la pestaña desatendida al logout.
 {% endcomment %}

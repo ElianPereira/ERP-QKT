@@ -99,7 +99,7 @@ def enviar_evidencia_a_openpay(contracargo, usuario=None):
                 f"(cotización {folio}) para disputarlo dentro del plazo del "
                 f"{contracargo.fecha_limite_evidencia}."
             ),
-            from_email=settings.EMAIL_FROM_NOTIFICACIONES,
+            from_email=settings.ERP_EMAIL_REMITENTE_NOTIFICACIONES,
             to=[OPENPAY_SOPORTE_EMAIL],
         )
         contracargo.evidencia_pdf.open('rb')

@@ -24,8 +24,8 @@ def _html_del_contrato(cot):
     return html.call_args.kwargs['string']
 
 
-# Contratos basados en el modelo PROFECO (CONTRATO_PROPIO_ACTIVO=False).
-@override_settings(CONTRATO_PROPIO_ACTIVO=False)
+# Contratos basados en el modelo PROFECO (ERP_CONTRATO_PROPIO_ACTIVO=False).
+@override_settings(ERP_CONTRATO_PROPIO_ACTIVO=False)
 class ContratoHospedajeTest(TestCase):
     def setUp(self):
         cliente = Cliente.objects.create(nombre='Ana Ruiz', tipo_persona='FISICA')
@@ -51,7 +51,7 @@ class ContratoHospedajeTest(TestCase):
         self.assertNotIn('9341-2023', html)
         self.assertNotIn('registrado por la Procuraduría', html)
 
-    @override_settings(PROFECO_REGISTRO_HOSPEDAJE='1234-2026')
+    @override_settings(ERP_PROFECO_REGISTRO_HOSPEDAJE='1234-2026')
     def test_muestra_el_registro_cuando_se_configura(self):
         html = _html_del_contrato(self.cot)
         self.assertIn('1234-2026', html)
@@ -68,8 +68,8 @@ class ContratoHospedajeTest(TestCase):
         self.assertIn(f"{Cotizacion.DIAS_PAGO_TOTAL['HOSPEDAJE']} días naturales antes", html)
 
 
-# Contratos basados en el modelo PROFECO (CONTRATO_PROPIO_ACTIVO=False).
-@override_settings(CONTRATO_PROPIO_ACTIVO=False)
+# Contratos basados en el modelo PROFECO (ERP_CONTRATO_PROPIO_ACTIVO=False).
+@override_settings(ERP_CONTRATO_PROPIO_ACTIVO=False)
 class ContratoEventoSinArrendamientoTest(TestCase):
     def setUp(self):
         cliente = Cliente.objects.create(nombre='Luis Pech', tipo_persona='FISICA')

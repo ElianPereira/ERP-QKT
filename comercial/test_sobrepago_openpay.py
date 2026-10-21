@@ -52,7 +52,7 @@ def _respuesta(data):
     return r
 
 
-@override_settings(OPENPAY_MERCHANT_ID='m', OPENPAY_PUBLIC_KEY='pk', OPENPAY_PRIVATE_KEY='sk')
+@override_settings(OPENPAY_PAGOS_ID='m', OPENPAY_PAGOS_API_KEY_PUBLICA='pk', OPENPAY_PAGOS_SECRET='sk')
 class PortalDescuentaReferenciasVigentesTest(TestCase):
 
     def setUp(self):

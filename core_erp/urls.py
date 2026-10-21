@@ -78,7 +78,7 @@ def admin_login_limitado(request, *args, **kwargs):
         return HttpResponse(
             'Demasiados intentos fallidos. Espera unos minutos antes de volver a intentarlo.',
             status=429,
-            headers={'Retry-After': str(settings.ADMIN_LOGIN_VENTANA)},
+            headers={'Retry-After': str(settings.ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS)},
         )
     return admin.site.login(request, *args, **kwargs)
 

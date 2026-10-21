@@ -331,10 +331,10 @@ def _validar_basic_auth(request):
     """
     Openpay solo soporta HTTP Basic Auth en sus webhooks. El usuario/password
     se configuran en el Dashboard de Openpay al registrar el webhook, y deben
-    coincidir con OPENPAY_WEBHOOK_USER / OPENPAY_WEBHOOK_PASSWORD en Railway.
+    coincidir con OPENPAY_WEBHOOK_USUARIO / OPENPAY_WEBHOOK_SECRET en Railway.
     """
-    if not settings.OPENPAY_WEBHOOK_USER or not settings.OPENPAY_WEBHOOK_PASSWORD:
-        logger.error("Webhook Openpay: OPENPAY_WEBHOOK_USER/PASSWORD sin configurar — se rechaza toda petición.")
+    if not settings.OPENPAY_WEBHOOK_USUARIO or not settings.OPENPAY_WEBHOOK_SECRET:
+        logger.error("Webhook Openpay: OPENPAY_WEBHOOK_USUARIO/PASSWORD sin configurar — se rechaza toda petición.")
         return False
     auth_header = request.META.get('HTTP_AUTHORIZATION', '')
     if not auth_header.startswith('Basic '):
@@ -345,8 +345,8 @@ def _validar_basic_auth(request):
     except Exception:
         return False
     return (
-        hmac.compare_digest(user, settings.OPENPAY_WEBHOOK_USER)
-        and hmac.compare_digest(password, settings.OPENPAY_WEBHOOK_PASSWORD)
+        hmac.compare_digest(user, settings.OPENPAY_WEBHOOK_USUARIO)
+        and hmac.compare_digest(password, settings.OPENPAY_WEBHOOK_SECRET)
     )
 
 

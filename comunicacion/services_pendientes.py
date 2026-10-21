@@ -53,7 +53,7 @@ def es_boton(texto: str) -> bool:
 
 
 def _base_url() -> str:
-    return (getattr(settings, 'PORTAL_URL', '') or '').rstrip('/')
+    return (getattr(settings, 'ERP_PORTAL_URL', '') or '').rstrip('/')
 
 
 def url_pendiente(pendiente) -> str:
@@ -79,7 +79,7 @@ def _enviar_aviso(telefono: str, texto: str, *, botones=None, clave: Optional[st
             comm = enviar_whatsapp_botones(tipo='OTRO', telefono=telefono, mensaje=texto, botones=botones)
             if comm is not None and comm.estado != 'FALLIDO':
                 return comm
-        plantilla = getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
+        plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
         if plantilla:
             return enviar_whatsapp_template(
                 tipo='OTRO', telefono=telefono, template_name=plantilla,

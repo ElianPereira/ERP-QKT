@@ -32,7 +32,7 @@ class WebhookSyncJibbleRateLimitTest(TestCase):
             self.assertEqual(respuesta.status_code, 429)
 
 
-@override_settings(NOMINA_CRON_TOKEN='token-de-prueba')
+@override_settings(ERP_NOMINA_WEBHOOK_TOKEN='token-de-prueba')
 class WebhookSyncJibbleErrorGenericoTest(TestCase):
     """SEC-INFO-001 (backlog orden 25): un error inesperado no debe filtrar
     el texto crudo de la excepción en el cuerpo de la respuesta pública."""

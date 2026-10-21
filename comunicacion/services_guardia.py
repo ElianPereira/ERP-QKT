@@ -88,7 +88,7 @@ def revisar_filtro(conv, texto: str) -> str:
             return f'Menciona un folio que no es de este número ({m.group(0)}).'
 
     permitidos = {_digitos(conv.telefono)[-10:]}
-    publico = _digitos(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', ''))
+    publico = _digitos(getattr(settings, 'META_WA_KOOXI_NUMERO', ''))
     if len(publico) >= 10:
         permitidos.add(publico[-10:])
     for m in _RE_TELEFONO.finditer(_RE_FECHA.sub(' ', texto)):
@@ -156,7 +156,7 @@ _ESQUEMA_JUEZ = {
 
 
 def _cliente_juez():
-    return anthropic.Anthropic(timeout=15.0, max_retries=1)
+    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY_KOOXI, timeout=15.0, max_retries=1)
 
 
 def _normalizar(texto: str) -> str:
@@ -169,7 +169,7 @@ def revisar_juez(conv, pregunta: str, texto: str) -> str:
     Solo bloquea si el juez cita un fragmento que de verdad está en la
     respuesta: una cita inventada o vacía es un falso positivo y se ignora.
     """
-    if not getattr(settings, 'WA_AGENTE_JUEZ_ACTIVO', True):
+    if not getattr(settings, 'ERP_KOOXI_JUEZ_ACTIVO', True):
         return ''
     folios, _ = _datos_del_cliente(conv)
     contenido = (f'Mensaje del cliente:\n{pregunta[-3000:]}\n\n'
@@ -177,7 +177,7 @@ def revisar_juez(conv, pregunta: str, texto: str) -> str:
                  f'Respuesta propuesta:\n{texto}')
     try:
         r = _cliente_juez().messages.create(
-            model=settings.WA_AGENTE_MODELO_JUEZ,
+            model=settings.ERP_KOOXI_MODELO_JUEZ,
             max_tokens=300,
             system=INSTRUCCIONES_JUEZ,
             messages=[{'role': 'user', 'content': contenido}],

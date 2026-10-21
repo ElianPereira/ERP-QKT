@@ -194,14 +194,14 @@ class AgenteYAceptoTest(TestCase):
         cliente = _cliente_falso(
             _respuesta(_uso('pasar_a_humano', {'motivo': 'Queja'}), stop='tool_use'),
             _respuesta(_texto('Te comunico con alguien.')))
-        with wa_settings(**AGENTE, WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+        with wa_settings(**AGENTE, META_WA_PLANTILLA_OPERACIONES='aviso_operaciones'), \
                 patch.object(services_pendientes, 'enviar_whatsapp_template') as plantilla:
             self._procesar(conv, cliente)
         self.assertEqual([c.kwargs['telefono'] for c in plantilla.call_args_list], [TEL_A, TEL_B])
 
     def test_proponer_telefono_pide_acepto_y_no_activa(self):
         resp = _resp('ENCARGADO', TEL_A)
-        with wa_settings(WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+        with wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones'), \
                 patch.object(sr, 'enviar_whatsapp_template') as plantilla:
             self.assertTrue(sr.proponer_telefono(resp, TEL_C))
         resp.refresh_from_db()

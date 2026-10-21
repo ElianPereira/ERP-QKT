@@ -94,7 +94,7 @@ class CotizadorEnviarTest(TestCase):
         self.assertIn(cot.fecha_evento.strftime('%d/%m/%Y'), wa.cuerpo)
         self.assertIn(PortalCliente.objects.get(cotizacion=cot).token, wa.cuerpo)
 
-    @wa_settings(WA_NUMERO_NEGOCIO='')
+    @wa_settings(ERP_WA_NEGOCIO_NUMERO='')
     def test_sin_numero_de_negocio_la_cotizacion_se_crea_igual(self):
         with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
              patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR), \
@@ -117,7 +117,7 @@ class CotizadorEnviarTest(TestCase):
         # …y el cliente sí recibe lo suyo.
         self.assertEqual(post.call_count, 1)
         texto_log = '\n'.join(logs.output)
-        self.assertIn('WA_NUMERO_NEGOCIO', texto_log)
+        self.assertIn('ERP_WA_NEGOCIO_NUMERO', texto_log)
         self.assertNotIn('TOKEN_TEST', texto_log)
 
     def test_meta_caido_no_rompe_el_cotizador(self):
@@ -190,7 +190,7 @@ class AlertaInternaTest(TestCase):
         for ausente in ('Personas', 'Horario', 'Nos encontró', 'Teléfono'):
             self.assertNotIn(ausente, cuerpo)
 
-    @wa_settings(WA_TEMPLATE_ALERTA_INTERNA='qkt_alerta_nueva_cotizacion')
+    @wa_settings(META_WA_PLANTILLA_ALERTA_INTERNA='qkt_alerta_nueva_cotizacion')
     def test_con_plantilla_configurada_usa_plantilla(self):
         with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
              patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
@@ -213,7 +213,7 @@ class AlertaInternaTest(TestCase):
         self.assertEqual(comm.estado, 'FALLIDO')
         self.assertIn('Meta 131047', comm.error)
 
-    @wa_settings(WA_NUMERO_NEGOCIO=TEL_EMISOR)
+    @wa_settings(ERP_WA_NEGOCIO_NUMERO=TEL_EMISOR)
     def test_si_el_destino_es_el_emisor_no_llama_a_messages(self):
         respuesta_emisor = RespuestaFalsa(payload={'display_phone_number': TEL_EMISOR})
         with patch('comunicacion.services.requests.get', return_value=respuesta_emisor), \

@@ -63,17 +63,17 @@ def _limpiar_llave(llave):
 
 
 def _fernet():
-    llave = getattr(settings, 'SAT_FIEL_ENCRYPTION_KEY', '')
+    llave = getattr(settings, 'ERP_SAT_FIEL_CIFRADO_SECRET', '')
     if not llave:
         raise ConfiguracionSATError(
-            "Falta SAT_FIEL_ENCRYPTION_KEY en las variables de entorno. Genérala con "
+            "Falta ERP_SAT_FIEL_CIFRADO_SECRET en las variables de entorno. Genérala con "
             "`python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`.")
     llave = _limpiar_llave(llave)
     try:
         return Fernet(llave.encode())
     except ValueError as e:
         raise ConfiguracionSATError(
-            f"SAT_FIEL_ENCRYPTION_KEY no es una llave Fernet válida (tiene {len(llave)} caracteres; debe tener "
+            f"ERP_SAT_FIEL_CIFRADO_SECRET no es una llave Fernet válida (tiene {len(llave)} caracteres; debe tener "
             "44, terminar en «=» y usar solo letras, números, «-» y «_»). Genérala con "
             "`openssl rand -base64 32 | tr '+/' '-_'` y pégala sin comillas ni espacios.") from e
 
@@ -112,7 +112,7 @@ def fiel_de(credencial):
         return ws.Fiel(bytes(credencial.cer), fernet.decrypt(bytes(credencial.key_cifrada)),
                        fernet.decrypt(bytes(credencial.password_cifrada)))
     except InvalidToken as e:
-        raise ConfiguracionSATError("SAT_FIEL_ENCRYPTION_KEY no coincide con la que cifró esta e.firma.") from e
+        raise ConfiguracionSATError("ERP_SAT_FIEL_CIFRADO_SECRET no coincide con la que cifró esta e.firma.") from e
 
 
 # ─── Solicitudes ─────────────────────────────────────────────

@@ -130,7 +130,7 @@ def ret_isr_de(base) -> Decimal:
 #
 # A diferencia del IVA, el ISH NO es federal: su tasa y su causación las fija
 # la ley de hacienda de cada estado y cambian sin que este repo se entere. Por
-# eso la tasa NO se escribe aquí como constante, se lee de `settings.TASA_ISH`
+# eso la tasa NO se escribe aquí como constante, se lee de `settings.ERP_FISCAL_TASA_ISH`
 # (variable de entorno en Railway): cambiarla no requiere desplegar.
 #
 # Mientras esa variable valga 0 —su default— el ERP se comporta EXACTAMENTE
@@ -151,12 +151,12 @@ def tasa_ish() -> Decimal:
     variable en Railway surta efecto al reiniciar sin tocar código.
     """
     from django.conf import settings
-    tasa = getattr(settings, 'TASA_ISH', Decimal('0'))
+    tasa = getattr(settings, 'ERP_FISCAL_TASA_ISH', Decimal('0'))
     if not isinstance(tasa, Decimal):
         tasa = Decimal(str(tasa))
     if tasa < 0 or tasa > 1:
         raise ValueError(
-            f"TASA_ISH fuera de rango: {tasa}. Se espera una proporción "
+            f"ERP_FISCAL_TASA_ISH fuera de rango: {tasa}. Se espera una proporción "
             "(0.05 para 5%), no un porcentaje."
         )
     return tasa

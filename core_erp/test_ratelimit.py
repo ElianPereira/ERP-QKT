@@ -70,10 +70,10 @@ class CacheCompartidoTest(TestCase):
 
 
 @override_settings(
-    ADMIN_LOGIN_VENTANA=900,
-    ADMIN_LOGIN_MAX_INTENTOS_IP=3,
-    ADMIN_LOGIN_MAX_INTENTOS_USUARIO=4,
-    RATELIMIT_TRUSTED_PROXY_COUNT=1,
+    ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS=900,
+    ERP_ADMIN_LOGIN_MAX_IP=3,
+    ERP_ADMIN_LOGIN_MAX_USUARIO=4,
+    ERP_RATELIMIT_PROXIES=1,
 )
 class AdminLoginRateLimitTest(TestCase):
     username = 'admin_issue_179'
@@ -82,7 +82,7 @@ class AdminLoginRateLimitTest(TestCase):
     def setUp(self):
         cache.clear()
         # Ventana fija durante toda la prueba: si el reloj cruza un corte de
-        # ADMIN_LOGIN_VENTANA (cada 15 min) a mitad del test, los contadores
+        # ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS (cada 15 min) a mitad del test, los contadores
         # vuelven a cero y el bloqueo esperado no llega (pasó en CI a las 22:45).
         bucket_fijo = patch('core_erp.ratelimit._bucket',
                             side_effect=lambda key, ident, window: f'rl:{key}:{ident}:prueba')
@@ -107,18 +107,18 @@ class AdminLoginRateLimitTest(TestCase):
         )
 
     def test_bloquea_por_ip_incluso_con_credenciales_correctas(self):
-        for _ in range(settings.ADMIN_LOGIN_MAX_INTENTOS_IP):
+        for _ in range(settings.ERP_ADMIN_LOGIN_MAX_IP):
             self.assertEqual(self._post().status_code, 200)
 
         response = self._post(password=self.password)
         self.assertEqual(response.status_code, 429)
-        self.assertEqual(response.headers['Retry-After'], str(settings.ADMIN_LOGIN_VENTANA))
+        self.assertEqual(response.headers['Retry-After'], str(settings.ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS))
 
         response_get = self.client.get(self.url, REMOTE_ADDR='192.0.2.10')
         self.assertEqual(response_get.status_code, 429)
 
     def test_bloquea_usuario_con_fallos_desde_ips_distintas(self):
-        for numero in range(settings.ADMIN_LOGIN_MAX_INTENTOS_USUARIO):
+        for numero in range(settings.ERP_ADMIN_LOGIN_MAX_USUARIO):
             response = self._post(ip=f'192.0.2.{numero + 20}')
             self.assertEqual(response.status_code, 200)
 
@@ -166,7 +166,7 @@ class AdminLoginRateLimitTest(TestCase):
         self.assertEqual(response.status_code, 429)
 
     def test_ip_distinta_no_hereda_el_bloqueo(self):
-        for _ in range(settings.ADMIN_LOGIN_MAX_INTENTOS_IP):
+        for _ in range(settings.ERP_ADMIN_LOGIN_MAX_IP):
             self.assertEqual(self._post(ip='192.0.2.30').status_code, 200)
 
         response = self._post(password=self.password, ip='192.0.2.31')
@@ -183,7 +183,7 @@ class AdminLoginRateLimitTest(TestCase):
 
     def test_x_forwarded_for_no_permite_rotar_la_ip(self):
         ip_proxy = '198.51.100.70'
-        for numero in range(settings.ADMIN_LOGIN_MAX_INTENTOS_IP):
+        for numero in range(settings.ERP_ADMIN_LOGIN_MAX_IP):
             response = self._post(
                 ip='10.0.0.1',
                 HTTP_X_FORWARDED_FOR=f'203.0.113.{numero}, {ip_proxy}',

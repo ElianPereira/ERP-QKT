@@ -231,7 +231,7 @@ class ComunicacionSignalsTest(TestCase):
         self.assertEqual(comms.get(canal='EMAIL').estado, 'FALLIDO')
         self.assertEqual(comms.get(canal='WHATSAPP').estado, 'ENVIADO')
 
-    @wa_settings(WA_TEMPLATE_COTIZACION='')
+    @wa_settings(META_WA_PLANTILLA_COTIZACION='')
     def test_cotizada_sin_plantilla_no_manda_texto_libre(self):
         """Fuera del cotizador la ventana de 24 h puede estar cerrada."""
         with patch('comunicacion.services.requests.post') as post, self._emisor():
@@ -241,7 +241,7 @@ class ComunicacionSignalsTest(TestCase):
             cotizacion=self.cot, tipo='COTIZACION', canal='WHATSAPP'
         )
         self.assertEqual(wa.estado, 'FALLIDO')
-        self.assertIn('WA_TEMPLATE_COTIZACION', wa.error)
+        self.assertIn('META_WA_PLANTILLA_COTIZACION', wa.error)
 
     # ─────────────────── Pagos generados por un contracargo ─────────────────
 
@@ -340,7 +340,7 @@ class AlertaEquipoPagoTest(TestCase):
         self.assertIn('1,500.00', cuerpo)
         self.assertIn('totalmente pagado', cuerpo)  # saldó el total
 
-    @wa_settings(WA_TEMPLATE_ALERTA_PAGO='qkt_alerta_pago')
+    @wa_settings(META_WA_PLANTILLA_ALERTA_PAGO='qkt_alerta_pago')
     def test_con_plantilla_configurada_usa_plantilla(self):
         with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
              patch('comunicacion.services.numero_emisor_wa', return_value=TEL_EMISOR):
@@ -359,7 +359,7 @@ class AlertaEquipoPagoTest(TestCase):
         self.assertEqual(comm.estado, 'FALLIDO')
         self.assertIn('Meta 131047', comm.error)
 
-    @wa_settings(WA_NUMERO_NEGOCIO='')
+    @wa_settings(ERP_WA_NEGOCIO_NUMERO='')
     def test_sin_numero_de_negocio_no_manda_whatsapp_pero_si_email(self):
         with patch('comunicacion.services.requests.post') as post, \
              self.assertLogs('comunicacion.services_notificaciones', level='ERROR') as logs:
@@ -370,7 +370,7 @@ class AlertaEquipoPagoTest(TestCase):
                 pago=self.pago, tipo='OTRO', canal='EMAIL'
             ).exists()
         )
-        self.assertIn('WA_NUMERO_NEGOCIO', '\n'.join(logs.output))
+        self.assertIn('ERP_WA_NEGOCIO_NUMERO', '\n'.join(logs.output))
 
     def test_no_duplica_si_se_dispara_dos_veces(self):
         with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()), \
@@ -449,7 +449,7 @@ class AlertaEquipoContracargoTest(TestCase):
         cuerpo = post.call_args.kwargs['json']['text']['body']
         self.assertIn('vincular', cuerpo.lower())
 
-    @wa_settings(WA_TEMPLATE_ALERTA_CONTRACARGO='qkt_alerta_contracargo')
+    @wa_settings(META_WA_PLANTILLA_ALERTA_CONTRACARGO='qkt_alerta_contracargo')
     def test_con_plantilla_configurada_usa_plantilla(self):
         contracargo = self._contracargo(estado='GANADO')
         with patch('comunicacion.services.requests.post', return_value=RespuestaFalsa()) as post, \
@@ -459,7 +459,7 @@ class AlertaEquipoContracargoTest(TestCase):
         self.assertEqual(enviado['type'], 'template')
         self.assertEqual(enviado['template']['name'], 'qkt_alerta_contracargo')
 
-    @wa_settings(WA_NUMERO_NEGOCIO='')
+    @wa_settings(ERP_WA_NEGOCIO_NUMERO='')
     def test_sin_numero_de_negocio_no_manda_whatsapp_pero_si_email(self):
         contracargo = self._contracargo()
         with patch('comunicacion.services.requests.post') as post, \
@@ -469,7 +469,7 @@ class AlertaEquipoContracargoTest(TestCase):
         self.assertTrue(
             ComunicacionCliente.objects.filter(cotizacion=self.cot, tipo='OTRO', canal='EMAIL').exists()
         )
-        self.assertIn('WA_NUMERO_NEGOCIO', '\n'.join(logs.output))
+        self.assertIn('ERP_WA_NEGOCIO_NUMERO', '\n'.join(logs.output))
 
     def test_no_duplica_si_se_dispara_dos_veces_con_el_mismo_estado(self):
         contracargo = self._contracargo()

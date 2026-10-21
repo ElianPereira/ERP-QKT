@@ -72,3 +72,42 @@ programada», borra los servicios viejos.
 Reactivar el cron viejo (ponerle de nuevo su *Cron Schedule*) y desactivar la fila equivalente
 quitando el Programador o su schedule. Un cron viejo y el Programador corriendo a la vez no
 rompen datos (los comandos son idempotentes), pero sí duplican avisos, por eso se pasa uno por uno.
+
+---
+
+# Corte de nombres de variables (Issue #424)
+
+Los nombres nuevos (`ORIGEN_SERVICIO_DATO`, catálogo completo en `docs/variables_entorno.md`) se
+estrenan al pasar a Shared Variables. Mientras los nombres viejos sigan definidos el ERP los usa
+(respaldo `legado=`) y deja un aviso en el log; **no hay prisa ni orden obligatorio**, y no cambia ningún valor.
+
+## Pasos
+
+1. **Crear las Shared Variables con los nombres nuevos y los mismos valores.** La tabla
+   `docs/variables_entorno.md` trae el nombre nuevo y el legado de cada una. Copia el valor del
+   nombre viejo al nuevo sin modificarlo (en particular `DJANGO_SECRET_KEY` = el `SECRET_KEY` actual: si
+   cambia, se cierran todas las sesiones, y `ERP_SAT_FIEL_CIFRADO_SECRET` = el `SAT_FIEL_ENCRYPTION_KEY`
+   actual: si cambia, la e.firma guardada deja de descifrarse). **No borres los nombres viejos todavía.**
+2. **Desplegar** `web` y el Programador (`${{shared.NOMBRE}}`, nunca valores copiados).
+3. **Revisar el log de arranque** de `web` y de la primera vuelta del Programador: no debe aparecer ninguna
+   línea «usando nombre legado …». Si aparece, esa variable aún no está con el nombre nuevo en ese servicio.
+4. **Verificar lo que mueve dinero** antes de borrar nada: abrir el portal de una cotización (Openpay.js carga con
+   `OPENPAY_PAGOS_*`), un cobro de prueba si hay un entorno de prueba, y un WhatsApp de prueba desde Comunicación.
+5. **Borrar los nombres viejos**, un servicio a la vez, y volver a revisar el log. También se pueden borrar de una vez
+   `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET` (el código ya no las lee) y cualquier
+   variable que no aparezca en el catálogo. `WA_NUMERO_NEGOCIO` pasa a llamarse `ERP_WA_NEGOCIO_NUMERO` y se
+   conserva hasta que el directorio de responsables sea la única fuente.
+
+## Trampas
+
+- Una referencia `${{web.NOMBRE}}` a una variable renombrada en `web` queda **vacía** en el cron: por eso el
+  corte se hace con Shared Variables, no renombrando solo en `web`.
+- Un nombre nuevo mal escrito no falla: cae al nombre viejo (si sigue ahí) y, si ya se borró, al valor por
+  defecto del código. Por eso el paso 3 antes del 5.
+- El workflow de CI y los de IA siguen usando `SECRET_KEY`/`DEBUG`/`ALLOWED_HOSTS`; funcionan por el respaldo
+  y se actualizan junto con el retiro del respaldo.
+
+## Rollback
+
+Mientras no se hayan borrado los nombres viejos, basta con quitar el nombre nuevo: el ERP vuelve solo al viejo.
+El respaldo `legado=` se retira en un PR posterior, 2 semanas después del corte.

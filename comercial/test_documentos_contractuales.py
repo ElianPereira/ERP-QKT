@@ -54,7 +54,7 @@ class ContratosDocumentoTest(TestCase):
         self.assertIn(f"Quinta Ko'ox Tanil · Contrato {numero}", texto)
         self.assertNotIn('BORRADOR', texto)
 
-    @override_settings(CONTRATO_PROPIO_ACTIVO=False)
+    @override_settings(ERP_CONTRATO_PROPIO_ACTIVO=False)
     def test_contrato_profeco_toma_la_misma_identidad(self):
         pdf, numero = ContratoService(self.cot).generar()
         _, fuentes, texto = _leer(pdf)

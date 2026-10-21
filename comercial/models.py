@@ -659,7 +659,7 @@ class Cotizacion(models.Model):
         verbose_name="Impuesto al hospedaje (ISH)",
         help_text=(
             "Impuesto estatal al hospedaje. Solo se calcula en cotizaciones de "
-            "HOSPEDAJE y solo si hay una tasa configurada (TASA_ISH)."
+            "HOSPEDAJE y solo si hay una tasa configurada (ERP_FISCAL_TASA_ISH)."
         ),
     )
     tasa_ish_aplicada = models.DecimalField(
@@ -2122,10 +2122,10 @@ class PortalCliente(models.Model):
 
     def get_full_url(self, request=None):
         """Retorna la URL completa con dominio.
-        Usa PORTAL_URL como base cuando no hay request del que deducirla.
+        Usa ERP_PORTAL_URL como base cuando no hay request del que deducirla.
         """
         from django.conf import settings
-        base = settings.PORTAL_URL
+        base = settings.ERP_PORTAL_URL
         if request:
             base = request.build_absolute_uri('/')[:-1]
         return f"{base}{self.get_url()}"

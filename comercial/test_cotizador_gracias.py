@@ -5,7 +5,7 @@ vuelca en un `href` y en un `window.location`. Sin validarlo, un
 abierta sobre un dominio de confianza, justo después de que el cliente envía
 sus datos.
 
-Solo se acepta si cuelga de PORTAL_URL. Estas pruebas fijan ese contrato para
+Solo se acepta si cuelga de ERP_PORTAL_URL. Estas pruebas fijan ese contrato para
 que nadie lo relaje sin darse cuenta.
 """
 
@@ -15,7 +15,7 @@ from django.urls import reverse
 PORTAL = 'https://portal.example.com'
 
 
-@override_settings(PORTAL_URL=PORTAL)
+@override_settings(ERP_PORTAL_URL=PORTAL)
 class PortalUrlDeGraciasTest(TestCase):
     def _portal_url(self, **params):
         response = self.client.get(reverse('cotizador_gracias'), params)
@@ -23,7 +23,7 @@ class PortalUrlDeGraciasTest(TestCase):
         return response
 
     def test_acepta_el_enlace_legitimo_del_portal(self):
-        """El que emite `cotizador_enviar`: {PORTAL_URL}/mi-evento/{token}/."""
+        """El que emite `cotizador_enviar`: {ERP_PORTAL_URL}/mi-evento/{token}/."""
         destino = f'{PORTAL}/mi-evento/abc123/'
         response = self._portal_url(portal=destino)
 
@@ -44,7 +44,7 @@ class PortalUrlDeGraciasTest(TestCase):
     def test_descarta_un_dominio_que_solo_empieza_igual(self):
         """
         `https://portal.example.com.atacante.mx/` comparte prefijo con
-        PORTAL_URL. Lo que lo frena es la barra del final del prefijo; sin
+        ERP_PORTAL_URL. Lo que lo frena es la barra del final del prefijo; sin
         ella este caso pasaría el filtro.
         """
         response = self._portal_url(portal=f'{PORTAL}.atacante.mx/phishing/')

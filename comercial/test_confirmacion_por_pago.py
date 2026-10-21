@@ -126,7 +126,7 @@ class PortalFechaOcupadaTest(TestCase):
         a.refresh_from_db()
         self.assertTrue(a.admite_pago())
 
-    @override_settings(OPENPAY_MERCHANT_ID='m', OPENPAY_PUBLIC_KEY='pk', OPENPAY_PRIVATE_KEY='sk')
+    @override_settings(OPENPAY_PAGOS_ID='m', OPENPAY_PAGOS_API_KEY_PUBLICA='pk', OPENPAY_PAGOS_SECRET='sk')
     def test_checkout_rechaza_antes_de_cobrar(self):
         a = _cotizacion()
         _pagar(a, '5800.00')

@@ -147,7 +147,7 @@ class TransporteWhatsAppTest(TestCase):
         post.assert_not_called()
         self.assertEqual(comm.estado, 'FALLIDO')
 
-    @wa_settings(WA_CLOUD_API_TOKEN='')
+    @wa_settings(META_WA_KOOXI_TOKEN='')
     def test_sin_credenciales_no_llama_a_meta(self):
         with patch('comunicacion.services.requests.post') as post:
             comm = enviar_whatsapp(
@@ -314,9 +314,9 @@ class IdempotenciaTest(TestCase):
 
 
 @override_settings(
-    EMAIL_FROM_RESERVAS='reservas@qkt.mx',
-    EMAIL_FROM_PAGOS='pagos@qkt.mx',
-    EMAIL_FROM_NOTIFICACIONES='notificaciones@qkt.mx',
+    ERP_EMAIL_REMITENTE_RESERVAS='reservas@qkt.mx',
+    ERP_EMAIL_REMITENTE_PAGOS='pagos@qkt.mx',
+    ERP_EMAIL_REMITENTE_NOTIFICACIONES='notificaciones@qkt.mx',
 )
 class RemitentePorTipoTest(TestCase):
     """El remitente del email depende del tipo de comunicación (Issue #221)."""
@@ -359,9 +359,9 @@ class RemitentePorTipoTest(TestCase):
         self.assertEqual(mail.outbox[-1].from_email, 'notificaciones@qkt.mx')
 
     @override_settings(
-        EMAIL_FROM_RESERVAS='fallback@qkt.mx',
-        EMAIL_FROM_PAGOS='fallback@qkt.mx',
-        EMAIL_FROM_NOTIFICACIONES='fallback@qkt.mx',
+        ERP_EMAIL_REMITENTE_RESERVAS='fallback@qkt.mx',
+        ERP_EMAIL_REMITENTE_PAGOS='fallback@qkt.mx',
+        ERP_EMAIL_REMITENTE_NOTIFICACIONES='fallback@qkt.mx',
     )
     def test_sin_variables_configuradas_cae_a_default_from_email(self):
         # En settings.py las tres variables nuevas caen a DEFAULT_FROM_EMAIL si
