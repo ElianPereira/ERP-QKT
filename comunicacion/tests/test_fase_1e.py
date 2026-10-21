@@ -299,3 +299,42 @@ class TerminalPorWhatsAppTest(TestCase):
         boton = self._proponer()
         msg = {'type': 'interactive', 'interactive': {'button_reply': {'id': boton, 'title': 'Confirmar'}}}
         self.assertEqual(texto_de(msg), boton)
+
+
+# ───────────────────────────── Punto 4 · quejas ───────────────────────────────
+
+@wa_settings(**AGENTE, META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
+class QuejaTest(MocksWA, TestCase):
+    def _pasar(self, entrada):
+        _resp('ENCARGADO', TEL_ENC)
+        _resp('DIRECCION', TEL_DIR, modo_copia='EN_VIVO')
+        conv = services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='Qué mal servicio', wamid='q1')
+        cliente = _cliente_falso(
+            _respuesta(_uso('pasar_a_humano', entrada), stop='tool_use'),
+            _respuesta(_texto('Te comunico con alguien del equipo.')),
+        )
+        with patch.object(services_agente, '_cliente_ia', return_value=cliente), \
+                patch.object(services_agente, 'enviar_whatsapp', return_value=OK):
+            services_agente.procesar_conversacion(conv.pk)
+
+    def test_categoria_queja_abre_pendiente_queja_urgente_para_el_encargado_y_copia_a_direccion(self):
+        self._pasar({'motivo': 'Alberca sucia', 'categoria': 'queja'})
+        p = Pendiente.objects.get(tipo='QUEJA')
+        self.assertEqual((p.severidad, p.rol), ('URGENTE', 'ENCARGADO'))
+        self.assertFalse(Pendiente.objects.filter(tipo='PASE_HUMANO').exists())
+        destinos = [c.kwargs['telefono'] for c in self.enviar_whatsapp_template.call_args_list]
+        self.assertEqual(destinos, [TEL_ENC, TEL_DIR])
+
+    def test_sin_categoria_o_con_otra_sigue_siendo_pase_a_humano(self):
+        self._pasar({'motivo': 'Quiere negociar', 'categoria': 'venta'})
+        self.assertEqual(Pendiente.objects.get().tipo, 'PASE_HUMANO')
+
+    def test_el_esquema_de_la_herramienta_ofrece_la_categoria(self):
+        from comunicacion.herramientas_agente import HERRAMIENTAS
+        esquema = next(h for h in HERRAMIENTAS if h['name'] == 'pasar_a_humano')['input_schema']
+        self.assertEqual(esquema['properties']['categoria']['enum'], ['queja', 'venta', 'otro'])
+        self.assertEqual(esquema['required'], ['motivo'])
+
+    def test_el_caso_queja_esta_en_los_evals(self):
+        from comunicacion.evaluacion_agente import cargar_casos
+        self.assertEqual(cargar_casos(['queja'])[0]['debe_usar'], ['pasar_a_humano'])

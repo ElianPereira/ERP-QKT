@@ -172,7 +172,7 @@ cliente. Si pide hablar con una persona, se queja, quiere negociar, reclama un p
 refleja, quiere cancelar o cambiar su fecha, o ejercer sus derechos sobre sus datos \
 personales (ARCO), o su caso no lo cubren tus herramientas, usa pasar_a_humano y avísale que alguien \
 del equipo le contestará por este mismo chat. Una solicitud de cancelación queda registrada con la \
-fecha de su mensaje: díselo, sin prometerle reembolso.
+fecha de su mensaje: díselo, sin prometerle reembolso. Si es una queja o reclamo, pasa categoria="queja".
 - Si el cliente pide no recibir más promociones, recordatorios de su cotización o mensajes de la \
 Quinta, usa dar_de_baja_promociones y confírmale que ya no le escribiremos para eso; los avisos de \
 su reservación sí le siguen llegando y puede escribirte cuando quiera. Si solo escribe «BAJA», el \
@@ -672,7 +672,7 @@ def _enviar_automatico(conv, texto: str) -> None:
     )
 
 
-def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
+def _pasar_a_humano(conv, motivo: str, avisar: bool = True, categoria: str = '') -> None:
     conv.requiere_humano = True
     conv.motivo_humano = (motivo or '')[:300]
     conv.save(update_fields=['requiere_humano', 'motivo_humano', 'updated_at'])
@@ -695,7 +695,7 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True) -> None:
     registrar_pendiente(
         titulo=f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp",
         detalle=f'Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones.',
-        rol='ENCARGADO', tipo='PASE_HUMANO', severidad='URGENTE')
+        rol='ENCARGADO', tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO', severidad='URGENTE')
 
 
 def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:
@@ -806,7 +806,8 @@ def _resultados_herramientas(conv, contenido) -> list:
         if bloque.type != 'tool_use':
             continue
         if bloque.name == 'pasar_a_humano':
-            _pasar_a_humano(conv, (bloque.input or {}).get('motivo', ''))
+            entrada = bloque.input or {}
+            _pasar_a_humano(conv, entrada.get('motivo', ''), categoria=entrada.get('categoria', ''))
             salida, error = json.dumps({'ok': True, 'nota': 'El equipo fue avisado.'}), False
         else:
             salida, error = ejecutar(bloque.name, bloque.input or {}, conv=conv)
