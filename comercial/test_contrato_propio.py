@@ -64,7 +64,7 @@ class DepositoSugeridoTest(ContratoPropioBase):
 
 
 class PlantillaContratoTest(ContratoPropioBase):
-    @override_settings(CONTRATO_PROPIO_ACTIVO=False)
+    @override_settings(ERP_CONTRATO_PROPIO_ACTIVO=False)
     def test_apagado_sigue_emitiendo_el_contrato_actual(self):
         html = _html(self._cot('EVENTO'))
         self.assertIn('9341-2023', html)
@@ -96,7 +96,7 @@ class PlantillaContratoTest(ContratoPropioBase):
         self.assertIn('no requiere depósito en garantía', html)
         self.assertNotIn('Cuarta. Depósito en garantía', html)
 
-    @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='1234-2026')
+    @override_settings(ERP_CONTRATO_PROPIO_ACTIVO=True, ERP_PROFECO_REGISTRO_EVENTOS='1234-2026')
     def test_activo_emite_sin_marca_de_agua_con_registro_y_deposito(self):
         cot = self._cot('EVENTO')
         Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('20000.00'))
@@ -107,7 +107,7 @@ class PlantillaContratoTest(ContratoPropioBase):
         self.assertIn('1234-2026', html)
         self.assertNotIn('9341-2023', html)
 
-    @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='')
+    @override_settings(ERP_CONTRATO_PROPIO_ACTIVO=True, ERP_PROFECO_REGISTRO_EVENTOS='')
     def test_evento_sin_registro_emite_el_propio_sin_leyenda(self):
         # Decisión del propietario (2026-09-25): se emite con el registro en trámite.
         for tipo, anexo in (('EVENTO', 'Anexo Evento'), ('PASADIA', 'Anexo Pasadía')):
@@ -116,7 +116,7 @@ class PlantillaContratoTest(ContratoPropioBase):
             self.assertNotIn('9341-2023', html)
             self.assertNotIn('Registro PROFECO', html)
 
-    @override_settings(CONTRATO_PROPIO_ACTIVO=True, PROFECO_REGISTRO_EVENTOS='')
+    @override_settings(ERP_CONTRATO_PROPIO_ACTIVO=True, ERP_PROFECO_REGISTRO_EVENTOS='')
     def test_hospedaje_no_requiere_registro(self):
         cot = self._cot('HOSPEDAJE', fecha_salida=date(2026, 12, 7))
         html = _html(cot)

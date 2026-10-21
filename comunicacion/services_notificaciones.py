@@ -141,7 +141,7 @@ def notificar_cotizacion(cotizacion, *, origen: str):
         return
 
     clave_wa = f"cotizacion:{cotizacion.pk}:{evento}:whatsapp"
-    plantilla = _plantilla('WA_TEMPLATE_COTIZACION')
+    plantilla = _plantilla('META_WA_PLANTILLA_COTIZACION')
     if plantilla:
         _seguro(
             'enviar el WhatsApp de cotización',
@@ -171,11 +171,11 @@ def notificar_cotizacion(cotizacion, *, origen: str):
             cotizacion=cotizacion, canal='WHATSAPP', tipo='COTIZACION',
             trigger='SIGNAL', destinatario=telefono, asunto='',
             estado='FALLIDO', clave_idempotencia=clave_wa,
-            error='WA_TEMPLATE_COTIZACION no configurada',
+            error='META_WA_PLANTILLA_COTIZACION no configurada',
         )
         if comm is not None:
             logger.warning(
-                "COT-%s: sin WA_TEMPLATE_COTIZACION no se puede notificar por WhatsApp",
+                "COT-%s: sin META_WA_PLANTILLA_COTIZACION no se puede notificar por WhatsApp",
                 cotizacion.pk,
             )
         return
@@ -241,7 +241,7 @@ def notificar_pago(pago):
         cotizacion=cotizacion, pago=pago,
         tipo='CONFIRMACION_PAGO',
         telefono=telefono,
-        template_name=_plantilla('WA_TEMPLATE_PAGO'),
+        template_name=_plantilla('META_WA_PLANTILLA_PAGO'),
         parametros=[
             _nombre_pila(cliente),
             _dinero(pago.monto),
@@ -304,7 +304,7 @@ def notificar_recordatorio(parcialidad, *, fecha, dias_restantes=None):
         cotizacion=cotizacion,
         tipo='RECORDATORIO_PAGO',
         telefono=telefono,
-        template_name=_plantilla('WA_TEMPLATE_RECORDATORIO'),
+        template_name=_plantilla('META_WA_PLANTILLA_RECORDATORIO'),
         parametros=[
             _nombre_pila(cliente),
             _dinero(parcialidad.monto),
@@ -441,7 +441,7 @@ def notificar_guia_evento(cotizacion):
                 'cotizacion': cotizacion,
                 'portal_url': portal,
                 'maps_url': maps_url,
-                'wa_numero': normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', '')),
+                'wa_numero': normalizar_telefono_wa(getattr(settings, 'META_WA_KOOXI_NUMERO', '')),
             },
             trigger='CRON',
             adjuntos=adjuntos,
@@ -462,7 +462,7 @@ def notificar_guia_evento(cotizacion):
         cotizacion=cotizacion,
         tipo='EVENTO_PROXIMO',
         telefono=telefono,
-        template_name=_plantilla('WA_TEMPLATE_GUIA'),
+        template_name=_plantilla('META_WA_PLANTILLA_GUIA'),
         parametros=[
             _nombre_pila(cliente),
             _fecha(cotizacion.fecha_evento),
@@ -540,7 +540,7 @@ def notificar_factura(solicitud):
             'solicitud': solicitud,
             'cliente': cliente,
             'portal_url': url_portal(cotizacion) if cotizacion else '',
-            'wa_numero': normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', '')),
+            'wa_numero': normalizar_telefono_wa(getattr(settings, 'META_WA_KOOXI_NUMERO', '')),
         },
         adjuntos=adjuntos,
         clave_idempotencia=clave,
@@ -600,7 +600,7 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
     una copia por correo, para que quede registro aunque WhatsApp falle.
 
     El destino es un número externo cualquiera, así que la ventana de 24 h le
-    aplica igual: si se configura `WA_TEMPLATE_ALERTA_INTERNA` la alerta va por
+    aplica igual: si se configura `META_WA_PLANTILLA_ALERTA_INTERNA` la alerta va por
     plantilla y llega siempre; si no, va como texto libre y solo llega mientras
     la ventana esté abierta.
     """
@@ -640,7 +640,7 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
         return
 
     clave = f"cotizacion:{cotizacion.pk}:alerta_equipo:whatsapp"
-    plantilla = _plantilla('WA_TEMPLATE_ALERTA_INTERNA')
+    plantilla = _plantilla('META_WA_PLANTILLA_ALERTA_INTERNA')
     for destino in destinos:
         if plantilla:
             _seguro(
@@ -716,7 +716,7 @@ def alertar_equipo_pago(pago):
         return
 
     clave = f"pago:{pago.pk}:alerta_equipo:whatsapp"
-    plantilla = _plantilla('WA_TEMPLATE_ALERTA_PAGO')
+    plantilla = _plantilla('META_WA_PLANTILLA_ALERTA_PAGO')
     for destino in destinos:
         if plantilla:
             _seguro(
@@ -814,7 +814,7 @@ def alertar_equipo_contracargo(contracargo):
         return
 
     clave = f"contracargo:{contracargo.pk}:{contracargo.estado}:whatsapp:{destino}"
-    plantilla = _plantilla('WA_TEMPLATE_ALERTA_CONTRACARGO')
+    plantilla = _plantilla('META_WA_PLANTILLA_ALERTA_CONTRACARGO')
     if plantilla:
         _seguro(
             'enviar la alerta de contracargo por WhatsApp',
@@ -878,7 +878,7 @@ SEGUIMIENTO_MARGEN_DIAS = 4
 
 
 def cotizaciones_para_seguimiento(hoy):
-    """Cotizaciones sin pago que cumplen `WA_SEGUIMIENTO_DIAS` y aún pueden apartarse.
+    """Cotizaciones sin pago que cumplen `ERP_KOOXI_SEGUIMIENTO_DIAS` y aún pueden apartarse.
 
     Solo BORRADOR/COTIZADA con fecha futura; el filtro de pagos, de
     consentimiento y de fecha libre se aplica en `notificar_seguimiento`, que
@@ -888,7 +888,7 @@ def cotizaciones_para_seguimiento(hoy):
 
     from comercial.models import Cotizacion
 
-    dias = getattr(settings, 'WA_SEGUIMIENTO_DIAS', 3)
+    dias = getattr(settings, 'ERP_KOOXI_SEGUIMIENTO_DIAS', 3)
     hasta = hoy - timedelta(days=dias)
     desde = hasta - timedelta(days=SEGUIMIENTO_MARGEN_DIAS)
     return (Cotizacion.objects
@@ -921,7 +921,7 @@ def notificar_seguimiento(cotizacion):
     Si sale, queda también en la conversación de WhatsApp como mensaje
     automático, para que el agente sepa a qué está contestando el cliente.
     """
-    plantilla = _plantilla('WA_TEMPLATE_SEGUIMIENTO')
+    plantilla = _plantilla('META_WA_PLANTILLA_SEGUIMIENTO')
     if not plantilla or motivo_para_no_seguir(cotizacion):
         return None
     cliente = cotizacion.cliente

@@ -1064,7 +1064,7 @@ class CotizacionAdmin(admin.ModelAdmin):
             **self.admin_site.each_context(request),
             'title': f'Generar Contrato — {cotizacion}',
             'cotizacion': cotizacion,
-            'contrato_propio_activo': settings.CONTRATO_PROPIO_ACTIVO,
+            'contrato_propio_activo': settings.ERP_CONTRATO_PROPIO_ACTIVO,
             'deposito_sugerido': deposito_sugerido(cotizacion),
             'deposito_existente': getattr(cotizacion, 'deposito_garantia', None),
             'contratos_previos': contratos_previos,
@@ -2291,7 +2291,7 @@ class OpenpayTransaccionAdmin(admin.ModelAdmin):
         """
         Borra las transacciones seleccionadas junto con su Pago y las pólizas
         contables que generaron (pago + comisión). Deja la Cotizacion intacta
-        con su saldo pendiente restaurado. Se niega si OPENPAY_MODE ya es
+        con su saldo pendiente restaurado. Se niega si OPENPAY_PAGOS_MODO ya es
         'production' (ver comercial.services_openpay.borrar_transacciones_openpay_prueba).
         """
         from .services_openpay import borrar_transacciones_openpay_prueba

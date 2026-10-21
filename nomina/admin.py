@@ -75,8 +75,8 @@ class ReciboNominaAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
         extra_context['boton_carga'] = True
 
-        jibble_id = getattr(settings, 'JIBBLE_CLIENT_ID', '')
-        jibble_secret = getattr(settings, 'JIBBLE_CLIENT_SECRET', '')
+        jibble_id = getattr(settings, 'JIBBLE_NOMINA_ID', '')
+        jibble_secret = getattr(settings, 'JIBBLE_NOMINA_SECRET', '')
         jibble_configurado = bool(jibble_id and jibble_secret)
         extra_context['jibble_configurado'] = jibble_configurado
 

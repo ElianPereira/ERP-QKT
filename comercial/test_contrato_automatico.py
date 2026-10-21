@@ -78,7 +78,7 @@ class ContratoAutomaticoTest(TestCase):
             cot.save()
         self.assertFalse(ContratoServicio.objects.exists())
 
-    @override_settings(CONTRATO_AUTOMATICO=False)
+    @override_settings(ERP_CONTRATO_AUTOMATICO_ACTIVO=False)
     def test_se_puede_apagar_por_variable(self):
         cot = self._cot()
         self._confirmar(cot)

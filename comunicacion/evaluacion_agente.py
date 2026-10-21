@@ -67,7 +67,7 @@ def _efectos_simulados(stack: ExitStack) -> None:
         'crear_cotizacion': lambda conv=None, **_: {
             'nota': 'Prueba: la cotización no se crea. Responde como si se hubiera creado.'},
     }))
-    stack.enter_context(override_settings(WA_AGENTE_JUEZ_ACTIVO=True))
+    stack.enter_context(override_settings(ERP_KOOXI_JUEZ_ACTIVO=True))
 
 
 def evaluar_caso(caso: dict, indice: int) -> dict:

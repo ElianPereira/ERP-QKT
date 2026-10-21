@@ -4,7 +4,7 @@ vendido directo.
 
 Lo que fija este archivo, en orden de importancia:
 
-1. Con `TASA_ISH = 0` (el default) el ERP se comporta EXACTAMENTE como antes
+1. Con `ERP_FISCAL_TASA_ISH = 0` (el default) el ERP se comporta EXACTAMENTE como antes
    de existir el ISH: no lo calcula, no lo exhibe y no lo contabiliza. Es la
    garantía de que desplegar esto no mueve un peso hasta que el contador
    confirme la tasa.
@@ -55,30 +55,30 @@ def _cotizacion(tipo_servicio='HOSPEDAJE', *, precio_base='1000.00',
 class TasaISHTest(TestCase):
     """La tasa vive en settings, no en el código, y se valida al leerla."""
 
-    @override_settings(TASA_ISH=Decimal('0'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('0'))
     def test_sin_tasa_configurada_el_ish_no_aplica(self):
         self.assertFalse(impuestos.ish_aplica())
         self.assertEqual(impuestos.ish_de(Decimal('1000.00')), Decimal('0.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_con_tasa_configurada_calcula_sobre_la_base_sin_iva(self):
         self.assertTrue(impuestos.ish_aplica())
         # 5% sobre la contraprestación, NO sobre el IVA.
         self.assertEqual(impuestos.ish_de(Decimal('1000.00')), Decimal('50.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_redondea_con_half_up_como_todo_importe_monetario(self):
         # 333.33 * 0.05 = 16.6665 -> 16.67 con ROUND_HALF_UP.
         self.assertEqual(impuestos.ish_de(Decimal('333.33')), Decimal('16.67'))
 
-    @override_settings(TASA_ISH=Decimal('5'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('5'))
     def test_una_tasa_en_porcentaje_en_vez_de_proporcion_se_rechaza(self):
         # 5 en vez de 0.05 cobraría 500% de impuesto: mejor reventar que
         # cobrarlo.
         with self.assertRaises(ValueError):
             impuestos.ish_de(Decimal('1000.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_rechaza_float_igual_que_el_resto_del_modulo(self):
         with self.assertRaises(impuestos.ImporteInvalido):
             impuestos.ish_de(1000.00)
@@ -87,7 +87,7 @@ class TasaISHTest(TestCase):
 class CotizacionISHTest(TestCase):
     """`calcular_totales()` con y sin ISH."""
 
-    @override_settings(TASA_ISH=Decimal('0'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('0'))
     def test_sin_tasa_el_total_es_identico_al_de_siempre(self):
         cot = _cotizacion('HOSPEDAJE')
         self.assertEqual(cot.impuesto_hospedaje, Decimal('0.00'))
@@ -95,7 +95,7 @@ class CotizacionISHTest(TestCase):
         self.assertEqual(cot.iva, Decimal('160.00'))
         self.assertEqual(cot.precio_final, Decimal('1160.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_hospedaje_directo_causa_ish_y_sube_el_precio_final(self):
         cot = _cotizacion('HOSPEDAJE')
         self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
@@ -103,7 +103,7 @@ class CotizacionISHTest(TestCase):
         # base + IVA + ISH
         self.assertEqual(cot.precio_final, Decimal('1210.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_evento_pasadia_y_arrendamiento_nunca_causan_ish(self):
         for servicio in ('EVENTO', 'PASADIA', 'ARRENDAMIENTO'):
             with self.subTest(servicio=servicio):
@@ -111,14 +111,14 @@ class CotizacionISHTest(TestCase):
                 self.assertEqual(cot.impuesto_hospedaje, Decimal('0.00'))
                 self.assertEqual(cot.precio_final, Decimal('1160.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_el_ish_no_se_calcula_sobre_el_iva(self):
         cot = _cotizacion('HOSPEDAJE')
         # Si se calculara sobre el total con IVA (1160), daría 58.00.
         self.assertNotEqual(cot.impuesto_hospedaje, Decimal('58.00'))
         self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_persona_moral_conserva_su_retencion_ademas_del_ish(self):
         cot = _cotizacion('HOSPEDAJE', tipo_persona='MORAL')
         self.assertEqual(cot.retencion_isr, Decimal('12.50'))  # 1.25% RESICO
@@ -126,7 +126,7 @@ class CotizacionISHTest(TestCase):
         # 1000 + 160 + 50 - 12.50
         self.assertEqual(cot.precio_final, Decimal('1197.50'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_el_descuento_reduce_tambien_la_base_del_ish(self):
         cot = _cotizacion('HOSPEDAJE')
         cot.descuento = Decimal('200.00')
@@ -141,7 +141,7 @@ class TasaCongeladaTest(TestCase):
     """
     La tasa se sella en la cotización; no se relee de la configuración.
 
-    Sin esto, encender `TASA_ISH` le subía el precio a cotizaciones ya
+    Sin esto, encender `ERP_FISCAL_TASA_ISH` le subía el precio a cotizaciones ya
     aceptadas en cuanto alguien las reguardara (editarlas en el admin, o
     moverlas a EJECUTADA), y a una ya pagada le reabría saldo por el
     importe del impuesto.
@@ -149,7 +149,7 @@ class TasaCongeladaTest(TestCase):
 
     def test_una_cotizacion_pagada_no_reabre_saldo_al_encender_la_tasa(self):
         from comercial.models import Pago
-        with override_settings(TASA_ISH=Decimal('0')):
+        with override_settings(ERP_FISCAL_TASA_ISH=Decimal('0')):
             cot = _cotizacion('HOSPEDAJE')
             self.assertEqual(cot.precio_final, Decimal('1160.00'))
             Pago.objects.create(cotizacion=cot, monto=cot.precio_final,
@@ -159,7 +159,7 @@ class TasaCongeladaTest(TestCase):
             cot.cambiar_estado('COTIZADA')
 
         # Meses después se enciende la tasa y alguien reguarda la cotización.
-        with override_settings(TASA_ISH=TASA_5):
+        with override_settings(ERP_FISCAL_TASA_ISH=TASA_5):
             cot.refresh_from_db()
             cot.save()
             cot.refresh_from_db()
@@ -168,7 +168,7 @@ class TasaCongeladaTest(TestCase):
             self.assertEqual(cot.saldo_pendiente(), Decimal('0.00'))
 
     def test_una_cotizacion_nueva_si_toma_la_tasa_vigente(self):
-        with override_settings(TASA_ISH=TASA_5):
+        with override_settings(ERP_FISCAL_TASA_ISH=TASA_5):
             cot = _cotizacion('HOSPEDAJE')
             self.assertEqual(cot.tasa_ish_aplicada, TASA_5)
             self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
@@ -176,27 +176,27 @@ class TasaCongeladaTest(TestCase):
     def test_un_borrador_toma_la_tasa_al_encenderla(self):
         # El caso de la semana de transición: lo que sigue en borrador no se
         # le ha presentado al cliente todavía, así que sí debe actualizarse.
-        with override_settings(TASA_ISH=Decimal('0')):
+        with override_settings(ERP_FISCAL_TASA_ISH=Decimal('0')):
             cot = _cotizacion('HOSPEDAJE')
             self.assertEqual(cot.estado, 'BORRADOR')
-        with override_settings(TASA_ISH=TASA_5):
+        with override_settings(ERP_FISCAL_TASA_ISH=TASA_5):
             cot.save()
             cot.refresh_from_db()
             self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
             self.assertEqual(cot.precio_final, Decimal('1210.00'))
 
     def test_apagar_la_tasa_no_le_quita_el_ish_a_lo_ya_cotizado(self):
-        with override_settings(TASA_ISH=TASA_5):
+        with override_settings(ERP_FISCAL_TASA_ISH=TASA_5):
             cot = _cotizacion('HOSPEDAJE')
             cot.cambiar_estado('COTIZADA')
-        with override_settings(TASA_ISH=Decimal('0')):
+        with override_settings(ERP_FISCAL_TASA_ISH=Decimal('0')):
             cot.refresh_from_db()
             cot.save()
             cot.refresh_from_db()
             self.assertEqual(cot.impuesto_hospedaje, Decimal('50.00'))
             self.assertEqual(cot.precio_final, Decimal('1210.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_cambiar_items_recalcula_el_ish_con_la_tasa_sellada(self):
         cot = _cotizacion('HOSPEDAJE')
         cot.cambiar_estado('COTIZADA')
@@ -214,7 +214,7 @@ class TasaCongeladaTest(TestCase):
 class DesgloseProporcionalISHTest(TestCase):
     """Cada abono parcial lleva su parte proporcional de ISH."""
 
-    @override_settings(TASA_ISH=Decimal('0'))
+    @override_settings(ERP_FISCAL_TASA_ISH=Decimal('0'))
     def test_sin_ish_el_desglose_cuadra_como_siempre(self):
         cot = _cotizacion('HOSPEDAJE')
         d = calcular_desglose_proporcional(Decimal('1160.00'), cot)
@@ -224,7 +224,7 @@ class DesgloseProporcionalISHTest(TestCase):
             Decimal('1160.00'),
         )
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_pago_total_reparte_el_ish_completo(self):
         cot = _cotizacion('HOSPEDAJE')
         d = calcular_desglose_proporcional(cot.precio_final, cot)
@@ -232,7 +232,7 @@ class DesgloseProporcionalISHTest(TestCase):
         self.assertEqual(d['subtotal'], Decimal('1000.00'))
         self.assertEqual(d['iva'], Decimal('160.00'))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_anticipo_del_50_por_ciento_lleva_la_mitad_del_ish(self):
         cot = _cotizacion('HOSPEDAJE')
         mitad = Decimal('605.00')  # 1210 / 2
@@ -243,7 +243,7 @@ class DesgloseProporcionalISHTest(TestCase):
                 - d['retencion_isr'] - d['retencion_iva'])
         self.assertEqual(suma, mitad)
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_un_abono_de_importe_arbitrario_sigue_cuadrando_al_centavo(self):
         cot = _cotizacion('HOSPEDAJE')
         for monto in ('100.00', '333.33', '0.07', '1209.99'):
@@ -253,7 +253,7 @@ class DesgloseProporcionalISHTest(TestCase):
                         - d['retencion_isr'] - d['retencion_iva'])
                 self.assertEqual(suma, Decimal(monto))
 
-    @override_settings(TASA_ISH=TASA_5)
+    @override_settings(ERP_FISCAL_TASA_ISH=TASA_5)
     def test_el_iva_del_desglose_se_mantiene_dentro_de_la_tolerancia_sat(self):
         # El ISH se aparta primero justamente para no contaminar esta
         # invariante, que es la que valida el PAC al timbrar.

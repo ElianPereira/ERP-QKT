@@ -100,6 +100,9 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
   Nada de `window.confirm`/`alert` nativos: `QKT.confirmar()` o
   `data-qkt-confirmar`. Los mensajes al cliente (WhatsApp/email) quedan
   fuera de esta regla.
+- Variable de entorno nueva: regla `ORIGEN_SERVICIO_DATO` (`META_`, `ANTHROPIC_`, `OPENPAY_`, `CLOUDFLARE_`, `BREVO_`,
+  `JIBBLE_`, `ERP_`, `DJANGO_`), alta en `docs/variables_entorno.md`, lectura solo con `env()` de `core_erp/variables.py`
+  (nunca `config()` ni `os.environ`); lo vigila `core_erp/test_variables.py`.
 - Nunca hardcodees secretos ni llaves API: todo vía `config()`/variables de
   entorno, igual que en todo `settings.py`. Un literal de credencial fuera
   de archivos de test bloquea el lint (`ruff` `S105`/`S106`/`S107`) y el
@@ -268,6 +271,48 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-10-20 — **Variables de entorno estandarizadas** (Issue #424, fase 1d). Regla `ORIGEN_SERVICIO_DATO[_DISTINTIVO]`
+  (ORIGEN = quién la emite: `META`/`ANTHROPIC`/`OPENPAY`/`CLOUDFLARE`/`BREVO`/`JIBBLE`, `ERP` propia, `DJANGO`; exentas
+  `DATABASE_URL`, `PORT`, `RAILWAY_*`) y catálogo en `docs/variables_entorno.md` (nombre, para qué, quién la emite, dónde
+  se rota, servicios, nombre legado; solo nombres, nunca valores). **Toda lectura pasa por `core_erp/variables.py::env(
+  nombre, legado=None, **kw)`**: lee el nuevo, si no existe lee el legado y deja un `logger.warning` («usando nombre legado
+  X», jamás el valor), si no el `default`. Los **atributos** de `settings` tomaron el nombre nuevo
+  (`settings.META_WA_KOOXI_TOKEN`, `OPENPAY_PAGOS_ID`…) y se reemplazaron por búsqueda en todo el código y los tests;
+  conservan nombre los que Django exige (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `DEFAULT_FROM_EMAIL`): solo cambia la
+  variable de entorno que los alimenta. `facturacion/services.py` ya no lee `config()` (usa `settings`) y los 3 clientes
+  de Anthropic reciben `api_key=settings.ANTHROPIC_API_KEY_KOOXI` explícito. `CLOUDINARY_*` se eliminó (el dict
+  `CLOUDINARY_STORAGE` queda con vacíos; las migraciones viejas solo importan el paquete). **Decisión mínima**:
+  `WA_NUMERO_NEGOCIO` no se borró (el directorio de #421 aún lo usa de respaldo): pasa a `ERP_WA_NEGOCIO_NUMERO` y se
+  borra en un PR posterior cuando el directorio sea la única fuente. El `Dockerfile` pasa `DJANGO_SECRET_KEY` de
+  placeholder a `collectstatic`. **Test guardián** `core_erp/test_variables.py`: recorre el código con `ast`, todo
+  `env('X')` debe cumplir la regla y estar en el catálogo (y el catálogo coincidir con `settings.py`), prohíbe
+  `config(`/`os.environ` fuera del helper (salvo `DJANGO_SETTINGS_MODULE`), y arranca `settings` en un proceso limpio
+  con solo los nombres viejos, solo los nuevos y los dos (gana el nuevo, sin avisos). El `grep` literal del Issue
+  devuelve 2 falsos positivos (`apps.get_app_config(` y `dj_database_url.config(`, que no son lecturas nuestras).
+  **El corte en Railway lo hace otra sesión** con la sección «Corte de nombres» de `docs/railway_programador.md`; el
+  respaldo `legado=` se retira 2 semanas después. Los workflows de `.github` siguen con `SECRET_KEY`/`DEBUG`/
+  `ALLOWED_HOSTS` (funcionan por el respaldo).
+
+- 2026-10-20 — **Programador único + vigilante** (Issue #423, fase 1c del plan de piloto automático). Un solo cron de
+  Railway (`*/5 * * * *`) corre `manage.py programador`; la tabla de tareas está en `core_erp/programador.py`
+  (`Tarea(nombre, comando, horario, tolerancia, args)`; horarios `cada`/`diario`/`semanal`/`mensual` en
+  America/Merida, dataclasses propios, sin dependencias) y la lógica en `operaciones/services_programador.py`. Cada
+  vuelta calcula la última ranura vencida de cada tarea y, **solo si sigue dentro de su tolerancia**, la reserva con
+  una `operaciones.EjecucionCron` EN_CURSO (migración `operaciones.0004`, una tabla nueva): el `UniqueConstraint`
+  (tarea, ranura) decide quién gana si dos procesos corren a la vez, y el perdedor se salta la ranura. Una ranura
+  atrasada fuera de tolerancia **no se recupera** (decisión: una mensual corrida el día 20 por un deploy tardío sería
+  peor que avisar). Salida truncada a 5,000 caracteres con credenciales enmascaradas (`sin_secretos`). **Vigilante** al
+  final de cada vuelta: ranura reciente en ERROR, o sin EXITO pasada la tolerancia (no corrió o se quedó EN_CURSO) →
+  `registrar_pendiente(tipo='CRON', URGENTE, DIRECCION, clave_idempotencia='cron:<tarea>:<ranura>')`; no duplica. No
+  alerta ranuras anteriores a la primera corrida registrada (antes de existir el programador no podía correrlas;
+  evita una ráfaga de avisos el día del corte), salvo que esa ranura ya tenga su fila. **Salud**: context processor
+  `salud_programador` → `qkt-aviso--error` en `templates/admin/base.html` para superusuarios si la última
+  `EjecucionCron` tiene > 30 min (sin filas no avisa: el programador aún no entra en uso); el resumen diario a
+  Dirección trae «Programador: última vuelta hh:mm». Admin «Ejecuciones» (solo lectura, ícono `fa-history`, grupo
+  nuevo OPERACIONES en `order_with_respect_to`). Los 11 crons de Railway + `revisar_pendientes` + `enviar_resumen_diario`
+  quedan en la tabla; **el corte en Railway lo hace otra sesión** con `docs/railway_programador.md`. `--simular` y
+  `--solo <tarea>` sirven para pruebas. Sin cambios en los comandos existentes.
 
 - 2026-10-20 — **Bandeja de pendientes, resumen diario y escalamiento** (Issue #422, fase 1b del plan de piloto
   automático). `comunicacion.Pendiente` (migración `comunicacion.0012`, una tabla nueva) concentra lo que requiere a una

@@ -2,7 +2,7 @@
 Avisos de vencimiento del módulo de Cumplimiento (Issue #403, fase 3).
 
 Un mensaje consolidado por corrida y canal al propietario: WhatsApp a
-los números de Dirección del directorio de responsables (plantilla `WA_TEMPLATE_OPERACIONES` con el resumen en el
+los números de Dirección del directorio de responsables (plantilla `META_WA_PLANTILLA_OPERACIONES` con el resumen en el
 parámetro, que sí llega fuera de la ventana de 24 h; sin plantilla, texto
 libre) y correo interno. La idempotencia es `AvisoVencimiento`: el INSERT va
 antes del envío, igual que `ComunicacionCliente`; un canal fallido se
@@ -117,7 +117,7 @@ def _reservar(aviso, canal):
 
 
 def _enviar_whatsapp(destino, cuerpo, resumen):
-    plantilla = getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
+    plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
     if plantilla:
         return enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
                                         parametros=[resumen], trigger='CRON')
@@ -135,7 +135,7 @@ def _enviar_email(avisos, asunto, cuerpo):
     for correo, suyos in por_responsable.items():
         try:
             _, cuerpo_suyo, _ = construir_mensaje(suyos)
-            send_mail(asunto, cuerpo_suyo, settings.EMAIL_FROM_NOTIFICACIONES, [correo], fail_silently=False)
+            send_mail(asunto, cuerpo_suyo, settings.ERP_EMAIL_REMITENTE_NOTIFICACIONES, [correo], fail_silently=False)
         except Exception:
             logger.exception("No se pudo copiar el aviso de cumplimiento a %s", correo)
     return comm

@@ -129,7 +129,7 @@ def portal_acceso(request):
                 return HttpResponse(
                     'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.',
                     status=429,
-                    headers={'Retry-After': str(settings.PORTAL_ACCESO_VENTANA)},
+                    headers={'Retry-After': str(settings.ERP_PORTAL_ACCESO_VENTANA_SEGUNDOS)},
                 )
 
             try:
@@ -155,7 +155,7 @@ def portal_acceso(request):
     from comunicacion.services import normalizar_telefono_wa
     return render(request, 'portal/acceso.html', {
         'error': error,
-        'wa_numero': normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', '')),
+        'wa_numero': normalizar_telefono_wa(getattr(settings, 'META_WA_KOOXI_NUMERO', '')),
     })
 
 
@@ -212,7 +212,7 @@ def portal_evento(request, token):
     # número interno al que van las alertas internas. Si no está configurado
     # la plantilla oculta el enlace en vez de renderizar un wa.me/ roto.
     from comunicacion.services import normalizar_telefono_wa
-    wa_numero = normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_CONTACTO_PUBLICO', ''))
+    wa_numero = normalizar_telefono_wa(getattr(settings, 'META_WA_KOOXI_NUMERO', ''))
 
     facturas = cotizacion.solicitudes_factura.filter(estado='FACTURADA').order_by('fecha_pago', 'pk')
 
@@ -229,7 +229,7 @@ def portal_evento(request, token):
         for ref in transacciones_pendientes(cotizacion, 'DEPOSITO'):
             ref['es_deposito'] = True
             pagos_pendientes_openpay.append(ref)
-    openpay_habilitado = bool(settings.OPENPAY_MERCHANT_ID and settings.OPENPAY_PUBLIC_KEY)
+    openpay_habilitado = bool(settings.OPENPAY_PAGOS_ID and settings.OPENPAY_PAGOS_API_KEY_PUBLICA)
     puede_pagar_en_linea = openpay_habilitado and admite_pago and (
         saldo_pendiente > 0 or deposito_por_pagar > 0
     )
@@ -254,9 +254,9 @@ def portal_evento(request, token):
         'puede_pagar_en_linea': puede_pagar_en_linea,
         # Checkout Openpay (solo si hay credenciales configuradas)
         'openpay_habilitado': openpay_habilitado,
-        'openpay_merchant_id': settings.OPENPAY_MERCHANT_ID,
-        'openpay_public_key': settings.OPENPAY_PUBLIC_KEY,
-        'openpay_sandbox': settings.OPENPAY_MODE == 'sandbox',
+        'openpay_merchant_id': settings.OPENPAY_PAGOS_ID,
+        'openpay_public_key': settings.OPENPAY_PAGOS_API_KEY_PUBLICA,
+        'openpay_sandbox': settings.OPENPAY_PAGOS_MODO == 'sandbox',
         'monto_minimo_pago': monto_minimo,
         'monto_minimo_pago_motivo': monto_minimo_motivo,
         'identificacion_completa': cotizacion.identificacion_completa(),

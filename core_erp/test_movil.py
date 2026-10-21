@@ -321,6 +321,27 @@ class PaginasMovilTest(MovilBase):
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Pendientes desborda en móvil:\n' + '\n'.join(problemas))
 
+    def test_ejecuciones_y_aviso_del_programador_no_desbordan(self):
+        from django.utils import timezone
+
+        from operaciones.models import EjecucionCron
+        vieja = timezone.now() - timedelta(hours=2)
+        ejec = EjecucionCron.objects.create(
+            tarea='sincronizar_comisiones_openpay', programada_para=vieja, inicio=vieja,
+            fin=vieja + timedelta(minutes=3), estado='ERROR', error='Error largo ' * 20, salida='línea ' * 40)
+        problemas = []
+        for ruta in (reverse('admin:operaciones_ejecucioncron_changelist'),
+                     reverse('admin:operaciones_ejecucioncron_change', args=[ejec.pk]), '/admin/'):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_SOBRESALEN)
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        # El aviso de salud se ve completo dentro de los 390 px.
+        caja = self.page.locator('.qkt-aviso--error').first.bounding_box()
+        self.assertIsNotNone(caja)
+        self.assertLessEqual(caja['x'] + caja['width'], ANCHO_IPHONE + 1)
+        self.assertEqual(problemas, [], 'Ejecuciones/aviso desborda en móvil:\n' + '\n'.join(problemas))
+
     def test_paginas_propias_no_desbordan(self):
         rutas = [
             '/admin/', reverse('calendario_unificado'),

@@ -26,10 +26,10 @@ def _client_ip(request):
     la cabecera, por lo que la entrada fiable es la que agregó nuestro proxy:
     contando desde la derecha tantos saltos como proxies de confianza haya.
 
-    Se controla con RATELIMIT_TRUSTED_PROXY_COUNT (por defecto 1, el edge de
+    Se controla con ERP_RATELIMIT_PROXIES (por defecto 1, el edge de
     Railway). Si no hay XFF, cae a REMOTE_ADDR.
     """
-    trusted = getattr(settings, 'RATELIMIT_TRUSTED_PROXY_COUNT', 1)
+    trusted = getattr(settings, 'ERP_RATELIMIT_PROXIES', 1)
     xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
     if xff:
         partes = [p.strip() for p in xff.split(',') if p.strip()]
@@ -111,7 +111,7 @@ def _clave_usuario(username):
 
 def _buckets_login(request, username):
     """Devuelve los buckets vigentes por IP y usuario, si están disponibles."""
-    ventana = settings.ADMIN_LOGIN_VENTANA
+    ventana = settings.ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS
     ip = _client_ip(request) if request is not None else None
     bucket_ip = _bucket('login_admin_ip', ip, ventana) if ip else None
     bucket_usuario = (
@@ -124,9 +124,9 @@ def _buckets_login(request, username):
 def login_bloqueado(request, username=None):
     """Indica si la IP o el usuario agotaron los intentos fallidos permitidos."""
     bucket_ip, bucket_usuario = _buckets_login(request, username)
-    if bucket_ip and cache.get(bucket_ip, 0) >= settings.ADMIN_LOGIN_MAX_INTENTOS_IP:
+    if bucket_ip and cache.get(bucket_ip, 0) >= settings.ERP_ADMIN_LOGIN_MAX_IP:
         return True
-    if bucket_usuario and cache.get(bucket_usuario, 0) >= settings.ADMIN_LOGIN_MAX_INTENTOS_USUARIO:
+    if bucket_usuario and cache.get(bucket_usuario, 0) >= settings.ERP_ADMIN_LOGIN_MAX_USUARIO:
         return True
     return False
 
@@ -136,7 +136,7 @@ def registrar_login_fallido(request, username):
     if request is None:
         return
 
-    ventana = settings.ADMIN_LOGIN_VENTANA
+    ventana = settings.ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS
     bucket_ip, bucket_usuario = _buckets_login(request, username)
     if bucket_ip:
         _contar(bucket_ip, ventana)
@@ -156,7 +156,7 @@ def limpiar_intentos_login(request, username):
     limpiara, cualquiera con credenciales de una sola cuenta podría alternar
     intentos fallidos contra otros usuarios (password spraying) con un login
     propio correcto desde la misma IP y anular así el límite por IP. Ese
-    bucket solo expira por ventana (ADMIN_LOGIN_VENTANA).
+    bucket solo expira por ventana (ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS).
     """
     _, bucket_usuario = _buckets_login(request, username)
     if bucket_usuario:
@@ -169,7 +169,7 @@ def _clave_cotizacion(cotizacion_id):
 
 
 def _bucket_portal(cotizacion_id):
-    ventana = settings.PORTAL_ACCESO_VENTANA
+    ventana = settings.ERP_PORTAL_ACCESO_VENTANA_SEGUNDOS
     return _bucket('portal_acceso_cot', _clave_cotizacion(cotizacion_id), ventana)
 
 
@@ -182,11 +182,11 @@ def portal_acceso_bloqueado(cotizacion_id):
     objetivo sin importar desde dónde se prueben.
     """
     bucket = _bucket_portal(cotizacion_id)
-    return cache.get(bucket, 0) >= settings.PORTAL_ACCESO_MAX_INTENTOS
+    return cache.get(bucket, 0) >= settings.ERP_PORTAL_ACCESO_MAX
 
 
 def registrar_portal_acceso_fallido(cotizacion_id):
-    _contar(_bucket_portal(cotizacion_id), settings.PORTAL_ACCESO_VENTANA)
+    _contar(_bucket_portal(cotizacion_id), settings.ERP_PORTAL_ACCESO_VENTANA_SEGUNDOS)
 
 
 def limpiar_portal_acceso(cotizacion_id):

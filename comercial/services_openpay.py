@@ -139,18 +139,18 @@ def _mensaje_error_openpay(data: dict, default: str) -> str:
 
 OPENPAY_BASE_URL = (
     "https://sandbox-api.openpay.mx/v1"
-    if settings.OPENPAY_MODE == 'sandbox'
+    if settings.OPENPAY_PAGOS_MODO == 'sandbox'
     else "https://api.openpay.mx/v1"
 )
 
 
 def _auth():
     """Openpay usa HTTP Basic Auth con la llave privada como usuario, sin password."""
-    return (settings.OPENPAY_PRIVATE_KEY, '')
+    return (settings.OPENPAY_PAGOS_SECRET, '')
 
 
 def _charges_url():
-    return f"{OPENPAY_BASE_URL}/{settings.OPENPAY_MERCHANT_ID}/charges"
+    return f"{OPENPAY_BASE_URL}/{settings.OPENPAY_PAGOS_ID}/charges"
 
 
 # El recibo genérico de Openpay vive en el dashboard, no en la API: es una
@@ -165,7 +165,7 @@ def _charges_url():
 # exactamente lo que rompía la ficha de pago en tiendas.
 OPENPAY_DASHBOARD_URL = (
     "https://sandbox-dashboard.openpay.mx"
-    if settings.OPENPAY_MODE == 'sandbox'
+    if settings.OPENPAY_PAGOS_MODO == 'sandbox'
     else "https://dashboard.openpay.mx"
 )
 
@@ -183,7 +183,7 @@ def _recibo_pdf_url(tipo: str, identificador: str) -> str:
     if not identificador:
         return ''
     return (f"{OPENPAY_DASHBOARD_URL}/{tipo}-pdf/"
-            f"{settings.OPENPAY_MERCHANT_ID}/{identificador}")
+            f"{settings.OPENPAY_PAGOS_ID}/{identificador}")
 
 
 def _decimal_o_none(valor):
@@ -798,15 +798,15 @@ def borrar_transacciones_openpay_prueba(registros):
     la Cotizacion/Cliente — el saldo pendiente vuelve a su valor original,
     como si el pago nunca se hubiera hecho.
 
-    Se niega si OPENPAY_MODE ya es 'production', para no borrar transacciones
+    Se niega si OPENPAY_PAGOS_MODO ya es 'production', para no borrar transacciones
     reales por error después de salir en vivo. Usado tanto por el comando
     `limpiar_transacciones_openpay_prueba` como por la acción del admin.
 
     Devuelve (n_transacciones, n_pagos) borrados.
     """
-    if settings.OPENPAY_MODE == 'production':
+    if settings.OPENPAY_PAGOS_MODO == 'production':
         raise ValueError(
-            "OPENPAY_MODE es 'production' — esta limpieza es solo para datos de "
+            "OPENPAY_PAGOS_MODO es 'production' — esta limpieza es solo para datos de "
             "sandbox y se niega a correr para no borrar transacciones reales."
         )
 

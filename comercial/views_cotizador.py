@@ -1191,11 +1191,11 @@ def cotizador_gracias(request):
     # que enseñar: se cae al portal genérico y la plantilla usa `portal_base`
     # para reconocer ese caso y no autoredirigir.
     solicitado = request.GET.get('portal') or ''
-    if solicitado.startswith(f'{settings.PORTAL_URL}/'):
+    if solicitado.startswith(f'{settings.ERP_PORTAL_URL}/'):
         portal_url = solicitado
     else:
-        portal_url = settings.PORTAL_URL
+        portal_url = settings.ERP_PORTAL_URL
     return render(request, 'cotizador/gracias.html', {
         'portal_url': portal_url,
-        'portal_base': settings.PORTAL_URL,
+        'portal_base': settings.ERP_PORTAL_URL,
     })

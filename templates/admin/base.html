@@ -3,7 +3,7 @@
 
 {% comment %}
 Auto-cierre de sesión por inactividad. El tiempo lo dicta el backend
-(SESSION_IDLE_TIMEOUT) y se pasa al JS vía context processor para no
+(ERP_SESION_INACTIVIDAD_SEGUNDOS) y se pasa al JS vía context processor para no
 desincronizar. El control de seguridad real es la caducidad de sesión en
 servidor; este script solo redirige la pestaña desatendida al logout.
 {% endcomment %}
@@ -30,6 +30,17 @@ dentro de otra en vez de como pestaña propia de primer nivel
 Basado en el bloque `sidebar` original de Jazzmin — si Jazzmin cambia esa
 plantilla en una actualización, este bloque puede quedar desactualizado.
 {% endcomment %}
+
+{% block messages %}
+{% if programador_ultima_vuelta %}
+<div class="qkt-aviso qkt-aviso--error" role="alert">
+    <span class="qkt-aviso__titulo"><i class="fas fa-history"></i> El programador no está corriendo</span>
+    Última vuelta registrada: {{ programador_ultima_vuelta|date:"d/m/Y H:i" }}. Las tareas automáticas no se están ejecutando; revisa el servicio «Programador» en Railway.
+    <a href="{% url 'admin:operaciones_ejecucioncron_changelist' %}">Ver ejecuciones</a>
+</div>
+{% endif %}
+{{ block.super }}
+{% endblock %}
 
 {% block sidebar %}
 {% if jazzmin_settings.show_sidebar %}

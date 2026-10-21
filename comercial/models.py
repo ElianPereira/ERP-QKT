@@ -2122,10 +2122,10 @@ class PortalCliente(models.Model):
 
     def get_full_url(self, request=None):
         """Retorna la URL completa con dominio.
-        Usa PORTAL_URL como base cuando no hay request del que deducirla.
+        Usa ERP_PORTAL_URL como base cuando no hay request del que deducirla.
         """
         from django.conf import settings
-        base = settings.PORTAL_URL
+        base = settings.ERP_PORTAL_URL
         if request:
             base = request.build_absolute_uri('/')[:-1]
         return f"{base}{self.get_url()}"

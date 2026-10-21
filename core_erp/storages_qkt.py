@@ -11,7 +11,7 @@ La separación correcta es por bucket: uno público para las imágenes del sitio
 uno privado para los documentos. Este módulo resuelve cuál usar.
 
 **Es inerte mientras no se configure el bucket privado.** Si
-CLOUDFLARE_R2_PRIVATE_BUCKET_NAME está vacío, `storage_privado()` devuelve el
+CLOUDFLARE_R2_PRIVADO_BUCKET está vacío, `storage_privado()` devuelve el
 storage por defecto y todo se comporta igual que antes — así el código se puede
 desplegar sin coordinar con el cambio de infraestructura, y la activación es
 solo cuestión de definir variables en Railway.

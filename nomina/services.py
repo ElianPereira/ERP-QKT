@@ -6,7 +6,7 @@ Endpoints verificados:
 - People:     GET  https://workspace.prod.jibble.io/v1/People
 - Timesheets: GET  https://time-attendance.prod.jibble.io/v1/Timesheets?date=YYYY-MM-DD
 
-Variables de entorno: JIBBLE_CLIENT_ID, JIBBLE_CLIENT_SECRET
+Variables de entorno: JIBBLE_NOMINA_ID, JIBBLE_NOMINA_SECRET
 """
 
 import logging
@@ -33,8 +33,8 @@ class JibbleAPIError(Exception):
 class JibbleService:
 
     def __init__(self):
-        self.client_id = getattr(settings, 'JIBBLE_CLIENT_ID', '') or ''
-        self.client_secret = getattr(settings, 'JIBBLE_CLIENT_SECRET', '') or ''
+        self.client_id = getattr(settings, 'JIBBLE_NOMINA_ID', '') or ''
+        self.client_secret = getattr(settings, 'JIBBLE_NOMINA_SECRET', '') or ''
         self.access_token = None
         self._session = requests.Session()
         self._session.headers.update({
@@ -48,7 +48,7 @@ class JibbleService:
         if not self.esta_configurado():
             raise JibbleAPIError(
                 "Credenciales Jibble no configuradas. "
-                "Agrega JIBBLE_CLIENT_ID y JIBBLE_CLIENT_SECRET en Railway."
+                "Agrega JIBBLE_NOMINA_ID y JIBBLE_NOMINA_SECRET en Railway."
             )
         try:
             response = requests.post(
@@ -303,7 +303,7 @@ class JibbleService:
             'errores': [],
         }
         if not resultado['configurado']:
-            resultado['errores'].append('JIBBLE_CLIENT_ID y/o JIBBLE_CLIENT_SECRET no configurados.')
+            resultado['errores'].append('JIBBLE_NOMINA_ID y/o JIBBLE_NOMINA_SECRET no configurados.')
             return resultado
         try:
             self.autenticar()

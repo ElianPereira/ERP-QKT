@@ -56,31 +56,31 @@ _EMISOR_CACHE: dict = {}
 
 # Remitente por tipo de correo (Issue #221). Cualquier tipo no listado —incluido
 # 'OTRO', que son siempre alertas internas, nunca al cliente— cae a
-# EMAIL_FROM_NOTIFICACIONES.
+# ERP_EMAIL_REMITENTE_NOTIFICACIONES.
 _REMITENTE_POR_TIPO = {
-    'COTIZACION': 'EMAIL_FROM_RESERVAS',
-    'CONFIRMACION_PAGO': 'EMAIL_FROM_PAGOS',
-    'REEMBOLSO': 'EMAIL_FROM_PAGOS',
-    'RECORDATORIO_PAGO': 'EMAIL_FROM_PAGOS',
+    'COTIZACION': 'ERP_EMAIL_REMITENTE_RESERVAS',
+    'CONFIRMACION_PAGO': 'ERP_EMAIL_REMITENTE_PAGOS',
+    'REEMBOLSO': 'ERP_EMAIL_REMITENTE_PAGOS',
+    'RECORDATORIO_PAGO': 'ERP_EMAIL_REMITENTE_PAGOS',
     # Guía pre-evento (Issue #234): contenido cliente-facing antes del
     # evento/pasadía/hospedaje, mismo remitente que COTIZACION.
-    'EVENTO_PROXIMO': 'EMAIL_FROM_RESERVAS',
-    'FACTURA': 'EMAIL_FROM_PAGOS',
+    'EVENTO_PROXIMO': 'ERP_EMAIL_REMITENTE_RESERVAS',
+    'FACTURA': 'ERP_EMAIL_REMITENTE_PAGOS',
     # Firma del contrato en el portal (Issue #318): código y copia firmada.
-    'CONTRATO': 'EMAIL_FROM_RESERVAS',
+    'CONTRATO': 'ERP_EMAIL_REMITENTE_RESERVAS',
 }
 
 
 def remitente_por_tipo(tipo: str) -> str:
     """Resuelve el `from_email` que le toca a un `tipo` de ComunicacionCliente."""
-    setting = _REMITENTE_POR_TIPO.get(tipo, 'EMAIL_FROM_NOTIFICACIONES')
+    setting = _REMITENTE_POR_TIPO.get(tipo, 'ERP_EMAIL_REMITENTE_NOTIFICACIONES')
     return getattr(settings, setting)
 
 
 # ─────────────────────────────── Utilidades ────────────────────────────────
 
 def wa_graph_version() -> str:
-    return getattr(settings, 'WA_GRAPH_VERSION', 'v20.0')
+    return getattr(settings, 'META_WA_API_VERSION', 'v20.0')
 
 
 def normalizar_telefono_wa(telefono) -> str:
@@ -134,8 +134,8 @@ def texto_plano_wa(valor) -> str:
 
 def _wa_credenciales():
     return (
-        getattr(settings, 'WA_PHONE_NUMBER_ID', '') or '',
-        getattr(settings, 'WA_CLOUD_API_TOKEN', '') or '',
+        getattr(settings, 'META_WA_KOOXI_ID', '') or '',
+        getattr(settings, 'META_WA_KOOXI_TOKEN', '') or '',
     )
 
 
@@ -297,7 +297,7 @@ def alertar_equipo_fecha_chocada(cotizacion, mensaje: str) -> None:
         from django.core.mail import send_mail
         send_mail(
             asunto, cuerpo,
-            settings.EMAIL_FROM_NOTIFICACIONES,
+            settings.ERP_EMAIL_REMITENTE_NOTIFICACIONES,
             destinatarios,
             fail_silently=True,
         )
@@ -352,7 +352,7 @@ def alertar_equipo_email(cotizacion, *, asunto: str, cuerpo: str, pago=None,
         return None
     try:
         from django.core.mail import send_mail
-        send_mail(asunto, cuerpo, settings.EMAIL_FROM_NOTIFICACIONES, destinatarios, fail_silently=False)
+        send_mail(asunto, cuerpo, settings.ERP_EMAIL_REMITENTE_NOTIFICACIONES, destinatarios, fail_silently=False)
         comm.estado = 'ENVIADO'
         comm.fecha_envio = timezone.now()
     except Exception as e:
@@ -373,7 +373,7 @@ def _enviar_wa(comm: ComunicacionCliente, payload: dict, destino: str) -> Comuni
     phone_id, token = _wa_credenciales()
     if not phone_id or not token:
         comm.estado = 'FALLIDO'
-        comm.error = 'WhatsApp no configurado (falta WA_PHONE_NUMBER_ID o WA_CLOUD_API_TOKEN)'
+        comm.error = 'WhatsApp no configurado (falta META_WA_KOOXI_ID o META_WA_KOOXI_TOKEN)'
         comm.save(update_fields=['estado', 'error'])
         return comm
     if not destino:
@@ -508,7 +508,7 @@ def enviar_whatsapp_template(
     rechaza saltos de línea dentro de un parámetro. `components` permite pasar
     la estructura completa cuando hace falta (cabecera, botones, etc.).
     """
-    idioma = language_code or getattr(settings, 'WA_TEMPLATE_LANGUAGE', 'es_MX')
+    idioma = language_code or getattr(settings, 'META_WA_PLANTILLA_IDIOMA', 'es_MX')
     destino = normalizar_telefono_wa(telefono)
     valores = [texto_plano_wa(v) for v in (parametros or [])]
 

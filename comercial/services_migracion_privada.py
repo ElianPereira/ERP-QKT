@@ -61,7 +61,7 @@ def migrar_archivos_privados(*, aplicar=False, limite=None, tiempo_maximo=None):
     if not _hay_bucket_privado():
         raise MigracionError(
             'No hay bucket privado configurado. Define '
-            'CLOUDFLARE_R2_PRIVATE_BUCKET_NAME (y las credenciales si son '
+            'CLOUDFLARE_R2_PRIVADO_BUCKET (y las credenciales si son '
             'distintas) antes de correr esto.'
         )
 

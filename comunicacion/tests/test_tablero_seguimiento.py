@@ -116,7 +116,7 @@ class TableroTest(TestCase):
         self.assertEqual(r.status_code, 403)
 
 
-@wa_settings(WA_TEMPLATE_SEGUIMIENTO='seguimiento_cotizacion', WA_SEGUIMIENTO_DIAS=3)
+@wa_settings(META_WA_PLANTILLA_SEGUIMIENTO='seguimiento_cotizacion', ERP_KOOXI_SEGUIMIENTO_DIAS=3)
 class SeguimientoTest(TestCase):
     def setUp(self):
         limpiar_cache_emisor()
@@ -168,6 +168,6 @@ class SeguimientoTest(TestCase):
 
     def test_sin_plantilla_no_hace_nada(self):
         self._acepta_marketing()
-        with self.settings(WA_TEMPLATE_SEGUIMIENTO=''):
+        with self.settings(META_WA_PLANTILLA_SEGUIMIENTO=''):
             post = self._correr()
         post.assert_not_called()

@@ -171,9 +171,9 @@ class MarcarCanceladasAdminAccionTest(TestCase):
         self.assertEqual(self.solicitud.estado, 'CANCELADA')
 
 
-@override_settings(EMAIL_FROM_NOTIFICACIONES='notificaciones@qkt.mx')
+@override_settings(ERP_EMAIL_REMITENTE_NOTIFICACIONES='notificaciones@qkt.mx')
 class EnviarEmailContadorRemitenteTest(TestCase):
-    """El email al contador (interno, no al cliente) sale de EMAIL_FROM_NOTIFICACIONES."""
+    """El email al contador (interno, no al cliente) sale de ERP_EMAIL_REMITENTE_NOTIFICACIONES."""
 
     def setUp(self):
         self.user = User.objects.create_superuser('admin', password='x', email='admin@qkt.mx')
@@ -201,7 +201,7 @@ class EnviarEmailContadorRemitenteTest(TestCase):
 
 
 class EnviarWhatsappContadorPlantillaTest(TestCase):
-    """Sin WA_TEMPLATE_SOLICITUD_FACTURA configurada, sigue mandando el PDF
+    """Sin META_WA_PLANTILLA_SOLICITUD_FACTURA configurada, sigue mandando el PDF
     como mensaje 'document' directo (comportamiento de siempre). Con la
     variable configurada, manda una plantilla con el mismo PDF como
     cabecera — sin tocar nada más del flujo (mismo media_id, mismo
@@ -225,10 +225,9 @@ class EnviarWhatsappContadorPlantillaTest(TestCase):
         respuesta_send = type('R', (), {'status_code': 200, 'text': ''})()
         mock_post.side_effect = [respuesta_upload, respuesta_send]
 
-    @override_settings(WA_TEMPLATE_SOLICITUD_FACTURA='')
+    @override_settings(META_WA_PLANTILLA_SOLICITUD_FACTURA='', META_WA_KOOXI_TOKEN='token-o-id', META_WA_KOOXI_ID='token-o-id')
     def test_sin_plantilla_manda_documento_directo(self):
         with patch('facturacion.services.generar_pdf_solicitud', return_value=b'%PDF-fake'), \
-             patch('facturacion.services.config', return_value='token-o-id'), \
              patch('facturacion.services.requests.post') as mock_post:
             self._mock_respuestas(mock_post)
             ok, error = enviar_solicitud_por_whatsapp(self.solicitud)
@@ -239,10 +238,9 @@ class EnviarWhatsappContadorPlantillaTest(TestCase):
         self.assertEqual(payload_enviado['document']['id'], 'media-123')
         self.assertIn("Quinta Ko'ox Tanil", payload_enviado['document']['caption'])
 
-    @override_settings(WA_TEMPLATE_SOLICITUD_FACTURA='solicitud_factura')
+    @override_settings(META_WA_PLANTILLA_SOLICITUD_FACTURA='solicitud_factura', META_WA_KOOXI_TOKEN='token-o-id', META_WA_KOOXI_ID='token-o-id')
     def test_con_plantilla_manda_template_con_documento_en_la_cabecera(self):
         with patch('facturacion.services.generar_pdf_solicitud', return_value=b'%PDF-fake'), \
-             patch('facturacion.services.config', return_value='token-o-id'), \
              patch('facturacion.services.requests.post') as mock_post:
             self._mock_respuestas(mock_post)
             ok, error = enviar_solicitud_por_whatsapp(self.solicitud)

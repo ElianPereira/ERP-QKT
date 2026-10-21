@@ -3,7 +3,7 @@ Directorio de responsables internos (Issue #421).
 
 Fuente única de «a qué número va cada aviso interno». Mientras no haya un
 `Responsable` para ENCARGADO o DIRECCION, esos roles caen a
-`settings.WA_NUMERO_NEGOCIO` (transición sin regresión).
+`settings.ERP_WA_NEGOCIO_NUMERO` (transición sin regresión).
 """
 import logging
 
@@ -18,13 +18,13 @@ from .services_bajas import _normalizar
 logger = logging.getLogger(__name__)
 
 ROLES_CON_RESPALDO = ('ENCARGADO', 'DIRECCION')
-SIN_DESTINO = 'no hay responsable ni WA_NUMERO_NEGOCIO configurado'
+SIN_DESTINO = 'no hay responsable ni ERP_WA_NEGOCIO_NUMERO configurado'
 CONFIRMACION_ACEPTO = ('Listo, este número quedó activo para recibir los avisos de Quinta Ko\'ox Tanil. '
                        'Si no lo esperabas, avisa al equipo.')
 
 
 def _respaldo() -> str:
-    return normalizar_telefono_wa(getattr(settings, 'WA_NUMERO_NEGOCIO', ''))
+    return normalizar_telefono_wa(getattr(settings, 'ERP_WA_NEGOCIO_NUMERO', ''))
 
 
 def responsable(rol: str, hoy=None):
@@ -97,7 +97,7 @@ def proponer_telefono(resp, telefono: str, usuario=None) -> bool:
 def _pedir_acepto(resp) -> None:
     texto = (f'Este número recibirá los avisos de {resp.get_rol_display()} de Quinta Ko\'ox Tanil. '
              'Responde ACEPTO para activarlo.')
-    plantilla = getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
+    plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
     try:
         if plantilla:
             enviar_whatsapp_template(tipo='OTRO', telefono=resp.telefono_pendiente,

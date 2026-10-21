@@ -6,7 +6,7 @@ la póliza del pago (origen=PAGO_CLIENTE) y la póliza de la comisión
 NO toca la Cotizacion ni el Cliente — solo revierte el pago como si nunca
 se hubiera hecho (vuelve a quedar con saldo pendiente).
 
-Por seguridad, se niega a correr si OPENPAY_MODE ya es 'production' — evita
+Por seguridad, se niega a correr si OPENPAY_PAGOS_MODO ya es 'production' — evita
 que alguien lo vuelva a correr por error después de salir en vivo y borre
 transacciones reales.
 """
@@ -28,9 +28,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if options['apply'] and settings.OPENPAY_MODE == 'production':
+        if options['apply'] and settings.OPENPAY_PAGOS_MODO == 'production':
             raise CommandError(
-                "OPENPAY_MODE es 'production' — este comando es solo para limpiar datos "
+                "OPENPAY_PAGOS_MODO es 'production' — este comando es solo para limpiar datos "
                 "de sandbox y se niega a correr para no borrar transacciones reales."
             )
 

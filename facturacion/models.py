@@ -103,7 +103,7 @@ class SolicitudFactura(models.Model):
     iva = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="IVA")
     # Impuesto estatal (no va en el nodo federal del CFDI): el contador lo
     # timbra con el complemento de impuestos locales. Solo hospedaje directo
-    # y solo con settings.TASA_ISH > 0; sin él, monto ≠ subtotal + IVA.
+    # y solo con settings.ERP_FISCAL_TASA_ISH > 0; sin él, monto ≠ subtotal + IVA.
     impuesto_hospedaje = models.DecimalField(
         max_digits=12, decimal_places=2, default=0, verbose_name="ISH (impuesto local)",
     )

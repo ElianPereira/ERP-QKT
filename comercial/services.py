@@ -125,7 +125,7 @@ def calcular_desglose_proporcional(monto_pago, cotizacion):
     Así el par base/IVA conserva intacta la invariante que el PAC valida
     (`iva == base * tasa`, tolerancia de un centavo) sin que el impuesto
     estatal se meta en esa cuenta. En una cotización sin ISH —toda la que no
-    sea hospedaje directo, y todas mientras TASA_ISH valga 0— el reparto es
+    sea hospedaje directo, y todas mientras ERP_FISCAL_TASA_ISH valga 0— el reparto es
     exactamente el de antes.
     """
     precio_final = Decimal(str(cotizacion.precio_final))
@@ -596,17 +596,17 @@ class ContratoService:
     Genera el contrato como PDF usando WeasyPrint + template HTML.
     Mismo patrón que la cotización y nómina.
 
-    Con `settings.CONTRATO_PROPIO_ACTIVO` apagado, Evento y Pasadía usan el
+    Con `settings.ERP_CONTRATO_PROPIO_ACTIVO` apagado, Evento y Pasadía usan el
     contrato de arrendamiento de salón registrado ante PROFECO (9341-2023) y
     Hospedaje el suyo, basado en el modelo de PROFECO de servicios de
     hospedaje (leyenda de registro solo con
-    `settings.PROFECO_REGISTRO_HOSPEDAJE`).
+    `settings.ERP_PROFECO_REGISTRO_HOSPEDAJE`).
     Arrendamiento de Mobiliario se retiró como actividad (2026-09-23): ya no
     se generan contratos de ese tipo.
 
     Contratos propios (Issue #318): contrato marco + anexo por servicio en
     `contratos/propio/`, con la identidad de los documentos legales. Se
-    emiten con `settings.CONTRATO_PROPIO_ACTIVO` (encendido por default desde
+    emiten con `settings.ERP_CONTRATO_PROPIO_ACTIVO` (encendido por default desde
     la validación legal del 2026-09-25); `vista_previa=True` los genera con
     marca de agua sin guardar nada. El tipo
     de contrato sale siempre de la cotización: elegirlo a mano permitía
@@ -622,7 +622,7 @@ class ContratoService:
         self.cli  = cotizacion.cliente
         self.tipo = cotizacion.tipo_servicio
         self.vista_previa = vista_previa
-        self.propio = vista_previa or settings.CONTRATO_PROPIO_ACTIVO
+        self.propio = vista_previa or settings.ERP_CONTRATO_PROPIO_ACTIVO
         # Un depósito ya cobrado (aunque sea en parte) fija el monto: el
         # contrato no puede pedir otra cantidad de la que se está cobrando.
         existente = getattr(cotizacion, 'deposito_garantia', None)
@@ -730,7 +730,7 @@ class ContratoService:
             'ish_str':           self._fmt_money(ish) if ish > 0 else None,
             'dias_pago_total':   Cotizacion.DIAS_PAGO_TOTAL['HOSPEDAJE'],
             'tiene_deposito':    self.dep > 0,
-            'registro_profeco':  settings.PROFECO_REGISTRO_HOSPEDAJE,
+            'registro_profeco':  settings.ERP_PROFECO_REGISTRO_HOSPEDAJE,
         }
 
     def _registro_propio(self):
@@ -742,8 +742,8 @@ class ContratoService:
         contrato sale sin leyenda; Hospedaje no está en esa lista.
         """
         if self.tipo == 'HOSPEDAJE':
-            return settings.PROFECO_REGISTRO_HOSPEDAJE
-        return settings.PROFECO_REGISTRO_EVENTOS
+            return settings.ERP_PROFECO_REGISTRO_HOSPEDAJE
+        return settings.ERP_PROFECO_REGISTRO_EVENTOS
 
     def _contexto_propio(self):
         """Datos que solo usan los contratos propios (marco + anexos)."""

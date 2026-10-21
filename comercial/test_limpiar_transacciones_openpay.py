@@ -61,7 +61,7 @@ class LimpiarTransaccionesOpenpayTest(TestCase):
         self.assertTrue(cotizacion.pk)
         self.assertGreater(cotizacion.saldo_pendiente(), saldo_antes)
 
-    @override_settings(OPENPAY_MODE='production')
+    @override_settings(OPENPAY_PAGOS_MODO='production')
     def test_se_niega_a_correr_en_produccion(self):
         with self.assertRaises(CommandError):
             call_command('limpiar_transacciones_openpay_prueba', '--apply')
@@ -109,7 +109,7 @@ class AdminActionBorrarTransaccionesTest(TestCase):
         self.assertEqual(Pago.objects.count(), 0)
         self.assertFalse(Poliza.objects.filter(origen='COMISION_OPENPAY').exists())
 
-    @override_settings(OPENPAY_MODE='production')
+    @override_settings(OPENPAY_PAGOS_MODO='production')
     def test_accion_no_borra_en_produccion(self):
         cotizacion = _crear_cotizacion()
         procesar_webhook_openpay(_webhook_con_fee(cotizacion))

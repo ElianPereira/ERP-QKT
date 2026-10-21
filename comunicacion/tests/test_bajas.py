@@ -53,7 +53,7 @@ class BajaEnElChatTest(TestCase):
         self.assertFalse(conv.consentimiento_marketing)
         self.assertTrue(MensajeWhatsApp.objects.get(texto=CONFIRMACION_BAJA).automatico)
 
-    @wa_settings(**{**AGENTE, 'WA_AGENTE_ACTIVO': False})
+    @wa_settings(**{**AGENTE, 'ERP_KOOXI_ACTIVO': False})
     def test_la_baja_se_atiende_aunque_el_agente_este_apagado(self):
         conv = services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='baja', wamid='w1')
         self.assertEqual(self._procesar(conv), [CONFIRMACION_BAJA])
@@ -77,7 +77,7 @@ class BajaEnElChatTest(TestCase):
         self.assertTrue(dado_de_baja(TEL_CLIENTE))
 
 
-@wa_settings(WA_TEMPLATE_SEGUIMIENTO='seguimiento_cotizacion', WA_SEGUIMIENTO_DIAS=3)
+@wa_settings(META_WA_PLANTILLA_SEGUIMIENTO='seguimiento_cotizacion', ERP_KOOXI_SEGUIMIENTO_DIAS=3)
 class BajaYSeguimientoTest(TestCase):
     def setUp(self):
         limpiar_cache_emisor()

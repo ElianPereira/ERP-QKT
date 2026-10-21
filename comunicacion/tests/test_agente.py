@@ -24,9 +24,9 @@ from .utils import TEL_CLIENTE, wa_settings
 
 SECRETO = 'app-secret-de-prueba'
 TOKEN = 'token-verificacion-prueba'
-AGENTE = dict(WA_APP_SECRET=SECRETO, WA_WEBHOOK_VERIFY_TOKEN=TOKEN, WA_AGENTE_ACTIVO=True,
-              WA_AGENTE_NUMEROS_PRUEBA=[], WA_AGENTE_MODELO='claude-opus-5-5',
-              WA_AGENTE_JUEZ_ACTIVO=False,
+AGENTE = dict(META_WA_APP_SECRET=SECRETO, META_WA_WEBHOOK_TOKEN=TOKEN, ERP_KOOXI_ACTIVO=True,
+              ERP_KOOXI_NUMEROS_PRUEBA=[], ERP_KOOXI_MODELO='claude-opus-5-5',
+              ERP_KOOXI_JUEZ_ACTIVO=False,
               ALERTAS_INTERNAS_EMAIL=['equipo@qkt.test'])
 
 
@@ -98,7 +98,7 @@ class WebhookTest(TestCase):
                                          'hub.challenge': '12345'})
         self.assertEqual(mal.status_code, 403)
 
-    @wa_settings(**{**AGENTE, 'WA_WEBHOOK_VERIFY_TOKEN': ''})
+    @wa_settings(**{**AGENTE, 'META_WA_WEBHOOK_TOKEN': ''})
     def test_sin_token_configurado_no_se_verifica_nada(self):
         r = self.client.get(self.url, {'hub.mode': 'subscribe', 'hub.verify_token': '',
                                        'hub.challenge': '1'})
@@ -110,7 +110,7 @@ class WebhookTest(TestCase):
         self.assertEqual(r.status_code, 403)
         self.assertFalse(MensajeWhatsApp.objects.exists())
 
-    @wa_settings(**{**AGENTE, 'WA_APP_SECRET': ''})
+    @wa_settings(**{**AGENTE, 'META_WA_APP_SECRET': ''})
     def test_sin_app_secret_todo_se_rechaza(self):
         self.assertEqual(self._post(_payload_mensaje(), secreto='x').status_code, 403)
 
@@ -151,7 +151,7 @@ class ProcesarConversacionTest(TestCase):
 
     def test_apagado_no_llama_al_modelo_pero_marca_procesado(self):
         cliente = _cliente_falso()
-        with self.settings(WA_AGENTE_ACTIVO=False):
+        with self.settings(ERP_KOOXI_ACTIVO=False):
             enviar = self._procesar(cliente)
         cliente.beta.messages.create.assert_not_called()
         enviar.assert_not_called()
@@ -159,19 +159,19 @@ class ProcesarConversacionTest(TestCase):
 
     def test_numero_fuera_de_la_lista_de_prueba_no_se_contesta(self):
         cliente = _cliente_falso()
-        with self.settings(WA_AGENTE_NUMEROS_PRUEBA=['9999999999']):
+        with self.settings(ERP_KOOXI_NUMEROS_PRUEBA=['9999999999']):
             enviar = self._procesar(cliente)
         enviar.assert_not_called()
 
     def test_numero_en_la_lista_de_prueba_si_se_contesta(self):
         cliente = _cliente_falso(_respuesta(_texto('¡Hola! Soy el asistente virtual.')))
-        with self.settings(WA_AGENTE_NUMEROS_PRUEBA=[TEL_CLIENTE[-10:]]):
+        with self.settings(ERP_KOOXI_NUMEROS_PRUEBA=[TEL_CLIENTE[-10:]]):
             enviar = self._procesar(cliente)
         self.assertEqual(enviar.call_count, 2)  # aviso inicial + respuesta
 
     def test_no_le_contesta_al_numero_del_propietario(self):
         cliente = _cliente_falso()
-        with self.settings(WA_NUMERO_NEGOCIO=TEL_CLIENTE[-10:]):
+        with self.settings(ERP_WA_NEGOCIO_NUMERO=TEL_CLIENTE[-10:]):
             enviar = self._procesar(cliente)
         cliente.beta.messages.create.assert_not_called()
         enviar.assert_not_called()
@@ -210,7 +210,7 @@ class ProcesarConversacionTest(TestCase):
         self._respuestas_previas(self.conv, 3)
         services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='¿Y para 25?', wamid='w2')
         cliente = _cliente_falso()
-        with self.settings(WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA=3):
+        with self.settings(ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA=3):
             enviar = self._procesar(cliente)
         cliente.beta.messages.create.assert_not_called()
         self.assertEqual(enviar.call_args.kwargs['mensaje'], services_agente.MENSAJE_HUMANO)
@@ -222,7 +222,7 @@ class ProcesarConversacionTest(TestCase):
         otra = ConversacionWhatsApp.objects.create(telefono='529990000001')
         self._respuestas_previas(otra, 2)
         cliente = _cliente_falso()
-        with self.settings(WA_AGENTE_MAX_RESPUESTAS_DIA=2):
+        with self.settings(ERP_KOOXI_MAX_RESPUESTAS_DIA=2):
             self._procesar(cliente)
             segunda = services_agente.recibir_mensaje(
                 telefono='529990000002', nombre='Luis', texto='Hola', wamid='w9')
@@ -241,7 +241,7 @@ class ProcesarConversacionTest(TestCase):
                                        texto=services_agente.AVISO_INICIAL, procesado=True)
         services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='¿Horario?', wamid='w2')
         cliente = _cliente_falso(_respuesta(_texto('La pasadía es de 11 a 7.')))
-        with self.settings(WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA=1):
+        with self.settings(ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA=1):
             enviar = self._procesar(cliente)
         self.assertEqual(enviar.call_args.kwargs['mensaje'], 'La pasadía es de 11 a 7.')
 
@@ -250,7 +250,7 @@ class ProcesarConversacionTest(TestCase):
             _respuesta(_uso('pasar_a_humano', {'motivo': 'Quiere negociar precio'}), stop='tool_use'),
             _respuesta(_texto('Te comunico con alguien del equipo.')),
         )
-        with self.settings(WA_NUMERO_NEGOCIO='9994457178', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+        with self.settings(ERP_WA_NEGOCIO_NUMERO='9994457178', META_WA_PLANTILLA_OPERACIONES='aviso_operaciones'), \
                 patch.object(services_pendientes, 'enviar_whatsapp_template') as plantilla:
             self._procesar(cliente)
         kwargs = plantilla.call_args.kwargs
@@ -264,7 +264,7 @@ class ProcesarConversacionTest(TestCase):
             _respuesta(_uso('pasar_a_humano', {'motivo': 'Queja'}), stop='tool_use'),
             _respuesta(_texto('Te comunico con alguien del equipo.')),
         )
-        with self.settings(WA_NUMERO_NEGOCIO='', WA_TEMPLATE_OPERACIONES='aviso_operaciones'), \
+        with self.settings(ERP_WA_NEGOCIO_NUMERO='', META_WA_PLANTILLA_OPERACIONES='aviso_operaciones'), \
                 patch.object(services_pendientes, 'enviar_whatsapp_template') as plantilla:
             self._procesar(cliente)
         plantilla.assert_not_called()

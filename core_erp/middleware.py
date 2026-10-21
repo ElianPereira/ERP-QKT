@@ -12,22 +12,22 @@ el admin (Jazzmin) ni los pagos (Openpay/3-D Secure):
      ("/"), cotizador ("/cotizar…") y sus APIs ("/api/…").
 
   3. CSP en modo Report-Only (NO bloquea, solo reporta) para el portal de pago
-     ("/mi-evento/…"): opt-in vía PORTAL_CSP_REPORT_ONLY=True. Sirve para
+     ("/mi-evento/…"): opt-in vía ERP_CSP_PORTAL_SOLO_REPORTE=True. Sirve para
      observar qué recursos carga Openpay/3-D Secure y poder diseñar después una
      CSP a medida sin arriesgar cobros reales.
 
   4. CSP en modo Report-Only para el admin ("/admin/…"), opt-in vía
-     ADMIN_CSP_REPORT_ONLY=True (orden 37, SEC-CFG-002). Mismo motivo que el
+     ERP_CSP_ADMIN_SOLO_REPORTE=True (orden 37, SEC-CFG-002). Mismo motivo que el
      portal: Jazzmin/AdminLTE, FullCalendar y Chart.js (jsDelivr) cargan
      recursos que una CSP bloqueante rompería sin antes ver qué falta en la
      lista blanca — nunca se activa en modo bloqueante sin haber recorrido el
      admin completo primero y ajustado la política a las violaciones reales.
 
 Toggles de entorno:
-  - PUBLIC_CSP_ENABLED (default True): apaga la CSP pública sin tocar código.
-  - PUBLIC_CSP_REPORT_ONLY (default False): la CSP pública en modo prueba.
-  - PORTAL_CSP_REPORT_ONLY (default False): activa la CSP Report-Only del portal.
-  - ADMIN_CSP_REPORT_ONLY (default False): activa la CSP Report-Only del admin.
+  - ERP_CSP_PUBLICO_ACTIVO (default True): apaga la CSP pública sin tocar código.
+  - ERP_CSP_PUBLICO_SOLO_REPORTE (default False): la CSP pública en modo prueba.
+  - ERP_CSP_PORTAL_SOLO_REPORTE (default False): activa la CSP Report-Only del portal.
+  - ERP_CSP_ADMIN_SOLO_REPORTE (default False): activa la CSP Report-Only del admin.
 """
 import logging
 import uuid
@@ -171,20 +171,20 @@ class PublicSecurityHeadersMiddleware:
 
         # 2) CSP bloqueante en páginas públicas.
         if (
-            getattr(settings, 'PUBLIC_CSP_ENABLED', True)
+            getattr(settings, 'ERP_CSP_PUBLICO_ACTIVO', True)
             and _es_pagina_publica(path)
             and not _tiene_csp(response)
         ):
             cabecera = (
                 'Content-Security-Policy-Report-Only'
-                if getattr(settings, 'PUBLIC_CSP_REPORT_ONLY', False)
+                if getattr(settings, 'ERP_CSP_PUBLICO_SOLO_REPORTE', False)
                 else 'Content-Security-Policy'
             )
             response[cabecera] = PUBLIC_CSP
 
         # 3) CSP Report-Only (no bloquea) en el portal de pago, opt-in.
         elif (
-            getattr(settings, 'PORTAL_CSP_REPORT_ONLY', False)
+            getattr(settings, 'ERP_CSP_PORTAL_SOLO_REPORTE', False)
             and path.startswith('/mi-evento/')
             and not _tiene_csp(response)
         ):
@@ -192,7 +192,7 @@ class PublicSecurityHeadersMiddleware:
 
         # 4) CSP Report-Only (no bloquea) en el admin, opt-in.
         elif (
-            getattr(settings, 'ADMIN_CSP_REPORT_ONLY', False)
+            getattr(settings, 'ERP_CSP_ADMIN_SOLO_REPORTE', False)
             and path.startswith('/admin/')
             and not _tiene_csp(response)
         ):

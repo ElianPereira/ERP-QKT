@@ -16,10 +16,10 @@ ENVIADO es el comportamiento buscado, no un error a evitar).
 Los colaboradores no necesariamente le han escrito al número del negocio en
 las últimas 24 h, así que un mensaje de texto libre iniciado por el sistema
 puede rechazarse (Meta 131047). El aviso de horario y el checklist operativo
-salen primero como plantilla aprobada (`WA_TEMPLATE_OPERACIONES`) para abrir
+salen primero como plantilla aprobada (`META_WA_PLANTILLA_OPERACIONES`) para abrir
 paso, y el contenido real (con el detalle que Meta no deja meter en una
 plantilla — listas con saltos de línea) sale justo después como texto libre.
-Si `WA_TEMPLATE_OPERACIONES` no está configurada, se manda solo el texto
+Si `META_WA_PLANTILLA_OPERACIONES` no está configurada, se manda solo el texto
 libre (funciona mientras la ventana esté abierta, mismo criterio que el resto
 de mensajería interna del ERP sin plantilla).
 """
@@ -62,7 +62,7 @@ def _telefono_responsable(tarea: TareaProgramada) -> str:
 
 
 def _plantilla_opener() -> str:
-    return getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
+    return getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
 
 
 def _items_en_bloques(tarea: TareaProgramada):

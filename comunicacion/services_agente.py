@@ -298,7 +298,7 @@ def registrar_respuesta_humana(*, telefono, texto, wamid):
     conv = _conversacion(telefono)
     if _guardar_mensaje(conv, 'HUMANO', texto, wamid, procesado=True) is None:
         return
-    horas = getattr(settings, 'WA_AGENTE_PAUSA_HUMANO_HORAS', 12)
+    horas = getattr(settings, 'ERP_KOOXI_PAUSA_HUMANO_HORAS', 12)
     conv.pausado_hasta = timezone.now() + timedelta(hours=horas)
     conv.ultimo_mensaje = timezone.now()
     conv.save(update_fields=['pausado_hasta', 'ultimo_mensaje', 'updated_at'])
@@ -385,7 +385,7 @@ def responder_como_persona(conv, texto: str, usuario) -> MensajeWhatsApp:
         conversacion=conv, direccion='HUMANO', texto=texto, procesado=True,
         wamid=comm.proveedor_id or None, enviado_por=usuario,
     )
-    horas = getattr(settings, 'WA_AGENTE_PAUSA_HUMANO_HORAS', 12)
+    horas = getattr(settings, 'ERP_KOOXI_PAUSA_HUMANO_HORAS', 12)
     conv.pausado_hasta = timezone.now() + timedelta(hours=horas)
     conv.ultimo_mensaje = timezone.now()
     conv.save(update_fields=['pausado_hasta', 'ultimo_mensaje', 'updated_at'])
@@ -396,9 +396,9 @@ def responder_como_persona(conv, texto: str, usuario) -> MensajeWhatsApp:
 
 def _numero_habilitado(conv) -> bool:
     """¿El sistema le escribe a este número? (agente encendido, lista de prueba, no es el propietario)."""
-    if not getattr(settings, 'WA_AGENTE_ACTIVO', False):
+    if not getattr(settings, 'ERP_KOOXI_ACTIVO', False):
         return False
-    prueba = {normalizar_telefono_wa(n) for n in getattr(settings, 'WA_AGENTE_NUMEROS_PRUEBA', []) if n}
+    prueba = {normalizar_telefono_wa(n) for n in getattr(settings, 'ERP_KOOXI_NUMEROS_PRUEBA', []) if n}
     prueba.discard('')
     if prueba and conv.telefono not in prueba:
         return False
@@ -550,11 +550,11 @@ def _tope_alcanzado(conv) -> bool:
     """Topes diarios contra abuso y gasto. Si se pasa uno, la conversación
     queda para una persona (y se reactiva sola a las 24 h, como cualquier
     «Requiere humano»), sin llamar al modelo."""
-    if _respuestas_de_hoy().filter(conversacion=conv).count() >= settings.WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA:
+    if _respuestas_de_hoy().filter(conversacion=conv).count() >= settings.ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA:
         logger.warning("Agente WhatsApp: %s llegó al tope diario de respuestas", conv.telefono)
         _pasar_a_humano(conv, 'Llegó al tope diario de respuestas del asistente para este número.')
         return True
-    if _respuestas_de_hoy().count() >= settings.WA_AGENTE_MAX_RESPUESTAS_DIA:
+    if _respuestas_de_hoy().count() >= settings.ERP_KOOXI_MAX_RESPUESTAS_DIA:
         _pasar_a_humano(conv, 'El asistente llegó a su tope diario de respuestas.', avisar=False)
         # Un solo correo por día: con el tope global alcanzado, cada
         # conversación nueva lo dispararía otra vez.
@@ -563,13 +563,13 @@ def _tope_alcanzado(conv) -> bool:
             alertar_equipo_email(
                 None,
                 asunto='WhatsApp: el asistente llegó a su tope diario de respuestas',
-                cuerpo=(f'El agente ya dio {settings.WA_AGENTE_MAX_RESPUESTAS_DIA} respuestas hoy y dejó '
+                cuerpo=(f'El agente ya dio {settings.ERP_KOOXI_MAX_RESPUESTAS_DIA} respuestas hoy y dejó '
                         'de usar la IA hasta mañana. Las conversaciones nuevas quedan en «Requiere humano» '
                         '(Admin → Comunicación → Conversaciones), sin aviso por correo de cada una.\n\n'
-                        'Si es volumen normal y no un abuso, sube WA_AGENTE_MAX_RESPUESTAS_DIA en Railway.'),
+                        'Si es volumen normal y no un abuso, sube ERP_KOOXI_MAX_RESPUESTAS_DIA en Railway.'),
             )
             _avisar_propietario(
-                f'el asistente llegó a su tope de {settings.WA_AGENTE_MAX_RESPUESTAS_DIA} respuestas '
+                f'el asistente llegó a su tope de {settings.ERP_KOOXI_MAX_RESPUESTAS_DIA} respuestas '
                 'de hoy; las conversaciones nuevas quedan para una persona hasta mañana',
                 rol='DIRECCION')
         return True
@@ -650,13 +650,13 @@ def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:
     """Aviso por WhatsApp a los números del directorio de responsables para el
     `rol` (además del correo), porque el equipo revisa más WhatsApp que el correo.
 
-    Va en la plantilla aprobada `WA_TEMPLATE_OPERACIONES` («Tienes un aviso
+    Va en la plantilla aprobada `META_WA_PLANTILLA_OPERACIONES` («Tienes un aviso
     nuevo: {{1}}»), que llega aunque no haya ventana de 24 h; sin plantilla, va
     como texto libre. No lleva el texto de los mensajes del cliente: esta copia
     no la alcanza la purga de conversaciones. Nunca lanza: un aviso caído no
     debe tumbar la respuesta al cliente.
     """
-    plantilla = getattr(settings, 'WA_TEMPLATE_OPERACIONES', '') or ''
+    plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
     for destino in telefonos_aviso(rol):
         try:
             if plantilla:
@@ -669,17 +669,17 @@ def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:
 
 
 def _cliente_ia():
-    return anthropic.Anthropic(timeout=60.0, max_retries=2)
+    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY_KOOXI, timeout=60.0, max_retries=2)
 
 
 def _llamar_modelo(client, messages):
     return client.beta.messages.create(
-        model=settings.WA_AGENTE_MODELO,
+        model=settings.ERP_KOOXI_MODELO,
         max_tokens=4000,
         system=[{'type': 'text', 'text': SYSTEM_PROMPT}],
         tools=HERRAMIENTAS,
         messages=messages,
-        output_config={'effort': settings.WA_AGENTE_ESFUERZO},
+        output_config={'effort': settings.ERP_KOOXI_ESFUERZO},
         cache_control={'type': 'ephemeral'},
         betas=['server-side-fallback-2026-07-01'],
         fallbacks='default',
@@ -705,7 +705,7 @@ def responder(conv, texto_cliente: str):
     historial = list(conv.historial or [])
     ultima = _ultima_salida(conv)
     if (not ultima or ahora - ultima.created_at > REINICIO_TRAS
-            or len(json.dumps(historial)) > settings.WA_AGENTE_MAX_HISTORIAL_CARACTERES):
+            or len(json.dumps(historial)) > settings.ERP_KOOXI_MAX_HISTORIAL_CARACTERES):
         historial = []
 
     fecha_hoy = date_format(ahora, 'l j \\d\\e F \\d\\e Y, H:i')

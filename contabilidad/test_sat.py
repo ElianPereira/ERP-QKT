@@ -87,7 +87,7 @@ class ClienteFalso:
         return self.descarga[id_paquete]
 
 
-@override_settings(SAT_FIEL_ENCRYPTION_KEY=LLAVE, STORAGES=STORAGE_MEMORIA)
+@override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA)
 class FielYFirmaTest(TestCase):
     def setUp(self):
         self.cer, self.key = fiel_de_prueba()
@@ -139,7 +139,7 @@ class FielYFirmaTest(TestCase):
         self.assertIn(b'BinarySecurityToken', sobre)
 
 
-@override_settings(SAT_FIEL_ENCRYPTION_KEY=LLAVE, STORAGES=STORAGE_MEMORIA)
+@override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA)
 class CredencialTest(TestCase):
     def test_guarda_cifrada_y_se_puede_recuperar(self):
         cer, key = fiel_de_prueba()
@@ -151,17 +151,17 @@ class CredencialTest(TestCase):
 
     def test_sin_llave_de_cifrado_no_guarda(self):
         cer, key = fiel_de_prueba()
-        with override_settings(SAT_FIEL_ENCRYPTION_KEY=''), self.assertRaises(sat.ConfiguracionSATError):
+        with override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=''), self.assertRaises(sat.ConfiguracionSATError):
             sat.guardar_credencial(cer, key, CLAVE)
 
     def test_la_llave_tolera_comillas_espacios_y_prefijo_de_bytes(self):
         cer, key = fiel_de_prueba()
         for sucia in (f"  {LLAVE}\n", f'"{LLAVE}"', f"'{LLAVE}'", f"b'{LLAVE}'"):
-            with self.subTest(sucia=sucia), override_settings(SAT_FIEL_ENCRYPTION_KEY=sucia):
+            with self.subTest(sucia=sucia), override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=sucia):
                 self.assertEqual(sat.guardar_credencial(cer, key, CLAVE).rfc, RFC)
 
     def test_llave_invalida_dice_como_arreglarla(self):
-        with override_settings(SAT_FIEL_ENCRYPTION_KEY='demasiado-corta'), \
+        with override_settings(ERP_SAT_FIEL_CIFRADO_SECRET='demasiado-corta'), \
                 self.assertRaisesMessage(sat.ConfiguracionSATError, '44'):
             sat._fernet()
 
@@ -176,7 +176,7 @@ class CredencialTest(TestCase):
         self.assertEqual(CredencialSAT.objects.count(), 1)
 
 
-@override_settings(SAT_FIEL_ENCRYPTION_KEY=LLAVE, STORAGES=STORAGE_MEMORIA)
+@override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA)
 class FlujoDescargaTest(TestCase):
     def setUp(self):
         self.cred = sat.guardar_credencial(*fiel_de_prueba(), CLAVE)
@@ -453,7 +453,7 @@ class FlujoDescargaTest(TestCase):
 
 
 
-@override_settings(SAT_FIEL_ENCRYPTION_KEY=LLAVE, STORAGES=STORAGE_MEMORIA)
+@override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA)
 class EmitidasTest(TestCase):
     def setUp(self):
         self.cred = sat.guardar_credencial(*fiel_de_prueba(), CLAVE)
@@ -529,7 +529,7 @@ class EmitidasTest(TestCase):
         self.assertEqual(set(CfdiSAT.objects.values_list('resultado', flat=True)), {'OMITIDO'})
 
 
-@override_settings(SAT_FIEL_ENCRYPTION_KEY=LLAVE, STORAGES=STORAGE_MEMORIA)
+@override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA)
 class AdminEfirmaTest(TestCase):
     def setUp(self):
         from django.contrib.auth.models import User

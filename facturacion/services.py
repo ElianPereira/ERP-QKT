@@ -13,7 +13,6 @@ import os
 from decimal import Decimal
 
 import requests
-from decouple import config
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.mail import EmailMessage
@@ -77,7 +76,7 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, l
     Envía el PDF de la solicitud al contador via WhatsApp Cloud API.
     1. Sube el PDF al Media API → obtiene media_id
     2. Envía el mensaje con ese media_id — como plantilla aprobada si
-       WA_TEMPLATE_SOLICITUD_FACTURA está configurada, o como mensaje
+       META_WA_PLANTILLA_SOLICITUD_FACTURA está configurada, o como mensaje
        'document' directo si no (comportamiento de siempre).
     Retorna (True, '') o (False, 'mensaje de error').
 
@@ -87,11 +86,11 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, l
     (ver docs/whatsapp_plantilla_solicitud_factura.md); mientras no esté
     aprobada, el fallo queda registrado sin bloquear el email.
     """
-    wa_token    = config('WA_CLOUD_API_TOKEN', default='')
-    wa_phone_id = config('WA_PHONE_NUMBER_ID', default='')
+    wa_token    = settings.META_WA_KOOXI_TOKEN
+    wa_phone_id = settings.META_WA_KOOXI_ID
 
     if not wa_token or not wa_phone_id:
-        return False, "WA_CLOUD_API_TOKEN o WA_PHONE_NUMBER_ID no configurados."
+        return False, "META_WA_KOOXI_TOKEN o META_WA_KOOXI_ID no configurados."
 
     headers_auth = {"Authorization": f"Bearer {wa_token}"}
 
@@ -117,7 +116,7 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, l
     if not media_id:
         return False, f"No se obtuvo media_id: {resp_upload.text[:200]}"
 
-    template_name = getattr(settings, 'WA_TEMPLATE_SOLICITUD_FACTURA', '')
+    template_name = getattr(settings, 'META_WA_PLANTILLA_SOLICITUD_FACTURA', '')
     if template_name:
         payload = _payload_plantilla_solicitud_factura(
             template_name, media_id, filename, folio, cliente_nombre, linea_negocio_nombre,
@@ -161,7 +160,7 @@ def _payload_plantilla_solicitud_factura(template_name, media_id, filename, foli
     aprobado por Meta usa más o menos variables, este payload hay que
     ajustarlo para que coincida.
     """
-    idioma = getattr(settings, 'WA_TEMPLATE_LANGUAGE', 'es_MX')
+    idioma = getattr(settings, 'META_WA_PLANTILLA_IDIOMA', 'es_MX')
     return {
         "messaging_product": "whatsapp",
         "type": "template",
@@ -228,7 +227,7 @@ def enviar_solicitud_por_email(solicitud):
         email = EmailMessage(
             subject=f"Solicitud de Factura {folio} | {solicitud.cliente.nombre} | {solicitud.get_linea_negocio_display()}",
             body=solicitud.get_datos_para_contador(),
-            from_email=settings.EMAIL_FROM_NOTIFICACIONES,
+            from_email=settings.ERP_EMAIL_REMITENTE_NOTIFICACIONES,
             to=[contador.email],
         )
         email.attach(f"Solicitud_{folio}.pdf", pdf_bytes, 'application/pdf')
