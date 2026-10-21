@@ -37,6 +37,7 @@ from django.utils import timezone
 from django.utils.formats import date_format
 
 from comercial import services_terminal
+from operaciones.services import es_listo, marcar_listo
 
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
@@ -522,6 +523,12 @@ def _atender_pendientes(conversacion_id: int) -> None:
     # el flujo normal; un botón ajeno se descarta sin contestar.
     terminal = [m for m in pendientes if _atender_terminal(conv, m.texto)]
     pendientes = [m for m in pendientes if m not in terminal]
+    # «Listo» del personal con tareas de hoy sin completar (`operaciones`).
+    for m in [m for m in pendientes if es_listo(m.texto)]:
+        respuesta = marcar_listo(conv.telefono)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
     if not pendientes:
         return
     # La baja se atiende aunque el agente esté en pausa o apagado: el

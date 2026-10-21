@@ -1,7 +1,7 @@
 """Fase 1e (Issue #428): renglones pendientes de la Fase 1 — pendientes urgentes
 de choque de fecha, contracargo, terminal por WhatsApp, quejas, FAQ por
 WhatsApp, «listo» del personal y SAT."""
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -416,3 +416,99 @@ class FaqPorWhatsAppTest(MocksWA, TestCase):
             self._decir(tel, f'faq:{faq.pk}:ok')
         faq.refresh_from_db()
         self.assertFalse(faq.activo)
+
+
+# ───────────────────────────── Punto 6 · «listo» ──────────────────────────────
+
+@wa_settings(**AGENTE, META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
+class ListoDelPersonalTest(MocksWA, TestCase):
+    TEL_EMP = '525555550009'
+
+    def setUp(self):
+        super().setUp()
+        from nomina.models import Empleado
+        from operaciones.models import PlantillaChecklist
+        _resp('ENCARGADO', TEL_ENC)
+        self.hoy = timezone.localdate()
+        self.empleado = Empleado.objects.create(nombre='Juan', telefono=self.TEL_EMP)
+        self.plantilla = PlantillaChecklist.objects.create(nombre='Preparación', tipo='TURNOVER_EVENTO')
+        patch.object(services_agente, 'enviar_whatsapp', return_value=OK).start()
+        self.addCleanup(patch.stopall)
+
+    def _tarea(self, limite=time(13, 0), fecha=None, responsable=True):
+        from operaciones.models import TareaProgramada
+        return TareaProgramada.objects.create(
+            plantilla=self.plantilla, responsable=self.empleado if responsable else None,
+            fecha=fecha or self.hoy, hora_entrada=time(8, 0), hora_limite=limite)
+
+    def _decir(self, telefono, texto, n=[0]):
+        n[0] += 1
+        conv = services_agente.recibir_mensaje(telefono=telefono, nombre='X', texto=texto, wamid=f'l{n[0]}')
+        agente = _cliente_falso(_respuesta(_texto('Hola.')))
+        with patch.object(services_agente, '_cliente_ia', return_value=agente):
+            services_agente._atender_pendientes(conv.pk)
+        return agente
+
+    def test_listo_completa_la_tarea_de_hoy_del_responsable(self):
+        tarea = self._tarea()
+        with patch.object(services_agente, 'enviar_whatsapp', return_value=OK) as enviar:
+            agente = self._decir(self.TEL_EMP, ' Listo! ')
+        tarea.refresh_from_db()
+        self.assertIsNotNone(tarea.completada_en)
+        self.assertEqual(tarea.completada_por_telefono, self.TEL_EMP)
+        self.assertIn('quedó marcada como terminada', enviar.call_args.kwargs['mensaje'])
+        agente.beta.messages.create.assert_not_called()
+
+    def test_las_frases_fijas(self):
+        for frase in ('ya', 'Terminé', 'LISTO'):
+            tarea = self._tarea(fecha=self.hoy)
+            self._decir(self.TEL_EMP, frase)
+            tarea.refresh_from_db()
+            self.assertIsNotNone(tarea.completada_en, frase)
+            tarea.delete()
+
+    def test_con_varias_tareas_marca_la_de_hora_limite_mas_proxima(self):
+        tarde = self._tarea(limite=time(18, 0))
+        self.plantilla.pk = None
+        self.plantilla.nombre = 'Otra'
+        self.plantilla.save()
+        temprano = self._tarea(limite=time(11, 0))
+        self._decir(self.TEL_EMP, 'listo')
+        tarde.refresh_from_db()
+        temprano.refresh_from_db()
+        self.assertIsNotNone(temprano.completada_en)
+        self.assertIsNone(tarde.completada_en)
+
+    def test_solo_cuenta_tareas_de_hoy_sin_completar(self):
+        ayer = self._tarea(fecha=self.hoy - timedelta(days=1))
+        agente = self._decir(self.TEL_EMP, 'listo')
+        ayer.refresh_from_db()
+        self.assertIsNone(ayer.completada_en)
+        self.assertIsNotNone(agente)
+
+    def test_desde_un_numero_que_no_es_responsable_no_marca_nada(self):
+        tarea = self._tarea()
+        self._decir(TEL_CLIENTE, 'listo')
+        tarea.refresh_from_db()
+        self.assertIsNone(tarea.completada_en)
+
+    def test_sin_listo_a_los_60_minutos_abre_un_pendiente_una_sola_vez(self):
+        from operaciones.services import procesar_pendientes
+        tarea = self._tarea(limite=time(13, 0))
+        antes = datetime.combine(self.hoy, time(13, 59))
+        despues = datetime.combine(self.hoy, time(14, 1))
+        procesar_pendientes(antes)
+        self.assertFalse(Pendiente.objects.filter(tipo='OTRO').exists())
+        procesar_pendientes(despues)
+        procesar_pendientes(despues + timedelta(minutes=10))
+        p = Pendiente.objects.get(tipo='OTRO')
+        self.assertEqual((p.severidad, p.rol, p.clave_idempotencia), ('NORMAL', 'ENCARGADO', f'tarea:{tarea.pk}:sin_listo'))
+        self.assertIn('Juan', p.detalle)
+        self.assertNotRegex(p.titulo, r'[\U0001F300-\U0001FAFF☀-➿]')
+
+    def test_una_tarea_completada_no_abre_pendiente(self):
+        from operaciones.services import procesar_pendientes
+        self._tarea(limite=time(9, 0))
+        self._decir(self.TEL_EMP, 'listo')
+        procesar_pendientes(datetime.combine(self.hoy, time(23, 0)))
+        self.assertFalse(Pendiente.objects.filter(tipo='OTRO').exists())

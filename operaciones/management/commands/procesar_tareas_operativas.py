@@ -45,5 +45,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"Mantenimiento generado: {creadas} — "
             f"Avisos de horario enviados: {contadores['aviso_horario']} — "
-            f"Checklists operativos enviados: {contadores['operativo']}"
+            f"Checklists operativos enviados: {contadores['operativo']} — "
+            f"Pendientes por tarea sin «listo»: {contadores['sin_listo']}"
         ))
