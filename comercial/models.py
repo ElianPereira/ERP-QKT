@@ -659,7 +659,7 @@ class Cotizacion(models.Model):
         verbose_name="Impuesto al hospedaje (ISH)",
         help_text=(
             "Impuesto estatal al hospedaje. Solo se calcula en cotizaciones de "
-            "HOSPEDAJE y solo si hay una tasa configurada (ERP_FISCAL_TASA_ISH)."
+            "HOSPEDAJE y solo si hay una tasa configurada (TASA_ISH)."
         ),
     )
     tasa_ish_aplicada = models.DecimalField(
