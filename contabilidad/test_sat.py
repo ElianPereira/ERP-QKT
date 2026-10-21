@@ -398,6 +398,28 @@ class FlujoDescargaTest(TestCase):
             sat.avanzar(s, Roto())
         alerta.assert_called_once()
 
+    def test_24_fallos_abren_un_pendiente_sat_urgente_para_direccion_una_sola_vez(self):
+        from comunicacion.models import Pendiente
+
+        class Roto(ClienteFalso):
+            def verificar(self, id_solicitud):
+                raise ws.SatError("caído")
+        s = self._solicitud(estado='ENVIADA', id_solicitud_sat='S-1', intentos=sat.INTENTOS_PARA_AVISAR - 1)
+        sat.avanzar(s, Roto())
+        sat.avanzar(s, Roto())  # el intento 25 ya no vuelve a avisar
+        p = Pendiente.objects.get(tipo='SAT')
+        self.assertEqual((p.severidad, p.rol), ('URGENTE', 'DIRECCION'))
+        self.assertEqual(p.clave_idempotencia, f'sat:{s.pk}:atascada')
+        self.assertFalse(Pendiente.objects.filter(tipo='ALERTA', titulo__icontains='SAT').exists())
+
+    def test_un_error_definitivo_abre_su_propio_pendiente_sat(self):
+        from comunicacion.models import Pendiente
+        s = self._solicitud(estado='EN_PROCESO', id_solicitud_sat='S-1')
+        SolicitudDescargaSAT.objects.filter(pk=s.pk).update(created_at=timezone.now() - timedelta(hours=73))
+        s.refresh_from_db()
+        sat.avanzar(s, ClienteFalso())
+        self.assertEqual(Pendiente.objects.get(tipo='SAT').clave_idempotencia, f'sat:{s.pk}:error')
+
     def test_un_error_inesperado_no_detiene_a_las_demas_solicitudes(self):
         malo = self._solicitud()
         bueno = self._solicitud(tipo='EMITIDAS')
