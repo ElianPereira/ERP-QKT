@@ -36,6 +36,8 @@ from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 from django.utils.formats import date_format
 
+from comercial import services_terminal
+
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
@@ -47,7 +49,7 @@ from .services import (
 )
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
-from .services_pendientes import atender_boton, es_boton, registrar_pendiente
+from .services_pendientes import _enviar_aviso, atender_boton, es_boton, registrar_pendiente
 from .services_responsables import (
     CONFIRMACION_ACEPTO,
     confirmar_numero,
@@ -507,6 +509,11 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if respuesta:
             _enviar_automatico(conv, respuesta)
     pendientes = [m for m in pendientes if m not in botones]
+    # Cobros con terminal (`terminal 5000 cot 145` y su botón `term:<token>:ok`):
+    # solo valen desde ENCARGADO o DIRECCION. Desde otro número el reporte sigue
+    # el flujo normal; un botón ajeno se descarta sin contestar.
+    terminal = [m for m in pendientes if _atender_terminal(conv, m.texto)]
+    pendientes = [m for m in pendientes if m not in terminal]
     if not pendientes:
         return
     # La baja se atiende aunque el agente esté en pausa o apagado: el
@@ -535,6 +542,51 @@ def _atender_pendientes(conversacion_id: int) -> None:
     respuesta, uso = responder(conv, texto)
     if respuesta:
         _enviar(conv, filtrar_respuesta(conv, texto, respuesta), uso=uso)
+
+
+def _atender_terminal(conv, texto: str) -> bool:
+    """True si el mensaje era de la terminal y ya se atendió (o se descartó)."""
+    try:
+        if services_terminal.es_boton(texto):
+            resultado = services_terminal.confirmar(conv.telefono, texto)
+            if resultado is None:
+                return True  # botón ajeno o de un número sin permiso: no llega al agente
+            _enviar_automatico(conv, resultado.texto)
+            if resultado.pago is not None:
+                _copiar_cobro_a_direccion(conv.telefono, resultado)
+            return True
+        if services_terminal.es_reporte(texto):
+            resultado = services_terminal.proponer(conv.telefono, texto)
+            if resultado is None:
+                return False
+            if resultado.boton_id:
+                comm = enviar_whatsapp_botones(
+                    tipo='OTRO', telefono=conv.telefono, mensaje=resultado.texto,
+                    botones=[(resultado.boton_id, services_terminal.ETIQUETA_BOTON)])
+                if comm is None or comm.estado == 'FALLIDO':
+                    _enviar_automatico(conv, 'No pude mostrarte el botón de confirmación. '
+                                             'Vuelve a enviar el reporte en un momento.')
+                else:
+                    MensajeWhatsApp.objects.create(
+                        conversacion=conv, direccion='AGENTE', texto=resultado.texto[:LIMITE_WHATSAPP],
+                        procesado=True, automatico=True, wamid=comm.proveedor_id or None)
+            else:
+                _enviar_automatico(conv, resultado.texto)
+            return True
+    except Exception:
+        logger.exception("Agente WhatsApp: falló el reporte de terminal de %s", conv.telefono)
+    return False
+
+
+def _copiar_cobro_a_direccion(telefono_origen: str, resultado) -> None:
+    """Aviso a Dirección de un cobro registrado por WhatsApp (sin el texto del
+    chat). No se repite al número que lo confirmó."""
+    reporte = resultado.reporte
+    texto = (f'Cobro con terminal registrado por WhatsApp: ${reporte.monto:,.2f} en '
+             f'COT-{reporte.cotizacion_id:03d}, reportado desde el número del rol {reporte.rol}.')
+    for destino in telefonos_aviso('DIRECCION'):
+        if destino != normalizar_telefono_wa(telefono_origen):
+            _enviar_aviso(destino, texto, clave=f'terminal:{reporte.pk}:copia:{destino}')
 
 
 def _respuestas_de_hoy():

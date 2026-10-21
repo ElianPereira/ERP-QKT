@@ -146,3 +146,156 @@ class ContracargoPendienteTest(MocksWA, TestCase):
         alertar_equipo_evidencia_automatica(c)
         p = Pendiente.objects.get(tipo='CONTRACARGO')
         self.assertIn('evidencia automática', p.detalle)
+
+
+# ───────────────────────────── Punto 3 · dinero ───────────────────────────────
+
+@wa_settings(**AGENTE)
+class TerminalPorWhatsAppTest(TestCase):
+    def setUp(self):
+        _resp('ENCARGADO', TEL_ENC)
+        _resp('DIRECCION', TEL_DIR)
+        self.cot = _cotizacion()  # 11,600.00
+        self.botones = patch.object(services_agente, 'enviar_whatsapp_botones', return_value=OK).start()
+        self.texto = patch.object(services_agente, 'enviar_whatsapp', return_value=OK).start()
+        self.aviso = patch.object(services_agente, '_enviar_aviso', return_value=OK).start()
+        self.addCleanup(patch.stopall)
+        self.n = 0
+
+    def _decir(self, telefono, texto, agente=None):
+        self.n += 1
+        conv = services_agente.recibir_mensaje(
+            telefono=telefono, nombre='Alguien', texto=texto, wamid=f'w{self.n}')
+        agente = agente or _cliente_falso(_respuesta(_texto('Hola.')))
+        with patch.object(services_agente, '_cliente_ia', return_value=agente):
+            services_agente._atender_pendientes(conv.pk)
+        return agente
+
+    def _proponer(self, telefono=TEL_ENC, texto=None):
+        self._decir(telefono, texto or f'terminal 5000 cot {self.cot.pk}')
+        return self.botones.call_args.kwargs['botones'][0][0]
+
+    def test_encargado_recibe_resumen_con_boton_y_sin_confirmar_no_hay_pago(self):
+        boton = self._proponer()
+        kw = self.botones.call_args.kwargs
+        self.assertEqual(kw['telefono'], TEL_ENC)
+        self.assertIn('Registrar $5,000.00 con terminal a COT-', kw['mensaje'])
+        self.assertIn('Saldo después: $6,600.00', kw['mensaje'])
+        self.assertEqual(kw['botones'][0][1], 'Confirmar')
+        self.assertTrue(boton.startswith('term:') and boton.endswith(':ok'))
+        self.assertEqual(Pago.objects.count(), 0)
+        from comercial.models import ReporteTerminal
+        r = ReporteTerminal.objects.get()
+        self.assertEqual((r.estado, r.telefono, r.rol), ('PROPUESTO', TEL_ENC, 'ENCARGADO'))
+        self.assertNotIn(boton.split(':')[1], r.token_hash)  # nunca en claro
+
+    def test_confirmado_crea_un_pago_con_sus_signals_y_copia_a_direccion(self):
+        from contabilidad.models import Poliza
+        from facturacion.models import SolicitudFactura
+        boton = self._proponer()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._decir(TEL_ENC, boton)
+        pago = Pago.objects.get()
+        from comercial.models import ReporteTerminal
+        r = ReporteTerminal.objects.get()
+        self.assertEqual((pago.metodo, pago.monto, pago.tipo, pago.concepto),
+                         ('TARJETA_DEBITO', Decimal('5000.00'), 'INGRESO', 'VENTA'))
+        self.assertEqual(pago.referencia, f'TERMINAL-WA-{r.pk}')
+        self.assertEqual(pago.notas, f'Reportado por WhatsApp desde ENCARGADO {TEL_ENC}')
+        self.assertFalse(pago.comision_tpv)
+        self.assertEqual((r.estado, r.pago_id), ('CONFIRMADO', pago.pk))
+        self.assertTrue(Poliza.objects.exists())                     # póliza (signal)
+        self.assertTrue(SolicitudFactura.objects.filter(pago=pago).exists())  # solicitud de factura (signal)
+        self.assertIn('Saldo pendiente: $6,600.00', self.texto.call_args.kwargs['mensaje'])
+        self.assertEqual([c.args[0] for c in self.aviso.call_args_list], [TEL_DIR])  # copia a Dirección
+
+    def test_confirmar_por_encima_del_anticipo_confirma_la_cotizacion(self):
+        boton = self._proponer(texto=f'terminal 5800 cot {self.cot.pk}')
+        self._decir(TEL_ENC, boton)
+        self.cot.refresh_from_db()
+        self.assertEqual(self.cot.estado, 'CONFIRMADA')
+
+    def test_confirmado_dos_veces_crea_un_solo_pago(self):
+        boton = self._proponer()
+        self._decir(TEL_ENC, boton)
+        self._decir(TEL_ENC, boton)
+        self.assertEqual(Pago.objects.count(), 1)
+        self.assertIn('ya se había registrado', self.texto.call_args.kwargs['mensaje'])
+
+    def test_vencido_no_crea_nada(self):
+        from comercial.models import ReporteTerminal
+        boton = self._proponer()
+        ReporteTerminal.objects.update(vence_en=timezone.now() - timedelta(seconds=1))
+        self._decir(TEL_ENC, boton)
+        self.assertEqual(Pago.objects.count(), 0)
+        self.assertEqual(ReporteTerminal.objects.get().estado, 'VENCIDO')
+        self.assertIn('10 minutos', self.texto.call_args.kwargs['mensaje'])
+        self._decir(TEL_ENC, boton)  # y vencido sigue sin servir
+        self.assertEqual(Pago.objects.count(), 0)
+
+    def test_el_token_solo_vale_para_el_mismo_telefono(self):
+        boton = self._proponer(TEL_ENC)
+        self._decir(TEL_DIR, boton)  # Dirección es del directorio, pero el token no es suyo
+        self.assertEqual(Pago.objects.count(), 0)
+
+    def test_una_propuesta_identica_nueva_anula_la_anterior(self):
+        primero = self._proponer()
+        segundo = self._proponer()
+        self._decir(TEL_ENC, primero)
+        self.assertEqual(Pago.objects.count(), 0)
+        self._decir(TEL_ENC, segundo)
+        self.assertEqual(Pago.objects.count(), 1)
+
+    def test_si_el_saldo_cambia_antes_de_confirmar_se_revalida(self):
+        boton = self._proponer(texto=f'terminal 9000 cot {self.cot.pk}')
+        Pago.objects.create(cotizacion=self.cot, monto=Decimal('5000.00'), metodo='EFECTIVO')  # saldo 6,600
+        self._decir(TEL_ENC, boton)
+        self.assertEqual(Pago.objects.count(), 1)
+        self.assertIn('mayor al saldo', self.texto.call_args.kwargs['mensaje'])
+
+    def test_rechazos_con_motivo_y_sin_pago(self):
+        from comercial.models import ReporteTerminal
+        casos = {
+            f'terminal 20000 cot {self.cot.pk}': 'mayor al saldo',
+            'terminal 100 cot 99999': 'No encontré esa cotización',
+            f'terminal 0 cot {self.cot.pk}': 'mayor a cero',
+        }
+        for texto, motivo in casos.items():
+            self._decir(TEL_ENC, texto)
+            self.assertIn(motivo, self.texto.call_args.kwargs['mensaje'], texto)
+        Cotizacion.objects.filter(pk=self.cot.pk).update(estado='CANCELADA')
+        self._decir(TEL_ENC, f'terminal 100 cot {self.cot.pk}')
+        self.assertIn('cancelada', self.texto.call_args.kwargs['mensaje'])
+        self.assertEqual((Pago.objects.count(), ReporteTerminal.objects.count()), (0, 0))
+        self.botones.assert_not_called()
+
+    def test_formatos_del_mensaje(self):
+        for texto in (f'  TERMINAL $1,500.50 COT-{self.cot.pk}  ', f'Terminal 1500.5 cot {self.cot.pk}'):
+            self._decir(TEL_ENC, texto)
+        self.assertEqual(self.botones.call_count, 2)
+        self.assertIn('$1,500.50', self.botones.call_args_list[0].kwargs['mensaje'])
+        self.assertIn('$1,500.50', self.botones.call_args_list[1].kwargs['mensaje'])
+
+    def test_desde_un_numero_fuera_del_directorio_sigue_el_flujo_normal_del_agente(self):
+        agente = self._decir(TEL_CLIENTE, f'terminal 5000 cot {self.cot.pk}')
+        agente.beta.messages.create.assert_called()
+        self.botones.assert_not_called()
+        self.assertEqual(Pago.objects.count(), 0)
+
+    def test_boton_de_un_numero_ajeno_no_hace_nada_ni_llega_al_agente(self):
+        boton = self._proponer()
+        agente = self._decir(TEL_CLIENTE, boton)
+        agente.beta.messages.create.assert_not_called()
+        self.assertEqual(Pago.objects.count(), 0)
+
+    def test_un_numero_pendiente_de_aceptar_no_mueve_dinero(self):
+        Responsable.objects.filter(rol='ENCARGADO').update(telefono_pendiente=TEL_OTRO)
+        self._decir(TEL_OTRO, f'terminal 5000 cot {self.cot.pk}')
+        self.botones.assert_not_called()
+        self.assertEqual(Pago.objects.count(), 0)
+
+    def test_el_webhook_conserva_el_id_del_boton(self):
+        from comunicacion.views_whatsapp import _texto as texto_de
+        boton = self._proponer()
+        msg = {'type': 'interactive', 'interactive': {'button_reply': {'id': boton, 'title': 'Confirmar'}}}
+        self.assertEqual(texto_de(msg), boton)
