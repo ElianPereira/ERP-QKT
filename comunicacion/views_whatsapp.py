@@ -25,7 +25,7 @@ from django.views.decorators.http import require_http_methods
 from comercial import services_terminal
 from core_erp.ratelimit import rate_limit
 
-from . import services_agente, services_pendientes
+from . import services_agente, services_pendientes, services_preguntas
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,8 @@ def _texto(mensaje: dict) -> str:
     if tipo == 'interactive':
         interactivo = mensaje.get('interactive') or {}
         respuesta = interactivo.get('button_reply') or interactivo.get('list_reply') or {}
-        if services_pendientes.es_boton(respuesta.get('id')) or services_terminal.es_boton(respuesta.get('id')):
+        if services_pendientes.es_boton(respuesta.get('id')) or services_terminal.es_boton(respuesta.get('id')) \
+                or services_preguntas.es_boton(respuesta.get('id')):
             return respuesta['id']  # botón de la bandeja o de la terminal: lo atiende _atender_pendientes
         if respuesta.get('id') in dict(services_agente.BOTONES_CONSENTIMIENTO):
             return f"[Tocó el botón «{respuesta.get('title', '')}» del mensaje de autorización]"

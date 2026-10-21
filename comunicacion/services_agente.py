@@ -50,6 +50,8 @@ from .services import (
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
 from .services_pendientes import _enviar_aviso, atender_boton, es_boton, registrar_pendiente
+from .services_preguntas import atender_boton as atender_boton_faq
+from .services_preguntas import es_boton as es_boton_faq
 from .services_responsables import (
     CONFIRMACION_ACEPTO,
     confirmar_numero,
@@ -509,6 +511,12 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if respuesta:
             _enviar_automatico(conv, respuesta)
     pendientes = [m for m in pendientes if m not in botones]
+    # [Aprobar] de una pregunta frecuente propuesta (`faq:<id>:ok`): solo Dirección.
+    for m in [m for m in pendientes if es_boton_faq(m.texto)]:
+        respuesta = atender_boton_faq(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # Cobros con terminal (`terminal 5000 cot 145` y su botón `term:<token>:ok`):
     # solo valen desde ENCARGADO o DIRECCION. Desde otro número el reporte sigue
     # el flujo normal; un botón ajeno se descarta sin contestar.

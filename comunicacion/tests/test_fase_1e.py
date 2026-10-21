@@ -338,3 +338,81 @@ class QuejaTest(MocksWA, TestCase):
     def test_el_caso_queja_esta_en_los_evals(self):
         from comunicacion.evaluacion_agente import cargar_casos
         self.assertEqual(cargar_casos(['queja'])[0]['debe_usar'], ['pasar_a_humano'])
+
+
+# ───────────────────────────── Punto 5 · FAQ por WhatsApp ─────────────────────
+
+@wa_settings(**AGENTE, META_WA_PLANTILLA_OPERACIONES='aviso_operaciones')
+class FaqPorWhatsAppTest(MocksWA, TestCase):
+    def setUp(self):
+        super().setUp()
+        from comunicacion import services_preguntas
+        from comunicacion.models import PreguntaSinRespuesta
+        _resp('ENCARGADO', TEL_ENC)
+        _resp('DIRECCION', TEL_DIR)
+        self.sp = services_preguntas
+        conv = services_agente._conversacion(TEL_CLIENTE)
+        PreguntaSinRespuesta.objects.create(conversacion=conv, pregunta='¿Hay estacionamiento?')
+        grupos = [{'pregunta': f'Pregunta {i}', 'respuesta_sugerida': f'Respuesta {i}', 'veces': 1}
+                  for i in range(7)]
+        grupos[1]['respuesta_sugerida'] = '[COMPLETAR]'
+        p = patch.object(services_preguntas, '_agrupar', return_value=grupos)
+        p.start()
+        self.addCleanup(p.stop)
+        patch.object(services_agente, 'enviar_whatsapp', return_value=OK).start()
+        self.addCleanup(patch.stopall)
+
+    def _aplicar(self):
+        with patch.object(services_agente, '_avisar_propietario'):
+            self.sp.resumir_preguntas(aplicar=True)
+
+    def _decir(self, telefono, texto):
+        conv = services_agente.recibir_mensaje(telefono=telefono, nombre='X', texto=texto, wamid=f'f{texto}{telefono}')
+        with patch.object(services_agente, '_cliente_ia', return_value=_cliente_falso()):
+            services_agente._atender_pendientes(conv.pk)
+
+    def test_envia_hasta_cinco_propuestas_a_direccion_con_boton_y_enlace(self):
+        from comercial.models import PreguntaFrecuente
+        self._aplicar()
+        self.assertEqual(PreguntaFrecuente.objects.filter(activo=False).count(), 7)
+        llamadas = self.enviar_whatsapp_template.call_args_list
+        self.assertEqual(len(llamadas), 5)
+        self.assertTrue(all(c.kwargs['telefono'] == TEL_DIR for c in llamadas))
+        self.assertIn('/admin/comercial/preguntafrecuente/', llamadas[0].kwargs['parametros'][0])
+        self.assertIn('activo__exact=0', llamadas[0].kwargs['parametros'][0])
+
+    def test_con_ventana_abierta_lleva_el_boton_aprobar(self):
+        from .test_pendientes import _abrir_ventana
+        _abrir_ventana(TEL_DIR)
+        self._aplicar()
+        botones = self.enviar_whatsapp_botones.call_args_list
+        self.assertEqual(len(botones), 4)  # la propuesta con [COMPLETAR] no lleva botón
+        self.assertTrue(botones[0].kwargs['botones'][0][0].startswith('faq:'))
+        self.assertEqual(botones[0].kwargs['botones'][0][1], 'Aprobar')
+
+    def test_aprobar_desde_direccion_la_activa(self):
+        from comercial.models import PreguntaFrecuente
+        self._aplicar()
+        faq = PreguntaFrecuente.objects.get(pregunta='Pregunta 0')
+        self._decir(TEL_DIR, f'faq:{faq.pk}:ok')
+        faq.refresh_from_db()
+        self.assertTrue(faq.activo)
+
+    def test_una_con_completar_no_se_activa_y_se_avisa(self):
+        from comercial.models import PreguntaFrecuente
+        self._aplicar()
+        faq = PreguntaFrecuente.objects.get(pregunta='Pregunta 1')
+        with patch.object(services_agente, 'enviar_whatsapp', return_value=OK) as enviar:
+            self._decir(TEL_DIR, f'faq:{faq.pk}:ok')
+        faq.refresh_from_db()
+        self.assertFalse(faq.activo)
+        self.assertIn('falta completarla en el admin', enviar.call_args.kwargs['mensaje'])
+
+    def test_desde_otro_numero_no_hace_nada(self):
+        from comercial.models import PreguntaFrecuente
+        self._aplicar()
+        faq = PreguntaFrecuente.objects.get(pregunta='Pregunta 0')
+        for tel in (TEL_ENC, TEL_CLIENTE):
+            self._decir(tel, f'faq:{faq.pk}:ok')
+        faq.refresh_from_db()
+        self.assertFalse(faq.activo)
