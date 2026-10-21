@@ -745,6 +745,33 @@ def alertar_equipo_pago(pago):
 
 # ────────────────────────── Contracargo (chargeback) ────────────────────────
 
+ESTADOS_CONTRACARGO = {
+    'EN_DISPUTA': 'Contracargo en disputa', 'GANADO': 'Contracargo ganado',
+    'PERDIDO': 'Contracargo perdido',
+}
+
+
+def _pendiente_contracargo(contracargo, cotizacion, folio, monto, cliente):
+    """Un pendiente URGENTE para Dirección por cada estado del contracargo."""
+    from .services_pendientes import registrar_pendiente
+    partes = [f"Monto ${monto}."]
+    if cliente:
+        partes.append(f"Cliente: {cliente}.")
+    if contracargo.estado == 'EN_DISPUTA':
+        limite = _fecha(contracargo.fecha_limite_evidencia) if contracargo.fecha_limite_evidencia else None
+        if limite:
+            partes.append(f"Fecha límite para responder: {limite}.")
+    if getattr(contracargo, 'evidencia_enviada', False):
+        partes.append("La evidencia ya se envió a Openpay (automática o manual).")
+    if contracargo.requiere_vinculacion_manual:
+        partes.append("Falta vincularlo a una cotización en el admin.")
+    registrar_pendiente(
+        titulo=f"{ESTADOS_CONTRACARGO.get(contracargo.estado, 'Evento de contracargo')} — {folio}",
+        tipo='CONTRACARGO', severidad='URGENTE', rol='DIRECCION', objeto=cotizacion,
+        detalle=' '.join(partes),
+        clave_idempotencia=f"contracargo:{contracargo.pk}:{contracargo.estado}")
+
+
 def alertar_equipo_contracargo(contracargo):
     """
     Avisa al negocio de un contracargo de Openpay — mismo patrón que
@@ -795,10 +822,14 @@ def alertar_equipo_contracargo(contracargo):
             "enlazarlo a mano."
         )
 
+    _seguro('dejar el pendiente del contracargo', _pendiente_contracargo,
+            contracargo, cotizacion, folio, monto, cliente)
+
     _seguro(
         'enviar la copia por email de la alerta de contracargo',
         alertar_equipo_email,
         cotizacion,
+        pendiente=False,
         asunto=f"{titulo} — {folio}",
         cuerpo=cuerpo,
         clave_idempotencia=f"contracargo:{contracargo.pk}:{contracargo.estado}:email",
@@ -839,6 +870,16 @@ def alertar_equipo_contracargo(contracargo):
     )
 
 
+def _anotar_evidencia_pendiente(contracargo):
+    """El pendiente del contracargo en disputa registra que el ERP ya mandó la evidencia."""
+    from .models import Pendiente
+    pendiente = Pendiente.objects.filter(
+        clave_idempotencia=f"contracargo:{contracargo.pk}:EN_DISPUTA", estado='ABIERTO').first()
+    if pendiente is not None and 'evidencia' not in pendiente.detalle.lower():
+        pendiente.detalle = (pendiente.detalle + ' El ERP ya envió la evidencia automática a Openpay.').strip()
+        pendiente.save(update_fields=['detalle', 'updated_at'])
+
+
 def alertar_equipo_evidencia_automatica(contracargo):
     """
     Avisa al negocio de que el ERP mandó solo la evidencia de un contracargo
@@ -860,6 +901,7 @@ def alertar_equipo_evidencia_automatica(contracargo):
         f"reaccionar a tiempo. Monto en disputa: ${monto}."
     )
 
+    _seguro('anotar la evidencia automática en el pendiente', _anotar_evidencia_pendiente, contracargo)
     _seguro(
         'enviar la alerta de evidencia automática de contracargo',
         alertar_equipo_email,

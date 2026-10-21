@@ -1423,8 +1423,16 @@ class Pago(models.Model):
 
         def _alertar():
             from comunicacion.services import alertar_equipo_email
+            from comunicacion.services_pendientes import registrar_pendiente
+            registrar_pendiente(
+                titulo=f"Pago con fecha ocupada — COT-{cot.id:03d}", tipo='CHOQUE_FECHA',
+                severidad='URGENTE', rol='DIRECCION', objeto=cot,
+                detalle=(f"Pago de ${self.monto:,.2f} para la fecha {cot.fecha_evento:%d/%m/%Y}. "
+                         f"Motivo: {msg_fecha}. Opciones: mover fecha o reembolsar."),
+                clave_idempotencia=f"pago_fecha_ocupada:{pago_pk}")
             alertar_equipo_email(
                 cot,
+                pendiente=False,
                 asunto=f"⚠️ Pago recibido con fecha ocupada — COT-{cot.id:03d}",
                 cuerpo=(
                     f"Entró un pago de ${self.monto:,.2f} para COT-{cot.id:03d} "
