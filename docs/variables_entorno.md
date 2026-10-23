@@ -46,6 +46,8 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 | `META_WA_PLANTILLA_RECORDATORIO` | Plantilla de recordatorio de pago. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_RECORDATORIO` |
 | `META_WA_PLANTILLA_GUIA` | Plantilla de la guía pre-evento. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_GUIA` |
 | `META_WA_PLANTILLA_SEGUIMIENTO` | Plantilla de seguimiento a cotizaciones sin pago (vacía = el cron no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_SEGUIMIENTO` |
+| `META_WA_PLANTILLA_ENCUESTA` | Plantilla de la encuesta de satisfacción (vacía = el comando no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
+| `META_WA_PLANTILLA_REACTIVACION` | Plantilla de la reactivación anual por aniversario (vacía = no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_ALERTA_INTERNA` | Plantilla de alerta interna (nueva cotización). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_ALERTA_INTERNA` |
 | `META_WA_PLANTILLA_ALERTA_PAGO` | Plantilla de alerta interna de pago acreditado. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_ALERTA_PAGO` |
 | `META_WA_PLANTILLA_ALERTA_CONTRACARGO` | Plantilla de alerta interna de contracargo. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_ALERTA_CONTRACARGO` |
@@ -156,6 +158,9 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 | `ERP_KOOXI_MAX_RESPUESTAS_DIA` | Tope global de respuestas del modelo al día. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `WA_AGENTE_MAX_RESPUESTAS_DIA` |
 | `ERP_KOOXI_MAX_HISTORIAL_CARACTERES` | Historial máximo que se reenvía al modelo (caracteres). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `WA_AGENTE_MAX_HISTORIAL_CARACTERES` |
 | `ERP_KOOXI_SEGUIMIENTO_DIAS` | Días tras crearse una cotización sin pago para el seguimiento. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `WA_SEGUIMIENTO_DIAS` |
+| `ERP_RESENA_GOOGLE_URL` | Enlace de reseña en Google para quien califica 4–5 en la encuesta. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_DEPOSITO_INSPECCION_HORAS` | Horas sin reporte de daños antes de devolver solo el depósito en garantía. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_DEPOSITO_TOPE_RETENCION` | Retención máxima (MXN) que el encargado puede aplicar sin el botón de Dirección; 0 = toda retención la aprueba Dirección. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
 
 ## Exentas
 

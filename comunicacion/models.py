@@ -5,6 +5,7 @@ Registra cada email/WhatsApp/SMS/notificación enviado.
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -27,6 +28,9 @@ class ComunicacionCliente(models.Model):
         ('FACTURA', 'Factura emitida'),
         ('AGENTE_IA', 'Respuesta del agente de WhatsApp'),
         ('SEGUIMIENTO', 'Seguimiento de cotización sin pago'),
+        ('ENCUESTA', 'Encuesta de satisfacción'),
+        ('REACTIVACION', 'Reactivación por aniversario'),
+        ('COMPRAS', 'Lista de compras del evento'),
         ('OTRO', 'Otro'),
     ]
     ESTADO_CHOICES = [
@@ -169,6 +173,11 @@ class MensajeWhatsApp(models.Model):
     # cotización sin pago): no es respuesta del modelo, así que la próxima
     # respuesta del agente lo recibe como contexto en vez de cortar ahí.
     automatico = models.BooleanField(default=False, verbose_name='Automático')
+    # Archivo adjunto (foto o PDF) que mandó un responsable del directorio
+    # (Fase 3): solo guarda la referencia de Meta; el archivo se descarga al
+    # atenderlo y nunca llega al agente.
+    media_id = models.CharField(max_length=191, blank=True, verbose_name='ID del archivo en Meta')
+    media_mime = models.CharField(max_length=80, blank=True, verbose_name='Tipo del archivo')
     # Consumo de la respuesta del modelo (solo AGENTE escritos por la IA),
     # sumado entre las vueltas de herramientas de esa respuesta.
     modelo = models.CharField(max_length=60, blank=True, verbose_name='Modelo de IA')
@@ -374,6 +383,7 @@ class Pendiente(models.Model):
         ('CONTRACARGO', 'Contracargo'),
         ('SAT', 'SAT'),
         ('CUMPLIMIENTO', 'Cumplimiento'),
+        ('COMPRAS', 'Compras'),
         ('CRON', 'Proceso automático'),
         ('OTRO', 'Otro'),
     ]
@@ -421,3 +431,36 @@ class Pendiente(models.Model):
     @property
     def vencido(self) -> bool:
         return self.estado == 'ABIERTO' and self.vence_en < timezone.now()
+
+
+class EncuestaPostEvento(models.Model):
+    """Encuesta corta de satisfacción un día después del servicio (Fase 3).
+
+    Una por cotización (la unicidad es la idempotencia del envío). La
+    calificación llega por botón (`enc:<id>:<1-5>`) o como un número 1–5 en
+    texto desde el mismo teléfono. No guarda texto libre del cliente.
+    """
+    ESTADO_CHOICES = [('ENVIADA', 'Enviada'), ('CONTESTADA', 'Contestada')]
+
+    cotizacion = models.OneToOneField('comercial.Cotizacion', on_delete=models.CASCADE,
+                                      related_name='encuesta', verbose_name='Cotización')
+    telefono = models.CharField(max_length=20, db_index=True, verbose_name='Teléfono')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='ENVIADA', db_index=True,
+                              verbose_name='Estado')
+    calificacion = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)],
+        verbose_name='Calificación')
+    enviada_en = models.DateTimeField(default=timezone.now, verbose_name='Enviada')
+    contestada_en = models.DateTimeField(null=True, blank=True, verbose_name='Contestada')
+    resena_solicitada = models.BooleanField(default=False, verbose_name='Reseña solicitada')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Encuesta'
+        verbose_name_plural = 'Encuestas'
+        ordering = ['-enviada_en', '-id']
+
+    def __str__(self):
+        return f'Encuesta COT-{self.cotizacion_id:03d}'
+

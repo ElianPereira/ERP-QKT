@@ -502,17 +502,23 @@ def ver_dashboard_kpis(request):
 # ==========================================
 # 2. REPORTES
 # ==========================================
+def contexto_lista_compras(cotizacion):
+    """Contexto del PDF de la lista de compras; lo comparte la vista y el envío automático."""
+    lista = generar_lista_compras_barra(cotizacion)
+    total = sum((i.get('costo_total', Decimal('0')) for items in lista.values() for i in items), Decimal('0'))
+    return {
+        'titulo': 'Lista de compras de barra',
+        'cotizacion': cotizacion, 'lista': lista, 'total_estimado': total,
+        'pendientes': sum(1 for items in lista.values() for i in items if i.get('proveedor_pendiente')),
+    }
+
+
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
 def descargar_lista_compras_pdf(request, cotizacion_id):
     cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
-    lista = generar_lista_compras_barra(cotizacion)
-    total = sum((i.get('costo_total', Decimal('0')) for items in lista.values() for i in items), Decimal('0'))
-    return respuesta_pdf('pdf_lista_compras.html', {
-        'titulo': 'Lista de compras de barra',
-        'cotizacion': cotizacion, 'lista': lista, 'total_estimado': total,
-        'pendientes': sum(1 for items in lista.values() for i in items if i.get('proveedor_pendiente')),
-    }, nombre_archivo('ListaCompras', f"COT-{cotizacion.id:03d}"), request=request)
+    return respuesta_pdf('pdf_lista_compras.html', contexto_lista_compras(cotizacion),
+                         nombre_archivo('ListaCompras', f"COT-{cotizacion.id:03d}"), request=request)
 
 # ==========================================
 # 3. PDF Y EMAIL

@@ -73,7 +73,8 @@ class HorariosTest(TestCase):
     def test_comandos_con_aplicar_lo_conservan(self):
         por = {t.nombre: t for t in TAREAS}
         for nombre in ('avisar_vencimientos', 'sincronizar_comisiones_openpay',
-                       'purgar_conversaciones_whatsapp', 'resumir_preguntas_agente'):
+                       'purgar_conversaciones_whatsapp', 'resumir_preguntas_agente',
+                       'preparar_renovaciones'):
             self.assertEqual(por[nombre].args, ('--aplicar',), nombre)
 
 

@@ -24,8 +24,9 @@ from django.views.decorators.http import require_http_methods
 
 from comercial import services_terminal
 from core_erp.ratelimit import rate_limit
+from cumplimiento import services_renovacion
 
-from . import services_agente, services_pendientes, services_preguntas
+from . import services_agente, services_encuesta, services_pendientes, services_preguntas, services_responsables
 
 logger = logging.getLogger(__name__)
 
@@ -39,23 +40,45 @@ def _firma_valida(request) -> bool:
     return hmac.compare_digest(firma[len('sha256='):], esperada)
 
 
+def _es_boton_interno(identificador) -> bool:
+    """Botones que atiende el ERP (no el agente): bandeja, terminal, FAQ, encuesta y cumplimiento."""
+    return (services_pendientes.es_boton(identificador) or services_terminal.es_boton(identificador)
+            or services_preguntas.es_boton(identificador) or services_encuesta.es_boton(identificador)
+            or services_renovacion.es_boton(identificador))
+
+
 def _texto(mensaje: dict) -> str:
     """Texto legible de un mensaje de WhatsApp; el agente solo entiende texto."""
     tipo = mensaje.get('type')
     if tipo == 'text':
         return (mensaje.get('text') or {}).get('body', '')
     if tipo == 'button':
-        return (mensaje.get('button') or {}).get('text', '')
+        boton = mensaje.get('button') or {}
+        if _es_boton_interno(boton.get('payload')):
+            return boton['payload']  # botón de una plantilla (p. ej. la encuesta): lo atiende el ERP
+        return boton.get('text', '')
     if tipo == 'interactive':
         interactivo = mensaje.get('interactive') or {}
         respuesta = interactivo.get('button_reply') or interactivo.get('list_reply') or {}
-        if services_pendientes.es_boton(respuesta.get('id')) or services_terminal.es_boton(respuesta.get('id')) \
-                or services_preguntas.es_boton(respuesta.get('id')):
-            return respuesta['id']  # botón de la bandeja o de la terminal: lo atiende _atender_pendientes
+        if _es_boton_interno(respuesta.get('id')):
+            return respuesta['id']  # botón de la bandeja, terminal, encuesta…: lo atiende _atender_pendientes
         if respuesta.get('id') in dict(services_agente.BOTONES_CONSENTIMIENTO):
             return f"[Tocó el botón «{respuesta.get('title', '')}» del mensaje de autorización]"
         return respuesta.get('title', '')
     return f'[El cliente envió un mensaje de tipo «{tipo}»; el asistente solo puede leer texto]'
+
+
+def _archivo(mensaje: dict, telefono: str):
+    """`(texto, media_id, mime)` de una foto o PDF de un responsable del directorio
+    (pie de foto como texto); `None` si no lo es: a los demás les sigue el aviso de
+    «solo texto». Los archivos se descargan al atenderlos, nunca llegan al agente."""
+    tipo = mensaje.get('type')
+    if tipo not in ('image', 'document') or services_responsables.rol_de_telefono(telefono) is None:
+        return None
+    datos = mensaje.get(tipo) or {}
+    if not datos.get('id'):
+        return None
+    return datos.get('caption', ''), datos['id'], datos.get('mime_type', '')
 
 
 def _procesar_cambio(cambio: dict) -> set:
@@ -67,11 +90,14 @@ def _procesar_cambio(cambio: dict) -> set:
         nombres = {c.get('wa_id'): (c.get('profile') or {}).get('name', '')
                    for c in valor.get('contacts') or []}
         for mensaje in valor.get('messages') or []:
+            archivo = _archivo(mensaje, mensaje.get('from', ''))
             conv = services_agente.recibir_mensaje(
                 telefono=mensaje.get('from', ''),
                 nombre=nombres.get(mensaje.get('from'), ''),
-                texto=_texto(mensaje),
+                texto=archivo[0] if archivo else _texto(mensaje),
                 wamid=mensaje.get('id'),
+                media_id=archivo[1] if archivo else '',
+                media_mime=archivo[2] if archivo else '',
             )
             if conv:
                 boton = ((mensaje.get('interactive') or {}).get('button_reply') or {}).get('id', '')

@@ -52,6 +52,17 @@ Un cron por día, no todos juntos. Para cada uno:
 
 `revisar_pendientes` y `enviar_resumen_diario` no existían como cron: solo se agendan aquí.
 
+Fase 3 (Issue #434): estas tareas **tampoco existen en Railway**; nacen en el Programador y no
+hay cron viejo que apagar. Quedan inertes hasta definir `META_WA_PLANTILLA_ENCUESTA` y
+`META_WA_PLANTILLA_REACTIVACION` (solo mandan con plantilla aprobada).
+
+| Comando (nuevo) | Horario en el Programador (hora de Mérida) |
+|---|---|
+| `preparar_renovaciones --aplicar` | diario 07:20 |
+| `enviar_listas_compras` | diario 08:30 |
+| `enviar_encuestas` | diario 10:30 |
+| `enviar_reactivaciones` | diario 11:15 |
+
 ## 4. Borrar los crons viejos
 
 Después de **2 semanas** sin fallos en **Ejecuciones** ni pendientes de tipo «Tarea

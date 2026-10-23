@@ -16,6 +16,7 @@ from .models import (
     CambioResponsable,
     ComunicacionCliente,
     ConversacionWhatsApp,
+    EncuestaPostEvento,
     MensajeWhatsApp,
     Pendiente,
     Responsable,
@@ -163,6 +164,56 @@ class BajaWhatsAppAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(EncuestaPostEvento)
+class EncuestaPostEventoAdmin(admin.ModelAdmin):
+    """Solo consulta: la calificación llega por WhatsApp un día después del servicio."""
+    list_display = ('folio', 'cliente', 'calificacion_badge', 'estado_badge', 'enviada', 'contestada')
+    list_filter = ('estado', 'calificacion')
+    search_fields = ('cotizacion__cliente__nombre', 'telefono')
+    list_select_related = ('cotizacion__cliente',)
+    filtros_visibles = 2
+    fields = ('cotizacion', 'telefono', 'estado', 'calificacion', 'resena_solicitada', 'enviada_en', 'contestada_en')
+    readonly_fields = fields
+
+    TONOS_ESTADO = {'ENVIADA': ui.ALERTA, 'CONTESTADA': ui.EXITO}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Cotización', ordering='cotizacion')
+    def folio(self, obj):
+        return f'COT-{obj.cotizacion_id:03d}'
+
+    @admin.display(description='Cliente', ordering='cotizacion__cliente__nombre')
+    def cliente(self, obj):
+        return obj.cotizacion.cliente.nombre
+
+    @admin.display(description='Calificación', ordering='calificacion')
+    def calificacion_badge(self, obj):
+        if obj.calificacion is None:
+            return ui.vacio()
+        tono = ui.EXITO if obj.calificacion >= 4 else ui.ERROR
+        return ui.badge(f'{obj.calificacion} de 5', tono)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='Enviada', ordering='enviada_en')
+    def enviada(self, obj):
+        return date_format(timezone.localtime(obj.enviada_en), 'd M H:i')
+
+    @admin.display(description='Contestada', ordering='contestada_en')
+    def contestada(self, obj):
+        return date_format(timezone.localtime(obj.contestada_en), 'd M H:i') if obj.contestada_en else ui.vacio()
 
 
 class ResponsableForm(forms.ModelForm):

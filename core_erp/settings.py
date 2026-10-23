@@ -347,6 +347,17 @@ META_WA_PLANTILLA_GUIA = env('META_WA_PLANTILLA_GUIA', legado='WA_TEMPLATE_GUIA'
 # Sin plantilla, el cron no manda nada.
 META_WA_PLANTILLA_SEGUIMIENTO = env('META_WA_PLANTILLA_SEGUIMIENTO', legado='WA_TEMPLATE_SEGUIMIENTO', default='')
 ERP_KOOXI_SEGUIMIENTO_DIAS = env('ERP_KOOXI_SEGUIMIENTO_DIAS', legado='WA_SEGUIMIENTO_DIAS', default=3, cast=int)
+# Post-venta (Fase 3, Issue #434). Sin plantilla, el comando correspondiente no manda nada.
+# Encuesta: 1 día después del servicio. Reactivación: aniversario del evento (MARKETING).
+META_WA_PLANTILLA_ENCUESTA = env('META_WA_PLANTILLA_ENCUESTA', default='')
+META_WA_PLANTILLA_REACTIVACION = env('META_WA_PLANTILLA_REACTIVACION', default='')
+# Enlace de reseña en Google que se manda a quien califica 4–5; vacío = solo se agradece.
+ERP_RESENA_GOOGLE_URL = env('ERP_RESENA_GOOGLE_URL', default='')
+# Depósito en garantía: horas sin reporte de daños tras pedir la inspección antes de
+# devolverlo solo, y retención máxima (MXN) que el encargado puede aplicar sin el botón
+# de Dirección (0 = toda retención requiere a Dirección).
+ERP_DEPOSITO_INSPECCION_HORAS = env('ERP_DEPOSITO_INSPECCION_HORAS', default=48, cast=int)
+ERP_DEPOSITO_TOPE_RETENCION = env('ERP_DEPOSITO_TOPE_RETENCION', default='0')
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
 META_WA_PLANTILLA_ALERTA_INTERNA = env('META_WA_PLANTILLA_ALERTA_INTERNA', legado='WA_TEMPLATE_ALERTA_INTERNA', default='')
@@ -585,6 +596,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.BajaWhatsApp":        "fas fa-bell-slash",
         "comunicacion.Responsable":         "fas fa-address-book",
         "comunicacion.Pendiente":           "fas fa-clipboard-list",
+        "comunicacion.EncuestaPostEvento":  "fas fa-star-half-alt",
 
         # AUTH
         "auth":                             "fas fa-shield-alt",
@@ -714,6 +726,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.BajaWhatsApp",
         "comunicacion.Responsable",
         "comunicacion.Pendiente",
+        "comunicacion.EncuestaPostEvento",
 
         # === OPERACIONES ===
         "operaciones",
