@@ -10,15 +10,17 @@ from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 from core_erp.admin_utils import confirmar_accion_destructiva
 
-from . import services_agente, services_pendientes, services_responsables, services_tablero
+from . import services_agente, services_pendientes, services_responsables, services_tablero, services_visitas
 from .models import (
     BajaWhatsApp,
     CambioResponsable,
     ComunicacionCliente,
     ConversacionWhatsApp,
+    HorarioVisita,
     MensajeWhatsApp,
     Pendiente,
     Responsable,
+    Visita,
 )
 from .services import normalizar_telefono_wa
 
@@ -80,18 +82,44 @@ class ConversacionWhatsAppForm(forms.ModelForm):
         fields = '__all__'
 
 
+class FiltroOrigenAnuncio(admin.SimpleListFilter):
+    """Conversaciones por el anuncio de Meta que las trajo (o sin anuncio)."""
+    title = 'Origen'
+    parameter_name = 'origen'
+
+    def lookups(self, request, model_admin):
+        anuncios = (ConversacionWhatsApp.objects.exclude(anuncio_id='')
+                    .values_list('anuncio_id', 'anuncio_titulo').distinct().order_by('anuncio_id'))
+        vistos = {}
+        for anuncio_id, titulo in anuncios:
+            if titulo or anuncio_id not in vistos:
+                vistos[anuncio_id] = titulo or anuncio_id
+        return [('_sin', 'Sin anuncio'), ('_con', 'Cualquier anuncio')] + [
+            (k, v[:60]) for k, v in vistos.items()]
+
+    def queryset(self, request, queryset):
+        valor = self.value()
+        if valor == '_sin':
+            return queryset.filter(anuncio_id='', anuncio_url='')
+        if valor == '_con':
+            return queryset.exclude(anuncio_id='', anuncio_url='')
+        return queryset.filter(anuncio_id=valor) if valor else queryset
+
+
 @admin.register(ConversacionWhatsApp)
 class ConversacionWhatsAppAdmin(admin.ModelAdmin):
     """Conversaciones del agente de WhatsApp (Issue #346). Nacen solas desde el
     webhook; aquí se leen, se contesta como persona y se decide si el agente
     sigue contestando."""
     form = ConversacionWhatsAppForm
-    list_display = ('ultimo_display', 'nombre', 'telefono', 'estado_badge', 'cliente')
-    list_filter = ('requiere_humano',)
+    list_display = ('ultimo_display', 'nombre', 'telefono', 'estado_badge', 'anuncio_display', 'cliente')
+    list_filter = ('requiere_humano', FiltroOrigenAnuncio)
     search_fields = ('telefono', 'nombre', 'cliente__nombre', 'mensajes__texto')
     fields = ('nombre', 'telefono', 'cliente', 'responder', 'requiere_humano', 'motivo_humano',
-              'pausado_hasta', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing')
-    readonly_fields = ('nombre', 'telefono', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing')
+              'pausado_hasta', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing',
+              'anuncio_titulo', 'anuncio_id', 'anuncio_url')
+    readonly_fields = ('nombre', 'telefono', 'ultimo_mensaje', 'consentimiento_en', 'consentimiento_marketing',
+                       'anuncio_titulo', 'anuncio_id', 'anuncio_url')
     autocomplete_fields = ('cliente',)
     inlines = (MensajeWhatsAppInline,)
     actions = ('reactivar_agente',)
@@ -120,6 +148,12 @@ class ConversacionWhatsAppAdmin(admin.ModelAdmin):
     @admin.display(description='Último mensaje', ordering='ultimo_mensaje')
     def ultimo_display(self, obj):
         return date_format(timezone.localtime(obj.ultimo_mensaje), 'd M Y H:i')
+
+    @admin.display(description='Anuncio')
+    def anuncio_display(self, obj):
+        if not (obj.anuncio_id or obj.anuncio_url):
+            return ui.vacio()
+        return ui.badge((obj.anuncio_titulo or obj.anuncio_id)[:40], ui.NEUTRO, categoria=True)
 
     @admin.display(description='Agente')
     def estado_badge(self, obj):
@@ -355,3 +389,87 @@ class PendienteAdmin(admin.ModelAdmin):
 
     def has_tomar_permission(self, request):
         return request.user.is_superuser
+
+
+@admin.register(HorarioVisita)
+class HorarioVisitaAdmin(admin.ModelAdmin):
+    """Ventanas semanales en que se reciben visitas. Kooxi ofrece solo estas;
+    se desactivan, no se borran."""
+    list_display = ('dia_badge', 'desde', 'hasta', 'duracion', 'activo')
+    list_filter = ('activo', 'dia_semana')
+    fields = ('dia_semana', 'hora_inicio', 'hora_fin', 'duracion_minutos', 'activo')
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Día', ordering='dia_semana')
+    def dia_badge(self, obj):
+        return ui.badge(obj.get_dia_semana_display(), ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Desde', ordering='hora_inicio')
+    def desde(self, obj):
+        return obj.hora_inicio.strftime('%H:%M')
+
+    @admin.display(description='Hasta', ordering='hora_fin')
+    def hasta(self, obj):
+        return obj.hora_fin.strftime('%H:%M')
+
+    @admin.display(description='Cada visita', ordering='duracion_minutos')
+    def duracion(self, obj):
+        return f'{obj.duracion_minutos} min'
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            obj.updated_by = request.user
+        else:
+            obj.created_by = obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(Visita)
+class VisitaAdmin(admin.ModelAdmin):
+    """Visitas que Kooxi agenda. Nacen por confirmar y solo una persona las
+    confirma (aquí o con el botón de WhatsApp)."""
+    TONOS_ESTADO = {'POR_CONFIRMAR': ui.ALERTA, 'CONFIRMADA': ui.EXITO, 'RECHAZADA': ui.ERROR,
+                    'CANCELADA': ui.NEUTRO}
+    list_display = ('cuando', 'nombre', 'telefono', 'personas', 'estado_badge', 'decidida_por')
+    list_filter = ('estado', 'inicio')
+    search_fields = ('nombre', 'telefono')
+    fields = ('nombre', 'telefono', 'personas', 'inicio', 'estado', 'cliente', 'conversacion', 'decidida_en',
+              'decidida_por', 'recordatorio_en')
+    readonly_fields = fields
+    columnas_texto = ('nombre',)
+    actions = ('confirmar_visitas', 'marcar_no_disponible', 'cancelar_visitas')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Fecha y hora', ordering='inicio')
+    def cuando(self, obj):
+        return services_visitas.etiqueta(obj.inicio)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    def _decidir(self, request, queryset, aceptar):
+        hechas = sum(1 for v in queryset if services_visitas.decidir(v.pk, aceptar, usuario=request.user))
+        self.message_user(request, f'{hechas} visita(s) actualizada(s); solo cambian las que estaban por confirmar.')
+
+    @admin.action(description='Confirmar visitas')
+    def confirmar_visitas(self, request, queryset):
+        self._decidir(request, queryset, True)
+
+    @admin.action(description='Marcar como no disponible')
+    def marcar_no_disponible(self, request, queryset):
+        self._decidir(request, queryset, False)
+
+    @admin.action(description='Cancelar visitas')
+    @confirmar_accion_destructiva('Se cancelarán las visitas seleccionadas, se liberará su horario y se avisará '
+                                  'al cliente por WhatsApp.')
+    def cancelar_visitas(self, request, queryset):
+        hechas = sum(1 for v in queryset if services_visitas.cancelar(v.pk, request.user))
+        self.message_user(request, f'{hechas} visita(s) cancelada(s).')

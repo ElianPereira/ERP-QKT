@@ -49,8 +49,9 @@ Un cron por día, no todos juntos. Para cada uno:
 | `resumir_preguntas_agente --aplicar` | lunes 08:52 |
 | `revisar_pendientes` (nuevo) | cada 15 min |
 | `enviar_resumen_diario` (nuevo) | diario 08:00 |
+| `enviar_recordatorios_visitas` (nuevo, Fase 2a) | diario 18:00 |
 
-`revisar_pendientes` y `enviar_resumen_diario` no existían como cron: solo se agendan aquí.
+`revisar_pendientes`, `enviar_resumen_diario` y `enviar_recordatorios_visitas` no existían como cron: solo se agendan aquí.
 
 ## 4. Borrar los crons viejos
 
