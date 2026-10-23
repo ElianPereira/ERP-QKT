@@ -44,7 +44,11 @@ Categoría **Utilidad** (responde a una solicitud del cliente). Una variable: `{
 
 ```
 Quinta Ko'ox Tanil: {{1}}
+
+Si tienes alguna duda, responde a este mensaje.
 ```
+
+Meta no acepta un cuerpo que empiece o termine con variable; por eso lleva la línea fija al final.
 
 ## Activarlo en Railway
 
