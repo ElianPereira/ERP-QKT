@@ -350,6 +350,22 @@ class CambioDeFechaTest(TestCase):
                          (self.nueva, precio, 'CONFIRMADA'))
         self.assertEqual(Pago.objects.filter(tipo='REEMBOLSO').count(), 0)
 
+    def test_la_tarea_de_preparacion_se_mueve_a_la_fecha_nueva(self):
+        from operaciones.models import PlantillaChecklist, TareaProgramada
+        plantilla = PlantillaChecklist.objects.create(
+            nombre='Prep evento', tipo='TURNOVER_EVENTO', activa=True, duracion_estimada_horas=Decimal('2'))
+        Cotizacion.objects.filter(pk=self.cot.pk).update(hora_inicio=timezone.now().time().replace(hour=14, minute=0))
+        self.cot.refresh_from_db()
+        vieja = TareaProgramada.objects.create(
+            plantilla=plantilla, cotizacion=self.cot, fecha=self.cot.fecha_evento,
+            hora_entrada=self.cot.hora_inicio, hora_limite=self.cot.hora_inicio)
+        s, token = self._solicitar()
+        resultado = sc.atender_boton(TEL_DIRECCION, sc.id_boton(token, 'ok'))
+        self.assertIn('anexo', resultado.texto)
+        vieja.refresh_from_db()
+        self.assertEqual(vieja.fecha, self.nueva)
+        self.assertEqual(TareaProgramada.objects.filter(cotizacion=self.cot).count(), 1)
+
     def test_si_la_fecha_se_ocupo_antes_de_aprobar_no_se_mueve(self):
         s, token = self._solicitar()
         otra = _cotizacion(dias=90)

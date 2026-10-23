@@ -509,10 +509,14 @@ def _ejecutar_cambio(s: SolicitudCancelacion) -> Resultado:
         Cotizacion.objects.filter(pk=cot.pk).update(**campos)
         s.estado, s.detalle_ejecucion = 'EJECUTADA', f'Fecha movida de {cot.fecha_evento} a {s.fecha_nueva}.'
         s.save(update_fields=['estado', 'detalle_ejecucion', 'updated_at'])
-    cot.refresh_from_db()
+        fecha_anterior = cot.fecha_evento
+        cot.refresh_from_db()
+        # `update()` no dispara signals: la preparación hay que moverla a mano.
+        from operaciones.services import reubicar_tareas_turnover
+        reubicar_tareas_turnover(cot, fecha_anterior)
     _avisar_cliente(s, 'cambio', TEXTOS['cambio'].format(folio=_folio(cot), fecha=s.fecha_nueva.strftime('%d/%m/%Y')),
                     asunto=f'Cambio de fecha aprobado · {_folio(cot)}')
-    return Resultado(f'Listo: {_folio(cot)} se movió al {s.fecha_nueva:%d/%m/%Y}. Se avisó al cliente.', s)
+    return Resultado(f'Listo: {_folio(cot)} se movió al {s.fecha_nueva:%d/%m/%Y}. Se avisó al cliente. Ojo: el contrato firmado conserva la fecha anterior; hace falta un anexo.', s)
 
 
 def _ejecutar_cancelacion(s: SolicitudCancelacion, usuario) -> Resultado:
@@ -545,11 +549,13 @@ def _ejecutar_cancelacion(s: SolicitudCancelacion, usuario) -> Resultado:
                 registro[ref]['estado'] = 'rechazado'
                 _guardar_registro(s, registro)
                 return _fallo(s, f'Openpay rechazó el reembolso de {_dinero(monto)}: {respuesta["mensaje"]}')
-            Pago.objects.create(
+            reembolso = Pago(
                 cotizacion=cot, tipo='REEMBOLSO', concepto='VENTA', metodo=t.pago.metodo, monto=monto,
                 fecha_pago=timezone.localdate(), referencia=ref,
                 notas=f'Reembolso por cancelación aprobada ({s.resuelta_por}) a la tarjeta de origen {t.openpay_id}',
                 usuario=usuario if getattr(usuario, 'pk', None) else None)
+            reembolso.full_clean()
+            reembolso.save()
             registro[ref]['estado'] = 'ok'
             _guardar_registro(s, registro)
             restante -= monto
