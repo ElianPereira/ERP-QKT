@@ -773,11 +773,13 @@ def reembolsar_cargo_openpay(pago: Pago):
     return {'ok': True, 'mensaje': 'Reembolso procesado en Openpay.'}
 
 
-def reembolsar_monto_openpay(transaccion: OpenpayTransaccion, monto: Decimal):
-    """Reembolsa `monto` (total o parcial) de un cargo con tarjeta. Lo usa la
-    devolución del depósito en garantía; Openpay solo reembolsa tarjetas."""
+def reembolsar_monto_openpay(transaccion: OpenpayTransaccion, monto: Decimal,
+                             descripcion: str = 'Devolución de depósito en garantía'):
+    """Reembolsa `monto` (total o parcial) de un cargo con tarjeta. Lo usan la
+    devolución del depósito en garantía y la cancelación aprobada por Dirección
+    (Fase 2c); Openpay solo reembolsa tarjetas, siempre sobre el cargo original."""
     url = f"{_charges_url()}/{transaccion.openpay_id}/refund"
-    payload = {'description': 'Devolución de depósito en garantía', 'amount': float(monto)}
+    payload = {'description': descripcion[:250], 'amount': float(monto)}
     response = requests.post(url, json=payload, auth=_auth(), timeout=20)
     if response.status_code >= 400:
         try:
