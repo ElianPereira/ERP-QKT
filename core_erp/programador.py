@@ -127,6 +127,10 @@ TAREAS = (
           ('--aplicar',)),
     Tarea('revisar_pendientes', 'revisar_pendientes', cada(15), 45 * MIN),
     Tarea('enviar_resumen_diario', 'enviar_resumen_diario', diario('08:00'), 6 * HORA),
+    Tarea('enviar_resumen_semanal', 'enviar_resumen_semanal', semanal(LUNES, '08:30'), 24 * HORA),
+    Tarea('revisar_desviacion', 'revisar_desviacion', diario('09:30'), 6 * HORA),
+    Tarea('enviar_nomina_semanal', 'enviar_nomina_semanal', semanal(VIERNES, '12:00'), 24 * HORA),
+    Tarea('preguntar_cfdi_contador', 'preguntar_cfdi_contador', diario('10:00'), 6 * HORA),
 )
 
 POR_NOMBRE = {t.nombre: t for t in TAREAS}

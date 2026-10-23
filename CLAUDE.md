@@ -272,6 +272,36 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-23 — **Fase 4: Dirección, nómina y CFDI ambiguo por WhatsApp** (Issue #431; B6, B7 y B9 del plan, sin lo del
+  estado de cuenta BBVA/#401). Todo cron nuevo va en el programador (`core_erp/programador.py`: `enviar_resumen_semanal`
+  lunes 08:30, `revisar_desviacion` diario 09:30, `enviar_nomina_semanal` viernes 12:00, `preguntar_cfdi_contador` diario
+  10:00), sin tocar Railway. Lógica en `comunicacion/services_direccion.py` y `services_contador.py`; migraciones aditivas
+  `comunicacion.0014` (modelos `Hallazgo`, `ConsultaCfdi` + choices DESVIACION/HALLAZGO de `Pendiente.tipo`) y
+  `nomina.0006` (`AprobacionNomina`). **Resumen del lunes**: venta contra meta y ocupación salen de
+  `TableroService.generar()['mes']` (no se recalcula), caja = suma de `CuentaBancaria.saldo_actual` activas (saldo según
+  libros), pendientes abiertos de DIRECCION y «Detecté» con hasta 3 hallazgos, a lo más uno por tipo y en este orden:
+  precio con margen negativo (`sugerencia_precio() < calcular_costo()`), pago sin solicitud de factura (60 días,
+  sin condonaciones, reactivaciones ni históricas), cotización COTIZADA sin pagos ni seguimiento a 7+ días, servicio fuera
+  del plan (`PlanAnualService.generar(con_umbrales=True)`, «precio para entrar») y 15+ días libres en 30 días. Cada uno
+  es un `Hallazgo` con clave: ignorado o convertido en tarea no vuelve; uno propuesto sin responder se reenvía el
+  siguiente lunes. Botones `hal:<id>:tarea|ign` en mensajes sueltos **solo si la ventana de 24 h de Dirección está
+  abierta**; si no, el resumen lleva los títulos y el enlace al admin «Hallazgos» (acciones Crear tarea/Ignorar). Todos
+  los botones nuevos valen solo desde el teléfono **activo** de un `Responsable` real del rol (no el de respaldo ni uno
+  pendiente de «ACEPTO»), se enrutan en `_atender_pendientes` y nunca llegan al agente. **Desviación**: desde el día 15
+  y una vez por mes (`desviacion:AAAA-MM`), venta < 70 % de la meta que muestre el tablero (meta capturada, plan del
+  mes o equilibrio, en ese orden) = pendiente URGENTE; sin meta calculable no alerta. **Nómina**: el viernes se registra
+  `AprobacionNomina` (recibos no cancelados cuyo periodo empieza en la semana lun–dom, vía `NominaPeriodoService`);
+  `[Aprobar]` (`nom:<id>:ok`, un solo uso) solo deja quién/cuándo: sin póliza, sin transferencia, sin tocar recibos; el
+  admin «Aprobaciones» tiene la misma acción para superusuario cuando no hay ventana abierta. **CFDI ambiguo**: la
+  búsqueda de candidatas salió de `_procesar_emitido` a `services_sat.candidatas_emitido()` (mismo código, ahora
+  reutilizable) y la respuesta del contador liga con `services_sat.vincular` (la del admin). Un solo mensaje agrupado por
+  día al rol CONTADOR (hasta 5 CFDI; botones por candidata —máx. 2— + «Ninguna» solo para el primero con 2 o más
+  candidatas, porque WhatsApp admite 3 botones por mensaje); al responder pregunta el siguiente en el mismo mensaje de
+  confirmación. Los de 0 candidatas se listan sin botón (se ligan en Contabilidad → Comprobantes). Cada CFDI se pregunta
+  una vez y, sin respuesta en 3 días, una más; después abre un pendiente SAT para Dirección. Sin CONTADOR en el
+  directorio: pendiente semanal para Dirección y no se envía. `ConsultaCfdi` no tiene menú (como `ReporteTerminal`). Sin
+  tocar zonas restringidas.
+
 - 2026-10-21 — **Renglones pendientes de la Fase 1** (Issue #428, fase 1e; el punto 3 va a revisión de Opus antes del
   merge). **(1-2, 7)** Choque de fecha, contracargo y SAT dejan su `Pendiente` URGENTE (CHOQUE_FECHA/CONTRACARGO/SAT, rol
   DIRECCION, claves `pago_fecha_ocupada:<pago>`, `contracargo:<pk>:<estado>`, `sat:<pk>:<motivo>`) y pasan

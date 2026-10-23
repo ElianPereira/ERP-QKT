@@ -49,8 +49,13 @@ Un cron por día, no todos juntos. Para cada uno:
 | `resumir_preguntas_agente --aplicar` | lunes 08:52 |
 | `revisar_pendientes` (nuevo) | cada 15 min |
 | `enviar_resumen_diario` (nuevo) | diario 08:00 |
+| `enviar_resumen_semanal` (nuevo, Fase 4) | lunes 08:30 |
+| `revisar_desviacion` (nuevo, Fase 4) | diario 09:30 |
+| `enviar_nomina_semanal` (nuevo, Fase 4) | viernes 12:00 |
+| `preguntar_cfdi_contador` (nuevo, Fase 4) | diario 10:00 |
 
-`revisar_pendientes` y `enviar_resumen_diario` no existían como cron: solo se agendan aquí.
+`revisar_pendientes`, `enviar_resumen_diario` y los cuatro de la Fase 4 no existían como cron: solo se agendan aquí
+(el programador ya los corre solo; no se dan de alta en Railway).
 
 ## 4. Borrar los crons viejos
 
