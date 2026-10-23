@@ -90,8 +90,10 @@ def _enviar_aviso(telefono: str, texto: str, *, botones=None, clave: Optional[st
         return None
 
 
-def _avisar_urgente(pendiente) -> None:
-    """Aviso inmediato al rol y, si tiene la copia en vivo, a Dirección."""
+def _avisar_urgente(pendiente, botones=None) -> None:
+    """Aviso inmediato al rol y, si tiene la copia en vivo, a Dirección. Con
+    `botones` el responsable recibe esos (p. ej. aprobar/rechazar) en vez de
+    «Resuelto»; la copia a Dirección sigue con «Intervengo»."""
     destinos = telefonos_aviso(pendiente.rol)
     if not destinos:
         logger.error("%s; el pendiente %s queda solo en la bandeja", SIN_DESTINO, pendiente.pk)
@@ -100,6 +102,9 @@ def _avisar_urgente(pendiente) -> None:
     detalle = f' {pendiente.detalle[:300]}' if pendiente.detalle else ''
     texto = f'URGENTE: {pendiente.titulo}.{detalle} Abrir: {url_pendiente(pendiente)}'
     for destino in destinos:
+        if botones and destino == principal:
+            _enviar_aviso(destino, texto, botones=botones)
+            continue
         accion = BOTON_OK if destino == principal else BOTON_TOMAR
         etiqueta = 'Resuelto' if accion == BOTON_OK else 'Intervengo'
         _enviar_aviso(destino, texto, botones=[(id_boton(pendiente.pk, accion), etiqueta)])
@@ -107,7 +112,8 @@ def _avisar_urgente(pendiente) -> None:
 
 def registrar_pendiente(*, titulo: str, rol: str, tipo: str = 'ALERTA', severidad: str = 'NORMAL',
                         detalle: str = '', objeto=None, vence_en=None,
-                        clave_idempotencia: Optional[str] = None, usuario=None) -> Optional[Pendiente]:
+                        clave_idempotencia: Optional[str] = None, usuario=None,
+                        botones=None) -> Optional[Pendiente]:
     """Deja un pendiente en la bandeja. Idempotente por clave (repetirla devuelve
     el existente sin avisar de nuevo) y nunca lanza: devuelve None si no pudo."""
     try:
@@ -133,7 +139,7 @@ def registrar_pendiente(*, titulo: str, rol: str, tipo: str = 'ALERTA', severida
         logger.exception("Pendientes: no se pudo registrar «%s»", titulo)
         return None
     if severidad == 'URGENTE':
-        _avisar_urgente(pendiente)
+        _avisar_urgente(pendiente, botones)
     return pendiente
 
 

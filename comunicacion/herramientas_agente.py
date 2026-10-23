@@ -248,6 +248,59 @@ HERRAMIENTAS = [
         },
     },
     {
+        'name': 'solicitar_cambio_o_cancelacion',
+        'description': (
+            'Registra una solicitud de cambio de fecha o de cancelación de una reservación del número que '
+            'escribe y le manda un código de verificación a su correo registrado. NO cambia ni cancela nada: '
+            'Dirección decide después. Antes de usar tipo=cancelacion, ofrece SIEMPRE cambiar la fecha '
+            '(revisa una nueva con consultar_disponibilidad) y úsala solo si el cliente la rechaza.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'folio': {'type': 'string', 'description': 'Folio de la reservación, ej. COT-145 (de mi_reservacion).'},
+                'tipo': {'type': 'string', 'enum': ['cambio_fecha', 'cancelacion']},
+                'fecha_nueva': {'type': 'string', 'description': 'Solo cambio_fecha: AAAA-MM-DD, ya revisada con '
+                                                                 'consultar_disponibilidad.'},
+                'motivo': {'type': 'string', 'description': 'Opcional: motivo que dio el cliente, en pocas palabras.'},
+            },
+            'required': ['folio', 'tipo'],
+            'additionalProperties': False,
+        },
+    },
+    {
+        'name': 'confirmar_codigo_solicitud',
+        'description': (
+            'Verifica el código de 6 dígitos que el cliente recibió en su correo para su solicitud de cambio o '
+            'cancelación. Solo pásale el código que el cliente escribió; nunca lo inventes ni lo adivines.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {'codigo': {'type': 'string', 'description': 'Los 6 dígitos que escribió el cliente.'}},
+            'required': ['codigo'],
+            'additionalProperties': False,
+        },
+    },
+    {
+        'name': 'registrar_solicitud_arco',
+        'description': (
+            'Registra una solicitud de derechos ARCO (acceso, rectificación, cancelación, oposición o revocación '
+            'del consentimiento) de quien escribe. Pide antes su nombre completo y correo. No entregas ningún '
+            'dato personal por el chat: el equipo responde por correo y verifica su identidad.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'tipo': {'type': 'string', 'enum': ['ACCESO', 'RECTIFICACION', 'CANCELACION', 'OPOSICION', 'REVOCACION']},
+                'nombre': {'type': 'string', 'description': 'Nombre completo del titular.'},
+                'correo': {'type': 'string', 'description': 'Correo donde quiere recibir la respuesta.'},
+                'descripcion': {'type': 'string', 'description': 'Qué pide, en una o dos líneas.'},
+            },
+            'required': ['tipo', 'nombre', 'correo'],
+            'additionalProperties': False,
+        },
+    },
+    {
         'name': 'pasar_a_humano',
         'description': (
             'Pasa la conversación a una persona del equipo y deja de contestar. Úsala si el '
@@ -736,6 +789,78 @@ def registrar_pregunta_sin_respuesta(conv=None, pregunta=None):
                                 'ofrécele pasar con una persona.'}
 
 
+def _enmascarar(correo: str) -> str:
+    usuario, _, dominio = (correo or '').partition('@')
+    return f'{usuario[:1]}***@{dominio}' if dominio else '***'
+
+
+def solicitar_cambio_o_cancelacion(conv=None, folio=None, tipo=None, fecha_nueva=None, motivo=None):
+    """La reservación se busca solo entre las del número que escribe: un folio
+    ajeno no se distingue de uno inexistente."""
+    from comercial.services_cancelacion import CancelacionError, iniciar
+
+    if conv is None:
+        return {'error': 'Falta la conversación.'}
+    digitos = ''.join(filter(str.isdigit, str(folio or '')))
+    cot = cotizaciones_del_telefono(conv.telefono).filter(pk=int(digitos)).first() if digitos else None
+    if cot is None:
+        return {'error': 'No encuentro esa reservación en este número de WhatsApp. No des más datos de otra '
+                         'persona ni ofrezcas pasar con una persona para eso.'}
+    tipo_solicitud = {'cambio_fecha': 'CAMBIO_FECHA', 'cancelacion': 'CANCELACION'}.get(tipo)
+    nueva = None
+    if tipo_solicitud == 'CAMBIO_FECHA':
+        nueva, error = _fecha(fecha_nueva)
+        if error:
+            return {'error': error}
+    try:
+        solicitud = iniciar(cot, canal='WHATSAPP', tipo=tipo_solicitud or '', telefono=conv.telefono,
+                            motivo=str(motivo or ''), fecha_nueva=nueva)
+    except CancelacionError as e:
+        return {'error': str(e)}
+    return {
+        'ok': True, 'folio': f'COT-{cot.pk:03d}',
+        'nota': (f'Se mandó un código de 6 dígitos al correo registrado ({_enmascarar(solicitud.codigo_destino)}). '
+                 'Pídele que lo escriba aquí para continuar. Aclara que todavía NO se cambió ni se canceló nada: '
+                 'Dirección revisa y decide, y cualquier reembolso se hace solo al medio con que pagó. '
+                 'Nunca le pidas ni aceptes datos bancarios por este chat.'),
+    }
+
+
+def confirmar_codigo_solicitud(conv=None, codigo=None):
+    from comercial.models import SolicitudCancelacion
+    from comercial.services_cancelacion import CancelacionError, verificar
+
+    if conv is None:
+        return {'error': 'Falta la conversación.'}
+    solicitud = (SolicitudCancelacion.objects
+                 .filter(cotizacion__in=cotizaciones_del_telefono(conv.telefono), estado='VERIFICANDO',
+                         canal='WHATSAPP').order_by('-id').first())
+    if solicitud is None:
+        return {'error': 'No hay una solicitud esperando código en este número.'}
+    try:
+        verificar(solicitud.pk, str(codigo or ''))
+    except CancelacionError as e:
+        return {'error': str(e)}
+    return {'ok': True, 'nota': 'Código correcto. La solicitud quedó con Dirección; el cliente recibirá la '
+                                'respuesta por este medio y por correo. Todavía no se cambió ni se canceló nada.'}
+
+
+def registrar_solicitud_arco(conv=None, tipo=None, nombre=None, correo=None, descripcion=None):
+    from comunicacion.services_arco import ArcoError, registrar
+
+    if conv is None:
+        return {'error': 'Falta la conversación.'}
+    try:
+        solicitud = registrar(telefono=conv.telefono, tipo=str(tipo or ''), nombre=str(nombre or ''),
+                              correo=str(correo or ''), descripcion=str(descripcion or ''))
+    except ArcoError as e:
+        return {'error': str(e)}
+    return {'ok': True, 'folio': solicitud.folio,
+            'nota': (f'Quedó registrada con el folio {solicitud.folio}. La respuesta llega por correo en un máximo '
+                     f'de 20 días hábiles (a más tardar el {solicitud.fecha_limite:%d/%m/%Y}) y se le pedirá una '
+                     'copia de su identificación oficial por ese medio. No entregues datos por el chat.')}
+
+
 def dar_de_baja_promociones(conv=None):
     from comunicacion.services_bajas import registrar_baja
     if conv is None or registrar_baja(telefono=conv.telefono, origen='AGENTE') is None:
@@ -778,6 +903,9 @@ _EJECUTORES_DEL_CLIENTE = {
     'crear_cotizacion': crear_cotizacion,
     'registrar_pregunta_sin_respuesta': registrar_pregunta_sin_respuesta,
     'dar_de_baja_promociones': dar_de_baja_promociones,
+    'solicitar_cambio_o_cancelacion': solicitar_cambio_o_cancelacion,
+    'confirmar_codigo_solicitud': confirmar_codigo_solicitud,
+    'registrar_solicitud_arco': registrar_solicitud_arco,
 }
 
 

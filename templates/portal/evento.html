@@ -533,6 +533,16 @@
             </div>
         </div>
 
+        {% if estado == 'CONFIRMADA' %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-calendar-alt"></i> ¿Necesitas hacer un cambio?</div>
+            <p style="font-size:13px;color:#5a5852;margin-bottom:12px;">Puedes pedir un cambio de fecha o la cancelación de tu reservación. Es una solicitud: nada cambia hasta que la revisemos.</p>
+            <a href="{% url 'portal_solicitar_cancelacion' portal.token %}" class="btn btn-outline">
+                <i class="fas fa-paper-plane"></i> Solicitar cambio o cancelación
+            </a>
+        </div>
+        {% endif %}
+
         {% if facturas %}
         <div class="card">
             <div class="card-title"><i class="fas fa-file-invoice"></i> Facturas</div>

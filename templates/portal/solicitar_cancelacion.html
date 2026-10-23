@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Cambio o cancelación — {{ cotizacion.nombre_evento }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f3ef; color: #2c2b28; }
+        .header { background: #2E7D32; color: white; padding: 20px; text-align: center; }
+        .header img { max-height: 50px; margin-bottom: 8px; }
+        .header h1 { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; }
+        .header .folio { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .card-title { font-size: 16px; font-weight: 700; color: #2E7D32; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+        p { font-size: 14px; line-height: 1.6; margin-bottom: 10px; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 11px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; font-family: inherit; border: none; cursor: pointer; }
+        .btn-green { background: #2E7D32; color: white; }
+        .btn-outline { background: white; color: #2E7D32; border: 2px solid #2E7D32; }
+        label.campo { display: block; font-size: 12px; font-weight: 600; color: #5a5852; text-transform: uppercase; letter-spacing: .5px; margin: 14px 0 6px; }
+        input[type=text], input[type=date], textarea { width: 100%; padding: 11px 12px; border: 1px solid #d6d2c9; border-radius: 8px; font-size: 15px; font-family: inherit; }
+        input.codigo { letter-spacing: 6px; font-size: 20px; text-align: center; max-width: 220px; }
+        .aviso { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+        .aviso-ok { background: #E8F5E9; color: #1B5E20; border-left: 4px solid #2E7D32; }
+        .aviso-error { background: #FFEBEE; color: #b71c1c; border-left: 4px solid #e74c3c; }
+        .pequeno { font-size: 12px; color: #8a8780; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #ece8df; }
+        .opciones { display: grid; gap: 16px; }
+        .footer { text-align: center; padding: 30px 20px; font-size: 12px; color: #aaa; }
+        @media (max-width: 600px) { .btn { width: 100%; justify-content: center; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="/static/img/logo.png" alt="Quinta Ko'ox Tanil">
+        <h1>Cambio o cancelación</h1>
+        <div class="folio">COT-{{ cotizacion.pk|stringformat:"03d" }} — {{ cotizacion.nombre_evento }}</div>
+    </div>
+
+    <div class="container">
+        <p><a href="{% url 'portal_evento' portal.token %}" style="color:#2E7D32;text-decoration:none;font-weight:600;"><i class="fas fa-arrow-left"></i> Volver a mi evento</a></p>
+
+        {% if error %}<div class="aviso aviso-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>{% endif %}
+        {% if aviso %}<div class="aviso aviso-ok" role="status"><i class="fas fa-envelope"></i> {{ aviso }}</div>{% endif %}
+
+        {% if solicitud and solicitud.estado == 'VERIFICANDO' %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-key"></i> Escribe tu código</div>
+            <p>Enviamos un código de 6 dígitos al correo registrado en tu reservación. Con él enviamos tu solicitud de {{ solicitud.get_tipo_display|lower }}. Todavía no se cambia ni se cancela nada.</p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="verificar">
+                <label class="campo" for="codigo">Código</label>
+                <input type="text" id="codigo" name="codigo" class="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+                <p style="margin-top:14px;"><button type="submit" class="btn btn-green"><i class="fas fa-check"></i> Enviar solicitud</button></p>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="reenviar">
+                <button type="submit" class="btn btn-outline"><i class="fas fa-redo"></i> Enviarme otro código</button>
+            </form>
+        </div>
+        {% elif solicitud %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-hourglass-half"></i> Solicitud en revisión</div>
+            <p>Tu solicitud de {{ solicitud.get_tipo_display|lower }} está con Dirección. Te responderemos por correo y WhatsApp en un máximo de 2 días hábiles. Tu reservación sigue vigente mientras tanto.</p>
+        </div>
+        {% elif puede_solicitar %}
+        <div class="opciones">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-calendar-alt"></i> Cambiar la fecha</div>
+                <p>Conservas tu reservación y tus pagos; solo cambiamos el día, sujeto a disponibilidad y a la aprobación de Dirección. No tiene costo.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="accion" value="iniciar">
+                    <input type="hidden" name="tipo" value="CAMBIO_FECHA">
+                    <label class="campo" for="fecha_nueva">Fecha nueva</label>
+                    <input type="date" id="fecha_nueva" name="fecha_nueva" required>
+                    <p style="margin-top:14px;"><button type="submit" class="btn btn-green"><i class="fas fa-paper-plane"></i> Pedir cambio de fecha</button></p>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><i class="fas fa-ban"></i> Solicitar cancelación</div>
+                <p>Según la Política de Cancelación, el reembolso depende de cuántos días faltan para tu fecha. Se devuelve solo al medio con el que pagaste, nunca a otra cuenta.</p>
+                <table>
+                    <thead><tr><th>Anticipación</th><th>Penalización</th><th>Reembolso</th></tr></thead>
+                    <tbody>
+                    {% for fila in tabla %}<tr><td>{{ fila.0 }}</td><td>{{ fila.1 }}</td><td>{{ fila.2 }}</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+                <p class="pequeno" style="margin-top:8px;">La penalización se calcula como indica la Política vigente; Dirección confirma el importe exacto al revisar tu solicitud.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="accion" value="iniciar">
+                    <input type="hidden" name="tipo" value="CANCELACION">
+                    <label class="campo" for="motivo">Motivo (opcional)</label>
+                    <textarea id="motivo" name="motivo" rows="2" maxlength="500"></textarea>
+                    <p style="margin-top:14px;"><button type="submit" class="btn btn-outline"><i class="fas fa-paper-plane"></i> Solicitar cancelación</button></p>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <p>Esta reservación ya no admite cambios desde el portal. Escríbenos por WhatsApp y te ayudamos.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="footer">Quinta Ko'ox Tanil · Umán, Yucatán</div>
+</body>
+</html>

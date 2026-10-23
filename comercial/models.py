@@ -3030,3 +3030,77 @@ class AccionWhatsApp(models.Model):
 
     def __str__(self):
         return f'Orden {self.pk}: {self.get_tipo_display()}'
+
+
+class SolicitudCancelacion(models.Model):
+    """Solicitud de cambio de fecha o cancelación (Fase 2c, Issue #432).
+
+    Nunca cancela por sí sola: el cliente la pide (portal o Kooxi desde su
+    número registrado), verifica con un código al correo registrado y Dirección
+    decide con un botón. El token de los botones y el código se guardan con
+    hash, nunca en claro. Sin borrado: es la evidencia de quién pidió y quién
+    aprobó qué.
+    """
+    TIPO_CHOICES = [('CANCELACION', 'Cancelación'), ('CAMBIO_FECHA', 'Cambio de fecha')]
+    CANAL_CHOICES = [('PORTAL', 'Portal'), ('WHATSAPP', 'WhatsApp')]
+    ESTADO_CHOICES = [
+        ('VERIFICANDO', 'Verificando'),
+        ('ANALISIS', 'Esperando a Dirección'),
+        ('APROBADA', 'Aprobada'),
+        ('EJECUTANDO', 'Ejecutando'),
+        ('EJECUTADA', 'Ejecutada'),
+        ('RECHAZADA', 'Rechazada'),
+        ('CONTRAOFERTA', 'Contraoferta'),
+        ('ERROR', 'Con error'),
+        ('VENCIDA', 'Vencida'),
+    ]
+    ESTADOS_ABIERTOS = ('VERIFICANDO', 'ANALISIS', 'APROBADA', 'EJECUTANDO', 'ERROR')
+
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.PROTECT, related_name='solicitudes_cancelacion',
+                                   verbose_name='Cotización')
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES, verbose_name='Tipo')
+    canal = models.CharField(max_length=10, choices=CANAL_CHOICES, verbose_name='Canal')
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono del solicitante')
+    motivo = models.CharField(max_length=500, blank=True, verbose_name='Motivo')
+    fecha_nueva = models.DateField(null=True, blank=True, verbose_name='Fecha nueva')
+    fuerza_mayor = models.BooleanField(default=False, verbose_name='Caso fortuito o fuerza mayor documentado')
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='VERIFICANDO', db_index=True,
+                              verbose_name='Estado')
+
+    codigo_hash = models.CharField(max_length=128, blank=True, verbose_name='Hash del código')
+    codigo_enviado_en = models.DateTimeField(null=True, blank=True, verbose_name='Código enviado el')
+    codigo_destino = models.CharField(max_length=200, blank=True, verbose_name='Destino del código')
+    intentos = models.PositiveSmallIntegerField(default=0, verbose_name='Intentos fallidos')
+    bloqueada_hasta = models.DateTimeField(null=True, blank=True, verbose_name='Bloqueada hasta')
+    verificada_en = models.DateTimeField(null=True, blank=True, verbose_name='Verificada el')
+
+    analisis = models.JSONField(default=dict, blank=True, verbose_name='Análisis')
+    monto_reembolso = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'),
+                                          verbose_name='Reembolso propuesto')
+    token_hash = models.CharField(max_length=64, blank=True, db_index=True, verbose_name='Token (HMAC)')
+    token_vence_en = models.DateTimeField(null=True, blank=True, verbose_name='Token vence')
+
+    resuelta_en = models.DateTimeField(null=True, blank=True, verbose_name='Resuelta el')
+    resuelta_por = models.CharField(max_length=60, blank=True, verbose_name='Resuelta por')
+    detalle_ejecucion = models.TextField(blank=True, verbose_name='Detalle de la ejecución')
+
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                   verbose_name='Creado por')
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                   verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Solicitud de cancelación'
+        verbose_name_plural = 'Cancelaciones'
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['cotizacion'], name='una_solicitud_cancelacion_abierta',
+                condition=models.Q(estado__in=('VERIFICANDO', 'ANALISIS', 'APROBADA', 'EJECUTANDO', 'ERROR')),
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} de COT-{self.cotizacion_id:03d}'

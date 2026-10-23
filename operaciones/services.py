@@ -260,6 +260,26 @@ def generar_tarea_turnover(cotizacion) -> 'TareaProgramada | None':
     return tarea
 
 
+def reubicar_tareas_turnover(cotizacion, fecha_anterior) -> int:
+    """Tras un cambio de fecha aprobado: mueve a la fecha nueva las tareas de
+    preparación de la cotización que siguen sin enviarse ni completarse (la hora
+    límite y la de entrada salen de `hora_inicio`, no de la fecha, así que no se
+    recalculan). Si no queda ninguna en la fecha nueva, genera la que falte con
+    `generar_tarea_turnover`. Devuelve cuántas movió."""
+    movidas = 0
+    for tarea in TareaProgramada.objects.filter(
+            cotizacion=cotizacion, fecha=fecha_anterior, estado_operativo='PENDIENTE', completada_en__isnull=True):
+        if TareaProgramada.objects.filter(plantilla=tarea.plantilla, cotizacion=cotizacion,
+                                          fecha=cotizacion.fecha_evento).exists():
+            continue
+        tarea.fecha = cotizacion.fecha_evento
+        tarea.save(update_fields=['fecha'])
+        movidas += 1
+    if not TareaProgramada.objects.filter(cotizacion=cotizacion, fecha=cotizacion.fecha_evento).exists():
+        generar_tarea_turnover(cotizacion)
+    return movidas
+
+
 def _corresponde_hoy(plantilla: PlantillaChecklist, fecha) -> bool:
     if plantilla.cadencia == 'DIARIA':
         return True

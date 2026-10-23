@@ -77,3 +77,30 @@ def deposito_sugerido(cotizacion):
     if cotizacion.tipo_servicio == 'HOSPEDAJE':
         return DEPOSITO_POR_HABITACION * max(habitaciones_contratadas(cotizacion), 1)
     return Decimal('0.00')
+
+
+# Días naturales mínimos de cada fila de TABLA_CANCELACION (misma posición); la
+# última fila (caso fortuito) no es un tramo de fechas. Solo los umbrales viven
+# aquí: los porcentajes se leen de la tabla, nunca se repiten.
+_DESDE_DIAS = {'SERVICIO': (61, 31, 16, 0), 'HOSPEDAJE': (16, 7, 0)}
+
+
+def _porcentaje(texto):
+    return Decimal(texto.rstrip('%'))
+
+
+def condicion_cancelacion(tipo_servicio, dias, fuerza_mayor=False):
+    """Fila aplicable de `TABLA_CANCELACION` → (tramo, % de penalización, % de reembolso).
+
+    `dias` son los días naturales entre la solicitud y la fecha del evento (o la
+    llegada, en Hospedaje). Para Evento y Pasadía la penalización se calcula
+    sobre el valor total del servicio; en Hospedaje el reembolso es sobre lo
+    pagado (Política §2 y §8).
+    """
+    clave = 'HOSPEDAJE' if tipo_servicio == 'HOSPEDAJE' else 'SERVICIO'
+    filas = TABLA_CANCELACION[clave]
+    if fuerza_mayor:
+        fila = filas[-1]
+    else:
+        fila = next(f for f, desde in zip(filas, _DESDE_DIAS[clave]) if dias >= desde)
+    return fila[0], _porcentaje(fila[1]), _porcentaje(fila[2])
