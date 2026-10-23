@@ -272,6 +272,22 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-23 — **Depósito en efectivo: forma de pago SAT y traspaso Caja → Bancos** (corrección aprobada por el
+  propietario, confirmada por el contador; sin tocar `contabilidad/services.py`, Openpay ni `legal/`). **(1)**
+  `Pago.metodo='DEPOSITO'` se mandaba a 03 Transferencia en la solicitud de factura; es un depósito en efectivo en
+  ventanilla/practicaja, así que ahora es **01 Efectivo** (etiqueta «Depósito en efectivo (ventanilla)», clave
+  intacta, `comercial.0119` solo de estado). El mapeo vive en `facturacion.signals.MAPEO_FORMA_PAGO` /
+  `forma_pago_de_pago()` (fuente única, usa `_forma_pago_openpay` primero); `FormaPagoPorMetodoTest` fija la forma de
+  cada método de `Pago.METODOS` y falla si aparece uno sin definir. `manage.py revisar_forma_pago_solicitudes
+  [--desde]` es de solo lectura: lista PENDIENTE/ENVIADA cuya forma difiere de la que hoy saldría; el contador decide.
+  **(2)** Un Pago EFECTIVO carga Caja y nada registraba el depósito al banco. `contabilidad.0040` siembra la regla de
+  sistema «Depósito de efectivo a banco» (ABONO, patrón `DEPOSITO EFECTIVO*`, operación CAJA, editable en el admin).
+  `aplicar_reglas` corre después del emparejamiento con Pagos, así que un cliente que depositó directo (Pago DEPOSITO)
+  queda ligado a su pago y no recibe traspaso; además, si la contrapartida es Caja, solo asienta cuando el saldo de
+  Caja (pólizas aplicadas hasta la fecha del abono) alcanza el monto; si no, no crea póliza, lo reporta en
+  `resumen['sin_saldo_caja']` y deja un pendiente a DIRECCION (`deposito_efectivo_sin_caja:<mov>`). Las solicitudes ya
+  creadas como 03 no se tocan solas: correr el comando de revisión.
+
 - 2026-10-21 — **Renglones pendientes de la Fase 1** (Issue #428, fase 1e; el punto 3 va a revisión de Opus antes del
   merge). **(1-2, 7)** Choque de fecha, contracargo y SAT dejan su `Pendiente` URGENTE (CHOQUE_FECHA/CONTRACARGO/SAT, rol
   DIRECCION, claves `pago_fecha_ocupada:<pago>`, `contracargo:<pk>:<estado>`, `sat:<pk>:<motivo>`) y pasan
