@@ -28,6 +28,7 @@ import json
 import logging
 import threading
 from datetime import datetime, time, timedelta
+from typing import Optional
 
 import anthropic
 from django.conf import settings
@@ -37,9 +38,10 @@ from django.utils import timezone
 from django.utils.formats import date_format
 
 from comercial import services_terminal
+from cumplimiento import services_renovacion
 from operaciones.services import es_listo, marcar_listo
 
-from . import services_contador, services_direccion, services_visitas
+from . import services_contador, services_direccion, services_encuesta, services_inspeccion, services_visitas
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
@@ -272,13 +274,13 @@ def _conversacion(telefono: str, nombre: str = '') -> ConversacionWhatsApp:
     return conv
 
 
-def _guardar_mensaje(conv, direccion, texto, wamid, procesado):
+def _guardar_mensaje(conv, direccion, texto, wamid, procesado, media_id='', media_mime=''):
     """INSERT idempotente por wamid: Meta reintenta entregas."""
     try:
         with transaction.atomic():
             return MensajeWhatsApp.objects.create(
                 conversacion=conv, direccion=direccion, texto=texto[:10000],
-                wamid=wamid or None, procesado=procesado,
+                wamid=wamid or None, procesado=procesado, media_id=media_id, media_mime=media_mime,
             )
     except IntegrityError:
         logger.info("Mensaje de WhatsApp repetido omitido (wamid=%s)", wamid)
@@ -301,13 +303,14 @@ def _guardar_origen_anuncio(conv, referral) -> None:
     conv.save(update_fields=['anuncio_id', 'anuncio_url', 'anuncio_titulo', 'anuncio_clid', 'updated_at'])
 
 
-def recibir_mensaje(*, telefono, nombre, texto, wamid, referral=None):
+def recibir_mensaje(*, telefono, nombre, texto, wamid, referral=None, media_id='', media_mime=''):
     """Registra un mensaje del cliente. Devuelve la conversación si es nuevo, o None."""
     telefono = normalizar_telefono_wa(telefono)
     if not telefono:
         return None
     conv = _conversacion(telefono, nombre)
-    if _guardar_mensaje(conv, 'ENTRADA', texto, wamid, procesado=False) is None:
+    if _guardar_mensaje(conv, 'ENTRADA', texto, wamid, procesado=False,
+                        media_id=media_id, media_mime=media_mime) is None:
         return None
     _guardar_origen_anuncio(conv, referral)
     conv.ultimo_mensaje = timezone.now()
@@ -559,6 +562,32 @@ def _atender_pendientes(conversacion_id: int) -> None:
     # el flujo normal; un botón ajeno se descarta sin contestar.
     terminal = [m for m in pendientes if _atender_terminal(conv, m.texto)]
     pendientes = [m for m in pendientes if m not in terminal]
+    # Calificación de la encuesta post-evento (botón `enc:<id>:<n>` o un número 1–5).
+    for m in list(pendientes):
+        atendido, respuesta = services_encuesta.atender_respuesta(conv.telefono, m.texto)
+        if atendido:
+            if respuesta:
+                _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
+    # Cierre de trámites de cumplimiento: botón `vig:<id>:ok` y el documento nuevo de Dirección.
+    for m in [m for m in pendientes if services_renovacion.es_boton(m.texto)]:
+        respuesta = services_renovacion.atender_boton(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Reporte de la inspección del depósito en garantía (botones `insp:<id>:…`,
+    # «sin daños» y «daños <monto> …»): solo valen desde ENCARGADO o DIRECCION.
+    for m in list(pendientes):
+        atendido, respuesta = services_inspeccion.atender(conv.telefono, m.texto)
+        if atendido:
+            if respuesta:
+                _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
+    for m in [m for m in pendientes if m.media_id]:
+        respuesta = _atender_archivo(conv, m)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # «Listo» del personal con tareas de hoy sin completar (`operaciones`).
     for m in [m for m in pendientes if es_listo(m.texto)]:
         respuesta = marcar_listo(conv.telefono)
@@ -593,6 +622,19 @@ def _atender_pendientes(conversacion_id: int) -> None:
     respuesta, uso = responder(conv, texto)
     if respuesta:
         _enviar(conv, filtrar_respuesta(conv, texto, respuesta), uso=uso)
+
+
+def _atender_archivo(conv, mensaje) -> Optional[str]:
+    """Foto o PDF de un responsable del directorio. Nunca llega al agente: es el
+    documento nuevo de un trámite (Dirección) o evidencia de daños (inspección)."""
+    try:
+        atendido, respuesta = services_renovacion.recibir_documento(conv.telefono, mensaje.media_id, mensaje.texto)
+        if atendido:
+            return respuesta
+        return services_inspeccion.recibir_foto(conv.telefono, mensaje.media_id, mensaje.texto)
+    except Exception:
+        logger.exception("Agente WhatsApp: falló el archivo de %s", conv.telefono)
+        return 'No pude procesar el archivo. Intenta de nuevo o súbelo desde el ERP.'
 
 
 def _atender_terminal(conv, texto: str) -> bool:

@@ -1,0 +1,9 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Lista de compras</h2>
+
+<p>Hola {{ responsable.nombre }}, esta es la lista de compras de <strong>COT-{{ cotizacion.pk|stringformat:"03d" }}</strong>
+para el {{ cotizacion.fecha_evento|date:"d/m/Y" }} ({{ cotizacion.num_personas }} personas): {{ resumen }}.</p>
+
+<p>Va adjunta en PDF. Cuando termines las compras, toca «Ya compré» en el aviso de WhatsApp.</p>
+{% endblock %}
