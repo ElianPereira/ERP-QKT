@@ -25,7 +25,7 @@ from django.views.decorators.http import require_http_methods
 from comercial import services_terminal
 from core_erp.ratelimit import rate_limit
 
-from . import services_agente, services_pendientes, services_preguntas
+from . import services_agente, services_pendientes, services_preguntas, services_visitas
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,9 @@ def _texto(mensaje: dict) -> str:
         interactivo = mensaje.get('interactive') or {}
         respuesta = interactivo.get('button_reply') or interactivo.get('list_reply') or {}
         if services_pendientes.es_boton(respuesta.get('id')) or services_terminal.es_boton(respuesta.get('id')) \
-                or services_preguntas.es_boton(respuesta.get('id')):
-            return respuesta['id']  # botón de la bandeja o de la terminal: lo atiende _atender_pendientes
+                or services_preguntas.es_boton(respuesta.get('id')) \
+                or services_visitas.es_boton(respuesta.get('id')):
+            return respuesta['id']  # botón de la bandeja, la terminal o una visita: lo atiende _atender_pendientes
         if respuesta.get('id') in dict(services_agente.BOTONES_CONSENTIMIENTO):
             return f"[Tocó el botón «{respuesta.get('title', '')}» del mensaje de autorización]"
         return respuesta.get('title', '')
@@ -72,6 +73,7 @@ def _procesar_cambio(cambio: dict) -> set:
                 nombre=nombres.get(mensaje.get('from'), ''),
                 texto=_texto(mensaje),
                 wamid=mensaje.get('id'),
+                referral=mensaje.get('referral'),
             )
             if conv:
                 boton = ((mensaje.get('interactive') or {}).get('button_reply') or {}).get('id', '')

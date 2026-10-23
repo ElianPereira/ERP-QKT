@@ -304,6 +304,26 @@ class PaginasMovilTest(MovilBase):
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Responsables desborda en móvil:\n' + '\n'.join(problemas))
 
+    def test_horarios_y_visitas_no_desbordan(self):
+        from datetime import time, timedelta
+
+        from django.utils import timezone
+
+        from comunicacion.models import HorarioVisita, Visita
+        horario = HorarioVisita.objects.create(dia_semana=1, hora_inicio=time(16, 0), hora_fin=time(18, 0))
+        visita = Visita.objects.create(nombre='Visitante móvil', telefono='525555550021',
+                                       inicio=timezone.now() + timedelta(days=3))
+        problemas = []
+        for ruta in (reverse('admin:comunicacion_horariovisita_changelist'),
+                     reverse('admin:comunicacion_horariovisita_change', args=[horario.pk]),
+                     reverse('admin:comunicacion_visita_changelist'),
+                     reverse('admin:comunicacion_visita_change', args=[visita.pk])):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES) if '/change/' in ruta else []
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Horarios/Visitas desbordan en móvil:\n' + '\n'.join(problemas))
+
     def test_bandeja_de_pendientes_no_desborda(self):
         from django.utils import timezone
 

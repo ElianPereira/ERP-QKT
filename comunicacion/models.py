@@ -126,6 +126,12 @@ class ConversacionWhatsApp(models.Model):
     consentimiento_en = models.DateTimeField(null=True, blank=True, verbose_name='Aceptó el aviso el')
     consentimiento_wamid = models.CharField(max_length=191, blank=True, verbose_name='Mensaje con que aceptó')
     consentimiento_marketing = models.BooleanField(default=False, verbose_name='Aceptó promociones')
+    # Origen del anuncio (Fase 2a): objeto `referral` de Meta en el primer
+    # mensaje de un anuncio de clic a WhatsApp. Se guarda una vez, no se pisa.
+    anuncio_id = models.CharField(max_length=100, blank=True, db_index=True, verbose_name='Anuncio (id)')
+    anuncio_titulo = models.CharField(max_length=300, blank=True, verbose_name='Anuncio')
+    anuncio_url = models.URLField(max_length=500, blank=True, verbose_name='Enlace del anuncio')
+    anuncio_clid = models.CharField(max_length=300, blank=True, verbose_name='Clic en el anuncio (ctwa_clid)')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
 
@@ -370,6 +376,7 @@ class Pendiente(models.Model):
         ('ALERTA', 'Alerta'),
         ('PASE_HUMANO', 'Pase a humano'),
         ('QUEJA', 'Queja'),
+        ('VISITA', 'Visita'),
         ('CHOQUE_FECHA', 'Choque de fecha'),
         ('CONTRACARGO', 'Contracargo'),
         ('SAT', 'SAT'),
@@ -494,3 +501,85 @@ class ConsultaCfdi(models.Model):
 
     def __str__(self):
         return f'Consulta {self.pk} sobre {self.cfdi.uuid[:8]}'
+
+
+class HorarioVisita(models.Model):
+    """Ventana semanal en que el encargado recibe visitas a la Quinta (Fase 2a).
+
+    Kooxi parte cada ventana en citas de `duracion_minutos` y solo ofrece las
+    que no tienen una visita activa. Se desactiva, no se borra.
+    """
+    DIA_CHOICES = [(0, 'Lunes'), (1, 'Martes'), (2, 'Miércoles'), (3, 'Jueves'),
+                   (4, 'Viernes'), (5, 'Sábado'), (6, 'Domingo')]
+
+    dia_semana = models.PositiveSmallIntegerField(choices=DIA_CHOICES, verbose_name='Día de la semana')
+    hora_inicio = models.TimeField(verbose_name='Desde')
+    hora_fin = models.TimeField(verbose_name='Hasta')
+    duracion_minutos = models.PositiveSmallIntegerField(default=60, verbose_name='Duración de cada visita (min)')
+    activo = models.BooleanField(default=True, verbose_name='Activo')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Horario de visita'
+        verbose_name_plural = 'Horarios'
+        ordering = ['dia_semana', 'hora_inicio']
+
+    def __str__(self):
+        return f'{self.get_dia_semana_display()} {self.hora_inicio:%H:%M}-{self.hora_fin:%H:%M}'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.hora_inicio and self.hora_fin and self.hora_fin <= self.hora_inicio:
+            raise ValidationError({'hora_fin': 'La hora final debe ser posterior a la inicial.'})
+        if self.duracion_minutos is not None and self.duracion_minutos < 15:
+            raise ValidationError({'duracion_minutos': 'La visita debe durar al menos 15 minutos.'})
+
+
+class Visita(models.Model):
+    """Cita para conocer la Quinta. Nace POR_CONFIRMAR y solo una persona
+    (encargado o Dirección) la confirma: Kooxi nunca lo hace (Fase 2a)."""
+    ESTADO_CHOICES = [
+        ('POR_CONFIRMAR', 'Por confirmar'),
+        ('CONFIRMADA', 'Confirmada'),
+        ('RECHAZADA', 'No disponible'),
+        ('CANCELADA', 'Cancelada'),
+    ]
+    ACTIVAS = ('POR_CONFIRMAR', 'CONFIRMADA')
+
+    conversacion = models.ForeignKey(ConversacionWhatsApp, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='visitas', verbose_name='Conversación')
+    cliente = models.ForeignKey('comercial.Cliente', null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='visitas', verbose_name='Cliente')
+    nombre = models.CharField(max_length=200, verbose_name='Nombre del visitante')
+    telefono = models.CharField(max_length=20, verbose_name='Teléfono')
+    personas = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='Personas que asisten')
+    inicio = models.DateTimeField(db_index=True, verbose_name='Fecha y hora')
+    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='POR_CONFIRMAR', db_index=True,
+                              verbose_name='Estado')
+    decidida_en = models.DateTimeField(null=True, blank=True, verbose_name='Decidida')
+    decidida_por = models.CharField(max_length=100, blank=True, verbose_name='Decidida por')
+    recordatorio_en = models.DateTimeField(null=True, blank=True, verbose_name='Recordatorio enviado')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Visita'
+        verbose_name_plural = 'Visitas'
+        ordering = ['inicio']
+        constraints = [
+            # Un horario no se agenda dos veces mientras la visita siga viva.
+            models.UniqueConstraint(fields=['inicio'], condition=models.Q(estado__in=('POR_CONFIRMAR', 'CONFIRMADA')),
+                                    name='visita_unica_por_horario_activo'),
+        ]
+
+    def __str__(self):
+        return f'Visita {self.pk}: {self.nombre} {timezone.localtime(self.inicio):%d/%m/%Y %H:%M}'

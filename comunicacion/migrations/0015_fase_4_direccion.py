@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("comunicacion", "0013_pendiente_tipo_queja"),
+        ("comunicacion", "0014_fase_2a_ventas"),
         ("contabilidad", "0039_descarga_masiva_sat"),
         ("facturacion", "0012_nombres_cortos_menu_2"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
@@ -19,19 +19,7 @@ class Migration(migrations.Migration):
             model_name="pendiente",
             name="tipo",
             field=models.CharField(
-                choices=[
-                    ("ALERTA", "Alerta"),
-                    ("PASE_HUMANO", "Pase a humano"),
-                    ("QUEJA", "Queja"),
-                    ("CHOQUE_FECHA", "Choque de fecha"),
-                    ("CONTRACARGO", "Contracargo"),
-                    ("SAT", "SAT"),
-                    ("DESVIACION", "Desviación"),
-                    ("HALLAZGO", "Hallazgo"),
-                    ("CUMPLIMIENTO", "Cumplimiento"),
-                    ("CRON", "Proceso automático"),
-                    ("OTRO", "Otro"),
-                ],
+                choices=[("ALERTA", "Alerta"), ("PASE_HUMANO", "Pase a humano"), ("QUEJA", "Queja"), ("VISITA", "Visita"), ("CHOQUE_FECHA", "Choque de fecha"), ("CONTRACARGO", "Contracargo"), ("SAT", "SAT"), ("DESVIACION", "Desviación"), ("HALLAZGO", "Hallazgo"), ("CUMPLIMIENTO", "Cumplimiento"), ("CRON", "Proceso automático"), ("OTRO", "Otro")],
                 db_index=True,
                 default="ALERTA",
                 max_length=15,

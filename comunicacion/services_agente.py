@@ -39,7 +39,7 @@ from django.utils.formats import date_format
 from comercial import services_terminal
 from operaciones.services import es_listo, marcar_listo
 
-from . import services_contador, services_direccion
+from . import services_contador, services_direccion, services_visitas
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
@@ -148,8 +148,10 @@ libre: la Quinta puede no estar lista para recibirlo. Dile que contratar para ho
 equipo lo confirme, usa pasar_a_humano con el servicio, la hora y las personas, y avísale que alguien \
 le contestará por este chat.
 - Si quiere visitar o conocer la Quinta, sí se puede, siempre con cita que confirma el equipo: \
-pregúntale qué día y a qué hora, usa pasar_a_humano con esos datos y dile que alguien le confirmará \
-por este chat. Nunca confirmes tú la visita.
+consulta horarios_de_visita, ofrécele solo esos horarios y, cuando elija uno y te diga su nombre, \
+agéndalo con agendar_visita. La visita queda POR CONFIRMAR: dile que una persona del equipo la \
+confirmará por este chat y nunca la des por confirmada. Si no hay horarios, si pide uno que no está \
+en la lista o si es para hoy, usa pasar_a_humano con el día, la hora y las personas.
 - Cuando te pregunten qué incluye un paquete o nivel, usa lo que trae ver_opciones en «incluye» \
 (descripción y productos incluidos); si viene vacío, dilo y ofrece pasar con una persona.
 - Si preguntan por el precio de solo el lugar (renta sin paquete), es la opción «solo_renta» de \
@@ -283,7 +285,23 @@ def _guardar_mensaje(conv, direccion, texto, wamid, procesado):
         return None
 
 
-def recibir_mensaje(*, telefono, nombre, texto, wamid):
+def _guardar_origen_anuncio(conv, referral) -> None:
+    """Guarda el `referral` de Meta (anuncio de clic a WhatsApp) una sola vez:
+    el primero que llega manda, un mensaje posterior no lo pisa."""
+    if not isinstance(referral, dict) or conv.anuncio_id or conv.anuncio_url:
+        return
+    anuncio_id = str(referral.get('source_id') or '')[:100]
+    anuncio_url = str(referral.get('source_url') or '')[:500]
+    if not (anuncio_id or anuncio_url):
+        return
+    conv.anuncio_id = anuncio_id
+    conv.anuncio_url = anuncio_url
+    conv.anuncio_titulo = str(referral.get('headline') or '')[:300]
+    conv.anuncio_clid = str(referral.get('ctwa_clid') or '')[:300]
+    conv.save(update_fields=['anuncio_id', 'anuncio_url', 'anuncio_titulo', 'anuncio_clid', 'updated_at'])
+
+
+def recibir_mensaje(*, telefono, nombre, texto, wamid, referral=None):
     """Registra un mensaje del cliente. Devuelve la conversación si es nuevo, o None."""
     telefono = normalizar_telefono_wa(telefono)
     if not telefono:
@@ -291,6 +309,7 @@ def recibir_mensaje(*, telefono, nombre, texto, wamid):
     conv = _conversacion(telefono, nombre)
     if _guardar_mensaje(conv, 'ENTRADA', texto, wamid, procesado=False) is None:
         return None
+    _guardar_origen_anuncio(conv, referral)
     conv.ultimo_mensaje = timezone.now()
     conv.save(update_fields=['ultimo_mensaje', 'updated_at'])
     return conv
@@ -525,6 +544,13 @@ def _atender_pendientes(conversacion_id: int) -> None:
         atender = (services_direccion.atender_boton if services_direccion.es_boton(m.texto)
                    else services_contador.atender_boton)
         respuesta = atender(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Botones de una visita (`vis:<id>:ok|no`): solo el encargado o Dirección;
+    # desde otro número se descartan sin contestar y nunca llegan al agente.
+    for m in [m for m in pendientes if services_visitas.es_boton(m.texto)]:
+        respuesta = services_visitas.atender_boton(conv.telefono, m.texto)
         if respuesta:
             _enviar_automatico(conv, respuesta)
         pendientes.remove(m)
