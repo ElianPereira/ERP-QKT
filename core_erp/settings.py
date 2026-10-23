@@ -541,6 +541,7 @@ JAZZMIN_SETTINGS = {
         "comercial.FirmaContrato":          "fas fa-pen-nib",
         "comercial.DepositoGarantia":       "fas fa-lock",
         "comercial.Contracargo":            "fas fa-undo-alt",
+        "comercial.SolicitudCancelacion":   "fas fa-calendar-times",
         "comercial.BloqueoFecha":           "fas fa-calendar-times",
 
         # CONTABILIDAD
@@ -677,6 +678,7 @@ JAZZMIN_SETTINGS = {
         "comercial.OpenpayTransaccion",
         "comercial.DepositoGarantia",
         "comercial.Contracargo",
+        "comercial.SolicitudCancelacion",
         "comercial.ImagenLanding",
         "comercial.TestimonioLanding",
         "comercial.EspacioLanding",

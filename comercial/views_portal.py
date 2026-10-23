@@ -487,6 +487,52 @@ IDENTIFICACION_TIPOS_PERMITIDOS = {'image/jpeg', 'image/png', 'application/pdf'}
 IDENTIFICACION_TAMANO_MAXIMO = 8 * 1024 * 1024  # 8 MB
 
 
+@_rate_limit(key='portal_cancelacion', limit=20, window=60)
+def portal_solicitar_cancelacion(request, token):
+    """Solicitud de cambio de fecha o cancelación (Fase 2c). No hay botón que
+    cancele: se envía una solicitud, se verifica con un código al correo
+    registrado y Dirección decide. Primero se ofrece cambiar la fecha."""
+    from datetime import date
+
+    from . import reglas_contrato
+    from .models import SolicitudCancelacion
+    from .services_cancelacion import CancelacionError, enviar_codigo, iniciar, verificar
+
+    portal = _portal_vigente_o_404(token)
+    cotizacion = portal.cotizacion
+    error = aviso = None
+    abierta = SolicitudCancelacion.objects.filter(
+        cotizacion=cotizacion, estado__in=SolicitudCancelacion.ESTADOS_ABIERTOS).first()
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        try:
+            if accion == 'iniciar':
+                fecha = None
+                if request.POST.get('fecha_nueva'):
+                    try:
+                        fecha = date.fromisoformat(request.POST['fecha_nueva'])
+                    except ValueError as e:
+                        raise CancelacionError('La fecha no es válida.') from e
+                abierta = iniciar(cotizacion, canal='PORTAL', tipo=request.POST.get('tipo', ''),
+                                  motivo=request.POST.get('motivo', ''), fecha_nueva=fecha)
+                aviso = f"Te enviamos un código a {abierta.codigo_destino}. Escríbelo abajo para enviar tu solicitud."
+            elif accion == 'reenviar' and abierta is not None:
+                aviso = f"Te enviamos un código nuevo a {enviar_codigo(abierta)}."
+            elif accion == 'verificar' and abierta is not None:
+                verificar(abierta.pk, request.POST.get('codigo', ''))
+                abierta = SolicitudCancelacion.objects.get(pk=abierta.pk)
+                aviso = "Recibimos tu solicitud. Dirección la revisará y te responderemos por correo y WhatsApp."
+        except CancelacionError as e:
+            error = str(e)
+        if abierta is not None:
+            abierta.refresh_from_db()
+    return render(request, 'portal/solicitar_cancelacion.html', {
+        'portal': portal, 'cotizacion': cotizacion, 'solicitud': abierta, 'error': error, 'aviso': aviso,
+        'tabla': reglas_contrato.TABLA_CANCELACION['HOSPEDAJE' if cotizacion.tipo_servicio == 'HOSPEDAJE' else 'SERVICIO'],
+        'puede_solicitar': cotizacion.estado == 'CONFIRMADA',
+    })
+
+
 @_rate_limit(key='portal_subir_identificacion', limit=10, window=60)
 @require_POST
 def portal_subir_identificacion(request, token):

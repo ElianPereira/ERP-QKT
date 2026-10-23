@@ -66,6 +66,7 @@ from .models import (
     Proveedor,
     RecetaSubProducto,
     RecordatorioPago,
+    SolicitudCancelacion,
     SubProducto,
     Temporada,
     TestimonioLanding,
@@ -2371,6 +2372,81 @@ class ContracargoAdmin(admin.ModelAdmin):
     def estado_badge(self, obj):
         tonos = {'EN_DISPUTA': ui.ALERTA, 'GANADO': ui.EXITO, 'PERDIDO': ui.ERROR}
         return ui.badge_por_valor(obj.estado, tonos, obj.get_estado_display())
+
+
+@admin.register(SolicitudCancelacion)
+class SolicitudCancelacionAdmin(admin.ModelAdmin):
+    """Bitácora de solo lectura de cambios y cancelaciones (Fase 2c). Nace del
+    portal o de Kooxi; la decisión normal es el botón de WhatsApp de Dirección.
+    Las acciones son el respaldo cuando la ventana de 24 h estaba cerrada o el
+    botón venció, y solo las ve el superusuario."""
+    list_display = ('folio_cotizacion', 'tipo_badge', 'estado_badge', 'canal', 'reembolso_display', 'created_at')
+    list_filter = ('estado', 'tipo', 'canal', filtro_periodo('created_at', 'Creada'))
+    search_fields = ('cotizacion__nombre_evento', 'cotizacion__cliente__nombre')
+    readonly_fields = [f.name for f in SolicitudCancelacion._meta.fields
+                       if f.name not in ('id',) and not f.name.startswith(('codigo_', 'token_'))]
+    fields = readonly_fields
+    actions = ['aprobar', 'rechazar', 'reintentar']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Cotización', ordering='cotizacion')
+    def folio_cotizacion(self, obj):
+        return f'COT-{obj.cotizacion_id:03d}'
+
+    @admin.display(description='Tipo', ordering='tipo')
+    def tipo_badge(self, obj):
+        return ui.badge(obj.get_tipo_display(), ui.INFO, categoria=True)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        tonos = {'ANALISIS': ui.ALERTA, 'EJECUTADA': ui.EXITO, 'RECHAZADA': ui.NEUTRO, 'ERROR': ui.ERROR,
+                 'CONTRAOFERTA': ui.INFO, 'VERIFICANDO': ui.NEUTRO, 'VENCIDA': ui.NEUTRO}
+        return ui.badge_por_valor(obj.estado, tonos, obj.get_estado_display())
+
+    @admin.display(description='Reembolso', ordering='monto_reembolso')
+    def reembolso_display(self, obj):
+        return ui.monto(obj.monto_reembolso) if obj.tipo == 'CANCELACION' else ui.vacio(numerico=True)
+
+    def _decidir(self, request, queryset, accion):
+        from .services_cancelacion import decidir
+        if not request.user.is_superuser:
+            self.message_user(request, 'Solo Dirección (superusuario) puede resolver solicitudes.', messages.ERROR)
+            return
+        for s in queryset.filter(estado='ANALISIS'):
+            resultado = decidir(s.pk, accion, quien=f'Admin {request.user.get_username()}', usuario=request.user)
+            self.message_user(request, resultado.texto, messages.INFO)
+
+    @confirmar_accion_destructiva(
+        "¿Aprobar las solicitudes seleccionadas? Cancela la reservación y reembolsa a la tarjeta de origen "
+        "en Openpay: mueve dinero de verdad.")
+    def aprobar(self, request, queryset):
+        self._decidir(request, queryset, 'ok')
+    aprobar.short_description = 'Aprobar (cancela y reembolsa al medio de origen)'
+
+    @confirmar_accion_destructiva("¿Rechazar las solicitudes seleccionadas? Se avisa al cliente.")
+    def rechazar(self, request, queryset):
+        self._decidir(request, queryset, 'no')
+    rechazar.short_description = 'Rechazar'
+
+    @confirmar_accion_destructiva(
+        "¿Reintentar la ejecución? Solo continúa lo que falta; si Openpay pudo haber devuelto el dinero sin "
+        "registrarlo, no lo repite hasta que lo verifiques.")
+    def reintentar(self, request, queryset):
+        from .services_cancelacion import ejecutar
+        if not request.user.is_superuser:
+            self.message_user(request, 'Solo Dirección (superusuario) puede reintentar.', messages.ERROR)
+            return
+        for s in queryset.filter(estado__in=('APROBADA', 'ERROR', 'EJECUTANDO')):
+            self.message_user(request, ejecutar(s.pk, usuario=request.user).texto, messages.INFO)
+    reintentar.short_description = 'Reintentar ejecución'
 
 
 # Los 3 submódulos de Productos por línea de negocio (Eventos/Pasadía/

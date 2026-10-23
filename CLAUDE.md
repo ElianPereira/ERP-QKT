@@ -272,6 +272,49 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-23 — **Fase 2c: solicitud de cambio/cancelación, reembolso al medio de origen y ARCO por Kooxi** (Issue #432;
+  zonas restringidas autorizadas por el propietario solo para este alcance: `services_openpay.py` y `legal/`;
+  `views_openpay.py` y `contabilidad/services.py` **no se tocaron**; `legal/` tampoco: ARCO escribe en
+  `SolicitudARCO` sin cambiar sus modelos). **No hay botón de cancelar.** `comercial.SolicitudCancelacion`
+  (`comercial.0119`, una tabla nueva, `UniqueConstraint` parcial: una solicitud abierta por cotización) y
+  `comercial/services_cancelacion.py`: **(1)** el cliente la pide en el portal (`/mi-evento/<token>/solicitud/`, token)
+  o por Kooxi (`solicitar_cambio_o_cancelacion`, **solo desde el número registrado**, últimos 10 dígitos; el folio se
+  busca solo entre las cotizaciones de ese número); ambos exigen el código de 6 dígitos al **correo registrado**
+  (hasheado como `services_firma`, nunca en bitácora; 10 min; **3 intentos y bloqueo de 30 min**; el intento fallido se
+  guarda fuera del `atomic()`). El portal ofrece primero el cambio de fecha; el prompt de Kooxi lo exige antes de
+  `tipo=cancelacion`. **(2)** Con código bueno: `calcular()` → pendiente URGENTE a DIRECCION con
+  `[Aprobar $X] [Rechazar] [Contraoferta]` (`canc:<token>:ok|no|co`; `registrar_pendiente` ganó el parámetro
+  `botones`). El % sale de `reglas_contrato.condicion_cancelacion` (lee `TABLA_CANCELACION`; solo los umbrales de días
+  viven en `_DESDE_DIAS`, un test los ata fila por fila). Base según la Política: Evento/Pasadía = penalización sobre el
+  **valor total**, `reembolso = max(0, pagado − penalización)`; Hospedaje = % de lo **pagado**; dentro de 5 días hábiles
+  tras la firma del contrato = 100 % (NOM-174). El análisis incluye pagos, reembolsos previos, solicitudes previas y
+  demanda de la misma fecha (revendible alta/media/baja por días). **(3)** Solo el teléfono **activo** de DIRECCION
+  decide (`telefono_de`, un número aún pendiente de ACEPTO no); token HMAC de un uso, 10 min, `select_for_update` y
+  revalidación: si el saldo cambió desde la propuesta **no ejecuta** con la cifra vieja, manda una propuesta nueva con
+  otro token. Botón de otro número = se descarta sin contestar ni llegar al agente. **(4) Ejecución**: refund de
+  Openpay sobre el **cargo original** con `reembolsar_monto_openpay` (ahora con `descripcion`), un `Pago` REEMBOLSO por
+  cargo (referencia `CANC-<solicitud>-<pago>`, mismo método que el origen) y luego `cambiar_estado('CANCELADA')`.
+  Lo que no es tarjeta de Openpay (SPEI, efectivo, terminal) **no mueve nada**: pendiente URGENTE «Transferir $X» para
+  que Dirección verifique una cuenta a nombre del titular; ningún dato de cuenta del solicitante entra al ERP.
+  **Idempotencia**: estado EJECUTANDO tomado bajo candado; cada reembolso de tarjeta se anota en `analisis['ejecucion']`
+  como `iniciado` **antes** de llamar a Openpay y `ok` después; si un reintento encuentra `iniciado` sin `Pago`, **no
+  repite** (Openpay pudo devolverlo): falla a ERROR y pide verificar. Cambio de fecha: `update()` de `fecha_evento`/
+  `fecha_salida` (sin recotizar) tras revalidar disponibilidad; no toca tareas operativas ya generadas. Avisos al
+  cliente: texto fijo por correo y WhatsApp, nunca el motivo que escribió. Admin «Cancelaciones» de solo lectura con
+  acciones de respaldo (aprobar/rechazar/reintentar, solo superusuario, con `confirmar_accion_destructiva`) para cuando
+  la ventana de 24 h estaba cerrada o el botón venció. **(5) ARCO**: `registrar_solicitud_arco` →
+  `comunicacion/services_arco.py` crea la `SolicitudARCO` (plazo de 20 días hábiles del propio modelo; máx. 2 por
+  número al día), pendiente URGENTE con el borrador del acuse (texto fijo, sin nombre ni texto del cliente) y botón
+  `arco:<id>-<firma>:ok`; el acuse (pide copia de su identificación **por correo**: el webhook no recibe archivos) sale
+  solo cuando el teléfono activo de DIRECCION lo toca, una sola vez, y deja la solicitud EN_TRAMITE; la resolución de
+  fondo se captura en el admin de `legal`. **(6) Evals**: 7 casos (suplantación, inyección, cuenta nueva, código ajeno,
+  cancelación legítima, ARCO y ARCO de tercero) y el campo `no_debe_usar`. **Hallazgo para Dirección/Opus (no se
+  corrigió: es `contabilidad/signals.py`)**: `crear_polizas_reversion_cancelacion` revierte la póliza de **todos** los
+  pagos al cancelar (incluidas las de los reembolsos), así que una cancelación con retención deja en cero lo cobrado en
+  libros aunque el banco conserve la parte retenida; el ERP reembolsa primero y cancela después para que al menos no se
+  duplique el egreso. Decidir con el contador cómo reconocer el ingreso retenido. Corre en el deploy: `comercial.0119`
+  (tabla nueva, aditiva).
+
 - 2026-10-21 — **Renglones pendientes de la Fase 1** (Issue #428, fase 1e; el punto 3 va a revisión de Opus antes del
   merge). **(1-2, 7)** Choque de fecha, contracargo y SAT dejan su `Pendiente` URGENTE (CHOQUE_FECHA/CONTRACARGO/SAT, rol
   DIRECCION, claves `pago_fecha_ocupada:<pago>`, `contracargo:<pk>:<estado>`, `sat:<pk>:<motivo>`) y pasan
