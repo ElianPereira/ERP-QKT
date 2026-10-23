@@ -272,6 +272,35 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-23 — **Ventas: origen del anuncio, seguimiento en 3 pasos y agenda de visitas** (Issue #430, fase 2a; migración
+  `comunicacion.0014`, aditiva: 4 columnas en `ConversacionWhatsApp`, 2 tablas y un choice nuevo de `Pendiente`).
+  **(1) Anuncio**: el webhook pasa el `referral` del mensaje a `recibir_mensaje`, que lo guarda **una sola vez**
+  (`anuncio_id/titulo/url/clid`; el primero manda, un segundo anuncio no lo pisa). Columna y filtro «Origen» en
+  Conversaciones y tabla «Conversaciones por anuncio» en el tablero (con cuántas acabaron en cotización y pago).
+  **(2) Seguimiento**: `enviar_seguimientos` ahora hace día 1, día 3 y «fecha por ocuparse» (`PASOS` en
+  `services_notificaciones`). DIA3 conserva `META_WA_PLANTILLA_SEGUIMIENTO` y su clave histórica
+  (`seguimiento:<cot>:whatsapp`); los nuevos usan `META_WA_PLANTILLA_SEGUIMIENTO_DIA1` / `_FECHA` y claves
+  `seguimiento:<cot>:<paso>:whatsapp`. «Fecha por ocuparse» = faltan ≤ 14 días **o** otra cotización de la misma fecha
+  ya tiene pagos sin haber apartado la fecha (si la otra ya está CONFIRMADA la fecha no está libre y no se manda);
+  solo cotizaciones de 1 a 45 días de creadas, para no reabrir viejas al activar la plantilla. **Reglas de secuencia**:
+  a lo más un seguimiento por cotización cada 20 h y **nunca hacia atrás** (con un paso más urgente ya enviado, no sale
+  el anterior). Sin plantilla ese paso no sale. Textos propuestos en `docs/whatsapp_plantillas_seguimiento_2a.md`.
+  **(3) Visitas**: `HorarioVisita` (ventanas semanales que captura el encargado, partidas en citas de N min) y `Visita`
+  (POR_CONFIRMAR → CONFIRMADA / RECHAZADA / CANCELADA; `UniqueConstraint` condicional sobre `inicio` para que un horario
+  vivo no se agende dos veces). Herramientas `horarios_de_visita` y `agendar_visita`: Kooxi solo puede agendar un horario
+  que `horarios_disponibles` ofrece (≥ 3 h de anticipación; lo de hoy y lo fuera de lista va a `pasar_a_humano`), un
+  cliente tiene una visita viva a la vez y **la visita nunca nace confirmada** (regla del 2026-10-17). El aviso al
+  ENCARGADO (y a Dirección si tiene la copia en vivo) lleva botones `vis:<id>:ok|no` y deja un `Pendiente` NORMAL tipo
+  VISITA que vence a las 4 h o al inicio de la cita; los botones valen solo desde el teléfono **activo** del ENCARGADO o
+  de DIRECCION (misma decisión estricta que la terminal: un número aún sin «ACEPTO» no decide). Al decidir se resuelve
+  el pendiente y se avisa al cliente (texto libre con ventana abierta; con la ventana cerrada, `META_WA_PLANTILLA_VISITA`).
+  Recordatorio de víspera: `enviar_recordatorios_visitas`, diario 18:00 en el programador (una vez, solo CONFIRMADAS).
+  Admin «Horarios» y «Visitas» (acciones confirmar / no disponible / cancelar con confirmación; sin alta de visitas ni
+  borrado). Evals `visita_agenda` y `visita_hoy`; el eval `visita` acepta ahora `horarios_de_visita` o `pasar_a_humano`.
+  **Pendiente del propietario/Railway**: capturar los horarios del encargado, someter y aprobar las plantillas en Meta,
+  definir las 3 variables nuevas (ver `docs/variables_entorno.md`) y correr `evaluar_agente --ejecutar` con la llave de
+  Anthropic antes de abrir las visitas al público (los evals no se corrieron aquí: sin `ANTHROPIC_API_KEY`).
+
 - 2026-10-21 — **Renglones pendientes de la Fase 1** (Issue #428, fase 1e; el punto 3 va a revisión de Opus antes del
   merge). **(1-2, 7)** Choque de fecha, contracargo y SAT dejan su `Pendiente` URGENTE (CHOQUE_FECHA/CONTRACARGO/SAT, rol
   DIRECCION, claves `pago_fecha_ocupada:<pago>`, `contracargo:<pk>:<estado>`, `sat:<pk>:<motivo>`) y pasan

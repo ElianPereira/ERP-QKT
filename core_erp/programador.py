@@ -125,6 +125,7 @@ TAREAS = (
     Tarea('enviar_seguimientos', 'enviar_seguimientos', diario('10:52'), 6 * HORA),
     Tarea('resumir_preguntas_agente', 'resumir_preguntas_agente', semanal(LUNES, '08:52'), 24 * HORA,
           ('--aplicar',)),
+    Tarea('enviar_recordatorios_visitas', 'enviar_recordatorios_visitas', diario('18:00'), 3 * HORA),
     Tarea('revisar_pendientes', 'revisar_pendientes', cada(15), 45 * MIN),
     Tarea('enviar_resumen_diario', 'enviar_resumen_diario', diario('08:00'), 6 * HORA),
 )
