@@ -37,7 +37,7 @@ from core_erp.impuestos import centavos
 from .models import FotoInspeccion, InspeccionDeposito, Pendiente
 from .services import descargar_media_wa, normalizar_telefono_wa
 from .services_pendientes import _base_url, _enviar_aviso, registrar_pendiente, resolver
-from .services_responsables import SIN_DESTINO, rol_de_telefono, telefono_de, telefonos_aviso
+from .services_responsables import SIN_DESTINO, telefono_de, telefonos_aviso
 
 logger = logging.getLogger(__name__)
 
@@ -269,11 +269,20 @@ def _elegir(folio: Optional[str]):
     return abiertas[0], None
 
 
+def rol_activo(telefono: str) -> Optional[str]:
+    """Rol del que `telefono` es el número ACTIVO (ya confirmó «ACEPTO»). Un
+    número pendiente de aceptar no mueve dinero, igual que en la terminal."""
+    tel = normalizar_telefono_wa(telefono)
+    if not tel:
+        return None
+    return next((rol for rol in ROLES_QUE_REPORTAN if tel == telefono_de(rol)), None)
+
+
 def atender(telefono: str, texto: str):
     """Texto o botón de la inspección. Devuelve `(atendido, respuesta)`:
     `atendido` es False si el mensaje no es de este flujo (sigue su camino)."""
     texto = (texto or '').strip()
-    rol = rol_de_telefono(telefono)
+    rol = rol_activo(telefono)
     boton = RE_BOTON.match(texto)
     if boton:
         return True, _atender_boton(rol, int(boton.group(1)), boton.group(2))
@@ -411,7 +420,7 @@ def _avisar_retencion(inspeccion, resultado) -> None:
 def recibir_foto(telefono: str, media_id: str, pie: str = '') -> Optional[str]:
     """Foto o PDF del personal: se guarda como evidencia de la inspección que
     corresponde. Devuelve el texto con que contestarle."""
-    if rol_de_telefono(telefono) not in ROLES_QUE_REPORTAN:
+    if rol_activo(telefono) is None:
         return None
     coincidencia = re.search(r'cot(?:izaci[oó]n)?\s*-?(\d+)', pie or '', re.IGNORECASE)
     inspeccion, aclaracion = _elegir(coincidencia.group(1) if coincidencia else None)

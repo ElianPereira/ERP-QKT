@@ -417,6 +417,60 @@ class RetencionTest(Base):
         self.assertFalse(FotoInspeccion.objects.exists())
 
 
+PENDIENTE_ENC = '9992220000'
+PENDIENTE_DIR = '9993330000'
+
+
+@override_settings(STORAGES=STORAGES_TEST)
+@patch('comercial.services_openpay.requests.post', return_value=OK)
+class NumeroPendienteDeAceptoTest(Base):
+    """Un número que aún no contesta «ACEPTO» no mueve dinero (ni libera ni retiene)."""
+
+    def setUp(self):
+        super().setUp()
+        Responsable.objects.filter(rol='ENCARGADO').update(telefono_pendiente=PENDIENTE_ENC)
+        Responsable.objects.filter(rol='DIRECCION').update(telefono_pendiente=PENDIENTE_DIR)
+        self.con_tarjeta()
+
+    def sin_efecto(self, post, inspeccion, estado):
+        post.assert_not_called()
+        self.assertEqual(self.movimientos(), set())
+        inspeccion.refresh_from_db()
+        self.assertEqual(inspeccion.estado, estado)
+
+    def test_sin_danos_y_boton_ok_de_encargado_pendiente(self, post):
+        inspeccion = self.inspeccion()
+        self.assertEqual(svc.atender(PENDIENTE_ENC, 'sin daños'), (False, None))
+        self.assertEqual(svc.atender(PENDIENTE_ENC, f'insp:{inspeccion.pk}:ok'), (True, None))
+        self.assertEqual(svc.atender(PENDIENTE_DIR, f'insp:{inspeccion.pk}:ok'), (True, None))
+        self.sin_efecto(post, inspeccion, 'SOLICITADA')
+
+    def test_reporte_de_daños_y_fotos_de_pendientes(self, post):
+        inspeccion = self.inspeccion()
+        for tel in (PENDIENTE_ENC, PENDIENTE_DIR):
+            self.assertEqual(svc.atender(tel, 'daños 300 vidrio roto'), (False, None))
+            with patch.object(svc, 'descargar_media_wa') as descargar:
+                self.assertIsNone(svc.recibir_foto(tel, 'm1', ''))
+            descargar.assert_not_called()
+        self.assertFalse(FotoInspeccion.objects.exists())
+        self.sin_efecto(post, inspeccion, 'SOLICITADA')
+
+    @override_settings(ERP_DEPOSITO_TOPE_RETENCION='500')
+    def test_direccion_pendiente_no_aprueba_ni_rechaza(self, post):
+        inspeccion = self.inspeccion(estado='POR_APROBAR', monto_danos=Decimal('700.00'), desglose='vidrio roto')
+        self.assertEqual(svc.atender(PENDIENTE_DIR, f'insp:{inspeccion.pk}:apr'), (True, None))
+        self.assertEqual(svc.atender(PENDIENTE_DIR, f'insp:{inspeccion.pk}:rech'), (True, None))
+        self.assertEqual(svc.atender(PENDIENTE_ENC, f'insp:{inspeccion.pk}:apr'), (True, None))
+        self.sin_efecto(post, inspeccion, 'POR_APROBAR')
+
+    def test_los_numeros_activos_siguen_funcionando(self, post):
+        inspeccion = self.inspeccion()
+        self.assertEqual(svc.rol_activo(ENCARGADO), 'ENCARGADO')
+        self.assertEqual(svc.rol_activo(DIRECCION), 'DIRECCION')
+        self.assertIsNone(svc.rol_activo(PENDIENTE_ENC))
+        self.assertIn('sin daños', svc.atender(ENCARGADO, f'insp:{inspeccion.pk}:ok')[1])
+
+
 class AtoradasTest(Base):
     @patch('comercial.services_openpay.requests.post', return_value=OK)
     def test_avisa_reportes_incompletos_y_liquidaciones_detenidas(self, post):
