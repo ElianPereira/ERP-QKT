@@ -5,8 +5,11 @@ Registra cada email/WhatsApp/SMS/notificación enviado.
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
+
+from core_erp.storages_qkt import storage_privado
 
 
 class ComunicacionCliente(models.Model):
@@ -27,6 +30,9 @@ class ComunicacionCliente(models.Model):
         ('FACTURA', 'Factura emitida'),
         ('AGENTE_IA', 'Respuesta del agente de WhatsApp'),
         ('SEGUIMIENTO', 'Seguimiento de cotización sin pago'),
+        ('ENCUESTA', 'Encuesta de satisfacción'),
+        ('REACTIVACION', 'Reactivación por aniversario'),
+        ('COMPRAS', 'Lista de compras del evento'),
         ('OTRO', 'Otro'),
     ]
     ESTADO_CHOICES = [
@@ -126,6 +132,12 @@ class ConversacionWhatsApp(models.Model):
     consentimiento_en = models.DateTimeField(null=True, blank=True, verbose_name='Aceptó el aviso el')
     consentimiento_wamid = models.CharField(max_length=191, blank=True, verbose_name='Mensaje con que aceptó')
     consentimiento_marketing = models.BooleanField(default=False, verbose_name='Aceptó promociones')
+    # Origen del anuncio (Fase 2a): objeto `referral` de Meta en el primer
+    # mensaje de un anuncio de clic a WhatsApp. Se guarda una vez, no se pisa.
+    anuncio_id = models.CharField(max_length=100, blank=True, db_index=True, verbose_name='Anuncio (id)')
+    anuncio_titulo = models.CharField(max_length=300, blank=True, verbose_name='Anuncio')
+    anuncio_url = models.URLField(max_length=500, blank=True, verbose_name='Enlace del anuncio')
+    anuncio_clid = models.CharField(max_length=300, blank=True, verbose_name='Clic en el anuncio (ctwa_clid)')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
 
@@ -169,6 +181,11 @@ class MensajeWhatsApp(models.Model):
     # cotización sin pago): no es respuesta del modelo, así que la próxima
     # respuesta del agente lo recibe como contexto en vez de cortar ahí.
     automatico = models.BooleanField(default=False, verbose_name='Automático')
+    # Archivo adjunto (foto o PDF) que mandó un responsable del directorio
+    # (Fase 3): solo guarda la referencia de Meta; el archivo se descarga al
+    # atenderlo y nunca llega al agente.
+    media_id = models.CharField(max_length=191, blank=True, verbose_name='ID del archivo en Meta')
+    media_mime = models.CharField(max_length=80, blank=True, verbose_name='Tipo del archivo')
     # Consumo de la respuesta del modelo (solo AGENTE escritos por la IA),
     # sumado entre las vueltas de herramientas de esa respuesta.
     modelo = models.CharField(max_length=60, blank=True, verbose_name='Modelo de IA')
@@ -370,10 +387,15 @@ class Pendiente(models.Model):
         ('ALERTA', 'Alerta'),
         ('PASE_HUMANO', 'Pase a humano'),
         ('QUEJA', 'Queja'),
+        ('VISITA', 'Visita'),
         ('CHOQUE_FECHA', 'Choque de fecha'),
         ('CONTRACARGO', 'Contracargo'),
         ('SAT', 'SAT'),
+        ('DESVIACION', 'Desviación'),
+        ('HALLAZGO', 'Hallazgo'),
         ('CUMPLIMIENTO', 'Cumplimiento'),
+        ('COMPRAS', 'Compras'),
+        ('DEPOSITO', 'Depósito en garantía'),
         ('CRON', 'Proceso automático'),
         ('OTRO', 'Otro'),
     ]
@@ -421,3 +443,250 @@ class Pendiente(models.Model):
     @property
     def vencido(self) -> bool:
         return self.estado == 'ABIERTO' and self.vence_en < timezone.now()
+
+
+class Hallazgo(models.Model):
+    """Algo que el ERP detectó y propone a Dirección en el resumen semanal (Issue #431).
+
+    La clave identifica el hallazgo (p. ej. `margen:<producto>`): uno ignorado o
+    convertido en tarea no se vuelve a proponer. No se borra. El detalle nunca
+    lleva texto de mensajes de clientes.
+    """
+    TIPO_CHOICES = [
+        ('MARGEN', 'Margen negativo'),
+        ('SIN_FACTURA', 'Pago sin factura'),
+        ('SIN_SEGUIMIENTO', 'Cotización sin seguimiento'),
+        ('PRECIO_ENTRAR', 'Servicio fuera del plan'),
+        ('DIAS_LIBRES', 'Días libres'),
+    ]
+    ESTADO_CHOICES = [('PROPUESTO', 'Propuesto'), ('TAREA', 'Tarea creada'), ('IGNORADO', 'Ignorado')]
+
+    clave = models.CharField(max_length=191, unique=True, verbose_name='Clave')
+    tipo = models.CharField(max_length=16, choices=TIPO_CHOICES, db_index=True, verbose_name='Tipo')
+    titulo = models.CharField(max_length=200, verbose_name='Hallazgo')
+    detalle = models.TextField(blank=True, verbose_name='Detalle')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PROPUESTO', db_index=True,
+                              verbose_name='Estado')
+    pendiente = models.ForeignKey(Pendiente, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                  verbose_name='Pendiente creado')
+    propuesto_en = models.DateTimeField(null=True, blank=True, verbose_name='Propuesto')
+    resuelto_en = models.DateTimeField(null=True, blank=True, verbose_name='Resuelto')
+    resuelto_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+', verbose_name='Resuelto por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Hallazgo'
+        verbose_name_plural = 'Hallazgos'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Hallazgo {self.pk}: {self.titulo}'[:120]
+
+
+class ConsultaCfdi(models.Model):
+    """Pregunta al contador sobre un CFDI emitido que el ERP no pudo ligar solo (Issue #431).
+
+    Bitácora e idempotencia: cada CFDI se pregunta una vez y, si no hay respuesta
+    en 3 días, una vez más. Sin menú propio: el comprobante se revisa en
+    Contabilidad → Comprobantes.
+    """
+    ESTADO_CHOICES = [('PREGUNTADA', 'Preguntada'), ('LIGADA', 'Ligada'), ('NINGUNA', 'Ninguna coincide')]
+
+    cfdi = models.ForeignKey('contabilidad.CfdiSAT', on_delete=models.PROTECT, related_name='consultas',
+                             verbose_name='Comprobante')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PREGUNTADA', db_index=True,
+                              verbose_name='Estado')
+    candidatas = models.CharField(max_length=100, blank=True, verbose_name='Solicitudes candidatas',
+                                  help_text='Ids de solicitud de factura separados por coma.')
+    solicitud = models.ForeignKey('facturacion.SolicitudFactura', null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name='+', verbose_name='Solicitud elegida')
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono que respondió')
+    respondida_en = models.DateTimeField(null=True, blank=True, verbose_name='Respondida')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='Preguntada')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizada')
+
+    class Meta:
+        verbose_name = 'Consulta al contador'
+        verbose_name_plural = 'Consultas'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Consulta {self.pk} sobre {self.cfdi.uuid[:8]}'
+
+
+class HorarioVisita(models.Model):
+    """Ventana semanal en que el encargado recibe visitas a la Quinta (Fase 2a).
+
+    Kooxi parte cada ventana en citas de `duracion_minutos` y solo ofrece las
+    que no tienen una visita activa. Se desactiva, no se borra.
+    """
+    DIA_CHOICES = [(0, 'Lunes'), (1, 'Martes'), (2, 'Miércoles'), (3, 'Jueves'),
+                   (4, 'Viernes'), (5, 'Sábado'), (6, 'Domingo')]
+
+    dia_semana = models.PositiveSmallIntegerField(choices=DIA_CHOICES, verbose_name='Día de la semana')
+    hora_inicio = models.TimeField(verbose_name='Desde')
+    hora_fin = models.TimeField(verbose_name='Hasta')
+    duracion_minutos = models.PositiveSmallIntegerField(default=60, verbose_name='Duración de cada visita (min)')
+    activo = models.BooleanField(default=True, verbose_name='Activo')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Horario de visita'
+        verbose_name_plural = 'Horarios'
+        ordering = ['dia_semana', 'hora_inicio']
+
+    def __str__(self):
+        return f'{self.get_dia_semana_display()} {self.hora_inicio:%H:%M}-{self.hora_fin:%H:%M}'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.hora_inicio and self.hora_fin and self.hora_fin <= self.hora_inicio:
+            raise ValidationError({'hora_fin': 'La hora final debe ser posterior a la inicial.'})
+        if self.duracion_minutos is not None and self.duracion_minutos < 15:
+            raise ValidationError({'duracion_minutos': 'La visita debe durar al menos 15 minutos.'})
+
+
+class Visita(models.Model):
+    """Cita para conocer la Quinta. Nace POR_CONFIRMAR y solo una persona
+    (encargado o Dirección) la confirma: Kooxi nunca lo hace (Fase 2a)."""
+    ESTADO_CHOICES = [
+        ('POR_CONFIRMAR', 'Por confirmar'),
+        ('CONFIRMADA', 'Confirmada'),
+        ('RECHAZADA', 'No disponible'),
+        ('CANCELADA', 'Cancelada'),
+    ]
+    ACTIVAS = ('POR_CONFIRMAR', 'CONFIRMADA')
+
+    conversacion = models.ForeignKey(ConversacionWhatsApp, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='visitas', verbose_name='Conversación')
+    cliente = models.ForeignKey('comercial.Cliente', null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='visitas', verbose_name='Cliente')
+    nombre = models.CharField(max_length=200, verbose_name='Nombre del visitante')
+    telefono = models.CharField(max_length=20, verbose_name='Teléfono')
+    personas = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='Personas que asisten')
+    inicio = models.DateTimeField(db_index=True, verbose_name='Fecha y hora')
+    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='POR_CONFIRMAR', db_index=True,
+                              verbose_name='Estado')
+    decidida_en = models.DateTimeField(null=True, blank=True, verbose_name='Decidida')
+    decidida_por = models.CharField(max_length=100, blank=True, verbose_name='Decidida por')
+    recordatorio_en = models.DateTimeField(null=True, blank=True, verbose_name='Recordatorio enviado')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Visita'
+        verbose_name_plural = 'Visitas'
+        ordering = ['inicio']
+        constraints = [
+            # Un horario no se agenda dos veces mientras la visita siga viva.
+            models.UniqueConstraint(fields=['inicio'], condition=models.Q(estado__in=('POR_CONFIRMAR', 'CONFIRMADA')),
+                                    name='visita_unica_por_horario_activo'),
+        ]
+
+    def __str__(self):
+        return f'Visita {self.pk}: {self.nombre} {timezone.localtime(self.inicio):%d/%m/%Y %H:%M}'
+
+
+class EncuestaPostEvento(models.Model):
+    """Encuesta corta de satisfacción un día después del servicio (Fase 3).
+
+    Una por cotización (la unicidad es la idempotencia del envío). La
+    calificación llega por botón (`enc:<id>:<1-5>`) o como un número 1–5 en
+    texto desde el mismo teléfono. No guarda texto libre del cliente.
+    """
+    ESTADO_CHOICES = [('ENVIADA', 'Enviada'), ('CONTESTADA', 'Contestada')]
+
+    cotizacion = models.OneToOneField('comercial.Cotizacion', on_delete=models.CASCADE,
+                                      related_name='encuesta', verbose_name='Cotización')
+    telefono = models.CharField(max_length=20, db_index=True, verbose_name='Teléfono')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='ENVIADA', db_index=True,
+                              verbose_name='Estado')
+    calificacion = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)],
+        verbose_name='Calificación')
+    enviada_en = models.DateTimeField(default=timezone.now, verbose_name='Enviada')
+    contestada_en = models.DateTimeField(null=True, blank=True, verbose_name='Contestada')
+    resena_solicitada = models.BooleanField(default=False, verbose_name='Reseña solicitada')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Encuesta'
+        verbose_name_plural = 'Encuestas'
+        ordering = ['-enviada_en', '-id']
+
+    def __str__(self):
+        return f'Encuesta COT-{self.cotizacion_id:03d}'
+
+
+class InspeccionDeposito(models.Model):
+    """Inspección posterior al servicio que decide qué pasa con el depósito en
+    garantía (Fase 3). MUEVE DINERO: la devolución o retención solo ocurre por
+    `comercial.services_deposito.liquidar`, ver `comunicacion.services_inspeccion`.
+    """
+    ESTADO_CHOICES = [
+        ('SOLICITADA', 'Esperando al encargado'),
+        ('DANOS', 'Daños en reporte'),
+        ('POR_APROBAR', 'Por aprobar por Dirección'),
+        ('PROCESANDO', 'Procesando'),
+        ('LIQUIDADA', 'Liquidada'),
+        ('MANUAL', 'Requiere atención manual'),
+    ]
+    RESOLUCION_CHOICES = [
+        ('SIN_DANOS', 'Sin daños (el encargado lo confirmó)'),
+        ('SIN_REPORTE', 'Sin reporte en el plazo'),
+        ('RETENCION_ENCARGADO', 'Retención dentro del tope'),
+        ('RETENCION_APROBADA', 'Retención aprobada por Dirección'),
+        ('RETENCION_RECHAZADA', 'Retención rechazada por Dirección'),
+    ]
+
+    deposito = models.OneToOneField('comercial.DepositoGarantia', on_delete=models.PROTECT,
+                                    related_name='inspeccion', verbose_name='Depósito')
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='SOLICITADA', db_index=True,
+                              verbose_name='Estado')
+    resolucion = models.CharField(max_length=20, choices=RESOLUCION_CHOICES, blank=True, verbose_name='Resolución')
+    solicitada_en = models.DateTimeField(default=timezone.now, verbose_name='Solicitada')
+    vence_en = models.DateTimeField(db_index=True, verbose_name='Devolución automática',
+                                    help_text='Si nadie reporta daños antes de esta hora, el depósito se devuelve solo.')
+    reportado_por = models.CharField(max_length=20, blank=True, verbose_name='Reportó (teléfono)')
+    monto_danos = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                                      verbose_name='Monto de daños reportado')
+    desglose = models.TextField(blank=True, verbose_name='Descripción de los daños')
+    nota = models.TextField(blank=True, verbose_name='Resultado')
+    resuelto_en = models.DateTimeField(null=True, blank=True, verbose_name='Resuelta')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Inspección'
+        verbose_name_plural = 'Inspecciones'
+        ordering = ['-solicitada_en', '-id']
+
+    def __str__(self):
+        return f'Inspección COT-{self.deposito.cotizacion_id:03d}'
+
+
+class FotoInspeccion(models.Model):
+    """Foto de evidencia de daños que mandó el encargado por WhatsApp."""
+    inspeccion = models.ForeignKey(InspeccionDeposito, on_delete=models.CASCADE, related_name='fotos',
+                                   verbose_name='Inspección')
+    archivo = models.FileField(upload_to='comunicacion/inspecciones/', storage=storage_privado,
+                               verbose_name='Archivo')
+    media_id = models.CharField(max_length=191, blank=True, verbose_name='ID del archivo en Meta')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Recibida')
+
+    class Meta:
+        verbose_name = 'Foto de inspección'
+        verbose_name_plural = 'Fotos'
+        ordering = ['id']

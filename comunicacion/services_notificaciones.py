@@ -16,9 +16,11 @@ Reglas que sostienen todo el módulo:
   aprobada; fuera de la ventana de 24 h Meta rechaza el texto libre con 131047.
 """
 import logging
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.utils import timezone
 
 from .services import (
     alertar_equipo_email,
@@ -912,31 +914,99 @@ def alertar_equipo_evidencia_automatica(contracargo):
     )
 
 
-# ──────────────────────── Seguimiento sin pago (#366) ───────────────────────
+# ──────────────────────── Seguimiento sin pago (#366, Fase 2a) ──────────────
 
 # Margen para recuperar una corrida que no se hizo, sin escribirle a quien
 # cotizó hace semanas cuando el cron se activa por primera vez.
 SEGUIMIENTO_MARGEN_DIAS = 4
 
+# Tres pasos, a lo más uno por cotización cada 20 h. DIA3 conserva su plantilla
+# (`META_WA_PLANTILLA_SEGUIMIENTO`) y su clave histórica; los otros dos son
+# plantillas nuevas y, sin ellas, ese paso no se manda.
+PASO_DIA1 = 'DIA1'
+PASO_DIA3 = 'DIA3'
+PASO_FECHA = 'FECHA'
+PASOS = (PASO_FECHA, PASO_DIA3, PASO_DIA1)  # prioridad: el más urgente primero
+PLANTILLA_DEL_PASO = {
+    PASO_DIA1: 'META_WA_PLANTILLA_SEGUIMIENTO_DIA1',
+    PASO_DIA3: 'META_WA_PLANTILLA_SEGUIMIENTO',
+    PASO_FECHA: 'META_WA_PLANTILLA_SEGUIMIENTO_FECHA',
+}
+SEGUIMIENTO_DIAS_DIA1 = 1
+FECHA_CERCANA_DIAS = 14          # faltan ≤ 14 días para su fecha
+FECHA_ANTIGUEDAD_MAX_DIAS = 45   # no reabrir cotizaciones viejas al activar el paso
+SEGUIMIENTO_ENTRE_PASOS = timedelta(hours=20)
 
-def cotizaciones_para_seguimiento(hoy):
-    """Cotizaciones sin pago que cumplen `ERP_KOOXI_SEGUIMIENTO_DIAS` y aún pueden apartarse.
+
+def clave_seguimiento(cotizacion, paso: str) -> str:
+    if paso == PASO_DIA3:
+        return f'seguimiento:{cotizacion.pk}:whatsapp'  # clave histórica del paso único
+    return f'seguimiento:{cotizacion.pk}:{paso.lower()}:whatsapp'
+
+
+def _fecha_por_ocuparse(cotizacion, hoy) -> bool:
+    """Su fecha está por ocuparse: faltan ≤ 14 días, o otra cotización de la
+    misma fecha ya avanzó (tiene pagos) sin haber apartado todavía la fecha."""
+    from comercial.models import Cotizacion
+
+    if cotizacion.fecha_evento <= hoy + timedelta(days=FECHA_CERCANA_DIAS):
+        return True
+    return (Cotizacion.objects
+            .filter(fecha_evento=cotizacion.fecha_evento, estado__in=Cotizacion.ESTADOS_SIN_APARTAR,
+                    pagos__isnull=False)
+            .exclude(pk=cotizacion.pk).exists())
+
+
+def cotizaciones_para_seguimiento(hoy, paso: str = PASO_DIA3):
+    """Cotizaciones sin pago que están en la ventana de un paso del seguimiento.
 
     Solo BORRADOR/COTIZADA con fecha futura; el filtro de pagos, de
     consentimiento y de fecha libre se aplica en `notificar_seguimiento`, que
-    es donde se decide si se manda.
+    es donde se decide si se manda. DIA1/DIA3 miran la antigüedad de la
+    cotización; FECHA, que se cumpla `_fecha_por_ocuparse`.
     """
-    from datetime import timedelta
-
     from comercial.models import Cotizacion
 
-    dias = getattr(settings, 'ERP_KOOXI_SEGUIMIENTO_DIAS', 3)
+    base = (Cotizacion.objects
+            .filter(estado__in=Cotizacion.ESTADOS_SIN_APARTAR, fecha_evento__gt=hoy, pagos__isnull=True)
+            .select_related('cliente').order_by('id'))
+    if paso == PASO_FECHA:
+        candidatas = base.filter(
+            created_at__date__lte=hoy - timedelta(days=SEGUIMIENTO_DIAS_DIA1),
+            created_at__date__gte=hoy - timedelta(days=FECHA_ANTIGUEDAD_MAX_DIAS))
+        return [c for c in candidatas if _fecha_por_ocuparse(c, hoy)]
+    dias = SEGUIMIENTO_DIAS_DIA1 if paso == PASO_DIA1 else getattr(settings, 'ERP_KOOXI_SEGUIMIENTO_DIAS', 3)
     hasta = hoy - timedelta(days=dias)
     desde = hasta - timedelta(days=SEGUIMIENTO_MARGEN_DIAS)
-    return (Cotizacion.objects
-            .filter(estado__in=Cotizacion.ESTADOS_SIN_APARTAR, fecha_evento__gt=hoy,
-                    created_at__date__gte=desde, created_at__date__lte=hasta, pagos__isnull=True)
-            .select_related('cliente').order_by('id'))
+    return base.filter(created_at__date__gte=desde, created_at__date__lte=hasta)
+
+
+def ventanas_de_seguimiento(hoy) -> dict:
+    """{paso: ids de cotización en su ventana}, solo de los pasos con plantilla."""
+    return {paso: {c.pk for c in cotizaciones_para_seguimiento(hoy, paso)}
+            for paso in PASOS if _plantilla(PLANTILLA_DEL_PASO[paso])}
+
+
+def paso_pendiente(cotizacion, ventanas, ahora=None):
+    """El paso que toca mandarle hoy (o None): el más urgente cuya ventana se
+    cumple, con plantilla, sin enviar antes y sin otro seguimiento en 20 h."""
+    from .models import ComunicacionCliente
+
+    ahora = ahora or timezone.now()
+    if ComunicacionCliente.objects.filter(
+            cotizacion=cotizacion, tipo='SEGUIMIENTO', fecha_envio__gte=ahora - SEGUIMIENTO_ENTRE_PASOS).exists():
+        return None
+    enviados = set(ComunicacionCliente.objects.filter(
+        clave_idempotencia__in=[clave_seguimiento(cotizacion, p) for p in PASOS]
+    ).values_list('clave_idempotencia', flat=True))
+    for i, paso in enumerate(PASOS):
+        if cotizacion.pk not in ventanas.get(paso, ()):
+            continue
+        # Nunca hacia atrás: ya mandado este paso o uno más urgente, no se manda.
+        if any(clave_seguimiento(cotizacion, p) in enviados for p in PASOS[:i + 1]):
+            continue
+        return paso
+    return None
 
 
 def motivo_para_no_seguir(cotizacion) -> str:
@@ -957,13 +1027,20 @@ def motivo_para_no_seguir(cotizacion) -> str:
     return ''
 
 
-def notificar_seguimiento(cotizacion):
-    """Una plantilla al cliente: su cotización sigue disponible. Idempotente.
+_RESUMEN_PASO = {
+    PASO_DIA1: 'sigue disponible; se le invitó a escribir si tiene dudas o quiere apartar la fecha.',
+    PASO_DIA3: 'sigue disponible; se le invitó a escribir si tiene dudas o quiere apartar la fecha.',
+    PASO_FECHA: 'tiene la fecha por ocuparse; se le avisó que se aparta con el primer pago.',
+}
+
+
+def notificar_seguimiento(cotizacion, paso: str = PASO_DIA3):
+    """Una plantilla al cliente según el paso del seguimiento. Idempotente.
 
     Si sale, queda también en la conversación de WhatsApp como mensaje
     automático, para que el agente sepa a qué está contestando el cliente.
     """
-    plantilla = _plantilla('META_WA_PLANTILLA_SEGUIMIENTO')
+    plantilla = _plantilla(PLANTILLA_DEL_PASO[paso])
     if not plantilla or motivo_para_no_seguir(cotizacion):
         return None
     cliente = cotizacion.cliente
@@ -978,14 +1055,13 @@ def notificar_seguimiento(cotizacion):
         'enviar el WhatsApp de seguimiento', enviar_whatsapp_template,
         cotizacion=cotizacion, tipo='SEGUIMIENTO', telefono=_telefono(cliente),
         template_name=plantilla, parametros=parametros, trigger='CRON',
-        clave_idempotencia=f'seguimiento:{cotizacion.pk}:whatsapp',
+        clave_idempotencia=clave_seguimiento(cotizacion, paso),
     )
     if comm is not None and comm.estado != 'FALLIDO':
         from .services_agente import registrar_mensaje_automatico
         registrar_mensaje_automatico(
             telefono=_telefono(cliente), wamid=comm.proveedor_id,
             texto=(f'Seguimiento: la cotización {parametros[1]} para el {parametros[2]} '
-                   f'(total ${parametros[3]}) sigue disponible; se le invitó a escribir si tiene dudas '
-                   'o quiere apartar la fecha.'),
+                   f'(total ${parametros[3]}) {_RESUMEN_PASO[paso]}'),
         )
     return comm

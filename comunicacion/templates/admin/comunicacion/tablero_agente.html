@@ -59,6 +59,32 @@
 
     <div class="qkt-panel">
         <div class="qkt-panel__cab qkt-panel__cab--apilada">
+            <h2 class="qkt-panel__titulo">Conversaciones por anuncio</h2>
+            <p class="qkt-campo__ayuda">De qué anuncio de Meta llegó cada conversación nueva del periodo y cuántas acabaron en cotización y en pago.</p>
+        </div>
+        <div class="qkt-panel__cuerpo qkt-panel__cuerpo--tabla">
+            {% if m.por_anuncio %}
+            <table class="qkt-tabla">
+                <thead><tr><th>Anuncio</th><th class="qkt-der">Conversaciones</th><th class="qkt-der">Con cotización</th><th class="qkt-der">Con pago</th></tr></thead>
+                <tbody>
+                {% for fila in m.por_anuncio %}
+                <tr>
+                    <td>{% if fila.url %}<a href="{{ fila.url }}" target="_blank" rel="noopener noreferrer">{{ fila.titulo|default:fila.anuncio_id }}</a>{% else %}{{ fila.titulo|default:fila.anuncio_id }}{% endif %}</td>
+                    <td class="qkt-der qkt-num">{{ fila.conversaciones }}</td>
+                    <td class="qkt-der qkt-num">{{ fila.con_cotizacion }}</td>
+                    <td class="qkt-der qkt-num">{{ fila.con_pago }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="qkt-panel__cuerpo">Ninguna conversación nueva llegó de un anuncio en el periodo.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab qkt-panel__cab--apilada">
             <h2 class="qkt-panel__titulo">Lo que no supo contestar</h2>
             <p class="qkt-campo__ayuda">Captura la respuesta en Preguntas frecuentes o en la descripción del producto y desde el siguiente mensaje ya la sabe.</p>
         </div>

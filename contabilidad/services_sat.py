@@ -502,6 +502,23 @@ def _procesar_recibido(solicitud, registro, datos, xml):
         solicitud.importados += 1
 
 
+def candidatas_emitido(rfc_receptor, total, fecha, rfc_emisor):
+    """Solicitudes de factura sin timbrar que podrían ser este CFDI emitido: mismo RFC
+    receptor, monto (±TOLERANCIA_MONTO) y fecha dentro de la ventana. Una sola es ligue
+    automático; 0 o varias quedan para que el contador decida."""
+    from facturacion.models import SolicitudFactura
+
+    return [
+        s for s in SolicitudFactura.objects.filter(
+            rfc=rfc_receptor, estado__in=['PENDIENTE', 'ENVIADA'],
+            monto__gte=total - TOLERANCIA_MONTO, monto__lte=total + TOLERANCIA_MONTO,
+            fecha_solicitud__date__gte=fecha - timedelta(days=VENTANA_SOLICITUD_DIAS),
+            fecha_solicitud__date__lte=fecha + timedelta(days=1),
+        ).filter(Q(archivo_xml__isnull=True) | Q(archivo_xml=''), Q(uuid_factura=''))
+        if not s.rfc_emisor or s.rfc_emisor == rfc_emisor
+    ]
+
+
 def _procesar_emitido(solicitud, registro, datos, xml):
     from facturacion.models import SolicitudFactura
 
@@ -519,15 +536,7 @@ def _procesar_emitido(solicitud, registro, datos, xml):
         registro.detalle = "El contador ya había subido esta factura."
         solicitud.vinculados += 1
         return
-    candidatas = [
-        s for s in SolicitudFactura.objects.filter(
-            rfc=datos['rfc_receptor'], estado__in=['PENDIENTE', 'ENVIADA'],
-            monto__gte=datos['total'] - TOLERANCIA_MONTO, monto__lte=datos['total'] + TOLERANCIA_MONTO,
-            fecha_solicitud__date__gte=datos['fecha'] - timedelta(days=VENTANA_SOLICITUD_DIAS),
-            fecha_solicitud__date__lte=datos['fecha'] + timedelta(days=1),
-        ).filter(Q(archivo_xml__isnull=True) | Q(archivo_xml=''), Q(uuid_factura=''))
-        if not s.rfc_emisor or s.rfc_emisor == datos['rfc_emisor']
-    ]
+    candidatas = candidatas_emitido(datos['rfc_receptor'], datos['total'], datos['fecha'], datos['rfc_emisor'])
     if len(candidatas) == 1:
         vincular(registro, candidatas[0], xml)
         solicitud.vinculados += 1

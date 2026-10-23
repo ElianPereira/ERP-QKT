@@ -303,6 +303,115 @@ salvo que queden obsoletas.
   gana `no_debe_usar` y `modo: direccion`. Pendiente del propietario: definir `ERP_KOOXI_DINERO_MAX` en Railway si
   quiere un tope distinto y correr `evaluar_agente --ejecutar` (necesita `ANTHROPIC_API_KEY_KOOXI`: `railway run`).
 
+- 2026-10-23 — **Fase 3: post-venta, compras, renovaciones y depósito** (Issue #434; el punto 5 mueve dinero y va a
+  revisión de Opus antes del merge). Migraciones aditivas: `comunicacion.0014`/`0015`, `cumplimiento.0004`.
+  **(1) Encuesta** (`comunicacion/services_encuesta.py`, `EncuestaPostEvento`, comando `enviar_encuestas`): un día después
+  del fin del servicio (`fecha_salida` o `fecha_evento`), plantilla con 3 botones (`enc:<id>:5|3|1`, «Excelente/Regular/
+  Mala»; Meta solo permite 3) y también vale un número 1–5 en texto, **solo dentro de 3 días y solo desde el teléfono de
+  una encuesta abierta**. 4–5 → enlace `ERP_RESENA_GOOGLE_URL` (vacío = solo agradece); 1–3 → pendiente URGENTE QUEJA a
+  DIRECCION sin texto del cliente. Exige MARKETING y sin baja, igual que el seguimiento (decisión conservadora hasta que el
+  abogado diga si es finalidad necesaria). La fila es la reserva del envío; si Meta lo rechaza se borra y la clave de
+  idempotencia impide reintentar a ciegas. **(2) Reactivación** (`enviar_reactivaciones`): en el aniversario de un evento
+  EJECUTADO/CERRADO, una por cliente y año (`reactivacion:<cliente>:<año>`), omite a quien tiene otra reservación en curso
+  o calificó 1–3. Textos de ambas plantillas en `docs/whatsapp_plantillas_fase3.md`. **(3) Compras**
+  (`services_compras.py`, `enviar_listas_compras`): CONFIRMADAS de Evento a ≤3 días con lista de barra no vacía
+  (`comercial.views.contexto_lista_compras`, extraída de la vista del PDF) → rol COMPRAS, o ENCARGADO si no hay responsable;
+  pendiente NORMAL + aviso con botón «Ya compré» (`pend:<id>:ok`) + PDF por correo si el responsable tiene email.
+  **(4) Cumplimiento** (`cumplimiento/services_renovacion.py`, `preparar_renovaciones --aplicar`): a ≤45 días (o vencido sin
+  renovar; se salta el contrato con renovación automática) abre una `Vigencia` EN_TRAMITE con `datos_renovacion`, copia por
+  requisito el documento más reciente (misma ruta en el storage, sin duplicar el archivo) y avisa a DIRECCION; la clave
+  `renovacion:<vigencia vencible>` del pendiente evita reabrirla aunque cancelen la renovación. Cierre: un archivo de
+  Dirección (el webhook guarda `media_id`/`media_mime` en `MensajeWhatsApp` solo si el remitente está en el directorio; a
+  los demás sigue el aviso de «solo texto») se adjunta a la renovación abierta (si hay varias, el pie de foto debe traer el
+  nombre del trámite; un pie con «cot» es de inspección) como `Vigencia.por_confirmar` con fechas propuestas y botón
+  `vig:<id>:ok`, solo DIRECCION; confirmar corre `full_clean()` y pasa a OBTENIDA. Las fechas son las del cálculo de
+  siempre: no se leen del documento. **(5) Depósito en garantía — DINERO** (`services_inspeccion.py`, `InspeccionDeposito`,
+  `FotoInspeccion`, comandos `solicitar_inspecciones_deposito` y `devolver_depositos_sin_reporte --aplicar`, este último
+  simula por defecto): un día después del servicio, solo depósitos con dinero en custodia y servicio de ≤14 días (no se
+  barre el histórico). Todo movimiento pasa por `services_deposito.liquidar`. **Solo se automatiza si lo que hay que
+  devolver se cobró con tarjeta en Openpay** (`automatizable()`); con SPEI, efectivo o mixto `liquidar` solo *registraría*
+  una devolución que nadie hizo, así que queda MANUAL con pendiente URGENTE a Dirección. El estado PROCESANDO se toma con
+  UPDATE condicional antes de liquidar (cron + botón + doble corrida no pueden reembolsar dos veces); una corrida muerta a
+  medias se queda PROCESANDO y `revisar_atoradas` avisa, no reintenta. Tope: `ERP_DEPOSITO_TOPE_RETENCION`, **por defecto 0 =
+  toda retención la aprueba Dirección**; por encima del tope, botones Aprobar / Devolver todo (`insp:<id>:apr|rech`, solo
+  DIRECCION). La retención exige monto, descripción (≥5 caracteres) y ≥1 foto. Pendiente fuera de alcance: retenciones por
+  servicio (tiempo extra/limpieza) por WhatsApp y reembolsos por transferencia.
+
+- 2026-10-23 — **Fase 4: Dirección, nómina y CFDI ambiguo por WhatsApp** (Issue #431; B6, B7 y B9 del plan, sin lo del
+  estado de cuenta BBVA/#401). Todo cron nuevo va en el programador (`core_erp/programador.py`: `enviar_resumen_semanal`
+  lunes 08:30, `revisar_desviacion` diario 09:30, `enviar_nomina_semanal` viernes 12:00, `preguntar_cfdi_contador` diario
+  10:00), sin tocar Railway. Lógica en `comunicacion/services_direccion.py` y `services_contador.py`; migraciones aditivas
+  `comunicacion.0014` (modelos `Hallazgo`, `ConsultaCfdi` + choices DESVIACION/HALLAZGO de `Pendiente.tipo`) y
+  `nomina.0006` (`AprobacionNomina`). **Resumen del lunes**: venta contra meta y ocupación salen de
+  `TableroService.generar()['mes']` (no se recalcula), caja = suma de `CuentaBancaria.saldo_actual` activas (saldo según
+  libros), pendientes abiertos de DIRECCION y «Detecté» con hasta 3 hallazgos, a lo más uno por tipo y en este orden:
+  precio con margen negativo (`sugerencia_precio() < calcular_costo()`), pago sin solicitud de factura (60 días,
+  sin condonaciones, reactivaciones ni históricas), cotización COTIZADA sin pagos ni seguimiento a 7+ días, servicio fuera
+  del plan (`PlanAnualService.generar(con_umbrales=True)`, «precio para entrar») y 15+ días libres en 30 días. Cada uno
+  es un `Hallazgo` con clave: ignorado o convertido en tarea no vuelve; uno propuesto sin responder se reenvía el
+  siguiente lunes. Botones `hal:<id>:tarea|ign` en mensajes sueltos **solo si la ventana de 24 h de Dirección está
+  abierta**; si no, el resumen lleva los títulos y el enlace al admin «Hallazgos» (acciones Crear tarea/Ignorar). Todos
+  los botones nuevos valen solo desde el teléfono **activo** de un `Responsable` real del rol (no el de respaldo ni uno
+  pendiente de «ACEPTO»), se enrutan en `_atender_pendientes` y nunca llegan al agente. **Desviación**: desde el día 15
+  y una vez por mes (`desviacion:AAAA-MM`), venta < 70 % de la meta que muestre el tablero (meta capturada, plan del
+  mes o equilibrio, en ese orden) = pendiente URGENTE; sin meta calculable no alerta. **Nómina**: el viernes se registra
+  `AprobacionNomina` (recibos no cancelados cuyo periodo empieza en la semana lun–dom, vía `NominaPeriodoService`);
+  `[Aprobar]` (`nom:<id>:ok`, un solo uso) solo deja quién/cuándo: sin póliza, sin transferencia, sin tocar recibos; el
+  admin «Aprobaciones» tiene la misma acción para superusuario cuando no hay ventana abierta. **CFDI ambiguo**: la
+  búsqueda de candidatas salió de `_procesar_emitido` a `services_sat.candidatas_emitido()` (mismo código, ahora
+  reutilizable) y la respuesta del contador liga con `services_sat.vincular` (la del admin). Un solo mensaje agrupado por
+  día al rol CONTADOR (hasta 5 CFDI; botones por candidata —máx. 2— + «Ninguna» solo para el primero con 2 o más
+  candidatas, porque WhatsApp admite 3 botones por mensaje); al responder pregunta el siguiente en el mismo mensaje de
+  confirmación. Los de 0 candidatas se listan sin botón (se ligan en Contabilidad → Comprobantes). Cada CFDI se pregunta
+  una vez y, sin respuesta en 3 días, una más; después abre un pendiente SAT para Dirección. Sin CONTADOR en el
+  directorio: pendiente semanal para Dirección y no se envía. `ConsultaCfdi` no tiene menú (como `ReporteTerminal`). Sin
+  tocar zonas restringidas.
+
+- 2026-10-23 — **Ventas: origen del anuncio, seguimiento en 3 pasos y agenda de visitas** (Issue #430, fase 2a; migración
+  `comunicacion.0014`, aditiva: 4 columnas en `ConversacionWhatsApp`, 2 tablas y un choice nuevo de `Pendiente`).
+  **(1) Anuncio**: el webhook pasa el `referral` del mensaje a `recibir_mensaje`, que lo guarda **una sola vez**
+  (`anuncio_id/titulo/url/clid`; el primero manda, un segundo anuncio no lo pisa). Columna y filtro «Origen» en
+  Conversaciones y tabla «Conversaciones por anuncio» en el tablero (con cuántas acabaron en cotización y pago).
+  **(2) Seguimiento**: `enviar_seguimientos` ahora hace día 1, día 3 y «fecha por ocuparse» (`PASOS` en
+  `services_notificaciones`). DIA3 conserva `META_WA_PLANTILLA_SEGUIMIENTO` y su clave histórica
+  (`seguimiento:<cot>:whatsapp`); los nuevos usan `META_WA_PLANTILLA_SEGUIMIENTO_DIA1` / `_FECHA` y claves
+  `seguimiento:<cot>:<paso>:whatsapp`. «Fecha por ocuparse» = faltan ≤ 14 días **o** otra cotización de la misma fecha
+  ya tiene pagos sin haber apartado la fecha (si la otra ya está CONFIRMADA la fecha no está libre y no se manda);
+  solo cotizaciones de 1 a 45 días de creadas, para no reabrir viejas al activar la plantilla. **Reglas de secuencia**:
+  a lo más un seguimiento por cotización cada 20 h y **nunca hacia atrás** (con un paso más urgente ya enviado, no sale
+  el anterior). Sin plantilla ese paso no sale. Textos propuestos en `docs/whatsapp_plantillas_seguimiento_2a.md`.
+  **(3) Visitas**: `HorarioVisita` (ventanas semanales que captura el encargado, partidas en citas de N min) y `Visita`
+  (POR_CONFIRMAR → CONFIRMADA / RECHAZADA / CANCELADA; `UniqueConstraint` condicional sobre `inicio` para que un horario
+  vivo no se agende dos veces). Herramientas `horarios_de_visita` y `agendar_visita`: Kooxi solo puede agendar un horario
+  que `horarios_disponibles` ofrece (≥ 3 h de anticipación; lo de hoy y lo fuera de lista va a `pasar_a_humano`), un
+  cliente tiene una visita viva a la vez y **la visita nunca nace confirmada** (regla del 2026-10-17). El aviso al
+  ENCARGADO (y a Dirección si tiene la copia en vivo) lleva botones `vis:<id>:ok|no` y deja un `Pendiente` NORMAL tipo
+  VISITA que vence a las 4 h o al inicio de la cita; los botones valen solo desde el teléfono **activo** del ENCARGADO o
+  de DIRECCION (misma decisión estricta que la terminal: un número aún sin «ACEPTO» no decide). Al decidir se resuelve
+  el pendiente y se avisa al cliente (texto libre con ventana abierta; con la ventana cerrada, `META_WA_PLANTILLA_VISITA`).
+  Recordatorio de víspera: `enviar_recordatorios_visitas`, diario 18:00 en el programador (una vez, solo CONFIRMADAS).
+  Admin «Horarios» y «Visitas» (acciones confirmar / no disponible / cancelar con confirmación; sin alta de visitas ni
+  borrado). Evals `visita_agenda` y `visita_hoy`; el eval `visita` acepta ahora `horarios_de_visita` o `pasar_a_humano`.
+  **Pendiente del propietario/Railway**: capturar los horarios del encargado, someter y aprobar las plantillas en Meta,
+  definir las 3 variables nuevas (ver `docs/variables_entorno.md`) y correr `evaluar_agente --ejecutar` con la llave de
+  Anthropic antes de abrir las visitas al público (los evals no se corrieron aquí: sin `ANTHROPIC_API_KEY`).
+
+- 2026-10-23 — **Depósito en efectivo: forma de pago SAT y traspaso Caja → Bancos** (corrección aprobada por el
+  propietario, confirmada por el contador; sin tocar `contabilidad/services.py`, Openpay ni `legal/`). **(1)**
+  `Pago.metodo='DEPOSITO'` se mandaba a 03 Transferencia en la solicitud de factura; es un depósito en efectivo en
+  ventanilla/practicaja, así que ahora es **01 Efectivo** (etiqueta «Depósito en efectivo (ventanilla)», clave
+  intacta, `comercial.0119` solo de estado). El mapeo vive en `facturacion.signals.MAPEO_FORMA_PAGO` /
+  `forma_pago_de_pago()` (fuente única, usa `_forma_pago_openpay` primero); `FormaPagoPorMetodoTest` fija la forma de
+  cada método de `Pago.METODOS` y falla si aparece uno sin definir. `manage.py revisar_forma_pago_solicitudes
+  [--desde]` es de solo lectura: lista PENDIENTE/ENVIADA cuya forma difiere de la que hoy saldría; el contador decide.
+  **(2)** Un Pago EFECTIVO carga Caja y nada registraba el depósito al banco. `contabilidad.0040` siembra la regla de
+  sistema «Depósito de efectivo a banco» (ABONO, patrón `DEPOSITO EFECTIVO*`, operación CAJA, editable en el admin).
+  `aplicar_reglas` corre después del emparejamiento con Pagos, así que un cliente que depositó directo (Pago DEPOSITO)
+  queda ligado a su pago y no recibe traspaso; además, si la contrapartida es Caja, solo asienta cuando el saldo de
+  Caja (pólizas aplicadas hasta la fecha del abono) alcanza el monto; si no, no crea póliza, lo reporta en
+  `resumen['sin_saldo_caja']` y deja un pendiente a DIRECCION (`deposito_efectivo_sin_caja:<mov>`). Las solicitudes ya
+  creadas como 03 no se tocan solas: correr el comando de revisión.
+
 - 2026-10-21 — **Renglones pendientes de la Fase 1** (Issue #428, fase 1e; el punto 3 va a revisión de Opus antes del
   merge). **(1-2, 7)** Choque de fecha, contracargo y SAT dejan su `Pendiente` URGENTE (CHOQUE_FECHA/CONTRACARGO/SAT, rol
   DIRECCION, claves `pago_fecha_ocupada:<pago>`, `contracargo:<pk>:<estado>`, `sat:<pk>:<motivo>`) y pasan

@@ -28,6 +28,7 @@ import json
 import logging
 import threading
 from datetime import datetime, time, timedelta
+from typing import Optional
 
 import anthropic
 from django.conf import settings
@@ -37,8 +38,10 @@ from django.utils import timezone
 from django.utils.formats import date_format
 
 from comercial import services_ordenes_wa, services_terminal
+from cumplimiento import services_renovacion
 from operaciones.services import es_listo, marcar_listo
 
+from . import services_contador, services_direccion, services_encuesta, services_inspeccion, services_visitas
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .herramientas_direccion import HERRAMIENTAS_DIRECCION, SYSTEM_PROMPT_DIRECCION, ejecutar_direccion
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
@@ -150,8 +153,10 @@ libre: la Quinta puede no estar lista para recibirlo. Dile que contratar para ho
 equipo lo confirme, usa pasar_a_humano con el servicio, la hora y las personas, y avísale que alguien \
 le contestará por este chat.
 - Si quiere visitar o conocer la Quinta, sí se puede, siempre con cita que confirma el equipo: \
-pregúntale qué día y a qué hora, usa pasar_a_humano con esos datos y dile que alguien le confirmará \
-por este chat. Nunca confirmes tú la visita.
+consulta horarios_de_visita, ofrécele solo esos horarios y, cuando elija uno y te diga su nombre, \
+agéndalo con agendar_visita. La visita queda POR CONFIRMAR: dile que una persona del equipo la \
+confirmará por este chat y nunca la des por confirmada. Si no hay horarios, si pide uno que no está \
+en la lista o si es para hoy, usa pasar_a_humano con el día, la hora y las personas.
 - Cuando te pregunten qué incluye un paquete o nivel, usa lo que trae ver_opciones en «incluye» \
 (descripción y productos incluidos); si viene vacío, dilo y ofrece pasar con una persona.
 - Si preguntan por el precio de solo el lugar (renta sin paquete), es la opción «solo_renta» de \
@@ -272,27 +277,45 @@ def _conversacion(telefono: str, nombre: str = '') -> ConversacionWhatsApp:
     return conv
 
 
-def _guardar_mensaje(conv, direccion, texto, wamid, procesado):
+def _guardar_mensaje(conv, direccion, texto, wamid, procesado, media_id='', media_mime=''):
     """INSERT idempotente por wamid: Meta reintenta entregas."""
     try:
         with transaction.atomic():
             return MensajeWhatsApp.objects.create(
                 conversacion=conv, direccion=direccion, texto=texto[:10000],
-                wamid=wamid or None, procesado=procesado,
+                wamid=wamid or None, procesado=procesado, media_id=media_id, media_mime=media_mime,
             )
     except IntegrityError:
         logger.info("Mensaje de WhatsApp repetido omitido (wamid=%s)", wamid)
         return None
 
 
-def recibir_mensaje(*, telefono, nombre, texto, wamid):
+def _guardar_origen_anuncio(conv, referral) -> None:
+    """Guarda el `referral` de Meta (anuncio de clic a WhatsApp) una sola vez:
+    el primero que llega manda, un mensaje posterior no lo pisa."""
+    if not isinstance(referral, dict) or conv.anuncio_id or conv.anuncio_url:
+        return
+    anuncio_id = str(referral.get('source_id') or '')[:100]
+    anuncio_url = str(referral.get('source_url') or '')[:500]
+    if not (anuncio_id or anuncio_url):
+        return
+    conv.anuncio_id = anuncio_id
+    conv.anuncio_url = anuncio_url
+    conv.anuncio_titulo = str(referral.get('headline') or '')[:300]
+    conv.anuncio_clid = str(referral.get('ctwa_clid') or '')[:300]
+    conv.save(update_fields=['anuncio_id', 'anuncio_url', 'anuncio_titulo', 'anuncio_clid', 'updated_at'])
+
+
+def recibir_mensaje(*, telefono, nombre, texto, wamid, referral=None, media_id='', media_mime=''):
     """Registra un mensaje del cliente. Devuelve la conversación si es nuevo, o None."""
     telefono = normalizar_telefono_wa(telefono)
     if not telefono:
         return None
     conv = _conversacion(telefono, nombre)
-    if _guardar_mensaje(conv, 'ENTRADA', texto, wamid, procesado=False) is None:
+    if _guardar_mensaje(conv, 'ENTRADA', texto, wamid, procesado=False,
+                        media_id=media_id, media_mime=media_mime) is None:
         return None
+    _guardar_origen_anuncio(conv, referral)
     conv.ultimo_mensaje = timezone.now()
     conv.save(update_fields=['ultimo_mensaje', 'updated_at'])
     return conv
@@ -526,11 +549,53 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if respuesta:
             _enviar_automatico(conv, respuesta)
         pendientes.remove(m)
+    # Dirección (`hal:<id>:tarea|ign`, `nom:<id>:ok`) y contador (`cfdi:<id>:<solicitud>|no`):
+    # solo valen desde su teléfono; un botón ajeno se descarta sin llegar al agente.
+    for m in [m for m in pendientes if services_direccion.es_boton(m.texto) or services_contador.es_boton(m.texto)]:
+        atender = (services_direccion.atender_boton if services_direccion.es_boton(m.texto)
+                   else services_contador.atender_boton)
+        respuesta = atender(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Botones de una visita (`vis:<id>:ok|no`): solo el encargado o Dirección;
+    # desde otro número se descartan sin contestar y nunca llegan al agente.
+    for m in [m for m in pendientes if services_visitas.es_boton(m.texto)]:
+        respuesta = services_visitas.atender_boton(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # Cobros con terminal (`terminal 5000 cot 145` y su botón `term:<token>:ok`):
     # solo valen desde ENCARGADO o DIRECCION. Desde otro número el reporte sigue
     # el flujo normal; un botón ajeno se descarta sin contestar.
     terminal = [m for m in pendientes if _atender_terminal(conv, m.texto)]
     pendientes = [m for m in pendientes if m not in terminal]
+    # Calificación de la encuesta post-evento (botón `enc:<id>:<n>` o un número 1–5).
+    for m in list(pendientes):
+        atendido, respuesta = services_encuesta.atender_respuesta(conv.telefono, m.texto)
+        if atendido:
+            if respuesta:
+                _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
+    # Cierre de trámites de cumplimiento: botón `vig:<id>:ok` y el documento nuevo de Dirección.
+    for m in [m for m in pendientes if services_renovacion.es_boton(m.texto)]:
+        respuesta = services_renovacion.atender_boton(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Reporte de la inspección del depósito en garantía (botones `insp:<id>:…`,
+    # «sin daños» y «daños <monto> …»): solo valen desde ENCARGADO o DIRECCION.
+    for m in list(pendientes):
+        atendido, respuesta = services_inspeccion.atender(conv.telefono, m.texto)
+        if atendido:
+            if respuesta:
+                _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
+    for m in [m for m in pendientes if m.media_id]:
+        respuesta = _atender_archivo(conv, m)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # «Listo» del personal con tareas de hoy sin completar (`operaciones`).
     for m in [m for m in pendientes if es_listo(m.texto)]:
         respuesta = marcar_listo(conv.telefono)
@@ -620,6 +685,19 @@ def _atender_direccion(conv, mensajes) -> None:
                                 reintento='No pude mostrarte los botones. Pídemelo de nuevo en un momento.')
         else:
             _enviar_automatico(conv, resultado.texto)
+
+
+def _atender_archivo(conv, mensaje) -> Optional[str]:
+    """Foto o PDF de un responsable del directorio. Nunca llega al agente: es el
+    documento nuevo de un trámite (Dirección) o evidencia de daños (inspección)."""
+    try:
+        atendido, respuesta = services_renovacion.recibir_documento(conv.telefono, mensaje.media_id, mensaje.texto)
+        if atendido:
+            return respuesta
+        return services_inspeccion.recibir_foto(conv.telefono, mensaje.media_id, mensaje.texto)
+    except Exception:
+        logger.exception("Agente WhatsApp: falló el archivo de %s", conv.telefono)
+        return 'No pude procesar el archivo. Intenta de nuevo o súbelo desde el ERP.'
 
 
 def _atender_terminal(conv, texto: str) -> bool:
