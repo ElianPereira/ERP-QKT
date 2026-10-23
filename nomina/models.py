@@ -63,3 +63,35 @@ class ReciboNomina(models.Model):
 
     def __str__(self):
         return f"Pago {self.empleado} - ${self.total_pagado} [{self.estado}]"
+
+
+class AprobacionNomina(models.Model):
+    """Visto bueno de Dirección al total de nómina de una semana (Issue #431).
+
+    Solo deja registro de quién y cuándo: no genera póliza, no mueve dinero ni
+    cambia el estado de los recibos. La transferencia sigue siendo en el banco.
+    """
+    semana_inicio = models.DateField(unique=True, verbose_name='Semana (lunes)')
+    semana_fin = models.DateField(verbose_name='Semana (domingo)')
+    total = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Total a pagar')
+    recibos = models.PositiveIntegerField(default=0, verbose_name='Recibos')
+    notificada_en = models.DateTimeField(null=True, blank=True, verbose_name='Avisada a Dirección')
+    aprobada_en = models.DateTimeField(null=True, blank=True, verbose_name='Aprobada')
+    aprobada_por_nombre = models.CharField(max_length=120, blank=True, verbose_name='Aprobada por')
+    aprobada_por_telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono que aprobó')
+    aprobada_por = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                     verbose_name='Usuario que aprobó')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creada')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizada')
+
+    class Meta:
+        verbose_name = 'Aprobación de nómina'
+        verbose_name_plural = 'Aprobaciones'
+        ordering = ['-semana_inicio']
+
+    def __str__(self):
+        return f'Nómina {self.semana_inicio:%d/%m/%Y} al {self.semana_fin:%d/%m/%Y}'
+
+    @property
+    def aprobada(self) -> bool:
+        return self.aprobada_en is not None

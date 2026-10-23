@@ -33,6 +33,7 @@ from . import (
     services_pendientes,
     services_preguntas,
     services_responsables,
+    services_visitas,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,11 +49,11 @@ def _firma_valida(request) -> bool:
 
 
 def _es_boton_interno(identificador) -> bool:
-    """Botones que atiende el ERP (no el agente): bandeja, terminal, FAQ, encuesta y cumplimiento."""
+    """Botones que atiende el ERP (no el agente): bandeja, terminal, FAQ, encuesta, cumplimiento, inspección y visitas."""
     return (services_pendientes.es_boton(identificador) or services_terminal.es_boton(identificador)
             or services_preguntas.es_boton(identificador) or services_encuesta.es_boton(identificador)
             or services_renovacion.es_boton(identificador)
-            or services_inspeccion.es_boton(identificador))
+            or services_inspeccion.es_boton(identificador) or services_visitas.es_boton(identificador))
 
 
 def _texto(mensaje: dict) -> str:
@@ -106,6 +107,7 @@ def _procesar_cambio(cambio: dict) -> set:
                 wamid=mensaje.get('id'),
                 media_id=archivo[1] if archivo else '',
                 media_mime=archivo[2] if archivo else '',
+                referral=mensaje.get('referral'),
             )
             if conv:
                 boton = ((mensaje.get('interactive') or {}).get('button_reply') or {}).get('id', '')

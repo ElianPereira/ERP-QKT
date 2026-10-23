@@ -94,6 +94,28 @@ def _conversion(conversaciones) -> dict:
     }
 
 
+def _por_anuncio(conversaciones) -> list:
+    """Conversaciones nuevas agrupadas por el anuncio de Meta que las trajo,
+    con cuántas acabaron en cotización y en pago. Las que no vienen de un
+    anuncio (`referral` vacío) no entran: son el resto del tablero."""
+    grupos = {}
+    for conv in conversaciones:
+        if conv.anuncio_id or conv.anuncio_url:
+            grupos.setdefault(conv.anuncio_id or conv.anuncio_url, []).append(conv)
+    filas = []
+    for clave, convs in grupos.items():
+        conversion = _conversion(convs)
+        filas.append({
+            'anuncio_id': clave,
+            'titulo': next((c.anuncio_titulo for c in convs if c.anuncio_titulo), ''),
+            'url': next((c.anuncio_url for c in convs if c.anuncio_url), ''),
+            'conversaciones': len(convs),
+            'con_cotizacion': conversion['con_cotizacion'],
+            'con_pago': conversion['con_pago'],
+        })
+    return sorted(filas, key=lambda f: (-f['conversaciones'], f['anuncio_id']))
+
+
 def metricas_agente(dias: int = 30) -> dict:
     """Tablero del admin: los últimos 7, 30 o 90 días hasta hoy."""
     if dias not in PERIODOS:
@@ -127,6 +149,7 @@ def metricas_periodo(desde_fecha, hasta_fecha) -> dict:
         'ultimos_pases': list(pases.select_related('conversacion')[:15]),
         'consumo': _consumo(respuestas_ia),
         'conversion': _conversion(nuevas),
+        'por_anuncio': _por_anuncio(nuevas),
         'seguimientos': ComunicacionCliente.objects.filter(
             tipo='SEGUIMIENTO', estado__in=('ENVIADO', 'ENTREGADO', 'ABIERTO'),
             fecha_envio__gte=desde, fecha_envio__lt=hasta).count(),

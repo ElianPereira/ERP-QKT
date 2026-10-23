@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("comercial", "0118_reporte_terminal"),
-        ("comunicacion", "0014_fase3_postventa"),
+        ("comunicacion", "0016_fase3_postventa"),
     ]
 
     operations = [
@@ -18,19 +18,7 @@ class Migration(migrations.Migration):
             model_name="pendiente",
             name="tipo",
             field=models.CharField(
-                choices=[
-                    ("ALERTA", "Alerta"),
-                    ("PASE_HUMANO", "Pase a humano"),
-                    ("QUEJA", "Queja"),
-                    ("CHOQUE_FECHA", "Choque de fecha"),
-                    ("CONTRACARGO", "Contracargo"),
-                    ("SAT", "SAT"),
-                    ("CUMPLIMIENTO", "Cumplimiento"),
-                    ("COMPRAS", "Compras"),
-                    ("DEPOSITO", "Depósito en garantía"),
-                    ("CRON", "Proceso automático"),
-                    ("OTRO", "Otro"),
-                ],
+                choices=[("ALERTA", "Alerta"), ("PASE_HUMANO", "Pase a humano"), ("QUEJA", "Queja"), ("VISITA", "Visita"), ("CHOQUE_FECHA", "Choque de fecha"), ("CONTRACARGO", "Contracargo"), ("SAT", "SAT"), ("DESVIACION", "Desviación"), ("HALLAZGO", "Hallazgo"), ("CUMPLIMIENTO", "Cumplimiento"), ("COMPRAS", "Compras"), ("DEPOSITO", "Depósito en garantía"), ("CRON", "Proceso automático"), ("OTRO", "Otro")],
                 db_index=True,
                 default="ALERTA",
                 max_length=15,
