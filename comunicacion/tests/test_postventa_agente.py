@@ -65,7 +65,7 @@ class AgenteFase3Test(TestCase):
     def test_archivo_se_atiende_sin_pasar_por_el_agente(self):
         conv = self._conv(DIRECCION)
         self._mensaje(conv, 'Licencia', media_id='m1', media_mime='application/pdf')
-        with patch.object(services_agente.services_renovacion, 'recibir_documento', return_value='Listo') as rec, \
+        with patch.object(services_agente.services_renovacion, 'recibir_documento', return_value=(True, 'Listo')) as rec, \
                 patch.object(services_agente, '_enviar_automatico') as enviar, \
                 patch.object(services_agente, 'responder') as modelo:
             services_agente._atender_pendientes(conv.pk)
@@ -82,3 +82,28 @@ class AgenteFase3Test(TestCase):
             services_agente._atender_pendientes(conv.pk)
         enviar.assert_not_called()
         modelo.assert_not_called()
+
+    def test_reporte_de_inspeccion_no_llega_al_agente(self):
+        conv = self._conv(CLIENTE)
+        self._mensaje(conv, 'sin daños')
+        with patch.object(services_agente.services_inspeccion, 'atender', return_value=(True, 'Listo')), \
+                patch.object(services_agente, '_enviar_automatico') as enviar, \
+                patch.object(services_agente, 'responder') as modelo:
+            services_agente._atender_pendientes(conv.pk)
+        enviar.assert_called_once_with(conv, 'Listo')
+        modelo.assert_not_called()
+
+    def test_foto_de_daños_va_a_la_inspeccion_si_no_es_de_un_tramite(self):
+        conv = self._conv(DIRECCION)
+        self._mensaje(conv, 'cot 145', media_id='m1', media_mime='image/jpeg')
+        with patch.object(services_agente.services_renovacion, 'recibir_documento', return_value=(False, None)), \
+                patch.object(services_agente.services_inspeccion, 'recibir_foto', return_value='Foto recibida') as foto, \
+                patch.object(services_agente, '_enviar_automatico') as enviar:
+            services_agente._atender_pendientes(conv.pk)
+        foto.assert_called_once_with('52' + DIRECCION, 'm1', 'cot 145')
+        enviar.assert_called_once_with(conv, 'Foto recibida')
+
+    def test_botones_de_inspeccion_pasan_por_el_webhook(self):
+        views_whatsapp._procesar_cambio(_cambio(
+            DIRECCION, type='interactive', interactive={'button_reply': {'id': 'insp:3:apr', 'title': 'Aprobar'}}))
+        self.assertEqual(MensajeWhatsApp.objects.get().texto, 'insp:3:apr')

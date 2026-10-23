@@ -136,27 +136,28 @@ def _elegir_renovacion(abiertas, pie: str):
                   'el nombre del trámite en el pie de la foto.')
 
 
-def recibir_documento(telefono: str, media_id: str, pie: str = '') -> Optional[str]:
+def recibir_documento(telefono: str, media_id: str, pie: str = ''):
     """Dirección mandó un archivo: si hay renovaciones abiertas, lo adjunta a la
-    que corresponde como vigencia por confirmar. Devuelve el texto con que
-    contestarle, o None si el archivo no es de este flujo."""
+    que corresponde como vigencia por confirmar. Devuelve `(atendido, respuesta)`:
+    `atendido` es False si el archivo no es de este flujo (p. ej. una foto de
+    daños, que lleva «cot» en el pie)."""
     if rol_de_telefono(telefono) != 'DIRECCION':
-        return None
+        return False, None
     abiertas = _renovaciones_abiertas()
     if not abiertas or re.search(r'\bcot', _normalizar(pie or '')):
-        return None
+        return False, None
     vigencia, aclaracion = _elegir_renovacion(abiertas, pie)
     if vigencia is None:
-        return aclaracion
+        return True, aclaracion
     try:
         contenido, _, extension = descargar_media_wa(media_id)
     except ValueError as e:
-        return str(e)
+        return True, str(e)
     propuesta = services.datos_renovacion(vigencia.tramite)
     with transaction.atomic():
         vigencia = Vigencia.objects.select_for_update().get(pk=vigencia.pk)
         if vigencia.estado != 'EN_TRAMITE':
-            return 'Esa renovación ya no está en trámite.'
+            return True, 'Esa renovación ya no está en trámite.'
         nombre = f'{vigencia.tramite.nombre[:60]}-{timezone.localdate():%Y%m%d}{extension}'
         vigencia.documento.save(nombre, ContentFile(contenido), save=False)
         if not vigencia.fecha_inicio and propuesta.get('fecha_inicio'):
@@ -171,7 +172,7 @@ def recibir_documento(telefono: str, media_id: str, pie: str = '') -> Optional[s
              f'Recibí el documento de {vigencia.tramite.nombre}; no pude proponer fechas')
     texto += f'. Si son correctas, toca Confirmar; si no, corrígelas aquí: {_url(vigencia)}'
     _enviar_aviso(normalizar_telefono_wa(telefono), texto, botones=[(id_boton(vigencia.pk), 'Confirmar')])
-    return None
+    return True, None
 
 
 def atender_boton(telefono: str, texto: str) -> Optional[str]:

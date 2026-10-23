@@ -26,7 +26,14 @@ from comercial import services_terminal
 from core_erp.ratelimit import rate_limit
 from cumplimiento import services_renovacion
 
-from . import services_agente, services_encuesta, services_pendientes, services_preguntas, services_responsables
+from . import (
+    services_agente,
+    services_encuesta,
+    services_inspeccion,
+    services_pendientes,
+    services_preguntas,
+    services_responsables,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +51,8 @@ def _es_boton_interno(identificador) -> bool:
     """Botones que atiende el ERP (no el agente): bandeja, terminal, FAQ, encuesta y cumplimiento."""
     return (services_pendientes.es_boton(identificador) or services_terminal.es_boton(identificador)
             or services_preguntas.es_boton(identificador) or services_encuesta.es_boton(identificador)
-            or services_renovacion.es_boton(identificador))
+            or services_renovacion.es_boton(identificador)
+            or services_inspeccion.es_boton(identificador))
 
 
 def _texto(mensaje: dict) -> str:

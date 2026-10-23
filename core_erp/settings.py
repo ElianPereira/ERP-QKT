@@ -597,6 +597,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.Responsable":         "fas fa-address-book",
         "comunicacion.Pendiente":           "fas fa-clipboard-list",
         "comunicacion.EncuestaPostEvento":  "fas fa-star-half-alt",
+        "comunicacion.InspeccionDeposito":  "fas fa-clipboard-check",
 
         # AUTH
         "auth":                             "fas fa-shield-alt",
@@ -727,6 +728,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.Responsable",
         "comunicacion.Pendiente",
         "comunicacion.EncuestaPostEvento",
+        "comunicacion.InspeccionDeposito",
 
         # === OPERACIONES ===
         "operaciones",

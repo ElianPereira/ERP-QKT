@@ -74,7 +74,7 @@ class HorariosTest(TestCase):
         por = {t.nombre: t for t in TAREAS}
         for nombre in ('avisar_vencimientos', 'sincronizar_comisiones_openpay',
                        'purgar_conversaciones_whatsapp', 'resumir_preguntas_agente',
-                       'preparar_renovaciones'):
+                       'preparar_renovaciones', 'devolver_depositos_sin_reporte'):
             self.assertEqual(por[nombre].args, ('--aplicar',), nombre)
 
 

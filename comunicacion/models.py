@@ -9,6 +9,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
+from core_erp.storages_qkt import storage_privado
+
 
 class ComunicacionCliente(models.Model):
     CANAL_CHOICES = [
@@ -384,6 +386,7 @@ class Pendiente(models.Model):
         ('SAT', 'SAT'),
         ('CUMPLIMIENTO', 'Cumplimiento'),
         ('COMPRAS', 'Compras'),
+        ('DEPOSITO', 'Depósito en garantía'),
         ('CRON', 'Proceso automático'),
         ('OTRO', 'Otro'),
     ]
@@ -464,3 +467,64 @@ class EncuestaPostEvento(models.Model):
     def __str__(self):
         return f'Encuesta COT-{self.cotizacion_id:03d}'
 
+
+class InspeccionDeposito(models.Model):
+    """Inspección posterior al servicio que decide qué pasa con el depósito en
+    garantía (Fase 3). MUEVE DINERO: la devolución o retención solo ocurre por
+    `comercial.services_deposito.liquidar`, ver `comunicacion.services_inspeccion`.
+    """
+    ESTADO_CHOICES = [
+        ('SOLICITADA', 'Esperando al encargado'),
+        ('DANOS', 'Daños en reporte'),
+        ('POR_APROBAR', 'Por aprobar por Dirección'),
+        ('PROCESANDO', 'Procesando'),
+        ('LIQUIDADA', 'Liquidada'),
+        ('MANUAL', 'Requiere atención manual'),
+    ]
+    RESOLUCION_CHOICES = [
+        ('SIN_DANOS', 'Sin daños (el encargado lo confirmó)'),
+        ('SIN_REPORTE', 'Sin reporte en el plazo'),
+        ('RETENCION_ENCARGADO', 'Retención dentro del tope'),
+        ('RETENCION_APROBADA', 'Retención aprobada por Dirección'),
+        ('RETENCION_RECHAZADA', 'Retención rechazada por Dirección'),
+    ]
+
+    deposito = models.OneToOneField('comercial.DepositoGarantia', on_delete=models.PROTECT,
+                                    related_name='inspeccion', verbose_name='Depósito')
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='SOLICITADA', db_index=True,
+                              verbose_name='Estado')
+    resolucion = models.CharField(max_length=20, choices=RESOLUCION_CHOICES, blank=True, verbose_name='Resolución')
+    solicitada_en = models.DateTimeField(default=timezone.now, verbose_name='Solicitada')
+    vence_en = models.DateTimeField(db_index=True, verbose_name='Devolución automática',
+                                    help_text='Si nadie reporta daños antes de esta hora, el depósito se devuelve solo.')
+    reportado_por = models.CharField(max_length=20, blank=True, verbose_name='Reportó (teléfono)')
+    monto_danos = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                                      verbose_name='Monto de daños reportado')
+    desglose = models.TextField(blank=True, verbose_name='Descripción de los daños')
+    nota = models.TextField(blank=True, verbose_name='Resultado')
+    resuelto_en = models.DateTimeField(null=True, blank=True, verbose_name='Resuelta')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Inspección'
+        verbose_name_plural = 'Inspecciones'
+        ordering = ['-solicitada_en', '-id']
+
+    def __str__(self):
+        return f'Inspección COT-{self.deposito.cotizacion_id:03d}'
+
+
+class FotoInspeccion(models.Model):
+    """Foto de evidencia de daños que mandó el encargado por WhatsApp."""
+    inspeccion = models.ForeignKey(InspeccionDeposito, on_delete=models.CASCADE, related_name='fotos',
+                                   verbose_name='Inspección')
+    archivo = models.FileField(upload_to='comunicacion/inspecciones/', storage=storage_privado,
+                               verbose_name='Archivo')
+    media_id = models.CharField(max_length=191, blank=True, verbose_name='ID del archivo en Meta')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Recibida')
+
+    class Meta:
+        verbose_name = 'Foto de inspección'
+        verbose_name_plural = 'Fotos'
+        ordering = ['id']

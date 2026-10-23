@@ -41,7 +41,7 @@ from comercial import services_terminal
 from cumplimiento import services_renovacion
 from operaciones.services import es_listo, marcar_listo
 
-from . import services_encuesta
+from . import services_encuesta, services_inspeccion
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
@@ -540,6 +540,14 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if respuesta:
             _enviar_automatico(conv, respuesta)
         pendientes.remove(m)
+    # Reporte de la inspección del depósito en garantía (botones `insp:<id>:…`,
+    # «sin daños» y «daños <monto> …»): solo valen desde ENCARGADO o DIRECCION.
+    for m in list(pendientes):
+        atendido, respuesta = services_inspeccion.atender(conv.telefono, m.texto)
+        if atendido:
+            if respuesta:
+                _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
     for m in [m for m in pendientes if m.media_id]:
         respuesta = _atender_archivo(conv, m)
         if respuesta:
@@ -582,10 +590,13 @@ def _atender_pendientes(conversacion_id: int) -> None:
 
 
 def _atender_archivo(conv, mensaje) -> Optional[str]:
-    """Foto o PDF de un responsable del directorio. Nunca llega al agente: se
-    atiende en el flujo que corresponda (hoy, el documento nuevo de un trámite)."""
+    """Foto o PDF de un responsable del directorio. Nunca llega al agente: es el
+    documento nuevo de un trámite (Dirección) o evidencia de daños (inspección)."""
     try:
-        return services_renovacion.recibir_documento(conv.telefono, mensaje.media_id, mensaje.texto)
+        atendido, respuesta = services_renovacion.recibir_documento(conv.telefono, mensaje.media_id, mensaje.texto)
+        if atendido:
+            return respuesta
+        return services_inspeccion.recibir_foto(conv.telefono, mensaje.media_id, mensaje.texto)
     except Exception:
         logger.exception("Agente WhatsApp: falló el archivo de %s", conv.telefono)
         return 'No pude procesar el archivo. Intenta de nuevo o súbelo desde el ERP.'

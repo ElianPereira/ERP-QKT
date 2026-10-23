@@ -94,7 +94,7 @@ class CierreDelTramiteTest(TestCase):
 
     def test_documento_de_direccion_queda_por_confirmar_con_boton(self):
         respuesta, aviso = self._recibir()
-        self.assertIsNone(respuesta)
+        self.assertEqual(respuesta, (True, None))
         self.nueva.refresh_from_db()
         self.assertTrue(self.nueva.por_confirmar)
         self.assertEqual(self.nueva.estado, 'EN_TRAMITE')
@@ -103,14 +103,14 @@ class CierreDelTramiteTest(TestCase):
         self.assertIn(f'{self.nueva.fecha_inicio:%d/%m/%Y}', aviso.call_args.args[1])
 
     def test_archivo_de_otro_telefono_o_sin_renovaciones_no_aplica(self):
-        self.assertIsNone(self._recibir(telefono='9990000000')[0])
+        self.assertEqual(self._recibir(telefono='9990000000')[0], (False, None))
         self.nueva.refresh_from_db()
         self.assertFalse(self.nueva.por_confirmar)
         Vigencia.objects.filter(pk=self.nueva.pk).update(estado='CANCELADA')
-        self.assertIsNone(self._recibir()[0])
+        self.assertEqual(self._recibir()[0], (False, None))
 
     def test_pie_con_cot_es_de_inspeccion_no_de_cumplimiento(self):
-        self.assertIsNone(self._recibir(pie='daños cot 145')[0])
+        self.assertEqual(self._recibir(pie='daños cot 145')[0], (False, None))
         self.nueva.refresh_from_db()
         self.assertFalse(self.nueva.por_confirmar)
 
@@ -118,17 +118,18 @@ class CierreDelTramiteTest(TestCase):
         otro, v = tramite(20, 'Protección civil')
         with AVISO:
             svc.abrir_renovacion(otro, v, 20)
-        respuesta, _ = self._recibir()
+        (atendido, respuesta), _ = self._recibir()
+        self.assertTrue(atendido)
         self.assertIn('nombre del trámite', respuesta)
         self.nueva.refresh_from_db()
         self.assertFalse(self.nueva.por_confirmar)
         respuesta, _ = self._recibir(pie='Protección civil 2027')
-        self.assertIsNone(respuesta)
+        self.assertEqual(respuesta, (True, None))
         self.assertTrue(Vigencia.objects.get(tramite=otro, estado='EN_TRAMITE').por_confirmar)
 
     def test_archivo_no_valido_se_explica(self):
         with mock.patch.object(svc, 'descargar_media_wa', side_effect=ValueError('Solo puedo recibir fotos (JPG, PNG) o PDF.')):
-            self.assertEqual(svc.recibir_documento(DIRECCION, 'm'), 'Solo puedo recibir fotos (JPG, PNG) o PDF.')
+            self.assertEqual(svc.recibir_documento(DIRECCION, 'm'), (True, 'Solo puedo recibir fotos (JPG, PNG) o PDF.'))
 
     def test_confirmar_la_pasa_a_obtenida_y_cierra_el_pendiente(self):
         self._recibir()

@@ -9,6 +9,7 @@ from django.utils.formats import date_format
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 from core_erp.admin_utils import confirmar_accion_destructiva
+from core_erp.descargas import url_descarga
 
 from . import services_agente, services_pendientes, services_responsables, services_tablero
 from .models import (
@@ -17,6 +18,8 @@ from .models import (
     ComunicacionCliente,
     ConversacionWhatsApp,
     EncuestaPostEvento,
+    FotoInspeccion,
+    InspeccionDeposito,
     MensajeWhatsApp,
     Pendiente,
     Responsable,
@@ -214,6 +217,82 @@ class EncuestaPostEventoAdmin(admin.ModelAdmin):
     @admin.display(description='Contestada', ordering='contestada_en')
     def contestada(self, obj):
         return date_format(timezone.localtime(obj.contestada_en), 'd M H:i') if obj.contestada_en else ui.vacio()
+
+
+class FotoInspeccionInline(admin.TabularInline):
+    model = FotoInspeccion
+    extra = 0
+    fields = ('descarga', 'created_at')
+    readonly_fields = fields
+
+    @admin.display(description='Foto')
+    def descarga(self, obj):
+        url = url_descarga(obj, 'archivo') if obj.pk else None
+        return ui.boton_icono(url, 'file-download', 'Descargar foto', nueva_pestana=True) if url else ui.vacio()
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(InspeccionDeposito)
+class InspeccionDepositoAdmin(admin.ModelAdmin):
+    """Solo consulta: la inspección se atiende por WhatsApp (ver `services_inspeccion`).
+    El dinero se mueve únicamente por `services_deposito.liquidar`."""
+    list_display = ('folio', 'cliente', 'estado_badge', 'monto', 'resolucion_badge', 'solicitada', 'vence')
+    list_filter = ('estado', 'resolucion')
+    search_fields = ('deposito__cotizacion__cliente__nombre',)
+    list_select_related = ('deposito__cotizacion__cliente',)
+    filtros_visibles = 2
+    inlines = [FotoInspeccionInline]
+    fields = ('deposito', 'estado', 'resolucion', 'solicitada_en', 'vence_en', 'reportado_por', 'monto_danos',
+              'desglose', 'nota', 'resuelto_en')
+    readonly_fields = fields
+
+    TONOS_ESTADO = {'SOLICITADA': ui.ALERTA, 'DANOS': ui.ALERTA, 'POR_APROBAR': ui.INFO, 'PROCESANDO': ui.INFO,
+                    'LIQUIDADA': ui.EXITO, 'MANUAL': ui.ERROR}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Cotización', ordering='deposito__cotizacion')
+    def folio(self, obj):
+        return f'COT-{obj.deposito.cotizacion_id:03d}'
+
+    @admin.display(description='Cliente', ordering='deposito__cotizacion__cliente__nombre')
+    def cliente(self, obj):
+        return obj.deposito.cotizacion.cliente.nombre
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='Daños', ordering='monto_danos')
+    def monto(self, obj):
+        return ui.monto(obj.monto_danos) if obj.monto_danos is not None else ui.vacio(numerico=True)
+
+    @admin.display(description='Resolución', ordering='resolucion')
+    def resolucion_badge(self, obj):
+        return ui.badge(obj.get_resolucion_display(), ui.NEUTRO, categoria=True) if obj.resolucion else ui.vacio()
+
+    @admin.display(description='Solicitada', ordering='solicitada_en')
+    def solicitada(self, obj):
+        return date_format(timezone.localtime(obj.solicitada_en), 'd M H:i')
+
+    @admin.display(description='Devolución automática', ordering='vence_en')
+    def vence(self, obj):
+        return date_format(timezone.localtime(obj.vence_en), 'd M H:i')
 
 
 class ResponsableForm(forms.ModelForm):

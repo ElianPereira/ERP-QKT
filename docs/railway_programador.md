@@ -62,6 +62,8 @@ hay cron viejo que apagar. Quedan inertes hasta definir `META_WA_PLANTILLA_ENCUE
 | `enviar_listas_compras` | diario 08:30 |
 | `enviar_encuestas` | diario 10:30 |
 | `enviar_reactivaciones` | diario 11:15 |
+| `solicitar_inspecciones_deposito` | diario 09:45 |
+| `devolver_depositos_sin_reporte --aplicar` (mueve dinero) | cada hora |
 
 ## 4. Borrar los crons viejos
 
