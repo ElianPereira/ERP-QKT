@@ -272,6 +272,40 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-23 — **Fase 3: post-venta, compras, renovaciones y depósito** (Issue #434; el punto 5 mueve dinero y va a
+  revisión de Opus antes del merge). Migraciones aditivas: `comunicacion.0014`/`0015`, `cumplimiento.0004`.
+  **(1) Encuesta** (`comunicacion/services_encuesta.py`, `EncuestaPostEvento`, comando `enviar_encuestas`): un día después
+  del fin del servicio (`fecha_salida` o `fecha_evento`), plantilla con 3 botones (`enc:<id>:5|3|1`, «Excelente/Regular/
+  Mala»; Meta solo permite 3) y también vale un número 1–5 en texto, **solo dentro de 3 días y solo desde el teléfono de
+  una encuesta abierta**. 4–5 → enlace `ERP_RESENA_GOOGLE_URL` (vacío = solo agradece); 1–3 → pendiente URGENTE QUEJA a
+  DIRECCION sin texto del cliente. Exige MARKETING y sin baja, igual que el seguimiento (decisión conservadora hasta que el
+  abogado diga si es finalidad necesaria). La fila es la reserva del envío; si Meta lo rechaza se borra y la clave de
+  idempotencia impide reintentar a ciegas. **(2) Reactivación** (`enviar_reactivaciones`): en el aniversario de un evento
+  EJECUTADO/CERRADO, una por cliente y año (`reactivacion:<cliente>:<año>`), omite a quien tiene otra reservación en curso
+  o calificó 1–3. Textos de ambas plantillas en `docs/whatsapp_plantillas_fase3.md`. **(3) Compras**
+  (`services_compras.py`, `enviar_listas_compras`): CONFIRMADAS de Evento a ≤3 días con lista de barra no vacía
+  (`comercial.views.contexto_lista_compras`, extraída de la vista del PDF) → rol COMPRAS, o ENCARGADO si no hay responsable;
+  pendiente NORMAL + aviso con botón «Ya compré» (`pend:<id>:ok`) + PDF por correo si el responsable tiene email.
+  **(4) Cumplimiento** (`cumplimiento/services_renovacion.py`, `preparar_renovaciones --aplicar`): a ≤45 días (o vencido sin
+  renovar; se salta el contrato con renovación automática) abre una `Vigencia` EN_TRAMITE con `datos_renovacion`, copia por
+  requisito el documento más reciente (misma ruta en el storage, sin duplicar el archivo) y avisa a DIRECCION; la clave
+  `renovacion:<vigencia vencible>` del pendiente evita reabrirla aunque cancelen la renovación. Cierre: un archivo de
+  Dirección (el webhook guarda `media_id`/`media_mime` en `MensajeWhatsApp` solo si el remitente está en el directorio; a
+  los demás sigue el aviso de «solo texto») se adjunta a la renovación abierta (si hay varias, el pie de foto debe traer el
+  nombre del trámite; un pie con «cot» es de inspección) como `Vigencia.por_confirmar` con fechas propuestas y botón
+  `vig:<id>:ok`, solo DIRECCION; confirmar corre `full_clean()` y pasa a OBTENIDA. Las fechas son las del cálculo de
+  siempre: no se leen del documento. **(5) Depósito en garantía — DINERO** (`services_inspeccion.py`, `InspeccionDeposito`,
+  `FotoInspeccion`, comandos `solicitar_inspecciones_deposito` y `devolver_depositos_sin_reporte --aplicar`, este último
+  simula por defecto): un día después del servicio, solo depósitos con dinero en custodia y servicio de ≤14 días (no se
+  barre el histórico). Todo movimiento pasa por `services_deposito.liquidar`. **Solo se automatiza si lo que hay que
+  devolver se cobró con tarjeta en Openpay** (`automatizable()`); con SPEI, efectivo o mixto `liquidar` solo *registraría*
+  una devolución que nadie hizo, así que queda MANUAL con pendiente URGENTE a Dirección. El estado PROCESANDO se toma con
+  UPDATE condicional antes de liquidar (cron + botón + doble corrida no pueden reembolsar dos veces); una corrida muerta a
+  medias se queda PROCESANDO y `revisar_atoradas` avisa, no reintenta. Tope: `ERP_DEPOSITO_TOPE_RETENCION`, **por defecto 0 =
+  toda retención la aprueba Dirección**; por encima del tope, botones Aprobar / Devolver todo (`insp:<id>:apr|rech`, solo
+  DIRECCION). La retención exige monto, descripción (≥5 caracteres) y ≥1 foto. Pendiente fuera de alcance: retenciones por
+  servicio (tiempo extra/limpieza) por WhatsApp y reembolsos por transferencia.
+
 - 2026-10-21 — **Renglones pendientes de la Fase 1** (Issue #428, fase 1e; el punto 3 va a revisión de Opus antes del
   merge). **(1-2, 7)** Choque de fecha, contracargo y SAT dejan su `Pendiente` URGENTE (CHOQUE_FECHA/CONTRACARGO/SAT, rol
   DIRECCION, claves `pago_fecha_ocupada:<pago>`, `contracargo:<pk>:<estado>`, `sat:<pk>:<motivo>`) y pasan
