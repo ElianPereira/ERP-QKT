@@ -272,6 +272,37 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-23 — **Dinero y bloqueo de fechas por WhatsApp desde Dirección** (Issue #433, Fase 2b; el dinero va a
+  revisión de Opus antes del merge). Patrón de `services_terminal.py` con candado más estricto en el teléfono:
+  `services_ordenes_wa.direccion_activa()` exige un `Responsable` DIRECCION activo con ese `telefono_wa` (sin el
+  respaldo `ERP_WA_NEGOCIO_NUMERO`, que hoy es el del encargado; sin números pendientes de «ACEPTO»; sin ENCARGADO).
+  **Modo Dirección del agente**: hasta hoy el agente callaba a los números del directorio; ahora, si el teléfono del
+  webhook firmado es el de Dirección, el mensaje va a `responder(conv, texto, propuestas=[])` con
+  `SYSTEM_PROMPT_DIRECCION` y `HERRAMIENTAS_DIRECCION` (`comunicacion/herramientas_direccion.py`): `buscar_cotizacion`
+  (solo folio, fecha, estado, saldos y **primer nombre saneado**; nunca `nombre_evento`/notas) y cuatro `proponer_*`
+  que **solo** crean una `AccionWhatsApp` (bitácora, migración `comercial.0119`, solo lectura en el admin como
+  «Órdenes»). El agente público no las tiene y cada `proponer_*` vuelve a exigir el teléfono. **El texto de la
+  propuesta lo arma el ERP**; si el turno dejó propuestas, el texto libre del modelo se descarta (así no puede decir
+  «listo» de algo no confirmado). Botones `ord:<token>:ok|no`: token aleatorio con HMAC, un solo uso, 10 min, atado
+  al teléfono, `select_for_update` y **revalidación completa al confirmar** (tope, saldo/custodia, importe, choques de
+  fecha); un botón desde otro número se descarta sin contestar y sin tocar el token. Una propuesta idéntica anula la
+  anterior. **Catálogo cerrado** (`services_dinero_wa.py`): (a) devolución **completa** del depósito sin retenciones,
+  transferencia o efectivo, vía `services_deposito.liquidar(reembolsar_openpay=False)` — el ERP solo asienta lo que
+  Dirección ya entregó; (b) descuento **manual** existente y no cortesía (`DescuentoService.aplicar`; gana
+  `monto_aplicable()`, que `aplicar` ahora usa); si dejaría la cotización en $0 se manda al admin; (c) reembolso ya
+  hecho fuera del sistema (`Pago` REEMBOLSO por `full_clean()`+`save()`, valida contra lo cobrado). Sin Openpay (eso
+  es 2c), sin retenciones del depósito (piden desglose), sin condonaciones como `Pago`. **Tope**
+  `ERP_KOOXI_DINERO_MAX` (default `5000.00`, Decimal): arriba, no hay propuesta (queda `RECHAZADA` en bitácora) y se
+  responde que se haga en el admin con 2FA; en el descuento se compara el ahorro con IVA incluido. **Bloqueo de
+  fechas**: `BloqueoFecha.full_clean()` como el calendario (no encima de una CONFIRMADA; avisa BORRADOR/COTIZADA al
+  proponer y al confirmar; máx. 90 días; rechaza lo ya bloqueado). **Mensajes reenviados**: el webhook marca con
+  `MARCA_REENVIADO` lo que Dirección reenvía (`context.forwarded`) y el prompt enseña a tratarlo como dato de un
+  tercero. `created_by` queda nulo en lo que crea (no hay `User` detrás de un teléfono): la trazabilidad es la
+  `AccionWhatsApp` (teléfono, rol, orden #) y la nota/referencia del registro creado (`WA-ORDEN-<n>`, `REEMB-WA-<n>`).
+  Evals: casos `inyeccion_*` (cliente, reenviado, número no autorizado, «modo Dirección») y `direccion_*`; el corredor
+  gana `no_debe_usar` y `modo: direccion`. Pendiente del propietario: definir `ERP_KOOXI_DINERO_MAX` en Railway si
+  quiere un tope distinto y correr `evaluar_agente --ejecutar` (necesita `ANTHROPIC_API_KEY_KOOXI`: `railway run`).
+
 - 2026-10-23 — **Fase 3: post-venta, compras, renovaciones y depósito** (Issue #434; el punto 5 mueve dinero y va a
   revisión de Opus antes del merge). Migraciones aditivas: `comunicacion.0014`/`0015`, `cumplimiento.0004`.
   **(1) Encuesta** (`comunicacion/services_encuesta.py`, `EncuestaPostEvento`, comando `enviar_encuestas`): un día después

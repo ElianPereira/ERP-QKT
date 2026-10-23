@@ -170,6 +170,15 @@ class DescuentoService:
 
     # ── Aplicación / recálculo / reversión ──────────────────────────────
     @staticmethod
+    def monto_aplicable(cotizacion, descuento):
+        """Lo que `aplicar` descontaría hoy (base sin IVA), sin escribir nada.
+        No excede la base disponible (evita base negativa)."""
+        ctx = ContextoDescuento.de_cotizacion(cotizacion)
+        actual = Cotizacion.objects.filter(pk=cotizacion.pk).values_list('descuento', flat=True).get()
+        disponible = max(ctx.subtotal - (actual or CERO), CERO)
+        return min(_monto_descuento(descuento, _base_descuento(descuento, ctx)), disponible)
+
+    @staticmethod
     @transaction.atomic
     def aplicar(cotizacion, descuento, usuario=None, modo='MANUAL'):
         """Crea el DescuentoAplicado (auditoría), suma el monto a
@@ -177,13 +186,8 @@ class DescuentoService:
 
         Si un descuento MANUAL deja la cotización en $0 (cortesía total), la
         confirma: no habrá pago que lo haga (ver `cubierta_por_cortesia`)."""
-        ctx = ContextoDescuento.de_cotizacion(cotizacion)
-        subtotal = ctx.subtotal
-
-        # El descuento no puede exceder la base disponible (evita base negativa).
-        actual = Cotizacion.objects.filter(pk=cotizacion.pk).values_list('descuento', flat=True).get()
-        disponible = max(subtotal - (actual or CERO), CERO)
-        monto = min(_monto_descuento(descuento, _base_descuento(descuento, ctx)), disponible)
+        subtotal = ContextoDescuento.de_cotizacion(cotizacion).subtotal
+        monto = DescuentoService.monto_aplicable(cotizacion, descuento)
 
         aplicado = DescuentoAplicado.objects.create(
             cotizacion=cotizacion,

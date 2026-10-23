@@ -418,6 +418,10 @@ ERP_KOOXI_PAUSA_HUMANO_HORAS = env('ERP_KOOXI_PAUSA_HUMANO_HORAS', legado='WA_AG
 # global, el agente deja de usar IA hasta el día siguiente y avisa al equipo.
 ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA', legado='WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA', default=30, cast=int)
 ERP_KOOXI_MAX_RESPUESTAS_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_DIA', legado='WA_AGENTE_MAX_RESPUESTAS_DIA', default=300, cast=int)
+# Tope en pesos de las acciones de dinero que Dirección ordena por WhatsApp
+# (devolver depósito, descuento manual, reembolso hecho fuera del sistema):
+# arriba de este monto, Kooxi responde que se haga en el admin (con 2FA).
+ERP_KOOXI_DINERO_MAX = env('ERP_KOOXI_DINERO_MAX', default='5000.00', cast=Decimal)
 # Historial que se reenvía al modelo; al pasarlo la conversación empieza de cero.
 ERP_KOOXI_MAX_HISTORIAL_CARACTERES = env('ERP_KOOXI_MAX_HISTORIAL_CARACTERES', legado='WA_AGENTE_MAX_HISTORIAL_CARACTERES', default=40000, cast=int)
 # La llave de Anthropic se pasa explícita a cada cliente (api_key=settings.ANTHROPIC_API_KEY_KOOXI).
@@ -547,6 +551,7 @@ JAZZMIN_SETTINGS = {
         "comercial.PlanPago":               "fas fa-calendar-alt",
         "comercial.RecordatorioPago":       "fas fa-bell",
         "comercial.OpenpayTransaccion":     "fas fa-exchange-alt",
+        "comercial.AccionWhatsApp":         "fas fa-mobile-alt",
         "comercial.ImagenLanding":          "fas fa-images",
         "comercial.TestimonioLanding":      "fas fa-star",
         "comercial.EspacioLanding":         "fas fa-vector-square",
@@ -699,6 +704,7 @@ JAZZMIN_SETTINGS = {
         "comercial.PlanPago",
         "comercial.RecordatorioPago",
         "comercial.OpenpayTransaccion",
+        "comercial.AccionWhatsApp",
         "comercial.DepositoGarantia",
         "comercial.Contracargo",
         "comercial.ImagenLanding",

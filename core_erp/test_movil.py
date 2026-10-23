@@ -9,6 +9,7 @@ Ejecutar: python manage.py test core_erp.test_movil
 import glob
 import os
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
@@ -340,6 +341,21 @@ class PaginasMovilTest(MovilBase):
             if res['desborde_pagina'] > 0 or culpables:
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Pendientes desborda en móvil:\n' + '\n'.join(problemas))
+
+    def test_bitacora_de_ordenes_por_whatsapp_no_desborda(self):
+        from comercial.models import AccionWhatsApp
+        orden = AccionWhatsApp.objects.create(
+            telefono='525555550012', rol='DIRECCION', tipo='DEVOLUCION_DEPOSITO', estado='CONFIRMADA',
+            monto=Decimal('1160.00'), resumen='Registrar la devolución del depósito en garantía ' * 3,
+            resultado='Listo: registré la devolución. ' * 4)
+        problemas = []
+        for ruta in (reverse('admin:comercial_accionwhatsapp_changelist'),
+                     reverse('admin:comercial_accionwhatsapp_change', args=[orden.pk])):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES) if '/change/' in ruta else []
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Órdenes desborda en móvil:\n' + '\n'.join(problemas))
 
     def test_hallazgos_y_aprobaciones_no_desbordan(self):
         from datetime import date
