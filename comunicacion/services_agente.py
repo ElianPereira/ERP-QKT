@@ -39,7 +39,7 @@ from django.utils.formats import date_format
 from comercial import services_terminal
 from operaciones.services import es_listo, marcar_listo
 
-from . import services_visitas
+from . import services_contador, services_direccion, services_visitas
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
@@ -535,6 +535,15 @@ def _atender_pendientes(conversacion_id: int) -> None:
     # [Aprobar] de una pregunta frecuente propuesta (`faq:<id>:ok`): solo Dirección.
     for m in [m for m in pendientes if es_boton_faq(m.texto)]:
         respuesta = atender_boton_faq(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Dirección (`hal:<id>:tarea|ign`, `nom:<id>:ok`) y contador (`cfdi:<id>:<solicitud>|no`):
+    # solo valen desde su teléfono; un botón ajeno se descarta sin llegar al agente.
+    for m in [m for m in pendientes if services_direccion.es_boton(m.texto) or services_contador.es_boton(m.texto)]:
+        atender = (services_direccion.atender_boton if services_direccion.es_boton(m.texto)
+                   else services_contador.atender_boton)
+        respuesta = atender(conv.telefono, m.texto)
         if respuesta:
             _enviar_automatico(conv, respuesta)
         pendientes.remove(m)

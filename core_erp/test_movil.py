@@ -341,6 +341,28 @@ class PaginasMovilTest(MovilBase):
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Pendientes desborda en móvil:\n' + '\n'.join(problemas))
 
+    def test_hallazgos_y_aprobaciones_no_desbordan(self):
+        from datetime import date
+        from decimal import Decimal
+
+        from comunicacion.models import Hallazgo
+        from nomina.models import AprobacionNomina
+        hallazgo = Hallazgo.objects.create(
+            clave='movil:1', tipo='MARGEN', titulo='«Producto con un nombre bastante largo» se vende con margen negativo',
+            detalle='Precio base $50.00 contra costo $100.00 (sin IVA). ' * 3)
+        aprobacion = AprobacionNomina.objects.create(
+            semana_inicio=date(2026, 10, 19), semana_fin=date(2026, 10, 25), total=Decimal('2300.75'), recibos=2)
+        problemas = []
+        for ruta in (reverse('admin:comunicacion_hallazgo_changelist'),
+                     reverse('admin:comunicacion_hallazgo_change', args=[hallazgo.pk]),
+                     reverse('admin:nomina_aprobacionnomina_changelist'),
+                     reverse('admin:nomina_aprobacionnomina_change', args=[aprobacion.pk])):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES) if '/change/' in ruta else []
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Hallazgos/Aprobaciones desbordan en móvil:\n' + '\n'.join(problemas))
+
     def test_ejecuciones_y_aviso_del_programador_no_desbordan(self):
         from django.utils import timezone
 

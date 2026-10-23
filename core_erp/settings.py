@@ -594,6 +594,8 @@ JAZZMIN_SETTINGS = {
         "comunicacion.BajaWhatsApp":        "fas fa-bell-slash",
         "comunicacion.Responsable":         "fas fa-address-book",
         "comunicacion.Pendiente":           "fas fa-clipboard-list",
+        "comunicacion.Hallazgo":            "fas fa-binoculars",
+        "nomina.AprobacionNomina":          "fas fa-clipboard-check",
 
         # AUTH
         "auth":                             "fas fa-shield-alt",
@@ -709,6 +711,7 @@ JAZZMIN_SETTINGS = {
         "nomina",
         "nomina.Empleado",
         "nomina.ReciboNomina",
+        "nomina.AprobacionNomina",
 
         # === FACTURACIÓN ===
         "facturacion",
@@ -723,6 +726,7 @@ JAZZMIN_SETTINGS = {
         "comunicacion.BajaWhatsApp",
         "comunicacion.Responsable",
         "comunicacion.Pendiente",
+        "comunicacion.Hallazgo",
         "comunicacion.Visita",
         "comunicacion.HorarioVisita",
 

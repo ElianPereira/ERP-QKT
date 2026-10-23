@@ -10,12 +10,20 @@ from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 from core_erp.admin_utils import confirmar_accion_destructiva
 
-from . import services_agente, services_pendientes, services_responsables, services_tablero, services_visitas
+from . import (
+    services_agente,
+    services_direccion,
+    services_pendientes,
+    services_responsables,
+    services_tablero,
+    services_visitas,
+)
 from .models import (
     BajaWhatsApp,
     CambioResponsable,
     ComunicacionCliente,
     ConversacionWhatsApp,
+    Hallazgo,
     HorarioVisita,
     MensajeWhatsApp,
     Pendiente,
@@ -473,3 +481,54 @@ class VisitaAdmin(admin.ModelAdmin):
     def cancelar_visitas(self, request, queryset):
         hechas = sum(1 for v in queryset if services_visitas.cancelar(v.pk, request.user))
         self.message_user(request, f'{hechas} visita(s) cancelada(s).')
+
+
+@admin.register(Hallazgo)
+class HallazgoAdmin(admin.ModelAdmin):
+    """Lo que el ERP detectó y propuso a Dirección en el resumen semanal (Issue #431).
+    Nace del cron del lunes; aquí se convierte en tarea o se ignora."""
+    list_display = ('titulo', 'tipo_badge', 'estado_badge', 'propuesto', 'creado')
+    list_filter = ('estado', 'tipo')
+    search_fields = ('titulo', 'detalle')
+    columnas_texto = ('titulo',)
+    actions = ['crear_tarea', 'ignorar']
+    fields = ('titulo', 'detalle', 'tipo', 'estado', 'pendiente', 'propuesto_en', 'resuelto_en', 'resuelto_por',
+              'created_at')
+    readonly_fields = fields
+
+    TONOS_ESTADO = {'PROPUESTO': ui.ALERTA, 'TAREA': ui.EXITO, 'IGNORADO': ui.NEUTRO}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Tipo', ordering='tipo')
+    def tipo_badge(self, obj):
+        return ui.badge(obj.get_tipo_display(), ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='Propuesto', ordering='propuesto_en')
+    def propuesto(self, obj):
+        return date_format(timezone.localtime(obj.propuesto_en), 'd M H:i') if obj.propuesto_en else ui.vacio()
+
+    @admin.display(description='Creado', ordering='created_at')
+    def creado(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M H:i')
+
+    @admin.action(description='Crear tarea en la bandeja')
+    def crear_tarea(self, request, queryset):
+        hechos = sum(1 for h in queryset.filter(estado='PROPUESTO')
+                     if services_direccion.crear_tarea(h, request.user) is not None)
+        self.message_user(request, f'{hechos} tarea(s) creada(s) en la bandeja.',
+                          messages.SUCCESS if hechos else messages.WARNING)
+
+    @admin.action(description='Ignorar')
+    @confirmar_accion_destructiva('Los hallazgos ignorados no se vuelven a proponer.')
+    def ignorar(self, request, queryset):
+        hechos = sum(1 for h in queryset.filter(estado='PROPUESTO') if services_direccion.ignorar(h, request.user))
+        self.message_user(request, f'{hechos} hallazgo(s) ignorado(s).', messages.SUCCESS if hechos else messages.WARNING)

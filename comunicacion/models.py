@@ -380,6 +380,8 @@ class Pendiente(models.Model):
         ('CHOQUE_FECHA', 'Choque de fecha'),
         ('CONTRACARGO', 'Contracargo'),
         ('SAT', 'SAT'),
+        ('DESVIACION', 'Desviación'),
+        ('HALLAZGO', 'Hallazgo'),
         ('CUMPLIMIENTO', 'Cumplimiento'),
         ('CRON', 'Proceso automático'),
         ('OTRO', 'Otro'),
@@ -428,6 +430,77 @@ class Pendiente(models.Model):
     @property
     def vencido(self) -> bool:
         return self.estado == 'ABIERTO' and self.vence_en < timezone.now()
+
+
+class Hallazgo(models.Model):
+    """Algo que el ERP detectó y propone a Dirección en el resumen semanal (Issue #431).
+
+    La clave identifica el hallazgo (p. ej. `margen:<producto>`): uno ignorado o
+    convertido en tarea no se vuelve a proponer. No se borra. El detalle nunca
+    lleva texto de mensajes de clientes.
+    """
+    TIPO_CHOICES = [
+        ('MARGEN', 'Margen negativo'),
+        ('SIN_FACTURA', 'Pago sin factura'),
+        ('SIN_SEGUIMIENTO', 'Cotización sin seguimiento'),
+        ('PRECIO_ENTRAR', 'Servicio fuera del plan'),
+        ('DIAS_LIBRES', 'Días libres'),
+    ]
+    ESTADO_CHOICES = [('PROPUESTO', 'Propuesto'), ('TAREA', 'Tarea creada'), ('IGNORADO', 'Ignorado')]
+
+    clave = models.CharField(max_length=191, unique=True, verbose_name='Clave')
+    tipo = models.CharField(max_length=16, choices=TIPO_CHOICES, db_index=True, verbose_name='Tipo')
+    titulo = models.CharField(max_length=200, verbose_name='Hallazgo')
+    detalle = models.TextField(blank=True, verbose_name='Detalle')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PROPUESTO', db_index=True,
+                              verbose_name='Estado')
+    pendiente = models.ForeignKey(Pendiente, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                  verbose_name='Pendiente creado')
+    propuesto_en = models.DateTimeField(null=True, blank=True, verbose_name='Propuesto')
+    resuelto_en = models.DateTimeField(null=True, blank=True, verbose_name='Resuelto')
+    resuelto_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+', verbose_name='Resuelto por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Hallazgo'
+        verbose_name_plural = 'Hallazgos'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Hallazgo {self.pk}: {self.titulo}'[:120]
+
+
+class ConsultaCfdi(models.Model):
+    """Pregunta al contador sobre un CFDI emitido que el ERP no pudo ligar solo (Issue #431).
+
+    Bitácora e idempotencia: cada CFDI se pregunta una vez y, si no hay respuesta
+    en 3 días, una vez más. Sin menú propio: el comprobante se revisa en
+    Contabilidad → Comprobantes.
+    """
+    ESTADO_CHOICES = [('PREGUNTADA', 'Preguntada'), ('LIGADA', 'Ligada'), ('NINGUNA', 'Ninguna coincide')]
+
+    cfdi = models.ForeignKey('contabilidad.CfdiSAT', on_delete=models.PROTECT, related_name='consultas',
+                             verbose_name='Comprobante')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PREGUNTADA', db_index=True,
+                              verbose_name='Estado')
+    candidatas = models.CharField(max_length=100, blank=True, verbose_name='Solicitudes candidatas',
+                                  help_text='Ids de solicitud de factura separados por coma.')
+    solicitud = models.ForeignKey('facturacion.SolicitudFactura', null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name='+', verbose_name='Solicitud elegida')
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono que respondió')
+    respondida_en = models.DateTimeField(null=True, blank=True, verbose_name='Respondida')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='Preguntada')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizada')
+
+    class Meta:
+        verbose_name = 'Consulta al contador'
+        verbose_name_plural = 'Consultas'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Consulta {self.pk} sobre {self.cfdi.uuid[:8]}'
 
 
 class HorarioVisita(models.Model):
