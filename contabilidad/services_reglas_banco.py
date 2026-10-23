@@ -21,8 +21,10 @@ from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Sum
 
 from .models import (
+    ConfiguracionContable,
     MovimientoContable,
     MovimientoEstadoCuenta,
     Poliza,
@@ -152,6 +154,27 @@ def vincular_polizas_propias(estado_cuenta):
     return vinculados
 
 
+def _caja_alcanza(cuenta_caja, movimiento):
+    """¿El saldo de Caja a la fecha del abono cubre el monto? Solo pólizas aplicadas."""
+    t = cuenta_caja.movimientos.filter(
+        poliza__estado='APLICADA', poliza__fecha__lte=movimiento.fecha,
+    ).aggregate(d=Sum('debe'), h=Sum('haber'))
+    debe, haber = t['d'] or Decimal('0.00'), t['h'] or Decimal('0.00')
+    saldo = debe - haber if cuenta_caja.naturaleza == 'D' else haber - debe
+    return saldo >= movimiento.abono
+
+
+def _pendiente_sin_saldo_caja(movimiento):
+    from comunicacion.services_pendientes import registrar_pendiente
+    registrar_pendiente(
+        titulo=f"Depósito de efectivo sin saldo en Caja: ${movimiento.abono}",
+        rol='DIRECCION', tipo='ALERTA',
+        detalle=(f"El abono del {movimiento.fecha} ({movimiento.descripcion[:120]}) parece un depósito de efectivo, "
+                 "pero Caja no tiene saldo suficiente para el traspaso. Revisa si es un cobro de cliente sin Pago registrado."),
+        clave_idempotencia=f"deposito_efectivo_sin_caja:{movimiento.pk}",
+    )
+
+
 def aplicar_reglas(estado_cuenta, usuario=None):
     """
     Crea la póliza de cada movimiento sin asiento que calce con una regla.
@@ -159,12 +182,13 @@ def aplicar_reglas(estado_cuenta, usuario=None):
     'borrador' (póliza creada, falta aplicarla), 'sin_cuenta' (la regla calza
     pero su operación no tiene cuenta configurada) y 'sin_regla'.
     """
-    resumen = {'aplicadas': [], 'borrador': [], 'sin_cuenta': [], 'sin_regla': []}
+    resumen = {'aplicadas': [], 'borrador': [], 'sin_cuenta': [], 'sin_regla': [], 'sin_saldo_caja': []}
     if not estado_cuenta.cuenta_bancaria.cuenta_contable:
         return resumen
 
     usuario = usuario or usuario_sistema()
     reglas = list(ReglaConciliacion.objects.filter(activa=True).select_related('cuenta'))
+    cuenta_caja = ConfiguracionContable.obtener_cuenta('CAJA')
 
     pendientes = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True).order_by('fecha', 'id')
     for mov in pendientes:
@@ -181,6 +205,13 @@ def aplicar_reglas(estado_cuenta, usuario=None):
         if not cuenta:
             logger.warning("Regla «%s» sin cuenta configurada (operación %s)", regla, regla.operacion)
             resumen['sin_cuenta'].append(mov)
+            continue
+
+        if mov.abono > 0 and cuenta == cuenta_caja and not _caja_alcanza(cuenta, mov):
+            # Abono que dice «depósito de efectivo» pero Caja no tiene con qué:
+            # no es un traspaso, quizá un cliente sin Pago registrado. Se revisa a mano.
+            resumen['sin_saldo_caja'].append(mov)
+            _pendiente_sin_saldo_caja(mov)
             continue
 
         try:

@@ -66,6 +66,25 @@ def _forma_pago_openpay(pago):
     return None
 
 
+# Forma de pago SAT por método de Pago. DEPOSITO es un depósito en efectivo en
+# ventanilla/practicaja (confirmado por el contador), no una transferencia.
+MAPEO_FORMA_PAGO = {
+    'EFECTIVO': FormaPago.EFECTIVO,
+    'TRANSFERENCIA': FormaPago.TRANSFERENCIA,
+    'TARJETA_CREDITO': FormaPago.TARJETA_CREDITO,
+    'TARJETA_DEBITO': FormaPago.TARJETA_DEBITO,
+    'CHEQUE': FormaPago.CHEQUE,
+    'DEPOSITO': FormaPago.EFECTIVO,
+    'PLATAFORMA': FormaPago.TRANSFERENCIA,
+    'OTRO': FormaPago.POR_DEFINIR,
+}
+
+
+def forma_pago_de_pago(pago):
+    """Forma de pago SAT que hoy le corresponde a un Pago (fuente única)."""
+    return _forma_pago_openpay(pago) or MAPEO_FORMA_PAGO.get(pago.metodo, FormaPago.TRANSFERENCIA)
+
+
 def _datos_fiscales(cliente):
     """(rfc, razón social, C.P., régimen, uso CFDI) del cliente, o Público en General."""
     from facturacion.choices import uso_cfdi_compatible
@@ -155,19 +174,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
     retencion_isr = desglose['retencion_isr']
     retencion_iva = desglose['retencion_iva']
 
-    # ─── Mapear método de pago ──────────────────────────────────
-    mapeo_forma_pago = {
-        'EFECTIVO': FormaPago.EFECTIVO,
-        'TRANSFERENCIA': FormaPago.TRANSFERENCIA,
-        'TARJETA_CREDITO': FormaPago.TARJETA_CREDITO,
-        'TARJETA_DEBITO': FormaPago.TARJETA_DEBITO,
-        'CHEQUE': FormaPago.CHEQUE,
-        'DEPOSITO': FormaPago.TRANSFERENCIA,
-        'PLATAFORMA': FormaPago.TRANSFERENCIA,
-        'OTRO': FormaPago.POR_DEFINIR,
-    }
-
-    forma_pago = _forma_pago_openpay(pago) or mapeo_forma_pago.get(pago.metodo, FormaPago.TRANSFERENCIA)
+    forma_pago = forma_pago_de_pago(pago)
 
     # ─── Crear la solicitud ─────────────────────────────────────
     solicitud = SolicitudFactura.objects.create(
