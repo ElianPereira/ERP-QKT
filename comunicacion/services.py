@@ -170,6 +170,44 @@ def numero_emisor_wa() -> str:
     return numero
 
 
+MEDIA_TIPOS_PERMITIDOS = {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'application/pdf': '.pdf',
+}
+MEDIA_MAX_BYTES = 15 * 1024 * 1024
+
+
+def descargar_media_wa(media_id: str):
+    """Baja un archivo que un responsable mandó por WhatsApp: `(bytes, mime, extensión)`.
+
+    Lanza ValueError con un mensaje apto para contestarle si el archivo no es
+    una foto o un PDF, rebasa 15 MB o Meta no lo entrega.
+    """
+    _, token = _wa_credenciales()
+    if not media_id or not token:
+        raise ValueError('No pude descargar el archivo en este momento.')
+    cabeceras = {'Authorization': f'Bearer {token}'}
+    try:
+        meta = requests.get(f'https://graph.facebook.com/{wa_graph_version()}/{media_id}',
+                            headers=cabeceras, timeout=WA_TIMEOUT)
+        datos = meta.json() if meta.status_code == 200 else {}
+        mime = (datos.get('mime_type') or '').split(';')[0].strip().lower()
+        if not datos.get('url'):
+            raise ValueError('No pude descargar el archivo en este momento.')
+        if mime not in MEDIA_TIPOS_PERMITIDOS:
+            raise ValueError('Solo puedo recibir fotos (JPG, PNG) o PDF.')
+        if int(datos.get('file_size') or 0) > MEDIA_MAX_BYTES:
+            raise ValueError('El archivo pesa más de 15 MB; mándalo más ligero.')
+        archivo = requests.get(datos['url'], headers=cabeceras, timeout=WA_TIMEOUT * 3)
+        if archivo.status_code != 200:
+            raise ValueError('No pude descargar el archivo en este momento.')
+    except requests.RequestException:
+        logger.warning("No se pudo descargar el archivo %s de WhatsApp", media_id, exc_info=True)
+        raise ValueError('No pude descargar el archivo en este momento.')
+    if len(archivo.content) > MEDIA_MAX_BYTES:
+        raise ValueError('El archivo pesa más de 15 MB; mándalo más ligero.')
+    return archivo.content, mime, MEDIA_TIPOS_PERMITIDOS[mime]
+
+
 def _describir_error_meta(resp) -> str:
     """Convierte la respuesta de error de Meta en una línea auditable."""
     try:

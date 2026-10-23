@@ -125,8 +125,19 @@ TAREAS = (
     Tarea('enviar_seguimientos', 'enviar_seguimientos', diario('10:52'), 6 * HORA),
     Tarea('resumir_preguntas_agente', 'resumir_preguntas_agente', semanal(LUNES, '08:52'), 24 * HORA,
           ('--aplicar',)),
+    Tarea('preparar_renovaciones', 'preparar_renovaciones', diario('07:20'), 6 * HORA, ('--aplicar',)),
+    Tarea('enviar_listas_compras', 'enviar_listas_compras', diario('08:30'), 6 * HORA),
+    Tarea('enviar_encuestas', 'enviar_encuestas', diario('10:30'), 6 * HORA),
+    Tarea('enviar_reactivaciones', 'enviar_reactivaciones', diario('11:15'), 6 * HORA),
+    Tarea('solicitar_inspecciones_deposito', 'solicitar_inspecciones_deposito', diario('09:45'), 6 * HORA),
+    Tarea('devolver_depositos_sin_reporte', 'devolver_depositos_sin_reporte', cada(60), 3 * HORA, ('--aplicar',)),
+    Tarea('enviar_recordatorios_visitas', 'enviar_recordatorios_visitas', diario('18:00'), 3 * HORA),
     Tarea('revisar_pendientes', 'revisar_pendientes', cada(15), 45 * MIN),
     Tarea('enviar_resumen_diario', 'enviar_resumen_diario', diario('08:00'), 6 * HORA),
+    Tarea('enviar_resumen_semanal', 'enviar_resumen_semanal', semanal(LUNES, '08:30'), 24 * HORA),
+    Tarea('revisar_desviacion', 'revisar_desviacion', diario('09:30'), 6 * HORA),
+    Tarea('enviar_nomina_semanal', 'enviar_nomina_semanal', semanal(VIERNES, '12:00'), 24 * HORA),
+    Tarea('preguntar_cfdi_contador', 'preguntar_cfdi_contador', diario('10:00'), 6 * HORA),
 )
 
 POR_NOMBRE = {t.nombre: t for t in TAREAS}

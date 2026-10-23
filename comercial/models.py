@@ -1329,7 +1329,7 @@ class ItemCotizacion(models.Model):
     def subtotal(self): return self.cantidad * self.precio_unitario
 
 class Pago(models.Model):
-    METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia Electrónica'), ('TARJETA_CREDITO', 'Tarjeta de Crédito'), ('TARJETA_DEBITO', 'Tarjeta de Débito'), ('CHEQUE', 'Cheque Nominativo'), ('DEPOSITO', 'Depósito Bancario'), ('PLATAFORMA', 'Plataforma'), ('CONDONACION', 'Condonación / Cortesía'), ('OTRO', 'Otro Método')]
+    METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia Electrónica'), ('TARJETA_CREDITO', 'Tarjeta de Crédito'), ('TARJETA_DEBITO', 'Tarjeta de Débito'), ('CHEQUE', 'Cheque Nominativo'), ('DEPOSITO', 'Depósito en efectivo (ventanilla)'), ('PLATAFORMA', 'Plataforma'), ('CONDONACION', 'Condonación / Cortesía'), ('OTRO', 'Otro Método')]
     TIPOS = [('INGRESO', 'Ingreso'), ('REEMBOLSO', 'Reembolso')]
     CONCEPTO_CHOICES = [
         ('VENTA', 'Pago de la venta'),
@@ -2970,6 +2970,66 @@ class ReporteTerminal(models.Model):
 
     def __str__(self):
         return f'Terminal {self.pk}: COT-{self.cotizacion_id:03d} ${self.monto}'
+
+
+class AccionWhatsApp(models.Model):
+    """Orden de Dirección por WhatsApp (Fase 2b, Issue #433): bitácora de cada
+    propuesta de dinero o de bloqueo de fechas y de cómo terminó.
+
+    Kooxi solo PROPONE; la acción se ejecuta cuando el mismo teléfono toca
+    [Confirmar] con el token de un solo uso (10 min, guardado con HMAC, nunca
+    en claro). Sin borrado ni edición: es evidencia de quién ordenó qué.
+    """
+    TIPO_CHOICES = [
+        ('DEVOLUCION_DEPOSITO', 'Devolución de depósito'),
+        ('DESCUENTO', 'Descuento manual'),
+        ('REEMBOLSO_EXTERNO', 'Reembolso hecho fuera del sistema'),
+        ('BLOQUEO_FECHAS', 'Bloqueo de fechas'),
+    ]
+    ESTADO_CHOICES = [
+        ('PROPUESTA', 'Propuesta'),
+        ('CONFIRMADA', 'Confirmada'),
+        ('CANCELADA', 'Cancelada'),
+        ('VENCIDA', 'Vencida'),
+        ('RECHAZADA', 'Rechazada'),
+        ('FALLIDA', 'Fallida'),
+    ]
+    telefono = models.CharField(max_length=20, db_index=True, verbose_name='Teléfono')
+    rol = models.CharField(max_length=10, verbose_name='Rol')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, db_index=True, verbose_name='Tipo')
+    cotizacion = models.ForeignKey(Cotizacion, null=True, blank=True, on_delete=models.PROTECT,
+                                   related_name='acciones_whatsapp', verbose_name='Cotización')
+    monto = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Monto')
+    parametros = models.JSONField(default=dict, blank=True, verbose_name='Parámetros')
+    resumen = models.TextField(blank=True, verbose_name='Lo que se le mostró a Dirección')
+    token_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, verbose_name='Token (HMAC)')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='PROPUESTA', db_index=True,
+                              verbose_name='Estado')
+    resultado = models.TextField(blank=True, verbose_name='Resultado o motivo')
+    vence_en = models.DateTimeField(null=True, blank=True, verbose_name='Vence')
+    resuelta_en = models.DateTimeField(null=True, blank=True, verbose_name='Resuelta')
+    pago = models.ForeignKey(Pago, null=True, blank=True, on_delete=models.PROTECT, related_name='+',
+                             verbose_name='Pago creado')
+    movimiento_deposito = models.ForeignKey('MovimientoDeposito', null=True, blank=True, on_delete=models.PROTECT,
+                                            related_name='+', verbose_name='Movimiento de depósito')
+    descuento_aplicado = models.ForeignKey('DescuentoAplicado', null=True, blank=True, on_delete=models.PROTECT,
+                                           related_name='+', verbose_name='Descuento aplicado')
+    bloqueo = models.ForeignKey('BloqueoFecha', null=True, blank=True, on_delete=models.PROTECT,
+                                related_name='+', verbose_name='Bloqueo creado')
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                   verbose_name='Creado por')
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+                                   verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creada')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizada')
+
+    class Meta:
+        verbose_name = 'Orden de Dirección por WhatsApp'
+        verbose_name_plural = 'Órdenes'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Orden {self.pk}: {self.get_tipo_display()}'
 
 
 class SolicitudCancelacion(models.Model):

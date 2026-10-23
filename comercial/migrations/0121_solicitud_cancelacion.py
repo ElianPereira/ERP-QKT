@@ -9,7 +9,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("comercial", "0118_reporte_terminal"),
+        ("comercial", "0120_ordenes_whatsapp"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

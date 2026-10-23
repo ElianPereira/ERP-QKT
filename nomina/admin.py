@@ -2,12 +2,14 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.contrib import admin, messages
+from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.timezone import now
 
 from core_erp import admin_ui as ui
 from core_erp.descargas import url_descarga
 
-from .models import Empleado, ReciboNomina
+from .models import AprobacionNomina, Empleado, ReciboNomina
 
 try:
     from .views import cargar_nomina, sync_jibble_view
@@ -88,3 +90,48 @@ class ReciboNominaAdmin(admin.ModelAdmin):
             extra_context['jibble_fecha_fin'] = domingo_pasado.strftime('%Y-%m-%d')
 
         return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(AprobacionNomina)
+class AprobacionNominaAdmin(admin.ModelAdmin):
+    """Visto bueno semanal de Dirección (Issue #431). Solo deja constancia de quién y
+    cuándo: sin póliza ni transferencia. Nace del cron del viernes; aquí solo se aprueba."""
+    list_display = ('semana', 'recibos', 'total_display', 'estado_badge', 'aprobada_por_nombre', 'aprobada')
+    list_filter = ('semana_inicio',)
+    actions = ['aprobar']
+    fields = ('semana_inicio', 'semana_fin', 'recibos', 'total', 'notificada_en', 'aprobada_en',
+              'aprobada_por_nombre', 'aprobada_por_telefono')
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Semana', ordering='semana_inicio')
+    def semana(self, obj):
+        return f'{obj.semana_inicio:%d/%m/%Y} al {obj.semana_fin:%d/%m/%Y}'
+
+    @admin.display(description='Total a pagar', ordering='total')
+    def total_display(self, obj):
+        return ui.monto(obj.total)
+
+    @admin.display(description='Estado')
+    def estado_badge(self, obj):
+        return ui.badge('Aprobada', ui.EXITO) if obj.aprobada else ui.badge('Por aprobar', ui.ALERTA)
+
+    @admin.display(description='Fecha de aprobación', ordering='aprobada_en')
+    def aprobada(self, obj):
+        return date_format(timezone.localtime(obj.aprobada_en), 'd M H:i') if obj.aprobada_en else ui.vacio()
+
+    @admin.action(description='Aprobar (solo constancia)', permissions=['aprobar'])
+    def aprobar(self, request, queryset):
+        from comunicacion.services_direccion import aprobar_nomina
+
+        hechas = sum(1 for a in queryset if aprobar_nomina(a, usuario=request.user))
+        self.message_user(request, f'{hechas} semana(s) aprobada(s). La transferencia se hace en el banco.',
+                          messages.SUCCESS if hechas else messages.WARNING)
+
+    def has_aprobar_permission(self, request):
+        return request.user.is_superuser

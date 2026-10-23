@@ -556,3 +556,63 @@ class ContracargoNoDuplicaSolicitudTest(TestCase):
             cotizacion=self.cot, monto=Decimal('1000.00'), metodo='TRANSFERENCIA',
         )
         self.assertTrue(SolicitudFactura.objects.filter(pago=pago).exists())
+
+
+class FormaPagoPorMetodoTest(TestCase):
+    """Fija la forma de pago SAT de cada método de Pago: un cambio futuro falla en CI."""
+
+    ESPERADA = {
+        'EFECTIVO': '01',
+        'TRANSFERENCIA': '03',
+        'TARJETA_CREDITO': '04',
+        'TARJETA_DEBITO': '28',
+        'CHEQUE': '02',
+        'DEPOSITO': '01',  # depósito en efectivo en ventanilla
+        'PLATAFORMA': '03',
+        'CONDONACION': '03',  # no genera solicitud; solo cae al default
+        'OTRO': '99',
+    }
+
+    def test_cada_metodo_tiene_su_forma_de_pago(self):
+        from facturacion.signals import forma_pago_de_pago
+        claves = {clave for clave, _ in Pago.METODOS}
+        self.assertEqual(claves, set(self.ESPERADA), "Método nuevo en Pago.METODOS: define su forma de pago SAT.")
+        for metodo, forma in self.ESPERADA.items():
+            self.assertEqual(forma_pago_de_pago(Pago(metodo=metodo)), forma, metodo)
+
+    def test_openpay_resuelve_por_el_cargo_real(self):
+        from comercial.models import OpenpayTransaccion
+        from facturacion.signals import forma_pago_de_pago
+        casos = [('store', {}, '01'), ('bank_account', {}, '03'),
+                 ('card', {'card': {'type': 'debit'}}, '28'), ('card', {'card': {'type': 'credit'}}, '04')]
+        for i, (metodo, crudo, forma) in enumerate(casos):
+            OpenpayTransaccion.objects.create(
+                openpay_id=f'tr{i}', metodo=metodo, payload_crudo=crudo,
+                monto=Decimal('100.00'),
+            )
+            self.assertEqual(forma_pago_de_pago(Pago(metodo='PLATAFORMA', referencia=f'tr{i}')), forma)
+
+
+class RevisarFormaPagoSolicitudesCommandTest(TestCase):
+
+    def test_lista_solo_las_distintas_y_no_modifica(self):
+        from io import StringIO
+        usuario = User.objects.create_user('rev', password='x')
+        cliente = Cliente.objects.create(nombre='C', tipo_persona='FISICA')
+        cot = Cotizacion.objects.create(cliente=cliente, nombre_evento='E', fecha_evento=date.today() + timedelta(days=30))
+        Cotizacion.objects.filter(pk=cot.pk).update(precio_final=Decimal('1000.00'))
+        cot.refresh_from_db()
+        pago = Pago.objects.create(cotizacion=cot, monto=Decimal('100.00'), metodo='DEPOSITO', usuario=usuario)
+        sol = SolicitudFactura.objects.filter(pago=pago).first()
+        SolicitudFactura.objects.filter(pk=sol.pk).update(forma_pago='03', estado='PENDIENTE')
+        out = StringIO()
+        call_command('revisar_forma_pago_solicitudes', stdout=out)
+        self.assertIn(f'Solicitud #{sol.pk}', out.getvalue())
+        self.assertIn('tiene 03, hoy saldría 01', out.getvalue())
+        sol.refresh_from_db()
+        self.assertEqual(sol.forma_pago, '03')
+
+        SolicitudFactura.objects.filter(pk=sol.pk).update(forma_pago='01')
+        out = StringIO()
+        call_command('revisar_forma_pago_solicitudes', stdout=out)
+        self.assertIn('0 solicitud(es)', out.getvalue())

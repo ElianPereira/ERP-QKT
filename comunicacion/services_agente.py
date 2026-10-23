@@ -28,6 +28,7 @@ import json
 import logging
 import threading
 from datetime import datetime, time, timedelta
+from typing import Optional
 
 import anthropic
 from django.conf import settings
@@ -36,11 +37,20 @@ from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 from django.utils.formats import date_format
 
-from comercial import services_cancelacion, services_terminal
+from comercial import services_cancelacion, services_ordenes_wa, services_terminal
+from cumplimiento import services_renovacion
 from operaciones.services import es_listo, marcar_listo
 
-from . import services_arco
+from . import (
+    services_arco,
+    services_contador,
+    services_direccion,
+    services_encuesta,
+    services_inspeccion,
+    services_visitas,
+)
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
+from .herramientas_direccion import HERRAMIENTAS_DIRECCION, SYSTEM_PROMPT_DIRECCION, ejecutar_direccion
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
 from .services import (
     alertar_equipo_email,
@@ -70,6 +80,8 @@ MAX_ITERACIONES = 6
 LIMITE_WHATSAPP = 4000
 CANDADO_SEGUNDOS = 300
 
+MENSAJE_TOPE_DIRECCION = 'Llegaste al tope diario de respuestas del asistente. Haz lo que necesites desde el admin.'
+MENSAJE_FALLO_DIRECCION = 'No pude procesarlo ahora. Inténtalo en un momento o hazlo desde el admin.'
 MENSAJE_HUMANO = ('Gracias por tu paciencia. Le paso tu mensaje a una persona del equipo '
                   'y te contesta por aquí en cuanto pueda.')
 # Mientras una conversación espera a una persona, el cliente que sigue
@@ -148,8 +160,10 @@ libre: la Quinta puede no estar lista para recibirlo. Dile que contratar para ho
 equipo lo confirme, usa pasar_a_humano con el servicio, la hora y las personas, y avísale que alguien \
 le contestará por este chat.
 - Si quiere visitar o conocer la Quinta, sí se puede, siempre con cita que confirma el equipo: \
-pregúntale qué día y a qué hora, usa pasar_a_humano con esos datos y dile que alguien le confirmará \
-por este chat. Nunca confirmes tú la visita.
+consulta horarios_de_visita, ofrécele solo esos horarios y, cuando elija uno y te diga su nombre, \
+agéndalo con agendar_visita. La visita queda POR CONFIRMAR: dile que una persona del equipo la \
+confirmará por este chat y nunca la des por confirmada. Si no hay horarios, si pide uno que no está \
+en la lista o si es para hoy, usa pasar_a_humano con el día, la hora y las personas.
 - Cuando te pregunten qué incluye un paquete o nivel, usa lo que trae ver_opciones en «incluye» \
 (descripción y productos incluidos); si viene vacío, dilo y ofrece pasar con una persona.
 - Si preguntan por el precio de solo el lugar (renta sin paquete), es la opción «solo_renta» de \
@@ -279,27 +293,45 @@ def _conversacion(telefono: str, nombre: str = '') -> ConversacionWhatsApp:
     return conv
 
 
-def _guardar_mensaje(conv, direccion, texto, wamid, procesado):
+def _guardar_mensaje(conv, direccion, texto, wamid, procesado, media_id='', media_mime=''):
     """INSERT idempotente por wamid: Meta reintenta entregas."""
     try:
         with transaction.atomic():
             return MensajeWhatsApp.objects.create(
                 conversacion=conv, direccion=direccion, texto=texto[:10000],
-                wamid=wamid or None, procesado=procesado,
+                wamid=wamid or None, procesado=procesado, media_id=media_id, media_mime=media_mime,
             )
     except IntegrityError:
         logger.info("Mensaje de WhatsApp repetido omitido (wamid=%s)", wamid)
         return None
 
 
-def recibir_mensaje(*, telefono, nombre, texto, wamid):
+def _guardar_origen_anuncio(conv, referral) -> None:
+    """Guarda el `referral` de Meta (anuncio de clic a WhatsApp) una sola vez:
+    el primero que llega manda, un mensaje posterior no lo pisa."""
+    if not isinstance(referral, dict) or conv.anuncio_id or conv.anuncio_url:
+        return
+    anuncio_id = str(referral.get('source_id') or '')[:100]
+    anuncio_url = str(referral.get('source_url') or '')[:500]
+    if not (anuncio_id or anuncio_url):
+        return
+    conv.anuncio_id = anuncio_id
+    conv.anuncio_url = anuncio_url
+    conv.anuncio_titulo = str(referral.get('headline') or '')[:300]
+    conv.anuncio_clid = str(referral.get('ctwa_clid') or '')[:300]
+    conv.save(update_fields=['anuncio_id', 'anuncio_url', 'anuncio_titulo', 'anuncio_clid', 'updated_at'])
+
+
+def recibir_mensaje(*, telefono, nombre, texto, wamid, referral=None, media_id='', media_mime=''):
     """Registra un mensaje del cliente. Devuelve la conversación si es nuevo, o None."""
     telefono = normalizar_telefono_wa(telefono)
     if not telefono:
         return None
     conv = _conversacion(telefono, nombre)
-    if _guardar_mensaje(conv, 'ENTRADA', texto, wamid, procesado=False) is None:
+    if _guardar_mensaje(conv, 'ENTRADA', texto, wamid, procesado=False,
+                        media_id=media_id, media_mime=media_mime) is None:
         return None
+    _guardar_origen_anuncio(conv, referral)
     conv.ultimo_mensaje = timezone.now()
     conv.save(update_fields=['ultimo_mensaje', 'updated_at'])
     return conv
@@ -409,13 +441,18 @@ def responder_como_persona(conv, texto: str, usuario) -> MensajeWhatsApp:
 
 # ─────────────────────────── Procesamiento ───────────────────────────────
 
-def _numero_habilitado(conv) -> bool:
-    """¿El sistema le escribe a este número? (agente encendido, lista de prueba, no es el propietario)."""
+def _kooxi_encendido_para(telefono: str) -> bool:
+    """Agente encendido y, si hay lista de prueba, el número está en ella."""
     if not getattr(settings, 'ERP_KOOXI_ACTIVO', False):
         return False
     prueba = {normalizar_telefono_wa(n) for n in getattr(settings, 'ERP_KOOXI_NUMEROS_PRUEBA', []) if n}
     prueba.discard('')
-    if prueba and conv.telefono not in prueba:
+    return not prueba or telefono in prueba
+
+
+def _numero_habilitado(conv) -> bool:
+    """¿El sistema le escribe a este número? (agente encendido, lista de prueba, no es el propietario)."""
+    if not _kooxi_encendido_para(conv.telefono):
         return False
     # Los números del directorio de responsables (destino de las alertas
     # internas) le escriben al de la API para abrir la ventana de 24 h; el
@@ -528,11 +565,53 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if respuesta:
             _enviar_automatico(conv, respuesta)
         pendientes.remove(m)
+    # Dirección (`hal:<id>:tarea|ign`, `nom:<id>:ok`) y contador (`cfdi:<id>:<solicitud>|no`):
+    # solo valen desde su teléfono; un botón ajeno se descarta sin llegar al agente.
+    for m in [m for m in pendientes if services_direccion.es_boton(m.texto) or services_contador.es_boton(m.texto)]:
+        atender = (services_direccion.atender_boton if services_direccion.es_boton(m.texto)
+                   else services_contador.atender_boton)
+        respuesta = atender(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Botones de una visita (`vis:<id>:ok|no`): solo el encargado o Dirección;
+    # desde otro número se descartan sin contestar y nunca llegan al agente.
+    for m in [m for m in pendientes if services_visitas.es_boton(m.texto)]:
+        respuesta = services_visitas.atender_boton(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # Cobros con terminal (`terminal 5000 cot 145` y su botón `term:<token>:ok`):
     # solo valen desde ENCARGADO o DIRECCION. Desde otro número el reporte sigue
     # el flujo normal; un botón ajeno se descarta sin contestar.
     terminal = [m for m in pendientes if _atender_terminal(conv, m.texto)]
     pendientes = [m for m in pendientes if m not in terminal]
+    # Calificación de la encuesta post-evento (botón `enc:<id>:<n>` o un número 1–5).
+    for m in list(pendientes):
+        atendido, respuesta = services_encuesta.atender_respuesta(conv.telefono, m.texto)
+        if atendido:
+            if respuesta:
+                _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
+    # Cierre de trámites de cumplimiento: botón `vig:<id>:ok` y el documento nuevo de Dirección.
+    for m in [m for m in pendientes if services_renovacion.es_boton(m.texto)]:
+        respuesta = services_renovacion.atender_boton(conv.telefono, m.texto)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
+    # Reporte de la inspección del depósito en garantía (botones `insp:<id>:…`,
+    # «sin daños» y «daños <monto> …»): solo valen desde ENCARGADO o DIRECCION.
+    for m in list(pendientes):
+        atendido, respuesta = services_inspeccion.atender(conv.telefono, m.texto)
+        if atendido:
+            if respuesta:
+                _enviar_automatico(conv, respuesta)
+            pendientes.remove(m)
+    for m in [m for m in pendientes if m.media_id]:
+        respuesta = _atender_archivo(conv, m)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # Botones de Dirección sobre cancelaciones (`canc:`) y acuses ARCO (`arco:`):
     # solo valen desde el teléfono activo de DIRECCION y nunca llegan al agente.
     for m in [m for m in pendientes if services_cancelacion.es_boton(m.texto) or services_arco.es_boton(m.texto)]:
@@ -544,6 +623,17 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if respuesta:
             _enviar_automatico(conv, respuesta)
             pendientes.remove(m)
+    # Órdenes de Dirección (`ord:<token>:ok|no`): solo valen desde su teléfono
+    # activo; desde cualquier otro el botón se descarta sin contestar.
+    for m in [m for m in pendientes if services_ordenes_wa.es_boton(m.texto)]:
+        _atender_boton_orden(conv, m.texto)
+        pendientes.remove(m)
+    # Modo Dirección: sus mensajes de texto van a un agente aparte, con herramientas
+    # que solo proponen. Nunca pasa por aquí el texto de un cliente: la puerta es el
+    # teléfono del webhook firmado, no el contenido.
+    if pendientes and services_ordenes_wa.direccion_activa(conv.telefono):
+        _atender_direccion(conv, pendientes)
+        return
     if not pendientes:
         return
     # La baja se atiende aunque el agente esté en pausa o apagado: el
@@ -574,6 +664,63 @@ def _atender_pendientes(conversacion_id: int) -> None:
         _enviar(conv, filtrar_respuesta(conv, texto, respuesta), uso=uso)
 
 
+def _enviar_con_botones(conv, texto: str, botones: list, *, reintento: str) -> None:
+    """Mensaje con botones; si Meta no lo entrega, avisa con `reintento`."""
+    comm = enviar_whatsapp_botones(tipo='OTRO', telefono=conv.telefono, mensaje=texto, botones=botones)
+    if comm is None or comm.estado == 'FALLIDO':
+        _enviar_automatico(conv, reintento)
+    else:
+        MensajeWhatsApp.objects.create(
+            conversacion=conv, direccion='AGENTE', texto=texto[:LIMITE_WHATSAPP],
+            procesado=True, automatico=True, wamid=comm.proveedor_id or None)
+
+
+def _atender_boton_orden(conv, texto: str) -> None:
+    try:
+        resultado = services_ordenes_wa.responder_boton(conv.telefono, texto)
+        if resultado is not None:
+            _enviar_automatico(conv, resultado.texto)
+    except Exception:
+        logger.exception("Agente WhatsApp: falló la orden de Dirección de %s", conv.telefono)
+
+
+def _atender_direccion(conv, mensajes) -> None:
+    """Modo Dirección. Lo que el ERP deja propuesto sale con sus botones y con
+    texto del ERP; el texto libre del modelo solo se envía si no propuso nada
+    (así no puede decir «listo» de algo que aún no se confirmó)."""
+    if not _kooxi_encendido_para(conv.telefono):
+        return
+    if (_respuestas_de_hoy().filter(conversacion=conv).count()
+            >= settings.ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA):
+        _enviar_automatico(conv, MENSAJE_TOPE_DIRECCION)
+        return
+    propuestas: list = []
+    texto, uso = responder(conv, '\n'.join(m.texto for m in mensajes), propuestas=propuestas)
+    if not propuestas:
+        if texto:
+            _enviar(conv, texto, uso=uso)
+        return
+    for resultado in propuestas:
+        if resultado.botones:
+            _enviar_con_botones(conv, resultado.texto, resultado.botones,
+                                reintento='No pude mostrarte los botones. Pídemelo de nuevo en un momento.')
+        else:
+            _enviar_automatico(conv, resultado.texto)
+
+
+def _atender_archivo(conv, mensaje) -> Optional[str]:
+    """Foto o PDF de un responsable del directorio. Nunca llega al agente: es el
+    documento nuevo de un trámite (Dirección) o evidencia de daños (inspección)."""
+    try:
+        atendido, respuesta = services_renovacion.recibir_documento(conv.telefono, mensaje.media_id, mensaje.texto)
+        if atendido:
+            return respuesta
+        return services_inspeccion.recibir_foto(conv.telefono, mensaje.media_id, mensaje.texto)
+    except Exception:
+        logger.exception("Agente WhatsApp: falló el archivo de %s", conv.telefono)
+        return 'No pude procesar el archivo. Intenta de nuevo o súbelo desde el ERP.'
+
+
 def _atender_terminal(conv, texto: str) -> bool:
     """True si el mensaje era de la terminal y ya se atendió (o se descartó)."""
     try:
@@ -590,16 +737,9 @@ def _atender_terminal(conv, texto: str) -> bool:
             if resultado is None:
                 return False
             if resultado.boton_id:
-                comm = enviar_whatsapp_botones(
-                    tipo='OTRO', telefono=conv.telefono, mensaje=resultado.texto,
-                    botones=[(resultado.boton_id, services_terminal.ETIQUETA_BOTON)])
-                if comm is None or comm.estado == 'FALLIDO':
-                    _enviar_automatico(conv, 'No pude mostrarte el botón de confirmación. '
-                                             'Vuelve a enviar el reporte en un momento.')
-                else:
-                    MensajeWhatsApp.objects.create(
-                        conversacion=conv, direccion='AGENTE', texto=resultado.texto[:LIMITE_WHATSAPP],
-                        procesado=True, automatico=True, wamid=comm.proveedor_id or None)
+                _enviar_con_botones(
+                    conv, resultado.texto, [(resultado.boton_id, services_terminal.ETIQUETA_BOTON)],
+                    reintento='No pude mostrarte el botón de confirmación. Vuelve a enviar el reporte en un momento.')
             else:
                 _enviar_automatico(conv, resultado.texto)
             return True
@@ -767,12 +907,12 @@ def _cliente_ia():
     return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY_KOOXI, timeout=60.0, max_retries=2)
 
 
-def _llamar_modelo(client, messages):
+def _llamar_modelo(client, messages, sistema=SYSTEM_PROMPT, herramientas=HERRAMIENTAS):
     return client.beta.messages.create(
         model=settings.ERP_KOOXI_MODELO,
         max_tokens=4000,
-        system=[{'type': 'text', 'text': SYSTEM_PROMPT}],
-        tools=HERRAMIENTAS,
+        system=[{'type': 'text', 'text': sistema}],
+        tools=herramientas,
         messages=messages,
         output_config={'effort': settings.ERP_KOOXI_ESFUERZO},
         cache_control={'type': 'ephemeral'},
@@ -794,8 +934,15 @@ def _sumar_uso(uso: dict, respuesta) -> None:
         uso[campo] = uso.get(campo, 0) + (valor if isinstance(valor, int) else 0)
 
 
-def responder(conv, texto_cliente: str):
-    """Corre el agente sobre el historial. Devuelve (texto a enviar o None, consumo de tokens)."""
+def responder(conv, texto_cliente: str, *, propuestas: list | None = None):
+    """Corre el agente sobre el historial. Devuelve (texto a enviar o None, consumo de tokens).
+
+    Con `propuestas` (una lista) corre el modo Dirección: otro prompt y otras
+    herramientas, que solo proponen; sus `Resultado` se acumulan en la lista.
+    Sin ella, es el agente público de siempre."""
+    direccion = propuestas is not None
+    sistema, herramientas = (SYSTEM_PROMPT_DIRECCION, HERRAMIENTAS_DIRECCION) if direccion \
+        else (SYSTEM_PROMPT, HERRAMIENTAS)
     ahora = timezone.localtime()
     historial = list(conv.historial or [])
     ultima = _ultima_salida(conv)
@@ -807,7 +954,7 @@ def responder(conv, texto_cliente: str):
     messages = historial + [{
         'role': 'user',
         'content': [{'type': 'text',
-                     'text': f'{nota_para_el_modelo(conv)}[Hoy es {fecha_hoy}, hora de Yucatán]\n{texto_cliente}'}],
+                     'text': f'{"" if direccion else nota_para_el_modelo(conv)}[Hoy es {fecha_hoy}, hora de Yucatán]\n{texto_cliente}'}],
     }]
 
     uso = {}
@@ -815,23 +962,29 @@ def responder(conv, texto_cliente: str):
         client = _cliente_ia()
         respuesta = None
         for _ in range(MAX_ITERACIONES):
-            respuesta = _llamar_modelo(client, messages)
+            respuesta = _llamar_modelo(client, messages, sistema, herramientas)
             _sumar_uso(uso, respuesta)
             if respuesta.stop_reason == 'refusal':
                 logger.warning("Agente WhatsApp: el modelo declinó en %s", conv.telefono)
+                if direccion:
+                    return MENSAJE_FALLO_DIRECCION, uso
                 _pasar_a_humano(conv, 'El asistente no pudo responder este mensaje.')
                 return MENSAJE_HUMANO, uso
             messages.append({'role': 'assistant', 'content': [b.to_dict(exclude_none=True) for b in respuesta.content]})
             if respuesta.stop_reason != 'tool_use':
                 break
-            messages.append({'role': 'user', 'content': _resultados_herramientas(conv, respuesta.content)})
+            messages.append({'role': 'user', 'content': _resultados_herramientas(conv, respuesta.content, propuestas)})
         else:
-            _pasar_a_humano(conv, 'El asistente no llegó a una respuesta.')
             conv.historial = messages
             conv.save(update_fields=['historial', 'updated_at'])
+            if direccion:
+                return MENSAJE_FALLO_DIRECCION, uso
+            _pasar_a_humano(conv, 'El asistente no llegó a una respuesta.')
             return MENSAJE_HUMANO, uso
     except anthropic.APIError:
         logger.exception("Agente WhatsApp: falló la API de Claude para %s", conv.telefono)
+        if direccion:
+            return MENSAJE_FALLO_DIRECCION, uso
         _pasar_a_humano(conv, 'El asistente no estuvo disponible (error de la API de IA).')
         return MENSAJE_HUMANO, uso
 
@@ -843,12 +996,14 @@ def responder(conv, texto_cliente: str):
     return texto or None, uso
 
 
-def _resultados_herramientas(conv, contenido) -> list:
+def _resultados_herramientas(conv, contenido, propuestas: list | None = None) -> list:
     resultados = []
     for bloque in contenido:
         if bloque.type != 'tool_use':
             continue
-        if bloque.name == 'pasar_a_humano':
+        if propuestas is not None:
+            salida, error = ejecutar_direccion(bloque.name, bloque.input or {}, conv, propuestas)
+        elif bloque.name == 'pasar_a_humano':
             entrada = bloque.input or {}
             _pasar_a_humano(conv, entrada.get('motivo', ''), categoria=entrada.get('categoria', ''))
             salida, error = json.dumps({'ok': True, 'nota': 'El equipo fue avisado.'}), False

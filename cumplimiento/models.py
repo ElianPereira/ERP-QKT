@@ -137,6 +137,9 @@ class Vigencia(models.Model):
                                  verbose_name='Documento oficial',
                                  help_text='Obligatorio para marcarla como obtenida.')
     notas = models.TextField(blank=True, verbose_name='Notas')
+    por_confirmar = models.BooleanField(
+        default=False, verbose_name='Por confirmar',
+        help_text='Documento recibido por WhatsApp con fechas propuestas; Dirección debe confirmarla.')
 
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, editable=False,
                                    on_delete=models.SET_NULL, related_name='+', verbose_name='Creado por')

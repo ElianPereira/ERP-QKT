@@ -346,7 +346,25 @@ META_WA_PLANTILLA_GUIA = env('META_WA_PLANTILLA_GUIA', legado='WA_TEMPLATE_GUIA'
 # ERP_KOOXI_SEGUIMIENTO_DIAS de creada y solo a quien aceptó la finalidad MARKETING.
 # Sin plantilla, el cron no manda nada.
 META_WA_PLANTILLA_SEGUIMIENTO = env('META_WA_PLANTILLA_SEGUIMIENTO', legado='WA_TEMPLATE_SEGUIMIENTO', default='')
+# Fase 2a: el seguimiento pasa a tres pasos. La de arriba es el paso del día 3;
+# estas son el del día 1 y «tu fecha está por ocuparse». Sin plantilla, ese paso no se manda.
+META_WA_PLANTILLA_SEGUIMIENTO_DIA1 = env('META_WA_PLANTILLA_SEGUIMIENTO_DIA1', default='')
+META_WA_PLANTILLA_SEGUIMIENTO_FECHA = env('META_WA_PLANTILLA_SEGUIMIENTO_FECHA', default='')
+# Visitas a la Quinta (Fase 2a): confirmación y recordatorio al cliente fuera de la
+# ventana de 24 h. Sin plantilla se intenta texto libre, que solo llega con la ventana abierta.
+META_WA_PLANTILLA_VISITA = env('META_WA_PLANTILLA_VISITA', default='')
 ERP_KOOXI_SEGUIMIENTO_DIAS = env('ERP_KOOXI_SEGUIMIENTO_DIAS', legado='WA_SEGUIMIENTO_DIAS', default=3, cast=int)
+# Post-venta (Fase 3, Issue #434). Sin plantilla, el comando correspondiente no manda nada.
+# Encuesta: 1 día después del servicio. Reactivación: aniversario del evento (MARKETING).
+META_WA_PLANTILLA_ENCUESTA = env('META_WA_PLANTILLA_ENCUESTA', default='')
+META_WA_PLANTILLA_REACTIVACION = env('META_WA_PLANTILLA_REACTIVACION', default='')
+# Enlace de reseña en Google que se manda a quien califica 4–5; vacío = solo se agradece.
+ERP_RESENA_GOOGLE_URL = env('ERP_RESENA_GOOGLE_URL', default='')
+# Depósito en garantía: horas sin reporte de daños tras pedir la inspección antes de
+# devolverlo solo, y retención máxima (MXN) que el encargado puede aplicar sin el botón
+# de Dirección (0 = toda retención requiere a Dirección).
+ERP_DEPOSITO_INSPECCION_HORAS = env('ERP_DEPOSITO_INSPECCION_HORAS', default=48, cast=int)
+ERP_DEPOSITO_TOPE_RETENCION = env('ERP_DEPOSITO_TOPE_RETENCION', default='0')
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
 META_WA_PLANTILLA_ALERTA_INTERNA = env('META_WA_PLANTILLA_ALERTA_INTERNA', legado='WA_TEMPLATE_ALERTA_INTERNA', default='')
@@ -400,6 +418,10 @@ ERP_KOOXI_PAUSA_HUMANO_HORAS = env('ERP_KOOXI_PAUSA_HUMANO_HORAS', legado='WA_AG
 # global, el agente deja de usar IA hasta el día siguiente y avisa al equipo.
 ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA', legado='WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA', default=30, cast=int)
 ERP_KOOXI_MAX_RESPUESTAS_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_DIA', legado='WA_AGENTE_MAX_RESPUESTAS_DIA', default=300, cast=int)
+# Tope en pesos de las acciones de dinero que Dirección ordena por WhatsApp
+# (devolver depósito, descuento manual, reembolso hecho fuera del sistema):
+# arriba de este monto, Kooxi responde que se haga en el admin (con 2FA).
+ERP_KOOXI_DINERO_MAX = env('ERP_KOOXI_DINERO_MAX', default='5000.00', cast=Decimal)
 # Historial que se reenvía al modelo; al pasarlo la conversación empieza de cero.
 ERP_KOOXI_MAX_HISTORIAL_CARACTERES = env('ERP_KOOXI_MAX_HISTORIAL_CARACTERES', legado='WA_AGENTE_MAX_HISTORIAL_CARACTERES', default=40000, cast=int)
 # La llave de Anthropic se pasa explícita a cada cliente (api_key=settings.ANTHROPIC_API_KEY_KOOXI).
@@ -529,6 +551,7 @@ JAZZMIN_SETTINGS = {
         "comercial.PlanPago":               "fas fa-calendar-alt",
         "comercial.RecordatorioPago":       "fas fa-bell",
         "comercial.OpenpayTransaccion":     "fas fa-exchange-alt",
+        "comercial.AccionWhatsApp":         "fas fa-mobile-alt",
         "comercial.ImagenLanding":          "fas fa-images",
         "comercial.TestimonioLanding":      "fas fa-star",
         "comercial.EspacioLanding":         "fas fa-vector-square",
@@ -582,10 +605,16 @@ JAZZMIN_SETTINGS = {
         # COMUNICACIÓN
         "comunicacion":                     "fas fa-comments",
         "comunicacion.ComunicacionCliente": "fas fa-paper-plane",
+        "comunicacion.HorarioVisita":       "fas fa-clock",
+        "comunicacion.Visita":              "fas fa-calendar-check",
         "comunicacion.ConversacionWhatsApp": "fab fa-whatsapp",
         "comunicacion.BajaWhatsApp":        "fas fa-bell-slash",
         "comunicacion.Responsable":         "fas fa-address-book",
         "comunicacion.Pendiente":           "fas fa-clipboard-list",
+        "comunicacion.EncuestaPostEvento":  "fas fa-star-half-alt",
+        "comunicacion.InspeccionDeposito":  "fas fa-clipboard-check",
+        "comunicacion.Hallazgo":            "fas fa-binoculars",
+        "nomina.AprobacionNomina":          "fas fa-clipboard-check",
 
         # AUTH
         "auth":                             "fas fa-shield-alt",
@@ -676,6 +705,7 @@ JAZZMIN_SETTINGS = {
         "comercial.PlanPago",
         "comercial.RecordatorioPago",
         "comercial.OpenpayTransaccion",
+        "comercial.AccionWhatsApp",
         "comercial.DepositoGarantia",
         "comercial.Contracargo",
         "comercial.SolicitudCancelacion",
@@ -702,6 +732,7 @@ JAZZMIN_SETTINGS = {
         "nomina",
         "nomina.Empleado",
         "nomina.ReciboNomina",
+        "nomina.AprobacionNomina",
 
         # === FACTURACIÓN ===
         "facturacion",
@@ -716,6 +747,11 @@ JAZZMIN_SETTINGS = {
         "comunicacion.BajaWhatsApp",
         "comunicacion.Responsable",
         "comunicacion.Pendiente",
+        "comunicacion.EncuestaPostEvento",
+        "comunicacion.InspeccionDeposito",
+        "comunicacion.Hallazgo",
+        "comunicacion.Visita",
+        "comunicacion.HorarioVisita",
 
         # === OPERACIONES ===
         "operaciones",

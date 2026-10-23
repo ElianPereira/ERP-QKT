@@ -13,7 +13,13 @@ from django.urls import reverse
 from django.utils import timezone
 
 from comercial.models import Cliente, Cotizacion
-from comunicacion import evaluacion_agente, herramientas_agente, services_agente, services_guardia
+from comunicacion import (
+    evaluacion_agente,
+    herramientas_agente,
+    herramientas_direccion,
+    services_agente,
+    services_guardia,
+)
 from comunicacion.models import ConversacionWhatsApp, MensajeWhatsApp, PreguntaSinRespuesta, RespuestaBloqueada
 from core_erp.test_utils import login_superuser_con_totp
 
@@ -155,11 +161,12 @@ class EvaluacionTest(TestCase):
     def test_los_casos_son_validos(self):
         casos = evaluacion_agente.cargar_casos()
         self.assertGreaterEqual(len(casos), 20)
-        nombres = {h['name'] for h in herramientas_agente.HERRAMIENTAS}
+        nombres = {h['name'] for h in herramientas_agente.HERRAMIENTAS} | herramientas_direccion.NOMBRES_DIRECCION
         for c in casos:
             self.assertIn(c['tipo'], ('rechazo', 'respuesta'))
             self.assertTrue(c['mensajes'])
             self.assertTrue(set(c.get('debe_usar', [])) <= nombres, c['id'])
+            self.assertTrue(set(c.get('no_debe_usar', [])) <= nombres, c['id'])
 
     def test_corre_sin_dejar_nada_y_califica(self):
         bien = _cliente_falso(

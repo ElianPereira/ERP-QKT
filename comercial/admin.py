@@ -35,6 +35,7 @@ from .admin_filtros import (
 )
 from .choices import PosicionLanding
 from .models import (
+    AccionWhatsApp,
     AsignacionEspacio,
     AsignacionPersonal,
     BloqueoFecha,
@@ -1860,6 +1861,51 @@ class BloqueoFechaAdmin(admin.ModelAdmin):
             bloqueo.save(update_fields=['activo', 'updated_by', 'updated_at'])
             n += 1
         messages.success(request, f"{n} bloqueo(s) liberado(s).")
+
+
+@admin.register(AccionWhatsApp)
+class AccionWhatsAppAdmin(admin.ModelAdmin):
+    """Bitácora de las órdenes que Dirección da por WhatsApp (Fase 2b): cada
+    propuesta y cómo terminó. Solo lectura: es evidencia, no se edita ni se borra."""
+    list_display = ('folio', 'tipo_badge', 'cotizacion', 'monto_display', 'estado_badge', 'telefono', 'fecha_display')
+    list_filter = (('tipo', con_titulo('Tipo')), ('estado', con_titulo('Estado')), filtro_periodo('created_at', 'Fecha'))
+    search_fields = ('telefono', 'resumen', 'resultado')
+    readonly_fields = tuple(f.name for f in AccionWhatsApp._meta.fields if f.name != 'token_hash')
+    exclude = ('token_hash',)
+    TONOS_ESTADO = {'PROPUESTA': ui.INFO, 'CONFIRMADA': ui.EXITO, 'CANCELADA': ui.NEUTRO,
+                    'VENCIDA': ui.NEUTRO, 'RECHAZADA': ui.ALERTA, 'FALLIDA': ui.ERROR}
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('cotizacion')
+
+    @admin.display(description='Folio', ordering='id')
+    def folio(self, obj):
+        return ui.badge(f'#{obj.pk}', ui.NEUTRO)
+
+    @admin.display(description='Tipo', ordering='tipo')
+    def tipo_badge(self, obj):
+        return ui.badge(obj.get_tipo_display(), ui.INFO)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='Monto', ordering='monto')
+    def monto_display(self, obj):
+        return ui.monto(obj.monto) if obj.monto is not None else ui.vacio(numerico=True)
+
+    @admin.display(description='Fecha', ordering='created_at')
+    def fecha_display(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M Y H:i')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 # ==========================================

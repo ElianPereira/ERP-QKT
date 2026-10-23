@@ -220,6 +220,34 @@ HERRAMIENTAS = [
         },
     },
     {
+        'name': 'horarios_de_visita',
+        'description': (
+            'Horarios en que el equipo puede recibir una visita para conocer la Quinta. Úsala cuando el '
+            'cliente quiera visitarla. Solo ofrece los que devuelve; si la lista viene vacía, usa '
+            'pasar_a_humano.'
+        ),
+        'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+    },
+    {
+        'name': 'agendar_visita',
+        'description': (
+            'Agenda una visita en uno de los horarios de horarios_de_visita. La visita queda POR '
+            'CONFIRMAR: una persona del equipo la confirma y el cliente recibe el aviso por este chat. '
+            'Pide antes el nombre de quien visita y el horario que elige.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'inicio': {'type': 'string', 'description': 'El campo «inicio» exacto del horario elegido '
+                                                            '(AAAA-MM-DDTHH:MM).'},
+                'nombre': {'type': 'string', 'description': 'Nombre de quien visita.'},
+                'personas': {'type': 'integer', 'description': 'Cuántas personas asisten, si lo dijo.'},
+            },
+            'required': ['inicio', 'nombre'],
+            'additionalProperties': False,
+        },
+    },
+    {
         'name': 'solicitar_cambio_o_cancelacion',
         'description': (
             'Registra una solicitud de cambio de fecha o de cancelación de una reservación del número que '
@@ -841,17 +869,37 @@ def dar_de_baja_promociones(conv=None):
                                 '(pagos, detalles del evento) sí le siguen llegando.'}
 
 
+def horarios_de_visita():
+    from comunicacion import services_visitas
+    libres = services_visitas.horarios_disponibles()
+    if not libres:
+        return {'horarios': [], 'nota': 'No hay horarios de visita abiertos: usa pasar_a_humano con el día y la '
+                                        'hora que pide el cliente.'}
+    return {
+        'horarios': [{'inicio': h.strftime('%Y-%m-%dT%H:%M'), 'texto': services_visitas.etiqueta(h)}
+                     for h in libres],
+        'nota': 'Ofrece solo estos horarios. La visita no queda confirmada hasta que el equipo la acepte.',
+    }
+
+
+def agendar_visita(conv=None, inicio=None, nombre=None, personas=None):
+    from comunicacion import services_visitas
+    return services_visitas.agendar(conv, inicio, nombre, personas)
+
+
 _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
     'cotizar_estimado': cotizar_estimado,
     'condiciones_de_pago': condiciones_de_pago,
     'preguntas_frecuentes': preguntas_frecuentes,
+    'horarios_de_visita': horarios_de_visita,
 }
 # Herramientas que dependen de quién escribe: reciben la conversación, nunca
 # un teléfono que pueda dictar el modelo.
 _EJECUTORES_DEL_CLIENTE = {
     'mi_reservacion': mi_reservacion,
+    'agendar_visita': agendar_visita,
     'crear_cotizacion': crear_cotizacion,
     'registrar_pregunta_sin_respuesta': registrar_pregunta_sin_respuesta,
     'dar_de_baja_promociones': dar_de_baja_promociones,
