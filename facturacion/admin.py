@@ -44,7 +44,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
         'forma_pago', 'fecha_display', 'estado_display', 'acciones_display',
     ]
     list_filter    = ['estado', filtro_periodo('fecha_solicitud', 'Fecha de solicitud'), ('forma_pago', con_titulo('Forma de pago')),
-                      ('linea_negocio', con_titulo('Línea de negocio'))]
+                      ('linea_negocio', con_titulo('Línea de negocio')), 'tipo_comprobante']
     search_fields  = ['cliente__nombre', 'rfc', 'razon_social', 'concepto']
     date_hierarchy = 'fecha_solicitud'
     ordering       = ['-fecha_solicitud']
@@ -54,7 +54,7 @@ class SolicitudFacturaAdmin(admin.ModelAdmin):
     ]
 
     fieldsets = (
-        ('Cliente', {'fields': ('cliente', 'linea_negocio')}),
+        ('Cliente', {'fields': ('cliente', 'linea_negocio', 'tipo_comprobante')}),
         ('Datos Fiscales', {
             'fields': (('rfc', 'razon_social'), ('codigo_postal', 'regimen_fiscal'), 'uso_cfdi')
         }),

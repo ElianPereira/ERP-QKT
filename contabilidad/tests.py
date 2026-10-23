@@ -284,7 +284,9 @@ class ReembolsoClienteTest(TestCase):
         self.assertEqual(self.cot.total_pagado(), Decimal('8600.00'))
 
 
-class ReversionCancelacionTest(TestCase):
+class PenalizacionCancelacionTest(TestCase):
+    """Cancelar con retención: lo que el banco conserva es ingreso (art. 18 LIVA)
+    y su IVA se queda trasladado; solo se mueve la cuenta de Anticipos."""
 
     def setUp(self):
         setup_contabilidad_minima()
@@ -295,27 +297,85 @@ class ReversionCancelacionTest(TestCase):
             cotizacion=self.cot, descripcion='X',
             cantidad=1, precio_unitario=Decimal('10000.00')
         )
-        Pago.objects.create(
-            cotizacion=self.cot, monto=Decimal('5800.00'),
-            metodo='TRANSFERENCIA', usuario=self.user
-        )
+        self.cot.refresh_from_db()
 
-    def test_cancelacion_crea_poliza_reversion(self):
-        ok, _ = self.cot.cambiar_estado('CANCELADA', self.user, motivo='Cliente desistió')
-        self.assertTrue(ok)
-        reversiones = Poliza.objects.filter(origen='AJUSTE')
-        self.assertEqual(reversiones.count(), 1)
-        rev = reversiones.first()
-        debe = sum(m.debe for m in rev.movimientos.all())
-        haber = sum(m.haber for m in rev.movimientos.all())
-        self.assertEqual(debe, haber)
-        self.assertEqual(debe, Decimal('5800.00'))
+    def _pago(self, monto, tipo='INGRESO', metodo='TRANSFERENCIA'):
+        return Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal(monto), metodo=metodo, tipo=tipo, usuario=self.user)
+
+    def _saldo(self, operacion):
+        """haber − debe de la cuenta en todas las pólizas aplicadas."""
+        cuenta = ConfiguracionContable.objects.get(operacion=operacion).cuenta
+        movs = MovimientoContable.objects.filter(cuenta=cuenta, poliza__estado='APLICADA')
+        return sum((m.haber - m.debe for m in movs), Decimal('0.00'))
+
+    def _penalizaciones(self):
+        return Poliza.objects.filter(concepto__startswith='Penalización por cancelación')
+
+    def _cancelar(self, **kw):
+        self.cot.refresh_from_db()
+        ok, msg = self.cot.cambiar_estado('CANCELADA', self.user, motivo='Cliente desistió', **kw)
+        self.assertTrue(ok, msg)
+
+    def test_retencion_pasa_la_base_a_ingreso_y_conserva_el_iva(self):
+        # Cobrado 11,600 (base 10,000 + IVA 1,600); se devuelven 6,960 por tarjeta
+        # antes de cancelar → el banco conserva 4,640 = base 4,000 + IVA 640.
+        self._pago('11600.00')
+        self._pago('6960.00', tipo='REEMBOLSO', metodo='TARJETA_DEBITO')
+        self._cancelar()
+        self.assertEqual(self._penalizaciones().count(), 1)
+        self.assertEqual(self._saldo('INGRESO_EVENTOS'), Decimal('4000.00'))
+        self.assertEqual(self._saldo('ANTICIPO_CLIENTES'), Decimal('0.00'))
+        self.assertEqual(self._saldo('IVA_TRASLADADO'), Decimal('640.00'))
+        poliza = self._penalizaciones().get()
+        self.assertEqual(poliza.fecha, timezone.localdate(self.cot.fecha_cancelacion))
+        self.assertEqual(sum(m.debe for m in poliza.movimientos.all()),
+                         sum(m.haber for m in poliza.movimientos.all()))
+
+    def test_devolucion_total_no_deja_penalizacion(self):
+        self._pago('11600.00')
+        self._pago('11600.00', tipo='REEMBOLSO', metodo='TARJETA_DEBITO')
+        self._cancelar()
+        self.assertFalse(self._penalizaciones().exists())
+        self.assertEqual(self._saldo('INGRESO_EVENTOS'), Decimal('0.00'))
+        self.assertEqual(self._saldo('IVA_TRASLADADO'), Decimal('0.00'))
+
+    def test_reservar_deja_en_anticipos_lo_que_se_transferira(self):
+        self._pago('11600.00')
+        self._cancelar(reservar=Decimal('6960.00'))
+        self.assertEqual(self._saldo('INGRESO_EVENTOS'), Decimal('4000.00'))
+        self.assertEqual(self._saldo('ANTICIPO_CLIENTES'), Decimal('6000.00'))
+        # La transferencia llega después: el reembolso consume lo reservado.
+        self._pago('6960.00', tipo='REEMBOLSO')
+        self.assertEqual(self._saldo('ANTICIPO_CLIENTES'), Decimal('0.00'))
+        self.assertEqual(self._saldo('INGRESO_EVENTOS'), Decimal('4000.00'))
+        self.assertEqual(self._saldo('IVA_TRASLADADO'), Decimal('640.00'))
+        self.assertEqual(self._penalizaciones().count(), 1)
+
+    def test_cancelacion_sin_reservar_y_reembolso_posterior_ajusta_a_cero(self):
+        self._pago('11600.00')
+        self._cancelar()
+        self.assertEqual(self._saldo('INGRESO_EVENTOS'), Decimal('10000.00'))
+        self._pago('6960.00', tipo='REEMBOLSO')
+        self.assertEqual(self._penalizaciones().count(), 2)
+        self.assertEqual(self._saldo('ANTICIPO_CLIENTES'), Decimal('0.00'))
+        self.assertEqual(self._saldo('INGRESO_EVENTOS'), Decimal('4000.00'))
+        self.assertEqual(self._saldo('IVA_TRASLADADO'), Decimal('640.00'))
+
+    def test_reembolso_antes_de_cancelar_no_dispara_ajuste(self):
+        self._pago('11600.00')
+        self._pago('6960.00', tipo='REEMBOLSO')
+        self.assertFalse(self._penalizaciones().exists())
+        self.assertEqual(self._saldo('ANTICIPO_CLIENTES'), Decimal('4000.00'))
 
     def test_cancelacion_idempotente(self):
-        from contabilidad.signals import crear_polizas_reversion_cancelacion
-        self.cot.cambiar_estado('CANCELADA', self.user, motivo='X')
-        crear_polizas_reversion_cancelacion(self.cot, self.user, motivo='X')
-        self.assertEqual(Poliza.objects.filter(origen='AJUSTE').count(), 1)
+        from contabilidad.signals import crear_poliza_reconocimiento_ingreso
+        self._pago('5800.00')
+        self._cancelar()
+        crear_poliza_reconocimiento_ingreso(self.cot, self.user, cancelacion=True)
+        crear_poliza_reconocimiento_ingreso(self.cot)
+        self.assertEqual(self._penalizaciones().count(), 1)
+        self.assertEqual(self._saldo('INGRESO_EVENTOS'), Decimal('5000.00'))
 
 
 # ==========================================

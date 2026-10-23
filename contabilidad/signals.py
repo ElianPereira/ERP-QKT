@@ -617,70 +617,7 @@ def crear_poliza_reembolso_cliente(pago):
         concepto=f"Devolución {pago.get_metodo_display()}",
         referencia=pago.referencia or '',
     )
-
-
-# ==========================================
-# REVERSIÓN POR CANCELACIÓN DE COTIZACIÓN
-# ==========================================
-def crear_polizas_reversion_cancelacion(cotizacion, usuario=None, motivo=''):
-    """
-    Al cancelar una cotización, crea pólizas de reversión por cada póliza
-    APLICADA originada por sus pagos. Cada nueva póliza invierte los movimientos
-    DEBE↔HABER y queda marcada como APLICADA con origen='AJUSTE'.
-
-    No modifica ni elimina las pólizas originales (auditoría preservada).
-    Idempotente: omite pagos cuya reversión ya existe.
-    """
-    if not signals_enabled():
-        return
-
-    from comercial.models import Pago
-    pagos = cotizacion.pagos.all()
-    if not pagos.exists():
-        return
-
-    usuario = usuario or get_usuario_sistema()
-    pago_ct = ContentType.objects.get_for_model(Pago)
-
-    polizas_originales = Poliza.objects.filter(
-        origen='PAGO_CLIENTE',
-        content_type=pago_ct,
-        object_id__in=pagos.values_list('pk', flat=True),
-        estado='APLICADA',
-    ).prefetch_related('movimientos')
-
-    for original in polizas_originales:
-        # Idempotencia: evitar reversiones duplicadas
-        ya_revertida = Poliza.objects.filter(
-            origen='AJUSTE',
-            content_type=pago_ct,
-            object_id=original.object_id,
-            concepto__startswith=f"Reversión cancelación COT-{cotizacion.pk:03d}",
-        ).exists()
-        if ya_revertida:
-            continue
-
-        reversion = Poliza.objects.create(
-            tipo='D',
-            folio=Poliza.siguiente_folio('D', cotizacion.fecha_cancelacion.date() if cotizacion.fecha_cancelacion else original.fecha),
-            fecha=cotizacion.fecha_cancelacion.date() if cotizacion.fecha_cancelacion else original.fecha,
-            concepto=f"Reversión cancelación COT-{cotizacion.pk:03d}: {motivo or 'Cancelada'}"[:500],
-            unidad_negocio=original.unidad_negocio,
-            estado='APLICADA',
-            origen='AJUSTE',
-            content_type=pago_ct,
-            object_id=original.object_id,
-            created_by=usuario,
-        )
-        for mov in original.movimientos.all():
-            MovimientoContable.objects.create(
-                poliza=reversion,
-                cuenta=mov.cuenta,
-                debe=mov.haber,
-                haber=mov.debe,
-                concepto=f"Reversión: {mov.concepto}"[:255],
-                referencia=mov.referencia,
-            )
+    ajustar_anticipo_negativo_tras_cancelacion(cotizacion)
 
 
 # ==========================================
@@ -721,8 +658,57 @@ def anticipo_por_reconocer(cotizacion):
     return saldo
 
 
-def crear_poliza_reconocimiento_ingreso(cotizacion, usuario=None):
-    """Pasa a ingreso lo cobrado como anticipo cuando el evento ya ocurrió.
+def _prefijo_penalizacion(cotizacion):
+    return f"Penalización por cancelación COT-{cotizacion.pk:03d}"
+
+
+def _fecha_cancelacion(cotizacion, respaldo):
+    from django.utils import timezone
+
+    fc = cotizacion.fecha_cancelacion
+    return timezone.localtime(fc).date() if fc else respaldo
+
+
+def _asentar_anticipo_a_ingreso(cotizacion, importe, a_ingreso, fecha, prefijo, usuario=None):
+    """Póliza de diario entre Anticipos e ingreso. `a_ingreso`: DEBE anticipo /
+    HABER ingreso; si no, el ajuste inverso. El IVA no se mueve."""
+    cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
+    cuenta_ingreso = get_cuenta('INGRESO_EVENTOS')
+    unidad = get_unidad_negocio('QUINTA')
+    if not cuenta_anticipo or not cuenta_ingreso or not unidad:
+        logger.warning(
+            "Reconocimiento de ingreso NO generado para COT-%s: falta cuenta "
+            "INGRESO_EVENTOS o UnidadNegocio QUINTA.", cotizacion.pk,
+        )
+        return None
+    poliza = Poliza.objects.create(
+        tipo='D',
+        folio=Poliza.siguiente_folio('D', fecha),
+        fecha=fecha,
+        concepto=f"{prefijo}: {cotizacion.nombre_evento}"[:500],
+        unidad_negocio=unidad,
+        estado='APLICADA',
+        origen='AJUSTE',
+        content_type=ContentType.objects.get_for_model(cotizacion),
+        object_id=cotizacion.pk,
+        created_by=usuario or get_usuario_sistema(),
+    )
+    cero = Decimal('0.00')
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_anticipo,
+        debe=importe if a_ingreso else cero, haber=cero if a_ingreso else importe,
+        concepto=f"COT-{cotizacion.pk:03d} anticipo aplicado",
+    )
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_ingreso,
+        debe=cero if a_ingreso else importe, haber=importe if a_ingreso else cero,
+        concepto=f"COT-{cotizacion.pk:03d} ingreso devengado",
+    )
+    return poliza
+
+
+def crear_poliza_reconocimiento_ingreso(cotizacion, usuario=None, reservar=Decimal('0.00'), cancelacion=False):
+    """Pasa a ingreso lo cobrado como anticipo cuando el servicio ya se devengó.
 
     Los pagos anteriores al evento se abonan a "Anticipo de clientes" (pasivo:
     el servicio aún no se presta). Sin este asiento se quedaban ahí para
@@ -733,51 +719,57 @@ def crear_poliza_reconocimiento_ingreso(cotizacion, usuario=None):
     ingreso). Idempotente: solo asienta la diferencia pendiente, así que
     correrla de nuevo no duplica nada, y si un reembolso posterior dejó el
     anticipo en negativo, emite el ajuste inverso.
+
+    **Cancelación** (`cancelacion=True`, o la cotización ya CANCELADA): lo que el
+    banco conserva tras los reembolsos es una pena convencional (art. 18 LIVA:
+    forma parte del valor, conserva su IVA trasladado y es ingreso). Solo la
+    cuenta de anticipos pasa a ingreso, fechada el día de la cancelación y con
+    su propio prefijo. `reservar` es lo que aún se devolverá por transferencia
+    (con IVA incluido): su base se queda en Anticipos hasta que el reembolso la
+    consuma. Nunca asienta un importe negativo al cancelar.
     """
-    if not signals_enabled() or cotizacion.estado not in ESTADOS_INGRESO_DEVENGADO:
+    if not signals_enabled():
+        return None
+    cancelando = cancelacion or cotizacion.estado == 'CANCELADA'
+    if not cancelando and cotizacion.estado not in ESTADOS_INGRESO_DEVENGADO:
         return None
     pendiente = anticipo_por_reconocer(cotizacion)
+    if cancelando:
+        reservar = Decimal(str(reservar or 0))
+        if reservar > 0:
+            pendiente -= calcular_desglose_proporcional(reservar, cotizacion)['subtotal']
+        if pendiente <= 0:
+            return None
+        return _asentar_anticipo_a_ingreso(
+            cotizacion, pendiente, True, _fecha_cancelacion(cotizacion, cotizacion.fecha_evento),
+            _prefijo_penalizacion(cotizacion), usuario,
+        )
     if pendiente == 0:
         return None
+    return _asentar_anticipo_a_ingreso(
+        cotizacion, abs(pendiente), pendiente > 0, cotizacion.fecha_evento,
+        _prefijo_reconocimiento(cotizacion), usuario,
+    )
 
-    cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
-    cuenta_ingreso = get_cuenta('INGRESO_EVENTOS')
-    unidad = get_unidad_negocio('QUINTA')
-    if not cuenta_ingreso or not unidad:
-        logger.warning(
-            "Reconocimiento de ingreso NO generado para COT-%s: falta cuenta "
-            "INGRESO_EVENTOS o UnidadNegocio QUINTA.", cotizacion.pk,
-        )
+
+def ajustar_anticipo_negativo_tras_cancelacion(cotizacion, usuario=None):
+    """Un reembolso registrado después de cancelar (transferencia) consume un
+    anticipo que la cancelación ya pasó a ingreso: lo deja en negativo. Emite
+    solo el ajuste inverso por el faltante, nunca uno positivo."""
+    if not signals_enabled():
         return None
+    from comercial.models import Cotizacion
 
-    importe = abs(pendiente)
-    fecha = cotizacion.fecha_evento
-    poliza = Poliza.objects.create(
-        tipo='D',
-        folio=Poliza.siguiente_folio('D', fecha),
-        fecha=fecha,
-        concepto=f"{_prefijo_reconocimiento(cotizacion)}: {cotizacion.nombre_evento}"[:500],
-        unidad_negocio=unidad,
-        estado='APLICADA',
-        origen='AJUSTE',
-        content_type=ContentType.objects.get_for_model(cotizacion),
-        object_id=cotizacion.pk,
-        created_by=usuario or get_usuario_sistema(),
+    actual = Cotizacion.objects.filter(pk=cotizacion.pk, estado='CANCELADA').first()
+    if actual is None:
+        return None
+    pendiente = anticipo_por_reconocer(actual)
+    if pendiente >= 0:
+        return None
+    return _asentar_anticipo_a_ingreso(
+        actual, -pendiente, False, _fecha_cancelacion(actual, actual.fecha_evento),
+        _prefijo_penalizacion(actual), usuario,
     )
-    # pendiente > 0: DEBE anticipo / HABER ingreso. Negativo: al revés.
-    MovimientoContable.objects.create(
-        poliza=poliza, cuenta=cuenta_anticipo,
-        debe=importe if pendiente > 0 else Decimal('0.00'),
-        haber=Decimal('0.00') if pendiente > 0 else importe,
-        concepto=f"COT-{cotizacion.pk:03d} anticipo aplicado",
-    )
-    MovimientoContable.objects.create(
-        poliza=poliza, cuenta=cuenta_ingreso,
-        debe=Decimal('0.00') if pendiente > 0 else importe,
-        haber=importe if pendiente > 0 else Decimal('0.00'),
-        concepto=f"COT-{cotizacion.pk:03d} ingreso devengado",
-    )
-    return poliza
 
 
 @receiver(post_save, sender='comercial.Cotizacion')

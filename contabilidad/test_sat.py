@@ -545,10 +545,40 @@ class EmitidasTest(TestCase):
         self.assertEqual(reg.resultado, 'VINCULADO')
         self.assertEqual(reg.solicitud_factura, sf)
 
-    def test_egreso_y_emisor_ajeno_se_omiten(self):
-        self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000006', RFC, 'XEXX010101000', tipo='E'),
-                    cfdi('BBBBBBBB-0000-0000-0000-000000000007', 'OTRO010101ABC', 'XEXX010101000'))
+    def test_emisor_ajeno_se_omite(self):
+        self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000007', 'OTRO010101ABC', 'XEXX010101000'))
         self.assertEqual(set(CfdiSAT.objects.values_list('resultado', flat=True)), {'OMITIDO'})
+
+    def test_otro_tipo_de_comprobante_se_omite(self):
+        self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000009', RFC, 'XEXX010101000', tipo='P'))
+        self.assertEqual(CfdiSAT.objects.get().resultado, 'OMITIDO')
+
+    def test_el_matching_respeta_el_tipo_de_comprobante(self):
+        factura = self._solicitud_factura()
+        nota = self._solicitud_factura(tipo_comprobante='E')
+        # Un egreso solo liga con la nota de crédito, aunque RFC/monto/fecha coincidan con la factura.
+        self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000006', RFC, 'XEXX010101000', tipo='E'))
+        factura.refresh_from_db()
+        nota.refresh_from_db()
+        self.assertEqual(nota.uuid_factura, 'BBBBBBBB-0000-0000-0000-000000000006')
+        self.assertEqual(nota.estado, 'FACTURADA')
+        self.assertEqual(factura.uuid_factura, '')
+
+    def test_un_ingreso_solo_liga_con_la_factura_no_con_la_nota(self):
+        factura = self._solicitud_factura()
+        nota = self._solicitud_factura(tipo_comprobante='E')
+        self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000010', RFC, 'XEXX010101000'))
+        factura.refresh_from_db()
+        nota.refresh_from_db()
+        self.assertEqual(factura.uuid_factura, 'BBBBBBBB-0000-0000-0000-000000000010')
+        self.assertEqual(nota.uuid_factura, '')
+
+    def test_egreso_sin_nota_de_credito_no_liga_con_una_factura(self):
+        factura = self._solicitud_factura()
+        self._bajar(cfdi('BBBBBBBB-0000-0000-0000-000000000011', RFC, 'XEXX010101000', tipo='E'))
+        factura.refresh_from_db()
+        self.assertEqual(factura.uuid_factura, '')
+        self.assertEqual(CfdiSAT.objects.get().resultado, 'SIN_VINCULAR')
 
 
 @override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA)

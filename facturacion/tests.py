@@ -616,3 +616,70 @@ class RevisarFormaPagoSolicitudesCommandTest(TestCase):
         out = StringIO()
         call_command('revisar_forma_pago_solicitudes', stdout=out)
         self.assertIn('0 solicitud(es)', out.getvalue())
+
+
+class NotaCreditoPorReembolsoTest(TestCase):
+    """Un Pago REEMBOLSO se documenta con un CFDI de egreso (nota de crédito),
+    no con una factura de ingreso."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('u3', password='x')
+        self.cliente = Cliente.objects.create(
+            nombre='Cliente Fiscal', es_cliente_fiscal=True, tipo_persona='FISICA',
+            rfc='XEXX010101AB1', razon_social='CLIENTE FISCAL', regimen_fiscal='612',
+        )
+        self.cot = _crear_cotizacion(self.cliente, Decimal('11600.00'))
+
+    def _pago(self, monto, tipo='INGRESO'):
+        return Pago.objects.create(
+            cotizacion=self.cot, monto=Decimal(monto), metodo='TRANSFERENCIA',
+            tipo=tipo, usuario=self.user)
+
+    def test_reembolso_crea_solicitud_tipo_e_con_g02_y_uuid_relacionados(self):
+        ingreso = self._pago('11600.00')
+        sol_ingreso = SolicitudFactura.objects.get(pago=ingreso)
+        self.assertEqual(sol_ingreso.tipo_comprobante, 'I')
+        SolicitudFactura.objects.filter(pk=sol_ingreso.pk).update(
+            estado='FACTURADA', uuid_factura='AAAAAAAA-0000-0000-0000-000000000001')
+
+        reembolso = self._pago('6960.00', tipo='REEMBOLSO')
+        nota = SolicitudFactura.objects.get(pago=reembolso)
+        self.assertEqual(nota.tipo_comprobante, 'E')
+        self.assertEqual(nota.uso_cfdi, 'G02')
+        self.assertEqual(nota.monto, Decimal('6960.00'))
+        self.assertEqual((nota.subtotal, nota.iva), (Decimal('6000.00'), Decimal('960.00')))
+        self.assertEqual(nota.concepto, f'Nota de crédito por devolución COT-{self.cot.pk:04d}')
+        self.assertIn('AAAAAAAA-0000-0000-0000-000000000001', nota.notas)
+        self.assertIn('TipoRelación 01', nota.notas)
+        self.assertTrue(nota.es_nota_credito)
+        self.assertIn('NOTA DE CRÉDITO (CFDI de egreso)', nota.get_datos_para_contador())
+
+    def test_sin_cfdi_de_ingreso_la_nota_lo_dice(self):
+        self._pago('11600.00')
+        nota = SolicitudFactura.objects.get(pago=self._pago('1160.00', tipo='REEMBOLSO'))
+        self.assertIn('ninguno', nota.notas)
+
+    def test_la_nota_no_relaciona_otras_notas_ni_pendientes(self):
+        ingreso = self._pago('11600.00')   # sigue PENDIENTE: sin UUID
+        nota = SolicitudFactura.objects.get(pago=self._pago('1160.00', tipo='REEMBOLSO'))
+        self.assertNotIn(str(ingreso.pk), nota.notas.split(':', 1)[1])
+        self.assertIn('ninguno', nota.notas)
+
+    @patch('facturacion.services.generar_pdf_solicitud', return_value=b'%PDF')
+    def test_asunto_del_correo_y_pdf_dicen_nota_de_credito(self, _pdf):
+        from facturacion.services import enviar_solicitud_por_email
+        ConfiguracionContador.objects.create(nombre='C', email='c@x.com', telefono_whatsapp='529990000000')
+        self._pago('11600.00')
+        nota = SolicitudFactura.objects.get(pago=self._pago('1160.00', tipo='REEMBOLSO'))
+        mail.outbox.clear()
+        ok, _ = enviar_solicitud_por_email(nota)
+        self.assertTrue(ok)
+        self.assertIn('NOTA DE CRÉDITO', mail.outbox[0].subject)
+
+    def test_pdf_de_la_solicitud_dice_nota_de_credito(self):
+        from facturacion.services import generar_pdf_solicitud
+        self._pago('11600.00')
+        nota = SolicitudFactura.objects.get(pago=self._pago('1160.00', tipo='REEMBOLSO'))
+        with patch('facturacion.services.render_pdf', return_value=b'%PDF') as render:
+            generar_pdf_solicitud(nota)
+        self.assertEqual(render.call_args.args[1]['titulo'], 'Solicitud de nota de crédito')

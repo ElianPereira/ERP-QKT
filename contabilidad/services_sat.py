@@ -502,15 +502,16 @@ def _procesar_recibido(solicitud, registro, datos, xml):
         solicitud.importados += 1
 
 
-def candidatas_emitido(rfc_receptor, total, fecha, rfc_emisor):
+def candidatas_emitido(rfc_receptor, total, fecha, rfc_emisor, tipo='I'):
     """Solicitudes de factura sin timbrar que podrían ser este CFDI emitido: mismo RFC
     receptor, monto (±TOLERANCIA_MONTO) y fecha dentro de la ventana. Una sola es ligue
-    automático; 0 o varias quedan para que el contador decida."""
+    automático; 0 o varias quedan para que el contador decida. Un CFDI de egreso (E)
+    solo liga con notas de crédito y uno de ingreso (I) solo con facturas."""
     from facturacion.models import SolicitudFactura
 
     return [
         s for s in SolicitudFactura.objects.filter(
-            rfc=rfc_receptor, estado__in=['PENDIENTE', 'ENVIADA'],
+            rfc=rfc_receptor, estado__in=['PENDIENTE', 'ENVIADA'], tipo_comprobante=tipo or 'I',
             monto__gte=total - TOLERANCIA_MONTO, monto__lte=total + TOLERANCIA_MONTO,
             fecha_solicitud__date__gte=fecha - timedelta(days=VENTANA_SOLICITUD_DIAS),
             fecha_solicitud__date__lte=fecha + timedelta(days=1),
@@ -526,8 +527,8 @@ def _procesar_emitido(solicitud, registro, datos, xml):
         registro.resultado, registro.detalle = 'OMITIDO', "El emisor no es el RFC de la e.firma."
         solicitud.omitidos += 1
         return
-    if datos['tipo'] != 'I':
-        registro.resultado, registro.detalle = 'OMITIDO', f"Comprobante tipo «{datos['tipo']}» (no es de ingreso)."
+    if datos['tipo'] not in ('I', 'E'):
+        registro.resultado, registro.detalle = 'OMITIDO', f"Comprobante tipo «{datos['tipo']}» (ni ingreso ni egreso)."
         solicitud.omitidos += 1
         return
     ya = SolicitudFactura.objects.filter(uuid_factura=datos['uuid']).first()
@@ -536,7 +537,7 @@ def _procesar_emitido(solicitud, registro, datos, xml):
         registro.detalle = "El contador ya había subido esta factura."
         solicitud.vinculados += 1
         return
-    candidatas = candidatas_emitido(datos['rfc_receptor'], datos['total'], datos['fecha'], datos['rfc_emisor'])
+    candidatas = candidatas_emitido(datos['rfc_receptor'], datos['total'], datos['fecha'], datos['rfc_emisor'], datos['tipo'])
     if len(candidatas) == 1:
         vincular(registro, candidatas[0], xml)
         solicitud.vinculados += 1

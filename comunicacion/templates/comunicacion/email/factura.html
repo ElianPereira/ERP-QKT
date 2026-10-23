@@ -1,8 +1,8 @@
 {% extends "comunicacion/email/base.html" %}
 {% block content %}
-<h2 style="color:#F5C518;margin-top:0;">Tu factura</h2>
+<h2 style="color:#F5C518;margin-top:0;">{% if solicitud.es_nota_credito %}Tu nota de crédito{% else %}Tu factura{% endif %}</h2>
 
-<p>Hola {{ cliente.nombre }}, te adjuntamos la factura de tu pago{% if solicitud.cotizacion %} de <strong>{{ solicitud.cotizacion.nombre_evento }}</strong>{% endif %}.</p>
+<p>Hola {{ cliente.nombre }}, te adjuntamos {% if solicitud.es_nota_credito %}la nota de crédito de tu devolución{% else %}la factura de tu pago{% endif %}{% if solicitud.cotizacion %} de <strong>{{ solicitud.cotizacion.nombre_evento }}</strong>{% endif %}.</p>
 
 <table width="100%" style="margin:20px 0;border-collapse:collapse;">
   <tr><td style="padding:8px;background:#f9f9f9;">RFC:</td><td style="padding:8px;"><strong>{{ solicitud.rfc }}</strong></td></tr>

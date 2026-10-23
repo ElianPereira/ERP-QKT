@@ -176,8 +176,31 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
 
     forma_pago = forma_pago_de_pago(pago)
 
+    # Un reembolso no es un ingreso: lo devuelto se documenta con un CFDI de
+    # egreso (nota de crédito) relacionado a los de ingreso de la cotización.
+    # La pena retenida ya se facturó con el CFDI de cada pago (art. 18 LIVA).
+    es_reembolso = pago.tipo == 'REEMBOLSO'
+    if es_reembolso:
+        concepto = "Nota de crédito por devolución COT-{}".format(str(cotizacion.id).zfill(4))
+        uuids = list(
+            SolicitudFactura.objects.filter(cotizacion=cotizacion, estado='FACTURADA', tipo_comprobante='I')
+            .exclude(uuid_factura='').order_by('pk').values_list('uuid_factura', flat=True)
+        )
+        notas = "CFDI relacionados (TipoRelación 01): " + (
+            ", ".join(uuids) if uuids else "ninguno todavía: no hay CFDI de ingreso facturado de esta cotización."
+        )
+        uso_cfdi = 'G02'
+    else:
+        concepto = "COT-{} {}".format(
+            str(cotizacion.id).zfill(4),
+            CONCEPTO_POR_SERVICIO.get(cotizacion.tipo_servicio, CONCEPTO_POR_SERVICIO['EVENTO']),
+        )
+        notas = ''
+
     # ─── Crear la solicitud ─────────────────────────────────────
     solicitud = SolicitudFactura.objects.create(
+        tipo_comprobante='E' if es_reembolso else 'I',
+        notas=notas,
         cliente=cliente,
         cotizacion=cotizacion,
         pago=pago,
@@ -190,10 +213,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         impuesto_hospedaje=impuesto_hospedaje,
         retencion_isr=retencion_isr,
         retencion_iva=retencion_iva,
-        concepto="COT-{} {}".format(
-            str(cotizacion.id).zfill(4),
-            CONCEPTO_POR_SERVICIO.get(cotizacion.tipo_servicio, CONCEPTO_POR_SERVICIO['EVENTO']),
-        ),
+        concepto=concepto,
         rfc=rfc,
         razon_social=razon_social,
         codigo_postal=codigo_postal,

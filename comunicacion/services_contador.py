@@ -57,7 +57,7 @@ def _es_contador(telefono: str) -> bool:
 def _candidatas(cfdi) -> list:
     if cfdi.fecha is None:
         return []
-    return services_sat.candidatas_emitido(cfdi.rfc_receptor, cfdi.total, cfdi.fecha, cfdi.rfc_emisor)
+    return services_sat.candidatas_emitido(cfdi.rfc_receptor, cfdi.total, cfdi.fecha, cfdi.rfc_emisor, cfdi.tipo_comprobante)
 
 
 def _etiqueta(solicitud) -> str:

@@ -891,10 +891,13 @@ class Cotizacion(models.Model):
                 return f'{dias} días sin ningún pago'
         return None
 
-    def cambiar_estado(self, nuevo_estado, usuario=None, motivo=''):
+    def cambiar_estado(self, nuevo_estado, usuario=None, motivo='', *, reservar=Decimal('0.00')):
         """
         Cambia el estado de la cotización validando transiciones permitidas.
         Retorna (exito: bool, mensaje: str)
+
+        `reservar` (solo al cancelar): lo que aún se devolverá por transferencia,
+        IVA incluido; su base se queda en Anticipos en vez de pasar a ingreso.
         """
         estado_actual = self.estado
         permitidos = self.TRANSICIONES_PERMITIDAS.get(estado_actual, [])
@@ -933,12 +936,12 @@ class Cotizacion(models.Model):
             self.cancelada_por = usuario
             self.fecha_cancelacion = now()
             try:
-                from contabilidad.signals import crear_polizas_reversion_cancelacion
-                crear_polizas_reversion_cancelacion(self, usuario, motivo)
+                from contabilidad.signals import crear_poliza_reconocimiento_ingreso
+                crear_poliza_reconocimiento_ingreso(self, usuario, reservar=reservar, cancelacion=True)
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).exception(
-                    "Error generando póliza de reversión para Cotización #%s: %s", self.pk, e
+                    "Error reconociendo la penalización de la Cotización #%s: %s", self.pk, e
                 )
 
         # Si reactiva desde CANCELADA, limpiar campos de cancelación

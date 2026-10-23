@@ -60,7 +60,7 @@ def generar_pdf_solicitud(solicitud):
     context = {
         'solicitud':    solicitud,
         'cliente':      cliente,
-        'titulo':       'Solicitud de factura',
+        'titulo':       'Solicitud de nota de crédito' if solicitud.es_nota_credito else 'Solicitud de factura',
         'folio':        f"SOL-{int(solicitud.id):03d}",
         'calc_subtotal':subtotal,
         'calc_iva':     iva,
@@ -71,7 +71,12 @@ def generar_pdf_solicitud(solicitud):
     return render_pdf('facturacion/solicitud_pdf.html', context)
 
 
-def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, linea_negocio_nombre):
+def _nombre_solicitud(solicitud):
+    return 'Solicitud de NOTA DE CRÉDITO (CFDI de egreso)' if solicitud.es_nota_credito else 'Solicitud de Factura'
+
+
+def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, linea_negocio_nombre,
+                         es_nota_credito=False):
     """
     Envía el PDF de la solicitud al contador via WhatsApp Cloud API.
     1. Sube el PDF al Media API → obtiene media_id
@@ -86,6 +91,10 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, l
     (ver docs/whatsapp_plantilla_solicitud_factura.md); mientras no esté
     aprobada, el fallo queda registrado sin bloquear el email.
     """
+    caption = 'Solicitud de NOTA DE CRÉDITO (CFDI de egreso)' if es_nota_credito else 'Solicitud de Factura'
+    if es_nota_credito:
+        # La plantilla aprobada no tiene variable para el tipo: viaja con la línea.
+        linea_negocio_nombre = f"{linea_negocio_nombre} · NOTA DE CRÉDITO (CFDI de egreso)"
     wa_token    = settings.META_WA_KOOXI_TOKEN
     wa_phone_id = settings.META_WA_KOOXI_ID
 
@@ -129,7 +138,7 @@ def _enviar_pdf_whatsapp(pdf_bytes, filename, telefono, folio, cliente_nombre, l
             "document": {
                 "id": media_id,
                 "filename": filename,
-                "caption": f"Solicitud de Factura {folio} — {cliente_nombre} ({linea_negocio_nombre})",
+                "caption": f"{caption} {folio} — {cliente_nombre} ({linea_negocio_nombre})",
             },
         }
     payload["to"] = telefono
@@ -210,6 +219,7 @@ def enviar_solicitud_por_whatsapp(solicitud):
     return _enviar_pdf_whatsapp(
         pdf_bytes, filename, telefono, folio, solicitud.cliente.nombre,
         solicitud.get_linea_negocio_display(),
+        es_nota_credito=solicitud.es_nota_credito,
     )
 
 
@@ -225,7 +235,7 @@ def enviar_solicitud_por_email(solicitud):
         pdf_bytes = generar_pdf_solicitud(solicitud)
         folio = f"SOL-{solicitud.id:04d}"
         email = EmailMessage(
-            subject=f"Solicitud de Factura {folio} | {solicitud.cliente.nombre} | {solicitud.get_linea_negocio_display()}",
+            subject=f"{_nombre_solicitud(solicitud)} {folio} | {solicitud.cliente.nombre} | {solicitud.get_linea_negocio_display()}",
             body=solicitud.get_datos_para_contador(),
             from_email=settings.ERP_EMAIL_REMITENTE_NOTIFICACIONES,
             to=[contador.email],

@@ -529,6 +529,7 @@ def notificar_factura(solicitud):
         return None
 
     cotizacion = solicitud.cotizacion
+    nombre_doc = 'nota de crédito' if solicitud.es_nota_credito else 'factura'
     return _seguro(
         'enviar la factura al cliente',
         enviar_email,
@@ -536,7 +537,7 @@ def notificar_factura(solicitud):
         pago=solicitud.pago,
         tipo='FACTURA',
         destinatario=cliente.email,
-        asunto=f"Tu factura — {cotizacion.nombre_evento}" if cotizacion else "Tu factura",
+        asunto=f"Tu {nombre_doc} — {cotizacion.nombre_evento}" if cotizacion else f"Tu {nombre_doc}",
         template='comunicacion/email/factura.html',
         context={
             'solicitud': solicitud,
