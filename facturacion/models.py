@@ -60,6 +60,10 @@ class SolicitudFactura(models.Model):
     Solicitud de factura enviada al contador.
     Se puede generar automáticamente desde un Pago o manualmente.
     """
+    TIPO_COMPROBANTE_CHOICES = [
+        ('I', 'Ingreso'),
+        ('E', 'Egreso (nota de crédito)'),
+    ]
     ESTADO_CHOICES = [
         ('PENDIENTE', 'Pendiente de Enviar'),
         ('ENVIADA', 'Enviada al Contador'),
@@ -118,6 +122,15 @@ class SolicitudFactura(models.Model):
         verbose_name="Línea de Negocio",
         help_text="Bajo qué RFC propio se debe timbrar: PECE010202IA0 para "
                   "Quinta Ko'ox Tanil (Eventos, Pasadías y Hospedaje directo).",
+    )
+
+    tipo_comprobante = models.CharField(
+        max_length=1,
+        choices=TIPO_COMPROBANTE_CHOICES,
+        default='I',
+        verbose_name="Tipo de comprobante",
+        help_text="I = factura de ingreso. E = nota de crédito (CFDI de egreso) por una "
+                  "devolución, con TipoRelación 01 a los CFDI de ingreso de la cotización.",
     )
 
     # Datos fiscales (copiados del cliente al crear, editables)
@@ -299,6 +312,15 @@ class SolicitudFactura(models.Model):
                 self.estado = 'FACTURADA'
         super().save(*args, **kwargs)
 
+    @property
+    def es_nota_credito(self):
+        return self.tipo_comprobante == 'E'
+
+    @property
+    def titulo_documento(self):
+        """Cómo se nombra el comprobante a timbrar (PDF, correo y WhatsApp al contador)."""
+        return 'NOTA DE CRÉDITO (CFDI de egreso)' if self.es_nota_credito else 'Factura'
+
     def get_datos_para_contador(self):
         """Genera el texto con datos para enviar al contador."""
         folio = f"SOL-{int(self.id):04d}" if self.id else "Nueva"
@@ -306,7 +328,8 @@ class SolicitudFactura(models.Model):
 
         lineas = [
             "═══════════════════════════════════",
-            f"📋 SOLICITUD DE FACTURA {folio}",
+            f"📋 SOLICITUD DE NOTA DE CRÉDITO (CFDI de egreso) {folio}" if self.es_nota_credito
+            else f"📋 SOLICITUD DE FACTURA {folio}",
             "═══════════════════════════════════",
             "",
             f"🏢 Línea de negocio: {self.get_linea_negocio_display()} "

@@ -17,7 +17,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from comercial.services import calcular_desglose_proporcional
-from facturacion.choices import FormaPago
+from facturacion.choices import _REGIMENES_ADMITEN_G03, FormaPago, UsoCFDI
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +176,34 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
 
     forma_pago = forma_pago_de_pago(pago)
 
+    # Un reembolso no es un ingreso: lo devuelto se documenta con un CFDI de
+    # egreso (nota de crédito) relacionado a los de ingreso de la cotización.
+    # La pena retenida ya se facturó con el CFDI de cada pago (art. 18 LIVA).
+    es_reembolso = pago.tipo == 'REEMBOLSO'
+    if es_reembolso:
+        concepto = "Nota de crédito por devolución COT-{}".format(str(cotizacion.id).zfill(4))
+        uuids = list(
+            SolicitudFactura.objects.filter(cotizacion=cotizacion, estado='FACTURADA', tipo_comprobante='I')
+            .exclude(uuid_factura='').order_by('pk').values_list('uuid_factura', flat=True)
+        )
+        notas = "CFDI relacionados (TipoRelación 01): " + (
+            ", ".join(uuids) if uuids else "ninguno todavía: no hay CFDI de ingreso facturado de esta cotización."
+        )
+        # G02 solo vale con los regímenes que admiten los usos G0x; público en
+        # general (616) y el resto solo admiten S01.
+        uso_cfdi = (UsoCFDI.DEVOLUCIONES_DESCUENTOS if regimen_fiscal in _REGIMENES_ADMITEN_G03
+                    else UsoCFDI.SIN_EFECTOS_FISCALES)
+    else:
+        concepto = "COT-{} {}".format(
+            str(cotizacion.id).zfill(4),
+            CONCEPTO_POR_SERVICIO.get(cotizacion.tipo_servicio, CONCEPTO_POR_SERVICIO['EVENTO']),
+        )
+        notas = ''
+
     # ─── Crear la solicitud ─────────────────────────────────────
     solicitud = SolicitudFactura.objects.create(
+        tipo_comprobante='E' if es_reembolso else 'I',
+        notas=notas,
         cliente=cliente,
         cotizacion=cotizacion,
         pago=pago,
@@ -190,10 +216,7 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         impuesto_hospedaje=impuesto_hospedaje,
         retencion_isr=retencion_isr,
         retencion_iva=retencion_iva,
-        concepto="COT-{} {}".format(
-            str(cotizacion.id).zfill(4),
-            CONCEPTO_POR_SERVICIO.get(cotizacion.tipo_servicio, CONCEPTO_POR_SERVICIO['EVENTO']),
-        ),
+        concepto=concepto,
         rfc=rfc,
         razon_social=razon_social,
         codigo_postal=codigo_postal,

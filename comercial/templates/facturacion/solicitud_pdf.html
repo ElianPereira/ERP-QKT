@@ -10,6 +10,12 @@
 {% endblock %}
 
 {% block contenido %}
+{% if solicitud.es_nota_credito %}
+<div class="doc-banda">
+  <div><small>Tipo de comprobante</small><strong>NOTA DE CRÉDITO (CFDI de egreso)</strong></div>
+  <div><small>Relación</small><strong>TipoRelación 01 a los CFDI de ingreso (ver notas)</strong></div>
+</div>
+{% endif %}
 <div class="doc-banda">
   <div><small>Timbrar bajo</small><strong>{{ solicitud.get_linea_negocio_display }}</strong></div>
   <div><small>RFC emisor</small><strong>{{ solicitud.rfc_emisor }}</strong></div>

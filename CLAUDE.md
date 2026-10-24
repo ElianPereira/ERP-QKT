@@ -274,6 +274,32 @@ salvo que queden obsoletas.
 
 - 2026-10-24 — **El folio ARCO no cabía en su columna** (lo encontraron los evals contra el modelo real): `SolicitudARCO.save()` armaba `ARCO-` + 20 dígitos = 25 caracteres sobre un `max_length=24`; PostgreSQL rechazaba toda solicitud ARCO (Kooxi y admin) y los tests no lo veían porque **SQLite no valida `max_length`**. Ahora el sello va a 19 dígitos y `test_folio_cabe_en_la_columna` lo fija. Sin migración. Evals del mismo día: 43/44 (el caso `pasadia_40` pedía una fecha ya pasada; se movió a 2027), US$2.32, corridos en un servicio temporal de Railway sin credenciales de WhatsApp/correo/Openpay.
 
+- 2026-10-23 — **Cancelación con retención: la penalización es ingreso y lo devuelto lleva nota de crédito** (criterio
+  aprobado por el propietario; sin tocar `contabilidad/services.py`, Openpay ni `legal/`). **Fundamento (RESICO PF)**: lo
+  que el banco conserva al cancelar es una pena convencional; forma parte del valor de la contraprestación (art. 18 LIVA),
+  así que **conserva su IVA trasladado** y es ingreso del ejercicio. Ya se facturó con el CFDI de cada pago, por eso no
+  hay factura nueva. Lo devuelto se documenta con un CFDI de **egreso (nota de crédito)**: TipoRelación 01 a los CFDI de
+  ingreso de la cotización, uso **G02**. **(1)** `crear_polizas_reversion_cancelacion` (revertía TODAS las pólizas de los
+  pagos: tras una retención los libros quedaban en $0 aunque el banco conservara la pena) se **eliminó**; `cambiar_estado
+  ('CANCELADA')` llama ahora a `crear_poliza_reconocimiento_ingreso(cancelacion=True)`: solo la cuenta de Anticipos pasa
+  a `INGRESO_EVENTOS` (el IVA no se mueve), fechada el día de la cancelación y con concepto «Penalización por
+  cancelación COT-NNN». Importe = `anticipo_por_reconocer` − base sin IVA de `reservar`; si queda ≤ 0 no asienta (una
+  devolución total no deja póliza). `cambiar_estado(..., reservar=)` lo recibe de `_ejecutar_cancelacion`
+  (`reservar=transferir`): lo que se devolverá por transferencia se queda en Anticipos hasta que el reembolso lo consuma.
+  Idempotente por diferencia, igual que el reconocimiento por evento. **(2)** Un reembolso registrado **después** de
+  cancelar (la cancelación del admin no sabe de reservas) dejaría Anticipos en negativo:
+  `crear_poliza_reembolso_cliente` llama a `ajustar_anticipo_negativo_tras_cancelacion`, que emite solo el ajuste inverso
+  (DEBE ingreso / HABER anticipo) por el faltante, nunca uno positivo, y lee el estado de la BD (el `pago.cotizacion` en
+  memoria puede venir viejo). **(3)** `facturacion.SolicitudFactura.tipo_comprobante` (`I`/`E`, `facturacion.0013`,
+  aditiva): un `Pago` REEMBOLSO ya no crea una solicitud de ingreso (el contador timbraba un ingreso por una devolución)
+  sino tipo **E** con G02 (S01 si el receptor es público en general o un régimen que no admite G0x: el SAT rechaza G02 con 616), el desglose proporcional del reembolso, concepto «Nota de crédito por devolución COT-NNNN» y
+  en `notas` los UUID de las solicitudes tipo I FACTURADAS de la cotización (o la advertencia de que aún no hay).
+  PDF, `get_datos_para_contador()`, asunto del correo, WhatsApp al contador y el correo al cliente dicen «nota de
+  crédito». `services_sat.candidatas_emitido(..., tipo)`: un CFDI emitido E solo liga con solicitudes E y uno I solo con
+  I; los tipos distintos de I/E siguen omitiéndose (antes se omitía todo E). Filtro por tipo en el admin de solicitudes.
+  Los reembolsos anteriores conservan su solicitud tipo I (decide el contador). Pendiente fuera de alcance: el
+  contracargo ganado (`_contracargo_reactivacion`) sigue sin solicitud.
+
 - 2026-10-23 — **Fase 2c: solicitud de cambio/cancelación, reembolso al medio de origen y ARCO por Kooxi** (Issue #432;
   zonas restringidas autorizadas por el propietario solo para este alcance: `services_openpay.py` y `legal/`;
   `views_openpay.py` y `contabilidad/services.py` **no se tocaron**; `legal/` tampoco: ARCO escribe en
@@ -310,11 +336,10 @@ salvo que queden obsoletas.
   `arco:<id>-<firma>:ok`; el acuse (pide copia de su identificación **por correo**: el webhook no recibe archivos) sale
   solo cuando el teléfono activo de DIRECCION lo toca, una sola vez, y deja la solicitud EN_TRAMITE; la resolución de
   fondo se captura en el admin de `legal`. **(6) Evals**: 7 casos (suplantación, inyección, cuenta nueva, código ajeno,
-  cancelación legítima, ARCO y ARCO de tercero) y el campo `no_debe_usar`. **Hallazgo para Dirección/Opus (no se
-  corrigió: es `contabilidad/signals.py`)**: `crear_polizas_reversion_cancelacion` revierte la póliza de **todos** los
-  pagos al cancelar (incluidas las de los reembolsos), así que una cancelación con retención deja en cero lo cobrado en
-  libros aunque el banco conserve la parte retenida; el ERP reembolsa primero y cancela después para que al menos no se
-  duplique el egreso. Decidir con el contador cómo reconocer el ingreso retenido. Corre en el deploy: `comercial.0119`
+  cancelación legítima, ARCO y ARCO de tercero) y el campo `no_debe_usar`. **Hallazgo para Dirección/Opus — RESUELTO** (ver la entrada
+  «Cancelación con retención» de arriba): `crear_polizas_reversion_cancelacion` revertía la póliza de **todos** los pagos
+  al cancelar y dejaba en cero lo cobrado en libros aunque el banco conservara la parte retenida; ya no existe, la
+  penalización retenida se reconoce como ingreso y lo devuelto lleva nota de crédito. Corre en el deploy: `comercial.0119`
   (tabla nueva, aditiva).
 
 - 2026-10-23 — **Dinero y bloqueo de fechas por WhatsApp desde Dirección** (Issue #433, Fase 2b; el dinero va a

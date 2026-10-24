@@ -565,7 +565,8 @@ def _ejecutar_cancelacion(s: SolicitudCancelacion, usuario) -> Resultado:
     if cot.estado != 'CANCELADA':
         ok, mensaje = cot.cambiar_estado(
             'CANCELADA', usuario=usuario if getattr(usuario, 'pk', None) else None,
-            motivo=f'Solicitud de cancelación #{s.pk} aprobada por Dirección')
+            motivo=f'Solicitud de cancelación #{s.pk} aprobada por Dirección',
+            reservar=transferir)
         if not ok:
             return _fallo(s, f'No se pudo cancelar la cotización: {mensaje}')
     detalle = [f'Cancelada. Reembolsado a la tarjeta de origen: {_dinero(reembolsado_tarjeta)}.']
