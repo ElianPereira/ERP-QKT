@@ -316,7 +316,7 @@ class SolicitudARCO(models.Model):
             self.fecha_limite = self.sumar_dias_habiles(base, 20)
             if not self.folio:
                 sello = timezone.localtime(self.recibida_en).strftime('%Y%m%d%H%M%S%f')
-                self.folio = f"ARCO-{sello[:20]}"
+                self.folio = f"ARCO-{sello[:19]}"  # 24 caracteres: el max_length del campo
         super().save(*args, **kwargs)
 
     @property
