@@ -206,6 +206,10 @@ class CuentaBancaria(models.Model):
         verbose_name="Fecha del saldo inicial"
     )
     activa = models.BooleanField(default=True)
+    password_estado_cifrada = models.BinaryField(
+        null=True, blank=True, editable=False, verbose_name="Contraseña del estado de cuenta",
+        help_text="Cifrada con Fernet (la llave de la e.firma). Solo se escribe desde el admin, por un "
+                  "superusuario; nunca se vuelve a mostrar.")
 
     # Metadatos
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
@@ -932,6 +936,7 @@ class EstadoCuentaBancario(models.Model):
     ORIGEN_CHOICES = [
         ('MANUAL', 'Carga manual'),
         ('API', 'Descarga automática (futuro)'),
+        ('CORREO', 'Correo del banco'),
     ]
     FORMATO_CHOICES = [
         ('PDF', 'PDF'),
@@ -1306,3 +1311,45 @@ class CfdiSAT(models.Model):
 
     def __str__(self):
         return f"{self.uuid[:8]}… {self.get_direccion_display()}"
+
+
+class CorreoEstadoCuenta(models.Model):
+    """Bitácora de cada correo del banco que llega al webhook (Issue #401).
+
+    Es también la idempotencia (`message_id` único) y la red de seguridad: el
+    `.eml` se guarda antes de procesar, así que si algo falla el correo no se
+    pierde y `reprocesar_estados_correo` lo completa. Nunca se borra.
+    """
+    RESULTADO_CHOICES = [
+        ('PENDIENTE', 'Por procesar'),
+        ('PROCESADO', 'Procesado'),
+        ('DUPLICADO', 'Duplicado'),
+        ('IGNORADO', 'Ignorado'),
+        ('ERROR', 'Con error'),
+    ]
+    MAX_INTENTOS = 8
+
+    message_id = models.CharField(max_length=255, unique=True, verbose_name="Message-ID")
+    remitente = models.CharField(max_length=255, blank=True, verbose_name="Remitente")
+    asunto = models.CharField(max_length=500, blank=True, verbose_name="Asunto")
+    recibido_en = models.DateTimeField(default=timezone.now, verbose_name="Recibido")
+    archivo_eml = models.FileField(
+        upload_to='estados_cuenta_correo/%Y/%m/', storage=storage_privado, verbose_name="Correo (.eml)")
+    resultado = models.CharField(max_length=10, choices=RESULTADO_CHOICES, default='PENDIENTE',
+                                 db_index=True, verbose_name="Resultado")
+    detalle = models.TextField(blank=True, verbose_name="Detalle")
+    advertencia = models.TextField(blank=True, verbose_name="Advertencia")
+    intentos = models.PositiveSmallIntegerField(default=0, verbose_name="Intentos")
+    estado_cuenta = models.ForeignKey(
+        EstadoCuentaBancario, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='correos', verbose_name="Estado de cuenta")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado el")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado el")
+
+    class Meta:
+        verbose_name = "Correo de estado de cuenta"
+        verbose_name_plural = "Correos"
+        ordering = ['-recibido_en']
+
+    def __str__(self):
+        return f"{self.asunto[:60] or self.message_id} [{self.resultado}]"

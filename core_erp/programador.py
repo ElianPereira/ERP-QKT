@@ -138,6 +138,7 @@ TAREAS = (
     Tarea('revisar_desviacion', 'revisar_desviacion', diario('09:30'), 6 * HORA),
     Tarea('enviar_nomina_semanal', 'enviar_nomina_semanal', semanal(VIERNES, '12:00'), 24 * HORA),
     Tarea('preguntar_cfdi_contador', 'preguntar_cfdi_contador', diario('10:00'), 6 * HORA),
+    Tarea('reprocesar_estados_correo', 'reprocesar_estados_correo', diario('09:15'), 6 * HORA, ('--aplicar',)),
 )
 
 POR_NOMBRE = {t.nombre: t for t in TAREAS}

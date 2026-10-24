@@ -39,7 +39,9 @@ cloudinary==1.45.0
     #   -r requirements.txt
     #   django-cloudinary-storage
 cryptography==50.0.0
-    # via pdfminer-six
+    # via
+    #   -r requirements.txt
+    #   pdfminer-six
 cssselect2==0.9.0
     # via weasyprint
 defusedxml==0.7.1
@@ -91,7 +93,9 @@ jmespath==1.1.0
     #   boto3
     #   botocore
 lxml==6.1.1
-    # via python-docx
+    # via
+    #   -r requirements.txt
+    #   python-docx
 markdown==3.10.3
     # via -r requirements.txt
 nh3==0.3.6
@@ -116,6 +120,8 @@ psycopg2-binary==2.9.12
     # via -r requirements.txt
 pycparser==3.0
     # via cffi
+pycryptodomex==3.24.1
+    # via pyzipper
 pydantic==2.13.5
     # via anthropic
 pydantic-core==2.46.5
@@ -133,6 +139,8 @@ python-dateutil==2.9.0.post0
 python-decouple==3.8
     # via -r requirements.txt
 python-docx==1.2.0
+    # via -r requirements.txt
+pyzipper==0.4.0
     # via -r requirements.txt
 qrcode==8.2
     # via -r requirements.txt

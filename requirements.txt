@@ -39,3 +39,6 @@ anthropic
 # Descarga masiva del SAT (firma con e.firma, cifrado Fernet, XML canónico).
 cryptography
 lxml
+
+# Estado de cuenta BBVA por correo: ZIP con contraseña (AES).
+pyzipper

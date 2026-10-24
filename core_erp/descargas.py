@@ -47,6 +47,7 @@ ARCHIVOS_PROTEGIDOS = {
     ('facturacion', 'solicitudfactura', 'archivo_xml'),
     ('facturacion', 'solicitudfactura', 'archivo_zip'),
     ('contabilidad', 'estadocuentabancario', 'archivo'),
+    ('contabilidad', 'correoestadocuenta', 'archivo_eml'),
     ('contabilidad', 'cfdisat', 'archivo_xml'),
     ('comunicacion', 'fotoinspeccion', 'archivo'),
     ('cumplimiento', 'vigencia', 'documento'),
