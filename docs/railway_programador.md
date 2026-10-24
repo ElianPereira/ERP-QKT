@@ -129,4 +129,4 @@ estrenan al pasar a Shared Variables. Mientras los nombres viejos sigan definido
 ## Rollback
 
 Mientras no se hayan borrado los nombres viejos, basta con quitar el nombre nuevo: el ERP vuelve solo al viejo.
-El respaldo `legado=` se retira en un PR posterior, 2 semanas después del corte.
+El respaldo `legado=` se retiró el 2026-10-24: desde ese deploy los nombres viejos ya no se leen.

@@ -29,16 +29,16 @@ jobs:
 
       - name: Run Django checks
         env:
-          SECRET_KEY: ci-test-secret-key-not-for-production
-          DEBUG: 'True'
-          ALLOWED_HOSTS: '*'
+          DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
+          DJANGO_DEBUG: 'True'
+          DJANGO_ALLOWED_HOSTS: '*'
         run: python manage.py check
 
       - name: Run tests with coverage
         env:
-          SECRET_KEY: ci-test-secret-key-not-for-production
-          DEBUG: 'True'
-          ALLOWED_HOSTS: '*'
+          DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
+          DJANGO_DEBUG: 'True'
+          DJANGO_ALLOWED_HOSTS: '*'
         run: |
           coverage run --source='.' manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores
           coverage report --skip-covered
@@ -65,9 +65,9 @@ jobs:
       # configuración real de producción.
       - name: Django deployment security check
         env:
-          SECRET_KEY: 'ci-security-check-secret-key-only-not-for-production-use-0123456789'
-          DEBUG: 'False'
-          ALLOWED_HOSTS: 'erp.quintakooxtanil.com'
+          DJANGO_SECRET_KEY: 'ci-security-check-secret-key-only-not-for-production-use-0123456789'
+          DJANGO_DEBUG: 'False'
+          DJANGO_ALLOWED_HOSTS: 'erp.quintakooxtanil.com'
         run: python manage.py check --deploy --fail-level WARNING
 
       # Auditoría de dependencias con vulnerabilidades conocidas (CVE/PYSEC).

@@ -334,7 +334,7 @@ def _validar_basic_auth(request):
     coincidir con OPENPAY_WEBHOOK_USUARIO / OPENPAY_WEBHOOK_SECRET en Railway.
     """
     if not settings.OPENPAY_WEBHOOK_USUARIO or not settings.OPENPAY_WEBHOOK_SECRET:
-        logger.error("Webhook Openpay: OPENPAY_WEBHOOK_USUARIO/PASSWORD sin configurar — se rechaza toda petición.")
+        logger.error("Webhook Openpay: OPENPAY_WEBHOOK_USUARIO/SECRET sin configurar — se rechaza toda petición.")
         return False
     auth_header = request.META.get('HTTP_AUTHORIZATION', '')
     if not auth_header.startswith('Basic '):

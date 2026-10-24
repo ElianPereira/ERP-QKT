@@ -10,14 +10,14 @@ from core_erp.variables import env
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- SEGURIDAD ---
-SECRET_KEY = env('DJANGO_SECRET_KEY', legado='SECRET_KEY')  # SIN default — fuerza a que exista en .env
-DEBUG = env('DJANGO_DEBUG', legado='DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = env('DJANGO_ALLOWED_HOSTS', legado='ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+SECRET_KEY = env('DJANGO_SECRET_KEY')  # SIN default — fuerza a que exista en .env
+DEBUG = env('DJANGO_DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = env('DJANGO_ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 # Nº de proxies de confianza delante de la app (el edge de Railway = 1). Se usa
 # para leer la IP real del cliente en el rate limiting sin que sea spoofeable
 # vía X-Forwarded-For. Ajustar solo si se añaden más proxies (CDN, etc.).
-ERP_RATELIMIT_PROXIES = env('ERP_RATELIMIT_PROXIES', legado='RATELIMIT_TRUSTED_PROXY_COUNT', default=1, cast=int)
+ERP_RATELIMIT_PROXIES = env('ERP_RATELIMIT_PROXIES', default=1, cast=int)
 
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
@@ -27,10 +27,10 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # URL base del portal del cliente (usada en links, emails y notificaciones)
-ERP_PORTAL_URL = env('ERP_PORTAL_URL', legado='PORTAL_URL', default='https://erp.quintakooxtanil.com')
+ERP_PORTAL_URL = env('ERP_PORTAL_URL', default='https://erp.quintakooxtanil.com')
 
 # --- URL canónica del sitio (para links en emails, portales, etc.) ---
-ERP_SITIO_URL = env('ERP_SITIO_URL', legado='SITE_URL', default='https://erp-qkt.up.railway.app')
+ERP_SITIO_URL = env('ERP_SITIO_URL', default='https://erp-qkt.up.railway.app')
 
 # --- Referrer-Policy explícita (SEC-CFG-003) ---
 # El token del portal del cliente va en la URL (/mi-evento/<token>/); esta
@@ -66,7 +66,7 @@ if not DEBUG:
 # así la sesión caduca solo tras ERP_SESION_INACTIVIDAD_SEGUNDOS segundos SIN actividad
 # (idle timeout), no de forma absoluta. Ajustable por variable de entorno; para
 # datos financieros se puede endurecer a 900 (15 min).
-ERP_SESION_INACTIVIDAD_SEGUNDOS = env('ERP_SESION_INACTIVIDAD_SEGUNDOS', legado='SESSION_IDLE_TIMEOUT', default=1800, cast=int)  # 30 min
+ERP_SESION_INACTIVIDAD_SEGUNDOS = env('ERP_SESION_INACTIVIDAD_SEGUNDOS', default=1800, cast=int)  # 30 min
 SESSION_COOKIE_AGE = ERP_SESION_INACTIVIDAD_SEGUNDOS
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
@@ -103,15 +103,15 @@ INSTALLED_APPS = [
 OTP_TOTP_ISSUER = 'ERP QKT'
 
 # --- Cabeceras de seguridad por ruta. Ver core_erp/middleware.py ---
-ERP_CSP_PUBLICO_ACTIVO = env('ERP_CSP_PUBLICO_ACTIVO', legado='PUBLIC_CSP_ENABLED', default=True, cast=bool)
-ERP_CSP_PUBLICO_SOLO_REPORTE = env('ERP_CSP_PUBLICO_SOLO_REPORTE', legado='PUBLIC_CSP_REPORT_ONLY', default=False, cast=bool)
+ERP_CSP_PUBLICO_ACTIVO = env('ERP_CSP_PUBLICO_ACTIVO', default=True, cast=bool)
+ERP_CSP_PUBLICO_SOLO_REPORTE = env('ERP_CSP_PUBLICO_SOLO_REPORTE', default=False, cast=bool)
 # CSP Report-Only del portal de pago (no bloquea): activar solo para probar qué
 # recursos usa Openpay/3-D Secure antes de plantear una CSP bloqueante ahí.
-ERP_CSP_PORTAL_SOLO_REPORTE = env('ERP_CSP_PORTAL_SOLO_REPORTE', legado='PORTAL_CSP_REPORT_ONLY', default=False, cast=bool)
+ERP_CSP_PORTAL_SOLO_REPORTE = env('ERP_CSP_PORTAL_SOLO_REPORTE', default=False, cast=bool)
 # CSP Report-Only del admin (no bloquea): activar solo para probar qué
 # recursos usa Jazzmin/FullCalendar/Chart.js antes de plantear una CSP
 # bloqueante ahí (orden 37, SEC-CFG-002).
-ERP_CSP_ADMIN_SOLO_REPORTE = env('ERP_CSP_ADMIN_SOLO_REPORTE', legado='ADMIN_CSP_REPORT_ONLY', default=False, cast=bool)
+ERP_CSP_ADMIN_SOLO_REPORTE = env('ERP_CSP_ADMIN_SOLO_REPORTE', default=False, cast=bool)
 
 MIDDLEWARE = [
     # Primero de todos: cubre el log de cualquier middleware/vista/señal
@@ -236,20 +236,20 @@ CACHES = {
 # Número de registro ante PROFECO del contrato de adhesión de Hospedaje. El
 # registro 9341-2023 solo ampara Evento y Pasadía: mientras esta variable
 # esté vacía, el contrato de Hospedaje sale sin leyenda de registro.
-ERP_PROFECO_REGISTRO_HOSPEDAJE = env('ERP_PROFECO_REGISTRO_HOSPEDAJE', legado='PROFECO_REGISTRO_HOSPEDAJE', default='')
+ERP_PROFECO_REGISTRO_HOSPEDAJE = env('ERP_PROFECO_REGISTRO_HOSPEDAJE', default='')
 
 # Contratos propios (marco + anexo por servicio, Issue #318). Encendido desde
 # la validación legal del texto (2026-09-25); False vuelve a los contratos
 # basados en el modelo PROFECO sin desplegar.
-ERP_CONTRATO_PROPIO_ACTIVO = env('ERP_CONTRATO_PROPIO_ACTIVO', legado='CONTRATO_PROPIO_ACTIVO', default=True, cast=bool)
+ERP_CONTRATO_PROPIO_ACTIVO = env('ERP_CONTRATO_PROPIO_ACTIVO', default=True, cast=bool)
 # Emite el contrato solo al confirmarse la cotización (comercial/signals.py).
 # False vuelve al botón «Generar contrato» del admin sin desplegar.
-ERP_CONTRATO_AUTOMATICO_ACTIVO = env('ERP_CONTRATO_AUTOMATICO_ACTIVO', legado='CONTRATO_AUTOMATICO', default=True, cast=bool)
+ERP_CONTRATO_AUTOMATICO_ACTIVO = env('ERP_CONTRATO_AUTOMATICO_ACTIVO', default=True, cast=bool)
 
 # Registro PROFECO del contrato propio de Evento/Pasadía. La NOM-174-SCFI-2007
 # (numeral 5.1) obliga a registrarlo; el propietario decidió emitirlo mientras
 # el registro está en trámite. Vacío = el contrato sale sin leyenda.
-ERP_PROFECO_REGISTRO_EVENTOS = env('ERP_PROFECO_REGISTRO_EVENTOS', legado='PROFECO_REGISTRO_EVENTOS', default='')
+ERP_PROFECO_REGISTRO_EVENTOS = env('ERP_PROFECO_REGISTRO_EVENTOS', default='')
 
 # --- ISH: Impuesto Sobre Hospedaje (estatal, Yucatán) ---
 # Proporción, no porcentaje: 0.05 = 5%. El default de 0 mantiene el ERP
@@ -259,22 +259,22 @@ ERP_PROFECO_REGISTRO_EVENTOS = env('ERP_PROFECO_REGISTRO_EVENTOS', legado='PROFE
 # La tasa la confirma el contador: es ley estatal, no federal, y cambia sin
 # que este repo se entere. Aplica al hospedaje vendido directo (Ka'an y
 # Otoch). Ver core_erp/impuestos.py.
-ERP_FISCAL_TASA_ISH = Decimal(env('ERP_FISCAL_TASA_ISH', legado='TASA_ISH', default='0'))
+ERP_FISCAL_TASA_ISH = Decimal(env('ERP_FISCAL_TASA_ISH', default='0'))
 
 # Llave Fernet con la que se cifra la e.firma (.key y contraseña) para la descarga
 # masiva del SAT. Sin ella el módulo no guarda ni usa ninguna e.firma.
-ERP_SAT_FIEL_CIFRADO_SECRET = env('ERP_SAT_FIEL_CIFRADO_SECRET', legado='SAT_FIEL_ENCRYPTION_KEY', default='')
+ERP_SAT_FIEL_CIFRADO_SECRET = env('ERP_SAT_FIEL_CIFRADO_SECRET', default='')
 
 # --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
-ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS = env('ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS', legado='ADMIN_LOGIN_VENTANA', default=900, cast=int)
-ERP_ADMIN_LOGIN_MAX_IP = env('ERP_ADMIN_LOGIN_MAX_IP', legado='ADMIN_LOGIN_MAX_INTENTOS_IP', default=10, cast=int)
-ERP_ADMIN_LOGIN_MAX_USUARIO = env('ERP_ADMIN_LOGIN_MAX_USUARIO', legado='ADMIN_LOGIN_MAX_INTENTOS_USUARIO', default=20, cast=int)
+ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS = env('ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS', default=900, cast=int)
+ERP_ADMIN_LOGIN_MAX_IP = env('ERP_ADMIN_LOGIN_MAX_IP', default=10, cast=int)
+ERP_ADMIN_LOGIN_MAX_USUARIO = env('ERP_ADMIN_LOGIN_MAX_USUARIO', default=20, cast=int)
 
 # Bloqueo por cotización en el acceso al portal del cliente (SEC-AUTHN-001b):
 # complementa el rate_limit por IP de portal_acceso, que un atacante distribuido
 # elude cambiando de IP en cada intento contra los mismos 4 dígitos.
-ERP_PORTAL_ACCESO_VENTANA_SEGUNDOS = env('ERP_PORTAL_ACCESO_VENTANA_SEGUNDOS', legado='PORTAL_ACCESO_VENTANA', default=900, cast=int)
-ERP_PORTAL_ACCESO_MAX = env('ERP_PORTAL_ACCESO_MAX', legado='PORTAL_ACCESO_MAX_INTENTOS', default=10, cast=int)
+ERP_PORTAL_ACCESO_VENTANA_SEGUNDOS = env('ERP_PORTAL_ACCESO_VENTANA_SEGUNDOS', default=900, cast=int)
+ERP_PORTAL_ACCESO_MAX = env('ERP_PORTAL_ACCESO_MAX', default=10, cast=int)
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -304,21 +304,21 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 # --- CORREO ---
 EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
-ANYMAIL = {"BREVO_API_KEY": env('BREVO_EMAIL_API_KEY', legado='BREVO_API_KEY', default='')}
-DEFAULT_FROM_EMAIL = env('ERP_EMAIL_REMITENTE', legado='DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
-SERVER_EMAIL = env('ERP_EMAIL_REMITENTE', legado='DEFAULT_FROM_EMAIL', default='quintakooxtanil@gmail.com')
+ANYMAIL = {"BREVO_API_KEY": env('BREVO_EMAIL_API_KEY', default='')}
+DEFAULT_FROM_EMAIL = env('ERP_EMAIL_REMITENTE', default='quintakooxtanil@gmail.com')
+SERVER_EMAIL = env('ERP_EMAIL_REMITENTE', default='quintakooxtanil@gmail.com')
 # Remitentes por tipo de correo (Issue #221). Cada uno cae a DEFAULT_FROM_EMAIL
 # si no está configurado, para que el deploy no rompa nada si llega antes de
 # que el dominio quede verificado en Brevo.
-ERP_EMAIL_REMITENTE_RESERVAS = env('ERP_EMAIL_REMITENTE_RESERVAS', legado='EMAIL_FROM_RESERVAS', default=DEFAULT_FROM_EMAIL)
-ERP_EMAIL_REMITENTE_PAGOS = env('ERP_EMAIL_REMITENTE_PAGOS', legado='EMAIL_FROM_PAGOS', default=DEFAULT_FROM_EMAIL)
-ERP_EMAIL_REMITENTE_NOTIFICACIONES = env('ERP_EMAIL_REMITENTE_NOTIFICACIONES', legado='EMAIL_FROM_NOTIFICACIONES', default=DEFAULT_FROM_EMAIL)
+ERP_EMAIL_REMITENTE_RESERVAS = env('ERP_EMAIL_REMITENTE_RESERVAS', default=DEFAULT_FROM_EMAIL)
+ERP_EMAIL_REMITENTE_PAGOS = env('ERP_EMAIL_REMITENTE_PAGOS', default=DEFAULT_FROM_EMAIL)
+ERP_EMAIL_REMITENTE_NOTIFICACIONES = env('ERP_EMAIL_REMITENTE_NOTIFICACIONES', default=DEFAULT_FROM_EMAIL)
 
 # --- WHATSAPP CLOUD API (Meta) ---
 # Credenciales del número emisor. Se leen aquí (y no con env() disperso por
 # el código) para que exista una sola fuente y los tests puedan sobreescribirlas.
-META_WA_KOOXI_ID = env('META_WA_KOOXI_ID', legado='WA_PHONE_NUMBER_ID', default='')
-META_WA_KOOXI_TOKEN = env('META_WA_KOOXI_TOKEN', legado='WA_CLOUD_API_TOKEN', default='')
+META_WA_KOOXI_ID = env('META_WA_KOOXI_ID', default='')
+META_WA_KOOXI_TOKEN = env('META_WA_KOOXI_TOKEN', default='')
 
 # Dos números con roles distintos, y ninguno con fallback en código:
 #   ERP_WA_NEGOCIO_NUMERO     → respaldo de las alertas internas mientras el directorio de
@@ -327,25 +327,25 @@ META_WA_KOOXI_TOKEN = env('META_WA_KOOXI_TOKEN', legado='WA_CLOUD_API_TOKEN', de
 #                               coincidir con el número emisor (Meta rechaza con 131021).
 #   META_WA_KOOXI_NUMERO      → el que se le muestra al cliente en los enlaces wa.me
 #                               del portal. Si va vacío, la plantilla oculta el enlace.
-ERP_WA_NEGOCIO_NUMERO = env('ERP_WA_NEGOCIO_NUMERO', legado='WA_NUMERO_NEGOCIO', default='')
-META_WA_KOOXI_NUMERO = env('META_WA_KOOXI_NUMERO', legado='WA_NUMERO_CONTACTO_PUBLICO', default='')
-META_WA_API_VERSION = env('META_WA_API_VERSION', legado='WA_GRAPH_VERSION', default='v20.0')
+ERP_WA_NEGOCIO_NUMERO = env('ERP_WA_NEGOCIO_NUMERO', default='')
+META_WA_KOOXI_NUMERO = env('META_WA_KOOXI_NUMERO', default='')
+META_WA_API_VERSION = env('META_WA_API_VERSION', default='v20.0')
 
 # Plantillas aprobadas en Meta. Los mensajes iniciados por el negocio (pago y
 # recordatorio) solo llegan por plantilla: fuera de la ventana de 24 h Meta
 # rechaza el texto libre con el error 131047. Si una plantilla no está
 # configurada, el envío queda FALLIDO y auditado, sin romper la operación.
-META_WA_PLANTILLA_IDIOMA = env('META_WA_PLANTILLA_IDIOMA', legado='WA_TEMPLATE_LANGUAGE', default='es_MX')
-META_WA_PLANTILLA_COTIZACION = env('META_WA_PLANTILLA_COTIZACION', legado='WA_TEMPLATE_COTIZACION', default='')
-META_WA_PLANTILLA_PAGO = env('META_WA_PLANTILLA_PAGO', legado='WA_TEMPLATE_PAGO', default='')
-META_WA_PLANTILLA_RECORDATORIO = env('META_WA_PLANTILLA_RECORDATORIO', legado='WA_TEMPLATE_RECORDATORIO', default='')
+META_WA_PLANTILLA_IDIOMA = env('META_WA_PLANTILLA_IDIOMA', default='es_MX')
+META_WA_PLANTILLA_COTIZACION = env('META_WA_PLANTILLA_COTIZACION', default='')
+META_WA_PLANTILLA_PAGO = env('META_WA_PLANTILLA_PAGO', default='')
+META_WA_PLANTILLA_RECORDATORIO = env('META_WA_PLANTILLA_RECORDATORIO', default='')
 # Guía pre-evento (Issue #234): enlace de descarga, nunca el PDF adjunto —
 # adjuntarlo requeriría una plantilla tipo "documento", más lenta de aprobar.
-META_WA_PLANTILLA_GUIA = env('META_WA_PLANTILLA_GUIA', legado='WA_TEMPLATE_GUIA', default='')
+META_WA_PLANTILLA_GUIA = env('META_WA_PLANTILLA_GUIA', default='')
 # Seguimiento de cotizaciones sin pago (Issue #366): una sola vez, a los
 # ERP_KOOXI_SEGUIMIENTO_DIAS de creada y solo a quien aceptó la finalidad MARKETING.
 # Sin plantilla, el cron no manda nada.
-META_WA_PLANTILLA_SEGUIMIENTO = env('META_WA_PLANTILLA_SEGUIMIENTO', legado='WA_TEMPLATE_SEGUIMIENTO', default='')
+META_WA_PLANTILLA_SEGUIMIENTO = env('META_WA_PLANTILLA_SEGUIMIENTO', default='')
 # Fase 2a: el seguimiento pasa a tres pasos. La de arriba es el paso del día 3;
 # estas son el del día 1 y «tu fecha está por ocuparse». Sin plantilla, ese paso no se manda.
 META_WA_PLANTILLA_SEGUIMIENTO_DIA1 = env('META_WA_PLANTILLA_SEGUIMIENTO_DIA1', default='')
@@ -353,7 +353,7 @@ META_WA_PLANTILLA_SEGUIMIENTO_FECHA = env('META_WA_PLANTILLA_SEGUIMIENTO_FECHA',
 # Visitas a la Quinta (Fase 2a): confirmación y recordatorio al cliente fuera de la
 # ventana de 24 h. Sin plantilla se intenta texto libre, que solo llega con la ventana abierta.
 META_WA_PLANTILLA_VISITA = env('META_WA_PLANTILLA_VISITA', default='')
-ERP_KOOXI_SEGUIMIENTO_DIAS = env('ERP_KOOXI_SEGUIMIENTO_DIAS', legado='WA_SEGUIMIENTO_DIAS', default=3, cast=int)
+ERP_KOOXI_SEGUIMIENTO_DIAS = env('ERP_KOOXI_SEGUIMIENTO_DIAS', default=3, cast=int)
 # Post-venta (Fase 3, Issue #434). Sin plantilla, el comando correspondiente no manda nada.
 # Encuesta: 1 día después del servicio. Reactivación: aniversario del evento (MARKETING).
 META_WA_PLANTILLA_ENCUESTA = env('META_WA_PLANTILLA_ENCUESTA', default='')
@@ -367,15 +367,15 @@ ERP_DEPOSITO_INSPECCION_HORAS = env('ERP_DEPOSITO_INSPECCION_HORAS', default=48,
 ERP_DEPOSITO_TOPE_RETENCION = env('ERP_DEPOSITO_TOPE_RETENCION', default='0')
 # Opcional: la alerta interna va como texto libre si esta queda vacía, lo que
 # solo funciona mientras la ventana de 24 h con ese número esté abierta.
-META_WA_PLANTILLA_ALERTA_INTERNA = env('META_WA_PLANTILLA_ALERTA_INTERNA', legado='WA_TEMPLATE_ALERTA_INTERNA', default='')
+META_WA_PLANTILLA_ALERTA_INTERNA = env('META_WA_PLANTILLA_ALERTA_INTERNA', default='')
 # Alerta interna de pago acreditado (distinta de la de arriba: otro contenido,
 # otros parámetros — reusar la misma plantilla mandaría el texto equivocado a
 # un número real). Igual de opcional, mismo fallback a texto libre.
-META_WA_PLANTILLA_ALERTA_PAGO = env('META_WA_PLANTILLA_ALERTA_PAGO', legado='WA_TEMPLATE_ALERTA_PAGO', default='')
+META_WA_PLANTILLA_ALERTA_PAGO = env('META_WA_PLANTILLA_ALERTA_PAGO', default='')
 # Alerta interna de contracargo (Issue #303) — urgente, lleva el plazo límite
 # de 3 días hábiles para mandar evidencia a Openpay. Plantilla propia, mismo
 # fallback a texto libre que las anteriores.
-META_WA_PLANTILLA_ALERTA_CONTRACARGO = env('META_WA_PLANTILLA_ALERTA_CONTRACARGO', legado='WA_TEMPLATE_ALERTA_CONTRACARGO', default='')
+META_WA_PLANTILLA_ALERTA_CONTRACARGO = env('META_WA_PLANTILLA_ALERTA_CONTRACARGO', default='')
 # Solicitud de factura al contador (facturacion/services.py): a diferencia de
 # la guía, aquí SÍ se somete una plantilla tipo "documento" — el pedido
 # original es mandar el PDF adjunto, no un enlace. Ver
@@ -383,60 +383,60 @@ META_WA_PLANTILLA_ALERTA_CONTRACARGO = env('META_WA_PLANTILLA_ALERTA_CONTRACARGO
 # someter en Meta Business Manager. Vacía = sigue mandando el PDF como
 # mensaje 'document' directo (funciona dentro de la ventana de 24h, falla
 # fuera de ella — comportamiento sin cambios hasta que se apruebe).
-META_WA_PLANTILLA_SOLICITUD_FACTURA = env('META_WA_PLANTILLA_SOLICITUD_FACTURA', legado='WA_TEMPLATE_SOLICITUD_FACTURA', default='')
+META_WA_PLANTILLA_SOLICITUD_FACTURA = env('META_WA_PLANTILLA_SOLICITUD_FACTURA', default='')
 # Módulo de operaciones (Issue #257): abre la conversación con el colaborador
 # antes del checklist/aviso de horario en texto libre (que sí puede llevar
 # saltos de línea, a diferencia de un parámetro de plantilla). Vacía = se
 # manda solo el texto libre, funciona mientras la ventana de 24h esté
 # abierta — mismo criterio que el resto de mensajería interna sin plantilla.
-META_WA_PLANTILLA_OPERACIONES = env('META_WA_PLANTILLA_OPERACIONES', legado='WA_TEMPLATE_OPERACIONES', default='')
+META_WA_PLANTILLA_OPERACIONES = env('META_WA_PLANTILLA_OPERACIONES', default='')
 
 # --- AGENTE DE WHATSAPP CON IA (Issue #346) ---
 # Webhook entrante: el token lo inventa quien da de alta el webhook en Meta;
 # el App Secret firma cada entrega (X-Hub-Signature-256). Sin él, toda
 # entrega se rechaza (fail-closed), igual que el feed iCal.
-META_WA_WEBHOOK_TOKEN = env('META_WA_WEBHOOK_TOKEN', legado='WA_WEBHOOK_VERIFY_TOKEN', default='')
-META_WA_APP_SECRET = env('META_WA_APP_SECRET', legado='WA_APP_SECRET', default='')
+META_WA_WEBHOOK_TOKEN = env('META_WA_WEBHOOK_TOKEN', default='')
+META_WA_APP_SECRET = env('META_WA_APP_SECRET', default='')
 # Apagado por default: el deploy solo registra los mensajes entrantes. Para
 # probar, definir ERP_KOOXI_NUMEROS_PRUEBA (lista separada por comas) y
 # encenderlo; con la lista vacía contesta a todos.
-ERP_KOOXI_ACTIVO = env('ERP_KOOXI_ACTIVO', legado='WA_AGENTE_ACTIVO', default=False, cast=bool)
-ERP_KOOXI_NUMEROS_PRUEBA = env('ERP_KOOXI_NUMEROS_PRUEBA', legado='WA_AGENTE_NUMEROS_PRUEBA', default='', cast=Csv())
-ERP_KOOXI_MODELO = env('ERP_KOOXI_MODELO', legado='WA_AGENTE_MODELO', default='claude-opus-5-5')
+ERP_KOOXI_ACTIVO = env('ERP_KOOXI_ACTIVO', default=False, cast=bool)
+ERP_KOOXI_NUMEROS_PRUEBA = env('ERP_KOOXI_NUMEROS_PRUEBA', default='', cast=Csv())
+ERP_KOOXI_MODELO = env('ERP_KOOXI_MODELO', default='claude-opus-5-5')
 # Profundidad de razonamiento del agente (low/medium/high). Más alto contesta
 # mejor las preguntas con varias condiciones y cuesta más por respuesta.
-ERP_KOOXI_ESFUERZO = env('ERP_KOOXI_ESFUERZO', legado='WA_AGENTE_ESFUERZO', default='medium')
+ERP_KOOXI_ESFUERZO = env('ERP_KOOXI_ESFUERZO', default='medium')
 # Juez (Issue #366): un modelo pequeño revisa cada respuesta antes de enviarla.
 # El filtro determinista de `services_guardia` corre siempre, con o sin juez.
-ERP_KOOXI_JUEZ_ACTIVO = env('ERP_KOOXI_JUEZ_ACTIVO', legado='WA_AGENTE_JUEZ_ACTIVO', default=True, cast=bool)
-ERP_KOOXI_MODELO_JUEZ = env('ERP_KOOXI_MODELO_JUEZ', legado='WA_AGENTE_MODELO_JUEZ', default='claude-haiku-4-5')
+ERP_KOOXI_JUEZ_ACTIVO = env('ERP_KOOXI_JUEZ_ACTIVO', default=True, cast=bool)
+ERP_KOOXI_MODELO_JUEZ = env('ERP_KOOXI_MODELO_JUEZ', default='claude-haiku-4-5')
 # Cuánto se calla el agente en una conversación después de que el propietario
 # contesta desde la app de WhatsApp Business (coexistencia).
-ERP_KOOXI_PAUSA_HUMANO_HORAS = env('ERP_KOOXI_PAUSA_HUMANO_HORAS', legado='WA_AGENTE_PAUSA_HUMANO_HORAS', default=12, cast=int)
+ERP_KOOXI_PAUSA_HUMANO_HORAS = env('ERP_KOOXI_PAUSA_HUMANO_HORAS', default=12, cast=int)
 # Topes contra abuso y gasto (respuestas del modelo por día, hora de Yucatán).
 # Al pasar el de un número, esa conversación pasa a una persona; al pasar el
 # global, el agente deja de usar IA hasta el día siguiente y avisa al equipo.
-ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA', legado='WA_AGENTE_MAX_RESPUESTAS_NUMERO_DIA', default=30, cast=int)
-ERP_KOOXI_MAX_RESPUESTAS_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_DIA', legado='WA_AGENTE_MAX_RESPUESTAS_DIA', default=300, cast=int)
+ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_NUMERO_DIA', default=30, cast=int)
+ERP_KOOXI_MAX_RESPUESTAS_DIA = env('ERP_KOOXI_MAX_RESPUESTAS_DIA', default=300, cast=int)
 # Tope en pesos de las acciones de dinero que Dirección ordena por WhatsApp
 # (devolver depósito, descuento manual, reembolso hecho fuera del sistema):
 # arriba de este monto, Kooxi responde que se haga en el admin (con 2FA).
 ERP_KOOXI_DINERO_MAX = env('ERP_KOOXI_DINERO_MAX', default='5000.00', cast=Decimal)
 # Historial que se reenvía al modelo; al pasarlo la conversación empieza de cero.
-ERP_KOOXI_MAX_HISTORIAL_CARACTERES = env('ERP_KOOXI_MAX_HISTORIAL_CARACTERES', legado='WA_AGENTE_MAX_HISTORIAL_CARACTERES', default=40000, cast=int)
+ERP_KOOXI_MAX_HISTORIAL_CARACTERES = env('ERP_KOOXI_MAX_HISTORIAL_CARACTERES', default=40000, cast=int)
 # La llave de Anthropic se pasa explícita a cada cliente (api_key=settings.ANTHROPIC_API_KEY_KOOXI).
-ANTHROPIC_API_KEY_KOOXI = env('ANTHROPIC_API_KEY_KOOXI', legado='ANTHROPIC_API_KEY', default='')
+ANTHROPIC_API_KEY_KOOXI = env('ANTHROPIC_API_KEY_KOOXI', default='')
 
 # --- STORAGES (Cloudflare R2, S3-compatible) ---
 STORAGES = {
     "default": {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
-            "access_key": env('CLOUDFLARE_R2_PUBLICO_ID', legado='CLOUDFLARE_R2_ACCESS_KEY_ID', default=''),
-            "secret_key": env('CLOUDFLARE_R2_PUBLICO_SECRET', legado='CLOUDFLARE_R2_SECRET_ACCESS_KEY', default=''),
-            "bucket_name": env('CLOUDFLARE_R2_PUBLICO_BUCKET', legado='CLOUDFLARE_R2_BUCKET_NAME', default='qkt-media'),
-            "endpoint_url": f"https://{env('CLOUDFLARE_R2_CUENTA_ID', legado='CLOUDFLARE_R2_ACCOUNT_ID', default='')}.r2.cloudflarestorage.com",
-            "custom_domain": env('CLOUDFLARE_R2_PUBLICO_URL', legado='CLOUDFLARE_R2_CUSTOM_DOMAIN', default='media.quintakooxtanil.com'),
+            "access_key": env('CLOUDFLARE_R2_PUBLICO_ID', default=''),
+            "secret_key": env('CLOUDFLARE_R2_PUBLICO_SECRET', default=''),
+            "bucket_name": env('CLOUDFLARE_R2_PUBLICO_BUCKET', default='qkt-media'),
+            "endpoint_url": f"https://{env('CLOUDFLARE_R2_CUENTA_ID', default='')}.r2.cloudflarestorage.com",
+            "custom_domain": env('CLOUDFLARE_R2_PUBLICO_URL', default='media.quintakooxtanil.com'),
             "region_name": "auto",
             "signature_version": "s3v4",
             "querystring_auth": False,
@@ -455,17 +455,17 @@ STORAGES = {
     "privado": {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
-            "access_key": env('CLOUDFLARE_R2_PRIVADO_ID', legado='CLOUDFLARE_R2_PRIVATE_ACCESS_KEY_ID',
-                                 default=env('CLOUDFLARE_R2_PUBLICO_ID', legado='CLOUDFLARE_R2_ACCESS_KEY_ID', default='')),
-            "secret_key": env('CLOUDFLARE_R2_PRIVADO_SECRET', legado='CLOUDFLARE_R2_PRIVATE_SECRET_ACCESS_KEY',
-                                 default=env('CLOUDFLARE_R2_PUBLICO_SECRET', legado='CLOUDFLARE_R2_SECRET_ACCESS_KEY', default='')),
-            "bucket_name": env('CLOUDFLARE_R2_PRIVADO_BUCKET', legado='CLOUDFLARE_R2_PRIVATE_BUCKET_NAME', default=''),
-            "endpoint_url": f"https://{env('CLOUDFLARE_R2_CUENTA_ID', legado='CLOUDFLARE_R2_ACCOUNT_ID', default='')}.r2.cloudflarestorage.com",
+            "access_key": env('CLOUDFLARE_R2_PRIVADO_ID',
+                                 default=env('CLOUDFLARE_R2_PUBLICO_ID', default='')),
+            "secret_key": env('CLOUDFLARE_R2_PRIVADO_SECRET',
+                                 default=env('CLOUDFLARE_R2_PUBLICO_SECRET', default='')),
+            "bucket_name": env('CLOUDFLARE_R2_PRIVADO_BUCKET', default=''),
+            "endpoint_url": f"https://{env('CLOUDFLARE_R2_CUENTA_ID', default='')}.r2.cloudflarestorage.com",
             "region_name": "auto",
             "signature_version": "s3v4",
             # Firma cada URL y la caduca: es la diferencia con el bucket público.
             "querystring_auth": True,
-            "querystring_expire": env('CLOUDFLARE_R2_PRIVADO_URL_SEGUNDOS', legado='CLOUDFLARE_R2_PRIVATE_URL_EXPIRE', default=300, cast=int),
+            "querystring_expire": env('CLOUDFLARE_R2_PRIVADO_URL_SEGUNDOS', default=300, cast=int),
             "file_overwrite": False,
         },
     },
@@ -494,9 +494,9 @@ MEDIA_URL = '/media/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- JIBBLE API ---
-JIBBLE_NOMINA_ID = env('JIBBLE_NOMINA_ID', legado='JIBBLE_CLIENT_ID', default='')
-JIBBLE_NOMINA_SECRET = env('JIBBLE_NOMINA_SECRET', legado='JIBBLE_CLIENT_SECRET', default='')
-ERP_NOMINA_WEBHOOK_TOKEN = env('ERP_NOMINA_WEBHOOK_TOKEN', legado='NOMINA_CRON_TOKEN', default='')
+JIBBLE_NOMINA_ID = env('JIBBLE_NOMINA_ID', default='')
+JIBBLE_NOMINA_SECRET = env('JIBBLE_NOMINA_SECRET', default='')
+ERP_NOMINA_WEBHOOK_TOKEN = env('ERP_NOMINA_WEBHOOK_TOKEN', default='')
 
 # --- OPENPAY (checkout propio: tarjeta/efectivo/SPEI + webhook) ---
 # OPENPAY_PAGOS_MODO controla el ambiente (sandbox/production) y con eso la URL
@@ -505,12 +505,12 @@ ERP_NOMINA_WEBHOOK_TOKEN = env('ERP_NOMINA_WEBHOOK_TOKEN', legado='NOMINA_CRON_T
 # certificación: cambiar OPENPAY_PAGOS_MODO=production y las 5 variables de abajo
 # por las credenciales reales en las variables de entorno de Railway — no
 # requiere cambios de código.
-OPENPAY_PAGOS_MODO = env('OPENPAY_PAGOS_MODO', legado='OPENPAY_MODE', default='sandbox')
-OPENPAY_PAGOS_ID = env('OPENPAY_PAGOS_ID', legado='OPENPAY_MERCHANT_ID', default='')
-OPENPAY_PAGOS_SECRET = env('OPENPAY_PAGOS_SECRET', legado='OPENPAY_PRIVATE_KEY', default='')
-OPENPAY_PAGOS_API_KEY_PUBLICA = env('OPENPAY_PAGOS_API_KEY_PUBLICA', legado='OPENPAY_PUBLIC_KEY', default='')
-OPENPAY_WEBHOOK_USUARIO = env('OPENPAY_WEBHOOK_USUARIO', legado='OPENPAY_WEBHOOK_USER', default='')
-OPENPAY_WEBHOOK_SECRET = env('OPENPAY_WEBHOOK_SECRET', legado='OPENPAY_WEBHOOK_PASSWORD', default='')
+OPENPAY_PAGOS_MODO = env('OPENPAY_PAGOS_MODO', default='sandbox')
+OPENPAY_PAGOS_ID = env('OPENPAY_PAGOS_ID', default='')
+OPENPAY_PAGOS_SECRET = env('OPENPAY_PAGOS_SECRET', default='')
+OPENPAY_PAGOS_API_KEY_PUBLICA = env('OPENPAY_PAGOS_API_KEY_PUBLICA', default='')
+OPENPAY_WEBHOOK_USUARIO = env('OPENPAY_WEBHOOK_USUARIO', default='')
+OPENPAY_WEBHOOK_SECRET = env('OPENPAY_WEBHOOK_SECRET', default='')
 
 # ==============================================================
 # SECCIÓN JAZZMIN
