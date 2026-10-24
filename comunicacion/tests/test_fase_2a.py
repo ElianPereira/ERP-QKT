@@ -246,6 +246,18 @@ class HorariosYAgendaTest(MocksVisitas, TestCase):
         self.assertTrue(all(h.weekday() == 1 and h.hour in (16, 17) for h in libres))
         self.assertIn(_dt(self.dia, time(16, 0)), libres)
 
+    def test_con_fecha_la_herramienta_trae_todas_las_horas_del_dia(self):
+        HorarioVisita.objects.update(activo=False)
+        dia = _proximo(6)  # domingo, citas de 30 min de 8:00 a 12:00
+        HorarioVisita.objects.create(dia_semana=6, hora_inicio=time(8, 0), hora_fin=time(12, 0),
+                                     duracion_minutos=30)
+        sin_fecha = json.loads(herramientas_agente.ejecutar('horarios_de_visita', {})[0])['horarios']
+        self.assertNotIn(_dt(dia, time(10, 0)).strftime('%Y-%m-%dT%H:%M'), [h['inicio'] for h in sin_fecha])
+        con_fecha = json.loads(herramientas_agente.ejecutar('horarios_de_visita', {'fecha': dia.isoformat()})[0])
+        self.assertEqual(len(con_fecha['horarios']), 8)
+        self.assertIn(_dt(dia, time(10, 0)).strftime('%Y-%m-%dT%H:%M'), [h['inicio'] for h in con_fecha['horarios']])
+        self.assertIn('error', json.loads(herramientas_agente.ejecutar('horarios_de_visita', {'fecha': 'x'})[0]))
+
     def test_no_ofrece_con_menos_de_3_horas_ni_horarios_ocupados(self):
         ahora = _dt(self.dia, time(14, 30))   # a las 16:00 faltan 1.5 h, a las 17:00 faltan 2.5 h
         self.assertNotIn(_dt(self.dia, time(16, 0)), services_visitas.horarios_disponibles(ahora=ahora))

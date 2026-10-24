@@ -224,9 +224,14 @@ HERRAMIENTAS = [
         'description': (
             'Horarios en que el equipo puede recibir una visita para conocer la Quinta. Úsala cuando el '
             'cliente quiera visitarla. Solo ofrece los que devuelve; si la lista viene vacía, usa '
-            'pasar_a_humano.'
+            'pasar_a_humano. Sin fecha trae un resumen de varios días; si el cliente pide un día '
+            'concreto, vuelve a llamarla con `fecha` para ver todas las horas de ese día.'
         ),
-        'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+        'input_schema': {
+            'type': 'object',
+            'properties': {'fecha': {'type': 'string', 'description': 'Día pedido, AAAA-MM-DD (opcional).'}},
+            'additionalProperties': False,
+        },
     },
     {
         'name': 'agendar_visita',
@@ -869,9 +874,20 @@ def dar_de_baja_promociones(conv=None):
                                 '(pagos, detalles del evento) sí le siguen llegando.'}
 
 
-def horarios_de_visita():
+def horarios_de_visita(fecha=None):
+    from datetime import date
+
+    from django.utils import timezone
+
     from comunicacion import services_visitas
     libres = services_visitas.horarios_disponibles()
+    if fecha:
+        try:
+            dia = date.fromisoformat(str(fecha).strip())
+        except ValueError:
+            return {'error': 'Fecha no válida: usa AAAA-MM-DD.'}
+        libres = [h for h in services_visitas.horarios_disponibles(limite=None)
+                  if timezone.localtime(h).date() == dia]
     if not libres:
         return {'horarios': [], 'nota': 'No hay horarios de visita abiertos: usa pasar_a_humano con el día y la '
                                         'hora que pide el cliente.'}

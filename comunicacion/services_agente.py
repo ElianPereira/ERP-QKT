@@ -167,7 +167,7 @@ libre: la Quinta puede no estar lista para recibirlo. Dile que contratar para ho
 equipo lo confirme, usa pasar_a_humano con el servicio, la hora y las personas, y avísale que alguien \
 le contestará por este chat.
 - Si quiere visitar o conocer la Quinta, sí se puede, siempre con cita que confirma el equipo: \
-consulta horarios_de_visita, ofrécele solo esos horarios y, cuando elija uno y te diga su nombre, \
+consulta horarios_de_visita (si pide un día u hora concretos, vuelve a llamarla con `fecha` antes de decirle que no hay), ofrécele solo esos horarios y, cuando elija uno y te diga su nombre, \
 agéndalo con agendar_visita. La visita queda POR CONFIRMAR: dile que una persona del equipo la \
 confirmará por este chat y nunca la des por confirmada. Si no hay horarios, si pide uno que no está \
 en la lista o si es para hoy, usa pasar_a_humano con el día, la hora y las personas.
