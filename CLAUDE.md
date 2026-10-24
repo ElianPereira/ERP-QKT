@@ -290,7 +290,7 @@ salvo que queden obsoletas.
   (DEBE ingreso / HABER anticipo) por el faltante, nunca uno positivo, y lee el estado de la BD (el `pago.cotizacion` en
   memoria puede venir viejo). **(3)** `facturacion.SolicitudFactura.tipo_comprobante` (`I`/`E`, `facturacion.0013`,
   aditiva): un `Pago` REEMBOLSO ya no crea una solicitud de ingreso (el contador timbraba un ingreso por una devolución)
-  sino tipo **E** con G02, el desglose proporcional del reembolso, concepto «Nota de crédito por devolución COT-NNNN» y
+  sino tipo **E** con G02 (S01 si el receptor es público en general o un régimen que no admite G0x: el SAT rechaza G02 con 616), el desglose proporcional del reembolso, concepto «Nota de crédito por devolución COT-NNNN» y
   en `notas` los UUID de las solicitudes tipo I FACTURADAS de la cotización (o la advertencia de que aún no hay).
   PDF, `get_datos_para_contador()`, asunto del correo, WhatsApp al contador y el correo al cliente dicen «nota de
   crédito». `services_sat.candidatas_emitido(..., tipo)`: un CFDI emitido E solo liga con solicitudes E y uno I solo con

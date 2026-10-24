@@ -17,7 +17,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from comercial.services import calcular_desglose_proporcional
-from facturacion.choices import FormaPago
+from facturacion.choices import _REGIMENES_ADMITEN_G03, FormaPago, UsoCFDI
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +189,10 @@ def crear_solicitud_factura_desde_pago(sender, instance, created, **kwargs):
         notas = "CFDI relacionados (TipoRelación 01): " + (
             ", ".join(uuids) if uuids else "ninguno todavía: no hay CFDI de ingreso facturado de esta cotización."
         )
-        uso_cfdi = 'G02'
+        # G02 solo vale con los regímenes que admiten los usos G0x; público en
+        # general (616) y el resto solo admiten S01.
+        uso_cfdi = (UsoCFDI.DEVOLUCIONES_DESCUENTOS if regimen_fiscal in _REGIMENES_ADMITEN_G03
+                    else UsoCFDI.SIN_EFECTOS_FISCALES)
     else:
         concepto = "COT-{} {}".format(
             str(cotizacion.id).zfill(4),

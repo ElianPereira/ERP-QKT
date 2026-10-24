@@ -654,6 +654,16 @@ class NotaCreditoPorReembolsoTest(TestCase):
         self.assertTrue(nota.es_nota_credito)
         self.assertIn('NOTA DE CRÉDITO (CFDI de egreso)', nota.get_datos_para_contador())
 
+    def test_publico_en_general_lleva_s01_no_g02(self):
+        # El SAT solo admite S01 con el régimen 616 (público en general).
+        self.cliente.rfc = ''
+        self.cliente.save()
+        self._pago('11600.00')
+        nota = SolicitudFactura.objects.get(pago=self._pago('1160.00', tipo='REEMBOLSO'))
+        self.assertEqual(nota.tipo_comprobante, 'E')
+        self.assertEqual(nota.regimen_fiscal, '616')
+        self.assertEqual(nota.uso_cfdi, 'S01')
+
     def test_sin_cfdi_de_ingreso_la_nota_lo_dice(self):
         self._pago('11600.00')
         nota = SolicitudFactura.objects.get(pago=self._pago('1160.00', tipo='REEMBOLSO'))
