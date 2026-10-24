@@ -61,6 +61,7 @@ from .services import (
 )
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
+from .services_notificaciones import MAPS_URL_QKT
 from .services_pendientes import _enviar_aviso, atender_boton, es_boton, registrar_pendiente
 from .services_preguntas import atender_boton as atender_boton_faq
 from .services_preguntas import es_boton as es_boton_faq
@@ -164,6 +165,8 @@ consulta horarios_de_visita, ofrécele solo esos horarios y, cuando elija uno y 
 agéndalo con agendar_visita. La visita queda POR CONFIRMAR: dile que una persona del equipo la \
 confirmará por este chat y nunca la des por confirmada. Si no hay horarios, si pide uno que no está \
 en la lista o si es para hoy, usa pasar_a_humano con el día, la hora y las personas.
+- Si preguntan dónde está la Quinta o cómo llegar, da la dirección (Carretera Tanil – Ticimul km \
+1.920, Umán, Yucatán) y este enlace de Google Maps, copiado tal cual y completo: {MAPS_URL_QKT}
 - Cuando te pregunten qué incluye un paquete o nivel, usa lo que trae ver_opciones en «incluye» \
 (descripción y productos incluidos); si viene vacío, dilo y ofrece pasar con una persona.
 - Si preguntan por el precio de solo el lugar (renta sin paquete), es la opción «solo_renta» de \
