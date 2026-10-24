@@ -8,7 +8,7 @@ import io
 import secrets
 import struct
 import time
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from email.message import EmailMessage
 from io import StringIO
@@ -20,6 +20,7 @@ from cryptography.fernet import Fernet
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from comunicacion.models import Pendiente
 
@@ -244,6 +245,73 @@ class ProcesamientoTest(BaseCorreoTest):
         self.assertEqual((bitacora.resultado, bitacora.estado_cuenta.formato), ('PROCESADO', 'PDF'))
 
 
+class ConcurrenciaYReintentosTest(BaseCorreoTest):
+    def test_no_se_procesa_dos_veces_a_la_vez(self):
+        bitacora = servicio.registrar_correo(self.correo_pdf())
+        CorreoEstadoCuenta.objects.filter(pk=bitacora.pk).update(resultado='PROCESANDO')
+        bitacora.refresh_from_db()
+        with patch.object(servicio, '_procesar') as procesar:
+            servicio.procesar_correo(bitacora)
+        procesar.assert_not_called()
+        self.assertEqual(servicio.reprocesar_pendientes(aplicar=True), (0, 0))
+
+    def test_un_procesando_abandonado_se_retoma(self):
+        bitacora = servicio.registrar_correo(self.correo_pdf())
+        CorreoEstadoCuenta.objects.filter(pk=bitacora.pk).update(
+            resultado='PROCESANDO', updated_at=timezone.now() - timedelta(minutes=30))
+        self.assertEqual(servicio.reprocesar_pendientes(aplicar=True), (1, 1))
+        bitacora.refresh_from_db()
+        self.assertEqual(bitacora.resultado, 'PROCESADO')
+
+    def test_caida_justo_despues_de_crear_el_estado_se_completa_en_el_reintento(self):
+        real = procesar_estado_cuenta
+
+        def cae_el_proceso(estado):
+            raise KeyboardInterrupt  # muere el hilo: nadie alcanza a guardar la bitácora
+
+        bitacora = servicio.registrar_correo(self.correo_pdf())
+        with patch.object(servicio, 'procesar_estado_cuenta', side_effect=cae_el_proceso), \
+                self.assertRaises(KeyboardInterrupt):
+            servicio.procesar_correo(bitacora)
+        bitacora.refresh_from_db()
+        self.assertEqual(bitacora.resultado, 'PROCESANDO')
+        self.assertTrue(bitacora.estado_cuenta_id)  # el vínculo se guardó antes de procesar
+        CorreoEstadoCuenta.objects.filter(pk=bitacora.pk).update(updated_at=timezone.now() - timedelta(minutes=30))
+        with patch.object(servicio, 'procesar_estado_cuenta', real):
+            servicio.reprocesar_pendientes(aplicar=True)
+        bitacora.refresh_from_db()
+        self.assertEqual(bitacora.resultado, 'PROCESADO', bitacora.detalle)
+        self.assertEqual(EstadoCuentaBancario.objects.count(), 1)
+        self.assertEqual(bitacora.estado_cuenta.movimientos.count(), 39)
+
+    def test_estado_manual_a_medias_no_se_pisa_pero_si_se_avisa(self):
+        EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=self.cuenta, periodo_mes=4, periodo_anio=2026, formato='PDF',
+            archivo=io_archivo(b'corrupto'), estado='ERROR')
+        bitacora = self.procesar(self.correo_pdf())
+        self.assertEqual(bitacora.resultado, 'IGNORADO')
+        self.assertIn('error', bitacora.detalle.lower())
+        self.assertTrue(Pendiente.objects.filter(clave_idempotencia=f'estado_correo:{bitacora.pk}').exists())
+
+    def test_el_estado_que_llega_tarde_resuelve_el_aviso_de_no_llego(self):
+        servicio.avisar_si_no_llego(date(2026, 5, 8))
+        pendiente = Pendiente.objects.get(clave_idempotencia__startswith='estado_no_llego:')
+        self.assertEqual(pendiente.estado, 'ABIERTO')
+        self.procesar(self.correo_pdf())
+        pendiente.refresh_from_db()
+        self.assertEqual(pendiente.estado, 'RESUELTO')
+
+    def test_el_pendiente_de_error_refleja_el_ultimo_intento(self):
+        with patch.object(servicio, 'procesar_estado_cuenta', side_effect=RuntimeError('falla')):
+            bitacora = self.procesar(self.correo_pdf())
+            pendiente = Pendiente.objects.get(clave_idempotencia=f'estado_correo:{bitacora.pk}')
+            self.assertIn('Se reintentará solo', pendiente.detalle)
+            CorreoEstadoCuenta.objects.filter(pk=bitacora.pk).update(intentos=CorreoEstadoCuenta.MAX_INTENTOS - 1)
+            servicio.procesar_correo(CorreoEstadoCuenta.objects.get(pk=bitacora.pk))
+        pendiente.refresh_from_db()
+        self.assertIn('Ya no se reintentará', pendiente.detalle)
+
+
 class ZipYContrasenaTest(BaseCorreoTest):
     def setUp(self):
         super().setUp()
@@ -290,6 +358,18 @@ class ZipYContrasenaTest(BaseCorreoTest):
         self.cuenta.refresh_from_db()
         self.assertNotIn(self.clave.encode(), bytes(self.cuenta.password_estado_cifrada))
         self.assertEqual(servicio.password_estado(self.cuenta), self.clave)
+
+    def test_miembro_del_zip_con_extension_que_miente_no_revienta(self):
+        engañoso = zip_con_clave([('estado.pdf', zip_con_clave([('x.txt', b'hola')], None)), ('estado2.pdf', self.pdf)],
+                                 None)
+        mime = correo([('estado.zip', engañoso, 'application/zip')])
+        self.assertEqual(self.procesar(mime).resultado, 'PROCESADO')
+
+    def test_el_tope_de_descompresion_se_aplica_al_leer(self):
+        grande = zip_con_clave([('a.pdf', b'%PDF-' + b'0' * 2048)], None)
+        with patch.object(servicio, 'MAX_BYTES_DESCOMPRIMIDOS', 1024), \
+                self.assertRaisesMessage(servicio.ErrorCorreo, 'demasiado grande'):
+            servicio._leer_zip(grande, [])
 
     def test_zip_demasiado_grande_se_rechaza(self):
         grande = zip_con_clave([('a.pdf', b'0' * 1024) for _ in range(servicio.MAX_ZIP_MIEMBROS + 1)], None)
@@ -360,9 +440,21 @@ class WebhookTest(BaseCorreoTest):
         cuerpo = self.correo_pdf()
         with patch.object(servicio, 'lanzar_procesamiento') as lanzar, self.captureOnCommitCallbacks(execute=True):
             self.post(cuerpo)
+            CorreoEstadoCuenta.objects.update(resultado='PROCESADO')
             self.post(cuerpo)
         self.assertEqual(lanzar.call_count, 1)
         self.assertEqual(CorreoEstadoCuenta.objects.count(), 1)
+
+    def test_reintento_del_worker_de_un_correo_aun_pendiente_lo_vuelve_a_lanzar(self):
+        cuerpo = self.correo_pdf()
+        with patch.object(servicio, 'lanzar_procesamiento') as lanzar, self.captureOnCommitCallbacks(execute=True):
+            self.post(cuerpo)
+            self.post(cuerpo)  # el hilo de la primera nunca terminó
+        self.assertEqual(lanzar.call_count, 2)
+        self.assertEqual(CorreoEstadoCuenta.objects.count(), 1)
+
+    def test_timestamp_con_digitos_unicode_es_403_y_no_500(self):
+        self.assertEqual(self.post(marca='²').status_code, 403)
 
     def test_rechazos_con_403_y_nada_guardado(self):
         casos = {

@@ -37,7 +37,8 @@ def _firma_valida(secreto, timestamp, cuerpo, firma):
 def estado_cuenta_correo_webhook(request):
     secreto = getattr(settings, 'ERP_ESTADOS_CORREO_SECRET', '')
     timestamp = request.headers.get('X-QKT-Timestamp', '')
-    if not secreto or not timestamp.isdigit() or abs(time.time() - int(timestamp)) > TOLERANCIA_SEGUNDOS:
+    if (not secreto or not (timestamp.isascii() and timestamp.isdigit())
+            or abs(time.time() - int(timestamp)) > TOLERANCIA_SEGUNDOS):
         return HttpResponse('Forbidden', status=403)
     try:
         largo = int(request.META.get('CONTENT_LENGTH') or 0)

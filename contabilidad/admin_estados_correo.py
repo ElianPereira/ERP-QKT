@@ -20,7 +20,7 @@ class CorreoEstadoCuentaAdmin(SoloDireccion, admin.ModelAdmin):
     search_fields = ['asunto', 'remitente', 'message_id']
     search_help_text = 'Asunto, remitente o Message-ID'
     actions = ['reprocesar']
-    TONOS = {'PROCESADO': ui.EXITO, 'ERROR': ui.ERROR, 'PENDIENTE': ui.ALERTA, 'IGNORADO': ui.NEUTRO,
+    TONOS = {'PROCESADO': ui.EXITO, 'ERROR': ui.ERROR, 'PENDIENTE': ui.ALERTA, 'PROCESANDO': ui.ALERTA, 'IGNORADO': ui.NEUTRO,
              'DUPLICADO': ui.NEUTRO}
 
     def get_readonly_fields(self, request, obj=None):

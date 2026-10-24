@@ -20,12 +20,13 @@ import io
 import logging
 import threading
 import zlib
+from datetime import timedelta
 from email import policy
 
 import pyzipper
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, connection, transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 
 from .models import CorreoEstadoCuenta, CuentaBancaria, EstadoCuentaBancario
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 MAX_ZIP_MIEMBROS = 20
 MAX_BYTES_DESCOMPRIMIDOS = 40 * 1024 * 1024
+ABANDONO = timedelta(minutes=15)
 DIA_AVISO_NO_LLEGO = 7
 MESES = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
          'noviembre', 'diciembre')
@@ -90,7 +92,8 @@ def registrar_correo(mime_bytes):
 
     Un `Message-ID` ya visto devuelve el registro existente **marcado
     DUPLICADO solo en memoria**: en la base conserva su resultado real (si ya
-    se procesó, sigue PROCESADO). Quien llama no debe procesarlo de nuevo.
+    se procesó, sigue PROCESADO). Si seguía PENDIENTE (un reintento del Worker
+    tras morir el hilo) se devuelve tal cual para que se vuelva a lanzar.
     """
     mensaje = email.message_from_bytes(mime_bytes, policy=policy.default)
     message_id = (str(mensaje.get('Message-ID') or '')).strip()[:255]
@@ -106,6 +109,8 @@ def registrar_correo(mime_bytes):
                     archivo_eml=ContentFile(mime_bytes, name=f"{hashlib.sha256(mime_bytes).hexdigest()[:24]}.eml"))
         except IntegrityError:
             existente = CorreoEstadoCuenta.objects.get(message_id=message_id)
+    if existente.resultado == 'PENDIENTE':
+        return existente  # el hilo pudo morir: quien llama lo vuelve a lanzar (la reserva evita el doble proceso)
     existente.resultado = 'DUPLICADO'
     return existente
 
@@ -167,12 +172,26 @@ def _leer_zip(contenido, contrasenas):
     for clave in intentos:
         zf.setpassword(clave.encode() if clave else None)
         try:
-            return [(i.filename, zf.read(i)) for i in miembros if _formato(i.filename, b'') in ('PDF', 'XML')]
+            return _leer_miembros(zf, miembros)
         except RuntimeError:  # contraseña incorrecta (o archivo inválido)
             continue
         except (pyzipper.BadZipFile, NotImplementedError, EOFError, zlib.error) as e:
             raise ErrorCorreo("El ZIP adjunto está dañado.") from e
     raise ErrorCorreo("Contraseña incorrecta del ZIP.")
+
+
+def _leer_miembros(zf, miembros):
+    """PDF/XML del ZIP leyendo con tope: el tamaño declarado en el encabezado puede mentir."""
+    restante, salida = MAX_BYTES_DESCOMPRIMIDOS, []
+    for i in miembros:
+        with zf.open(i) as fh:
+            contenido = fh.read(restante + 1)
+        restante -= len(contenido)
+        if restante < 0:
+            raise ErrorCorreo("El ZIP adjunto es demasiado grande.")
+        if _formato(i.filename, contenido) in ('PDF', 'XML'):
+            salida.append((i.filename, contenido))
+    return salida
 
 
 def _descifrar_pdf(contenido, contrasenas):
@@ -183,7 +202,7 @@ def _descifrar_pdf(contenido, contrasenas):
         pdfium.PdfDocument(contenido).close()
         return contenido
     except pdfium.PdfiumError as e:
-        if 'password' not in str(e).lower():
+        if e.err_code != pdfium_raw.FPDF_ERR_PASSWORD:
             raise ErrorCorreo("El PDF adjunto no se pudo abrir.") from e
     if not contrasenas:
         raise ErrorCorreo("El PDF trae contraseña y la cuenta bancaria no tiene una capturada.")
@@ -227,8 +246,8 @@ def _elegir_archivo(mensaje, contrasenas):
                 continue
             except ErrorCorreo as e:
                 fallo = fallo or e
-            except Exception:
-                logger.exception("Estado de cuenta por correo: no se pudo leer el %s adjunto", formato)
+            except Exception as e:
+                logger.error("Estado de cuenta por correo: no se pudo leer el %s adjunto (%s)", formato, type(e).__name__)
                 fallo = fallo or ErrorCorreo("El archivo adjunto no tiene el formato de un estado de cuenta BBVA.")
     raise fallo or ErrorCorreo("El correo no trae un PDF o XML de estado de cuenta que se pueda leer.")
 
@@ -261,13 +280,14 @@ def _procesar(bitacora):
     if existente is not None:
         # Reintento de un intento propio que no terminó: se reutiliza; lo demás ya estaba cargado.
         propio = existente.origen == 'CORREO' and (
-            existente.estado == 'ERROR'
+            existente.estado in ('ERROR', 'SUBIDO')
             or (existente.pk == bitacora.estado_cuenta_id and existente.estado != 'CONCILIADO'))
         if not propio:
             bitacora.estado_cuenta = existente
             raise CorreoIgnorado(
                 f"El estado de cuenta de {_mes_texto(mes, anio)} ya estaba cargado "
-                f"({timezone.localtime(existente.created_at):%d/%m/%Y}). No se cambió.")
+                f"({timezone.localtime(existente.created_at):%d/%m/%Y}, {existente.get_estado_display().lower()}). "
+                "No se cambió.")
         estado = existente
         estado.archivo.save(nombre, ContentFile(contenido), save=False)
         estado.formato = formato
@@ -277,10 +297,13 @@ def _procesar(bitacora):
             cuenta_bancaria=cuenta, banco='BBVA', periodo_mes=mes, periodo_anio=anio, formato=formato,
             origen='CORREO', archivo=ContentFile(contenido, name=nombre))
     bitacora.estado_cuenta = estado
+    # El vínculo se guarda ya: si el proceso muere ahora, el reintento sabe que ese estado es suyo.
+    CorreoEstadoCuenta.objects.filter(pk=bitacora.pk).update(estado_cuenta=estado)
     try:
         procesar_estado_cuenta(estado)
     except Exception as e:
-        logger.exception("Estado de cuenta por correo: falló procesar_estado_cuenta (estado %s)", estado.pk)
+        logger.error("Estado de cuenta por correo: falló procesar_estado_cuenta (estado %s): %s",
+                     estado.pk, type(e).__name__)
         raise ErrorCorreo("El estado de cuenta se guardó pero no se pudo procesar; se reintentará solo.") from e
     estado.refresh_from_db()
     bitacora.advertencia = _advertencia_continuidad(estado)
@@ -318,11 +341,12 @@ def _cadena_post_proceso(estado):
 
 def procesar_correo(bitacora):
     """Procesa una bitácora PENDIENTE o con ERROR. Reutilizable por el reproceso."""
-    if bitacora.resultado not in ('PENDIENTE', 'ERROR') or bitacora.intentos >= CorreoEstadoCuenta.MAX_INTENTOS:
-        return bitacora
-    # Reserva optimista: si el hilo del webhook y el comando coinciden, gana uno solo.
-    if not CorreoEstadoCuenta.objects.filter(pk=bitacora.pk, intentos=bitacora.intentos).update(
-            intentos=F('intentos') + 1):
+    # Reserva atómica: pasa a PROCESANDO solo si estaba libre (o abandonada hace más de 15 min),
+    # así el hilo del webhook, el cron y el admin no procesan el mismo correo a la vez.
+    ahora = timezone.now()
+    libre = Q(resultado__in=('PENDIENTE', 'ERROR')) | Q(resultado='PROCESANDO', updated_at__lt=ahora - ABANDONO)
+    if not CorreoEstadoCuenta.objects.filter(libre, pk=bitacora.pk, intentos__lt=CorreoEstadoCuenta.MAX_INTENTOS).update(
+            resultado='PROCESANDO', intentos=F('intentos') + 1, updated_at=ahora):
         return bitacora
     bitacora.refresh_from_db()
     try:
@@ -358,10 +382,11 @@ def _avisar(bitacora):
         from comunicacion import services_pendientes as pend
         clave = f'estado_correo:{bitacora.pk}'
         if bitacora.resultado == 'PROCESADO':
-            abierto = _pendiente_por_clave(clave)
-            if abierto is not None:
-                pend.resolver(abierto)
             estado = bitacora.estado_cuenta
+            for k in (clave, f'estado_no_llego:{estado.cuenta_bancaria_id}:{estado.periodo_anio}-{estado.periodo_mes:02d}'):
+                abierto = _pendiente_por_clave(k)
+                if abierto is not None:
+                    pend.resolver(abierto)
             total = estado.movimientos.count()
             sin = estado.movimientos.filter(movimiento_contable__isnull=True).count()
             texto = (f"Estado de cuenta BBVA de {_mes_texto(estado.periodo_mes, estado.periodo_anio)} cargado: "
@@ -370,15 +395,24 @@ def _avisar(bitacora):
                 texto += " Revisa la advertencia en Correos."
             for telefono in _telefonos_aviso():
                 pend._enviar_aviso(telefono, texto, clave=f'{clave}:ok:{telefono}')
-        elif bitacora.resultado == 'ERROR' or (bitacora.resultado == 'IGNORADO' and not bitacora.estado_cuenta_id):
+        elif bitacora.resultado == 'ERROR' or (bitacora.resultado == 'IGNORADO' and _ignorado_sin_resolver(bitacora)):
             hubo_mas = bitacora.resultado == 'ERROR' and bitacora.intentos < CorreoEstadoCuenta.MAX_INTENTOS
             sufijo = " Se reintentará solo." if hubo_mas else " Ya no se reintentará: revísalo en Correos."
-            pend.registrar_pendiente(
+            detalle = f"{bitacora.detalle}{sufijo}"
+            pendiente = pend.registrar_pendiente(
                 titulo="Estado de cuenta BBVA por correo: no se pudo cargar", rol='DIRECCION', tipo='OTRO',
-                severidad='URGENTE', detalle=f"{bitacora.detalle}{sufijo}", objeto=bitacora,
-                clave_idempotencia=clave)
+                severidad='URGENTE', detalle=detalle, objeto=bitacora, clave_idempotencia=clave)
+            if pendiente is not None and pendiente.estado == 'ABIERTO' and pendiente.detalle != detalle:
+                pendiente.detalle = detalle  # el texto refleja el último intento, no el primero
+                pendiente.save(update_fields=['detalle', 'updated_at'])
     except Exception:
         logger.exception("Estado de cuenta por correo: no se pudo avisar")
+
+
+def _ignorado_sin_resolver(bitacora):
+    """IGNORADO que sí requiere a una persona: solo una liga, o un estado del mes que quedó a medias."""
+    estado = bitacora.estado_cuenta
+    return estado is None or estado.estado in ('SUBIDO', 'ERROR')
 
 
 def avisar_si_no_llego(hoy=None):
@@ -405,8 +439,9 @@ def avisar_si_no_llego(hoy=None):
 
 def reprocesar_pendientes(aplicar=False):
     """Bitácoras PENDIENTE o ERROR con intentos disponibles. Devuelve (candidatas, procesadas_ok)."""
+    libre = Q(resultado__in=('PENDIENTE', 'ERROR')) | Q(resultado='PROCESANDO', updated_at__lt=timezone.now() - ABANDONO)
     candidatas = list(CorreoEstadoCuenta.objects.filter(
-        resultado__in=('PENDIENTE', 'ERROR'), intentos__lt=CorreoEstadoCuenta.MAX_INTENTOS).order_by('recibido_en'))
+        libre, intentos__lt=CorreoEstadoCuenta.MAX_INTENTOS).order_by('recibido_en'))
     if not aplicar:
         return len(candidatas), 0
     ok = 0

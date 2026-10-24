@@ -272,6 +272,32 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-24 — **Estado de cuenta BBVA por correo** (Issue #401, desbloqueado por el propietario; sin tocar
+  `contabilidad/services.py`, `legal/`, Openpay ni los parsers BBVA). Cloudflare Email Routing → Worker
+  (`docs/cloudflare/email_worker_estados.js`, filtra por el secreto `BBVA_REMITENTES` y exige DKIM/DMARC alineado) → POST firmado a
+  `/api/contabilidad/estados-cuenta/correo/` (`views_estados_correo.py`: HMAC-SHA256 de `"<timestamp>.<cuerpo>"` con
+  `ERP_ESTADOS_CORREO_SECRET`, fail-closed, ±5 min, 413 sobre 15 MB, `request.read()` y no `request.body` porque Django
+  corta a 2.5 MB) → `services_estados_correo.py`. **Bitácora** `CorreoEstadoCuenta` (`contabilidad.0041`, aditiva: tabla,
+  `ORIGEN='CORREO'` y `CuentaBancaria.password_estado_cifrada`): el `.eml` se guarda en el bucket privado **antes** de
+  procesar; `Message-ID` único (sin él, SHA-256 del cuerpo); un duplicado devuelve el registro existente marcado
+  DUPLICADO **solo en memoria** (en la base conserva su resultado real). `procesar_correo` reserva el intento con un
+  paso atómico a PROCESANDO (webhook, cron y admin no se pisan; uno abandonado >15 min se retoma), lee PDF/XML/ZIP (`pyzipper`, AES; tope de 20 miembros y 40 MB) y
+  llama a `procesar_estado_cuenta()` sin cambiarla. **Contraseña**: campo cifrado con `_fernet()` de `services_sat`, solo
+  escritura y solo superusuario en el admin de Bancos (el campo se quita del formulario del resto); como el ZIP se abre
+  antes de saber la cuenta, se prueban las contraseñas de las cuentas activas; un PDF cifrado aparte se descifra con
+  PDFium (`FPDF_REMOVE_SECURITY`) porque los parsers no reciben contraseña — probado solo con un PDF sintético, no con uno
+  real de BBVA. **Periodo = mes de la fecha de corte** (la Maestra PYME corta a fin de mes). Periodo ya cargado →
+  IGNORADO (lo existente manda), salvo un intento propio a medias (origen CORREO en ERROR, o el mismo que dejó la
+  bitácora) que se reutiliza. `_parsear_xml_bbva` sigue sin implementar: el XML "gana" solo cuando exista; hoy cae al PDF.
+  **Avisos**: éxito → WhatsApp a `telefonos_aviso('DIRECCION')` + CONTADOR con solo conteos; error, liga sin adjunto y «no
+  llegó» → `Pendiente` URGENTE (tipo OTRO) a Dirección, idempotente (`estado_correo:<id>`,
+  `estado_no_llego:<cuenta>:<AAAA-MM>`); un éxito posterior resuelve el pendiente de error. `reprocesar_estados_correo
+  --aplicar` diario 09:15 en el programador (8 intentos máx.; desde el día 7 avisa una vez por mes si falta el estado del
+  mes anterior). `CADENA_POST_PROCESO` es el punto de enganche para las capas futuras (abonos por folio, gastos sin
+  factura, preguntas al contador). Pendientes del propietario: `ERP_ESTADOS_CORREO_SECRET` en Railway, capturar la
+  contraseña en la cuenta bancaria, ruta y Worker en Cloudflare, filtro de Gmail y prueba con el primer correo real (~1–2/11);
+  pasos en `docs/estado_cuenta_correo.md`. Migración: solo `contabilidad.0041`, corre sola en el deploy al mergear.
+
 - 2026-10-24 — **El folio ARCO no cabía en su columna** (lo encontraron los evals contra el modelo real): `SolicitudARCO.save()` armaba `ARCO-` + 20 dígitos = 25 caracteres sobre un `max_length=24`; PostgreSQL rechazaba toda solicitud ARCO (Kooxi y admin) y los tests no lo veían porque **SQLite no valida `max_length`**. Ahora el sello va a 19 dígitos y `test_folio_cabe_en_la_columna` lo fija. Sin migración. Evals del mismo día: 43/44 (el caso `pasadia_40` pedía una fecha ya pasada; se movió a 2027), US$2.32, corridos en un servicio temporal de Railway sin credenciales de WhatsApp/correo/Openpay.
 
 - 2026-10-23 — **Cancelación con retención: la penalización es ingreso y lo devuelto lleva nota de crédito** (criterio

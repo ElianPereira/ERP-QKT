@@ -1322,6 +1322,7 @@ class CorreoEstadoCuenta(models.Model):
     """
     RESULTADO_CHOICES = [
         ('PENDIENTE', 'Por procesar'),
+        ('PROCESANDO', 'Procesando'),
         ('PROCESADO', 'Procesado'),
         ('DUPLICADO', 'Duplicado'),
         ('IGNORADO', 'Ignorado'),
