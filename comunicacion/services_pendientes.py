@@ -163,6 +163,18 @@ def descartar(pendiente, usuario=None) -> bool:
     return _cerrar(pendiente, 'DESCARTADO', usuario)
 
 
+def resolver_de_objeto(objeto, usuario=None) -> int:
+    """Cierra los pendientes abiertos ligados a `objeto` (p. ej. una conversación
+    ya atendida). Devuelve cuántos cerró."""
+    if objeto is None or not getattr(objeto, 'pk', None):
+        return 0
+    ahora = timezone.now()
+    usuario = usuario if getattr(usuario, 'pk', None) else None
+    return Pendiente.objects.filter(
+        estado='ABIERTO', content_type=ContentType.objects.get_for_model(objeto), object_id=objeto.pk,
+    ).update(estado='RESUELTO', resuelto_en=ahora, resuelto_por=usuario, updated_by=usuario, updated_at=ahora)
+
+
 def tomar(pendiente, usuario=None) -> bool:
     """Dirección interviene: el pendiente pasa a su rol y se le avisa al responsable anterior."""
     rol_previo = pendiente.rol

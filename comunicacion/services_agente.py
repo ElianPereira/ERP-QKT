@@ -62,7 +62,13 @@ from .services import (
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
 from .services_notificaciones import MAPS_URL_QKT
-from .services_pendientes import _enviar_aviso, atender_boton, es_boton, registrar_pendiente
+from .services_pendientes import (
+    _enviar_aviso,
+    atender_boton,
+    es_boton,
+    registrar_pendiente,
+    resolver_de_objeto,
+)
 from .services_preguntas import atender_boton as atender_boton_faq
 from .services_preguntas import es_boton as es_boton_faq
 from .services_responsables import (
@@ -439,6 +445,7 @@ def responder_como_persona(conv, texto: str, usuario) -> MensajeWhatsApp:
     conv.pausado_hasta = timezone.now() + timedelta(hours=horas)
     conv.ultimo_mensaje = timezone.now()
     conv.save(update_fields=['pausado_hasta', 'ultimo_mensaje', 'updated_at'])
+    resolver_de_objeto(conv, usuario)
     return mensaje
 
 
@@ -489,6 +496,7 @@ def _reactivar_si_nadie_atendio(conv) -> None:
     conv.requiere_humano = False
     conv.motivo_humano = ''
     conv.save(update_fields=['requiere_humano', 'motivo_humano', 'updated_at'])
+    resolver_de_objeto(conv)
     logger.info("Agente WhatsApp: %s se reactivó solo tras 24 h sin atención", conv.telefono)
 
 
@@ -881,7 +889,8 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True, categoria: str = '')
     registrar_pendiente(
         titulo=f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp",
         detalle=f'Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones.',
-        rol='ENCARGADO', tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO', severidad='URGENTE')
+        rol='ENCARGADO', tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO', severidad='URGENTE',
+        objeto=conv)
 
 
 def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:

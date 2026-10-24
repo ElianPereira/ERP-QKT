@@ -286,6 +286,19 @@ class ProcesarConversacionTest(TestCase):
         otro.beta.messages.create.assert_not_called()
         enviar.assert_not_called()
 
+    def test_atender_la_conversacion_cierra_su_pendiente(self):
+        from comunicacion.models import Pendiente
+        services_agente._pasar_a_humano(self.conv, 'Quiere negociar')
+        pendiente = Pendiente.objects.get(tipo='PASE_HUMANO')
+        self.assertEqual(pendiente.estado, 'ABIERTO')
+        with patch.object(services_agente, 'enviar_whatsapp') as enviar:
+            enviar.return_value.estado = 'ENVIADO'
+            enviar.return_value.proveedor_id = 'wamid.x'
+            services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto='Hola', wamid='w-h')
+            services_agente.responder_como_persona(self.conv, 'Ya vamos', None)
+        pendiente.refresh_from_db()
+        self.assertEqual(pendiente.estado, 'RESUELTO')
+
     def test_el_primer_contacto_avisa_que_es_ia_y_enlaza_el_aviso_una_sola_vez(self):
         enviar = self._procesar(_cliente_falso(_respuesta(_texto('Hola, ¿para cuántas personas?'))))
         primero = enviar.call_args_list[0].kwargs['mensaje']
