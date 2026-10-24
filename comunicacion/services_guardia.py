@@ -27,6 +27,7 @@ from django.conf import settings
 
 from .herramientas_agente import HERRAMIENTAS
 from .models import RespuestaBloqueada
+from .services_notificaciones import MAPS_URL_QKT
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,9 @@ def revisar_filtro(conv, texto: str) -> str:
         if not correo.endswith('@' + DOMINIO_PUBLICO) and correo not in correos_cliente:
             return 'Incluye un correo que no es de este cliente.'
 
-    for m in _RE_URL.finditer(_RE_CORREO.sub(' ', texto)):
+    # Única excepción fuera del sitio público: la ficha de Google Maps de la Quinta,
+    # exacta. Cualquier otro enlace de google.com sigue bloqueado.
+    for m in _RE_URL.finditer(_RE_CORREO.sub(' ', texto.replace(MAPS_URL_QKT, ' '))):
         host = m.group(1).lower()
         if host not in HOSTS_PUBLICOS:
             return f'Incluye un enlace fuera del sitio público ({host}).'

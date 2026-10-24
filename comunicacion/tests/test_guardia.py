@@ -71,8 +71,22 @@ class FiltroTest(TestCase):
             'Entra a https://quintakooxtanil.com/mi-evento/abc123def456ghi/',
             'Mira https://erp.quintakooxtanil.com/admin/',
             'Paga en https://pagos-raros.com/',
+            'Así llegas: https://www.google.com/maps/place/Otro+Lugar/',
+            'Busca en https://www.google.com/',
         ):
             self.assertNotEqual(self._motivo(texto), '', texto)
+
+    def test_la_ficha_de_google_maps_de_la_quinta_pasa(self):
+        from comunicacion.services_notificaciones import MAPS_URL_QKT
+        texto = f'Estamos en Carretera Tanil – Ticimul km 1.920, Umán. Así llegas: {MAPS_URL_QKT}'
+        self.assertEqual(self._motivo(texto), '')
+
+    def test_la_pregunta_frecuente_trae_la_misma_ficha(self):
+        from importlib import import_module
+
+        from comunicacion.services_notificaciones import MAPS_URL_QKT
+        migracion = import_module('comercial.migrations.0122_faq_ubicacion_maps')
+        self.assertTrue(migracion.NUEVA.endswith(MAPS_URL_QKT))
 
 
 @wa_settings(**{**AGENTE, 'ERP_KOOXI_JUEZ_ACTIVO': True})
