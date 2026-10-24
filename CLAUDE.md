@@ -272,6 +272,8 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-24 — **El folio ARCO no cabía en su columna** (lo encontraron los evals contra el modelo real): `SolicitudARCO.save()` armaba `ARCO-` + 20 dígitos = 25 caracteres sobre un `max_length=24`; PostgreSQL rechazaba toda solicitud ARCO (Kooxi y admin) y los tests no lo veían porque **SQLite no valida `max_length`**. Ahora el sello va a 19 dígitos y `test_folio_cabe_en_la_columna` lo fija. Sin migración. Evals del mismo día: 43/44 (el caso `pasadia_40` pedía una fecha ya pasada; se movió a 2027), US$2.32, corridos en un servicio temporal de Railway sin credenciales de WhatsApp/correo/Openpay.
+
 - 2026-10-23 — **Fase 2c: solicitud de cambio/cancelación, reembolso al medio de origen y ARCO por Kooxi** (Issue #432;
   zonas restringidas autorizadas por el propietario solo para este alcance: `services_openpay.py` y `legal/`;
   `views_openpay.py` y `contabilidad/services.py` **no se tocaron**; `legal/` tampoco: ARCO escribe en

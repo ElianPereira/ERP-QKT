@@ -240,6 +240,11 @@ class ARCOTest(TestCase):
         folios = {self._solicitud().folio for _ in range(5)}
         self.assertEqual(len(folios), 5)
 
+    def test_folio_cabe_en_la_columna(self):
+        # SQLite no valida max_length; PostgreSQL rechazaba el folio de 25.
+        largo = SolicitudARCO._meta.get_field('folio').max_length
+        self.assertLessEqual(len(self._solicitud().folio), largo)
+
     def test_estado_inicial(self):
         self.assertEqual(self._solicitud().estado, EstadoARCO.RECIBIDA)
 
