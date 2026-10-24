@@ -119,7 +119,7 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
@@ -271,6 +271,8 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-10-24 — **Se retira el respaldo `legado=` de las variables** (Issue #424, adelantado a pedido del propietario: el Programador corría estable desde el 21/10). `core_erp/variables.env()` ya solo lee el nombre nuevo; los viejos no tienen efecto. Seguro porque en `web` cada nombre nuevo ya existía (como `NUEVO=${{VIEJO}}`) y el Programador lee `${{web.NUEVO}}`. CI y los workflows de IA pasan a `DJANGO_SECRET_KEY`/`DJANGO_DEBUG`/`DJANGO_ALLOWED_HOSTS`: **los tests locales se corren ahora con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`** (con `DEBUG=True` a secas ya no aplica y vuelven los 301 de `SECURE_SSL_REDIRECT`). El catálogo conserva la columna «Nombre anterior» solo como referencia. Pendiente del propietario: renombrar en el Raw Editor de `web` cada `VIEJO=valor` a `NUEVO=valor` (borrando la referencia) — mientras tanto funciona igual. De paso, el log del webhook de Openpay dice `USUARIO/SECRET`.
 
 - 2026-10-24 — **El folio ARCO no cabía en su columna** (lo encontraron los evals contra el modelo real): `SolicitudARCO.save()` armaba `ARCO-` + 20 dígitos = 25 caracteres sobre un `max_length=24`; PostgreSQL rechazaba toda solicitud ARCO (Kooxi y admin) y los tests no lo veían porque **SQLite no valida `max_length`**. Ahora el sello va a 19 dígitos y `test_folio_cabe_en_la_columna` lo fija. Sin migración. Evals del mismo día: 43/44 (el caso `pasadia_40` pedía una fecha ya pasada; se movió a 2027), US$2.32, corridos en un servicio temporal de Railway sin credenciales de WhatsApp/correo/Openpay.
 

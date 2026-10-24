@@ -1,11 +1,10 @@
 """Variables de entorno (Issue #424): helper `env()`, test guardián de nombres y
-respaldo con los nombres anteriores.
+arranque con los nombres nuevos (los anteriores ya no se leen).
 
 Los valores de abajo son marcadores de prueba, nunca credenciales.
 """
 import ast
 import json
-import logging
 import os
 import re
 import subprocess
@@ -42,29 +41,20 @@ def _archivos_py():
 
 
 def catalogo():
-    """Nombres de la primera columna del catálogo (`| `NOMBRE` | …`) → legado."""
-    nombres = {}
+    """Nombres de la primera columna del catálogo (`| `NOMBRE` | …`)."""
+    nombres = set()
     for linea in CATALOGO.read_text(encoding='utf-8').splitlines():
-        m = re.match(r'^\| `([A-Z0-9_]+)` \|(.*)\|\s*`([A-Z0-9_]+)` \|$', linea)
+        m = re.match(r'^\| `([A-Z0-9_]+)` \|', linea)
         if m:
-            nombres[m.group(1)] = m.group(3)
-        else:
-            m = re.match(r'^\| `([A-Z0-9_]+)` \|', linea)
-            if m:
-                nombres[m.group(1)] = None
+            nombres.add(m.group(1))
     return nombres
 
 
 def llamadas_env(fuente):
-    """[(nombre, legado)] de cada `env('NOMBRE', legado='VIEJO', …)` del código."""
-    encontradas = []
-    for nodo in ast.walk(ast.parse(fuente)):
-        if (isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name) and nodo.func.id == 'env'
-                and nodo.args and isinstance(nodo.args[0], ast.Constant)):
-            legado = next((k.value.value for k in nodo.keywords
-                           if k.arg == 'legado' and isinstance(k.value, ast.Constant)), None)
-            encontradas.append((nodo.args[0].value, legado))
-    return encontradas
+    """Nombres de cada `env('NOMBRE', …)` del código."""
+    return [nodo.args[0].value for nodo in ast.walk(ast.parse(fuente))
+            if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name) and nodo.func.id == 'env'
+            and nodo.args and isinstance(nodo.args[0], ast.Constant)]
 
 
 def lecturas_prohibidas(fuente):
@@ -91,7 +81,7 @@ def lecturas_prohibidas(fuente):
 
 def problemas_de_nombres(fuente, catalogado):
     problemas = []
-    for nombre, _ in llamadas_env(fuente):
+    for nombre in llamadas_env(fuente):
         if _exenta(nombre):
             continue
         if not REGLA.match(nombre):
@@ -102,34 +92,20 @@ def problemas_de_nombres(fuente, catalogado):
 
 
 class EnvHelperTest(SimpleTestCase):
-    def test_gana_el_nombre_nuevo_si_estan_los_dos(self):
-        with mock.patch.dict(os.environ, {'ERP_PRUEBA_X': 'nuevo', 'PRUEBA_X': 'viejo'}):
-            self.assertEqual(env('ERP_PRUEBA_X', legado='PRUEBA_X', default=''), 'nuevo')
+    def test_lee_la_variable(self):
+        with mock.patch.dict(os.environ, {'ERP_PRUEBA_X': 'nuevo'}):
+            self.assertEqual(env('ERP_PRUEBA_X', default=''), 'nuevo')
 
-    def test_cae_al_legado_con_aviso_que_no_incluye_el_valor(self):
-        with mock.patch.dict(os.environ, {'PRUEBA_X': 'valor-que-no-se-loguea'}):
-            with self.assertLogs('core_erp.variables', level='WARNING') as logs:
-                self.assertEqual(env('ERP_PRUEBA_X', legado='PRUEBA_X', default=''), 'valor-que-no-se-loguea')
-        texto = '\n'.join(logs.output)
-        self.assertIn('usando nombre legado PRUEBA_X', texto)
-        self.assertIn('ERP_PRUEBA_X', texto)
-        self.assertNotIn('valor-que-no-se-loguea', texto)
-
-    def test_sin_ninguno_aplica_el_default_con_su_cast(self):
-        self.assertEqual(env('ERP_PRUEBA_NO_EXISTE', legado='PRUEBA_NO_EXISTE', default='7', cast=int), 7)
+    def test_sin_variable_aplica_el_default_con_su_cast(self):
+        self.assertEqual(env('ERP_PRUEBA_NO_EXISTE', default='7', cast=int), 7)
         self.assertIs(env('ERP_PRUEBA_NO_EXISTE', default=False, cast=bool), False)
 
-    def test_sin_default_y_sin_variables_falla_como_decouple(self):
+    def test_sin_default_y_sin_variable_falla_como_decouple(self):
         with self.assertRaises(UndefinedValueError):
-            env('ERP_PRUEBA_NO_EXISTE', legado='PRUEBA_NO_EXISTE')
+            env('ERP_PRUEBA_NO_EXISTE')
 
-    def test_el_cast_aplica_tambien_al_legado(self):
-        with mock.patch.dict(os.environ, {'PRUEBA_N': '42', 'PRUEBA_B': 'True'}):
-            self.assertEqual(env('ERP_PRUEBA_N', legado='PRUEBA_N', default=0, cast=int), 42)
-            self.assertIs(env('ERP_PRUEBA_B', legado='PRUEBA_B', default=False, cast=bool), True)
-
-    def test_con_el_nombre_nuevo_no_hay_aviso(self):
-        with mock.patch.dict(os.environ, {'ERP_PRUEBA_X': 'v'}), self.assertNoLogs('core_erp.variables', level=logging.WARNING):
+    def test_ya_no_acepta_respaldo_legado(self):
+        with self.assertRaises(TypeError):
             env('ERP_PRUEBA_X', legado='PRUEBA_X', default='')
 
 
@@ -168,12 +144,10 @@ class GuardianTest(SimpleTestCase):
         self.assertEqual(problemas, [])
 
     def test_catalogo_y_settings_dicen_lo_mismo(self):
-        """Cada variable de `env()` está en el catálogo con su nombre legado, y a la inversa."""
-        en_codigo = {}
-        for nombre, legado in llamadas_env((BASE_DIR / 'core_erp' / 'settings.py').read_text(encoding='utf-8')):
-            if not _exenta(nombre):
-                en_codigo[nombre] = legado
-        self.assertEqual(en_codigo, {n: l for n, l in catalogo().items() if not _exenta(n)})
+        """Cada variable de `env()` está en el catálogo, y a la inversa."""
+        en_codigo = {n for n in llamadas_env((BASE_DIR / 'core_erp' / 'settings.py').read_text(encoding='utf-8'))
+                     if not _exenta(n)}
+        self.assertEqual(en_codigo, {n for n in catalogo() if not _exenta(n)})
 
     def test_el_catalogo_no_lleva_valores(self):
         for linea in CATALOGO.read_text(encoding='utf-8').splitlines():
@@ -204,7 +178,7 @@ LLAVES = [
     'ERP_SAT_FIEL_CIFRADO_SECRET', 'ERP_PORTAL_URL', 'ERP_CSP_PUBLICO_ACTIVO', 'JIBBLE_NOMINA_ID',
     'ERP_NOMINA_WEBHOOK_TOKEN',
 ]
-PARES = {  # nombre nuevo → (nombre legado, valor de prueba)
+PARES = {  # nombre nuevo → (nombre anterior, valor de prueba)
     'DJANGO_SECRET_KEY': ('SECRET_KEY', 'sk-prueba-0001'), 'DJANGO_DEBUG': ('DEBUG', 'True'),
     'DJANGO_ALLOWED_HOSTS': ('ALLOWED_HOSTS', 'uno.test,dos.test'),
     'ERP_EMAIL_REMITENTE': ('DEFAULT_FROM_EMAIL', 'base@prueba.test'),
@@ -226,10 +200,11 @@ PARES = {  # nombre nuevo → (nombre legado, valor de prueba)
 }
 
 
-class RespaldoDeNombresTest(SimpleTestCase):
-    """El corte de nombres no puede romper nada: con solo los viejos todo sigue igual."""
+class ArranqueConNombresTest(SimpleTestCase):
+    """Con los nombres nuevos todo se lee; los anteriores ya no tienen efecto."""
 
-    def _verifica(self, valores, stderr, nuevo_o_legado):
+    def test_con_los_nombres_nuevos_todo_funciona(self):
+        valores, _ = _arranque({nuevo: v for nuevo, (_, v) in PARES.items()})
         a = valores['a']
         self.assertEqual(a['SECRET_KEY'], 'sk-prueba-0001')
         self.assertIs(a['DEBUG'], True)
@@ -256,21 +231,11 @@ class RespaldoDeNombresTest(SimpleTestCase):
         self.assertEqual(valores['storages'], ['bucket-privado', 'bucket-publico'])
         self.assertEqual(valores['anymail'], 'marcador-brevo')
 
-    def test_con_solo_los_nombres_viejos_todo_funciona_y_avisa(self):
-        valores, stderr = _arranque({legado: v for _, (legado, v) in PARES.items()})
-        self._verifica(valores, stderr, 'legado')
-        for legado, v in PARES.values():
-            self.assertIn(f'usando nombre legado {legado}', stderr)
-            self.assertNotIn(v, stderr)  # nunca se loguea un valor
-
-    def test_con_solo_los_nombres_nuevos_no_hay_aviso_de_legado(self):
-        valores, stderr = _arranque({nuevo: v for nuevo, (_, v) in PARES.items()})
-        self._verifica(valores, stderr, 'nuevo')
-        self.assertNotIn('nombre legado', stderr)
-
-    def test_si_estan_los_dos_gana_el_nuevo(self):
-        entorno = {nuevo: v for nuevo, (_, v) in PARES.items()}
-        entorno.update({legado: 'valor-viejo-que-pierde' for legado, _ in PARES.values()})
-        valores, stderr = _arranque(entorno)
-        self._verifica(valores, stderr, 'nuevo')
-        self.assertNotIn('nombre legado', stderr)
+    def test_los_nombres_anteriores_ya_no_se_leen(self):
+        entorno = {'DJANGO_SECRET_KEY': 'sk-prueba-0001'}
+        entorno.update({viejo: v for nuevo, (viejo, v) in PARES.items() if nuevo != 'DJANGO_SECRET_KEY'})
+        valores, _ = _arranque(entorno)
+        a = valores['a']
+        self.assertNotEqual(a['META_WA_KOOXI_TOKEN'], 'marcador-token')
+        self.assertNotEqual(a['OPENPAY_PAGOS_ID'], 'marcador-merchant')
+        self.assertNotEqual(a['ERP_PORTAL_URL'], 'https://portal.prueba.test')

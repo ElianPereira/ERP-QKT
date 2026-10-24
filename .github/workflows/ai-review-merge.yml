@@ -202,9 +202,9 @@ jobs:
       - name: Validate correction
         if: steps.rounds.outputs.can_fix == 'true'
         env:
-          SECRET_KEY: local-ai-validation-key
-          DEBUG: 'True'
-          ALLOWED_HOSTS: '*'
+          DJANGO_SECRET_KEY: local-ai-validation-key
+          DJANGO_DEBUG: 'True'
+          DJANGO_ALLOWED_HOSTS: '*'
         run: |
           ruff check . || echo "::warning::Ruff reportó deuda previa; el CI actual trata lint como informativo."
           python manage.py check

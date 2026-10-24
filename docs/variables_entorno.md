@@ -20,11 +20,11 @@ ORIGEN_SERVICIO_DATO[_DISTINTIVO]
 2. Una fila en este catálogo (lo exige `core_erp/test_variables.py`) y una línea en `.env.example`.
 3. Agregarla a las *Shared Variables* de Railway (ver `docs/railway_programador.md`).
 
-Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el log «usando nombre legado»; el respaldo se quita 2 semanas después del corte.
+Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=` se retiró el 2026-10-24. Se conservan aquí solo como referencia.
 
 ## DJANGO — framework
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `DJANGO_SECRET_KEY` | Llave de firma de sesiones y tokens; sin valor por defecto, el servidor no arranca sin ella. | Django (lo define el ERP) | Railway → Variables (se inventa o genera; sin panel externo) | web, Programador | `SECRET_KEY` |
 | `DJANGO_DEBUG` | Modo depuración. Siempre False en producción. | Django (lo define el ERP) | Railway → Variables (se inventa o genera; sin panel externo) | web, Programador | `DEBUG` |
@@ -32,7 +32,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## META — WhatsApp Cloud API
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `META_WA_KOOXI_TOKEN` | Token permanente de un usuario del sistema para enviar mensajes. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_CLOUD_API_TOKEN` |
 | `META_WA_KOOXI_ID` | ID del número emisor (el de Kooxi). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_PHONE_NUMBER_ID` |
@@ -59,13 +59,13 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## ANTHROPIC — modelo de Kooxi
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ANTHROPIC_API_KEY_KOOXI` | Llave de la API de Anthropic para el agente, el juez y el resumen de preguntas. | Anthropic | console.anthropic.com → API keys | web, Programador | `ANTHROPIC_API_KEY` |
 
 ## OPENPAY — cobros
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `OPENPAY_PAGOS_MODO` | Ambiente: sandbox o production (cambia URL de la API y Openpay.js). | Openpay | Panel de Openpay → Configuración → Credenciales / Webhooks | web, Programador | `OPENPAY_MODE` |
 | `OPENPAY_PAGOS_ID` | Merchant ID del comercio. | Openpay | Panel de Openpay → Configuración → Credenciales / Webhooks | web, Programador | `OPENPAY_MERCHANT_ID` |
@@ -76,7 +76,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## CLOUDFLARE — R2 (archivos)
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `CLOUDFLARE_R2_CUENTA_ID` | ID de la cuenta de Cloudflare (parte del endpoint de R2). | Cloudflare | Cloudflare → R2 → Manage API tokens | web, Programador | `CLOUDFLARE_R2_ACCOUNT_ID` |
 | `CLOUDFLARE_R2_PUBLICO_ID` | Access key del bucket público. | Cloudflare | Cloudflare → R2 → Manage API tokens | web, Programador | `CLOUDFLARE_R2_ACCESS_KEY_ID` |
@@ -90,20 +90,20 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## BREVO — correo
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `BREVO_EMAIL_API_KEY` | API key de Brevo para enviar correo. | Brevo | Brevo → SMTP y API → API keys | web, Programador | `BREVO_API_KEY` |
 
 ## JIBBLE — asistencia y nómina
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `JIBBLE_NOMINA_ID` | Client ID de la API de Jibble. | Jibble | Jibble → Configuración → credenciales de API | web, Programador | `JIBBLE_CLIENT_ID` |
 | `JIBBLE_NOMINA_SECRET` | Client secret de la API de Jibble. | Jibble | Jibble → Configuración → credenciales de API | web, Programador | `JIBBLE_CLIENT_SECRET` |
 
 ## ERP — correo
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_EMAIL_REMITENTE` | Remitente por defecto (alimenta DEFAULT_FROM_EMAIL de Django). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `DEFAULT_FROM_EMAIL` |
 | `ERP_EMAIL_REMITENTE_RESERVAS` | Remitente de cotizaciones, contratos y guías. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `EMAIL_FROM_RESERVAS` |
@@ -112,7 +112,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## ERP — sitio y portal
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_SITIO_URL` | URL canónica del sitio (enlaces en correos). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `SITE_URL` |
 | `ERP_PORTAL_URL` | URL base del portal del cliente (enlaces, correos y avisos). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `PORTAL_URL` |
@@ -121,7 +121,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## ERP — seguridad
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_ADMIN_LOGIN_MAX_IP` | Intentos fallidos por IP en /admin/login/. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `ADMIN_LOGIN_MAX_INTENTOS_IP` |
 | `ERP_ADMIN_LOGIN_MAX_USUARIO` | Intentos fallidos por usuario en /admin/login/. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `ADMIN_LOGIN_MAX_INTENTOS_USUARIO` |
@@ -137,7 +137,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## ERP — negocio
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_FISCAL_TASA_ISH` | Tasa del Impuesto Sobre Hospedaje como proporción (0.05 = 5%). Debe coincidir en web y Programador. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `TASA_ISH` |
 | `ERP_PROFECO_REGISTRO_EVENTOS` | Número de registro PROFECO del contrato de Evento/Pasadía (vacío = sin leyenda). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `PROFECO_REGISTRO_EVENTOS` |
@@ -148,7 +148,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## ERP — Kooxi (agente de WhatsApp)
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_KOOXI_ACTIVO` | Enciende al agente (apagado = no contesta). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `WA_AGENTE_ACTIVO` |
 | `ERP_KOOXI_NUMEROS_PRUEBA` | Si no está vacía, solo contesta a estos números (coma). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `WA_AGENTE_NUMEROS_PRUEBA` |
