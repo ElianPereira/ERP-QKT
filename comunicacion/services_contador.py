@@ -19,6 +19,7 @@ from django.utils import timezone
 from contabilidad import services_sat
 from contabilidad.models import CfdiSAT
 
+from .formato_wa import Aviso
 from .models import ConsultaCfdi
 from .services import normalizar_telefono_wa
 from .services_direccion import dinero
@@ -119,10 +120,12 @@ def _botones(cfdi, candidatas) -> list:
     return botones + [(id_boton(cfdi.pk, 'no'), 'Ninguna')]
 
 
-def _pregunta_con_botones(cfdi, candidatas, prefijo: str = '') -> str:
-    detalle = '; '.join(_detalle_solicitud(s) for s in candidatas[:MAX_CANDIDATAS_BOTON])
-    return (f'{prefijo}{dinero(cfdi.total)} del {cfdi.fecha:%d/%m} a '
-            f'{(cfdi.nombre_contraparte or cfdi.rfc_receptor)[:40]}: ¿de cuál solicitud es? {detalle}.').strip()
+def _pregunta_con_botones(cfdi, candidatas, prefijo: str = '') -> Aviso:
+    """Una pregunta por CFDI: el comprobante en el título y cada candidata en su renglón."""
+    contraparte = (cfdi.nombre_contraparte or cfdi.rfc_receptor)[:40]
+    return Aviso(titulo=f'{prefijo}{dinero(cfdi.total)} del {cfdi.fecha:%d/%m} a {contraparte}', categoria='SAT',
+                 lineas=[_detalle_solicitud(s) for s in candidatas[:MAX_CANDIDATAS_BOTON]],
+                 cierre='¿De cuál solicitud es?')
 
 
 def preguntar_contador(hoy=None, ahora=None) -> int:
@@ -145,16 +148,20 @@ def preguntar_contador(hoy=None, ahora=None) -> int:
         return 0
     lote = ambiguos[:MAX_EN_MENSAJE]
     primero = next(((c, cand) for c, cand in lote if len(cand) >= 2), None)
-    lineas = ' '.join(_linea(n, c, cand) for n, (c, cand) in enumerate(lote, 1))
-    extra = f' y {len(ambiguos) - len(lote)} más' if len(ambiguos) > len(lote) else ''
-    texto = (f'Hola, soy Kooxi. Hay {len(ambiguos)} CFDI emitidos que no pude ligar a una solicitud de factura: '
-             f'{lineas}{extra}. Los sin candidata se ligan en {_url_comprobantes()}')
+    lineas = [_linea(n, c, cand) for n, (c, cand) in enumerate(lote, 1)]
+    if len(ambiguos) > len(lote):
+        lineas.append(f'y {len(ambiguos) - len(lote)} más')
+    cierre = 'Los que no tienen candidata se ligan en Contabilidad → Comprobantes.'
     botones = None
     if primero is not None:
         cfdi, candidatas = primero
-        texto += ' ' + _pregunta_con_botones(cfdi, candidatas, prefijo='Empiezo con el CFDI de ')
+        contraparte = (cfdi.nombre_contraparte or cfdi.rfc_receptor)[:40]
+        cierre += (f' Empiezo con el de {dinero(cfdi.total)} a {contraparte}: ¿de cuál solicitud es? '
+                   + '; '.join(_detalle_solicitud(s) for s in candidatas[:MAX_CANDIDATAS_BOTON]))
         botones = _botones(cfdi, candidatas)
-    comm = _enviar_aviso(contador.telefono_wa, texto, botones=botones)
+    aviso = Aviso(titulo=f'{len(ambiguos)} CFDI emitidos sin ligar a una solicitud', categoria='SAT',
+                  lineas=lineas, cierre=cierre, enlace=_url_comprobantes())
+    comm = _enviar_aviso(contador.telefono_wa, aviso, botones=botones)
     if comm is None or comm.estado == 'FALLIDO':
         return 0
     for cfdi, candidatas in lote:
@@ -181,8 +188,9 @@ def _responder(telefono: str, confirmacion: str) -> Optional[str]:
     if siguiente is None:
         return confirmacion
     cfdi, candidatas = siguiente
-    _enviar_aviso(telefono, _pregunta_con_botones(cfdi, candidatas, prefijo=f'{confirmacion} Siguiente, el CFDI de '),
-                  botones=_botones(cfdi, candidatas))
+    pregunta = _pregunta_con_botones(cfdi, candidatas, prefijo='Siguiente: ')
+    pregunta.lineas.insert(0, confirmacion)
+    _enviar_aviso(telefono, pregunta, botones=_botones(cfdi, candidatas))
     return None
 
 
@@ -206,7 +214,7 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
     if coincide.group(2) == 'no':
         ConsultaCfdi.objects.filter(pk=consulta.pk, estado='PREGUNTADA').update(
             estado='NINGUNA', telefono=tel, respondida_en=ahora, updated_at=ahora)
-        return _responder(telefono, 'Listo, lo dejo para revisarlo en el admin.')
+        return _responder(telefono, '✅ Listo, lo dejo para revisarlo en el admin.')
     solicitud_id = int(coincide.group(2))
     if str(solicitud_id) not in consulta.candidatas.split(','):
         return None
@@ -220,4 +228,4 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
         return 'No pude ligarlo; revísalo en el admin.'
     ConsultaCfdi.objects.filter(pk=consulta.pk).update(
         estado='LIGADA', solicitud=solicitud, telefono=tel, respondida_en=ahora, updated_at=ahora)
-    return _responder(telefono, f'Listo, ligué el CFDI de {dinero(cfdi.total)} a {_etiqueta(solicitud)}.')
+    return _responder(telefono, f'✅ Listo, ligué el CFDI de {dinero(cfdi.total)} a {_etiqueta(solicitud)}.')

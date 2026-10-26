@@ -17,6 +17,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from .formato_wa import bloques
 from .models import EncuestaPostEvento
 from .services import enviar_whatsapp_template, normalizar_telefono_wa
 from .services_notificaciones import _fecha, _nombre_pila, _plantilla, _seguro, _telefono, _tipo_evento
@@ -31,10 +32,10 @@ VIGENCIA_TEXTO = timedelta(days=3)
 BOTONES = ((5, 'Excelente'), (3, 'Regular'), (1, 'Mala'))
 RE_BOTON = re.compile(r'^enc:(\d+):([1-5])$')
 RE_NUMERO = re.compile(r'^\s*([1-5])\s*$')
-GRACIAS_BUENA = '¡Muchas gracias! Nos da mucho gusto que lo hayas disfrutado.'
-GRACIAS_MALA = ('Gracias por decírnoslo; lamentamos que no haya sido la experiencia que esperabas. '
-                'Una persona del equipo te escribirá para atenderte.')
-YA_CONTESTADA = 'Ya habíamos recibido tu calificación. ¡Gracias!'
+GRACIAS_BUENA = bloques('¡Muchas gracias! Nos da mucho gusto que lo hayas disfrutado.')
+GRACIAS_MALA = bloques('Gracias por decírnoslo; lamentamos que no haya sido la experiencia que esperabas.',
+                       'Una persona del equipo te escribirá para atenderte.')
+YA_CONTESTADA = bloques('Ya habíamos recibido tu calificación.', '¡Gracias!')
 
 
 def id_boton(encuesta_id: int, calificacion: int) -> str:
@@ -158,7 +159,7 @@ def _registrar_calificacion(encuesta, calificacion: int) -> Optional[str]:
         if not url:
             return GRACIAS_BUENA
         EncuestaPostEvento.objects.filter(pk=encuesta.pk).update(resena_solicitada=True)
-        return f'{GRACIAS_BUENA} ¿Nos ayudas con una reseña en Google? Solo toma un minuto: {url}'
+        return bloques(GRACIAS_BUENA, 'Solo toma un minuto:', enlace=url, pregunta='¿Nos ayudas con una reseña en Google?')
     registrar_pendiente(
         titulo=f'Encuesta con calificación {calificacion}/5 en COT-{cotizacion.pk:03d}',
         rol='DIRECCION', tipo='QUEJA', severidad='URGENTE', objeto=cotizacion,

@@ -27,7 +27,6 @@ from .services import (
     enviar_whatsapp_botones,
     enviar_whatsapp_template,
     normalizar_telefono_wa,
-    texto_plano_wa,
 )
 from .services_responsables import SIN_DESTINO, responsable, rol_de_telefono, telefono_de, telefonos_aviso
 
@@ -37,7 +36,6 @@ PLAZO_HORAS = {'URGENTE': 2, 'NORMAL': 24}
 ROLES_RESUMEN = ('ENCARGADO', 'DIRECCION', 'CONTADOR', 'COMPRAS')
 VENTANA_WA = timedelta(hours=24)
 INTERVALO_COPIA = timedelta(hours=1)
-LIMITE_PARAMETRO = 900
 MAS_VIEJOS = 5
 
 BOTON_TOMAR = 'tomar'
@@ -72,30 +70,28 @@ def ventana_abierta(telefono: str) -> bool:
         created_at__gte=timezone.now() - VENTANA_WA).exists()
 
 
-def _enviar_aviso(telefono: str, texto, *, botones=None, clave: Optional[str] = None):
-    """Botones si la ventana está abierta; si no, una plantilla. `texto` es un
-    `Aviso` (formato en bloques y la plantilla del equipo de 4 parámetros) o,
-    en los avisos que aún no lo usan, un texto suelto. Sin plantilla del equipo
-    va la de operaciones con el texto aplanado, y sin ninguna, texto libre.
-    Nunca lanza."""
+def _enviar_aviso(telefono: str, aviso: Aviso, *, botones=None, clave: Optional[str] = None):
+    """Botones si la ventana está abierta; si no, una plantilla. `aviso` es un
+    `Aviso` (formato en bloques y la plantilla del equipo de 4 parámetros). Sin
+    plantilla del equipo va la de operaciones con el texto aplanado, y sin
+    ninguna, texto libre. Nunca lanza."""
     try:
-        aviso = texto if isinstance(texto, Aviso) else None
-        mensaje = aviso.texto() if aviso else texto
+        mensaje = aviso.texto()
         abierta = ventana_abierta(telefono)
         if botones and abierta:
             comm = enviar_whatsapp_botones(tipo='OTRO', telefono=telefono, mensaje=mensaje, botones=botones)
             if comm is not None and comm.estado != 'FALLIDO':
                 return comm
-        if aviso and abierta:
+        if abierta:
             return enviar_whatsapp(tipo='OTRO', telefono=telefono, mensaje=mensaje, clave_idempotencia=clave)
         plantilla_equipo = getattr(settings, 'META_WA_PLANTILLA_AVISO_EQUIPO', '') or ''
-        if aviso and plantilla_equipo:
+        if plantilla_equipo:
             return enviar_whatsapp_template(
                 tipo='OTRO', telefono=telefono, template_name=plantilla_equipo,
                 parametros=aviso.parametros(), clave_idempotencia=clave)
         plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
         if plantilla:
-            plano = aviso.plano() if aviso else texto_plano_wa(texto)[:LIMITE_PARAMETRO]
+            plano = aviso.plano()
             return enviar_whatsapp_template(
                 tipo='OTRO', telefono=telefono, template_name=plantilla,
                 parametros=[plano], clave_idempotencia=clave)
@@ -208,7 +204,8 @@ def tomar(pendiente, usuario=None) -> bool:
     pendiente.refresh_from_db()
     destino = telefono_de(rol_previo)
     if destino:
-        _enviar_aviso(destino, f'Lo tomó Dirección: {pendiente.titulo}. Ya no necesitas atenderlo.',
+        _enviar_aviso(destino, Aviso(titulo='Lo tomó Dirección', categoria='Pendiente', lineas=[pendiente.titulo],
+                                     cierre='Ya no necesitas atenderlo.'),
                       clave=f'pend:{pendiente.pk}:tomado')
     return True
 
@@ -226,10 +223,10 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
         return None
     if coincide.group(2) == BOTON_TOMAR:
         if rol == 'DIRECCION' and tomar(pendiente):
-            return f'Listo, tomaste el pendiente: {pendiente.titulo}.'
+            return f'✅ Listo, tomaste el pendiente: {pendiente.titulo}.'
         return None
     if rol == pendiente.rol and resolver(pendiente):
-        return f'Listo, quedó resuelto: {pendiente.titulo}.'
+        return f'✅ Listo, quedó resuelto: {pendiente.titulo}.'
     return None
 
 
@@ -271,12 +268,13 @@ def copiar_cada_hora(ahora=None) -> int:
                   .order_by('created_at', 'id'))
     if not nuevos:
         return 0
-    lineas = '; '.join(f'{p.titulo[:70]}' for p in nuevos[:MAS_VIEJOS])
-    extra = f' y {len(nuevos) - MAS_VIEJOS} más' if len(nuevos) > MAS_VIEJOS else ''
-    texto = (f'Copia por hora, {len(nuevos)} pendientes nuevos del encargado: {lineas}{extra}. '
-             f'Bandeja: {url_bandeja()}')
+    lineas = [p.titulo[:70] for p in nuevos[:MAS_VIEJOS]]
+    if len(nuevos) > MAS_VIEJOS:
+        lineas.append(f'y {len(nuevos) - MAS_VIEJOS} más')
+    aviso = Aviso(titulo=f'{len(nuevos)} pendientes nuevos del encargado', categoria='Copia por hora',
+                  lineas=lineas, enlace=url_bandeja())
     botones = [(id_boton(nuevos[0].pk, BOTON_TOMAR), 'Intervengo')] if len(nuevos) == 1 else None
-    comm = _enviar_aviso(telefono_de('DIRECCION'), texto, botones=botones,
+    comm = _enviar_aviso(telefono_de('DIRECCION'), aviso, botones=botones,
                          clave=f'pend:copia:{ahora:%Y%m%d%H}')
     if comm is None or comm.estado == 'FALLIDO':
         return 0
@@ -286,21 +284,19 @@ def copiar_cada_hora(ahora=None) -> int:
 
 # ───────────────────────────── Resumen diario ─────────────────────────────────
 
-def _resumen_de(abiertos, resueltos_ayer, operaciones, hoy, programador='') -> str:
-    partes = [f'Resumen del {hoy:%d/%m}.']
+def _resumen_de(abiertos, resueltos_ayer, operaciones, hoy, programador='') -> Aviso:
+    lineas = []
     if abiertos:
         conteo = ', '.join(f'{n} {tipo}' for tipo, n in Counter(p.get_tipo_display() for p in abiertos).items())
-        viejos = '; '.join(f'{p.titulo[:60]} ({timezone.localtime(p.created_at):%d/%m})'
-                           for p in abiertos[:MAS_VIEJOS])
-        partes.append(f'Pendientes abiertos: {len(abiertos)} ({conteo}). Los más viejos: {viejos}.')
+        lineas.append(f'Pendientes abiertos: {len(abiertos)} ({conteo})')
+        lineas.extend(f'{p.titulo[:60]} ({timezone.localtime(p.created_at):%d/%m})' for p in abiertos[:MAS_VIEJOS])
     if operaciones:
-        partes.append(f'Operación: {operaciones}.')
+        lineas.append(f'Operación: {operaciones}')
     if resueltos_ayer:
-        partes.append(f'Resueltos ayer: {resueltos_ayer}.')
+        lineas.append(f'Resueltos ayer: {resueltos_ayer}')
     if programador:
-        partes.append(f'{programador}.')
-    partes.append(f'Bandeja: {url_bandeja()}')
-    return ' '.join(partes)
+        lineas.append(programador)
+    return Aviso(titulo=f'Resumen del {hoy:%d/%m}', categoria='Resumen diario', lineas=lineas, enlace=url_bandeja())
 
 
 def enviar_resumen_diario(hoy=None) -> int:

@@ -152,7 +152,8 @@ class ConstruirMensajesTest(TestCase):
         self.assertIn('Jueves 27 de agosto', bloques[0])
         self.assertIn('1:00 p.m.', bloques[0])
         self.assertIn('tiempo extra', bloques[0])
-        self.assertIn('1. Tarea 1', bloques[0])
+        self.assertIn('• Tarea 1', bloques[0])
+        self.assertIn('Responde LISTO al terminar', bloques[0])
 
     def test_mas_de_ocho_tareas_se_parte_en_varios_mensajes(self):
         for i in range(1, 11):
@@ -164,6 +165,9 @@ class ConstruirMensajesTest(TestCase):
         # La hora límite solo va en el primer bloque.
         self.assertIn('Termina antes de', bloques[0])
         self.assertNotIn('Termina antes de', bloques[1])
+        # El cierre solo va en el último.
+        self.assertNotIn('Responde LISTO', bloques[0])
+        self.assertIn('Responde LISTO', bloques[1])
 
     def test_aviso_horario_incluye_motivo_y_hora(self):
         texto = construir_texto_aviso_horario(self.tarea)

@@ -166,7 +166,7 @@ class ResumenSemanalTest(MocksWA, TestCase):
         h2 = Hallazgo.objects.create(clave='b', tipo='SIN_FACTURA', titulo='Dos', detalle='d2')
         with patch.object(services_direccion, 'detectar', return_value=[h1, h2]):
             services_direccion.enviar_resumen_semanal(HOY)
-        self.assertIn('Detecté: 1) Uno. 2) Dos.', self.textos()[0])
+        self.assertIn('• Detecté 1: Uno\n• Detecté 2: Dos', self.textos()[0])
         botones = [c.kwargs['botones'] for c in self.enviar_whatsapp_botones.call_args_list]
         self.assertEqual(botones[0], [(f'hal:{h1.pk}:tarea', 'Crear tarea'), (f'hal:{h1.pk}:ign', 'Ignorar')])
         self.assertEqual(len(botones), 2)

@@ -31,6 +31,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
+from comunicacion.formato_wa import bloques
 from comunicacion.services import (
     enviar_email,
     enviar_whatsapp,
@@ -428,7 +429,7 @@ def decidir(solicitud_pk: int, accion: str, *, quien: str, token: Optional[str] 
     if accion == 'no':
         _avisar_cliente(s, 'rechazada', TEXTOS['rechazada'].format(que=QUE[s.tipo], folio=folio),
                         asunto=f'Tu solicitud · {folio}')
-        return Resultado(f'Listo: rechazaste la solicitud de {folio}. Se avisó al cliente.', s)
+        return Resultado(f'✅ Listo: rechazaste la solicitud de {folio}. Se avisó al cliente.', s)
     if accion == 'co':
         _avisar_cliente(s, 'contraoferta', TEXTOS['contraoferta'].format(folio=folio), asunto=f'Tu solicitud · {folio}')
         registrar_pendiente(
@@ -516,7 +517,7 @@ def _ejecutar_cambio(s: SolicitudCancelacion) -> Resultado:
         reubicar_tareas_turnover(cot, fecha_anterior)
     _avisar_cliente(s, 'cambio', TEXTOS['cambio'].format(folio=_folio(cot), fecha=s.fecha_nueva.strftime('%d/%m/%Y')),
                     asunto=f'Cambio de fecha aprobado · {_folio(cot)}')
-    return Resultado(f'Listo: {_folio(cot)} se movió al {s.fecha_nueva:%d/%m/%Y}. Se avisó al cliente. Ojo: el contrato firmado conserva la fecha anterior; hace falta un anexo.', s)
+    return Resultado(f'✅ Listo: {_folio(cot)} se movió al {s.fecha_nueva:%d/%m/%Y}. Se avisó al cliente. Ojo: el contrato firmado conserva la fecha anterior; hace falta un anexo.', s)
 
 
 def _ejecutar_cancelacion(s: SolicitudCancelacion, usuario) -> Resultado:
@@ -592,7 +593,7 @@ def _ejecutar_cancelacion(s: SolicitudCancelacion, usuario) -> Resultado:
         partes.append(TEXTOS['sin_reembolso'])
     _avisar_cliente(s, 'cancelada', TEXTOS['cancelada'].format(folio=folio, reembolso=' '.join(partes)),
                     asunto=f'Cancelación aprobada · {folio}')
-    return Resultado(f'Listo: {folio} cancelada. ' + ' '.join(detalle), s)
+    return Resultado(f'✅ Listo: {folio} cancelada. ' + ' '.join(detalle), s)
 
 
 def _guardar_registro(s: SolicitudCancelacion, registro: dict) -> None:
@@ -617,7 +618,9 @@ def _avisar_cliente(s: SolicitudCancelacion, clave: str, texto: str, *, asunto: 
             clave_idempotencia=f'cancelacion:{s.pk}:{clave}:email')
         telefono = s.telefono or cot.cliente.telefono
         if telefono:
-            enviar_whatsapp(cotizacion=cot, tipo='CANCELACION', telefono=telefono, mensaje=texto,
+            # Mismo texto que el correo, una oración por párrafo para leerlo en el celular
+            mensaje = bloques(*re.split(r'(?<=[.!?])\s+', texto))
+            enviar_whatsapp(cotizacion=cot, tipo='CANCELACION', telefono=telefono, mensaje=mensaje,
                             clave_idempotencia=f'cancelacion:{s.pk}:{clave}:wa')
     except Exception:
         logger.exception("Solicitud de cancelación %s: no se pudo avisar al cliente", s.pk)

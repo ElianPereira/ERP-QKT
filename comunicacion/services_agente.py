@@ -49,6 +49,7 @@ from . import (
     services_inspeccion,
     services_visitas,
 )
+from .formato_wa import Aviso, bloques
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .herramientas_direccion import HERRAMIENTAS_DIRECCION, SYSTEM_PROMPT_DIRECCION, ejecutar_direccion
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
@@ -90,12 +91,12 @@ CANDADO_SEGUNDOS = 300
 
 MENSAJE_TOPE_DIRECCION = 'Llegaste al tope diario de respuestas del asistente. Haz lo que necesites desde el admin.'
 MENSAJE_FALLO_DIRECCION = 'No pude procesarlo ahora. Inténtalo en un momento o hazlo desde el admin.'
-MENSAJE_HUMANO = ('Gracias por tu paciencia. Le paso tu mensaje a una persona del equipo '
-                  'y te contesta por aquí en cuanto pueda.')
+MENSAJE_HUMANO = bloques('Gracias por tu paciencia.',
+                         'Le paso tu mensaje a una persona del equipo y te contesta por aquí en cuanto pueda.')
 # Mientras una conversación espera a una persona, el cliente que sigue
 # escribiendo recibe esto (sin pasar por la IA) como máximo cada AVISO_ESPERA_CADA.
-AVISO_ESPERA = ('Recibí tu mensaje 🙌 Ya le avisé al equipo y una persona te contesta '
-                'por aquí en cuanto pueda.')
+AVISO_ESPERA = bloques('Recibí tu mensaje 🙌',
+                       'Ya le avisé al equipo y una persona te contesta por aquí en cuanto pueda.')
 AVISO_ESPERA_CADA = timedelta(hours=3)
 # Primer contacto (Aviso de Privacidad v2.5 §3.3, criterio del abogado): se
 # informa que es IA, cómo pedir una persona y dónde está el aviso, antes de
@@ -116,29 +117,28 @@ BOTONES_CONSENTIMIENTO = (
     (BOTON_ACEPTO_PROMOS, 'Acepto + promociones'),
     (BOTON_NO_ACEPTO, 'No acepto'),
 )
-MENSAJE_CONSENTIMIENTO = (
-    "Para preparar tu cotización con tus datos necesito tu autorización. Revisa nuestro "
-    f"Aviso de Privacidad ({URL_AVISO_PRIVACIDAD}), los Términos y Condiciones ({URL_TERMINOS}) y la "
-    f"Política de Cancelación ({URL_POLITICA_CANCELACION}).\n\n"
-    "¿Los aceptas? Si además quieres recibir promociones y fechas disponibles, elige "
-    "«Acepto + promociones»."
+MENSAJE_CONSENTIMIENTO = bloques(
+    'Para preparar tu cotización con tus datos necesito tu autorización. Revisa:',
+    datos=(f'Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}', f'Términos y Condiciones: {URL_TERMINOS}',
+           f'Política de Cancelación: {URL_POLITICA_CANCELACION}'),
+    pregunta='¿Los aceptas? Si además quieres recibir promociones y fechas disponibles, elige '
+             '«Acepto + promociones».',
 )
 # Vigencia del botón: pasado este plazo se vuelve a pedir, para que la evidencia
 # corresponda a los documentos que estaban vigentes cuando se cotizó.
 CONSENTIMIENTO_VIGENTE = timedelta(hours=24)
-AVISO_INICIAL = (
-    "¡Hola! Soy *Kooxi*, el asistente virtual de Quinta Ko'ox Tanil. Funciono con "
-    "inteligencia artificial, no soy una persona.\n\n"
-    "*¿Qué puedo hacer por ti?*\n"
-    "• Darte precios\n"
-    "• Revisar la disponibilidad de tu fecha\n"
-    "• Agendar una visita para que conozcas la Quinta\n"
-    "• Consultar tu reservación\n"
-    "• Preparar tu cotización y acompañarte en tu contratación\n"
-    "• Resolver tus dudas\n\n"
-    "Si en algún momento prefieres que te atienda alguien del equipo, solo escríbelo.\n\n"
-    "Al continuar esta conversación aceptas el tratamiento de tus datos conforme a "
-    f"nuestro Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}"
+AVISO_INICIAL = bloques(
+    "¡Hola! Soy *Kooxi*, el asistente virtual de Quinta Ko'ox Tanil. Funciono con inteligencia "
+    "artificial, no soy una persona.",
+    '*¿Qué puedo hacer por ti?*',
+    datos=('Darte precios', 'Revisar la disponibilidad de tu fecha',
+           'Agendar una visita para que conozcas la Quinta', 'Consultar tu reservación',
+           'Preparar tu cotización y acompañarte en tu contratación', 'Resolver tus dudas'),
+) + '\n\n' + bloques(
+    'Si en algún momento prefieres que te atienda alguien del equipo, solo escríbelo.',
+    'Al continuar esta conversación aceptas el tratamiento de tus datos conforme a nuestro Aviso de '
+    'Privacidad:',
+    enlace=URL_AVISO_PRIVACIDAD,
 )
 
 SYSTEM_PROMPT = f"""Eres Kooxi, el asistente virtual por WhatsApp de Quinta Ko'ox Tanil (QKT), una \
@@ -812,11 +812,12 @@ def _copiar_cobro_a_direccion(telefono_origen: str, resultado) -> None:
     """Aviso a Dirección de un cobro registrado por WhatsApp (sin el texto del
     chat). No se repite al número que lo confirmó."""
     reporte = resultado.reporte
-    texto = (f'Cobro con terminal registrado por WhatsApp: ${reporte.monto:,.2f} en '
-             f'COT-{reporte.cotizacion_id:03d}, reportado desde el número del rol {reporte.rol}.')
+    aviso = Aviso(titulo='Cobro con terminal registrado por WhatsApp', categoria='Cobro',
+                  lineas=[f'Monto: ${reporte.monto:,.2f}', f'Cotización: COT-{reporte.cotizacion_id:03d}',
+                          f'Reportado desde el número del rol {reporte.rol}'])
     for destino in telefonos_aviso('DIRECCION'):
         if destino != normalizar_telefono_wa(telefono_origen):
-            _enviar_aviso(destino, texto, clave=f'terminal:{reporte.pk}:copia:{destino}')
+            _enviar_aviso(destino, aviso, clave=f'terminal:{reporte.pk}:copia:{destino}')
 
 
 def _respuestas_de_hoy():
@@ -851,8 +852,9 @@ def _tope_alcanzado(conv) -> bool:
                         'Si es volumen normal y no un abuso, sube ERP_KOOXI_MAX_RESPUESTAS_DIA en Railway.'),
             )
             _avisar_propietario(
-                f'el asistente llegó a su tope de {settings.ERP_KOOXI_MAX_RESPUESTAS_DIA} respuestas '
-                'de hoy; las conversaciones nuevas quedan para una persona hasta mañana',
+                Aviso(titulo='El asistente llegó a su tope de respuestas', categoria='Kooxi', urgente=True,
+                      lineas=[f'Tope: {settings.ERP_KOOXI_MAX_RESPUESTAS_DIA} respuestas de hoy',
+                              'Las conversaciones nuevas quedan para una persona hasta mañana']),
                 rol='DIRECCION')
         return True
     return False
@@ -929,26 +931,17 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True, categoria: str = '')
         objeto=conv)
 
 
-def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:
+def _avisar_propietario(aviso: Aviso, rol: str = 'ENCARGADO') -> None:
     """Aviso por WhatsApp a los números del directorio de responsables para el
     `rol` (además del correo), porque el equipo revisa más WhatsApp que el correo.
 
-    Va en la plantilla aprobada `META_WA_PLANTILLA_OPERACIONES` («Tienes un aviso
-    nuevo: {{1}}»), que llega aunque no haya ventana de 24 h; sin plantilla, va
-    como texto libre. No lleva el texto de los mensajes del cliente: esta copia
-    no la alcanza la purga de conversaciones. Nunca lanza: un aviso caído no
-    debe tumbar la respuesta al cliente.
+    Con la ventana de 24 h cerrada, `_enviar_aviso` usa la plantilla aprobada del
+    equipo. No lleva el texto de los mensajes del cliente: esta copia no la
+    alcanza la purga de conversaciones. Nunca lanza: un aviso caído no debe
+    tumbar la respuesta al cliente.
     """
-    plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
     for destino in telefonos_aviso(rol):
-        try:
-            if plantilla:
-                enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
-                                         parametros=[resumen[:900]])
-            else:
-                enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=f'Aviso nuevo: {resumen}.')
-        except Exception:
-            logger.exception("Agente WhatsApp: no se pudo avisar al propietario por WhatsApp")
+        _enviar_aviso(destino, aviso)
 
 
 def _cliente_ia():

@@ -20,7 +20,7 @@ from django.utils import timezone
 from core_erp.horarios import formato_hora_ampm
 
 from . import services_pendientes
-from .formato_wa import Aviso
+from .formato_wa import Aviso, bloques
 from .models import HorarioVisita, Pendiente, Visita
 from .services import (
     enviar_whatsapp,
@@ -237,12 +237,12 @@ def decidir(visita_id: int, aceptar: bool, *, quien: str = '', usuario=None) -> 
             titulo=f'Visita confirmada: {visita.nombre}', categoria='Visita',
             lineas=[cuando.capitalize(), *_datos_equipo(visita)], cierre=recordatorios,
             enlace=_admin_url(visita)), 'confirmada_equipo', excepto=quien)
-        return (f'Listo, quedó confirmada la visita de {visita.nombre}: {cuando}. '
+        return (f'✅ Listo, quedó confirmada la visita de {visita.nombre}: {cuando}. '
                 f'Ya le avisé y le pedí que me escriba al llegar. {recordatorios}')
     _avisar_cliente(
-        visita, f'No pudimos confirmar tu visita del {cuando}.\n\nEscríbenos por aquí y te proponemos otro horario.',
-        'rechazada')
-    return f'Listo, avisamos a {visita.nombre} que no se puede el {cuando}. El horario quedó libre.'
+        visita, bloques(f'No pudimos confirmar tu visita del {cuando}.',
+                        'Escríbenos por aquí y te proponemos otro horario.'), 'rechazada')
+    return f'✅ Listo, avisamos a {visita.nombre} que no se puede el {cuando}. El horario quedó libre.'
 
 
 def cancelar(visita_id: int, usuario=None) -> bool:
@@ -262,8 +262,8 @@ def cancelar(visita_id: int, usuario=None) -> bool:
     if pendiente is not None:
         services_pendientes.resolver(pendiente, usuario)
     _avisar_cliente(
-        visita, f'Tu visita del {etiqueta(visita.inicio)} se canceló. Escríbenos por aquí y la reprogramamos.',
-        'cancelada')
+        visita, bloques(f'Tu visita del {etiqueta(visita.inicio)} se canceló.',
+                        'Escríbenos por aquí y la reprogramamos.'), 'cancelada')
     return True
 
 
@@ -304,10 +304,10 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
 def _texto_confirmada(visita) -> str:
     from .services_notificaciones import DOMICILIO_QKT, MAPS_URL_QKT
     nombre = visita.nombre.split()[0].title() if visita.nombre else ''
-    return (f"¡Listo{', ' + nombre if nombre else ''}! Tu visita a Quinta Ko'ox Tanil quedó confirmada 🌴\n\n"
-            f'*{etiqueta(visita.inicio).capitalize()}*\n'
-            f'{DOMICILIO_QKT}\n{MAPS_URL_QKT}\n\n'
-            f'{COMO_AVISAR_LLEGADA} Si necesitas cambiarla, escríbenos por aquí.')
+    return bloques(
+        f"¡Listo{', ' + nombre if nombre else ''}! Tu visita a Quinta Ko'ox Tanil quedó confirmada 🌴",
+        f'*{etiqueta(visita.inicio).capitalize()}*\n{DOMICILIO_QKT}',
+        COMO_AVISAR_LLEGADA, 'Si necesitas cambiarla, escríbenos por aquí.', enlace=MAPS_URL_QKT)
 
 
 def _vispera_pendiente(visita, ahora) -> bool:
@@ -366,9 +366,9 @@ def enviar_recordatorios(hoy=None) -> int:
                 recordatorio_en=timezone.now()):
             continue
         _avisar_cliente(
-            visita, f"Recordatorio: mañana te esperamos en Quinta Ko'ox Tanil para tu visita 🌴\n\n"
-                    f'*{etiqueta(visita.inicio).capitalize()}*\n\n'
-                    f'{COMO_AVISAR_LLEGADA} Si no puedes venir, avísanos por aquí.', 'recordatorio')
+            visita, bloques("Recordatorio: mañana te esperamos en Quinta Ko'ox Tanil para tu visita 🌴",
+                            f'*{etiqueta(visita.inicio).capitalize()}*', COMO_AVISAR_LLEGADA,
+                            'Si no puedes venir, avísanos por aquí.'), 'recordatorio')
         enviados += 1
     _resumen_equipo(manana)
     return enviados
@@ -403,8 +403,9 @@ def enviar_avisos_previos(ahora=None) -> int:
         confirmada_a_tiempo = (visita.decidida_en or ahora) <= visita.inicio - PREVIO_CLIENTE
         if confirmada_a_tiempo:
             _avisar_cliente(
-                visita, f"¡Hoy es tu visita a Quinta Ko'ox Tanil! Te esperamos a las *{hora(visita.inicio)}* 🌴\n\n"
-                        'Cuando llegues, toca «Ya llegué» o escríbemelo por aquí y le aviso al equipo para que te reciba.', 'previo',
+                visita, bloques(f"¡Hoy es tu visita a Quinta Ko'ox Tanil! Te esperamos a las *{hora(visita.inicio)}* 🌴",
+                                'Cuando llegues, toca «Ya llegué» o escríbemelo por aquí y le aviso al equipo para que te reciba.'),
+                'previo',
                 botones=[(f'lleg:{visita.pk}', 'Ya llegué')])
         if visita.inicio - ahora <= PREVIO_EQUIPO:
             minutos = max(1, int((visita.inicio - ahora).total_seconds() // 60))

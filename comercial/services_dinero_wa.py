@@ -123,7 +123,7 @@ def _ejecutar_devolucion(accion: AccionWhatsApp) -> str:
         desglose=f'Devolución completa registrada {_origen(accion)}.')
     accion.movimiento_deposito = (
         MovimientoDeposito.objects.filter(deposito=deposito, tipo='DEVOLUCION').order_by('-pk').first())
-    return f'Listo: registré la devolución de {dinero(custodia)} del depósito de {folio(cot)}.'
+    return f'✅ Listo: registré la devolución de {dinero(custodia)} del depósito de {folio(cot)}.'
 
 
 # ─────────────────────────── Descuento manual existente ─────────────────────
@@ -184,7 +184,7 @@ def _ejecutar_descuento(accion: AccionWhatsApp) -> str:
     if regla.pk != accion.parametros.get('descuento_id') or ahorro != accion.monto:
         raise OrdenError(f'El importe cambió ({dinero(ahorro)} en vez de {dinero(accion.monto)}). Pídelo de nuevo.')
     accion.descuento_aplicado = DescuentoService.aplicar(cot, regla, usuario=None, modo='MANUAL')
-    return f'Listo: apliqué «{regla.nombre}» a {folio(cot)}. El cliente ahorra {dinero(ahorro)} con IVA incluido.'
+    return f'✅ Listo: apliqué «{regla.nombre}» a {folio(cot)}. El cliente ahorra {dinero(ahorro)} con IVA incluido.'
 
 
 # ─────────────────── Reembolso ya hecho fuera del sistema ───────────────────
@@ -241,7 +241,7 @@ def _ejecutar_reembolso(accion: AccionWhatsApp) -> str:
     pago.full_clean()
     pago.save()   # corren los signals de póliza, igual que desde el admin
     accion.pago = pago
-    return f'Listo: registré el reembolso de {dinero(monto)} en {folio(cot)}.'
+    return f'✅ Listo: registré el reembolso de {dinero(monto)} en {folio(cot)}.'
 
 
 EJECUTORES = {
