@@ -35,6 +35,7 @@ from .models import (
     Visita,
 )
 from .services import normalizar_telefono_wa
+from .services_pendientes import resolver_de_objeto
 
 
 @admin.register(ComunicacionCliente)
@@ -177,6 +178,8 @@ class ConversacionWhatsAppAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
+        if change and 'requiere_humano' in form.changed_data and not obj.requiere_humano:
+            resolver_de_objeto(obj, request.user)
         texto = form.cleaned_data.get('responder')
         if not texto:
             return
@@ -189,7 +192,10 @@ class ConversacionWhatsAppAdmin(admin.ModelAdmin):
 
     @admin.action(description='Reactivar el agente en las seleccionadas')
     def reactivar_agente(self, request, queryset):
+        convs = list(queryset)
         n = queryset.update(requiere_humano=False, motivo_humano='', pausado_hasta=None)
+        for conv in convs:
+            resolver_de_objeto(conv, request.user)
         self.message_user(request, f'Agente reactivado en {n} conversación(es).')
 
 
