@@ -130,8 +130,12 @@ CONSENTIMIENTO_VIGENTE = timedelta(hours=24)
 AVISO_INICIAL = bloques(
     "¡Hola! Soy *Kooxi*, el asistente virtual de Quinta Ko'ox Tanil. Funciono con inteligencia "
     "artificial, no soy una persona.",
-    'Puedo darte precios, revisar fechas, consultar tu reservación, preparar tu cotización y resolver '
-    'dudas. Si prefieres que te atienda alguien del equipo, solo escríbelo.',
+    '*¿Qué puedo hacer por ti?*',
+    datos=('Darte precios', 'Revisar la disponibilidad de tu fecha',
+           'Agendar una visita para que conozcas la Quinta', 'Consultar tu reservación',
+           'Preparar tu cotización y acompañarte en tu contratación', 'Resolver tus dudas'),
+) + '\n\n' + bloques(
+    'Si en algún momento prefieres que te atienda alguien del equipo, solo escríbelo.',
     'Al continuar esta conversación aceptas el tratamiento de tus datos conforme a nuestro Aviso de '
     'Privacidad:',
     enlace=URL_AVISO_PRIVACIDAD,
