@@ -1,6 +1,7 @@
 """
-Cron diario: recuerda al cliente, el día anterior, su visita confirmada a la
-Quinta (Fase 2a). Una sola vez por visita.
+Cron diario (18:00): recuerda al cliente, el día anterior, su visita confirmada
+a la Quinta (Fase 2a), una sola vez, y le manda al equipo el resumen de las
+visitas de mañana.
 
 Uso:
     python manage.py enviar_recordatorios_visitas

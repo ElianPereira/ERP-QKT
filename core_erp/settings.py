@@ -390,6 +390,10 @@ META_WA_PLANTILLA_SOLICITUD_FACTURA = env('META_WA_PLANTILLA_SOLICITUD_FACTURA',
 # manda solo el texto libre, funciona mientras la ventana de 24h esté
 # abierta — mismo criterio que el resto de mensajería interna sin plantilla.
 META_WA_PLANTILLA_OPERACIONES = env('META_WA_PLANTILLA_OPERACIONES', default='')
+# Avisos al equipo en bloques (encabezado, título, datos, enlace) fuera de la
+# ventana de 24 h; vacía = cae a META_WA_PLANTILLA_OPERACIONES con todo en un
+# renglón. Texto a someter en docs/whatsapp_plantilla_aviso_equipo.md.
+META_WA_PLANTILLA_AVISO_EQUIPO = env('META_WA_PLANTILLA_AVISO_EQUIPO', default='')
 
 # --- AGENTE DE WHATSAPP CON IA (Issue #346) ---
 # Webhook entrante: el token lo inventa quien da de alta el webhook en Meta;
