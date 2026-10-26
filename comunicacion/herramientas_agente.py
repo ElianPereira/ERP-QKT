@@ -253,6 +253,25 @@ HERRAMIENTAS = [
         },
     },
     {
+        'name': 'avisar_llegada',
+        'description': (
+            'Avisa al equipo, al momento, que el cliente que escribe ya llegó a la Quinta o va en camino, '
+            'para que alguien lo reciba en la entrada. Úsala cuando diga que ya llegó, que está afuera, en '
+            'la puerta o en el portón, que le abran, cómo entrar o «cómo tengo acceso» estando aquí, o que va '
+            'en camino; tenga o no cita o reservación (la herramienta la busca por su número). No le des la '
+            'ubicación ni le ofrezcas agendar en su lugar.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'situacion': {'type': 'string', 'enum': ['ya_llego', 'en_camino']},
+                'minutos': {'type': 'integer', 'description': 'Solo en_camino: en cuántos minutos llega, si lo dijo.'},
+            },
+            'required': ['situacion'],
+            'additionalProperties': False,
+        },
+    },
+    {
         'name': 'solicitar_cambio_o_cancelacion',
         'description': (
             'Registra una solicitud de cambio de fecha o de cancelación de una reservación del número que '
@@ -903,6 +922,11 @@ def agendar_visita(conv=None, inicio=None, nombre=None, personas=None):
     return services_visitas.agendar(conv, inicio, nombre, personas)
 
 
+def avisar_llegada(conv=None, situacion=None, minutos=None):
+    from comunicacion import services_llegada
+    return services_llegada.avisar_llegada(conv, situacion, minutos)
+
+
 _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
@@ -916,6 +940,7 @@ _EJECUTORES = {
 _EJECUTORES_DEL_CLIENTE = {
     'mi_reservacion': mi_reservacion,
     'agendar_visita': agendar_visita,
+    'avisar_llegada': avisar_llegada,
     'crear_cotizacion': crear_cotizacion,
     'registrar_pregunta_sin_respuesta': registrar_pregunta_sin_respuesta,
     'dar_de_baja_promociones': dar_de_baja_promociones,

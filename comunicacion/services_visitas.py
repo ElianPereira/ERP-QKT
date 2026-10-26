@@ -20,8 +20,15 @@ from django.utils import timezone
 from core_erp.horarios import formato_hora_ampm
 
 from . import services_pendientes
+from .formato_wa import Aviso
 from .models import HorarioVisita, Pendiente, Visita
-from .services import enviar_whatsapp, enviar_whatsapp_template, normalizar_telefono_wa, texto_plano_wa
+from .services import (
+    enviar_whatsapp,
+    enviar_whatsapp_botones,
+    enviar_whatsapp_template,
+    normalizar_telefono_wa,
+    texto_plano_wa,
+)
 from .services_responsables import telefono_de, telefonos_aviso
 
 logger = logging.getLogger(__name__)
@@ -31,7 +38,15 @@ HORIZONTE_DIAS = 14
 MAX_POR_DIA = 3                         # cuántos horarios de un mismo día se ofrecen
 MAX_OFRECIDOS = 9
 PLAZO_CONFIRMAR = timedelta(hours=4)
+# Recordatorios del mismo día: al cliente 2 h antes (solo si se confirmó antes
+# de eso; si no, la confirmación misma es reciente) y al equipo 45 min antes.
+PREVIO_CLIENTE = timedelta(hours=2)
+PREVIO_EQUIPO = timedelta(minutes=45)
+COMO_AVISAR_LLEGADA = 'Cuando llegues, escríbeme «ya llegué» por aquí y le aviso al equipo para que te reciba.'
 RE_BOTON = re.compile(r'^vis:(\d+):(ok|no)$')
+# «Ya llegué» del recordatorio del mismo día: lo toca el cliente, no el equipo.
+RE_BOTON_LLEGADA = re.compile(r'^lleg:(\d+)$')
+MENSAJE_LLEGADA = '¡Bienvenido! Ya le avisé al equipo: en un momento alguien te recibe en la entrada.'
 DIAS = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
 MESES = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre',
          'octubre', 'noviembre', 'diciembre')
@@ -45,8 +60,22 @@ def etiqueta(inicio) -> str:
     return f'{DIAS[local.weekday()]} {local.day} de {MESES[local.month - 1]}, {formato_hora_ampm(local.time())}'
 
 
+def hora(inicio) -> str:
+    return formato_hora_ampm(timezone.localtime(inicio).time())
+
+
+def telefono_legible(telefono: str) -> str:
+    """«999 123 4567» con los últimos 10 dígitos, para que el equipo marque directo."""
+    digitos = ''.join(filter(str.isdigit, telefono or ''))[-10:]
+    return f'{digitos[:3]} {digitos[3:6]} {digitos[6:]}' if len(digitos) == 10 else (telefono or '—')
+
+
 def _clave_aviso(visita, evento: str) -> str:
     return f'visita:{visita.pk}:{evento}'
+
+
+def _datos_equipo(visita) -> list:
+    return [f'{visita.personas} personas' if visita.personas else '', f'Tel. {telefono_legible(visita.telefono)}']
 
 
 def horarios_disponibles(ahora=None, dias: int = HORIZONTE_DIAS, limite: Optional[int] = MAX_OFRECIDOS) -> list:
@@ -95,7 +124,8 @@ def id_boton(visita_id: int, accion: str) -> str:
 
 
 def es_boton(texto: str) -> bool:
-    return bool(RE_BOTON.match((texto or '').strip()))
+    texto = (texto or '').strip()
+    return bool(RE_BOTON.match(texto) or RE_BOTON_LLEGADA.match(texto))
 
 
 def agendar(conv, inicio_texto, nombre, personas=None) -> dict:
@@ -145,7 +175,9 @@ def _avisar_encargado(visita) -> None:
             detalle=f'{visita.nombre}{personas} pidió conocer la Quinta el {cuando}.',
             objeto=visita, vence_en=min(timezone.now() + PLAZO_CONFIRMAR, visita.inicio),
             clave_idempotencia=_clave_aviso(visita, 'por_confirmar'))
-        texto = f'Visita por confirmar: {visita.nombre}{personas}, {cuando}. Abrir: {_admin_url(visita)}'
+        texto = Aviso(titulo=f'Visita por confirmar: {visita.nombre}', categoria='Visita',
+                      lineas=[cuando.capitalize(), *_datos_equipo(visita)],
+                      cierre='¿La recibes? Al confirmar le aviso al cliente.', enlace=_admin_url(visita))
         botones = [(id_boton(visita.pk, 'ok'), 'Confirmar'), (id_boton(visita.pk, 'no'), 'No puedo')]
         for destino in telefonos_aviso('ENCARGADO'):
             services_pendientes._enviar_aviso(destino, texto, botones=botones,
@@ -156,14 +188,19 @@ def _avisar_encargado(visita) -> None:
 
 # ───────────────────────────── Decidir ───────────────────────────────────────
 
-def _avisar_cliente(visita, texto: str, evento: str) -> None:
-    """Texto libre si la ventana de 24 h está abierta; si no, la plantilla de
-    visitas (o, sin plantilla, texto libre, que Meta puede rechazar). Queda en
-    la conversación como mensaje automático para que Kooxi sepa qué pasó."""
+def _avisar_cliente(visita, texto: str, evento: str, botones=None) -> None:
+    """Texto libre (con `botones`, si los hay) si la ventana de 24 h está
+    abierta; si no, la plantilla de visitas sin botones (o, sin plantilla, texto
+    libre, que Meta puede rechazar). Queda en la conversación como mensaje
+    automático para que Kooxi sepa qué pasó."""
     try:
         clave = _clave_aviso(visita, evento)
         plantilla = getattr(settings, 'META_WA_PLANTILLA_VISITA', '') or ''
-        if plantilla and not services_pendientes.ventana_abierta(visita.telefono):
+        abierta = services_pendientes.ventana_abierta(visita.telefono)
+        if botones and abierta:
+            comm = enviar_whatsapp_botones(tipo='OTRO', telefono=visita.telefono, mensaje=texto,
+                                           botones=botones, clave_idempotencia=clave)
+        elif plantilla and not abierta:
             comm = enviar_whatsapp_template(
                 tipo='OTRO', telefono=visita.telefono, template_name=plantilla,
                 parametros=[texto_plano_wa(texto)], trigger='SIGNAL', clave_idempotencia=clave)
@@ -194,12 +231,16 @@ def decidir(visita_id: int, aceptar: bool, *, quien: str = '', usuario=None) -> 
         services_pendientes.resolver(pendiente, usuario)
     cuando = etiqueta(visita.inicio)
     if aceptar:
-        _avisar_cliente(
-            visita, f"Tu visita a Quinta Ko'ox Tanil quedó confirmada para el {cuando}. Te esperamos. "
-                    'Si necesitas cambiarla, escríbenos por aquí.', 'confirmada')
-        return f'Listo, quedó confirmada la visita de {visita.nombre}: {cuando}.'
+        _avisar_cliente(visita, _texto_confirmada(visita), 'confirmada')
+        recordatorios = _plan_recordatorios(visita)
+        _avisar_equipo(visita, Aviso(
+            titulo=f'Visita confirmada: {visita.nombre}', categoria='Visita',
+            lineas=[cuando.capitalize(), *_datos_equipo(visita)], cierre=recordatorios,
+            enlace=_admin_url(visita)), 'confirmada_equipo', excepto=quien)
+        return (f'Listo, quedó confirmada la visita de {visita.nombre}: {cuando}. '
+                f'Ya le avisé y le pedí que me escriba al llegar. {recordatorios}')
     _avisar_cliente(
-        visita, f'No pudimos confirmar tu visita del {cuando}. Escríbenos por aquí y te proponemos otro horario.',
+        visita, f'No pudimos confirmar tu visita del {cuando}.\n\nEscríbenos por aquí y te proponemos otro horario.',
         'rechazada')
     return f'Listo, avisamos a {visita.nombre} que no se puede el {cuando}. El horario quedó libre.'
 
@@ -226,23 +267,96 @@ def cancelar(visita_id: int, usuario=None) -> bool:
     return True
 
 
+def _atender_llegada(telefono: str, visita_id: int) -> Optional[str]:
+    """«Ya llegué» del recordatorio: solo vale desde el teléfono de esa visita,
+    viva y de hoy. Avisa al equipo igual que si lo escribiera."""
+    from .models import ConversacionWhatsApp
+    from .services_llegada import avisar_llegada
+    visita = Visita.objects.filter(pk=visita_id, telefono=telefono, estado__in=Visita.ACTIVAS,
+                                   inicio__date=timezone.localdate()).first()
+    conv = ConversacionWhatsApp.objects.filter(telefono=telefono).first()
+    if visita is None or conv is None:
+        return None
+    avisar_llegada(conv, 'ya_llego')
+    return MENSAJE_LLEGADA
+
+
 def atender_boton(telefono: str, texto: str) -> Optional[str]:
     """Botón `vis:<id>:ok|no`: solo vale desde el teléfono activo del ENCARGADO o
-    de DIRECCION. Devuelve el texto con que contestarle, o None si no hizo nada."""
-    coincide = RE_BOTON.match((texto or '').strip())
+    de DIRECCION. `lleg:<id>`: solo desde el teléfono del cliente de esa visita.
+    Devuelve el texto con que contestarle, o None si no hizo nada."""
+    texto = (texto or '').strip()
+    telefono = normalizar_telefono_wa(telefono)
+    llegada = RE_BOTON_LLEGADA.match(texto)
+    if llegada:
+        return _atender_llegada(telefono, int(llegada.group(1))) if telefono else None
+    coincide = RE_BOTON.match(texto)
     if not coincide:
         return None
-    telefono = normalizar_telefono_wa(telefono)
     autorizados = {telefono_de('ENCARGADO'), telefono_de('DIRECCION')} - {''}
     if not telefono or telefono not in autorizados:
         return None
     return decidir(int(coincide.group(1)), coincide.group(2) == 'ok', quien=telefono)
 
 
-# ───────────────────────────── Recordatorio ──────────────────────────────────
+# ───────────────────────────── Recordatorios ─────────────────────────────────
+
+def _texto_confirmada(visita) -> str:
+    from .services_notificaciones import DOMICILIO_QKT, MAPS_URL_QKT
+    nombre = visita.nombre.split()[0].title() if visita.nombre else ''
+    return (f"¡Listo{', ' + nombre if nombre else ''}! Tu visita a Quinta Ko'ox Tanil quedó confirmada 🌴\n\n"
+            f'*{etiqueta(visita.inicio).capitalize()}*\n'
+            f'{DOMICILIO_QKT}\n{MAPS_URL_QKT}\n\n'
+            f'{COMO_AVISAR_LLEGADA} Si necesitas cambiarla, escríbenos por aquí.')
+
+
+def _vispera_pendiente(visita, ahora) -> bool:
+    """El recordatorio de la víspera (cron de las 18:00 del día anterior) aún no pasa."""
+    dia_antes = timezone.localdate(visita.inicio) - timedelta(days=1)
+    corte = timezone.make_aware(datetime.combine(dia_antes, datetime.min.time()) + timedelta(hours=18),
+                                timezone.get_current_timezone())
+    return ahora < corte
+
+
+def _plan_recordatorios(visita, ahora=None) -> str:
+    """Qué recordatorios saldrán según cuánto falta (se dice al confirmar)."""
+    ahora = ahora or timezone.now()
+    vispera = _vispera_pendiente(visita, ahora)
+    equipo = (['la víspera'] if vispera else []) + (
+        ['45 min antes'] if visita.inicio - PREVIO_EQUIPO > ahora else [])
+    cliente = (['la víspera'] if vispera else []) + (
+        ['2 h antes'] if visita.inicio - PREVIO_CLIENTE > ahora else [])
+    partes = []
+    if equipo:
+        partes.append(f"a ti, {' y '.join(equipo)}")
+    if cliente:
+        partes.append(f"al cliente, {' y '.join(cliente)}")
+    return f"Recordatorios: {'; '.join(partes)}." if partes else 'Ya no da tiempo de recordatorios: es en breve.'
+
+
+def _avisar_equipo(visita, aviso: Aviso, evento: str, excepto: str = '') -> int:
+    """Aviso a los números del encargado (y Dirección con copia en vivo), uno
+    por número y evento. Devuelve a cuántos salió."""
+    enviados = 0
+    excepto = normalizar_telefono_wa(excepto) if excepto else ''
+    for destino in telefonos_aviso('ENCARGADO'):
+        if destino == excepto:
+            continue
+        comm = services_pendientes._enviar_aviso(destino, aviso, clave=_clave_aviso(visita, f'{evento}:{destino}'))
+        enviados += int(comm is not None)
+    return enviados
+
+
+def llego(visita) -> bool:
+    """El cliente ya avisó por el chat que llegó o va en camino."""
+    from django.contrib.contenttypes.models import ContentType
+    return Pendiente.objects.filter(tipo='LLEGADA', content_type=ContentType.objects.get_for_model(Visita),
+                                    object_id=visita.pk).exists()
+
 
 def enviar_recordatorios(hoy=None) -> int:
-    """Recuerda al cliente, el día anterior, su visita CONFIRMADA. Una sola vez."""
+    """Víspera: recuerda al cliente su visita CONFIRMADA de mañana (una sola vez)
+    y le manda al equipo un resumen con las visitas de mañana."""
     hoy = hoy or timezone.localdate()
     manana = hoy + timedelta(days=1)
     enviados = 0
@@ -252,7 +366,51 @@ def enviar_recordatorios(hoy=None) -> int:
                 recordatorio_en=timezone.now()):
             continue
         _avisar_cliente(
-            visita, f"Recordatorio: mañana, {etiqueta(visita.inicio)}, te esperamos en Quinta Ko'ox Tanil para "
-                    'tu visita. Si no puedes venir, avísanos por aquí.', 'recordatorio')
+            visita, f"Recordatorio: mañana te esperamos en Quinta Ko'ox Tanil para tu visita 🌴\n\n"
+                    f'*{etiqueta(visita.inicio).capitalize()}*\n\n'
+                    f'{COMO_AVISAR_LLEGADA} Si no puedes venir, avísanos por aquí.', 'recordatorio')
         enviados += 1
+    _resumen_equipo(manana)
+    return enviados
+
+
+def _resumen_equipo(dia) -> None:
+    visitas = list(Visita.objects.filter(estado__in=Visita.ACTIVAS, inicio__date=dia).order_by('inicio'))
+    if not visitas:
+        return
+    lineas = [f"{hora(v.inicio)} · {v.nombre}{f' ({v.personas} personas)' if v.personas else ''}"
+              f"{'' if v.estado == 'CONFIRMADA' else ' · POR CONFIRMAR'}" for v in visitas]
+    total = len(visitas)
+    aviso = Aviso(titulo=f"Mañana {'tienes 1 visita' if total == 1 else f'tienes {total} visitas'}",
+                  categoria='Visita', lineas=lineas,
+                  cierre='Te aviso 45 min antes de cada una y cuando el cliente me diga que llegó.',
+                  enlace=(getattr(settings, 'ERP_PORTAL_URL', '') or '').rstrip('/')
+                  + reverse('admin:comunicacion_visita_changelist'))
+    for destino in telefonos_aviso('ENCARGADO'):
+        services_pendientes._enviar_aviso(destino, aviso, clave=f'visitas:{dia}:resumen:{destino}')
+
+
+def enviar_avisos_previos(ahora=None) -> int:
+    """El mismo día: al cliente 2 h antes (si se confirmó antes de eso) y al
+    equipo 45 min antes, salvo que el cliente ya haya avisado que llegó. Cada
+    aviso sale una vez (clave de idempotencia). Devuelve cuántos salieron."""
+    ahora = ahora or timezone.now()
+    enviados = 0
+    for visita in Visita.objects.filter(estado='CONFIRMADA', inicio__gt=ahora,
+                                        inicio__lte=ahora + PREVIO_CLIENTE).order_by('inicio'):
+        if llego(visita):
+            continue
+        confirmada_a_tiempo = (visita.decidida_en or ahora) <= visita.inicio - PREVIO_CLIENTE
+        if confirmada_a_tiempo:
+            _avisar_cliente(
+                visita, f"¡Hoy es tu visita a Quinta Ko'ox Tanil! Te esperamos a las *{hora(visita.inicio)}* 🌴\n\n"
+                        'Cuando llegues, toca «Ya llegué» o escríbemelo por aquí y le aviso al equipo para que te reciba.', 'previo',
+                botones=[(f'lleg:{visita.pk}', 'Ya llegué')])
+        if visita.inicio - ahora <= PREVIO_EQUIPO:
+            minutos = max(1, int((visita.inicio - ahora).total_seconds() // 60))
+            enviados += _avisar_equipo(visita, Aviso(
+                titulo=f'En {minutos} min llega {visita.nombre} a su visita', categoria='Visita', urgente=True,
+                lineas=[f'Hora: {hora(visita.inicio)}', *_datos_equipo(visita)],
+                cierre='Que alguien esté listo para recibirla. Te aviso si me escribe que ya llegó.',
+                enlace=_admin_url(visita)), 'previo_equipo')
     return enviados

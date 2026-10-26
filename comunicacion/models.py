@@ -388,6 +388,7 @@ class Pendiente(models.Model):
         ('PASE_HUMANO', 'Pase a humano'),
         ('QUEJA', 'Queja'),
         ('VISITA', 'Visita'),
+        ('LLEGADA', 'Llegada'),
         ('CHOQUE_FECHA', 'Choque de fecha'),
         ('CONTRACARGO', 'Contracargo'),
         ('SAT', 'SAT'),

@@ -20,6 +20,7 @@ from django.db import IntegrityError, transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from .formato_wa import Aviso
 from .models import MensajeWhatsApp, Pendiente
 from .services import (
     enviar_whatsapp,
@@ -71,51 +72,72 @@ def ventana_abierta(telefono: str) -> bool:
         created_at__gte=timezone.now() - VENTANA_WA).exists()
 
 
-def _enviar_aviso(telefono: str, texto: str, *, botones=None, clave: Optional[str] = None):
-    """Botones si la ventana está abierta; si no, la plantilla de operaciones con
-    el texto aplanado (o texto libre sin plantilla). Nunca lanza."""
+def _enviar_aviso(telefono: str, texto, *, botones=None, clave: Optional[str] = None):
+    """Botones si la ventana está abierta; si no, una plantilla. `texto` es un
+    `Aviso` (formato en bloques y la plantilla del equipo de 4 parámetros) o,
+    en los avisos que aún no lo usan, un texto suelto. Sin plantilla del equipo
+    va la de operaciones con el texto aplanado, y sin ninguna, texto libre.
+    Nunca lanza."""
     try:
-        if botones and ventana_abierta(telefono):
-            comm = enviar_whatsapp_botones(tipo='OTRO', telefono=telefono, mensaje=texto, botones=botones)
+        aviso = texto if isinstance(texto, Aviso) else None
+        mensaje = aviso.texto() if aviso else texto
+        abierta = ventana_abierta(telefono)
+        if botones and abierta:
+            comm = enviar_whatsapp_botones(tipo='OTRO', telefono=telefono, mensaje=mensaje, botones=botones)
             if comm is not None and comm.estado != 'FALLIDO':
                 return comm
+        if aviso and abierta:
+            return enviar_whatsapp(tipo='OTRO', telefono=telefono, mensaje=mensaje, clave_idempotencia=clave)
+        plantilla_equipo = getattr(settings, 'META_WA_PLANTILLA_AVISO_EQUIPO', '') or ''
+        if aviso and plantilla_equipo:
+            return enviar_whatsapp_template(
+                tipo='OTRO', telefono=telefono, template_name=plantilla_equipo,
+                parametros=aviso.parametros(), clave_idempotencia=clave)
         plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
         if plantilla:
+            plano = aviso.plano() if aviso else texto_plano_wa(texto)[:LIMITE_PARAMETRO]
             return enviar_whatsapp_template(
                 tipo='OTRO', telefono=telefono, template_name=plantilla,
-                parametros=[texto_plano_wa(texto)[:LIMITE_PARAMETRO]], clave_idempotencia=clave)
-        return enviar_whatsapp(tipo='OTRO', telefono=telefono, mensaje=texto, clave_idempotencia=clave)
+                parametros=[plano], clave_idempotencia=clave)
+        return enviar_whatsapp(tipo='OTRO', telefono=telefono, mensaje=mensaje, clave_idempotencia=clave)
     except Exception:
         logger.exception("Pendientes: no se pudo avisar por WhatsApp")
         return None
 
 
-def _avisar_urgente(pendiente, botones=None) -> None:
+def aviso_de(pendiente, *, urgente: bool = True, cierre: str = '') -> Aviso:
+    """El pendiente en bloques: tipo, título, cada renglón del detalle y su enlace."""
+    lineas = [linea for linea in (pendiente.detalle or '').splitlines() if linea.strip()]
+    return Aviso(titulo=pendiente.titulo, categoria=pendiente.get_tipo_display(), urgente=urgente,
+                 lineas=[linea[:300] for linea in lineas[:8]], enlace=url_pendiente(pendiente), cierre=cierre)
+
+
+def _avisar_urgente(pendiente, botones=None, etiqueta_ok: str = 'Resuelto') -> None:
     """Aviso inmediato al rol y, si tiene la copia en vivo, a Dirección. Con
     `botones` el responsable recibe esos (p. ej. aprobar/rechazar) en vez de
-    «Resuelto»; la copia a Dirección sigue con «Intervengo»."""
+    «Resuelto» (o `etiqueta_ok`); la copia a Dirección sigue con «Intervengo»."""
     destinos = telefonos_aviso(pendiente.rol)
     if not destinos:
         logger.error("%s; el pendiente %s queda solo en la bandeja", SIN_DESTINO, pendiente.pk)
         return
     principal = telefono_de(pendiente.rol)
-    detalle = f' {pendiente.detalle[:300]}' if pendiente.detalle else ''
-    texto = f'URGENTE: {pendiente.titulo}.{detalle} Abrir: {url_pendiente(pendiente)}'
+    aviso = aviso_de(pendiente)
     for destino in destinos:
         if botones and destino == principal:
-            _enviar_aviso(destino, texto, botones=botones)
+            _enviar_aviso(destino, aviso, botones=botones)
             continue
         accion = BOTON_OK if destino == principal else BOTON_TOMAR
-        etiqueta = 'Resuelto' if accion == BOTON_OK else 'Intervengo'
-        _enviar_aviso(destino, texto, botones=[(id_boton(pendiente.pk, accion), etiqueta)])
+        etiqueta = etiqueta_ok if accion == BOTON_OK else 'Intervengo'
+        _enviar_aviso(destino, aviso, botones=[(id_boton(pendiente.pk, accion), etiqueta)])
 
 
 def registrar_pendiente(*, titulo: str, rol: str, tipo: str = 'ALERTA', severidad: str = 'NORMAL',
                         detalle: str = '', objeto=None, vence_en=None,
                         clave_idempotencia: Optional[str] = None, usuario=None,
-                        botones=None) -> Optional[Pendiente]:
+                        botones=None, etiqueta_ok: str = 'Resuelto') -> Optional[Pendiente]:
     """Deja un pendiente en la bandeja. Idempotente por clave (repetirla devuelve
-    el existente sin avisar de nuevo) y nunca lanza: devuelve None si no pudo."""
+    el existente sin avisar de nuevo) y nunca lanza: devuelve None si no pudo.
+    Cada renglón de `detalle` sale como un dato aparte en el aviso."""
     try:
         if clave_idempotencia:
             existente = Pendiente.objects.filter(clave_idempotencia=clave_idempotencia).first()
@@ -139,7 +161,7 @@ def registrar_pendiente(*, titulo: str, rol: str, tipo: str = 'ALERTA', severida
         logger.exception("Pendientes: no se pudo registrar «%s»", titulo)
         return None
     if severidad == 'URGENTE':
-        _avisar_urgente(pendiente, botones)
+        _avisar_urgente(pendiente, botones, etiqueta_ok)
     return pendiente
 
 
@@ -230,9 +252,7 @@ def escalar_vencidos(ahora=None) -> int:
         destino = telefono_de('DIRECCION')
         if destino:
             _enviar_aviso(
-                destino,
-                f'URGENTE, sin atender a tiempo por el encargado: {pendiente.titulo}. '
-                f'Abrir: {url_pendiente(pendiente)}',
+                destino, aviso_de(pendiente, cierre='El encargado no lo atendió a tiempo.'),
                 botones=[(id_boton(pendiente.pk, BOTON_OK), 'Resuelto')],
                 clave=f'pend:{pendiente.pk}:escalado')
     return escalados

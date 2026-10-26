@@ -500,6 +500,7 @@ def enviar_whatsapp_botones(
     mensaje: str,
     botones: list,
     trigger: str = 'SIGNAL',
+    clave_idempotencia: Optional[str] = None,
 ) -> Optional[ComunicacionCliente]:
     """Mensaje interactivo con hasta 3 botones de respuesta, `[(id, título), …]`.
 
@@ -511,6 +512,7 @@ def enviar_whatsapp_botones(
         canal='WHATSAPP', tipo=tipo, trigger=trigger,
         destinatario=destino or str(telefono or ''), asunto='',
         cuerpo=(mensaje + '\n' + ' | '.join(t for _, t in botones))[:5000], estado='PENDIENTE',
+        clave_idempotencia=clave_idempotencia,
     )
     if comm is None:
         return None

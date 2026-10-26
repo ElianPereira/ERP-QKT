@@ -56,6 +56,7 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_WA_PLANTILLA_ALERTA_CONTRACARGO` | Plantilla de alerta interna de contracargo. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_ALERTA_CONTRACARGO` |
 | `META_WA_PLANTILLA_SOLICITUD_FACTURA` | Plantilla (documento) de solicitud de factura al contador. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_SOLICITUD_FACTURA` |
 | `META_WA_PLANTILLA_OPERACIONES` | Plantilla de avisos internos y de operaciones («Tienes un aviso nuevo: {{1}}»). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_OPERACIONES` |
+| `META_WA_PLANTILLA_AVISO_EQUIPO` | Plantilla de avisos al equipo en bloques (4 parámetros: encabezado, título, datos, enlace); vacía = se usa la de operaciones en un renglón. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 
 ## ANTHROPIC — modelo de Kooxi
 

@@ -66,8 +66,9 @@ def _costo(uso: dict) -> Decimal:
 
 
 def _efectos_simulados(stack: ExitStack) -> None:
-    from . import herramientas_agente, services_agente
+    from . import herramientas_agente, services_agente, services_pendientes
     stack.enter_context(patch.object(services_agente, '_avisar_propietario'))
+    stack.enter_context(patch.object(services_pendientes, '_enviar_aviso'))
     stack.enter_context(patch.object(services_agente, 'alertar_equipo_email'))
     stack.enter_context(patch.object(services_agente, 'enviar_whatsapp_botones', return_value=None))
     stack.enter_context(patch.dict(herramientas_agente._EJECUTORES_DEL_CLIENTE, {

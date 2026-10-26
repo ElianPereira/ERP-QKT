@@ -132,6 +132,7 @@ TAREAS = (
     Tarea('solicitar_inspecciones_deposito', 'solicitar_inspecciones_deposito', diario('09:45'), 6 * HORA),
     Tarea('devolver_depositos_sin_reporte', 'devolver_depositos_sin_reporte', cada(60), 3 * HORA, ('--aplicar',)),
     Tarea('enviar_recordatorios_visitas', 'enviar_recordatorios_visitas', diario('18:00'), 3 * HORA),
+    Tarea('enviar_avisos_previos_visitas', 'enviar_avisos_previos_visitas', cada(10), 30 * MIN),
     Tarea('revisar_pendientes', 'revisar_pendientes', cada(15), 45 * MIN),
     Tarea('enviar_resumen_diario', 'enviar_resumen_diario', diario('08:00'), 6 * HORA),
     Tarea('enviar_resumen_semanal', 'enviar_resumen_semanal', semanal(LUNES, '08:30'), 24 * HORA),
