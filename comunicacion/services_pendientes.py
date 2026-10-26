@@ -271,10 +271,10 @@ def copiar_cada_hora(ahora=None) -> int:
     lineas = [p.titulo[:70] for p in nuevos[:MAS_VIEJOS]]
     if len(nuevos) > MAS_VIEJOS:
         lineas.append(f'y {len(nuevos) - MAS_VIEJOS} más')
-    texto = Aviso(titulo=f'{len(nuevos)} pendientes nuevos del encargado', categoria='Copia por hora',
+    aviso = Aviso(titulo=f'{len(nuevos)} pendientes nuevos del encargado', categoria='Copia por hora',
                   lineas=lineas, enlace=url_bandeja())
     botones = [(id_boton(nuevos[0].pk, BOTON_TOMAR), 'Intervengo')] if len(nuevos) == 1 else None
-    comm = _enviar_aviso(telefono_de('DIRECCION'), texto, botones=botones,
+    comm = _enviar_aviso(telefono_de('DIRECCION'), aviso, botones=botones,
                          clave=f'pend:copia:{ahora:%Y%m%d%H}')
     if comm is None or comm.estado == 'FALLIDO':
         return 0

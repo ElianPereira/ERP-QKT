@@ -138,7 +138,8 @@ class EnvioTest(TestCase):
             mail.return_value = _ok()
             sa.procesar_avisos(HOY, aplicar=True)
         fila = AvisoVencimiento.objects.get(canal='WHATSAPP')
-        self.assertEqual((fila.estado, fila.detalle), ('FALLIDO', 'boom'))
+        # `_enviar_aviso` nunca lanza: el error queda en el log y la fila en FALLIDO
+        self.assertEqual((fila.estado, fila.detalle), ('FALLIDO', 'No se pudo enviar'))
 
     def test_pendiente_reciente_de_otra_corrida_no_se_repite(self):
         AvisoVencimiento.objects.create(vigencia=self.v, umbral=7, canal='WHATSAPP', estado='PENDIENTE')

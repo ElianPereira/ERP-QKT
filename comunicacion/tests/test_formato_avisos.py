@@ -5,7 +5,7 @@ from pathlib import Path
 from django.conf import settings
 from django.test import SimpleTestCase
 
-from comunicacion.formato_wa import Aviso
+from comunicacion.formato_wa import Aviso, bloques
 
 LLAMADAS = {'_enviar_aviso'}
 TEXTO_SUELTO = (ast.Constant, ast.JoinedStr, ast.BinOp)
@@ -40,3 +40,27 @@ class NingunAvisoPasaTextoSueltoTest(SimpleTestCase):
             self.assertNotIn('\t', parametro)
             self.assertNotIn('     ', parametro)
             self.assertLessEqual(len(parametro), 900)
+
+
+class BloquesClienteTest(SimpleTestCase):
+    def test_parrafos_datos_enlace_y_pregunta_en_su_orden(self):
+        texto = bloques('Hola', 'Segundo párrafo', datos=('a', 'b', 'c'), enlace='https://x.test', pregunta='¿Listo?')
+        self.assertEqual(texto, 'Hola\n\nSegundo párrafo\n\n• a\n• b\n• c\n\nhttps://x.test\n\n¿Listo?')
+
+    def test_con_menos_de_tres_datos_no_hay_viñetas(self):
+        self.assertEqual(bloques('Hola', datos=('a', 'b')), 'Hola\n\na\nb')
+
+    def test_lo_vacio_se_omite(self):
+        self.assertEqual(bloques('Hola', '', datos=('', None), enlace='', pregunta=''), 'Hola')
+
+    def test_mensajes_fijos_sin_parrafos_largos_y_enlaces_solos(self):
+        from comunicacion import services_agente, services_bajas, services_encuesta, services_responsables
+        for texto in (services_agente.AVISO_INICIAL, services_agente.AVISO_ESPERA, services_agente.MENSAJE_HUMANO,
+                      services_agente.MENSAJE_CONSENTIMIENTO, services_bajas.CONFIRMACION_BAJA,
+                      services_responsables.CONFIRMACION_ACEPTO, services_encuesta.GRACIAS_MALA):
+            for parrafo in texto.split('\n\n'):
+                self.assertLessEqual(len(parrafo), 280, parrafo)
+                if 'https://' in parrafo:
+                    for renglon in parrafo.split('\n'):
+                        if 'https://' in renglon and not renglon.startswith('• '):
+                            self.assertTrue(renglon.startswith('https://'), renglon)
