@@ -126,10 +126,16 @@ MENSAJE_CONSENTIMIENTO = (
 # corresponda a los documentos que estaban vigentes cuando se cotizó.
 CONSENTIMIENTO_VIGENTE = timedelta(hours=24)
 AVISO_INICIAL = (
-    "¡Hola! Soy Kooxi, el asistente virtual de Quinta Ko'ox Tanil. Funciono con "
-    "inteligencia artificial, no soy una persona. Puedo darte precios, revisar fechas, consultar tu "
-    "reservación, preparar tu cotización y resolver dudas; si en algún momento prefieres que te atienda alguien del equipo, "
-    "solo escríbelo.\n\n"
+    "¡Hola! Soy *Kooxi*, el asistente virtual de Quinta Ko'ox Tanil. Funciono con "
+    "inteligencia artificial, no soy una persona.\n\n"
+    "*¿Qué puedo hacer por ti?*\n"
+    "• Darte precios\n"
+    "• Revisar la disponibilidad de tu fecha\n"
+    "• Agendar una visita para que conozcas la Quinta\n"
+    "• Consultar tu reservación\n"
+    "• Preparar tu cotización y acompañarte en tu contratación\n"
+    "• Resolver tus dudas\n\n"
+    "Si en algún momento prefieres que te atienda alguien del equipo, solo escríbelo.\n\n"
     "Al continuar esta conversación aceptas el tratamiento de tus datos conforme a "
     f"nuestro Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}"
 )
