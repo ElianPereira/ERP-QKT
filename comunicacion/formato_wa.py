@@ -63,3 +63,20 @@ class Aviso:
         if self.enlace:
             partes.append(f'Abrir: {self.enlace}')
         return texto_plano_wa(' · '.join(partes))[:LIMITE_PARAMETRO]
+
+
+def bloques(*parrafos: str, datos=(), enlace: str = '', pregunta: str = '') -> str:
+    """Mensaje fijo al cliente (texto libre) en bloques, la misma regla que sigue
+    el prompt de Kooxi: párrafos cortos separados por una línea en blanco, viñetas
+    «• » desde 3 datos (con menos van en renglones sueltos), el enlace solo en su
+    renglón y una sola pregunta o paso al final. El orden es párrafos, datos,
+    enlace y pregunta; lo vacío se omite. Las negritas van en el texto que se pasa."""
+    partes = [str(p).strip() for p in parrafos if str(p or '').strip()]
+    filas = [str(d).strip() for d in datos if str(d or '').strip()]
+    if filas:
+        partes.append('\n'.join(f'• {d}' for d in filas) if len(filas) >= 3 else '\n'.join(filas))
+    if enlace:
+        partes.append(enlace.strip())
+    if pregunta:
+        partes.append(pregunta.strip())
+    return '\n\n'.join(partes)

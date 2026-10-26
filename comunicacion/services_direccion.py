@@ -18,6 +18,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from .formato_wa import Aviso
 from .models import ComunicacionCliente, Hallazgo, Pendiente
 from .services import normalizar_telefono_wa
 from .services_pendientes import _base_url, _enviar_aviso, registrar_pendiente, url_bandeja, ventana_abierta
@@ -215,23 +216,22 @@ def _url_hallazgos() -> str:
     return _base_url() + reverse('admin:comunicacion_hallazgo_changelist') + '?estado__exact=PROPUESTO'
 
 
-def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos) -> str:
+def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos) -> Aviso:
     if mes.get('meta_venta'):
         venta = f'{dinero(mes["venta"])} de {dinero(mes["meta_venta"])} ({mes["pct_meta"]} %)'
     else:
         venta = f'{dinero(mes["venta"])} (sin meta)'
-    partes = [f'Resumen semanal del {hoy:%d/%m}. Venta de {mes["etiqueta"]}: {venta}.']
     ocupacion = f'Ocupación: {mes["ocupacion"]} %'
     if mes.get('ocupacion_plan') is not None:
         ocupacion += f' (plan {mes["ocupacion_plan"]} %)'
-    partes.append(ocupacion + '.')
-    partes.append(f'Caja según libros: {dinero(caja)}.')
-    partes.append(f'Pendientes abiertos: {abiertos}.')
+    lineas = [f'Venta de {mes["etiqueta"]}: {venta}', ocupacion, f'Caja según libros: {dinero(caja)}',
+              f'Pendientes abiertos: {abiertos}']
+    cierre = ''
     if hallazgos:
-        partes.append('Detecté: ' + ' '.join(f'{n}) {h.titulo}.' for n, h in enumerate(hallazgos, 1))
-                      + f' Revísalos: {_url_hallazgos()}')
-    partes.append(f'Bandeja: {url_bandeja()}')
-    return ' '.join(partes)
+        lineas.extend(f'Detecté {n}: {h.titulo}' for n, h in enumerate(hallazgos, 1))
+        cierre = f'Revisa los hallazgos: {_url_hallazgos()}'
+    return Aviso(titulo=f'Resumen semanal del {hoy:%d/%m}', categoria='Dirección', lineas=lineas,
+                 cierre=cierre, enlace=url_bandeja())
 
 
 def enviar_resumen_semanal(hoy=None) -> int:
@@ -254,10 +254,10 @@ def enviar_resumen_semanal(hoy=None) -> int:
         return 0
     if ventana_abierta(telefono):
         for hallazgo in hallazgos:
-            texto = f'Detecté: {hallazgo.titulo}. {hallazgo.detalle}'
+            aviso = Aviso(titulo=hallazgo.titulo, categoria='Detecté', lineas=[hallazgo.detalle])
             botones = [(id_boton_hallazgo(hallazgo.pk, 'tarea'), 'Crear tarea'),
                        (id_boton_hallazgo(hallazgo.pk, 'ign'), 'Ignorar')]
-            if _enviado(_enviar_aviso(telefono, texto, botones=botones)):
+            if _enviado(_enviar_aviso(telefono, aviso, botones=botones)):
                 Hallazgo.objects.filter(pk=hallazgo.pk).update(propuesto_en=timezone.now())
     return 1
 
@@ -302,10 +302,12 @@ def enviar_nomina_semanal(hoy=None) -> int:
     aprobacion = registrar_semana(hoy)
     if aprobacion is None or aprobacion.notificada_en or aprobacion.aprobada_en:
         return 0
-    texto = (f'Nómina de la semana del {aprobacion.semana_inicio:%d/%m} al {aprobacion.semana_fin:%d/%m}: '
-             f'{aprobacion.recibos} recibos, total a pagar {dinero(aprobacion.total)}. Aprobar solo deja constancia; '
-             f'la transferencia se hace en el banco. Detalle: {_url_aprobacion(aprobacion)}')
-    comm = _enviar_aviso(telefono, texto, botones=[(id_boton_nomina(aprobacion.pk), 'Aprobar')],
+    aviso = Aviso(
+        titulo=f'Nómina de la semana del {aprobacion.semana_inicio:%d/%m} al {aprobacion.semana_fin:%d/%m}',
+        categoria='Nómina', lineas=[f'{aprobacion.recibos} recibos', f'Total a pagar: {dinero(aprobacion.total)}'],
+        cierre='Aprobar solo deja constancia; la transferencia se hace en el banco.',
+        enlace=_url_aprobacion(aprobacion))
+    comm = _enviar_aviso(telefono, aviso, botones=[(id_boton_nomina(aprobacion.pk), 'Aprobar')],
                          clave=f'dir:nomina:{aprobacion.semana_inicio}:{telefono}')
     if not _enviado(comm):
         return 0
@@ -338,7 +340,7 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
         if aprobacion is None:
             return None
         if aprobar_nomina(aprobacion, telefono=normalizar_telefono_wa(telefono)):
-            return (f'Listo, quedó aprobada la nómina del {aprobacion.semana_inicio:%d/%m} al '
+            return (f'✅ Listo, quedó aprobada la nómina del {aprobacion.semana_inicio:%d/%m} al '
                     f'{aprobacion.semana_fin:%d/%m} ({dinero(aprobacion.total)}). Solo es constancia: '
                     f'la transferencia se hace en el banco.')
         return 'Esa nómina ya estaba aprobada.'
@@ -347,8 +349,8 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
         return None
     if accion == 'tarea':
         if crear_tarea(hallazgo) is not None:
-            return f'Listo, abrí la tarea en la bandeja: {hallazgo.titulo}.'
+            return f'✅ Listo, abrí la tarea en la bandeja: {hallazgo.titulo}.'
         return 'Ese hallazgo ya estaba atendido.'
     if ignorar(hallazgo):
-        return f'Listo, lo ignoro: {hallazgo.titulo}.'
+        return f'✅ Listo, lo ignoro: {hallazgo.titulo}.'
     return 'Ese hallazgo ya estaba atendido.'

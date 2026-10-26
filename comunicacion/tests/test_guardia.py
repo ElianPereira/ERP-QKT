@@ -234,7 +234,7 @@ class ResumenPreguntasTest(TestCase):
         self.assertEqual(nuevas.count(), 2)
         self.assertFalse(nuevas.filter(activo=True).exists())
         aviso.assert_called_once()
-        self.assertIn('2 preguntas frecuentes', aviso.call_args.args[0])
+        self.assertIn('2 preguntas frecuentes', aviso.call_args.args[0].texto())
 
     def test_sin_aplicar_no_llama_al_modelo(self):
         from comunicacion import services_preguntas

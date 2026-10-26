@@ -7,13 +7,14 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from comunicacion import services_pendientes as sp
 from comunicacion.models import Responsable
 from cumplimiento import services_avisos as sa
 from cumplimiento.models import AvisoVencimiento, Tramite, Vigencia
 
 HOY = timezone.localdate()
-WA = mock.patch.object(sa, 'enviar_whatsapp_template')
-WA_TEXTO = mock.patch.object(sa, 'enviar_whatsapp')
+WA = mock.patch.object(sp, 'enviar_whatsapp_template')
+WA_TEXTO = mock.patch.object(sp, 'enviar_whatsapp')
 MAIL = mock.patch.object(sa, 'alertar_equipo_email')
 
 
