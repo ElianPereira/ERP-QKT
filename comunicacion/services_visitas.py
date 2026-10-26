@@ -22,7 +22,13 @@ from core_erp.horarios import formato_hora_ampm
 from . import services_pendientes
 from .formato_wa import Aviso
 from .models import HorarioVisita, Pendiente, Visita
-from .services import enviar_whatsapp, enviar_whatsapp_template, normalizar_telefono_wa, texto_plano_wa
+from .services import (
+    enviar_whatsapp,
+    enviar_whatsapp_botones,
+    enviar_whatsapp_template,
+    normalizar_telefono_wa,
+    texto_plano_wa,
+)
 from .services_responsables import telefono_de, telefonos_aviso
 
 logger = logging.getLogger(__name__)
@@ -38,6 +44,9 @@ PREVIO_CLIENTE = timedelta(hours=2)
 PREVIO_EQUIPO = timedelta(minutes=45)
 COMO_AVISAR_LLEGADA = 'Cuando llegues, escríbeme «ya llegué» por aquí y le aviso al equipo para que te reciba.'
 RE_BOTON = re.compile(r'^vis:(\d+):(ok|no)$')
+# «Ya llegué» del recordatorio del mismo día: lo toca el cliente, no el equipo.
+RE_BOTON_LLEGADA = re.compile(r'^lleg:(\d+)$')
+MENSAJE_LLEGADA = '¡Bienvenido! Ya le avisé al equipo: en un momento alguien te recibe en la entrada.'
 DIAS = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
 MESES = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre',
          'octubre', 'noviembre', 'diciembre')
@@ -115,7 +124,8 @@ def id_boton(visita_id: int, accion: str) -> str:
 
 
 def es_boton(texto: str) -> bool:
-    return bool(RE_BOTON.match((texto or '').strip()))
+    texto = (texto or '').strip()
+    return bool(RE_BOTON.match(texto) or RE_BOTON_LLEGADA.match(texto))
 
 
 def agendar(conv, inicio_texto, nombre, personas=None) -> dict:
@@ -178,14 +188,19 @@ def _avisar_encargado(visita) -> None:
 
 # ───────────────────────────── Decidir ───────────────────────────────────────
 
-def _avisar_cliente(visita, texto: str, evento: str) -> None:
-    """Texto libre si la ventana de 24 h está abierta; si no, la plantilla de
-    visitas (o, sin plantilla, texto libre, que Meta puede rechazar). Queda en
-    la conversación como mensaje automático para que Kooxi sepa qué pasó."""
+def _avisar_cliente(visita, texto: str, evento: str, botones=None) -> None:
+    """Texto libre (con `botones`, si los hay) si la ventana de 24 h está
+    abierta; si no, la plantilla de visitas sin botones (o, sin plantilla, texto
+    libre, que Meta puede rechazar). Queda en la conversación como mensaje
+    automático para que Kooxi sepa qué pasó."""
     try:
         clave = _clave_aviso(visita, evento)
         plantilla = getattr(settings, 'META_WA_PLANTILLA_VISITA', '') or ''
-        if plantilla and not services_pendientes.ventana_abierta(visita.telefono):
+        abierta = services_pendientes.ventana_abierta(visita.telefono)
+        if botones and abierta:
+            comm = enviar_whatsapp_botones(tipo='OTRO', telefono=visita.telefono, mensaje=texto,
+                                           botones=botones, clave_idempotencia=clave)
+        elif plantilla and not abierta:
             comm = enviar_whatsapp_template(
                 tipo='OTRO', telefono=visita.telefono, template_name=plantilla,
                 parametros=[texto_plano_wa(texto)], trigger='SIGNAL', clave_idempotencia=clave)
@@ -252,13 +267,32 @@ def cancelar(visita_id: int, usuario=None) -> bool:
     return True
 
 
+def _atender_llegada(telefono: str, visita_id: int) -> Optional[str]:
+    """«Ya llegué» del recordatorio: solo vale desde el teléfono de esa visita,
+    viva y de hoy. Avisa al equipo igual que si lo escribiera."""
+    from .models import ConversacionWhatsApp
+    from .services_llegada import avisar_llegada
+    visita = Visita.objects.filter(pk=visita_id, telefono=telefono, estado__in=Visita.ACTIVAS,
+                                   inicio__date=timezone.localdate()).first()
+    conv = ConversacionWhatsApp.objects.filter(telefono=telefono).first()
+    if visita is None or conv is None:
+        return None
+    avisar_llegada(conv, 'ya_llego')
+    return MENSAJE_LLEGADA
+
+
 def atender_boton(telefono: str, texto: str) -> Optional[str]:
     """Botón `vis:<id>:ok|no`: solo vale desde el teléfono activo del ENCARGADO o
-    de DIRECCION. Devuelve el texto con que contestarle, o None si no hizo nada."""
-    coincide = RE_BOTON.match((texto or '').strip())
+    de DIRECCION. `lleg:<id>`: solo desde el teléfono del cliente de esa visita.
+    Devuelve el texto con que contestarle, o None si no hizo nada."""
+    texto = (texto or '').strip()
+    telefono = normalizar_telefono_wa(telefono)
+    llegada = RE_BOTON_LLEGADA.match(texto)
+    if llegada:
+        return _atender_llegada(telefono, int(llegada.group(1))) if telefono else None
+    coincide = RE_BOTON.match(texto)
     if not coincide:
         return None
-    telefono = normalizar_telefono_wa(telefono)
     autorizados = {telefono_de('ENCARGADO'), telefono_de('DIRECCION')} - {''}
     if not telefono or telefono not in autorizados:
         return None
@@ -370,7 +404,8 @@ def enviar_avisos_previos(ahora=None) -> int:
         if confirmada_a_tiempo:
             _avisar_cliente(
                 visita, f"¡Hoy es tu visita a Quinta Ko'ox Tanil! Te esperamos a las *{hora(visita.inicio)}* 🌴\n\n"
-                        f'{COMO_AVISAR_LLEGADA}', 'previo')
+                        'Cuando llegues, toca «Ya llegué» o escríbemelo por aquí y le aviso al equipo para que te reciba.', 'previo',
+                botones=[(f'lleg:{visita.pk}', 'Ya llegué')])
         if visita.inicio - ahora <= PREVIO_EQUIPO:
             minutos = max(1, int((visita.inicio - ahora).total_seconds() // 60))
             enviados += _avisar_equipo(visita, Aviso(

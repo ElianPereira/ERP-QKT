@@ -2,6 +2,7 @@
 import json
 from datetime import time, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -9,11 +10,11 @@ from django.utils import timezone
 from comercial.models import Cliente, Cotizacion
 from comunicacion import herramientas_agente, services_agente, services_llegada, services_pendientes, services_visitas
 from comunicacion.formato_wa import Aviso
-from comunicacion.models import Pendiente, Visita
+from comunicacion.models import ConversacionWhatsApp, Pendiente, Visita
 from core_erp.programador import TAREAS
 
 from .test_agente import AGENTE
-from .test_fase_2a import TEL_DIR, TEL_ENC, MocksVisitas, _dt
+from .test_fase_2a import OK, TEL_DIR, TEL_ENC, MocksVisitas, _dt
 from .utils import TEL_CLIENTE, wa_settings
 
 
@@ -162,8 +163,8 @@ class FlujoVisitaTest(MocksVisitas, TestCase):
         ahora = timezone.now()
         visita = self._visita(ahora + timedelta(minutes=100))
         services_visitas.enviar_avisos_previos(ahora)
-        self.assertEqual(self.visitas_enviar_whatsapp.call_count, 1)
-        self.assertIn('Hoy es tu visita', self.visitas_enviar_whatsapp.call_args.kwargs['mensaje'])
+        self.assertEqual(self.visitas_enviar_whatsapp_botones.call_count, 1)
+        self.assertIn('Hoy es tu visita', self.visitas_enviar_whatsapp_botones.call_args.kwargs['mensaje'])
         self.assertFalse(_enviados(self.pendientes_enviar_whatsapp, self.pendientes_enviar_whatsapp_template))
 
         cerca = visita.inicio - timedelta(minutes=40)
@@ -173,7 +174,7 @@ class FlujoVisitaTest(MocksVisitas, TestCase):
         services_visitas.enviar_avisos_previos(cerca + timedelta(minutes=10))
         claves = [c.kwargs.get('clave_idempotencia') for m in (self.pendientes_enviar_whatsapp,
                                                                self.pendientes_enviar_whatsapp_template,
-                                                               self.visitas_enviar_whatsapp)
+                                                               self.visitas_enviar_whatsapp_botones)
                   for c in m.call_args_list]
         self.assertTrue(all(claves))
         self.assertEqual(len(set(claves)), 3)  # cliente previo + equipo previo a 2 números
@@ -183,6 +184,7 @@ class FlujoVisitaTest(MocksVisitas, TestCase):
         self._visita(ahora + timedelta(minutes=90), decidida_hace=timedelta(minutes=10))
         services_visitas.enviar_avisos_previos(ahora)
         self.visitas_enviar_whatsapp.assert_not_called()
+        self.visitas_enviar_whatsapp_botones.assert_not_called()
 
     def test_si_ya_aviso_que_llego_no_se_le_recuerda_a_nadie(self):
         ahora = timezone.now()
@@ -192,6 +194,7 @@ class FlujoVisitaTest(MocksVisitas, TestCase):
         self.pendientes_enviar_whatsapp_template.reset_mock()
         self.assertEqual(services_visitas.enviar_avisos_previos(ahora), 0)
         self.visitas_enviar_whatsapp.assert_not_called()
+        self.visitas_enviar_whatsapp_botones.assert_not_called()
         self.assertTrue(services_visitas.llego(visita))
 
     def test_la_vispera_el_equipo_recibe_el_resumen_de_mañana(self):
@@ -212,3 +215,45 @@ class FlujoVisitaTest(MocksVisitas, TestCase):
 
     def test_el_programador_corre_los_avisos_previos(self):
         self.assertIn('enviar_avisos_previos_visitas', [t.comando for t in TAREAS])
+
+
+@wa_settings(**AGENTE)
+class BotonYaLlegueTest(MocksVisitas, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.botones = self.visitas_enviar_whatsapp_botones
+        self.conv.mensajes.update(procesado=True)
+        self.ahora = timezone.now()
+        self.visita = Visita.objects.create(
+            nombre='Ana Ruiz', telefono=TEL_CLIENTE, conversacion=self.conv, estado='CONFIRMADA',
+            inicio=self.ahora + timedelta(minutes=100), decidida_en=self.ahora - timedelta(days=1))
+
+    def test_con_ventana_abierta_el_recordatorio_lleva_el_boton(self):
+        services_visitas.enviar_avisos_previos(self.ahora)
+        llamada = self.botones.call_args.kwargs
+        self.assertEqual(llamada['botones'], [(f'lleg:{self.visita.pk}', 'Ya llegué')])
+        self.assertEqual(llamada['clave_idempotencia'], f'visita:{self.visita.pk}:previo')
+        self.visitas_enviar_whatsapp.assert_not_called()
+
+    def test_sin_ventana_sale_la_plantilla_sin_boton(self):
+        ConversacionWhatsApp.objects.get(pk=self.conv.pk).mensajes.update(
+            created_at=timezone.now() - timedelta(days=3))
+        with self.settings(META_WA_PLANTILLA_VISITA='visita_aviso'):
+            services_visitas.enviar_avisos_previos(self.ahora)
+        self.botones.assert_not_called()
+        self.assertIn('Ya llegué', str(self.visitas_enviar_whatsapp_template.call_args.kwargs['parametros']))
+
+    def test_tocar_el_boton_avisa_al_equipo_sin_pasar_por_el_modelo(self):
+        m = services_agente.recibir_mensaje(telefono=TEL_CLIENTE, nombre='Ana', texto=f'lleg:{self.visita.pk}',
+                                            wamid='wl1')
+        with patch.object(services_agente, '_cliente_ia') as ia, \
+                patch.object(services_agente, 'enviar_whatsapp', return_value=OK) as enviar:
+            services_agente._atender_pendientes(m.pk)
+        ia.assert_not_called()
+        self.assertIn('Ya le avisé al equipo', enviar.call_args.kwargs['mensaje'])
+        p = Pendiente.objects.get(tipo='LLEGADA')
+        self.assertEqual((p.objeto, p.severidad), (self.visita, 'URGENTE'))
+
+    def test_el_boton_desde_otro_numero_no_hace_nada(self):
+        self.assertIsNone(services_visitas.atender_boton(TEL_DIR, f'lleg:{self.visita.pk}'))
+        self.assertFalse(Pendiente.objects.filter(tipo='LLEGADA').exists())

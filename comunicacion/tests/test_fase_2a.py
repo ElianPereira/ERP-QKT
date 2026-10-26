@@ -226,7 +226,8 @@ class MocksVisitas:
                 ('pendientes', services_pendientes, 'enviar_whatsapp_template'),
                 ('pendientes', services_pendientes, 'enviar_whatsapp_botones'),
                 ('visitas', services_visitas, 'enviar_whatsapp'),
-                ('visitas', services_visitas, 'enviar_whatsapp_template')):
+                ('visitas', services_visitas, 'enviar_whatsapp_template'),
+                ('visitas', services_visitas, 'enviar_whatsapp_botones')):
             p = patch.object(destino, nombre, return_value=OK)
             setattr(self, f'{prefijo}_{nombre}', p.start())
             self.addCleanup(p.stop)
