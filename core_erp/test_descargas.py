@@ -92,6 +92,17 @@ class DescargaProtegidaTest(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(b''.join(respuesta.streaming_content), PDF)
         self.assertEqual(respuesta['Cache-Control'], 'private, no-store')
+        self.assertEqual(respuesta['X-Content-Type-Options'], 'nosniff')
+        self.assertNotIn('attachment', respuesta.get('Content-Disposition', ''))
+
+    def test_tipo_no_inline_se_descarga_como_adjunto(self):
+        self.contrato.archivo.save('raro.html', ContentFile(b'<script>1</script>'), save=True)
+        self.client.force_login(self._staff(con_permiso=True))
+
+        respuesta = self.client.get(self.url)
+
+        self.assertIn('attachment', respuesta['Content-Disposition'])
+        self.assertEqual(respuesta['X-Content-Type-Options'], 'nosniff')
 
     def test_un_modelo_no_registrado_no_se_puede_leer(self):
         # Sin la lista blanca la vista sería un lector arbitrario del ORM.

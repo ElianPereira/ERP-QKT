@@ -9,7 +9,10 @@ class QktAuthConfig(AuthConfig):
         super().ready()
         from django.contrib.auth.signals import user_logged_in, user_login_failed
 
-        from core_erp import ratelimit
+        from core_erp import (
+            checks,  # noqa: F401  (registra los system checks)
+            ratelimit,
+        )
 
         def _fallo(sender, credentials=None, request=None, **kwargs):
             ratelimit.registrar_login_fallido(request, (credentials or {}).get('username'))

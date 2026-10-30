@@ -11,9 +11,11 @@ Acceso: código de cotización + últimos 4 dígitos del teléfono.
 """
 import json
 import os
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -32,6 +34,7 @@ from core_erp.ratelimit import (
 from core_erp.ratelimit import (
     rate_limit as _rate_limit,
 )
+from core_erp.validadores import FIRMAS_IMAGEN_O_PDF, validar_archivo
 
 from .models import (
     Cotizacion,
@@ -562,8 +565,17 @@ def portal_subir_identificacion(request, token):
             'mensaje': 'Formato no válido. Sube una foto (JPG/PNG) o un PDF de tu identificación.',
         }, status=400)
 
-    if archivo.size > IDENTIFICACION_TAMANO_MAXIMO:
-        return JsonResponse({'ok': False, 'mensaje': 'El archivo pesa demasiado (máximo 8 MB).'}, status=400)
+    # El content_type lo declara el navegador (falsificable): la firma real
+    # del archivo decide, y el nombre se genera aquí, no viene del cliente.
+    try:
+        extension = validar_archivo(archivo, FIRMAS_IMAGEN_O_PDF, IDENTIFICACION_TAMANO_MAXIMO)
+    except ValidationError as exc:
+        mensaje = exc.messages[0]
+        if mensaje == 'Formato no válido.':
+            mensaje = ('Formato no válido. Sube una foto (JPG/PNG) o un PDF de tu identificación. '
+                       'Si usas iPhone, elige «Más compatible» o toma la foto en JPG.')
+        return JsonResponse({'ok': False, 'mensaje': mensaje}, status=400)
+    archivo.name = f'{uuid.uuid4().hex}.{extension}'
 
     cotizacion.identificacion_oficial = archivo
     cotizacion.save(update_fields=['identificacion_oficial'])

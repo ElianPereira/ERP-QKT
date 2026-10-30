@@ -8,7 +8,11 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
-from comercial.services_migracion_privada import MigracionError, migrar_archivos_privados
+from comercial.services_migracion_privada import (
+    MigracionError,
+    borrar_del_publico_copiado,
+    migrar_archivos_privados,
+)
 from core_erp.test_utils import login_superuser_con_totp
 from legal.models import SolicitudARCO, TipoARCO
 
@@ -125,6 +129,75 @@ class MigrarArchivosPrivadosServicioTest(TestCase):
         self.assertTrue(resultado.interrumpido)
         self.assertEqual(resultado.copiados, 0)
         self.assertFalse(storages["privado"].exists(camino))
+
+
+@override_settings(STORAGES=STORAGES_PRUEBA)
+class BorrarDelPublicoServicioTest(TestCase):
+    def test_borra_solo_lo_confirmado_en_el_privado(self):
+        copiado, pendiente = ruta("borra-ok"), ruta("borra-pendiente")
+        crear_solicitud(copiado, titular="A")
+        crear_solicitud(pendiente, titular="B")
+        sembrar_en_publico(copiado)
+        sembrar_en_publico(pendiente)
+        storages["privado"].save(copiado, ContentFile(b"identificacion"))
+
+        with con_bucket_privado():
+            simulado = borrar_del_publico_copiado()
+            self.assertTrue(storages["default"].exists(copiado))
+            real = borrar_del_publico_copiado(aplicar=True)
+
+        self.assertEqual(simulado.borrados, 1)
+        self.assertEqual(real.borrados, 1)
+        self.assertFalse(storages["default"].exists(copiado))
+        self.assertTrue(storages["privado"].exists(copiado))
+        # Lo que no está en el privado jamás se toca.
+        self.assertTrue(storages["default"].exists(pendiente))
+        self.assertEqual(len(real.conservados), 1)
+
+    def test_conserva_si_el_tamano_difiere(self):
+        camino = ruta("borra-tamano")
+        crear_solicitud(camino)
+        sembrar_en_publico(camino, b"completo")
+        storages["privado"].save(camino, ContentFile(b"trunc"))
+
+        with con_bucket_privado():
+            resultado = borrar_del_publico_copiado(aplicar=True)
+
+        self.assertEqual(resultado.borrados, 0)
+        self.assertTrue(storages["default"].exists(camino))
+
+    def test_sin_bucket_privado_aborta(self):
+        with self.assertRaisesMessage(MigracionError, "No hay bucket privado"):
+            borrar_del_publico_copiado(aplicar=True)
+
+
+@override_settings(STORAGES=STORAGES_PRUEBA)
+class BorrarDelPublicoVistaTest(TestCase):
+    def test_solo_superusuario_y_post(self):
+        staff = User.objects.create_user("staff", password="x", is_staff=True)
+        self.client.force_login(staff)
+        camino = ruta("vista-staff")
+        crear_solicitud(camino)
+        sembrar_en_publico(camino)
+        storages["privado"].save(camino, ContentFile(b"identificacion"))
+        with con_bucket_privado():
+            self.client.post("/admin/migrar-archivos-privados/", {"accion": "borrar_aplicar"})
+        self.assertTrue(storages["default"].exists(camino))
+
+    def test_superusuario_borra_tras_confirmar(self):
+        admin = User.objects.create_superuser("root", "r@example.com", "x")
+        login_superuser_con_totp(self.client, admin)
+        camino = ruta("vista-super")
+        crear_solicitud(camino)
+        sembrar_en_publico(camino)
+        storages["privado"].save(camino, ContentFile(b"identificacion"))
+        with con_bucket_privado():
+            sim = self.client.post("/admin/migrar-archivos-privados/", {"accion": "borrar_simular"})
+            self.assertContains(sim, "Simulación de borrado")
+            self.assertTrue(storages["default"].exists(camino))
+            real = self.client.post("/admin/migrar-archivos-privados/", {"accion": "borrar_aplicar"})
+        self.assertContains(real, "Borrado ejecutado")
+        self.assertFalse(storages["default"].exists(camino))
 
 
 class MigrarSinBucketPrivadoTest(TestCase):

@@ -803,9 +803,15 @@ class CotizacionAdmin(admin.ModelAdmin):
     def identificacion_badge(self, obj):
         if not obj.identificacion_oficial:
             return ui.vacio()
-        if obj.identificacion_revisada:
-            return ui.badge('Revisada', ui.EXITO)
-        return ui.badge('Sin revisar', ui.ALERTA)
+        estado = (
+            ui.badge('Revisada', ui.EXITO) if obj.identificacion_revisada
+            else ui.badge('Sin revisar', ui.ALERTA)
+        )
+        enlace = ui.boton_icono(
+            url_descarga(obj, 'identificacion_oficial'), 'id-card', 'Ver identificación',
+            nueva_pestana=True,
+        )
+        return format_html('{} {}', estado, enlace)
 
     @admin.display(description='Total', ordering='precio_final')
     def total_display(self, obj):
