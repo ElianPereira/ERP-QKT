@@ -4,7 +4,7 @@
 # despliega. Al cambiar algo aquí, regenerar el lock:
 #   pip install pip-tools
 #   pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking
-Django>=6.0
+Django>=6.1.2
 gunicorn
 psycopg2-binary
 dj-database-url
