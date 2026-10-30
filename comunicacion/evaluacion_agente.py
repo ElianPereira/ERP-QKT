@@ -122,6 +122,9 @@ def evaluar_caso(caso: dict, indice: int) -> dict:
     for patron in caso.get('debe_contener', []):
         if not re.search(patron, final, re.IGNORECASE):
             resultado['fallas'].append(f'La respuesta no menciona «{patron}»')
+    for patron in caso.get('no_debe_contener', []):
+        if re.search(patron, final, re.IGNORECASE):
+            resultado['fallas'].append(f'La respuesta no debía mencionar «{patron}»')
     if not final.strip():
         resultado['fallas'].append('No respondió nada.')
     resultado['ok'] = not resultado['fallas']
