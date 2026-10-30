@@ -122,7 +122,7 @@ jobs:
 
       # Solo CVE de HIGH/CRITICAL con parche disponible; excepciones en .trivyignore.
       - name: Scan image (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: erp-qkt:ci
           ignore-unfixed: true
@@ -131,7 +131,7 @@ jobs:
           trivyignores: .trivyignore
 
       - name: Scan filesystem (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
