@@ -99,9 +99,13 @@ def revisar_filtro(conv, texto: str) -> str:
         if len(digitos) >= 10 and digitos[-10:] not in permitidos:
             return 'Incluye un número de teléfono o cuenta que no es de este cliente.'
 
+    # Un correo que el propio cliente escribió en este chat (p. ej. el de su solicitud
+    # ARCO) puede repetírsele: no revela nada que no haya dicho él.
+    escritos = {c.lower() for m in conv.mensajes.filter(direccion='ENTRADA').values_list('texto', flat=True)
+                for c in _RE_CORREO.findall(m or '')}
     for correo in _RE_CORREO.findall(texto):
         correo = correo.lower()
-        if not correo.endswith('@' + DOMINIO_PUBLICO) and correo not in correos_cliente:
+        if not correo.endswith('@' + DOMINIO_PUBLICO) and correo not in correos_cliente | escritos:
             return 'Incluye un correo que no es de este cliente.'
 
     # Única excepción fuera del sitio público: la ficha de Google Maps de la Quinta,

@@ -95,6 +95,8 @@ def evaluar_caso(caso: dict, indice: int) -> dict:
             usadas = set()
             for mensaje in caso['mensajes']:
                 antes = len(conv.historial or [])
+                # Como en producción: el webhook guarda lo que escribió el cliente.
+                MensajeWhatsApp.objects.create(conversacion=conv, direccion='ENTRADA', texto=mensaje, procesado=True)
                 propuestas = [] if direccion else None
                 texto, uso = services_agente.responder(conv, mensaje, propuestas=propuestas)
                 # En modo Dirección lo que se le muestra a Dirección es el texto del ERP.
