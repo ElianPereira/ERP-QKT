@@ -272,6 +272,12 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-30 — **El filtro de Kooxi también detenía el correo que el cliente dio para su solicitud ARCO** (segunda corrida de
+  `arco_acceso` tras el PR #458: el folio ya pasaba, pero Kooxi repetía el correo escrito en el chat y `services_guardia` lo
+  tomaba por ajeno). Ahora `revisar_filtro` permite los correos que el propio cliente escribió en esa conversación
+  (`MensajeWhatsApp` ENTRADA); uno que solo salió de una respuesta del agente sigue deteniéndose. El corredor de evals guarda
+  el mensaje del cliente como el webhook. Sin migración.
+
 - 2026-10-30 — **El filtro de Kooxi detenía el folio ARCO** (lo encontró `evaluar_agente`, caso `arco_acceso`, 49/50 tras los
   PR #453–#456; US$3.15). `ARCO-` + 19 dígitos son más de 10 dígitos seguidos y `services_guardia` los tomaba por un
   teléfono ajeno: todo cliente que registrara una solicitud ARCO por el chat recibía `RESPUESTA_SEGURA` en vez de su folio
