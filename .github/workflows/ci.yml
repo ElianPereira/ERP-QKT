@@ -68,6 +68,7 @@ jobs:
           DJANGO_SECRET_KEY: 'ci-security-check-secret-key-only-not-for-production-use-0123456789'
           DJANGO_DEBUG: 'False'
           DJANGO_ALLOWED_HOSTS: 'erp.quintakooxtanil.com'
+          CLOUDFLARE_R2_PRIVADO_BUCKET: ci-dummy
         run: python manage.py check --deploy --fail-level WARNING
 
       # Auditoría de dependencias con vulnerabilidades conocidas (CVE/PYSEC).

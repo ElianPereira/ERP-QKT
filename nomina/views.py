@@ -6,14 +6,18 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import permission_required
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from core_erp.ratelimit import rate_limit
+from core_erp.validadores import FIRMAS_EXCEL, validar_archivo
 
 from .services_recibos import generar_recibos
+
+NOMINA_TAMANO_MAXIMO = 5 * 1024 * 1024  # 5 MB
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +127,13 @@ def cargar_nomina(request):
     if request.method == 'POST' and request.FILES.get('archivo_excel'):
         archivo = request.FILES['archivo_excel']
         try:
-            if archivo.name.endswith('.csv'):
+            es_csv = archivo.name.endswith('.csv')
+            if es_csv and archivo.size > NOMINA_TAMANO_MAXIMO:
+                raise ValidationError('El archivo pesa demasiado (máximo 5 MB).')
+            if not es_csv:
+                # Firma ZIP/OLE y tope de tamaño antes de que pandas lo descomprima.
+                validar_archivo(archivo, FIRMAS_EXCEL, NOMINA_TAMANO_MAXIMO)
+            if es_csv:
                 df = pd.read_csv(archivo, header=None, sep=None, engine='python')
             else:
                 df = pd.read_excel(archivo, header=None)

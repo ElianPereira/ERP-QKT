@@ -483,6 +483,11 @@ STORAGES = {
     },
 }
 
+# Fail-closed del bucket privado (Issue #460): con True, no tener
+# CLOUDFLARE_R2_PRIVADO_BUCKET impide usar los campos privados en vez de caer
+# al bucket público. Activar solo tras confirmar el bucket en web y Programador.
+ERP_R2_PRIVADO_OBLIGATORIO = env('ERP_R2_PRIVADO_OBLIGATORIO', default=False, cast=bool)
+
 # django-cloudinary-storage/cloudinary siguen instalados (ver requirements.txt)
 # únicamente porque varias migraciones históricas de comercial/facturacion
 # importan cloudinary_storage.storage a nivel de módulo — Django necesita

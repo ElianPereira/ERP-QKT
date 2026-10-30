@@ -12,7 +12,7 @@ from django.utils.timezone import now
 from comercial.choices import ModoDescuento, PosicionLanding
 from contabilidad.categorias_gasto import CATEGORIAS_GASTO
 from core_erp import impuestos
-from core_erp.storages_qkt import storage_privado
+from core_erp.storages_qkt import storage_privado, storage_privado_con_respaldo
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 
@@ -689,8 +689,8 @@ class Cotizacion(models.Model):
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
-    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, verbose_name='Archivo PDF')
-    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF")
+    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo PDF')
+    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name="Contrato PDF")
     identificacion_oficial = models.FileField(
         upload_to='cotizaciones/identificaciones/', blank=True, null=True,
         storage=storage_privado, verbose_name="Identificación oficial (INE)",
@@ -1760,8 +1760,8 @@ class Compra(models.Model):
     ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Retención ISR')
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Retención IVA')
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True, verbose_name='Archivo XML')
-    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, verbose_name='Archivo PDF')
+    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo XML')
+    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo PDF')
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True, verbose_name='UUID')
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='Subido el')
     unidad_negocio = models.ForeignKey(
@@ -1938,8 +1938,8 @@ class Gasto(models.Model):
     unidad_medida = models.CharField(max_length=20, blank=True)
     fecha_gasto = models.DateField(blank=True, null=True, db_index=True)
     proveedor = models.CharField(max_length=200, blank=True)
-    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, verbose_name='Archivo XML')
-    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, verbose_name='Archivo PDF')
+    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo XML')
+    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo PDF')
     def __str__(self): return f"{self.descripcion} (${self.total_linea})"
 
 # ==========================================

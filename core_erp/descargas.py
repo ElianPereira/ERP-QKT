@@ -38,6 +38,7 @@ ARCHIVOS_PROTEGIDOS = {
     ('comercial', 'firmacontrato', 'imagen_firma'),
     ('comercial', 'cotizacion', 'archivo_contrato'),
     ('comercial', 'cotizacion', 'archivo_pdf'),
+    ('comercial', 'cotizacion', 'identificacion_oficial'),
     ('comercial', 'compra', 'archivo_pdf'),
     ('comercial', 'compra', 'archivo_xml'),
     ('comercial', 'gasto', 'archivo_pdf'),
@@ -107,11 +108,16 @@ def descargar_archivo_privado(request, app_label, model_name, campo, pk):
 
     nombre = Path(archivo.name).name
     content_type, _ = mimetypes.guess_type(nombre)
+    content_type = content_type or 'application/octet-stream'
+    # Solo PDF e imágenes raster se muestran en el navegador; cualquier otra
+    # cosa (HTML, SVG, XML...) se descarga para que no ejecute nada en nuestro origen.
+    en_linea = content_type == 'application/pdf' or content_type in ('image/jpeg', 'image/png')
     respuesta = FileResponse(
         contenido,
-        as_attachment=False,
+        as_attachment=not en_linea,
         filename=nombre,
-        content_type=content_type or 'application/octet-stream',
+        content_type=content_type,
     )
+    respuesta['X-Content-Type-Options'] = 'nosniff'
     respuesta['Cache-Control'] = 'private, no-store'
     return respuesta
