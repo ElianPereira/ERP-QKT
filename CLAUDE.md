@@ -272,6 +272,16 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-30 — **Kooxi: bienvenida corta y un solo mensaje al crear la cotización** (chat real COT-150; sin zonas
+  restringidas ni migraciones). `AVISO_INICIAL` vuelve a decir qué atiende (*eventos, pasadías y hospedaje*) en 3
+  párrafos, conservando «inteligencia artificial», la opción de persona y el enlace al aviso; **las conversaciones abiertas
+  lo reciben una vez más**. El prompt prohíbe repetir presentación. Antes el cliente recibía dos mensajes: el resumen de
+  Kooxi y el aviso automático (`notificar_cotizacion` origen WEB) con el portal. Ahora `crear_cotizacion` llama a
+  `crear_cotizacion_solicitud(..., notificar_whatsapp=False)` (el correo sale igual) y deja el enlace en
+  `conv.enlace_portal_pendiente`; `_enviar_respuesta` lo pega al final de la respuesta **después** del filtro de guardia
+  (el modelo nunca ve el token) y, si ese mensaje no sale, cae al aviso automático para no perder el enlace. La web y las
+  cotizaciones del ERP no cambian.
+
 - 2026-10-26 — **Formato en bloques para todos los mensajes de WhatsApp** (Issue #450; pedido del propietario: «hacer lo
   mismo de la estructura del texto para todo»; sin zonas restringidas, sin migraciones, mismas claves de idempotencia,
   botones y destinatarios). **Fase A (equipo)**: toda llamada a `services_pendientes._enviar_aviso` pasa un `Aviso`;

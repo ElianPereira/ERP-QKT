@@ -128,16 +128,10 @@ MENSAJE_CONSENTIMIENTO = bloques(
 # corresponda a los documentos que estaban vigentes cuando se cotizó.
 CONSENTIMIENTO_VIGENTE = timedelta(hours=24)
 AVISO_INICIAL = bloques(
-    "¡Hola! Soy *Kooxi*, el asistente virtual de Quinta Ko'ox Tanil. Funciono con inteligencia "
-    "artificial, no soy una persona.",
-    '*¿Qué puedo hacer por ti?*',
-    datos=('Darte precios', 'Revisar la disponibilidad de tu fecha',
-           'Agendar una visita para que conozcas la Quinta', 'Consultar tu reservación',
-           'Preparar tu cotización y acompañarte en tu contratación', 'Resolver tus dudas'),
-) + '\n\n' + bloques(
-    'Si en algún momento prefieres que te atienda alguien del equipo, solo escríbelo.',
-    'Al continuar esta conversación aceptas el tratamiento de tus datos conforme a nuestro Aviso de '
-    'Privacidad:',
+    "¡Hola! Soy *Kooxi*, asistente virtual con inteligencia artificial de Quinta Ko'ox Tanil (no soy una persona).",
+    'Te ayudo con *eventos, pasadías y hospedaje*: precios, fechas, visitas y tu cotización. '
+    'Si prefieres a alguien del equipo, solo escríbelo.',
+    'Al continuar aceptas el tratamiento de tus datos según nuestro Aviso de Privacidad:',
     enlace=URL_AVISO_PRIVACIDAD,
 )
 
@@ -209,9 +203,11 @@ su nombre completo y su correo. Antes confírmale en un mensaje corto el resumen
 La primera vez el sistema le manda un mensaje con botones para aceptar el aviso de privacidad: si la \
 herramienta dice que falta la autorización, pídele que toque «Acepto» y espera. Si toca «No acepto», \
 no insistas: puedes seguir resolviendo dudas y ofrecerle el cotizador web ({URL_COTIZADOR}). Al \
-crearla, dale el folio y el total, y dile que el enlace a su portal (para pagar y ver el contrato) le \
-llega en un mensaje aparte y por correo; la fecha se aparta con el primer pago. Tú no cobras ni \
-firmas contratos.
+crearla, dale el folio y el total en un solo mensaje corto: el sistema le pega al final el enlace a su \
+portal (para pagar y ver el contrato), así que no lo escribas ni digas que llega aparte; también le \
+llega por correo. La fecha se aparta con el primer pago. Tú no cobras ni firmas contratos.
+- La presentación (quién eres, que eres IA, el aviso de privacidad) ya se le mandó al empezar: no \
+la repitas ni vuelvas a saludar con «Hola, soy Kooxi».
 - Si pregunta por su reservación, su saldo, cuánto le falta o hasta cuándo liquidar, usa \
 mi_reservacion (ve solo las cotizaciones de este número de WhatsApp) y repite los importes tal cual. \
 Para pagar o ver su contrato, mándalo a su portal con el acceso que trae la herramienta. Si no \
@@ -707,8 +703,28 @@ def _atender_pendientes(conversacion_id: int) -> None:
         _enviar(conv, MENSAJE_HUMANO)
         return
     respuesta, uso = responder(conv, texto)
-    if respuesta:
-        _enviar(conv, filtrar_respuesta(conv, texto, respuesta), uso=uso)
+    _enviar_respuesta(conv, texto, respuesta, uso)
+
+
+def _enviar_respuesta(conv, texto_cliente: str, respuesta, uso) -> None:
+    """Envía la respuesta ya filtrada; si el turno creó una cotización, le pega el
+    enlace del portal (que el modelo nunca ve) y así el cliente recibe un solo mensaje.
+    Si ese mensaje no sale, cae al aviso de siempre para que el enlace no se pierda."""
+    pendiente = getattr(conv, 'enlace_portal_pendiente', None)
+    conv.enlace_portal_pendiente = None
+    if not respuesta and not pendiente:
+        return
+    texto = filtrar_respuesta(conv, texto_cliente, respuesta) if respuesta else ''
+    if pendiente:
+        enlace = pendiente[1]
+        texto = (texto + '\n\n' if texto else '') + bloques('Aquí puedes revisarla y pagar:', enlace=enlace)
+    comm = _enviar(conv, texto, uso=uso)
+    if pendiente and (comm is None or comm.estado == 'FALLIDO'):
+        from comercial.models import Cotizacion
+        from comunicacion.services_notificaciones import notificar_cotizacion
+        cot = Cotizacion.objects.filter(pk=pendiente[0]).first()
+        if cot:
+            notificar_cotizacion(cot, origen='WEB')
 
 
 def _enviar_con_botones(conv, texto: str, botones: list, *, reintento: str) -> None:
@@ -885,13 +901,14 @@ def _texto_desde_ultima_respuesta(conv) -> str:
             + '\n'.join(f"{etiquetas[m.direccion]}: {m.texto}" for m in recientes))
 
 
-def _enviar(conv, texto: str, uso: dict | None = None) -> None:
+def _enviar(conv, texto: str, uso: dict | None = None):
     texto = texto.strip()[:LIMITE_WHATSAPP]
     comm = enviar_whatsapp(tipo='AGENTE_IA', telefono=conv.telefono, mensaje=texto, trigger='SIGNAL')
     MensajeWhatsApp.objects.create(
         conversacion=conv, direccion='AGENTE', texto=texto, procesado=True,
         wamid=(comm.proveedor_id or None) if comm else None, **(uso or {}),
     )
+    return comm
 
 
 def _enviar_automatico(conv, texto: str) -> None:

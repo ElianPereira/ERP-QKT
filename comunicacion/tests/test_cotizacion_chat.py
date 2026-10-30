@@ -93,6 +93,37 @@ class CotizacionEnElChatTest(TestCase):
         self.conv.refresh_from_db()
         self.assertEqual(self.conv.cliente_id, cot.cliente_id)
 
+    def test_un_solo_mensaje_por_whatsapp_con_el_enlace_al_final(self):
+        self._aceptar()
+        with patch('comunicacion.services_notificaciones.enviar_whatsapp') as aviso, \
+                patch('comunicacion.services_notificaciones.enviar_email'):
+            r, error = _ejecutar(self.conv, **self.datos)
+        self.assertFalse(error, r)
+        # el aviso automático al cliente ya no duplica a Kooxi (la alerta al equipo sí sale)
+        self.assertFalse([c for c in aviso.call_args_list if c.kwargs.get('tipo') == 'COTIZACION'])
+        self.assertNotIn('mi-evento', json.dumps(r))  # el modelo nunca ve el enlace
+        enviado = SimpleNamespace(estado='ENVIADO', proveedor_id='wamid.r')
+        with patch.object(services_agente, 'enviar_whatsapp', return_value=enviado) as envio, \
+                patch.object(services_agente, 'filtrar_respuesta', side_effect=lambda c, t, x: x):
+            services_agente._enviar_respuesta(self.conv, 'listo', 'Tu folio es COT-1, total $2,000.', {})
+        texto = envio.call_args.kwargs['mensaje']
+        self.assertTrue(texto.startswith('Tu folio es COT-1'))
+        self.assertIn('/mi-evento/', texto)
+        self.assertIsNone(self.conv.enlace_portal_pendiente)
+
+    def test_si_el_mensaje_no_sale_cae_al_aviso_automatico(self):
+        self._aceptar()
+        with patch('comunicacion.services_notificaciones.enviar_whatsapp'), \
+                patch('comunicacion.services_notificaciones.enviar_email'):
+            _ejecutar(self.conv, **self.datos)
+        fallido = SimpleNamespace(estado='FALLIDO', proveedor_id=None)
+        with patch.object(services_agente, 'enviar_whatsapp', return_value=fallido), \
+                patch.object(services_agente, 'filtrar_respuesta', side_effect=lambda c, t, x: x), \
+                patch('comunicacion.services_notificaciones.notificar_cotizacion') as aviso:
+            services_agente._enviar_respuesta(self.conv, 'listo', 'Tu folio es COT-1.', {})
+        aviso.assert_called_once()
+        self.assertEqual(aviso.call_args.kwargs['origen'], 'WEB')
+
     def test_no_acepto_retira_la_autorizacion(self):
         self._aceptar()
         self._aceptar(services_agente.BOTON_NO_ACEPTO)

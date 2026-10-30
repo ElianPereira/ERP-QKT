@@ -104,7 +104,7 @@ def _telefono(cliente) -> str:
 
 # ──────────────────────────────── Cotización ────────────────────────────────
 
-def notificar_cotizacion(cotizacion, *, origen: str):
+def notificar_cotizacion(cotizacion, *, origen: str, whatsapp: bool = True):
     """
     Avisa al cliente de que su cotización está lista.
 
@@ -116,6 +116,9 @@ def notificar_cotizacion(cotizacion, *, origen: str):
     En 'WEB' el cliente acaba de escribir, así que la ventana de 24 h está
     abierta y el texto libre es válido si no hay plantilla configurada. En 'ERP'
     puede haber pasado cualquier tiempo, así que la plantilla es obligatoria.
+
+    Con `whatsapp=False` solo sale el correo: lo usa Kooxi, que entrega el
+    enlace en su propia respuesta para no mandar dos mensajes por la misma cotización.
     """
     origen = (origen or '').upper()
     evento = 'web' if origen == 'WEB' else 'erp_cotizada'
@@ -140,7 +143,7 @@ def notificar_cotizacion(cotizacion, *, origen: str):
         )
 
     telefono = _telefono(cliente)
-    if not telefono:
+    if not telefono or not whatsapp:
         return
 
     clave_wa = f"cotizacion:{cotizacion.pk}:{evento}:whatsapp"
