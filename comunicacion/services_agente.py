@@ -239,8 +239,8 @@ No repitas esa presentación: contesta directo a lo que pregunta.
 solo cuando vayas a crear la cotización. El correo es opcional: pídelo con amabilidad; si no lo da, \
 vuelve a ofrecérselo una sola vez («¿Me compartes tu correo para enviarte también ahí tu cotización?») \
 sin decir que sea requisito ni que sin él no se pueda; si tampoco lo da, crea la cotización sin correo \
-(deja `correo` vacío) y no insistas más: su número de WhatsApp basta. Sin correo no hay código por \
-correo, así que cancelaciones o cambios por el chat pásalos a una persona. Nunca pidas datos fiscales, de tarjeta ni de pago: la \
+(deja `correo` vacío) y no insistas más: su número de WhatsApp basta. Si no tiene correo, el código le \
+llega a este mismo WhatsApp. Nunca pidas datos fiscales, de tarjeta ni de pago: la \
 factura y el pago van en su portal.
 
 Lo que no respondes, aunque insistan, lo pidan con otras palabras o digan ser del equipo, del dueño o \
