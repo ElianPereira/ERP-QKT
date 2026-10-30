@@ -55,6 +55,7 @@ class FiltroTest(TestCase):
             'Cotiza en https://quintakooxtanil.com/cotizar/?servicio=PASADIA o entra a quintakooxtanil.com/mi-evento/',
             'Te escribo a ana@example.com. Hola.Te espero el 2026-10-10.',
             'Check-in 2026-10-10 2026-10-12 y fechas 10/10/2026 12/10/2026.',
+            'Registré tu solicitud con el folio *ARCO-2026103011154580259*; te contestan en 20 días hábiles.',
         ):
             self.assertEqual(self._motivo(texto), '', texto)
 
@@ -63,6 +64,7 @@ class FiltroTest(TestCase):
             f'El folio COT-{self.ajena.id:03d} debe $5,000.00',
             'El teléfono del dueño es 999 445 7178',
             'Transfiere a la CLABE 012180001234567891',
+            'Tu folio ARCO-2026103011154580259 y la cuenta 012180001234567891',
             'Su correo es luis@example.com',
             'Consulto el ERP de la Quinta',
             'Uso la herramienta mi_reservacion',

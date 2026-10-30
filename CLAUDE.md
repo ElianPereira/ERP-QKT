@@ -272,6 +272,12 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-30 — **El filtro de Kooxi detenía el folio ARCO** (lo encontró `evaluar_agente`, caso `arco_acceso`, 49/50 tras los
+  PR #453–#456; US$3.15). `ARCO-` + 19 dígitos son más de 10 dígitos seguidos y `services_guardia` los tomaba por un
+  teléfono ajeno: todo cliente que registrara una solicitud ARCO por el chat recibía `RESPUESTA_SEGURA` en vez de su folio
+  (la solicitud sí se creaba). Ahora `_RE_FOLIO_ARCO` se quita antes de buscar teléfonos, igual que las fechas; una CLABE
+  junto al folio sigue deteniéndose. Sin migración.
+
 - 2026-10-30 — **Códigos de verificación por WhatsApp** (PR 3 de 3; pedido del propietario: «¿hay forma de que el código
   se mande por WhatsApp?»; sin migraciones, sin zonas restringidas). `comunicacion/services_codigos.py`
   (`enviar_codigo_whatsapp`): si el cliente **no tiene correo** y sí un teléfono válido, la firma del contrato
