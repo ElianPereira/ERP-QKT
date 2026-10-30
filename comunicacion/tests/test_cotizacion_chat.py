@@ -124,6 +124,25 @@ class CotizacionEnElChatTest(TestCase):
         aviso.assert_called_once()
         self.assertEqual(aviso.call_args.kwargs['origen'], 'WEB')
 
+    def test_sin_correo_crea_la_cotizacion_y_deja_la_evidencia(self):
+        self._aceptar()
+        with self._sin_red():
+            r, error = _ejecutar(self.conv, **{**self.datos, 'correo': ''})
+        self.assertFalse(error, r)
+        self.assertNotIn('error', r)
+        cot = Cotizacion.objects.get()
+        self.assertEqual(cot.cliente.email, '')
+        acept = AceptacionLegal.objects.get(cliente=cot.cliente)
+        self.assertEqual(acept.origen, OrigenAceptacion.WHATSAPP)
+        self.assertEqual(acept.referencia_externa, 'wamid.acepto')
+        self.assertTrue(acept.correo.endswith('.invalid'))
+
+    def test_un_correo_mal_escrito_sigue_rechazandose(self):
+        self._aceptar()
+        r, _ = _ejecutar(self.conv, **{**self.datos, 'correo': 'no-es-correo'})
+        self.assertIn('error', r)
+        self.assertFalse(Cotizacion.objects.exists())
+
     def test_no_acepto_retira_la_autorizacion(self):
         self._aceptar()
         self._aceptar(services_agente.BOTON_NO_ACEPTO)

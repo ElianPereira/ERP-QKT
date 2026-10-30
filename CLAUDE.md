@@ -272,6 +272,15 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-30 — **Kooxi cotiza sin correo** (pedido del propietario tras el chat COT-150; PR 2 de 3, sin migraciones y
+  **sin tocar `legal/`**). `crear_cotizacion` ya no exige `correo` (si viene y es inválido, sigue rechazando). El prompt
+  pide el correo con amabilidad, lo vuelve a ofrecer **una sola vez** sin decir que sea requisito y, si tampoco lo da,
+  crea la cotización con el celular como medio de contacto. La evidencia de consentimiento (`AceptacionLegal.correo`
+  es obligatorio) guarda `<teléfono>@sin-correo.whatsapp.invalid` y la prueba real sigue siendo el wamid del botón
+  (`referencia_externa`); `Cliente.email` queda vacío. Sin correo no hay código de cancelación/cambio
+  (`services_cancelacion` ya lo rechaza con mensaje limpio) y el prompt manda esos casos a una persona; el código de la
+  firma del contrato y el aviso de contrato listo siguen siendo solo por correo (PR 3).
+
 - 2026-10-30 — **Kooxi: bienvenida corta y un solo mensaje al crear la cotización** (chat real COT-150; sin zonas
   restringidas ni migraciones). `AVISO_INICIAL` vuelve a decir qué atiende (*eventos, pasadías y hospedaje*) en 3
   párrafos, conservando «inteligencia artificial», la opción de persona y el enlace al aviso; **las conversaciones abiertas

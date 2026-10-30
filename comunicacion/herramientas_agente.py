@@ -176,7 +176,7 @@ HERRAMIENTAS = [
                 'fecha': {'type': 'string', 'description': 'AAAA-MM-DD.'},
                 'personas': {'type': 'integer'},
                 'nombre': {'type': 'string', 'description': 'Nombre completo del cliente.'},
-                'correo': {'type': 'string', 'description': 'Correo del cliente.'},
+                'correo': {'type': 'string', 'description': 'Correo del cliente. Déjalo vacío solo si, tras pedírselo dos veces, no quiso darlo.'},
                 'paquete_id': {'type': 'integer', 'description': 'Evento: id del paquete; omitir para solo la renta.'},
                 'hora_inicio': {'type': 'string', 'description': 'Evento: HH:MM en 24 h.'},
                 'hora_fin': {'type': 'string', 'description': 'Evento: HH:MM en 24 h.'},
@@ -186,7 +186,7 @@ HERRAMIENTAS = [
                 'noches': {'type': 'integer'},
                 'notas': {'type': 'string', 'description': 'Lo que el cliente pidió anotar (máx. 300).'},
             },
-            'required': ['servicio', 'fecha', 'personas', 'nombre', 'correo'],
+            'required': ['servicio', 'fecha', 'personas', 'nombre'],
             'additionalProperties': False,
         },
     },
@@ -726,11 +726,13 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
             'Ya tiene en el chat el mensaje con botones para aceptar el Aviso de Privacidad; pídele '
             'que toque «Acepto». Sin eso no se puede crear la cotización.')}
 
+    # El correo es opcional: sin él, el número de WhatsApp es el medio de contacto.
     correo = str(correo or '').strip().lower()
-    try:
-        validate_email(correo)
-    except ValidationError:
-        return {'error': 'El correo no parece válido: confírmalo con el cliente.'}
+    if correo:
+        try:
+            validate_email(correo)
+        except ValidationError:
+            return {'error': 'El correo no parece válido: confírmalo con el cliente.'}
     inicio, error = _fecha(fecha)
     if error:
         return {'error': error}
@@ -776,7 +778,8 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
         from legal.models import OrigenAceptacion
         from legal.services import LegalService
         LegalService.registrar_aceptacion(
-            request=None, correo=email, origen=OrigenAceptacion.WHATSAPP, cliente=cliente,
+            request=None, correo=email or f'{conv.telefono}@sin-correo.whatsapp.invalid',
+            origen=OrigenAceptacion.WHATSAPP, cliente=cliente,
             finalidades_aceptadas=finalidades, referencia_externa=conv.consentimiento_wamid,
             aceptado_en=conv.consentimiento_en,
         )
