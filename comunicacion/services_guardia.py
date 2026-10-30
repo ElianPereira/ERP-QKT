@@ -46,6 +46,8 @@ _RE_URL = re.compile(r'\b((?:[a-z0-9-]+\.)+(?:com|mx|net|org|io|app|ly|gl|me|co|
 # Las fechas (2026-10-10, 10/10/2026) se quitan antes de buscar teléfonos:
 # dos seguidas suman diez dígitos.
 _RE_FECHA = re.compile(r'\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b')
+# El folio ARCO (ARCO- + 19 dígitos) tampoco es un teléfono: se quita igual que las fechas.
+_RE_FOLIO_ARCO = re.compile(r'\bARCO-\d{10,24}\b', re.IGNORECASE)
 _RE_TOKEN_PORTAL = re.compile(r'/mi-evento/[^/\s]{6,}', re.IGNORECASE)
 
 # Lo que el cliente nunca debe leer: delata el sistema interno o las
@@ -92,7 +94,7 @@ def revisar_filtro(conv, texto: str) -> str:
     publico = _digitos(getattr(settings, 'META_WA_KOOXI_NUMERO', ''))
     if len(publico) >= 10:
         permitidos.add(publico[-10:])
-    for m in _RE_TELEFONO.finditer(_RE_FECHA.sub(' ', texto)):
+    for m in _RE_TELEFONO.finditer(_RE_FOLIO_ARCO.sub(' ', _RE_FECHA.sub(' ', texto))):
         digitos = _digitos(m.group(0))
         if len(digitos) >= 10 and digitos[-10:] not in permitidos:
             return 'Incluye un número de teléfono o cuenta que no es de este cliente.'
