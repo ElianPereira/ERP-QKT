@@ -72,11 +72,10 @@ jobs:
         run: python manage.py check --deploy --fail-level WARNING
 
       # Auditoría de dependencias con vulnerabilidades conocidas (CVE/PYSEC).
-      # Informativo: no bloquea el pipeline para no frenar merges por avisos
-      # transitivos, pero deja el reporte visible en los logs de CI.
+      # Bloqueante. Si aparece un aviso sin parche, ignorarlo con
+      # --ignore-vuln <ID> y un comentario que lo justifique.
       - name: Audit dependencies (pip-audit)
         run: pip-audit -r requirements.lock --desc
-        continue-on-error: true
 
       # Detección de secretos commiteados (API keys, tokens, credenciales).
       # Se instala el binario directo desde el release oficial (no la
@@ -106,3 +105,38 @@ jobs:
       - name: Static analysis (semgrep)
         run: semgrep scan --config auto --error .
         continue-on-error: true
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build image
+        run: docker build -t erp-qkt:ci .
+
+      # Si WeasyPrint y Django arrancan dentro de la imagen en CI, arrancan en Railway.
+      - name: Smoke test (PDF + check)
+        run: |
+          docker run --rm -e DJANGO_SECRET_KEY=ci-docker-smoke-not-for-production \
+            -e DJANGO_DEBUG=True -e DJANGO_ALLOWED_HOSTS='*' erp-qkt:ci \
+            sh -c "python -c \"import weasyprint; weasyprint.HTML(string='<p>ok</p>').write_pdf()\" && python manage.py check"
+
+      # Solo CVE de HIGH/CRITICAL con parche disponible; excepciones en .trivyignore.
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: erp-qkt:ci
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          trivyignores: .trivyignore
+
+      - name: Scan filesystem (Trivy)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          trivyignores: .trivyignore

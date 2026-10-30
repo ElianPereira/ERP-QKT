@@ -59,6 +59,15 @@ class FiltroTest(TestCase):
         ):
             self.assertEqual(self._motivo(texto), '', texto)
 
+    def test_repite_el_correo_que_el_cliente_escribio_en_el_chat(self):
+        texto = 'Te responderán a nuevo@example.org en 20 días hábiles.'
+        self.assertIn('correo', self._motivo(texto))
+        MensajeWhatsApp.objects.create(conversacion=self.conv, direccion='ENTRADA',
+                                       texto='Mi correo es Nuevo@Example.org', procesado=True)
+        self.assertEqual(self._motivo(texto), '')
+        # Un correo que solo apareció en una respuesta del agente sigue deteniéndose.
+        self.assertIn('correo', self._motivo('Escríbele a luis@example.com'))
+
     def test_detiene_lo_que_no_es_de_quien_escribe(self):
         for texto in (
             f'El folio COT-{self.ajena.id:03d} debe $5,000.00',

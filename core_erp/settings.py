@@ -21,7 +21,6 @@ ERP_RATELIMIT_PROXIES = env('ERP_RATELIMIT_PROXIES', default=1, cast=int)
 
 CSRF_TRUSTED_ORIGINS = [
     'https://erp-qkt.up.railway.app',
-    'https://*.railway.app',
     'https://quintakooxtanil.com',
     'https://erp.quintakooxtanil.com',
 ]
@@ -56,7 +55,6 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
 
@@ -112,6 +110,10 @@ ERP_CSP_PORTAL_SOLO_REPORTE = env('ERP_CSP_PORTAL_SOLO_REPORTE', default=False, 
 # recursos usa Jazzmin/FullCalendar/Chart.js antes de plantear una CSP
 # bloqueante ahí (orden 37, SEC-CFG-002).
 ERP_CSP_ADMIN_SOLO_REPORTE = env('ERP_CSP_ADMIN_SOLO_REPORTE', default=False, cast=bool)
+# Modo bloqueante (Issue #460, Fase 3): solo tras revisar las violaciones que
+# llegan a /csp-report/ en Report-Only. Apagar la variable es el rollback.
+ERP_CSP_PORTAL_ACTIVO = env('ERP_CSP_PORTAL_ACTIVO', default=False, cast=bool)
+ERP_CSP_ADMIN_ACTIVO = env('ERP_CSP_ADMIN_ACTIVO', default=False, cast=bool)
 
 MIDDLEWARE = [
     # Primero de todos: cubre el log de cualquier middleware/vista/señal

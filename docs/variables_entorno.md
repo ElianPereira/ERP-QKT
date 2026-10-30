@@ -135,6 +135,8 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `ERP_CSP_PUBLICO_SOLO_REPORTE` | CSP pública en modo prueba (solo reporta). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `PUBLIC_CSP_REPORT_ONLY` |
 | `ERP_CSP_PORTAL_SOLO_REPORTE` | CSP del portal en modo prueba. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `PORTAL_CSP_REPORT_ONLY` |
 | `ERP_CSP_ADMIN_SOLO_REPORTE` | CSP del admin en modo prueba. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `ADMIN_CSP_REPORT_ONLY` |
+| `ERP_CSP_PORTAL_ACTIVO` | CSP bloqueante del portal (tras revisar /csp-report/). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
+| `ERP_CSP_ADMIN_ACTIVO` | CSP bloqueante del admin (tras revisar /csp-report/). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
 | `ERP_NOMINA_WEBHOOK_TOKEN` | Token que autoriza el webhook de sincronización de Jibble. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `NOMINA_CRON_TOKEN` |
 | `ERP_SAT_FIEL_CIFRADO_SECRET` | Llave Fernet que cifra la e.firma (la genera el ERP, no el SAT). Generar una y no perderla. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `SAT_FIEL_ENCRYPTION_KEY` |
 
