@@ -95,7 +95,7 @@ class ReglasBancoBase(TestCase):
 class ReglasDeSistemaTest(ReglasBancoBase):
 
     def test_las_reglas_de_sistema_vienen_sembradas(self):
-        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 18)
+        self.assertEqual(ReglaConciliacion.objects.filter(origen='SISTEMA', activa=True).count(), 38)
 
     def test_traspaso_a_cuenta_propia_se_asienta_y_empareja_solo(self):
         mov = self._mov(CARGO_TRASPASO, cargo='450.00')
