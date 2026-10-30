@@ -817,6 +817,12 @@ def registrar_pregunta_sin_respuesta(conv=None, pregunta=None):
                                 'ofrécele pasar con una persona.'}
 
 
+def _destino_del_codigo(destino: str) -> str:
+    if '@' in (destino or ''):
+        return f'al correo registrado ({_enmascarar(destino)})'
+    return 'este mismo WhatsApp (es el número registrado en la reservación)'
+
+
 def _enmascarar(correo: str) -> str:
     usuario, _, dominio = (correo or '').partition('@')
     return f'{usuario[:1]}***@{dominio}' if dominio else '***'
@@ -847,7 +853,7 @@ def solicitar_cambio_o_cancelacion(conv=None, folio=None, tipo=None, fecha_nueva
         return {'error': str(e)}
     return {
         'ok': True, 'folio': f'COT-{cot.pk:03d}',
-        'nota': (f'Se mandó un código de 6 dígitos al correo registrado ({_enmascarar(solicitud.codigo_destino)}). '
+        'nota': (f'Se mandó un código de 6 dígitos a {_destino_del_codigo(solicitud.codigo_destino)}. '
                  'Pídele que lo escriba aquí para continuar. Aclara que todavía NO se cambió ni se canceló nada: '
                  'Dirección revisa y decide, y cualquier reembolso se hace solo al medio con que pagó. '
                  'Nunca le pidas ni aceptes datos bancarios por este chat.'),

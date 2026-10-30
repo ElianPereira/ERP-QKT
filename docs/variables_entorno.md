@@ -57,6 +57,7 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_WA_PLANTILLA_SOLICITUD_FACTURA` | Plantilla (documento) de solicitud de factura al contador. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_SOLICITUD_FACTURA` |
 | `META_WA_PLANTILLA_OPERACIONES` | Plantilla de avisos internos y de operaciones («Tienes un aviso nuevo: {{1}}»). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_OPERACIONES` |
 | `META_WA_PLANTILLA_AVISO_EQUIPO` | Plantilla de avisos al equipo en bloques (4 parámetros: encabezado, título, datos, enlace); vacía = se usa la de operaciones en un renglón. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
+| `META_WA_PLANTILLA_CODIGO` | Plantilla de autenticación con el código de 6 dígitos (firma de contrato y solicitudes de cancelación) para clientes sin correo; vacía = solo dentro de la ventana de 24 h. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web | — |
 
 ## ANTHROPIC — modelo de Kooxi
 

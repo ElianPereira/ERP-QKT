@@ -487,6 +487,12 @@ IDENTIFICACION_TIPOS_PERMITIDOS = {'image/jpeg', 'image/png', 'application/pdf'}
 IDENTIFICACION_TAMANO_MAXIMO = 8 * 1024 * 1024  # 8 MB
 
 
+def _destino_visible(destino: str) -> str:
+    """El correo se muestra tal cual; un teléfono, enmascarado."""
+    from comunicacion.services_codigos import enmascarar_telefono
+    return destino if '@' in (destino or '') else enmascarar_telefono(destino)
+
+
 @_rate_limit(key='portal_cancelacion', limit=20, window=60)
 def portal_solicitar_cancelacion(request, token):
     """Solicitud de cambio de fecha o cancelación (Fase 2c). No hay botón que
@@ -515,7 +521,8 @@ def portal_solicitar_cancelacion(request, token):
                         raise CancelacionError('La fecha no es válida.') from e
                 abierta = iniciar(cotizacion, canal='PORTAL', tipo=request.POST.get('tipo', ''),
                                   motivo=request.POST.get('motivo', ''), fecha_nueva=fecha)
-                aviso = f"Te enviamos un código a {abierta.codigo_destino}. Escríbelo abajo para enviar tu solicitud."
+                aviso = (f"Te enviamos un código a {_destino_visible(abierta.codigo_destino)}. "
+                         "Escríbelo abajo para enviar tu solicitud.")
             elif accion == 'reenviar' and abierta is not None:
                 aviso = f"Te enviamos un código nuevo a {enviar_codigo(abierta)}."
             elif accion == 'verificar' and abierta is not None:

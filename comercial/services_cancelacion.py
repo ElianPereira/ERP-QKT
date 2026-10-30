@@ -158,8 +158,10 @@ def iniciar(cotizacion: Cotizacion, *, canal: str, tipo: str, telefono: str = ''
                                'registrado en la reservación.')
     if tipo == 'CAMBIO_FECHA':
         _validar_cambio(cotizacion, fecha_nueva)
-    if not (cotizacion.cliente.email or '').strip():
-        raise CancelacionError('No tenemos un correo registrado para enviarte el código. Escríbenos para agregarlo.')
+    from comunicacion.services_codigos import puede_enviar_codigo_whatsapp
+    if not (cotizacion.cliente.email or '').strip() and not puede_enviar_codigo_whatsapp(cotizacion.cliente):
+        raise CancelacionError('No tenemos un correo ni un WhatsApp registrado para enviarte el código. '
+                               'Escríbenos para agregarlo.')
 
     with transaction.atomic():
         abierta = (SolicitudCancelacion.objects.select_for_update()
@@ -191,6 +193,7 @@ def iniciar(cotizacion: Cotizacion, *, canal: str, tipo: str, telefono: str = ''
 def enviar_codigo(solicitud: SolicitudCancelacion, ahora=None) -> str:
     """Genera y manda el código de 6 dígitos. El código nunca se guarda en claro
     ni en la bitácora de comunicaciones. Devuelve el correo destino."""
+    from comunicacion.services_codigos import enmascarar_telefono, enviar_codigo_whatsapp, telefono_valido
     ahora = ahora or timezone.now()
     cot = solicitud.cotizacion
     email = (cot.cliente.email or '').strip()
@@ -205,9 +208,14 @@ def enviar_codigo(solicitud: SolicitudCancelacion, ahora=None) -> str:
         codigo = f'{secrets.randbelow(10**6):06d}'
         s.codigo_hash = make_password(codigo)
         s.codigo_enviado_en = ahora
-        s.codigo_destino = email
+        s.codigo_destino = email or telefono_valido(cot.cliente)
         s.intentos = 0
         s.save(update_fields=['codigo_hash', 'codigo_enviado_en', 'codigo_destino', 'intentos', 'updated_at'])
+    if not email:
+        if not enviar_codigo_whatsapp(cotizacion=cot, codigo=codigo,
+                                      minutos=int(VIGENCIA_CODIGO.total_seconds() // 60)):
+            raise CancelacionError('No pudimos enviar el código. Intenta de nuevo en unos minutos.')
+        return enmascarar_telefono(s.codigo_destino)
     asunto = f'Código para tu solicitud de {QUE[solicitud.tipo]} · {_folio(cot)}'
     from django.core.mail import EmailMultiAlternatives
     from django.template.loader import render_to_string

@@ -272,6 +272,19 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-30 — **Códigos de verificación por WhatsApp** (PR 3 de 3; pedido del propietario: «¿hay forma de que el código
+  se mande por WhatsApp?»; sin migraciones, sin zonas restringidas). `comunicacion/services_codigos.py`
+  (`enviar_codigo_whatsapp`): si el cliente **no tiene correo** y sí un teléfono válido, la firma del contrato
+  (`services_firma.solicitar_codigo`) y las solicitudes de cambio/cancelación (`services_cancelacion.enviar_codigo`) mandan el
+  código a su WhatsApp; con correo todo sigue igual por correo. Dentro de la ventana de 24 h sale como texto libre; fuera,
+  con la plantilla de autenticación `META_WA_PLANTILLA_CODIGO` (código en cuerpo y botón «copiar», texto en
+  `docs/whatsapp_plantilla_codigo.md`, **pendiente de someter en Meta**; sin ella y sin ventana no se envía y el cliente ve
+  «No pudimos enviar el código»). El código no se guarda en claro ni en la bitácora (el registro dice solo el motivo);
+  `codigo_canal`/`codigo_destino` guardan WHATSAPP y el teléfono, y el portal solo muestra «WhatsApp terminado en NNNN».
+  Kooxi puede iniciar cambio/cancelación de un cliente sin correo: el código llega a ese mismo chat (ya se exigía que
+  escribiera desde el número registrado). Sigue pendiente el aviso «contrato listo para firmar», que solo sale por correo
+  (el cliente sin correo lo encuentra en su portal, cuyo enlace le dio Kooxi).
+
 - 2026-10-30 — **Kooxi cotiza sin correo** (pedido del propietario tras el chat COT-150; PR 2 de 3, sin migraciones y
   **sin tocar `legal/`**). `crear_cotizacion` ya no exige `correo` (si viene y es inválido, sigue rechazando). El prompt
   pide el correo con amabilidad, lo vuelve a ofrecer **una sola vez** sin decir que sea requisito y, si tampoco lo da,

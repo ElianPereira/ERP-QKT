@@ -395,6 +395,9 @@ META_WA_PLANTILLA_OPERACIONES = env('META_WA_PLANTILLA_OPERACIONES', default='')
 # renglón. Texto a someter en docs/whatsapp_plantilla_aviso_equipo.md.
 META_WA_PLANTILLA_AVISO_EQUIPO = env('META_WA_PLANTILLA_AVISO_EQUIPO', default='')
 
+# Plantilla de autenticación (código de 6 dígitos con botón «Copiar código») para quien no tiene correo.
+META_WA_PLANTILLA_CODIGO = env('META_WA_PLANTILLA_CODIGO', default='')
+
 # --- AGENTE DE WHATSAPP CON IA (Issue #346) ---
 # Webhook entrante: el token lo inventa quien da de alta el webhook en Meta;
 # el App Secret firma cada entrega (X-Hub-Signature-256). Sin él, toda
