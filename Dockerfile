@@ -1,9 +1,11 @@
-FROM python:3.13-slim
+# Misma versión de Python con la que CI prueba y se compiló requirements.lock (3.12),
+# sobre Debian trixie (mismos paquetes de WeasyPrint). Dependabot propone el digest.
+FROM python:3.12-slim-trixie
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
