@@ -178,7 +178,7 @@ class SolicitudInvalida(Exception):
         self.errores = list(errores)
 
 
-def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento):
+def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento, notificar_whatsapp=True):
     """
     Crea la cotización de una solicitud del cotizador: cliente, consentimiento,
     líneas, descuentos automáticos, portal y avisos. Fuente única para el
@@ -189,6 +189,8 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
     evidencia legal del canal (navegador o botón de WhatsApp); si falla, la
     solicitud sigue y queda en el log. Lanza `SolicitudInvalida` si no pasa
     las reglas. Devuelve `{'cotizacion', 'portal_url', 'aviso_fecha'}`.
+    Con `notificar_whatsapp=False` el aviso de WhatsApp no sale (el correo sí):
+    quien llama se encarga de entregar el enlace por ese canal.
     """
     form = CotizadorEnviarForm(data)
     if not form.is_valid():
@@ -519,7 +521,7 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
         notificar_cotizacion,
     )
     alertar_equipo_nueva_cotizacion(cotizacion)
-    notificar_cotizacion(cotizacion, origen='WEB')
+    notificar_cotizacion(cotizacion, origen='WEB', whatsapp=notificar_whatsapp)
 
     if aviso_fecha:
         try:

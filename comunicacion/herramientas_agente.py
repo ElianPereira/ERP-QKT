@@ -783,23 +783,24 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
 
     try:
         r = crear_cotizacion_solicitud(datos, origen_cliente='WhatsApp',
-                                       registrar_consentimiento=_consentimiento_whatsapp)
+                                       registrar_consentimiento=_consentimiento_whatsapp,
+                                       notificar_whatsapp=False)
     except SolicitudInvalida as e:
         return {'error': ' '.join(e.errores)}
     cot = r['cotizacion']
     if conv.cliente_id != cot.cliente_id:
         conv.cliente = cot.cliente
         conv.save(update_fields=['cliente', 'updated_at'])
+    # El enlace con token no pasa por el modelo: el ERP lo agrega al final de
+    # la respuesta de Kooxi (después del filtro) y el correo lo lleva también.
+    conv.enlace_portal_pendiente = (cot.pk, r['portal_url'])
     return {
         'folio': f'COT-{cot.id:03d}',
         'total': _formato(cot.precio_final),
         'conceptos': [i.descripcion for i in cot.items.all()],
-        # El enlace con token no pasa por el modelo: le llega al cliente en
-        # el aviso de cotización (WhatsApp y correo).
-        'nota': ('La cotización quedó creada. El cliente recibe en mensaje aparte y por correo el enlace '
-                 'a su portal, donde paga y ve su contrato. Si no le llega, puede entrar en '
-                 f'{URL_PORTAL_ACCESO} con su folio y los últimos 4 dígitos de su teléfono. La fecha se '
-                 'aparta con el primer pago.'),
+        'nota': ('La cotización quedó creada. El sistema pega solo, al final de tu mensaje, el enlace a su '
+                 'portal (para pagar y ver el contrato): no lo escribas ni digas que llega en otro '
+                 'mensaje. Dile solo el folio, el total y que la fecha se aparta con el primer pago.'),
     }
 
 
