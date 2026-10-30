@@ -135,3 +135,46 @@ class PublicSecurityHeadersMiddlewareTest(TestCase):
         # No debe filtrarse a rutas fuera de /admin/.
         respuesta_publica = self.client.get('/')
         self.assertNotIn('Content-Security-Policy-Report-Only', respuesta_publica.headers)
+
+
+class CspPortalAdminYReporteTest(TestCase):
+    """Issue #460, Fase 3: modo bloqueante por flag y receptor /csp-report/."""
+
+    @override_settings(ERP_CSP_PORTAL_ACTIVO=True, ERP_CSP_PORTAL_SOLO_REPORTE=False)
+    def test_portal_bloqueante_con_su_flag(self):
+        r = self.client.get('/mi-evento/no-existe/')
+        self.assertIn('Content-Security-Policy', r)
+        self.assertNotIn('Content-Security-Policy-Report-Only', r)
+
+    @override_settings(ERP_CSP_PORTAL_ACTIVO=False, ERP_CSP_PORTAL_SOLO_REPORTE=True)
+    def test_portal_report_only_lleva_report_uri(self):
+        r = self.client.get('/mi-evento/no-existe/')
+        self.assertIn('report-uri /csp-report/', r['Content-Security-Policy-Report-Only'])
+
+    @override_settings(ERP_CSP_PORTAL_ACTIVO=False, ERP_CSP_PORTAL_SOLO_REPORTE=False)
+    def test_portal_sin_flags_no_manda_csp(self):
+        r = self.client.get('/mi-evento/no-existe/')
+        self.assertNotIn('Content-Security-Policy', r)
+        self.assertNotIn('Content-Security-Policy-Report-Only', r)
+
+    def test_csp_report_registra_sin_query(self):
+        cuerpo = '{"csp-report": {"effective-directive": "script-src", "blocked-uri": "https://x.com/a.js?t=SECRETO", "document-uri": "https://erp/mi-evento/TOKEN/?k=SECRETO"}}'
+        with self.assertLogs('django.security', level='WARNING') as cm:
+            r = self.client.post('/csp-report/', cuerpo, content_type='application/csp-report')
+        self.assertEqual(r.status_code, 204)
+        self.assertIn('script-src', cm.output[0])
+        self.assertNotIn('SECRETO', cm.output[0])
+
+    def test_csp_report_rechaza_cuerpo_grande_y_get(self):
+        self.assertEqual(self.client.post('/csp-report/', 'x' * 9000, content_type='application/json').status_code, 413)
+        self.assertEqual(self.client.get('/csp-report/').status_code, 405)
+
+    def test_csp_report_json_invalido_da_400(self):
+        self.assertEqual(self.client.post('/csp-report/', '{no', content_type='application/json').status_code, 400)
+
+    def test_origen_railway_ajeno_recibe_403(self):
+        from django.test import Client
+        c = Client(enforce_csrf_checks=True)
+        r = c.post('/cotizar/enviar/', '{}', content_type='application/json',
+                   secure=True, HTTP_ORIGIN='https://otro.railway.app', HTTP_HOST='erp.quintakooxtanil.com')
+        self.assertEqual(r.status_code, 403)

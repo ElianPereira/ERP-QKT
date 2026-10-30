@@ -18,7 +18,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
-from django.views.decorators.csrf import csrf_exempt
 
 from core_erp import impuestos
 from core_erp.documentos import nombre_archivo, render_pdf, respuesta_pdf
