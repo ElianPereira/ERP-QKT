@@ -1937,6 +1937,12 @@ async function enviarSolicitud() {
     finalidades:    finalidades,
   };
 
+  // Atribución publicitaria: el mismo event_id va al Pixel (si se aceptaron las cookies) y al servidor.
+  var metaCtx = window.qktMeta ? window.qktMeta.contexto() : {};
+  payload.meta_event_id = metaCtx.meta_event_id || '';
+  payload.fbp = metaCtx.fbp || '';
+  payload.fbc = metaCtx.fbc || '';
+
   if (requiereFactura) {
     payload.rfc = (document.getElementById('rfc').value || '').trim().toUpperCase();
     payload.razon_social = (document.getElementById('razon_social').value || '').trim();
@@ -1953,7 +1959,8 @@ async function enviarSolicitud() {
     });
     var data = await resp.json();
     if (data.ok) {
-      window.location.href = data.portal_url;
+      var irAlPortal = function () { window.location.href = data.portal_url; };
+      if (window.qktMeta) { window.qktMeta.lead(metaCtx.meta_event_id, irAlPortal); } else { irAlPortal(); }
     } else {
       var al = document.getElementById('alert-global');
       al.style.display = 'block';
@@ -1989,5 +1996,6 @@ poblarSelectoresHora();
   } catch(e) { /* silencioso */ }
 })();
 </script>
+{% load pixel_meta %}{% pixel_meta %}
 </body>
 </html>

@@ -348,6 +348,16 @@ ERP_MARKETING_TOLERANCIA_MINIMA = env('ERP_MARKETING_TOLERANCIA_MINIMA', default
 META_ADS_TOKEN_ESCRITURA = env('META_ADS_TOKEN_ESCRITURA', default='')
 ERP_MARKETING_ACCIONES_ACTIVAS = env('ERP_MARKETING_ACCIONES_ACTIVAS', default=False, cast=bool)
 ERP_MARKETING_PRESUPUESTO_MAX_DIARIO = env('ERP_MARKETING_PRESUPUESTO_MAX_DIARIO', default='')
+# Fase 6: Pixel de Meta en el sitio público (solo tras aceptar el banner de cookies) y Conversions API desde
+# el servidor (outbox `EventoConversion`). Sin META_PIXEL_ID no se renderiza nada; sin META_CAPI_TOKEN no se
+# encola ni se envía ningún evento. El dataset de la API es el del Pixel salvo que META_CAPI_DATASET_ID diga otro
+# (los eventos de WhatsApp van al dataset ligado a la cuenta de WhatsApp Business, META_WA_WABA_ID).
+META_PIXEL_ID = env('META_PIXEL_ID', default='')
+META_CAPI_TOKEN = env('META_CAPI_TOKEN', default='')
+META_CAPI_DATASET_ID = env('META_CAPI_DATASET_ID', default='')
+META_CAPI_API_VERSION = env('META_CAPI_API_VERSION', default='v23.0')
+META_CAPI_TEST_CODE = env('META_CAPI_TEST_CODE', default='')
+META_WA_WABA_ID = env('META_WA_WABA_ID', default='')
 
 # Plantillas aprobadas en Meta. Los mensajes iniciados por el negocio (pago y
 # recordatorio) solo llegan por plantilla: fuera de la ventana de 24 h Meta
@@ -681,6 +691,7 @@ JAZZMIN_SETTINGS = {
         "marketing.ParametroMarketing":      "fas fa-sliders-h",
         "marketing.Decision":                "fas fa-balance-scale",
         "marketing.AccionAnuncio":           "fas fa-bolt",
+        "marketing.EventoConversion":        "fas fa-exchange-alt",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -822,6 +833,7 @@ JAZZMIN_SETTINGS = {
         "marketing.GastoPublicitario",
         "marketing.Decision",
         "marketing.AccionAnuncio",
+        "marketing.EventoConversion",
         "marketing.ParametroMarketing",
 
         # === ADMINISTRACIÓN ===

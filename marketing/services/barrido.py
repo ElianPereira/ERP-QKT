@@ -1,5 +1,6 @@
 """Barrido diario de prospectos (Issue #468, fase 1): red de seguridad de las
 señales, pérdidas por silencio, motivos y retención."""
+import contextlib
 import logging
 from datetime import timedelta
 
@@ -10,7 +11,7 @@ from comercial.models import Cotizacion
 from comunicacion.models import ConversacionWhatsApp
 
 from ..models import Lead
-from . import motivos, pipeline, retencion
+from . import conversiones, motivos, pipeline, retencion
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,13 @@ def _contactos_recientes(desde):
 
 
 def barrer(desde=None, ahora=None) -> dict:
+    """Ver `_barrer`. Reconstruir el histórico no encola eventos de conversión:
+    sus fechas son viejas y Meta rechaza eventos de más de 7 días."""
+    with conversiones.pausa() if desde is not None else contextlib.nullcontext():
+        return _barrer(desde, ahora)
+
+
+def _barrer(desde=None, ahora=None) -> dict:
     """Sin `desde`: prospectos abiertos y actividad de los últimos 2 días.
     Con `desde`: reconstruye el histórico desde esa fecha."""
     ahora = ahora or timezone.now()

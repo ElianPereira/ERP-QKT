@@ -4,6 +4,7 @@ Marketing nunca copia montos: un prospecto guarda llaves a la conversación,
 el cliente y la cotización, y todo importe se lee de ahí. La etapa la deriva
 `marketing.services.pipeline` de los datos que ya existen; nadie la captura.
 """
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
@@ -587,3 +588,74 @@ class AccionAnuncio(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError('La bitácora de acciones no se borra.')
+
+
+class EventoConversion(models.Model):
+    """Bandeja de salida (outbox) de eventos hacia la Conversions API de Meta (fase 6).
+
+    Un evento nace PENDIENTE cuando el prospecto avanza (en `on_commit`, para que
+    un fallo de Meta nunca afecte la venta) y el programador lo envía. Nada de
+    datos personales en claro: solo identificadores de anuncio y navegador; el
+    teléfono y el correo se leen del prospecto al momento de enviar y salen con
+    hash SHA-256. Nunca se borra: los estados terminales son la bitácora.
+    """
+    LEAD = 'Lead'
+    COTIZACION_ENVIADA = 'CotizacionEnviada'
+    SCHEDULE = 'Schedule'
+    PURCHASE = 'Purchase'
+    EVENTO_CHOICES = [
+        (LEAD, 'Lead'),
+        (COTIZACION_ENVIADA, 'Cotización enviada'),
+        (SCHEDULE, 'Visita agendada'),
+        (PURCHASE, 'Compra'),
+    ]
+    WHATSAPP = 'WHATSAPP'
+    WEB = 'WEB'
+    ORIGEN_CHOICES = [(WHATSAPP, 'WhatsApp'), (WEB, 'Sitio web')]
+    PENDIENTE = 'PENDIENTE'
+    ENVIADO = 'ENVIADO'
+    FALLIDO = 'FALLIDO'
+    OMITIDO = 'OMITIDO_SIN_CONSENTIMIENTO'
+    CANCELADO = 'CANCELADO'
+    ESTADO_CHOICES = [
+        (PENDIENTE, 'Pendiente'),
+        (ENVIADO, 'Enviado'),
+        (FALLIDO, 'Fallido'),
+        (OMITIDO, 'Omitido (sin consentimiento)'),
+        (CANCELADO, 'Cancelado'),
+    ]
+    TERMINALES = (ENVIADO, FALLIDO, OMITIDO, CANCELADO)
+
+    lead = models.ForeignKey(Lead, on_delete=models.PROTECT, related_name='conversiones', verbose_name='Prospecto')
+    nombre_evento = models.CharField(max_length=20, choices=EVENTO_CHOICES, verbose_name='Evento')
+    event_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='ID del evento')
+    valor = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Valor')
+    moneda = models.CharField(max_length=3, default='MXN', verbose_name='Moneda')
+    origen = models.CharField(max_length=8, choices=ORIGEN_CHOICES, verbose_name='Origen')
+    ctwa_clid = models.CharField(max_length=300, blank=True, verbose_name='Clic en el anuncio (ctwa_clid)')
+    fbp = models.CharField(max_length=100, blank=True, verbose_name='Navegador (fbp)')
+    fbc = models.CharField(max_length=300, blank=True, verbose_name='Clic en el anuncio (fbc)')
+    contexto_web = models.JSONField(default=dict, blank=True, verbose_name='Contexto web')
+    event_time = models.DateTimeField(default=timezone.now, verbose_name='Ocurrió')
+    estado = models.CharField(max_length=30, choices=ESTADO_CHOICES, default=PENDIENTE, db_index=True,
+                              verbose_name='Estado')
+    intentos = models.PositiveSmallIntegerField(default=0, verbose_name='Intentos')
+    proximo_intento = models.DateTimeField(default=timezone.now, verbose_name='Próximo intento')
+    ultimo_error = models.CharField(max_length=300, blank=True, verbose_name='Último error')
+    enviado_en = models.DateTimeField(null=True, blank=True, verbose_name='Enviado el')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Conversión'
+        verbose_name_plural = 'Conversiones'
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(fields=['lead', 'nombre_evento'], name='mkt_conversion_unica_por_lead'),
+        ]
+
+    def __str__(self):
+        return f'{self.get_nombre_evento_display()} · {self.get_estado_display()}'
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('La bandeja de conversiones no se borra.')

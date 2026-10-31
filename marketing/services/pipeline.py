@@ -19,6 +19,7 @@ from comunicacion.services import normalizar_telefono_wa
 from comunicacion.services_responsables import rol_de_telefono
 
 from ..models import Lead, LeadEvento, ParametroMarketing
+from . import conversiones
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,7 @@ def _mejorar_fuente(lead, cot=None):
             setattr(lead, campo, nueva[campo])
     lead.save(update_fields=['fuente', 'anuncio_id', 'anuncio_titulo', 'anuncio_clid', 'updated_at'])
     _evento(lead, 'FUENTE', detalle={'antes': anterior, 'despues': nueva['fuente']})
+    conversiones.encolar_lead_whatsapp(lead)
 
 
 # --- Transiciones --------------------------------------------------------
@@ -209,6 +211,7 @@ def _cambiar_etapa(lead, nueva, ahora, *, tipo='ETAPA', origen='SISTEMA', detall
     lead.etapa_cambiada_en = ahora
     lead.save(update_fields=['etapa', 'etapa_cambiada_en', 'updated_at'])
     _evento(lead, tipo, anterior=anterior, nueva=nueva, origen=origen, detalle=detalle)
+    conversiones.encolar_etapa(lead, nueva)
 
 
 def _perder(lead, ahora, motivo='', detalle=None):
@@ -316,6 +319,7 @@ def _crear(*, tel, cliente, nombre, conv, cot, ahora, primer_contacto):
         # Otro proceso ganó la carrera por el mismo teléfono.
         return leads_de(tel).exclude(etapa__in=Lead.CERRADAS).first()
     _evento(lead, 'CREADO', nueva=Lead.NUEVO, detalle={'fuente': lead.fuente})
+    conversiones.encolar_lead_whatsapp(lead)
     return lead
 
 

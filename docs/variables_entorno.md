@@ -62,6 +62,12 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_ADS_CUENTA_ID` | ID de la cuenta publicitaria (con o sin el prefijo `act_`). | Meta | Meta Business Manager → Cuentas → Cuentas publicitarias | web, Programador | — |
 | `META_ADS_API_VERSION` | Versión de la Graph API para la Marketing API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
 | `META_ADS_TOKEN_ESCRITURA` | Token de un usuario del sistema con permiso `ads_management` sobre la cuenta publicitaria, solo para pausar, reanudar o ajustar presupuesto desde una decisión aprobada. Vacío = ninguna acción llega a Meta. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_management sobre la cuenta publicitaria) | web | — |
+| `META_PIXEL_ID` | ID del Pixel de Meta para la landing y el cotizador (solo se carga tras aceptar el banner de cookies) y dataset por omisión de la Conversions API. Vacío = ni banner ni Pixel. | Meta | Meta Business Manager → Orígenes de datos → Conjuntos de datos | web | — |
+| `META_CAPI_TOKEN` | Token de acceso de la Conversions API (usuario del sistema o token del dataset). Vacío = no se encola ni se envía ningún evento de conversión. | Meta | Meta Business Manager → Orígenes de datos → Conjunto de datos → Configuración → Conversions API | web, Programador | — |
+| `META_CAPI_DATASET_ID` | Dataset de la Conversions API si es distinto al Pixel (p. ej. el ligado a WhatsApp Business). Vacío = se usa `META_PIXEL_ID`. | Meta | Meta Business Manager → Orígenes de datos → Conjuntos de datos | web, Programador | — |
+| `META_CAPI_API_VERSION` | Versión de la Graph API para la Conversions API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
+| `META_CAPI_TEST_CODE` | Código de «Probar eventos» de Meta; con valor, los eventos se marcan de prueba y no cuentan. Vacío en producción. | Meta | Meta Business Manager → Administrador de eventos → Probar eventos | web, Programador | — |
+| `META_WA_WABA_ID` | ID de la cuenta de WhatsApp Business (WABA); la Conversions API de mensajería lo pide junto al clic del anuncio. | Meta | Meta Business Manager → Cuentas → Cuentas de WhatsApp | Programador | — |
 
 ## ANTHROPIC — modelo de Kooxi
 

@@ -153,6 +153,25 @@ ADMIN_CSP_REPORT_ONLY_POLICY = (
 )
 
 
+def _acepta_pixel(path):
+    """El Pixel de Meta (con su banner de cookies) vive solo en la landing y el cotizador."""
+    return path == '/' or path.startswith('/cotizar')
+
+
+def politica_publica(path):
+    """CSP de una página pública. Con `META_PIXEL_ID` y solo en la landing y el cotizador se
+    permiten el script del Pixel (connect.facebook.net) y sus avisos a www.facebook.com;
+    en las demás rutas públicas (APIs) y sin Pixel configurado queda la política estricta."""
+    if not (getattr(settings, 'META_PIXEL_ID', '') and _acepta_pixel(path)):
+        return PUBLIC_CSP
+    return (
+        PUBLIC_CSP
+        .replace("img-src 'self' data: ", "img-src 'self' data: https://www.facebook.com ")
+        .replace("script-src 'self' 'unsafe-inline' ", "script-src 'self' 'unsafe-inline' https://connect.facebook.net ")
+        .replace("connect-src 'self'; ", "connect-src 'self' https://www.facebook.com https://connect.facebook.net; ")
+    )
+
+
 def _es_pagina_publica(path):
     return path == '/' or path.startswith('/cotizar') or path.startswith('/api/')
 
@@ -188,7 +207,7 @@ class PublicSecurityHeadersMiddleware:
                 if getattr(settings, 'ERP_CSP_PUBLICO_SOLO_REPORTE', False)
                 else 'Content-Security-Policy'
             )
-            response[cabecera] = PUBLIC_CSP
+            response[cabecera] = politica_publica(path)
 
         # 3) CSP del portal de pago: bloqueante con ERP_CSP_PORTAL_ACTIVO,
         # Report-Only con ERP_CSP_PORTAL_SOLO_REPORTE.

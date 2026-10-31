@@ -1,0 +1,121 @@
+{% if pixel_id %}
+<style>
+#qkt-cookies{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#2c2b28;color:#F7F7F4;padding:1rem 5%;display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between;font-family:'IBM Plex Sans',sans-serif;font-size:.85rem;line-height:1.6;box-shadow:0 -2px 12px rgba(0,0,0,.25);}
+#qkt-cookies[hidden]{display:none;}
+#qkt-cookies p{flex:1 1 320px;margin:0;max-width:760px;}
+#qkt-cookies a{color:#F5C518;text-decoration:underline;}
+#qkt-cookies .qkt-cookies-botones{display:flex;gap:.6rem;flex-wrap:wrap;}
+#qkt-cookies button,#qkt-cookies-pref{font-family:inherit;font-size:.85rem;font-weight:500;min-height:44px;padding:0 1.4rem;border-radius:4px;cursor:pointer;}
+#qkt-cookies .qkt-cookies-si{background:#F5C518;color:#1A1A1A;border:2px solid #F5C518;}
+#qkt-cookies .qkt-cookies-si:hover{background:#E6B800;border-color:#E6B800;}
+#qkt-cookies .qkt-cookies-no{background:transparent;color:#F7F7F4;border:2px solid #F7F7F4;}
+#qkt-cookies .qkt-cookies-no:hover{background:rgba(255,255,255,.12);}
+#qkt-cookies button:focus-visible,#qkt-cookies-pref:focus-visible,#qkt-cookies a:focus-visible{outline:3px solid #F5C518;outline-offset:2px;}
+#qkt-cookies-pref{position:fixed;left:12px;bottom:12px;z-index:9998;background:#F7F7F4;color:#2c2b28;border:1px solid #e0e0d8;padding:0 1rem;min-height:44px;font-size:.78rem;}
+#qkt-cookies-pref[hidden]{display:none;}
+</style>
+<div id="qkt-cookies" role="region" aria-label="Preferencias de cookies" hidden>
+  <p>Usamos cookies del Pixel de Meta para medir nuestros anuncios y mostrarte publicidad de la Quinta. Solo se activan si las aceptas y puedes cambiar tu decisión cuando quieras. Más información en el <a href="/aviso-de-privacidad/">Aviso de Privacidad</a>.</p>
+  <div class="qkt-cookies-botones">
+    <button type="button" class="qkt-cookies-no" id="qkt-cookies-no">Rechazar</button>
+    <button type="button" class="qkt-cookies-si" id="qkt-cookies-si">Aceptar</button>
+  </div>
+</div>
+<button type="button" id="qkt-cookies-pref" hidden>Cookies</button>
+<script>
+(function () {
+  var PIXEL_ID = '{{ pixel_id|escapejs }}';
+  var CLAVE = 'qkt_cookies_meta';
+  var decision = null;      // 'si' | 'no' | null; también vale en memoria si localStorage falla
+  var cargado = false;
+  try { decision = window.localStorage.getItem(CLAVE); } catch (e) { decision = null; }
+  if (decision !== 'si' && decision !== 'no') { decision = null; }
+
+  function guardar(valor) {
+    decision = valor;
+    try { window.localStorage.setItem(CLAVE, valor); } catch (e) { /* sin almacenamiento: vale esta visita */ }
+  }
+  function cookie(nombre) {
+    var m = document.cookie.match(new RegExp('(?:^|; )' + nombre + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function borrarCookie(nombre) {
+    var dominios = [location.hostname, '.' + location.hostname.split('.').slice(-2).join('.')];
+    dominios.forEach(function (d) {
+      document.cookie = nombre + '=; Max-Age=0; path=/; domain=' + d;
+    });
+    document.cookie = nombre + '=; Max-Age=0; path=/';
+  }
+  function cargarPixel() {
+    if (cargado) { return; }
+    cargado = true;
+    /* Código base estándar del Pixel de Meta; solo se ejecuta tras aceptar. */
+    !function (f, b, e, v, n, t, s) {
+      if (f.fbq) { return; }
+      n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); };
+      if (!f._fbq) { f._fbq = n; }
+      n.push = n; n.loaded = true; n.version = '2.0'; n.queue = [];
+      t = b.createElement(e); t.async = true; t.src = v;
+      s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+    }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+    window.fbq('init', PIXEL_ID);
+    window.fbq('track', 'PageView');
+  }
+  function nuevoEventId() {
+    if (window.crypto && window.crypto.randomUUID) { return window.crypto.randomUUID(); }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+    });
+  }
+  function fbc() {
+    var c = cookie('_fbc');
+    if (c) { return c; }
+    try {
+      var clic = new URLSearchParams(window.location.search).get('fbclid');
+      if (clic) { return 'fb.1.' + Date.now() + '.' + clic; }
+    } catch (e) { /* sin URLSearchParams */ }
+    return '';
+  }
+
+  var banner = document.getElementById('qkt-cookies');
+  var pref = document.getElementById('qkt-cookies-pref');
+  function mostrarBanner() { banner.hidden = false; pref.hidden = true; }
+  function ocultarBanner() { banner.hidden = true; pref.hidden = false; }
+
+  document.getElementById('qkt-cookies-si').addEventListener('click', function () {
+    guardar('si'); cargarPixel(); ocultarBanner();
+  });
+  document.getElementById('qkt-cookies-no').addEventListener('click', function () {
+    var teniaAceptado = cargado;
+    guardar('no'); ocultarBanner();
+    if (teniaAceptado) {
+      borrarCookie('_fbp'); borrarCookie('_fbc');
+      window.location.reload();
+    }
+  });
+  pref.addEventListener('click', mostrarBanner);
+
+  if (decision === 'si') { cargarPixel(); ocultarBanner(); }
+  else if (decision === 'no') { ocultarBanner(); }
+  else { mostrarBanner(); }
+
+  /* Contexto que el cotizador manda al servidor: el event_id es de este envío (no es un dato
+     personal); fbp/fbc solo existen si se aceptaron las cookies. */
+  window.qktMeta = {
+    contexto: function () {
+      var aceptado = decision === 'si';
+      return { meta_event_id: nuevoEventId(), fbp: aceptado ? cookie('_fbp') : '', fbc: aceptado ? fbc() : '' };
+    },
+    lead: function (eventId, despues) {
+      if (decision === 'si' && window.fbq) {
+        window.fbq('track', 'Lead', {}, { eventID: eventId });
+        window.setTimeout(despues, 300);
+      } else {
+        despues();
+      }
+    }
+  };
+})();
+</script>
+{% endif %}

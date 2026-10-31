@@ -9,6 +9,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from ..models import Lead, LeadEvento
+from . import conversiones
 from .pipeline import _evento
 
 DIAS_RETENCION = 365
@@ -31,6 +32,7 @@ def anonimizar_vencidos(ahora=None) -> int:
         lead.anonimizado_en = ahora
         lead.save(update_fields=['nombre', 'telefono', 'anuncio_clid', 'conversacion', 'cliente',
                                  'anonimizado_en', 'updated_at'])
+        conversiones.limpiar_atribucion(lead)
         _evento(lead, 'ANONIMIZADO')
         hechos += 1
     return hechos

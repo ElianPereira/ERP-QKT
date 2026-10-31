@@ -1,11 +1,23 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils import timezone
 from django.utils.formats import date_format
 
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import filtro_periodo
+from core_erp.admin_utils import confirmar_accion_destructiva
 
-from .models import AccionAnuncio, Anuncio, Campana, Decision, GastoPublicitario, Lead, LeadEvento, ParametroMarketing
+from .models import (
+    AccionAnuncio,
+    Anuncio,
+    Campana,
+    Decision,
+    EventoConversion,
+    GastoPublicitario,
+    Lead,
+    LeadEvento,
+    ParametroMarketing,
+)
+from .services import conversiones
 
 
 class SoloSuperusuarioMixin:
@@ -350,3 +362,52 @@ class AccionAnuncioAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     @admin.display(description='Estado', ordering='estado')
     def estado_badge(self, obj):
         return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+
+@admin.register(EventoConversion)
+class EventoConversionAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Bandeja de eventos hacia la Conversions API de Meta. Solo lectura; se reintenta lo fallido."""
+    list_display = ('creado', 'evento', 'origen', 'valor_sin_iva', 'estado_badge', 'intentos', 'ultimo_error')
+    list_filter = ('estado', 'nombre_evento', 'origen', filtro_periodo('created_at', 'Creado'))
+    columnas_texto = ('ultimo_error',)
+    actions = ['reintentar_fallidos']
+    fields = ('lead', 'nombre_evento', 'event_id', 'valor', 'moneda', 'origen', 'event_time', 'estado', 'intentos',
+              'proximo_intento', 'ultimo_error', 'enviado_en', 'created_at', 'updated_at')
+    readonly_fields = fields
+
+    TONOS_ESTADO = {'PENDIENTE': ui.INFO, 'ENVIADO': ui.EXITO, 'FALLIDO': ui.ERROR,
+                    'OMITIDO_SIN_CONSENTIMIENTO': ui.NEUTRO, 'CANCELADO': ui.NEUTRO}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Creado', ordering='created_at')
+    def creado(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M Y H:i')
+
+    @admin.display(description='Evento', ordering='nombre_evento')
+    def evento(self, obj):
+        return obj.get_nombre_evento_display()
+
+    @admin.display(description='Valor sin IVA', ordering='valor')
+    def valor_sin_iva(self, obj):
+        return ui.monto(obj.valor) if obj.valor is not None else '—'
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.action(description='Reintentar los fallidos seleccionados')
+    @confirmar_accion_destructiva('Los eventos fallidos volverán a la cola y se enviarán a Meta en la siguiente corrida '
+                                  '(solo si hay consentimiento de marketing vigente).')
+    def reintentar_fallidos(self, request, queryset):
+        if not request.user.is_superuser:
+            return
+        n = conversiones.reintentar(queryset)
+        self.message_user(request, f'{n} evento(s) devueltos a la cola.', messages.SUCCESS)

@@ -240,7 +240,8 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
 - [x] ~~Migración Cloudinary → DigitalOcean Spaces~~ — obsoleto: el
   storage ya es Cloudflare R2 (`STORAGES` en `core_erp/settings.py`), no
   hay migración pendiente. Ver Memoria 2026-09-24.
-- [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
+- [ ] Pixel de Meta: instalado en código (marketing fase 6) pero apagado hasta definir `META_PIXEL_ID`; falta la versión 2.7 del Aviso y
+  aprobar el texto de la casilla MARKETING antes de encender `META_CAPI_TOKEN` (campañas en Traffic, no Conversions).
 - [ ] **Registrar ante PROFECO el contrato propio de Evento/Pasadía**
   (Issue #318): la NOM-174-SCFI-2007, numeral 5.1, obliga a registrar los
   contratos de adhesión de eventos sociales. **Desde el 2026-09-25 se emite
@@ -274,6 +275,38 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-10-31 — **Marketing, fase 6: Conversions API y Pixel** (Issue #468; sin zonas restringidas salvo `legal/`, autorizada solo
+  para un BORRADOR del Aviso; migración `marketing.0006`, una tabla nueva). **No se pudo verificar la documentación de Meta**:
+  el contenedor no resuelve developers.facebook.com. El payload (docstring de `services/conversiones.py`) sale de lo conocido
+  de la API y debe probarse con «Probar eventos» (`META_CAPI_TEST_CODE`) antes de producción; dudas concretas: que el evento
+  personalizado `CotizacionEnviada` lo acepte el dataset de mensajería, el `action_source` de los eventos web posteriores al Lead
+  (`system_generated`) y la versión (`META_CAPI_API_VERSION`, v23.0). `EventoConversion` es un outbox (Lead, CotizacionEnviada,
+  Schedule, Purchase; único por prospecto y evento; `event_id` UUID; sin teléfono ni correo guardados: se leen del prospecto al enviar
+  y salen con SHA-256 normalizado). Se encola en `on_commit` desde el pipeline (`_cambiar_etapa`, `_crear`, `_mejorar_fuente`) y
+  **solo si hay atribución**: clic de anuncio de WhatsApp (`ctwa_clid` + `META_WA_WABA_ID`, `business_messaging`) o una solicitud del
+  cotizador web con `event_id`; sin eso no hay a qué anuncio acreditarlo y no se encola. **Purchase = cobrado sin IVA neto de
+  reembolsos al confirmarse** (`kpis.cobrado_sin_iva`, MXN, valor escrito exacto desde el Decimal, sin float); si la venta se cae
+  antes de enviarse, queda CANCELADO (estado extra al pedido). El consentimiento se evalúa **al enviar**: MARKETING vigente
+  (`LegalService.cliente_acepto` o el botón de promociones de la conversación) y sin `BajaWhatsApp` (una aceptación posterior la
+  anula) o queda OMITIDO_SIN_CONSENTIMIENTO. `enviar_eventos_conversion` (cada 15 min en el programador) reclama cada fila con un
+  UPDATE condicional, reintenta con 15 min x 2^(n-1) hasta 6 intentos y a los 3 fallidos en 7 días abre un `Pendiente`; rechazo
+  definitivo o evento de >7 días = FALLIDO (acción «Reintentar» en el admin «Conversiones»). IP y navegador (que Meta exige en
+  eventos web) viven en `contexto_web` solo hasta el estado terminal. `sincronizar_prospectos --desde` pausa el encolado (fechas viejas).
+  Apagado sin `META_CAPI_TOKEN` (ni encola ni envía). **Pixel web**: `{% pixel_meta %}` (`marketing/templatetags`) en la landing y el
+  cotizador; sin `META_PIXEL_ID` numérico no renderiza nada. Banner propio (Aceptar/Rechazar, `localStorage` con try/catch, botón
+  «Cookies» para cambiar); el script de Meta solo se inyecta tras aceptar. El cotizador manda `meta_event_id`, `fbp` y `fbc`
+  (estos dos solo con cookies aceptadas) en el POST; `cotizador_enviar` los valida y los entrega a `registrar_origen_web`
+  (el Lead del servidor usa el mismo `event_id` que el Pixel; si ya había un Lead pendiente de WhatsApp lo reemplaza). La
+  lógica de precios y de creación de cotización no se tocó. **CSP**: `politica_publica(path)` añade `connect.facebook.net`
+  (script) y `www.facebook.com` (img, connect) solo en `/` y `/cotizar*` y solo con `META_PIXEL_ID`; las APIs y el resto no cambian.
+  **Aviso de Privacidad v2.7 BORRADOR** (`legal/documentos_iniciales/aviso_privacidad_v2.7.md`, 9 marcadores `[CONFIRMAR:]`;
+  `DOCUMENTOS` del seed sigue en v2.6 y el candado impide publicarlo): cookies del Pixel, medición y remarketing como finalidad
+  secundaria (3.2 n.º 4), transferencia a Meta con consentimiento, retención de prospectos 1 año. **Pregunta para el abogado**: hoy
+  la casilla MARKETING del cotizador dice «comunicaciones promocionales»; enviar eventos a Meta exige que su texto cubra también
+  medición y remarketing (versión nueva del Aviso y del texto de la casilla antes de encender `META_CAPI_TOKEN`). Pendiente del
+  propietario: definir en `web` `META_PIXEL_ID`, `META_CAPI_TOKEN` (y en el Programador `META_CAPI_TOKEN`, `META_WA_WABA_ID`,
+  `META_PIXEL_ID`), probar con `META_CAPI_TEST_CODE`; QKT-Pages (landing estática) no se tocó: la landing que sirve el ERP sí lleva el banner.
 
 - 2026-10-31 — **Marketing, fase 5: acciones en Meta** (Issue #468; **mueve dinero**, autorizada por el propietario; sin zonas
   restringidas; migración `marketing.0005`, una tabla nueva). `ProveedorMeta` gana `leer_estado`, `pausar`, `reanudar` y
