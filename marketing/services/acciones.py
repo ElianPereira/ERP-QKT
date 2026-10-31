@@ -210,6 +210,9 @@ def _total_activo(modo, proveedor) -> Decimal:
 
 # ───────────────────────────── Revalidación y cálculo ─────────────────────────
 
+ESTADOS_DETENIDOS = frozenset({'PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED', 'ARCHIVED', 'DELETED'})
+
+
 def revalidar(pasos: List[Paso], modo, proveedor, decision) -> Decimal:
     """Calcula `actual`/`nuevo` de cada paso contra el estado vivo, aplica el ±20 % y el tope diario. Devuelve el
     cambio neto del presupuesto diario total. Lanza `Rechazo` sin haber enviado nada."""
@@ -218,6 +221,11 @@ def revalidar(pasos: List[Paso], modo, proveedor, decision) -> Decimal:
         vivos = [_estado(modo, proveedor, p.objeto) for p in pasos]
         for p, vivo in zip(pasos, vivos):
             _exigir_presupuesto_campana(p, vivo)
+            # Las dos deben estar activas: quitarle a una pausada no libera gasto real y el neto cero
+            # escondería una subida del total activo sin pasar por el tope diario.
+            if vivo.estado.upper() != 'ACTIVE':
+                raise Rechazo(f'La campaña «{p.objeto.nombre}» no está activa ({vivo.estado or "sin estado"}); '
+                              'no se reasigna presupuesto.', terminal=True)
             if abs(vivo.presupuesto_diario - p.anterior) > CENTAVOS:
                 raise Rechazo(f'El presupuesto de «{p.objeto.nombre}» cambió desde la propuesta '
                               f'({dinero(p.anterior)} → {dinero(vivo.presupuesto_diario)}). No se ejecuta con la cifra vieja.',
@@ -247,8 +255,13 @@ def revalidar(pasos: List[Paso], modo, proveedor, decision) -> Decimal:
             delta_neto = _q(p.nuevo - p.actual)
             p.sin_cambio = delta_neto == 0
         elif p.tipo == Decision.PAUSAR:
-            if vivo.estado.upper() != 'ACTIVE':
-                p.sin_cambio = True  # ya estaba detenido: nada que enviar
+            estado = vivo.estado.upper()
+            if not estado:
+                raise Rechazo(f'Meta no informó el estado de «{p.objeto.nombre}»; no se puede confirmar la pausa.',
+                              terminal=True)
+            # Solo un estado que de verdad no gasta cuenta como «ya detenido»; WITH_ISSUES, IN_PROCESS o
+            # PENDING_REVIEW pueden seguir gastando, así que se envía la pausa.
+            p.sin_cambio = estado in ESTADOS_DETENIDOS
         else:  # REANUDAR
             if vivo.estado.upper() != 'PAUSED':
                 raise Rechazo(f'«{p.objeto.nombre}» no está pausado ({vivo.estado or "sin estado"}); no se reanuda.',
@@ -402,6 +415,16 @@ def ejecutar(decision_id: int, usuario) -> tuple:
         _avisar_fallo(decision_colgada, colgada)
         return False, colgada
 
+    if modo == AccionAnuncio.REAL:
+        # Candado global: dos decisiones distintas que suben presupuesto leerían el mismo total y juntas
+        # rebasarían el tope diario. Bloquear las campañas de Meta serializa las ejecuciones reales.
+        with transaction.atomic():
+            list(Campana.objects.select_for_update().filter(plataforma=Campana.META).values_list('pk', flat=True))
+            return _revalidar_y_ejecutar(decision, pasos, modo, proveedor, usuario)
+    return _revalidar_y_ejecutar(decision, pasos, modo, proveedor, usuario)
+
+
+def _revalidar_y_ejecutar(decision, pasos, modo, proveedor, usuario) -> tuple:
     # Fase 2: revalidar contra el estado vivo (sin tocar nada todavía).
     try:
         revalidar(pasos, modo, proveedor, decision)

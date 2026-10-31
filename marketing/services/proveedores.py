@@ -162,7 +162,9 @@ class ProveedorMeta(ProveedorAnuncios):
         return bool(self.token and self.cuenta)
 
     def puede_escribir(self) -> bool:
-        return bool(self.configurado() and self.token_escritura)
+        # El interruptor general se revisa también aquí, no solo en `acciones.ejecutar`: así ningún llamador
+        # futuro escribe en Meta con las acciones apagadas.
+        return bool(self.configurado() and self.token_escritura and settings.ERP_MARKETING_ACCIONES_ACTIVAS)
 
     def _limpiar(self, texto):
         texto = str(texto)

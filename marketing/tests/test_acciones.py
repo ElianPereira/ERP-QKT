@@ -294,6 +294,30 @@ class EjecucionRealTest(Base):
         self.assertTrue(acciones.ejecutar(d.pk, self.admin)[0])
         self.assertEqual([c[2] for c in self.meta.llamadas], [Decimal('80.00'), Decimal('120.00')])
 
+    def test_reasignar_desde_campana_pausada_se_rechaza(self):
+        a, b = self.campana('CA', '100.00', estado='PAUSED'), self.campana('CB', '100.00')
+        d = self.reasignar(a, b)
+        hecho, mensaje = acciones.ejecutar(d.pk, self.admin)
+        self.assertFalse(hecho)
+        self.assertIn('no está activa', mensaje)
+        self.assertEqual(self.meta.llamadas, [])
+
+    def test_pausar_con_estado_ambiguo_si_envia_la_pausa(self):
+        c = self.campana('C1')
+        a = Anuncio.objects.create(campana=c, id_externo='A1', nombre='Anuncio', estado='ACTIVE')
+        self.meta.estados['A1'] = vivo('WITH_ISSUES')
+        d = self.decision(Decision.PAUSAR, {'nivel': 'anuncio', 'anuncio_id': a.pk, 'anuncio_externo': 'A1'})
+        self.assertTrue(acciones.ejecutar(d.pk, self.admin)[0])
+        self.assertEqual(self.meta.llamadas, [('pausar', 'A1', None)])
+
+    def test_pausar_sin_estado_de_meta_se_rechaza(self):
+        c = self.campana('C1')
+        a = Anuncio.objects.create(campana=c, id_externo='A1', nombre='Anuncio', estado='ACTIVE')
+        self.meta.estados['A1'] = vivo('')
+        d = self.decision(Decision.PAUSAR, {'nivel': 'anuncio', 'anuncio_id': a.pk, 'anuncio_externo': 'A1'})
+        self.assertFalse(acciones.ejecutar(d.pk, self.admin)[0])
+        self.assertEqual(self.meta.llamadas, [])
+
     def test_reasignar_falla_el_segundo_y_revierte_el_primero(self):
         a, b = self.campana('CA', '100.00'), self.campana('CB', '100.00')
         d = self.reasignar(a, b)
@@ -425,3 +449,14 @@ class VistaTest(Base):
         self.client.post(self.url())
         self.assertEqual(self.client.get(reverse('admin:marketing_accionanuncio_changelist')).status_code, 200)
         self.assertEqual(self.client.get(reverse('admin:marketing_accionanuncio_add')).status_code, 403)
+
+
+class InterruptorEnProveedorTest(TestCase):
+    @override_settings(META_ADS_TOKEN='lectura', META_ADS_CUENTA_ID='123', META_ADS_TOKEN_ESCRITURA=TOKEN,
+                       ERP_MARKETING_ACCIONES_ACTIVAS=False)
+    def test_proveedor_no_escribe_con_el_interruptor_apagado(self):
+        from marketing.services.proveedores import proveedor_meta
+        with patch('marketing.services.proveedores.requests.post') as post:
+            with self.assertRaises(ProveedorError):
+                proveedor_meta().pausar('A1')
+            post.assert_not_called()
