@@ -45,6 +45,7 @@ class Lead(models.Model):
         ('INSTAGRAM', 'Instagram'),
         ('TIKTOK', 'TikTok'),
         ('GOOGLE', 'Google'),
+        ('GOOGLE_ANUNCIO', 'Anuncio de Google'),
         ('RECOMENDACION', 'Recomendación'),
         ('RECURRENTE', 'Cliente recurrente'),
         ('VISITA_QUINTA', 'Visitó la Quinta'),
@@ -77,6 +78,9 @@ class Lead(models.Model):
     anuncio_id = models.CharField(max_length=100, blank=True, db_index=True, verbose_name='Anuncio (id)')
     anuncio_titulo = models.CharField(max_length=300, blank=True, verbose_name='Anuncio')
     anuncio_clid = models.CharField(max_length=300, blank=True, verbose_name='Clic en el anuncio (ctwa_clid)')
+    gclid = models.CharField(max_length=300, blank=True, verbose_name='Clic en Google Ads (gclid)')
+    gbraid = models.CharField(max_length=300, blank=True, verbose_name='Clic en Google Ads iOS (gbraid)')
+    wbraid = models.CharField(max_length=300, blank=True, verbose_name='Clic en Google Ads web a app (wbraid)')
     etapa = models.CharField(max_length=16, choices=ETAPA_CHOICES, default=NUEVO, verbose_name='Etapa')
     tipo_servicio = models.CharField(max_length=15, blank=True, verbose_name='Tipo de servicio')
     motivo_perdida = models.CharField(max_length=15, choices=MOTIVO_CHOICES, blank=True,
@@ -246,9 +250,10 @@ class GastoPublicitario(models.Model):
     """Gasto de un día, sin IVA y en MXN tal como lo reporta la plataforma.
     A nivel anuncio (`anuncio` lleno) o a nivel campaña (`anuncio` vacío)."""
     META_API = 'META_API'
+    GOOGLE_API = 'GOOGLE_API'
     WHATSAPP_TEMPLATES = 'WHATSAPP_TEMPLATES'
     MANUAL = 'MANUAL'
-    FUENTE_CHOICES = [(META_API, 'API de Meta'), (WHATSAPP_TEMPLATES, 'Plantillas de WhatsApp'),
+    FUENTE_CHOICES = [(META_API, 'API de Meta'), (GOOGLE_API, 'API de Google Ads'), (WHATSAPP_TEMPLATES, 'Plantillas de WhatsApp'),
                       (MANUAL, 'Captura manual')]
     PENDIENTE = 'PENDIENTE'
     CONCILIADO = 'CONCILIADO'
@@ -629,7 +634,13 @@ class EventoConversion(models.Model):
     ]
     TERMINALES = (ENVIADO, FALLIDO, OMITIDO, CANCELADO)
 
+    META = 'META'
+    GOOGLE = 'GOOGLE'
+    PLATAFORMA_CHOICES = [(META, 'Meta'), (GOOGLE, 'Google')]
+
     lead = models.ForeignKey(Lead, on_delete=models.PROTECT, related_name='conversiones', verbose_name='Prospecto')
+    plataforma = models.CharField(max_length=6, choices=PLATAFORMA_CHOICES, default=META, db_index=True,
+                                  verbose_name='Plataforma')
     nombre_evento = models.CharField(max_length=20, choices=EVENTO_CHOICES, verbose_name='Evento')
     event_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='ID del evento')
     valor = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Valor')
@@ -654,7 +665,8 @@ class EventoConversion(models.Model):
         verbose_name_plural = 'Conversiones'
         ordering = ['-created_at', '-id']
         constraints = [
-            models.UniqueConstraint(fields=['lead', 'nombre_evento'], name='mkt_conversion_unica_por_lead'),
+            models.UniqueConstraint(fields=['lead', 'plataforma', 'nombre_evento'],
+                                    name='mkt_conversion_unica_por_lead_plataforma'),
         ]
 
     def __str__(self):

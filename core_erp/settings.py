@@ -393,6 +393,18 @@ GOOGLE_BUSINESS_CLIENT_ID = env('GOOGLE_BUSINESS_CLIENT_ID', default='')
 GOOGLE_BUSINESS_CLIENT_SECRET = env('GOOGLE_BUSINESS_CLIENT_SECRET', default='')
 GOOGLE_BUSINESS_REFRESH_TOKEN = env('GOOGLE_BUSINESS_REFRESH_TOKEN', default='')
 GOOGLE_BUSINESS_LOCATION = env('GOOGLE_BUSINESS_LOCATION', default='')
+
+# Google Ads (marketing fase 8): solo lectura de gasto + conversiones offline por gclid. Apagado si falta cualquiera de
+# las seis primeras; las subidas de conversiones además piden la acción de conversión de cada evento.
+GOOGLE_ADS_CLIENT_ID = env('GOOGLE_ADS_CLIENT_ID', default='')
+GOOGLE_ADS_CLIENT_SECRET = env('GOOGLE_ADS_CLIENT_SECRET', default='')
+GOOGLE_ADS_REFRESH_TOKEN = env('GOOGLE_ADS_REFRESH_TOKEN', default='')
+GOOGLE_ADS_DEVELOPER_TOKEN = env('GOOGLE_ADS_DEVELOPER_TOKEN', default='')
+GOOGLE_ADS_CUSTOMER_ID = env('GOOGLE_ADS_CUSTOMER_ID', default='')
+GOOGLE_ADS_LOGIN_CUSTOMER_ID = env('GOOGLE_ADS_LOGIN_CUSTOMER_ID', default='')
+GOOGLE_ADS_API_VERSION = env('GOOGLE_ADS_API_VERSION', default='v22')
+GOOGLE_ADS_CONVERSION_LEAD = env('GOOGLE_ADS_CONVERSION_LEAD', default='')
+GOOGLE_ADS_CONVERSION_COMPRA = env('GOOGLE_ADS_CONVERSION_COMPRA', default='')
 # Enlace de reseña en Google que se manda a quien califica 4–5; vacío = solo se agradece.
 ERP_RESENA_GOOGLE_URL = env('ERP_RESENA_GOOGLE_URL', default='')
 # Depósito en garantía: horas sin reporte de daños tras pedir la inspección antes de

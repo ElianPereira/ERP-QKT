@@ -116,7 +116,7 @@ def calcular(desde: date, hasta: date, *, parametros: Optional[ParametroMarketin
         ganado = lead.etapa == Lead.GANADO and cot is not None
         campana_id = campana_de.get(lead.anuncio_id) if lead.anuncio_id else None
         filas.append({
-            'campana_id': campana_id, 'cotizado': cot is not None, 'ganado': ganado,
+            'fuente': lead.fuente, 'campana_id': campana_id, 'cotizado': cot is not None, 'ganado': ganado,
             'contratado': venta_neta(cot) if ganado else D0,
             'cobrado': cobrado_sin_iva(cot) if ganado else D0,
         })
@@ -131,7 +131,8 @@ def calcular(desde: date, hasta: date, *, parametros: Optional[ParametroMarketin
         por_campana[campana_id] = _grupo(
             c.nombre if c else f'Campaña {campana_id}', [f for f in filas if f['campana_id'] == campana_id],
             gasto_por_campana.get(campana_id, D0), minimo,
-            campana_id=campana_id, tipo_servicio=c.tipo_servicio if c else SIN_SERVICIO)
+            campana_id=campana_id, tipo_servicio=c.tipo_servicio if c else SIN_SERVICIO,
+            plataforma=c.get_plataforma_display() if c else '')
 
     por_servicio = {}
     for tipo in (*TIPOS, SIN_SERVICIO):
@@ -142,9 +143,22 @@ def calcular(desde: date, hasta: date, *, parametros: Optional[ParametroMarketin
             ETIQUETAS.get(tipo, 'Sin servicio asignado'), [f for f in filas if f['campana_id'] in ids],
             sum((gasto_por_campana.get(i, D0) for i in ids), D0), minimo, tipo_servicio=tipo)
 
+    # Por plataforma: el clic de Google no identifica el anuncio, así que sus prospectos se cuentan por fuente.
+    gasto_por_plataforma = {
+        r['campana__plataforma']: r['t'] for r in GastoPublicitario.objects.filter(
+            fecha__gte=desde, fecha__lte=hasta).values('campana__plataforma').annotate(t=Sum('monto'))}
+    fuente_de_plataforma = {Campana.META: 'META_ANUNCIO', Campana.GOOGLE: 'GOOGLE_ANUNCIO'}
+    por_plataforma = []
+    for clave, etiqueta in Campana.PLATAFORMA_CHOICES:
+        fuente = fuente_de_plataforma[clave]
+        propias = [f for f in filas if f['fuente'] == fuente]
+        gasto_p = gasto_por_plataforma.get(clave, D0)
+        if gasto_p > 0 or propias:
+            por_plataforma.append(_grupo(etiqueta, propias, gasto_p, minimo, plataforma=clave))
+
     total = _grupo('Total', filas, sum(gasto_por_campana.values(), D0), minimo)
     return {'desde': desde, 'hasta': hasta, 'total': total, 'por_servicio': por_servicio,
-            'por_campana': list(por_campana.values()), 'minimo': minimo}
+            'por_campana': list(por_campana.values()), 'por_plataforma': por_plataforma, 'minimo': minimo}
 
 
 def topes_cac(hoy: Optional[date] = None, parametros: Optional[ParametroMarketing] = None) -> Dict[str, dict]:

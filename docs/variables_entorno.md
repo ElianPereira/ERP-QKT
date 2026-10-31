@@ -79,6 +79,20 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `GOOGLE_BUSINESS_REFRESH_TOKEN` | Token de actualización de la cuenta que administra el perfil de la Quinta (solo lectura de reseñas). | Google | Se regenera con el flujo OAuth de la cuenta propietaria del perfil | web, Programador | — |
 | `GOOGLE_BUSINESS_LOCATION` | Ficha del negocio con la forma `accounts/<cuenta>/locations/<ficha>`. | Google | Business Profile API → accounts.locations | web, Programador | — |
 
+## GOOGLE — Ads (pauta y conversiones)
+
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
+|---|---|---|---|---|---|
+| `GOOGLE_ADS_CLIENT_ID` | Client ID OAuth del proyecto de Google Cloud con la Google Ads API habilitada. Sin las cinco primeras variables GOOGLE_ADS_* (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN, DEVELOPER_TOKEN, CUSTOMER_ID) el gasto y las conversiones de Google quedan apagados. | Google | Google Cloud Console → APIs y servicios → Credenciales | web, Programador | — |
+| `GOOGLE_ADS_CLIENT_SECRET` | Secreto del cliente OAuth de Google Ads. | Google | Google Cloud Console → Credenciales | web, Programador | — |
+| `GOOGLE_ADS_REFRESH_TOKEN` | Token de actualización del usuario de Google con acceso a la cuenta de Google Ads (alcance adwords). | Google | Flujo OAuth con la cuenta que administra Google Ads | web, Programador | — |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Developer token de la Google Ads API (cuenta administradora o MCC). | Google | Google Ads → Herramientas → Centro de API | web, Programador | — |
+| `GOOGLE_ADS_CUSTOMER_ID` | ID de la cuenta de Google Ads de la Quinta (10 dígitos, con o sin guiones). | Google | Google Ads → esquina superior de la cuenta | web, Programador | — |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | ID de la cuenta administradora (MCC) desde la que se accede; vacío si se entra directo a la cuenta. | Google | Google Ads → cuenta administradora | web, Programador | — |
+| `GOOGLE_ADS_API_VERSION` | Versión de la Google Ads API en la URL (por ejemplo v22). Subirla antes de que Google retire la actual; no se pudo verificar la vigente al escribirla. | Google | Propia (calendario de retiros de Google Ads API) | web, Programador | — |
+| `GOOGLE_ADS_CONVERSION_LEAD` | ID numérico de la acción de conversión «Prospecto» (importación offline por clic) para subir los Lead. | Google | Google Ads → Objetivos → Conversiones | Programador | — |
+| `GOOGLE_ADS_CONVERSION_COMPRA` | ID numérico de la acción de conversión «Compra» (importación offline por clic) para subir las ventas con su valor sin IVA en MXN. | Google | Google Ads → Objetivos → Conversiones | Programador | — |
+
 ## ANTHROPIC — modelo de Kooxi
 
 | Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |

@@ -1,0 +1,29 @@
+<script>
+(function () {
+  // Clic de Google Ads: se lee de la URL y se recuerda 90 días en este navegador para mandarlo al cotizar.
+  // Solo identifica el clic del anuncio; el servidor lo usa únicamente si hay consentimiento de marketing.
+  var CLAVE = 'qkt_gads', VIDA = 90 * 24 * 3600 * 1000, CAMPOS = ['gclid', 'gbraid', 'wbraid'];
+  var RE = /^[A-Za-z0-9_-]{10,300}$/;
+  function leer() {
+    try {
+      var d = JSON.parse(window.localStorage.getItem(CLAVE) || 'null');
+      if (d && d.ts && Date.now() - d.ts < VIDA) { return d; }
+    } catch (e) { /* sin almacenamiento o dato dañado */ }
+    return null;
+  }
+  var guardado = leer() || {};
+  try {
+    var params = new URLSearchParams(window.location.search), nuevo = {};
+    CAMPOS.forEach(function (c) { var v = params.get(c); if (v && RE.test(v)) { nuevo[c] = v; } });
+    if (Object.keys(nuevo).length) {
+      guardado = nuevo; guardado.ts = Date.now();
+      try { window.localStorage.setItem(CLAVE, JSON.stringify(guardado)); } catch (e) { /* vale esta visita */ }
+    }
+  } catch (e) { /* navegador sin URLSearchParams */ }
+  window.qktGads = { contexto: function () {
+    var d = leer() || guardado, r = {};
+    CAMPOS.forEach(function (c) { r[c] = (d && d[c]) || ''; });
+    return r;
+  } };
+})();
+</script>

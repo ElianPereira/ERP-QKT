@@ -113,6 +113,8 @@ class MetaTest(SimpleTestCase):
 class Falso(ProveedorAnuncios):
     """Proveedor de prueba para el servicio de sincronización."""
     plataforma = 'META'
+    nombre = 'Meta Ads'
+    fuente_gasto = 'META_API'
 
     def __init__(self, filas=None, moneda='MXN', error=None, estado=None, activo=True):
         self.filas, self._moneda, self.error, self.estado, self.activo = filas or [], moneda, error, estado, activo

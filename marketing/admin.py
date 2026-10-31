@@ -382,12 +382,12 @@ class AccionAnuncioAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
 
 @admin.register(EventoConversion)
 class EventoConversionAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
-    """Bandeja de eventos hacia la Conversions API de Meta. Solo lectura; se reintenta lo fallido."""
-    list_display = ('creado', 'evento', 'origen', 'valor_sin_iva', 'estado_badge', 'intentos', 'ultimo_error')
-    list_filter = ('estado', 'nombre_evento', 'origen', filtro_periodo('created_at', 'Creado'))
+    """Bandeja de eventos hacia la Conversions API de Meta y las conversiones offline de Google. Solo lectura; se reintenta lo fallido."""
+    list_display = ('creado', 'plataforma', 'evento', 'origen', 'valor_sin_iva', 'estado_badge', 'intentos', 'ultimo_error')
+    list_filter = ('estado', 'plataforma', 'nombre_evento', 'origen', filtro_periodo('created_at', 'Creado'))
     columnas_texto = ('ultimo_error',)
     actions = ['reintentar_fallidos']
-    fields = ('lead', 'nombre_evento', 'event_id', 'valor', 'moneda', 'origen', 'event_time', 'estado', 'intentos',
+    fields = ('lead', 'plataforma', 'nombre_evento', 'event_id', 'valor', 'moneda', 'origen', 'event_time', 'estado', 'intentos',
               'proximo_intento', 'ultimo_error', 'enviado_en', 'created_at', 'updated_at')
     readonly_fields = fields
 
@@ -420,7 +420,7 @@ class EventoConversionAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
         return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
 
     @admin.action(description='Reintentar los fallidos seleccionados')
-    @confirmar_accion_destructiva('Los eventos fallidos volverán a la cola y se enviarán a Meta en la siguiente corrida '
+    @confirmar_accion_destructiva('Los eventos fallidos volverán a la cola y se enviarán en la siguiente corrida '
                                   '(solo si hay consentimiento de marketing vigente).')
     def reintentar_fallidos(self, request, queryset):
         if not request.user.is_superuser:

@@ -136,7 +136,7 @@ pre-commit · CI en GitHub Actions.
 - `indicadores/` — KPIs de dirección (capacidad, equilibrio, plan óptimo anual, metas); solo
   superusuario, solo lectura sobre datos existentes + parámetros del propietario.
 - `marketing/` — prospectos (`Lead`, embudo derivado de mensajes/visitas/cotizaciones), motivos de pérdida y
-  retención; solo superusuario (Issue #468, por fases).
+  retención, pauta de Meta y Google Ads, KPIs, decisiones, conversiones, referidos; solo superusuario (Issue #468).
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -477,6 +477,31 @@ salvo que queden obsoletas.
   anonimiza (nombre, teléfono, `anuncio_clid`, conversación y cliente a vacío; conserva fuente, anuncio, fechas y motivo; la
   cotización ligada no se toca). Admin solo superusuario, sin alta ni borrado. Pendiente del propietario: tras el deploy
   correr `sincronizar_prospectos --desde 2026-07-01` una vez para sembrar el histórico.
+
+- 2026-10-31 — **Marketing, fase 8: Google Ads** (Issue #468; sin zonas restringidas; migración `marketing.0008`, solo agrega campos y
+  cambia una restricción). `ProveedorGoogle` (REST, `searchStream` de GAQL, OAuth de refresco, developer token, `login-customer-id`
+  opcional; `cost_micros` se suma y se convierte una sola vez a pesos con ROUND_HALF_UP) es **solo lectura**: las acciones de un clic
+  siguen siendo únicamente de Meta (`decisiones` ya solo propone sobre campañas META). Apagado si falta cualquiera de las cinco
+  `GOOGLE_ADS_*` básicas; el gasto se importa solo si la cuenta factura en MXN. **El gasto de campaña que ningún anuncio explica
+  (Performance Max, etc.) entra como fila de campaña sin anuncio** (`GastoPublicitario.anuncio` nulo, fuente `GOOGLE_API`); si después
+  los anuncios lo explican, esa fila se pone en cero (no se borra). `sincronizar_gasto_anuncios` recorre Meta y Google (un proveedor caído
+  no detiene al otro; el comando termina en error si alguno falló) y concilia el mes anterior de cada plataforma: cargos del banco con
+  concepto `GOOGLE *ADS…` (no Workspace ni Cloud), pendiente `marketing_conciliacion:google:AAAA-MM`. **Atribución**: gclid/gbraid/wbraid
+  se leen de la URL en la landing y el cotizador (`{% captura_google %}`, `localStorage` 90 días con try/catch, sin banner propio) y
+  viajan en el POST de `cotizador_enviar`; `conversiones_google.registrar_clic_web` los valida, los guarda en el `Lead` (nunca pisa un
+  clic ya guardado) y pasa la fuente a `GOOGLE_ANUNCIO` si era genérica o `GOOGLE` (no pisa `META_ANUNCIO`). Precios y creación de
+  cotización no se tocaron. **El clic no dice qué anuncio fue**: los prospectos de Google se miden por fuente, en el nuevo panel «Por
+  plataforma» del tablero (la campaña de Google muestra gasto sin prospectos). **Conversiones offline**: la misma bandeja
+  (`EventoConversion.plataforma`, única por prospecto, plataforma y evento), mismo consentimiento MARKETING/baja evaluado al enviar,
+  mismos reintentos (15 min x 2^(n-1), 6 intentos) y mismo programador; solo `Lead` y `Purchase` (cobrado sin IVA neto de reembolsos,
+  MXN, valor exacto desde el Decimal), con `orderId` = `event_id` para no contar doble; ventana de 90 días (Meta, 7); cada evento
+  necesita su acción (`GOOGLE_ADS_CONVERSION_LEAD`/`_COMPRA`), si no, no se encola. El clic se lee del prospecto al enviar y se borra al
+  anonimizar. **No se pudo verificar la documentación de Google** (el contenedor no resuelve developers.google.com): versión por
+  defecto `v22` (`GOOGLE_ADS_API_VERSION`), nombres de códigos de error de la carga (`TRANSITORIOS`, `YA_EXISTE`) y forma del
+  payload salen de lo conocido; probar con una conversión de prueba antes de producción. **Pregunta para el abogado**: igual que Meta,
+  la casilla MARKETING debe cubrir medición y envío del clic a Google (Aviso v2.7). Pendiente del propietario: ver «Google Ads» en el
+  reporte de la fase (cuenta, developer token, OAuth, dos acciones de conversión con importación por clic, variables en `web` y
+  Programador) y correr `sincronizar_gasto_anuncios --desde 2026-07-01`.
 
 - 2026-10-31 — **Auditoría de seguridad y Rutina de Seguridad** (Issue #460, PRs #461-#463, cerrado). Sin críticos;
   el alto era que contratos, CFDI y comprobantes vivían en el bucket R2 público con nombres enumerables: ya están en el

@@ -8,7 +8,7 @@ from django.utils import timezone
 from comunicacion.services_pendientes import registrar_pendiente
 
 from ..models import Anuncio, Campana, GastoPublicitario
-from .proveedores import ProveedorError, TokenVencidoError, proveedor_meta
+from .proveedores import ProveedorError, TokenVencidoError, proveedor_google, proveedor_meta
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +21,23 @@ def _pendiente(titulo, detalle, clave, severidad='NORMAL'):
                         detalle=detalle, clave_idempotencia=clave)
 
 
+def _clave(proveedor, texto):
+    """Las claves de Meta se conservan tal cual (ya hay pendientes con ellas); las demás llevan la plataforma."""
+    return texto if proveedor.plataforma == 'META' else f'{proveedor.plataforma.lower()}:{texto}'
+
+
 def revisar_credencial(proveedor, hoy=None) -> dict:
     """Avisa si el token ya no vale o vence en menos de 14 días."""
     hoy = hoy or timezone.localdate()
     estado = proveedor.estado_credencial()
     if not estado.valida:
-        _pendiente('Meta Ads: el token ya no es válido', f'Genera otro token. {estado.detalle}',
-                   f'marketing_token:invalido:{hoy:%Y-%m}', 'URGENTE')
+        _pendiente(f'{proveedor.nombre}: el token ya no es válido', f'Genera otro token. {estado.detalle}',
+                   _clave(proveedor, f'marketing_token:invalido:{hoy:%Y-%m}'), 'URGENTE')
         return {'valida': False}
     if estado.vence_en and estado.vence_en - timezone.now() < timedelta(days=DIAS_AVISO_TOKEN):
-        _pendiente('Meta Ads: el token vence pronto', f'Vence el {estado.vence_en:%d/%m/%Y}. Genera otro token.',
-                   f'marketing_token:vence:{estado.vence_en:%Y%m%d}', 'URGENTE')
+        _pendiente(f'{proveedor.nombre}: el token vence pronto',
+                   f'Vence el {estado.vence_en:%d/%m/%Y}. Genera otro token.',
+                   _clave(proveedor, f'marketing_token:vence:{estado.vence_en:%Y%m%d}'), 'URGENTE')
     return {'valida': True, 'vence_en': estado.vence_en}
 
 
@@ -69,22 +75,23 @@ def sincronizar(desde: date = None, hasta: date = None, proveedor=None, hoy=None
     hoy = hoy or timezone.localdate()
     hasta = hasta or hoy
     desde = desde or hasta - timedelta(days=DIAS_ATRAS)
-    plataforma = proveedor.plataforma
+    plataforma, fuente = proveedor.plataforma, proveedor.fuente_gasto
     try:
         if proveedor.moneda() != 'MXN':
-            raise ProveedorError('La cuenta publicitaria no factura en MXN; no se importa el gasto.')
+            raise ProveedorError(f'La cuenta de {proveedor.nombre} no factura en MXN; no se importa el gasto.')
         campanas = list(proveedor.listar_campanas())
         anuncios = list(proveedor.listar_anuncios())
         gastos = list(proveedor.gasto_diario(desde, hasta))
     except TokenVencidoError as exc:
-        _pendiente('Meta Ads: el token ya no es válido', f'Genera otro token. {exc}',
-                   f'marketing_token:invalido:{hoy:%Y-%m}', 'URGENTE')
+        _pendiente(f'{proveedor.nombre}: el token ya no es válido', f'Genera otro token. {exc}',
+                   _clave(proveedor, f'marketing_token:invalido:{hoy:%Y-%m}'), 'URGENTE')
         raise
     except ProveedorError as exc:
-        _pendiente('Meta Ads: falló la sincronización del gasto', str(exc), f'marketing_sync:{hoy:%Y-%m-%d}')
+        _pendiente(f'{proveedor.nombre}: falló la sincronización del gasto', str(exc),
+                   _clave(proveedor, f'marketing_sync:{hoy:%Y-%m-%d}'))
         raise
 
-    filas = 0
+    filas, vistas_campana = 0, set()
     with transaction.atomic():
         por_campana = {}
         for c in campanas:
@@ -98,15 +105,19 @@ def sincronizar(desde: date = None, hasta: date = None, proveedor=None, hoy=None
         for g in gastos:
             campana = por_campana.get(g.campana_id) or _campana(plataforma, g.campana_id, g.campana_nombre)
             por_campana[g.campana_id] = campana
-            anuncio = por_anuncio.get(g.anuncio_id) or _anuncio(campana, g.anuncio_id, g.anuncio_nombre)
-            por_anuncio[g.anuncio_id] = anuncio
-            existente = GastoPublicitario.objects.filter(
-                anuncio=anuncio, fecha=g.fecha, fuente=GastoPublicitario.META_API).first()
+            if g.anuncio_id:
+                anuncio = por_anuncio.get(g.anuncio_id) or _anuncio(campana, g.anuncio_id, g.anuncio_nombre)
+                por_anuncio[g.anuncio_id] = anuncio
+                existente = GastoPublicitario.objects.filter(anuncio=anuncio, fecha=g.fecha, fuente=fuente).first()
+            else:  # gasto de campaña que ningún anuncio explica
+                anuncio = None
+                vistas_campana.add((campana.pk, g.fecha))
+                existente = GastoPublicitario.objects.filter(campana=campana, anuncio__isnull=True, fecha=g.fecha,
+                                                             fuente=fuente).first()
             datos = {'campana': campana, 'monto': g.monto, 'impresiones': g.impresiones, 'clics': g.clics,
                      'frecuencia': g.frecuencia}
             if existente is None:
-                GastoPublicitario.objects.create(anuncio=anuncio, fecha=g.fecha, fuente=GastoPublicitario.META_API,
-                                                 **datos)
+                GastoPublicitario.objects.create(anuncio=anuncio, fecha=g.fecha, fuente=fuente, **datos)
                 filas += 1
             elif any(getattr(existente, k) != v for k, v in datos.items()):
                 if existente.monto != g.monto:
@@ -114,5 +125,13 @@ def sincronizar(desde: date = None, hasta: date = None, proveedor=None, hoy=None
                 for k, v in datos.items():
                     setattr(existente, k, v)
                 existente.save()
+                filas += 1
+        # Un gasto de campaña sin anuncio que ya no aparece (los anuncios lo explican ahora) se pone en cero.
+        for viejo in GastoPublicitario.objects.filter(anuncio__isnull=True, fuente=fuente, fecha__range=(desde, hasta),
+                                                      campana__plataforma=plataforma, monto__gt=0):
+            if (viejo.campana_id, viejo.fecha) not in vistas_campana:
+                viejo.monto = 0
+                viejo.estado_conciliacion = GastoPublicitario.PENDIENTE
+                viejo.save()
                 filas += 1
     return {'omitido': False, 'filas': filas, 'campanas': len(por_campana), 'anuncios': len(por_anuncio)}

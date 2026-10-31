@@ -30,7 +30,7 @@ def tablero(request):
     ventana = datos['ventana']
     return render(request, 'marketing/tablero.html', {
         'title': 'Marketing', 'd': datos, 'total': ventana['total'],
-        'servicios': list(ventana['por_servicio'].values()), 'campanas': ventana['por_campana'],
+        'servicios': list(ventana['por_servicio'].values()), 'campanas': ventana['por_campana'], 'plataformas': ventana['por_plataforma'],
         'cohortes': datos['cohortes'], 'pronostico': datos['pronostico'],
         'aprobadas': [{'decision': d, 'lineas': acciones.vista_previa(d)} for d in Decision.objects.filter(
             estado=Decision.APROBADA, expira_en__gt=timezone.now(), tipo_accion__in=acciones.EJECUTABLES)],

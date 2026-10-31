@@ -546,10 +546,13 @@ _RE_FB = re.compile(r'^fb\.\d\.\d{10,13}\.[A-Za-z0-9_-]{1,200}$')
 
 
 def _registrar_atribucion_web(request, data, cotizacion):
-    """Entrega a marketing el event_id del Pixel y las cookies de Meta del envío.
+    """Entrega a marketing el event_id del Pixel, las cookies de Meta y el clic de Google Ads del envío.
     Nunca afecta la solicitud: cualquier fallo queda en el log."""
     try:
-        from marketing.services import conversiones
+        from marketing.services import conversiones, conversiones_google
+        # Clic de Google Ads (gclid/gbraid/wbraid): solo se guarda el dato, el servicio lo valida.
+        conversiones_google.registrar_clic_web(
+            cotizacion=cotizacion, **{k: str(data.get(k) or '') for k in ('gclid', 'gbraid', 'wbraid')})
         try:
             event_id = uuid.UUID(str(data.get('meta_event_id') or ''))
         except ValueError:

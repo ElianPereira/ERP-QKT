@@ -2,7 +2,7 @@
 
 Solo LECTURA de contabilidad. Criterio:
 
-* Gasto esperado = suma del mes de `GastoPublicitario` (Meta lo reporta sin IVA)
+* Gasto esperado = suma del mes de `GastoPublicitario` de la plataforma (Meta y Google lo reportan sin IVA)
   más el IVA (`core_erp.impuestos.con_iva`), porque el cargo a la tarjeta lo trae.
 * Cargo bancario = cargos del mes de `MovimientoEstadoCuenta` cuyo concepto
   menciona Meta/Facebook y cuya póliza APLICADA ya pasó por la cuenta de la
@@ -34,20 +34,25 @@ from core_erp import impuestos
 from ..models import GastoPublicitario
 
 PATRON_META = re.compile(r'\b(FACEBOOK|FACEBK|META)\b')
+# «GOOGLE *ADS123», «GOOGLE ADS», «GOOGLEADS»; no atrapa Workspace ni Cloud.
+PATRON_GOOGLE = re.compile(r'GOOGLE\s*\*?\s*ADS')
+PATRONES = {'META': PATRON_META, 'GOOGLE': PATRON_GOOGLE}
+NOMBRES = {'META': 'Meta', 'GOOGLE': 'Google Ads'}
 
 
 def _decimal(valor) -> Decimal:
     return Decimal(str(valor))
 
 
-def cargos_bancarios_meta(anio: int, mes: int) -> dict:
+def cargos_bancarios(anio: int, mes: int, plataforma: str = 'META') -> dict:
+    patron = PATRONES[plataforma]
     inicio, fin = date(anio, mes, 1), date(anio, mes, calendar.monthrange(anio, mes)[1])
     config = ConfiguracionContable.objects.filter(operacion='GASTO_PUBLICIDAD', activa=True).select_related('cuenta').first()
     total, cantidad, sin_clasificar = Decimal('0.00'), 0, 0
     movimientos = MovimientoEstadoCuenta.objects.filter(fecha__range=(inicio, fin), cargo__gt=0) \
         .select_related('movimiento_contable__poliza')
     for mov in movimientos:
-        if not PATRON_META.search(normalizar_texto_banco(mov.descripcion)):
+        if not patron.search(normalizar_texto_banco(mov.descripcion)):
             continue
         poliza = mov.movimiento_contable.poliza if mov.movimiento_contable_id else None
         clasificado = bool(config and poliza and poliza.estado == 'APLICADA' and MovimientoContable.objects.filter(
@@ -61,16 +66,16 @@ def cargos_bancarios_meta(anio: int, mes: int) -> dict:
             'hay_movimientos': MovimientoEstadoCuenta.objects.filter(fecha__range=(inicio, fin)).exists()}
 
 
-def conciliar_mes(anio: int, mes: int, tolerancia_pct=None, tolerancia_minima=None) -> dict:
+def conciliar_mes(anio: int, mes: int, tolerancia_pct=None, tolerancia_minima=None, plataforma: str = 'META') -> dict:
     """Compara gasto del mes (con IVA) contra cargos bancarios clasificados y deja
     `estado_conciliacion` en las filas del mes. Con diferencia fuera de tolerancia
     abre un pendiente para DIRECCION (uno por mes)."""
     pct = _decimal(settings.ERP_MARKETING_TOLERANCIA_PCT if tolerancia_pct is None else tolerancia_pct)
     piso = _decimal(settings.ERP_MARKETING_TOLERANCIA_MINIMA if tolerancia_minima is None else tolerancia_minima)
-    filas = GastoPublicitario.objects.filter(fecha__year=anio, fecha__month=mes)
+    filas = GastoPublicitario.objects.filter(fecha__year=anio, fecha__month=mes, campana__plataforma=plataforma)
     gasto = impuestos.centavos(filas.aggregate(t=Sum('monto'))['t'] or 0)
     esperado = impuestos.con_iva(gasto)
-    banco = cargos_bancarios_meta(anio, mes)
+    banco = cargos_bancarios(anio, mes, plataforma)
     resultado = {'anio': anio, 'mes': mes, 'gasto': gasto, 'esperado': esperado, 'banco': banco['total'],
                  'sin_clasificar': banco['sin_clasificar'], 'estado': GastoPublicitario.PENDIENTE,
                  'diferencia': impuestos.centavos(banco['total'] - esperado)}
@@ -82,8 +87,9 @@ def conciliar_mes(anio: int, mes: int, tolerancia_pct=None, tolerancia_minima=No
     filas.update(estado_conciliacion=resultado['estado'])
     if not cuadra:
         registrar_pendiente(
-            titulo=f'Pauta de Meta no cuadra con el banco ({mes:02d}/{anio})', rol='DIRECCION', tipo='CRON',
-            detalle=(f'Gasto de Meta con IVA: ${esperado}\nCargos del banco: ${banco["total"]}\n'
-                     f'Diferencia: ${resultado["diferencia"]}\nCargos de Meta sin clasificar: {banco["sin_clasificar"]}'),
-            clave_idempotencia=f'marketing_conciliacion:{anio}-{mes:02d}')
+            titulo=f'Pauta de {NOMBRES[plataforma]} no cuadra con el banco ({mes:02d}/{anio})', rol='DIRECCION', tipo='CRON',
+            detalle=(f'Gasto de {NOMBRES[plataforma]} con IVA: ${esperado}\nCargos del banco: ${banco["total"]}\n'
+                     f'Diferencia: ${resultado["diferencia"]}\nCargos de {NOMBRES[plataforma]} sin clasificar: {banco["sin_clasificar"]}'),
+            clave_idempotencia=(f'marketing_conciliacion:{anio}-{mes:02d}' if plataforma == 'META'
+                                else f'marketing_conciliacion:{plataforma.lower()}:{anio}-{mes:02d}'))
     return resultado

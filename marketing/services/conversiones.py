@@ -40,7 +40,8 @@ tasa) -> reintento con espera de 15 min x 2^(n-1) hasta ``MAX_INTENTOS``;
 rechazo definitivo (token, parámetros) o evento de más de 7 días -> FALLIDO. Con
 ``UMBRAL_FALLIDOS`` fallidos en 7 días se abre un `Pendiente` a Dirección. Un
 reintento repite el ``event_id``, así que Meta no cuenta doble. Apagado si falta
-`META_CAPI_TOKEN` o dataset: ni se encola ni se envía.
+`META_CAPI_TOKEN` o dataset: ni se encola ni se envía. Desde la fase 8 la misma bandeja lleva las
+conversiones offline de Google (`plataforma`=GOOGLE, ver `conversiones_google.py`), con su propia ventana de 90 días.
 
 Verificación contra la documentación de Meta (2026-10-31)
 ---------------------------------------------------------
@@ -81,6 +82,7 @@ MAX_INTENTOS = 6
 ESPERA_BASE = timedelta(minutes=15)
 RECLAMO = timedelta(minutes=10)
 VENTANA_META = timedelta(days=7)
+VENTANA_GOOGLE = timedelta(days=90)  # Google acepta la importación hasta 90 días después del clic
 UMBRAL_FALLIDOS = 3
 LOTE = 200
 CODIGOS_TRANSITORIOS = {1, 2, 4, 17, 32, 341, 613}
@@ -150,8 +152,8 @@ def tiene_consentimiento(lead) -> bool:
 
 # --- Encolado -----------------------------------------------------------------
 
-def _crear(lead, nombre, atribucion, *, valor=None, event_id=None):
-    campos = {}
+def _crear(lead, nombre, atribucion, *, valor=None, event_id=None, plataforma=EventoConversion.META):
+    campos = {'plataforma': plataforma}
     if event_id is not None:
         campos['event_id'] = event_id
     try:
@@ -169,7 +171,8 @@ def _atribucion(lead):
     """De dónde acreditar los eventos del prospecto, o None si no hay a quién."""
     if lead.anuncio_clid and settings.META_WA_WABA_ID:
         return {'origen': EventoConversion.WHATSAPP, 'ctwa_clid': lead.anuncio_clid}
-    web = lead.conversiones.filter(origen=EventoConversion.WEB, nombre_evento=EventoConversion.LEAD).first()
+    web = lead.conversiones.filter(plataforma=EventoConversion.META, origen=EventoConversion.WEB,
+                                   nombre_evento=EventoConversion.LEAD).first()
     if web is not None:
         return {'origen': EventoConversion.WEB, 'fbp': web.fbp, 'fbc': web.fbc}
     return None
@@ -216,7 +219,9 @@ def _seguro(funcion, *args):
 
 def encolar_etapa(lead, etapa):
     """El prospecto llegó a `etapa`: encola el evento que corresponda. Nunca lanza."""
+    from . import conversiones_google
     _seguro(_encolar_etapa, lead.pk, etapa)
+    _seguro(conversiones_google.encolar_etapa, lead.pk, etapa)
 
 
 def encolar_lead_whatsapp(lead):
@@ -238,7 +243,8 @@ def registrar_origen_web(*, cotizacion, event_id, fbp='', fbc='', user_agent='',
         contexto = {k: v for k, v in (('client_user_agent', user_agent[:300]), ('client_ip_address', ip),
                                       ('event_source_url', url[:300])) if v}
         web = {'origen': EventoConversion.WEB, 'fbp': fbp, 'fbc': fbc, 'contexto_web': contexto}
-        existente = lead.conversiones.filter(nombre_evento=EventoConversion.LEAD).first()
+        existente = lead.conversiones.filter(plataforma=EventoConversion.META,
+                                             nombre_evento=EventoConversion.LEAD).first()
         if existente is None:
             _crear(lead, EventoConversion.LEAD, web, event_id=event_id)
         elif existente.estado == EventoConversion.PENDIENTE and existente.origen != EventoConversion.WEB:
@@ -347,13 +353,20 @@ def _procesar(ev, ahora) -> str:
     if not tiene_consentimiento(lead):
         _cerrar(ev, EventoConversion.OMITIDO, ahora)
         return EventoConversion.OMITIDO
-    if ahora - ev.event_time > VENTANA_META:
-        _cerrar(ev, EventoConversion.FALLIDO, ahora, 'El evento tiene más de 7 días: Meta ya no lo acepta')
+    es_google = ev.plataforma == EventoConversion.GOOGLE
+    ventana = VENTANA_GOOGLE if es_google else VENTANA_META
+    if ahora - ev.event_time > ventana:
+        _cerrar(ev, EventoConversion.FALLIDO, ahora,
+                f'El evento tiene más de {ventana.days} días: {"Google" if es_google else "Meta"} ya no lo acepta')
         return EventoConversion.FALLIDO
-    if ev.origen == EventoConversion.WHATSAPP and not (ev.ctwa_clid and settings.META_WA_WABA_ID):
+    if es_google:
+        from . import conversiones_google
+        ok, transitorio, error = conversiones_google.enviar(ev)
+    elif ev.origen == EventoConversion.WHATSAPP and not (ev.ctwa_clid and settings.META_WA_WABA_ID):
         _cerrar(ev, EventoConversion.FALLIDO, ahora, 'Falta el clic del anuncio o META_WA_WABA_ID')
         return EventoConversion.FALLIDO
-    ok, transitorio, error = _enviar_a_meta(ev)
+    else:
+        ok, transitorio, error = _enviar_a_meta(ev)
     ev.intentos += 1
     if ok:
         _cerrar(ev, EventoConversion.ENVIADO, ahora)
@@ -378,7 +391,7 @@ def _avisar_fallidos(ahora):
     ultimo = fallidos.order_by('-updated_at').first()
     anio, semana, _ = ahora.isocalendar()
     return registrar_pendiente(
-        titulo='Eventos de conversión sin enviar a Meta', rol='DIRECCION', tipo='ALERTA', severidad='NORMAL',
+        titulo='Eventos de conversión sin enviar a Meta o Google', rol='DIRECCION', tipo='ALERTA', severidad='NORMAL',
         detalle=f'{total} eventos fallidos en 7 días\nÚltimo error: {ultimo.ultimo_error or "sin detalle"}\n'
                 'Revisa Marketing > Conversiones',
         clave_idempotencia=f'marketing_capi_fallidos:{anio}-{semana}')
@@ -386,12 +399,16 @@ def _avisar_fallidos(ahora):
 
 def enviar_pendientes(ahora=None) -> dict:
     """Envía los eventos que ya toca. Devuelve un conteo por resultado."""
-    resumen = {'apagado': not configurado(), 'enviados': 0, 'reintentos': 0, 'fallidos': 0,
+    from . import conversiones_google
+    activas = ([EventoConversion.META] if configurado() else []) + (
+        [EventoConversion.GOOGLE] if conversiones_google.configurado() else [])
+    resumen = {'apagado': not activas, 'enviados': 0, 'reintentos': 0, 'fallidos': 0,
                'omitidos': 0, 'cancelados': 0}
     if resumen['apagado']:
         return resumen
     ahora = ahora or timezone.now()
-    ids = list(EventoConversion.objects.filter(estado=EventoConversion.PENDIENTE, proximo_intento__lte=ahora)
+    ids = list(EventoConversion.objects.filter(estado=EventoConversion.PENDIENTE, plataforma__in=activas,
+                                               proximo_intento__lte=ahora)
                .order_by('created_at').values_list('pk', flat=True)[:LOTE])
     claves = {EventoConversion.ENVIADO: 'enviados', EventoConversion.PENDIENTE: 'reintentos',
               EventoConversion.FALLIDO: 'fallidos', EventoConversion.OMITIDO: 'omitidos',

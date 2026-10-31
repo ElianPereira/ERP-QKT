@@ -127,7 +127,7 @@ def agenda(inicio: date, fin: date) -> dict:
 
 
 def _campanas_activas():
-    return list(Campana.objects.filter(estado__iexact='ACTIVE', presupuesto_diario__gt=0).order_by('id'))
+    return list(Campana.objects.filter(plataforma=Campana.META, estado__iexact='ACTIVE', presupuesto_diario__gt=0).order_by('id'))
 
 
 def _ajuste_abierto(campana) -> bool:
@@ -148,7 +148,8 @@ def _pausar_anuncios(ctx: Contexto) -> Iterator[Propuesta]:
     """Gasto >= umbral y ninguna cotización de sus prospectos en los últimos N días."""
     p, hoy = ctx.p, ctx.hoy
     desde = hoy - timedelta(days=p.pausa_dias - 1)
-    gastos = (GastoPublicitario.objects.filter(fecha__range=(desde, hoy), anuncio__isnull=False)
+    gastos = (GastoPublicitario.objects.filter(fecha__range=(desde, hoy), anuncio__isnull=False,
+                                          campana__plataforma=Campana.META)
               .values('anuncio_id').annotate(t=Sum('monto')).filter(t__gte=p.pausa_gasto_minimo))
     anuncios = {a.pk: a for a in Anuncio.objects.filter(pk__in=[g['anuncio_id'] for g in gastos])
                 .select_related('campana')}

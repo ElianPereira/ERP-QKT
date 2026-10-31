@@ -107,13 +107,37 @@
     </div>
 
     <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-ad" aria-hidden="true"></i> Por plataforma</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Plataforma</th><th class="qkt-der">Gasto</th><th class="qkt-der">Prospectos</th><th class="qkt-der">CPL</th><th class="qkt-der">Ganados</th><th class="qkt-der">CAC</th><th class="qkt-der">ROAS cobrado</th></tr></thead>
+                <tbody>
+                {% for g in plataformas %}
+                    <tr><th>{{ g.nombre }}</th>
+                        <td class="qkt-der qkt-num">{{ g.gasto|moneda }}</td>
+                        <td class="qkt-der qkt-num">{{ g.prospectos }}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.cpl }}">{% if g.cpl is None %}—{% else %}{{ g.cpl|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num">{{ g.ganados }}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.cac }}">{% if g.cac is None %}—{% else %}{{ g.cac|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.roas_cobrado }}">{% if g.roas_cobrado is None %}—{% else %}{{ g.roas_cobrado }}×{% endif %}</td></tr>
+                {% empty %}
+                    <tr class="qkt-tabla__vacio"><td colspan="7">Sin pauta en el periodo.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="qkt-panel__cuerpo"><span class="qkt-kpi__sub">Los prospectos de Google se cuentan por su fuente (anuncio de Google): el clic no dice qué anuncio fue.</span></div>
+    </div>
+
+    <div class="qkt-panel">
         <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-bullseye" aria-hidden="true"></i> Por campaña</h2></div>
         <div class="qkt-panel__cuerpo--tabla">
             <table class="qkt-tabla">
-                <thead><tr><th>Campaña</th><th class="qkt-der">Gasto</th><th class="qkt-der">Prospectos</th><th class="qkt-der">CPL</th><th class="qkt-der">Costo por cotización</th><th class="qkt-der">Ganados</th><th class="qkt-der">CAC</th><th class="qkt-der">ROAS cobrado</th></tr></thead>
+                <thead><tr><th>Campaña</th><th>Plataforma</th><th class="qkt-der">Gasto</th><th class="qkt-der">Prospectos</th><th class="qkt-der">CPL</th><th class="qkt-der">Costo por cotización</th><th class="qkt-der">Ganados</th><th class="qkt-der">CAC</th><th class="qkt-der">ROAS cobrado</th></tr></thead>
                 <tbody>
                 {% for g in campanas %}
                     <tr><th>{{ g.nombre }}</th>
+                        <td>{{ g.plataforma }}</td>
                         <td class="qkt-der qkt-num">{{ g.gasto|moneda }}</td>
                         <td class="qkt-der qkt-num">{{ g.prospectos }}</td>
                         <td class="qkt-der qkt-num" title="{{ g.motivos.cpl }}">{% if g.cpl is None %}—{% else %}{{ g.cpl|moneda }}{% endif %}</td>
@@ -122,7 +146,7 @@
                         <td class="qkt-der qkt-num" title="{{ g.motivos.cac }}">{% if g.cac is None %}—{% else %}{{ g.cac|moneda }}{% endif %}</td>
                         <td class="qkt-der qkt-num" title="{{ g.motivos.roas_cobrado }}">{% if g.roas_cobrado is None %}—{% else %}{{ g.roas_cobrado }}×{% endif %}</td></tr>
                 {% empty %}
-                    <tr class="qkt-tabla__vacio"><td colspan="8">Sin campañas en el periodo.</td></tr>
+                    <tr class="qkt-tabla__vacio"><td colspan="9">Sin campañas en el periodo.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

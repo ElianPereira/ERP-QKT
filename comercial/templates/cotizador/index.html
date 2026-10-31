@@ -1950,6 +1950,10 @@ async function enviarSolicitud() {
   payload.meta_event_id = metaCtx.meta_event_id || '';
   payload.fbp = metaCtx.fbp || '';
   payload.fbc = metaCtx.fbc || '';
+  var gadsCtx = window.qktGads ? window.qktGads.contexto() : {};
+  payload.gclid = gadsCtx.gclid || '';
+  payload.gbraid = gadsCtx.gbraid || '';
+  payload.wbraid = gadsCtx.wbraid || '';
 
   if (requiereFactura) {
     payload.rfc = (document.getElementById('rfc').value || '').trim().toUpperCase();
@@ -2004,6 +2008,6 @@ poblarSelectoresHora();
   } catch(e) { /* silencioso */ }
 })();
 </script>
-{% load pixel_meta %}{% pixel_meta %}
+{% load pixel_meta %}{% captura_google %}{% pixel_meta %}
 </body>
 </html>
