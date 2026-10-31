@@ -177,6 +177,8 @@ def detectar(hoy=None, detectores=DETECTORES) -> List[Hallazgo]:
 
 def crear_tarea(hallazgo, usuario=None) -> Optional[Pendiente]:
     """[Crear tarea]: el hallazgo pasa a un `Pendiente` NORMAL de Dirección. Un solo uso."""
+    if hallazgo.tipo.startswith('MKT_'):
+        return None  # las decisiones de marketing se resuelven en la pantalla Marketing
     usuario = usuario if getattr(usuario, 'pk', None) else None
     ahora = timezone.now()
     with transaction.atomic():
@@ -197,8 +199,12 @@ def ignorar(hallazgo, usuario=None) -> bool:
     """[Ignorar]: no se vuelve a proponer."""
     usuario = usuario if getattr(usuario, 'pk', None) else None
     ahora = timezone.now()
-    return bool(Hallazgo.objects.filter(pk=hallazgo.pk, estado='PROPUESTO').update(
+    hecho = bool(Hallazgo.objects.filter(pk=hallazgo.pk, estado='PROPUESTO').update(
         estado='IGNORADO', resuelto_en=ahora, resuelto_por=usuario, updated_at=ahora))
+    if hecho and hallazgo.tipo.startswith('MKT_'):
+        from marketing.services.decisiones import sincronizar_hallazgo_ignorado
+        sincronizar_hallazgo_ignorado(hallazgo)
+    return hecho
 
 
 # ───────────────────────────── Resumen semanal ────────────────────────────────
@@ -216,7 +222,7 @@ def _url_hallazgos() -> str:
     return _base_url() + reverse('admin:comunicacion_hallazgo_changelist') + '?estado__exact=PROPUESTO'
 
 
-def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos) -> Aviso:
+def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marketing: Optional[dict] = None) -> Aviso:
     if mes.get('meta_venta'):
         venta = f'{dinero(mes["venta"])} de {dinero(mes["meta_venta"])} ({mes["pct_meta"]} %)'
     else:
@@ -230,8 +236,22 @@ def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos) -> Av
     if hallazgos:
         lineas.extend(f'Detecté {n}: {h.titulo}' for n, h in enumerate(hallazgos, 1))
         cierre = f'Revisa los hallazgos: {_url_hallazgos()}'
+    if marketing:
+        lineas.extend(marketing['lineas'])
+        if marketing.get('enlace'):
+            cierre = (cierre + '\n' if cierre else '') + f'Decisiones de marketing: {marketing["enlace"]}'
     return Aviso(titulo=f'Resumen semanal del {hoy:%d/%m}', categoria='Dirección', lineas=lineas,
                  cierre=cierre, enlace=url_bandeja())
+
+
+def _bloque_marketing(hoy) -> Optional[dict]:
+    """Bloque «Marketing» del resumen; un fallo suyo no tumba el resumen."""
+    try:
+        from marketing.services.decisiones import bloque_resumen
+        return bloque_resumen(hoy)
+    except Exception:
+        logger.exception("Resumen semanal: falló el bloque de marketing")
+        return None
 
 
 def enviar_resumen_semanal(hoy=None) -> int:
@@ -247,8 +267,9 @@ def enviar_resumen_semanal(hoy=None) -> int:
     mes = TableroService.generar(hoy.year, hoy.month, hoy=hoy)['mes']
     abiertos = Pendiente.objects.filter(estado='ABIERTO', rol='DIRECCION').count()
     hallazgos = detectar(hoy)
+    marketing = _bloque_marketing(hoy)
     lunes = hoy - timedelta(days=hoy.weekday())
-    comm = _enviar_aviso(telefono, texto_resumen(hoy, mes, caja_segun_libros(), abiertos, hallazgos),
+    comm = _enviar_aviso(telefono, texto_resumen(hoy, mes, caja_segun_libros(), abiertos, hallazgos, marketing),
                          clave=f'dir:resumen:{lunes}:{telefono}')
     if not _enviado(comm):
         return 0

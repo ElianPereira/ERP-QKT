@@ -332,6 +332,36 @@ class ParametroMarketing(models.Model):
     dias_sin_respuesta = models.PositiveIntegerField(
         default=15, validators=[MinValueValidator(1)], verbose_name='Días sin respuesta',
         help_text='Un prospecto abierto sin interacción este número de días pasa a Perdido.')
+    pausa_gasto_minimo = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('1500.00'), verbose_name='Gasto para pausar un anuncio',
+        help_text='Un anuncio que gastó esto (sin IVA) en los días de la ventana de pausa y no produjo '
+                  'ninguna cotización se propone pausarlo.')
+    pausa_dias = models.PositiveIntegerField(
+        default=14, validators=[MinValueValidator(3), MaxValueValidator(60)], verbose_name='Días para pausar un anuncio',
+        help_text='Ventana en la que se mide el gasto y las cotizaciones del anuncio.')
+    reasignar_diferencia_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('30.00'), validators=PCT,
+        verbose_name='Diferencia de CAC para reasignar (%)',
+        help_text='Se propone mover presupuesto cuando el CAC de una campaña supera al de otra por este porcentaje.')
+    escalar_ocupacion_max = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('60.00'), validators=PCT,
+        verbose_name='Ocupación máxima para escalar (%)',
+        help_text='Solo se propone subir presupuesto si la agenda de los próximos 60 días está por debajo de esto.')
+    fines_libres_min = models.PositiveIntegerField(
+        default=4, validators=[MinValueValidator(1)], verbose_name='Días de fin de semana libres para subir pauta',
+        help_text='Sábados y domingos libres en los próximos 45 días a partir de los cuales se propone subir pauta.')
+    concentracion_max_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('60.00'), validators=PCT,
+        verbose_name='Concentración máxima en un canal (%)',
+        help_text='Se avisa cuando un solo canal aporta más que esto de los prospectos del periodo.')
+    sin_respuesta_minutos = models.PositiveIntegerField(
+        default=5, validators=[MinValueValidator(1)], verbose_name='Minutos sin respuesta a un prospecto',
+        help_text='Dentro de 8:00 a 20:00 (Mérida), un prospecto que escribió y no recibe respuesta en este '
+                  'tiempo se avisa al encargado.')
+    anomalia_factor = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('2.00'), validators=[MinValueValidator(Decimal('1.1'))],
+        verbose_name='Factor de gasto anómalo',
+        help_text='El gasto de un día que supera este múltiplo del promedio de los 7 días previos se señala.')
     ciclo_dias_evento = models.PositiveIntegerField(
         default=120, verbose_name='Ciclo de venta · evento (días)',
         help_text='Tiempo típico entre el primer contacto y el cobro de un evento. Una cohorte es madura '
@@ -446,3 +476,63 @@ class SnapshotKPI(models.Model):
 
     def __str__(self):
         return f'{self.fecha:%d/%m/%Y} {self.tipo_servicio or "Total"}'
+
+
+class Decision(models.Model):
+    """Recomendación de marketing que espera la decisión de Dirección (Issue #468, fase 4).
+
+    Nace de una regla diaria (`services/decisiones.py`) junto con su `comunicacion.Hallazgo`, que es lo
+    que se ve en el resumen del lunes. `accion_propuesta` describe la acción en JSON para que la fase 5 la
+    ejecute; en esta fase **nada se ejecuta**: aprobar solo deja constancia de quién y cuándo. Una decisión
+    abierta por regla y objeto (restricción única); caduca a los 14 días. No se borra.
+    """
+    PAUSAR, REANUDAR, AJUSTAR, REASIGNAR, INFORMATIVA = (
+        'PAUSAR', 'REANUDAR', 'AJUSTAR_PRESUPUESTO', 'REASIGNAR', 'INFORMATIVA')
+    ACCION_CHOICES = [(PAUSAR, 'Pausar'), (REANUDAR, 'Reanudar'), (AJUSTAR, 'Ajustar presupuesto'),
+                      (REASIGNAR, 'Reasignar presupuesto'), (INFORMATIVA, 'Informativa')]
+    PENDIENTE, APROBADA, RECHAZADA, POSPUESTA, EJECUTADA, FALLIDA, EXPIRADA = (
+        'PENDIENTE', 'APROBADA', 'RECHAZADA', 'POSPUESTA', 'EJECUTADA', 'FALLIDA', 'EXPIRADA')
+    ESTADO_CHOICES = [(PENDIENTE, 'Pendiente'), (APROBADA, 'Aprobada'), (RECHAZADA, 'Rechazada'),
+                      (POSPUESTA, 'Pospuesta'), (EJECUTADA, 'Ejecutada'), (FALLIDA, 'Fallida'),
+                      (EXPIRADA, 'Expirada')]
+    ABIERTAS = (PENDIENTE, POSPUESTA)
+
+    regla = models.CharField(max_length=24, db_index=True, verbose_name='Regla')
+    objeto_clave = models.CharField(max_length=120, verbose_name='Objeto',
+                                    help_text='Anuncio, campaña, canal o mes sobre el que aplica la regla.')
+    tipo_accion = models.CharField(max_length=20, choices=ACCION_CHOICES, verbose_name='Acción')
+    hallazgo = models.OneToOneField('comunicacion.Hallazgo', null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='decision_marketing', verbose_name='Hallazgo')
+    titulo = models.CharField(max_length=200, verbose_name='Recomendación')
+    evidencia = models.JSONField(default=dict, blank=True, verbose_name='Evidencia')
+    accion_propuesta = models.JSONField(default=dict, blank=True, verbose_name='Acción propuesta')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default=PENDIENTE, db_index=True,
+                              verbose_name='Estado')
+    expira_en = models.DateTimeField(verbose_name='Expira')
+    pospuesta_hasta = models.DateTimeField(null=True, blank=True, verbose_name='Pospuesta hasta')
+    decidido_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+', verbose_name='Decidido por')
+    decidido_en = models.DateTimeField(null=True, blank=True, verbose_name='Decidido el')
+    ejecutado_en = models.DateTimeField(null=True, blank=True, verbose_name='Ejecutado el')
+    resultado = models.TextField(blank=True, verbose_name='Resultado de la ejecución')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Decisión'
+        verbose_name_plural = 'Decisiones'
+        ordering = ['-created_at', '-id']
+        constraints = [models.UniqueConstraint(
+            fields=['regla', 'objeto_clave'], condition=models.Q(estado__in=['PENDIENTE', 'POSPUESTA']),
+            name='mkt_decision_abierta_unica')]
+
+    def __str__(self):
+        return f'Decisión {self.pk}: {self.titulo}'[:120]
+
+    @property
+    def abierta(self) -> bool:
+        return self.estado in self.ABIERTAS

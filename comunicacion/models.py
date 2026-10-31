@@ -394,6 +394,7 @@ class Pendiente(models.Model):
         ('SAT', 'SAT'),
         ('DESVIACION', 'Desviación'),
         ('HALLAZGO', 'Hallazgo'),
+        ('PROSPECTO', 'Prospecto sin respuesta'),
         ('CUMPLIMIENTO', 'Cumplimiento'),
         ('COMPRAS', 'Compras'),
         ('DEPOSITO', 'Depósito en garantía'),
@@ -459,8 +460,17 @@ class Hallazgo(models.Model):
         ('SIN_SEGUIMIENTO', 'Cotización sin seguimiento'),
         ('PRECIO_ENTRAR', 'Servicio fuera del plan'),
         ('DIAS_LIBRES', 'Días libres'),
+        ('MKT_PAUSAR', 'Marketing · pausar anuncio'),
+        ('MKT_REASIGNAR', 'Marketing · reasignar presupuesto'),
+        ('MKT_ESCALAR', 'Marketing · escalar campaña'),
+        ('MKT_OCUPACION', 'Marketing · ocupación de la agenda'),
+        ('MKT_CAJA', 'Marketing · caja'),
+        ('MKT_CONCENTRA', 'Marketing · concentración de canal'),
+        ('MKT_ANOMALO', 'Marketing · gasto o frecuencia anómalos'),
+        ('MKT_CONCILIA', 'Marketing · gasto sin conciliar'),
     ]
-    ESTADO_CHOICES = [('PROPUESTO', 'Propuesto'), ('TAREA', 'Tarea creada'), ('IGNORADO', 'Ignorado')]
+    ESTADO_CHOICES = [('PROPUESTO', 'Propuesto'), ('TAREA', 'Tarea creada'), ('IGNORADO', 'Ignorado'),
+                      ('ATENDIDO', 'Atendido')]
 
     clave = models.CharField(max_length=191, unique=True, verbose_name='Clave')
     tipo = models.CharField(max_length=16, choices=TIPO_CHOICES, db_index=True, verbose_name='Tipo')

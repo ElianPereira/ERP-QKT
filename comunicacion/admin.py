@@ -632,7 +632,7 @@ class HallazgoAdmin(admin.ModelAdmin):
               'created_at')
     readonly_fields = fields
 
-    TONOS_ESTADO = {'PROPUESTO': ui.ALERTA, 'TAREA': ui.EXITO, 'IGNORADO': ui.NEUTRO}
+    TONOS_ESTADO = {'PROPUESTO': ui.ALERTA, 'TAREA': ui.EXITO, 'IGNORADO': ui.NEUTRO, 'ATENDIDO': ui.EXITO}
 
     def has_add_permission(self, request):
         return False

@@ -5,7 +5,7 @@ from django.utils.formats import date_format
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import filtro_periodo
 
-from .models import Anuncio, Campana, GastoPublicitario, Lead, LeadEvento, ParametroMarketing
+from .models import Anuncio, Campana, Decision, GastoPublicitario, Lead, LeadEvento, ParametroMarketing
 
 
 class SoloSuperusuarioMixin:
@@ -217,7 +217,10 @@ class ParametroMarketingAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
         ('Cuándo confiar en una cifra', {'fields': ('muestra_minima_leads', 'ventana_dias', 'ciclo_dias_evento',
                                                      'ciclo_dias_pasadia', 'ciclo_dias_hospedaje')}),
         ('Prospectos y pronóstico', {'fields': ('dias_sin_respuesta', 'prob_etapa')}),
-        ('Límites para las decisiones', {'fields': ('cpl_max', 'frecuencia_max', 'umbral_ocupacion_pausa')}),
+        ('Límites para las decisiones', {'fields': (
+            'cpl_max', 'frecuencia_max', 'umbral_ocupacion_pausa', 'pausa_gasto_minimo', 'pausa_dias',
+            'reasignar_diferencia_pct', 'escalar_ocupacion_max', 'fines_libres_min', 'concentracion_max_pct',
+            'sin_respuesta_minutos', 'anomalia_factor')}),
         ('Vigencia', {'fields': ('vigente_desde', 'activo')}),
         ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_by', 'updated_at')}),
     )
@@ -261,3 +264,40 @@ class ParametroMarketingAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     @admin.display(description='Actualizado', ordering='updated_at')
     def actualizado(self, obj):
         return date_format(timezone.localtime(obj.updated_at), 'd M Y')
+
+
+@admin.register(Decision)
+class DecisionAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Historial de las recomendaciones de marketing. Se decide en la pantalla «Marketing»; aquí solo se lee."""
+    list_display = ('titulo', 'regla', 'estado_badge', 'creada', 'expira', 'decidido_por')
+    list_filter = ('estado', 'tipo_accion', 'regla')
+    search_fields = ('titulo', 'objeto_clave')
+    columnas_texto = ('titulo',)
+    fields = ('titulo', 'regla', 'objeto_clave', 'tipo_accion', 'estado', 'hallazgo', 'evidencia', 'accion_propuesta',
+              'expira_en', 'pospuesta_hasta', 'decidido_por', 'decidido_en', 'ejecutado_en', 'resultado',
+              'created_at')
+    readonly_fields = fields
+
+    TONOS_ESTADO = {'PENDIENTE': ui.ALERTA, 'POSPUESTA': ui.ALERTA, 'APROBADA': ui.EXITO, 'EJECUTADA': ui.EXITO,
+                    'RECHAZADA': ui.NEUTRO, 'EXPIRADA': ui.NEUTRO, 'FALLIDA': ui.ERROR}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='Creada', ordering='created_at')
+    def creada(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M Y')
+
+    @admin.display(description='Expira', ordering='expira_en')
+    def expira(self, obj):
+        return date_format(timezone.localtime(obj.expira_en), 'd M Y')

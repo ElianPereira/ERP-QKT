@@ -673,6 +673,7 @@ JAZZMIN_SETTINGS = {
         "marketing.Anuncio":                 "fas fa-ad",
         "marketing.GastoPublicitario":       "fas fa-coins",
         "marketing.ParametroMarketing":      "fas fa-sliders-h",
+        "marketing.Decision":                "fas fa-balance-scale",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -812,6 +813,7 @@ JAZZMIN_SETTINGS = {
         "marketing.Campana",
         "marketing.Anuncio",
         "marketing.GastoPublicitario",
+        "marketing.Decision",
         "marketing.ParametroMarketing",
 
         # === ADMINISTRACIÓN ===

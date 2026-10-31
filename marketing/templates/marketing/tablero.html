@@ -25,6 +25,44 @@
         <div class="qkt-kpi{% if total.roas_cobrado is not None %} qkt-kpi--{% if total.roas_cobrado >= 1 %}exito{% else %}alerta{% endif %}{% endif %}"><div class="qkt-kpi__label">ROAS cobrado</div><div class="qkt-kpi__valor" title="{{ total.motivos.roas_cobrado }}">{% if total.roas_cobrado is None %}—{% else %}{{ total.roas_cobrado }}×{% endif %}</div><div class="qkt-kpi__sub">{% if total.roas_cobrado is None %}{{ total.motivos.roas_cobrado }}{% else %}Cobrado {{ total.cobrado|moneda }} sin IVA{% endif %}</div></div>
     </div>
 
+    <div class="qkt-panel" id="decisiones">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-balance-scale" aria-hidden="true"></i> Decisiones</h2></div>
+        {% for dec in decisiones %}
+        <div class="qkt-panel__cuerpo">
+            <p><strong>{{ dec.titulo }}</strong>
+                {% if dec.estado == 'POSPUESTA' %}<span class="qkt-badge qkt-badge--alerta">Pospuesta</span>{% endif %}
+                <span class="qkt-badge qkt-badge--neutro">{{ dec.get_tipo_accion_display }}</span></p>
+            {% if dec.hallazgo %}<p class="qkt-kpi__sub">{{ dec.hallazgo.detalle|linebreaksbr }}</p>{% endif %}
+            <p class="qkt-kpi__sub">Expira el {{ dec.expira_en|date:"d/m/Y" }}. Aprobar deja constancia; la ejecución llega en la siguiente fase.</p>
+            <div class="qkt-botonera">
+                <form method="post" action="{% url 'marketing:decidir' dec.pk 'aprobar' %}">{% csrf_token %}
+                    <button type="submit" class="qkt-btn qkt-btn--primario qkt-btn--sm" data-qkt-confirmar="Se aprobará esta recomendación. Por ahora solo queda registrada; no se cambia nada en Meta. ¿Continuar?"><i class="fas fa-check" aria-hidden="true"></i> Aprobar</button>
+                </form>
+                <form method="post" action="{% url 'marketing:decidir' dec.pk 'posponer' %}">{% csrf_token %}
+                    <button type="submit" class="qkt-btn qkt-btn--secundario qkt-btn--sm"><i class="fas fa-clock" aria-hidden="true"></i> Posponer</button>
+                </form>
+                <form method="post" action="{% url 'marketing:decidir' dec.pk 'rechazar' %}">{% csrf_token %}
+                    <button type="submit" class="qkt-btn qkt-btn--peligro qkt-btn--sm"><i class="fas fa-times" aria-hidden="true"></i> Rechazar</button>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <div class="qkt-panel__cuerpo"><span class="qkt-kpi__sub">No hay decisiones pendientes. Las reglas corren cada mañana y solo proponen con datos suficientes.</span></div>
+        {% endfor %}
+        {% if decisiones_recientes %}
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Recientes</th><th>Estado</th><th class="qkt-der">Decidida</th></tr></thead>
+                <tbody>
+                {% for dec in decisiones_recientes %}
+                    <tr><td>{{ dec.titulo }}</td><td>{{ dec.get_estado_display }}</td><td class="qkt-der">{{ dec.decidido_en|date:"d/m/Y"|default:"—" }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
     <div class="qkt-panel">
         <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-traffic-light" aria-hidden="true"></i> Por servicio</h2></div>
         <div class="qkt-panel__cuerpo--tabla">
