@@ -275,6 +275,26 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-31 — **Marketing, fase 2: pauta de Meta** (Issue #468; sin tocar zonas restringidas; migración `marketing.0002`, tres
+  tablas nuevas; contabilidad solo se LEE). `services/proveedores.py`: interfaz `ProveedorAnuncios` + `ProveedorMeta` (REST con
+  `requests`, insights `level=ad`/`time_increment=1`, paginación por `paging.next`, código 190 → `TokenVencidoError`, el token
+  nunca sale en mensajes; `pausar/reanudar/ajustar_presupuesto` lanzan `NotImplementedError` hasta la fase 5). Apagado si falta
+  `META_ADS_TOKEN` o `META_ADS_CUENTA_ID`. `Campana`/`Anuncio`/`GastoPublicitario` («Campañas», «Anuncios», «Pauta»; «Gastos»
+  chocaría con comercial): la sincronización solo pisa lo que viene de Meta, nunca `objetivo`/`tipo_servicio` (los captura el
+  propietario). Unicidad (anuncio, fecha, fuente) y (campaña, fecha, fuente) si no hay anuncio. **Solo se importa si la cuenta
+  factura en MXN** (se consulta `currency`); si no, falla sin guardar. `Lead.anuncio` es una propiedad (liga `anuncio_id` con
+  `Anuncio.id_externo`), sin FK. `sincronizar_gasto_anuncios [--desde] [--hasta]` (diario 07:10 en el programador; por defecto
+  últimos 3 días, upsert idempotente; un monto corregido regresa la fila a conciliación PENDIENTE) y, desde el día 5, concilia el
+  mes anterior. **Criterio de conciliación**: gasto Meta (sin IVA) → `con_iva` vs cargos del mes de `MovimientoEstadoCuenta` cuyo
+  concepto dice META/FACEBOOK/FACEBK y cuya póliza APLICADA toca la cuenta de `GASTO_PUBLICIDAD` (o subcuenta); se tolera el
+  mayor entre `ERP_MARKETING_TOLERANCIA_PCT` (10 %) y `ERP_MARKETING_TOLERANCIA_MINIMA` ($500) porque Meta cobra por umbral;
+  los cargos de Meta sin clasificar no cuentan pero se reportan; sin estado de cuenta del mes no evalúa. Diferencia → Pendiente
+  `marketing_conciliacion:AAAA-MM` y `estado_conciliacion`. Salud: `debug_token` (token de usuario del sistema no vence) →
+  Pendiente URGENTE si es inválido o vence en <14 días; una falla de sync deja Pendiente y el comando termina en error.
+  **Pendiente del propietario**: crear usuario del sistema en Business Manager con permiso `ads_read` sobre la cuenta publicitaria,
+  generar su token permanente y definir en `web` y Programador `META_ADS_TOKEN`, `META_ADS_CUENTA_ID` (y opcional
+  `META_ADS_API_VERSION`); luego `sincronizar_gasto_anuncios --desde 2026-07-01`; marcar el servicio de cada campaña en «Campañas».
+
 - 2026-10-31 — **Marketing, fase 1: prospectos** (Issue #468; sin tocar zonas restringidas; migración `marketing.0001`, dos
   tablas nuevas). App `marketing/`: `Lead` (llaves a conversación, cliente y cotización; nunca copia montos) y `LeadEvento`
   (bitácora inmutable). **La etapa se deriva, no se captura**: `services/pipeline.sincronizar()` (idempotente) lee mensajes,

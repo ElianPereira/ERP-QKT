@@ -334,6 +334,15 @@ ERP_WA_NEGOCIO_NUMERO = env('ERP_WA_NEGOCIO_NUMERO', default='')
 META_WA_KOOXI_NUMERO = env('META_WA_KOOXI_NUMERO', default='')
 META_WA_API_VERSION = env('META_WA_API_VERSION', default='v20.0')
 
+# Marketing (Issue #468, fase 2): Marketing API de Meta, solo lectura (permiso ads_read). Sin token o sin
+# cuenta el proveedor queda apagado. La tolerancia de la conciliación mensual con el banco: proporción
+# del gasto esperado (con IVA) y piso en pesos; se acepta lo que quede dentro del mayor de los dos.
+META_ADS_TOKEN = env('META_ADS_TOKEN', default='')
+META_ADS_CUENTA_ID = env('META_ADS_CUENTA_ID', default='')
+META_ADS_API_VERSION = env('META_ADS_API_VERSION', default='v23.0')
+ERP_MARKETING_TOLERANCIA_PCT = env('ERP_MARKETING_TOLERANCIA_PCT', default='0.10')
+ERP_MARKETING_TOLERANCIA_MINIMA = env('ERP_MARKETING_TOLERANCIA_MINIMA', default='500.00')
+
 # Plantillas aprobadas en Meta. Los mensajes iniciados por el negocio (pago y
 # recordatorio) solo llegan por plantilla: fuera de la ventana de 24 h Meta
 # rechaza el texto libre con el error 131047. Si una plantilla no está
@@ -660,6 +669,9 @@ JAZZMIN_SETTINGS = {
         # === MARKETING ===
         "marketing":                         "fas fa-bullhorn",
         "marketing.Lead":                    "fas fa-funnel-dollar",
+        "marketing.Campana":                 "fas fa-bullseye",
+        "marketing.Anuncio":                 "fas fa-ad",
+        "marketing.GastoPublicitario":       "fas fa-coins",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -794,6 +806,9 @@ JAZZMIN_SETTINGS = {
         # === MARKETING ===
         "marketing",
         "marketing.Lead",
+        "marketing.Campana",
+        "marketing.Anuncio",
+        "marketing.GastoPublicitario",
 
         # === ADMINISTRACIÓN ===
         "auth",

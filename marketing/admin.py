@@ -5,7 +5,7 @@ from django.utils.formats import date_format
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import filtro_periodo
 
-from .models import Lead, LeadEvento
+from .models import Anuncio, Campana, GastoPublicitario, Lead, LeadEvento
 
 
 class SoloSuperusuarioMixin:
@@ -101,3 +101,106 @@ class LeadAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
                 detalle={'antes': anterior, 'despues': obj.motivo_perdida}, created_by=request.user)
         else:
             super().save_model(request, obj, form, change)
+
+
+class SoloLecturaPlataformaMixin(SoloSuperusuarioMixin):
+    """Lo que viene de la plataforma no se captura a mano: solo se corrige la atribución."""
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_superuser
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(Campana)
+class CampanaAdmin(SoloLecturaPlataformaMixin, admin.ModelAdmin):
+    list_display = ('nombre', 'plataforma_badge', 'estado', 'objetivo', 'tipo_servicio', 'presupuesto')
+    list_filter = ('plataforma', 'objetivo', 'tipo_servicio')
+    search_fields = ('nombre', 'id_externo')
+    columnas_texto = ('nombre',)
+    fields = ('nombre', 'plataforma', 'id_externo', 'estado', 'objetivo_plataforma', 'presupuesto_diario',
+              'objetivo', 'tipo_servicio')
+    readonly_fields = ('nombre', 'plataforma', 'id_externo', 'estado', 'objetivo_plataforma', 'presupuesto_diario')
+
+    @admin.display(description='Plataforma', ordering='plataforma')
+    def plataforma_badge(self, obj):
+        return ui.badge(obj.get_plataforma_display(), ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Presupuesto diario', ordering='presupuesto_diario')
+    def presupuesto(self, obj):
+        return ui.monto(obj.presupuesto_diario)
+
+
+@admin.register(Anuncio)
+class AnuncioAdmin(SoloLecturaPlataformaMixin, admin.ModelAdmin):
+    list_display = ('nombre', 'campana', 'estado', 'prospectos_ligados')
+    list_filter = ('campana__plataforma', 'estado')
+    search_fields = ('nombre', 'id_externo', 'campana__nombre')
+    list_select_related = ('campana',)
+    columnas_texto = ('nombre', 'campana')
+    fields = ('nombre', 'campana', 'id_externo', 'estado')
+    readonly_fields = fields
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Prospectos')
+    def prospectos_ligados(self, obj):
+        return obj.prospectos.count()
+
+
+@admin.register(GastoPublicitario)
+class GastoPublicitarioAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Pauta diaria. Lo de la API de Meta es de solo lectura; solo se capturan a
+    mano los gastos de fuente MANUAL (p. ej. un cargo que la API no reporta)."""
+    list_display = ('fecha', 'campana', 'anuncio', 'gasto', 'impresiones', 'clics', 'fuente_badge',
+                    'conciliacion_badge')
+    list_filter = ('fuente', 'estado_conciliacion', filtro_periodo('fecha', 'Fecha'), 'campana__plataforma')
+    search_fields = ('campana__nombre', 'anuncio__nombre')
+    list_select_related = ('campana', 'anuncio')
+    columnas_texto = ('campana', 'anuncio')
+    fields = ('fecha', 'campana', 'anuncio', 'monto', 'impresiones', 'clics', 'frecuencia', 'fuente',
+              'estado_conciliacion')
+    TONOS_CONCILIACION = {'CONCILIADO': ui.EXITO, 'DIFERENCIA': ui.ERROR, 'PENDIENTE': ui.NEUTRO}
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is None:
+            return ('fuente', 'estado_conciliacion')
+        return self.fields if obj.fuente != GastoPublicitario.MANUAL else ('fuente', 'estado_conciliacion')
+
+    def has_add_permission(self, request):
+        return request.user.is_active and request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.fuente = GastoPublicitario.MANUAL
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    @admin.display(description='Gasto', ordering='monto')
+    def gasto(self, obj):
+        return ui.monto(obj.monto)
+
+    @admin.display(description='Fuente', ordering='fuente')
+    def fuente_badge(self, obj):
+        return ui.badge(obj.get_fuente_display(), ui.NEUTRO, categoria=True)
+
+    @admin.display(description='Conciliación', ordering='estado_conciliacion')
+    def conciliacion_badge(self, obj):
+        return ui.badge_por_valor(obj.estado_conciliacion, self.TONOS_CONCILIACION,
+                                  obj.get_estado_conciliacion_display())
