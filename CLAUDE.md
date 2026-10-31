@@ -168,7 +168,8 @@ cuando el tamaño del cambio la justifica, no un trámite obligatorio.
 
 ## Reglas para Claude Code Routines (sesiones automatizadas, sin supervisión)
 
-Además de todo lo anterior, este repo tiene dos **Routines** programadas
+Además de todo lo anterior, este repo tiene tres **Routines** programadas
+(Técnica, Operativa/Contable y Seguridad)
 (`claude.ai/code/routines`) que corren sin nadie mirando y sin pausa de
 aprobación — el detalle completo (prompts disparadores, frecuencia, modelo)
 vive en `docs/agente_instrucciones_erp.md`. `.claude/settings.json` es el
@@ -271,6 +272,14 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-10-31 — **Auditoría de seguridad y Rutina de Seguridad** (Issue #460, PRs #461-#463, cerrado). Sin críticos;
+  el alto era que contratos, CFDI y comprobantes vivían en el bucket R2 público con nombres enumerables: ya están en el
+  privado con `storage_privado_con_respaldo` y `ERP_R2_PRIVADO_OBLIGATORIO=True` en `web` y Programador. CSP del
+  portal y del admin en Report-Only desde el 31/10 (revisar `/csp-report/` antes de activar `ERP_CSP_*_ACTIVO`).
+  Nueva Routine semanal de Seguridad (prompt en `docs/agente_instrucciones_erp.md`, Routine 3): avisos de la semana
+  cruzados con el lock, pip-audit, CI de main, SHA de Actions, diff de 7 días y producción en Railway solo lectura;
+  reporte en `docs/rutinas/seguridad_<fecha>.md` y PR automático solo para subir versiones o fijar SHA.
 
 - 2026-10-30 — **El filtro de Kooxi también detenía el correo que el cliente dio para su solicitud ARCO** (segunda corrida de
   `arco_acceso` tras el PR #458: el folio ya pasaba, pero Kooxi repetía el correo escrito en el chat y `services_guardia` lo
