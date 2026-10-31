@@ -119,14 +119,14 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 | Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
-**Estructura clave** (10 apps Django propias):
+**Estructura clave** (11 apps Django propias):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
@@ -135,6 +135,8 @@ pre-commit · CI en GitHub Actions.
   un dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
 - `indicadores/` — KPIs de dirección (capacidad, equilibrio, plan óptimo anual, metas); solo
   superusuario, solo lectura sobre datos existentes + parámetros del propietario.
+- `marketing/` — prospectos (`Lead`, embudo derivado de mensajes/visitas/cotizaciones), motivos de pérdida y
+  retención; solo superusuario (Issue #468, por fases).
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -272,6 +274,29 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-10-31 — **Marketing, fase 1: prospectos** (Issue #468; sin tocar zonas restringidas; migración `marketing.0001`, dos
+  tablas nuevas). App `marketing/`: `Lead` (llaves a conversación, cliente y cotización; nunca copia montos) y `LeadEvento`
+  (bitácora inmutable). **La etapa se deriva, no se captura**: `services/pipeline.sincronizar()` (idempotente) lee mensajes,
+  visitas y cotizaciones desde `fecha_primer_contacto`: GANADO (cot CONFIRMADA/EJECUTADA/CERRADA) > COTIZADO (BORRADOR/
+  COTIZADA) > VISITA_AGENDADA > CONTACTADO > NUEVO, y solo avanza. Reversas: GANADO sin venta confirmada → PERDIDO/CANCELO;
+  COTIZADO con todas sus cotizaciones EXPIRADA/CANCELADA → PERDIDO sin motivo; 15 días sin interacción → PERDIDO (una visita
+  futura lo evita). **Contactar no cuenta la bienvenida**: `AVISO_INICIAL`/`AVISO_ESPERA`/`MENSAJE_HUMANO` y los mensajes
+  `automatico` del agente no pasan a CONTACTADO. Identidad por teléfono normalizado (últimos 10 dígitos) o por cliente; los
+  números del directorio (`rol_de_telefono`) y las cotizaciones `es_historica` nunca generan prospecto. Un contacto nuevo crea,
+  reutiliza el abierto, **reabre** un PERDIDO de <90 días o crea otro si pasó más (o si el GANADO terminó su servicio hace
+  >30 días); un GANADO vivo no crea (post-venta). **Un contacto anterior al cierre del prospecto no lo reabre** (`momento`):
+  el barrido de 2 días lo reabría si el cliente escribió el día en que la cotización expiró. Fuente: anuncio de la conversación
+  (solo si nació ≤2 días antes del primer contacto, así un anuncio viejo no se hereda a una compra nueva) > RECURRENTE >
+  «Cómo nos encontró»/`Cliente.origen` > WHATSAPP/OTRO; las genéricas se reemplazan con evento FUENTE. Señales en `on_commit` y
+  dentro de try/except (mensaje, anuncio, visita, cotización, pago). Barrido `sincronizar_prospectos [--desde]` (diario 06:40 en
+  el programador): con `--desde` reconstruye un solo prospecto por teléfono (no reproduce reaperturas pasadas). **Motivos**:
+  Haiku con `json_schema` sobre los últimos 30 mensajes (máx. 20 por corrida, sin loguear texto) → origen KOOXI; sin llave o sin
+  mensajes del cliente, regla (cotización cancelada → CANCELO, si no SIN_RESPUESTA) → SISTEMA; corregirlo en el admin
+  «Prospectos» deja origen USUARIO y evento. **Retención**: PERDIDO que nunca fue GANADO y sin interacción >365 días se
+  anonimiza (nombre, teléfono, `anuncio_clid`, conversación y cliente a vacío; conserva fuente, anuncio, fechas y motivo; la
+  cotización ligada no se toca). Admin solo superusuario, sin alta ni borrado. Pendiente del propietario: tras el deploy
+  correr `sincronizar_prospectos --desde 2026-07-01` una vez para sembrar el histórico.
 
 - 2026-10-31 — **Auditoría de seguridad y Rutina de Seguridad** (Issue #460, PRs #461-#463, cerrado). Sin críticos;
   el alto era que contratos, CFDI y comprobantes vivían en el bucket R2 público con nombres enumerables: ya están en el
