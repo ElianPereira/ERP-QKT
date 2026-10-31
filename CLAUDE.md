@@ -119,14 +119,14 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 | Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
-**Estructura clave** (10 apps Django propias):
+**Estructura clave** (11 apps Django propias):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
@@ -135,6 +135,8 @@ pre-commit · CI en GitHub Actions.
   un dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
 - `indicadores/` — KPIs de dirección (capacidad, equilibrio, plan óptimo anual, metas); solo
   superusuario, solo lectura sobre datos existentes + parámetros del propietario.
+- `marketing/` — prospectos (`Lead`, embudo derivado de mensajes/visitas/cotizaciones), motivos de pérdida y
+  retención; solo superusuario (Issue #468, por fases).
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -272,6 +274,70 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-10-31 — **Marketing, fase 3: indicadores y pantalla «Marketing»** (Issue #468; sin zonas restringidas; migración
+  `marketing.0003`, dos tablas nuevas). `ParametroMarketing` (admin «Supuestos», oculto con `hide_models`, se abre desde
+  la pantalla; un juego activo, uno nuevo desactiva el anterior): reinversión 30 %, tope de CAC manual (JSON por servicio),
+  muestra mínima 10 prospectos, ventana 90 días, ciclos de venta (evento 120, pasadía/hospedaje 30), `dias_sin_respuesta`
+  15 (sustituye la constante de `pipeline`, que ahora lo lee del vigente) y `prob_etapa` (supuesto: COTIZADO 0.30,
+  VISITA_AGENDADA 0.20, CONTACTADO 0.05, NUEVO 0.02). `marketing/services/kpis.py` (fórmulas y unidades en el docstring):
+  todo sin IVA; **contratado** = `venta_neta` de Indicadores, **cobrado** = `total_pagado_neto()` (ya resta reembolsos)
+  llevado a base con `× base / precio_final` (así el ISH tampoco cuenta), **neto** = cobrado − gasto. ROAS oficial =
+  cobrado / gasto. Atribución por cohorte (mes del primer contacto vs gasto de ese mes); madura = fin de mes + ciclo del
+  servicio ya pasó. **El total mezcla todos los prospectos (también orgánicos); por campaña y servicio solo los atribuidos
+  por `anuncio_id`, y el servicio es el de la campaña** (campañas sin servicio no aparecen en «Por servicio»). Una razón sin
+  base (gasto 0, sin ganados, muestra pequeña) es `None` con su motivo; nunca excepción. Tope de CAC = margen de una venta
+  (`economia_servicio.mc`; hospedaje × noches-habitación promedio) × reinversión. Semáforo por servicio: error si CAC >
+  tope, alerta si ROAS cobrado < 1, éxito si hay dato y nada falla. Pronóstico de anticipos = prob(etapa) × valor sin IVA ×
+  `porcentaje_anticipo_confirmacion()` de prospectos abiertos con cotización BORRADOR/COTIZADA. `SnapshotKPI` diario
+  (`generar_snapshot_marketing`, 07:40 en el programador; idempotente por fecha/servicio/campaña; `tipo_servicio` vacío =
+  total, `campana` nula = todas; cada fila resume la ventana que termina en la fecha). Pantalla
+  `/admin/marketing/tablero/` (custom_link «Marketing», solo superusuario, sin Chart.js). Pendiente del propietario:
+  capturar precio y costo en Indicadores (sin margen no hay tope), marcar el servicio de cada campaña y revisar las
+  probabilidades por etapa; el ROAS de cohortes no maduras sube con el tiempo, no juzgarlo antes.
+
+- 2026-10-31 — **Marketing, fase 2: pauta de Meta** (Issue #468; sin tocar zonas restringidas; migración `marketing.0002`, tres
+  tablas nuevas; contabilidad solo se LEE). `services/proveedores.py`: interfaz `ProveedorAnuncios` + `ProveedorMeta` (REST con
+  `requests`, insights `level=ad`/`time_increment=1`, paginación por `paging.next`, código 190 → `TokenVencidoError`, el token
+  nunca sale en mensajes; `pausar/reanudar/ajustar_presupuesto` lanzan `NotImplementedError` hasta la fase 5). Apagado si falta
+  `META_ADS_TOKEN` o `META_ADS_CUENTA_ID`. `Campana`/`Anuncio`/`GastoPublicitario` («Campañas», «Anuncios», «Pauta»; «Gastos»
+  chocaría con comercial): la sincronización solo pisa lo que viene de Meta, nunca `objetivo`/`tipo_servicio` (los captura el
+  propietario). Unicidad (anuncio, fecha, fuente) y (campaña, fecha, fuente) si no hay anuncio. **Solo se importa si la cuenta
+  factura en MXN** (se consulta `currency`); si no, falla sin guardar. `Lead.anuncio` es una propiedad (liga `anuncio_id` con
+  `Anuncio.id_externo`), sin FK. `sincronizar_gasto_anuncios [--desde] [--hasta]` (diario 07:10 en el programador; por defecto
+  últimos 3 días, upsert idempotente; un monto corregido regresa la fila a conciliación PENDIENTE) y, desde el día 5, concilia el
+  mes anterior. **Criterio de conciliación**: gasto Meta (sin IVA) → `con_iva` vs cargos del mes de `MovimientoEstadoCuenta` cuyo
+  concepto dice META/FACEBOOK/FACEBK y cuya póliza APLICADA toca la cuenta de `GASTO_PUBLICIDAD` (o subcuenta); se tolera el
+  mayor entre `ERP_MARKETING_TOLERANCIA_PCT` (10 %) y `ERP_MARKETING_TOLERANCIA_MINIMA` ($500) porque Meta cobra por umbral;
+  los cargos de Meta sin clasificar no cuentan pero se reportan; sin estado de cuenta del mes no evalúa. Diferencia → Pendiente
+  `marketing_conciliacion:AAAA-MM` y `estado_conciliacion`. Salud: `debug_token` (token de usuario del sistema no vence) →
+  Pendiente URGENTE si es inválido o vence en <14 días; una falla de sync deja Pendiente y el comando termina en error.
+  **Pendiente del propietario**: crear usuario del sistema en Business Manager con permiso `ads_read` sobre la cuenta publicitaria,
+  generar su token permanente y definir en `web` y Programador `META_ADS_TOKEN`, `META_ADS_CUENTA_ID` (y opcional
+  `META_ADS_API_VERSION`); luego `sincronizar_gasto_anuncios --desde 2026-07-01`; marcar el servicio de cada campaña en «Campañas».
+
+- 2026-10-31 — **Marketing, fase 1: prospectos** (Issue #468; sin tocar zonas restringidas; migración `marketing.0001`, dos
+  tablas nuevas). App `marketing/`: `Lead` (llaves a conversación, cliente y cotización; nunca copia montos) y `LeadEvento`
+  (bitácora inmutable). **La etapa se deriva, no se captura**: `services/pipeline.sincronizar()` (idempotente) lee mensajes,
+  visitas y cotizaciones desde `fecha_primer_contacto`: GANADO (cot CONFIRMADA/EJECUTADA/CERRADA) > COTIZADO (BORRADOR/
+  COTIZADA) > VISITA_AGENDADA > CONTACTADO > NUEVO, y solo avanza. Reversas: GANADO sin venta confirmada → PERDIDO/CANCELO;
+  COTIZADO con todas sus cotizaciones EXPIRADA/CANCELADA → PERDIDO sin motivo; 15 días sin interacción → PERDIDO (una visita
+  futura lo evita). **Contactar no cuenta la bienvenida**: `AVISO_INICIAL`/`AVISO_ESPERA`/`MENSAJE_HUMANO` y los mensajes
+  `automatico` del agente no pasan a CONTACTADO. Identidad por teléfono normalizado (últimos 10 dígitos) o por cliente; los
+  números del directorio (`rol_de_telefono`) y las cotizaciones `es_historica` nunca generan prospecto. Un contacto nuevo crea,
+  reutiliza el abierto, **reabre** un PERDIDO de <90 días o crea otro si pasó más (o si el GANADO terminó su servicio hace
+  >30 días); un GANADO vivo no crea (post-venta). **Un contacto anterior al cierre del prospecto no lo reabre** (`momento`):
+  el barrido de 2 días lo reabría si el cliente escribió el día en que la cotización expiró. Fuente: anuncio de la conversación
+  (solo si nació ≤2 días antes del primer contacto, así un anuncio viejo no se hereda a una compra nueva) > RECURRENTE >
+  «Cómo nos encontró»/`Cliente.origen` > WHATSAPP/OTRO; las genéricas se reemplazan con evento FUENTE. Señales en `on_commit` y
+  dentro de try/except (mensaje, anuncio, visita, cotización, pago). Barrido `sincronizar_prospectos [--desde]` (diario 06:40 en
+  el programador): con `--desde` reconstruye un solo prospecto por teléfono (no reproduce reaperturas pasadas). **Motivos**:
+  Haiku con `json_schema` sobre los últimos 30 mensajes (máx. 20 por corrida, sin loguear texto) → origen KOOXI; sin llave o sin
+  mensajes del cliente, regla (cotización cancelada → CANCELO, si no SIN_RESPUESTA) → SISTEMA; corregirlo en el admin
+  «Prospectos» deja origen USUARIO y evento. **Retención**: PERDIDO que nunca fue GANADO y sin interacción >365 días se
+  anonimiza (nombre, teléfono, `anuncio_clid`, conversación y cliente a vacío; conserva fuente, anuncio, fechas y motivo; la
+  cotización ligada no se toca). Admin solo superusuario, sin alta ni borrado. Pendiente del propietario: tras el deploy
+  correr `sincronizar_prospectos --desde 2026-07-01` una vez para sembrar el histórico.
 
 - 2026-10-31 — **Auditoría de seguridad y Rutina de Seguridad** (Issue #460, PRs #461-#463, cerrado). Sin críticos;
   el alto era que contratos, CFDI y comprobantes vivían en el bucket R2 público con nombres enumerables: ya están en el

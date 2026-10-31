@@ -58,6 +58,9 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_WA_PLANTILLA_OPERACIONES` | Plantilla de avisos internos y de operaciones («Tienes un aviso nuevo: {{1}}»). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_OPERACIONES` |
 | `META_WA_PLANTILLA_AVISO_EQUIPO` | Plantilla de avisos al equipo en bloques (4 parámetros: encabezado, título, datos, enlace); vacía = se usa la de operaciones en un renglón. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_CODIGO` | Plantilla de autenticación con el código de 6 dígitos (firma de contrato y solicitudes de cancelación) para clientes sin correo; vacía = solo dentro de la ventana de 24 h. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web | — |
+| `META_ADS_TOKEN` | Token de un usuario del sistema con permiso `ads_read` para leer el gasto de la cuenta publicitaria (marketing). Vacío = sincronización apagada. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_read sobre la cuenta publicitaria) | web, Programador | — |
+| `META_ADS_CUENTA_ID` | ID de la cuenta publicitaria (con o sin el prefijo `act_`). | Meta | Meta Business Manager → Cuentas → Cuentas publicitarias | web, Programador | — |
+| `META_ADS_API_VERSION` | Versión de la Graph API para la Marketing API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
 
 ## ANTHROPIC — modelo de Kooxi
 
@@ -150,6 +153,8 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `ERP_CONTRATO_AUTOMATICO_ACTIVO` | Emite el contrato al confirmarse la cotización. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `CONTRATO_AUTOMATICO` |
 | `ERP_CONTRATO_PROPIO_ACTIVO` | Usa los contratos propios (False = modelo PROFECO). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `CONTRATO_PROPIO_ACTIVO` |
 | `ERP_WA_NEGOCIO_NUMERO` | Respaldo transitorio del directorio de responsables (#421); se borra cuando el directorio sea la única fuente. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `WA_NUMERO_NEGOCIO` |
+| `ERP_MARKETING_TOLERANCIA_PCT` | Conciliación mensual de la pauta: proporción del gasto esperado (con IVA) que se tolera de diferencia contra el banco (0.10 = 10%). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_MARKETING_TOLERANCIA_MINIMA` | Conciliación mensual de la pauta: piso en pesos de la tolerancia; se acepta la mayor entre este y el porcentaje. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
 
 ## ERP — Kooxi (agente de WhatsApp)
 

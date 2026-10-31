@@ -1,0 +1,120 @@
+{% extends "admin/base_site.html" %}
+{% load qkt_documentos %}
+
+{% block content %}
+<div class="qkt-pagina qkt-pagina--ancha">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-chart-pie" aria-hidden="true"></i> Marketing · últimos {{ d.parametros.ventana_dias }} días</h1>
+        <div class="qkt-botonera">
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'admin:marketing_lead_changelist' %}"><i class="fas fa-funnel-dollar" aria-hidden="true"></i> Prospectos</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'admin:marketing_parametromarketing_changelist' %}"><i class="fas fa-sliders-h" aria-hidden="true"></i> Supuestos</a>
+        </div>
+    </div>
+
+    {% if not total.suficiente %}
+    <div class="qkt-aviso qkt-aviso--info">
+        <span class="qkt-aviso__titulo">Muestra pequeña</span>
+        Hay {{ total.prospectos }} prospecto{{ total.prospectos|pluralize }} y se piden {{ d.ventana.minimo }}: las razones aparecen como «—» hasta que haya más datos.
+    </div>
+    {% endif %}
+
+    <div class="qkt-kpis">
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Gasto en pauta</div><div class="qkt-kpi__valor">{{ total.gasto|moneda }}</div><div class="qkt-kpi__sub">Sin IVA</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Prospectos</div><div class="qkt-kpi__valor">{{ total.prospectos }}</div><div class="qkt-kpi__sub">{{ total.cotizaciones }} con cotización · {{ total.ganados }} ganado{{ total.ganados|pluralize }}</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">CAC</div><div class="qkt-kpi__valor" title="{{ total.motivos.cac }}">{% if total.cac is None %}—{% else %}{{ total.cac|moneda }}{% endif %}</div><div class="qkt-kpi__sub">{% if total.cac is None %}{{ total.motivos.cac }}{% else %}Gasto por venta ganada{% endif %}</div></div>
+        <div class="qkt-kpi{% if total.roas_cobrado is not None %} qkt-kpi--{% if total.roas_cobrado >= 1 %}exito{% else %}alerta{% endif %}{% endif %}"><div class="qkt-kpi__label">ROAS cobrado</div><div class="qkt-kpi__valor" title="{{ total.motivos.roas_cobrado }}">{% if total.roas_cobrado is None %}—{% else %}{{ total.roas_cobrado }}×{% endif %}</div><div class="qkt-kpi__sub">{% if total.roas_cobrado is None %}{{ total.motivos.roas_cobrado }}{% else %}Cobrado {{ total.cobrado|moneda }} sin IVA{% endif %}</div></div>
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-traffic-light" aria-hidden="true"></i> Por servicio</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Servicio</th><th>Estado</th><th class="qkt-der">Gasto</th><th class="qkt-der">Prospectos</th><th class="qkt-der">Cierre</th><th class="qkt-der">CAC</th><th class="qkt-der">Tope de CAC</th><th class="qkt-der">ROAS cobrado</th><th class="qkt-der">ROAS contratado</th></tr></thead>
+                <tbody>
+                {% for g in servicios %}
+                    <tr><th>{{ g.nombre }}</th>
+                        <td>{% if g.semaforo == 'exito' %}<span class="qkt-badge qkt-badge--exito">Dentro del tope</span>{% elif g.semaforo == 'alerta' %}<span class="qkt-badge qkt-badge--alerta">Revisar</span>{% elif g.semaforo == 'error' %}<span class="qkt-badge qkt-badge--error">Sobre el tope</span>{% else %}<span class="qkt-badge qkt-badge--neutro">Sin datos</span>{% endif %}</td>
+                        <td class="qkt-der qkt-num">{{ g.gasto|moneda }}</td>
+                        <td class="qkt-der qkt-num">{{ g.prospectos }}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.tasa_cierre }}">{% if g.tasa_cierre is None %}—{% else %}{{ g.tasa_cierre }} %{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.cac }}">{% if g.cac is None %}—{% else %}{{ g.cac|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.tope_motivo }}">{% if g.cac_tope is None %}—{% else %}{{ g.cac_tope|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.roas_cobrado }}">{% if g.roas_cobrado is None %}—{% else %}{{ g.roas_cobrado }}×{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.roas_contratado }}">{% if g.roas_contratado is None %}—{% else %}{{ g.roas_contratado }}×{% endif %}</td></tr>
+                {% empty %}
+                    <tr class="qkt-tabla__vacio"><td colspan="9">Aún no hay campañas con servicio asignado. Marca el servicio de cada una en Campañas.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="qkt-panel__cuerpo"><span class="qkt-kpi__sub">El tope sale del margen de contribución de Indicadores × {{ d.parametros.pct_reinversion }} % de reinversión, o del tope manual.</span></div>
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-bullseye" aria-hidden="true"></i> Por campaña</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Campaña</th><th class="qkt-der">Gasto</th><th class="qkt-der">Prospectos</th><th class="qkt-der">CPL</th><th class="qkt-der">Costo por cotización</th><th class="qkt-der">Ganados</th><th class="qkt-der">CAC</th><th class="qkt-der">ROAS cobrado</th></tr></thead>
+                <tbody>
+                {% for g in campanas %}
+                    <tr><th>{{ g.nombre }}</th>
+                        <td class="qkt-der qkt-num">{{ g.gasto|moneda }}</td>
+                        <td class="qkt-der qkt-num">{{ g.prospectos }}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.cpl }}">{% if g.cpl is None %}—{% else %}{{ g.cpl|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.costo_cotizacion }}">{% if g.costo_cotizacion is None %}—{% else %}{{ g.costo_cotizacion|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num">{{ g.ganados }}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.cac }}">{% if g.cac is None %}—{% else %}{{ g.cac|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.roas_cobrado }}">{% if g.roas_cobrado is None %}—{% else %}{{ g.roas_cobrado }}×{% endif %}</td></tr>
+                {% empty %}
+                    <tr class="qkt-tabla__vacio"><td colspan="8">Sin campañas en el periodo.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-layer-group" aria-hidden="true"></i> Cohortes por mes de primer contacto</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Mes</th><th>Madurez</th><th class="qkt-der">Gasto</th><th class="qkt-der">Prospectos</th><th class="qkt-der">Ganados</th><th class="qkt-der">Cierre</th><th class="qkt-der">CAC</th><th class="qkt-der">Cobrado</th><th class="qkt-der">ROAS cobrado</th></tr></thead>
+                <tbody>
+                {% for c in cohortes %}{% with g=c.total %}
+                    <tr><th>{{ c.etiqueta }}</th>
+                        <td>{% if c.madura %}<span class="qkt-badge qkt-badge--exito">Madura</span>{% else %}<span class="qkt-badge qkt-badge--alerta">En maduración</span>{% endif %}</td>
+                        <td class="qkt-der qkt-num">{{ g.gasto|moneda }}</td>
+                        <td class="qkt-der qkt-num">{{ g.prospectos }}</td>
+                        <td class="qkt-der qkt-num">{{ g.ganados }}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.tasa_cierre }}">{% if g.tasa_cierre is None %}—{% else %}{{ g.tasa_cierre }} %{% endif %}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.cac }}">{% if g.cac is None %}—{% else %}{{ g.cac|moneda }}{% endif %}</td>
+                        <td class="qkt-der qkt-num">{{ g.cobrado|moneda }}</td>
+                        <td class="qkt-der qkt-num" title="{{ g.motivos.roas_cobrado }}">{% if g.roas_cobrado is None %}—{% else %}{{ g.roas_cobrado }}×{% endif %}</td></tr>
+                {% endwith %}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="qkt-panel__cuerpo"><span class="qkt-kpi__sub">Una cohorte madura cuando pasó el ciclo de venta (evento {{ d.parametros.ciclo_dias_evento }} días, pasadía {{ d.parametros.ciclo_dias_pasadia }}, hospedaje {{ d.parametros.ciclo_dias_hospedaje }}) desde que terminó su mes. Antes, su cierre y su ROAS todavía suben.</span></div>
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> Anticipos esperados</h2></div>
+        <div class="qkt-kpis">
+            <div class="qkt-kpi qkt-kpi--info"><div class="qkt-kpi__label">Anticipos esperados</div><div class="qkt-kpi__valor">{{ pronostico.total.esperado|moneda }}</div><div class="qkt-kpi__sub">{{ pronostico.total.cotizaciones }} cotización{{ pronostico.total.cotizaciones|pluralize:"es" }} viva{{ pronostico.total.cotizaciones|pluralize }}</div></div>
+            <div class="qkt-kpi"><div class="qkt-kpi__label">Valor cotizado</div><div class="qkt-kpi__valor">{{ pronostico.total.valor|moneda }}</div><div class="qkt-kpi__sub">Sin IVA</div></div>
+        </div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Servicio</th><th class="qkt-der">Cotizaciones</th><th class="qkt-der">Valor</th><th class="qkt-der">Anticipo esperado</th></tr></thead>
+                <tbody>
+                {% for t, f in pronostico.por_servicio.items %}
+                    <tr><th>{{ f.nombre }}</th><td class="qkt-der qkt-num">{{ f.cotizaciones }}</td><td class="qkt-der qkt-num">{{ f.valor|moneda }}</td><td class="qkt-der qkt-num">{{ f.esperado|moneda }}</td></tr>
+                {% empty %}
+                    <tr class="qkt-tabla__vacio"><td colspan="4">No hay cotizaciones vivas ligadas a prospectos abiertos.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="qkt-panel__cuerpo"><span class="qkt-kpi__sub">Probabilidad de la etapa × valor de la cotización × porcentaje de anticipo que la confirma. Las probabilidades son un supuesto editable en Supuestos.</span></div>
+    </div>
+</div>
+{% endblock %}

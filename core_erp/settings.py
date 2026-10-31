@@ -93,6 +93,7 @@ INSTALLED_APPS = [
     'legal',
     'operaciones',
     'cumplimiento',
+    'marketing',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]
@@ -332,6 +333,15 @@ META_WA_KOOXI_TOKEN = env('META_WA_KOOXI_TOKEN', default='')
 ERP_WA_NEGOCIO_NUMERO = env('ERP_WA_NEGOCIO_NUMERO', default='')
 META_WA_KOOXI_NUMERO = env('META_WA_KOOXI_NUMERO', default='')
 META_WA_API_VERSION = env('META_WA_API_VERSION', default='v20.0')
+
+# Marketing (Issue #468, fase 2): Marketing API de Meta, solo lectura (permiso ads_read). Sin token o sin
+# cuenta el proveedor queda apagado. La tolerancia de la conciliación mensual con el banco: proporción
+# del gasto esperado (con IVA) y piso en pesos; se acepta lo que quede dentro del mayor de los dos.
+META_ADS_TOKEN = env('META_ADS_TOKEN', default='')
+META_ADS_CUENTA_ID = env('META_ADS_CUENTA_ID', default='')
+META_ADS_API_VERSION = env('META_ADS_API_VERSION', default='v23.0')
+ERP_MARKETING_TOLERANCIA_PCT = env('ERP_MARKETING_TOLERANCIA_PCT', default='0.10')
+ERP_MARKETING_TOLERANCIA_MINIMA = env('ERP_MARKETING_TOLERANCIA_MINIMA', default='500.00')
 
 # Plantillas aprobadas en Meta. Los mensajes iniciados por el negocio (pago y
 # recordatorio) solo llegan por plantilla: fuera de la ventana de 24 h Meta
@@ -655,6 +665,14 @@ JAZZMIN_SETTINGS = {
         "cumplimiento.Tramite":              "fas fa-stamp",
         "cumplimiento.Vigencia":             "fas fa-calendar-check",
         "cumplimiento.AvisoVencimiento":     "fas fa-bell",
+
+        # === MARKETING ===
+        "marketing":                         "fas fa-bullhorn",
+        "marketing.Lead":                    "fas fa-funnel-dollar",
+        "marketing.Campana":                 "fas fa-bullseye",
+        "marketing.Anuncio":                 "fas fa-ad",
+        "marketing.GastoPublicitario":       "fas fa-coins",
+        "marketing.ParametroMarketing":      "fas fa-sliders-h",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -679,6 +697,8 @@ JAZZMIN_SETTINGS = {
         # Se capturan desde «Plan del año» («Ajustes avanzados» abre Parámetros); siguen accesibles por URL
         "indicadores.ParametrosNegocio",
         "indicadores.MetaMensual",
+        # Se abren desde la pantalla «Marketing» (botón «Supuestos»); siguen accesibles por URL
+        "marketing.ParametroMarketing",
     ],
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -786,6 +806,14 @@ JAZZMIN_SETTINGS = {
         "cumplimiento.Tramite",
         "cumplimiento.Vigencia",
 
+        # === MARKETING ===
+        "marketing",
+        "marketing.Lead",
+        "marketing.Campana",
+        "marketing.Anuncio",
+        "marketing.GastoPublicitario",
+        "marketing.ParametroMarketing",
+
         # === ADMINISTRACIÓN ===
         "auth",
         "auth.user",
@@ -819,6 +847,12 @@ JAZZMIN_SETTINGS = {
             {"name": "Plan del año", "url": "indicadores:plan", "icon": "fas fa-th-large",
              "permissions": ["indicadores.view_metamensual"]},
         ],
+        "marketing": [{
+            "name": "Marketing",
+            "url": "marketing:tablero",
+            "icon": "fas fa-chart-pie",
+            "permissions": ["marketing.view_lead"],
+        }],
         "cumplimiento": [{
             "name": "Tablero",
             "url": "cumplimiento:tablero",
