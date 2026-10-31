@@ -8,7 +8,7 @@ Catálogo de todas las variables que lee el ERP (Issue #424). **Solo nombres: ni
 ORIGEN_SERVICIO_DATO[_DISTINTIVO]
 ```
 
-- **ORIGEN**: quién la emite. Proveedor (`META`, `ANTHROPIC`, `OPENPAY`, `CLOUDFLARE`, `BREVO`, `JIBBLE`), configuración propia (`ERP`) o framework (`DJANGO`).
+- **ORIGEN**: quién la emite. Proveedor (`META`, `GOOGLE`, `ANTHROPIC`, `OPENPAY`, `CLOUDFLARE`, `BREVO`, `JIBBLE`), configuración propia (`ERP`) o framework (`DJANGO`).
 - **SERVICIO**: producto o módulo (`WA`, `R2`, `KOOXI`, `EMAIL`, `PORTAL`, `FISCAL`…).
 - **DATO**: `API_KEY`, `SECRET`, `TOKEN`, `ID`, `URL`, `EMAIL`, `PLANTILLA`, `MODELO`, `ACTIVO`, `MAX`, `TASA`, `HORAS`, `DIAS`, `SEGUNDOS`, `BUCKET`, `NUMERO`, `MODO`, `VERSION`.
 - **DISTINTIVO**: solo si hay más de una del mismo tipo (`PAGOS`, `PRIVADO`, `JUEZ`…).
@@ -47,6 +47,7 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_WA_PLANTILLA_GUIA` | Plantilla de la guía pre-evento. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_GUIA` |
 | `META_WA_PLANTILLA_SEGUIMIENTO` | Plantilla de seguimiento a cotizaciones sin pago (vacía = el cron no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_SEGUIMIENTO` |
 | `META_WA_PLANTILLA_ENCUESTA` | Plantilla de la encuesta de satisfacción (vacía = el comando no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
+| `META_WA_PLANTILLA_REFERIDO` | Plantilla del aviso al cliente que ganó un beneficio por recomendar (vacía = solo texto libre dentro de la ventana de 24 h). Texto en `docs/whatsapp_plantilla_referido.md`. | Meta | Meta for Developers / Business Manager (WhatsApp → Plantillas) | web, Programador | — |
 | `META_WA_PLANTILLA_REACTIVACION` | Plantilla de la reactivación anual por aniversario (vacía = no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_SEGUIMIENTO_DIA1` | Plantilla del seguimiento del día 1 a cotizaciones sin pago (vacía = ese paso no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_SEGUIMIENTO_FECHA` | Plantilla «tu fecha está por ocuparse» del seguimiento (vacía = ese paso no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
@@ -68,6 +69,15 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_CAPI_API_VERSION` | Versión de la Graph API para la Conversions API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
 | `META_CAPI_TEST_CODE` | Código de «Probar eventos» de Meta; con valor, los eventos se marcan de prueba y no cuentan. Vacío en producción. | Meta | Meta Business Manager → Administrador de eventos → Probar eventos | web, Programador | — |
 | `META_WA_WABA_ID` | ID de la cuenta de WhatsApp Business (WABA); la Conversions API de mensajería lo pide junto al clic del anuncio. | Meta | Meta Business Manager → Cuentas → Cuentas de WhatsApp | Programador | — |
+
+## GOOGLE — reseñas (Business Profile)
+
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
+|---|---|---|---|---|---|
+| `GOOGLE_BUSINESS_CLIENT_ID` | Client ID OAuth del proyecto de Google Cloud con la API de Business Profile, para leer reseñas. Sin las cuatro variables GOOGLE_BUSINESS_* la sincronización queda apagada. | Google | Google Cloud Console → APIs y servicios → Credenciales | web, Programador | — |
+| `GOOGLE_BUSINESS_CLIENT_SECRET` | Secreto del cliente OAuth. | Google | Google Cloud Console → Credenciales | web, Programador | — |
+| `GOOGLE_BUSINESS_REFRESH_TOKEN` | Token de actualización de la cuenta que administra el perfil de la Quinta (solo lectura de reseñas). | Google | Se regenera con el flujo OAuth de la cuenta propietaria del perfil | web, Programador | — |
+| `GOOGLE_BUSINESS_LOCATION` | Ficha del negocio con la forma `accounts/<cuenta>/locations/<ficha>`. | Google | Business Profile API → accounts.locations | web, Programador | — |
 
 ## ANTHROPIC — modelo de Kooxi
 

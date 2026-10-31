@@ -246,12 +246,21 @@ def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marke
 
 def _bloque_marketing(hoy) -> Optional[dict]:
     """Bloque «Marketing» del resumen; un fallo suyo no tumba el resumen."""
+    bloque = None
     try:
         from marketing.services.decisiones import bloque_resumen
-        return bloque_resumen(hoy)
+        bloque = bloque_resumen(hoy)
     except Exception:
         logger.exception("Resumen semanal: falló el bloque de marketing")
-        return None
+    try:
+        from marketing.services.contenido import lineas_resumen
+        sugerencias = lineas_resumen(hoy)
+    except Exception:
+        logger.exception("Resumen semanal: fallaron las sugerencias de contenido")
+        sugerencias = []
+    if sugerencias:
+        bloque = {**(bloque or {'enlace': ''}), 'lineas': (bloque or {}).get('lineas', []) + sugerencias}
+    return bloque
 
 
 def enviar_resumen_semanal(hoy=None) -> int:

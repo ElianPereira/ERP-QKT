@@ -212,6 +212,7 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
     tipo_ev   = limpio['tipo_evento'].strip() or 'Evento General'
     notas              = limpio['notas'].strip()
     como_nos_encontro  = limpio['como_nos_encontro'].strip()
+    quien_recomendo    = limpio['quien_recomendo'].strip()
 
     # Barra (siguen como booleanos — alimentan CalculadoraBarraService). No
     # forman parte del form: son flags internos del formulario, no texto
@@ -500,6 +501,12 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
             logger.info("Descuentos automáticos en COT-%s: %s", cotizacion.id, descuentos_txt)
     except Exception:
         logger.exception("Error aplicando descuentos automáticos en COT-%s", cotizacion.id)
+
+    # ── Recomendación (marketing) ────────────────────────────────────────────────────────
+    # Solo anota quién lo recomendó; nunca cambia el precio ni confirma si esa persona existe.
+    if quien_recomendo:
+        from marketing.services.referidos import registrar_desde_cotizacion
+        registrar_desde_cotizacion(cotizacion, quien_recomendo)
 
     # ── Portal del cliente ──────────────────────────────────────────────────────────────
     portal, _ = PortalCliente.objects.get_or_create(

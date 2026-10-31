@@ -639,7 +639,14 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if atendido:
             if respuesta:
                 _enviar_automatico(conv, respuesta)
+            _pedir_autorizacion_medios(conv)
             pendientes.remove(m)
+    # Permiso de fotos y testimonio (botones `med:<id>:si|no`): solo vale desde el teléfono del cliente.
+    for m in [m for m in pendientes if _es_boton_medios(m.texto)]:
+        respuesta = _atender_boton_medios(conv, m)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # Cierre de trámites de cumplimiento: botón `vig:<id>:ok` y el documento nuevo de Dirección.
     for m in [m for m in pendientes if services_renovacion.es_boton(m.texto)]:
         respuesta = services_renovacion.atender_boton(conv.telefono, m.texto)
@@ -913,6 +920,31 @@ def _enviar(conv, texto: str, uso: dict | None = None):
         wamid=(comm.proveedor_id or None) if comm else None, **(uso or {}),
     )
     return comm
+
+
+def _es_boton_medios(texto: str) -> bool:
+    from marketing.services import medios
+    return medios.es_boton(texto)
+
+
+def _atender_boton_medios(conv, mensaje) -> Optional[str]:
+    from marketing.services import medios
+    try:
+        return medios.atender_boton(conv.telefono, mensaje.texto, mensaje.wamid or '')
+    except Exception:
+        logger.exception('Marketing: falló la respuesta al permiso de medios')
+        return None
+
+
+def _pedir_autorizacion_medios(conv) -> None:
+    """Tras una encuesta 4–5 recién contestada, pide el permiso de fotos y testimonio (una vez por cotización)."""
+    try:
+        from marketing.services import medios
+        encuesta = services_encuesta.encuesta_positiva_reciente(conv.telefono)
+        if encuesta is not None:
+            medios.solicitar_por_whatsapp(encuesta.cotizacion)
+    except Exception:
+        logger.exception('Marketing: no se pudo pedir el permiso de medios')
 
 
 def _enviar_automatico(conv, texto: str) -> None:

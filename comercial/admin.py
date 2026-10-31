@@ -1035,7 +1035,21 @@ class CotizacionAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/comercial/cotizacion/descuentos.html', context)
 
-    actions = ['evaluar_descuentos_aplicables']
+    actions = ['evaluar_descuentos_aplicables', 'aplicar_beneficio_referido']
+
+    @admin.action(description="Aplicar beneficio de referido")
+    def aplicar_beneficio_referido(self, request, queryset):
+        """Aplica a una cotización el beneficio que su cliente ganó por recomendar (solo si es la mejor promoción)."""
+        if not (request.user.is_superuser or request.user.has_perm('comercial.add_descuentoaplicado')):
+            self.message_user(request, "No tienes permiso para aplicar descuentos.", messages.ERROR)
+            return
+        if queryset.count() != 1:
+            self.message_user(request, "Selecciona exactamente una cotización.", messages.WARNING)
+            return
+        from marketing.services.referidos import aplicar
+        r = aplicar(queryset.first(), usuario=request.user)
+        self.message_user(request, f"{r.motivo} (${r.monto:,.2f} sin IVA)" if r.aplicado else r.motivo,
+                          messages.SUCCESS if r.aplicado else messages.WARNING)
 
     @admin.action(description="Evaluar descuentos aplicables")
     def evaluar_descuentos_aplicables(self, request, queryset):

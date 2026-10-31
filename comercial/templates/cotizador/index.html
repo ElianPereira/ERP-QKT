@@ -588,6 +588,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       </div>
     </div>
 
+    <div class="campo" id="campoRecomendo" style="display:none;">
+      <label for="quien_recomendo">¿Quién te recomendó? (opcional)</label>
+      <input type="text" id="quien_recomendo" placeholder="Su nombre o su celular" maxlength="120" autocomplete="off">
+    </div>
+
     <!-- Factura toggle -->
     <div class="factura-toggle" id="facturaToggle" onclick="toggleFactura()">
       <div class="toggle-switch"></div>
@@ -1451,6 +1456,8 @@ function selMedio(val, el) {
   medioSel = val;
   document.querySelectorAll('.medio-chip').forEach(function(c) { c.classList.remove('selected'); });
   el.classList.add('selected');
+  var campoRec = document.getElementById('campoRecomendo');
+  if (campoRec) campoRec.style.display = (val === 'Recomendación') ? '' : 'none';
 }
 
 function toggleFactura() {
@@ -1920,6 +1927,7 @@ async function enviarSolicitud() {
     email:      document.getElementById('email').value.trim(),
     notas:      obtenerNotas(),
     como_nos_encontro: medioSel,
+    quien_recomendo: medioSel === 'Recomendación' ? (document.getElementById('quien_recomendo').value || '').trim() : '',
     inc_cerveza:    !!barraExtras.inc_cerveza,
     inc_nacional:   !!barraExtras.inc_nacional,
     inc_premium:    !!barraExtras.inc_premium,

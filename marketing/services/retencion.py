@@ -29,9 +29,11 @@ def anonimizar_vencidos(ahora=None) -> int:
         lead.anuncio_clid = ''
         lead.conversacion = None
         lead.cliente = None
+        lead.recomendado_por = None
+        lead.recomendado_por_texto = ''
         lead.anonimizado_en = ahora
         lead.save(update_fields=['nombre', 'telefono', 'anuncio_clid', 'conversacion', 'cliente',
-                                 'anonimizado_en', 'updated_at'])
+                                 'recomendado_por', 'recomendado_por_texto', 'anonimizado_en', 'updated_at'])
         conversiones.limpiar_atribucion(lead)
         _evento(lead, 'ANONIMIZADO')
         hechos += 1

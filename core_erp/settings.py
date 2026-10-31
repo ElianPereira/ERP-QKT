@@ -386,6 +386,13 @@ ERP_KOOXI_SEGUIMIENTO_DIAS = env('ERP_KOOXI_SEGUIMIENTO_DIAS', default=3, cast=i
 # Encuesta: 1 día después del servicio. Reactivación: aniversario del evento (MARKETING).
 META_WA_PLANTILLA_ENCUESTA = env('META_WA_PLANTILLA_ENCUESTA', default='')
 META_WA_PLANTILLA_REACTIVACION = env('META_WA_PLANTILLA_REACTIVACION', default='')
+# Aviso al cliente que ganó un beneficio por recomendar (marketing, fase 7), fuera de la ventana de 24 h.
+META_WA_PLANTILLA_REFERIDO = env('META_WA_PLANTILLA_REFERIDO', default='')
+# Reseñas de Google Business Profile (marketing, fase 7). Sin las cuatro, la sincronización queda apagada.
+GOOGLE_BUSINESS_CLIENT_ID = env('GOOGLE_BUSINESS_CLIENT_ID', default='')
+GOOGLE_BUSINESS_CLIENT_SECRET = env('GOOGLE_BUSINESS_CLIENT_SECRET', default='')
+GOOGLE_BUSINESS_REFRESH_TOKEN = env('GOOGLE_BUSINESS_REFRESH_TOKEN', default='')
+GOOGLE_BUSINESS_LOCATION = env('GOOGLE_BUSINESS_LOCATION', default='')
 # Enlace de reseña en Google que se manda a quien califica 4–5; vacío = solo se agradece.
 ERP_RESENA_GOOGLE_URL = env('ERP_RESENA_GOOGLE_URL', default='')
 # Depósito en garantía: horas sin reporte de daños tras pedir la inspección antes de
@@ -692,6 +699,9 @@ JAZZMIN_SETTINGS = {
         "marketing.Decision":                "fas fa-balance-scale",
         "marketing.AccionAnuncio":           "fas fa-bolt",
         "marketing.EventoConversion":        "fas fa-exchange-alt",
+        "marketing.Referido":                "fas fa-user-friends",
+        "marketing.AutorizacionMedios":      "fas fa-camera",
+        "marketing.ResenaGoogle":            "fas fa-star",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -834,6 +844,9 @@ JAZZMIN_SETTINGS = {
         "marketing.Decision",
         "marketing.AccionAnuncio",
         "marketing.EventoConversion",
+        "marketing.Referido",
+        "marketing.AutorizacionMedios",
+        "marketing.ResenaGoogle",
         "marketing.ParametroMarketing",
 
         # === ADMINISTRACIÓN ===

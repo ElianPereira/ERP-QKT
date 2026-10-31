@@ -33,6 +33,7 @@ class ComunicacionCliente(models.Model):
         ('ENCUESTA', 'Encuesta de satisfacción'),
         ('REACTIVACION', 'Reactivación por aniversario'),
         ('COMPRAS', 'Lista de compras del evento'),
+        ('REFERIDO', 'Beneficio por recomendación'),
         ('OTRO', 'Otro'),
     ]
     ESTADO_CHOICES = [

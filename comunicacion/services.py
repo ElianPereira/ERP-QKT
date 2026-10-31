@@ -68,6 +68,7 @@ _REMITENTE_POR_TIPO = {
     'FACTURA': 'ERP_EMAIL_REMITENTE_PAGOS',
     # Firma del contrato en el portal (Issue #318): código y copia firmada.
     'CONTRATO': 'ERP_EMAIL_REMITENTE_RESERVAS',
+    'REFERIDO': 'ERP_EMAIL_REMITENTE_RESERVAS',
 }
 
 

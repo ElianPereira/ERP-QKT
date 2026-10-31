@@ -145,6 +145,8 @@ TAREAS = (
     Tarea('generar_decisiones_marketing', 'generar_decisiones_marketing', diario('08:10'), 6 * HORA),
     Tarea('revisar_respuesta_prospectos', 'revisar_respuesta_prospectos', cada(5), 30 * MIN),
     Tarea('enviar_eventos_conversion', 'enviar_eventos_conversion', cada(15), 45 * MIN),
+    Tarea('mantener_referidos', 'mantener_referidos', diario('06:55'), 6 * HORA),
+    Tarea('sincronizar_resenas_google', 'sincronizar_resenas_google', diario('09:00'), 6 * HORA),
 )
 
 POR_NOMBRE = {t.nombre: t for t in TAREAS}

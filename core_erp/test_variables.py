@@ -19,7 +19,7 @@ from core_erp.variables import env
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CATALOGO = BASE_DIR / 'docs' / 'variables_entorno.md'
-REGLA = re.compile(r'^(DJANGO|META|ANTHROPIC|OPENPAY|CLOUDFLARE|BREVO|JIBBLE|ERP)_[A-Z0-9_]+$')
+REGLA = re.compile(r'^(DJANGO|META|GOOGLE|ANTHROPIC|OPENPAY|CLOUDFLARE|BREVO|JIBBLE|ERP)_[A-Z0-9_]+$')
 EXENTAS = {'DATABASE_URL', 'PORT'}  # además de RAILWAY_*
 IGNORAR = {'.git', '.venv', 'venv', 'node_modules', 'staticfiles', 'graphify-out', '__pycache__', 'migrations'}
 

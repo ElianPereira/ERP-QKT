@@ -9,6 +9,7 @@ from core_erp.admin_utils import confirmar_accion_destructiva
 from .models import (
     AccionAnuncio,
     Anuncio,
+    AutorizacionMedios,
     Campana,
     Decision,
     EventoConversion,
@@ -16,8 +17,10 @@ from .models import (
     Lead,
     LeadEvento,
     ParametroMarketing,
+    Referido,
+    ResenaGoogle,
 )
-from .services import conversiones
+from .services import conversiones, medios, referidos
 
 
 class SoloSuperusuarioMixin:
@@ -45,6 +48,9 @@ class LeadEventoInline(admin.TabularInline):
         return False
 
 
+EDITABLES_LEAD = ('recomendado_por', 'recomendado_por_texto')
+
+
 @admin.register(Lead)
 class LeadAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     """Embudo de prospectos. La etapa la deriva el sistema; solo el motivo de
@@ -58,15 +64,18 @@ class LeadAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     inlines = [LeadEventoInline]
     fields = ('nombre', 'telefono', 'etapa', 'fuente', 'anuncio_id', 'anuncio_titulo', 'tipo_servicio',
               'conversacion', 'cliente', 'cotizacion', 'fecha_primer_contacto', 'fecha_ultima_interaccion',
-              'etapa_cambiada_en', 'anonimizado_en', 'motivo_perdida', 'motivo_perdida_origen')
-    readonly_fields = tuple(f for f in fields if f not in ('motivo_perdida',))
+              'etapa_cambiada_en', 'anonimizado_en', 'motivo_perdida', 'motivo_perdida_origen',
+              'recomendado_por', 'recomendado_por_texto')
+    EDITABLES = EDITABLES_LEAD
+    readonly_fields = tuple(f for f in fields if f not in ('motivo_perdida',) + EDITABLES_LEAD)
+    autocomplete_fields = ('recomendado_por',)
 
     TONOS_ETAPA = {'NUEVO': ui.NEUTRO, 'CONTACTADO': ui.INFO, 'VISITA_AGENDADA': ui.INFO,
                    'COTIZADO': ui.ALERTA, 'GANADO': ui.EXITO, 'PERDIDO': ui.ERROR}
 
     def get_readonly_fields(self, request, obj=None):
         if obj is not None and obj.etapa != Lead.PERDIDO:
-            return self.fields
+            return tuple(f for f in self.fields if f not in self.EDITABLES)
         return self.readonly_fields
 
     def has_add_permission(self, request):
@@ -103,6 +112,13 @@ class LeadAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
         return obj.get_motivo_perdida_display() if obj.motivo_perdida else ui.vacio()
 
     def save_model(self, request, obj, form, change):
+        recomendacion = {'recomendado_por', 'recomendado_por_texto'} & set(form.changed_data)
+        if recomendacion:
+            obj.updated_by = request.user
+            super().save_model(request, obj, form, change)
+            referidos.registrar(obj, obj.recomendado_por_texto, recomendador=obj.recomendado_por, usuario=request.user)
+            if 'motivo_perdida' not in form.changed_data:
+                return
         if 'motivo_perdida' in form.changed_data:
             anterior = form.initial.get('motivo_perdida', '')
             obj.motivo_perdida_origen = 'USUARIO' if obj.motivo_perdida else ''
@@ -411,3 +427,133 @@ class EventoConversionAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
             return
         n = conversiones.reintentar(queryset)
         self.message_user(request, f'{n} evento(s) devueltos a la cola.', messages.SUCCESS)
+
+
+@admin.register(Referido)
+class ReferidoAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Recomendaciones y su beneficio. El estado lo mueven las reglas, no se captura; solo se puede anular a mano."""
+    list_display = ('codigo', 'recomendador', 'recomendado', 'estado_badge', 'ganado', 'vence', 'usado_en_cotizacion')
+    list_filter = ('estado', filtro_periodo('created_at', 'Registrado'))
+    search_fields = ('codigo', 'recomendador__nombre', 'recomendador__telefono')
+    list_select_related = ('recomendador', 'recomendado_cotizacion', 'usado_en_cotizacion')
+    actions = ['anular_seleccionados']
+    fields = ('codigo', 'recomendador', 'recomendado_lead', 'recomendado_cotizacion', 'estado', 'ganado_en', 'vence_en',
+              'usado_en', 'usado_en_cotizacion', 'uso_confirmado_en', 'monto_beneficio', 'motivo_cierre',
+              'notificado_en', 'created_at', 'updated_at')
+    readonly_fields = fields
+
+    TONOS = {'REGISTRADO': ui.NEUTRO, 'GANADO': ui.EXITO, 'USADO': ui.INFO, 'VENCIDO': ui.ALERTA, 'ANULADO': ui.ERROR}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Recomendado')
+    def recomendado(self, obj):
+        return obj.recomendado_cotizacion or obj.recomendado_lead or ui.vacio()
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS, obj.get_estado_display())
+
+    @admin.display(description='Ganado', ordering='ganado_en')
+    def ganado(self, obj):
+        return date_format(timezone.localtime(obj.ganado_en), 'd M Y') if obj.ganado_en else ui.vacio()
+
+    @admin.display(description='Vence', ordering='vence_en')
+    def vence(self, obj):
+        return date_format(timezone.localtime(obj.vence_en), 'd M Y') if obj.vence_en else ui.vacio()
+
+    @admin.action(description='Anular los referidos seleccionados (sin usar)')
+    @confirmar_accion_destructiva('Los referidos anulados dejan de dar beneficio. Los ya usados no se tocan.')
+    def anular_seleccionados(self, request, queryset):
+        if not request.user.is_superuser:
+            return
+        n = queryset.filter(estado__in=[Referido.REGISTRADO, Referido.GANADO]).update(
+            estado=Referido.ANULADO, motivo_cierre='Anulado por el equipo', updated_by=request.user,
+            updated_at=timezone.now())
+        self.message_user(request, f'{n} referido(s) anulados.', messages.SUCCESS)
+
+
+@admin.register(AutorizacionMedios)
+class AutorizacionMediosAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Permiso de fotos y testimonios. Se captura con su evidencia y se revoca sin borrarse."""
+    list_display = ('cliente', 'cotizacion', 'alcances_txt', 'estado_badge', 'origen', 'decidida')
+    list_filter = ('estado', 'origen')
+    search_fields = ('cliente__nombre', 'cliente__telefono')
+    list_select_related = ('cliente', 'cotizacion')
+    actions = ['revocar_seleccionadas']
+    fields = ('cliente', 'cotizacion', 'alcances', 'estado', 'origen', 'texto_aceptado', 'texto_sha256',
+              'referencia_externa', 'solicitada_en', 'decidida_en', 'revocada_en', 'revocada_por', 'motivo_revocacion')
+    TONOS = {'SOLICITADA': ui.NEUTRO, 'AUTORIZADA': ui.EXITO, 'RECHAZADA': ui.ALERTA, 'REVOCADA': ui.ERROR}
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is None:
+            return ('estado', 'texto_sha256', 'solicitada_en', 'decidida_en', 'revocada_en', 'revocada_por',
+                    'motivo_revocacion', 'referencia_externa')
+        return self.fields
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            registro = medios.registrar(
+                cliente=obj.cliente, cotizacion=obj.cotizacion, alcances=obj.alcances, origen='ADMIN',
+                texto=obj.texto_aceptado, usuario=request.user)
+            obj.pk, obj.id = registro.pk, registro.pk
+
+    @admin.display(description='Alcances')
+    def alcances_txt(self, obj):
+        return ', '.join(medios.ETIQUETAS.get(a, a) for a in obj.alcances)
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS, obj.get_estado_display())
+
+    @admin.display(description='Decidida', ordering='decidida_en')
+    def decidida(self, obj):
+        return date_format(timezone.localtime(obj.decidida_en), 'd M Y') if obj.decidida_en else ui.vacio()
+
+    @admin.action(description='Revocar las autorizaciones seleccionadas')
+    @confirmar_accion_destructiva('Se revoca el permiso y se desactivan las fotos y testimonios publicados que dependan de él.')
+    def revocar_seleccionadas(self, request, queryset):
+        if not request.user.is_superuser:
+            return
+        desactivados = sum(medios.revocar(a, usuario=request.user, motivo='Revocada por el equipo') for a in queryset)
+        self.message_user(request, f'Revocadas. Contenido público desactivado: {desactivados}.', messages.SUCCESS)
+
+
+@admin.register(ResenaGoogle)
+class ResenaGoogleAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Reseñas de Google ya vistas por el ERP (solo estrellas y fechas, sin datos de quien reseña)."""
+    list_display = ('estrellas_txt', 'publicada', 'respondida', 'avisada')
+    list_filter = ('estrellas', 'respondida', filtro_periodo('publicada_en', 'Publicada'))
+    fields = ('id_externo', 'estrellas', 'publicada_en', 'actualizada_en', 'respondida', 'avisada')
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Estrellas', ordering='estrellas')
+    def estrellas_txt(self, obj):
+        tono = ui.ERROR if obj.estrellas <= 3 else ui.EXITO
+        return ui.badge(f'{obj.estrellas} de 5', tono)
+
+    @admin.display(description='Publicada', ordering='publicada_en')
+    def publicada(self, obj):
+        return date_format(timezone.localtime(obj.publicada_en), 'd M Y') if obj.publicada_en else ui.vacio()

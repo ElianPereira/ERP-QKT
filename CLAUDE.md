@@ -276,6 +276,42 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-31 — **Marketing, fase 7: referidos, permiso de medios, reseñas y contenido** (Issue #468; sin zonas restringidas; migraciones
+  `marketing.0007` —`Referido`, `AutorizacionMedios`, `ResenaGoogle`, dos campos en `Lead`—, `comercial.0124` —FK opcional a
+  `Cotizacion` en `ImagenLanding` y `TestimonioLanding`— y `comunicacion.0020`, solo choices). **Referidos**
+  (`services/referidos.py`): lo gana quien recomienda cuando la cotización del recomendado queda CONFIRMADA (señal en `on_commit` y barrido
+  diario `mantener_referidos`, porque algunos cambios de estado usan `update()` sin señal); vigencia 12 meses, un uso. El beneficio es un
+  `Descuento` MANUAL **con `activo=False`** («Referido Evento/Pasadía/Hospedaje», se crean con `get_or_create`): inactivo, no sale en la lista
+  de descuentos manuales del admin ni se evalúa solo; solo el servicio lo aplica con `DescuentoService.aplicar` (totales y contabilidad
+  normales), con `productos` sincronizado en cada aplicación (si no hubiera productos elegibles **no se aplica**, porque `productos` vacío
+  significa «toda la cotización»). Base: Evento = producto con rol `BASE_EVENTO` + componente `fijo_por_evento` que parezca la renta (rol
+  `BASE_EVENTO`, o nombre con «quinta» y «renta»/«arrendamiento»; en `ItemCotizacion` cada fijo es su propia línea con `producto=hijo`);
+  Pasadía = `BASE_PASADIA_BASICO/PREMIUM`; Hospedaje = `HABITACION_HOSPEDAJE`; nunca extras ni persona extra. **No acumulable**: se compara
+  `DescuentoService.monto_potencial` (nuevo, solo lectura) contra lo ya descontado; si el referido no gana (empate gana lo existente) se
+  conserva sin gastarlo, si gana se revierten los `DescuentoAplicado` activos y se aplica; una cortesía o un descuento capturado a mano
+  bloquean el automático. **No se aplica solo al cotizar**: al crearse la cotización de quien tiene beneficio vigente se abre un `Pendiente`, y
+  una persona usa la acción «Aplicar beneficio de referido» en Cotizaciones. Al aplicar queda USADO; si esa cotización expira/cancela sin
+  confirmarse el beneficio se libera (como `Descuento.usos`). Se anula (REGISTRADO/GANADO) si la venta del recomendado se cancela o un
+  reembolso la deja bajo el anticipo que confirma; USADO no se revoca. Captura: `Lead.recomendado_por`/`_texto` (editables en «Prospectos»),
+  campo opcional «¿Quién te recomendó?» en el cotizador (solo si elige «Recomendación») y `quien_recomendo` en la herramienta
+  `crear_cotizacion` de Kooxi (solo lo que el cliente dijo solo; **no hay prompt nuevo ni confirma si la persona existe**). Empata **solo por
+  teléfono** (≥10 dígitos, único); un nombre se guarda como texto y lo resuelve una persona; nadie se recomienda a sí mismo. Aviso al
+  ganar: WhatsApp (ventana abierta o plantilla `META_WA_PLANTILLA_REFERIDO`, texto en `docs/whatsapp_plantilla_referido.md`) y correo, solo
+  con MARKETING aceptado y sin `BajaWhatsApp`; si no sale por ningún canal, `Pendiente` para avisar a mano. La respuesta a la encuesta 4–5
+  invita a recomendar (sin porcentajes). **Permiso de medios** (`services/medios.py`): `AutorizacionMedios` (alcances FOTOS/TESTIMONIO/NOMBRE,
+  texto exacto con SHA-256, canal, wamid del botón; una viva por cotización; se revoca, no se borra); tras una encuesta 4–5 se pide con
+  botones `med:<id>:si|no` (solo con ventana abierta, MARKETING y sin baja; una vez por cotización; solo vale desde el teléfono del cliente).
+  `TestimonioLanding` (exige TESTIMONIO y NOMBRE) e `ImagenLanding` (FOTOS) ganaron `cotizacion` opcional: **con vínculo y activo exigen la
+  autorización vigente** (`clean()`); sin vínculo nada cambia. Revocar desactiva lo publicado. **Reseñas** (`services/resenas.py`, diario 09:00):
+  OAuth de refresco + `mybusiness.googleapis.com/v4/.../reviews`, apagado sin las cuatro `GOOGLE_BUSINESS_*`; guarda solo id, estrellas, fechas y
+  si tiene respuesta (nunca nombre ni texto); ≤3 estrellas, sin respuesta y de los últimos 14 días → `Pendiente` URGENTE QUEJA a DIRECCION,
+  idempotente por id. **Se agregó `GOOGLE` como origen válido** en `core_erp/test_variables.py` y en `docs/variables_entorno.md`. **Contenido**
+  (`services/contenido.py`, sin IA): hasta 3 líneas «Qué promover» en el resumen del lunes —sábados libres a 45 días (evento social, prioridad),
+  domingo libre con sábado ocupado (pasadía) y temporadas próximas—. **Sin probar contra Google real** (endpoint v4 de reseñas no verificado en
+  la documentación vigente). Pendiente del propietario: credenciales Google y `META_WA_PLANTILLA_REFERIDO` (someter la plantilla), confirmar que la
+  renta del Paquete Fiesta se detecta (revisar `Descuento «Referido Evento»` → productos tras la primera aplicación) y el texto legal del
+  permiso de medios con el abogado.
+
 - 2026-10-31 — **Marketing, fase 6: Conversions API y Pixel** (Issue #468; sin zonas restringidas salvo `legal/`, autorizada solo
   para un BORRADOR del Aviso; migración `marketing.0006`, una tabla nueva). **No se pudo verificar la documentación de Meta**:
   el contenedor no resuelve developers.facebook.com. El payload (docstring de `services/conversiones.py`) sale de lo conocido

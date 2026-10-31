@@ -185,6 +185,9 @@ HERRAMIENTAS = [
                 'habitaciones_ids': {'type': 'array', 'items': {'type': 'integer'}},
                 'noches': {'type': 'integer'},
                 'notas': {'type': 'string', 'description': 'Lo que el cliente pidió anotar (máx. 300).'},
+                'quien_recomendo': {'type': 'string', 'description': 'Solo si el cliente lo dijo por sí mismo: nombre o '
+                                    'celular de quien lo recomendó, tal como lo escribió. No lo preguntes, no confirmes '
+                                    'si esa persona existe ni digas nada de ella.'},
             },
             'required': ['servicio', 'fecha', 'personas', 'nombre'],
             'additionalProperties': False,
@@ -707,7 +710,7 @@ MAX_COTIZACIONES_CHAT_DIA = 3
 
 def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre=None, correo=None,
                      paquete_id=None, hora_inicio=None, hora_fin=None, tipo_evento=None,
-                     nivel_pasadia=None, habitaciones_ids=None, noches=None, notas=None):
+                     nivel_pasadia=None, habitaciones_ids=None, noches=None, notas=None, quien_recomendo=None):
     """Crea la cotización con la misma función que el cotizador web.
 
     El teléfono sale de la conversación (nunca del modelo) y la evidencia del
@@ -770,7 +773,7 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
         'noches': str(noches_n), 'hora_inicio': hora_inicio or '', 'hora_fin': hora_fin or '',
         'tipo_evento': tipo_evento or '', 'notas': str(notas or '')[:300], 'acepta_legales': True,
         'paquete_id': paquete_id or '', 'habitaciones_ids': habitaciones_ids or [],
-        'nivel_pasadia': nivel_pasadia or 'BASICO',
+        'nivel_pasadia': nivel_pasadia or 'BASICO', 'quien_recomendo': str(quien_recomendo or '')[:120],
         'finalidades': ['MARKETING'] if conv.consentimiento_marketing else [],
     }
 

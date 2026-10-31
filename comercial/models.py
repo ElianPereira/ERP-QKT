@@ -2307,6 +2307,19 @@ class AsignacionPersonal(models.Model):
 # ==========================================
 # CONTENIDO DE LANDING PAGE
 # ==========================================
+def _exigir_autorizacion_medios(obj, *alcances):
+    """Un contenido público ligado a un cliente solo se activa con su autorización vigente."""
+    if not (obj.activo and obj.cotizacion_id):
+        return
+    from marketing.services.medios import faltantes
+
+    faltan = faltantes(obj.cotizacion_id, alcances)
+    if faltan:
+        raise ValidationError({
+            'cotizacion': 'No hay una autorización vigente del cliente para: ' + ', '.join(faltan) +
+                          '. Regístrala en Marketing → Autorizaciones o deja el contenido inactivo.'})
+
+
 class ImagenLanding(models.Model):
     SECCION_CHOICES = [
         ('HERO', 'Banner principal'),
@@ -2349,11 +2362,21 @@ class ImagenLanding(models.Model):
                                 help_text="Describe la imagen para accesibilidad y SEO")
     orden = models.PositiveIntegerField(default=0, verbose_name="Orden")
     activo = models.BooleanField(default=True)
+    cotizacion = models.ForeignKey(
+        'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True, related_name='imagenes_landing',
+        verbose_name="Evento del cliente que aparece",
+        help_text="Solo si la foto muestra a un cliente o su evento: para publicarla (Activo) debe haber una "
+                  "autorización de fotos vigente de esa cotización (Marketing → Autorizaciones).",
+    )
 
     class Meta:
         ordering = ['seccion', 'orden']
         verbose_name = "Imagen de la página web"
         verbose_name_plural = "Imágenes"
+
+    def clean(self):
+        super().clean()
+        _exigir_autorizacion_medios(self, 'FOTOS')
 
     def __str__(self):
         return f"{self.get_seccion_display()} — {self.titulo or 'Sin título'}"
@@ -2367,11 +2390,21 @@ class TestimonioLanding(models.Model):
     estrellas = models.PositiveIntegerField(default=5, verbose_name="Estrellas (1-5)")
     activo = models.BooleanField(default=True)
     orden = models.PositiveIntegerField(default=0)
+    cotizacion = models.ForeignKey(
+        'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True, related_name='testimonios_landing',
+        verbose_name="Evento del cliente",
+        help_text="Cotización del cliente que lo escribió. Para publicarlo (Activo) debe haber una autorización de "
+                  "testimonio y de nombre vigente (Marketing → Autorizaciones).",
+    )
 
     class Meta:
         ordering = ['orden']
         verbose_name = "Testimonio de cliente"
         verbose_name_plural = "Testimonios"
+
+    def clean(self):
+        super().clean()
+        _exigir_autorizacion_medios(self, 'TESTIMONIO', 'NOMBRE')
 
     def __str__(self):
         return f"{self.nombre} — {self.evento}"

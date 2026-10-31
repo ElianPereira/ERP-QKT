@@ -13,7 +13,7 @@ from django.dispatch import receiver
 from comercial.models import Cotizacion, Pago
 from comunicacion.models import ConversacionWhatsApp, MensajeWhatsApp, Visita
 
-from .services import pipeline
+from .services import pipeline, referidos
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,27 @@ def _cotizacion(cotizacion_id, creada):
         pipeline.sincronizar_existente(telefono=cot.cliente.telefono, cliente=cot.cliente)
 
 
+def _referidos_cotizacion(cotizacion_id, creada):
+    cot = Cotizacion.objects.select_related('cliente').get(pk=cotizacion_id)
+    if cot.estado in pipeline.ESTADOS_VENTA:
+        for ref in referidos.ganar_por_cotizacion(cot):
+            referidos.avisar_ganado(ref)
+        referidos.confirmar_uso(cot)
+    elif cot.estado == 'CANCELADA':
+        referidos.anular_por_cotizacion(cot, 'La venta del recomendado se canceló')
+        referidos.liberar_si_no_se_concreto(cot)
+    elif cot.estado == 'EXPIRADA':
+        referidos.liberar_si_no_se_concreto(cot)
+    if creada:
+        referidos.avisar_beneficio_disponible(cot)
+
+
+def _referidos_pago(pago_id):
+    pago = Pago.objects.select_related('cotizacion__cliente').get(pk=pago_id)
+    if pago.tipo == 'REEMBOLSO' and pago.cotizacion is not None:
+        referidos.revisar_reembolso(pago.cotizacion)
+
+
 def _pago(pago_id):
     cot = Pago.objects.select_related('cotizacion__cliente').get(pk=pago_id).cotizacion
     if cot is not None:
@@ -93,9 +114,11 @@ def visita_guardada(sender, instance, **kwargs):
 def cotizacion_guardada(sender, instance, created, **kwargs):
     if not kwargs.get('raw'):
         _diferir(_cotizacion, instance.pk, created)
+        _diferir(_referidos_cotizacion, instance.pk, created)
 
 
 @receiver(post_save, sender=Pago, dispatch_uid='marketing_pago')
 def pago_guardado(sender, instance, **kwargs):
     if not kwargs.get('raw'):
         _diferir(_pago, instance.pk)
+        _diferir(_referidos_pago, instance.pk)

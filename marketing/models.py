@@ -90,6 +90,9 @@ class Lead(models.Model):
                                 related_name='prospectos', verbose_name='Cliente')
     cotizacion = models.ForeignKey('comercial.Cotizacion', on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='prospectos', verbose_name='Cotización')
+    recomendado_por = models.ForeignKey('comercial.Cliente', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='prospectos_recomendados', verbose_name='Lo recomendó')
+    recomendado_por_texto = models.CharField(max_length=120, blank=True, verbose_name='Recomendado por (lo que dijo)')
     fecha_primer_contacto = models.DateTimeField(default=timezone.now, db_index=True,
                                                  verbose_name='Primer contacto')
     fecha_ultima_interaccion = models.DateTimeField(default=timezone.now, verbose_name='Última interacción')
@@ -659,3 +662,171 @@ class EventoConversion(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError('La bandeja de conversiones no se borra.')
+
+
+# === Referidos, permiso de medios y reseñas (fase 7) ===
+
+class Referido(models.Model):
+    """Una recomendación: lo gana QUIEN RECOMIENDA cuando la cotización del recomendado queda CONFIRMADA.
+
+    El beneficio se aplica como un `comercial.Descuento` acotado por productos (ver
+    `services.referidos`); aquí solo vive el vínculo, su vigencia (12 meses) y su único uso.
+    """
+    REGISTRADO = 'REGISTRADO'
+    GANADO = 'GANADO'
+    USADO = 'USADO'
+    VENCIDO = 'VENCIDO'
+    ANULADO = 'ANULADO'
+    ESTADO_CHOICES = [
+        (REGISTRADO, 'Registrado'),
+        (GANADO, 'Ganado'),
+        (USADO, 'Usado'),
+        (VENCIDO, 'Vencido'),
+        (ANULADO, 'Anulado'),
+    ]
+
+    codigo = models.CharField(max_length=12, unique=True, editable=False, verbose_name='Código')
+    recomendador = models.ForeignKey('comercial.Cliente', on_delete=models.PROTECT, related_name='referidos_hechos',
+                                     verbose_name='Quién recomienda')
+    recomendado_lead = models.ForeignKey(Lead, on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='referidos', verbose_name='Prospecto recomendado')
+    recomendado_cotizacion = models.ForeignKey('comercial.Cotizacion', on_delete=models.SET_NULL, null=True,
+                                               blank=True, related_name='referidos_recomendado',
+                                               verbose_name='Cotización del recomendado')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default=REGISTRADO, db_index=True,
+                              verbose_name='Estado')
+    ganado_en = models.DateTimeField(null=True, blank=True, verbose_name='Ganado el')
+    vence_en = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name='Vence el')
+    usado_en = models.DateTimeField(null=True, blank=True, verbose_name='Usado el')
+    usado_en_cotizacion = models.ForeignKey('comercial.Cotizacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                            related_name='referidos_usados', verbose_name='Aplicado en la cotización')
+    uso_confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name='Uso confirmado el')
+    monto_beneficio = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                                          verbose_name='Beneficio aplicado (sin IVA)')
+    motivo_cierre = models.CharField(max_length=255, blank=True, verbose_name='Motivo')
+    notificado_en = models.DateTimeField(null=True, blank=True, verbose_name='Avisado el')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Referido'
+        verbose_name_plural = 'Referidos'
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(fields=['recomendado_lead'], name='mkt_referido_uno_por_prospecto',
+                                    condition=Q(recomendado_lead__isnull=False)),
+        ]
+
+    def __str__(self):
+        return f'{self.codigo} · {self.get_estado_display()}'
+
+    def save(self, *args, **kwargs):
+        if not self.codigo:
+            self.codigo = 'REF-' + uuid.uuid4().hex[:8].upper()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Los referidos no se borran: se anulan.')
+
+    @property
+    def vigente(self) -> bool:
+        return self.estado == self.GANADO and self.vence_en is not None and self.vence_en > timezone.now()
+
+
+ALCANCES_MEDIOS = [('FOTOS', 'Fotos del evento'), ('TESTIMONIO', 'Testimonio'), ('NOMBRE', 'Nombre de pila')]
+
+
+class AutorizacionMedios(models.Model):
+    """Permiso del cliente para mostrar fotos, su testimonio y su nombre en la página y las redes.
+
+    La evidencia es el texto exacto que aceptó (con su SHA-256), cuándo y por qué canal. Se revoca
+    sin borrarse. Una fila viva (solicitada o autorizada) por cotización.
+    """
+    SOLICITADA = 'SOLICITADA'
+    AUTORIZADA = 'AUTORIZADA'
+    RECHAZADA = 'RECHAZADA'
+    REVOCADA = 'REVOCADA'
+    ESTADO_CHOICES = [
+        (SOLICITADA, 'Solicitada'),
+        (AUTORIZADA, 'Autorizada'),
+        (RECHAZADA, 'Rechazada'),
+        (REVOCADA, 'Revocada'),
+    ]
+    VIVAS = (SOLICITADA, AUTORIZADA)
+    ORIGEN_CHOICES = [('WHATSAPP', 'WhatsApp'), ('PORTAL', 'Portal del cliente'), ('ADMIN', 'Registro del equipo')]
+
+    cliente = models.ForeignKey('comercial.Cliente', on_delete=models.PROTECT, related_name='autorizaciones_medios',
+                                verbose_name='Cliente')
+    cotizacion = models.ForeignKey('comercial.Cotizacion', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='autorizaciones_medios', verbose_name='Cotización')
+    alcances = models.JSONField(default=list, verbose_name='Alcances',
+                                help_text='FOTOS, TESTIMONIO y/o NOMBRE.')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default=SOLICITADA, db_index=True,
+                              verbose_name='Estado')
+    origen = models.CharField(max_length=8, choices=ORIGEN_CHOICES, verbose_name='Origen')
+    texto_aceptado = models.TextField(verbose_name='Texto que se le mostró')
+    texto_sha256 = models.CharField(max_length=64, editable=False, verbose_name='SHA-256 del texto')
+    referencia_externa = models.CharField(max_length=200, blank=True, verbose_name='Mensaje de WhatsApp (wamid)')
+    solicitada_en = models.DateTimeField(default=timezone.now, verbose_name='Solicitada el')
+    decidida_en = models.DateTimeField(null=True, blank=True, verbose_name='Decidida el')
+    registrada_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                       related_name='+', verbose_name='Registrada por')
+    revocada_en = models.DateTimeField(null=True, blank=True, verbose_name='Revocada el')
+    revocada_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+', verbose_name='Revocada por')
+    motivo_revocacion = models.CharField(max_length=255, blank=True, verbose_name='Motivo de la revocación')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Autorización de medios'
+        verbose_name_plural = 'Autorizaciones'
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(fields=['cotizacion'], name='mkt_autorizacion_viva_por_cotizacion',
+                                    condition=Q(estado__in=['SOLICITADA', 'AUTORIZADA'], cotizacion__isnull=False)),
+        ]
+
+    def __str__(self):
+        return f'{self.cliente} · {self.get_estado_display()}'
+
+    def clean(self):
+        validos = {codigo for codigo, _ in ALCANCES_MEDIOS}
+        if not isinstance(self.alcances, list) or not self.alcances or set(self.alcances) - validos:
+            raise ValidationError({'alcances': 'Elige uno o más alcances: FOTOS, TESTIMONIO, NOMBRE.'})
+
+    def save(self, *args, **kwargs):
+        from hashlib import sha256
+        self.texto_sha256 = sha256((self.texto_aceptado or '').encode('utf-8')).hexdigest()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Las autorizaciones no se borran: se revocan.')
+
+
+class ResenaGoogle(models.Model):
+    """Reseña de Google Business Profile ya vista por el ERP. Solo lo necesario: sin nombre ni texto."""
+    id_externo = models.CharField(max_length=200, unique=True, verbose_name='ID en Google')
+    estrellas = models.PositiveSmallIntegerField(verbose_name='Estrellas')
+    publicada_en = models.DateTimeField(null=True, blank=True, verbose_name='Publicada el')
+    actualizada_en = models.DateTimeField(null=True, blank=True, verbose_name='Actualizada el')
+    respondida = models.BooleanField(default=False, verbose_name='Respondida')
+    avisada = models.BooleanField(default=False, verbose_name='Avisada a Dirección')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última actualización')
+
+    class Meta:
+        verbose_name = 'Reseña de Google'
+        verbose_name_plural = 'Reseñas'
+        ordering = ['-publicada_en', '-id']
+
+    def __str__(self):
+        return f'{self.estrellas} estrellas · {self.publicada_en:%d/%m/%Y}' if self.publicada_en else f'{self.estrellas} estrellas'
