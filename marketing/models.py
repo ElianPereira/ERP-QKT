@@ -536,3 +536,54 @@ class Decision(models.Model):
     @property
     def abierta(self) -> bool:
         return self.estado in self.ABIERTAS
+
+
+class AccionAnuncio(models.Model):
+    """Bitácora de lo que se hizo (o se habría hecho) en la plataforma de anuncios por una decisión aprobada
+    (Issue #468, fase 5). Una fila por paso: una reasignación son dos ajustes (y una reversión si el segundo
+    falla). Una vez OK o FALLIDA la fila no se edita ni se borra. `respuesta` es un resumen sin secretos."""
+    PAUSAR, REANUDAR, AJUSTAR = 'PAUSAR', 'REANUDAR', 'AJUSTAR_PRESUPUESTO'
+    TIPO_CHOICES = [(PAUSAR, 'Pausar'), (REANUDAR, 'Reanudar'), (AJUSTAR, 'Ajustar presupuesto')]
+    CAMPANA, ANUNCIO = 'CAMPANA', 'ANUNCIO'
+    OBJETO_CHOICES = [(CAMPANA, 'Campaña'), (ANUNCIO, 'Anuncio')]
+    SIMULACION, REAL = 'SIMULACION', 'REAL'
+    MODO_CHOICES = [(SIMULACION, 'Simulación'), (REAL, 'Real')]
+    PENDIENTE, EJECUTANDO, OK, FALLIDA = 'PENDIENTE', 'EJECUTANDO', 'OK', 'FALLIDA'
+    ESTADO_CHOICES = [(PENDIENTE, 'Pendiente'), (EJECUTANDO, 'Ejecutando'), (OK, 'Correcta'), (FALLIDA, 'Fallida')]
+    TERMINALES = (OK, FALLIDA)
+
+    decision = models.ForeignKey(Decision, on_delete=models.PROTECT, related_name='acciones', verbose_name='Decisión')
+    paso = models.PositiveSmallIntegerField(default=1, verbose_name='Paso')
+    reversion = models.BooleanField(default=False, verbose_name='Es reversión')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, verbose_name='Acción')
+    objeto_tipo = models.CharField(max_length=8, choices=OBJETO_CHOICES, verbose_name='Objeto')
+    objeto_id_externo = models.CharField(max_length=100, verbose_name='Identificador en la plataforma')
+    objeto_nombre = models.CharField(max_length=300, blank=True, verbose_name='Nombre')
+    valor_anterior = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True,
+                                         verbose_name='Valor anterior')
+    valor_nuevo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True,
+                                      verbose_name='Valor nuevo')
+    modo = models.CharField(max_length=10, choices=MODO_CHOICES, verbose_name='Modo')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default=PENDIENTE, db_index=True,
+                              verbose_name='Estado')
+    respuesta = models.TextField(blank=True, verbose_name='Respuesta')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Ejecutada por')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='Creada')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizada')
+
+    class Meta:
+        verbose_name = 'Acción en anuncios'
+        verbose_name_plural = 'Acciones'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} · {self.objeto_nombre or self.objeto_id_externo} · {self.get_estado_display()}'
+
+    def save(self, *args, **kwargs):
+        if self.pk and AccionAnuncio.objects.filter(pk=self.pk, estado__in=self.TERMINALES).exists():
+            raise ValidationError('La bitácora de acciones no se edita una vez terminada.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('La bitácora de acciones no se borra.')

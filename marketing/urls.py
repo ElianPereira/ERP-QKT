@@ -6,5 +6,6 @@ app_name = 'marketing'
 
 urlpatterns = [
     path('tablero/', views.tablero, name='tablero'),
+    path('decisiones/<int:pk>/ejecutar/', views.ejecutar, name='ejecutar'),
     path('decisiones/<int:pk>/<str:accion>/', views.decidir, name='decidir'),
 ]

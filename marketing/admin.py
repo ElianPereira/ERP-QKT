@@ -5,7 +5,7 @@ from django.utils.formats import date_format
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import filtro_periodo
 
-from .models import Anuncio, Campana, Decision, GastoPublicitario, Lead, LeadEvento, ParametroMarketing
+from .models import AccionAnuncio, Anuncio, Campana, Decision, GastoPublicitario, Lead, LeadEvento, ParametroMarketing
 
 
 class SoloSuperusuarioMixin:
@@ -301,3 +301,52 @@ class DecisionAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     @admin.display(description='Expira', ordering='expira_en')
     def expira(self, obj):
         return date_format(timezone.localtime(obj.expira_en), 'd M Y')
+
+
+@admin.register(AccionAnuncio)
+class AccionAnuncioAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Bitácora de lo ejecutado (o simulado) en la plataforma de anuncios. Solo lectura."""
+    list_display = ('creada', 'objeto', 'accion', 'cambio', 'modo_badge', 'estado_badge', 'created_by')
+    list_filter = ('modo', 'estado', 'tipo')
+    search_fields = ('objeto_nombre', 'objeto_id_externo')
+    columnas_texto = ('objeto',)
+    fields = ('decision', 'paso', 'reversion', 'tipo', 'objeto_tipo', 'objeto_id_externo', 'objeto_nombre',
+              'valor_anterior', 'valor_nuevo', 'modo', 'estado', 'respuesta', 'created_by', 'created_at', 'updated_at')
+    readonly_fields = fields
+
+    TONOS_ESTADO = {'OK': ui.EXITO, 'FALLIDA': ui.ERROR, 'EJECUTANDO': ui.ALERTA, 'PENDIENTE': ui.NEUTRO}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Creada', ordering='created_at')
+    def creada(self, obj):
+        return date_format(timezone.localtime(obj.created_at), 'd M Y H:i')
+
+    @admin.display(description='Objeto')
+    def objeto(self, obj):
+        return obj.objeto_nombre or obj.objeto_id_externo
+
+    @admin.display(description='Acción', ordering='tipo')
+    def accion(self, obj):
+        return obj.get_tipo_display() + (' (reversión)' if obj.reversion else '')
+
+    @admin.display(description='Cambio')
+    def cambio(self, obj):
+        if obj.valor_anterior is None and obj.valor_nuevo is None:
+            return '—'
+        return f'{obj.valor_anterior} → {obj.valor_nuevo}'
+
+    @admin.display(description='Modo', ordering='modo')
+    def modo_badge(self, obj):
+        return ui.badge_por_valor(obj.modo, {'REAL': ui.ALERTA, 'SIMULACION': ui.NEUTRO}, obj.get_modo_display())
+
+    @admin.display(description='Estado', ordering='estado')
+    def estado_badge(self, obj):
+        return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())

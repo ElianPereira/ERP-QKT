@@ -27,16 +27,34 @@
 
     <div class="qkt-panel" id="decisiones">
         <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-balance-scale" aria-hidden="true"></i> Decisiones</h2></div>
+        {% if aprobadas %}
+        {% if modo_simulacion %}
+        <div class="qkt-panel__cuerpo"><div class="qkt-aviso qkt-aviso--info">Modo simulación: las acciones solo se registran en la bitácora y no se envía nada a Meta. Se activan con ERP_MARKETING_ACCIONES_ACTIVAS.</div></div>
+        {% else %}
+        <div class="qkt-panel__cuerpo"><div class="qkt-aviso qkt-aviso--alerta">Modo real: ejecutar cambia campañas y anuncios en Meta (máximo 20 % por acción).</div></div>
+        {% endif %}
+        {% for ap in aprobadas %}
+        <div class="qkt-panel__cuerpo">
+            <p><strong>{{ ap.decision.titulo }}</strong> <span class="qkt-badge qkt-badge--exito">Aprobada</span></p>
+            {% for linea in ap.lineas %}<p class="qkt-kpi__sub">{{ linea }}</p>{% endfor %}
+            <div class="qkt-botonera">
+                <form method="post" action="{% url 'marketing:ejecutar' ap.decision.pk %}">{% csrf_token %}
+                    <button type="submit" class="qkt-btn qkt-btn--primario qkt-btn--sm" data-qkt-confirmar="{% if modo_simulacion %}Se simulará (no se envía nada a Meta):{% else %}Se cambiará en Meta:{% endif %}{% for linea in ap.lineas %} {{ linea }}.{% endfor %} ¿Continuar?"><i class="fas fa-bolt" aria-hidden="true"></i> {% if modo_simulacion %}Simular{% else %}Ejecutar en Meta{% endif %}</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
         {% for dec in decisiones %}
         <div class="qkt-panel__cuerpo">
             <p><strong>{{ dec.titulo }}</strong>
                 {% if dec.estado == 'POSPUESTA' %}<span class="qkt-badge qkt-badge--alerta">Pospuesta</span>{% endif %}
                 <span class="qkt-badge qkt-badge--neutro">{{ dec.get_tipo_accion_display }}</span></p>
             {% if dec.hallazgo %}<p class="qkt-kpi__sub">{{ dec.hallazgo.detalle|linebreaksbr }}</p>{% endif %}
-            <p class="qkt-kpi__sub">Expira el {{ dec.expira_en|date:"d/m/Y" }}. Aprobar deja constancia; la ejecución llega en la siguiente fase.</p>
+            <p class="qkt-kpi__sub">Expira el {{ dec.expira_en|date:"d/m/Y" }}. Aprobar deja constancia; después aparece el botón para ejecutarla.</p>
             <div class="qkt-botonera">
                 <form method="post" action="{% url 'marketing:decidir' dec.pk 'aprobar' %}">{% csrf_token %}
-                    <button type="submit" class="qkt-btn qkt-btn--primario qkt-btn--sm" data-qkt-confirmar="Se aprobará esta recomendación. Por ahora solo queda registrada; no se cambia nada en Meta. ¿Continuar?"><i class="fas fa-check" aria-hidden="true"></i> Aprobar</button>
+                    <button type="submit" class="qkt-btn qkt-btn--primario qkt-btn--sm" data-qkt-confirmar="Se aprobará esta recomendación. Aprobar no cambia nada en Meta: la ejecución es un paso aparte. ¿Continuar?"><i class="fas fa-check" aria-hidden="true"></i> Aprobar</button>
                 </form>
                 <form method="post" action="{% url 'marketing:decidir' dec.pk 'posponer' %}">{% csrf_token %}
                     <button type="submit" class="qkt-btn qkt-btn--secundario qkt-btn--sm"><i class="fas fa-clock" aria-hidden="true"></i> Posponer</button>

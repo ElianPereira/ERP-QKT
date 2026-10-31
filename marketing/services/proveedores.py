@@ -4,8 +4,19 @@
 (Marketing API por REST con `requests`, sin SDK). Sin credenciales el proveedor
 queda apagado: `configurado()` es False y ningún método sale a la red.
 
-Los métodos de acción (`pausar`, `reanudar`, `ajustar_presupuesto`) solo se
-declaran: los implementa la fase 5 con sus topes, dry-run y bitácora.
+Los métodos de acción (`pausar`, `reanudar`, `ajustar_presupuesto`) y la lectura
+del estado vivo (`leer_estado`) los usa `services/acciones.py`, que pone los topes,
+la simulación y la bitácora; el proveedor solo habla con la plataforma.
+
+Permisos de Meta: leer pide `ads_read` (`META_ADS_TOKEN`); cambiar estado o
+presupuesto pide `ads_management` y va con un token aparte
+(`META_ADS_TOKEN_ESCRITURA`). Sin ese token ninguna escritura sale a la red.
+
+Dónde vive el presupuesto: con presupuesto de campaña (CBO) `daily_budget` está
+en la campaña y se ajusta ahí. Con presupuesto por conjunto de anuncios la
+campaña no trae `daily_budget`: `leer_estado` lo detecta (`nivel_presupuesto`
+= CONJUNTO) y `ajustar_presupuesto` se niega; se ajusta a mano en Meta. Los
+montos de Meta van en la unidad menor de la moneda de la cuenta (centavos).
 """
 import logging
 from abc import ABC, abstractmethod
@@ -65,6 +76,15 @@ class GastoDiario:
 
 
 @dataclass(frozen=True)
+class EstadoObjeto:
+    """Estado vivo de una campaña o un anuncio leído de la plataforma."""
+    id_externo: str
+    estado: str = ''
+    presupuesto_diario: Optional[Decimal] = None
+    nivel_presupuesto: str = ''  # CAMPANA | CONJUNTO | '' (anuncio o sin presupuesto diario)
+
+
+@dataclass(frozen=True)
 class EstadoCredencial:
     valida: bool
     vence_en: Optional[datetime] = None  # None = no vence (o no se sabe)
@@ -92,15 +112,21 @@ class ProveedorAnuncios(ABC):
     @abstractmethod
     def estado_credencial(self) -> EstadoCredencial: ...
 
-    # Acciones: las implementa la fase 5.
+    # Acciones (fase 5). `puede_escribir` es False sin credencial de escritura.
+    def puede_escribir(self) -> bool:
+        return False
+
+    def leer_estado(self, id_externo: str, con_presupuesto: bool = False) -> 'EstadoObjeto':
+        raise NotImplementedError
+
     def pausar(self, id_externo: str):
-        raise NotImplementedError('Las acciones sobre anuncios llegan en la fase 5.')
+        raise NotImplementedError
 
     def reanudar(self, id_externo: str):
-        raise NotImplementedError('Las acciones sobre anuncios llegan en la fase 5.')
+        raise NotImplementedError
 
     def ajustar_presupuesto(self, id_externo: str, presupuesto_diario: Decimal):
-        raise NotImplementedError('Las acciones sobre anuncios llegan en la fase 5.')
+        raise NotImplementedError
 
 
 def _decimal(valor, default=Decimal('0.00')) -> Decimal:
@@ -120,8 +146,10 @@ def _entero(valor) -> int:
 class ProveedorMeta(ProveedorAnuncios):
     plataforma = 'META'
 
-    def __init__(self, token=None, cuenta_id=None, version=None):
+    def __init__(self, token=None, cuenta_id=None, version=None, token_escritura=None):
         self.token = token if token is not None else settings.META_ADS_TOKEN
+        self.token_escritura = (token_escritura if token_escritura is not None
+                                else settings.META_ADS_TOKEN_ESCRITURA)
         cuenta = (cuenta_id if cuenta_id is not None else settings.META_ADS_CUENTA_ID).strip()
         self.cuenta = cuenta if not cuenta or cuenta.startswith('act_') else f'act_{cuenta}'
         self.version = version or settings.META_ADS_API_VERSION
@@ -133,14 +161,38 @@ class ProveedorMeta(ProveedorAnuncios):
     def configurado(self) -> bool:
         return bool(self.token and self.cuenta)
 
+    def puede_escribir(self) -> bool:
+        return bool(self.configurado() and self.token_escritura)
+
     def _limpiar(self, texto):
-        return str(texto).replace(self.token, '***') if self.token else str(texto)
+        texto = str(texto)
+        for secreto in (self.token, self.token_escritura):
+            if secreto:
+                texto = texto.replace(secreto, '***')
+        return texto
 
     def _get(self, url, params=None):
         try:
             r = requests.get(url, params=params, timeout=TIMEOUT)
         except requests.RequestException as exc:
             raise ProveedorError(f'Sin respuesta de Meta: {self._limpiar(exc)}') from exc
+        return self._leer(r)
+
+    def _post(self, ruta, datos):
+        """POST de escritura: el token va en el cuerpo (nunca en la URL, que acaba en logs)."""
+        if not self.puede_escribir():
+            raise ProveedorError('Sin credencial de escritura de Meta (META_ADS_TOKEN_ESCRITURA): no se envió nada.')
+        try:
+            r = requests.post(f'{self.base}/{ruta}', data={**datos, 'access_token': self.token_escritura},
+                              timeout=TIMEOUT)
+        except requests.RequestException as exc:
+            raise ProveedorError(f'Sin respuesta de Meta: {self._limpiar(exc)}') from exc
+        cuerpo = self._leer(r)
+        if cuerpo.get('success') is not True:
+            raise ProveedorError('Meta no confirmó el cambio (sin success).')
+        return cuerpo
+
+    def _leer(self, r):
         try:
             cuerpo = r.json()
         except ValueError:
@@ -199,6 +251,39 @@ class ProveedorMeta(ProveedorAnuncios):
                 impresiones=_entero(fila.get('impressions')), clics=_entero(fila.get('clicks')),
                 frecuencia=frecuencia, campana_nombre=fila.get('campaign_name', ''),
                 anuncio_nombre=fila.get('ad_name', ''))
+
+    def leer_estado(self, id_externo, con_presupuesto=False):
+        """`con_presupuesto` solo para campañas: detecta si el presupuesto vive en ella o en sus conjuntos."""
+        campos = 'effective_status,daily_budget' if con_presupuesto else 'effective_status'
+        cuerpo = self._get(f'{self.base}/{id_externo}', {'fields': campos, 'access_token': self.token})
+        presupuesto, nivel = None, ''
+        if cuerpo.get('daily_budget'):
+            presupuesto = (_decimal(cuerpo['daily_budget']) / 100).quantize(CENTAVOS, rounding=ROUND_HALF_UP)
+            nivel = 'CAMPANA'
+        elif con_presupuesto and self._tiene_presupuesto_en_conjuntos(id_externo):
+            nivel = 'CONJUNTO'
+        return EstadoObjeto(str(id_externo), cuerpo.get('effective_status', ''), presupuesto, nivel)
+
+    def _tiene_presupuesto_en_conjuntos(self, campana_id):
+        try:
+            cuerpo = self._get(f'{self.base}/{campana_id}/adsets', {
+                'fields': 'daily_budget', 'limit': 50, 'access_token': self.token})
+        except ProveedorError:
+            return False
+        return any(c.get('daily_budget') for c in cuerpo.get('data', []))
+
+    def pausar(self, id_externo):
+        self._post(str(id_externo), {'status': 'PAUSED'})
+
+    def reanudar(self, id_externo):
+        self._post(str(id_externo), {'status': 'ACTIVE'})
+
+    def ajustar_presupuesto(self, id_externo, presupuesto_diario):
+        """Solo presupuesto de campaña (CBO); `presupuesto_diario` en pesos, Meta lo recibe en centavos."""
+        centavos = int((Decimal(presupuesto_diario) * 100).to_integral_value(rounding=ROUND_HALF_UP))
+        if centavos <= 0:
+            raise ProveedorError('El presupuesto diario debe ser mayor que cero.')
+        self._post(str(id_externo), {'daily_budget': centavos})
 
     def estado_credencial(self) -> EstadoCredencial:
         """`debug_token`: un token de usuario del sistema no vence (`expires_at` = 0)."""

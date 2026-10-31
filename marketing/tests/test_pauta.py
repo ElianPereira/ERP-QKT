@@ -103,9 +103,11 @@ class MetaTest(SimpleTestCase):
         with patch('requests.get', return_value=respuesta({'error': {'code': 190, 'message': 'x'}}, 400)):
             self.assertFalse(self.meta().estado_credencial().valida)
 
-    def test_acciones_son_de_la_fase_5(self):
-        with self.assertRaises(NotImplementedError):
-            self.meta().pausar('1')
+    def test_sin_credencial_de_escritura_no_envia(self):
+        with patch('requests.post') as post:
+            with self.assertRaises(ProveedorError):
+                self.meta().pausar('1')
+        post.assert_not_called()
 
 
 class Falso(ProveedorAnuncios):

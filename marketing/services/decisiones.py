@@ -537,7 +537,7 @@ def generar(hoy: Optional[date] = None, ahora: Optional[datetime] = None,
 
 def resolver(decision_id: int, accion: str, usuario) -> tuple:
     """Aprobar, rechazar o posponer. Devuelve (hecho, mensaje). Aprobar solo deja constancia: la ejecución
-    es de la fase 5. Solo un superusuario; una decisión atendida o caducada no se vuelve a mover."""
+    es un paso aparte (`services/acciones.py`). Solo un superusuario; una decisión atendida o caducada no se vuelve a mover."""
     if not (getattr(usuario, 'is_active', False) and getattr(usuario, 'is_superuser', False)):
         return False, 'Solo Dirección puede decidir.'
     if accion not in ('aprobar', 'rechazar', 'posponer'):
@@ -563,7 +563,7 @@ def resolver(decision_id: int, accion: str, usuario) -> tuple:
         decision.save(update_fields=['estado', 'decidido_por', 'decidido_en', 'updated_by', 'updated_at'])
         _cerrar_hallazgo(decision.hallazgo, 'ATENDIDO' if accion == 'aprobar' else 'IGNORADO', usuario, ahora)
     if accion == 'aprobar':
-        return True, 'Aprobada. Queda registrada; la ejecución llega en la siguiente fase.'
+        return True, 'Aprobada. Queda registrada; ejecútala desde la misma sección.'
     return True, 'Rechazada.'
 
 

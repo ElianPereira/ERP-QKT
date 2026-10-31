@@ -275,11 +275,33 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-31 — **Marketing, fase 5: acciones en Meta** (Issue #468; **mueve dinero**, autorizada por el propietario; sin zonas
+  restringidas; migración `marketing.0005`, una tabla nueva). `ProveedorMeta` gana `leer_estado`, `pausar`, `reanudar` y
+  `ajustar_presupuesto` (POST a la Graph API con el token en el cuerpo, nunca en la URL; `daily_budget` en centavos). Lee con
+  `META_ADS_TOKEN` (`ads_read`) y **escribe solo con `META_ADS_TOKEN_ESCRITURA`** (permiso `ads_management`); sin él, error claro y
+  nada sale. **Presupuesto solo de campaña (CBO)**: si Meta no trae `daily_budget` en la campaña pero sí en sus conjuntos, se
+  detecta y se rechaza («ajústalo en Meta»); tampoco la suma del tope ve presupuestos de conjuntos. `marketing/services/acciones.py`
+  (`ejecutar(decision_id, usuario)`, botón en la tarjeta tras aprobar): solo APROBADA, vigente, no INFORMATIVA y superusuario.
+  **Interruptor `ERP_MARKETING_ACCIONES_ACTIVAS` (default False)**: apagado todo es SIMULACION (usa lo ya sincronizado, cero red, la
+  decisión sigue APROBADA); encendido es REAL. **Idempotencia** (patrón de cancelaciones): bajo `select_for_update` se crean las
+  filas `AccionAnuncio` en EJECUTANDO y se confirman antes de hablar con Meta; un segundo clic ve «ya se ejecuta»; una ejecución
+  sin resultado de >10 min no se repite: FALLIDA + pendiente URGENTE a Dirección para verificar en Meta. **Revalidación**: se lee
+  el estado vivo; si el presupuesto o el estado ya no son los de la propuesta, la decisión pasa a FALLIDA sin enviar nada. **Topes**:
+  ±20 % por acción sobre el valor vivo (redondea hacia adentro, nunca excede; en una reasignación el monto se limita al 20 % de
+  ambas) y `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO`: si el cambio SUBE la suma de presupuestos diarios activos (leída de Meta en modo
+  real), la suma posterior no puede excederlo; **vacío = no se permite subir**; bajar o mover (neto cero) siempre se permite; un
+  bloqueo por tope deja la decisión APROBADA (reintentable si Dirección sube el tope). REASIGNAR = baja primero, sube después; si
+  el segundo falla se revierte el primero (fila `reversion`), y si la reversión falla también queda FALLIDA con aviso URGENTE. Pausar
+  algo ya pausado no envía nada; reanudar solo si está PAUSED. `AccionAnuncio` («Acciones», solo lectura) no se edita ni borra una
+  vez OK/FALLIDA; la respuesta se trunca a 500 caracteres y se enmascaran ambos tokens. **Pendiente del propietario**: crear/ampliar el
+  usuario del sistema con `ads_management`, definir `META_ADS_TOKEN_ESCRITURA` y `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO` en `web`, probar
+  primero en simulación y encender `ERP_MARKETING_ACCIONES_ACTIVAS` solo después; sin probar contra la Graph API real.
+
 - 2026-10-31 — **Marketing, fase 4: decisiones** (Issue #468; sin zonas restringidas; migraciones `marketing.0004` —tabla
   `Decision` y 8 umbrales nuevos en `ParametroMarketing`— y `comunicacion.0019`, solo choices). `marketing/services/decisiones.py`:
   `generar_decisiones_marketing` (08:10 en el programador, tras el snapshot) corre 10 reglas y cada propuesta es un
   `comunicacion.Hallazgo` (tipos `MKT_*`, estado nuevo `ATENDIDO`) más una `marketing.Decision` con `accion_propuesta` JSON
-  (PAUSAR / AJUSTAR_PRESUPUESTO / REASIGNAR / INFORMATIVA) que ejecutará la fase 5; **nada se ejecuta**. Reglas: pausar anuncio
+  (PAUSAR / AJUSTAR_PRESUPUESTO / REASIGNAR / INFORMATIVA) que ejecuta la fase 5. Reglas: pausar anuncio
   (gasto ≥ $1,500 en 14 días y 0 cotizaciones; sin prospectos atribuidos a ningún anuncio = datos insuficientes), reasignar
   (CAC ≥ 30 % mayor con muestra en ambas; mueve 20 % del menor presupuesto), escalar +20 % (CAC bajo el tope en los
   `SnapshotKPI` de hoy, −7 y −14 días, agenda a 60 días < 60 %), ocupación ≥ umbral a 30 días → −20 % por campaña, ≥ 4 días de
@@ -303,7 +325,7 @@ salvo que queden obsoletas.
   `Decision` y 8 umbrales nuevos en `ParametroMarketing`— y `comunicacion.0019`, solo choices). `marketing/services/decisiones.py`:
   `generar_decisiones_marketing` (08:10 en el programador, tras el snapshot) corre 10 reglas y cada propuesta es un
   `comunicacion.Hallazgo` (tipos `MKT_*`, estado nuevo `ATENDIDO`) más una `marketing.Decision` con `accion_propuesta` JSON
-  (PAUSAR / AJUSTAR_PRESUPUESTO / REASIGNAR / INFORMATIVA) que ejecutará la fase 5; **nada se ejecuta**. Reglas: pausar anuncio
+  (PAUSAR / AJUSTAR_PRESUPUESTO / REASIGNAR / INFORMATIVA) que ejecuta la fase 5. Reglas: pausar anuncio
   (gasto ≥ $1,500 en 14 días y 0 cotizaciones; sin prospectos atribuidos a ningún anuncio = datos insuficientes), reasignar
   (CAC ≥ 30 % mayor con muestra en ambas; mueve 20 % del menor presupuesto), escalar +20 % (CAC bajo el tope en los
   `SnapshotKPI` de hoy, −7 y −14 días, agenda a 60 días < 60 %), ocupación ≥ umbral a 30 días → −20 % por campaña, ≥ 4 días de

@@ -61,6 +61,7 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_ADS_TOKEN` | Token de un usuario del sistema con permiso `ads_read` para leer el gasto de la cuenta publicitaria (marketing). Vacío = sincronización apagada. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_read sobre la cuenta publicitaria) | web, Programador | — |
 | `META_ADS_CUENTA_ID` | ID de la cuenta publicitaria (con o sin el prefijo `act_`). | Meta | Meta Business Manager → Cuentas → Cuentas publicitarias | web, Programador | — |
 | `META_ADS_API_VERSION` | Versión de la Graph API para la Marketing API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
+| `META_ADS_TOKEN_ESCRITURA` | Token de un usuario del sistema con permiso `ads_management` sobre la cuenta publicitaria, solo para pausar, reanudar o ajustar presupuesto desde una decisión aprobada. Vacío = ninguna acción llega a Meta. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_management sobre la cuenta publicitaria) | web | — |
 
 ## ANTHROPIC — modelo de Kooxi
 
@@ -155,6 +156,8 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `ERP_WA_NEGOCIO_NUMERO` | Respaldo transitorio del directorio de responsables (#421); se borra cuando el directorio sea la única fuente. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `WA_NUMERO_NEGOCIO` |
 | `ERP_MARKETING_TOLERANCIA_PCT` | Conciliación mensual de la pauta: proporción del gasto esperado (con IVA) que se tolera de diferencia contra el banco (0.10 = 10%). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
 | `ERP_MARKETING_TOLERANCIA_MINIMA` | Conciliación mensual de la pauta: piso en pesos de la tolerancia; se acepta la mayor entre este y el porcentaje. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_MARKETING_ACCIONES_ACTIVAS` | Interruptor de las acciones en Meta: apagado (por defecto) todo se registra como simulación y no sale a la red; encendido ejecuta de verdad las decisiones aprobadas. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
+| `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO` | Tope en pesos de la suma de presupuestos diarios de las campañas activas tras un cambio. Vacío = no se permite subir presupuesto. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
 
 ## ERP — Kooxi (agente de WhatsApp)
 

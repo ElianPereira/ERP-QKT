@@ -342,6 +342,12 @@ META_ADS_CUENTA_ID = env('META_ADS_CUENTA_ID', default='')
 META_ADS_API_VERSION = env('META_ADS_API_VERSION', default='v23.0')
 ERP_MARKETING_TOLERANCIA_PCT = env('ERP_MARKETING_TOLERANCIA_PCT', default='0.10')
 ERP_MARKETING_TOLERANCIA_MINIMA = env('ERP_MARKETING_TOLERANCIA_MINIMA', default='500.00')
+# Fase 5: acciones en Meta (pausar, reanudar, ajustar presupuesto). Token de ESCRITURA aparte (permiso
+# ads_management); sin él nada se envía. Interruptor apagado = todo es simulación. Tope diario total vacío =
+# no se permite subir presupuesto.
+META_ADS_TOKEN_ESCRITURA = env('META_ADS_TOKEN_ESCRITURA', default='')
+ERP_MARKETING_ACCIONES_ACTIVAS = env('ERP_MARKETING_ACCIONES_ACTIVAS', default=False, cast=bool)
+ERP_MARKETING_PRESUPUESTO_MAX_DIARIO = env('ERP_MARKETING_PRESUPUESTO_MAX_DIARIO', default='')
 
 # Plantillas aprobadas en Meta. Los mensajes iniciados por el negocio (pago y
 # recordatorio) solo llegan por plantilla: fuera de la ventana de 24 h Meta
@@ -674,6 +680,7 @@ JAZZMIN_SETTINGS = {
         "marketing.GastoPublicitario":       "fas fa-coins",
         "marketing.ParametroMarketing":      "fas fa-sliders-h",
         "marketing.Decision":                "fas fa-balance-scale",
+        "marketing.AccionAnuncio":           "fas fa-bolt",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -814,6 +821,7 @@ JAZZMIN_SETTINGS = {
         "marketing.Anuncio",
         "marketing.GastoPublicitario",
         "marketing.Decision",
+        "marketing.AccionAnuncio",
         "marketing.ParametroMarketing",
 
         # === ADMINISTRACIÓN ===
