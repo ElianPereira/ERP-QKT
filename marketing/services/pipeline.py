@@ -18,11 +18,10 @@ from comunicacion.models import ConversacionWhatsApp, MensajeWhatsApp, Visita
 from comunicacion.services import normalizar_telefono_wa
 from comunicacion.services_responsables import rol_de_telefono
 
-from ..models import Lead, LeadEvento
+from ..models import Lead, LeadEvento, ParametroMarketing
 
 logger = logging.getLogger(__name__)
 
-DIAS_SIN_RESPUESTA = 15
 DIAS_REAPERTURA = 90
 DIAS_POST_SERVICIO = 30
 DIAS_ANUNCIO = 2
@@ -272,8 +271,9 @@ def sincronizar(lead, ahora=None):
     _mejorar_fuente(lead, cot)
 
     visita_futura = any(v.estado in VISITAS_VIVAS and v.inicio >= ahora for v in visitas)
-    if not visita_futura and ahora - lead.fecha_ultima_interaccion > timedelta(days=DIAS_SIN_RESPUESTA):
-        _perder(lead, ahora, '', {'razon': f'{DIAS_SIN_RESPUESTA} días sin interacción'})
+    dias_sin_respuesta = ParametroMarketing.vigente().dias_sin_respuesta
+    if not visita_futura and ahora - lead.fecha_ultima_interaccion > timedelta(days=dias_sin_respuesta):
+        _perder(lead, ahora, '', {'razon': f'{dias_sin_respuesta} días sin interacción'})
     return lead
 
 

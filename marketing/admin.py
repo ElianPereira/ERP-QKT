@@ -5,7 +5,7 @@ from django.utils.formats import date_format
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import filtro_periodo
 
-from .models import Anuncio, Campana, GastoPublicitario, Lead, LeadEvento
+from .models import Anuncio, Campana, GastoPublicitario, Lead, LeadEvento, ParametroMarketing
 
 
 class SoloSuperusuarioMixin:
@@ -204,3 +204,60 @@ class GastoPublicitarioAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     def conciliacion_badge(self, obj):
         return ui.badge_por_valor(obj.estado_conciliacion, self.TONOS_CONCILIACION,
                                   obj.get_estado_conciliacion_display())
+
+
+@admin.register(ParametroMarketing)
+class ParametroMarketingAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
+    """Supuestos de marketing. Oculto del menú: se abre desde la pantalla «Marketing». Un juego activo a la
+    vez; guardar uno nuevo activo desactiva el anterior (queda el historial). Nada se borra."""
+    list_display = ('vigencia', 'estado', 'reinversion', 'muestra', 'ventana', 'actualizado')
+    list_filter = ('activo',)
+    fieldsets = (
+        ('Cuánto invertir', {'fields': ('pct_reinversion', 'cac_tope_manual')}),
+        ('Cuándo confiar en una cifra', {'fields': ('muestra_minima_leads', 'ventana_dias', 'ciclo_dias_evento',
+                                                     'ciclo_dias_pasadia', 'ciclo_dias_hospedaje')}),
+        ('Prospectos y pronóstico', {'fields': ('dias_sin_respuesta', 'prob_etapa')}),
+        ('Límites para las decisiones', {'fields': ('cpl_max', 'frecuencia_max', 'umbral_ocupacion_pausa')}),
+        ('Vigencia', {'fields': ('vigente_desde', 'activo')}),
+        ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_by', 'updated_at')}),
+    )
+    readonly_fields = ('created_by', 'created_at', 'updated_by', 'updated_at')
+
+    def has_add_permission(self, request):
+        return request.user.is_active and request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    @admin.display(description='Vigente desde', ordering='vigente_desde')
+    def vigencia(self, obj):
+        return date_format(obj.vigente_desde, 'd M Y')
+
+    @admin.display(description='Estado', ordering='activo')
+    def estado(self, obj):
+        return ui.badge('Activo', ui.EXITO) if obj.activo else ui.badge('Anterior', ui.NEUTRO)
+
+    @admin.display(description='Reinversión')
+    def reinversion(self, obj):
+        return f'{obj.pct_reinversion} %'
+
+    @admin.display(description='Muestra mínima')
+    def muestra(self, obj):
+        return obj.muestra_minima_leads
+
+    @admin.display(description='Ventana')
+    def ventana(self, obj):
+        return f'{obj.ventana_dias} días'
+
+    @admin.display(description='Actualizado', ordering='updated_at')
+    def actualizado(self, obj):
+        return date_format(timezone.localtime(obj.updated_at), 'd M Y')

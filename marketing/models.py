@@ -4,8 +4,11 @@ Marketing nunca copia montos: un prospecto guarda llaves a la conversación,
 el cliente y la cotización, y todo importe se lee de ahí. La etapa la deriva
 `marketing.services.pipeline` de los datos que ya existen; nadie la captura.
 """
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -283,3 +286,163 @@ class GastoPublicitario(models.Model):
 
     def __str__(self):
         return f'{self.campana} {self.fecha:%d/%m/%Y} ${self.monto}'
+
+
+# === Parámetros e indicadores (fase 3) ===
+def prob_etapa_inicial() -> dict:
+    """Probabilidad de ganar según la etapa del embudo (0 a 1, como texto). Supuesto del propietario:
+    se calibra con el histórico cuando haya cohortes maduras."""
+    return {'NUEVO': '0.02', 'CONTACTADO': '0.05', 'VISITA_AGENDADA': '0.20', 'COTIZADO': '0.30',
+            'GANADO': '1', 'PERDIDO': '0'}
+
+
+class ParametroMarketing(models.Model):
+    """Supuestos del propietario para medir y decidir. Uno activo; al guardar uno nuevo activo, los demás
+    se desactivan (queda el historial). Sin ninguno, `vigente()` devuelve los valores de fábrica."""
+    PCT = [MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))]
+
+    vigente_desde = models.DateField(default=timezone.localdate, verbose_name='Vigente desde')
+    activo = models.BooleanField(default=True, verbose_name='Activo')
+    pct_reinversion = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('30.00'), validators=PCT,
+        verbose_name='Reinversión (%)',
+        help_text='Qué parte del margen de contribución de una venta puedes gastar en conseguirla. '
+                  'Con ella se calcula el tope de CAC de cada servicio.')
+    cac_tope_manual = models.JSONField(
+        null=True, blank=True, verbose_name='Tope de CAC manual',
+        help_text='Opcional. Un objeto con el tope en pesos por servicio, por ejemplo '
+                  '{"EVENTO": "2500", "PASADIA": "300"}. Un servicio sin tope manual usa margen × reinversión.')
+    muestra_minima_leads = models.PositiveIntegerField(
+        default=10, verbose_name='Muestra mínima (prospectos)',
+        help_text='Con menos prospectos que esto, las razones (CPL, CAC, ROAS, cierre) se muestran como '
+                  '«muestra insuficiente» en vez de una cifra engañosa.')
+    ventana_dias = models.PositiveIntegerField(
+        default=90, validators=[MinValueValidator(7), MaxValueValidator(365)], verbose_name='Ventana (días)',
+        help_text='Días hacia atrás que cubre cada instantánea diaria y la lectura de la pantalla.')
+    cpl_max = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='CPL máximo',
+        help_text='Costo por prospecto a partir del cual una campaña merece revisión. Vacío = sin tope.')
+    frecuencia_max = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('3.50'), verbose_name='Frecuencia máxima',
+        help_text='Veces promedio que una persona ve el anuncio antes de considerarlo saturado.')
+    umbral_ocupacion_pausa = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('85.00'), validators=PCT,
+        verbose_name='Ocupación para pausar (%)',
+        help_text='Con la agenda llena a este nivel o más, conviene pausar la pauta del servicio.')
+    dias_sin_respuesta = models.PositiveIntegerField(
+        default=15, validators=[MinValueValidator(1)], verbose_name='Días sin respuesta',
+        help_text='Un prospecto abierto sin interacción este número de días pasa a Perdido.')
+    ciclo_dias_evento = models.PositiveIntegerField(
+        default=120, verbose_name='Ciclo de venta · evento (días)',
+        help_text='Tiempo típico entre el primer contacto y el cobro de un evento. Una cohorte es madura '
+                  'cuando ya pasó este tiempo desde que terminó su mes.')
+    ciclo_dias_pasadia = models.PositiveIntegerField(default=30, verbose_name='Ciclo de venta · pasadía (días)')
+    ciclo_dias_hospedaje = models.PositiveIntegerField(default=30, verbose_name='Ciclo de venta · hospedaje (días)')
+    prob_etapa = models.JSONField(
+        default=prob_etapa_inicial, verbose_name='Probabilidad por etapa',
+        help_text='Probabilidad (0 a 1) de cerrar según la etapa; con ella se pronostican los anticipos. '
+                  'Una etapa por clave: NUEVO, CONTACTADO, VISITA_AGENDADA, COTIZADO.')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Creado por')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Actualizado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Parámetro de marketing'
+        verbose_name_plural = 'Supuestos'
+        ordering = ['-vigente_desde', '-id']
+
+    def __str__(self):
+        return f'Supuestos de marketing desde {self.vigente_desde:%d/%m/%Y}'
+
+    def clean(self):
+        errores = {}
+        topes = self.cac_tope_manual
+        if topes not in (None, {}):
+            if not isinstance(topes, dict) or any(k not in dict(SERVICIO_CHOICES) for k in topes):
+                errores['cac_tope_manual'] = 'Usa un objeto con claves EVENTO, PASADIA u HOSPEDAJE.'
+            else:
+                try:
+                    if any(Decimal(str(v)) <= 0 for v in topes.values()):
+                        errores['cac_tope_manual'] = 'Cada tope debe ser mayor que cero.'
+                except ArithmeticError:
+                    errores['cac_tope_manual'] = 'Cada tope debe ser un número.'
+        probs = self.prob_etapa
+        if not isinstance(probs, dict):
+            errores['prob_etapa'] = 'Usa un objeto etapa → probabilidad.'
+        else:
+            try:
+                invalidas = [k for k, v in probs.items()
+                             if k not in Lead.RANGO and k != Lead.PERDIDO or not Decimal('0') <= Decimal(str(v)) <= 1]
+            except ArithmeticError:
+                invalidas = ['valor']
+            if invalidas:
+                errores['prob_etapa'] = 'Cada etapa debe ser una del embudo con probabilidad entre 0 y 1.'
+        if errores:
+            raise ValidationError(errores)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.activo:
+            type(self).objects.filter(activo=True).exclude(pk=self.pk).update(activo=False)
+
+    @classmethod
+    def vigente(cls) -> 'ParametroMarketing':
+        """El juego activo, o uno con los valores de fábrica (sin guardar) si nadie ha capturado nada."""
+        return cls.objects.filter(activo=True).order_by('-vigente_desde', '-id').first() or cls()
+
+    def ciclo_de(self, tipo: str) -> int:
+        return {'EVENTO': self.ciclo_dias_evento, 'PASADIA': self.ciclo_dias_pasadia,
+                'HOSPEDAJE': self.ciclo_dias_hospedaje}[tipo]
+
+    def prob_de(self, etapa: str) -> Decimal:
+        valor = (self.prob_etapa or {}).get(etapa, prob_etapa_inicial().get(etapa, '0'))
+        return Decimal(str(valor))
+
+
+class SnapshotKPI(models.Model):
+    """Cifras de un día para ver la tendencia sin recalcular el histórico. Una fila por (fecha, servicio,
+    campaña): `tipo_servicio` vacío = total y `campana` vacía = todas. Cada fila resume la ventana de
+    `ventana_dias` que termina en `fecha`. Una razón sin base queda en NULL (el motivo no se guarda)."""
+    fecha = models.DateField(db_index=True, verbose_name='Fecha')
+    tipo_servicio = models.CharField(max_length=15, blank=True, verbose_name='Servicio')
+    campana = models.ForeignKey(Campana, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                verbose_name='Campaña')
+    ventana_dias = models.PositiveIntegerField(verbose_name='Ventana (días)')
+    gasto = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'), verbose_name='Gasto')
+    prospectos = models.PositiveIntegerField(default=0, verbose_name='Prospectos')
+    cotizaciones = models.PositiveIntegerField(default=0, verbose_name='Cotizaciones')
+    ganados = models.PositiveIntegerField(default=0, verbose_name='Ganados')
+    contratado = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'),
+                                     verbose_name='Contratado (sin IVA)')
+    cobrado = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'),
+                                  verbose_name='Cobrado (sin IVA)')
+    cpl = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, verbose_name='CPL')
+    costo_cotizacion = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True,
+                                           verbose_name='Costo por cotización')
+    tasa_cierre = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True,
+                                      verbose_name='Tasa de cierre (%)')
+    cac = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, verbose_name='CAC')
+    cac_tope = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, verbose_name='Tope de CAC')
+    roas_cobrado = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                                       verbose_name='ROAS cobrado')
+    roas_contratado = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                                          verbose_name='ROAS contratado')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado')
+
+    class Meta:
+        verbose_name = 'Instantánea de indicadores'
+        verbose_name_plural = 'Instantáneas'
+        ordering = ['-fecha', 'tipo_servicio', 'campana_id']
+        constraints = [
+            models.UniqueConstraint(fields=['fecha', 'tipo_servicio'], name='mkt_snapshot_sin_campana',
+                                    condition=Q(campana__isnull=True)),
+            models.UniqueConstraint(fields=['fecha', 'tipo_servicio', 'campana'], name='mkt_snapshot_con_campana',
+                                    condition=Q(campana__isnull=False)),
+        ]
+
+    def __str__(self):
+        return f'{self.fecha:%d/%m/%Y} {self.tipo_servicio or "Total"}'

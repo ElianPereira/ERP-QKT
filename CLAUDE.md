@@ -275,6 +275,27 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-31 — **Marketing, fase 3: indicadores y pantalla «Marketing»** (Issue #468; sin zonas restringidas; migración
+  `marketing.0003`, dos tablas nuevas). `ParametroMarketing` (admin «Supuestos», oculto con `hide_models`, se abre desde
+  la pantalla; un juego activo, uno nuevo desactiva el anterior): reinversión 30 %, tope de CAC manual (JSON por servicio),
+  muestra mínima 10 prospectos, ventana 90 días, ciclos de venta (evento 120, pasadía/hospedaje 30), `dias_sin_respuesta`
+  15 (sustituye la constante de `pipeline`, que ahora lo lee del vigente) y `prob_etapa` (supuesto: COTIZADO 0.30,
+  VISITA_AGENDADA 0.20, CONTACTADO 0.05, NUEVO 0.02). `marketing/services/kpis.py` (fórmulas y unidades en el docstring):
+  todo sin IVA; **contratado** = `venta_neta` de Indicadores, **cobrado** = `total_pagado_neto()` (ya resta reembolsos)
+  llevado a base con `× base / precio_final` (así el ISH tampoco cuenta), **neto** = cobrado − gasto. ROAS oficial =
+  cobrado / gasto. Atribución por cohorte (mes del primer contacto vs gasto de ese mes); madura = fin de mes + ciclo del
+  servicio ya pasó. **El total mezcla todos los prospectos (también orgánicos); por campaña y servicio solo los atribuidos
+  por `anuncio_id`, y el servicio es el de la campaña** (campañas sin servicio no aparecen en «Por servicio»). Una razón sin
+  base (gasto 0, sin ganados, muestra pequeña) es `None` con su motivo; nunca excepción. Tope de CAC = margen de una venta
+  (`economia_servicio.mc`; hospedaje × noches-habitación promedio) × reinversión. Semáforo por servicio: error si CAC >
+  tope, alerta si ROAS cobrado < 1, éxito si hay dato y nada falla. Pronóstico de anticipos = prob(etapa) × valor sin IVA ×
+  `porcentaje_anticipo_confirmacion()` de prospectos abiertos con cotización BORRADOR/COTIZADA. `SnapshotKPI` diario
+  (`generar_snapshot_marketing`, 07:40 en el programador; idempotente por fecha/servicio/campaña; `tipo_servicio` vacío =
+  total, `campana` nula = todas; cada fila resume la ventana que termina en la fecha). Pantalla
+  `/admin/marketing/tablero/` (custom_link «Marketing», solo superusuario, sin Chart.js). Pendiente del propietario:
+  capturar precio y costo en Indicadores (sin margen no hay tope), marcar el servicio de cada campaña y revisar las
+  probabilidades por etapa; el ROAS de cohortes no maduras sube con el tiempo, no juzgarlo antes.
+
 - 2026-10-31 — **Marketing, fase 2: pauta de Meta** (Issue #468; sin tocar zonas restringidas; migración `marketing.0002`, tres
   tablas nuevas; contabilidad solo se LEE). `services/proveedores.py`: interfaz `ProveedorAnuncios` + `ProveedorMeta` (REST con
   `requests`, insights `level=ad`/`time_increment=1`, paginación por `paging.next`, código 190 → `TokenVencidoError`, el token

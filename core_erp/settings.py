@@ -672,6 +672,7 @@ JAZZMIN_SETTINGS = {
         "marketing.Campana":                 "fas fa-bullseye",
         "marketing.Anuncio":                 "fas fa-ad",
         "marketing.GastoPublicitario":       "fas fa-coins",
+        "marketing.ParametroMarketing":      "fas fa-sliders-h",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -696,6 +697,8 @@ JAZZMIN_SETTINGS = {
         # Se capturan desde «Plan del año» («Ajustes avanzados» abre Parámetros); siguen accesibles por URL
         "indicadores.ParametrosNegocio",
         "indicadores.MetaMensual",
+        # Se abren desde la pantalla «Marketing» (botón «Supuestos»); siguen accesibles por URL
+        "marketing.ParametroMarketing",
     ],
 
     # ── TOP MENU ──────────────────────────────────────────────
@@ -809,6 +812,7 @@ JAZZMIN_SETTINGS = {
         "marketing.Campana",
         "marketing.Anuncio",
         "marketing.GastoPublicitario",
+        "marketing.ParametroMarketing",
 
         # === ADMINISTRACIÓN ===
         "auth",
@@ -843,6 +847,12 @@ JAZZMIN_SETTINGS = {
             {"name": "Plan del año", "url": "indicadores:plan", "icon": "fas fa-th-large",
              "permissions": ["indicadores.view_metamensual"]},
         ],
+        "marketing": [{
+            "name": "Marketing",
+            "url": "marketing:tablero",
+            "icon": "fas fa-chart-pie",
+            "permissions": ["marketing.view_lead"],
+        }],
         "cumplimiento": [{
             "name": "Tablero",
             "url": "cumplimiento:tablero",
