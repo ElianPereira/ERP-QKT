@@ -390,30 +390,6 @@ salvo que queden obsoletas.
   `decidido_por/en`, y el hallazgo `ATENDIDO`. Ignorar el hallazgo desde Comunicación rechaza la decisión; «Crear tarea» no
   aplica a hallazgos `MKT_*`. Admin «Decisiones» de solo lectura. Pendiente del propietario: revisar los umbrales en Supuestos.
 
-- 2026-10-31 — **Marketing, fase 4: decisiones** (Issue #468; sin zonas restringidas; migraciones `marketing.0004` —tabla
-  `Decision` y 8 umbrales nuevos en `ParametroMarketing`— y `comunicacion.0019`, solo choices). `marketing/services/decisiones.py`:
-  `generar_decisiones_marketing` (08:10 en el programador, tras el snapshot) corre 10 reglas y cada propuesta es un
-  `comunicacion.Hallazgo` (tipos `MKT_*`, estado nuevo `ATENDIDO`) más una `marketing.Decision` con `accion_propuesta` JSON
-  (PAUSAR / AJUSTAR_PRESUPUESTO / REASIGNAR / INFORMATIVA) que ejecuta la fase 5. Reglas: pausar anuncio
-  (gasto ≥ $1,500 en 14 días y 0 cotizaciones; sin prospectos atribuidos a ningún anuncio = datos insuficientes), reasignar
-  (CAC ≥ 30 % mayor con muestra en ambas; mueve 20 % del menor presupuesto), escalar +20 % (CAC bajo el tope en los
-  `SnapshotKPI` de hoy, −7 y −14 días, agenda a 60 días < 60 %), ocupación ≥ umbral a 30 días → −20 % por campaña, ≥ 4 días de
-  fin de semana libres a 45 días → +20 % a campañas de evento/pasadía (agenda = `comercial.disponibilidad`: confirmadas +
-  `BloqueoFecha`), caja (pauta del mes por gastar + costos fijos de Indicadores vs anticipos pronosticados + saldos de
-  confirmadas con plazo ≤ 30 días; **costos fijos en cero = datos insuficientes**), concentración > 60 % de un canal, gasto de
-  ayer > 2× el promedio previo (≥ 4 días), frecuencia > máxima (≥ 1,000 impresiones) y mes con diferencia de conciliación.
-  **Idempotencia**: restricción única parcial por (regla, objeto) abierta y, además, la misma regla/objeto no se repite en 14
-  días aunque se rechace (si no, un «no» volvería cada mañana); caduca a los 14 días (EXPIRADA, hallazgo IGNORADO); posponer
-  = 7 días y vuelve a PENDIENTE. «Datos insuficientes» solo va a log y a la salida del comando. **Prospecto sin respuesta** no
-  es decisión: `revisar_respuesta_prospectos` (cada 5 min) abre `Pendiente` URGENTE tipo `PROSPECTO` al ENCARGADO, una vez por
-  prospecto, de 8:00 a 20:00 Mérida (lo escrito de noche cuenta desde las 8:00; sin texto del cliente). **Resumen del lunes**:
-  `texto_resumen` ganó el bloque «Marketing» (gasto de la semana; prospectos, cotizaciones y ganados; CAC de 90 días del servicio con
-  más gasto contra su tope, o ROAS cobrado si no hay CAC) y hasta 3 decisiones con enlace; un fallo del bloque no tumba el
-  resumen. Las decisiones **no llevan botones de WhatsApp** (aprobar es solo superusuario con 2FA): se decide en la sección
-  «Decisiones» de la pantalla Marketing (POST + CSRF + `data-qkt-confirmar` al aprobar); aprobar deja `APROBADA` con
-  `decidido_por/en`, y el hallazgo `ATENDIDO`. Ignorar el hallazgo desde Comunicación rechaza la decisión; «Crear tarea» no
-  aplica a hallazgos `MKT_*`. Admin «Decisiones» de solo lectura. Pendiente del propietario: revisar los umbrales en Supuestos.
-
 - 2026-10-31 — **Marketing, fase 3: indicadores y pantalla «Marketing»** (Issue #468; sin zonas restringidas; migración
   `marketing.0003`, dos tablas nuevas). `ParametroMarketing` (admin «Supuestos», oculto con `hide_models`, se abre desde
   la pantalla; un juego activo, uno nuevo desactiva el anterior): reinversión 30 %, tope de CAC manual (JSON por servicio),
