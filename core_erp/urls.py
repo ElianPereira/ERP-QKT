@@ -179,6 +179,9 @@ urlpatterns = [
     # --- MÓDULO INDICADORES (solo Dirección) ---
     path('admin/indicadores/', include('indicadores.urls')),
 
+    # --- MÓDULO MARKETING (solo Dirección) ---
+    path('admin/marketing/', include('marketing.urls')),
+
     # --- PORTAL DEL CLIENTE (público) ---
     path('mi-evento/', portal_acceso, name='portal_acceso'),
     path('mi-evento/<str:token>/', portal_evento, name='portal_evento'),

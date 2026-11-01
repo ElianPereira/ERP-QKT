@@ -53,6 +53,8 @@ class CotizadorEnviarForm(forms.Form):
     tipo_evento = forms.ChoiceField(choices=TIPO_EVENTO_CHOICES, required=False)
     notas = forms.CharField(max_length=300, required=False)
     como_nos_encontro = forms.ChoiceField(choices=COMO_NOS_ENCONTRO_CHOICES, required=False)
+    # Opcional: teléfono o nombre de quien lo recomendó (marketing, referidos). No toca precios.
+    quien_recomendo = forms.CharField(max_length=120, required=False)
     acepta_legales = forms.BooleanField(required=False)
     requiere_factura = forms.BooleanField(required=False)
     rfc = forms.CharField(max_length=50, required=False)

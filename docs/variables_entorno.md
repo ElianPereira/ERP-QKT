@@ -8,7 +8,7 @@ Catálogo de todas las variables que lee el ERP (Issue #424). **Solo nombres: ni
 ORIGEN_SERVICIO_DATO[_DISTINTIVO]
 ```
 
-- **ORIGEN**: quién la emite. Proveedor (`META`, `ANTHROPIC`, `OPENPAY`, `CLOUDFLARE`, `BREVO`, `JIBBLE`), configuración propia (`ERP`) o framework (`DJANGO`).
+- **ORIGEN**: quién la emite. Proveedor (`META`, `GOOGLE`, `ANTHROPIC`, `OPENPAY`, `CLOUDFLARE`, `BREVO`, `JIBBLE`), configuración propia (`ERP`) o framework (`DJANGO`).
 - **SERVICIO**: producto o módulo (`WA`, `R2`, `KOOXI`, `EMAIL`, `PORTAL`, `FISCAL`…).
 - **DATO**: `API_KEY`, `SECRET`, `TOKEN`, `ID`, `URL`, `EMAIL`, `PLANTILLA`, `MODELO`, `ACTIVO`, `MAX`, `TASA`, `HORAS`, `DIAS`, `SEGUNDOS`, `BUCKET`, `NUMERO`, `MODO`, `VERSION`.
 - **DISTINTIVO**: solo si hay más de una del mismo tipo (`PAGOS`, `PRIVADO`, `JUEZ`…).
@@ -47,6 +47,7 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_WA_PLANTILLA_GUIA` | Plantilla de la guía pre-evento. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_GUIA` |
 | `META_WA_PLANTILLA_SEGUIMIENTO` | Plantilla de seguimiento a cotizaciones sin pago (vacía = el cron no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_SEGUIMIENTO` |
 | `META_WA_PLANTILLA_ENCUESTA` | Plantilla de la encuesta de satisfacción (vacía = el comando no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
+| `META_WA_PLANTILLA_REFERIDO` | Plantilla del aviso al cliente que ganó un beneficio por recomendar (vacía = solo texto libre dentro de la ventana de 24 h). Texto en `docs/whatsapp_plantilla_referido.md`. | Meta | Meta for Developers / Business Manager (WhatsApp → Plantillas) | web, Programador | — |
 | `META_WA_PLANTILLA_REACTIVACION` | Plantilla de la reactivación anual por aniversario (vacía = no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_SEGUIMIENTO_DIA1` | Plantilla del seguimiento del día 1 a cotizaciones sin pago (vacía = ese paso no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_SEGUIMIENTO_FECHA` | Plantilla «tu fecha está por ocuparse» del seguimiento (vacía = ese paso no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
@@ -58,6 +59,39 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_WA_PLANTILLA_OPERACIONES` | Plantilla de avisos internos y de operaciones («Tienes un aviso nuevo: {{1}}»). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_OPERACIONES` |
 | `META_WA_PLANTILLA_AVISO_EQUIPO` | Plantilla de avisos al equipo en bloques (4 parámetros: encabezado, título, datos, enlace); vacía = se usa la de operaciones en un renglón. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_CODIGO` | Plantilla de autenticación con el código de 6 dígitos (firma de contrato y solicitudes de cancelación) para clientes sin correo; vacía = solo dentro de la ventana de 24 h. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web | — |
+| `META_ADS_TOKEN` | Token de un usuario del sistema con permiso `ads_read` para leer el gasto de la cuenta publicitaria (marketing). Vacío = sincronización apagada. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_read sobre la cuenta publicitaria) | web, Programador | — |
+| `META_ADS_CUENTA_ID` | ID de la cuenta publicitaria (con o sin el prefijo `act_`). | Meta | Meta Business Manager → Cuentas → Cuentas publicitarias | web, Programador | — |
+| `META_ADS_API_VERSION` | Versión de la Graph API para la Marketing API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
+| `META_ADS_TOKEN_ESCRITURA` | Token de un usuario del sistema con permiso `ads_management` sobre la cuenta publicitaria, solo para pausar, reanudar o ajustar presupuesto desde una decisión aprobada. Vacío = ninguna acción llega a Meta. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_management sobre la cuenta publicitaria) | web | — |
+| `META_PIXEL_ID` | ID del Pixel de Meta para la landing y el cotizador (solo se carga tras aceptar el banner de cookies) y dataset por omisión de la Conversions API. Vacío = ni banner ni Pixel. | Meta | Meta Business Manager → Orígenes de datos → Conjuntos de datos | web | — |
+| `META_CAPI_TOKEN` | Token de acceso de la Conversions API (usuario del sistema o token del dataset). Vacío = no se encola ni se envía ningún evento de conversión. | Meta | Meta Business Manager → Orígenes de datos → Conjunto de datos → Configuración → Conversions API | web, Programador | — |
+| `META_CAPI_DATASET_ID` | Dataset de la Conversions API si es distinto al Pixel (p. ej. el ligado a WhatsApp Business). Vacío = se usa `META_PIXEL_ID`. | Meta | Meta Business Manager → Orígenes de datos → Conjuntos de datos | web, Programador | — |
+| `META_CAPI_API_VERSION` | Versión de la Graph API para la Conversions API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
+| `META_CAPI_TEST_CODE` | Código de «Probar eventos» de Meta; con valor, los eventos se marcan de prueba y no cuentan. Vacío en producción. | Meta | Meta Business Manager → Administrador de eventos → Probar eventos | web, Programador | — |
+| `META_WA_WABA_ID` | ID de la cuenta de WhatsApp Business (WABA); la Conversions API de mensajería lo pide junto al clic del anuncio. | Meta | Meta Business Manager → Cuentas → Cuentas de WhatsApp | Programador | — |
+
+## GOOGLE — reseñas (Business Profile)
+
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
+|---|---|---|---|---|---|
+| `GOOGLE_BUSINESS_CLIENT_ID` | Client ID OAuth del proyecto de Google Cloud con la API de Business Profile, para leer reseñas. Sin las cuatro variables GOOGLE_BUSINESS_* la sincronización queda apagada. | Google | Google Cloud Console → APIs y servicios → Credenciales | web, Programador | — |
+| `GOOGLE_BUSINESS_CLIENT_SECRET` | Secreto del cliente OAuth. | Google | Google Cloud Console → Credenciales | web, Programador | — |
+| `GOOGLE_BUSINESS_REFRESH_TOKEN` | Token de actualización de la cuenta que administra el perfil de la Quinta (solo lectura de reseñas). | Google | Se regenera con el flujo OAuth de la cuenta propietaria del perfil | web, Programador | — |
+| `GOOGLE_BUSINESS_LOCATION` | Ficha del negocio con la forma `accounts/<cuenta>/locations/<ficha>`. | Google | Business Profile API → accounts.locations | web, Programador | — |
+
+## GOOGLE — Ads (pauta y conversiones)
+
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
+|---|---|---|---|---|---|
+| `GOOGLE_ADS_CLIENT_ID` | Client ID OAuth del proyecto de Google Cloud con la Google Ads API habilitada. Sin las cinco primeras variables GOOGLE_ADS_* (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN, DEVELOPER_TOKEN, CUSTOMER_ID) el gasto y las conversiones de Google quedan apagados. | Google | Google Cloud Console → APIs y servicios → Credenciales | web, Programador | — |
+| `GOOGLE_ADS_CLIENT_SECRET` | Secreto del cliente OAuth de Google Ads. | Google | Google Cloud Console → Credenciales | web, Programador | — |
+| `GOOGLE_ADS_REFRESH_TOKEN` | Token de actualización del usuario de Google con acceso a la cuenta de Google Ads (alcance adwords). | Google | Flujo OAuth con la cuenta que administra Google Ads | web, Programador | — |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Developer token de la Google Ads API (cuenta administradora o MCC). | Google | Google Ads → Herramientas → Centro de API | web, Programador | — |
+| `GOOGLE_ADS_CUSTOMER_ID` | ID de la cuenta de Google Ads de la Quinta (10 dígitos, con o sin guiones). | Google | Google Ads → esquina superior de la cuenta | web, Programador | — |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | ID de la cuenta administradora (MCC) desde la que se accede; vacío si se entra directo a la cuenta. | Google | Google Ads → cuenta administradora | web, Programador | — |
+| `GOOGLE_ADS_API_VERSION` | Versión de la Google Ads API en la URL (por ejemplo v22). Subirla antes de que Google retire la actual; no se pudo verificar la vigente al escribirla. | Google | Propia (calendario de retiros de Google Ads API) | web, Programador | — |
+| `GOOGLE_ADS_CONVERSION_LEAD` | ID numérico de la acción de conversión «Prospecto» (importación offline por clic) para subir los Lead. | Google | Google Ads → Objetivos → Conversiones | Programador | — |
+| `GOOGLE_ADS_CONVERSION_COMPRA` | ID numérico de la acción de conversión «Compra» (importación offline por clic) para subir las ventas con su valor sin IVA en MXN. | Google | Google Ads → Objetivos → Conversiones | Programador | — |
 
 ## ANTHROPIC — modelo de Kooxi
 
@@ -150,6 +184,10 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `ERP_CONTRATO_AUTOMATICO_ACTIVO` | Emite el contrato al confirmarse la cotización. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `CONTRATO_AUTOMATICO` |
 | `ERP_CONTRATO_PROPIO_ACTIVO` | Usa los contratos propios (False = modelo PROFECO). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `CONTRATO_PROPIO_ACTIVO` |
 | `ERP_WA_NEGOCIO_NUMERO` | Respaldo transitorio del directorio de responsables (#421); se borra cuando el directorio sea la única fuente. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `WA_NUMERO_NEGOCIO` |
+| `ERP_MARKETING_TOLERANCIA_PCT` | Conciliación mensual de la pauta: proporción del gasto esperado (con IVA) que se tolera de diferencia contra el banco (0.10 = 10%). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_MARKETING_TOLERANCIA_MINIMA` | Conciliación mensual de la pauta: piso en pesos de la tolerancia; se acepta la mayor entre este y el porcentaje. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_MARKETING_ACCIONES_ACTIVAS` | Interruptor de las acciones en Meta: apagado (por defecto) todo se registra como simulación y no sale a la red; encendido ejecuta de verdad las decisiones aprobadas. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
+| `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO` | Tope en pesos de la suma de presupuestos diarios de las campañas activas tras un cambio. Vacío = no se permite subir presupuesto. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
 
 ## ERP — Kooxi (agente de WhatsApp)
 
