@@ -138,19 +138,39 @@ def _txt_dkim(nombre, timeout=5):
     return get_txt(nombre, timeout=timeout)
 
 
+# Cabeceras que no pueden repetirse: si hubiera dos, la firma y el lector de MIME podrían
+# tomar cada uno una distinta (dkimpy busca desde abajo; `email` devuelve la de arriba).
+CABECERAS_UNICAS = (b'from', b'content-type', b'content-transfer-encoding', b'mime-version')
+
+
 def _verificar_remitente(raw):
     """Exige una firma DKIM válida de BBVA alineada con el From.
 
     El Worker ya filtra por remitente, pero la cabecera `Authentication-Results`
     que revisa se puede falsificar en un correo enviado directo a la ruta; la
-    firma no. Si la llave no se pudo consultar (DNS caído) es ERROR y se
-    reintenta; una firma inválida o ajena es IGNORADO con pendiente.
+    firma no. Además se cierra todo lo que haría que la firma y el lector de
+    MIME vean correos distintos: CR suelto, cabeceras clave repetidas, firmas
+    con `l=` o que no cubren el From. Si la llave de BBVA no se pudo consultar
+    (DNS caído) es ERROR y se reintenta; lo demás es IGNORADO con pendiente.
     """
+    import re
+
     import dkim
+    rechazo = CorreoIgnorado("El correo no trae una firma DKIM válida de BBVA; no se procesó.")
+    if re.search(rb'\r(?!\n)', raw):
+        raise rechazo  # dkimpy y `email` cortarían las líneas distinto
     mensaje = email.message_from_bytes(raw, policy=policy.default)
     dominio = parseaddr(str(mensaje.get('From') or ''))[1].rpartition('@')[2].lower()
     if dominio not in DOMINIOS_BANCO:
         raise CorreoIgnorado("El correo no viene de BBVA; no se procesó.")
+    try:
+        verificador = dkim.DKIM(raw)
+    except dkim.DKIMException as e:
+        raise rechazo from e
+    nombres = [k.lower() for k, _ in verificador.headers]
+    if any(nombres.count(c) > 1 or len(mensaje.get_all(c.decode()) or []) > 1 for c in CABECERAS_UNICAS):
+        raise rechazo
+    sufijo = f'._domainkey.{dominio}.'
     sin_llave = []
 
     def dns(nombre, timeout=5):
@@ -158,24 +178,25 @@ def _verificar_remitente(raw):
             valor = _txt_dkim(nombre, timeout=timeout)
         except Exception:
             valor = None
-        if not valor:
-            sin_llave.append(nombre)
+        texto = nombre.decode() if isinstance(nombre, bytes) else nombre
+        if not valor and texto.lower().endswith(sufijo):
+            sin_llave.append(texto)  # solo cuenta la llave del banco, no la de una firma ajena
         return valor
 
-    verificador = dkim.DKIM(raw)
-    firmas = sum(1 for k, _ in verificador.headers if k.lower() == b'dkim-signature')
-    for idx in range(firmas):
+    for idx in range(nombres.count(b'dkim-signature')):
         try:
             valida = verificador.verify(idx=idx, dnsfunc=dns)
         except dkim.DKIMException:
             continue
         firmante = verificador.domain or b''
         firmante = (firmante.decode() if isinstance(firmante, bytes) else firmante).lower()
-        if valida and firmante == dominio:
+        campos = verificador.signature_fields or {}
+        if (valida and firmante == dominio and b'l' not in campos
+                and b'from' in [h.lower() for h in verificador.include_headers]):
             return
     if sin_llave:
         raise ErrorCorreo("No se pudo consultar la llave DKIM de BBVA; se reintentará.")
-    raise CorreoIgnorado("El correo no trae una firma DKIM válida de BBVA; no se procesó.")
+    raise rechazo
 
 
 # ─── Adjuntos ──────────────────────────────────────────────────────────────

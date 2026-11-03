@@ -460,6 +460,35 @@ class DkimTest(BaseCorreoTest):
         self.assertEqual(bitacora.resultado, 'IGNORADO')
         self.assertIn('no viene de BBVA', bitacora.detalle)
 
+    def test_cr_suelto_para_colar_otro_mime_se_ignora(self):
+        # Antepone un Content-Type y un From separados con \r: dkimpy no los ve como cabeceras y
+        # `email` sí, así que la firma seguiría válida y se leería el adjunto del atacante.
+        falso = (b'Content-Type: multipart/mixed; boundary="EVIL"\rFrom: x <a@bbva.mx>\r\r--EVIL\r'
+                 b'Content-Type: application/xml\rContent-Disposition: attachment; filename="e.xml"\r\r'
+                 b'<x/>\r--EVIL--\r\n')
+        bitacora = self.procesar(falso + self.firmado())
+        self.assertEqual(bitacora.resultado, 'IGNORADO')
+        self.assertEqual(EstadoCuentaBancario.objects.count(), 0)
+
+    def test_firma_con_l_se_rechaza(self):
+        mime = correo([('estado.pdf', self.pdf, 'application/pdf')]).replace(
+            b'From: estados@bbva.example', b'From: clientes@bbva.mx')
+        firma = dkim.sign(mime, b's1', b'bbva.mx', self.privada, length=True,
+                          include_headers=[b'date', b'from', b'to', b'message-id', b'subject', b'mime-version'])
+        self.assertEqual(self.procesar(firma + mime).resultado, 'IGNORADO')
+
+    def test_content_type_repetido_se_rechaza(self):
+        mime = b'Content-Type: multipart/mixed; boundary="EVIL"\r\n' + self.firmado()
+        self.assertEqual(self.procesar(mime).resultado, 'IGNORADO')
+
+    def test_firma_ajena_sin_llave_no_genera_reintentos(self):
+        # Una firma extra de un dominio inventado no debe volver «ERROR que se reintenta» un correo falso.
+        mime = correo([('estado.pdf', self.pdf, 'application/pdf')]).replace(
+            b'From: estados@bbva.example', b'From: clientes@bbva.mx')
+        ajena = dkim.sign(mime, b's1', b'noexiste.example', self.privada,
+                          include_headers=[b'from', b'subject'])
+        self.assertEqual(self.procesar(ajena + mime).resultado, 'IGNORADO')
+
     def test_dns_caido_es_error_que_se_reintenta(self):
         self.consulta.side_effect = OSError('sin red')
         bitacora = self.procesar(self.firmado())
