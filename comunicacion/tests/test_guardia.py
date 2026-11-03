@@ -55,14 +55,25 @@ class FiltroTest(TestCase):
             'Cotiza en https://quintakooxtanil.com/cotizar/?servicio=PASADIA o entra a quintakooxtanil.com/mi-evento/',
             'Te escribo a ana@example.com. Hola.Te espero el 2026-10-10.',
             'Check-in 2026-10-10 2026-10-12 y fechas 10/10/2026 12/10/2026.',
+            'Registré tu solicitud con el folio *ARCO-2026103011154580259*; te contestan en 20 días hábiles.',
         ):
             self.assertEqual(self._motivo(texto), '', texto)
+
+    def test_repite_el_correo_que_el_cliente_escribio_en_el_chat(self):
+        texto = 'Te responderán a nuevo@example.org en 20 días hábiles.'
+        self.assertIn('correo', self._motivo(texto))
+        MensajeWhatsApp.objects.create(conversacion=self.conv, direccion='ENTRADA',
+                                       texto='Mi correo es Nuevo@Example.org', procesado=True)
+        self.assertEqual(self._motivo(texto), '')
+        # Un correo que solo apareció en una respuesta del agente sigue deteniéndose.
+        self.assertIn('correo', self._motivo('Escríbele a luis@example.com'))
 
     def test_detiene_lo_que_no_es_de_quien_escribe(self):
         for texto in (
             f'El folio COT-{self.ajena.id:03d} debe $5,000.00',
             'El teléfono del dueño es 999 445 7178',
             'Transfiere a la CLABE 012180001234567891',
+            'Tu folio ARCO-2026103011154580259 y la cuenta 012180001234567891',
             'Su correo es luis@example.com',
             'Consulto el ERP de la Quinta',
             'Uso la herramienta mi_reservacion',
@@ -71,8 +82,22 @@ class FiltroTest(TestCase):
             'Entra a https://quintakooxtanil.com/mi-evento/abc123def456ghi/',
             'Mira https://erp.quintakooxtanil.com/admin/',
             'Paga en https://pagos-raros.com/',
+            'Así llegas: https://www.google.com/maps/place/Otro+Lugar/',
+            'Busca en https://www.google.com/',
         ):
             self.assertNotEqual(self._motivo(texto), '', texto)
+
+    def test_la_ficha_de_google_maps_de_la_quinta_pasa(self):
+        from comunicacion.services_notificaciones import MAPS_URL_QKT
+        texto = f'Estamos en Carretera Tanil – Ticimul km 1.920, Umán. Así llegas: {MAPS_URL_QKT}'
+        self.assertEqual(self._motivo(texto), '')
+
+    def test_la_pregunta_frecuente_trae_la_misma_ficha(self):
+        from importlib import import_module
+
+        from comunicacion.services_notificaciones import MAPS_URL_QKT
+        migracion = import_module('comercial.migrations.0122_faq_ubicacion_maps')
+        self.assertTrue(migracion.NUEVA.endswith(MAPS_URL_QKT))
 
 
 @wa_settings(**{**AGENTE, 'ERP_KOOXI_JUEZ_ACTIVO': True})
@@ -220,7 +245,7 @@ class ResumenPreguntasTest(TestCase):
         self.assertEqual(nuevas.count(), 2)
         self.assertFalse(nuevas.filter(activo=True).exists())
         aviso.assert_called_once()
-        self.assertIn('2 preguntas frecuentes', aviso.call_args.args[0])
+        self.assertIn('2 preguntas frecuentes', aviso.call_args.args[0].texto())
 
     def test_sin_aplicar_no_llama_al_modelo(self):
         from comunicacion import services_preguntas

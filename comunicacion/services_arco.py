@@ -120,4 +120,4 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
             return f'No se pudo enviar el correo de {solicitud.folio}. Revísalo en el ERP.'
         solicitud.estado = EstadoARCO.EN_TRAMITE
         solicitud.save(update_fields=['estado'])
-    return f'Listo: se envió el acuse de {solicitud.folio} y quedó en trámite (vence {solicitud.fecha_limite:%d/%m/%Y}).'
+    return f'✅ Listo: se envió el acuse de {solicitud.folio} y quedó en trámite (vence {solicitud.fecha_limite:%d/%m/%Y}).'

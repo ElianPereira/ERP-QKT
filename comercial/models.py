@@ -12,7 +12,7 @@ from django.utils.timezone import now
 from comercial.choices import ModoDescuento, PosicionLanding
 from contabilidad.categorias_gasto import CATEGORIAS_GASTO
 from core_erp import impuestos
-from core_erp.storages_qkt import storage_privado
+from core_erp.storages_qkt import storage_privado, storage_privado_con_respaldo
 from facturacion.choices import RegimenFiscal, UsoCFDI
 
 
@@ -689,8 +689,8 @@ class Cotizacion(models.Model):
     # Auditoría
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado el')
-    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, verbose_name='Archivo PDF')
-    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, verbose_name="Contrato PDF")
+    archivo_pdf = models.FileField(upload_to='cotizaciones_pdf/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo PDF')
+    archivo_contrato = models.FileField(upload_to='contratos_pdf/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name="Contrato PDF")
     identificacion_oficial = models.FileField(
         upload_to='cotizaciones/identificaciones/', blank=True, null=True,
         storage=storage_privado, verbose_name="Identificación oficial (INE)",
@@ -1760,8 +1760,8 @@ class Compra(models.Model):
     ret_isr = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Retención ISR')
     ret_iva = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Retención IVA')
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True, verbose_name='Archivo XML')
-    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, verbose_name='Archivo PDF')
+    archivo_xml = models.FileField(upload_to='xml_compras/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo XML')
+    archivo_pdf = models.FileField(upload_to='pdf_compras/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo PDF')
     uuid = models.CharField(max_length=36, blank=True, null=True, unique=True, verbose_name='UUID')
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='Subido el')
     unidad_negocio = models.ForeignKey(
@@ -1938,8 +1938,8 @@ class Gasto(models.Model):
     unidad_medida = models.CharField(max_length=20, blank=True)
     fecha_gasto = models.DateField(blank=True, null=True, db_index=True)
     proveedor = models.CharField(max_length=200, blank=True)
-    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, verbose_name='Archivo XML')
-    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, verbose_name='Archivo PDF')
+    archivo_xml = models.FileField(upload_to='xml_gastos/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo XML')
+    archivo_pdf = models.FileField(upload_to='pdf_gastos/', blank=True, null=True, storage=storage_privado_con_respaldo, verbose_name='Archivo PDF')
     def __str__(self): return f"{self.descripcion} (${self.total_linea})"
 
 # ==========================================
@@ -2307,6 +2307,19 @@ class AsignacionPersonal(models.Model):
 # ==========================================
 # CONTENIDO DE LANDING PAGE
 # ==========================================
+def _exigir_autorizacion_medios(obj, *alcances):
+    """Un contenido público ligado a un cliente solo se activa con su autorización vigente."""
+    if not (obj.activo and obj.cotizacion_id):
+        return
+    from marketing.services.medios import faltantes
+
+    faltan = faltantes(obj.cotizacion_id, alcances)
+    if faltan:
+        raise ValidationError({
+            'cotizacion': 'No hay una autorización vigente del cliente para: ' + ', '.join(faltan) +
+                          '. Regístrala en Marketing → Autorizaciones o deja el contenido inactivo.'})
+
+
 class ImagenLanding(models.Model):
     SECCION_CHOICES = [
         ('HERO', 'Banner principal'),
@@ -2349,11 +2362,21 @@ class ImagenLanding(models.Model):
                                 help_text="Describe la imagen para accesibilidad y SEO")
     orden = models.PositiveIntegerField(default=0, verbose_name="Orden")
     activo = models.BooleanField(default=True)
+    cotizacion = models.ForeignKey(
+        'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True, related_name='imagenes_landing',
+        verbose_name="Evento del cliente que aparece",
+        help_text="Solo si la foto muestra a un cliente o su evento: para publicarla (Activo) debe haber una "
+                  "autorización de fotos vigente de esa cotización (Marketing → Autorizaciones).",
+    )
 
     class Meta:
         ordering = ['seccion', 'orden']
         verbose_name = "Imagen de la página web"
         verbose_name_plural = "Imágenes"
+
+    def clean(self):
+        super().clean()
+        _exigir_autorizacion_medios(self, 'FOTOS')
 
     def __str__(self):
         return f"{self.get_seccion_display()} — {self.titulo or 'Sin título'}"
@@ -2367,11 +2390,21 @@ class TestimonioLanding(models.Model):
     estrellas = models.PositiveIntegerField(default=5, verbose_name="Estrellas (1-5)")
     activo = models.BooleanField(default=True)
     orden = models.PositiveIntegerField(default=0)
+    cotizacion = models.ForeignKey(
+        'Cotizacion', on_delete=models.SET_NULL, null=True, blank=True, related_name='testimonios_landing',
+        verbose_name="Evento del cliente",
+        help_text="Cotización del cliente que lo escribió. Para publicarlo (Activo) debe haber una autorización de "
+                  "testimonio y de nombre vigente (Marketing → Autorizaciones).",
+    )
 
     class Meta:
         ordering = ['orden']
         verbose_name = "Testimonio de cliente"
         verbose_name_plural = "Testimonios"
+
+    def clean(self):
+        super().clean()
+        _exigir_autorizacion_medios(self, 'TESTIMONIO', 'NOMBRE')
 
     def __str__(self):
         return f"{self.nombre} — {self.evento}"

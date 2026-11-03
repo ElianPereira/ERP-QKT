@@ -682,10 +682,18 @@ class ContratoService:
     def _numero_contrato(self):
         from .models import ContratoServicio
         year = self.cot.fecha_evento.year if self.cot.fecha_evento else timezone.now().year
-        seq  = ContratoServicio.objects.filter(
-            cotizacion__fecha_evento__year=year
-        ).count() + 1
-        return f"CONT-{year}-{seq:04d}"
+        # El consecutivo sale del número más alto ya emitido con ese prefijo, no de
+        # contar contratos por año del evento: si una cotización cambia de año o se
+        # borra, el conteo baja y repite un número (pasó con CONT-2026-0004, COT-144).
+        prefijo = f"CONT-{year}-"
+        emitidos = ContratoServicio.objects.filter(
+            numero__startswith=prefijo
+        ).values_list('numero', flat=True)
+        ultimo = max(
+            (int(n[len(prefijo):]) for n in emitidos if n[len(prefijo):].isdigit()),
+            default=0,
+        )
+        return f"{prefijo}{ultimo + 1:04d}"
 
     def _clausulas_tipo(self):
         hora_ini = self._fmt_hora(self.cot.hora_inicio)

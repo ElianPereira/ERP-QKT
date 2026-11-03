@@ -119,14 +119,14 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 | Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
-**Estructura clave** (10 apps Django propias):
+**Estructura clave** (11 apps Django propias):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
@@ -135,6 +135,8 @@ pre-commit · CI en GitHub Actions.
   un dominio cada una; `reportes/services/*.py` centraliza reportes PDF/Excel.
 - `indicadores/` — KPIs de dirección (capacidad, equilibrio, plan óptimo anual, metas); solo
   superusuario, solo lectura sobre datos existentes + parámetros del propietario.
+- `marketing/` — prospectos (`Lead`, embudo derivado de mensajes/visitas/cotizaciones), motivos de pérdida y
+  retención, pauta de Meta y Google Ads, KPIs, decisiones, conversiones, referidos; solo superusuario (Issue #468).
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -168,7 +170,8 @@ cuando el tamaño del cambio la justifica, no un trámite obligatorio.
 
 ## Reglas para Claude Code Routines (sesiones automatizadas, sin supervisión)
 
-Además de todo lo anterior, este repo tiene dos **Routines** programadas
+Además de todo lo anterior, este repo tiene tres **Routines** programadas
+(Técnica, Operativa/Contable y Seguridad)
 (`claude.ai/code/routines`) que corren sin nadie mirando y sin pausa de
 aprobación — el detalle completo (prompts disparadores, frecuencia, modelo)
 vive en `docs/agente_instrucciones_erp.md`. `.claude/settings.json` es el
@@ -237,7 +240,8 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
 - [x] ~~Migración Cloudinary → DigitalOcean Spaces~~ — obsoleto: el
   storage ya es Cloudflare R2 (`STORAGES` en `core_erp/settings.py`), no
   hay migración pendiente. Ver Memoria 2026-09-24.
-- [ ] Pixel de Meta no instalado (campañas en Traffic, no Conversions).
+- [ ] Pixel de Meta: instalado en código (marketing fase 6) pero apagado hasta definir `META_PIXEL_ID`; falta la versión 2.7 del Aviso y
+  aprobar el texto de la casilla MARKETING antes de encender `META_CAPI_TOKEN` (campañas en Traffic, no Conversions).
 - [ ] **Registrar ante PROFECO el contrato propio de Evento/Pasadía**
   (Issue #318): la NOM-174-SCFI-2007, numeral 5.1, obliga a registrar los
   contratos de adhesión de eventos sociales. **Desde el 2026-09-25 se emite
@@ -272,12 +276,296 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-10-31 — **Marketing, fase 7: referidos, permiso de medios, reseñas y contenido** (Issue #468; sin zonas restringidas; migraciones
+  `marketing.0007` —`Referido`, `AutorizacionMedios`, `ResenaGoogle`, dos campos en `Lead`—, `comercial.0124` —FK opcional a
+  `Cotizacion` en `ImagenLanding` y `TestimonioLanding`— y `comunicacion.0020`, solo choices). **Referidos**
+  (`services/referidos.py`): lo gana quien recomienda cuando la cotización del recomendado queda CONFIRMADA (señal en `on_commit` y barrido
+  diario `mantener_referidos`, porque algunos cambios de estado usan `update()` sin señal); vigencia 12 meses, un uso. El beneficio es un
+  `Descuento` MANUAL **con `activo=False`** («Referido Evento/Pasadía/Hospedaje», se crean con `get_or_create`): inactivo, no sale en la lista
+  de descuentos manuales del admin ni se evalúa solo; solo el servicio lo aplica con `DescuentoService.aplicar` (totales y contabilidad
+  normales), con `productos` sincronizado en cada aplicación (si no hubiera productos elegibles **no se aplica**, porque `productos` vacío
+  significa «toda la cotización»). Base: Evento = producto con rol `BASE_EVENTO` + componente `fijo_por_evento` que parezca la renta (rol
+  `BASE_EVENTO`, o nombre con «quinta» y «renta»/«arrendamiento»; en `ItemCotizacion` cada fijo es su propia línea con `producto=hijo`);
+  Pasadía = `BASE_PASADIA_BASICO/PREMIUM`; Hospedaje = `HABITACION_HOSPEDAJE`; nunca extras ni persona extra. **No acumulable**: se compara
+  `DescuentoService.monto_potencial` (nuevo, solo lectura) contra lo ya descontado; si el referido no gana (empate gana lo existente) se
+  conserva sin gastarlo, si gana se revierten los `DescuentoAplicado` activos y se aplica; una cortesía o un descuento capturado a mano
+  bloquean el automático. **No se aplica solo al cotizar**: al crearse la cotización de quien tiene beneficio vigente se abre un `Pendiente`, y
+  una persona usa la acción «Aplicar beneficio de referido» en Cotizaciones. Al aplicar queda USADO; si esa cotización expira/cancela sin
+  confirmarse el beneficio se libera (como `Descuento.usos`). Se anula (REGISTRADO/GANADO) si la venta del recomendado se cancela o un
+  reembolso la deja bajo el anticipo que confirma; USADO no se revoca. Captura: `Lead.recomendado_por`/`_texto` (editables en «Prospectos»),
+  campo opcional «¿Quién te recomendó?» en el cotizador (solo si elige «Recomendación») y `quien_recomendo` en la herramienta
+  `crear_cotizacion` de Kooxi (solo lo que el cliente dijo solo; **no hay prompt nuevo ni confirma si la persona existe**). Empata **solo por
+  teléfono** (≥10 dígitos, único); un nombre se guarda como texto y lo resuelve una persona; nadie se recomienda a sí mismo. Aviso al
+  ganar: WhatsApp (ventana abierta o plantilla `META_WA_PLANTILLA_REFERIDO`, texto en `docs/whatsapp_plantilla_referido.md`) y correo, solo
+  con MARKETING aceptado y sin `BajaWhatsApp`; si no sale por ningún canal, `Pendiente` para avisar a mano. La respuesta a la encuesta 4–5
+  invita a recomendar (sin porcentajes). **Permiso de medios** (`services/medios.py`): `AutorizacionMedios` (alcances FOTOS/TESTIMONIO/NOMBRE,
+  texto exacto con SHA-256, canal, wamid del botón; una viva por cotización; se revoca, no se borra); tras una encuesta 4–5 se pide con
+  botones `med:<id>:si|no` (solo con ventana abierta, MARKETING y sin baja; una vez por cotización; solo vale desde el teléfono del cliente).
+  `TestimonioLanding` (exige TESTIMONIO y NOMBRE) e `ImagenLanding` (FOTOS) ganaron `cotizacion` opcional: **con vínculo y activo exigen la
+  autorización vigente** (`clean()`); sin vínculo nada cambia. Revocar desactiva lo publicado. **Reseñas** (`services/resenas.py`, diario 09:00):
+  OAuth de refresco + `mybusiness.googleapis.com/v4/.../reviews`, apagado sin las cuatro `GOOGLE_BUSINESS_*`; guarda solo id, estrellas, fechas y
+  si tiene respuesta (nunca nombre ni texto); ≤3 estrellas, sin respuesta y de los últimos 14 días → `Pendiente` URGENTE QUEJA a DIRECCION,
+  idempotente por id. **Se agregó `GOOGLE` como origen válido** en `core_erp/test_variables.py` y en `docs/variables_entorno.md`. **Contenido**
+  (`services/contenido.py`, sin IA): hasta 3 líneas «Qué promover» en el resumen del lunes —sábados libres a 45 días (evento social, prioridad),
+  domingo libre con sábado ocupado (pasadía) y temporadas próximas—. **Sin probar contra Google real** (endpoint v4 de reseñas no verificado en
+  la documentación vigente). Pendiente del propietario: credenciales Google y `META_WA_PLANTILLA_REFERIDO` (someter la plantilla), confirmar que la
+  renta del Paquete Fiesta se detecta (revisar `Descuento «Referido Evento»` → productos tras la primera aplicación) y el texto legal del
+  permiso de medios con el abogado.
+
+- 2026-10-31 — **Marketing, fase 6: Conversions API y Pixel** (Issue #468; sin zonas restringidas salvo `legal/`, autorizada solo
+  para un BORRADOR del Aviso; migración `marketing.0006`, una tabla nueva). **No se pudo verificar la documentación de Meta**:
+  el contenedor no resuelve developers.facebook.com. El payload (docstring de `services/conversiones.py`) sale de lo conocido
+  de la API y debe probarse con «Probar eventos» (`META_CAPI_TEST_CODE`) antes de producción; dudas concretas: que el evento
+  personalizado `CotizacionEnviada` lo acepte el dataset de mensajería, el `action_source` de los eventos web posteriores al Lead
+  (`system_generated`) y la versión (`META_CAPI_API_VERSION`, v23.0). `EventoConversion` es un outbox (Lead, CotizacionEnviada,
+  Schedule, Purchase; único por prospecto y evento; `event_id` UUID; sin teléfono ni correo guardados: se leen del prospecto al enviar
+  y salen con SHA-256 normalizado). Se encola en `on_commit` desde el pipeline (`_cambiar_etapa`, `_crear`, `_mejorar_fuente`) y
+  **solo si hay atribución**: clic de anuncio de WhatsApp (`ctwa_clid` + `META_WA_WABA_ID`, `business_messaging`) o una solicitud del
+  cotizador web con `event_id`; sin eso no hay a qué anuncio acreditarlo y no se encola. **Purchase = cobrado sin IVA neto de
+  reembolsos al confirmarse** (`kpis.cobrado_sin_iva`, MXN, valor escrito exacto desde el Decimal, sin float); si la venta se cae
+  antes de enviarse, queda CANCELADO (estado extra al pedido). El consentimiento se evalúa **al enviar**: MARKETING vigente
+  (`LegalService.cliente_acepto` o el botón de promociones de la conversación) y sin `BajaWhatsApp` (una aceptación posterior la
+  anula) o queda OMITIDO_SIN_CONSENTIMIENTO. `enviar_eventos_conversion` (cada 15 min en el programador) reclama cada fila con un
+  UPDATE condicional, reintenta con 15 min x 2^(n-1) hasta 6 intentos y a los 3 fallidos en 7 días abre un `Pendiente`; rechazo
+  definitivo o evento de >7 días = FALLIDO (acción «Reintentar» en el admin «Conversiones»). IP y navegador (que Meta exige en
+  eventos web) viven en `contexto_web` solo hasta el estado terminal. `sincronizar_prospectos --desde` pausa el encolado (fechas viejas).
+  Apagado sin `META_CAPI_TOKEN` (ni encola ni envía). **Pixel web**: `{% pixel_meta %}` (`marketing/templatetags`) en la landing y el
+  cotizador; sin `META_PIXEL_ID` numérico no renderiza nada. Banner propio (Aceptar/Rechazar, `localStorage` con try/catch, botón
+  «Cookies» para cambiar); el script de Meta solo se inyecta tras aceptar. El cotizador manda `meta_event_id`, `fbp` y `fbc`
+  (estos dos solo con cookies aceptadas) en el POST; `cotizador_enviar` los valida y los entrega a `registrar_origen_web`
+  (el Lead del servidor usa el mismo `event_id` que el Pixel; si ya había un Lead pendiente de WhatsApp lo reemplaza). La
+  lógica de precios y de creación de cotización no se tocó. **CSP**: `politica_publica(path)` añade `connect.facebook.net`
+  (script) y `www.facebook.com` (img, connect) solo en `/` y `/cotizar*` y solo con `META_PIXEL_ID`; las APIs y el resto no cambian.
+  **Aviso de Privacidad v2.7 BORRADOR** (`legal/documentos_iniciales/aviso_privacidad_v2.7.md`, 9 marcadores `[CONFIRMAR:]`;
+  `DOCUMENTOS` del seed sigue en v2.6 y el candado impide publicarlo): cookies del Pixel, medición y remarketing como finalidad
+  secundaria (3.2 n.º 4), transferencia a Meta con consentimiento, retención de prospectos 1 año. **Pregunta para el abogado**: hoy
+  la casilla MARKETING del cotizador dice «comunicaciones promocionales»; enviar eventos a Meta exige que su texto cubra también
+  medición y remarketing (versión nueva del Aviso y del texto de la casilla antes de encender `META_CAPI_TOKEN`). Pendiente del
+  propietario: definir en `web` `META_PIXEL_ID`, `META_CAPI_TOKEN` (y en el Programador `META_CAPI_TOKEN`, `META_WA_WABA_ID`,
+  `META_PIXEL_ID`), probar con `META_CAPI_TEST_CODE`; QKT-Pages (landing estática) no se tocó: la landing que sirve el ERP sí lleva el banner.
+
+- 2026-10-31 — **Marketing, fase 5: acciones en Meta** (Issue #468; **mueve dinero**, autorizada por el propietario; sin zonas
+  restringidas; migración `marketing.0005`, una tabla nueva). `ProveedorMeta` gana `leer_estado`, `pausar`, `reanudar` y
+  `ajustar_presupuesto` (POST a la Graph API con el token en el cuerpo, nunca en la URL; `daily_budget` en centavos). Lee con
+  `META_ADS_TOKEN` (`ads_read`) y **escribe solo con `META_ADS_TOKEN_ESCRITURA`** (permiso `ads_management`); sin él, error claro y
+  nada sale. **Presupuesto solo de campaña (CBO)**: si Meta no trae `daily_budget` en la campaña pero sí en sus conjuntos, se
+  detecta y se rechaza («ajústalo en Meta»); tampoco la suma del tope ve presupuestos de conjuntos. `marketing/services/acciones.py`
+  (`ejecutar(decision_id, usuario)`, botón en la tarjeta tras aprobar): solo APROBADA, vigente, no INFORMATIVA y superusuario.
+  **Interruptor `ERP_MARKETING_ACCIONES_ACTIVAS` (default False)**: apagado todo es SIMULACION (usa lo ya sincronizado, cero red, la
+  decisión sigue APROBADA); encendido es REAL. **Idempotencia** (patrón de cancelaciones): bajo `select_for_update` se crean las
+  filas `AccionAnuncio` en EJECUTANDO y se confirman antes de hablar con Meta; un segundo clic ve «ya se ejecuta»; una ejecución
+  sin resultado de >10 min no se repite: FALLIDA + pendiente URGENTE a Dirección para verificar en Meta. **Revalidación**: se lee
+  el estado vivo; si el presupuesto o el estado ya no son los de la propuesta, la decisión pasa a FALLIDA sin enviar nada. **Topes**:
+  ±20 % por acción sobre el valor vivo (redondea hacia adentro, nunca excede; en una reasignación el monto se limita al 20 % de
+  ambas) y `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO`: si el cambio SUBE la suma de presupuestos diarios activos (leída de Meta en modo
+  real), la suma posterior no puede excederlo; **vacío = no se permite subir**; bajar o mover (neto cero) siempre se permite; un
+  bloqueo por tope deja la decisión APROBADA (reintentable si Dirección sube el tope). REASIGNAR = baja primero, sube después; si
+  el segundo falla se revierte el primero (fila `reversion`), y si la reversión falla también queda FALLIDA con aviso URGENTE. Pausar
+  algo ya pausado no envía nada; reanudar solo si está PAUSED. `AccionAnuncio` («Acciones», solo lectura) no se edita ni borra una
+  vez OK/FALLIDA; la respuesta se trunca a 500 caracteres y se enmascaran ambos tokens. **Pendiente del propietario**: crear/ampliar el
+  usuario del sistema con `ads_management`, definir `META_ADS_TOKEN_ESCRITURA` y `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO` en `web`, probar
+  primero en simulación y encender `ERP_MARKETING_ACCIONES_ACTIVAS` solo después; sin probar contra la Graph API real.
+
+- 2026-10-31 — **Marketing, fase 4: decisiones** (Issue #468; sin zonas restringidas; migraciones `marketing.0004` —tabla
+  `Decision` y 8 umbrales nuevos en `ParametroMarketing`— y `comunicacion.0019`, solo choices). `marketing/services/decisiones.py`:
+  `generar_decisiones_marketing` (08:10 en el programador, tras el snapshot) corre 10 reglas y cada propuesta es un
+  `comunicacion.Hallazgo` (tipos `MKT_*`, estado nuevo `ATENDIDO`) más una `marketing.Decision` con `accion_propuesta` JSON
+  (PAUSAR / AJUSTAR_PRESUPUESTO / REASIGNAR / INFORMATIVA) que ejecuta la fase 5. Reglas: pausar anuncio
+  (gasto ≥ $1,500 en 14 días y 0 cotizaciones; sin prospectos atribuidos a ningún anuncio = datos insuficientes), reasignar
+  (CAC ≥ 30 % mayor con muestra en ambas; mueve 20 % del menor presupuesto), escalar +20 % (CAC bajo el tope en los
+  `SnapshotKPI` de hoy, −7 y −14 días, agenda a 60 días < 60 %), ocupación ≥ umbral a 30 días → −20 % por campaña, ≥ 4 días de
+  fin de semana libres a 45 días → +20 % a campañas de evento/pasadía (agenda = `comercial.disponibilidad`: confirmadas +
+  `BloqueoFecha`), caja (pauta del mes por gastar + costos fijos de Indicadores vs anticipos pronosticados + saldos de
+  confirmadas con plazo ≤ 30 días; **costos fijos en cero = datos insuficientes**), concentración > 60 % de un canal, gasto de
+  ayer > 2× el promedio previo (≥ 4 días), frecuencia > máxima (≥ 1,000 impresiones) y mes con diferencia de conciliación.
+  **Idempotencia**: restricción única parcial por (regla, objeto) abierta y, además, la misma regla/objeto no se repite en 14
+  días aunque se rechace (si no, un «no» volvería cada mañana); caduca a los 14 días (EXPIRADA, hallazgo IGNORADO); posponer
+  = 7 días y vuelve a PENDIENTE. «Datos insuficientes» solo va a log y a la salida del comando. **Prospecto sin respuesta** no
+  es decisión: `revisar_respuesta_prospectos` (cada 5 min) abre `Pendiente` URGENTE tipo `PROSPECTO` al ENCARGADO, una vez por
+  prospecto, de 8:00 a 20:00 Mérida (lo escrito de noche cuenta desde las 8:00; sin texto del cliente). **Resumen del lunes**:
+  `texto_resumen` ganó el bloque «Marketing» (gasto de la semana; prospectos, cotizaciones y ganados; CAC de 90 días del servicio con
+  más gasto contra su tope, o ROAS cobrado si no hay CAC) y hasta 3 decisiones con enlace; un fallo del bloque no tumba el
+  resumen. Las decisiones **no llevan botones de WhatsApp** (aprobar es solo superusuario con 2FA): se decide en la sección
+  «Decisiones» de la pantalla Marketing (POST + CSRF + `data-qkt-confirmar` al aprobar); aprobar deja `APROBADA` con
+  `decidido_por/en`, y el hallazgo `ATENDIDO`. Ignorar el hallazgo desde Comunicación rechaza la decisión; «Crear tarea» no
+  aplica a hallazgos `MKT_*`. Admin «Decisiones» de solo lectura. Pendiente del propietario: revisar los umbrales en Supuestos.
+
+- 2026-10-31 — **Marketing, fase 3: indicadores y pantalla «Marketing»** (Issue #468; sin zonas restringidas; migración
+  `marketing.0003`, dos tablas nuevas). `ParametroMarketing` (admin «Supuestos», oculto con `hide_models`, se abre desde
+  la pantalla; un juego activo, uno nuevo desactiva el anterior): reinversión 30 %, tope de CAC manual (JSON por servicio),
+  muestra mínima 10 prospectos, ventana 90 días, ciclos de venta (evento 120, pasadía/hospedaje 30), `dias_sin_respuesta`
+  15 (sustituye la constante de `pipeline`, que ahora lo lee del vigente) y `prob_etapa` (supuesto: COTIZADO 0.30,
+  VISITA_AGENDADA 0.20, CONTACTADO 0.05, NUEVO 0.02). `marketing/services/kpis.py` (fórmulas y unidades en el docstring):
+  todo sin IVA; **contratado** = `venta_neta` de Indicadores, **cobrado** = `total_pagado_neto()` (ya resta reembolsos)
+  llevado a base con `× base / precio_final` (así el ISH tampoco cuenta), **neto** = cobrado − gasto. ROAS oficial =
+  cobrado / gasto. Atribución por cohorte (mes del primer contacto vs gasto de ese mes); madura = fin de mes + ciclo del
+  servicio ya pasó. **El total mezcla todos los prospectos (también orgánicos); por campaña y servicio solo los atribuidos
+  por `anuncio_id`, y el servicio es el de la campaña** (campañas sin servicio no aparecen en «Por servicio»). Una razón sin
+  base (gasto 0, sin ganados, muestra pequeña) es `None` con su motivo; nunca excepción. Tope de CAC = margen de una venta
+  (`economia_servicio.mc`; hospedaje × noches-habitación promedio) × reinversión. Semáforo por servicio: error si CAC >
+  tope, alerta si ROAS cobrado < 1, éxito si hay dato y nada falla. Pronóstico de anticipos = prob(etapa) × valor sin IVA ×
+  `porcentaje_anticipo_confirmacion()` de prospectos abiertos con cotización BORRADOR/COTIZADA. `SnapshotKPI` diario
+  (`generar_snapshot_marketing`, 07:40 en el programador; idempotente por fecha/servicio/campaña; `tipo_servicio` vacío =
+  total, `campana` nula = todas; cada fila resume la ventana que termina en la fecha). Pantalla
+  `/admin/marketing/tablero/` (custom_link «Marketing», solo superusuario, sin Chart.js). Pendiente del propietario:
+  capturar precio y costo en Indicadores (sin margen no hay tope), marcar el servicio de cada campaña y revisar las
+  probabilidades por etapa; el ROAS de cohortes no maduras sube con el tiempo, no juzgarlo antes.
+
+- 2026-10-31 — **Marketing, fase 2: pauta de Meta** (Issue #468; sin tocar zonas restringidas; migración `marketing.0002`, tres
+  tablas nuevas; contabilidad solo se LEE). `services/proveedores.py`: interfaz `ProveedorAnuncios` + `ProveedorMeta` (REST con
+  `requests`, insights `level=ad`/`time_increment=1`, paginación por `paging.next`, código 190 → `TokenVencidoError`, el token
+  nunca sale en mensajes; `pausar/reanudar/ajustar_presupuesto` lanzan `NotImplementedError` hasta la fase 5). Apagado si falta
+  `META_ADS_TOKEN` o `META_ADS_CUENTA_ID`. `Campana`/`Anuncio`/`GastoPublicitario` («Campañas», «Anuncios», «Pauta»; «Gastos»
+  chocaría con comercial): la sincronización solo pisa lo que viene de Meta, nunca `objetivo`/`tipo_servicio` (los captura el
+  propietario). Unicidad (anuncio, fecha, fuente) y (campaña, fecha, fuente) si no hay anuncio. **Solo se importa si la cuenta
+  factura en MXN** (se consulta `currency`); si no, falla sin guardar. `Lead.anuncio` es una propiedad (liga `anuncio_id` con
+  `Anuncio.id_externo`), sin FK. `sincronizar_gasto_anuncios [--desde] [--hasta]` (diario 07:10 en el programador; por defecto
+  últimos 3 días, upsert idempotente; un monto corregido regresa la fila a conciliación PENDIENTE) y, desde el día 5, concilia el
+  mes anterior. **Criterio de conciliación**: gasto Meta (sin IVA) → `con_iva` vs cargos del mes de `MovimientoEstadoCuenta` cuyo
+  concepto dice META/FACEBOOK/FACEBK y cuya póliza APLICADA toca la cuenta de `GASTO_PUBLICIDAD` (o subcuenta); se tolera el
+  mayor entre `ERP_MARKETING_TOLERANCIA_PCT` (10 %) y `ERP_MARKETING_TOLERANCIA_MINIMA` ($500) porque Meta cobra por umbral;
+  los cargos de Meta sin clasificar no cuentan pero se reportan; sin estado de cuenta del mes no evalúa. Diferencia → Pendiente
+  `marketing_conciliacion:AAAA-MM` y `estado_conciliacion`. Salud: `debug_token` (token de usuario del sistema no vence) →
+  Pendiente URGENTE si es inválido o vence en <14 días; una falla de sync deja Pendiente y el comando termina en error.
+  **Pendiente del propietario**: crear usuario del sistema en Business Manager con permiso `ads_read` sobre la cuenta publicitaria,
+  generar su token permanente y definir en `web` y Programador `META_ADS_TOKEN`, `META_ADS_CUENTA_ID` (y opcional
+  `META_ADS_API_VERSION`); luego `sincronizar_gasto_anuncios --desde 2026-07-01`; marcar el servicio de cada campaña en «Campañas».
+
+- 2026-10-31 — **Marketing, fase 1: prospectos** (Issue #468; sin tocar zonas restringidas; migración `marketing.0001`, dos
+  tablas nuevas). App `marketing/`: `Lead` (llaves a conversación, cliente y cotización; nunca copia montos) y `LeadEvento`
+  (bitácora inmutable). **La etapa se deriva, no se captura**: `services/pipeline.sincronizar()` (idempotente) lee mensajes,
+  visitas y cotizaciones desde `fecha_primer_contacto`: GANADO (cot CONFIRMADA/EJECUTADA/CERRADA) > COTIZADO (BORRADOR/
+  COTIZADA) > VISITA_AGENDADA > CONTACTADO > NUEVO, y solo avanza. Reversas: GANADO sin venta confirmada → PERDIDO/CANCELO;
+  COTIZADO con todas sus cotizaciones EXPIRADA/CANCELADA → PERDIDO sin motivo; 15 días sin interacción → PERDIDO (una visita
+  futura lo evita). **Contactar no cuenta la bienvenida**: `AVISO_INICIAL`/`AVISO_ESPERA`/`MENSAJE_HUMANO` y los mensajes
+  `automatico` del agente no pasan a CONTACTADO. Identidad por teléfono normalizado (últimos 10 dígitos) o por cliente; los
+  números del directorio (`rol_de_telefono`) y las cotizaciones `es_historica` nunca generan prospecto. Un contacto nuevo crea,
+  reutiliza el abierto, **reabre** un PERDIDO de <90 días o crea otro si pasó más (o si el GANADO terminó su servicio hace
+  >30 días); un GANADO vivo no crea (post-venta). **Un contacto anterior al cierre del prospecto no lo reabre** (`momento`):
+  el barrido de 2 días lo reabría si el cliente escribió el día en que la cotización expiró. Fuente: anuncio de la conversación
+  (solo si nació ≤2 días antes del primer contacto, así un anuncio viejo no se hereda a una compra nueva) > RECURRENTE >
+  «Cómo nos encontró»/`Cliente.origen` > WHATSAPP/OTRO; las genéricas se reemplazan con evento FUENTE. Señales en `on_commit` y
+  dentro de try/except (mensaje, anuncio, visita, cotización, pago). Barrido `sincronizar_prospectos [--desde]` (diario 06:40 en
+  el programador): con `--desde` reconstruye un solo prospecto por teléfono (no reproduce reaperturas pasadas). **Motivos**:
+  Haiku con `json_schema` sobre los últimos 30 mensajes (máx. 20 por corrida, sin loguear texto) → origen KOOXI; sin llave o sin
+  mensajes del cliente, regla (cotización cancelada → CANCELO, si no SIN_RESPUESTA) → SISTEMA; corregirlo en el admin
+  «Prospectos» deja origen USUARIO y evento. **Retención**: PERDIDO que nunca fue GANADO y sin interacción >365 días se
+  anonimiza (nombre, teléfono, `anuncio_clid`, conversación y cliente a vacío; conserva fuente, anuncio, fechas y motivo; la
+  cotización ligada no se toca). Admin solo superusuario, sin alta ni borrado. Pendiente del propietario: tras el deploy
+  correr `sincronizar_prospectos --desde 2026-07-01` una vez para sembrar el histórico.
+
+- 2026-10-31 — **Marketing, fase 8: Google Ads** (Issue #468; sin zonas restringidas; migración `marketing.0008`, solo agrega campos y
+  cambia una restricción). `ProveedorGoogle` (REST, `searchStream` de GAQL, OAuth de refresco, developer token, `login-customer-id`
+  opcional; `cost_micros` se suma y se convierte una sola vez a pesos con ROUND_HALF_UP) es **solo lectura**: las acciones de un clic
+  siguen siendo únicamente de Meta (`decisiones` ya solo propone sobre campañas META). Apagado si falta cualquiera de las cinco
+  `GOOGLE_ADS_*` básicas; el gasto se importa solo si la cuenta factura en MXN. **El gasto de campaña que ningún anuncio explica
+  (Performance Max, etc.) entra como fila de campaña sin anuncio** (`GastoPublicitario.anuncio` nulo, fuente `GOOGLE_API`); si después
+  los anuncios lo explican, esa fila se pone en cero (no se borra). `sincronizar_gasto_anuncios` recorre Meta y Google (un proveedor caído
+  no detiene al otro; el comando termina en error si alguno falló) y concilia el mes anterior de cada plataforma: cargos del banco con
+  concepto `GOOGLE *ADS…` (no Workspace ni Cloud), pendiente `marketing_conciliacion:google:AAAA-MM`. **Atribución**: gclid/gbraid/wbraid
+  se leen de la URL en la landing y el cotizador (`{% captura_google %}`, `localStorage` 90 días con try/catch, sin banner propio) y
+  viajan en el POST de `cotizador_enviar`; `conversiones_google.registrar_clic_web` los valida, los guarda en el `Lead` (nunca pisa un
+  clic ya guardado) y pasa la fuente a `GOOGLE_ANUNCIO` si era genérica o `GOOGLE` (no pisa `META_ANUNCIO`). Precios y creación de
+  cotización no se tocaron. **El clic no dice qué anuncio fue**: los prospectos de Google se miden por fuente, en el nuevo panel «Por
+  plataforma» del tablero (la campaña de Google muestra gasto sin prospectos). **Conversiones offline**: la misma bandeja
+  (`EventoConversion.plataforma`, única por prospecto, plataforma y evento), mismo consentimiento MARKETING/baja evaluado al enviar,
+  mismos reintentos (15 min x 2^(n-1), 6 intentos) y mismo programador; solo `Lead` y `Purchase` (cobrado sin IVA neto de reembolsos,
+  MXN, valor exacto desde el Decimal), con `orderId` = `event_id` para no contar doble; ventana de 90 días (Meta, 7); cada evento
+  necesita su acción (`GOOGLE_ADS_CONVERSION_LEAD`/`_COMPRA`), si no, no se encola. El clic se lee del prospecto al enviar y se borra al
+  anonimizar. **No se pudo verificar la documentación de Google** (el contenedor no resuelve developers.google.com): versión por
+  defecto `v22` (`GOOGLE_ADS_API_VERSION`), nombres de códigos de error de la carga (`TRANSITORIOS`, `YA_EXISTE`) y forma del
+  payload salen de lo conocido; probar con una conversión de prueba antes de producción. **Pregunta para el abogado**: igual que Meta,
+  la casilla MARKETING debe cubrir medición y envío del clic a Google (Aviso v2.7). Pendiente del propietario: ver «Google Ads» en el
+  reporte de la fase (cuenta, developer token, OAuth, dos acciones de conversión con importación por clic, variables en `web` y
+  Programador) y correr `sincronizar_gasto_anuncios --desde 2026-07-01`.
+
+- 2026-10-31 — **Auditoría de seguridad y Rutina de Seguridad** (Issue #460, PRs #461-#463, cerrado). Sin críticos;
+  el alto era que contratos, CFDI y comprobantes vivían en el bucket R2 público con nombres enumerables: ya están en el
+  privado con `storage_privado_con_respaldo` y `ERP_R2_PRIVADO_OBLIGATORIO=True` en `web` y Programador. CSP del
+  portal y del admin en Report-Only desde el 31/10 (revisar `/csp-report/` antes de activar `ERP_CSP_*_ACTIVO`).
+  Nueva Routine semanal de Seguridad (prompt en `docs/agente_instrucciones_erp.md`, Routine 3): avisos de la semana
+  cruzados con el lock, pip-audit, CI de main, SHA de Actions, diff de 7 días y producción en Railway solo lectura;
+  reporte en `docs/rutinas/seguridad_<fecha>.md` y PR automático solo para subir versiones o fijar SHA.
+
+- 2026-10-30 — **El filtro de Kooxi también detenía el correo que el cliente dio para su solicitud ARCO** (segunda corrida de
+  `arco_acceso` tras el PR #458: el folio ya pasaba, pero Kooxi repetía el correo escrito en el chat y `services_guardia` lo
+  tomaba por ajeno). Ahora `revisar_filtro` permite los correos que el propio cliente escribió en esa conversación
+  (`MensajeWhatsApp` ENTRADA); uno que solo salió de una respuesta del agente sigue deteniéndose. El corredor de evals guarda
+  el mensaje del cliente como el webhook. Sin migración.
+
+- 2026-10-30 — **El filtro de Kooxi detenía el folio ARCO** (lo encontró `evaluar_agente`, caso `arco_acceso`, 49/50 tras los
+  PR #453–#456; US$3.15). `ARCO-` + 19 dígitos son más de 10 dígitos seguidos y `services_guardia` los tomaba por un
+  teléfono ajeno: todo cliente que registrara una solicitud ARCO por el chat recibía `RESPUESTA_SEGURA` en vez de su folio
+  (la solicitud sí se creaba). Ahora `_RE_FOLIO_ARCO` se quita antes de buscar teléfonos, igual que las fechas; una CLABE
+  junto al folio sigue deteniéndose. Sin migración.
+
+- 2026-10-30 — **Códigos de verificación por WhatsApp** (PR 3 de 3; pedido del propietario: «¿hay forma de que el código
+  se mande por WhatsApp?»; sin migraciones, sin zonas restringidas). `comunicacion/services_codigos.py`
+  (`enviar_codigo_whatsapp`): si el cliente **no tiene correo** y sí un teléfono válido, la firma del contrato
+  (`services_firma.solicitar_codigo`) y las solicitudes de cambio/cancelación (`services_cancelacion.enviar_codigo`) mandan el
+  código a su WhatsApp; con correo todo sigue igual por correo. Dentro de la ventana de 24 h sale como texto libre; fuera,
+  con la plantilla de autenticación `META_WA_PLANTILLA_CODIGO` (código en cuerpo y botón «copiar», texto en
+  `docs/whatsapp_plantilla_codigo.md`, **pendiente de someter en Meta**; sin ella y sin ventana no se envía y el cliente ve
+  «No pudimos enviar el código»). El código no se guarda en claro ni en la bitácora (el registro dice solo el motivo);
+  `codigo_canal`/`codigo_destino` guardan WHATSAPP y el teléfono, y el portal solo muestra «WhatsApp terminado en NNNN».
+  Kooxi puede iniciar cambio/cancelación de un cliente sin correo: el código llega a ese mismo chat (ya se exigía que
+  escribiera desde el número registrado). Sigue pendiente el aviso «contrato listo para firmar», que solo sale por correo
+  (el cliente sin correo lo encuentra en su portal, cuyo enlace le dio Kooxi).
+
+- 2026-10-30 — **Kooxi cotiza sin correo** (pedido del propietario tras el chat COT-150; PR 2 de 3, sin migraciones y
+  **sin tocar `legal/`**). `crear_cotizacion` ya no exige `correo` (si viene y es inválido, sigue rechazando). El prompt
+  pide el correo con amabilidad, lo vuelve a ofrecer **una sola vez** sin decir que sea requisito y, si tampoco lo da,
+  crea la cotización con el celular como medio de contacto. La evidencia de consentimiento (`AceptacionLegal.correo`
+  es obligatorio) guarda `<teléfono>@sin-correo.whatsapp.invalid` y la prueba real sigue siendo el wamid del botón
+  (`referencia_externa`); `Cliente.email` queda vacío. Sin correo no hay código de cancelación/cambio
+  (`services_cancelacion` ya lo rechaza con mensaje limpio) y el prompt manda esos casos a una persona; el código de la
+  firma del contrato y el aviso de contrato listo siguen siendo solo por correo (PR 3).
+
+- 2026-10-30 — **Kooxi: bienvenida corta y un solo mensaje al crear la cotización** (chat real COT-150; sin zonas
+  restringidas ni migraciones). `AVISO_INICIAL` vuelve a decir qué atiende (*eventos, pasadías y hospedaje*) en 3
+  párrafos, conservando «inteligencia artificial», la opción de persona y el enlace al aviso; **las conversaciones abiertas
+  lo reciben una vez más**. El prompt prohíbe repetir presentación. Antes el cliente recibía dos mensajes: el resumen de
+  Kooxi y el aviso automático (`notificar_cotizacion` origen WEB) con el portal. Ahora `crear_cotizacion` llama a
+  `crear_cotizacion_solicitud(..., notificar_whatsapp=False)` (el correo sale igual) y deja el enlace en
+  `conv.enlace_portal_pendiente`; `_enviar_respuesta` lo pega al final de la respuesta **después** del filtro de guardia
+  (el modelo nunca ve el token) y, si ese mensaje no sale, cae al aviso automático para no perder el enlace. La web y las
+  cotizaciones del ERP no cambian.
+
+- 2026-10-26 — **Formato en bloques para todos los mensajes de WhatsApp** (Issue #450; pedido del propietario: «hacer lo
+  mismo de la estructura del texto para todo»; sin zonas restringidas, sin migraciones, mismas claves de idempotencia,
+  botones y destinatarios). **Fase A (equipo)**: toda llamada a `services_pendientes._enviar_aviso` pasa un `Aviso`;
+  la rama de texto suelto se borró y `comunicacion/tests/test_formato_avisos.py` recorre el código con `ast` y falla si
+  alguien vuelve a pasarle un `str`. Convertidos: pendientes (tomar, copia por hora, resumen diario, que ahora trae el
+  conteo, los más viejos, operación y programador como viñetas), Dirección (resumen del lunes, hallazgos, nómina),
+  contador (CFDI ambiguo), inspección del depósito, compras, propuestas de FAQ, copia de la terminal y tope de Kooxi
+  (`_avisar_propietario` recibe un `Aviso` y ya manda por `_enviar_aviso`: fuera de la ventana usa la plantilla del
+  equipo de 4 parámetros en vez de la de operaciones en un renglón), renovaciones y vencimientos de cumplimiento
+  (`cumplimiento/services_avisos` ya no habla directo con Meta: sus tests parchean `services_pendientes`; un fallo de
+  envío queda como «No se pudo enviar» en `AvisoVencimiento.detalle` y el error en el log, porque `_enviar_aviso` nunca
+  lanza), el ACEPTO al número nuevo y el aviso de horario y checklist de operaciones (viñeta por tarea y cierre «Responde
+  LISTO al terminar», solo en el último mensaje si se parte en varios). Las alertas de nueva cotización, pago y
+  contracargo cambian **solo su rama de texto libre**; sus plantillas y parámetros quedan idénticos y la copia por
+  correo conserva su cuerpo. **Fase B (cliente)**: `formato_wa.bloques(*parrafos, datos, enlace, pregunta)` (párrafos
+  separados por línea en blanco, viñetas desde 3 datos, enlace solo y una pregunta al final) arma `AVISO_INICIAL`,
+  `MENSAJE_HUMANO`, `AVISO_ESPERA`, `MENSAJE_CONSENTIMIENTO`, `CONFIRMACION_BAJA`, `CONFIRMACION_ACEPTO`, la encuesta,
+  la cotización en texto libre y los avisos de visitas. **`AVISO_INICIAL` cambió de texto, así que las conversaciones
+  abiertas lo reciben una vez más** (igual que en 2026-10-06). Los avisos de cancelación al cliente comparten texto con el
+  correo, por eso en WhatsApp solo se parte una oración por párrafo (`re.split`) y el correo no cambió. El acuse ARCO
+  sale por correo, no por WhatsApp: no se tocó su texto. Respuestas fijas a botones del equipo: `✅ Listo…` al inicio.
+  **Fase C**: `docs/whatsapp_plantillas_formato.md` trae el cuerpo en bloques de cada plantilla al cliente y al equipo con
+  las mismas variables y en el mismo orden para volver a someterlas en Meta; hasta que se aprueben siguen las vigentes.
+
+- 2026-10-26 — **Visitas de punta a punta y llegadas avisadas por Kooxi** (caso real del 25/10: la visita de Guadalupe se atendió bien, pero luego llegaron personas sin cita y, a un cliente de pasadía que escribió «¿cómo puedo tener acceso al local?», Kooxi le mandó la ubicación y le ofreció agendar). **(1) Llegadas**: herramienta `avisar_llegada` (`situacion` ya_llego/en_camino; lógica en `comunicacion/services_llegada.py`) busca por el número qué trae hoy (visita viva de hoy, o reservación apartada cuyo rango incluye hoy) y deja un `Pendiente` URGENTE tipo **LLEGADA** (`comunicacion.0018`, solo choices) al ENCARGADO con quién es, a qué viene, hora, personas, teléfono y, en una reservación, el **saldo por cobrar**; sin cita también avisa («Sin cita ni reservación», y si ya había visitado antes). Botón «Ya lo recibí»; vence a los 30 min y escala a Dirección como cualquier pendiente. Un mismo aviso abierto no se repite en 3 h; «en camino» → «ya llegó» sí sale otra vez. El turno del modelo trae `contexto_de_hoy(conv)` («[Contexto del sistema: tiene Pasadía hoy…]») para que un «¿cómo entro?» se lea como llegada; el prompt prohíbe dar ubicación u ofrecer agendar en ese caso. Evals `llegada_*`. **(2) Recordatorios según cuánto falta** (`services_visitas`): al confirmar, el cliente recibe fecha, domicilio, Maps y «escríbeme «ya llegué»»; el otro número del equipo se entera y quien confirmó recibe el plan de recordatorios. Víspera (18:00): cliente + resumen de las visitas de mañana al equipo. Mismo día (`enviar_avisos_previos_visitas`, cada 10 min en el programador): cliente 2 h antes **solo si se confirmó antes de eso** (con botón «Ya llegué» `lleg:<visita>` si su ventana de 24 h está abierta; solo vale desde el teléfono de esa visita, de hoy, y no pasa por el modelo), equipo 45 min antes (urgente); nada si el cliente ya avisó que llegó (`services_visitas.llego`). Idempotencia por clave en `ComunicacionCliente`, sin columnas nuevas. **(3) Formato de avisos al equipo**: `comunicacion/formato_wa.Aviso` (encabezado con marca 🔴/🔵, título en negritas, datos en viñetas, enlace en su renglón). `services_pendientes._enviar_aviso` acepta `Aviso` o texto suelto (los avisos que aún pasan texto siguen igual): con ventana, texto libre en bloques; sin ventana, la plantilla nueva `META_WA_PLANTILLA_AVISO_EQUIPO` de 4 parámetros (texto en `docs/whatsapp_plantilla_aviso_equipo.md`, **pendiente de someter en Meta**), y sin ella la de operaciones en un renglón separado por « · ». Ya lo usan los pendientes urgentes, el escalamiento, las visitas y las llegadas. El prompt de Kooxi gana reglas de formato para el cliente (párrafos cortos, negritas solo en el dato clave, viñetas con 3+ datos, enlaces solos). Pendiente del propietario: aprobar `aviso_equipo` en Meta y definir la variable en `web` y en el Programador.
+
+- 2026-10-24 — **Caída de 43 min por `DJANGO_ALLOWED_HOSTS` y tres fallas del pago de COT-144.** Tras el renombrado en el Raw Editor, el deploy de las 11:12 (Mérida) arrancó sin los dominios en `DJANGO_ALLOWED_HOSTS` (caía al default `localhost`): todo `erp.`/`quintakooxtanil.com` daba 400 (ERP, portal, cotizador, webhooks de Meta y Openpay). Se fijó con valor literal (`erp.quintakooxtanil.com,quintakooxtanil.com,www.quintakooxtanil.com,erp-qkt.up.railway.app`) y quedó en servicio a las 11:55. Lección: un `NUEVO=${{VIEJO}}` se queda vacío en cuanto se borra `VIEJO`; tras renombrar, revisar que ninguna variable de `web` conserve un `${{…}}` a un nombre que ya no existe. Del pago de COT-144 (antes de la caída): **(1)** no llegó el aviso al encargado porque falta `META_WA_PLANTILLA_ALERTA_PAGO` (sin plantilla sale texto libre, que Meta no entrega fuera de la ventana de 24 h; texto para someter en `docs/whatsapp_plantilla_alerta_pago.md`); **(2)** el contrato automático falló por `CONT-2026-0004` duplicado: `_numero_contrato` contaba contratos por año del evento y ahora toma el más alto emitido con el prefijo; **(3)** Kooxi no daba Google Maps porque el filtro solo deja pasar `quintakooxtanil.com`: `MAPS_URL_QKT` es ahora la única excepción y `comercial.0122` actualiza la FAQ de ubicación.
+
+- 2026-10-24 — **Se retira el respaldo `legado=` de las variables** (Issue #424, adelantado a pedido del propietario: el Programador corría estable desde el 21/10). `core_erp/variables.env()` ya solo lee el nombre nuevo; los viejos no tienen efecto. Seguro porque en `web` cada nombre nuevo ya existía (como `NUEVO=${{VIEJO}}`) y el Programador lee `${{web.NUEVO}}`. CI y los workflows de IA pasan a `DJANGO_SECRET_KEY`/`DJANGO_DEBUG`/`DJANGO_ALLOWED_HOSTS`: **los tests locales se corren ahora con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`** (con `DEBUG=True` a secas ya no aplica y vuelven los 301 de `SECURE_SSL_REDIRECT`). El catálogo conserva la columna «Nombre anterior» solo como referencia. Pendiente del propietario: renombrar en el Raw Editor de `web` cada `VIEJO=valor` a `NUEVO=valor` (borrando la referencia) — mientras tanto funciona igual. De paso, el log del webhook de Openpay dice `USUARIO/SECRET`.
 - 2026-10-24 — **Estado de cuenta BBVA por correo** (Issue #401, desbloqueado por el propietario; sin tocar
   `contabilidad/services.py`, `legal/`, Openpay ni los parsers BBVA). Cloudflare Email Routing → Worker
   (`docs/cloudflare/email_worker_estados.js`, filtra por el secreto `BBVA_REMITENTES` y exige DKIM/DMARC alineado) → POST firmado a
   `/api/contabilidad/estados-cuenta/correo/` (`views_estados_correo.py`: HMAC-SHA256 de `"<timestamp>.<cuerpo>"` con
   `ERP_ESTADOS_CORREO_SECRET`, fail-closed, ±5 min, 413 sobre 15 MB, `request.read()` y no `request.body` porque Django
-  corta a 2.5 MB) → `services_estados_correo.py`. **Bitácora** `CorreoEstadoCuenta` (`contabilidad.0041`, aditiva: tabla,
+  corta a 2.5 MB) → `services_estados_correo.py`. **Bitácora** `CorreoEstadoCuenta` (`contabilidad.0042`, aditiva: tabla,
   `ORIGEN='CORREO'` y `CuentaBancaria.password_estado_cifrada`): el `.eml` se guarda en el bucket privado **antes** de
   procesar; `Message-ID` único (sin él, SHA-256 del cuerpo); un duplicado devuelve el registro existente marcado
   DUPLICADO **solo en memoria** (en la base conserva su resultado real). `procesar_correo` reserva el intento con un
@@ -296,7 +584,7 @@ salvo que queden obsoletas.
   mes anterior). `CADENA_POST_PROCESO` es el punto de enganche para las capas futuras (abonos por folio, gastos sin
   factura, preguntas al contador). Pendientes del propietario: `ERP_ESTADOS_CORREO_SECRET` en Railway, capturar la
   contraseña en la cuenta bancaria, ruta y Worker en Cloudflare, filtro de Gmail y prueba con el primer correo real (~1–2/11);
-  pasos en `docs/estado_cuenta_correo.md`. Migración: solo `contabilidad.0041`, corre sola en el deploy al mergear.
+  pasos en `docs/estado_cuenta_correo.md`. Migración: solo `contabilidad.0042`, corre sola en el deploy al mergear. **Ajustes con el primer correo real (3/11, octubre)**: llega de `clientes@bbva.mx` con asunto genérico, un ZIP AES que trae solo el XML y el PDF cifrado aparte (`<cuenta>_<AAAAMM>`, misma contraseña); el ERP ahora verifica la firma DKIM (`dkimpy`, `d=bbva.mx`, alineada con el From) antes de procesar, porque la cabecera `Authentication-Results` que revisa el Worker se falsifica en un correo enviado directo a la ruta (firma inválida → IGNORADO con pendiente; DNS caído → ERROR que se reintenta). El hash del cuerpo del `.eml` real coincide con su firma (`simple/simple`). `dkimpy` no compila con el setuptools de Debian del contenedor (`install_layout`): instalar con `pip install --use-pep517`; en Docker compila normal.
 
 - 2026-10-24 — **El folio ARCO no cabía en su columna** (lo encontraron los evals contra el modelo real): `SolicitudARCO.save()` armaba `ARCO-` + 20 dígitos = 25 caracteres sobre un `max_length=24`; PostgreSQL rechazaba toda solicitud ARCO (Kooxi y admin) y los tests no lo veían porque **SQLite no valida `max_length`**. Ahora el sello va a 19 dígitos y `test_folio_cabe_en_la_columna` lo fija. Sin migración. Evals del mismo día: 43/44 (el caso `pasadia_40` pedía una fecha ya pasada; se movió a 2027), US$2.32, corridos en un servicio temporal de Railway sin credenciales de WhatsApp/correo/Openpay.
 

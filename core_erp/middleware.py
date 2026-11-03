@@ -28,6 +28,8 @@ Toggles de entorno:
   - ERP_CSP_PUBLICO_SOLO_REPORTE (default False): la CSP pública en modo prueba.
   - ERP_CSP_PORTAL_SOLO_REPORTE (default False): activa la CSP Report-Only del portal.
   - ERP_CSP_ADMIN_SOLO_REPORTE (default False): activa la CSP Report-Only del admin.
+  - ERP_CSP_PORTAL_ACTIVO / ERP_CSP_ADMIN_ACTIVO (default False): CSP bloqueante
+    del portal / admin. Activar solo tras revisar los reportes de /csp-report/.
 """
 import logging
 import uuid
@@ -84,6 +86,9 @@ class CorrelationIdMiddleware:
 # interferir con Openpay/3-D Secure en el portal de pago). ---
 PERMISSIONS_POLICY = "geolocation=(), microphone=(), camera=()"
 
+# Las violaciones de las tres políticas se reportan aquí (core_erp/views_csp.py).
+CSP_REPORT_URI = '/csp-report/'
+
 # --- CSP bloqueante de páginas públicas (unión de lo que cargan landing y
 # cotizador): Google Fonts, Cloudinary (imágenes), jsDelivr (flatpickr) y el
 # mapa de Google. 'unsafe-inline' es necesario por sus <style>/<script> inline. ---
@@ -99,7 +104,8 @@ PUBLIC_CSP = (
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
     "frame-src https://www.google.com; "
     "connect-src 'self'; "
-    "upgrade-insecure-requests"
+    "upgrade-insecure-requests; "
+    f"report-uri {CSP_REPORT_URI}"
 )
 
 # --- CSP objetivo del portal de pago, SOLO Report-Only (no bloquea). Refleja
@@ -116,7 +122,8 @@ PORTAL_CSP_REPORT_ONLY_POLICY = (
     "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; "
     "script-src 'self' 'unsafe-inline' https://openpay.s3.amazonaws.com; "
     "connect-src 'self' https://api.openpay.mx https://sandbox-api.openpay.mx; "
-    "frame-src https://www.google.com"
+    "frame-src https://www.google.com; "
+    f"report-uri {CSP_REPORT_URI}"
 )
 
 # --- CSP objetivo del admin, SOLO Report-Only (no bloquea). Cubre lo que ya
@@ -141,8 +148,28 @@ ADMIN_CSP_REPORT_ONLY_POLICY = (
     # en el dashboard de Cloudflare. Detectado en la primera pasada real de
     # Report-Only (orden 37).
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; "
-    "connect-src 'self' https://cloudflareinsights.com"
+    "connect-src 'self' https://cloudflareinsights.com; "
+    f"report-uri {CSP_REPORT_URI}"
 )
+
+
+def _acepta_pixel(path):
+    """El Pixel de Meta (con su banner de cookies) vive solo en la landing y el cotizador."""
+    return path == '/' or path.startswith('/cotizar')
+
+
+def politica_publica(path):
+    """CSP de una página pública. Con `META_PIXEL_ID` y solo en la landing y el cotizador se
+    permiten el script del Pixel (connect.facebook.net) y sus avisos a www.facebook.com;
+    en las demás rutas públicas (APIs) y sin Pixel configurado queda la política estricta."""
+    if not (getattr(settings, 'META_PIXEL_ID', '') and _acepta_pixel(path)):
+        return PUBLIC_CSP
+    return (
+        PUBLIC_CSP
+        .replace("img-src 'self' data: ", "img-src 'self' data: https://www.facebook.com ")
+        .replace("script-src 'self' 'unsafe-inline' ", "script-src 'self' 'unsafe-inline' https://connect.facebook.net ")
+        .replace("connect-src 'self'; ", "connect-src 'self' https://www.facebook.com https://connect.facebook.net; ")
+    )
 
 
 def _es_pagina_publica(path):
@@ -180,23 +207,22 @@ class PublicSecurityHeadersMiddleware:
                 if getattr(settings, 'ERP_CSP_PUBLICO_SOLO_REPORTE', False)
                 else 'Content-Security-Policy'
             )
-            response[cabecera] = PUBLIC_CSP
+            response[cabecera] = politica_publica(path)
 
-        # 3) CSP Report-Only (no bloquea) en el portal de pago, opt-in.
-        elif (
-            getattr(settings, 'ERP_CSP_PORTAL_SOLO_REPORTE', False)
-            and path.startswith('/mi-evento/')
-            and not _tiene_csp(response)
-        ):
-            response['Content-Security-Policy-Report-Only'] = PORTAL_CSP_REPORT_ONLY_POLICY
+        # 3) CSP del portal de pago: bloqueante con ERP_CSP_PORTAL_ACTIVO,
+        # Report-Only con ERP_CSP_PORTAL_SOLO_REPORTE.
+        elif path.startswith('/mi-evento/') and not _tiene_csp(response):
+            if getattr(settings, 'ERP_CSP_PORTAL_ACTIVO', False):
+                response['Content-Security-Policy'] = PORTAL_CSP_REPORT_ONLY_POLICY
+            elif getattr(settings, 'ERP_CSP_PORTAL_SOLO_REPORTE', False):
+                response['Content-Security-Policy-Report-Only'] = PORTAL_CSP_REPORT_ONLY_POLICY
 
-        # 4) CSP Report-Only (no bloquea) en el admin, opt-in.
-        elif (
-            getattr(settings, 'ERP_CSP_ADMIN_SOLO_REPORTE', False)
-            and path.startswith('/admin/')
-            and not _tiene_csp(response)
-        ):
-            response['Content-Security-Policy-Report-Only'] = ADMIN_CSP_REPORT_ONLY_POLICY
+        # 4) CSP del admin: mismo esquema.
+        elif path.startswith('/admin/') and not _tiene_csp(response):
+            if getattr(settings, 'ERP_CSP_ADMIN_ACTIVO', False):
+                response['Content-Security-Policy'] = ADMIN_CSP_REPORT_ONLY_POLICY
+            elif getattr(settings, 'ERP_CSP_ADMIN_SOLO_REPORTE', False):
+                response['Content-Security-Policy-Report-Only'] = ADMIN_CSP_REPORT_ONLY_POLICY
 
         return response
 

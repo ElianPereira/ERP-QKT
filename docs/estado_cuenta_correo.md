@@ -13,6 +13,8 @@ Gmail (filtro) → estados@quintakooxtanil.com → Cloudflare Email Routing → 
 ## Qué hace el ERP
 
 - Guarda el `.eml` en el bucket privado antes de procesar (si algo falla, no se pierde).
+- Forma real (correo de octubre de 2026): un ZIP con AES que trae solo el XML y el PDF cifrado aparte, ambos
+  `<cuenta>_<AAAAMM>` y con la misma contraseña.
 - Acepta PDF, XML o un ZIP con contraseña (AES). Si vienen PDF y XML gana el XML cuando su parser exista;
   hoy solo el PDF tiene parser, así que se usa el PDF. Un PDF cifrado aparte se abre con la misma contraseña.
   El PDF original queda también dentro del `.eml` guardado.
@@ -40,10 +42,10 @@ Gmail (filtro) → estados@quintakooxtanil.com → Cloudflare Email Routing → 
    «Send to an email» → `quintakooxtanil@gmail.com` (temporal, solo para confirmar el reenvío de Gmail).
 4. **Gmail → Configuración → Reenvío y correo POP/IMAP**: agrega `estados@quintakooxtanil.com`; el código de
    confirmación llega al mismo Gmail (por el paso 3) y se confirma.
-5. **Gmail → filtro**: De = remitente de BBVA (y asunto típico) → «Reenviar a estados@quintakooxtanil.com».
-   Anota el remitente exacto del primer correo real.
+5. **Gmail → filtro**: `from:clientes@bbva.mx has:attachment filename:zip` → «Reenviar a
+   estados@quintakooxtanil.com». El asunto («Atención a Clientes BBVA») es genérico y no sirve para filtrar.
 6. **Worker**: crea el Worker con `docs/cloudflare/email_worker_estados.js`, carga sus secretos
-   (`ERP_ESTADOS_CORREO_SECRET` = el mismo de Railway, `ERP_URL`, `BBVA_REMITENTES` = el remitente del paso 5) y
+   (`ERP_ESTADOS_CORREO_SECRET` = el mismo de Railway, `ERP_URL`, `BBVA_REMITENTES` = `clientes@bbva.mx`) y
    cambia la acción de `estados@` a **«Send to a Worker»**.
 7. **Prueba**: reenvía a mano el último correo de BBVA a `estados@…` y revisa Contabilidad → Correos. Con el
    `.eml` real también puedes usar la acción «Reprocesar». **Nunca subas el `.eml` al repo** (trae datos reales).
@@ -54,6 +56,11 @@ Gmail (filtro) → estados@quintakooxtanil.com → Cloudflare Email Routing → 
   el dominio de ese remitente (cabecera `Authentication-Results` que agrega Gmail). Sin eso cualquiera podría mandar un
   PDF falso a `estados@…` con el `From` de BBVA. Si el primer correo real no pasa, pon `BBVA_AUTENTICACION = no` en el
   Worker **solo** para depurar y quítalo después.
+- **El ERP verifica la firma DKIM por su cuenta** (`dkimpy`): el `.eml` debe traer una firma válida de `bbva.mx`
+  alineada con el `From`; la cabecera que revisa el Worker se puede falsificar en un correo enviado directo a la
+  ruta, la firma no. BBVA firma con `d=bbva.mx s=s1` en modo `simple/simple` y la firma sobrevive al reenvío de Gmail
+  (verificado con el correo real de octubre de 2026). Firma inválida o ajena → «Ignorado» con pendiente a Dirección;
+  si la llave no se pudo consultar (DNS) → «Error» y se reintenta.
 - El ERP vuelve a validar la firma HMAC, el número de cuenta y el formato; el cuadre de saldos con el mes anterior queda
   como advertencia. Un mes ya cargado manda: si se colara un estado falso primero, el verdadero saldría «Ignorado».
 - La contraseña del estado se cifra con la misma llave Fernet que la e.firma (`ERP_SAT_FIEL_CIFRADO_SECRET`): si la
@@ -68,6 +75,7 @@ Gmail (filtro) → estados@quintakooxtanil.com → Cloudflare Email Routing → 
 | Resultado «Error: contraseña incorrecta» | Recaptura la contraseña en la cuenta bancaria; luego «Reprocesar». |
 | «Error: número de cuenta…» | El «Número de cuenta» de la cuenta bancaria no coincide con el del estado. |
 | «Ignorado: ya estaba cargado» | Normal si lo subiste a mano; el cargado a mano manda. |
+| «Ignorado: no trae una firma DKIM válida de BBVA» | El correo se alteró al reenviarse o no es de BBVA. Descarga el PDF y súbelo a mano. |
 
 Riesgo conocido: un PDF cifrado aparte se descifra con PDFium; no se ha probado con un PDF real de BBVA
 cifrado (solo con uno sintético). Si el primer estado real llega así y falla, el error queda en la bitácora.

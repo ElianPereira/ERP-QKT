@@ -22,6 +22,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 
+from .formato_wa import Aviso, bloques
 from .services import (
     alertar_equipo_email,
     enviar_email,
@@ -103,7 +104,7 @@ def _telefono(cliente) -> str:
 
 # ──────────────────────────────── Cotización ────────────────────────────────
 
-def notificar_cotizacion(cotizacion, *, origen: str):
+def notificar_cotizacion(cotizacion, *, origen: str, whatsapp: bool = True):
     """
     Avisa al cliente de que su cotización está lista.
 
@@ -115,6 +116,9 @@ def notificar_cotizacion(cotizacion, *, origen: str):
     En 'WEB' el cliente acaba de escribir, así que la ventana de 24 h está
     abierta y el texto libre es válido si no hay plantilla configurada. En 'ERP'
     puede haber pasado cualquier tiempo, así que la plantilla es obligatoria.
+
+    Con `whatsapp=False` solo sale el correo: lo usa Kooxi, que entrega el
+    enlace en su propia respuesta para no mandar dos mensajes por la misma cotización.
     """
     origen = (origen or '').upper()
     evento = 'web' if origen == 'WEB' else 'erp_cotizada'
@@ -139,7 +143,7 @@ def notificar_cotizacion(cotizacion, *, origen: str):
         )
 
     telefono = _telefono(cliente)
-    if not telefono:
+    if not telefono or not whatsapp:
         return
 
     clave_wa = f"cotizacion:{cotizacion.pk}:{evento}:whatsapp"
@@ -188,12 +192,12 @@ def notificar_cotizacion(cotizacion, *, origen: str):
         cotizacion=cotizacion,
         tipo='COTIZACION',
         telefono=telefono,
-        mensaje=(
-            f"Hola {_nombre_pila(cliente)} 👋\n\n"
-            f"Tipo de evento: {_tipo_evento(cotizacion)}\n"
-            f"Fecha del evento: {_fecha(cotizacion.fecha_evento)}\n"
-            f"Total a pagar: ${_dinero(cotizacion.precio_final)}\n"
-            f"URL: {portal}"
+        mensaje=bloques(
+            f"Hola {_nombre_pila(cliente)} 👋 Esta es tu cotización:",
+            datos=(f"Tipo de evento: {_tipo_evento(cotizacion)}",
+                   f"Fecha del evento: {_fecha(cotizacion.fecha_evento)}",
+                   f"Total a pagar: *${_dinero(cotizacion.precio_final)}*"),
+            enlace=portal, pregunta="Revísala y, si tienes dudas, respóndeme por aquí.",
         ),
         trigger='SIGNAL',
         clave_idempotencia=clave_wa,
@@ -634,6 +638,13 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
         clave_idempotencia=f"cotizacion:{cotizacion.pk}:alerta_equipo:email",
     )
 
+    mensaje = Aviso(
+        titulo=f'Nueva cotización web ({folio})', categoria='Cotización',
+        lineas=[f'Tipo de evento: {tipo_evento}', f'Fecha: {fecha}', f'Total a pagar: ${total}',
+                *([f'Nos encontró por: {cotizacion.como_nos_encontro}'] if cotizacion.como_nos_encontro else []),
+                *([f'Notas del cliente: {cotizacion.notas_cliente}'] if cotizacion.notas_cliente else [])],
+        enlace=portal).texto()
+
     destinos = telefonos_aviso('ENCARGADO')
     if not destinos:
         logger.error(
@@ -663,7 +674,7 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
             cotizacion=cotizacion,
             tipo='OTRO',
             telefono=destino,
-            mensaje=cuerpo,
+            mensaje=mensaje,
             clave_idempotencia=f"{clave}:{destino}",
         )
 
@@ -709,6 +720,12 @@ def alertar_equipo_pago(pago):
         clave_idempotencia=f"pago:{pago.pk}:alerta_equipo:email",
     )
 
+    mensaje = Aviso(
+        titulo=f'Pago acreditado ({folio})', categoria='Pago',
+        lineas=[f'Cliente: {nombre_cliente}', f'Evento: {cotizacion.nombre_evento}',
+                f'Monto pagado: ${monto} — {metodo}', f'Saldo pendiente: ${saldo_texto}'],
+        enlace=portal).texto()
+
     destinos = telefonos_aviso('ENCARGADO')
     if not destinos:
         logger.error(
@@ -741,7 +758,7 @@ def alertar_equipo_pago(pago):
             pago=pago,
             tipo='OTRO',
             telefono=destino,
-            mensaje=cuerpo,
+            mensaje=mensaje,
             clave_idempotencia=f"{clave}:{destino}",
         )
 
@@ -862,13 +879,18 @@ def alertar_equipo_contracargo(contracargo):
         )
         return
 
+    mensaje = Aviso(
+        titulo=f'{titulo} ({folio})', categoria='Contracargo', urgente=contracargo.estado == 'EN_DISPUTA',
+        lineas=[*([f'Cliente: {cliente}'] if cliente else []), cuerpo_estado,
+                *(['No se pudo vincular a una cotización: enlázalo a mano en /admin/comercial/contracargo/']
+                  if contracargo.requiere_vinculacion_manual else [])]).texto()
     _seguro(
         'enviar la alerta de contracargo por WhatsApp',
         enviar_whatsapp,
         cotizacion=cotizacion,
         tipo='OTRO',
         telefono=destino,
-        mensaje=cuerpo,
+        mensaje=mensaje,
         clave_idempotencia=clave,
     )
 

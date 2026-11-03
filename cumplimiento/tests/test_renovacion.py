@@ -58,7 +58,7 @@ class RenovacionAutomaticaTest(TestCase):
         self.assertEqual(nueva.documentos.count(), 1)
         self.assertEqual(nueva.documentos.get().archivo.name, doc.archivo.name)
         self.assertEqual(aviso.call_count, 1)
-        self.assertIn('Faltan: Comprobante de domicilio', aviso.call_args.args[1])
+        self.assertIn('Faltan: Comprobante de domicilio', aviso.call_args.args[1].texto())
         p = Pendiente.objects.get()
         self.assertEqual((p.rol, p.tipo, p.severidad), ('DIRECCION', 'CUMPLIMIENTO', 'NORMAL'))
 
@@ -100,7 +100,7 @@ class CierreDelTramiteTest(TestCase):
         self.assertEqual(self.nueva.estado, 'EN_TRAMITE')
         self.assertTrue(self.nueva.documento.name.endswith('.pdf'))
         self.assertEqual(aviso.call_args.kwargs['botones'], [(svc.id_boton(self.nueva.pk), 'Confirmar')])
-        self.assertIn(f'{self.nueva.fecha_inicio:%d/%m/%Y}', aviso.call_args.args[1])
+        self.assertIn(f'{self.nueva.fecha_inicio:%d/%m/%Y}', aviso.call_args.args[1].texto())
 
     def test_archivo_de_otro_telefono_o_sin_renovaciones_no_aplica(self):
         self.assertEqual(self._recibir(telefono='9990000000')[0], (False, None))

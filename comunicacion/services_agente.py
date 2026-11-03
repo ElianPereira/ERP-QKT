@@ -49,6 +49,7 @@ from . import (
     services_inspeccion,
     services_visitas,
 )
+from .formato_wa import Aviso, bloques
 from .herramientas_agente import HERRAMIENTAS, URL_COTIZADOR, URL_PORTAL_ACCESO, ejecutar
 from .herramientas_direccion import HERRAMIENTAS_DIRECCION, SYSTEM_PROMPT_DIRECCION, ejecutar_direccion
 from .models import ConversacionWhatsApp, MensajeWhatsApp, PaseAHumano
@@ -61,7 +62,15 @@ from .services import (
 )
 from .services_bajas import CONFIRMACION_BAJA, es_palabra_baja, registrar_baja
 from .services_guardia import filtrar_respuesta, nota_para_el_modelo
-from .services_pendientes import _enviar_aviso, atender_boton, es_boton, registrar_pendiente
+from .services_llegada import contexto_de_hoy
+from .services_notificaciones import MAPS_URL_QKT
+from .services_pendientes import (
+    _enviar_aviso,
+    atender_boton,
+    es_boton,
+    registrar_pendiente,
+    resolver_de_objeto,
+)
 from .services_preguntas import atender_boton as atender_boton_faq
 from .services_preguntas import es_boton as es_boton_faq
 from .services_responsables import (
@@ -82,12 +91,12 @@ CANDADO_SEGUNDOS = 300
 
 MENSAJE_TOPE_DIRECCION = 'Llegaste al tope diario de respuestas del asistente. Haz lo que necesites desde el admin.'
 MENSAJE_FALLO_DIRECCION = 'No pude procesarlo ahora. Inténtalo en un momento o hazlo desde el admin.'
-MENSAJE_HUMANO = ('Gracias por tu paciencia. Le paso tu mensaje a una persona del equipo '
-                  'y te contesta por aquí en cuanto pueda.')
+MENSAJE_HUMANO = bloques('Gracias por tu paciencia.',
+                         'Le paso tu mensaje a una persona del equipo y te contesta por aquí en cuanto pueda.')
 # Mientras una conversación espera a una persona, el cliente que sigue
 # escribiendo recibe esto (sin pasar por la IA) como máximo cada AVISO_ESPERA_CADA.
-AVISO_ESPERA = ('Recibí tu mensaje 🙌 Ya le avisé al equipo y una persona te contesta '
-                'por aquí en cuanto pueda.')
+AVISO_ESPERA = bloques('Recibí tu mensaje 🙌',
+                       'Ya le avisé al equipo y una persona te contesta por aquí en cuanto pueda.')
 AVISO_ESPERA_CADA = timedelta(hours=3)
 # Primer contacto (Aviso de Privacidad v2.5 §3.3, criterio del abogado): se
 # informa que es IA, cómo pedir una persona y dónde está el aviso, antes de
@@ -108,31 +117,38 @@ BOTONES_CONSENTIMIENTO = (
     (BOTON_ACEPTO_PROMOS, 'Acepto + promociones'),
     (BOTON_NO_ACEPTO, 'No acepto'),
 )
-MENSAJE_CONSENTIMIENTO = (
-    "Para preparar tu cotización con tus datos necesito tu autorización. Revisa nuestro "
-    f"Aviso de Privacidad ({URL_AVISO_PRIVACIDAD}), los Términos y Condiciones ({URL_TERMINOS}) y la "
-    f"Política de Cancelación ({URL_POLITICA_CANCELACION}).\n\n"
-    "¿Los aceptas? Si además quieres recibir promociones y fechas disponibles, elige "
-    "«Acepto + promociones»."
+MENSAJE_CONSENTIMIENTO = bloques(
+    'Para preparar tu cotización con tus datos necesito tu autorización. Revisa:',
+    datos=(f'Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}', f'Términos y Condiciones: {URL_TERMINOS}',
+           f'Política de Cancelación: {URL_POLITICA_CANCELACION}'),
+    pregunta='¿Los aceptas? Si además quieres recibir promociones y fechas disponibles, elige '
+             '«Acepto + promociones».',
 )
 # Vigencia del botón: pasado este plazo se vuelve a pedir, para que la evidencia
 # corresponda a los documentos que estaban vigentes cuando se cotizó.
 CONSENTIMIENTO_VIGENTE = timedelta(hours=24)
-AVISO_INICIAL = (
-    "¡Hola! Soy Kooxi, el asistente virtual de Quinta Ko'ox Tanil. Funciono con "
-    "inteligencia artificial, no soy una persona. Puedo darte precios, revisar fechas, consultar tu "
-    "reservación, preparar tu cotización y resolver dudas; si en algún momento prefieres que te atienda alguien del equipo, "
-    "solo escríbelo.\n\n"
-    "Al continuar esta conversación aceptas el tratamiento de tus datos conforme a "
-    f"nuestro Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}"
+AVISO_INICIAL = bloques(
+    "¡Hola! Soy *Kooxi*, asistente virtual con inteligencia artificial de Quinta Ko'ox Tanil (no soy una persona).",
+    'Te ayudo con *eventos, pasadías y hospedaje*: precios, fechas, visitas y tu cotización. '
+    'Si prefieres a alguien del equipo, solo escríbelo.',
+    'Al continuar aceptas el tratamiento de tus datos según nuestro Aviso de Privacidad:',
+    enlace=URL_AVISO_PRIVACIDAD,
 )
 
 SYSTEM_PROMPT = f"""Eres Kooxi, el asistente virtual por WhatsApp de Quinta Ko'ox Tanil (QKT), una \
 quinta en Umán, Yucatán, para eventos (hasta 150 personas), pasadías con alberca y hospedaje corto en \
 dos habitaciones (Ka'an Room y Otoch Room). Contestas a clientes y posibles clientes en español de \
-México, en mensajes cortos propios de WhatsApp (sin tablas ni encabezados; listas cortas con guiones \
-cuando ayuden). Responde solo lo que te preguntaron, en 2 a 5 líneas cuando se pueda; no repitas \
-datos que ya diste en la conversación.
+México, en mensajes cortos propios de WhatsApp. Responde solo lo que te preguntaron, en 2 a 5 líneas \
+cuando se pueda; no repitas datos que ya diste en la conversación.
+
+Formato de tus mensajes (se leen en el celular; un bloque de texto corrido cansa):
+- Párrafos de una o dos líneas, separados por una línea en blanco. Nunca un solo párrafo largo.
+- Resalta con *asteriscos* (negritas de WhatsApp) solo el dato clave: la fecha, la hora, el total o \
+el folio. Una o dos negritas por mensaje, no más.
+- Si das 3 datos o más (lo que incluye un paquete, opciones, pasos), ponlos en una lista con «• » al \
+inicio de cada renglón.
+- Los enlaces van solos en su propio renglón, sin texto pegado.
+- Termina con una sola pregunta o siguiente paso, en su propio renglón. Sin tablas ni encabezados.
 
 Tu personalidad:
 - Te llamas Kooxi; tu nombre viene de Ko'ox Tanil, el nombre de la Quinta. Si te preguntan quién \
@@ -160,10 +176,20 @@ libre: la Quinta puede no estar lista para recibirlo. Dile que contratar para ho
 equipo lo confirme, usa pasar_a_humano con el servicio, la hora y las personas, y avísale que alguien \
 le contestará por este chat.
 - Si quiere visitar o conocer la Quinta, sí se puede, siempre con cita que confirma el equipo: \
-consulta horarios_de_visita, ofrécele solo esos horarios y, cuando elija uno y te diga su nombre, \
+consulta horarios_de_visita (si pide un día u hora concretos, vuelve a llamarla con `fecha` antes de decirle que no hay), ofrécele solo esos horarios y, cuando elija uno y te diga su nombre, \
 agéndalo con agendar_visita. La visita queda POR CONFIRMAR: dile que una persona del equipo la \
 confirmará por este chat y nunca la des por confirmada. Si no hay horarios, si pide uno que no está \
 en la lista o si es para hoy, usa pasar_a_humano con el día, la hora y las personas.
+- Llegadas: si el cliente dice que ya llegó, que está afuera, en la entrada o en el portón, que le \
+abran, pregunta cómo entrar o «cómo tengo acceso» y por el contexto ya está aquí, o avisa que va en \
+camino, usa avisar_llegada (situacion ya_llego o en_camino) antes de contestar, tenga o no cita o \
+reservación. Después dile, en una o dos líneas, que ya avisaste y que en un momento alguien lo recibe. \
+En ese caso no le des la ubicación ni le ofrezcas agendar una visita o cotizar. Si el mensaje trae un \
+«Contexto del sistema» de que hoy viene a la Quinta, un «¿cómo tengo acceso?» es una llegada. Si no hay \
+contexto y no queda claro si ya está aquí o pregunta cómo llegar, pregúntale en una línea si ya está \
+en la Quinta.
+- Si preguntan dónde está la Quinta o cómo llegar, da la dirección (Carretera Tanil – Ticimul km \
+1.920, Umán, Yucatán) y este enlace de Google Maps, copiado tal cual y completo: {MAPS_URL_QKT}
 - Cuando te pregunten qué incluye un paquete o nivel, usa lo que trae ver_opciones en «incluye» \
 (descripción y productos incluidos); si viene vacío, dilo y ofrece pasar con una persona.
 - Si preguntan por el precio de solo el lugar (renta sin paquete), es la opción «solo_renta» de \
@@ -173,13 +199,15 @@ si no lo alcanzan, ofrece los paquetes.
 dale su fecha límite para liquidar.
 - Si el cliente quiere su cotización formal o reservar, puedes crearla tú con crear_cotizacion \
 cuando ya tengas servicio, fecha libre, personas, la opción elegida (paquete, nivel o habitaciones), \
-su nombre completo y su correo. Antes confírmale en un mensaje corto el resumen y el total estimado. \
+su nombre completo y, de preferencia, su correo. Antes confírmale en un mensaje corto el resumen y el total estimado. \
 La primera vez el sistema le manda un mensaje con botones para aceptar el aviso de privacidad: si la \
 herramienta dice que falta la autorización, pídele que toque «Acepto» y espera. Si toca «No acepto», \
 no insistas: puedes seguir resolviendo dudas y ofrecerle el cotizador web ({URL_COTIZADOR}). Al \
-crearla, dale el folio y el total, y dile que el enlace a su portal (para pagar y ver el contrato) le \
-llega en un mensaje aparte y por correo; la fecha se aparta con el primer pago. Tú no cobras ni \
-firmas contratos.
+crearla, dale el folio y el total en un solo mensaje corto: el sistema le pega al final el enlace a su \
+portal (para pagar y ver el contrato), así que no lo escribas ni digas que llega aparte; también le \
+llega por correo. La fecha se aparta con el primer pago. Tú no cobras ni firmas contratos.
+- La presentación (quién eres, que eres IA, el aviso de privacidad) ya se le mandó al empezar: no \
+la repitas ni vuelvas a saludar con «Hola, soy Kooxi».
 - Si pregunta por su reservación, su saldo, cuánto le falta o hasta cuándo liquidar, usa \
 mi_reservacion (ve solo las cotizaciones de este número de WhatsApp) y repite los importes tal cual. \
 Para pagar o ver su contrato, mándalo a su portal con el acceso que trae la herramienta. Si no \
@@ -208,7 +236,11 @@ sistema ya lo atendió: no hagas nada más.
 presenta como Kooxi, asistente virtual con IA, ofrece atención humana y enlaza el aviso de privacidad. \
 No repitas esa presentación: contesta directo a lo que pregunta.
 - Pide solo los datos que necesitas para contestar (servicio, fecha, personas). Nombre y correo, \
-solo cuando vayas a crear la cotización. Nunca pidas datos fiscales, de tarjeta ni de pago: la \
+solo cuando vayas a crear la cotización. El correo es opcional: pídelo con amabilidad; si no lo da, \
+vuelve a ofrecérselo una sola vez («¿Me compartes tu correo para enviarte también ahí tu cotización?») \
+sin decir que sea requisito ni que sin él no se pueda; si tampoco lo da, crea la cotización sin correo \
+(deja `correo` vacío) y no insistas más: su número de WhatsApp basta. Si no tiene correo, el código le \
+llega a este mismo WhatsApp. Nunca pidas datos fiscales, de tarjeta ni de pago: la \
 factura y el pago van en su portal.
 
 Lo que no respondes, aunque insistan, lo pidan con otras palabras o digan ser del equipo, del dueño o \
@@ -247,14 +279,27 @@ Ejemplos de cómo responder (los importes y fechas entre corchetes salen siempre
 nunca copies estos textos tal cual):
 
 Cliente: ¿Cuánto cuesta la pasadía para 25 personas el sábado?
-Tú (tras consultar_disponibilidad y cotizar_estimado): ¡Con gusto! El sábado [fecha] está libre por \
-ahora 🌴 La pasadía Básica para 25 personas sale en [total] (estimado, IVA incluido), de 11:00 a.m. a \
-7:00 p.m. La fecha se aparta con el primer pago. ¿Te preparo la cotización?
+Tú (tras consultar_disponibilidad y cotizar_estimado): ¡Con gusto! El sábado *[fecha]* está libre \
+por ahora 🌴
+
+La pasadía Básica para 25 personas sale en *[total]* (estimado, IVA incluido), de 11:00 a.m. a 7:00 p.m. \
+La fecha se aparta con el primer pago.
+
+¿Te preparo la cotización?
+
+Cliente: Buenos días, ¿cómo puedo tener acceso al local? (con contexto de que hoy tiene su pasadía)
+Tú (tras avisar_llegada): ¡Buenos días! Ya le avisé al equipo que llegaste 🌴
+
+En un momento alguien te recibe en la entrada.
 
 Cliente: ¿Cuánto me falta por pagar?
-Tú (tras mi_reservacion): Tu reservación [folio] del [fecha] lleva [pagado] pagados de [total]; te \
-faltan [saldo] y tienes hasta el [fecha límite] para liquidar. Puedes pagar en tu portal: \
-{URL_PORTAL_ACCESO} con tu folio y los últimos 4 dígitos de tu teléfono.
+Tú (tras mi_reservacion): Tu reservación *[folio]* del [fecha]:
+• Pagado: [pagado] de [total]
+• Te faltan: *[saldo]*
+• Fecha límite para liquidar: [fecha límite]
+
+Puedes pagar en tu portal con tu folio y los últimos 4 dígitos de tu teléfono:
+{URL_PORTAL_ACCESO}
 
 Cliente: ¿La renta del lugar incluye la alberca?
 Tú (si ver_opciones y preguntas_frecuentes no lo dicen; antes registrar_pregunta_sin_respuesta): \
@@ -436,6 +481,7 @@ def responder_como_persona(conv, texto: str, usuario) -> MensajeWhatsApp:
     conv.pausado_hasta = timezone.now() + timedelta(hours=horas)
     conv.ultimo_mensaje = timezone.now()
     conv.save(update_fields=['pausado_hasta', 'ultimo_mensaje', 'updated_at'])
+    resolver_de_objeto(conv, usuario)
     return mensaje
 
 
@@ -486,6 +532,7 @@ def _reactivar_si_nadie_atendio(conv) -> None:
     conv.requiere_humano = False
     conv.motivo_humano = ''
     conv.save(update_fields=['requiere_humano', 'motivo_humano', 'updated_at'])
+    resolver_de_objeto(conv)
     logger.info("Agente WhatsApp: %s se reactivó solo tras 24 h sin atención", conv.telefono)
 
 
@@ -592,7 +639,14 @@ def _atender_pendientes(conversacion_id: int) -> None:
         if atendido:
             if respuesta:
                 _enviar_automatico(conv, respuesta)
+            _pedir_autorizacion_medios(conv)
             pendientes.remove(m)
+    # Permiso de fotos y testimonio (botones `med:<id>:si|no`): solo vale desde el teléfono del cliente.
+    for m in [m for m in pendientes if _es_boton_medios(m.texto)]:
+        respuesta = _atender_boton_medios(conv, m)
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # Cierre de trámites de cumplimiento: botón `vig:<id>:ok` y el documento nuevo de Dirección.
     for m in [m for m in pendientes if services_renovacion.es_boton(m.texto)]:
         respuesta = services_renovacion.atender_boton(conv.telefono, m.texto)
@@ -660,8 +714,28 @@ def _atender_pendientes(conversacion_id: int) -> None:
         _enviar(conv, MENSAJE_HUMANO)
         return
     respuesta, uso = responder(conv, texto)
-    if respuesta:
-        _enviar(conv, filtrar_respuesta(conv, texto, respuesta), uso=uso)
+    _enviar_respuesta(conv, texto, respuesta, uso)
+
+
+def _enviar_respuesta(conv, texto_cliente: str, respuesta, uso) -> None:
+    """Envía la respuesta ya filtrada; si el turno creó una cotización, le pega el
+    enlace del portal (que el modelo nunca ve) y así el cliente recibe un solo mensaje.
+    Si ese mensaje no sale, cae al aviso de siempre para que el enlace no se pierda."""
+    pendiente = getattr(conv, 'enlace_portal_pendiente', None)
+    conv.enlace_portal_pendiente = None
+    if not respuesta and not pendiente:
+        return
+    texto = filtrar_respuesta(conv, texto_cliente, respuesta) if respuesta else ''
+    if pendiente:
+        enlace = pendiente[1]
+        texto = (texto + '\n\n' if texto else '') + bloques('Aquí puedes revisarla y pagar:', enlace=enlace)
+    comm = _enviar(conv, texto, uso=uso)
+    if pendiente and (comm is None or comm.estado == 'FALLIDO'):
+        from comercial.models import Cotizacion
+        from comunicacion.services_notificaciones import notificar_cotizacion
+        cot = Cotizacion.objects.filter(pk=pendiente[0]).first()
+        if cot:
+            notificar_cotizacion(cot, origen='WEB')
 
 
 def _enviar_con_botones(conv, texto: str, botones: list, *, reintento: str) -> None:
@@ -765,11 +839,12 @@ def _copiar_cobro_a_direccion(telefono_origen: str, resultado) -> None:
     """Aviso a Dirección de un cobro registrado por WhatsApp (sin el texto del
     chat). No se repite al número que lo confirmó."""
     reporte = resultado.reporte
-    texto = (f'Cobro con terminal registrado por WhatsApp: ${reporte.monto:,.2f} en '
-             f'COT-{reporte.cotizacion_id:03d}, reportado desde el número del rol {reporte.rol}.')
+    aviso = Aviso(titulo='Cobro con terminal registrado por WhatsApp', categoria='Cobro',
+                  lineas=[f'Monto: ${reporte.monto:,.2f}', f'Cotización: COT-{reporte.cotizacion_id:03d}',
+                          f'Reportado desde el número del rol {reporte.rol}'])
     for destino in telefonos_aviso('DIRECCION'):
         if destino != normalizar_telefono_wa(telefono_origen):
-            _enviar_aviso(destino, texto, clave=f'terminal:{reporte.pk}:copia:{destino}')
+            _enviar_aviso(destino, aviso, clave=f'terminal:{reporte.pk}:copia:{destino}')
 
 
 def _respuestas_de_hoy():
@@ -804,8 +879,9 @@ def _tope_alcanzado(conv) -> bool:
                         'Si es volumen normal y no un abuso, sube ERP_KOOXI_MAX_RESPUESTAS_DIA en Railway.'),
             )
             _avisar_propietario(
-                f'el asistente llegó a su tope de {settings.ERP_KOOXI_MAX_RESPUESTAS_DIA} respuestas '
-                'de hoy; las conversaciones nuevas quedan para una persona hasta mañana',
+                Aviso(titulo='El asistente llegó a su tope de respuestas', categoria='Kooxi', urgente=True,
+                      lineas=[f'Tope: {settings.ERP_KOOXI_MAX_RESPUESTAS_DIA} respuestas de hoy',
+                              'Las conversaciones nuevas quedan para una persona hasta mañana']),
                 rol='DIRECCION')
         return True
     return False
@@ -836,13 +912,39 @@ def _texto_desde_ultima_respuesta(conv) -> str:
             + '\n'.join(f"{etiquetas[m.direccion]}: {m.texto}" for m in recientes))
 
 
-def _enviar(conv, texto: str, uso: dict | None = None) -> None:
+def _enviar(conv, texto: str, uso: dict | None = None):
     texto = texto.strip()[:LIMITE_WHATSAPP]
     comm = enviar_whatsapp(tipo='AGENTE_IA', telefono=conv.telefono, mensaje=texto, trigger='SIGNAL')
     MensajeWhatsApp.objects.create(
         conversacion=conv, direccion='AGENTE', texto=texto, procesado=True,
         wamid=(comm.proveedor_id or None) if comm else None, **(uso or {}),
     )
+    return comm
+
+
+def _es_boton_medios(texto: str) -> bool:
+    from marketing.services import medios
+    return medios.es_boton(texto)
+
+
+def _atender_boton_medios(conv, mensaje) -> Optional[str]:
+    from marketing.services import medios
+    try:
+        return medios.atender_boton(conv.telefono, mensaje.texto, mensaje.wamid or '')
+    except Exception:
+        logger.exception('Marketing: falló la respuesta al permiso de medios')
+        return None
+
+
+def _pedir_autorizacion_medios(conv) -> None:
+    """Tras una encuesta 4–5 recién contestada, pide el permiso de fotos y testimonio (una vez por cotización)."""
+    try:
+        from marketing.services import medios
+        encuesta = services_encuesta.encuesta_positiva_reciente(conv.telefono)
+        if encuesta is not None:
+            medios.solicitar_por_whatsapp(encuesta.cotizacion)
+    except Exception:
+        logger.exception('Marketing: no se pudo pedir el permiso de medios')
 
 
 def _enviar_automatico(conv, texto: str) -> None:
@@ -878,29 +980,21 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True, categoria: str = '')
     registrar_pendiente(
         titulo=f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp",
         detalle=f'Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones.',
-        rol='ENCARGADO', tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO', severidad='URGENTE')
+        rol='ENCARGADO', tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO', severidad='URGENTE',
+        objeto=conv)
 
 
-def _avisar_propietario(resumen: str, rol: str = 'ENCARGADO') -> None:
+def _avisar_propietario(aviso: Aviso, rol: str = 'ENCARGADO') -> None:
     """Aviso por WhatsApp a los números del directorio de responsables para el
     `rol` (además del correo), porque el equipo revisa más WhatsApp que el correo.
 
-    Va en la plantilla aprobada `META_WA_PLANTILLA_OPERACIONES` («Tienes un aviso
-    nuevo: {{1}}»), que llega aunque no haya ventana de 24 h; sin plantilla, va
-    como texto libre. No lleva el texto de los mensajes del cliente: esta copia
-    no la alcanza la purga de conversaciones. Nunca lanza: un aviso caído no
-    debe tumbar la respuesta al cliente.
+    Con la ventana de 24 h cerrada, `_enviar_aviso` usa la plantilla aprobada del
+    equipo. No lleva el texto de los mensajes del cliente: esta copia no la
+    alcanza la purga de conversaciones. Nunca lanza: un aviso caído no debe
+    tumbar la respuesta al cliente.
     """
-    plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
     for destino in telefonos_aviso(rol):
-        try:
-            if plantilla:
-                enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
-                                         parametros=[resumen[:900]])
-            else:
-                enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=f'Aviso nuevo: {resumen}.')
-        except Exception:
-            logger.exception("Agente WhatsApp: no se pudo avisar al propietario por WhatsApp")
+        _enviar_aviso(destino, aviso)
 
 
 def _cliente_ia():
@@ -954,7 +1048,8 @@ def responder(conv, texto_cliente: str, *, propuestas: list | None = None):
     messages = historial + [{
         'role': 'user',
         'content': [{'type': 'text',
-                     'text': f'{"" if direccion else nota_para_el_modelo(conv)}[Hoy es {fecha_hoy}, hora de Yucatán]\n{texto_cliente}'}],
+                     'text': (f'{"" if direccion else nota_para_el_modelo(conv) + contexto_de_hoy(conv)}'
+                              f'[Hoy es {fecha_hoy}, hora de Yucatán]\n{texto_cliente}')}],
     }]
 
     uso = {}

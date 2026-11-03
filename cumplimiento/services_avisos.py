@@ -2,9 +2,8 @@
 Avisos de vencimiento del módulo de Cumplimiento (Issue #403, fase 3).
 
 Un mensaje consolidado por corrida y canal al propietario: WhatsApp a
-los números de Dirección del directorio de responsables (plantilla `META_WA_PLANTILLA_OPERACIONES` con el resumen en el
-parámetro, que sí llega fuera de la ventana de 24 h; sin plantilla, texto
-libre) y correo interno. La idempotencia es `AvisoVencimiento`: el INSERT va
+los números de Dirección del directorio de responsables (un `Aviso` en bloques: texto libre con la ventana de 24 h
+abierta y plantilla del equipo si no) y correo interno. La idempotencia es `AvisoVencimiento`: el INSERT va
 antes del envío, igual que `ComunicacionCliente`; un canal fallido se
 reintenta en la corrida siguiente sin bloquear al otro.
 
@@ -19,11 +18,9 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
-from comunicacion.services import (
-    alertar_equipo_email,
-    enviar_whatsapp,
-    enviar_whatsapp_template,
-)
+from comunicacion.formato_wa import Aviso
+from comunicacion.services import alertar_equipo_email
+from comunicacion.services_pendientes import _enviar_aviso
 from comunicacion.services_responsables import SIN_DESTINO, telefono_de
 
 from . import services
@@ -37,7 +34,6 @@ UMBRALES_FIJOS = (30, 7, 0)
 CANALES = ('WHATSAPP', 'EMAIL')
 # Un PENDIENTE más viejo que esto se considera un envío que murió a medias
 ESPERA_PENDIENTE = timedelta(hours=1)
-MAX_PARAMETRO_WA = 900
 
 
 def umbral_aplicable(tramite, dias):
@@ -86,12 +82,13 @@ def _linea(aviso):
 
 
 def construir_mensaje(avisos):
-    """(asunto, cuerpo con saltos de línea, resumen en una línea para la plantilla)."""
+    """(asunto, cuerpo con saltos de línea, `Aviso` en bloques para WhatsApp)."""
     lineas = [_linea(a) for a in avisos]
     asunto = f"Cumplimiento: {len(avisos)} trámite(s) requieren atención"
     cuerpo = asunto + '\n\n' + '\n'.join(f'- {x}' for x in lineas)
-    resumen = '; '.join(lineas)
-    return asunto, cuerpo, resumen[:MAX_PARAMETRO_WA]
+    aviso = Aviso(titulo=f'{len(avisos)} trámite(s) requieren atención', categoria='Cumplimiento',
+                  urgente=any(a['tramite'].critico for a in avisos), lineas=lineas)
+    return asunto, cuerpo, aviso
 
 
 def _reservar(aviso, canal):
@@ -114,14 +111,6 @@ def _reservar(aviso, canal):
     else:
         return None
     return fila if tomado else None
-
-
-def _enviar_whatsapp(destino, cuerpo, resumen):
-    plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
-    if plantilla:
-        return enviar_whatsapp_template(tipo='OTRO', telefono=destino, template_name=plantilla,
-                                        parametros=[resumen], trigger='CRON')
-    return enviar_whatsapp(tipo='OTRO', telefono=destino, mensaje=cuerpo, trigger='CRON')
 
 
 def _enviar_email(avisos, asunto, cuerpo):
@@ -161,9 +150,9 @@ def procesar_avisos(hoy=None, aplicar=False):
         if not tomados:
             continue
         a_enviar = [a for a, _ in tomados]
-        asunto, cuerpo, resumen = construir_mensaje(a_enviar)
+        asunto, cuerpo, aviso = construir_mensaje(a_enviar)
         try:
-            comm = (_enviar_whatsapp(destino_wa, cuerpo, resumen) if canal == 'WHATSAPP'
+            comm = (_enviar_aviso(destino_wa, aviso) if canal == 'WHATSAPP'
                     else _enviar_email(a_enviar, asunto, cuerpo))
             exito = bool(comm) and comm.estado == 'ENVIADO'
             detalle = '' if exito else (getattr(comm, 'error', '') or 'No se pudo enviar')

@@ -8,7 +8,7 @@ Catálogo de todas las variables que lee el ERP (Issue #424). **Solo nombres: ni
 ORIGEN_SERVICIO_DATO[_DISTINTIVO]
 ```
 
-- **ORIGEN**: quién la emite. Proveedor (`META`, `ANTHROPIC`, `OPENPAY`, `CLOUDFLARE`, `BREVO`, `JIBBLE`), configuración propia (`ERP`) o framework (`DJANGO`).
+- **ORIGEN**: quién la emite. Proveedor (`META`, `GOOGLE`, `ANTHROPIC`, `OPENPAY`, `CLOUDFLARE`, `BREVO`, `JIBBLE`), configuración propia (`ERP`) o framework (`DJANGO`).
 - **SERVICIO**: producto o módulo (`WA`, `R2`, `KOOXI`, `EMAIL`, `PORTAL`, `FISCAL`…).
 - **DATO**: `API_KEY`, `SECRET`, `TOKEN`, `ID`, `URL`, `EMAIL`, `PLANTILLA`, `MODELO`, `ACTIVO`, `MAX`, `TASA`, `HORAS`, `DIAS`, `SEGUNDOS`, `BUCKET`, `NUMERO`, `MODO`, `VERSION`.
 - **DISTINTIVO**: solo si hay más de una del mismo tipo (`PAGOS`, `PRIVADO`, `JUEZ`…).
@@ -20,11 +20,11 @@ ORIGEN_SERVICIO_DATO[_DISTINTIVO]
 2. Una fila en este catálogo (lo exige `core_erp/test_variables.py`) y una línea en `.env.example`.
 3. Agregarla a las *Shared Variables* de Railway (ver `docs/railway_programador.md`).
 
-Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el log «usando nombre legado»; el respaldo se quita 2 semanas después del corte.
+Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=` se retiró el 2026-10-24. Se conservan aquí solo como referencia.
 
 ## DJANGO — framework
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `DJANGO_SECRET_KEY` | Llave de firma de sesiones y tokens; sin valor por defecto, el servidor no arranca sin ella. | Django (lo define el ERP) | Railway → Variables (se inventa o genera; sin panel externo) | web, Programador | `SECRET_KEY` |
 | `DJANGO_DEBUG` | Modo depuración. Siempre False en producción. | Django (lo define el ERP) | Railway → Variables (se inventa o genera; sin panel externo) | web, Programador | `DEBUG` |
@@ -32,7 +32,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## META — WhatsApp Cloud API
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `META_WA_KOOXI_TOKEN` | Token permanente de un usuario del sistema para enviar mensajes. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_CLOUD_API_TOKEN` |
 | `META_WA_KOOXI_ID` | ID del número emisor (el de Kooxi). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_PHONE_NUMBER_ID` |
@@ -47,6 +47,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 | `META_WA_PLANTILLA_GUIA` | Plantilla de la guía pre-evento. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_GUIA` |
 | `META_WA_PLANTILLA_SEGUIMIENTO` | Plantilla de seguimiento a cotizaciones sin pago (vacía = el cron no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_SEGUIMIENTO` |
 | `META_WA_PLANTILLA_ENCUESTA` | Plantilla de la encuesta de satisfacción (vacía = el comando no manda nada). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
+| `META_WA_PLANTILLA_REFERIDO` | Plantilla del aviso al cliente que ganó un beneficio por recomendar (vacía = solo texto libre dentro de la ventana de 24 h). Texto en `docs/whatsapp_plantilla_referido.md`. | Meta | Meta for Developers / Business Manager (WhatsApp → Plantillas) | web, Programador | — |
 | `META_WA_PLANTILLA_REACTIVACION` | Plantilla de la reactivación anual por aniversario (vacía = no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_SEGUIMIENTO_DIA1` | Plantilla del seguimiento del día 1 a cotizaciones sin pago (vacía = ese paso no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
 | `META_WA_PLANTILLA_SEGUIMIENTO_FECHA` | Plantilla «tu fecha está por ocuparse» del seguimiento (vacía = ese paso no se manda). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
@@ -56,16 +57,51 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 | `META_WA_PLANTILLA_ALERTA_CONTRACARGO` | Plantilla de alerta interna de contracargo. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_ALERTA_CONTRACARGO` |
 | `META_WA_PLANTILLA_SOLICITUD_FACTURA` | Plantilla (documento) de solicitud de factura al contador. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_SOLICITUD_FACTURA` |
 | `META_WA_PLANTILLA_OPERACIONES` | Plantilla de avisos internos y de operaciones («Tienes un aviso nuevo: {{1}}»). | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | `WA_TEMPLATE_OPERACIONES` |
+| `META_WA_PLANTILLA_AVISO_EQUIPO` | Plantilla de avisos al equipo en bloques (4 parámetros: encabezado, título, datos, enlace); vacía = se usa la de operaciones en un renglón. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web, Programador | — |
+| `META_WA_PLANTILLA_CODIGO` | Plantilla de autenticación con el código de 6 dígitos (firma de contrato y solicitudes de cancelación) para clientes sin correo; vacía = solo dentro de la ventana de 24 h. | Meta | Meta for Developers / Business Manager (WhatsApp → Configuración de la API; token: Usuarios del sistema) | web | — |
+| `META_ADS_TOKEN` | Token de un usuario del sistema con permiso `ads_read` para leer el gasto de la cuenta publicitaria (marketing). Vacío = sincronización apagada. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_read sobre la cuenta publicitaria) | web, Programador | — |
+| `META_ADS_CUENTA_ID` | ID de la cuenta publicitaria (con o sin el prefijo `act_`). | Meta | Meta Business Manager → Cuentas → Cuentas publicitarias | web, Programador | — |
+| `META_ADS_API_VERSION` | Versión de la Graph API para la Marketing API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
+| `META_ADS_TOKEN_ESCRITURA` | Token de un usuario del sistema con permiso `ads_management` sobre la cuenta publicitaria, solo para pausar, reanudar o ajustar presupuesto desde una decisión aprobada. Vacío = ninguna acción llega a Meta. | Meta | Meta Business Manager → Configuración del negocio → Usuarios del sistema (permiso ads_management sobre la cuenta publicitaria) | web | — |
+| `META_PIXEL_ID` | ID del Pixel de Meta para la landing y el cotizador (solo se carga tras aceptar el banner de cookies) y dataset por omisión de la Conversions API. Vacío = ni banner ni Pixel. | Meta | Meta Business Manager → Orígenes de datos → Conjuntos de datos | web | — |
+| `META_CAPI_TOKEN` | Token de acceso de la Conversions API (usuario del sistema o token del dataset). Vacío = no se encola ni se envía ningún evento de conversión. | Meta | Meta Business Manager → Orígenes de datos → Conjunto de datos → Configuración → Conversions API | web, Programador | — |
+| `META_CAPI_DATASET_ID` | Dataset de la Conversions API si es distinto al Pixel (p. ej. el ligado a WhatsApp Business). Vacío = se usa `META_PIXEL_ID`. | Meta | Meta Business Manager → Orígenes de datos → Conjuntos de datos | web, Programador | — |
+| `META_CAPI_API_VERSION` | Versión de la Graph API para la Conversions API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
+| `META_CAPI_TEST_CODE` | Código de «Probar eventos» de Meta; con valor, los eventos se marcan de prueba y no cuentan. Vacío en producción. | Meta | Meta Business Manager → Administrador de eventos → Probar eventos | web, Programador | — |
+| `META_WA_WABA_ID` | ID de la cuenta de WhatsApp Business (WABA); la Conversions API de mensajería lo pide junto al clic del anuncio. | Meta | Meta Business Manager → Cuentas → Cuentas de WhatsApp | Programador | — |
+
+## GOOGLE — reseñas (Business Profile)
+
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
+|---|---|---|---|---|---|
+| `GOOGLE_BUSINESS_CLIENT_ID` | Client ID OAuth del proyecto de Google Cloud con la API de Business Profile, para leer reseñas. Sin las cuatro variables GOOGLE_BUSINESS_* la sincronización queda apagada. | Google | Google Cloud Console → APIs y servicios → Credenciales | web, Programador | — |
+| `GOOGLE_BUSINESS_CLIENT_SECRET` | Secreto del cliente OAuth. | Google | Google Cloud Console → Credenciales | web, Programador | — |
+| `GOOGLE_BUSINESS_REFRESH_TOKEN` | Token de actualización de la cuenta que administra el perfil de la Quinta (solo lectura de reseñas). | Google | Se regenera con el flujo OAuth de la cuenta propietaria del perfil | web, Programador | — |
+| `GOOGLE_BUSINESS_LOCATION` | Ficha del negocio con la forma `accounts/<cuenta>/locations/<ficha>`. | Google | Business Profile API → accounts.locations | web, Programador | — |
+
+## GOOGLE — Ads (pauta y conversiones)
+
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
+|---|---|---|---|---|---|
+| `GOOGLE_ADS_CLIENT_ID` | Client ID OAuth del proyecto de Google Cloud con la Google Ads API habilitada. Sin las cinco primeras variables GOOGLE_ADS_* (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN, DEVELOPER_TOKEN, CUSTOMER_ID) el gasto y las conversiones de Google quedan apagados. | Google | Google Cloud Console → APIs y servicios → Credenciales | web, Programador | — |
+| `GOOGLE_ADS_CLIENT_SECRET` | Secreto del cliente OAuth de Google Ads. | Google | Google Cloud Console → Credenciales | web, Programador | — |
+| `GOOGLE_ADS_REFRESH_TOKEN` | Token de actualización del usuario de Google con acceso a la cuenta de Google Ads (alcance adwords). | Google | Flujo OAuth con la cuenta que administra Google Ads | web, Programador | — |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Developer token de la Google Ads API (cuenta administradora o MCC). | Google | Google Ads → Herramientas → Centro de API | web, Programador | — |
+| `GOOGLE_ADS_CUSTOMER_ID` | ID de la cuenta de Google Ads de la Quinta (10 dígitos, con o sin guiones). | Google | Google Ads → esquina superior de la cuenta | web, Programador | — |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | ID de la cuenta administradora (MCC) desde la que se accede; vacío si se entra directo a la cuenta. | Google | Google Ads → cuenta administradora | web, Programador | — |
+| `GOOGLE_ADS_API_VERSION` | Versión de la Google Ads API en la URL (por ejemplo v22). Subirla antes de que Google retire la actual; no se pudo verificar la vigente al escribirla. | Google | Propia (calendario de retiros de Google Ads API) | web, Programador | — |
+| `GOOGLE_ADS_CONVERSION_LEAD` | ID numérico de la acción de conversión «Prospecto» (importación offline por clic) para subir los Lead. | Google | Google Ads → Objetivos → Conversiones | Programador | — |
+| `GOOGLE_ADS_CONVERSION_COMPRA` | ID numérico de la acción de conversión «Compra» (importación offline por clic) para subir las ventas con su valor sin IVA en MXN. | Google | Google Ads → Objetivos → Conversiones | Programador | — |
 
 ## ANTHROPIC — modelo de Kooxi
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ANTHROPIC_API_KEY_KOOXI` | Llave de la API de Anthropic para el agente, el juez y el resumen de preguntas. | Anthropic | console.anthropic.com → API keys | web, Programador | `ANTHROPIC_API_KEY` |
 
 ## OPENPAY — cobros
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `OPENPAY_PAGOS_MODO` | Ambiente: sandbox o production (cambia URL de la API y Openpay.js). | Openpay | Panel de Openpay → Configuración → Credenciales / Webhooks | web, Programador | `OPENPAY_MODE` |
 | `OPENPAY_PAGOS_ID` | Merchant ID del comercio. | Openpay | Panel de Openpay → Configuración → Credenciales / Webhooks | web, Programador | `OPENPAY_MERCHANT_ID` |
@@ -76,7 +112,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## CLOUDFLARE — R2 (archivos)
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `CLOUDFLARE_R2_CUENTA_ID` | ID de la cuenta de Cloudflare (parte del endpoint de R2). | Cloudflare | Cloudflare → R2 → Manage API tokens | web, Programador | `CLOUDFLARE_R2_ACCOUNT_ID` |
 | `CLOUDFLARE_R2_PUBLICO_ID` | Access key del bucket público. | Cloudflare | Cloudflare → R2 → Manage API tokens | web, Programador | `CLOUDFLARE_R2_ACCESS_KEY_ID` |
@@ -90,20 +126,20 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## BREVO — correo
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `BREVO_EMAIL_API_KEY` | API key de Brevo para enviar correo. | Brevo | Brevo → SMTP y API → API keys | web, Programador | `BREVO_API_KEY` |
 
 ## JIBBLE — asistencia y nómina
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `JIBBLE_NOMINA_ID` | Client ID de la API de Jibble. | Jibble | Jibble → Configuración → credenciales de API | web, Programador | `JIBBLE_CLIENT_ID` |
 | `JIBBLE_NOMINA_SECRET` | Client secret de la API de Jibble. | Jibble | Jibble → Configuración → credenciales de API | web, Programador | `JIBBLE_CLIENT_SECRET` |
 
 ## ERP — correo
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_EMAIL_REMITENTE` | Remitente por defecto (alimenta DEFAULT_FROM_EMAIL de Django). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `DEFAULT_FROM_EMAIL` |
 | `ERP_EMAIL_REMITENTE_RESERVAS` | Remitente de cotizaciones, contratos y guías. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `EMAIL_FROM_RESERVAS` |
@@ -112,7 +148,7 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## ERP — sitio y portal
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_SITIO_URL` | URL canónica del sitio (enlaces en correos). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `SITE_URL` |
 | `ERP_PORTAL_URL` | URL base del portal del cliente (enlaces, correos y avisos). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `PORTAL_URL` |
@@ -121,24 +157,27 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 
 ## ERP — seguridad
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_ADMIN_LOGIN_MAX_IP` | Intentos fallidos por IP en /admin/login/. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `ADMIN_LOGIN_MAX_INTENTOS_IP` |
 | `ERP_ADMIN_LOGIN_MAX_USUARIO` | Intentos fallidos por usuario en /admin/login/. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `ADMIN_LOGIN_MAX_INTENTOS_USUARIO` |
 | `ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS` | Ventana (segundos) del bloqueo del login. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `ADMIN_LOGIN_VENTANA` |
 | `ERP_SESION_INACTIVIDAD_SEGUNDOS` | Segundos de inactividad antes de cerrar la sesión. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `SESSION_IDLE_TIMEOUT` |
 | `ERP_RATELIMIT_PROXIES` | Proxies de confianza delante de la app (el edge de Railway = 1). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `RATELIMIT_TRUSTED_PROXY_COUNT` |
+| `ERP_R2_PRIVADO_OBLIGATORIO` | Si es True y falta `CLOUDFLARE_R2_PRIVADO_BUCKET`, los campos privados lanzan error en vez de caer al bucket público. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
 | `ERP_CSP_PUBLICO_ACTIVO` | Enciende la CSP de las páginas públicas. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `PUBLIC_CSP_ENABLED` |
 | `ERP_CSP_PUBLICO_SOLO_REPORTE` | CSP pública en modo prueba (solo reporta). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `PUBLIC_CSP_REPORT_ONLY` |
 | `ERP_CSP_PORTAL_SOLO_REPORTE` | CSP del portal en modo prueba. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `PORTAL_CSP_REPORT_ONLY` |
 | `ERP_CSP_ADMIN_SOLO_REPORTE` | CSP del admin en modo prueba. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `ADMIN_CSP_REPORT_ONLY` |
+| `ERP_CSP_PORTAL_ACTIVO` | CSP bloqueante del portal (tras revisar /csp-report/). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
+| `ERP_CSP_ADMIN_ACTIVO` | CSP bloqueante del admin (tras revisar /csp-report/). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
 | `ERP_NOMINA_WEBHOOK_TOKEN` | Token que autoriza el webhook de sincronización de Jibble. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `NOMINA_CRON_TOKEN` |
 | `ERP_SAT_FIEL_CIFRADO_SECRET` | Llave Fernet que cifra la e.firma (la genera el ERP, no el SAT). Generar una y no perderla. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `SAT_FIEL_ENCRYPTION_KEY` |
 | `ERP_ESTADOS_CORREO_SECRET` | Secreto compartido con el Worker de Cloudflare que reenvía el estado de cuenta BBVA al webhook (firma HMAC-SHA256). Generar con `openssl rand -hex 32`; el mismo valor va en el Worker. Vacío = el webhook rechaza todo. | ERP (configuración propia) | Railway → Shared Variables y secretos del Worker en Cloudflare | web | — |
 
 ## ERP — negocio
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_FISCAL_TASA_ISH` | Tasa del Impuesto Sobre Hospedaje como proporción (0.05 = 5%). Debe coincidir en web y Programador. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `TASA_ISH` |
 | `ERP_PROFECO_REGISTRO_EVENTOS` | Número de registro PROFECO del contrato de Evento/Pasadía (vacío = sin leyenda). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `PROFECO_REGISTRO_EVENTOS` |
@@ -146,10 +185,14 @@ Mientras dure el corte, `env()` acepta `legado=` (el nombre viejo) y avisa en el
 | `ERP_CONTRATO_AUTOMATICO_ACTIVO` | Emite el contrato al confirmarse la cotización. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `CONTRATO_AUTOMATICO` |
 | `ERP_CONTRATO_PROPIO_ACTIVO` | Usa los contratos propios (False = modelo PROFECO). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `CONTRATO_PROPIO_ACTIVO` |
 | `ERP_WA_NEGOCIO_NUMERO` | Respaldo transitorio del directorio de responsables (#421); se borra cuando el directorio sea la única fuente. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `WA_NUMERO_NEGOCIO` |
+| `ERP_MARKETING_TOLERANCIA_PCT` | Conciliación mensual de la pauta: proporción del gasto esperado (con IVA) que se tolera de diferencia contra el banco (0.10 = 10%). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_MARKETING_TOLERANCIA_MINIMA` | Conciliación mensual de la pauta: piso en pesos de la tolerancia; se acepta la mayor entre este y el porcentaje. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | — |
+| `ERP_MARKETING_ACCIONES_ACTIVAS` | Interruptor de las acciones en Meta: apagado (por defecto) todo se registra como simulación y no sale a la red; encendido ejecuta de verdad las decisiones aprobadas. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
+| `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO` | Tope en pesos de la suma de presupuestos diarios de las campañas activas tras un cambio. Vacío = no se permite subir presupuesto. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
 
 ## ERP — Kooxi (agente de WhatsApp)
 
-| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre legado |
+| Variable | Para qué sirve | Emite | Dónde se rota | Servicios de Railway | Nombre anterior |
 |---|---|---|---|---|---|
 | `ERP_KOOXI_ACTIVO` | Enciende al agente (apagado = no contesta). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `WA_AGENTE_ACTIVO` |
 | `ERP_KOOXI_NUMEROS_PRUEBA` | Si no está vacía, solo contesta a estos números (coma). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `WA_AGENTE_NUMEROS_PRUEBA` |

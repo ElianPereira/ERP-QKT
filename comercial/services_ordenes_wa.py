@@ -47,7 +47,7 @@ MAX_DIAS_BLOQUEO = 90
 BOTON_INVALIDO = 'Ese botón ya no es válido. Si lo necesitas, pídemelo de nuevo.'
 BOTON_VENCIDO = 'Pasaron más de 10 minutos y el botón venció. Pídemelo de nuevo si sigue pendiente.'
 YA_REGISTRADA = 'Esa orden ya se había atendido. No se hizo nada más.'
-CANCELADA = 'Listo, cancelé la orden. No se hizo ningún cambio.'
+CANCELADA = '✅ Listo, cancelé la orden. No se hizo ningún cambio.'
 ERROR_INTERNO = 'No se pudo ejecutar la orden y no se hizo ningún cambio. Hazlo desde el admin.'
 NO_AUTORIZADO = 'Este número no está autorizado para dar órdenes.'
 
@@ -266,7 +266,7 @@ def _ejecutar_bloqueo(accion: AccionWhatsApp) -> str:
     bloqueo.notas = f'{nota} {p.get("notas", "")}'.strip()
     bloqueo.save()
     accion.bloqueo = bloqueo
-    texto = f'Listo: fechas bloqueadas del {fecha_corta(d)} al {fecha_corta(h)}.'
+    texto = f'✅ Listo: fechas bloqueadas del {fecha_corta(d)} al {fecha_corta(h)}.'
     abiertas = _abiertas_en(d, h + timedelta(days=1))
     if abiertas:
         texto += (f' Cotizaciones abiertas que ya no podrán pagarse ni confirmarse: {_texto_afectadas(abiertas)}. '

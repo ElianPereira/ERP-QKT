@@ -202,14 +202,15 @@ class AgenteYAceptoTest(TestCase):
     def test_proponer_telefono_pide_acepto_y_no_activa(self):
         resp = _resp('ENCARGADO', TEL_A)
         with wa_settings(META_WA_PLANTILLA_OPERACIONES='aviso_operaciones'), \
-                patch.object(sr, 'enviar_whatsapp_template') as plantilla:
+                patch.object(services_pendientes, 'enviar_whatsapp_template') as plantilla:
             self.assertTrue(sr.proponer_telefono(resp, TEL_C))
         resp.refresh_from_db()
         self.assertEqual((resp.telefono_wa, resp.telefono_pendiente), (TEL_A, TEL_C))
         kwargs = plantilla.call_args.kwargs
         self.assertEqual(kwargs['telefono'], TEL_C)
-        self.assertEqual(kwargs['parametros'], [
-            "Este número recibirá los avisos de Encargado de Quinta Ko'ox Tanil. Responde ACEPTO para activarlo."])
+        self.assertEqual(len(kwargs['parametros']), 1)
+        self.assertIn('Recibirá los avisos de Encargado', kwargs['parametros'][0])
+        self.assertIn('Responde ACEPTO para activarlo', kwargs['parametros'][0])
         self.assertEqual(sr.telefono_de('ENCARGADO'), TEL_A)  # mientras tanto sigue el anterior
 
 
@@ -224,7 +225,7 @@ class AdminResponsableTest(TestCase):
                 'cambios-TOTAL_FORMS': '0', 'cambios-INITIAL_FORMS': '0', **extra}
 
     def test_alta_deja_el_numero_pendiente_y_bitacora(self):
-        with patch.object(sr, 'enviar_whatsapp') as envio:
+        with patch.object(services_pendientes, 'enviar_whatsapp') as envio:
             r = self.client.post(reverse('admin:comunicacion_responsable_add'), self._datos())
         self.assertEqual(r.status_code, 302, getattr(r, 'context', None) and r.context['adminform'].form.errors)
         resp = Responsable.objects.get()
@@ -235,7 +236,7 @@ class AdminResponsableTest(TestCase):
 
     def test_cambiar_el_numero_no_cambia_el_activo_y_queda_en_bitacora(self):
         resp = _resp('ENCARGADO', TEL_A)
-        with patch.object(sr, 'enviar_whatsapp'):
+        with patch.object(services_pendientes, 'enviar_whatsapp'):
             r = self.client.post(reverse('admin:comunicacion_responsable_change', args=[resp.pk]),
                                  self._datos(nombre='Juan Pérez', telefono=TEL_C))
         self.assertEqual(r.status_code, 302)

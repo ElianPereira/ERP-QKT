@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from comercial.models import PreguntaFrecuente, Producto
 
+from .formato_wa import Aviso
 from .models import PreguntaSinRespuesta
 from .services_pendientes import _base_url, _enviar_aviso
 from .services_responsables import rol_de_telefono, telefono_de
@@ -125,10 +126,11 @@ def resumir_preguntas(aplicar: bool = False) -> dict:
 
     if resultado['borradores']:
         from .services_agente import _avisar_propietario
-        _avisar_propietario(
-            f"Kooxi no supo contestar {resultado['dudas']} dudas. Dejé {resultado['borradores']} "
-            f"preguntas frecuentes en borrador ({resultado['por_completar']} sin respuesta) para que las "
-            'revises y actives en Admin, Preguntas')
+        _avisar_propietario(Aviso(
+            titulo=f"Kooxi no supo contestar {resultado['dudas']} dudas", categoria='Kooxi',
+            lineas=[f"{resultado['borradores']} preguntas frecuentes en borrador "
+                    f"({resultado['por_completar']} sin respuesta)"],
+            cierre='Revísalas y actívalas en Admin, Preguntas.', enlace=url_borradores()))
         proponer_a_direccion(creadas)
     return resultado
 
@@ -157,11 +159,11 @@ def proponer_a_direccion(faqs) -> int:
     enviados = 0
     for faq in list(faqs)[:MAX_PROPUESTAS_WA]:
         completa = MARCADOR_COMPLETAR not in faq.respuesta
-        texto = (f'Propuesta de pregunta frecuente. Pregunta: {faq.pregunta} '
-                 f'Respuesta propuesta: {faq.respuesta[:500]} '
-                 + ('' if completa else 'Falta completarla. ') + f'Revisar en el admin: {url_borradores()}')
+        aviso = Aviso(titulo='Propuesta de pregunta frecuente', categoria='Kooxi',
+                      lineas=[f'Pregunta: {faq.pregunta}', f'Respuesta propuesta: {faq.respuesta[:500]}'],
+                      cierre='' if completa else 'Falta completarla.', enlace=url_borradores())
         botones = [(id_boton(faq.pk), 'Aprobar')] if completa else None
-        if _enviar_aviso(destino, texto, botones=botones, clave=f'faq:{faq.pk}:propuesta') is not None:
+        if _enviar_aviso(destino, aviso, botones=botones, clave=f'faq:{faq.pk}:propuesta') is not None:
             enviados += 1
     return enviados
 
@@ -185,5 +187,5 @@ def atender_boton(telefono: str, texto: str):
         except ValidationError:
             return FALTA_COMPLETAR
         faq.save(update_fields=['activo'])
-    return f'Listo, quedó activa para Kooxi: {faq.pregunta}'
+    return f'✅ Listo, quedó activa para Kooxi: {faq.pregunta}'
 

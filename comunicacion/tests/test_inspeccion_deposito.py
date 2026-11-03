@@ -80,7 +80,7 @@ class SolicitudTest(Base):
         destino, texto = self.aviso.call_args.args
         self.assertEqual(destino, f'52{ENCARGADO}')
         self.assertEqual(self.aviso.call_args.kwargs['botones'], [(f'insp:{inspeccion.pk}:ok', 'Sin daños')])
-        self.assertIn('se devuelve', texto)
+        self.assertIn('se devuelve', texto.texto())
         pendiente = Pendiente.objects.get()
         self.assertEqual((pendiente.rol, pendiente.tipo), ('ENCARGADO', 'DEPOSITO'))
         self.assertIsNone(svc.solicitar_inspeccion(self.deposito))

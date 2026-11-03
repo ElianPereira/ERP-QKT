@@ -6,8 +6,8 @@
  *   2. Worker → Settings → Variables and Secrets → agrega, como *Secret*:
  *        ERP_ESTADOS_CORREO_SECRET  el mismo valor que en Railway (openssl rand -hex 32)
  *        ERP_URL                    https://erp.quintakooxtanil.com
- *        BBVA_REMITENTES            remitentes de BBVA separados por coma, p. ej.
- *                                   estados@bbva.mx,otro@bbva.mx (el que traiga el correo real)
+ *        BBVA_REMITENTES            remitentes de BBVA separados por coma: hoy
+ *                                   clientes@bbva.mx (verificado con el correo real de oct. 2026)
  *      Opcional, solo para depurar el primer correo real: BBVA_AUTENTICACION = no (apaga la
  *      verificación DKIM/DMARC de abajo; vuelve a quitarla en cuanto funcione).
  *   3. Email → Email Routing → Routes → estados@quintakooxtanil.com →

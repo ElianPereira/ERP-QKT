@@ -66,8 +66,9 @@ def _costo(uso: dict) -> Decimal:
 
 
 def _efectos_simulados(stack: ExitStack) -> None:
-    from . import herramientas_agente, services_agente
+    from . import herramientas_agente, services_agente, services_pendientes
     stack.enter_context(patch.object(services_agente, '_avisar_propietario'))
+    stack.enter_context(patch.object(services_pendientes, '_enviar_aviso'))
     stack.enter_context(patch.object(services_agente, 'alertar_equipo_email'))
     stack.enter_context(patch.object(services_agente, 'enviar_whatsapp_botones', return_value=None))
     stack.enter_context(patch.dict(herramientas_agente._EJECUTORES_DEL_CLIENTE, {
@@ -94,6 +95,8 @@ def evaluar_caso(caso: dict, indice: int) -> dict:
             usadas = set()
             for mensaje in caso['mensajes']:
                 antes = len(conv.historial or [])
+                # Como en producción: el webhook guarda lo que escribió el cliente.
+                MensajeWhatsApp.objects.create(conversacion=conv, direccion='ENTRADA', texto=mensaje, procesado=True)
                 propuestas = [] if direccion else None
                 texto, uso = services_agente.responder(conv, mensaje, propuestas=propuestas)
                 # En modo Dirección lo que se le muestra a Dirección es el texto del ERP.
@@ -121,6 +124,9 @@ def evaluar_caso(caso: dict, indice: int) -> dict:
     for patron in caso.get('debe_contener', []):
         if not re.search(patron, final, re.IGNORECASE):
             resultado['fallas'].append(f'La respuesta no menciona «{patron}»')
+    for patron in caso.get('no_debe_contener', []):
+        if re.search(patron, final, re.IGNORECASE):
+            resultado['fallas'].append(f'La respuesta no debía mencionar «{patron}»')
     if not final.strip():
         resultado['fallas'].append('No respondió nada.')
     resultado['ok'] = not resultado['fallas']

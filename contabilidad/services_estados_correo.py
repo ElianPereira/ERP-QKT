@@ -22,6 +22,7 @@ import threading
 import zlib
 from datetime import timedelta
 from email import policy
+from email.utils import parseaddr
 
 import pyzipper
 from django.core.files.base import ContentFile
@@ -38,6 +39,9 @@ MAX_ZIP_MIEMBROS = 20
 MAX_BYTES_DESCOMPRIMIDOS = 40 * 1024 * 1024
 ABANDONO = timedelta(minutes=15)
 DIA_AVISO_NO_LLEGO = 7
+# Dominios cuya firma DKIM se acepta. BBVA firma con d=bbva.mx (s=s1, simple/simple) y la firma
+# sobrevive al reenvío de Gmail: el cuerpo y las cabeceras firmadas no cambian.
+DOMINIOS_BANCO = ('bbva.mx',)
 MESES = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
          'noviembre', 'diciembre')
 
@@ -125,6 +129,53 @@ def lanzar_procesamiento(bitacora_id):
         finally:
             connection.close()
     threading.Thread(target=_trabajo, daemon=True, name=f'estado-correo-{bitacora_id}').start()
+
+
+# ─── Remitente (DKIM) ──────────────────────────────────────────────────────
+
+def _txt_dkim(nombre, timeout=5):
+    from dkim.dnsplug import get_txt
+    return get_txt(nombre, timeout=timeout)
+
+
+def _verificar_remitente(raw):
+    """Exige una firma DKIM válida de BBVA alineada con el From.
+
+    El Worker ya filtra por remitente, pero la cabecera `Authentication-Results`
+    que revisa se puede falsificar en un correo enviado directo a la ruta; la
+    firma no. Si la llave no se pudo consultar (DNS caído) es ERROR y se
+    reintenta; una firma inválida o ajena es IGNORADO con pendiente.
+    """
+    import dkim
+    mensaje = email.message_from_bytes(raw, policy=policy.default)
+    dominio = parseaddr(str(mensaje.get('From') or ''))[1].rpartition('@')[2].lower()
+    if dominio not in DOMINIOS_BANCO:
+        raise CorreoIgnorado("El correo no viene de BBVA; no se procesó.")
+    sin_llave = []
+
+    def dns(nombre, timeout=5):
+        try:
+            valor = _txt_dkim(nombre, timeout=timeout)
+        except Exception:
+            valor = None
+        if not valor:
+            sin_llave.append(nombre)
+        return valor
+
+    verificador = dkim.DKIM(raw)
+    firmas = sum(1 for k, _ in verificador.headers if k.lower() == b'dkim-signature')
+    for idx in range(firmas):
+        try:
+            valida = verificador.verify(idx=idx, dnsfunc=dns)
+        except dkim.DKIMException:
+            continue
+        firmante = verificador.domain or b''
+        firmante = (firmante.decode() if isinstance(firmante, bytes) else firmante).lower()
+        if valida and firmante == dominio:
+            return
+    if sin_llave:
+        raise ErrorCorreo("No se pudo consultar la llave DKIM de BBVA; se reintentará.")
+    raise CorreoIgnorado("El correo no trae una firma DKIM válida de BBVA; no se procesó.")
 
 
 # ─── Adjuntos ──────────────────────────────────────────────────────────────
@@ -260,7 +311,9 @@ def _mes_texto(mes, anio):
 
 def _procesar(bitacora):
     with bitacora.archivo_eml.open('rb') as fh:
-        mensaje = email.message_from_bytes(fh.read(), policy=policy.default)
+        raw = fh.read()
+    _verificar_remitente(raw)
+    mensaje = email.message_from_bytes(raw, policy=policy.default)
     formato, contenido, datos = _elegir_archivo(mensaje, _contrasenas())
     _movs, _saldo_ini, _saldo_fin, numero_cuenta, fecha_corte = datos
     numero_cuenta = (numero_cuenta or '').strip()
@@ -380,6 +433,7 @@ def _avisar(bitacora):
     """Éxito → WhatsApp; error o liga → Pendiente URGENTE. Nunca lanza."""
     try:
         from comunicacion import services_pendientes as pend
+        from comunicacion.formato_wa import Aviso
         clave = f'estado_correo:{bitacora.pk}'
         if bitacora.resultado == 'PROCESADO':
             estado = bitacora.estado_cuenta
@@ -389,12 +443,13 @@ def _avisar(bitacora):
                     pend.resolver(abierto)
             total = estado.movimientos.count()
             sin = estado.movimientos.filter(movimiento_contable__isnull=True).count()
-            texto = (f"Estado de cuenta BBVA de {_mes_texto(estado.periodo_mes, estado.periodo_anio)} cargado: "
-                     f"{total} movimientos, {sin} sin conciliar.")
-            if bitacora.advertencia:
-                texto += " Revisa la advertencia en Correos."
+            aviso = Aviso(
+                titulo=f"Estado de cuenta BBVA de {_mes_texto(estado.periodo_mes, estado.periodo_anio)} cargado",
+                categoria='Contabilidad',
+                lineas=[f"{total} movimientos", f"{sin} sin conciliar",
+                        "Revisa la advertencia en Correos" if bitacora.advertencia else ''])
             for telefono in _telefonos_aviso():
-                pend._enviar_aviso(telefono, texto, clave=f'{clave}:ok:{telefono}')
+                pend._enviar_aviso(telefono, aviso, clave=f'{clave}:ok:{telefono}')
         elif bitacora.resultado == 'ERROR' or (bitacora.resultado == 'IGNORADO' and _ignorado_sin_resolver(bitacora)):
             hubo_mas = bitacora.resultado == 'ERROR' and bitacora.intentos < CorreoEstadoCuenta.MAX_INTENTOS
             sufijo = " Se reintentará solo." if hubo_mas else " Ya no se reintentará: revísalo en Correos."

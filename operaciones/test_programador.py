@@ -291,7 +291,7 @@ class SaludTest(TestCase):
         textos = []
         with patch.object(sp, '_enviar_aviso', side_effect=lambda tel, texto, **k: textos.append(texto)):
             sp.enviar_resumen_diario()
-        self.assertIn(f'Programador: última vuelta {timezone.localtime(inicio):%H:%M}', textos[0])
+        self.assertIn(f'Programador: última vuelta {timezone.localtime(inicio):%H:%M}', textos[0].texto())
 
 
 class AdminEjecucionesTest(TestCase):

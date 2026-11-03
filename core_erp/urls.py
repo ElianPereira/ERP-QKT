@@ -54,6 +54,7 @@ from comunicacion.views_whatsapp import whatsapp_webhook
 from contabilidad.views_estados_correo import estado_cuenta_correo_webhook
 from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
+from core_erp.views_csp import csp_report
 from core_erp.views_totp import totp_activar_view, totp_verificar_view
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ urlpatterns = [
     # TOTP obligatorio para superusuarios (SEC-AUTHN-002, orden 42). Deben ir
     # antes de la línea 6 (el resto del admin de Django) para que el gate del
     # middleware pueda redirigir aquí sin que "admin/" las intercepte primero.
+    path('csp-report/', csp_report, name='csp_report'),
     path('admin/2fa/activar/', totp_activar_view, name='totp_activar'),
     path('admin/2fa/verificar/', totp_verificar_view, name='totp_verificar'),
 
@@ -178,6 +180,9 @@ urlpatterns = [
 
     # --- MÓDULO INDICADORES (solo Dirección) ---
     path('admin/indicadores/', include('indicadores.urls')),
+
+    # --- MÓDULO MARKETING (solo Dirección) ---
+    path('admin/marketing/', include('marketing.urls')),
 
     # --- PORTAL DEL CLIENTE (público) ---
     path('mi-evento/', portal_acceso, name='portal_acceso'),

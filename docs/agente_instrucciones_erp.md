@@ -75,7 +75,7 @@ Toda sugerencia estratégica se entrega como documento en `/docs/` — nunca se 
 
 ## 6. Ejecución y Configuración (Claude Code Routines)
 
-Estas dos rutinas se implementan como **Routines** de Claude Code (`claude.ai/code/routines`), no como sesiones manuales ni scripts locales. Un Routine corre en la nube de Anthropic, con sesión nueva cada vez (sin memoria de corridas anteriores) y **sin pausas de aprobación** — por eso `CLAUDE.md` y `.claude/settings.json` son el único control real, no una sugerencia.
+Estas tres rutinas se implementan como **Routines** de Claude Code (`claude.ai/code/routines`), no como sesiones manuales ni scripts locales. Un Routine corre en la nube de Anthropic, con sesión nueva cada vez (sin memoria de corridas anteriores) y **sin pausas de aprobación** — por eso `CLAUDE.md` y `.claude/settings.json` son el único control real, no una sugerencia.
 
 **Archivos a colocar en la raíz del repo (versionar en git):**
 - `CLAUDE.md` — contexto del proyecto, estándares y watchlist. Se lee automático en cada corrida.
@@ -144,4 +144,65 @@ Formato: un solo archivo docs/rutinas/operativa_<AAAA-MM-DD>.md, máximo 80 lín
 Ábrelo como Pull Request en borrador contra main. Nunca hagas merge.
 ```
 
-Ambas rutinas entregan vía Pull Request — tú apruebas el merge a `main`. Ese PR es tu punto de control humano, ya que el Routine en sí no pausa a preguntar.
+**Routine 3 — QKT Rutina de Seguridad**
+- Modelo: Sonnet 5.5
+- Repositorios: ERP-QKT y QKT-Pages
+- Conector: Railway (solo lectura: estado de deploys, logs y nombres/booleanos de variables)
+- Trigger: Scheduled, semanal (miércoles 02:50 Mérida), notificación push
+- Origen: Issue #460 (auditoría del 2026-10-30)
+- Instructions:
+```
+Ejecuta la Rutina de Seguridad sobre ERP-QKT y QKT-Pages. Solo análisis y, como máximo, un PR en
+borrador. Nunca hagas merge, nunca cambies variables ni servicios de Railway, nunca escribas en la base
+de producción y nunca imprimas el valor de un secreto (solo nombres, o True/False/vacío/no vacío).
+
+Antes de analizar, lee CLAUDE.md (Watchlist y Memoria), docs/security/ y los reportes previos
+docs/rutinas/seguridad_*.md. No vuelvas a reportar lo ya resuelto, decidido por el propietario o
+reportado antes, salvo que haya empeorado o el código lo contradiga.
+
+Revisa, en este orden:
+1. Avisos nuevos de la semana: busca en la web vulnerabilidades o incidentes de los últimos 7 días que
+   afecten a lo que usamos (Django, Python, Pillow, WeasyPrint, lxml, cryptography, pdfminer/pypdfium2,
+   pandas/openpyxl, gunicorn, whitenoise, django-otp, django-storages/boto3, anthropic SDK, imagen
+   python:3.12-slim-trixie, GitHub Actions usadas en .github/workflows, Railway, Cloudflare R2/Pages,
+   Meta WhatsApp Cloud API, Openpay, Brevo). Cruza cada aviso con la versión real de requirements.lock
+   o del Dockerfile: si no nos afecta, no lo reportes.
+2. Dependencias: corre `pip-audit -r requirements.lock`. Lista los PR de Dependabot abiertos y su CI.
+3. CI de main: revisa la última corrida de ci.yml en main (jobs test, security, docker). Cualquier
+   falla o aviso de Trivy, pip-audit, gitleaks o semgrep es hallazgo.
+4. Cadena de suministro: toda acción de .github/workflows debe ir fijada por SHA. Con
+   `git ls-remote` confirma que el SHA corresponde al tag del comentario; un tag que cambió de SHA sin
+   cambio de versión es CRÍTICO hasta demostrar lo contrario.
+5. Código de los últimos 7 días (`git log --since=7.days` y su diff en main): vistas nuevas sin
+   permiso, sin rate_limit si son públicas, o con csrf_exempt; mark_safe/|safe/format_html con datos
+   del usuario; SQL crudo; FileField nuevo con datos personales o fiscales sin storage privado (y que no
+   esté en ARCHIVOS_PROTEGIDOS); validación de archivos por content_type en vez de firma; secretos o
+   lecturas de entorno fuera de core_erp/variables.env(); logs o respuestas con datos personales,
+   tokens o str(e); cambios en settings.py que debiliten cookies, HSTS, CSP, ALLOWED_HOSTS o
+   CSRF_TRUSTED_ORIGINS; herramientas nuevas del agente Kooxi que lean o muevan datos sin candado de
+   teléfono/HMAC.
+6. Producción (Railway, solo lectura): estado del último deploy de web y Programador;
+   DJANGO_DEBUG es False; ERP_R2_PRIVADO_OBLIGATORIO es True y CLOUDFLARE_R2_PRIVADO_BUCKET no está
+   vacío en ambos servicios; en los logs de 7 días, picos de 401/403/429 (fuerza bruta en
+   /admin/login/), firmas inválidas de webhooks de WhatsApp/Openpay, errores 500 repetidos y
+   violaciones recibidas en /csp-report/ agrupadas por directiva y dominio.
+7. QKT-Pages: corre `python3 .github/scripts/check_page_security.py`.
+
+Severidad: CRÍTICO (explotable hoy, o expone datos de clientes, dinero o credenciales), ALTO, MEDIO,
+BAJO. Cada hallazgo lleva archivo:línea (o servicio/variable), el mecanismo concreto, si es
+VERIFICADO o A CONFIRMAR, y la corrección propuesta con qué podría romper.
+
+Corrección automática: solo si hay un hallazgo ALTO o CRÍTICO cuya corrección es subir una versión en
+requirements.lock (regenerado con pip-compile) o fijar un SHA de una Action. Crea la rama
+sec/<AAAA-MM-DD>, corre la suite completa de CLAUDE.md y `ruff check .`, y abre un PR en borrador.
+Todo lo demás (código, settings, Docker, Railway, Cloudflare) va solo al reporte. Nunca edites
+comercial/views_openpay.py, comercial/services_openpay.py, legal/, contabilidad/services.py ni
+migraciones.
+
+Entrega: docs/rutinas/seguridad_<AAAA-MM-DD>.md, máximo 80 líneas, en español, empezando por una línea
+de resumen («Sin hallazgos nuevos» o «N hallazgos: X críticos…»). Si hay algún CRÍTICO, la primera línea
+empieza con «CRÍTICO:» y el título del PR también. Si no hay nada nuevo, no abras PR: responde solo
+«Sin hallazgos nuevos» con la lista de lo revisado.
+```
+
+Las tres rutinas entregan vía Pull Request — tú apruebas el merge a `main`. Ese PR es tu punto de control humano, ya que el Routine en sí no pausa a preguntar.

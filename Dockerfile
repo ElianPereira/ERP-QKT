@@ -1,9 +1,11 @@
-FROM python:3.13-slim
+# Misma versión de Python con la que CI prueba y se compiló requirements.lock (3.12),
+# sobre Debian trixie (mismos paquetes de WeasyPrint). Dependabot propone el digest.
+FROM python:3.12-slim-trixie
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
@@ -19,8 +21,8 @@ COPY requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
 COPY . .
 # collectstatic solo compila assets, no necesita secretos reales — pero
-# settings.py exige DJANGO_SECRET_KEY (antes SECRET_KEY, que sigue valiendo como
-# respaldo) sin default (a propósito) y ninguna variable
+# settings.py exige DJANGO_SECRET_KEY
+# sin default (a propósito) y ninguna variable
 # de Railway llega a este paso del build. El "2>/dev/null || true" que había
 # aquí escondía ese fallo en cada build: /app/staticfiles/ nunca se generaba
 # y la app servía en producción sin CSS ni imágenes (confirmado en Railway:

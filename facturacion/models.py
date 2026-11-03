@@ -9,6 +9,7 @@ from django.utils.timezone import now
 
 from comercial.models import Cliente, Cotizacion, Pago
 from comercial.services import RFC_UNIDAD_MAP
+from core_erp.storages_qkt import storage_privado_con_respaldo
 from facturacion.choices import FormaPago, MetodoPago, RegimenFiscal, UsoCFDI
 
 # Mismo mapeo que ya usa Compra para detectar el RFC receptor de un XML de
@@ -202,6 +203,7 @@ class SolicitudFactura(models.Model):
     # ─── Archivos de factura ──────────────────────────────────
     archivo_zip = models.FileField(
         upload_to='facturas_zip/',
+        storage=storage_privado_con_respaldo,
         blank=True,
         null=True,
         verbose_name="ZIP con PDF y XML",
@@ -209,12 +211,14 @@ class SolicitudFactura(models.Model):
     )
     archivo_pdf = models.FileField(
         upload_to='facturas_pdf/',
+        storage=storage_privado_con_respaldo,
         blank=True,
         null=True,
         verbose_name="Factura PDF"
     )
     archivo_xml = models.FileField(
         upload_to='facturas_xml/',
+        storage=storage_privado_con_respaldo,
         blank=True,
         null=True,
         verbose_name="Factura XML"

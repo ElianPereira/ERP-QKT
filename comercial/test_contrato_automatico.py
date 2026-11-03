@@ -66,6 +66,20 @@ class ContratoAutomaticoTest(TestCase):
         self._confirmar(cot)
         self.assertEqual(ContratoServicio.objects.filter(cotizacion=cot).count(), 1)
 
+    def test_el_numero_no_se_repite_si_otra_cotizacion_cambio_de_anio(self):
+        """Caso real (COT-144): el conteo por año del evento bajaba y repetía número."""
+        anio = self.manana.year
+        movida = self._cot()
+        ContratoServicio.objects.create(
+            cotizacion=movida, numero=f'CONT-{anio}-0001', tipo_servicio='PASADIA')
+        Cotizacion.objects.filter(pk=movida.pk).update(
+            fecha_evento=self.manana.replace(year=anio + 1))
+
+        cot = self._cot()
+        self._confirmar(cot)
+        self.assertEqual(
+            ContratoServicio.objects.get(cotizacion=cot).numero, f'CONT-{anio}-0002')
+
     def test_no_emite_para_una_reservacion_con_fecha_pasada(self):
         cot = self._cot(fecha_evento=timezone.localdate() - datetime.timedelta(days=1))
         self._confirmar(cot)

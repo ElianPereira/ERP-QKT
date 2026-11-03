@@ -23,11 +23,11 @@
   </div>
 
   <div class="qkt-aviso qkt-aviso--alerta">
-    <span class="qkt-aviso__titulo">El borrado del bucket público es manual y va al final</span>
-    Hasta que borres <code>contratos_pdf/</code>, <code>nominas_pdf/</code>,
-    <code>estados_cuenta/</code> y <code>arco/identificaciones/</code> del bucket
-    público, esos archivos siguen siendo accesibles por URL. Bórralos solo después
-    de comprobar que abren desde el admin y desde el portal del cliente.
+    <span class="qkt-aviso__titulo">El borrado del bucket público va al final</span>
+    Hasta que lo hagas, los documentos siguen siendo accesibles por URL en el bucket
+    público. Usa «Borrar del público lo ya copiado» solo después de comprobar que abren
+    desde el admin y desde el portal del cliente: borra únicamente los archivos que
+    existen, con el mismo tamaño, en el bucket privado, y es irreversible.
   </div>
 
   {% if error %}
@@ -37,7 +37,33 @@
     </div>
   {% endif %}
 
-  {% if resultado %}
+  {% if resultado and borrado %}
+    <div class="qkt-aviso {% if resultado.fallos %}qkt-aviso--error{% else %}qkt-aviso--exito{% endif %}">
+      <span class="qkt-aviso__titulo">
+        {% if aplicado %}Borrado ejecutado{% else %}Simulación de borrado (no se borró nada){% endif %}
+      </span>
+      <ul>
+        <li>{% if aplicado %}Borrados del público{% else %}Se borrarían{% endif %}: <b>{{ resultado.borrados }}</b></li>
+        <li>Ya no estaban en el público: <b>{{ resultado.ya_limpios }}</b></li>
+        <li>Conservados (no confirmados en el privado): <b>{{ resultado.conservados|length }}</b></li>
+        <li>Fallos: <b>{{ resultado.fallos|length }}</b></li>
+      </ul>
+    </div>
+    {% if resultado.interrumpido %}
+      <div class="qkt-aviso qkt-aviso--alerta">Se cortó por el tope de la pasada. <strong>Vuelve a lanzarla</strong>.</div>
+    {% endif %}
+    {% if resultado.conservados %}
+      <h2 class="qkt-seccion">Conservados en el público</h2>
+      <pre class="qkt-bloque-codigo">{% for referencia in resultado.conservados %}{{ referencia }}
+{% endfor %}</pre>
+    {% endif %}
+    {% if resultado.fallos %}
+      <h2 class="qkt-seccion">Fallos</h2>
+      <pre class="qkt-bloque-codigo">{% for referencia, motivo in resultado.fallos %}{{ referencia }}
+    {{ motivo }}
+{% endfor %}</pre>
+    {% endif %}
+  {% elif resultado %}
     <div class="qkt-aviso {% if resultado.fallos %}qkt-aviso--error{% else %}qkt-aviso--exito{% endif %}">
       <span class="qkt-aviso__titulo">
         {% if aplicado %}Copia ejecutada{% else %}Simulación (no se escribió nada){% endif %}
@@ -85,6 +111,9 @@
     {% csrf_token %}
     <button type="submit" name="accion" value="simular" class="qkt-btn qkt-btn--secundario"><i class="fas fa-search" aria-hidden="true"></i> Simular</button>
     <button type="submit" name="accion" value="aplicar" class="qkt-btn qkt-btn--primario"><i class="fas fa-play" aria-hidden="true"></i> Copiar (hasta {{ limite }})</button>
+    <button type="submit" name="accion" value="borrar_simular" class="qkt-btn qkt-btn--secundario"><i class="fas fa-search" aria-hidden="true"></i> Simular borrado</button>
+    <button type="submit" name="accion" value="borrar_aplicar" class="qkt-btn qkt-btn--peligro"
+            data-qkt-confirmar="¿Borrar del bucket público lo ya copiado al privado? Es irreversible (hasta {{ limite_borrado }} archivos por pasada)."><i class="fas fa-trash" aria-hidden="true"></i> Borrar del público lo ya copiado</button>
     <a href="/admin/" class="qkt-btn qkt-btn--enlace">Volver</a>
   </form>
 </div>

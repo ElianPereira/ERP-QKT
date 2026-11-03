@@ -132,6 +132,7 @@ TAREAS = (
     Tarea('solicitar_inspecciones_deposito', 'solicitar_inspecciones_deposito', diario('09:45'), 6 * HORA),
     Tarea('devolver_depositos_sin_reporte', 'devolver_depositos_sin_reporte', cada(60), 3 * HORA, ('--aplicar',)),
     Tarea('enviar_recordatorios_visitas', 'enviar_recordatorios_visitas', diario('18:00'), 3 * HORA),
+    Tarea('enviar_avisos_previos_visitas', 'enviar_avisos_previos_visitas', cada(10), 30 * MIN),
     Tarea('revisar_pendientes', 'revisar_pendientes', cada(15), 45 * MIN),
     Tarea('enviar_resumen_diario', 'enviar_resumen_diario', diario('08:00'), 6 * HORA),
     Tarea('enviar_resumen_semanal', 'enviar_resumen_semanal', semanal(LUNES, '08:30'), 24 * HORA),
@@ -139,6 +140,14 @@ TAREAS = (
     Tarea('enviar_nomina_semanal', 'enviar_nomina_semanal', semanal(VIERNES, '12:00'), 24 * HORA),
     Tarea('preguntar_cfdi_contador', 'preguntar_cfdi_contador', diario('10:00'), 6 * HORA),
     Tarea('reprocesar_estados_correo', 'reprocesar_estados_correo', diario('09:15'), 6 * HORA, ('--aplicar',)),
+    Tarea('sincronizar_prospectos', 'sincronizar_prospectos', diario('06:40'), 6 * HORA),
+    Tarea('sincronizar_gasto_anuncios', 'sincronizar_gasto_anuncios', diario('07:10'), 6 * HORA),
+    Tarea('generar_snapshot_marketing', 'generar_snapshot_marketing', diario('07:40'), 6 * HORA),
+    Tarea('generar_decisiones_marketing', 'generar_decisiones_marketing', diario('08:10'), 6 * HORA),
+    Tarea('revisar_respuesta_prospectos', 'revisar_respuesta_prospectos', cada(5), 30 * MIN),
+    Tarea('enviar_eventos_conversion', 'enviar_eventos_conversion', cada(15), 45 * MIN),
+    Tarea('mantener_referidos', 'mantener_referidos', diario('06:55'), 6 * HORA),
+    Tarea('sincronizar_resenas_google', 'sincronizar_resenas_google', diario('09:00'), 6 * HORA),
 )
 
 POR_NOMBRE = {t.nombre: t for t in TAREAS}

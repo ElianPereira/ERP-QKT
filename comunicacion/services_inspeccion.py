@@ -34,6 +34,7 @@ from comercial import services_deposito
 from comercial.models import DepositoGarantia
 from core_erp.impuestos import centavos
 
+from .formato_wa import Aviso
 from .models import FotoInspeccion, InspeccionDeposito, Pendiente
 from .services import descargar_media_wa, normalizar_telefono_wa
 from .services_pendientes import _base_url, _enviar_aviso, registrar_pendiente, resolver
@@ -187,16 +188,18 @@ def solicitar_inspeccion(deposito):
         return None
     folio, cliente = _folio(deposito), deposito.cotizacion.cliente.nombre
     limite = timezone.localtime(inspeccion.vence_en)
-    texto = (f'Inspección de {folio} ({cliente}): ¿hubo daños? Si no, toca «Sin daños». Si hubo, responde '
-             f'«daños 800 cot {deposito.cotizacion_id} descripción» y manda al menos una foto. Si no hay reporte '
-             f'antes del {limite:%d/%m a las %H:%M}, el depósito de {_dinero(deposito.en_custodia)} se devuelve '
-             'al cliente.')
+    aviso = Aviso(
+        titulo=f'Inspección de {folio}: ¿hubo daños?', categoria='Depósito',
+        lineas=[f'Cliente: {cliente}', f'Depósito en custodia: {_dinero(deposito.en_custodia)}',
+                'Si no hubo daños, toca «Sin daños»',
+                f'Si hubo, responde «daños 800 cot {deposito.cotizacion_id} descripción» y manda al menos una foto'],
+        cierre=(f'Si no hay reporte antes del {limite:%d/%m a las %H:%M}, el depósito se devuelve al cliente.'))
     registrar_pendiente(
         titulo=f'Inspeccionar {folio} antes de devolver el depósito', rol='ENCARGADO', tipo='DEPOSITO',
         objeto=deposito.cotizacion, vence_en=inspeccion.vence_en,
         detalle=f'{cliente}: depósito de {_dinero(deposito.en_custodia)}.', clave_idempotencia=f'inspeccion:{inspeccion.pk}')
     for destino in destinos:
-        _enviar_aviso(destino, texto, botones=[(id_boton(inspeccion.pk, 'ok'), 'Sin daños')],
+        _enviar_aviso(destino, aviso, botones=[(id_boton(inspeccion.pk, 'ok'), 'Sin daños')],
                       clave=f'inspeccion:{inspeccion.pk}:solicitud')
     return inspeccion
 
@@ -316,7 +319,7 @@ def _confirmar_sin_danos(inspeccion) -> str:
         return f'La inspección de {folio} ya no está esperando respuesta.'
     if resultado.get('manual'):
         return f'Anotado: {folio} sin daños. El depósito no se puede devolver solo; Dirección lo atenderá.'
-    return f'Listo, {folio} sin daños. Se devolvió el depósito al cliente.'
+    return f'✅ Listo, {folio} sin daños. Se devolvió el depósito al cliente.'
 
 
 def _reportar_danos(telefono: str, coincidencia) -> str:
@@ -360,11 +363,11 @@ def _evaluar(inspeccion) -> str:
         if resultado.get('manual'):
             return f'Reporte de {folio} recibido. El depósito no se puede liquidar solo; Dirección lo atenderá.'
         _avisar_retencion(inspeccion, resultado)
-        return f'Listo, retuve {_dinero(resultado["retenido"])} de {folio} y devolví {_dinero(resultado["devuelto"])} al cliente.'
+        return f'✅ Listo, retuve {_dinero(resultado["retenido"])} de {folio} y devolví {_dinero(resultado["devuelto"])} al cliente.'
     InspeccionDeposito.objects.filter(pk=inspeccion.pk, estado='DANOS').update(
         estado='POR_APROBAR', updated_at=timezone.now())
     _pedir_aprobacion(inspeccion)
-    return f'Listo, mandé el reporte de {folio} ({_dinero(monto)}) a Dirección. En cuanto lo apruebe se aplica.'
+    return f'✅ Listo, mandé el reporte de {folio} ({_dinero(monto)}) a Dirección. En cuanto lo apruebe se aplica.'
 
 
 def _desglose(inspeccion) -> str:
@@ -383,9 +386,12 @@ def _pedir_aprobacion(inspeccion) -> None:
     if not destino:
         logger.error("%s; la aprobación de %s queda solo en la bandeja", SIN_DESTINO, folio)
         return
-    texto = (f'Retención por daños en {folio}: {_dinero(inspeccion.monto_danos)} de {_dinero(deposito.en_custodia)} '
-             f'en custodia. «{inspeccion.desglose[:250]}». {inspeccion.fotos.count()} foto(s): {_url(inspeccion)}')
-    _enviar_aviso(destino, texto, botones=[(id_boton(inspeccion.pk, 'apr'), 'Aprobar'),
+    aviso = Aviso(
+        titulo=f'Aprobar retención por daños en {folio}', categoria='Depósito', urgente=True,
+        lineas=[f'Retención: {_dinero(inspeccion.monto_danos)} de {_dinero(deposito.en_custodia)} en custodia',
+                f'Daños: {inspeccion.desglose[:250]}', f'Fotos: {inspeccion.fotos.count()}'],
+        enlace=_url(inspeccion))
+    _enviar_aviso(destino, aviso, botones=[(id_boton(inspeccion.pk, 'apr'), 'Aprobar'),
                                            (id_boton(inspeccion.pk, 'rech'), 'Devolver todo')],
                   clave=f'inspeccion:{inspeccion.pk}:aprobacion')
 
@@ -403,15 +409,18 @@ def _decidir(inspeccion, *, aprobar: bool) -> Optional[str]:
     if resultado.get('manual'):
         return f'Anotado. El depósito de {folio} no se puede liquidar solo; quedó en tu bandeja.'
     if aprobar:
-        return f'Listo, retuve {_dinero(resultado["retenido"])} de {folio} y devolví {_dinero(resultado["devuelto"])}.'
-    return f'Listo, devolví el depósito de {folio} completo ({_dinero(resultado["devuelto"])}).'
+        return f'✅ Listo, retuve {_dinero(resultado["retenido"])} de {folio} y devolví {_dinero(resultado["devuelto"])}.'
+    return f'✅ Listo, devolví el depósito de {folio} completo ({_dinero(resultado["devuelto"])}).'
 
 
 def _avisar_retencion(inspeccion, resultado) -> None:
     destino = telefono_de('DIRECCION')
     if destino:
-        _enviar_aviso(destino, (f'Retención aplicada en {_folio(inspeccion.deposito)}: {_dinero(resultado["retenido"])} '
-                                f'por daños reportados por el encargado (dentro del tope). Detalle: {_url(inspeccion)}'),
+        aviso = Aviso(titulo=f'Retención aplicada en {_folio(inspeccion.deposito)}', categoria='Depósito',
+                      lineas=[f'Retenido: {_dinero(resultado["retenido"])}',
+                              'Daños reportados por el encargado, dentro del tope'],
+                      enlace=_url(inspeccion))
+        _enviar_aviso(destino, aviso,
                       clave=f'inspeccion:{inspeccion.pk}:retencion')
 
 

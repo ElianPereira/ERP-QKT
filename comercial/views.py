@@ -18,7 +18,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
-from django.views.decorators.csrf import csrf_exempt
 
 from core_erp import impuestos
 from core_erp.documentos import nombre_archivo, render_pdf, respuesta_pdf
@@ -964,6 +963,7 @@ def importar_historico_view(request):
 # renderizar el resumen en vez de morir con un 502.
 MIGRACION_TIEMPO_MAXIMO = 90
 MIGRACION_LIMITE = 15
+BORRADO_LIMITE = 200  # borrar es una sola llamada por archivo
 
 
 @staff_member_required
@@ -977,6 +977,7 @@ def migrar_archivos_privados_view(request):
     from comercial.services_migracion_privada import (
         CAMPOS_PRIVADOS,
         MigracionError,
+        borrar_del_publico_copiado,
         migrar_archivos_privados,
     )
 
@@ -990,6 +991,7 @@ def migrar_archivos_privados_view(request):
         "title": "Migrar documentos sensibles al bucket privado",
         "n_campos": len(CAMPOS_PRIVADOS),
         "limite": MIGRACION_LIMITE,
+        "limite_borrado": BORRADO_LIMITE,
         "tiempo_maximo": MIGRACION_TIEMPO_MAXIMO,
         "resultado": None,
         "aplicado": False,
@@ -999,10 +1001,25 @@ def migrar_archivos_privados_view(request):
     if request.method != "POST":
         return render(request, "admin/migrar_archivos_privados.html", context)
 
-    aplicar = request.POST.get("accion") == "aplicar"
+    accion = request.POST.get("accion")
+    borrar = accion in ("borrar_simular", "borrar_aplicar")
+    aplicar = accion in ("aplicar", "borrar_aplicar")
     context["aplicado"] = aplicar
+    context["borrado"] = borrar
 
     try:
+        if borrar:
+            context["resultado"] = borrar_del_publico_copiado(
+                aplicar=aplicar,
+                limite=BORRADO_LIMITE if aplicar else None,
+                tiempo_maximo=MIGRACION_TIEMPO_MAXIMO,
+            )
+            if aplicar:
+                logger.warning(
+                    "Borrado del bucket público por %s: %s archivos",
+                    request.user.username, context["resultado"].borrados,
+                )
+            return render(request, "admin/migrar_archivos_privados.html", context)
         context["resultado"] = migrar_archivos_privados(
             aplicar=aplicar,
             limite=MIGRACION_LIMITE if aplicar else None,

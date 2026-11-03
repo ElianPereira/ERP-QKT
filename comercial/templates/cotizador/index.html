@@ -588,6 +588,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--crema);color:var(--
       </div>
     </div>
 
+    <div class="campo" id="campoRecomendo" style="display:none;">
+      <label for="quien_recomendo">¿Quién te recomendó? (opcional)</label>
+      <input type="text" id="quien_recomendo" placeholder="Su nombre o su celular" maxlength="120" autocomplete="off">
+    </div>
+
     <!-- Factura toggle -->
     <div class="factura-toggle" id="facturaToggle" onclick="toggleFactura()">
       <div class="toggle-switch"></div>
@@ -1451,6 +1456,8 @@ function selMedio(val, el) {
   medioSel = val;
   document.querySelectorAll('.medio-chip').forEach(function(c) { c.classList.remove('selected'); });
   el.classList.add('selected');
+  var campoRec = document.getElementById('campoRecomendo');
+  if (campoRec) campoRec.style.display = (val === 'Recomendación') ? '' : 'none';
 }
 
 function toggleFactura() {
@@ -1920,6 +1927,7 @@ async function enviarSolicitud() {
     email:      document.getElementById('email').value.trim(),
     notas:      obtenerNotas(),
     como_nos_encontro: medioSel,
+    quien_recomendo: medioSel === 'Recomendación' ? (document.getElementById('quien_recomendo').value || '').trim() : '',
     inc_cerveza:    !!barraExtras.inc_cerveza,
     inc_nacional:   !!barraExtras.inc_nacional,
     inc_premium:    !!barraExtras.inc_premium,
@@ -1937,6 +1945,16 @@ async function enviarSolicitud() {
     finalidades:    finalidades,
   };
 
+  // Atribución publicitaria: el mismo event_id va al Pixel (si se aceptaron las cookies) y al servidor.
+  var metaCtx = window.qktMeta ? window.qktMeta.contexto() : {};
+  payload.meta_event_id = metaCtx.meta_event_id || '';
+  payload.fbp = metaCtx.fbp || '';
+  payload.fbc = metaCtx.fbc || '';
+  var gadsCtx = window.qktGads ? window.qktGads.contexto() : {};
+  payload.gclid = gadsCtx.gclid || '';
+  payload.gbraid = gadsCtx.gbraid || '';
+  payload.wbraid = gadsCtx.wbraid || '';
+
   if (requiereFactura) {
     payload.rfc = (document.getElementById('rfc').value || '').trim().toUpperCase();
     payload.razon_social = (document.getElementById('razon_social').value || '').trim();
@@ -1953,7 +1971,8 @@ async function enviarSolicitud() {
     });
     var data = await resp.json();
     if (data.ok) {
-      window.location.href = data.portal_url;
+      var irAlPortal = function () { window.location.href = data.portal_url; };
+      if (window.qktMeta) { window.qktMeta.lead(metaCtx.meta_event_id, irAlPortal); } else { irAlPortal(); }
     } else {
       var al = document.getElementById('alert-global');
       al.style.display = 'block';
@@ -1989,5 +2008,6 @@ poblarSelectoresHora();
   } catch(e) { /* silencioso */ }
 })();
 </script>
+{% load pixel_meta %}{% captura_google %}{% pixel_meta %}
 </body>
 </html>

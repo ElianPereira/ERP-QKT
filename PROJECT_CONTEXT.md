@@ -41,6 +41,7 @@ cliente, ambos servidos con templates Django normales.
 | `comunicacion` | Registro/envío de comunicaciones al cliente (emails transaccionales, recordatorios). |
 | `reportes` | Módulo centralizado de reportes PDF/Excel que reutiliza datos de las demás apps (`reportes/services/*.py` por dominio). |
 | `cumplimiento` | Permisos, licencias, constancias y contratos de servicio con vigencia, costo, expediente y avisos de vencimiento (Issue #403). Sin contabilidad; solo Dirección por defecto. |
+| `marketing` | Prospectos, pauta (Meta y Google Ads), indicadores de adquisición, decisiones, conversiones, referidos y reseñas (Issue #468). Solo superusuario. |
 | `core_erp` | Proyecto Django: `settings.py`, `urls.py` raíz, rate limiting (`ratelimit.py`), auth config. |
 
 ## Modelos principales por app
@@ -89,6 +90,32 @@ Las pólizas se generan automáticamente vía signals cuando se registran
 documento oficial) → `DocumentoExpediente`; `AvisoVencimiento` (bitácora e idempotencia
 de avisos). Semáforo en `services.estado_tramite()`; avisos en `services_avisos.py`
 (`manage.py avisar_vencimientos`); expediente PDF/ZIP en `services_expediente.py`.
+
+### `marketing` (Issue #468, 8 fases; solo superusuario)
+
+Modelos: `Lead`/`LeadEvento` (prospecto y su bitácora; etapa derivada de mensajes, visitas y cotizaciones; guarda `ctwa_clid`
+y `gclid/gbraid/wbraid`, nunca montos), `Campana`/`Anuncio`/`GastoPublicitario` (pauta por plataforma META o GOOGLE; gasto
+diario sin IVA en MXN, único por anuncio, fecha y fuente), `ParametroMarketing` (supuestos), `SnapshotKPI`,
+`Decision` + `comunicacion.Hallazgo`, `AccionAnuncio` (bitácora de acciones en Meta), `EventoConversion` (bandeja de salida
+hacia Meta CAPI y Google Ads, `plataforma`), `Referido`, `AutorizacionMedios`, `ResenaGoogle`.
+
+Servicios (`marketing/services/`): `pipeline` (embudo), `motivos`/`retencion`/`barrido` (pérdida y anonimización a 1 año),
+`proveedores` (`ProveedorMeta`, `ProveedorGoogle`; REST con `requests`, apagados sin credenciales), `gasto` (sincronización
+idempotente), `conciliacion` (gasto con IVA contra cargos bancarios clasificados como publicidad; solo lee contabilidad),
+`kpis`/`snapshots` (CPL, CAC, ROAS cobrado sin IVA, por servicio, campaña, plataforma y cohorte), `decisiones`, `acciones`
+(solo Meta, simulación por defecto), `conversiones` y `conversiones_google` (outbox con consentimiento MARKETING y baja),
+`referidos`, `medios`, `resenas`, `contenido`.
+
+Comandos (todos en `core_erp/programador.py`): `sincronizar_prospectos`, `sincronizar_gasto_anuncios` (Meta y Google, y concilia
+el mes anterior desde el día 5), `generar_snapshot_marketing`, `generar_decisiones_marketing`, `revisar_respuesta_prospectos`,
+`enviar_eventos_conversion` (cada 15 min), `mantener_referidos`, `sincronizar_resenas_google`.
+
+Variables (catálogo en `docs/variables_entorno.md`): `META_ADS_*`, `META_CAPI_*`, `META_PIXEL_ID`, `META_WA_WABA_ID`,
+`GOOGLE_ADS_*` (credenciales OAuth, developer token, cliente, versión y las dos acciones de conversión),
+`GOOGLE_BUSINESS_*` (reseñas), `ERP_MARKETING_*` (tolerancias, interruptor y tope de acciones).
+
+Google Ads es solo lectura (gasto y campañas) más conversiones offline por clic (Lead y Purchase); no hay escritura: las
+acciones de un clic son únicamente de Meta.
 
 ### `reportes`
 

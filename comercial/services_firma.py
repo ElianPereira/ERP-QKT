@@ -68,13 +68,19 @@ def solicitar_codigo(contrato, ahora=None):
     contrato se regenera antes de firmar, la firma se rechaza.
     """
     from comunicacion.services import remitente_por_tipo, reservar_comunicacion
+    from comunicacion.services_codigos import (
+        enmascarar_telefono,
+        enviar_codigo_whatsapp,
+        puede_enviar_codigo_whatsapp,
+        telefono_valido,
+    )
 
     ahora = ahora or timezone.now()
     cotizacion = contrato.cotizacion
     email = (cotizacion.cliente.email or '').strip()
-    if not email:
+    if not email and not puede_enviar_codigo_whatsapp(cotizacion.cliente):
         raise FirmaError(
-            "No tenemos un correo registrado para enviarte el código. "
+            "No tenemos un correo ni un WhatsApp registrado para enviarte el código. "
             "Escríbenos para agregarlo."
         )
 
@@ -89,11 +95,17 @@ def solicitar_codigo(contrato, ahora=None):
         codigo = f"{secrets.randbelow(10**6):06d}"
         firma.codigo_hash = make_password(codigo)
         firma.codigo_enviado_en = ahora
-        firma.codigo_canal = 'EMAIL'
-        firma.codigo_destino = email
+        firma.codigo_canal = 'EMAIL' if email else 'WHATSAPP'
+        firma.codigo_destino = email or telefono_valido(cotizacion.cliente)
         firma.intentos = 0
         firma.hash_documento = sha256(_leer(contrato.archivo))
         firma.save()
+
+    if not email:
+        if not enviar_codigo_whatsapp(cotizacion=cotizacion, codigo=codigo, tipo='CONTRATO',
+                                      minutos=int(VIGENCIA_CODIGO.total_seconds() // 60)):
+            raise FirmaError("No pudimos enviar el código. Intenta de nuevo en unos minutos.")
+        return enmascarar_telefono(firma.codigo_destino)
 
     asunto = f"Código para firmar tu contrato {contrato.numero}"
     html = render_to_string('comunicacion/email/codigo_firma.html', {

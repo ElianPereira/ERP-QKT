@@ -23,12 +23,22 @@ from django.core.files.storage import storages
 
 from core_erp.storages_qkt import _hay_bucket_privado
 
-# Los mismos campos a los que models.py les puso storage=storage_privado.
+# Los campos con storage=storage_privado o storage_privado_con_respaldo.
 CAMPOS_PRIVADOS = (
     ('legal', 'SolicitudARCO', 'identificacion'),
     ('nomina', 'ReciboNomina', 'archivo_pdf'),
     ('contabilidad', 'EstadoCuentaBancario', 'archivo'),
     ('comercial', 'ContratoServicio', 'archivo'),
+    ('comercial', 'Cotizacion', 'identificacion_oficial'),
+    ('comercial', 'Cotizacion', 'archivo_pdf'),
+    ('comercial', 'Cotizacion', 'archivo_contrato'),
+    ('comercial', 'Compra', 'archivo_xml'),
+    ('comercial', 'Compra', 'archivo_pdf'),
+    ('comercial', 'Gasto', 'archivo_xml'),
+    ('comercial', 'Gasto', 'archivo_pdf'),
+    ('facturacion', 'SolicitudFactura', 'archivo_zip'),
+    ('facturacion', 'SolicitudFactura', 'archivo_pdf'),
+    ('facturacion', 'SolicitudFactura', 'archivo_xml'),
 )
 
 
@@ -134,5 +144,74 @@ def migrar_archivos_privados(*, aplicar=False, limite=None, tiempo_maximo=None):
                 continue
 
             resultado.copiados += 1
+
+    return resultado
+
+
+@dataclass
+class ResultadoBorrado:
+    borrados: int = 0
+    ya_limpios: int = 0
+    conservados: list = field(default_factory=list)
+    fallos: list = field(default_factory=list)
+    interrumpido: bool = False
+
+
+def borrar_del_publico_copiado(*, aplicar=False, limite=None, tiempo_maximo=None):
+    """Borra del bucket público solo lo que ya existe, idéntico en tamaño, en el privado.
+
+    Último paso, irreversible: lo que no se confirma en el privado se conserva y
+    se reporta. Sin `aplicar` solo informa. Mismo recorrido que la copia, así
+    que también puede interrumpirse y relanzarse.
+    """
+    if not _hay_bucket_privado():
+        raise MigracionError('No hay bucket privado configurado: no se borra nada del público.')
+
+    opciones = storages.backends
+    bucket_publico = opciones.get('default', {}).get('OPTIONS', {}).get('bucket_name')
+    bucket_privado = opciones.get('privado', {}).get('OPTIONS', {}).get('bucket_name')
+    if bucket_publico and bucket_publico == bucket_privado:
+        raise MigracionError('El bucket privado y el público son el mismo: borrar destruiría los archivos.')
+
+    resultado = ResultadoBorrado()
+    publico = storages['default']
+    privado = storages['privado']
+    inicio = time.monotonic()
+    borrados = 0
+
+    for app_label, model_name, campo in CAMPOS_PRIVADOS:
+        modelo = apps.get_model(app_label, model_name)
+        registros = (
+            modelo.objects
+            .exclude(**{campo: ''})
+            .exclude(**{f'{campo}__isnull': True})
+            .only('pk', campo)
+            .order_by('pk')
+            .iterator()
+        )
+        for registro in registros:
+            archivo = getattr(registro, campo)
+            if not archivo or not archivo.name:
+                continue
+            if _agotado(inicio, tiempo_maximo) or (limite is not None and borrados >= limite):
+                resultado.interrumpido = True
+                return resultado
+
+            referencia = f'{app_label}.{model_name} pk={registro.pk} {campo}={archivo.name}'
+            try:
+                if not publico.exists(archivo.name):
+                    resultado.ya_limpios += 1
+                    continue
+                if not privado.exists(archivo.name) or privado.size(archivo.name) != publico.size(archivo.name):
+                    resultado.conservados.append(referencia)
+                    continue
+                if not aplicar:
+                    resultado.borrados += 1
+                    continue
+                borrados += 1
+                publico.delete(archivo.name)
+                resultado.borrados += 1
+            except Exception as exc:
+                resultado.fallos.append((referencia, str(exc)))
 
     return resultado

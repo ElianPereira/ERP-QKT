@@ -18,6 +18,8 @@ Rutas:
 import json
 import logging
 import math
+import re
+import uuid
 from datetime import datetime, timedelta
 from datetime import time as dt_time
 from decimal import ROUND_HALF_UP, Decimal
@@ -178,7 +180,7 @@ class SolicitudInvalida(Exception):
         self.errores = list(errores)
 
 
-def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento):
+def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento, notificar_whatsapp=True):
     """
     Crea la cotización de una solicitud del cotizador: cliente, consentimiento,
     líneas, descuentos automáticos, portal y avisos. Fuente única para el
@@ -189,6 +191,8 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
     evidencia legal del canal (navegador o botón de WhatsApp); si falla, la
     solicitud sigue y queda en el log. Lanza `SolicitudInvalida` si no pasa
     las reglas. Devuelve `{'cotizacion', 'portal_url', 'aviso_fecha'}`.
+    Con `notificar_whatsapp=False` el aviso de WhatsApp no sale (el correo sí):
+    quien llama se encarga de entregar el enlace por ese canal.
     """
     form = CotizadorEnviarForm(data)
     if not form.is_valid():
@@ -208,6 +212,7 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
     tipo_ev   = limpio['tipo_evento'].strip() or 'Evento General'
     notas              = limpio['notas'].strip()
     como_nos_encontro  = limpio['como_nos_encontro'].strip()
+    quien_recomendo    = limpio['quien_recomendo'].strip()
 
     # Barra (siguen como booleanos — alimentan CalculadoraBarraService). No
     # forman parte del form: son flags internos del formulario, no texto
@@ -497,6 +502,12 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
     except Exception:
         logger.exception("Error aplicando descuentos automáticos en COT-%s", cotizacion.id)
 
+    # ── Recomendación (marketing) ────────────────────────────────────────────────────────
+    # Solo anota quién lo recomendó; nunca cambia el precio ni confirma si esa persona existe.
+    if quien_recomendo:
+        from marketing.services.referidos import registrar_desde_cotizacion
+        registrar_desde_cotizacion(cotizacion, quien_recomendo)
+
     # ── Portal del cliente ──────────────────────────────────────────────────────────────
     portal, _ = PortalCliente.objects.get_or_create(
         cotizacion=cotizacion,
@@ -519,7 +530,7 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
         notificar_cotizacion,
     )
     alertar_equipo_nueva_cotizacion(cotizacion)
-    notificar_cotizacion(cotizacion, origen='WEB')
+    notificar_cotizacion(cotizacion, origen='WEB', whatsapp=notificar_whatsapp)
 
     if aviso_fecha:
         try:
@@ -529,6 +540,32 @@ def crear_cotizacion_solicitud(data, *, origen_cliente, registrar_consentimiento
             pass
 
     return {'cotizacion': cotizacion, 'portal_url': portal_url, 'aviso_fecha': aviso_fecha}
+
+
+_RE_FB = re.compile(r'^fb\.\d\.\d{10,13}\.[A-Za-z0-9_-]{1,200}$')
+
+
+def _registrar_atribucion_web(request, data, cotizacion):
+    """Entrega a marketing el event_id del Pixel, las cookies de Meta y el clic de Google Ads del envío.
+    Nunca afecta la solicitud: cualquier fallo queda en el log."""
+    try:
+        from marketing.services import conversiones, conversiones_google
+        # Clic de Google Ads (gclid/gbraid/wbraid): solo se guarda el dato, el servicio lo valida.
+        conversiones_google.registrar_clic_web(
+            cotizacion=cotizacion, **{k: str(data.get(k) or '') for k in ('gclid', 'gbraid', 'wbraid')})
+        try:
+            event_id = uuid.UUID(str(data.get('meta_event_id') or ''))
+        except ValueError:
+            return
+        fbp, fbc = (str(data.get(k) or '') for k in ('fbp', 'fbc'))
+        from legal.services import LegalService
+        conversiones.registrar_origen_web(
+            cotizacion=cotizacion, event_id=event_id,
+            fbp=fbp if _RE_FB.match(fbp) else '', fbc=fbc if _RE_FB.match(fbc) else '',
+            user_agent=request.META.get('HTTP_USER_AGENT', ''), ip=LegalService.obtener_ip(request) or '',
+            url=request.build_absolute_uri('/cotizar/'))
+    except Exception:
+        logger.exception('No se pudo registrar la atribución publicitaria de la solicitud.')
 
 
 @rate_limit(key='cotizador_enviar', limit=10, window=60)
@@ -558,6 +595,7 @@ def cotizador_enviar(request):
             data, origen_cliente='Web', registrar_consentimiento=_consentimiento_navegador)
     except SolicitudInvalida as e:
         return JsonResponse({'ok': False, 'errores': e.errores}, status=400)
+    _registrar_atribucion_web(request, data, r['cotizacion'])
     return JsonResponse({
         'ok': True,
         'portal_url': r['portal_url'],

@@ -11,16 +11,18 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from .formato_wa import Aviso, bloques
 from .models import CambioResponsable, Responsable
-from .services import enviar_whatsapp, enviar_whatsapp_template, normalizar_telefono_wa
+from .services import normalizar_telefono_wa
 from .services_bajas import _normalizar
 
 logger = logging.getLogger(__name__)
 
 ROLES_CON_RESPALDO = ('ENCARGADO', 'DIRECCION')
 SIN_DESTINO = 'no hay responsable ni ERP_WA_NEGOCIO_NUMERO configurado'
-CONFIRMACION_ACEPTO = ('Listo, este número quedó activo para recibir los avisos de Quinta Ko\'ox Tanil. '
-                       'Si no lo esperabas, avisa al equipo.')
+CONFIRMACION_ACEPTO = bloques(
+    "✅ Listo, este número quedó activo para recibir los avisos de Quinta Ko'ox Tanil.",
+    'Si no lo esperabas, avisa al equipo.')
 
 
 def _respaldo() -> str:
@@ -95,17 +97,11 @@ def proponer_telefono(resp, telefono: str, usuario=None) -> bool:
 
 
 def _pedir_acepto(resp) -> None:
-    texto = (f'Este número recibirá los avisos de {resp.get_rol_display()} de Quinta Ko\'ox Tanil. '
-             'Responde ACEPTO para activarlo.')
-    plantilla = getattr(settings, 'META_WA_PLANTILLA_OPERACIONES', '') or ''
-    try:
-        if plantilla:
-            enviar_whatsapp_template(tipo='OTRO', telefono=resp.telefono_pendiente,
-                                     template_name=plantilla, parametros=[texto])
-        else:
-            enviar_whatsapp(tipo='OTRO', telefono=resp.telefono_pendiente, mensaje=texto)
-    except Exception:
-        logger.exception("No se pudo pedir el ACEPTO a %s", resp)
+    from .services_pendientes import _enviar_aviso  # evita el ciclo: pendientes importa este módulo
+
+    _enviar_aviso(resp.telefono_pendiente, Aviso(
+        titulo='Activa este número para recibir avisos', categoria='Quinta Ko\'ox Tanil',
+        lineas=[f'Recibirá los avisos de {resp.get_rol_display()}'], cierre='Responde ACEPTO para activarlo.'))
 
 
 def es_acepto(texto: str) -> bool:

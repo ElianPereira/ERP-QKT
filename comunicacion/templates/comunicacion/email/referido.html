@@ -1,0 +1,6 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#2E7D32;margin-top:0;">Ganaste un beneficio por recomendarnos</h2>
+<p>Hola {{ cliente.nombre }}, la persona que nos recomendaste ya apartó su fecha. Gracias por confiar en nosotros.</p>
+<p>Tienes un beneficio para tu próxima reservación, válido hasta el <strong>{{ vence }}</strong>. Cuando vayas a cotizar, avísanos y lo aplicamos si es la mejor promoción disponible.</p>
+{% endblock %}

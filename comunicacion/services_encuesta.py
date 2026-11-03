@@ -17,6 +17,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from .formato_wa import bloques
 from .models import EncuestaPostEvento
 from .services import enviar_whatsapp_template, normalizar_telefono_wa
 from .services_notificaciones import _fecha, _nombre_pila, _plantilla, _seguro, _telefono, _tipo_evento
@@ -31,10 +32,13 @@ VIGENCIA_TEXTO = timedelta(days=3)
 BOTONES = ((5, 'Excelente'), (3, 'Regular'), (1, 'Mala'))
 RE_BOTON = re.compile(r'^enc:(\d+):([1-5])$')
 RE_NUMERO = re.compile(r'^\s*([1-5])\s*$')
-GRACIAS_BUENA = '¡Muchas gracias! Nos da mucho gusto que lo hayas disfrutado.'
-GRACIAS_MALA = ('Gracias por decírnoslo; lamentamos que no haya sido la experiencia que esperabas. '
-                'Una persona del equipo te escribirá para atenderte.')
-YA_CONTESTADA = 'Ya habíamos recibido tu calificación. ¡Gracias!'
+GRACIAS_BUENA = bloques('¡Muchas gracias! Nos da mucho gusto que lo hayas disfrutado.')
+INVITACION_REFERIDOS = ('Si conoces a alguien que quiera celebrar o descansar con nosotros, recomiéndanos: cuando tu '
+                        'recomendado aparte su fecha, ganas un beneficio para tu próxima reservación (vigente 12 meses). '
+                        'Dile que mencione tu nombre o tu número al cotizar.')
+GRACIAS_MALA = bloques('Gracias por decírnoslo; lamentamos que no haya sido la experiencia que esperabas.',
+                       'Una persona del equipo te escribirá para atenderte.')
+YA_CONTESTADA = bloques('Ya habíamos recibido tu calificación.', '¡Gracias!')
 
 
 def id_boton(encuesta_id: int, calificacion: int) -> str:
@@ -146,6 +150,14 @@ def atender_respuesta(telefono: str, texto: str):
     return True, _registrar_calificacion(encuesta, calificacion)
 
 
+def encuesta_positiva_reciente(telefono: str):
+    """La encuesta 4–5 que este teléfono acaba de contestar (último minuto), o None."""
+    return (EncuestaPostEvento.objects
+            .filter(telefono=normalizar_telefono_wa(telefono), calificacion__gte=4,
+                    contestada_en__gte=timezone.now() - timedelta(minutes=2))
+            .select_related('cotizacion__cliente').order_by('-contestada_en').first())
+
+
 def _registrar_calificacion(encuesta, calificacion: int) -> Optional[str]:
     ahora = timezone.now()
     filas = EncuestaPostEvento.objects.filter(pk=encuesta.pk, estado='ENVIADA').update(
@@ -156,9 +168,10 @@ def _registrar_calificacion(encuesta, calificacion: int) -> Optional[str]:
     if calificacion >= 4:
         url = getattr(settings, 'ERP_RESENA_GOOGLE_URL', '') or ''
         if not url:
-            return GRACIAS_BUENA
+            return bloques(GRACIAS_BUENA, INVITACION_REFERIDOS)
         EncuestaPostEvento.objects.filter(pk=encuesta.pk).update(resena_solicitada=True)
-        return f'{GRACIAS_BUENA} ¿Nos ayudas con una reseña en Google? Solo toma un minuto: {url}'
+        return bloques(GRACIAS_BUENA, INVITACION_REFERIDOS, 'Solo toma un minuto:', enlace=url,
+                       pregunta='¿Nos ayudas con una reseña en Google?')
     registrar_pendiente(
         titulo=f'Encuesta con calificación {calificacion}/5 en COT-{cotizacion.pk:03d}',
         rol='DIRECCION', tipo='QUEJA', severidad='URGENTE', objeto=cotizacion,

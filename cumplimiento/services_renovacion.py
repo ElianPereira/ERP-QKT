@@ -21,6 +21,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from comunicacion.formato_wa import Aviso
 from comunicacion.models import Pendiente
 from comunicacion.services import descargar_media_wa, normalizar_telefono_wa
 from comunicacion.services_bajas import _normalizar
@@ -104,15 +105,21 @@ def abrir_renovacion(tramite, actual, dias=None):
     cuando = services.dias_texto(dias if dias is not None else (vence - timezone.localdate()).days).lower()
     detalle = (f'Vence el {vence:%d/%m/%Y} ({cuando}). Ya abrí la renovación con {copiados} documento(s) del '
                'expediente anterior.')
+    nombres_faltantes = ', '.join(r.nombre for r in faltantes)
     if faltantes:
-        detalle += ' Faltan: ' + ', '.join(r.nombre for r in faltantes) + '.'
+        detalle += f' Faltan: {nombres_faltantes}.'
     pendiente = registrar_pendiente(
         titulo=f'Renovar {tramite.nombre}', rol='DIRECCION', tipo='CUMPLIMIENTO', objeto=nueva,
         detalle=detalle, clave_idempotencia=clave)
     destino = telefono_de('DIRECCION')
     if destino and pendiente is not None:
-        _enviar_aviso(destino, f'Renovar {tramite.nombre}: {detalle} Revisa y haz el trámite: {_url(nueva)}',
-                      clave=f'{clave}:whatsapp')
+        aviso = Aviso(
+            titulo=f'Renovar {tramite.nombre}', categoria='Cumplimiento',
+            lineas=[f'Vence el {vence:%d/%m/%Y} ({cuando})',
+                    f'Ya abrí la renovación con {copiados} documento(s) del expediente anterior',
+                    *([f'Faltan: {nombres_faltantes}'] if faltantes else [])],
+            cierre='Revisa y haz el trámite.', enlace=_url(nueva))
+        _enviar_aviso(destino, aviso, clave=f'{clave}:whatsapp')
     return nueva
 
 
@@ -166,12 +173,12 @@ def recibir_documento(telefono: str, media_id: str, pie: str = ''):
             vigencia.fecha_vencimiento = date.fromisoformat(propuesta['fecha_vencimiento'])
         vigencia.por_confirmar = True
         vigencia.save()
-    texto = (f'Recibí el documento de {vigencia.tramite.nombre}. Propongo vigencia del '
-             f'{vigencia.fecha_inicio:%d/%m/%Y} al {vigencia.fecha_vencimiento:%d/%m/%Y}'
-             if vigencia.fecha_inicio and vigencia.fecha_vencimiento else
-             f'Recibí el documento de {vigencia.tramite.nombre}; no pude proponer fechas')
-    texto += f'. Si son correctas, toca Confirmar; si no, corrígelas aquí: {_url(vigencia)}'
-    _enviar_aviso(normalizar_telefono_wa(telefono), texto, botones=[(id_boton(vigencia.pk), 'Confirmar')])
+    propuesta_fechas = (f'Vigencia propuesta: {vigencia.fecha_inicio:%d/%m/%Y} al {vigencia.fecha_vencimiento:%d/%m/%Y}'
+                        if vigencia.fecha_inicio and vigencia.fecha_vencimiento else 'No pude proponer fechas')
+    aviso = Aviso(titulo=f'Recibí el documento de {vigencia.tramite.nombre}', categoria='Cumplimiento',
+                  lineas=[propuesta_fechas], cierre='Si son correctas, toca Confirmar; si no, corrígelas aquí.',
+                  enlace=_url(vigencia))
+    _enviar_aviso(normalizar_telefono_wa(telefono), aviso, botones=[(id_boton(vigencia.pk), 'Confirmar')])
     return True, None
 
 
@@ -196,5 +203,5 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
     for p in Pendiente.objects.filter(content_type=tipo, object_id=vigencia.pk, estado='ABIERTO'):
         resolver(p)
     if vigencia.fecha_vencimiento:
-        return f'Listo, {vigencia.tramite.nombre} quedó vigente hasta el {vigencia.fecha_vencimiento:%d/%m/%Y}.'
-    return f'Listo, {vigencia.tramite.nombre} quedó registrado como vigente.'
+        return f'✅ Listo, {vigencia.tramite.nombre} quedó vigente hasta el {vigencia.fecha_vencimiento:%d/%m/%Y}.'
+    return f'✅ Listo, {vigencia.tramite.nombre} quedó registrado como vigente.'

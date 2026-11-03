@@ -172,5 +172,5 @@ def confirmar(telefono: str, texto: str) -> Optional[Resultado]:
         logger.exception("Terminal por WhatsApp: no se pudo registrar el cobro")
         return Resultado(ERROR_INTERNO)
     saldo = max(cot.saldo_pendiente(), Decimal('0.00'))
-    return Resultado(f'Listo: se registró {_dinero(pago.monto)} con terminal en COT-{cot.pk:03d}. '
+    return Resultado(f'✅ Listo: se registró {_dinero(pago.monto)} con terminal en COT-{cot.pk:03d}. '
                      f'Saldo pendiente: {_dinero(saldo)}.', pago=pago, reporte=reporte)

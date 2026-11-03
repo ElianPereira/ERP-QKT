@@ -11,6 +11,7 @@ import unicodedata
 
 from django.utils import timezone
 
+from .formato_wa import bloques
 from .models import BajaWhatsApp, ConversacionWhatsApp
 from .services import normalizar_telefono_wa
 
@@ -21,9 +22,10 @@ PALABRAS_BAJA = {
     'stop', 'alto', 'ya no me manden mensajes', 'no quiero mas mensajes',
 }
 
-CONFIRMACION_BAJA = ('Listo, ya no te enviaremos promociones ni seguimientos por este medio. Los avisos '
-                     'de tu reservación (pagos y detalles de tu evento) te siguen llegando. Si necesitas '
-                     'algo, escríbenos cuando quieras.')
+CONFIRMACION_BAJA = bloques(
+    '✅ Listo, ya no te enviaremos promociones ni seguimientos por este medio.',
+    'Los avisos de tu reservación (pagos y detalles de tu evento) te siguen llegando.',
+    'Si necesitas algo, escríbenos cuando quieras.')
 
 
 def _normalizar(texto: str) -> str:

@@ -27,6 +27,7 @@ from django.conf import settings
 
 from .herramientas_agente import HERRAMIENTAS
 from .models import RespuestaBloqueada
+from .services_notificaciones import MAPS_URL_QKT
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,8 @@ _RE_URL = re.compile(r'\b((?:[a-z0-9-]+\.)+(?:com|mx|net|org|io|app|ly|gl|me|co|
 # Las fechas (2026-10-10, 10/10/2026) se quitan antes de buscar teléfonos:
 # dos seguidas suman diez dígitos.
 _RE_FECHA = re.compile(r'\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b')
+# El folio ARCO (ARCO- + 19 dígitos) tampoco es un teléfono: se quita igual que las fechas.
+_RE_FOLIO_ARCO = re.compile(r'\bARCO-\d{10,24}\b', re.IGNORECASE)
 _RE_TOKEN_PORTAL = re.compile(r'/mi-evento/[^/\s]{6,}', re.IGNORECASE)
 
 # Lo que el cliente nunca debe leer: delata el sistema interno o las
@@ -91,17 +94,23 @@ def revisar_filtro(conv, texto: str) -> str:
     publico = _digitos(getattr(settings, 'META_WA_KOOXI_NUMERO', ''))
     if len(publico) >= 10:
         permitidos.add(publico[-10:])
-    for m in _RE_TELEFONO.finditer(_RE_FECHA.sub(' ', texto)):
+    for m in _RE_TELEFONO.finditer(_RE_FOLIO_ARCO.sub(' ', _RE_FECHA.sub(' ', texto))):
         digitos = _digitos(m.group(0))
         if len(digitos) >= 10 and digitos[-10:] not in permitidos:
             return 'Incluye un número de teléfono o cuenta que no es de este cliente.'
 
+    # Un correo que el propio cliente escribió en este chat (p. ej. el de su solicitud
+    # ARCO) puede repetírsele: no revela nada que no haya dicho él.
+    escritos = {c.lower() for m in conv.mensajes.filter(direccion='ENTRADA').values_list('texto', flat=True)
+                for c in _RE_CORREO.findall(m or '')}
     for correo in _RE_CORREO.findall(texto):
         correo = correo.lower()
-        if not correo.endswith('@' + DOMINIO_PUBLICO) and correo not in correos_cliente:
+        if not correo.endswith('@' + DOMINIO_PUBLICO) and correo not in correos_cliente | escritos:
             return 'Incluye un correo que no es de este cliente.'
 
-    for m in _RE_URL.finditer(_RE_CORREO.sub(' ', texto)):
+    # Única excepción fuera del sitio público: la ficha de Google Maps de la Quinta,
+    # exacta. Cualquier otro enlace de google.com sigue bloqueado.
+    for m in _RE_URL.finditer(_RE_CORREO.sub(' ', texto.replace(MAPS_URL_QKT, ' '))):
         host = m.group(1).lower()
         if host not in HOSTS_PUBLICOS:
             return f'Incluye un enlace fuera del sitio público ({host}).'

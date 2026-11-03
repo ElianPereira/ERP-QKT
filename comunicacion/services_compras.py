@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from core_erp.documentos import nombre_archivo, render_pdf
 
+from .formato_wa import Aviso
 from .models import Pendiente
 from .services import enviar_email
 from .services_pendientes import BOTON_OK, _enviar_aviso, id_boton, registrar_pendiente
@@ -77,8 +78,11 @@ def enviar_lista(cotizacion):
         return None
     from django.urls import reverse
     enlace = _base() + reverse('cotizacion_lista_compras', args=[cotizacion.pk])
-    _enviar_aviso(destino, f'Lista de compras de {folio} para el {cotizacion.fecha_evento:%d/%m/%Y}: '
-                           f'{_resumen(contexto)}. PDF: {enlace}',
+    aviso = Aviso(titulo=f'Lista de compras de {folio}', categoria='Compras',
+                  lineas=[f'Evento: {cotizacion.fecha_evento:%d/%m/%Y}, {cotizacion.num_personas} personas',
+                          *_resumen(contexto).split('; ')],
+                  cierre='Toca «Ya compré» al terminar.', enlace=enlace)
+    _enviar_aviso(destino, aviso,
                   botones=[(id_boton(pendiente.pk, BOTON_OK), 'Ya compré')], clave=f'{clave}:whatsapp')
     _enviar_pdf(cotizacion, contexto, rol)
     return pendiente

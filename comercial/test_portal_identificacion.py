@@ -76,11 +76,33 @@ class PortalSubirIdentificacionTest(TestCase):
         self.assertIn('8 MB', response.json()['mensaje'])
 
     def test_jpg_valido_se_guarda(self):
-        archivo = SimpleUploadedFile('ine.jpg', b'contenido-jpg', content_type='image/jpeg')
+        archivo = SimpleUploadedFile('ine.jpg', b'\xff\xd8\xff\xe0contenido-jpg', content_type='image/jpeg')
         response = self.client.post(self.url, {'identificacion': archivo})
         self.assertTrue(response.json()['ok'])
         self.cotizacion.refresh_from_db()
         self.assertTrue(self.cotizacion.identificacion_completa())
+
+    def test_html_disfrazado_de_jpeg_rechazado(self):
+        archivo = SimpleUploadedFile('ine.jpg', b'<html><script>alert(1)</script>', content_type='image/jpeg')
+        response = self.client.post(self.url, {'identificacion': archivo})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['ok'])
+        self.cotizacion.refresh_from_db()
+        self.assertFalse(self.cotizacion.identificacion_completa())
+
+    def test_heic_da_mensaje_claro_no_500(self):
+        archivo = SimpleUploadedFile('ine.jpg', b'\x00\x00\x00\x18ftypheic', content_type='image/jpeg')
+        response = self.client.post(self.url, {'identificacion': archivo})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Formato no válido', response.json()['mensaje'])
+
+    def test_el_nombre_guardado_no_es_el_del_cliente(self):
+        archivo = SimpleUploadedFile('mi ine ../x.jpg', b'\xff\xd8\xff\xe0abc', content_type='image/jpeg')
+        self.client.post(self.url, {'identificacion': archivo})
+        self.cotizacion.refresh_from_db()
+        nombre = self.cotizacion.identificacion_oficial.name
+        self.assertRegex(nombre, r'[0-9a-f]{32}\.jpg$')
+        self.assertNotIn('mi ine', nombre)
 
     def test_pdf_valido_se_guarda(self):
         archivo = SimpleUploadedFile('ine.pdf', b'%PDF-1.4', content_type='application/pdf')

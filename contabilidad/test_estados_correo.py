@@ -2,6 +2,7 @@
 
 Nada de red ni de WhatsApp real. Los correos son MIME sintéticos con el PDF de prueba
 de `tests_fixtures`; la contraseña del ZIP se inventa al vuelo en cada corrida."""
+import base64
 import hashlib
 import hmac
 import io
@@ -15,6 +16,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import dkim
 import pyzipper
 from cryptography.fernet import Fernet
 from django.contrib.auth.models import User
@@ -106,6 +108,8 @@ def pdf_cifrado(clave):
 
 @override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA, ERP_WA_NEGOCIO_NUMERO='529990000001')
 class BaseCorreoTest(TestCase):
+    verificar_dkim = False  # los correos sintéticos no van firmados; `DkimTest` prueba la firma
+
     def setUp(self):
         self.cuenta = CuentaBancaria.objects.create(
             nombre='BBVA Maestra', banco='BBVA', numero_cuenta=NUMERO_CUENTA, clabe='012345678901234567')
@@ -113,6 +117,10 @@ class BaseCorreoTest(TestCase):
         patcher = patch(AVISO)
         self.aviso = patcher.start()
         self.addCleanup(patcher.stop)
+        if not self.verificar_dkim:
+            dkim_patcher = patch.object(servicio, '_verificar_remitente')
+            dkim_patcher.start()
+            self.addCleanup(dkim_patcher.stop)
 
     def procesar(self, mime):
         bitacora = servicio.registrar_correo(mime)
@@ -147,10 +155,11 @@ class ProcesamientoTest(BaseCorreoTest):
 
     def test_aviso_de_exito_sin_montos_ni_saldos(self):
         self.procesar(self.correo_pdf())
-        textos = [c.args[1] for c in self.aviso.call_args_list]
+        textos = [c.args[1].texto() for c in self.aviso.call_args_list]
         self.assertTrue(textos)
         for texto in textos:
-            self.assertIn('abril 2026 cargado: 39 movimientos', texto)
+            self.assertIn('abril 2026 cargado', texto)
+            self.assertIn('39 movimientos', texto)
             self.assertNotRegex(texto, r'\d[\d,]*\.\d{2}')
 
     def test_mismo_message_id_dos_veces_un_solo_estado(self):
@@ -353,6 +362,21 @@ class ZipYContrasenaTest(BaseCorreoTest):
         with self.assertRaisesMessage(servicio.ErrorCorreo, 'no tiene una capturada'):
             servicio._descifrar_pdf(pdf_cifrado(self.clave), [])
 
+    def test_forma_real_de_bbva_zip_con_xml_y_pdf_aparte(self):
+        # Correo de octubre de 2026: un ZIP con AES que solo trae el XML y el PDF adjunto aparte,
+        # los dos con <cuenta>_<AAAAMM>. El XML aún no tiene parser: gana el PDF.
+        self.guardar_clave(self.clave)
+        xml = b'<?xml version="1.0" encoding="UTF-8"?><EstadoDeCuenta/>'
+        mime = correo([
+            (f'{NUMERO_CUENTA}_202604.zip', zip_con_clave([(f'{NUMERO_CUENTA}_202604.xml', xml)], self.clave),
+             'application/octet-stream'),
+            (f'{NUMERO_CUENTA}_202604.pdf', self.pdf, 'application/octet-stream'),
+        ])
+        bitacora = self.procesar(mime)
+        self.assertEqual(bitacora.resultado, 'PROCESADO', bitacora.detalle)
+        estado = bitacora.estado_cuenta
+        self.assertEqual((estado.formato, estado.periodo_mes, estado.periodo_anio), ('PDF', 4, 2026))
+
     def test_la_contrasena_se_guarda_cifrada(self):
         self.guardar_clave(self.clave)
         self.cuenta.refresh_from_db()
@@ -375,6 +399,72 @@ class ZipYContrasenaTest(BaseCorreoTest):
         grande = zip_con_clave([('a.pdf', b'0' * 1024) for _ in range(servicio.MAX_ZIP_MIEMBROS + 1)], None)
         with self.assertRaisesMessage(servicio.ErrorCorreo, 'demasiado grande'):
             servicio._leer_zip(grande, [])
+
+
+class DkimTest(BaseCorreoTest):
+    """La firma DKIM de BBVA se verifica en el ERP: la cabecera que revisa el Worker se falsifica."""
+    verificar_dkim = True
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        llave = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        cls.privada = llave.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
+                                          serialization.NoEncryption())
+        publica = llave.public_key().public_bytes(serialization.Encoding.DER,
+                                                  serialization.PublicFormat.SubjectPublicKeyInfo)
+        cls.txt = b'v=DKIM1; k=rsa; p=' + base64.b64encode(publica)
+
+    def setUp(self):
+        super().setUp()
+        patcher = patch.object(servicio, '_txt_dkim', side_effect=self.dns)
+        self.consulta = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def dns(self, nombre, timeout=5):
+        return self.txt if nombre == b's1._domainkey.bbva.mx.' else None
+
+    def firmado(self, remitente='clientes@bbva.mx', dominio=b'bbva.mx'):
+        mime = correo([('estado.pdf', self.pdf, 'application/pdf')]).replace(
+            b'From: estados@bbva.example', f'From: {remitente}'.encode())
+        firma = dkim.sign(mime, b's1', dominio, self.privada,
+                          include_headers=[b'date', b'from', b'to', b'message-id', b'subject', b'mime-version'])
+        return firma + mime
+
+    def test_firma_valida_de_bbva_se_procesa(self):
+        bitacora = self.procesar(self.firmado())
+        self.assertEqual(bitacora.resultado, 'PROCESADO', bitacora.detalle)
+
+    def test_sin_firma_se_ignora_y_avisa_a_direccion(self):
+        mime = correo([('estado.pdf', self.pdf, 'application/pdf')]).replace(
+            b'From: estados@bbva.example', b'From: clientes@bbva.mx')
+        bitacora = self.procesar(mime)
+        self.assertEqual(bitacora.resultado, 'IGNORADO')
+        self.assertIn('firma DKIM', bitacora.detalle)
+        self.assertEqual(EstadoCuentaBancario.objects.count(), 0)
+        self.assertTrue(Pendiente.objects.filter(rol='DIRECCION', severidad='URGENTE').exists())
+
+    def test_cuerpo_alterado_tras_firmar_se_ignora(self):
+        mime = self.firmado().replace(b'Adjunto su estado de cuenta.', b'Adjunto su estado de cuenta!')
+        self.assertEqual(self.procesar(mime).resultado, 'IGNORADO')
+
+    def test_firma_de_otro_dominio_no_vale(self):
+        self.consulta.side_effect = lambda nombre, timeout=5: self.txt
+        bitacora = self.procesar(self.firmado(dominio=b'otro.example'))
+        self.assertEqual(bitacora.resultado, 'IGNORADO')
+
+    def test_remitente_ajeno_se_ignora(self):
+        bitacora = self.procesar(self.firmado(remitente='alguien@otro.example', dominio=b'otro.example'))
+        self.assertEqual(bitacora.resultado, 'IGNORADO')
+        self.assertIn('no viene de BBVA', bitacora.detalle)
+
+    def test_dns_caido_es_error_que_se_reintenta(self):
+        self.consulta.side_effect = OSError('sin red')
+        bitacora = self.procesar(self.firmado())
+        self.assertEqual(bitacora.resultado, 'ERROR')
+        self.assertIn('se reintentará', bitacora.detalle)
 
 
 class CuentaBancariaAdminTest(BaseCorreoTest):

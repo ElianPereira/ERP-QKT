@@ -9,7 +9,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("contabilidad", "0040_regla_deposito_efectivo"),
+        ("contabilidad", "0041_reglas_palabras_clave_gastos"),
     ]
 
     operations = [

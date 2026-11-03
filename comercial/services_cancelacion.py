@@ -31,6 +31,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
+from comunicacion.formato_wa import bloques
 from comunicacion.services import (
     enviar_email,
     enviar_whatsapp,
@@ -157,8 +158,10 @@ def iniciar(cotizacion: Cotizacion, *, canal: str, tipo: str, telefono: str = ''
                                'registrado en la reservación.')
     if tipo == 'CAMBIO_FECHA':
         _validar_cambio(cotizacion, fecha_nueva)
-    if not (cotizacion.cliente.email or '').strip():
-        raise CancelacionError('No tenemos un correo registrado para enviarte el código. Escríbenos para agregarlo.')
+    from comunicacion.services_codigos import puede_enviar_codigo_whatsapp
+    if not (cotizacion.cliente.email or '').strip() and not puede_enviar_codigo_whatsapp(cotizacion.cliente):
+        raise CancelacionError('No tenemos un correo ni un WhatsApp registrado para enviarte el código. '
+                               'Escríbenos para agregarlo.')
 
     with transaction.atomic():
         abierta = (SolicitudCancelacion.objects.select_for_update()
@@ -190,6 +193,7 @@ def iniciar(cotizacion: Cotizacion, *, canal: str, tipo: str, telefono: str = ''
 def enviar_codigo(solicitud: SolicitudCancelacion, ahora=None) -> str:
     """Genera y manda el código de 6 dígitos. El código nunca se guarda en claro
     ni en la bitácora de comunicaciones. Devuelve el correo destino."""
+    from comunicacion.services_codigos import enmascarar_telefono, enviar_codigo_whatsapp, telefono_valido
     ahora = ahora or timezone.now()
     cot = solicitud.cotizacion
     email = (cot.cliente.email or '').strip()
@@ -204,9 +208,14 @@ def enviar_codigo(solicitud: SolicitudCancelacion, ahora=None) -> str:
         codigo = f'{secrets.randbelow(10**6):06d}'
         s.codigo_hash = make_password(codigo)
         s.codigo_enviado_en = ahora
-        s.codigo_destino = email
+        s.codigo_destino = email or telefono_valido(cot.cliente)
         s.intentos = 0
         s.save(update_fields=['codigo_hash', 'codigo_enviado_en', 'codigo_destino', 'intentos', 'updated_at'])
+    if not email:
+        if not enviar_codigo_whatsapp(cotizacion=cot, codigo=codigo,
+                                      minutos=int(VIGENCIA_CODIGO.total_seconds() // 60)):
+            raise CancelacionError('No pudimos enviar el código. Intenta de nuevo en unos minutos.')
+        return enmascarar_telefono(s.codigo_destino)
     asunto = f'Código para tu solicitud de {QUE[solicitud.tipo]} · {_folio(cot)}'
     from django.core.mail import EmailMultiAlternatives
     from django.template.loader import render_to_string
@@ -428,7 +437,7 @@ def decidir(solicitud_pk: int, accion: str, *, quien: str, token: Optional[str] 
     if accion == 'no':
         _avisar_cliente(s, 'rechazada', TEXTOS['rechazada'].format(que=QUE[s.tipo], folio=folio),
                         asunto=f'Tu solicitud · {folio}')
-        return Resultado(f'Listo: rechazaste la solicitud de {folio}. Se avisó al cliente.', s)
+        return Resultado(f'✅ Listo: rechazaste la solicitud de {folio}. Se avisó al cliente.', s)
     if accion == 'co':
         _avisar_cliente(s, 'contraoferta', TEXTOS['contraoferta'].format(folio=folio), asunto=f'Tu solicitud · {folio}')
         registrar_pendiente(
@@ -516,7 +525,7 @@ def _ejecutar_cambio(s: SolicitudCancelacion) -> Resultado:
         reubicar_tareas_turnover(cot, fecha_anterior)
     _avisar_cliente(s, 'cambio', TEXTOS['cambio'].format(folio=_folio(cot), fecha=s.fecha_nueva.strftime('%d/%m/%Y')),
                     asunto=f'Cambio de fecha aprobado · {_folio(cot)}')
-    return Resultado(f'Listo: {_folio(cot)} se movió al {s.fecha_nueva:%d/%m/%Y}. Se avisó al cliente. Ojo: el contrato firmado conserva la fecha anterior; hace falta un anexo.', s)
+    return Resultado(f'✅ Listo: {_folio(cot)} se movió al {s.fecha_nueva:%d/%m/%Y}. Se avisó al cliente. Ojo: el contrato firmado conserva la fecha anterior; hace falta un anexo.', s)
 
 
 def _ejecutar_cancelacion(s: SolicitudCancelacion, usuario) -> Resultado:
@@ -592,7 +601,7 @@ def _ejecutar_cancelacion(s: SolicitudCancelacion, usuario) -> Resultado:
         partes.append(TEXTOS['sin_reembolso'])
     _avisar_cliente(s, 'cancelada', TEXTOS['cancelada'].format(folio=folio, reembolso=' '.join(partes)),
                     asunto=f'Cancelación aprobada · {folio}')
-    return Resultado(f'Listo: {folio} cancelada. ' + ' '.join(detalle), s)
+    return Resultado(f'✅ Listo: {folio} cancelada. ' + ' '.join(detalle), s)
 
 
 def _guardar_registro(s: SolicitudCancelacion, registro: dict) -> None:
@@ -617,7 +626,9 @@ def _avisar_cliente(s: SolicitudCancelacion, clave: str, texto: str, *, asunto: 
             clave_idempotencia=f'cancelacion:{s.pk}:{clave}:email')
         telefono = s.telefono or cot.cliente.telefono
         if telefono:
-            enviar_whatsapp(cotizacion=cot, tipo='CANCELACION', telefono=telefono, mensaje=texto,
+            # Mismo texto que el correo, una oración por párrafo para leerlo en el celular
+            mensaje = bloques(*re.split(r'(?<=[.!?])\s+', texto))
+            enviar_whatsapp(cotizacion=cot, tipo='CANCELACION', telefono=telefono, mensaje=mensaje,
                             clave_idempotencia=f'cancelacion:{s.pk}:{clave}:wa')
     except Exception:
         logger.exception("Solicitud de cancelación %s: no se pudo avisar al cliente", s.pk)

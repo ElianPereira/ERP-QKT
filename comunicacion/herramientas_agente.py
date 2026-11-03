@@ -176,7 +176,7 @@ HERRAMIENTAS = [
                 'fecha': {'type': 'string', 'description': 'AAAA-MM-DD.'},
                 'personas': {'type': 'integer'},
                 'nombre': {'type': 'string', 'description': 'Nombre completo del cliente.'},
-                'correo': {'type': 'string', 'description': 'Correo del cliente.'},
+                'correo': {'type': 'string', 'description': 'Correo del cliente. Déjalo vacío solo si, tras pedírselo dos veces, no quiso darlo.'},
                 'paquete_id': {'type': 'integer', 'description': 'Evento: id del paquete; omitir para solo la renta.'},
                 'hora_inicio': {'type': 'string', 'description': 'Evento: HH:MM en 24 h.'},
                 'hora_fin': {'type': 'string', 'description': 'Evento: HH:MM en 24 h.'},
@@ -185,8 +185,11 @@ HERRAMIENTAS = [
                 'habitaciones_ids': {'type': 'array', 'items': {'type': 'integer'}},
                 'noches': {'type': 'integer'},
                 'notas': {'type': 'string', 'description': 'Lo que el cliente pidió anotar (máx. 300).'},
+                'quien_recomendo': {'type': 'string', 'description': 'Solo si el cliente lo dijo por sí mismo: nombre o '
+                                    'celular de quien lo recomendó, tal como lo escribió. No lo preguntes, no confirmes '
+                                    'si esa persona existe ni digas nada de ella.'},
             },
-            'required': ['servicio', 'fecha', 'personas', 'nombre', 'correo'],
+            'required': ['servicio', 'fecha', 'personas', 'nombre'],
             'additionalProperties': False,
         },
     },
@@ -224,9 +227,14 @@ HERRAMIENTAS = [
         'description': (
             'Horarios en que el equipo puede recibir una visita para conocer la Quinta. Úsala cuando el '
             'cliente quiera visitarla. Solo ofrece los que devuelve; si la lista viene vacía, usa '
-            'pasar_a_humano.'
+            'pasar_a_humano. Sin fecha trae un resumen de varios días; si el cliente pide un día '
+            'concreto, vuelve a llamarla con `fecha` para ver todas las horas de ese día.'
         ),
-        'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+        'input_schema': {
+            'type': 'object',
+            'properties': {'fecha': {'type': 'string', 'description': 'Día pedido, AAAA-MM-DD (opcional).'}},
+            'additionalProperties': False,
+        },
     },
     {
         'name': 'agendar_visita',
@@ -244,6 +252,25 @@ HERRAMIENTAS = [
                 'personas': {'type': 'integer', 'description': 'Cuántas personas asisten, si lo dijo.'},
             },
             'required': ['inicio', 'nombre'],
+            'additionalProperties': False,
+        },
+    },
+    {
+        'name': 'avisar_llegada',
+        'description': (
+            'Avisa al equipo, al momento, que el cliente que escribe ya llegó a la Quinta o va en camino, '
+            'para que alguien lo reciba en la entrada. Úsala cuando diga que ya llegó, que está afuera, en '
+            'la puerta o en el portón, que le abran, cómo entrar o «cómo tengo acceso» estando aquí, o que va '
+            'en camino; tenga o no cita o reservación (la herramienta la busca por su número). No le des la '
+            'ubicación ni le ofrezcas agendar en su lugar.'
+        ),
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'situacion': {'type': 'string', 'enum': ['ya_llego', 'en_camino']},
+                'minutos': {'type': 'integer', 'description': 'Solo en_camino: en cuántos minutos llega, si lo dijo.'},
+            },
+            'required': ['situacion'],
             'additionalProperties': False,
         },
     },
@@ -683,7 +710,7 @@ MAX_COTIZACIONES_CHAT_DIA = 3
 
 def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre=None, correo=None,
                      paquete_id=None, hora_inicio=None, hora_fin=None, tipo_evento=None,
-                     nivel_pasadia=None, habitaciones_ids=None, noches=None, notas=None):
+                     nivel_pasadia=None, habitaciones_ids=None, noches=None, notas=None, quien_recomendo=None):
     """Crea la cotización con la misma función que el cotizador web.
 
     El teléfono sale de la conversación (nunca del modelo) y la evidencia del
@@ -702,11 +729,13 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
             'Ya tiene en el chat el mensaje con botones para aceptar el Aviso de Privacidad; pídele '
             'que toque «Acepto». Sin eso no se puede crear la cotización.')}
 
+    # El correo es opcional: sin él, el número de WhatsApp es el medio de contacto.
     correo = str(correo or '').strip().lower()
-    try:
-        validate_email(correo)
-    except ValidationError:
-        return {'error': 'El correo no parece válido: confírmalo con el cliente.'}
+    if correo:
+        try:
+            validate_email(correo)
+        except ValidationError:
+            return {'error': 'El correo no parece válido: confírmalo con el cliente.'}
     inicio, error = _fecha(fecha)
     if error:
         return {'error': error}
@@ -744,7 +773,7 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
         'noches': str(noches_n), 'hora_inicio': hora_inicio or '', 'hora_fin': hora_fin or '',
         'tipo_evento': tipo_evento or '', 'notas': str(notas or '')[:300], 'acepta_legales': True,
         'paquete_id': paquete_id or '', 'habitaciones_ids': habitaciones_ids or [],
-        'nivel_pasadia': nivel_pasadia or 'BASICO',
+        'nivel_pasadia': nivel_pasadia or 'BASICO', 'quien_recomendo': str(quien_recomendo or '')[:120],
         'finalidades': ['MARKETING'] if conv.consentimiento_marketing else [],
     }
 
@@ -752,30 +781,32 @@ def crear_cotizacion(conv=None, servicio=None, fecha=None, personas=None, nombre
         from legal.models import OrigenAceptacion
         from legal.services import LegalService
         LegalService.registrar_aceptacion(
-            request=None, correo=email, origen=OrigenAceptacion.WHATSAPP, cliente=cliente,
+            request=None, correo=email or f'{conv.telefono}@sin-correo.whatsapp.invalid',
+            origen=OrigenAceptacion.WHATSAPP, cliente=cliente,
             finalidades_aceptadas=finalidades, referencia_externa=conv.consentimiento_wamid,
             aceptado_en=conv.consentimiento_en,
         )
 
     try:
         r = crear_cotizacion_solicitud(datos, origen_cliente='WhatsApp',
-                                       registrar_consentimiento=_consentimiento_whatsapp)
+                                       registrar_consentimiento=_consentimiento_whatsapp,
+                                       notificar_whatsapp=False)
     except SolicitudInvalida as e:
         return {'error': ' '.join(e.errores)}
     cot = r['cotizacion']
     if conv.cliente_id != cot.cliente_id:
         conv.cliente = cot.cliente
         conv.save(update_fields=['cliente', 'updated_at'])
+    # El enlace con token no pasa por el modelo: el ERP lo agrega al final de
+    # la respuesta de Kooxi (después del filtro) y el correo lo lleva también.
+    conv.enlace_portal_pendiente = (cot.pk, r['portal_url'])
     return {
         'folio': f'COT-{cot.id:03d}',
         'total': _formato(cot.precio_final),
         'conceptos': [i.descripcion for i in cot.items.all()],
-        # El enlace con token no pasa por el modelo: le llega al cliente en
-        # el aviso de cotización (WhatsApp y correo).
-        'nota': ('La cotización quedó creada. El cliente recibe en mensaje aparte y por correo el enlace '
-                 'a su portal, donde paga y ve su contrato. Si no le llega, puede entrar en '
-                 f'{URL_PORTAL_ACCESO} con su folio y los últimos 4 dígitos de su teléfono. La fecha se '
-                 'aparta con el primer pago.'),
+        'nota': ('La cotización quedó creada. El sistema pega solo, al final de tu mensaje, el enlace a su '
+                 'portal (para pagar y ver el contrato): no lo escribas ni digas que llega en otro '
+                 'mensaje. Dile solo el folio, el total y que la fecha se aparta con el primer pago.'),
     }
 
 
@@ -787,6 +818,12 @@ def registrar_pregunta_sin_respuesta(conv=None, pregunta=None):
     PreguntaSinRespuesta.objects.create(conversacion=conv, pregunta=pregunta)
     return {'ok': True, 'nota': 'Quedó anotada para el equipo. Dile al cliente que no tienes ese dato y '
                                 'ofrécele pasar con una persona.'}
+
+
+def _destino_del_codigo(destino: str) -> str:
+    if '@' in (destino or ''):
+        return f'al correo registrado ({_enmascarar(destino)})'
+    return 'este mismo WhatsApp (es el número registrado en la reservación)'
 
 
 def _enmascarar(correo: str) -> str:
@@ -819,7 +856,7 @@ def solicitar_cambio_o_cancelacion(conv=None, folio=None, tipo=None, fecha_nueva
         return {'error': str(e)}
     return {
         'ok': True, 'folio': f'COT-{cot.pk:03d}',
-        'nota': (f'Se mandó un código de 6 dígitos al correo registrado ({_enmascarar(solicitud.codigo_destino)}). '
+        'nota': (f'Se mandó un código de 6 dígitos a {_destino_del_codigo(solicitud.codigo_destino)}. '
                  'Pídele que lo escriba aquí para continuar. Aclara que todavía NO se cambió ni se canceló nada: '
                  'Dirección revisa y decide, y cualquier reembolso se hace solo al medio con que pagó. '
                  'Nunca le pidas ni aceptes datos bancarios por este chat.'),
@@ -869,9 +906,20 @@ def dar_de_baja_promociones(conv=None):
                                 '(pagos, detalles del evento) sí le siguen llegando.'}
 
 
-def horarios_de_visita():
+def horarios_de_visita(fecha=None):
+    from datetime import date
+
+    from django.utils import timezone
+
     from comunicacion import services_visitas
     libres = services_visitas.horarios_disponibles()
+    if fecha:
+        try:
+            dia = date.fromisoformat(str(fecha).strip())
+        except ValueError:
+            return {'error': 'Fecha no válida: usa AAAA-MM-DD.'}
+        libres = [h for h in services_visitas.horarios_disponibles(limite=None)
+                  if timezone.localtime(h).date() == dia]
     if not libres:
         return {'horarios': [], 'nota': 'No hay horarios de visita abiertos: usa pasar_a_humano con el día y la '
                                         'hora que pide el cliente.'}
@@ -887,6 +935,11 @@ def agendar_visita(conv=None, inicio=None, nombre=None, personas=None):
     return services_visitas.agendar(conv, inicio, nombre, personas)
 
 
+def avisar_llegada(conv=None, situacion=None, minutos=None):
+    from comunicacion import services_llegada
+    return services_llegada.avisar_llegada(conv, situacion, minutos)
+
+
 _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
@@ -900,6 +953,7 @@ _EJECUTORES = {
 _EJECUTORES_DEL_CLIENTE = {
     'mi_reservacion': mi_reservacion,
     'agendar_visita': agendar_visita,
+    'avisar_llegada': avisar_llegada,
     'crear_cotizacion': crear_cotizacion,
     'registrar_pregunta_sin_respuesta': registrar_pregunta_sin_respuesta,
     'dar_de_baja_promociones': dar_de_baja_promociones,

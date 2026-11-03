@@ -30,6 +30,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from comunicacion.formato_wa import Aviso
 from comunicacion.services import (
     enviar_whatsapp,
     enviar_whatsapp_template,
@@ -91,33 +92,26 @@ def construir_bloques_checklist(tarea: TareaProgramada) -> list:
     total = len(bloques_items)
 
     for i, items in enumerate(bloques_items, start=1):
-        lineas = [f"*{titulo}*"]
-        if total > 1:
-            lineas[0] += f" ({i}/{total})"
-        lineas.append(fecha_texto)
-        lineas.append('')
+        lineas = [fecha_texto]
         if i == 1:
             lineas.append(f"Termina antes de: *{hora_limite_texto}*")
             if tarea.requiere_tiempo_extra:
-                lineas.append("(Esto implica tiempo extra hoy — ya contemplado)")
-            lineas.append('')
-        for n, texto in enumerate(items, start=1):
-            lineas.append(f"{n}. {texto}")
-        mensajes.append('\n'.join(lineas))
+                lineas.append("Esto implica tiempo extra hoy (ya contemplado)")
+        lineas.extend(items)
+        aviso = Aviso(titulo=f"{titulo} ({i}/{total})" if total > 1 else titulo, categoria='Operación',
+                      lineas=lineas, cierre='Responde LISTO al terminar.' if i == total else '')
+        mensajes.append(aviso.texto())
     return mensajes
 
 
 def construir_texto_aviso_horario(tarea: TareaProgramada) -> str:
-    fecha_texto = _fecha_larga(tarea.fecha)
-    hora_entrada_texto = formato_hora_ampm(tarea.hora_entrada)
-    motivo = tarea.plantilla.titulo_mensaje()
-    return (
-        "*Aviso — cambio de horario*\n"
-        f"{fecha_texto.capitalize()}\n\n"
-        f"Entra a las *{hora_entrada_texto}* (en vez de tu horario normal)\n"
-        f"Motivo: {motivo}\n\n"
-        "Más tarde te mando el detalle de qué hacer."
-    )
+    aviso = Aviso(
+        titulo='Cambio de horario', categoria='Operación',
+        lineas=[_fecha_larga(tarea.fecha).capitalize(),
+                f'Entra a las *{formato_hora_ampm(tarea.hora_entrada)}* (en vez de tu horario normal)',
+                f'Motivo: {tarea.plantilla.titulo_mensaje()}'],
+        cierre='Más tarde te mando el detalle de qué hacer.')
+    return aviso.texto()
 
 
 def resumen_operaciones(hoy) -> tuple:
@@ -340,7 +334,7 @@ def marcar_listo(telefono: str, hoy=None, ahora=None):
             return None
         tarea.completada_en, tarea.completada_por_telefono = ahora, tel
         tarea.save(update_fields=['completada_en', 'completada_por_telefono'])
-    return f'Listo, quedó marcada como terminada: {tarea.plantilla.titulo_mensaje()}. Gracias.'
+    return f'✅ Listo, quedó marcada como terminada: {tarea.plantilla.titulo_mensaje()}. Gracias.'
 
 
 def avisar_sin_listo(ahora: datetime) -> int:

@@ -179,6 +179,12 @@ class DescuentoService:
         return min(_monto_descuento(descuento, _base_descuento(descuento, ctx)), disponible)
 
     @staticmethod
+    def monto_potencial(cotizacion, descuento):
+        """Lo que descontaría `descuento` sobre la cotización tal como está (sin restar otros descuentos), sin escribir."""
+        ctx = ContextoDescuento.de_cotizacion(cotizacion)
+        return min(_monto_descuento(descuento, _base_descuento(descuento, ctx)), ctx.subtotal)
+
+    @staticmethod
     @transaction.atomic
     def aplicar(cotizacion, descuento, usuario=None, modo='MANUAL'):
         """Crea el DescuentoAplicado (auditoría), suma el monto a
