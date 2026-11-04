@@ -173,6 +173,7 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `ERP_CSP_ADMIN_ACTIVO` | CSP bloqueante del admin (tras revisar /csp-report/). | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | — |
 | `ERP_NOMINA_WEBHOOK_TOKEN` | Token que autoriza el webhook de sincronización de Jibble. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web | `NOMINA_CRON_TOKEN` |
 | `ERP_SAT_FIEL_CIFRADO_SECRET` | Llave Fernet que cifra la e.firma (la genera el ERP, no el SAT). Generar una y no perderla. | ERP (configuración propia) | Railway → Shared Variables (valor propio; sin panel externo) | web, Programador | `SAT_FIEL_ENCRYPTION_KEY` |
+| `ERP_ESTADOS_CORREO_SECRET` | Secreto compartido con el Worker de Cloudflare que reenvía el estado de cuenta BBVA al webhook (firma HMAC-SHA256). Generar con `openssl rand -hex 32`; el mismo valor va en el Worker. Vacío = el webhook rechaza todo. | ERP (configuración propia) | Railway → Shared Variables y secretos del Worker en Cloudflare | web | — |
 
 ## ERP — negocio
 

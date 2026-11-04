@@ -268,6 +268,10 @@ ERP_FISCAL_TASA_ISH = Decimal(env('ERP_FISCAL_TASA_ISH', default='0'))
 # masiva del SAT. Sin ella el módulo no guarda ni usa ninguna e.firma.
 ERP_SAT_FIEL_CIFRADO_SECRET = env('ERP_SAT_FIEL_CIFRADO_SECRET', default='')
 
+# Secreto compartido con el Worker de Cloudflare que reenvía el estado de cuenta del banco (HMAC-SHA256).
+# Vacío = el webhook responde 403 a todo (fail-closed).
+ERP_ESTADOS_CORREO_SECRET = env('ERP_ESTADOS_CORREO_SECRET', default='')
+
 # --- BLOQUEO DE FUERZA BRUTA EN /admin/login/ ---
 ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS = env('ERP_ADMIN_LOGIN_VENTANA_SEGUNDOS', default=900, cast=int)
 ERP_ADMIN_LOGIN_MAX_IP = env('ERP_ADMIN_LOGIN_MAX_IP', default=10, cast=int)
@@ -641,6 +645,7 @@ JAZZMIN_SETTINGS = {
         "contabilidad.credencialsat":       "fas fa-key",
         "contabilidad.solicituddescargasat": "fas fa-cloud-download-alt",
         "contabilidad.cfdisat":             "fas fa-file-invoice",
+        "contabilidad.correoestadocuenta":  "fas fa-envelope-open-text",
         "contabilidad.polizaeliminada":     "fas fa-trash-alt",
 
         # LEGAL
@@ -802,6 +807,7 @@ JAZZMIN_SETTINGS = {
         "contabilidad.credencialsat",
         "contabilidad.solicituddescargasat",
         "contabilidad.cfdisat",
+        "contabilidad.correoestadocuenta",
 
         # === NÓMINA ===
         "nomina",

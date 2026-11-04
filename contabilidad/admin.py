@@ -5,6 +5,7 @@ Sistema de Diseño QKT v2.0
 """
 from decimal import Decimal, InvalidOperation
 
+from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.contrib.contenttypes.models import ContentType
@@ -40,12 +41,14 @@ from .services import (
     aprobar_regularizacion_arrastre,
     proponer_regularizacion_arrastre,
 )
+from .services_estados_correo import guardar_password_estado
 from .services_estados_cuenta import (
     aplicar_sugerencias_compras,
     emparejar_y_asentar,
     generar_conciliacion_preliminar,
     procesar_estado_cuenta,
 )
+from .services_sat import ConfiguracionSATError
 
 
 class MovimientoContableInline(admin.TabularInline):
@@ -102,11 +105,40 @@ class UnidadNegocioAdmin(admin.ModelAdmin):
         return texto
 
 
+class CuentaBancariaForm(forms.ModelForm):
+    password_estado = forms.CharField(
+        required=False, label="Contraseña del estado de cuenta",
+        widget=forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'}),
+        help_text="La que BBVA pone al ZIP o PDF que manda por correo. Se guarda cifrada y no se vuelve a mostrar; "
+                  "déjala vacía para conservar la actual.")
+
+    class Meta:
+        model = CuentaBancaria
+        exclude = ['password_estado_cifrada']
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get('password_estado'):
+            try:
+                guardar_password_estado(self.instance, datos['password_estado'])
+            except ConfiguracionSATError as e:
+                raise ValidationError(str(e)) from e
+        return datos
+
+
 @admin.register(CuentaBancaria)
 class CuentaBancariaAdmin(admin.ModelAdmin):
+    form = CuentaBancariaForm
     list_display = ['nombre', 'banco', 'clabe_display', 'cuenta_contable', 'saldo_display', 'activa']
     list_filter = ['banco', 'activa']
     search_fields = ['nombre', 'banco', 'clabe']
+
+    def get_form(self, request, obj=None, **kwargs):
+        # Solo Dirección captura la contraseña; para el resto el campo no existe.
+        formulario = super().get_form(request, obj, **kwargs)
+        if not request.user.is_superuser:
+            formulario.base_fields.pop('password_estado', None)
+        return formulario
 
     @admin.display(description="CLABE")
     def clabe_display(self, obj):
@@ -1258,4 +1290,7 @@ class ReglaConciliacionAdmin(admin.ModelAdmin):
     @admin.display(description="Origen", ordering="origen")
     def origen_display(self, obj):
         return ui.badge_por_valor(obj.origen, self.TONOS_ORIGEN, obj.get_origen_display())
-from . import admin_sat  # noqa: E402,F401 -- registra los admins de la descarga masiva del SAT
+from . import (
+    admin_estados_correo,  # noqa: E402,F401 -- bitácora del estado de cuenta por correo
+    admin_sat,  # noqa: E402,F401 -- registra los admins de la descarga masiva del SAT
+)
