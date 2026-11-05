@@ -1,0 +1,7 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+    <a href="subir/" class="qkt-btn qkt-btn--secundario"><i class="fas fa-upload" aria-hidden="true"></i> Subir correo</a>
+    {{ block.super }}
+{% endblock %}

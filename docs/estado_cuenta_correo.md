@@ -47,8 +47,10 @@ Gmail (filtro) → estados@quintakooxtanil.com → Cloudflare Email Routing → 
 6. **Worker**: crea el Worker con `docs/cloudflare/email_worker_estados.js`, carga sus secretos
    (`ERP_ESTADOS_CORREO_SECRET` = el mismo de Railway, `ERP_URL`, `BBVA_REMITENTES` = `clientes@bbva.mx`) y
    cambia la acción de `estados@` a **«Send to a Worker»**.
-7. **Prueba**: reenvía a mano el último correo de BBVA a `estados@…` y revisa Contabilidad → Correos. Con el
-   `.eml` real también puedes usar la acción «Reprocesar». **Nunca subas el `.eml` al repo** (trae datos reales).
+7. **Prueba / correos anteriores**: un correo que ya estaba en Gmail antes del filtro no se puede reenviar (el reenvío
+   cambia el `From` y rompe la firma de BBVA). En Gmail ábrelo → ⋮ → «Mostrar original» → «Descargar original» y súbelo en
+   Contabilidad → Correos → **«Subir correo»** (solo Dirección): pasa por el mismo flujo que el webhook (firma DKIM,
+   contraseña, periodo, avisos). **Nunca subas el `.eml` al repo** (trae datos reales).
 
 ## Seguridad
 

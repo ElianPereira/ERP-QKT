@@ -1,0 +1,42 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div class="qkt-pagina qkt-pagina--angosta">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-upload" aria-hidden="true"></i> Subir correo del banco</h1>
+        <p class="qkt-pagina__intro">
+            Para un estado de cuenta que ya estaba en Gmail antes de activar el reenvío. Se procesa igual que
+            si hubiera llegado solo: firma de BBVA, contraseña, periodo y avisos.
+        </p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="qkt-panel">
+        <div class="qkt-panel__cuerpo">
+            {% csrf_token %}
+
+            <div class="qkt-aviso qkt-aviso--info">
+                <span class="qkt-aviso__titulo">Cómo obtener el archivo</span>
+                <ol>
+                    <li>En Gmail abre el correo de <b class="qkt-codigo">clientes@bbva.mx</b>.</li>
+                    <li>Menú <i class="fas fa-ellipsis-v" aria-hidden="true"></i> → «Mostrar original» → «Descargar original».</li>
+                    <li>Sube aquí ese archivo <b>.eml</b>. Reenviarlo o adjuntarlo en otro correo rompe la firma del banco.</li>
+                </ol>
+            </div>
+
+            <label class="qkt-zona-carga" for="id_eml">
+                <i class="fas fa-cloud-upload-alt qkt-zona-carga__icono" aria-hidden="true"></i>
+                <span class="qkt-zona-carga__titulo">Elige o arrastra aquí el archivo .eml</span>
+                <span class="qkt-zona-carga__sub">Máximo 15 MB</span>
+                <span class="qkt-zona-carga__conteo" aria-live="polite"></span>
+                <input type="file" name="eml" id="id_eml" accept=".eml,message/rfc822" required>
+            </label>
+
+            <div class="qkt-botonera">
+                <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-cogs" aria-hidden="true"></i> Procesar</button>
+                <a href="../" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

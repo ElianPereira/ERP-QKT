@@ -535,6 +535,48 @@ class CuentaBancariaAdminTest(BaseCorreoTest):
         self.assertFalse(self.cuenta.password_estado_cifrada)
 
 
+class SubirCorreoAdminTest(BaseCorreoTest):
+    URL = '/admin/contabilidad/correoestadocuenta/subir/'
+
+    def setUp(self):
+        super().setUp()
+        from core_erp.test_utils import login_superuser_con_totp
+        self.super = User.objects.create_superuser('dir', 'd@example.com', secrets.token_hex(8))
+        login_superuser_con_totp(self.client, self.super)
+
+    def subir(self, contenido, nombre='octubre.eml'):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return self.client.post(self.URL, {'eml': SimpleUploadedFile(nombre, contenido, 'message/rfc822')})
+
+    def test_el_superusuario_sube_el_eml_y_se_procesa(self):
+        self.assertContains(self.client.get('/admin/contabilidad/correoestadocuenta/'), 'Subir correo')
+        self.assertEqual(self.client.get(self.URL).status_code, 200)
+        respuesta = self.subir(self.correo_pdf())
+        self.assertRedirects(respuesta, '/admin/contabilidad/correoestadocuenta/', fetch_redirect_response=False)
+        bitacora = CorreoEstadoCuenta.objects.get()
+        self.assertEqual(bitacora.resultado, 'PROCESADO', bitacora.detalle)
+        self.assertEqual(bitacora.estado_cuenta.origen, 'CORREO')
+
+    def test_el_mismo_correo_dos_veces_avisa_duplicado(self):
+        mime = self.correo_pdf()
+        self.subir(mime)
+        respuesta = self.subir(mime)
+        self.assertEqual(CorreoEstadoCuenta.objects.count(), 1)
+        self.assertIn('ya estaba registrado', ' '.join(m.message for m in respuesta.wsgi_request._messages))
+
+    def test_archivo_demasiado_grande_no_se_registra(self):
+        with patch('contabilidad.admin_estados_correo.MAX_CUERPO', 10):
+            self.subir(self.correo_pdf())
+        self.assertFalse(CorreoEstadoCuenta.objects.exists())
+
+    def test_staff_sin_superusuario_no_puede_subir(self):
+        staff = User.objects.create_user('ayu', 'a@example.com', secrets.token_hex(8), is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(self.URL).status_code, 403)
+        self.assertEqual(self.subir(self.correo_pdf()).status_code, 403)
+        self.assertFalse(CorreoEstadoCuenta.objects.exists())
+
+
 @override_settings(ERP_SAT_FIEL_CIFRADO_SECRET=LLAVE, STORAGES=STORAGE_MEMORIA, ERP_WA_NEGOCIO_NUMERO='529990000001',
                    ERP_ESTADOS_CORREO_SECRET=SECRETO_WEBHOOK)
 class WebhookTest(BaseCorreoTest):
