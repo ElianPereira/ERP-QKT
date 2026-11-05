@@ -276,6 +276,13 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+
+- 2026-11-05 — **Prospectos del histórico nacían con «última interacción = hoy»** (primer `sincronizar_prospectos --desde
+  2026-07-01` en producción: 135 creados y 219 abiertos). `_crear` ponía `max(primer_contacto, ahora)` y `_ultima_interaccion`
+  partía del valor guardado, así que nunca bajaba: ningún histórico se perdía por silencio y en 15 días se habrían perdido
+  todos de golpe. Ahora nace con `primer_contacto` y la última interacción se **recalcula de la evidencia** (mensajes del
+  cliente o de una persona, cotizaciones, visitas y la última reapertura, con piso en el primer contacto) aunque baje. Los
+  prospectos ya inflados se reparan solos con el barrido diario (o corriendo `sincronizar_prospectos` sin `--desde`). Sin migración.
 - 2026-10-31 — **Marketing, fase 7: referidos, permiso de medios, reseñas y contenido** (Issue #468; sin zonas restringidas; migraciones
   `marketing.0007` —`Referido`, `AutorizacionMedios`, `ResenaGoogle`, dos campos en `Lead`—, `comercial.0124` —FK opcional a
   `Cotizacion` en `ImagenLanding` y `TestimonioLanding`— y `comunicacion.0020`, solo choices). **Referidos**

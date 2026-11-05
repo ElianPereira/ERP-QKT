@@ -11,6 +11,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from comunicacion.models import ConversacionWhatsApp, MensajeWhatsApp
 from core_erp.test_utils import login_superuser_con_totp
 from marketing.models import Lead, LeadEvento
 from marketing.services import barrido, motivos, retencion
@@ -122,6 +123,33 @@ class BarridoTest(Base):
         call_command('sincronizar_prospectos', '--desde', '2020-01-01', stdout=salida)
         self.assertIn('Prospectos:', salida.getvalue())
         self.assertEqual(Lead.objects.count(), 2)
+
+    def test_historico_conserva_su_ultima_interaccion_y_se_pierde_por_silencio(self):
+        self.mensaje()
+        conv = ConversacionWhatsApp.objects.get()
+        hace_40 = timezone.now() - timedelta(days=40)
+        MensajeWhatsApp.objects.filter(conversacion=conv).update(created_at=hace_40)
+        LeadEvento.objects.all().delete()  # como si el prospecto no existiera antes del barrido
+        Lead.objects.all().delete()
+        barrido.barrer(desde=hace_40 - timedelta(days=1))
+        lead = Lead.objects.get()
+        self.assertEqual(lead.etapa, 'PERDIDO')
+        self.assertLess(lead.fecha_ultima_interaccion, timezone.now() - timedelta(days=39))
+
+    def test_repara_la_ultima_interaccion_inflada(self):
+        self.mensaje()
+        hace_40 = timezone.now() - timedelta(days=40)
+        MensajeWhatsApp.objects.update(created_at=hace_40)
+        Lead.objects.update(fecha_primer_contacto=hace_40, etapa_cambiada_en=hace_40,
+                            fecha_ultima_interaccion=timezone.now())  # dato inflado del primer barrido
+        barrido.barrer()
+        lead = Lead.objects.get()
+        self.assertEqual(lead.etapa, 'PERDIDO')
+
+    def test_un_mensaje_reciente_mantiene_abierto(self):
+        self.mensaje()
+        barrido.barrer()
+        self.assertEqual(Lead.objects.get().etapa, 'NUEVO')
 
     def test_barrido_diario_pierde_por_silencio_y_no_reabre_lo_cerrado(self):
         self.mensaje()
