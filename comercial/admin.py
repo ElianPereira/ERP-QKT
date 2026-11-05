@@ -2,7 +2,6 @@ import logging
 import secrets
 from datetime import timedelta
 from decimal import Decimal
-from urllib.parse import quote
 
 from django import forms
 from django.contrib import admin, messages
@@ -939,11 +938,10 @@ class CotizacionAdmin(admin.ModelAdmin):
         portal = getattr(obj, 'portal', None)
         if portal and portal.activo:
             url = portal.get_full_url()
-            tel = ''.join(filter(str.isdigit, obj.cliente.telefono or ''))
-            texto = f"Hola {obj.cliente.nombre}, aquí puedes ver los detalles de tu evento: {url}"
             items.append({'separador': True})
-            items.append({'texto': 'Enviar portal por WhatsApp', 'url': f"https://wa.me/{tel}?text={quote(texto)}",
-                          'icono': 'comment', 'nueva_pestana': True})
+            items.append({'texto': 'Enviar portal por WhatsApp',
+                          'url': reverse('admin:cotizacion_enviar_portal_wa', args=[obj.id]), 'icono': 'comment',
+                          'confirmar': f'¿Enviar el portal por WhatsApp a {obj.cliente.nombre}?'})
             items.append({'texto': 'Copiar enlace del portal', 'copiar': url, 'icono': 'link'})
         return items
 
@@ -974,8 +972,28 @@ class CotizacionAdmin(admin.ModelAdmin):
             path('<int:cotizacion_id>/descuentos/',
                 self.admin_site.admin_view(self.descuentos_view),
                 name='cotizacion_descuentos'),
+            path('<int:cotizacion_id>/enviar-portal-whatsapp/',
+                self.admin_site.admin_view(self.enviar_portal_wa_view),
+                name='cotizacion_enviar_portal_wa'),
         ]
         return custom_urls + urls
+
+    def enviar_portal_wa_view(self, request, cotizacion_id):
+        """Manda el portal por la API de WhatsApp (número de Kooxi), sin abrir wa.me."""
+        from comunicacion.services_notificaciones import EnvioPortalError, enviar_portal_whatsapp
+
+        regreso = request.META.get('HTTP_REFERER') or reverse('admin:comercial_cotizacion_changelist')
+        if not request.user.has_perm('comercial.change_cotizacion'):
+            messages.error(request, "No tienes permiso para enviar mensajes de cotizaciones.")
+            return redirect(regreso)
+        cotizacion = get_object_or_404(Cotizacion.objects.select_related('cliente'), pk=cotizacion_id)
+        try:
+            enviar_portal_whatsapp(cotizacion)
+        except EnvioPortalError as e:
+            messages.error(request, f"COT-{cotizacion.pk:03d}: {e}")
+        else:
+            messages.success(request, f"Portal enviado por WhatsApp a {cotizacion.cliente.nombre}.")
+        return redirect(regreso)
 
     def descuentos_view(self, request, cotizacion_id):
         """Página intermedia: muestra descuentos aplicables y ya aplicados,
