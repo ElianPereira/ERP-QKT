@@ -204,6 +204,66 @@ def notificar_cotizacion(cotizacion, *, origen: str, whatsapp: bool = True):
     )
 
 
+class EnvioPortalError(Exception):
+    """El portal no se pudo mandar por WhatsApp; el mensaje se muestra tal cual en el admin."""
+
+
+def enviar_portal_whatsapp(cotizacion):
+    """El botón «Enviar portal por WhatsApp» de Cotizaciones.
+
+    Sale por la API, desde el número de Kooxi, igual que los avisos automáticos:
+    con la ventana de 24 h abierta va como texto libre; si no, con la plantilla
+    de cotización (`META_WA_PLANTILLA_COTIZACION`, que ya lleva el portal). Queda
+    en la conversación como mensaje automático para que Kooxi sepa qué recibió
+    el cliente. La clave por minuto evita el doble clic sin impedir reenviar.
+    """
+    from .services_pendientes import ventana_abierta
+
+    cliente = cotizacion.cliente
+    telefono = _telefono(cliente)
+    if not telefono:
+        raise EnvioPortalError(f"{cliente.nombre} no tiene un teléfono válido.")
+    portal = url_portal(cotizacion)
+    if not portal:
+        raise EnvioPortalError("La cotización no tiene un portal activo.")
+
+    folio = f'COT-{cotizacion.pk:03d}'
+    clave = f"portal_manual:{cotizacion.pk}:{timezone.now():%Y%m%d%H%M}"
+    if ventana_abierta(telefono):
+        comm = enviar_whatsapp(
+            cotizacion=cotizacion, tipo='COTIZACION', telefono=telefono, trigger='MANUAL',
+            mensaje=bloques(
+                f"Hola {_nombre_pila(cliente)} 👋 Aquí puedes ver los detalles de tu evento, "
+                "tus pagos y tus documentos:",
+                enlace=portal, pregunta="Si tienes dudas, respóndeme por aquí.",
+            ),
+            clave_idempotencia=clave,
+        )
+    else:
+        plantilla = _plantilla('META_WA_PLANTILLA_COTIZACION')
+        if not plantilla:
+            raise EnvioPortalError(
+                "El cliente no ha escrito en las últimas 24 h y no hay plantilla de cotización "
+                "configurada (META_WA_PLANTILLA_COTIZACION); WhatsApp no permite mandarle texto libre.")
+        comm = enviar_whatsapp_template(
+            cotizacion=cotizacion, tipo='COTIZACION', telefono=telefono, trigger='MANUAL',
+            template_name=plantilla,
+            parametros=[_nombre_pila(cliente), _tipo_evento(cotizacion), _fecha(cotizacion.fecha_evento),
+                        _dinero(cotizacion.precio_final), portal],
+            clave_idempotencia=clave,
+        )
+
+    if comm is None:
+        raise EnvioPortalError("Ya se envió hace unos segundos.")
+    if comm.estado == 'FALLIDO':
+        raise EnvioPortalError(f"WhatsApp no aceptó el mensaje: {comm.error or 'sin detalle'}")
+    from .services_agente import registrar_mensaje_automatico
+    _seguro('registrar el portal en la conversación', registrar_mensaje_automatico,
+            telefono=telefono, wamid=comm.proveedor_id,
+            texto=f'El equipo le envió el enlace de su portal de la cotización {folio}.')
+    return comm
+
+
 # ─────────────────────────────────── Pago ───────────────────────────────────
 
 def notificar_pago(pago):
