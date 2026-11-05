@@ -281,7 +281,8 @@ class ParametroTest(TestCase):
     def test_dias_sin_respuesta_lo_lee_el_embudo(self):
         from marketing.services import pipeline
         ParametroMarketing.objects.create(dias_sin_respuesta=3)
-        lead = Lead.objects.create(telefono='525555550777', fecha_ultima_interaccion=timezone.now() - timedelta(days=5))
+        hace_5 = timezone.now() - timedelta(days=5)
+        lead = Lead.objects.create(telefono='525555550777', fecha_primer_contacto=hace_5, fecha_ultima_interaccion=hace_5)
         pipeline.sincronizar(lead)
         lead.refresh_from_db()
         self.assertEqual(lead.etapa, 'PERDIDO')

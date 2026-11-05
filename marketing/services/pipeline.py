@@ -137,7 +137,11 @@ def _mensajes_de_contacto(lead):
 
 
 def _ultima_interaccion(lead, cots, visitas):
-    fechas = [lead.fecha_ultima_interaccion]
+    """Fecha del último contacto real según la evidencia, no la fecha guardada: así un prospecto
+    reconstruido del histórico conserva su fecha verdadera y la pérdida por silencio sí aplica."""
+    fechas = [lead.fecha_primer_contacto]
+    fechas += list(lead.eventos.filter(tipo='REAPERTURA').order_by('-created_at')
+                   .values_list('created_at', flat=True)[:1])
     fechas += list(_mensajes(lead).filter(direccion__in=('ENTRADA', 'HUMANO'))
                    .order_by('-created_at').values_list('created_at', flat=True)[:1])
     fechas += [c.created_at for c in cots]
@@ -248,7 +252,7 @@ def sincronizar(lead, ahora=None):
         lead.cotizacion, lead.tipo_servicio = cot, cot.tipo_servicio
         cambios += ['cotizacion', 'tipo_servicio']
     ultima = _ultima_interaccion(lead, cots, visitas)
-    if ultima > lead.fecha_ultima_interaccion:
+    if ultima != lead.fecha_ultima_interaccion:
         lead.fecha_ultima_interaccion = ultima
         cambios.append('fecha_ultima_interaccion')
     if cambios:
@@ -310,7 +314,7 @@ def _crear(*, tel, cliente, nombre, conv, cot, ahora, primer_contacto):
         telefono=tel, nombre=(nombre or (cliente.nombre if cliente else '') or (conv.nombre if conv else ''))[:200],
         conversacion=conv, cliente=cliente, cotizacion=cot,
         tipo_servicio=cot.tipo_servicio if cot else '',
-        fecha_primer_contacto=primer_contacto, fecha_ultima_interaccion=max(primer_contacto, ahora),
+        fecha_primer_contacto=primer_contacto, fecha_ultima_interaccion=primer_contacto,
         etapa_cambiada_en=primer_contacto, **datos)
     try:
         with transaction.atomic():
