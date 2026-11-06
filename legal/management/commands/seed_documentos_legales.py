@@ -23,8 +23,8 @@ DIRECTORIO = Path(__file__).resolve().parent.parent.parent / 'documentos_inicial
 
 # archivo -> (tipo, título)
 DOCUMENTOS = {
-    'aviso_privacidad_v2.6.md': (TipoDocumento.AVISO_PRIVACIDAD, 'Aviso de Privacidad'),
-    'aviso_simplificado_v2.0.md': (TipoDocumento.AVISO_SIMPLIFICADO,
+    'aviso_privacidad_v2.7.md': (TipoDocumento.AVISO_PRIVACIDAD, 'Aviso de Privacidad'),
+    'aviso_simplificado_v2.1.md': (TipoDocumento.AVISO_SIMPLIFICADO,
                                    'Aviso de Privacidad Simplificado'),
     'terminos_v2.4.md': (TipoDocumento.TERMINOS, 'Términos y Condiciones'),
     'politica_cancelacion_v2.3.md': (TipoDocumento.POLITICA_CANCELACION,
@@ -37,7 +37,7 @@ FINALIDADES = [
     ('PAGOS',      'Procesamiento y conciliación de pagos',             False, 20),
     ('FISCAL',     'Emisión de CFDI y cumplimiento fiscal',             False, 30),
     ('SEGURIDAD',  'Seguridad de personas e instalaciones',             False, 40),
-    ('MARKETING',  'Promociones y disponibilidad de fechas',            True,  50),
+    ('MARKETING',  'Promociones, disponibilidad de fechas y medición de publicidad', True, 50),
     ('USO_IMAGEN', 'Uso de fotografías y videos con fines promocionales', True, 60),
     ('ENCUESTAS',  'Encuestas de satisfacción',                         True,  70),
 ]
