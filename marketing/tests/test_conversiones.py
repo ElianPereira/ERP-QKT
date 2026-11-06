@@ -239,9 +239,25 @@ class ConsentimientoTest(ConversionesBase):
 
     def test_el_boton_de_promociones_de_la_conversacion_basta(self):
         self.mensaje(referral={'source_id': 'AD1', 'ctwa_clid': 'CLID-1'})
-        ConversacionWhatsApp.objects.update(consentimiento_marketing=True)
+        ConversacionWhatsApp.objects.update(consentimiento_marketing=True, consentimiento_en=timezone.now())
         resumen, _ = self.enviar(return_value=OK)
         self.assertEqual(resumen['enviados'], 1)
+
+    def test_boton_de_promociones_anterior_al_aviso_27_no_basta(self):
+        self.mensaje(referral={'source_id': 'AD1', 'ctwa_clid': 'CLID-1'})
+        ConversacionWhatsApp.objects.update(consentimiento_marketing=True,
+                                            consentimiento_en=conversiones.MEDICION_DESDE - timedelta(minutes=1))
+        resumen, post = self.enviar(return_value=OK)
+        post.assert_not_called()
+        self.assertEqual(resumen['enviados'], 0)
+
+    def test_marketing_aceptado_antes_del_aviso_27_no_cubre_la_medicion(self):
+        lead = self.lead_con_anuncio()
+        AceptacionLegal.objects.filter(cliente=lead.cliente).update(
+            aceptado_en=conversiones.MEDICION_DESDE - timedelta(days=1))
+        resumen, post = self.enviar(return_value=OK)
+        post.assert_not_called()
+        self.assertEqual(resumen['enviados'], 0)
 
     def test_prospecto_anonimizado_no_envia(self):
         lead = self.lead_con_anuncio()
@@ -456,27 +472,24 @@ class CspTest(TestCase):
         self.assertNotIn('facebook', PUBLIC_CSP)
 
 
-class AvisoBorradorTest(TestCase):
-    """El Aviso v2.7 es un borrador para el abogado: no se carga ni se puede publicar."""
+class AvisoV27Test(TestCase):
+    """Aviso v2.7 (aprobado por el abogado, 06/11/2026): cubre Pixel, conversiones a Meta y Google y se publica."""
     RUTA = Path(legal.__file__).parent / 'documentos_iniciales' / 'aviso_privacidad_v2.7.md'
 
-    def test_describe_pixel_remarketing_y_retencion_con_marcadores(self):
+    def test_cubre_meta_google_y_retencion_sin_marcadores(self):
         texto = self.RUTA.read_text(encoding='utf-8')
         for frase in ('Pixel de Meta', 'remarketing', 'solo se activan si usted las acepta', 'hash', '1 año',
-                      'Versión 2.7'):
+                      'Versión 2.7', 'Google', 'gclid', '6 de noviembre de 2026'):
             self.assertIn(frase, texto, frase)
-        self.assertGreaterEqual(len(MARCADORES_SIN_RESOLVER.findall(texto)), 5)
-        self.assertIn('[CONFIRMAR: fecha de vigencia', texto)
+        self.assertFalse(MARCADORES_SIN_RESOLVER.findall(texto))
 
-    def test_el_candado_de_confirmar_impide_publicarlo(self):
+    def test_se_puede_publicar(self):
         contenido = self.RUTA.read_text(encoding='utf-8')
-        with self.assertRaises(ValidationError):
-            DocumentoLegal.objects.create(tipo=TipoDocumento.AVISO_PRIVACIDAD, version='2.7', titulo='Aviso',
-                                          contenido_md=contenido, vigente_desde=date.today(), vigente=True)
         doc = DocumentoLegal.objects.create(tipo=TipoDocumento.AVISO_PRIVACIDAD, version='2.7', titulo='Aviso',
-                                            contenido_md=contenido, vigente_desde=date.today(), vigente=False)
-        self.assertTrue(doc.marcadores_pendientes())
+                                            contenido_md=contenido, vigente_desde=date.today(), vigente=True)
+        self.assertFalse(doc.marcadores_pendientes())
 
-    def test_el_seed_sigue_apuntando_a_la_version_vigente(self):
-        self.assertNotIn('aviso_privacidad_v2.7.md', DOCUMENTOS)
-        self.assertIn('aviso_privacidad_v2.6.md', DOCUMENTOS)
+    def test_el_seed_apunta_a_la_version_nueva(self):
+        self.assertIn('aviso_privacidad_v2.7.md', DOCUMENTOS)
+        self.assertNotIn('aviso_privacidad_v2.6.md', DOCUMENTOS)
+        self.assertIn('aviso_simplificado_v2.1.md', DOCUMENTOS)

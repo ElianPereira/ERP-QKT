@@ -240,8 +240,8 @@ documento en `/docs/` vía Pull Request — nunca se implementa directo.
 - [x] ~~Migración Cloudinary → DigitalOcean Spaces~~ — obsoleto: el
   storage ya es Cloudflare R2 (`STORAGES` en `core_erp/settings.py`), no
   hay migración pendiente. Ver Memoria 2026-09-24.
-- [ ] Pixel de Meta: instalado en código (marketing fase 6) pero apagado hasta definir `META_PIXEL_ID`; falta la versión 2.7 del Aviso y
-  aprobar el texto de la casilla MARKETING antes de encender `META_CAPI_TOKEN` (campañas en Traffic, no Conversions).
+- [ ] Pixel de Meta y conversiones de Meta/Google: Aviso v2.7 y casilla MARKETING ya publicados (06/11/2026); solo falta que el
+  propietario defina `META_PIXEL_ID`, `META_CAPI_TOKEN` y las variables `GOOGLE_ADS_*` (campañas en Traffic, no Conversions).
 - [ ] **Registrar ante PROFECO el contrato propio de Evento/Pasadía**
   (Issue #318): la NOM-174-SCFI-2007, numeral 5.1, obliga a registrar los
   contratos de adhesión de eventos sociales. **Desde el 2026-09-25 se emite
@@ -276,6 +276,17 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+
+- 2026-11-06 — **Aviso de Privacidad v2.7 publicado, con Meta y Google** (aprobado por el abogado; el propietario autorizó editar
+  `legal/` y extender a Google lo que el abogado vio solo para Meta, en los mismos párrafos). Vigencia 06/11/2026, sin marcadores; el
+  seed apunta a `aviso_privacidad_v2.7.md` y `aviso_simplificado_v2.1.md` (nuevo: menciona la medición en Meta y Google) y se publican
+  en el deploy. Cambios sobre el borrador: Google en datos (gclid), finalidad 4, transferencias y cookies (apartado e: el gclid vive en
+  `localStorage` 90 días sin banner porque no es cookie de Google); las finalidades 1 y 4 se aceptan **con la misma casilla** (así ya
+  funcionaba el código: las conversiones exigen MARKETING), por eso el Aviso deja de prometer casillas separadas para cada finalidad.
+  Casilla del cotizador, pregunta del botón «Acepto + promociones» de Kooxi y nombre de la finalidad MARKETING mencionan la medición.
+  **Las aceptaciones de MARKETING anteriores se dieron con el texto viejo** (solo promociones): siguen valiendo para promociones, pero
+  `conversiones.tiene_consentimiento` solo cuenta las dadas desde `MEDICION_DESDE` (06/11/2026 00:00 Mérida), en el cotizador y en el
+  botón de Kooxi; lo anterior queda OMITIDO_SIN_CONSENTIMIENTO para Meta y Google. Sin migración.
 
 - 2026-11-05 — **Prospectos del histórico nacían con «última interacción = hoy»** (primer `sincronizar_prospectos --desde
   2026-07-01` en producción: 135 creados y 219 abiertos). `_crear` ponía `max(primer_contacto, ahora)` y `_ultima_interaccion`

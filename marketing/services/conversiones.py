@@ -21,7 +21,7 @@ Consentimiento
 --------------
 El envío exige consentimiento MARKETING vigente (la aceptación más reciente de
 `AceptacionLegal` del cliente, o el botón de promociones de la conversación de
-WhatsApp) y que no haya `BajaWhatsApp` sin una aceptación posterior. Se evalúa al
+WhatsApp) **dado desde `MEDICION_DESDE`** (Aviso v2.7: antes la casilla solo cubría promociones) y que no haya `BajaWhatsApp` sin una aceptación posterior. Se evalúa al
 ENVIAR, no al encolar: si falta, el evento queda OMITIDO_SIN_CONSENTIMIENTO.
 
 Datos personales
@@ -62,7 +62,8 @@ import contextlib
 import json
 import logging
 from contextvars import ContextVar
-from datetime import timedelta
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from hashlib import sha256
 
 import requests
@@ -133,10 +134,15 @@ def hash_correo(correo) -> str:
     return _sha256(correo) if '@' in correo else ''
 
 
+# Desde el Aviso de Privacidad v2.7 (00:00 de Mérida del 06/11/2026) la casilla MARKETING menciona la medición
+# en Meta y Google. Una aceptación anterior solo cubría promociones: no autoriza enviar eventos.
+MEDICION_DESDE = datetime(2026, 11, 6, 6, 0, tzinfo=dt_timezone.utc)
+
+
 def tiene_consentimiento(lead) -> bool:
-    """¿Hay MARKETING vigente y ninguna baja sin una aceptación posterior?"""
+    """¿Hay MARKETING aceptado con el texto que cubre la medición y ninguna baja sin una aceptación posterior?"""
     from comunicacion.services_bajas import dado_de_baja
-    from legal.services import LegalService
+    from legal.models import AceptacionLegal
 
     if lead.anonimizado_en:
         return False
@@ -144,10 +150,14 @@ def tiene_consentimiento(lead) -> bool:
     telefono = lead.telefono or (cliente.telefono if cliente else '')
     if dado_de_baja(telefono, cliente):
         return False
-    if cliente is not None and LegalService.cliente_acepto(cliente, 'MARKETING'):
-        return True
+    if cliente is not None:
+        ultima = (AceptacionLegal.objects.filter(cliente=cliente).order_by('-aceptado_en')
+                  .values_list('finalidades_aceptadas', 'aceptado_en').first())
+        if ultima and 'MARKETING' in (ultima[0] or []) and ultima[1] >= MEDICION_DESDE:
+            return True
     conv = lead.conversacion
-    return bool(conv is not None and conv.consentimiento_marketing)
+    return bool(conv is not None and conv.consentimiento_marketing and conv.consentimiento_en
+                and conv.consentimiento_en >= MEDICION_DESDE)
 
 
 # --- Encolado -----------------------------------------------------------------

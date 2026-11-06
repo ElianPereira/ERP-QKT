@@ -121,7 +121,8 @@ MENSAJE_CONSENTIMIENTO = bloques(
     'Para preparar tu cotización con tus datos necesito tu autorización. Revisa:',
     datos=(f'Aviso de Privacidad: {URL_AVISO_PRIVACIDAD}', f'Términos y Condiciones: {URL_TERMINOS}',
            f'Política de Cancelación: {URL_POLITICA_CANCELACION}'),
-    pregunta='¿Los aceptas? Si además quieres recibir promociones y fechas disponibles, elige '
+    pregunta='¿Los aceptas? Si además quieres recibir promociones y fechas disponibles, y aceptas que '
+             'midamos nuestra publicidad en Meta y Google (Aviso de Privacidad, finalidades 1 y 4), elige '
              '«Acepto + promociones».',
 )
 # Vigencia del botón: pasado este plazo se vuelve a pedir, para que la evidencia

@@ -1,6 +1,6 @@
 # AVISO DE PRIVACIDAD INTEGRAL
 
-**Versión 2.7 — Vigente a partir del [CONFIRMAR: fecha de vigencia, posterior a la revisión del abogado]**
+**Versión 2.7 — Vigente a partir del 6 de noviembre de 2026**
 *Sustituye a la versión 2.6 del 7 de octubre de 2026.*
 
 ---
@@ -56,7 +56,7 @@ Nombre de los huéspedes, número de acompañantes, fechas de entrada y salida, 
 Número telefónico, nombre de perfil de WhatsApp, contenido de los mensajes de texto que nos envía y de las respuestas que le damos, y fecha y hora de cada mensaje. No procesamos el contenido de audios, imágenes ni documentos que nos envíe por ese medio; si los envía, se le pedirá escribir su consulta.
 
 **j) Datos de navegación y de atribución publicitaria** *(solo si lo consiente, o si llega desde un anuncio)*
-[CONFIRMAR: apartado nuevo] Identificadores de navegador de la herramienta de medición de Meta (por ejemplo, las cookies `_fbp` y `_fbc`), el identificador del clic en un anuncio de Meta (incluido el de los anuncios que abren una conversación de WhatsApp), la dirección IP y el agente de usuario del navegador al enviar una solicitud de cotización. Con esos identificadores y, en su caso, su teléfono y correo electrónico **cifrados de forma irreversible (hash)**, medimos qué anuncios generan solicitudes y ventas.
+Identificadores de navegador de la herramienta de medición de Meta (por ejemplo, las cookies `_fbp` y `_fbc`), el identificador del clic en un anuncio de Meta (incluido el de los anuncios que abren una conversación de WhatsApp), el identificador del clic en un anuncio de Google (por ejemplo, `gclid`), la dirección IP y el agente de usuario del navegador al enviar una solicitud de cotización. Con esos identificadores y, en su caso, su teléfono y correo electrónico **cifrados de forma irreversible (hash)**, medimos qué anuncios generan solicitudes y ventas.
 
 > **No recabamos datos personales sensibles.** No solicitamos ni tratamos datos que revelen origen racial o étnico, estado de salud, información genética o biométrica, creencias religiosas o filosóficas, afiliación sindical, opiniones políticas o preferencia sexual.
 >
@@ -99,9 +99,9 @@ No son necesarias para la relación jurídica. Usted puede negarse a ellas o rev
 1. **Comunicaciones promocionales:** envío de promociones, paquetes, disponibilidad de fechas y comunicaciones informativas por correo electrónico o WhatsApp.
 2. **Uso de imagen:** captación, uso, reproducción y publicación de fotografías y videograbaciones del evento o de las instalaciones durante su estancia, en nuestro sitio web, redes sociales y materiales publicitarios, sin fines de lucro directo sobre su imagen y sin transferencia a terceros distintos de las plataformas donde se publiquen.
 3. **Encuestas de satisfacción** y análisis para la mejora de nuestros servicios.
-4. **Medición de la publicidad y remarketing:** [CONFIRMAR: finalidad secundaria nueva] utilizar la herramienta de medición de Meta (Pixel) en nuestro sitio y enviar a Meta eventos de conversión (por ejemplo: solicitó una cotización, agendó una visita o contrató un servicio, y el importe contratado sin impuestos) acompañados de identificadores de anuncio y de su teléfono y correo electrónico **transformados con una función hash**, para medir el resultado de nuestras campañas, mejorar a quién se le muestran y mostrarle publicidad nuestra en las plataformas de Meta (remarketing). Los eventos de conversión solo se envían si usted aceptó las comunicaciones promocionales (finalidad 1) y no se han enviado si pidió darse de baja; la herramienta de medición en el navegador solo se activa si acepta las cookies en el aviso de nuestro sitio.
+4. **Medición de la publicidad y remarketing:** utilizar la herramienta de medición de Meta (Pixel) en nuestro sitio y enviar a Meta y a Google eventos de conversión (por ejemplo: solicitó una cotización, agendó una visita o contrató un servicio, y el importe contratado sin impuestos) acompañados de identificadores de anuncio y de su teléfono y correo electrónico **transformados con una función hash**, para medir el resultado de nuestras campañas, mejorar a quién se le muestran y mostrarle publicidad nuestra en las plataformas de Meta y de Google (remarketing). Los eventos de conversión solo se envían si usted aceptó las comunicaciones promocionales (finalidad 1) y no se han enviado si pidió darse de baja; la herramienta de medición en el navegador solo se activa si acepta las cookies en el aviso de nuestro sitio.
 
-Para cada una de estas finalidades se le solicitará consentimiento por separado mediante casillas independientes y no premarcadas. Su negativa no será motivo para negarle los servicios contratados.
+Se le solicitará su consentimiento mediante casillas no premarcadas. Las finalidades 1 y 4 se aceptan con la misma casilla, cuyo texto menciona expresamente ambas; la finalidad 2 tiene su propia casilla. Su negativa no será motivo para negarle los servicios contratados.
 
 **Para oponerse o revocar el consentimiento** a cualquiera de las finalidades de esta sección, envíe un correo a quintakooxtanil@gmail.com indicando su nombre completo y la finalidad respecto de la cual desea manifestar su oposición.
 
@@ -118,9 +118,9 @@ Sus datos pueden ser transferidos a terceros únicamente cuando resulte necesari
 | **Autoridades fiscales, administrativas y judiciales competentes** | Cumplimiento de obligaciones legales y atención de requerimientos fundados y motivados. |
 | **Instituciones bancarias** | Ejecución de pagos, reembolsos y atención de aclaraciones y contracargos. |
 
-**Transferencia que SÍ requiere su consentimiento.** [CONFIRMAR: transferencia nueva] Con su consentimiento (apartado 3.2, finalidad 4), transferimos a **Meta Platforms** identificadores de anuncio y su teléfono y correo electrónico transformados con hash, para medir nuestras campañas y mostrarle publicidad nuestra.
+**Transferencias que SÍ requieren su consentimiento.** Con su consentimiento (apartado 3.2, finalidad 4), transferimos a **Meta Platforms** y a **Google** identificadores de anuncio y su teléfono y correo electrónico transformados con hash, para medir nuestras campañas y mostrarle publicidad nuestra.
 
-**No comercializamos ni vendemos sus datos personales.** [CONFIRMAR: la transferencia a Meta para medición y remarketing solo se realiza con su consentimiento, conforme al apartado 3.2.] Si no desea que sus datos se utilicen para ese fin, puede negarse o revocar su consentimiento sin que ello afecte los servicios que contrate.
+**No comercializamos ni vendemos sus datos personales.** La transferencia a Meta y a Google para medición y remarketing solo se realiza con su consentimiento, conforme al apartado 3.2. Si no desea que sus datos se utilicen para ese fin, puede negarse o revocar su consentimiento sin que ello afecte los servicios que contrate.
 
 ### 4.2 Remisiones a encargados del tratamiento
 Utilizamos proveedores tecnológicos que tratan datos personales **por nuestra cuenta y bajo nuestras instrucciones**, sujetos a obligaciones contractuales de confidencialidad y seguridad. Algunos de ellos almacenan información en **servidores ubicados fuera del territorio mexicano**:
@@ -191,8 +191,8 @@ Conservamos sus datos personales durante la vigencia de la relación contractual
 | Conversaciones por WhatsApp en las que intervino una persona del equipo (aclaraciones, incidencias o reclamos) | **2 años** desde el último mensaje, para la atención de aclaraciones y reclamaciones ante la PROFECO |
 | Conversaciones por WhatsApp de clientes que contrataron o pagaron un servicio | **5 años** desde el último mensaje, por su carácter de mensaje de datos relativo a una operación comercial, conforme al artículo 30 del Código Fiscal de la Federación y al Código de Comercio |
 | Datos de contacto para fines promocionales | Hasta que usted revoque su consentimiento |
-| Prospectos que consultaron o cotizaron y no contrataron (nombre, teléfono, identificador de clic en el anuncio) | **1 año** desde su última interacción; después se eliminan los datos que lo identifican y solo se conserva información estadística de la campaña [CONFIRMAR: plazo de retención de prospectos] |
-| Eventos de conversión pendientes de envío a Meta (identificadores de anuncio, dirección IP y agente de usuario) | Se eliminan al enviarse o al agotarse los reintentos [CONFIRMAR: plazo] |
+| Prospectos que consultaron o cotizaron y no contrataron (nombre, teléfono, identificador de clic en el anuncio) | **1 año** desde su última interacción; después se eliminan los datos que lo identifican y solo se conserva información estadística de la campaña |
+| Eventos de conversión pendientes de envío a Meta o a Google (identificadores de anuncio, dirección IP y agente de usuario) | La dirección IP y el agente de usuario se eliminan al enviarse el evento o al agotarse los reintentos |
 
 Concluidos dichos plazos, los datos son bloqueados y posteriormente suprimidos conforme a la normativa vigente.
 
@@ -204,9 +204,11 @@ Concluidos dichos plazos, los datos son bloqueados y posteriormente suprimidos c
 
 **b) Contenido de terceros.** Nuestro sitio muestra un mapa de ubicación de Google Maps y utiliza tipografías de Google Fonts. Al cargarlos, su navegador se comunica directamente con Google, que puede recibir su dirección IP y datos técnicos del navegador y, en el caso del mapa, establecer sus propias cookies, conforme a su propio aviso de privacidad.
 
-**c) Cookies analíticas y publicitarias (Pixel de Meta).** [CONFIRMAR: apartado modificado] Nuestro sitio y el cotizador pueden utilizar el Pixel de Meta, que coloca cookies en su navegador y envía a Meta información sobre las páginas que visita y las acciones que realiza (por ejemplo, enviar una solicitud de cotización), con la finalidad descrita en el apartado 3.2, finalidad 4. **Estas cookies solo se activan si usted las acepta** en el aviso que se muestra al entrar al sitio; si las rechaza, el Pixel no se carga ni se instalan sus cookies, y puede cambiar su decisión en cualquier momento con el botón "Cookies" de la página. Meta puede tratar la información conforme a su propio aviso de privacidad.
+**c) Cookies analíticas y publicitarias (Pixel de Meta).** Nuestro sitio y el cotizador pueden utilizar el Pixel de Meta, que coloca cookies en su navegador y envía a Meta información sobre las páginas que visita y las acciones que realiza (por ejemplo, enviar una solicitud de cotización), con la finalidad descrita en el apartado 3.2, finalidad 4. **Estas cookies solo se activan si usted las acepta** en el aviso que se muestra al entrar al sitio; si las rechaza, el Pixel no se carga ni se instalan sus cookies, y puede cambiar su decisión en cualquier momento con el botón "Cookies" de la página. Meta puede tratar la información conforme a su propio aviso de privacidad.
 
-**d) Eventos de conversión enviados desde nuestros servidores.** [CONFIRMAR: apartado nuevo] Además del Pixel, enviamos a Meta desde nuestros servidores eventos de conversión (con datos de contacto transformados con hash), únicamente si usted aceptó las comunicaciones promocionales. Puede oponerse en cualquier momento escribiendo a quintakooxtanil@gmail.com o respondiendo BAJA a cualquier mensaje promocional.
+**d) Eventos de conversión enviados desde nuestros servidores.** Además del Pixel, enviamos a Meta y a Google desde nuestros servidores eventos de conversión (con datos de contacto transformados con hash), únicamente si usted aceptó las comunicaciones promocionales. Puede oponerse en cualquier momento escribiendo a quintakooxtanil@gmail.com o respondiendo BAJA a cualquier mensaje promocional.
+
+**e) Identificador de clic de Google Ads.** Si llega a nuestro sitio desde un anuncio de Google, el identificador del clic que Google agrega al enlace (por ejemplo, `gclid`) se guarda en el almacenamiento local de su navegador hasta por 90 días y se envía con su solicitud de cotización, para saber qué anuncio la originó. No instala cookies de Google. Solo se envía a Google como evento de conversión si usted aceptó la finalidad 4.
 
 Puede configurar su navegador para rechazar o eliminar cookies; hacerlo podría limitar el acceso a determinadas funciones del portal.
 
