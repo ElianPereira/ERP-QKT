@@ -239,9 +239,25 @@ class ConsentimientoTest(ConversionesBase):
 
     def test_el_boton_de_promociones_de_la_conversacion_basta(self):
         self.mensaje(referral={'source_id': 'AD1', 'ctwa_clid': 'CLID-1'})
-        ConversacionWhatsApp.objects.update(consentimiento_marketing=True)
+        ConversacionWhatsApp.objects.update(consentimiento_marketing=True, consentimiento_en=timezone.now())
         resumen, _ = self.enviar(return_value=OK)
         self.assertEqual(resumen['enviados'], 1)
+
+    def test_boton_de_promociones_anterior_al_aviso_27_no_basta(self):
+        self.mensaje(referral={'source_id': 'AD1', 'ctwa_clid': 'CLID-1'})
+        ConversacionWhatsApp.objects.update(consentimiento_marketing=True,
+                                            consentimiento_en=conversiones.MEDICION_DESDE - timedelta(minutes=1))
+        resumen, post = self.enviar(return_value=OK)
+        post.assert_not_called()
+        self.assertEqual(resumen['enviados'], 0)
+
+    def test_marketing_aceptado_antes_del_aviso_27_no_cubre_la_medicion(self):
+        lead = self.lead_con_anuncio()
+        AceptacionLegal.objects.filter(cliente=lead.cliente).update(
+            aceptado_en=conversiones.MEDICION_DESDE - timedelta(days=1))
+        resumen, post = self.enviar(return_value=OK)
+        post.assert_not_called()
+        self.assertEqual(resumen['enviados'], 0)
 
     def test_prospecto_anonimizado_no_envia(self):
         lead = self.lead_con_anuncio()

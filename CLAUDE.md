@@ -285,7 +285,8 @@ salvo que queden obsoletas.
   funcionaba el código: las conversiones exigen MARKETING), por eso el Aviso deja de prometer casillas separadas para cada finalidad.
   Casilla del cotizador, pregunta del botón «Acepto + promociones» de Kooxi y nombre de la finalidad MARKETING mencionan la medición.
   **Las aceptaciones de MARKETING anteriores se dieron con el texto viejo** (solo promociones): siguen valiendo para promociones, pero
-  para medición conviene decidir con el abogado si se envían sus eventos. Sin migración.
+  `conversiones.tiene_consentimiento` solo cuenta las dadas desde `MEDICION_DESDE` (06/11/2026 00:00 Mérida), en el cotizador y en el
+  botón de Kooxi; lo anterior queda OMITIDO_SIN_CONSENTIMIENTO para Meta y Google. Sin migración.
 
 - 2026-11-05 — **Prospectos del histórico nacían con «última interacción = hoy»** (primer `sincronizar_prospectos --desde
   2026-07-01` en producción: 135 creados y 219 abiertos). `_crear` ponía `max(primer_contacto, ahora)` y `_ultima_interaccion`
