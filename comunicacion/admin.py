@@ -399,6 +399,18 @@ class ResponsableAdmin(admin.ModelAdmin):
     inlines = [CambioResponsableInline]
     columnas_texto = ('nombre',)
     CAMPOS_BITACORA = ('rol', 'nombre', 'email', 'modo_copia', 'activo', 'vigente_desde', 'vigente_hasta')
+    actions = ('reenviar_acepto',)
+
+    @admin.action(description='Reenviar solicitud de ACEPTO')
+    def reenviar_acepto(self, request, queryset):
+        enviados = 0
+        for resp in queryset.filter(activo=True).exclude(telefono_pendiente=''):
+            services_responsables.reenviar_acepto(resp, request.user)
+            enviados += 1
+        if enviados:
+            self.message_user(request, f'Se reenvió la solicitud de ACEPTO a {enviados} responsable(s).')
+        else:
+            self.message_user(request, 'Ninguno de los seleccionados está esperando ACEPTO.', level='warning')
 
     def has_module_permission(self, request):
         return request.user.is_superuser
