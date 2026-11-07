@@ -464,10 +464,12 @@ def _avisar(bitacora):
                     pend.resolver(abierto)
             total = estado.movimientos.count()
             sin = estado.movimientos.filter(movimiento_contable__isnull=True).count()
+            al_contador = enviar_al_contador(estado)
             aviso = Aviso(
                 titulo=f"Estado de cuenta BBVA de {_mes_texto(estado.periodo_mes, estado.periodo_anio)} cargado",
                 categoria='Contabilidad',
                 lineas=[f"{total} movimientos", f"{sin} sin conciliar",
+                        "PDF enviado al correo del contador" if al_contador else '',
                         "Revisa la advertencia en Correos" if bitacora.advertencia else ''])
             for telefono in _telefonos_aviso():
                 pend._enviar_aviso(telefono, aviso, clave=f'{clave}:ok:{telefono}')
@@ -483,6 +485,57 @@ def _avisar(bitacora):
                 pendiente.save(update_fields=['detalle', 'updated_at'])
     except Exception:
         logger.exception("Estado de cuenta por correo: no se pudo avisar")
+
+
+def enviar_al_contador(estado, *, reenvio=False):
+    """Manda al correo del contador el estado de cuenta (el archivo ya sin contraseña) para su
+    control interno. Una sola vez por estado de cuenta, salvo `reenvio`. Devuelve si salió; nunca lanza."""
+    from django.conf import settings
+    from django.core.mail import EmailMessage
+
+    from comunicacion.services import reservar_comunicacion
+    from facturacion.models import ConfiguracionContador
+
+    contador = ConfiguracionContador.get_activo()
+    if not contador or not contador.email:
+        logger.info("Estado de cuenta %s: no hay correo de contador configurado", estado.pk)
+        return False
+    periodo = _mes_texto(estado.periodo_mes, estado.periodo_anio)
+    asunto = f"Estado de cuenta BBVA {periodo}"
+    clave = f'estado_cuenta:{estado.pk}:contador'
+    if reenvio:
+        clave = f'{clave}:{timezone.now():%Y%m%d%H%M%S%f}'
+    comm = reservar_comunicacion(
+        canal='EMAIL', tipo='OTRO', trigger='SIGNAL', destinatario=contador.email, asunto=asunto,
+        estado='PENDIENTE', clave_idempotencia=clave)
+    if comm is None:
+        return False
+    try:
+        cuenta = estado.cuenta_bancaria
+        saldo = lambda v: f"${v:,.2f}" if v is not None else "sin dato"  # noqa: E731
+        cuerpo = (
+            f"Hola {contador.nombre}:\n\n"
+            f"Te compartimos el estado de cuenta BBVA de {periodo} "
+            f"(cuenta terminada en {(cuenta.numero_cuenta or '')[-4:]}) para tu control interno.\n\n"
+            f"Saldo inicial: {saldo(estado.saldo_inicial_estado)}\n"
+            f"Saldo final: {saldo(estado.saldo_final_estado)}\n"
+            f"Movimientos: {estado.movimientos.count()}\n\n"
+            "Va adjunto sin contraseña. Quinta Ko'ox Tanil."
+        )
+        with estado.archivo.open('rb') as f:
+            contenido = f.read()
+        extension = (estado.archivo.name.rsplit('.', 1)[-1] or 'pdf').lower()
+        nombre = f"EstadoCuenta_BBVA_{estado.periodo_anio}-{estado.periodo_mes:02d}.{extension}"
+        tipo_mime = 'application/pdf' if extension == 'pdf' else 'application/xml'
+        correo = EmailMessage(asunto, cuerpo, settings.ERP_EMAIL_REMITENTE_NOTIFICACIONES, [contador.email])
+        correo.attach(nombre, contenido, tipo_mime)
+        correo.send()
+        comm.estado, comm.fecha_envio = 'ENVIADO', timezone.now()
+    except Exception as e:
+        logger.exception("Estado de cuenta %s: no se pudo enviar al contador", estado.pk)
+        comm.estado, comm.error = 'FALLIDO', str(e)[:1000]
+    comm.save()
+    return comm.estado == 'ENVIADO'
 
 
 def _ignorado_sin_resolver(bitacora):

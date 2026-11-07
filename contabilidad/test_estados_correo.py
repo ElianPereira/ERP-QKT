@@ -535,6 +535,51 @@ class CuentaBancariaAdminTest(BaseCorreoTest):
         self.assertFalse(self.cuenta.password_estado_cifrada)
 
 
+class ContadorTest(BaseCorreoTest):
+    def setUp(self):
+        super().setUp()
+        from facturacion.models import ConfiguracionContador
+        ConfiguracionContador.objects.create(nombre='Contador', email='contador@example.com', activo=True)
+
+    def correos_al_contador(self):
+        from django.core import mail
+        return [m for m in mail.outbox if m.to == ['contador@example.com']]
+
+    def test_al_procesar_le_llega_el_pdf_al_contador(self):
+        self.procesar(self.correo_pdf())
+        correos = self.correos_al_contador()
+        self.assertEqual(len(correos), 1)
+        self.assertIn('abril 2026', correos[0].subject)
+        nombre, contenido, tipo = correos[0].attachments[0]
+        self.assertEqual((nombre, tipo), ('EstadoCuenta_BBVA_2026-04.pdf', 'application/pdf'))
+        self.assertEqual(contenido, self.pdf)
+        self.assertTrue(any('PDF enviado al correo del contador' in c.args[1].texto()
+                            for c in self.aviso.call_args_list))
+
+    def test_reprocesar_no_lo_duplica(self):
+        estado = self.procesar(self.correo_pdf()).estado_cuenta
+        self.assertFalse(servicio.enviar_al_contador(estado))
+        self.assertEqual(len(self.correos_al_contador()), 1)
+
+    def test_sin_contador_no_truena_ni_envia(self):
+        from facturacion.models import ConfiguracionContador
+        ConfiguracionContador.objects.update(activo=False)
+        bitacora = self.procesar(self.correo_pdf())
+        self.assertEqual(bitacora.resultado, 'PROCESADO')
+        self.assertEqual(self.correos_al_contador(), [])
+
+    def test_accion_del_admin_lo_reenvia(self):
+        from core_erp.test_utils import login_superuser_con_totp
+        estado = self.procesar(self.correo_pdf()).estado_cuenta
+        login_superuser_con_totp(self.client, User.objects.create_superuser('dir', 'd@example.com', secrets.token_hex(8)))
+        url = '/admin/contabilidad/estadocuentabancario/'
+        datos = {'action': 'enviar_al_contador', '_selected_action': [estado.pk]}
+        self.client.post(url, datos)
+        self.assertEqual(len(self.correos_al_contador()), 1)  # sin confirmar no envía
+        self.client.post(url, {**datos, 'confirmar': 'si'})
+        self.assertEqual(len(self.correos_al_contador()), 2)
+
+
 class SubirCorreoAdminTest(BaseCorreoTest):
     URL = '/admin/contabilidad/correoestadocuenta/subir/'
 
