@@ -107,6 +107,21 @@ class CobradoSinIvaTest(Base):
         self.assertEqual(kpis.cobrado_sin_iva(cot), Decimal('800.00'))
 
 
+class ConsultasCalcularTest(Base):
+    def test_calcular_no_crece_con_los_ganados(self):
+        c = self.campana()
+        self.ganado('AD1', cobrado='5800')
+        with self.assertNumQueries(6):
+            kpis.calcular(HOY - timedelta(days=89), HOY, parametros=self.p)
+        for _ in range(5):
+            self.ganado('AD1', cobrado='5800')
+        with self.assertNumQueries(6):
+            datos = kpis.calcular(HOY - timedelta(days=89), HOY, parametros=self.p)
+        self.assertEqual(datos['total']['ganados'], 6)
+        self.assertEqual(datos['total']['cobrado'], Decimal('30000.00'))
+        self.assertEqual(c.pk, datos['por_campana'][0]['campana_id'])
+
+
 class RazonesTest(Base):
     def test_cortes_y_razones_de_una_campana(self):
         c = self.campana()

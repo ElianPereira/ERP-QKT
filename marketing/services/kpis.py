@@ -32,9 +32,10 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, Optional
 
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
+from comercial.models import Pago
 from core_erp.impuestos import centavos
 from indicadores.models import ParametrosNegocio
 from indicadores.services.base import D0, ESTANCIA_DEFAULT, ETIQUETAS, TIPOS, dividir, q2, venta_neta, ventana_promedio
@@ -48,9 +49,12 @@ SIN_SERVICIO = ''
 CLAVES_RAZON = ('cpl', 'costo_cotizacion', 'tasa_cierre', 'cac', 'roas_cobrado', 'roas_contratado')
 
 
-def cobrado_sin_iva(cotizacion) -> Decimal:
-    """Cobrado neto de reembolsos de una cotización, en su base sin IVA (ni ISH). Nunca negativo."""
-    cobrado = cotizacion.total_pagado_neto()
+def cobrado_sin_iva(cotizacion, cobrado: Optional[Decimal] = None) -> Decimal:
+    """Cobrado neto de reembolsos de una cotización, en su base sin IVA (ni ISH). Nunca negativo.
+
+    `cobrado` (ya neto, como `total_pagado_neto`) evita la consulta cuando el llamador lo trae en lote."""
+    if cobrado is None:
+        cobrado = cotizacion.total_pagado_neto()
     if cobrado <= 0 or cotizacion.precio_final <= 0:
         return D0
     base = venta_neta(cotizacion)
@@ -109,8 +113,16 @@ def calcular(desde: date, hasta: date, *, parametros: Optional[ParametroMarketin
     campanas = {c.pk: c for c in Campana.objects.all()}
 
     filas = []
-    leads = Lead.objects.filter(fecha_primer_contacto__date__gte=desde, fecha_primer_contacto__date__lte=hasta
-                                ).select_related('cotizacion')
+    leads = list(Lead.objects.filter(fecha_primer_contacto__date__gte=desde, fecha_primer_contacto__date__lte=hasta
+                                     ).select_related('cotizacion'))
+    # Misma regla que `Cotizacion.total_pagado_neto`, en una sola consulta para todos los ganados.
+    ids_ganados = [l.cotizacion_id for l in leads if l.etapa == Lead.GANADO and l.cotizacion_id]
+    cobrado_neto = {}
+    if ids_ganados:
+        for r in Pago.objects.filter(cotizacion_id__in=ids_ganados).values('cotizacion_id').annotate(
+                ing=Sum('monto', filter=Q(tipo='INGRESO', concepto='VENTA')),
+                reem=Sum('monto', filter=Q(tipo='REEMBOLSO'))):
+            cobrado_neto[r['cotizacion_id']] = (r['ing'] or D0) - (r['reem'] or D0)
     for lead in leads:
         cot = lead.cotizacion
         ganado = lead.etapa == Lead.GANADO and cot is not None
@@ -118,7 +130,7 @@ def calcular(desde: date, hasta: date, *, parametros: Optional[ParametroMarketin
         filas.append({
             'fuente': lead.fuente, 'campana_id': campana_id, 'cotizado': cot is not None, 'ganado': ganado,
             'contratado': venta_neta(cot) if ganado else D0,
-            'cobrado': cobrado_sin_iva(cot) if ganado else D0,
+            'cobrado': cobrado_sin_iva(cot, cobrado_neto.get(cot.pk, D0)) if ganado else D0,
         })
 
     gasto_por_campana = {
