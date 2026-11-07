@@ -176,6 +176,7 @@ def _pendiente_sin_saldo_caja(movimiento):
 
 
 def aplicar_reglas(estado_cuenta, usuario=None):
+    from .services_abonos import ids_movimientos_en_bitacora
     """
     Crea la póliza de cada movimiento sin asiento que calce con una regla.
     Devuelve un resumen con listas de MovimientoEstadoCuenta: 'aplicadas',
@@ -190,7 +191,10 @@ def aplicar_reglas(estado_cuenta, usuario=None):
     reglas = list(ReglaConciliacion.objects.filter(activa=True).select_related('cuenta'))
     cuenta_caja = ConfiguracionContable.obtener_cuenta('CAJA')
 
-    pendientes = estado_cuenta.movimientos.filter(movimiento_contable__isnull=True).order_by('fecha', 'id')
+    # Un abono propuesto a Dirección o ya registrado como pago de un cliente no es de una regla.
+    en_bitacora = ids_movimientos_en_bitacora()
+    pendientes = (estado_cuenta.movimientos.filter(movimiento_contable__isnull=True)
+                  .exclude(pk__in=en_bitacora).order_by('fecha', 'id'))
     for mov in pendientes:
         existente = _poliza_del_movimiento(mov)
         if existente and existente.estado == 'BORRADOR':

@@ -21,6 +21,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils import timezone
 
+from comercial import datos_bancarios
 from comercial.disponibilidad import verificar_disponibilidad_rango
 from comercial.forms_cotizador import TIPO_EVENTO_CHOICES
 from comercial.models import Cotizacion, PreguntaFrecuente, Producto
@@ -606,8 +607,12 @@ def cotizar_estimado(servicio=None, personas=None, fecha=None, paquete_id=None, 
     return resultado
 
 
-def condiciones_de_pago(servicio=None, fecha=None):
-    """Reglas de anticipo y liquidación tal como las aplica el portal de pago."""
+def condiciones_de_pago(conv=None, servicio=None, fecha=None):
+    """Reglas de anticipo y liquidación tal como las aplica el portal de pago.
+
+    Si quien escribe tiene reservaciones con saldo, trae además los datos para
+    transferir con el folio de cada una (`datos_transferencia`). Sin reservación
+    no se da ninguna cuenta: el folio en el concepto es lo que identifica el pago."""
     servicio = str(servicio or '').upper()
     if servicio not in SERVICIOS:
         return {'error': 'Servicio no válido: EVENTO, PASADIA u HOSPEDAJE.'}
@@ -636,6 +641,10 @@ def condiciones_de_pago(servicio=None, fecha=None):
         limite = inicio - timedelta(days=dias)
         resultado['fecha_limite_para_liquidar'] = limite.isoformat()
         resultado['paga_total_desde_el_inicio'] = limite <= timezone.localdate()
+    transferencias = [datos_bancarios.datos_transferencia(c)
+                      for c in cotizaciones_del_telefono(getattr(conv, 'telefono', '')) if c.saldo_pendiente() > 0]
+    if transferencias:
+        resultado['datos_transferencia'] = transferencias
     return resultado
 
 
@@ -687,6 +696,7 @@ def mi_reservacion(conv=None):
         if c.fecha_salida:
             datos['fecha_salida'] = c.fecha_salida.isoformat()
         if saldo > 0:
+            datos['datos_transferencia'] = datos_bancarios.datos_transferencia(c)
             datos['minimo_a_pagar_hoy'] = _formato(minimo)
             if motivo:
                 datos['motivo_minimo'] = motivo
@@ -944,7 +954,6 @@ _EJECUTORES = {
     'consultar_disponibilidad': consultar_disponibilidad,
     'ver_opciones': ver_opciones,
     'cotizar_estimado': cotizar_estimado,
-    'condiciones_de_pago': condiciones_de_pago,
     'preguntas_frecuentes': preguntas_frecuentes,
     'horarios_de_visita': horarios_de_visita,
 }
@@ -952,6 +961,7 @@ _EJECUTORES = {
 # un teléfono que pueda dictar el modelo.
 _EJECUTORES_DEL_CLIENTE = {
     'mi_reservacion': mi_reservacion,
+    'condiciones_de_pago': condiciones_de_pago,
     'agendar_visita': agendar_visita,
     'avisar_llegada': avisar_llegada,
     'crear_cotizacion': crear_cotizacion,

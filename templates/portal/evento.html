@@ -322,6 +322,28 @@
         </div>
         {% endif %}
 
+        {% if filas_transferencia %}
+        <!-- Transferencia bancaria directa: el folio en el concepto identifica el pago solo. -->
+        <div class="card" id="card-transferencia-bancaria">
+            <div class="card-title"><i class="fas fa-university"></i> Transferencia bancaria</div>
+            <p style="font-size:13px; color:#8a8780; margin-bottom:4px;">
+                Si prefieres transferir desde tu banco, <strong>escribe tu folio en el concepto</strong>:
+                así identificamos tu pago y lo vemos reflejado en este portal.
+            </p>
+            {% for etiqueta, valor in filas_transferencia %}
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #ece9e2;">
+                <div>
+                    <div style="font-size:11px; color:#8a8780;">{{ etiqueta }}</div>
+                    <div id="tb-{{ forloop.counter }}" style="font-weight:700; font-size:15px; letter-spacing:.5px; word-break:break-all;">{{ valor }}</div>
+                </div>
+                <button type="button" class="btn-copiar-transferencia" data-target="tb-{{ forloop.counter }}"
+                        style="background:#f0efe9; border:1px solid #e0ddd3; border-radius:6px; padding:10px 12px; min-height:44px; cursor:pointer; font-size:12px; font-family:inherit; white-space:nowrap;">
+                    <i class="fas fa-copy"></i> Copiar</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if puede_pagar_en_linea %}
 
         {% if pagos_pendientes_openpay %}
@@ -927,6 +949,17 @@
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
         }) + ' a las ' + d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
     }
+
+    document.querySelectorAll('.btn-copiar-transferencia').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var texto = document.getElementById(btn.dataset.target).textContent.trim();
+            navigator.clipboard.writeText(texto).then(function() {
+                var original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+                setTimeout(function() { btn.innerHTML = original; }, 1500);
+            });
+        });
+    });
 
     function filaCopiable(etiqueta, valor) {
         var id = 'cp-' + etiqueta.replace(/[^a-z]/gi, '').toLowerCase();

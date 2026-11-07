@@ -1354,3 +1354,60 @@ class CorreoEstadoCuenta(models.Model):
 
     def __str__(self):
         return f"{self.asunto[:60] or self.message_id} [{self.resultado}]"
+
+
+class AbonoIdentificado(models.Model):
+    """Bitácora de cada abono del estado de cuenta que se intentó atribuir a una cotización.
+
+    Un cliente que transfiere directo a la cuenta deja un abono sin Pago. El
+    servicio `services_abonos` lo identifica por el folio en el concepto (crea el
+    Pago), o lo propone a Dirección (nombre o monto), o lo deja sin identificar.
+    La huella (SHA-256 de cuenta + fecha + importe + descripción) es la llave
+    estable: los renglones del estado de cuenta cambian de pk al reprocesarse.
+    Sin borrado: es evidencia de quién registró qué.
+    """
+    CAPA_CHOICES = [
+        ('FOLIO', 'Folio en el concepto'),
+        ('NOMBRE', 'Nombre y monto'),
+        ('MONTO', 'Solo monto'),
+        ('NINGUNA', 'Sin pista'),
+    ]
+    ESTADO_CHOICES = [
+        ('REGISTRADO', 'Registrado'),
+        ('PROPUESTO', 'Por confirmar'),
+        ('DESCARTADO', 'Descartado'),
+        ('SIN_IDENTIFICAR', 'Sin identificar'),
+        ('ERROR', 'Con error'),
+    ]
+    cuenta_bancaria = models.ForeignKey(
+        CuentaBancaria, on_delete=models.PROTECT, related_name='abonos_identificados', verbose_name="Cuenta bancaria")
+    fecha = models.DateField(verbose_name="Fecha")
+    importe = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="Importe")
+    descripcion = models.CharField(max_length=300, blank=True, verbose_name="Descripción")
+    huella = models.CharField(max_length=64, unique=True, verbose_name="Huella")
+    movimiento = models.ForeignKey(
+        MovimientoEstadoCuenta, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name="Movimiento del banco")
+    cotizacion = models.ForeignKey(
+        'comercial.Cotizacion', on_delete=models.PROTECT, null=True, blank=True, related_name='abonos_identificados',
+        verbose_name="Cotización")
+    capa = models.CharField(max_length=8, choices=CAPA_CHOICES, default='NINGUNA', verbose_name="Cómo se identificó")
+    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='SIN_IDENTIFICAR', db_index=True,
+                              verbose_name="Estado")
+    motivo = models.CharField(max_length=300, blank=True, verbose_name="Motivo")
+    pago = models.ForeignKey(
+        'comercial.Pago', on_delete=models.PROTECT, null=True, blank=True, related_name='+', verbose_name="Pago creado")
+    token_hash = models.CharField(max_length=64, blank=True, db_index=True, verbose_name="Token (HMAC)")
+    token_vence = models.DateTimeField(null=True, blank=True, verbose_name="El botón vence")
+    decidido_por_telefono = models.CharField(max_length=20, blank=True, verbose_name="Decidido desde")
+    decidido_en = models.DateTimeField(null=True, blank=True, verbose_name="Decidido")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado el")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Actualizado el")
+
+    class Meta:
+        verbose_name = "Abono identificado"
+        verbose_name_plural = "Abonos"
+        ordering = ['-fecha', '-id']
+
+    def __str__(self):
+        return f"Abono {self.fecha} ${self.importe} [{self.estado}]"

@@ -646,6 +646,7 @@ JAZZMIN_SETTINGS = {
         "contabilidad.solicituddescargasat": "fas fa-cloud-download-alt",
         "contabilidad.cfdisat":             "fas fa-file-invoice",
         "contabilidad.correoestadocuenta":  "fas fa-envelope-open-text",
+        "contabilidad.abonoidentificado":   "fas fa-hand-holding-usd",
         "contabilidad.polizaeliminada":     "fas fa-trash-alt",
 
         # LEGAL
@@ -808,6 +809,7 @@ JAZZMIN_SETTINGS = {
         "contabilidad.solicituddescargasat",
         "contabilidad.cfdisat",
         "contabilidad.correoestadocuenta",
+        "contabilidad.abonoidentificado",
 
         # === NÓMINA ===
         "nomina",

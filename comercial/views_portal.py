@@ -36,6 +36,7 @@ from core_erp.ratelimit import (
 )
 from core_erp.validadores import FIRMAS_IMAGEN_O_PDF, validar_archivo
 
+from . import datos_bancarios
 from .models import (
     Cotizacion,
     EspacioLanding,
@@ -268,6 +269,8 @@ def portal_evento(request, token):
         # rechazo del servidor. El gate real vive en `portal_procesar_pago_openpay`.
         'admite_pago': admite_pago,
         'admite_pago_motivo': admite_pago_motivo,
+        # Transferencia directa: con el folio en el concepto el pago se identifica solo.
+        'filas_transferencia': datos_bancarios.filas_portal(cotizacion) if admite_pago and saldo_pendiente > 0 else None,
         # Catálogo de cadenas Paynet como JSON: el portal y la ficha PDF leen
         # la misma lista, así no se desincronizan.
         'tiendas_paynet': json.dumps([list(t) for t in TIENDAS_PAYNET]),

@@ -6,6 +6,7 @@ from django.conf import settings
 from core_erp import impuestos
 from facturacion.choices import RegimenFiscal
 
+from . import datos_bancarios
 from .models import ConstanteSistema, ItemCotizacion
 
 # Nombres considerados "genéricos" — si un cliente existente tiene uno
@@ -820,6 +821,9 @@ class ContratoService:
         context = {
             'numero':            numero,
             'folio':             folio,
+            'banco_nombre':      datos_bancarios.BANCO,
+            'banco_titular':     datos_bancarios.TITULAR,
+            'banco_clabe':       datos_bancarios.CLABE,
             'fecha_doc':         fecha_doc,
             'cotizacion':        self.cot,
             'nombre_fiscal':     self.cli.razon_social if self.cli.es_cliente_fiscal and self.cli.razon_social else self.cli.nombre,

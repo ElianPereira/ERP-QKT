@@ -22,6 +22,8 @@ from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 
+from comercial import datos_bancarios
+
 from .formato_wa import Aviso, bloques
 from .services import (
     alertar_equipo_email,
@@ -355,6 +357,7 @@ def notificar_recordatorio(parcialidad, *, fecha, dias_restantes=None):
                 'dias_restantes': dias_restantes,
                 'saldo': saldo,
                 'portal_url': portal,
+                'instruccion_transferencia': datos_bancarios.instruccion_transferencia(cotizacion),
             },
             trigger='CRON',
             clave_idempotencia=f"recordatorio:{parcialidad.pk}:{marca}:email",

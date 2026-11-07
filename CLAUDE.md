@@ -277,6 +277,29 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-07 — **Transferencias de clientes identificadas por folio** (**mueve dinero**: va a revisión antes del merge; sin tocar
+  zonas restringidas; migración `contabilidad.0043`, una tabla nueva). Un cliente que transfiere directo a BBVA dejaba un abono sin
+  `Pago`. `contabilidad/services_abonos.py::identificar_abonos` corre dentro de `emparejar_y_asentar` (después de
+  `_emparejar_automaticamente`, antes de reglas) y deja una fila `AbonoIdentificado` por abono (admin «Abonos», solo lectura).
+  **Huella** = SHA-256 de cuenta + fecha + importe + concepto + referencia + orden entre idénticos: los renglones cambian de pk al
+  reprocesar el PDF y la bitácora los sigue por huella (también re-liga a su pago un abono ya registrado). **Capa 1 FOLIO**
+  (`COT[-\s]?0*N`, un solo folio distinto): si `admite_pago_detalle()` y el importe ≤ saldo + $0.50 (la tolerancia de `Pago.clean()`),
+  crea `Pago` TRANSFERENCIA (`BANCO-<huella12>`) con `full_clean()`+`save()` y liga el renglón a la línea de bancos de la póliza
+  PAGO_CLIENTE; si el pago no deja póliza ligable se revierte todo. **Antes de crear** exige que `BANCO_PRINCIPAL` sea la cuenta contable
+  de la cuenta bancaria del estado (el signal asienta siempre contra `BANCO_PRINCIPAL`); si no, ERROR + pendiente URGENTE a Dirección.
+  Folio válido que no cabe o no admite pago → PROPUESTO sin botón Registrar. **Capas 2 y 3** (nombre+monto; solo monto con evento −5/+180
+  días) solo proponen y solo con UNA candidata; un abono que ya cubre una `ReglaConciliacion` (depósito de efectivo, intereses) no deja
+  bitácora y lo atiende `aplicar_reglas`, que además se salta lo PROPUESTO/REGISTRADO. Propuesta → pendiente URGENTE a DIRECCION con
+  `abo:<token>:ok|no` (HMAC, un uso, 24 h, solo `direccion_activa`; ruteado en `_atender_pendientes`, botón ajeno se descarta sin
+  contestar); confirmar revalida cotización, saldo y cuenta bajo `select_for_update`. «No es» → DESCARTADO + pendiente al encargado.
+  **Instrucción al cliente** (`comercial/datos_bancarios.py`, fuente única de BANCO/TITULAR/CLABE): contratos antiguos (los dos
+  PROFECO) y plan de pagos PDF, correo de recordatorio, portal (bloque «Transferencia bancaria» con copiar) y Kooxi
+  (`datos_transferencia` en `mi_reservacion` y `condiciones_de_pago`, que ahora recibe la conversación; sin reservación no da cuenta;
+  `services_guardia` deja pasar solo la CLABE propia y el juez la tiene como no-fuga). **No se tocó**: el contrato propio activo
+  (`contratos/propio/`), que no imprime CLABE (texto legal validado por el abogado) y el WhatsApp de recordatorio, que es solo plantilla
+  de Meta. Pendiente del propietario: decidir si el contrato propio debe llevar la instrucción del folio (cambia texto legal) y
+  correr `evaluar_agente --ejecutar` (caso nuevo `transferencia_sin_reservacion`; no se corrió aquí, sin llave de Anthropic).
+
 - 2026-11-06 — **Aviso de Privacidad v2.7 publicado, con Meta y Google** (aprobado por el abogado; el propietario autorizó editar
   `legal/` y extender a Google lo que el abogado vio solo para Meta, en los mismos párrafos). Vigencia 06/11/2026, sin marcadores; el
   seed apunta a `aviso_privacidad_v2.7.md` y `aviso_simplificado_v2.1.md` (nuevo: menciona la medición en Meta y Google) y se publican
