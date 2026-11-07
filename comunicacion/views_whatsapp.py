@@ -22,13 +22,16 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from comercial import services_ordenes_wa, services_terminal
+from comercial import services_cancelacion, services_ordenes_wa, services_terminal
 from contabilidad import services_abonos
 from core_erp.ratelimit import rate_limit
 from cumplimiento import services_renovacion
 
 from . import (
     services_agente,
+    services_arco,
+    services_contador,
+    services_direccion,
     services_encuesta,
     services_inspeccion,
     services_pendientes,
@@ -52,7 +55,8 @@ def _firma_valida(request) -> bool:
 
 
 def _es_boton_interno(identificador) -> bool:
-    """Botones que atiende el ERP (no el agente): bandeja, terminal, FAQ, encuesta, cumplimiento, inspección y visitas."""
+    """Botones que atiende el ERP (no el agente): bandeja, terminal, FAQ, encuesta, cumplimiento, inspección, visitas,
+    órdenes, cancelaciones, ARCO, Dirección, contador y abonos."""
     from marketing.services import medios
 
     return (services_pendientes.es_boton(identificador) or services_terminal.es_boton(identificador)
@@ -61,7 +65,9 @@ def _es_boton_interno(identificador) -> bool:
             or services_renovacion.es_boton(identificador)
             or services_inspeccion.es_boton(identificador) or services_visitas.es_boton(identificador)
             or services_ordenes_wa.es_boton(identificador)
-            or services_abonos.es_boton(identificador))
+            or services_abonos.es_boton(identificador)
+            or services_cancelacion.es_boton(identificador) or services_arco.es_boton(identificador)
+            or services_direccion.es_boton(identificador) or services_contador.es_boton(identificador))
 
 
 def _texto(mensaje: dict) -> str:
