@@ -86,6 +86,16 @@ class PlantillaContratoTest(ContratoPropioBase):
         self.assertIn('Anexo Hospedaje', html)
         self.assertIn("Ka&#x27;an Room", html)
 
+    def test_los_tres_servicios_piden_el_folio_en_la_transferencia(self):
+        from comercial import datos_bancarios
+        hospedaje = self._cot('HOSPEDAJE', fecha_salida=date(2026, 12, 7))
+        self._habitacion(hospedaje, "Ka'an Room")
+        for cot in (self._cot('EVENTO'), self._cot('PASADIA'), hospedaje):
+            with self.subTest(cot.tipo_servicio):
+                html = _html(cot, vista_previa=True)
+                self.assertIn(datos_bancarios.CLABE, html)
+                self.assertIn(f'<strong>COT-{cot.pk:03d}</strong> en el concepto', html)
+
     def test_tabla_de_cancelacion_por_servicio(self):
         self.assertIn('Más de 60 días naturales antes', _html(self._cot('PASADIA'), vista_previa=True))
         cot = self._cot('HOSPEDAJE', fecha_salida=date(2026, 12, 7))
